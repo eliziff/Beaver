@@ -28,10 +28,6 @@ function integer(value: unknown, min = 0) {
   if (!Number.isSafeInteger(value) || Number(value) < min) return bad();
   return Number(value);
 }
-function stringArray(value: unknown, max = 500) {
-  if (!Array.isArray(value) || value.length > max) return bad();
-  return value.map((item) => text(item));
-}
 function digest(value: unknown) {
   const result = text(value, 64).toLowerCase();
   return /^[a-f0-9]{64}$/u.test(result) ? result : bad();
@@ -100,9 +96,6 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
       excluded: typeof item.excluded === "boolean" ? item.excluded : bad() };
     case "rename-authority": return { type, authorityId: text(item.authorityId),
       displayName: nullableText(item.displayName, 2_000) };
-    case "set-authority-tab": return { type, authorityId: text(item.authorityId),
-      tabLabel: nullableText(item.tabLabel, 80) };
-    case "reorder-authorities": return { type, authorityIds: stringArray(item.authorityIds) };
     case "split-occurrence": return { type, occurrenceId: text(item.occurrenceId),
       cursor: integer(item.cursor, 1) };
     case "merge-occurrence": return { type, occurrenceId: text(item.occurrenceId) };
@@ -120,12 +113,9 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
       if (item.pageUrl !== undefined) return bad();
       return { type, authorityId: text(item.authorityId) };
     }
+    case "clear-authority-source": return { type, authorityId: text(item.authorityId) };
     case "clear-book-part": return { type,
       slot: choice(item.slot, ["cover", "index"] as const) };
-    case "update-book-supplement": return { type, id: text(item.id),
-      title: text(item.title, 500), tab: text(item.tab, 80) };
-    case "reorder-book-supplements": return { type, ids: stringArray(item.ids) };
-    case "remove-book-supplement": return { type, id: text(item.id) };
     case "set-profile": return { type,
       profileId: choice(item.profileId, authoritiesProfileIds) };
     case "set-settings": return { type, settings: settings(item.settings) };
@@ -230,10 +220,8 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
       const file = req.file ?? reject(400, "file is required");
       res.json(await application.attachBookPdf(applicationScope(res), text(req.params.id), {
         revision: revision(req.body?.revision, true),
-        slot: choice(req.params.slot, ["cover", "index", "supplemental"] as const),
+        slot: choice(req.params.slot, ["cover", "index"] as const),
         file: uploadedDocument(file),
-        ...(req.body?.title === undefined ? {} : { title: text(req.body.title, 500) }),
-        ...(req.body?.tab === undefined ? {} : { tab: text(req.body.tab, 80) }),
       }));
     }));
   router.post("/:id/build", asyncRoute(async (req, res) => {

@@ -30,11 +30,11 @@ const manualState = () => ({ schemaVersion: "beaver.authorities-draft.v1" as con
     tableDelivery: "native-append" as const, tableLocation: "pages" as const,
     passageMarking: "margin" as const, scannedPdfPolicy: "page-margin" as const,
     missingSourcePolicy: "placeholder" as const },
-  bookParts: { cover: null, index: null, supplements: [] },
+  bookParts: { cover: null, index: null },
   insertIntoDocument: false, ledger: null, units: [], occurrences: {},
   authorityOrder: ["case"], authorities: { case: {
     id: "case", key: "case", kind: "case" as const, citation: "2024 ABKB 123",
-    name: "Example v Example", displayName: null, tabLabel: null,
+    name: "Example v Example", displayName: null,
     evidenceIds: [], locators: [],
     sourceIdentity: null, excluded: false, source: { kind: "unresolved" as const },
   } } });
@@ -150,7 +150,7 @@ describe("standalone Authorities runtime", () => {
     expect(response.body.import).toMatchObject({ filename: "Factum.pdf", fileType: "pdf" });
   });
 
-  it("attaches replaceable front matter and ordered supplemental PDFs", async () => {
+  it("attaches replaceable cover and index PDFs", async () => {
     const makePdf = async (pages: number) => {
       const pdf = await PDFDocument.create();
       for (let index = 0; index < pages; index += 1) pdf.addPage();
@@ -174,20 +174,15 @@ describe("standalone Authorities runtime", () => {
       filename: "New cover.pdf", sourceSha256: sha256(replacement) });
     expect(Object.keys(replaced.body.bindings)).toEqual(["book:cover:cover"]);
 
-    const appendix = await makePdf(1);
-    const explicit = await request(app).post("/authorities-runtime/book-part")
-      .field("draft", JSON.stringify(replaced.body)).field("slot", "supplemental")
-      .field("modified", "6").field("title", "Procedure chart").field("tab", "Schedule A")
-      .attach("file", appendix, "Chart.pdf").expect(200);
-    const automatic = await request(app).post("/authorities-runtime/book-part")
-      .field("draft", JSON.stringify(explicit.body)).field("slot", "supplemental")
-      .field("modified", "7").attach("file", appendix, "Second appendix.pdf").expect(200);
-    expect(automatic.body.bookParts.supplements).toMatchObject([
-      { title: "Procedure chart", tab: "Schedule A", filename: "Chart.pdf" },
-      { title: "Second appendix", tab: "Appendix 1", filename: "Second appendix.pdf" },
-    ]);
-    expect(automatic.body.bookParts.supplements[0].id)
-      .not.toBe(automatic.body.bookParts.supplements[1].id);
+    const index = await makePdf(1);
+    const indexed = await request(app).post("/authorities-runtime/book-part")
+      .field("draft", JSON.stringify(replaced.body)).field("slot", "index")
+      .field("modified", "6").attach("file", index, "Index.pdf").expect(200);
+    expect(indexed.body.bookParts.index).toMatchObject({ filename: "Index.pdf",
+      sourceSha256: sha256(index) });
+    await request(app).post("/authorities-runtime/book-part")
+      .field("draft", JSON.stringify(indexed.body)).field("slot", "supplemental")
+      .field("modified", "7").attach("file", index, "Extra.pdf").expect(400);
   });
 
   it("accepts only actual PDF uploads for book parts", async () => {

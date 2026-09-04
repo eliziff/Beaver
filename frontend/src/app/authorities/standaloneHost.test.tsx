@@ -52,7 +52,7 @@ function product(binding: WorkProductInput, insertIntoDocument = false): Authori
       tableOrder: "alphabetical", tableDelivery: "native-append", tableLocation: "pages",
       passageMarking: "margin", scannedPdfPolicy: "page-margin",
       missingSourcePolicy: "placeholder" },
-    bookParts: { cover: null, index: null, supplements: [] }, ledger: null,
+    bookParts: { cover: null, index: null }, ledger: null,
     units: [{ id: "body:1", kind: "body", ordinal: 0, footnoteId: null,
       footnoteRefs: [], pageNumbers: [1], text: "2024 ABKB 1", occurrenceIds: [] }],
     occurrences: {}, authorities: {}, authorityOrder: [],
@@ -99,7 +99,7 @@ describe("standalone Authorities sources", () => {
     );
     const role = "authority:case";
     state.authorities.case = { id: "case", key: "case", kind: "case",
-      citation: "2024 ABKB 1", name: null, displayName: null, tabLabel: null,
+      citation: "2024 ABKB 1", name: null, displayName: null,
       evidenceIds: [], locators: [], sourceIdentity: null, excluded: false,
       source: { kind: "attached", bindingRole: role, filename: "Case.pdf",
         sourceSha256: digest, sourceUrl: null, origin: "reconstructed" } };
@@ -173,7 +173,7 @@ describe("standalone Authorities sources", () => {
   it("relinks an attached PDF without reparsing citation review", async () => {
     const saved = product(input("0".repeat(64), 3, "attached-draft-source"));
     saved.state.authorities.case = { id: "case", key: "case", kind: "case",
-      citation: "2024 ABKB 1", name: null, displayName: null, tabLabel: null, excluded: false,
+      citation: "2024 ABKB 1", name: null, displayName: null, excluded: false,
       evidenceIds: [], locators: [], sourceIdentity: null, source: { kind: "attached",
         bindingRole: "authority:case", filename: "Case.pdf",
         sourceSha256: "0".repeat(64), sourceUrl: null, origin: "manual" } };
@@ -344,7 +344,7 @@ describe("standalone Authorities sources", () => {
     saved.state.settings.profileId = "ab-court-of-appeal";
     saved.state.bindings[role] = authorityBinding;
     saved.state.authorities.case = { id: "case", key: "case", kind: "case",
-      citation: "2024 ABCA 1", name: "Example v Example", displayName: null, tabLabel: null,
+      citation: "2024 ABCA 1", name: "Example v Example", displayName: null,
       evidenceIds: [], locators: [], sourceIdentity: null, excluded: false,
       source: { kind: "attached", bindingRole: role, filename: authority.name,
         sourceSha256: authorityBinding.kind === "local-file"

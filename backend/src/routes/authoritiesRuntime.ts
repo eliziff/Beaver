@@ -157,7 +157,7 @@ export function createAuthoritiesRuntimeRouter(
   router.post("/book-part", singleFileUpload("file"), asyncRoute(async (req, res) => {
     const current = draft(json(req.body?.draft, "draft"));
     const file = req.file ?? reject(400, "file is required");
-    const slot = (["cover", "index", "supplemental"] as const)
+    const slot = (["cover", "index"] as const)
       .find((value) => value === req.body?.slot) ?? reject(400, "Book-part slot is invalid");
     const filename = file.originalname.trim(), modified = Number(req.body?.modified);
     if (!filename || filename.length > 500 || /[\u0000-\u001f\u007f]/u.test(filename) ||
@@ -165,28 +165,12 @@ export function createAuthoritiesRuntimeRouter(
         !Number.isSafeInteger(modified) || modified < 0) reject(400, "Add a PDF file");
     const bytes = await readFile(file.path);
     if (bytes.subarray(0, 5).toString("ascii") !== "%PDF-") reject(400, "Add a valid PDF");
-    const sourceSha256 = sha256(bytes), id = slot === "supplemental" ? randomUUID() : slot;
-    const existing = slot === "supplemental" ? null : current.bookParts[slot];
-    const bindingRole = existing?.bindingRole ?? `book:${slot}:${id}`;
+    const sourceSha256 = sha256(bytes), existing = current.bookParts[slot];
+    const bindingRole = existing?.bindingRole ?? `book:${slot}:${slot}`;
     const binding = { kind: "local-file" as const, handleId: "standalone",
       lastSeen: { name: filename, size: bytes.length, modified, sha256: sourceSha256 } };
     const pdf = { bindingRole, filename, sourceSha256 };
-    if (slot !== "supplemental") {
-      return void res.json(reduceAuthoritiesDraft(current,
-        { type: "set-book-part", slot, pdf, binding }));
-    }
-    const title = String(req.body?.title ?? "").trim() ||
-      filename.replace(/\.pdf$/iu, "").trim() || `Supplement ${current.bookParts.supplements.length + 1}`;
-    let tab = String(req.body?.tab ?? "").trim(), number = 1;
-    while (!tab && current.bookParts.supplements.some((item) =>
-      item.tab.toLocaleLowerCase("en-CA") === `appendix ${number}`.toLocaleLowerCase("en-CA"))) number += 1;
-    tab ||= `Appendix ${number}`;
-    if (title.length > 500 || tab.length > 80 || /[\u0000-\u001f\u007f]/u.test(title + tab) ||
-        current.bookParts.supplements.some((item) =>
-          item.tab.toLocaleLowerCase("en-CA") === tab.toLocaleLowerCase("en-CA")))
-      reject(400, "Supplement title or tab is invalid");
-    res.json(reduceAuthoritiesDraft(current, { type: "set-book-supplement",
-      supplement: { ...pdf, id, title, tab }, binding }));
+    res.json(reduceAuthoritiesDraft(current, { type: "set-book-part", slot, pdf, binding }));
   }));
   router.post("/build", multipleFileUpload("files", 100), asyncRoute(async (req, res) => {
     const build = new AbortController();

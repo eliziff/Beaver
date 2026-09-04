@@ -157,15 +157,12 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
   async attachBookPdf(id, revision, slot, selected) {
     if (!await validPdf(selected.file)) throw new Error("Add a valid PDF.");
     const product = await currentProduct(id, revision);
-    const previous = new Set(product.state.bookParts.supplements.map(({ id }) => id));
     const binding = await bindStandaloneFile(selected.file, selected.input);
     const form = new FormData(); form.append("draft", JSON.stringify(product.state));
     form.append("slot", slot); form.append("file", selected.file, selected.file.name);
     form.append("modified", String(selected.file.lastModified));
     const state = await runtimeDraft("book-part", form);
-    const part = slot === "supplemental"
-      ? state.bookParts.supplements.find(({ id: partId }) => !previous.has(partId))
-      : state.bookParts[slot];
+    const part = state.bookParts[slot];
     if (!part || part.sourceSha256 !== binding.lastSeen.sha256)
       throw new Error("The selected PDF changed while it was being added.");
     state.bindings[part.bindingRole] = binding;
@@ -184,7 +181,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
       ...(product.state.insertIntoDocument && product.state.import.kind === "document"
         ? [product.state.import.bindingRole] : []),
       ...(product.state.outputMode === "table" ? [] : [product.state.bookParts.cover,
-        product.state.bookParts.index, ...product.state.bookParts.supplements]
+        product.state.bookParts.index]
         .flatMap((part) => part ? [part.bindingRole] : [])),
     ];
     const form = new FormData(); form.append("draft", JSON.stringify(product.state));
@@ -232,8 +229,8 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
       ? state.import : null;
     const authority = Object.values(state.authorities).find(({ source }) =>
       source.kind === "attached" && source.bindingRole === role);
-    const bookPdf = [state.bookParts.cover, state.bookParts.index,
-      ...state.bookParts.supplements].find((part) => part?.bindingRole === role);
+    const bookPdf = [state.bookParts.cover, state.bookParts.index]
+      .find((part) => part?.bindingRole === role);
     const boundPdf = authority?.source.kind === "attached" ? authority.source : bookPdf;
     const resolved = await relinkStandaloneFile(binding, true, authority || bookPdf ? "pdf" : "source");
     if (resolved.status === "missing") throw new Error("Choose the source file to relink it.");

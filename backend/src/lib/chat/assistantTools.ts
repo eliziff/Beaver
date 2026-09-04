@@ -141,7 +141,7 @@ import { WORK_PRODUCT_KINDS, type WorkProductKind } from "../workProduct";
 import { createResearchFileState, readResearchFile, researchFileActionSchema,
   researchFileMarkdown, researchQueryReceipt, researchQuerySources,
   researchSourceFromResource, saveResearchFile,
-  type ResearchFileAction } from "../researchFile";
+  type ResearchFileAction, type ResearchQueryReceipt } from "../researchFile";
 import { researchCaptureRuleSchema, runResearchFileQuery } from "../researchFileQuery";
 import { COURT_RECORD_TOOL_PROPERTIES, courtRecordResult,
   courtRecordSlotTool } from "./courtRecordSlotTool";
@@ -225,9 +225,8 @@ const AUTHORITIES_ACTION = objectSchema({
   type: { type: "string", enum: [
     "set-authority-span", "set-pinpoint-span", "split-occurrence", "merge-occurrence",
     "relink-occurrence", "set-reference", "add-authority", "remove-authority", "exclude-authority",
-    "rename-authority", "set-authority-tab", "reorder-authorities", "set-profile", "set-settings",
-    "set-output-mode", "set-document-output", "clear-book-part", "update-book-supplement",
-    "reorder-book-supplements", "remove-book-supplement",
+    "rename-authority", "clear-authority-source", "set-profile", "set-settings",
+    "set-output-mode", "set-document-output", "clear-book-part",
   ] },
   occurrence_id: { type: "string", minLength: 1 },
   authority_id: { type: "string" },
@@ -235,15 +234,12 @@ const AUTHORITIES_ACTION = objectSchema({
   citation: { type: "string", minLength: 1, maxLength: 1_000 },
   name: { type: ["string", "null"], maxLength: 1_000 },
   target_authority_id: { type: "string", minLength: 1 },
-  authority_ids: { type: "array", minItems: 1, uniqueItems: true,
-    items: { type: "string", minLength: 1 } },
   start: { type: "integer", minimum: 0 },
   end: { type: "integer", minimum: 0 },
   cursor: { type: "integer", minimum: 0 },
   reference_kind: { type: "string", enum: ["supra", "ibid", "none"] },
   excluded: { type: "boolean" },
   display_name: { type: "string", maxLength: 1_000 },
-  tab_label: { type: ["string", "null"] },
   profile_id: { type: "string", enum: authoritiesProfileIds },
   settings: objectSchema({
     source_mode: { type: "string", enum: ["automatic", "manual-originals", "render"] },
@@ -261,11 +257,6 @@ const AUTHORITIES_ACTION = objectSchema({
   output_mode: { type: "string", enum: ["table", "book", "both"] },
   enabled: { type: "boolean" },
   slot: { type: "string", enum: ["cover", "index"] },
-  supplement_id: { type: "string", minLength: 1 },
-  supplement_ids: { type: "array", minItems: 1, uniqueItems: true,
-    items: { type: "string", minLength: 1 } },
-  title: { type: "string", maxLength: 1_000 },
-  tab: { type: "string", maxLength: 200 },
 }, ["type"]);
 const workProductTool = (authoritiesEnabled: boolean): Tool & BeaverToolPolicy => ({
   name: "update_work_product",
@@ -295,10 +286,7 @@ const workProductTool = (authoritiesEnabled: boolean): Tool & BeaverToolPolicy =
     input_role: { type: "string", minLength: 1 },
     authority_id: { type: "string", minLength: 1,
       description: "Authority ID returned by reading an Authorities draft." },
-    book_slot: { type: "string", enum: ["cover", "index", "supplement"] },
-    supplement_id: { type: "string", minLength: 1 },
-    supplement_title: { type: "string", maxLength: 1_000 },
-    supplement_tab: { type: "string", maxLength: 200 },
+    book_slot: { type: "string", enum: ["cover", "index"] },
     authorities_action: AUTHORITIES_ACTION,
     evidence_ids: { type: "array", minItems: 1, uniqueItems: true,
       items: { type: "string", minLength: 1 } },
@@ -2418,6 +2406,8 @@ export function assistantTools<Context extends {
     });
     allowedDocumentIds?.add(document.id);
     knownDocumentNames.set(document.id, document.filename);
+    turnEditState?.set(document.id, { versionId: document.current_version_id,
+      parentVersionId: document.current_version_id });
     return documentResult({
       ok: true,
       action: "created",
@@ -2844,6 +2834,8 @@ export function assistantTools<Context extends {
         libraryKind: research.document.library_kind === "template" ? "template" : "file",
         provenance: { schemaVersion: 1, actor: "assistant", action: "created" } });
       allowedDocumentIds?.add(document.id);
+      turnEditState?.set(document.id, { versionId: document.current_version_id,
+        parentVersionId: document.current_version_id });
       return documentResult({ ok: true, action: "created", document_id: document.id,
         version_id: document.current_version_id, version_number: document.active_version_number,
         filename: document.filename, file_type: document.file_type,
@@ -2851,7 +2843,9 @@ export function assistantTools<Context extends {
         download_url: `/api/single-documents/${encodeURIComponent(document.id)}/file?version_id=${encodeURIComponent(document.current_version_id)}`,
         research: linked });
     }
-    let next, queryId: string | undefined, performed: ResearchFileAction | undefined;
+    let next, queryId: string | undefined, performed: ResearchFileAction | undefined,
+      matched: LegalEvidenceReceipt[] = [], queryReceipt: ResearchQueryReceipt | undefined,
+      checkpointed = false;
     let savedEvidenceIds: string[] = [];
     if (command.type === "query") {
       const rules = command.rules === undefined ? undefined
@@ -2868,8 +2862,10 @@ export function assistantTools<Context extends {
           ? command.labelIds.filter((id): id is string => typeof id === "string").slice(0, 1_000) : [],
         rules, conflict: command.conflict === "prompt" || command.conflict === "longer" ||
           command.conflict === "shorter" || command.conflict === "append" ? command.conflict : "first" },
-        { signal, actor: { model, callId: call.id } });
-      next = queried.file; queryId = queried.queryId;
+        { signal, actor: { model, callId: call.id }, assistant: {
+          turnVersionId: edit?.versionId, parentVersionId: edit?.parentVersionId } });
+      next = queried.file; queryId = queried.queryId; matched = queried.evidence;
+      queryReceipt = queried.receipt; checkpointed = queried.checkpointed;
     } else {
       let action: ResearchFileAction;
       if (command.type === "save") {
@@ -2905,13 +2901,13 @@ export function assistantTools<Context extends {
         }
       }
       performed = action;
-      next = await saveResearchFile(documents, scope, documentId, versionId, action, true);
+      next = await saveResearchFile(documents, scope, documentId, versionId, action,
+        { turnVersionId: edit?.versionId, parentVersionId: edit?.parentVersionId });
       if (!next) return fail("Version conflict");
+      checkpointed = true;
     }
-    const matched = queryId ? next.state.queries[queryId].evidenceIds.flatMap((id) =>
-      next.state.evidence[id]?.receipt ? [next.state.evidence[id].receipt] : []) : [],
-      preview = matched.slice(0, 25);
-    turnEditState?.set(documentId, { versionId: next.versionId,
+    const preview = matched.slice(0, 25);
+    if (checkpointed) turnEditState?.set(documentId, { versionId: next.versionId,
       parentVersionId: edit?.parentVersionId ?? versionId });
     const sourceId = performed?.type === "source" ? Object.values(next.state.sources).find(({ reference }) =>
         reference.provider === performed.reference.provider && reference.id === performed.reference.id &&
@@ -2919,7 +2915,7 @@ export function assistantTools<Context extends {
     const saved = savedEvidenceIds.length ? { evidence_ids: savedEvidenceIds,
       source_ids: [...new Set(savedEvidenceIds.flatMap((id) =>
         next.state.evidence[id]?.sourceId ? [next.state.evidence[id].sourceId] : []))] } : undefined;
-    return { ...mutationResult({ ok: true, document_id: next.document.id,
+    const content = { ok: true, document_id: next.document.id,
       version_id: next.versionId, filename: next.document.filename,
       resource: resourceReference.document(next.document.id, next.versionId),
       ...(performed?.type === "label" ? { label_id: performed.id } : {}),
@@ -2929,7 +2925,9 @@ export function assistantTools<Context extends {
       counts: { labels: Object.keys(next.state.labels).length,
         sources: Object.keys(next.state.sources).length,
         passages: Object.keys(next.state.evidence).length,
-        searches: Object.keys(next.state.queries).length } }), evidence: preview };
+        searches: Object.keys(next.state.queries).length } };
+    return { ...(checkpointed ? mutationResult(content) : result(content)), evidence: preview,
+      ...(queryReceipt ? { queryReceipts: [queryReceipt] } : {}) };
   });
   const documentOperation: AssistantToolRun = async (call, input, signal) => {
     switch (input.action) {
@@ -2948,8 +2946,7 @@ export function assistantTools<Context extends {
             name.toLowerCase() === filename.toLowerCase())?.[0];
           if (existingId) {
             const saved = await readResearchFile(documents, scope, existingId);
-            if (saved) { allowedDocumentIds?.add(existingId); turnEditState?.set(existingId,
-              { versionId: saved.versionId, parentVersionId: saved.versionId });
+            if (saved) { allowedDocumentIds?.add(existingId);
               return documentResult({ ok: true, action: "selected", document_id: existingId,
                 version_id: saved.versionId, filename: saved.document.filename,
                 resource: resourceReference.document(existingId, saved.versionId) }); }
@@ -3010,7 +3007,7 @@ export function assistantTools<Context extends {
       if (!item) return null;
       const source = item.source;
       return { id, kind: item.kind, citation: clip(item.citation),
-        name: clip(item.displayName ?? item.name), tab_label: item.tabLabel ?? null,
+        name: clip(item.displayName ?? item.name),
         excluded: item.excluded, source: { status: source.kind,
           ...(source.kind === "attached" ? { binding_role: source.bindingRole,
             filename: clip(source.filename, 300) } : {}),
@@ -3036,11 +3033,7 @@ export function assistantTools<Context extends {
         ...(draft.settings.filingMedium
           ? { filing_medium: draft.settings.filingMedium } : {}),
         ...(draft.settings.bookRole ? { book_role: draft.settings.bookRole } : {}) },
-      book_parts: { cover: part(draft.bookParts.cover), index: part(draft.bookParts.index),
-        supplements: draft.bookParts.supplements.slice(0, 50).map((item) => ({
-          id: item.id, binding_role: item.bindingRole, filename: clip(item.filename, 300),
-          title: clip(item.title, 500), tab: clip(item.tab, 200),
-        })), supplement_count: draft.bookParts.supplements.length },
+      book_parts: { cover: part(draft.bookParts.cover), index: part(draft.bookParts.index) },
       insert_into_document: draft.insertIntoDocument,
       counts: { units: draft.units.length, occurrences: Object.keys(draft.occurrences).length,
         authorities: draft.authorityOrder.length },
@@ -3097,8 +3090,8 @@ export function assistantTools<Context extends {
         profile_id: draft.settings.profileId,
         counts: { units: draft.units.length, occurrences: Object.keys(draft.occurrences).length,
           authorities: draft.authorityOrder.length },
-        book_parts: { cover: Boolean(draft.bookParts.cover), index: Boolean(draft.bookParts.index),
-          supplements: draft.bookParts.supplements.length } } }),
+        book_parts: { cover: Boolean(draft.bookParts.cover),
+          index: Boolean(draft.bookParts.index) } } }),
       ...(outputRoles.length && { output_roles: outputRoles }) });
   };
   const inputIssues = async (id: string) => {
@@ -3208,19 +3201,8 @@ export function assistantTools<Context extends {
           throw new Error("rename-authority requires display_name");
         }
         return { type, authorityId: authority(), displayName: trimmed(action.display_name) || null };
-      case "set-authority-tab":
-        if (typeof action.tab_label !== "string" && action.tab_label !== null) {
-          throw new Error("set-authority-tab requires tab_label");
-        }
-        return { type, authorityId: authority(), tabLabel: trimmed(action.tab_label) || null };
-      case "reorder-authorities": {
-        const authorityIds = Array.isArray(action.authority_ids)
-          ? action.authority_ids.map(trimmed) : [];
-        if (!authorityIds.length || authorityIds.some((id) => !id)) {
-          throw new Error("reorder-authorities requires authority_ids");
-        }
-        return { type, authorityIds };
-      }
+      case "clear-authority-source":
+        return { type, authorityId: authority() };
       case "set-profile": {
         const profileId = trimmed(action.profile_id);
         if (!authoritiesProfileIds.includes(profileId as typeof authoritiesProfileIds[number])) {
@@ -3271,26 +3253,6 @@ export function assistantTools<Context extends {
           throw new Error("clear-book-part requires slot");
         }
         return { type, slot: action.slot };
-      case "update-book-supplement": {
-        const id = trimmed(action.supplement_id);
-        if (!id || typeof action.title !== "string" || typeof action.tab !== "string") {
-          throw new Error("update-book-supplement requires supplement_id, title, and tab");
-        }
-        return { type, id, title: action.title, tab: action.tab };
-      }
-      case "reorder-book-supplements": {
-        const ids = Array.isArray(action.supplement_ids)
-          ? action.supplement_ids.map(trimmed) : [];
-        if (!ids.length || ids.some((id) => !id)) {
-          throw new Error("reorder-book-supplements requires supplement_ids");
-        }
-        return { type, ids };
-      }
-      case "remove-book-supplement": {
-        const id = trimmed(action.supplement_id);
-        if (!id) throw new Error("remove-book-supplement requires supplement_id");
-        return { type, id };
-      }
       default:
         throw new Error("Select a supported Authorities action");
     }
@@ -3443,30 +3405,18 @@ export function assistantTools<Context extends {
           return respond(authoritiesMutationPayload(product,
             { type: "attach-authority-pdf", authority_id: authorityId }), true);
         }
-        if (!["cover", "index", "supplement"].includes(bookSlot)) {
-          throw new Error("Select cover, index, or supplement as book_slot");
+        if (bookSlot !== "cover" && bookSlot !== "index") {
+          throw new Error("Select cover or index as book_slot");
         }
-        const draft = decodeAuthoritiesDraft(target.product.state)!;
-        const suppliedId = trimmed(input.supplement_id);
-        const existing = suppliedId
-          ? draft.bookParts.supplements.find(({ id }) => id === suppliedId) : null;
-        if (suppliedId && !existing) throw new Error(`Unknown supplement: ${suppliedId}`);
-        const id = bookSlot === "supplement" ? suppliedId || randomUUID() : bookSlot;
         const binding = { kind: "document" as const, documentId: document.documentId,
           version: "latest" as const };
-        const pdf = { bindingRole: `book:${bookSlot}:${id}`,
+        const pdf = { bindingRole: `book:${bookSlot}`,
           filename: document.version.filename, sourceSha256: document.version.source_sha256 };
-        const bookAction: AuthoritiesUserAction = bookSlot === "supplement"
-          ? { type: "set-book-supplement", supplement: { ...pdf, id,
-            title: trimmed(input.supplement_title) || existing?.title ||
-              document.version.filename.replace(/\.pdf$/iu, ""),
-            tab: trimmed(input.supplement_tab) || existing?.tab ||
-              `Appendix ${draft.bookParts.supplements.length + 1}` }, binding }
-          : { type: "set-book-part", slot: bookSlot as "cover" | "index", pdf, binding };
+        const bookAction: AuthoritiesUserAction = {
+          type: "set-book-part", slot: bookSlot, pdf, binding };
         const product = await authorities.act(scope, target.product.id, target.revision, bookAction);
         return respond(authoritiesMutationPayload(product, {
           type: "attach-book-pdf", book_slot: bookSlot,
-          ...(bookSlot === "supplement" ? { supplement_id: id } : {}),
         }), true);
       }
       const product = await authorities.addReceipts(scope, target.product.id,

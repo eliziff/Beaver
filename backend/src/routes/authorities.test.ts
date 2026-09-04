@@ -101,13 +101,10 @@ describe("Authorities HTTP boundary", () => {
       { type: "set-profile", profileId: "ab-court-of-appeal" },
       { type: "set-settings", settings: { tableLocation: "combined", tabStyle: "alpha",
         filingMedium: "electronic", bookRole: "appellant" } },
-      { type: "set-authority-tab", authorityId: "grant", tabLabel: "A-1" },
       { type: "set-authority-span", occurrenceId: "cite", start: 3, end: 20 },
       { type: "set-pinpoint-span", occurrenceId: "cite", start: 24, end: 33 },
-      { type: "update-book-supplement", id: "appendix", title: "Affidavit", tab: "A" },
-      { type: "reorder-book-supplements", ids: ["appendix", "order"] },
+      { type: "clear-authority-source", authorityId: "grant" },
       { type: "clear-book-part", slot: "cover" },
-      { type: "remove-book-supplement", id: "order" },
     ]) {
       await request(app).post("/authorities/draft-1/actions")
         .send({ revision: 1, action }).expect(200);
@@ -144,12 +141,12 @@ describe("Authorities HTTP boundary", () => {
     expect(application.replaceSource).toHaveBeenCalledWith(expect.anything(), "draft-1",
       expect.objectContaining({ revision: 1,
         file: expect.objectContaining({ filename: "replacement.docx", fileType: "docx" }) }));
-    await request(app).post("/authorities/draft-1/book-parts/supplemental")
-      .field("revision", "1").field("title", "Affidavit").field("tab", "A")
-      .attach("file", Buffer.from("%PDF-1.7\n%%EOF"), "affidavit.pdf").expect(200);
+    await request(app).post("/authorities/draft-1/book-parts/cover")
+      .field("revision", "1")
+      .attach("file", Buffer.from("%PDF-1.7\n%%EOF"), "cover.pdf").expect(200);
     expect(application.attachBookPdf).toHaveBeenCalledWith(expect.anything(), "draft-1",
-      expect.objectContaining({ revision: 1, slot: "supplemental", title: "Affidavit", tab: "A",
-        file: expect.objectContaining({ filename: "affidavit.pdf", fileType: "pdf" }) }));
+      expect.objectContaining({ revision: 1, slot: "cover",
+        file: expect.objectContaining({ filename: "cover.pdf", fileType: "pdf" }) }));
   });
 
   it("accepts the current Library version for one bound input", async () => {
