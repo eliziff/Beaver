@@ -130,8 +130,8 @@ describe("research files", () => {
       metadata: vi.fn(async () => ({ id: "doc-1", filename: "Cases.research.md",
         project_id: null })),
       read: vi.fn(async () => ({ bytes, fileType: "md", version: { id: "v1" } })),
-      addVersion: vi.fn(async (_scope, _id, input: { bytes: Buffer }) => {
-        bytes = input.bytes; state = parseResearchFile(bytes)!; return { id: "v2" };
+      replaceVersion: vi.fn(async (_scope, _id, _version, input: { bytes: Buffer }) => {
+        bytes = input.bytes; state = parseResearchFile(bytes)!; return { status: "replaced", version: { id: "v1" } };
       }),
     };
     const reader = vi.fn(async ({ source }: { source: unknown }) => ({ status: "found" as const,

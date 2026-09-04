@@ -153,9 +153,9 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
         if (read.status !== "found") { failures.push({ sourceId: source.id, code: read.status }); continue; }
         const passage = read.values.find(({ role }) => role === "document") ?? read.values[0];
         if (!passage) { failures.push({ sourceId: source.id, code: "not_found" }); continue; }
-        const text = native!.documentText(passage.documentArtifact),
-          anchors = native.documentAnchors(passage.documentArtifact), blocks = anchors.length
-            ? anchors : native.legalSourceViewer(passage.documentArtifact,
+        const adapter = native!, text = adapter.documentText(passage.documentArtifact),
+          anchors = adapter.documentAnchors(passage.documentArtifact), blocks = anchors.length
+            ? anchors : adapter.legalSourceViewer(passage.documentArtifact,
               source.reference.kind === "legislation" ? "section" : "paragraph").slices.map(
                 ({ start, end }) => ({ kind: "document" as const,
                   label: `characters ${start + 1}-${end}`, start, end }));

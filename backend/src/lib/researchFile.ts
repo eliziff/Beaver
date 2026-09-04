@@ -334,11 +334,14 @@ export async function saveResearchFile(documents: DocumentStore, scope: Applicat
   if (!current || current.versionId !== expectedVersionId) return null;
   const state = reduceResearchFile(current.state, action);
   const filename = String(current.document.filename ?? "Research.research.md");
-  const version = await documents.addVersion(scope, documentId, { filename, fileType: "md",
-    bytes: Buffer.from(researchFileMarkdown(filename.replace(/\.research\.md$/iu, ""), state)),
-    expectedCurrentVersionId: expectedVersionId,
-    ...(assistant ? { provenance: { schemaVersion: 1 as const, actor: "assistant" as const,
-      action: "revised" as const, parentVersionId: current.versionId } } : {}) });
+  const contents = { filename, fileType: "md" as const,
+    bytes: Buffer.from(researchFileMarkdown(filename.replace(/\.research\.md$/iu, ""), state)) };
+  const replaced = assistant ? null : await documents.replaceVersion(scope, documentId, expectedVersionId, contents);
+  const version = assistant
+    ? await documents.addVersion(scope, documentId, { ...contents, expectedCurrentVersionId: expectedVersionId,
+      provenance: { schemaVersion: 1 as const, actor: "assistant" as const,
+        action: "revised" as const, parentVersionId: current.versionId } })
+    : replaced?.status === "replaced" ? replaced.version : null;
   if (!version) return null;
   return { document: { ...current.document, current_version_id: version.id,
       active_version_number: version.version_number, filename: version.filename,
