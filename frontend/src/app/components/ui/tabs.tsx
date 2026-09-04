@@ -22,7 +22,7 @@ const railClass: Record<TabVariant, string> = {
 };
 const listClass: Record<TabVariant, string> = {
     segmented: "gap-1 rounded-lg bg-gray-100 p-1",
-    dock: "gap-1",
+    dock: "gap-0.5",
     underline: "gap-0.5 sm:gap-1.5",
     pill: "w-full flex-wrap items-center gap-1 py-0.5 sm:w-auto sm:gap-2",
     settings: "grid flex-1 grid-cols-3 gap-1 sm:grid-cols-5",
@@ -30,7 +30,7 @@ const listClass: Record<TabVariant, string> = {
 };
 const tabClass: Record<TabVariant, string> = {
     segmented: "h-8 shrink-0 rounded-md px-1 text-sm font-medium sm:px-3",
-    dock: "h-9 max-w-40 shrink-0 rounded-md px-1 text-[13px] font-semibold sm:text-sm",
+    dock: "h-9 max-w-40 shrink-0 rounded-md px-1.5 text-[13px] font-semibold sm:text-sm",
     underline: "min-h-10 border-b-2 px-2 text-sm font-medium sm:px-3",
     pill: "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-sm font-medium sm:px-4",
     settings: "min-h-10 min-w-0 rounded-md border px-2 text-sm font-medium",
