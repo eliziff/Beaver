@@ -137,17 +137,10 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
   const allSources = useMemo(() => Object.values(file?.state.sources ?? {}), [file?.state.sources]);
   const passageRevisions = useMemo(() => Object.fromEntries(allSources.map(({ id, passages }) =>
     [id, passages?.sha256 ?? ""])), [allSources]);
-  const passagePages = usePagedChains<ResearchPageItem>((key, cursor, signal) => getResearchItems(file!.document.id,
-    { kind: "passages", sourceId: key, cursor, limit: PAGE_SIZE }, signal),
-    [file?.document.id], "*", false, passageRevisions);
   const queryPages = usePagedChains<ResearchPageItem>((_key, cursor, signal) => getResearchItems(file!.document.id,
     { kind: "queries", cursor, limit: PAGE_SIZE }, signal), [file?.document.id],
     "queries", !!file && historyOpen && searchOpen, { queries: file?.state.queries?.sha256 ?? "" });
   const queryCount = file?.state.queries?.count ?? 0;
-  useEffect(() => {
-    for (const id of openedSources) if (!passagePages.chains[id])
-      void passagePages.fetchPage(id, null, false);
-  }, [openedSources, passagePages.chains, passagePages.fetchPage]);
   const children = useMemo(() => { const map = new Map<string | null, ResearchLabel[]>();
     Object.values(labels).forEach((label) => { const values = map.get(label.parentId) ?? [];
       values.push(label); map.set(label.parentId, values); });
@@ -155,6 +148,23 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
   const sourceLabelIds = useMemo(() => expandSelection(sourceSelected, children), [sourceSelected, children]);
   const highlightLabelIds = useMemo(() => expandSelection(highlightSelected, children), [highlightSelected, children]);
   const appliedHighlightIds = highlightFilter ? highlightLabelIds : null;
+  const passagePages = usePagedChains<ResearchPageItem>(async (key, cursor, signal) => {
+    // Advance past nonmatching source pages before presenting a filtered page.
+    let page;
+    do {
+      page = await getResearchItems(file!.document.id,
+        { kind: "passages", sourceId: key, cursor, limit: PAGE_SIZE }, signal);
+      page.items = page.items.filter((item) => item.kind === "passage" &&
+        itemSelected(item.value.labelIds, appliedHighlightIds) &&
+        (matches === null || matches.evidence.has(item.value.receipt.evidence_id)));
+      cursor = page.next_cursor;
+    } while (!signal.aborted && !page.items.length && cursor);
+    return page;
+  }, [file?.document.id, appliedHighlightIds, matches], "*", false, passageRevisions);
+  useEffect(() => {
+    for (const id of openedSources) if (!passagePages.chains[id])
+      void passagePages.fetchPage(id, null, false);
+  }, [openedSources, passagePages.chains, passagePages.fetchPage]);
   const scopedSources = useMemo(() => allSources.filter((source) => itemSelected(source.labelIds, sourceLabelIds) &&
     passageSelected(source, appliedHighlightIds)), [allSources, sourceLabelIds, appliedHighlightIds]);
   const years = useMemo(() => [...new Set(allSources.map(({ reference }) => reference.date?.slice(0, 4))
@@ -460,9 +470,7 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
     <div className="mb-1 flex items-center text-sm"><span role="status" className="tabular-nums text-gray-600">{list.length} {list.length === 1 ? "source" : "sources"}</span></div>
     {list.length ? <ol>{list.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((source) => {
       const sourcePage = passagePages.chains[source.id], evidence = (sourcePage?.items.flatMap((item) =>
-        item.kind === "passage" ? [item.value] : []) ?? [])
-        .filter((item) => itemSelected(item.labelIds, appliedHighlightIds) &&
-          (matches === null || matches.evidence.has(item.receipt.evidence_id)));
+        item.kind === "passage" ? [item.value] : []) ?? []);
       return <li key={source.id} className={`border-b border-gray-200 last:border-0 ${selectedSourceId === source.id ? "bg-gray-100" : ""}`}><details open={openedSources.has(source.id)} className="group rounded hover:bg-gray-50" onToggle={(event) => {
         const isOpen = event.currentTarget.open; setOpenedSources((current) => { const next = new Set(current);
         if (isOpen) next.add(source.id); else next.delete(source.id); return next; }); }}><summary className="flex list-none items-start gap-2 px-1 py-3 text-sm" onClick={(event) => {

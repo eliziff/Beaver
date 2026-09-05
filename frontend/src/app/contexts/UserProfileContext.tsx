@@ -1,7 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
-import { isLocalMode } from "@/app/lib/authMode";
 import {
   getUserProfile,
   saveApiKey,
@@ -39,12 +37,10 @@ function normalize(data: ApiProfile): Profile {
 
 export function UserProfileProvider({ children }: { children: ReactNode }) {
   const { user, authLoading } = useAuth();
-  const { pathname } = useLocation();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loadedUser, setLoadedUser] = useState<string | null>(null);
   const request = useRef(0);
   const userId = user?.id ?? null;
-  const needed = !isLocalMode || /^(\/assistant|\/projects|\/workflows|\/table-of-authorities|\/court-records|\/account|\/onboarding|\/word)/.test(pathname);
 
   const load = useCallback(async (id: string) => {
     const sequence = ++request.current;
@@ -61,10 +57,10 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
       request.current += 1;
       setProfile(null);
       setLoadedUser(null);
-    } else if (needed && userId !== loadedUser) {
+    } else if (userId !== loadedUser) {
       void load(userId);
     }
-  }, [authLoading, load, loadedUser, needed, userId]);
+  }, [authLoading, load, loadedUser, userId]);
 
   async function mutate(run: () => Promise<ApiProfile>, propagateMfa = false) {
     if (!user) return false;
@@ -79,7 +75,7 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
 
   const value: Context = {
     profile,
-    loading: authLoading || (!!userId && needed && userId !== loadedUser),
+    loading: authLoading || (!!userId && userId !== loadedUser),
     updateProfile: (next) => mutate(() => updateUserProfile(next), true),
     updateMfaOnLogin: (enabled) => mutate(() => updateUserMfaOnLogin(enabled), true),
     updateApiKey: async (provider, value) => {
