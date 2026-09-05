@@ -8,6 +8,7 @@ export interface PdfInspection {
   textlessPageCount: number;
   textlessPages: number[];
   sourceBookmarks: SourceBookmark[];
+  pageLabels: string[] | null;
   pageTexts: string[];
 }
 
@@ -45,8 +46,10 @@ export async function inspectPdf(
       page.cleanup();
       onProgress?.(pageNumber, document.numPages);
     }
-    const permissions = await document.getPermissions();
-    const outline = (await document.getOutline() ?? []) as PdfOutlineItem[];
+    const [permissions, rawOutline, pageLabels] = await Promise.all([
+      document.getPermissions(), document.getOutline(), document.getPageLabels().catch(() => null),
+    ]);
+    const outline = (rawOutline ?? []) as PdfOutlineItem[];
     const sourceBookmarks = await resolveOutline(document, outline);
     const result = {
       pageCount: document.numPages,
@@ -55,6 +58,7 @@ export async function inspectPdf(
       textlessPageCount,
       textlessPages,
       sourceBookmarks,
+      pageLabels,
       pageTexts,
     };
     await document.destroy();
@@ -69,6 +73,7 @@ export async function inspectPdf(
         textlessPageCount: 0,
         textlessPages: [],
         sourceBookmarks: [],
+        pageLabels: null,
         pageTexts: [],
       };
     }

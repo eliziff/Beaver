@@ -307,6 +307,72 @@ function setText(node: XNode, value: string) {
   else delete node[ATTR_KEY];
 }
 
+async function authorityUnitPackage(session: Awaited<ReturnType<typeof openDocxSession>>) {
+  const document = await session.document(), footnotes = await session.readXml("word/footnotes.xml");
+  const targets = new Map<string, XNode>();
+  document.paragraphs.forEach(({ node }, ordinal) => targets.set(`body:${ordinal}`, node));
+  if (footnotes) walk(footnotes, (node) => {
+    if (elName(node) === "w:footnote") {
+      const id = elAttrs(node)["@_w:id"];
+      if (id && Number(id) > 0) targets.set(`footnote:${id}`, node);
+    }
+  });
+  return { document, footnotes, targets };
+}
+
+function replaceVisibleSpan(root: XNode, start: number, end: number, replacement: string) {
+  const texts: Array<{ node: XNode; start: number; end: number; value: string }> = [];
+  let cursor = 0, unsupported = false;
+  walk(root, (node) => {
+    const name = elName(node);
+    if (name === "w:del") return false;
+    if (name === "w:t") {
+      const value = getTextContent(node);
+      texts.push({ node, start: cursor, end: cursor + value.length, value });
+      cursor += value.length;
+    } else if (name === "w:tab" || name === "w:br" || name === "w:cr") {
+      if (start < cursor + 1 && end > cursor) unsupported = true;
+      cursor += 1;
+    }
+  });
+  const first = texts.find((item) => item.start <= start && start <= item.end);
+  const last = texts.find((item) => item.start <= end && end <= item.end);
+  if (unsupported || !first || !last) return false;
+  if (first === last) {
+    setText(first.node, first.value.slice(0, start - first.start) + replacement +
+      first.value.slice(end - first.start));
+    return true;
+  }
+  const from = texts.indexOf(first), to = texts.indexOf(last);
+  setText(first.node, first.value.slice(0, start - first.start) + replacement);
+  for (let index = from + 1; index < to; index += 1) setText(texts[index].node, "");
+  setText(last.node, last.value.slice(end - last.start));
+  return true;
+}
+
+/** Applies one server-reviewed Authorities correction to an exact body or footnote unit span. */
+export async function applyAuthorityDiscrepancyCorrection(bytes: Buffer,
+  units: ReadonlyArray<{ id: string; text: string }>, correction: {
+    unitId: string; start: number; end: number; expected: string; replacement: string;
+  }) {
+  const session = await openDocxSession(bytes);
+  const { document, footnotes, targets } = await authorityUnitPackage(session);
+  for (const unit of units) if (visibleText(targets.get(unit.id) ?? {}) !== unit.text) {
+    throw new Error(`Reviewed text no longer matches ${unit.id}.`);
+  }
+  const target = targets.get(correction.unitId);
+  if (!target || correction.start < 0 || correction.end <= correction.start ||
+      visibleText(target).slice(correction.start, correction.end) !== correction.expected ||
+      !correction.replacement || !replaceVisibleSpan(target, correction.start,
+        correction.end, correction.replacement)) {
+    throw new Error("The accepted correction no longer matches the reviewed Word document.");
+  }
+  session.writeDocument(document.tree);
+  if (footnotes) session.write("word/footnotes.xml",
+    ensureXmlDeclaration(createBuilder().build(footnotes)));
+  return session.save();
+}
+
 function fieldRuns(instruction: string, hidden: boolean) {
   const run = (child: XNode) => makeEl("w:r", [
     ...(hidden ? [makeEl("w:rPr", [makeEl("w:vanish")])] : []), child,
@@ -401,16 +467,7 @@ export async function applyTableOfAuthorities(
   linked: readonly DocxLinkedAuthority[] = [],
 ) {
   const session = await openDocxSession(bytes);
-  const document = await session.document();
-  const footnotes = await session.readXml("word/footnotes.xml");
-  const targets = new Map<string, XNode>();
-  document.paragraphs.forEach(({ node }, ordinal) => targets.set(`body:${ordinal}`, node));
-  if (footnotes) walk(footnotes, (node) => {
-    if (elName(node) === "w:footnote") {
-      const id = elAttrs(node)["@_w:id"];
-      if (id && Number(id) > 0) targets.set(`footnote:${id}`, node);
-    }
-  });
+  const { document, footnotes, targets } = await authorityUnitPackage(session);
   for (const unit of units) {
     if (visibleText(targets.get(unit.id) ?? {}) !== unit.text) {
       throw new Error(`Reviewed text no longer matches ${unit.id}.`);

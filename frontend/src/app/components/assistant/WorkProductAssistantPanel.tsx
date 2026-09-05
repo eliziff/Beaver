@@ -2,15 +2,16 @@ import { MessageCircle } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useAssistantChat } from "@/app/hooks/useAssistantChat";
 import { AssistantDock } from "./AssistantDock";
-import { ChatView } from "./ChatView";
+import { ConversationView } from "./ConversationView";
 import type { WorkProductAssistantProps } from "./WorkProductAssistant";
 
 export function WorkProductAssistantPanel({ product, chatId, onChatIdChange, expanded = true,
-  onClose, synced = true, onBusyChange, onProductUpdated,
+  focus, onClose, synced = true, onBusyChange, onProductUpdated,
   onTurnComplete }: WorkProductAssistantProps) {
   const assistant = useAssistantChat({ chatId, onChatIdChange, stayInPlace: true,
     projectId: product?.projectId ?? undefined,
-    workProduct: product && { kind: product.kind, id: product.id, revision: product.revision } });
+    workProduct: product && { kind: product.kind, id: product.id, revision: product.revision,
+      ...(focus && { focus }) } });
   const notifiedRevision = useRef(0);
   const busy = assistant.state.run !== null;
   useEffect(() => { onBusyChange?.(busy); return () => onBusyChange?.(false); },
@@ -33,12 +34,15 @@ export function WorkProductAssistantPanel({ product, chatId, onChatIdChange, exp
     return result;
   };
   return <AssistantDock tabs={[{ id: "assistant", label: "Assistant",
-    icon: <MessageCircle aria-hidden className="size-4" />, content:
-      <ChatView chatId={assistant.state.chatId} session={assistant.state}
+    icon: <MessageCircle aria-hidden className="size-4" />,
+    actions: product?.title ? <span aria-label={`Current draft: ${product.title}`}
+      title={product.title} className="max-w-44 truncate text-xs text-gray-500">
+      {product.title}</span> : undefined, content:
+      <ConversationView chatId={assistant.state.chatId} session={assistant.state}
         handleChat={handleChat} cancel={assistant.actions.cancel} sendDisabled={!synced}
         onRejectedTurnRestored={assistant.actions.clearRejectedTurn}
         onRetryRejectedTurn={() => void assistant.actions.retryRejectedTurn()}
-        layout="panel" features={{ contextTools: false, dock: false, researchSave: false }} /> }]}
+        layout="panel" showContextTools={false} /> }]}
     activeTabId="assistant" onActivateTab={() => {}} expanded={expanded}
     showCollapsedButton={false}
     onExpandedChange={(nextExpanded) => { if (!nextExpanded) onClose(); }} />;

@@ -69,3 +69,9 @@ export async function apiBlobRequest(path: string, init?: RequestInit) {
   const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
   return { blob: await response.blob(), filename: filenameMatch?.[1] ?? null };
 }
+
+export async function fetchBytes(resource: URL, label = "Resource") {
+  const response = await fetch(resource);
+  if (!response.ok) throw new Error(`${label} could not be loaded.`);
+  return new Uint8Array(await response.arrayBuffer());
+}

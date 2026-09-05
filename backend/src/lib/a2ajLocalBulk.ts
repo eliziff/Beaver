@@ -24,6 +24,27 @@ function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
   return withReadonlySqlite(a2ajLocalBulkPath(), operation);
 }
 
+/** Exact parallel-citation aliases from the installed A2AJ citation index. */
+export function a2ajCitationAliasKeysBatch(citations: string[]): string[][] | null {
+  const keys = structureNative().citationLookupKeys(citations);
+  if (!keys.some(Boolean)) return keys.map(() => []);
+  return withDatabase((database) => {
+    const targets = database.prepare(
+      "SELECT document_id FROM citation_lookup WHERE citation_key = ?",
+    );
+    const aliases = database.prepare(
+      "SELECT citation_key FROM citation_lookup WHERE document_id = ?",
+    );
+    return keys.map((key) => {
+      if (!key) return [];
+      const rows = targets.all(key) as Row[];
+      if (rows.length !== 1) return [key];
+      return [...new Set([key, ...(aliases.all(Number(rows[0].document_id)) as Row[])
+        .map((row) => String(row.citation_key))])].sort();
+    });
+  });
+}
+
 function searchDatabasePath(docType: DocType) {
   const primary = a2ajLocalBulkPath();
   const indexed = path.join(

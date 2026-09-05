@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sha256 } from "../hash";
+import { documentBlobKey } from "../storage";
 import { relationalRepositoryContract } from "./support/relationalRepositoryContract";
 
 let directory = "";
@@ -67,13 +68,17 @@ describe("SQLite relational repository contract", () => {
       import("../documentApplication"), import("../filesystemObjectStorage"),
     ]);
     const documentId = randomUUID(), versionId = randomUUID(), created = new Date().toISOString();
+    const blobKey = documentBlobKey({ userId: owner.userId, projectId: null }, "a".repeat(64));
+    await documentRepository.recordOrphans([blobKey]);
     await documentRepository.create(owner, { document: { id: documentId,
       userId: owner.userId, projectId: null, libraryKind: "file", folderId: null,
       status: "ready", currentVersionId: versionId, createdAt: created, updatedAt: created,
-    }, version: { id: versionId, documentId, versionNumber: 1, source: "upload",
+    }, version: { id: versionId, documentId, parentVersionId: null,
+      versionNumber: 1, workingRevision: 0, source: "upload",
+      createdBy: owner.userId, comment: null,
       createdAt: created, filename: "record.pdf", fileType: "pdf", sizeBytes: 4,
-      pageCount: 1, sourceSha256: "a".repeat(64), blobKey: "record", pdfBlobKey: null,
-      cleanupKeys: [] } });
+      pageCount: 1, sourceSha256: "a".repeat(64), blobKey, pdfBlobKey: null,
+    } });
     const committed = (await (await relationalDatabase()).query<{
       version_id: string; job_version_id: string;
     }>(sql`SELECT v.id version_id,j.document_version_id job_version_id

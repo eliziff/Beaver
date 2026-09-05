@@ -1,40 +1,37 @@
-import { randomUUID } from "node:crypto";
-import { createReadStream, createWriteStream, type Dirent } from "node:fs";
-import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { createReadStream, createWriteStream } from "node:fs";
+import { link, mkdir, readFile, rm, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 
 export const MAX_OBJECT_SIZE_BYTES = 100 * 1024 * 1024;
 const DEFAULT_STORAGE_TIMEOUT_MS = 15_000;
 export const SIGNED_GET_TTL_SECONDS = 90;
-type StorageBody = Uint8Array | { path: string; sizeBytes: number };
+type StorageBody = Uint8Array | Readonly<{
+  path: string; sizeBytes: number;
+}>;
 
 type StorageOptions = {
   signal?: AbortSignal;
   timeoutMs?: number;
 };
-
-type StorageListPage = {
-  keys: string[];
-  cursor: string | null;
-};
+type PutOptions = StorageOptions & { expectedSha256: string };
 
 type SignedGetOptions = StorageOptions & {
   filename: string;
+  contentType: string;
+  expectedSha256: string;
+  sizeBytes: number;
   disposition?: "inline" | "attachment";
   expiresIn?: number;
 };
 
 export type ObjectStorage = {
   put(key: string, body: StorageBody, contentType: string,
-    options?: StorageOptions): Promise<void>;
+    options: PutOptions): Promise<"created" | "exists">;
   get(key: string, options?: StorageOptions & { maxBytes?: number }): Promise<Buffer | null>;
   remove(key: string, options?: StorageOptions): Promise<void>;
-  list(prefix?: string, options?: StorageOptions & {
-    cursor?: string | null;
-    limit?: number;
-  }): Promise<StorageListPage>;
-  signedGet?(key: string, options: SignedGetOptions): Promise<string>;
+  signedGet?(key: string, options: SignedGetOptions): Promise<string | null>;
 };
 
 export type S3Configuration = {
@@ -128,13 +125,7 @@ function objectLimit(value = MAX_OBJECT_SIZE_BYTES) {
   return value;
 }
 
-function listLimit(value = 1_000) {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error("List limit must be positive");
-  return Math.min(value, 1_000);
-}
-
-export function validateObjectKey(key: string, allowEmpty = false): string {
-  if (allowEmpty && key === "") return key;
+export function validateObjectKey(key: string): string {
   if (!key || Buffer.byteLength(key, "utf8") > 1_024 || key.includes("\\") ||
       /[\x00-\x1F\x7F]/u.test(key)) {
     throw new Error("Invalid object key");
@@ -169,15 +160,17 @@ function checkedBody(body: StorageBody) {
   return checkedBytes(body);
 }
 
-function isNotFound(error: unknown) {
-  const value = error as {
-    name?: string; Code?: string; code?: string;
-    $metadata?: { httpStatusCode?: number };
-  } | null;
-  return value?.$metadata?.httpStatusCode === 404 &&
-    [value.name, value.Code, value.code].some((code) =>
-      code === "NoSuchKey" || code === "NotFound");
-}
+const storageError = (error: unknown, status: number, codes: string[]) => {
+  const value = error as { name?: string; Code?: string; code?: string;
+    $metadata?: { httpStatusCode?: number } } | null;
+  const code = [value?.name, value?.Code, value?.code].find(Boolean);
+  return code ? codes.includes(code) : value?.$metadata?.httpStatusCode === status;
+};
+const isNotFound = (error: unknown) => storageError(error, 404, ["NoSuchKey", "NotFound"]);
+const isPreconditionFailed = (error: unknown) =>
+  storageError(error, 412, ["PreconditionFailed"]);
+const isConditionalConflict = (error: unknown) =>
+  storageError(error, 409, ["ConditionalRequestConflict"]);
 
 async function boundedBody(body: unknown, maximum: number, signal: AbortSignal) {
   if (!body) throw new Error("S3 GetObject returned no response body");
@@ -213,11 +206,7 @@ type S3Command<Output = unknown> = object & { readonly __output?: Output };
 type S3CommandConstructor<Input, Output = unknown> = new (input: Input) => S3Command<Output>;
 type S3ObjectInput = { Bucket: string; Key: string };
 type S3GetOutput = { ContentLength?: number; Body?: unknown };
-type S3ListOutput = {
-  IsTruncated?: boolean;
-  NextContinuationToken?: string;
-  Contents?: { Key?: string }[];
-};
+type S3HeadOutput = { ContentLength?: number; ChecksumSHA256?: string };
 type S3Client = {
   send<Output>(command: S3Command<Output>, options: { abortSignal: AbortSignal }): Promise<Output>;
 };
@@ -231,14 +220,15 @@ type S3Runtime = {
   }) => S3Client;
   PutObjectCommand: S3CommandConstructor<S3ObjectInput & {
     Body: Buffer | ReturnType<typeof createReadStream>; ContentLength: number; ContentType: string;
+    IfNoneMatch?: "*"; ChecksumSHA256?: string;
   }>;
+  HeadObjectCommand: S3CommandConstructor<
+    S3ObjectInput & { ChecksumMode: "ENABLED" }, S3HeadOutput>;
   GetObjectCommand: S3CommandConstructor<
-    S3ObjectInput & { ResponseContentDisposition?: string }, S3GetOutput
+    S3ObjectInput & { ResponseContentDisposition?: string; ResponseContentType?: string;
+      ResponseCacheControl?: string }, S3GetOutput
   >;
   DeleteObjectCommand: S3CommandConstructor<S3ObjectInput>;
-  ListObjectsV2Command: S3CommandConstructor<{
-    Bucket: string; Prefix?: string; ContinuationToken?: string; MaxKeys: number;
-  }, S3ListOutput>;
 };
 type S3Signer = (
   client: S3Client,
@@ -251,8 +241,8 @@ const runtimeImport = (specifier: string) =>
 
 function checkedS3Runtime(value: Record<string, unknown>): S3Runtime {
   const exports = [
-    "S3Client", "PutObjectCommand", "GetObjectCommand",
-    "DeleteObjectCommand", "ListObjectsV2Command",
+    "S3Client", "PutObjectCommand", "GetObjectCommand", "HeadObjectCommand",
+    "DeleteObjectCommand",
   ];
   if (exports.some((name) => typeof value[name] !== "function")) {
     throw new Error("Installed S3 runtime is missing required exports");
@@ -291,6 +281,15 @@ export function createS3ObjectStorage(config: S3Configuration): ObjectStorage {
     commands,
     sign,
   }));
+  const verify = async (client: S3Client, commands: S3Runtime, key: string,
+    sizeBytes: number, digest: string, signal: AbortSignal) => {
+    const head = await client.send(new commands.HeadObjectCommand({
+      Bucket: config.bucket, Key: key, ChecksumMode: "ENABLED",
+    }), { abortSignal: signal });
+    if (head.ContentLength !== sizeBytes || head.ChecksumSHA256 !==
+        Buffer.from(digest, "hex").toString("base64"))
+      throw new Error("Content-addressed object failed its integrity check");
+  };
 
   return {
     async put(key, input, type, options) {
@@ -299,15 +298,34 @@ export function createS3ObjectStorage(config: S3Configuration): ObjectStorage {
       const signal = storageSignal(options);
       signal.throwIfAborted();
       const { client, commands } = await load();
-      const body = source instanceof Uint8Array
-        ? source : createReadStream(source.path, { signal });
-      await client.send(new commands.PutObjectCommand({
-        Bucket: config.bucket,
-        Key: key,
-        Body: body,
-        ContentLength: source instanceof Uint8Array ? source.byteLength : source.sizeBytes,
-        ContentType: contentType(type),
-      }), { abortSignal: signal });
+      const sizeBytes = source instanceof Uint8Array ? source.byteLength : source.sizeBytes;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const body = source instanceof Uint8Array
+          ? source : createReadStream(source.path, { signal });
+        try {
+          await client.send(new commands.PutObjectCommand({
+            Bucket: config.bucket, Key: key, Body: body,
+            ContentLength: sizeBytes,
+            ContentType: contentType(type), IfNoneMatch: "*", ChecksumSHA256:
+              Buffer.from(options.expectedSha256, "hex").toString("base64"),
+          }), { abortSignal: signal });
+          return "created";
+        } catch (error) {
+          if (isPreconditionFailed(error)) {
+            if (!(source instanceof Uint8Array))
+              (body as ReturnType<typeof createReadStream>).destroy();
+            await verify(client, commands, key, sizeBytes, options.expectedSha256, signal);
+            return "exists";
+          }
+          if (attempt === 0 && isConditionalConflict(error)) {
+            if (!(source instanceof Uint8Array))
+              (body as ReturnType<typeof createReadStream>).destroy();
+            continue;
+          }
+          throw error;
+        }
+      }
+      throw new Error("Conditional object write failed");
     },
     async get(key, options) {
       validateObjectKey(key);
@@ -344,25 +362,6 @@ export function createS3ObjectStorage(config: S3Configuration): ObjectStorage {
         if (!isNotFound(error)) throw error;
       }
     },
-    async list(prefix = "", options) {
-      validateObjectKey(prefix, true);
-      const signal = storageSignal(options);
-      signal.throwIfAborted();
-      const { client, commands } = await load();
-      const response = await client.send(new commands.ListObjectsV2Command({
-        Bucket: config.bucket,
-        Prefix: prefix ? `${prefix}/` : undefined,
-        ContinuationToken: options?.cursor || undefined,
-        MaxKeys: listLimit(options?.limit),
-      }), { abortSignal: signal });
-      if (response.IsTruncated && !response.NextContinuationToken) {
-        throw new Error("S3 ListObjectsV2 returned a truncated page without a cursor");
-      }
-      return {
-        keys: (response.Contents ?? []).flatMap(({ Key }) => Key ? [Key] : []),
-        cursor: response.NextContinuationToken ?? null,
-      };
-    },
     async signedGet(key, options) {
       validateObjectKey(key);
       const expiresIn = options.expiresIn ?? SIGNED_GET_TTL_SECONDS;
@@ -372,6 +371,12 @@ export function createS3ObjectStorage(config: S3Configuration): ObjectStorage {
       const signal = storageSignal(options);
       signal.throwIfAborted();
       const { client, commands, sign } = await load();
+      try {
+        await verify(client, commands, key, options.sizeBytes, options.expectedSha256, signal);
+      } catch (error) {
+        if (isNotFound(error)) return null;
+        throw error;
+      }
       const url = await sign(client, new commands.GetObjectCommand({
         Bucket: config.bucket,
         Key: key,
@@ -379,6 +384,8 @@ export function createS3ObjectStorage(config: S3Configuration): ObjectStorage {
           options.disposition ?? "attachment",
           options.filename,
         ),
+        ResponseContentType: contentType(options.contentType),
+        ResponseCacheControl: "private, no-store",
       }), { expiresIn });
       signal.throwIfAborted();
       return url;
@@ -388,11 +395,32 @@ export function createS3ObjectStorage(config: S3Configuration): ObjectStorage {
 
 export function createFilesystemObjectStorage(root: string): ObjectStorage {
   const absoluteRoot = path.resolve(root);
+  const staging = path.join(absoluteRoot, ".staging");
+  let ready: Promise<void> | undefined;
+  const prepare = () => ready ??= rm(staging, { recursive: true, force: true })
+    .then(() => mkdir(staging, { recursive: true, mode: 0o700 })).then(() => undefined);
   const resolve = (key: string) => {
     validateObjectKey(key);
     const result = path.resolve(absoluteRoot, ...key.split("/"));
     if (!result.startsWith(`${absoluteRoot}${path.sep}`)) throw new Error("Invalid object path");
     return result;
+  };
+  const verifyExisting = async (target: string, size: number, digest: string,
+    signal: AbortSignal) => {
+    let existing;
+    try {
+      existing = await stat(target);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+      throw error;
+    }
+    const hash = createHash("sha256");
+    if (!existing.isFile() || existing.size !== size)
+      throw new Error("Content-addressed object failed its integrity check");
+    for await (const chunk of createReadStream(target, { signal })) hash.update(chunk);
+    if (hash.digest("hex") !== digest)
+      throw new Error("Content-addressed object failed its integrity check");
+    return true;
   };
   return {
     async put(key, input, type, options) {
@@ -400,25 +428,40 @@ export function createFilesystemObjectStorage(root: string): ObjectStorage {
       const body = checkedBody(input);
       const signal = storageSignal(options);
       const target = resolve(key);
+      const size = body instanceof Uint8Array ? body.byteLength : body.sizeBytes;
       signal.throwIfAborted();
+      if (await verifyExisting(target, size, options.expectedSha256, signal)) return "exists";
+      await prepare();
       await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
-      const temporary = `${target}.${randomUUID()}.tmp`;
+      const temporary = path.join(staging, randomUUID());
       try {
+        const digest = createHash("sha256");
         if (body instanceof Uint8Array) {
           await writeFile(temporary, body, { flag: "wx", mode: 0o600, signal });
+          digest.update(body);
         } else {
-          await pipeline(createReadStream(body.path, { signal }),
+          const source = createReadStream(body.path, { signal });
+          source.on("data", (chunk) => digest.update(chunk));
+          await pipeline(source,
             createWriteStream(temporary, { flags: "wx", mode: 0o600, signal }));
           if ((await stat(temporary)).size !== body.sizeBytes)
             throw new Error("Staged object size changed while copying");
         }
+        if (digest.digest("hex") !== options.expectedSha256)
+          throw new Error("Object source changed while storing");
         signal.throwIfAborted();
-        await rename(temporary, target);
-      } catch (error) {
-        await unlink(temporary).catch((cleanup) => {
-          if ((cleanup as NodeJS.ErrnoException).code !== "ENOENT") throw cleanup;
+        try {
+          await link(temporary, target);
+          return "created";
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+          if (!await verifyExisting(target, size, options.expectedSha256, signal)) throw error;
+          return "exists";
+        }
+      } finally {
+        await unlink(temporary).catch((error) => {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         });
-        throw error;
       }
     },
     async get(key, options) {
@@ -448,28 +491,6 @@ export function createFilesystemObjectStorage(root: string): ObjectStorage {
       }
       signal.throwIfAborted();
     },
-    async list(prefix = "", options) {
-      validateObjectKey(prefix, true);
-      const signal = storageSignal(options);
-      const limit = listLimit(options?.limit);
-      signal.throwIfAborted();
-      let entries: Dirent<string>[];
-      try {
-        entries = await readdir(absoluteRoot, { recursive: true, withFileTypes: true });
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") return { keys: [], cursor: null };
-        throw error;
-      }
-      signal.throwIfAborted();
-      const start = options?.cursor ?? "";
-      const keys = entries.flatMap((entry) => entry.isFile()
-        ? [path.relative(absoluteRoot, path.join(entry.parentPath, entry.name)).replaceAll("\\", "/")]
-        : [])
-        .filter((key) => (!prefix || key.startsWith(`${prefix}/`)) && key > start)
-        .sort();
-      const page = keys.slice(0, limit);
-      return { keys: page, cursor: keys.length > limit ? page.at(-1)! : null };
-    },
   };
 }
 
@@ -483,16 +504,6 @@ export function scopeObjectStorage(
     put: (key, bytes, type, options) => base.put(full(key), bytes, type, options),
     get: (key, options) => base.get(full(key), options),
     remove: (key, options) => base.remove(full(key), options),
-    async list(child = "", options) {
-      validateObjectKey(child, true);
-      const scopedPrefix = child ? `${prefix}/${child}` : prefix;
-      const page = await base.list(scopedPrefix, options);
-      const marker = `${prefix}/`;
-      if (page.keys.some((key) => !key.startsWith(marker))) {
-        throw new Error("Object provider returned a key outside the assigned prefix");
-      }
-      return { ...page, keys: page.keys.map((key) => key.slice(marker.length)) };
-    },
     signedGet: base.signedGet
       ? (key, options) => base.signedGet!(full(key), options)
       : undefined,
@@ -528,24 +539,19 @@ export const downloadHeaders = (
   "X-Content-Type-Options": "nosniff",
 } as const);
 
-export function versionStorageKey(
-  userId: string,
-  documentId: string,
-  versionId: string,
+export function documentBlobKey(
+  scope: Readonly<{ userId: string; projectId: string | null }>,
   sha256: string,
-  filename: string,
 ): string {
-  for (const segment of [userId, documentId, versionId]) {
-    if (segment.includes("/")) throw new Error("Storage key segment cannot contain a slash");
-    validateObjectKey(segment);
-  }
+  const [kind, id] = scope.projectId === null
+    ? ["users", scope.userId] : ["projects", scope.projectId];
+  if (validateObjectKey(id).includes("/")) throw new Error("Scope ID must be one path segment");
   if (!/^[a-f0-9]{64}$/u.test(sha256)) throw new Error("Invalid object SHA-256");
-  return `${userId}/${documentId}/${versionId}-${sha256.slice(0, 16)}${storageExtension(filename, ".bin")}`;
+  return `${kind}/${id}/blobs/sha256/${
+    sha256.slice(0, 2)}/${sha256.slice(2)}`;
 }
 
-function storageExtension(filename: string, fallback: string): string {
-  const lastDot = filename.lastIndexOf(".");
-  if (lastDot < 0) return fallback;
-  const extension = filename.slice(lastDot).toLowerCase();
-  return /^\.[a-z0-9]{1,16}$/u.test(extension) ? extension : fallback;
-}
+export const documentBlobDigest = (key: string) => {
+  const match = key.match(/\/sha256\/([a-f0-9]{2})\/([a-f0-9]{62})$/u);
+  return match ? `${match[1]}${match[2]}` : null;
+};

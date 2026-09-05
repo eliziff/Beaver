@@ -425,8 +425,8 @@ export async function ensurePassageIndex(options: PassageIndexOptions): Promise<
         const sourceKind = row.doc_type === "laws" || row.doc_type === "cases"
           ? row.doc_type : options.docType ?? "cases";
         const sourceDoc = await structureNative().deriveDocumentStructure({
-          kind: "a2aj",
-          input: { citation, source_kind: sourceKind, text, name },
+          kind: "provider_text",
+          input: { provider: "a2aj", citation, source_kind: sourceKind, text, name },
         });
         const spans =
           options.mode === "clause"

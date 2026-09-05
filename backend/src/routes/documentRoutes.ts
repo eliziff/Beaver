@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { pipeline } from "node:stream/promises";
 import { requireAuth } from "../middleware/auth";
-import { applicationScope, reject } from "../lib/applicationError";
+import { ApplicationError, applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
 import {
   contentTypeForDocumentType,
@@ -17,21 +17,40 @@ import { documentProjectionService } from "../lib/documentProjectionService";
 import { sha256 } from "../lib/hash";
 import { spreadsheetToLLMStructure } from "../lib/spreadsheet";
 import { z } from "zod";
-import { readResearchFile, researchFileActionSchema, saveResearchFile } from "../lib/researchFile";
+import { commitResearchFile, pageResearchItems, readResearchFile,
+  researchFileActionSchema, researchSourceKey } from "../lib/researchFile";
 import { researchCaptureRuleSchema, runResearchFileQuery,
   verifyResearchPassage } from "../lib/researchFileQuery";
 
 const scope = applicationScope, MAX_ZIP_FILES = 100;
 const researchVersion = z.string().trim().min(1).max(200);
+const revisionNumber = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+const workingRevision = z.union([
+  revisionNumber, z.string().regex(/^\d+$/u).transform(Number),
+]).pipe(revisionNumber);
+const versionComment = (value: unknown) => value === undefined ? undefined
+  : z.string().max(1_000).parse(value);
+const deleteExpectation = z.object({
+  expected_current_version_id: researchVersion,
+  expected_working_revision: workingRevision,
+  expected_project_id: researchVersion.nullable(),
+  expected_folder_id: researchVersion.nullable(),
+}).strict();
 const researchQuery = z.object({ version_id: researchVersion,
+  working_revision: workingRevision,
   text: z.string().trim().min(1).max(10_000).optional(),
   syntax: z.enum(["literal", "terms"]), target: z.enum(["sources", "passages"]),
   sourceIds: z.array(z.string().uuid()).max(10_000).optional(),
   labelIds: z.array(z.string().uuid()).max(1_000).optional(),
+  unlabelled: z.boolean().optional(),
   rules: z.array(researchCaptureRuleSchema).max(50).optional(),
   conflict: z.enum(["prompt", "first", "longer", "shorter", "append"]).optional(),
+  after: z.string().max(4096).optional(),
   limit: z.number().int().min(1).max(5_000).optional() }).strict()
-  .refine((input) => input.text || input.rules?.length, "Supply text or capture rules");
+  .refine((input) => Boolean(input.text) !== Boolean(input.rules?.length),
+    "Supply either text or capture rules");
+const researchConflict = (): never => { throw new ApplicationError(409,
+  "This research file changed. Reload it.", { code: "revision_conflict" }); };
 
 const versionId = (req: Request) =>
   typeof req.query.version_id === "string" ? req.query.version_id : null;
@@ -136,22 +155,54 @@ export function createDocumentsRouter(
     res.json(file);
   }));
 
+  router.get("/:documentId/research/items", asyncRoute(async (req, res) => {
+    const kind = z.enum(["passages", "queries"]).parse(req.query.kind), sourceId =
+      z.string().uuid().optional().parse(req.query.source_id), file = await readResearchFile(
+        documents, scope(res), req.params.documentId) ?? reject(404, "Research file not found");
+    if (sourceId && !file.state.sources[sourceId]) reject(404, "Research source not found");
+    const contentRevision = kind === "queries" ? file.state.queries?.sha256 ?? ""
+      : sourceId ? file.state.sources[sourceId]!.passages?.sha256 ?? ""
+      : sha256(JSON.stringify(Object.values(file.state.sources).map(({ id, passages }) =>
+          [id, passages?.sha256 ?? ""]))),
+      filters = { document_id: req.params.documentId, content_revision: contentRevision,
+        kind, source_id: sourceId ?? null },
+      { after, limit } = pageRequest<[number]>(req.query as Record<string, unknown>,
+        "research-items", filters, ["number"]), page = await pageResearchItems(
+        documents, scope(res), file, kind, after?.[0] ?? 0, limit,
+        sourceId && kind === "passages" ? [sourceId] : undefined);
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ ...pageResponse("research-items", filters, { items: page.items,
+      nextAfter: page.nextOffset === null ? null : [page.nextOffset] }), total: page.total });
+  }));
+
   router.post("/:documentId/research/actions", asyncRoute(async (req, res) => {
     const version = researchVersion.parse(req.body?.version_id);
-    const action = await verifyResearchPassage(documents, scope(res), req.params.documentId,
-      version, researchFileActionSchema.parse(req.body?.action));
-    const file = await saveResearchFile(documents, scope(res), req.params.documentId,
-      version, action) ?? reject(409, "This research file changed. Reload it.");
-    res.json(file);
+    const revision = workingRevision.parse(req.body?.working_revision);
+    const current = await readResearchFile(documents, scope(res), req.params.documentId)
+      ?? researchConflict();
+    if (current.versionId !== version || current.workingRevision !== revision)
+      researchConflict();
+    const requested = researchFileActionSchema.parse(req.body?.action),
+      action = await verifyResearchPassage(current, requested);
+    const file = await commitResearchFile(documents, scope(res), current, action)
+      ?? researchConflict();
+    const sourceId = requested.type === "passage" ? requested.sourceId
+      : requested.type === "source" ? Object.values(file.state.sources).find(({ reference }) =>
+        researchSourceKey(reference) === researchSourceKey(requested.reference))?.id : undefined,
+      receipt = sourceId && action.type === "merge" ? action.evidence?.[0] : undefined;
+    res.json({ ...file, ...(sourceId ? { sourceId } : {}),
+      ...(receipt ? { evidenceId: receipt.evidence_id } : {}) });
   }));
 
   router.post("/:documentId/research/query", asyncRoute(async (req, res) => {
     const input = researchQuery.parse(req.body);
-    res.json(await runResearchFileQuery(documents, scope(res), req.params.documentId, {
-      versionId: input.version_id, text: input.text, syntax: input.syntax, target: input.target,
-      sourceIds: input.sourceIds, labelIds: input.labelIds, limit: input.limit,
-      rules: input.rules, conflict: input.conflict,
-    }));
+    const result = await runResearchFileQuery(documents, scope(res), req.params.documentId, {
+      versionId: input.version_id, workingRevision: input.working_revision,
+      text: input.text, syntax: input.syntax, target: input.target,
+      sourceIds: input.sourceIds, labelIds: input.labelIds, unlabelled: input.unlabelled, limit: input.limit,
+      rules: input.rules, conflict: input.conflict, after: input.after,
+    });
+    res.json({ file: result.file, receipt: result.receipt, coverage: result.coverage });
   }));
 
   router.get("/:documentId/spreadsheet", asyncRoute(async (req, res) => {
@@ -217,23 +268,25 @@ export function createDocumentsRouter(
   }));
 
   router.delete("/:documentId", asyncRoute(async (req, res) => {
-    if (!await documents.deleteDocument(scope(res), req.params.documentId)) {
-      reject(404, "Document not found");
-    }
+    const expected = deleteExpectation.parse(req.body);
+    if (!await documents.deleteDocument(scope(res), req.params.documentId, true, {
+      versionId: expected.expected_current_version_id,
+      workingRevision: expected.expected_working_revision,
+      projectId: expected.expected_project_id,
+      folderId: expected.expected_folder_id,
+    })) reject(409, "Document changed before it could be deleted");
     res.status(204).send();
   }));
 
   router.get("/:documentId/evidence-view", asyncRoute(async (req, res) => {
     const handle = evidenceHandle(req) ?? reject(400, "version_id and evidence are required");
     const requested = versionId(req) ?? reject(400, "version_id and evidence are required");
-    const [source, metadata] = await Promise.all([
+    const [found, metadata] = await Promise.all([
       documents.projectionSource(scope(res), req.params.documentId, requested),
       documents.metadata(scope(res), req.params.documentId),
     ]);
-    if (!source || source.fileType.toLowerCase() !== "pdf") {
-      reject(404, "Document not found");
-      return;
-    }
+    const source = found ?? reject(404, "Document not found");
+    if (source.fileType.toLowerCase() !== "pdf") reject(404, "Document not found");
     const receipt = await evidence(() => documentProjectionService.rehydratePdfEvidence(
       handle,
       projectionReference(req.params.documentId, source.versionId, source.sourceSha256),
@@ -299,92 +352,60 @@ export function createDocumentsRouter(
     asyncRoute(async (req, res) => {
       const file = req.file ?? reject(400, "file is required");
       const resolvedName = filename(req, file.originalname);
+      const expectedCurrentVersionId = researchVersion.parse(
+        req.body?.expected_current_version_id);
+      const expectedCurrentWorkingRevision = workingRevision.parse(
+        req.body?.expected_working_revision);
       const version = await documents.addVersion(
         scope(res),
         req.params.documentId,
-        uploadedDocument(file, resolvedName),
+        { ...uploadedDocument(file, resolvedName), expectedCurrentVersionId,
+          expectedCurrentWorkingRevision, comment: versionComment(req.body?.comment) },
       );
-      if (!version) reject(404, "Document not found");
+      if (!version) reject(409, "Document changed before the upload completed");
       res.status(201).json(version);
     }),
   );
 
-  router.post(
-    "/:documentId/versions/from-document",
-    asyncRoute(async (req, res) => {
-      const sourceId = typeof req.body?.source_document_id === "string"
-        ? req.body.source_document_id.trim()
-        : "";
-      if (!sourceId || sourceId === req.params.documentId) {
-        reject(400, "Invalid source document");
-      }
-      const requestedName = typeof req.body?.filename === "string" &&
-          req.body.filename.trim()
-        ? req.body.filename.trim().slice(0, 200)
-        : undefined;
-      const result = await documents.copyVersion(
-        scope(res), req.params.documentId, sourceId, requestedName,
-      );
-      if (result.status !== "created") {
-        if (result.status === "target-missing") reject(404, "Document not found");
-        if (result.status === "source-missing") {
-          reject(404, "Source document not found");
-        }
-        return reject(403, "Only the source document owner can move it into a version");
-      }
-      res.status(201).json(result.version);
-    }),
-  );
+  router.post("/:documentId/versions/:versionId/restore", asyncRoute(async (req, res) => {
+    const expected = researchVersion.parse(req.body?.expected_current_version_id);
+    const revision = workingRevision.parse(req.body?.expected_working_revision);
+    const result = await documents.restoreVersion(
+      scope(res), req.params.documentId, req.params.versionId, expected, revision,
+      versionComment(req.body?.comment),
+    );
+    if (result.status === "restored") return void res.status(201).json(result.version);
+    reject(result.status === "missing" ? 404 : 409, result.status === "missing"
+      ? "Version not found" : result.status === "conflict"
+        ? "Document changed before it could be restored"
+        : "Versions with pending tracked changes cannot be restored");
+  }));
 
-  router.patch(
-    "/:documentId/versions/:versionId",
-    asyncRoute(async (req, res) => {
-      const resolvedName = typeof req.body?.filename === "string"
-        ? req.body.filename.trim().slice(0, 200)
-        : "";
-      if (!resolvedName) reject(400, "filename is required");
-      const version = await documents.renameVersion(
-        scope(res), req.params.documentId, req.params.versionId, resolvedName,
-      );
-      if (!version) reject(404, "Version not found");
-      res.json(version);
-    }),
-  );
+  router.post("/:documentId/versions/checkpoint", asyncRoute(async (req, res) => {
+    const expected = researchVersion.parse(req.body?.expected_current_version_id);
+    const result = await documents.checkpointVersion(scope(res), req.params.documentId,
+      expected, workingRevision.parse(req.body?.expected_working_revision),
+      versionComment(req.body?.comment));
+    if (result.status === "missing") reject(404, "Document not found");
+    if (result.status === "conflict") reject(409, "Document changed before the version was created");
+    if (result.status === "pending-edits")
+      reject(409, "Resolve pending tracked changes before creating a version");
+    if (result.status === "created") res.status(201).json(result.version);
+  }));
 
-  router.put(
-    "/:documentId/versions/:versionId/file",
-    singleFileUpload("file"),
-    asyncRoute(async (req, res) => {
-      const file = req.file ?? reject(400, "file is required");
-      const resolvedName = filename(req, file.originalname);
-      const result = await documents.replaceVersion(
-        scope(res), req.params.documentId, req.params.versionId,
-        uploadedDocument(file, resolvedName),
-      );
-      if (result.status !== "replaced") {
-        if (result.status === "missing") reject(404, "Version not found");
-        return reject(400, "Uploaded file type does not match version type");
-      }
-      res.json(result.version);
-    }),
-  );
-
-  router.delete(
-    "/:documentId/versions/:versionId",
-    asyncRoute(async (req, res) => {
-      const result = await documents.deleteVersion(
-        scope(res), req.params.documentId, req.params.versionId,
-      );
-      if (result.status !== "deleted") {
-        if (result.status === "missing") reject(404, "Version not found");
-        return reject(400, "Cannot delete the only document version.");
-      }
-      res.json({
-        deleted_version_id: req.params.versionId,
-        current_version_id: result.currentVersionId,
-      });
-    }),
-  );
+  router.get("/:documentId/versions/:versionId/compare", asyncRoute(async (req, res) => {
+    const baseline = researchVersion.parse(req.query.baseline_version_id);
+    const result = await documents.compareVersions(
+      scope(res), req.params.documentId, baseline, req.params.versionId,
+    );
+    if (result.status === "compared") {
+      res.set(downloadHeaders(contentTypeForDocumentType("docx"), result.filename));
+      return void res.send(result.bytes);
+    }
+    reject(result.status === "missing" ? 404 : 400, result.status === "missing"
+      ? "Version not found" : result.status === "type-mismatch"
+        ? "Comparison requires two DOCX versions" : "Choose two different versions");
+  }));
 
   const resolveEdits = (mode: "accept" | "reject") => asyncRoute(
     async (req, res) => {

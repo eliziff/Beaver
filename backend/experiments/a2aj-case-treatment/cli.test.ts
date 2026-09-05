@@ -6,13 +6,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyJsonPatch,
+  aggregateStructureScore,
   assertRunContract,
   assertSharedStructureRun,
-  embedSchemaInPrompt,
   fixedSemanticGrade,
   MODEL_SYSTEM_PROMPT,
   parseJson,
+  runCheckpointedPatchStage,
   runCheckpointedStage,
+  structureEnsembleConfigs,
 } from "./cli";
 import { CASE_TREATMENT_CONTRACT_VERSION, semanticJudgeScore } from "./contract";
 
@@ -45,6 +47,23 @@ describe("case-treatment model output parsing", () => {
     expect(parseJson("")).toBeNull();
     expect(parseJson("no json here")).toBeNull();
     expect(parseJson("{\"answer\":")).toBeNull();
+  });
+});
+
+describe("structure ensemble", () => {
+  it("varies supported settings without duplicating the first nine members", () => {
+    const configs = structureEnsembleConfigs(
+      9,
+      ["low", "medium", "high"],
+      ["direct", "boundary-first", "vote-first"],
+      true,
+    );
+    expect(new Set(configs.map(({ effort, strategy, structure_hints }) =>
+      `${effort}:${strategy}:${structure_hints}`)).size).toBe(9);
+    expect(new Set(configs.map(({ effort }) => effort))).toEqual(new Set(["low", "medium", "high"]));
+    expect(new Set(configs.map(({ strategy }) => strategy))).toEqual(new Set(["direct", "boundary-first", "vote-first"]));
+    expect(configs.some(({ structure_hints }) => structure_hints)).toBe(true);
+    expect(configs.some(({ structure_hints }) => !structure_hints)).toBe(true);
   });
 });
 
@@ -92,8 +111,6 @@ describe("run contract isolation", () => {
       timeout_seconds: 1800,
       structure_hints: false,
       analysis_examples: false,
-      requests_per_minute: null,
-      daily_request_caps: null,
       requested_ids: [1, 2],
       model_system_prompt: MODEL_SYSTEM_PROMPT,
       structure_instructions: "structure prompt",
@@ -129,17 +146,34 @@ describe("semantic benchmark aggregation", () => {
       extra_candidate_relationships: [],
     }).overall).toEqual({ items: 5, earned: 3, score: 0.6 });
   });
-});
 
-describe("stateless schema delivery", () => {
-  it("embeds the schema in the prompt for schema-blind gateways", () => {
-    const embedded = embedSchemaInPrompt("Do the task. Return only JSON matching the supplied schema.", {
-      type: "object",
-      properties: { answer: { type: "number" } },
-    });
-    expect(embedded).toContain("[OUTPUT JSON SCHEMA]");
-    expect(embedded).toContain("\"answer\"");
-    expect(embedded.indexOf("Do the task.")).toBe(0);
+  it("counts missing structure cases as failures instead of dropping them", () => {
+    const categories = Object.fromEntries([
+      "opinion_count_exact", "boundaries_acceptable", "writers_exact", "full_joiners_exact",
+      "qualified_agreements_exact", "opinion_results_exact", "participant_votes_exact",
+      "result_only_participants_exact", "nonparticipants_exact",
+    ].map((name) => [name, true]));
+    const score = aggregateStructureScore([
+      {
+        document_id: 1,
+        citation: "Case 1",
+        gold_opinions: 2,
+        structure: {
+          accepted: true,
+          category_score: { passed: 9, total: 9, score: 1 },
+          categories,
+          boundary_receipts: [],
+          metrics: {
+            gold_opinions: 2, candidate_opinions: 2, matched_opinions: 2,
+            exact_boundaries: 2, acceptable_boundaries: 2, mean_boundary_overlap: 1,
+          },
+        } as never,
+      },
+      { document_id: 2, citation: "Case 2", gold_opinions: 1, structure: null },
+    ]);
+    expect(score.category_score).toEqual({ passed: 9, total: 18, score: 0.5 });
+    expect(score.categories.boundaries_acceptable).toEqual({ passed: 1, total: 2, score: 0.5 });
+    expect(score.opinions).toMatchObject({ gold: 3, acceptable_boundaries: 2, acceptable_boundary_recall: 2 / 3 });
   });
 });
 
@@ -186,6 +220,37 @@ describe("JSON Patch corrections", () => {
 });
 
 describe("case-treatment stage checkpoints", () => {
+  it("resumes a whole-analysis patch from the corrected value without retyping it", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "a2aj-treatment-audit-patch-"));
+    const prompts: string[] = [];
+    try {
+      const result = await runCheckpointedPatchStage({
+        prompt: "Audit the current analysis.",
+        schema: { type: "object", properties: { patch: { type: "array" } }, required: ["patch"] },
+        base: { answer: 40 },
+        compile: (value: unknown) => {
+          const answer = (value as { answer?: unknown }).answer;
+          return { ok: answer === 42, errors: answer === 42 ? [] : ["answer: must be 42"], value: value as { answer: number }, grounding: [] };
+        },
+        max_corrections: 1,
+        stateless_corrections: false,
+        model_call: async (prompt) => {
+          prompts.push(prompt);
+          return prompts.length === 1
+            ? { call_id: "patch-1", raw: "", parsed: { patch: [{ op: "replace", path: "/answer", value: 41 }] }, error: null, continuation_id: "thread", elapsed_seconds: 1, usage: null, output_sha256: "one" }
+            : { call_id: "patch-2", raw: "", parsed: { patch: [{ op: "replace", path: "/answer", value: 42 }] }, error: null, continuation_id: "thread", elapsed_seconds: 1, usage: null, output_sha256: "two" };
+        },
+        checkpoint_file: path.join(directory, "audit.json"),
+      });
+      expect(result.value).toEqual({ answer: 42 });
+      expect(prompts[1]).toContain("[CURRENT ANALYSIS]");
+      expect(prompts[1]).toContain('{"answer":41}');
+      expect(result.attempts).toHaveLength(2);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("reuses an accepted stage without another model call", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "a2aj-treatment-checkpoint-"));
     let calls = 0;

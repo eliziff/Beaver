@@ -1,4 +1,5 @@
 import type { Tool } from "../llm";
+import type { DocIndex } from "./types";
 import {
   DOCUMENT_OR_DRAFT_PATTERN,
   DOCUMENT_RESOURCE_PATTERN,
@@ -29,13 +30,15 @@ const resource = "A version-pinned document resource returned by Glob.";
 export const RESOURCE_TOOLS = [
   tool(
     "Glob",
-    'List matching workspace resources when the request requires locating a saved document. Use "workflow://*" for workflows. This does not search legal-source corpora.',
+    'List matching workspace resources. Follow next_offset for more matches. Use "workflow://*" for workflows. This does not search legal-source corpora.',
     {
       pattern: {
         type: "string",
         maxLength: 256,
         description: 'Filename glob such as "*.docx". Defaults to "*".',
       },
+      offset: { type: "integer", minimum: 1, description: "First matching row; defaults to 1." },
+      limit: { type: "integer", minimum: 1, maximum: 100, description: "Maximum rows; defaults to 50." },
     },
   ),
   tool(
@@ -71,7 +74,7 @@ export const RESOURCE_TOOLS = [
   ),
   tool(
     "Read",
-    "Read a bounded range from one document resource when the request depends on its contents. Use drafting for semantic DOCX Markdown or redline for visible editorial markup.",
+    "Read a document, evidence_id or query_id. List prior receipts with file_path evidence or queries. Use drafting for semantic DOCX Markdown or redline for editorial markup.",
     {
       file_path: {
         type: "string",
@@ -79,7 +82,7 @@ export const RESOURCE_TOOLS = [
         description: resource,
       },
       mode: { type: "string", enum: ["text", "drafting", "redline"] },
-      offset: { type: "integer", minimum: 1, maximum: 100_000_000, description: "Starting line." },
+      offset: { type: "integer", minimum: 1, maximum: 100_000_000, description: "Starting line or item." },
       limit: { type: "integer", minimum: 1, maximum: 2000 },
       start_char: { type: "integer", minimum: 0, maximum: 100_000_000 },
       section: { type: "string", description: "Exact structural handle." },
@@ -155,6 +158,25 @@ const globSource = (pattern: string) => pattern
   .replace(/\*/gu, "[^/]*")
   .replace(/\?/gu, ".")
   .replace(/\u0000/gu, ".*");
+
+export function availableDocumentsPrompt(docIndex: DocIndex,
+  records: ReadonlyMap<string, Record<string, unknown>>, selectedIds: readonly string[] = []) {
+  const entries = Object.entries(docIndex);
+  if (!entries.length) return "";
+  const selected = new Set(selectedIds), header = `AVAILABLE DOCUMENTS (${entries.length}):`,
+    footer = "Names and inventory may be shortened. Use Glob to find all matches or resolve a doc-N alias, then Read the versioned resource.",
+    lines: string[] = [];
+  let chars = header.length + footer.length + 2;
+  for (const [alias, info] of [...entries.filter(([, info]) => selected.has(info.document_id)),
+    ...entries.filter(([, info]) => !selected.has(info.document_id))]) {
+    const focused = selected.has(info.document_id),
+      path = focused ? "" : String(records.get(info.document_id)?.folder_path ?? "").slice(0, 100),
+      line = `- ${alias}: ${path ? `${path} / ` : ""}${info.filename.slice(0, focused ? 120 : 160)}`;
+    if (chars + line.length + 1 > 8_000) break;
+    lines.push(line); chars += line.length + 1;
+  }
+  return [header, ...lines, footer].join("\n");
+}
 
 export const globPattern = (pattern = "*") => {
   if (pattern.length > 256) throw new Error("Glob pattern exceeds 256 characters.");

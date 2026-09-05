@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { ResearchLabelCircle } from "./ResearchLabelCircle";
+import { researchLabelColor, ResearchLabelCircle } from "./ResearchLabelCircle";
 
 const labels = {
   root: { id: "root", name: "Root", parentId: null, color: "#1d4ed8", order: 0, scope: "source" as const },
@@ -20,5 +20,10 @@ describe("ResearchLabelCircle", () => {
   it("keeps an unassigned stack outlined", () => {
     render(<ResearchLabelCircle labels={labels} labelIds={[]} size="sm" />);
     expect(screen.getByRole("group", { name: "No labels" })).toHaveAttribute("data-empty", "true");
+  });
+
+  it("shares the saved-label scope defaults", () => {
+    expect(researchLabelColor({ ...labels.root, color: null })).toBe("#3498db");
+    expect(researchLabelColor({ ...labels.root, color: null, scope: "highlight" })).toBe("#eab308");
   });
 });

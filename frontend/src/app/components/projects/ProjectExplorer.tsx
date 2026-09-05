@@ -7,6 +7,7 @@ import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { RowActions } from "@/app/components/shared/RowActions";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
+import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
 import { buildDocumentTree, DOCUMENT_DRAG_TYPE, documentTreeDropFolder,
     FOLDER_DRAG_TYPE, hasDocumentTreeDrag, wouldCreateFolderCycle } from "@/app/components/documents/documentTree";
 
@@ -25,6 +26,7 @@ interface Props {
 }
 type Editor = { kind: "new"; parentId: string | null } |
     { kind: "rename"; folderId: string };
+type PendingMove = { kind: "document" | "folder"; id: string };
 
 export function ProjectExplorer({
     documents, folders = [], selectedDocId, onDocClick, onCreateFolder,
@@ -36,6 +38,7 @@ export function ProjectExplorer({
     const [name, setName] = useState("");
     const [dragTarget, setDragTarget] = useState<string | null>();
     const [pendingDelete, setPendingDelete] = useState<{ kind: "document" | "folder"; id: string } | null>(null);
+    const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
     const [status, setStatus] = useState<"idle" | "loading" | "complete">("idle");
     const [error, setError] = useState<string | null>(null);
     const tree = buildDocumentTree(documents, folders, expanded,
@@ -45,6 +48,19 @@ export function ProjectExplorer({
         ? documents.find(({ id }) => id === pendingDelete.id) : undefined;
     const pendingFolder = pendingDelete?.kind === "folder"
         ? folders.find(({ id }) => id === pendingDelete.id) : undefined;
+    const movingDocument = pendingMove?.kind === "document"
+        ? documents.find(({ id }) => id === pendingMove.id) : undefined;
+    const movingFolder = pendingMove?.kind === "folder"
+        ? folders.find(({ id }) => id === pendingMove.id) : undefined;
+    const currentMoveParent = movingDocument?.folder_id ?? movingFolder?.parent_folder_id ?? null;
+    const folderOptions = [
+        ...(currentMoveParent ? [{ value: null, label: "Project root" }] : []),
+        ...folders.filter((folder) => folder.id !== currentMoveParent &&
+            (pendingMove?.kind !== "folder" || folder.id !== pendingMove.id &&
+                !wouldCreateFolderCycle(pendingMove.id, folder.id, tree.folderById)))
+            .map((folder) => ({ value: folder.id, label: folderPath(folder, tree.folderById) }))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+    ];
     function toggleFolder(id: string) {
         setExpanded((current) => {
             const next = new Set(current);
@@ -107,6 +123,17 @@ export function ProjectExplorer({
                 : "The document could not be deleted.");
         }
     }
+    async function movePending(destinationId: string | null) {
+        const current = pendingMove;
+        setPendingMove(null);
+        if (!current) return;
+        try {
+            if (current.kind === "document") await onMoveDoc?.(current.id, destinationId);
+            else await onMoveFolder?.(current.id, destinationId);
+        } catch {
+            setError(`${current.kind === "folder" ? "The folder" : "The document"} could not be moved.`);
+        }
+    }
     return (
         <>
             <div className="flex h-full min-h-0 flex-col">
@@ -146,38 +173,40 @@ export function ProjectExplorer({
                             const open = expanded.has(folder.id);
                             const renaming = editor?.kind === "rename" &&
                                 editor.folderId === folder.id;
+                            const prefix = <>{open
+                                ? <ChevronDown className="h-3 w-3 shrink-0 text-gray-500" aria-hidden="true" />
+                                : <ChevronRight className="h-3 w-3 shrink-0 text-gray-500" aria-hidden="true" />}
+                                <FolderSvgIcon open={open} className="h-3.5 w-3.5 shrink-0" /></>;
                             return (
                                 <li key={folder.id} data-tree-drop-folder={folder.id}
-                                    draggable={!renaming}
+                                    draggable={!!onMoveFolder && !renaming}
                                     onDragStart={(event) => {
                                         event.dataTransfer.setData(FOLDER_DRAG_TYPE, folder.id);
                                         event.dataTransfer.effectAllowed = "move";
                                     }}
                                     className={`flex h-9 min-w-0 items-center ${dragTarget === folder.id ? "bg-red-50 ring-1 ring-inset ring-red-200" : "hover:bg-gray-50"}`}
                                     style={{ paddingLeft: 8 + row.depth * 16 }}>
-                                    <button type="button"
-                                        onClick={() => toggleFolder(folder.id)}
-                                        className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
-                                        {open
-                                            ? <ChevronDown className="h-3 w-3 shrink-0 text-gray-500" />
-                                            : <ChevronRight className="h-3 w-3 shrink-0 text-gray-500" />}
-                                        <FolderSvgIcon open={open} className="h-3.5 w-3.5 shrink-0" />
-                                        {renaming ? (
-                                            <NameInput value={name} onChange={setName}
-                                                onCommit={() => void commitEditor()}
-                                                onCancel={() => setEditor(null)} />
-                                        ) : (
-                                            <span className="truncate text-xs text-gray-700">{folder.name}</span>
-                                        )}
-                                    </button>
-                                    <RowActions
-                                        onNewSubfolder={() =>
-                                            startEditor({ kind: "new", parentId: folder.id })}
-                                        onRename={() => startEditor(
-                                            { kind: "rename", folderId: folder.id }, folder.name)}
+                                    {renaming ? <>{prefix}
+                                        <NameInput label={`Rename ${folder.name}`} value={name} onChange={setName}
+                                            onCommit={() => void commitEditor()}
+                                            onCancel={() => setEditor(null)} />
+                                    </> : <button type="button" onClick={() => toggleFolder(folder.id)}
+                                        aria-expanded={open}
+                                        className="flex min-w-0 flex-1 items-center gap-1.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-900">
+                                        {prefix}
+                                        <span className="truncate text-xs text-gray-700">{folder.name}</span>
+                                    </button>}
+                                    {(onCreateFolder || onRenameFolder || onMoveFolder || onDeleteFolder) && <RowActions
+                                        onNewSubfolder={onCreateFolder ? () =>
+                                            startEditor({ kind: "new", parentId: folder.id })
+                                            : undefined}
+                                        onRename={onRenameFolder ? () => startEditor(
+                                            { kind: "rename", folderId: folder.id }, folder.name) : undefined}
+                                        onMove={onMoveFolder ? () => setPendingMove({ kind: "folder",
+                                            id: folder.id }) : undefined}
                                         onDelete={onDeleteFolder ? () =>
                                             setPendingDelete({ kind: "folder", id: folder.id }) : undefined}
-                                    />
+                                    />}
                                 </li>
                             );
                         }
@@ -185,7 +214,7 @@ export function ProjectExplorer({
                         const document = row.document;
                         return (
                             <li key={document.id}
-                                data-tree-drop-folder={row.parentId ?? ""} draggable
+                                data-tree-drop-folder={row.parentId ?? ""} draggable={!!onMoveDoc}
                                 onDragStart={(event) => {
                                     event.dataTransfer.setData(DOCUMENT_DRAG_TYPE, document.id);
                                     event.dataTransfer.effectAllowed = "move";
@@ -194,13 +223,15 @@ export function ProjectExplorer({
                                     document.id === selectedDocId
                                         ? "bg-gray-100" : "hover:bg-gray-50"}`}
                                 style={{ paddingLeft: 24 + row.depth * 16 }}>
-                                <DocumentResultRow compact filename={document.filename}
+                                <DocumentResultRow compact filename={document.filename.replace(/\.research\.md$/iu, "")}
                                     fileType={document.file_type} onClick={() => onDocClick(document)}
                                     className="min-w-0 flex-1"
                                     trailing={document.active_version_number
                                         ? <span className="text-[10px] text-gray-500">V{document.active_version_number}</span> : null} />
-                                {onDeleteDoc && (
-                                    <RowActions onDelete={() => setPendingDelete({ kind: "document", id: document.id })}
+                                {(onDeleteDoc || onMoveDoc) && (
+                                    <RowActions onMove={onMoveDoc ? () => setPendingMove({ kind: "document",
+                                        id: document.id }) : undefined}
+                                        onDelete={onDeleteDoc ? () => setPendingDelete({ kind: "document", id: document.id }) : undefined}
                                         deleteLabel={detaches
                                             ? "Remove from project" : "Delete file"} />
                                 )}
@@ -216,22 +247,27 @@ export function ProjectExplorer({
                 ? "Delete folder?" : detaches ? "Remove from project?" : "Delete document?"}
                 message={pendingDelete?.kind === "folder"
                     ? `Permanently delete ${pendingFolder?.name ?? "this folder"} and everything inside it?`
-                    : detaches ? `Remove ${pendingDocument?.filename ?? "this document"} from this project? The Library file and its links in other projects will be kept.`
-                    : `Permanently delete ${pendingDocument?.filename ?? "this document"} and all of its versions?`}
+                    : detaches ? `Remove ${pendingDocument?.filename.replace(/\.research\.md$/iu, "") ?? "this document"} from this project? The Library file and its links in other projects will be kept.`
+                    : `Permanently delete ${pendingDocument?.filename.replace(/\.research\.md$/iu, "") ?? "this document"} and all of its versions?`}
                 confirmLabel={detaches && pendingDelete?.kind === "document" ? "Remove" : "Delete"}
                 confirmStatus={status} cancelLabel="Cancel"
                 onCancel={() => status !== "loading" && setPendingDelete(null)}
                 onConfirm={() => void removePending()} />
+            <SearchableChoiceModal open={!!pendingMove} title={`Move ${
+                movingDocument?.filename.replace(/\.research\.md$/iu, "") ?? movingFolder?.name ?? "item"}`}
+                searchLabel="Search folders" value={currentMoveParent} options={folderOptions}
+                onClose={() => setPendingMove(null)} onChange={(destination) =>
+                    void movePending(destination)} />
             <WarningPopup open={!!error} message={error} onClose={() => setError(null)} />
         </>
     );
 }
 
-type NameInputProps = { value: string; onChange: (value: string) => void;
+type NameInputProps = { value: string; label?: string; onChange: (value: string) => void;
     onCommit: () => void; onCancel: () => void };
-function NameInput({ value, onChange, onCommit, onCancel }: NameInputProps) {
+function NameInput({ value, label = "Folder name", onChange, onCommit, onCancel }: NameInputProps) {
     return (
-        <input autoFocus aria-label="Folder name" placeholder="Folder name"
+        <input autoFocus aria-label={label} placeholder="Folder name"
             value={value} onChange={(event) => onChange(event.target.value)}
             onKeyDown={(event) => {
                 event.stopPropagation();
@@ -242,4 +278,17 @@ function NameInput({ value, onChange, onCommit, onCancel }: NameInputProps) {
             className="min-w-0 flex-1 border-b border-gray-400 bg-transparent text-xs outline-none"
         />
     );
+}
+
+function folderPath(folder: Folder, folderById: Map<string, Folder>) {
+    const names = [folder.name], seen = new Set([folder.id]);
+    let parentId = folder.parent_folder_id;
+    while (parentId && !seen.has(parentId)) {
+        seen.add(parentId);
+        const parent = folderById.get(parentId);
+        if (!parent) break;
+        names.unshift(parent.name);
+        parentId = parent.parent_folder_id;
+    }
+    return names.join(" / ");
 }

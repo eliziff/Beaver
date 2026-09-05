@@ -10,7 +10,6 @@ import {
 
 const mocks = vi.hoisted(() => ({
     createAuthorities: vi.fn(),
-    createWorkProduct: vi.fn(),
     createTabularReview: vi.fn(),
     fixSupras: vi.fn(),
     inspect: vi.fn(),
@@ -20,7 +19,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock("react-router-dom", () => ({ useNavigate: () => mocks.navigate }));
 vi.mock("@/app/lib/beaverApi", () => ({
     createAuthorities: mocks.createAuthorities,
-    createWorkProduct: mocks.createWorkProduct,
     createTabularReview: mocks.createTabularReview,
     fixLibraryDocxSupras: mocks.fixSupras,
     inspectDocxWorkflowCapabilities: mocks.inspect,
@@ -93,36 +91,22 @@ it("binds a sole source to the latest Authorities draft", async () => {
         source: { kind: "document", documentId: "factum", version: "latest" },
         projectId: "project-1",
     });
-    expect(mocks.navigate).toHaveBeenCalledWith("/table-of-authorities?draft=authorities-1");
+    expect(mocks.navigate).toHaveBeenCalledWith(
+        "/table-of-authorities?draft=authorities-1&project=project-1");
 });
 
-it("persists selected files in a new Court Records draft before navigation", async () => {
-    mocks.createWorkProduct.mockResolvedValue({ id: "record-1" });
-    render(<ContextualWorkflowPicker documents={[document("notice"), document("affidavit", "affidavit.pdf")]}
+it("hands selected files to Court Records for filing selection", async () => {
+    const documents = [document("notice"), document("affidavit", "affidavit.pdf")];
+    render(<ContextualWorkflowPicker documents={documents}
         onAssistantSelect={vi.fn()} />);
 
     await userEvent.click(screen.getByRole("button", { name: "Open Court Records" }));
 
-    expect(mocks.createWorkProduct).toHaveBeenCalledWith({
-        kind: "court-record",
-        title: "Untitled court record",
-        projectId: "project-1",
-        state: {
-            profileId: "",
-            cover: {},
-            entries: [
-                { id: "notice", kindId: "unassigned", title: "notice",
-                    lastSeen: { name: "notice.docx", size: 0, modified: 0 } },
-                { id: "affidavit", kindId: "unassigned", title: "affidavit",
-                    lastSeen: { name: "affidavit.pdf", size: 0, modified: 0 } },
-            ],
-            bindings: {
-                notice: { kind: "document", documentId: "notice", version: "latest" },
-                affidavit: { kind: "document", documentId: "affidavit", version: "latest" },
-            },
-        },
-    });
-    expect(mocks.navigate).toHaveBeenCalledWith("/court-records?draft=record-1");
+    expect(mocks.navigate).toHaveBeenCalledWith(
+        "/court-records?project=project-1", { state: { documents: [
+            { id: "notice", filename: "notice.docx" },
+            { id: "affidavit", filename: "affidavit.pdf" },
+        ] } });
 });
 
 it("uses every selected document for tables and assistant work", async () => {

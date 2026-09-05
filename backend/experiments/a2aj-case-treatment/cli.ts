@@ -2,27 +2,18 @@
 
 import { createHash, randomInt, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, open, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import path from "node:path";
 import { createInterface } from "node:readline";
 
-import {
-  a2ajLocalBulkPath,
-  fetchLocalA2AJDocumentsByIds,
-} from "../../src/lib/a2ajLocalBulk";
+import { a2ajLocalBulkPath } from "../../src/lib/a2ajLocalBulk";
 import type { StreamChatParams } from "../../src/lib/llm";
-import type { A2AJDocument } from "../../src/lib/legalSources/a2aj";
 import { withReadonlySqlite } from "../../src/lib/legalDataPath";
 import { setBelowNormalProcessPriority } from "../../src/lib/processPriority";
 import {
-  structureNative,
-  type NativeDocument,
-} from "../../src/lib/structureNative";
-import { decisionCitationInventory } from "../a2aj-decision-roster/caseDecisionMvp";
-import { modelSourceLines } from "../a2aj-decision-roster/caseTargetMvpReduced";
-import { analyzeTextOpinionStructure } from "../a2aj-decision-roster/legalOpinionBoundaries";
-import {
+  analysisAuditOutputSchema,
+  analysisAuditPrompt,
   analysisOutputSchema,
   analysisPrompt,
   analysisExampleText,
@@ -36,20 +27,23 @@ import {
   compileStructure,
   compileSubmission,
   oneStagePrompt,
-  paragraphCoverageEnd,
+  normalizeSemanticJudgeResult,
   opinionSupportBounds,
   SEMANTIC_JUDGE_SCHEMA,
   semanticJudgePrompt,
+  semanticJudgeReceipt,
   semanticJudgeResultErrors,
   semanticJudgeScore,
   semanticDraftView,
   semanticView,
   SELF_CHECK_ANALYSIS_INSTRUCTIONS,
+  HYPERSIMPLE_ANALYSIS_INSTRUCTIONS,
   submissionReviewFlags,
   structureOutputSchema,
   structurePrompt,
   structurePromptWithHints,
   STRUCTURE_INSTRUCTIONS,
+  STRUCTURE_STRATEGIES,
   submissionOutputSchema,
   type AnalysisCompilation,
   type AnalysisContract,
@@ -59,20 +53,31 @@ import {
   type DecisionStructure,
   type GoldRecord,
   type StructureCompilation,
+  type StructureStrategy,
   type SubmissionCompilation,
 } from "./contract";
+import { documentsFor, materialFor, materialsFor } from "./caseMaterial";
+import { applyJsonPatch, parseJson } from "./jsonPatch";
 import {
-  OX_ALPHA_ROUTES,
-  assignedOxAlphaRoute,
-  oxAlphaCredentials,
-  oxAlphaRoutes,
-  preflightOxAlpha,
-  streamOxAlpha,
-  type OxAlphaCredentials,
-  type OxAlphaRoute,
-} from "./oxAlpha";
+  PRODUCT_GOLD_VERSION,
+  PRODUCT_JUDGE_SCHEMA,
+  PRODUCT_JUDGE_REPAIR_SCHEMA,
+  compileProductDecisionStructure,
+  mergeProductJudgeRepair,
+  normalizeProductJudgeResult,
+  productGoldErrors,
+  productJudgeErrors,
+  productJudgePrompt,
+  productJudgeRepairPrompt,
+  productJudgeScore,
+  productReferenceView,
+  type ProductGoldRecord,
+  type ProductSemanticView,
+} from "./productGold";
 
 let usedCodexAppServer = false;
+
+export { applyJsonPatch, parseJson } from "./jsonPatch";
 
 const COURT_DATASETS = [
   "BCCA", "BCSC", "CMAC", "FC", "FCA", "NSCA", "NSFC", "NSPC", "NSSC",
@@ -93,7 +98,6 @@ type ModelCallResult = {
   usage: unknown;
   output_sha256: string;
 };
-type StartLimiter = { wait(): Promise<void> };
 
 const now = () => new Date().toISOString();
 const sha256 = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
@@ -202,133 +206,6 @@ class JsonlWriter {
   }
 }
 
-class EvenStartLimiter implements StartLimiter {
-  private queue = Promise.resolve();
-  private nextStart = 0;
-
-  constructor(requestsPerMinute: number) {
-    const interval = Math.ceil(60_000 / requestsPerMinute);
-    this.wait = () => {
-      const turn = this.queue.then(async () => {
-        const delay = Math.max(0, this.nextStart - Date.now());
-        if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
-        this.nextStart = Date.now() + interval;
-      });
-      this.queue = turn.catch(() => undefined);
-      return turn;
-    };
-  }
-
-  wait: () => Promise<void>;
-}
-
-function substantiveParagraph(text: string) {
-  const compact = text.replace(/\s+/gu, " ").trim();
-  if ((compact.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu)?.length ?? 0) < 8) return false;
-  if (/^(?:reasons?|judgment|decision)(?:\s+of|\s+for|\s+by)?\b[^.!?]{0,160}$/iu.test(compact)) return false;
-  if (/^(?:the\s+honourable\s+)?[\p{L}\p{M}.'’\-]+(?:\s+[\p{L}\p{M}.'’\-]+){0,5}\s+(?:C\.?J\.?|J\.?A\.?|J\.?)$/iu.test(compact)) return false;
-  if (/^(?:solicitors?|counsel|appearances?|coram|present|heard|released|date|docket|file\s+no\.?|citation)\b/iu.test(compact)) return false;
-  return true;
-}
-
-function coverage(
-  source: NativeDocument,
-  deterministic: NonNullable<CaseMaterial["deterministic_structure"]>,
-): CaseMaterial["coverage"] {
-  if (deterministic.status !== "ready") return { status: "not_asserted", spans: [] };
-  const sourceText = structureNative().documentText(source);
-  const spans = structureNative().documentAnchors(source).filter(({ kind }) => kind === "paragraph").flatMap((block) => {
-    const text = sourceText.slice(block.start, block.end);
-    const start = block.start + (text.match(/^\s*/u)?.[0].length ?? 0);
-    const trimmedEnd = block.start + paragraphCoverageEnd(text);
-    const insideKnownOpinion = deterministic.opinions.some((opinion) =>
-      start >= opinion.start && trimmedEnd <= opinion.end
-    );
-    return insideKnownOpinion && substantiveParagraph(text)
-      ? [{ start, end: trimmedEnd, label: block.label }]
-      : [];
-  });
-  return { status: spans.length ? "asserted" : "not_asserted", spans };
-}
-
-async function sourceFor(document: A2AJDocument) {
-  return structureNative().deriveDocumentStructure({
-    kind: "a2aj",
-    input: {
-      citation: document.citation,
-      source_kind: document.docType ?? "cases",
-      text: document.sectionMap ? "" : document.text,
-      url: document.url,
-      alternate_citation: document.alternateCitation,
-      dataset: document.dataset,
-      name: document.name,
-      section_map: document.sectionMap ? Object.entries(document.sectionMap) : undefined,
-    },
-  });
-}
-
-function materialFromSource(documentId: number, document: A2AJDocument, source: NativeDocument): CaseMaterial {
-  const text = structureNative().documentText(source);
-  const paragraphs = structureNative().documentAnchors(source).filter(({ kind }) => kind === "paragraph");
-  const deterministic = analyzeTextOpinionStructure({
-    text,
-    paragraphs: paragraphs.map(({ label, start, end }) => ({ label, start, end })),
-    firstParagraphStart: paragraphs[0]?.start,
-  }).deterministic;
-  const deterministicStructure: NonNullable<CaseMaterial["deterministic_structure"]> = {
-    status: deterministic.status,
-    panel: deterministic.panel,
-    nonparticipants: deterministic.nonparticipants,
-    opinions: deterministic.opinions.map((opinion) => ({
-      id: opinion.id,
-      authors: opinion.authors,
-      joiners: opinion.joiners ?? [],
-      alignment: opinion.alignment,
-      start: opinion.start,
-      end: opinion.end,
-      start_quote: opinion.startQuote,
-      end_quote: opinion.endQuote,
-      substantive_words: opinion.substantiveWords,
-    })),
-    judges: deterministic.judges.map((judge) => ({
-      name: judge.name,
-      result_side: judge.resultSide,
-      relationship: judge.relationship,
-      opinion_ids: judge.opinionIds,
-    })),
-    refusals: deterministic.refusals,
-  };
-  return {
-    document_id: documentId,
-    citation: document.citation,
-    name: document.name,
-    date: document.date,
-    dataset: document.dataset,
-    language: document.language,
-    url: document.url,
-    text,
-    source_lines: modelSourceLines(text),
-    citation_inventory: decisionCitationInventory(
-      text,
-      document.citation,
-      paragraphs.at(-1)?.end ?? text.length,
-      { extendedUsFallback: false },
-    ),
-    deterministic_structure: deterministicStructure,
-    coverage: coverage(source, deterministicStructure),
-  };
-}
-
-async function materialFor(documentId: number, document: A2AJDocument) {
-  return materialFromSource(documentId, document, await sourceFor(document));
-}
-
-async function materialsFor(ids: readonly number[], documents: Map<number, A2AJDocument>) {
-  const selected = ids.map((id) => documents.get(id)!);
-  const sources = await Promise.all(selected.map(sourceFor));
-  return new Map(ids.map((id, index) => [id, materialFromSource(id, selected[index], sources[index])]));
-}
-
 async function forEachMaterial(
   ids: readonly number[],
   workers: number,
@@ -366,13 +243,6 @@ function materialLoader(ids: readonly number[], batchSize: number) {
       throw error;
     }
   };
-}
-
-function documentsFor(ids: number[]) {
-  const documents = fetchLocalA2AJDocumentsByIds({ ids, docType: "cases", language: "en", maxChars: Number.MAX_SAFE_INTEGER });
-  const missing = ids.filter((id) => !documents.has(id));
-  if (missing.length) throw new Error(`A2AJ decisions unavailable: ${missing.join(", ")}`);
-  return documents;
 }
 
 function drawOffsets(seed: number, count: number, length: number) {
@@ -632,87 +502,6 @@ async function workerPool<T>(items: readonly T[], size: number, work: (item: T, 
   }));
 }
 
-/**
- * Repairs one specific recurring defect: copied source text containing
- * unescaped double quotation marks inside JSON string values (for example
- * "start_quote": ""Ball J.""). A quote inside a string terminates it only
- * when the next significant character is a JSON structure character;
- * anything else must have been an escaped content quote.
- */
-function repairUnescapedQuotes(text: string) {
-  let out = "";
-  let inString = false;
-  for (let index = 0; index < text.length; index += 1) {
-    const character = text[index];
-    if (!inString) {
-      if (character === '"') inString = true;
-      out += character;
-      continue;
-    }
-    if (character === "\\") {
-      out += character + (text[index + 1] ?? "");
-      index += 1;
-      continue;
-    }
-    if (character !== '"') {
-      out += character;
-      continue;
-    }
-    let lookahead = index + 1;
-    while (lookahead < text.length && /\s/u.test(text[lookahead])) lookahead += 1;
-    const next = text[lookahead];
-    if (next === undefined || /[,}\]:]/u.test(next)) {
-      inString = false;
-      out += character;
-    } else {
-      out += '\\"';
-    }
-  }
-  return out;
-}
-
-export function parseJson(text: string) {
-  const trimmed = text.trim();
-  if (!trimmed) return null;
-  // Deterministic salvage only: raw bytes stay verbatim in the raw ledger.
-  // Only the outermost value is eligible; a silently extracted nested
-  // fragment would corrupt the draft worse than an explicit parse failure.
-  const unfenced = trimmed.replace(/^```(?:json)?\s*/u, "").replace(/```\s*$/u, "");
-  try { return JSON.parse(unfenced) as unknown; }
-  catch { /* Fall through to targeted repairs. */ }
-  try { return JSON.parse(repairUnescapedQuotes(unfenced)) as unknown; }
-  catch { /* Fall through to balanced-value extraction. */ }
-  const start = unfenced.search(/[{[]/u);
-  if (start < 0) return null;
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-  for (let index = start; index < unfenced.length; index += 1) {
-    const character = unfenced[index];
-    if (inString) {
-      if (escaped) escaped = false;
-      else if (character === "\\") escaped = true;
-      else if (character === '"') inString = false;
-      continue;
-    }
-    if (character === '"') inString = true;
-    else if (character === "{" || character === "[") depth += 1;
-    else if (character === "}" || character === "]") {
-      depth -= 1;
-      if (depth === 0) {
-        try { return JSON.parse(unfenced.slice(start, index + 1)) as unknown; }
-        catch { return null; }
-      }
-    }
-  }
-  return null;
-}
-
-/** Stateless gateways ignore structured-output fields; hand them the schema in prose. */
-export function embedSchemaInPrompt(prompt: string, schema: Record<string, unknown>) {
-  return `${prompt}\n\n[OUTPUT JSON SCHEMA]\n${JSON.stringify(schema)}`;
-}
-
 function progressLine(label: string, total: number) {
   let last = 0;
   return (completed: number) => {
@@ -721,18 +510,6 @@ function progressLine(label: string, total: number) {
     last = current;
     process.stderr.write(`\r${label} ${completed}/${total}${completed === total ? "\n" : ""}`);
   };
-}
-
-async function callStats(filename: string) {
-  let total = 0;
-  const byRoute = new Map<string, number>();
-  await forEachJsonl<{ kind?: string; route?: unknown }>(filename, ({ kind, route }) => {
-    if (kind !== "model_call_started") return;
-    total += 1;
-    const key = String(route ?? "");
-    byRoute.set(key, (byRoute.get(key) ?? 0) + 1);
-  });
-  return { total, byRoute };
 }
 
 function relevantGrounding(errors: string[], grounding: Array<{ path: string; exact_text: string; start: number; end: number }>) {
@@ -776,80 +553,6 @@ function statelessCorrectionPrompt(
   ].join("\n\n");
 }
 
-type JsonPatchOperation = { op: "add" | "replace" | "remove"; path: string; value?: unknown };
-
-function jsonPointerParts(pointer: string) {
-  if (!pointer.startsWith("/") || pointer === "/") throw new Error(`unsupported JSON Pointer ${JSON.stringify(pointer)}`);
-  return pointer.slice(1).split("/").map((part) => {
-    if (/~(?:[^01]|$)/u.test(part)) throw new Error(`invalid JSON Pointer escape in ${JSON.stringify(pointer)}`);
-    const decoded = part.replace(/~1/gu, "/").replace(/~0/gu, "~");
-    if (["__proto__", "prototype", "constructor"].includes(decoded)) throw new Error(`unsafe JSON Pointer ${JSON.stringify(pointer)}`);
-    return decoded;
-  });
-}
-
-export function applyJsonPatch(document: unknown, rawPatch: unknown) {
-  if (!Array.isArray(rawPatch)) return { value: document, errors: ["correction: expected a JSON Patch array"] };
-  if (rawPatch.length > 60) return { value: document, errors: ["correction: patch exceeds 60 operations"] };
-  let value = structuredClone(document);
-  try {
-    for (const [index, raw] of rawPatch.entries()) {
-      const operation = raw as Partial<JsonPatchOperation> | null;
-      if (!operation || typeof operation !== "object" || !["add", "replace", "remove"].includes(String(operation.op)) || typeof operation.path !== "string") {
-        throw new Error(`operation ${index + 1} is invalid`);
-      }
-      // RFC 6902: the empty pointer addresses the whole document.
-      if (operation.path === "") {
-        if (operation.op === "remove") throw new Error(`operation ${index + 1} cannot remove the root document`);
-        if (!Object.hasOwn(operation, "value")) throw new Error(`operation ${index + 1} requires value`);
-        value = structuredClone(operation.value);
-        continue;
-      }
-      let parts = jsonPointerParts(operation.path);
-      if (
-        parts.length > 1 && ["analysis", "structure"].includes(parts[0]) &&
-        value && typeof value === "object" && !Array.isArray(value) &&
-        !Object.hasOwn(value, parts[0]) && Object.hasOwn(value, parts[1])
-      ) parts = parts.slice(1);
-      let parent: unknown = value;
-      for (const part of parts.slice(0, -1)) {
-        if (Array.isArray(parent)) {
-          if (!/^(?:0|[1-9][0-9]*)$/u.test(part) || Number(part) >= parent.length) throw new Error(`operation ${index + 1} path does not exist`);
-          parent = parent[Number(part)];
-        } else if (parent && typeof parent === "object" && Object.hasOwn(parent, part)) {
-          parent = (parent as Record<string, unknown>)[part];
-        } else throw new Error(`operation ${index + 1} path does not exist`);
-      }
-      const key = parts.at(-1)!;
-      const op = operation.op as JsonPatchOperation["op"];
-      if (op !== "remove" && !Object.hasOwn(operation, "value")) throw new Error(`operation ${index + 1} requires value`);
-      if (Array.isArray(parent)) {
-        if (op === "add" && key === "-") parent.push(operation.value);
-        else {
-          if (!/^(?:0|[1-9][0-9]*)$/u.test(key)) throw new Error(`operation ${index + 1} has an invalid array index`);
-          const position = Number(key);
-          if (op === "add") {
-            if (position > parent.length) throw new Error(`operation ${index + 1} path does not exist`);
-            parent.splice(position, 0, operation.value);
-          } else {
-            if (position >= parent.length) throw new Error(`operation ${index + 1} path does not exist`);
-            if (op === "remove") parent.splice(position, 1);
-            else parent[position] = operation.value;
-          }
-        }
-      } else if (parent && typeof parent === "object") {
-        const target = parent as Record<string, unknown>;
-        if (op !== "add" && !Object.hasOwn(target, key)) throw new Error(`operation ${index + 1} path does not exist`);
-        if (op === "remove") delete target[key];
-        else target[key] = operation.value;
-      } else throw new Error(`operation ${index + 1} parent is not a container`);
-    }
-    return { value, errors: [] as string[] };
-  } catch (error) {
-    return { value: document, errors: [`correction: ${error instanceof Error ? error.message : String(error)}`] };
-  }
-}
-
 async function modelCall(args: {
   prompt: string;
   schema?: Record<string, unknown>;
@@ -858,23 +561,19 @@ async function modelCall(args: {
   max_output_tokens: number;
   timeout_seconds: number;
   continuation_id?: string;
-  ox_route?: OxAlphaRoute;
-  ox_credentials?: OxAlphaCredentials;
-  start_limiter?: StartLimiter;
   raw: JsonlWriter;
   ledger: JsonlWriter;
   document_id: number;
   stage: string;
   attempt: number;
 }): Promise<ModelCallResult> {
-  await args.start_limiter?.wait();
   const callId = randomUUID();
   const started = performance.now();
   const promptHash = sha256(args.prompt);
   await args.ledger.append({
     utc: now(), kind: "model_call_started", call_id: callId, document_id: args.document_id,
     stage: args.stage, attempt: args.attempt, model: args.model, effort: args.effort,
-    route: args.ox_route ?? "codex-app-server",
+    route: "codex-app-server",
     prompt_sha256: promptHash, prompt_chars: args.prompt.length,
     schema_sha256: args.schema ? sha256(JSON.stringify(args.schema)) : null,
     system_prompt_sha256: sha256(MODEL_SYSTEM_PROMPT),
@@ -898,14 +597,12 @@ async function modelCall(args: {
   };
   try {
     const params: StreamChatParams = {
-      model: args.ox_route ? args.model : args.model.startsWith("codex:") ? args.model : `codex:${args.model}`,
+      model: args.model.startsWith("codex:") ? args.model : `codex:${args.model}`,
       reasoningEffort: args.effort,
       systemPrompt: MODEL_SYSTEM_PROMPT,
       messages: [{
         role: "user",
-        content: args.schema && args.ox_route
-          ? embedSchemaInPrompt(args.prompt, args.schema)
-          : args.prompt,
+        content: args.prompt,
       }],
       maxTokens: args.max_output_tokens,
       ...(args.schema ? { outputSchema: args.schema } : {}),
@@ -922,16 +619,12 @@ async function modelCall(args: {
         },
       },
     };
-    let result;
-    if (args.ox_route) result = await streamOxAlpha(params, args.ox_route, args.ox_credentials!);
-    else {
-      usedCodexAppServer = true;
-      const { streamChatWithTools } = await import("../../src/lib/llm");
-      result = await streamChatWithTools({
-        ...params,
-        providerSession: { persist: true, ...(args.continuation_id ? { continuationId: args.continuation_id } : {}) },
-      });
-    }
+    usedCodexAppServer = true;
+    const { streamChatWithTools } = await import("../../src/lib/llm");
+    const result = await streamChatWithTools({
+      ...params,
+      providerSession: { persist: true, ...(args.continuation_id ? { continuationId: args.continuation_id } : {}) },
+    });
     flush();
     flushReasoning();
     await args.raw.flush();
@@ -1122,6 +815,112 @@ export async function runCheckpointedStage<T, C extends { ok: boolean; errors: s
   return result;
 }
 
+function patchStageCorrectionPrompt(
+  current: unknown,
+  errors: string[],
+  grounding: Array<{ path: string; exact_text: string; start: number; end: number }>,
+  priorApplied: boolean,
+) {
+  return [
+    priorApplied
+      ? "The host applied your previous patch, but the resulting analysis is invalid."
+      : "The host could not apply your previous patch.",
+    "Return an object whose patch field is a further RFC 6902 JSON Patch against the current analysis below. Preserve correct content and fix every listed error.",
+    "[VALIDATION ERRORS]",
+    ...errors.slice(0, 60).map((error) => `- ${error}`),
+    "[EXACT SOURCE RECEIPTS]",
+    JSON.stringify(relevantGrounding(errors, grounding)),
+    "[CURRENT ANALYSIS]",
+    JSON.stringify(current),
+  ].join("\n");
+}
+
+export async function runCheckpointedPatchStage<T, C extends {
+  ok: boolean;
+  errors: string[];
+  value: T | null;
+  grounding: Array<{ path: string; exact_text: string; start: number; end: number }>;
+}>(args: {
+  prompt: string;
+  schema: Record<string, unknown>;
+  base: T;
+  compile: (raw: unknown) => C;
+  max_corrections: number;
+  stateless_corrections: boolean;
+  model_call: (prompt: string, continuationId: string | undefined, attempt: number, schema?: Record<string, unknown>) => Promise<ModelCallResult>;
+  checkpoint_file: string;
+}) {
+  const key = stageCheckpointKey(args.prompt, args.schema);
+  const taskKey = stageTaskKey(args.prompt);
+  if (existsSync(args.checkpoint_file)) {
+    try {
+      const saved = JSON.parse(await readFile(args.checkpoint_file, "utf8")) as { key?: unknown; task_key?: unknown; value?: unknown; attempts?: Json[] };
+      if (saved.key === key || saved.task_key === taskKey) {
+        const compilation = args.compile(saved.value);
+        if (compilation.ok && compilation.value) return {
+          accepted: true, provider_failed: false, value: compilation.value, compilation,
+          errors: [], attempts: [{ checkpoint_reused: true, source_attempts: saved.attempts ?? [] }],
+          final_raw: saved.value,
+        };
+      }
+    } catch { /* A bad checkpoint is simply recomputed. */ }
+  }
+
+  const attempts: Json[] = [];
+  const originalPrompt = args.prompt;
+  let prompt = originalPrompt;
+  let continuationId: string | undefined;
+  let current: unknown = structuredClone(args.base);
+  let compilation = args.compile(current);
+  let errors: string[] = [];
+  let providerFailed = false;
+  for (let attempt = 0; attempt <= args.max_corrections; attempt += 1) {
+    const result = await args.model_call(prompt, continuationId, attempt + 1, attempt === 0 ? args.schema : undefined);
+    if (result.error) {
+      errors = [result.error];
+      providerFailed = true;
+      attempts.push({
+        attempt: attempt + 1, call_id: result.call_id, output_sha256: result.output_sha256,
+        elapsed_seconds: result.elapsed_seconds, usage: result.usage, errors,
+      });
+    } else {
+      const patch = result.parsed && typeof result.parsed === "object" && !Array.isArray(result.parsed)
+        ? (result.parsed as Record<string, unknown>).patch
+        : null;
+      const applied = applyJsonPatch(current, patch);
+      if (applied.errors.length) errors = applied.errors;
+      else {
+        current = applied.value;
+        compilation = args.compile(current);
+        errors = compilation.errors;
+      }
+      attempts.push({
+        attempt: attempt + 1, call_id: result.call_id, output_sha256: result.output_sha256,
+        elapsed_seconds: result.elapsed_seconds, usage: result.usage,
+        patch_operations: Array.isArray(patch) ? patch.length : null,
+        errors,
+      });
+      if (compilation.ok && compilation.value && !applied.errors.length) {
+        await saveStageCheckpoint(args.checkpoint_file, key, taskKey, compilation.value, attempts);
+        return {
+          accepted: true, provider_failed: false, value: compilation.value, compilation,
+          errors: [], attempts, final_raw: compilation.value,
+        };
+      }
+      if (attempt < args.max_corrections) {
+        const correction = patchStageCorrectionPrompt(current, errors, compilation.grounding, applied.errors.length === 0);
+        continuationId = result.continuation_id ?? undefined;
+        prompt = continuationId || !args.stateless_corrections ? correction : `${originalPrompt}\n\n${correction}`;
+      }
+    }
+    if (result.error || attempt === args.max_corrections || (!result.continuation_id && !args.stateless_corrections)) break;
+  }
+  return {
+    accepted: false, provider_failed: providerFailed, value: null, compilation,
+    errors, attempts, final_raw: current,
+  };
+}
+
 function compactReceipt(compilation: SubmissionCompilation, material: CaseMaterial) {
   const structure = compilation.structure.compiled;
   const analysis = compilation.analysis?.compiled;
@@ -1216,7 +1015,9 @@ async function runInference(flags: Flags) {
   setBelowNormalProcessPriority();
   const ids = await selectedIds(flags);
   const mode = flag(flags, "mode", "two-stage");
-  if (!["one-stage", "two-stage"].includes(mode)) throw new Error("--mode must be one-stage or two-stage");
+  if (!["one-stage", "two-stage", "structure-only"].includes(mode)) {
+    throw new Error("--mode must be one-stage, two-stage, or structure-only");
+  }
   const analysisContract = flag(flags, "analysis-contract", "self-check") as AnalysisContract;
   if (!ANALYSIS_CONTRACTS.includes(analysisContract)) {
     throw new Error(`--analysis-contract must be ${ANALYSIS_CONTRACTS.join(" or ")}`);
@@ -1229,83 +1030,26 @@ async function runInference(flags: Flags) {
   if (structureRunDir && mode !== "two-stage") throw new Error("--structure-run-dir requires --mode two-stage");
   const workers = Math.floor(numberFlag(flags, "workers", 8, 1, 32));
   const maxCorrections = Math.floor(numberFlag(flags, "max-corrections", 2, 0, 5));
+  const analysisAudits = mode === "structure-only"
+    ? 0
+    : Math.floor(numberFlag(flags, "analysis-audits", 1, 0, 2));
   const includeStructureHints = flags["structure-hints"] === true;
+  const structureStrategy = flag(flags, "structure-strategy", "direct") as StructureStrategy;
+  if (!STRUCTURE_STRATEGIES.includes(structureStrategy)) {
+    throw new Error(`--structure-strategy must be ${STRUCTURE_STRATEGIES.join(", ")}`);
+  }
   const includeAnalysisExamples = flags["analysis-examples"] === true;
   const timeoutSeconds = numberFlag(flags, "timeout-seconds", 1_800, 1, 7_200);
   const provider = flag(flags, "provider", "codex");
-  if (!["codex", "ox-alpha"].includes(provider)) throw new Error("--provider must be codex or ox-alpha");
-  const oxRouteName = flag(flags, "ox-route");
-  const oxRouteNames = flag(flags, "ox-routes");
-  if (provider === "ox-alpha" && Boolean(oxRouteName) === Boolean(oxRouteNames)) {
-    throw new Error("Ox Alpha requires exactly one of --ox-route or --ox-routes");
-  }
-  if (provider !== "ox-alpha" && (oxRouteName || oxRouteNames)) {
-    throw new Error("--ox-route and --ox-routes require --provider ox-alpha");
-  }
-  const selectedOxRoutes = provider === "ox-alpha"
-    ? oxAlphaRoutes(oxRouteNames || oxRouteName)
-    : [];
-  if (provider === "ox-alpha" && flag(flags, "model")) {
-    throw new Error("Ox Alpha models are fixed by their routes; omit --model");
-  }
+  if (provider !== "codex") throw new Error("--provider must be codex");
   const codexModel = flag(flags, "model", "gpt-5.6-luna");
-  const effort = flag(flags, "effort", selectedOxRoutes.length ? "high" : "max");
+  const effort = flag(flags, "effort", "max");
   const maxOutputTokens = Math.floor(numberFlag(flags, "max-output-tokens", 131_072, 1, 131_072));
-  const routeByDocument = new Map(ids.map((id, index) => [
-    id,
-    selectedOxRoutes.length ? assignedOxAlphaRoute(selectedOxRoutes, index) : undefined,
-  ]));
-  const requestsPerMinuteOverride = flags["requests-per-minute"] === undefined
-    ? null
-    : numberFlag(flags, "requests-per-minute", 0, 1, 60);
-  type OxRuntime = {
-    credentials: OxAlphaCredentials;
-    limiter: StartLimiter;
-    requests_per_minute: number;
-    preflight: Awaited<ReturnType<typeof preflightOxAlpha>>;
-  };
-  const oxRuntimes = new Map<OxAlphaRoute, OxRuntime>(await Promise.all(selectedOxRoutes.map(async (route) => {
-    const config = OX_ALPHA_ROUTES[route];
-    const requestsPerMinute = requestsPerMinuteOverride ?? config.default_requests_per_minute;
-    if (config.maximum_requests_per_minute !== null && requestsPerMinute > config.maximum_requests_per_minute) {
-      throw new Error(`${route} Ox Alpha is capped at ${config.maximum_requests_per_minute} requests per minute`);
-    }
-    const credentials = oxAlphaCredentials(route);
-    return [route, {
-      credentials,
-      limiter: new EvenStartLimiter(requestsPerMinute),
-      requests_per_minute: requestsPerMinute,
-      preflight: await preflightOxAlpha(route, credentials),
-    }] as const;
-  })));
-  const providerPreflight = selectedOxRoutes.length
-    ? Object.fromEntries([...oxRuntimes].map(([route, runtime]) => [route, runtime.preflight]))
-    : null;
-  const requestsPerMinute = selectedOxRoutes.length
-    ? Object.fromEntries([...oxRuntimes].map(([route, runtime]) => [route, runtime.requests_per_minute]))
-    : null;
   const requestedCallBudget = flags["call-budget"] === undefined
     ? null
     : Math.floor(numberFlag(flags, "call-budget", 0, 0));
-  if (flags["daily-request-cap"] !== undefined && !selectedOxRoutes.includes("openrouter")) {
-    throw new Error("--daily-request-cap applies only when --ox-route(s) includes openrouter");
-  }
-  const dailyRequestCaps = new Map<OxAlphaRoute, number | null>(selectedOxRoutes.map((route) => [
-    route,
-    route === "openrouter"
-      ? Math.floor(numberFlag(
-          flags,
-          "daily-request-cap",
-          OX_ALPHA_ROUTES.openrouter.published_daily_request_cap,
-          1,
-          OX_ALPHA_ROUTES.openrouter.published_daily_request_cap,
-        ))
-      : OX_ALPHA_ROUTES[route].published_daily_request_cap,
-  ]));
-  const routeNames = selectedOxRoutes.length ? selectedOxRoutes : ["codex-app-server"];
-  const models = selectedOxRoutes.length
-    ? Object.fromEntries(selectedOxRoutes.map((route) => [route, OX_ALPHA_ROUTES[route].model]))
-    : { "codex-app-server": codexModel };
+  const routeNames = ["codex-app-server"];
+  const models = { "codex-app-server": codexModel };
   const rawDir = path.join(outDir, "raw");
   const receiptDir = path.join(outDir, "receipts");
   const checkpointDir = path.join(outDir, "checkpoints");
@@ -1320,22 +1064,28 @@ async function runInference(flags: Flags) {
     provider,
     routes: routeNames,
     models,
-    route_assignment: selectedOxRoutes.length > 1 ? "requested_ids_round_robin" : "single",
+    route_assignment: "single",
     effort,
     workers,
     max_corrections: maxCorrections,
+    analysis_audits: analysisAudits,
     max_output_tokens: maxOutputTokens,
     timeout_seconds: timeoutSeconds,
     structure_hints: includeStructureHints,
+    structure_strategy: structureStrategy,
     analysis_examples: includeAnalysisExamples,
     analysis_contract: analysisContract,
     structure_checkpoint_source: structureRunDir,
-    requests_per_minute: requestsPerMinute,
-    daily_request_caps: selectedOxRoutes.length ? Object.fromEntries(dailyRequestCaps) : null,
     requested_ids: ids,
+    requested_ids_sha256: sha256(JSON.stringify(ids)),
+    case_file_sha256: typeof flags["case-file"] === "string"
+      ? sha256(await readFile(path.resolve(flags["case-file"]), "utf8"))
+      : null,
     model_system_prompt: MODEL_SYSTEM_PROMPT,
     structure_instructions: STRUCTURE_INSTRUCTIONS,
-    analysis_instructions: ANALYSIS_INSTRUCTIONS,
+    analysis_instructions: analysisContract === "hypersimple"
+      ? HYPERSIMPLE_ANALYSIS_INSTRUCTIONS
+      : ANALYSIS_INSTRUCTIONS,
     analysis_self_check_instructions: analysisContract === "self-check" ? SELF_CHECK_ANALYSIS_INSTRUCTIONS : null,
     analysis_example_text: includeAnalysisExamples ? analysisExampleText(analysisContract) : null,
   };
@@ -1352,35 +1102,39 @@ async function runInference(flags: Flags) {
   const progressFile = path.join(outDir, "progress.jsonl");
   const priorReceipts = await completedCases(receiptDir, true);
   const existing = new Map([...priorReceipts].filter(([, receipt]) => receipt.status === "accepted"));
+  if (existing.size) {
+    const existingIds = ids.filter((id) => existing.has(id));
+    const existingMaterials = await materialsFor(existingIds, documentsFor(existingIds));
+    for (const documentId of existingIds) {
+      const receipt = existing.get(documentId)!;
+      const material = existingMaterials.get(documentId)!;
+      if (receipt.citation !== material.citation || receipt.source_sha256 !== sha256(material.text)) {
+        throw new Error(`${documentId}: accepted receipt does not match the current source; choose a new --out-dir`);
+      }
+    }
+  }
   const retry = flags["retry-finished"] === true;
   const pending = ids.filter((id) => retry || !existing.has(id));
-  const stages = mode === "one-stage" ? 1 : structureRunDir ? 1 : 2;
-  const startedCalls = await callStats(callLedgerFile);
+  const stages = (mode === "one-stage" || mode === "structure-only" ? 1 : structureRunDir ? 1 : 2) + analysisAudits;
   const ceiling = pending.length * stages * (1 + maxCorrections);
   const callBudget = requestedCallBudget ?? ceiling;
   let reservedCalls = 0;
-  const reservedByRoute = new Map(startedCalls.byRoute);
-  const reserveCall = (route: string) => {
+  const reserveCall = () => {
     if (reservedCalls >= callBudget) throw new Error(`run exhausted its ${callBudget}-call budget`);
-    const oxRoute = selectedOxRoutes.find((candidate) => candidate === route);
-    const cap = oxRoute ? dailyRequestCaps.get(oxRoute) : null;
-    const routeUsed = reservedByRoute.get(route) ?? 0;
-    if (cap !== null && cap !== undefined && routeUsed >= cap) throw new Error(`${route} exhausted its ${cap}-request run cap`);
     reservedCalls += 1;
-    reservedByRoute.set(route, routeUsed + 1);
   };
   const ledger = new JsonlWriter(callLedgerFile);
   const progress = new JsonlWriter(progressFile);
   await progress.append({
     utc: now(), kind: "run_started", contract_version: CASE_TREATMENT_CONTRACT_VERSION,
     mode, provider, routes: routeNames, models, effort,
-    route_assignment: selectedOxRoutes.length > 1 ? "requested_ids_round_robin" : "single",
-    structure_hints: includeStructureHints, analysis_examples: includeAnalysisExamples,
+    route_assignment: "single",
+    structure_hints: includeStructureHints, structure_strategy: structureStrategy,
+    analysis_examples: includeAnalysisExamples,
     analysis_contract: analysisContract,
+    analysis_audits: analysisAudits,
     structure_checkpoint_source: structureRunDir,
-    max_output_tokens: maxOutputTokens, requests_per_minute: requestsPerMinute,
-    daily_request_caps: selectedOxRoutes.length ? Object.fromEntries(dailyRequestCaps) : null,
-    provider_preflights: providerPreflight, workers, requested_ids: ids, pending_ids: pending,
+    max_output_tokens: maxOutputTokens, workers, requested_ids: ids, pending_ids: pending,
   });
   const outcomes = new Array<Json>(pending.length);
   const activeWorkers = Math.min(workers, pending.length);
@@ -1392,10 +1146,8 @@ async function runInference(flags: Flags) {
   await workerPool(pending, workers, async (documentId, index, worker) => {
     const raw = rawWriters[worker];
     const receipts = receiptWriters[worker];
-    const oxRoute = routeByDocument.get(documentId);
-    const route = oxRoute ?? "codex-app-server";
-    const model = oxRoute ? OX_ALPHA_ROUTES[oxRoute].model : codexModel;
-    const oxRuntime = oxRoute ? oxRuntimes.get(oxRoute)! : undefined;
+    const route = "codex-app-server";
+    const model = codexModel;
     let releaseMaterial = () => undefined;
     await progress.append({ utc: now(), kind: "case_started", document_id: documentId, route, model, worker: worker + 1 });
     try {
@@ -1404,16 +1156,17 @@ async function runInference(flags: Flags) {
       releaseMaterial = loaded.release;
       const caseCheckpointDir = path.join(checkpointDir, String(documentId));
       const call = (stage: string) => (prompt: string, continuationId: string | undefined, attempt: number, responseSchema?: Record<string, unknown>) => {
-        reserveCall(route);
+        reserveCall();
         return modelCall({
           prompt, schema: responseSchema, model, effort, max_output_tokens: maxOutputTokens,
           timeout_seconds: timeoutSeconds, continuation_id: continuationId,
-          ox_route: oxRoute, ox_credentials: oxRuntime?.credentials, start_limiter: oxRuntime?.limiter,
           raw, ledger, document_id: documentId, stage, attempt,
         });
       };
       let submission: CaseTreatmentSubmission | null = null;
       let compilation: SubmissionCompilation | null = null;
+      let structureValue: DecisionStructure | null = null;
+      let structureCompilation: StructureCompilation | null = null;
       let stageAttempts: Json = {};
       let lastErrors: string[] = [];
       let finalRaw: unknown = null;
@@ -1421,10 +1174,10 @@ async function runInference(flags: Flags) {
       if (mode === "one-stage") {
         const schema = submissionOutputSchema(material.source_lines.length, analysisContract);
         const result = await runCheckpointedStage<CaseTreatmentSubmission, SubmissionCompilation>({
-          prompt: oneStagePrompt(material, includeStructureHints, includeAnalysisExamples, analysisContract), schema,
+          prompt: oneStagePrompt(material, includeStructureHints, includeAnalysisExamples, analysisContract, structureStrategy), schema,
           compile: (value) => compileSubmission(value, material, analysisContract),
           max_corrections: maxCorrections,
-          stateless_corrections: Boolean(oxRoute),
+          stateless_corrections: false,
           model_call: call("one_stage"),
           checkpoint_file: path.join(caseCheckpointDir, "one-stage.json"),
         });
@@ -1437,26 +1190,31 @@ async function runInference(flags: Flags) {
       } else {
         const structureSchema = structureOutputSchema(material.source_lines.length);
         const structureResult = await runCheckpointedStage<DecisionStructure, StructureCompilation>({
-          prompt: includeStructureHints ? structurePromptWithHints(material) : structurePrompt(material), schema: structureSchema,
+          prompt: includeStructureHints
+            ? structurePromptWithHints(material, structureStrategy)
+            : structurePrompt(material, structureStrategy),
+          schema: structureSchema,
           compile: (value) => compileStructure(value, material),
           max_corrections: maxCorrections,
-          stateless_corrections: Boolean(oxRoute),
+          stateless_corrections: false,
           model_call: call("structure"),
           checkpoint_file: path.join(structureCheckpointDir, String(documentId), "structure.json"),
           checkpoint_only: Boolean(structureRunDir),
         });
         stageAttempts = { structure: structureResult.attempts };
+        structureValue = structureResult.value;
+        structureCompilation = structureResult.compilation;
         lastErrors = structureResult.errors;
         finalRaw = { structure: structureResult.final_raw };
         providerFailed = structureResult.provider_failed;
-        if (structureResult.accepted && structureResult.value && structureResult.compilation?.compiled) {
+        if (mode !== "structure-only" && structureResult.accepted && structureResult.value && structureResult.compilation?.compiled) {
           const opinionIds = structureResult.value.opinions.map(({ opinion_id }) => opinion_id);
           const analysisSchema = analysisOutputSchema(material.source_lines.length, opinionIds, analysisContract);
           const analysisResult = await runCheckpointedStage<DecisionAnalysis, AnalysisCompilation>({
             prompt: analysisPrompt(material, structureResult.value, includeAnalysisExamples, analysisContract), schema: analysisSchema,
             compile: (value) => compileAnalysis(value, structureResult.value!, structureResult.compilation!.compiled!, material, analysisContract),
             max_corrections: maxCorrections,
-            stateless_corrections: Boolean(oxRoute),
+            stateless_corrections: false,
             model_call: call("analysis"),
             checkpoint_file: path.join(caseCheckpointDir, "analysis.json"),
           });
@@ -1477,8 +1235,46 @@ async function runInference(flags: Flags) {
           }
         }
       }
-      const accepted = compilation?.ok === true;
-      const receiptCompilation = compilation ?? (finalRaw !== null
+      if (submission && compilation?.ok && compilation.structure.compiled) {
+        for (let pass = 1; pass <= analysisAudits; pass += 1) {
+          const structure = submission.structure;
+          const compiledStructure = compilation.structure.compiled;
+          const opinionIds = structure.opinions.map(({ opinion_id }) => opinion_id);
+          const auditResult = await runCheckpointedPatchStage<DecisionAnalysis, AnalysisCompilation>({
+            prompt: analysisAuditPrompt(material, structure, submission.analysis, analysisContract),
+            schema: analysisAuditOutputSchema(material.source_lines.length, opinionIds, analysisContract),
+            base: submission.analysis,
+            compile: (value) => compileAnalysis(value, structure, compiledStructure, material, analysisContract),
+            max_corrections: maxCorrections,
+            stateless_corrections: false,
+            model_call: call(`analysis_audit_${pass}`),
+            checkpoint_file: path.join(caseCheckpointDir, `analysis-audit-${pass}.json`),
+          });
+          stageAttempts = { ...stageAttempts, [`analysis_audit_${pass}`]: auditResult.attempts };
+          lastErrors = auditResult.errors;
+          providerFailed = auditResult.provider_failed;
+          finalRaw = { structure, analysis: auditResult.final_raw };
+          if (!auditResult.accepted || !auditResult.value || !auditResult.compilation) {
+            submission = null;
+            compilation = null;
+            break;
+          }
+          submission = { structure, analysis: auditResult.value };
+          compilation = {
+            ok: true,
+            errors: [],
+            value: submission,
+            grounding: [...compilation.structure.grounding, ...auditResult.compilation.grounding],
+            structure: compilation.structure,
+            analysis: auditResult.compilation,
+          };
+          finalRaw = submission;
+        }
+      }
+      const accepted = mode === "structure-only"
+        ? structureCompilation?.ok === true
+        : compilation?.ok === true;
+      const receiptCompilation = mode === "structure-only" ? null : compilation ?? (finalRaw !== null
         ? compileSubmission(finalRaw, material, analysisContract)
         : null);
       const receipt: Json = {
@@ -1487,11 +1283,13 @@ async function runInference(flags: Flags) {
         source_sha256: sha256(material.text), mode, model, effort, analysis_contract: analysisContract,
         provider, route,
         structure_checkpoint_source: structureRunDir,
-        structure_hints: includeStructureHints, analysis_examples: includeAnalysisExamples,
+        structure_hints: includeStructureHints, structure_strategy: structureStrategy,
+        analysis_examples: includeAnalysisExamples,
         status: accepted ? "accepted" : providerFailed ? "failed" : "rejected",
         errors: accepted ? [] : lastErrors,
         attempts: stageAttempts,
         submission,
+        structure: mode === "structure-only" ? structureValue : null,
         final_parsed_draft: accepted ? null : finalRaw,
         compiled_receipt: receiptCompilation ? compactReceipt(receiptCompilation, material) : null,
       };
@@ -1506,7 +1304,9 @@ async function runInference(flags: Flags) {
         utc: now(), kind: "case_receipt", contract_version: CASE_TREATMENT_CONTRACT_VERSION,
         document_id: documentId, mode, model, effort, status: "failed",
         provider, route, structure_checkpoint_source: structureRunDir,
+        structure_hints: includeStructureHints, structure_strategy: structureStrategy,
         error: error instanceof Error ? error.message : String(error),
+        error_stack: error instanceof Error ? error.stack ?? null : null,
       };
       outcomes[index] = {
         document_id: documentId, route, model, status: "failed", error: receipt.error,
@@ -1530,7 +1330,7 @@ async function runInference(flags: Flags) {
     mode, provider, routes: routeNames, models, effort, analysis_contract: analysisContract,
     structure_checkpoint_source: structureRunDir,
     structure_hints: includeStructureHints,
-    provider_preflights: providerPreflight,
+    structure_strategy: structureStrategy,
     requested: ids.length,
     resumed: ids.filter((id) => existing.has(id) && !attempted.has(id)).length,
     attempted: pending.length,
@@ -1541,16 +1341,19 @@ async function runInference(flags: Flags) {
   };
   const summaryFile = path.join(outDir, "summary.json");
   await writeFile(summaryFile, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
-  console.log(JSON.stringify({
-    contract_version: summary.contract_version,
-    requested: summary.requested,
-    resumed: summary.resumed,
-    attempted: summary.attempted,
-    accepted: summary.accepted,
-    rejected: summary.rejected,
-    failed: summary.failed,
-    summary_file: summaryFile,
-  }, null, 2));
+  if (flags.quiet !== true) {
+    console.log(JSON.stringify({
+      contract_version: summary.contract_version,
+      requested: summary.requested,
+      resumed: summary.resumed,
+      attempted: summary.attempted,
+      accepted: summary.accepted,
+      rejected: summary.rejected,
+      failed: summary.failed,
+      summary_file: summaryFile,
+    }, null, 2));
+  }
+  return summary;
 }
 
 async function runReceipts(runDir: string) {
@@ -1572,6 +1375,13 @@ async function rawOutput(flags: Flags) {
   const callId = flag(flags, "call-id");
   if (!runDir || !callId) throw new Error("raw-output requires --run-dir and --call-id");
   const rawDir = path.join(path.resolve(runDir), "raw");
+  const output = await rawCallOutput(rawDir, callId);
+  const filename = flag(flags, "out");
+  if (filename) await writeFile(path.resolve(filename), output, "utf8");
+  else process.stdout.write(output);
+}
+
+async function rawCallOutput(rawDir: string, callId: string) {
   const files = existsSync(rawDir) ? (await readdir(rawDir)).filter((name) => name.endsWith(".jsonl")) : [];
   const events: Json[] = [];
   await Promise.all(files.map((name) => forEachJsonl<Json>(path.join(rawDir, name), (event) => {
@@ -1586,9 +1396,18 @@ async function rawOutput(flags: Flags) {
   if (typeof expectedHash === "string" && sha256(output) !== expectedHash) {
     throw new Error(`raw output hash mismatch for ${callId}`);
   }
-  const filename = flag(flags, "out");
-  if (filename) await writeFile(path.resolve(filename), output, "utf8");
-  else process.stdout.write(output);
+  return output;
+}
+
+async function rawCallIdForHash(rawDir: string, outputHash: string) {
+  const files = existsSync(rawDir) ? (await readdir(rawDir)).filter((name) => name.endsWith(".jsonl")) : [];
+  let callId: string | null = null;
+  await Promise.all(files.map((name) => forEachJsonl<Json>(path.join(rawDir, name), (event) => {
+    if (event.kind === "raw_complete" && event.output_sha256 === outputHash && typeof event.call_id === "string") {
+      callId = event.call_id;
+    }
+  })));
+  return callId;
 }
 
 async function readRunContract(runDir: string) {
@@ -1620,8 +1439,8 @@ export async function assertSharedStructureRun(runDir: string, current: Json) {
   const source = await readRunContract(runDir);
   const compared = [
     "mode", "provider", "routes", "models", "route_assignment", "effort", "workers",
-    "max_corrections", "max_output_tokens", "timeout_seconds", "structure_hints",
-    "analysis_examples", "requests_per_minute", "daily_request_caps", "requested_ids",
+    "max_corrections", "max_output_tokens", "timeout_seconds", "structure_hints", "structure_strategy",
+    "analysis_examples", "requested_ids",
     "model_system_prompt", "structure_instructions",
   ];
   const differences = compared.filter((name) => JSON.stringify(source[name]) !== JSON.stringify(current[name]));
@@ -1631,11 +1450,54 @@ export async function assertSharedStructureRun(runDir: string, current: Json) {
   }
 }
 
+function decisionInventoryReceipt(expected: SubmissionCompilation, candidate: SubmissionCompilation | null) {
+  const reference = expected.analysis?.compiled?.decision_mentions ?? [];
+  const answer = candidate?.analysis?.compiled?.decision_mentions ?? [];
+  const key = (value: string) => value.normalize("NFKC").toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const textSpan = (mention: (typeof reference)[number]) => {
+    const offset = mention.identifying_block.exact_text.indexOf(mention.cited_decision);
+    return offset < 0 ? null : {
+      start: mention.identifying_block.start + offset,
+      end: mention.identifying_block.start + offset + mention.cited_decision.length,
+    };
+  };
+  const unused = new Set(answer.map((_, index) => index));
+  const matches = reference.flatMap((gold) => {
+    const goldSpan = textSpan(gold);
+    const match = [...unused].find((index) => {
+      const candidateMention = answer[index];
+      if (key(gold.cited_decision) === key(candidateMention.cited_decision)) return true;
+      const candidateSpan = textSpan(candidateMention);
+      return Boolean(goldSpan && candidateSpan && goldSpan.start < candidateSpan.end && candidateSpan.start < goldSpan.end);
+    });
+    if (match === undefined) return [];
+    unused.delete(match);
+    return [{ reference_decision_id: gold.decision_id, candidate_decision_id: answer[match].decision_id }];
+  });
+  return {
+    reference_items: reference.length,
+    candidate_items: answer.length,
+    confirmed_matches: matches.length,
+    confirmed_recall: reference.length ? matches.length / reference.length : 1,
+    confirmed_precision: answer.length ? matches.length / answer.length : 1,
+    unmatched_reference: reference.filter((gold) => !matches.some(({ reference_decision_id }) => reference_decision_id === gold.decision_id))
+      .map(({ decision_id, cited_decision }) => ({ decision_id, cited_decision })),
+    unmatched_candidate: answer.filter((_, index) => unused.has(index))
+      .map(({ decision_id, cited_decision }) => ({ decision_id, cited_decision })),
+  };
+}
+
 async function benchmarkCases(goldFile: string, runDir: string) {
-  const analysisContract = await assertRunContract(runDir);
+  const runContract = await readRunContract(runDir);
+  const analysisContract = runContract.analysis_contract as AnalysisContract;
+  const structureOnly = runContract.mode === "structure-only";
   const gold = await readGold(goldFile);
   const receipts = await runReceipts(runDir);
   const requested = await requestedRunIds(runDir, receipts);
+  const goldIds = new Set(gold.map(({ document_id }) => document_id));
+  const missingGold = [...requested].filter((documentId) => !goldIds.has(documentId));
+  if (missingGold.length) throw new Error(`gold is missing requested documents: ${missingGold.join(", ")}`);
   const rows = gold.filter(({ document_id }) => requested.has(document_id));
   const byId = new Map(rows.map((row) => [row.document_id, row]));
   const values = new Array<{
@@ -1643,9 +1505,12 @@ async function benchmarkCases(goldFile: string, runDir: string) {
     citation: string;
     expected: SubmissionCompilation;
     candidate: SubmissionCompilation | null;
+    candidate_structure: StructureCompilation | null;
+    gold_opinions: number;
     receipt_status: string;
     structure: ReturnType<typeof compareStructureMechanics> | null;
     deterministic_structure: ReturnType<typeof compareDeterministicStructure>;
+    decision_inventory: ReturnType<typeof decisionInventoryReceipt>;
     semantic_exact: boolean;
   }>(rows.length);
   await forEachMaterial(rows.map(({ document_id }) => document_id), 8, async (material, index) => {
@@ -1653,8 +1518,18 @@ async function benchmarkCases(goldFile: string, runDir: string) {
     const expected = compileReferenceSubmission(reference.annotation, material);
     if (!expected.ok) throw new Error(`${reference.document_id}: invalid gold: ${expected.errors.join("; ")}`);
     const candidateRow = receipts.get(reference.document_id) ?? null;
-    const candidateRaw = candidateRow?.submission ?? candidateRow?.final_parsed_draft ?? null;
+    const finalDraft = candidateRow?.final_parsed_draft;
+    const finalDraftRecord = finalDraft && typeof finalDraft === "object" && !Array.isArray(finalDraft)
+      ? finalDraft as Json
+      : null;
+    const candidateRaw = structureOnly ? null : candidateRow?.submission ?? finalDraft ?? null;
     const candidate = candidateRaw === null ? null : compileSubmission(candidateRaw, material, analysisContract);
+    const candidateStructureRaw = structureOnly
+      ? candidateRow?.structure ?? finalDraftRecord?.structure ?? finalDraft ?? null
+      : null;
+    const candidateStructure = candidate?.structure ?? (candidateStructureRaw === null
+      ? null
+      : compileStructure(candidateStructureRaw, material));
     const expectedView = semanticView(expected);
     const candidateView = candidate ? semanticView(candidate) : null;
     values[index] = {
@@ -1662,38 +1537,86 @@ async function benchmarkCases(goldFile: string, runDir: string) {
       citation: reference.citation,
       expected,
       candidate,
+      candidate_structure: candidateStructure,
+      gold_opinions: expected.structure.compiled?.opinions.length ?? 0,
       receipt_status: String(candidateRow?.status ?? "missing"),
-      structure: candidate ? compareStructureMechanics(expected.structure, candidate.structure, material) : null,
+      structure: candidateStructure ? compareStructureMechanics(expected.structure, candidateStructure, material) : null,
       deterministic_structure: compareDeterministicStructure(expected.structure, material),
-      semantic_exact: candidate?.ok === true && JSON.stringify(expectedView) === JSON.stringify(candidateView),
+      decision_inventory: decisionInventoryReceipt(expected, candidate),
+      semantic_exact: !structureOnly && candidate?.ok === true && JSON.stringify(expectedView) === JSON.stringify(candidateView),
     };
   });
   return values;
 }
 
-function aggregateStructureScore(values: Array<{
+function aggregateDecisionInventory(values: Array<{ decision_inventory: ReturnType<typeof decisionInventoryReceipt> }>) {
+  const referenceItems = values.reduce((total, value) => total + value.decision_inventory.reference_items, 0);
+  const candidateItems = values.reduce((total, value) => total + value.decision_inventory.candidate_items, 0);
+  const matches = values.reduce((total, value) => total + value.decision_inventory.confirmed_matches, 0);
+  return {
+    reference_items: referenceItems,
+    candidate_items: candidateItems,
+    confirmed_matches: matches,
+    confirmed_recall: referenceItems ? matches / referenceItems : 1,
+    confirmed_precision: candidateItems ? matches / candidateItems : 1,
+  };
+}
+
+const STRUCTURE_SCORE_CATEGORIES = [
+  "opinion_count_exact",
+  "boundaries_acceptable",
+  "writers_exact",
+  "full_joiners_exact",
+  "qualified_agreements_exact",
+  "opinion_results_exact",
+  "participant_votes_exact",
+  "result_only_participants_exact",
+  "nonparticipants_exact",
+] as const;
+
+export function aggregateStructureScore(values: Array<{
   document_id: number;
   citation: string;
+  gold_opinions: number;
   structure: ReturnType<typeof compareStructureMechanics> | null;
 }>) {
   const receipts = values.flatMap(({ document_id, citation, structure }) =>
     structure ? [{ document_id, citation, ...structure }] : []);
-  const categoryNames = [...new Set(receipts.flatMap(({ categories }) => Object.keys(categories)))];
-  const categories = Object.fromEntries(categoryNames.map((name) => {
+  const categories = Object.fromEntries(STRUCTURE_SCORE_CATEGORIES.map((name) => {
     const passed = receipts.filter((receipt) => receipt.categories[name as keyof typeof receipt.categories]).length;
-    return [name, { passed, total: receipts.length, score: receipts.length ? passed / receipts.length : 0 }];
+    return [name, { passed, total: values.length, score: values.length ? passed / values.length : 0 }];
   }));
   const passed = receipts.reduce((total, receipt) => total + receipt.category_score.passed, 0);
-  const checks = receipts.reduce((total, receipt) => total + receipt.category_score.total, 0);
+  const checks = values.length * STRUCTURE_SCORE_CATEGORIES.length;
+  const goldOpinions = values.reduce((total, value) => total + value.gold_opinions, 0);
+  const candidateOpinions = receipts.reduce((total, receipt) => total + receipt.metrics.candidate_opinions, 0);
+  const matchedOpinions = receipts.reduce((total, receipt) => total + receipt.metrics.matched_opinions, 0);
+  const exactBoundaries = receipts.reduce((total, receipt) => total + receipt.metrics.exact_boundaries, 0);
+  const acceptableBoundaries = receipts.reduce((total, receipt) => total + receipt.metrics.acceptable_boundaries, 0);
   return {
     requested_cases: values.length,
-    cases: receipts.length,
+    scored_cases: receipts.length,
     unscored_cases: values.length - receipts.length,
     accepted_cases: receipts.filter(({ accepted }) => accepted).length,
-    accepted_rate: receipts.length ? receipts.filter(({ accepted }) => accepted).length / receipts.length : 0,
+    accepted_rate: values.length ? receipts.filter(({ accepted }) => accepted).length / values.length : 0,
     category_score: { passed, total: checks, score: checks ? passed / checks : 0 },
-    mean_boundary_overlap: receipts.length
-      ? receipts.reduce((total, receipt) => total + receipt.metrics.mean_boundary_overlap, 0) / receipts.length
+    conditional_category_score: {
+      passed,
+      total: receipts.length * STRUCTURE_SCORE_CATEGORIES.length,
+      score: receipts.length ? passed / (receipts.length * STRUCTURE_SCORE_CATEGORIES.length) : 0,
+    },
+    opinions: {
+      gold: goldOpinions,
+      candidate: candidateOpinions,
+      matched: matchedOpinions,
+      exact_boundaries: exactBoundaries,
+      acceptable_boundaries: acceptableBoundaries,
+      matched_recall: goldOpinions ? matchedOpinions / goldOpinions : 1,
+      acceptable_boundary_recall: goldOpinions ? acceptableBoundaries / goldOpinions : 1,
+      acceptable_boundary_precision: candidateOpinions ? acceptableBoundaries / candidateOpinions : 1,
+    },
+    mean_boundary_overlap: matchedOpinions
+      ? receipts.reduce((total, receipt) => total + receipt.metrics.mean_boundary_overlap * receipt.metrics.matched_opinions, 0) / matchedOpinions
       : 0,
     categories,
     receipts,
@@ -1714,9 +1637,10 @@ async function benchmark(flags: Flags) {
   const runDir = flag(flags, "run-dir");
   if (!gold || !runDir) throw new Error("benchmark requires --gold and --run-dir");
   const values = await benchmarkCases(gold, runDir);
-  const rows = values.map(({ expected: _expected, candidate, ...value }) => ({
+  const rows = values.map(({ expected: _expected, candidate, candidate_structure, ...value }) => ({
     ...value,
     candidate_valid: candidate?.ok === true,
+    candidate_structure_valid: candidate_structure?.ok === true,
     candidate_errors: candidate?.errors ?? [],
     judge_required: candidate !== null && semanticDraftView(candidate, "c") !== null && !value.semantic_exact,
   }));
@@ -1727,10 +1651,12 @@ async function benchmark(flags: Flags) {
     failed_receipts: rows.filter(({ receipt_status }) => receipt_status === "failed").length,
     missing_receipts: rows.filter(({ receipt_status }) => receipt_status === "missing").length,
     valid_candidates: rows.filter(({ candidate_valid }) => candidate_valid).length,
+    valid_structure_candidates: rows.filter(({ candidate_structure_valid }) => candidate_structure_valid).length,
     structurally_accepted: rows.filter(({ structure }) => structure?.accepted).length,
     deterministic_structurally_exact: rows.filter(({ deterministic_structure }) => deterministic_structure?.exact).length,
     semantically_exact: rows.filter(({ semantic_exact }) => semantic_exact).length,
     judge_required: rows.filter(({ judge_required }) => judge_required).length,
+    decision_inventory: aggregateDecisionInventory(rows),
     structure_score: aggregateStructureScore(rows),
     rows,
   };
@@ -1751,11 +1677,693 @@ async function benchmark(flags: Flags) {
   }, null, 2));
 }
 
+function structureDraftFromReceipt(receipt: Json | null) {
+  if (!receipt) return null;
+  if (receipt.structure && typeof receipt.structure === "object" && !Array.isArray(receipt.structure)) {
+    return receipt.structure;
+  }
+  const submission = receipt.submission && typeof receipt.submission === "object" && !Array.isArray(receipt.submission)
+    ? receipt.submission as Json
+    : null;
+  if (submission?.structure) return submission.structure;
+  const draft = receipt.final_parsed_draft;
+  if (!draft || typeof draft !== "object" || Array.isArray(draft)) return null;
+  return (draft as Json).structure ?? draft;
+}
+
+async function benchmarkStructure(flags: Flags) {
+  const goldFile = flag(flags, "gold");
+  const runDir = flag(flags, "run-dir");
+  if (!goldFile || !runDir) throw new Error("benchmark-structure requires --gold and --run-dir");
+  const first = (await readJsonl<{ contract_version?: unknown }>(path.resolve(goldFile)))[0];
+  const gold = first?.contract_version === PRODUCT_GOLD_VERSION
+    ? (await readProductGold(goldFile)).map((row) => ({
+      document_id: row.document_id,
+      citation: row.citation,
+      product: row,
+      structure: null,
+    }))
+    : (await readGold(goldFile)).map((row) => ({
+      document_id: row.document_id,
+      citation: row.citation,
+      product: null,
+      structure: row.annotation.structure,
+    }));
+  const receipts = await runReceipts(runDir);
+  const requested = await requestedRunIds(runDir, receipts);
+  const goldIds = new Set(gold.map(({ document_id }) => document_id));
+  const missingGold = [...requested].filter((documentId) => !goldIds.has(documentId));
+  if (missingGold.length) throw new Error(`structure gold is missing requested documents: ${missingGold.join(", ")}`);
+  const rows = gold.filter(({ document_id }) => requested.has(document_id));
+  const values = new Array<{
+    document_id: number;
+    citation: string;
+    gold_opinions: number;
+    structure: ReturnType<typeof compareStructureMechanics> | null;
+    deterministic_structure: ReturnType<typeof compareDeterministicStructure>;
+  }>(rows.length);
+  await forEachMaterial(rows.map(({ document_id }) => document_id), 10, async (material, index) => {
+    const reference = rows[index];
+    const expected = reference.product
+      ? compileProductDecisionStructure(reference.product, material)
+      : compileStructure(reference.structure, material);
+    if (!expected.ok) throw new Error(`${reference.document_id}: invalid structure gold: ${expected.errors.join("; ")}`);
+    const draft = structureDraftFromReceipt(receipts.get(reference.document_id) ?? null);
+    const candidate = draft === null ? null : compileStructure(draft, material);
+    values[index] = {
+      document_id: reference.document_id,
+      citation: reference.citation,
+      gold_opinions: expected.compiled?.opinions.length ?? 0,
+      structure: candidate ? compareStructureMechanics(expected, candidate, material) : null,
+      deterministic_structure: compareDeterministicStructure(expected, material),
+    };
+  });
+  const summary = {
+    cases: values.length,
+    structure_score: aggregateStructureScore(values),
+    deterministic_structurally_exact: values.filter(({ deterministic_structure }) => deterministic_structure?.exact).length,
+    rows: values,
+  };
+  const output = path.resolve(flag(flags, "out", path.join(runDir, "structure-benchmark.json")));
+  await writeFile(output, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
+  console.log(JSON.stringify({ cases: summary.cases, structure_score: summary.structure_score, deterministic_structurally_exact: summary.deterministic_structurally_exact, output }, null, 2));
+}
+
+async function runUsage(runDir: string) {
+  const filename = path.join(runDir, "calls.jsonl");
+  const totals = {
+    calls: 0,
+    elapsed_seconds: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    reasoning_tokens: 0,
+    cache_read_input_tokens: 0,
+    cache_write_input_tokens: 0,
+  };
+  if (!existsSync(filename)) return totals;
+  await forEachJsonl<Json>(filename, (row) => {
+    if (row.kind !== "model_call_finished" || row.status !== "completed") return;
+    totals.calls += 1;
+    totals.elapsed_seconds += Number(row.elapsed_seconds ?? 0);
+    const usage = row.usage && typeof row.usage === "object" && !Array.isArray(row.usage)
+      ? row.usage as Json
+      : {};
+    totals.input_tokens += Number(usage.inputTokens ?? usage.input_tokens ?? 0);
+    totals.output_tokens += Number(usage.outputTokens ?? usage.output_tokens ?? 0);
+    totals.reasoning_tokens += Number(usage.reasoningTokens ?? usage.reasoning_tokens ?? 0);
+    totals.cache_read_input_tokens += Number(usage.cacheReadInputTokens ?? usage.cache_read_input_tokens ?? 0);
+    totals.cache_write_input_tokens += Number(usage.cacheWriteInputTokens ?? usage.cache_write_input_tokens ?? 0);
+  });
+  return totals;
+}
+
+function sumUsage(values: Awaited<ReturnType<typeof runUsage>>[]) {
+  const total = { ...values[0] };
+  for (const key of Object.keys(total) as Array<keyof typeof total>) {
+    total[key] = values.reduce((sum, value) => sum + value[key], 0);
+  }
+  return total;
+}
+
+async function structureConsensus(flags: Flags) {
+  const goldFile = flag(flags, "gold");
+  const runDirList = flag(flags, "run-dirs");
+  const outputFile = flag(flags, "out");
+  if (!goldFile || !runDirList || !outputFile) {
+    throw new Error("structure-consensus requires --gold, --run-dirs, and --out");
+  }
+  const runDirs = runDirList.split(",").map((value) => path.resolve(value.trim())).filter(Boolean);
+  if (!runDirs.length) throw new Error("--run-dirs is empty");
+  const contracts = await Promise.all(runDirs.map((directory) => readRunContract(directory)));
+  for (const [index, contract] of contracts.entries()) {
+    if (contract.mode !== "structure-only") throw new Error(`${runDirs[index]} is not a structure-only run`);
+    if (JSON.stringify(contract.requested_ids) !== JSON.stringify(contracts[0].requested_ids)) {
+      throw new Error("structure consensus members use different case selections or order");
+    }
+  }
+  const requestedIds = Array.isArray(contracts[0].requested_ids)
+    ? contracts[0].requested_ids.map(Number)
+    : [];
+  const gold = await readGold(goldFile);
+  const goldById = new Map(gold.map((row) => [row.document_id, row]));
+  for (const id of requestedIds) if (!goldById.has(id)) throw new Error(`gold has no record for ${id}`);
+  const receiptMaps = await Promise.all(runDirs.map(runReceipts));
+  const memberRows = runDirs.map(() => new Array<{
+    document_id: number;
+    citation: string;
+    gold_opinions: number;
+    structure: ReturnType<typeof compareStructureMechanics> | null;
+  }>(requestedIds.length));
+  const prefixRows = runDirs.map(() => new Array<{
+    document_id: number;
+    citation: string;
+    gold_opinions: number;
+    structure: ReturnType<typeof compareStructureMechanics> | null;
+  }>(requestedIds.length));
+  const diversityRows = runDirs.map(() => new Array<{
+    valid_members: number;
+    distinct_structures: number;
+    mean_pairwise_agreement: number;
+  }>(requestedIds.length));
+  const selections = new Array<Json>(requestedIds.length);
+  await forEachMaterial(requestedIds, 8, async (material, caseIndex) => {
+    const goldRow = goldById.get(material.document_id)!;
+    const expected = compileReferenceSubmission(goldRow.annotation, material);
+    if (!expected.ok) throw new Error(`${goldRow.document_id}: invalid gold: ${expected.errors.join("; ")}`);
+    const candidates = receiptMaps.map((receipts, runIndex) => {
+      const raw = structureDraftFromReceipt(receipts.get(material.document_id) ?? null);
+      const compilation = raw === null ? null : compileStructure(raw, material);
+      return compilation?.ok && compilation.compiled ? { runIndex, compilation } : null;
+    });
+    for (const [runIndex, candidate] of candidates.entries()) {
+      memberRows[runIndex][caseIndex] = {
+        document_id: material.document_id,
+        citation: goldRow.citation,
+        gold_opinions: expected.structure.compiled?.opinions.length ?? 0,
+        structure: candidate
+          ? compareStructureMechanics(expected.structure, candidate.compilation, material)
+          : null,
+      };
+    }
+    const agreement = candidates.map(() => candidates.map(() => 0));
+    for (let left = 0; left < candidates.length; left += 1) {
+      if (!candidates[left]) continue;
+      agreement[left][left] = 1;
+      for (let right = left + 1; right < candidates.length; right += 1) {
+        if (!candidates[right]) continue;
+        const forward = compareStructureMechanics(candidates[left]!.compilation, candidates[right]!.compilation, material);
+        const reverse = compareStructureMechanics(candidates[right]!.compilation, candidates[left]!.compilation, material);
+        agreement[left][right] = agreement[right][left] = ((forward?.category_score.score ?? 0) + (reverse?.category_score.score ?? 0)) / 2;
+      }
+    }
+    const caseSelections: Json[] = [];
+    for (let size = 1; size <= runDirs.length; size += 1) {
+      const available = candidates.slice(0, size).flatMap((candidate) => candidate ? [candidate.runIndex] : []);
+      const chosen = available
+        .map((runIndex) => ({
+          runIndex,
+          agreement: available.length === 1
+            ? 1
+            : available.filter((other) => other !== runIndex)
+              .reduce((sum, other) => sum + agreement[runIndex][other], 0) / (available.length - 1),
+        }))
+        .sort((left, right) => right.agreement - left.agreement || left.runIndex - right.runIndex)[0] ?? null;
+      const selected = chosen ? candidates[chosen.runIndex] : null;
+      const pairwise = available.flatMap((left, leftIndex) =>
+        available.slice(leftIndex + 1).map((right) => agreement[left][right]));
+      const distinctStructures = new Set(available.map((runIndex) =>
+        sha256(JSON.stringify(candidates[runIndex]!.compilation.value)))).size;
+      diversityRows[size - 1][caseIndex] = {
+        valid_members: available.length,
+        distinct_structures: distinctStructures,
+        mean_pairwise_agreement: pairwise.length
+          ? pairwise.reduce((sum, value) => sum + value, 0) / pairwise.length
+          : 1,
+      };
+      prefixRows[size - 1][caseIndex] = {
+        document_id: material.document_id,
+        citation: goldRow.citation,
+        gold_opinions: expected.structure.compiled?.opinions.length ?? 0,
+        structure: selected
+          ? compareStructureMechanics(expected.structure, selected.compilation, material)
+          : null,
+      };
+      caseSelections.push({
+        members: size,
+        valid_members: available.length,
+        chosen_run: chosen ? path.basename(runDirs[chosen.runIndex]) : null,
+        peer_agreement: chosen?.agreement ?? 0,
+      });
+    }
+    selections[caseIndex] = { document_id: material.document_id, citation: goldRow.citation, prefixes: caseSelections };
+  });
+  const usage = await Promise.all(runDirs.map(runUsage));
+  const members = runDirs.map((directory, index) => ({
+    run_dir: directory,
+    model: contracts[index].models,
+    effort: contracts[index].effort,
+    usage: usage[index],
+    structure_score: aggregateStructureScore(memberRows[index]),
+  }));
+  const prefixes = prefixRows.map((rows, index) => ({
+    members: index + 1,
+    usage: sumUsage(usage.slice(0, index + 1)),
+    diversity: {
+      mean_valid_members: diversityRows[index].reduce((sum, row) => sum + row.valid_members, 0) / diversityRows[index].length,
+      mean_distinct_structures: diversityRows[index].reduce((sum, row) => sum + row.distinct_structures, 0) / diversityRows[index].length,
+      mean_pairwise_agreement: diversityRows[index].reduce((sum, row) => sum + row.mean_pairwise_agreement, 0) / diversityRows[index].length,
+      cases_with_multiple_distinct_structures: diversityRows[index].filter(({ distinct_structures }) => distinct_structures > 1).length,
+    },
+    structure_score: aggregateStructureScore(rows),
+  }));
+  const result = {
+    contract_version: CASE_TREATMENT_CONTRACT_VERSION,
+    generated_utc: now(),
+    gold_sha256: sha256(await readFile(path.resolve(goldFile), "utf8")),
+    members,
+    prefixes,
+    selections,
+  };
+  await mkdir(path.dirname(path.resolve(outputFile)), { recursive: true });
+  await writeFile(path.resolve(outputFile), `${JSON.stringify(result, null, 2)}\n`, "utf8");
+  if (flags.quiet !== true) {
+    console.log(JSON.stringify({
+      members: members.length,
+      cases: requestedIds.length,
+      final_structure_score: prefixes.at(-1)?.structure_score.category_score.score ?? 0,
+      output: path.resolve(outputFile),
+    }, null, 2));
+  }
+  return result;
+}
+
+const CODEX_EFFORTS = ["none", "low", "medium", "high", "xhigh", "max"] as const;
+
+export function structureEnsembleConfigs(
+  members: number,
+  efforts: readonly string[],
+  strategies: readonly StructureStrategy[],
+  includeHints: boolean,
+) {
+  if (!efforts.length || !strategies.length) throw new Error("structure ensemble needs at least one effort and strategy");
+  const combinations = efforts.length * strategies.length;
+  return Array.from({ length: members }, (_, index) => {
+    const base = index % combinations;
+    const cycle = Math.floor(index / combinations);
+    return {
+      member: index + 1,
+      effort: efforts[base % efforts.length],
+      strategy: strategies[Math.floor(base / efforts.length)],
+      structure_hints: includeHints && (base + cycle) % 2 === 1,
+    };
+  });
+}
+
+async function runStructureEnsemble(flags: Flags) {
+  setBelowNormalProcessPriority();
+  const caseFile = flag(flags, "case-file");
+  const gold = flag(flags, "gold");
+  const requestedOutDir = flag(flags, "out-dir");
+  if (!caseFile || !gold || !requestedOutDir) {
+    throw new Error("structure-ensemble requires --case-file, --gold, and --out-dir");
+  }
+  const outDir = path.resolve(requestedOutDir);
+  const members = Math.floor(numberFlag(flags, "members", 10, 1, 100));
+  const workers = Math.floor(numberFlag(flags, "workers-per-member", 5, 1, 32));
+  const concurrentMembers = Math.floor(numberFlag(flags, "concurrent-members", 2, 1, 10));
+  const efforts = flag(flags, "efforts", "low,medium,high").split(",").map((value) => value.trim()).filter(Boolean);
+  if (efforts.some((effort) => !CODEX_EFFORTS.includes(effort as typeof CODEX_EFFORTS[number]))) {
+    throw new Error(`--efforts must use ${CODEX_EFFORTS.join(", ")}`);
+  }
+  const strategies = flag(flags, "strategies", STRUCTURE_STRATEGIES.join(","))
+    .split(",").map((value) => value.trim()).filter(Boolean) as StructureStrategy[];
+  if (strategies.some((strategy) => !STRUCTURE_STRATEGIES.includes(strategy))) {
+    throw new Error(`--strategies must use ${STRUCTURE_STRATEGIES.join(", ")}`);
+  }
+  const configs = structureEnsembleConfigs(members, efforts, strategies, flags["no-hints"] !== true);
+  const memberRoot = path.join(outDir, "members");
+  const manifestFile = path.join(outDir, "manifest.json");
+  const manifestContract = {
+    command: "structure-ensemble",
+    case_file: path.resolve(caseFile),
+    case_file_sha256: sha256(await readFile(path.resolve(caseFile), "utf8")),
+    gold: path.resolve(gold),
+    gold_sha256: sha256(await readFile(path.resolve(gold), "utf8")),
+    model: flag(flags, "model", "gpt-5.6-luna"),
+    members,
+    workers_per_member: workers,
+    concurrent_members: concurrentMembers,
+    max_corrections: Math.floor(numberFlag(flags, "max-corrections", 2, 0, 5)),
+    timeout_seconds: numberFlag(flags, "timeout-seconds", 1_800, 1, 7_200),
+    configurations: configs,
+  };
+  await mkdir(outDir, { recursive: true });
+  if (existsSync(manifestFile)) {
+    const prior = JSON.parse(await readFile(manifestFile, "utf8")) as { contract?: unknown };
+    if (JSON.stringify(prior.contract) !== JSON.stringify(manifestContract)) {
+      throw new Error("ensemble directory belongs to a different invocation; choose a new --out-dir");
+    }
+  } else {
+    await writeFile(manifestFile, `${JSON.stringify({ created_at: now(), contract: manifestContract }, null, 2)}\n`, "utf8");
+  }
+  if (flags["dry-run"] === true) {
+    console.log(JSON.stringify(manifestContract, null, 2));
+    return;
+  }
+
+  const progress = new JsonlWriter(path.join(outDir, "progress.jsonl"));
+  const results = new Array<{ config: typeof configs[number]; directory: string; summary: Awaited<ReturnType<typeof runInference>> | null; error: string | null }>(configs.length);
+  await workerPool(configs, concurrentMembers, async (config, index) => {
+    const directory = path.join(memberRoot, `member-${String(config.member).padStart(2, "0")}`);
+    await progress.append({ utc: now(), kind: "member_started", ...config, directory });
+    try {
+      const summary = await runInference({
+        "case-file": path.resolve(caseFile),
+        mode: "structure-only",
+        provider: "codex",
+        model: manifestContract.model,
+        effort: config.effort,
+        workers: String(workers),
+        "analysis-audits": "0",
+        "max-corrections": String(manifestContract.max_corrections),
+        "timeout-seconds": String(manifestContract.timeout_seconds),
+        "structure-strategy": config.strategy,
+        "out-dir": directory,
+        ...(config.structure_hints ? { "structure-hints": true } : {}),
+        quiet: true,
+      });
+      results[index] = { config, directory, summary, error: null };
+      await progress.append({ utc: now(), kind: "member_finished", ...config, directory, summary });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      results[index] = { config, directory, summary: null, error: message };
+      await progress.append({ utc: now(), kind: "member_failed", ...config, directory, error: message });
+    }
+  });
+  await progress.close();
+  const complete = results.filter(({ summary }) => summary !== null
+    && summary.failed === 0
+    && summary.requested === summary.accepted + summary.rejected);
+  if (!complete.length) throw new Error("no structure ensemble member completed");
+  const consensusFile = path.join(outDir, "consensus.json");
+  const consensus = await structureConsensus({
+    gold: path.resolve(gold),
+    "run-dirs": complete.map(({ directory }) => directory).join(","),
+    out: consensusFile,
+    quiet: true,
+  });
+  const summary = {
+    requested_members: members,
+    completed_members: complete.length,
+    failed_members: results.filter(({ error }) => error !== null).length,
+    rejected_cases: complete.reduce((sum, result) => sum + (result.summary?.rejected ?? 0), 0),
+    final_structure_score: consensus.prefixes.at(-1)?.structure_score.category_score.score ?? 0,
+    consensus_file: consensusFile,
+  };
+  await writeFile(path.join(outDir, "summary.json"), `${JSON.stringify({ ...summary, members: results }, null, 2)}\n`, "utf8");
+  console.log(JSON.stringify(summary, null, 2));
+}
+
+async function readProductGold(filename: string) {
+  const rows = await readJsonl<ProductGoldRecord>(path.resolve(filename));
+  if (!rows.length) throw new Error("product gold JSONL is empty");
+  for (const row of rows) {
+    if (row.contract_version !== PRODUCT_GOLD_VERSION) throw new Error(`${row.document_id}: wrong product gold version`);
+    const errors = productGoldErrors(row);
+    if (errors.length) throw new Error(`${row.document_id}: ${errors.join("; ")}`);
+  }
+  if (new Set(rows.map(({ document_id }) => document_id)).size !== rows.length) {
+    throw new Error("product gold contains duplicate document IDs");
+  }
+  return rows;
+}
+
+async function validateProductGold(flags: Flags) {
+  const goldFile = flag(flags, "gold");
+  if (!goldFile) throw new Error("validate-product-gold requires --gold");
+  const rows = await readProductGold(goldFile);
+  const results = new Array<Json>(rows.length);
+  const byId = new Map(rows.map((row) => [row.document_id, row]));
+  await forEachMaterial(rows.map(({ document_id }) => document_id), Math.floor(numberFlag(flags, "workers", 10, 1, 32)), async (material, index) => {
+    const row = byId.get(material.document_id)!;
+    const errors = row.citation === material.citation ? [] : [`citation mismatch: ${row.citation} != ${material.citation}`];
+    const structure = compileProductDecisionStructure(row, material);
+    errors.push(...structure.errors);
+    results[index] = {
+      document_id: row.document_id,
+      citation: row.citation,
+      ok: errors.length === 0,
+      errors: [...new Set(errors)],
+      opinions: structure.compiled?.opinions.length ?? 0,
+      coverage: structure.coverage,
+    };
+  });
+  const summary = {
+    cases: results.length,
+    valid: results.filter(({ ok }) => ok).length,
+    invalid: results.filter(({ ok }) => !ok).length,
+    opinions: results.reduce((sum, row) => sum + Number(row.opinions ?? 0), 0),
+    rows: results,
+  };
+  const output = flag(flags, "out");
+  if (output) await writeFile(path.resolve(output), `${JSON.stringify(summary, null, 2)}\n`, "utf8");
+  console.log(JSON.stringify(summary, null, 2));
+  if (summary.invalid) process.exitCode = 1;
+}
+
+function productCandidateView(candidate: SubmissionCompilation): ProductSemanticView | null {
+  const semantic = semanticDraftView(candidate, "c");
+  const structure = candidate.structure.compiled;
+  const analysis = candidate.analysis?.compiled;
+  if (!semantic || !structure || !analysis) return null;
+  let directIndex = 0;
+  const directOutcomes = semantic.procedural_relationships.flatMap((relationship) => relationship.actions.map((action) => ({
+    id: `cd${++directIndex}`,
+    cited_decision: relationship.cited_decision,
+    action: action.action,
+    affected_part: action.affected_part,
+    evidence: action.evidence,
+  })));
+  const opinionFor = (opinionId: string) => {
+    const opinion = structure.opinions.find(({ opinion_id }) => opinion_id === opinionId);
+    return opinion?.writers.length ? opinion.writers.join(" and ") : opinion?.collective_author ?? "writer not stated";
+  };
+  const reportedHistory = analysis.reported_history.map((history, index) => ({
+    id: `ch${index + 1}`,
+    cited_decision: history.cited_decision,
+    action: history.action,
+    later_decision: history.later_decision,
+    affected_part: history.affected_part,
+    treating_opinion: opinionFor(history.opinion_id),
+    evidence: history.evidence_blocks.map(({ exact_text }) => exact_text),
+  }));
+  return {
+    direct_outcomes: directOutcomes,
+    reported_history: reportedHistory,
+    treatments: semantic.treatments.map((treatment) => ({
+      id: treatment.treatment_id,
+      cited_decision: treatment.cited_decision,
+      treating_opinion: treatment.treating_opinion,
+      signals: treatment.signals,
+      other_signal: treatment.other_signal,
+      proposition: treatment.proposition,
+      treatment: treatment.treatment,
+      evidence: treatment.evidence,
+    })),
+  };
+}
+
+async function judgeProduct(flags: Flags) {
+  setBelowNormalProcessPriority();
+  const goldFile = flag(flags, "gold");
+  const runDir = flag(flags, "run-dir");
+  if (!goldFile || !runDir) throw new Error("judge-product requires --gold and --run-dir");
+  const goldSha256 = sha256(await readFile(path.resolve(goldFile), "utf8"));
+  const gold = await readProductGold(goldFile);
+  const receipts = await runReceipts(runDir);
+  const runContract = await readRunContract(runDir);
+  const analysisContract = runContract.analysis_contract as AnalysisContract;
+  const requested = await requestedRunIds(runDir, receipts);
+  const selected = flags["document-ids"] === undefined ? null : new Set(parseIds(String(flags["document-ids"])));
+  if (selected) for (const documentId of selected) {
+    if (!requested.has(documentId)) throw new Error(`document ${documentId} was not requested by this run`);
+  }
+  const target = selected ?? requested;
+  const goldIds = new Set(gold.map(({ document_id }) => document_id));
+  const missingGold = [...target].filter((documentId) => !goldIds.has(documentId));
+  if (missingGold.length) throw new Error(`product gold is missing requested documents: ${missingGold.join(", ")}`);
+  const rows = gold.filter(({ document_id }) => target.has(document_id));
+  const byId = new Map(rows.map((row) => [row.document_id, row]));
+  const work = new Array<{
+    document_id: number;
+    citation: string;
+    receipt_status: string;
+    reference: ProductSemanticView;
+    candidate: ProductSemanticView | null;
+  }>(rows.length);
+  await forEachMaterial(rows.map(({ document_id }) => document_id), 10, async (material, index) => {
+    const reference = byId.get(material.document_id)!;
+    if (reference.citation !== material.citation) {
+      throw new Error(`${reference.document_id}: gold citation does not match source`);
+    }
+    const referenceStructure = compileProductDecisionStructure(reference, material);
+    if (!referenceStructure.ok) {
+      throw new Error(`${reference.document_id}: invalid product structure gold: ${referenceStructure.errors.join("; ")}`);
+    }
+    const receipt = receipts.get(material.document_id) ?? null;
+    if (receipt && (receipt.citation !== material.citation || receipt.source_sha256 !== sha256(material.text))) {
+      throw new Error(`${material.document_id}: inference receipt does not match the source being judged`);
+    }
+    const raw = receipt?.submission ?? receipt?.final_parsed_draft ?? null;
+    const candidate = raw === null ? null : compileSubmission(raw, material, analysisContract);
+    work[index] = {
+      document_id: material.document_id,
+      citation: reference.citation,
+      receipt_status: String(receipt?.status ?? "missing"),
+      reference: productReferenceView(reference),
+      candidate: candidate ? productCandidateView(candidate) : null,
+    };
+  });
+  const model = flag(flags, "model", "gpt-5.6-sol");
+  const effort = flag(flags, "effort", "low");
+  const workers = Math.floor(numberFlag(flags, "workers", 10, 1, 32));
+  const timeoutSeconds = numberFlag(flags, "timeout-seconds", 1_800, 1, 7_200);
+  const judgeDir = path.resolve(flag(flags, "judge-dir", path.join(runDir, "product-judge")));
+  const rawDir = path.join(judgeDir, "raw");
+  const promptDir = path.join(judgeDir, "prompts");
+  await Promise.all([judgeDir, rawDir, promptDir].map((directory) => mkdir(directory, { recursive: true })));
+  await writeFile(path.join(judgeDir, "schema.json"), `${JSON.stringify(PRODUCT_JUDGE_SCHEMA, null, 2)}\n`, "utf8");
+  const resultsFile = path.join(judgeDir, "results.jsonl");
+  const prior = existsSync(resultsFile) ? await readJsonl<Record<string, unknown>>(resultsFile) : [];
+  const reusable = new Map<string, Record<string, unknown>>();
+  const recovered: Record<string, unknown>[] = [];
+  const workById = new Map(work.map((value) => [value.document_id, value]));
+  for (const priorResult of prior) {
+    if (typeof priorResult.judge_key !== "string") continue;
+    let result = priorResult;
+    if (result.error != null && typeof result.output_sha256 === "string") {
+      const value = workById.get(Number(result.document_id));
+      const callId = typeof result.call_id === "string"
+        ? result.call_id
+        : await rawCallIdForHash(rawDir, result.output_sha256);
+      if (value?.candidate && callId) {
+        const rawOutput = await rawCallOutput(rawDir, callId).catch(() => null);
+        if (rawOutput !== null) {
+          const parsed = normalizeProductJudgeResult(parseJson(rawOutput));
+          if (!productJudgeErrors(value.reference, value.candidate, parsed).length) {
+            result = { ...result, call_id: callId, parsed, error: null, score: productJudgeScore(parsed), recovered_from_raw: true };
+            recovered.push(result);
+          }
+        }
+      }
+    }
+    if (result.error == null) reusable.set(result.judge_key, result);
+  }
+  const calls = work.flatMap((value, index) => {
+    if (!value.candidate) return [];
+    const prompt = productJudgePrompt(value.reference, value.candidate);
+    const judgeKey = sha256(JSON.stringify({ prompt: sha256(prompt), schema: sha256(JSON.stringify(PRODUCT_JUDGE_SCHEMA)), model, effort }));
+    return [{ value, index, prompt, judge_key: judgeKey }];
+  });
+  const output = new JsonlWriter(resultsFile);
+  for (const result of recovered) await output.append(result);
+  const ledger = new JsonlWriter(path.join(judgeDir, "calls.jsonl"));
+  const pending = calls.filter(({ judge_key }) => !reusable.has(judge_key));
+  const rawWriters = Array.from({ length: Math.min(workers, Math.max(1, pending.length)) }, (_, index) =>
+    new JsonlWriter(path.join(rawDir, `worker-${index + 1}.jsonl`)));
+  const report = progressLine("product judged", pending.length);
+  let completed = 0;
+  await workerPool(pending, workers, async ({ value, prompt, judge_key }, _index, worker) => {
+    await writeFile(path.join(promptDir, `${value.document_id}.txt`), prompt, "utf8");
+    const result = await modelCall({
+      prompt,
+      schema: PRODUCT_JUDGE_SCHEMA,
+      model,
+      effort,
+      max_output_tokens: 32_768,
+      timeout_seconds: timeoutSeconds,
+      raw: rawWriters[worker],
+      ledger,
+      document_id: value.document_id,
+      stage: "product_semantic_judge",
+      attempt: 1,
+    });
+    let parsed = normalizeProductJudgeResult(result.parsed);
+    let repair: Record<string, unknown> | null = null;
+    const initialErrors = result.error ? [] : productJudgeErrors(value.reference, value.candidate!, parsed);
+    if (!result.error && initialErrors.length && initialErrors.every((error) => error.startsWith("unmatched candidate "))) {
+      const repairResult = await modelCall({
+        prompt: productJudgeRepairPrompt(value.reference, value.candidate!, parsed, initialErrors),
+        schema: PRODUCT_JUDGE_REPAIR_SCHEMA,
+        model,
+        effort,
+        max_output_tokens: 8_192,
+        timeout_seconds: timeoutSeconds,
+        raw: rawWriters[worker],
+        ledger,
+        document_id: value.document_id,
+        stage: "product_semantic_judge_repair",
+        attempt: 2,
+      });
+      parsed = mergeProductJudgeRepair(parsed, value.candidate!, repairResult.parsed);
+      repair = {
+        call_id: repairResult.call_id,
+        parsed: repairResult.parsed,
+        error: repairResult.error,
+        continuation_id: repairResult.continuation_id,
+        elapsed_seconds: repairResult.elapsed_seconds,
+        usage: repairResult.usage,
+        output_sha256: repairResult.output_sha256,
+      };
+    }
+    const errors = result.error ? [] : productJudgeErrors(value.reference, value.candidate!, parsed);
+    const error = result.error ?? (errors.length ? `Invalid product grade: ${errors.join("; ")}` : null);
+    const row = {
+      utc: now(), judge_key, call_id: result.call_id, document_id: value.document_id, citation: value.citation,
+      parsed, error, repair,
+      score: error ? null : productJudgeScore(parsed),
+      elapsed_seconds: result.elapsed_seconds, usage: result.usage, output_sha256: result.output_sha256,
+    };
+    reusable.set(judge_key, row);
+    await output.append(row);
+    report(++completed);
+  });
+  await Promise.all([output.close(), ledger.close(), ...rawWriters.map((writer) => writer.close())]);
+  const missing = work.filter(({ candidate }) => !candidate).map(({ document_id, citation, receipt_status }) => ({
+    document_id,
+    citation,
+    parsed: null,
+    error: `No valid candidate analysis (${receipt_status}).`,
+    score: null,
+  }));
+  const judged = calls.map(({ judge_key }) => reusable.get(judge_key)!).filter(Boolean).map((row) => ({
+    ...row,
+    score: row.parsed ? productJudgeScore(row.parsed) : null,
+  }));
+  const results = [...missing, ...judged];
+  const scored = results.filter(({ parsed }) => parsed).map(({ parsed }) => productJudgeScore(parsed));
+  const extraGrades = results.flatMap(({ parsed }) => parsed && typeof parsed === "object" && !Array.isArray(parsed)
+    && Array.isArray((parsed as { extras?: unknown }).extras)
+    ? (parsed as { extras: Array<{ verdict?: unknown }> }).extras
+    : []);
+  const goldChallenges = extraGrades.filter(({ verdict }) => verdict === "pass").length;
+  const sum = (name: "treatment" | "direct_outcome" | "reported_history" | "overall" | "extras") => {
+    const items = scored.reduce((total, score) => total + score[name].items, 0);
+    const earned = scored.reduce((total, score) => total + score[name].earned, 0);
+    return { items, earned, score: items ? earned / items : 1 };
+  };
+  const summary = {
+    gold_sha256: goldSha256,
+    model,
+    effort,
+    judge_schema_sha256: sha256(JSON.stringify(PRODUCT_JUDGE_SCHEMA)),
+    cases: work.length,
+    candidates: work.filter(({ candidate }) => candidate).length,
+    judged: judged.length,
+    failed: results.filter(({ error }) => error).length,
+    recovered_from_raw: recovered.length,
+    treatment: sum("treatment"),
+    direct_outcome: sum("direct_outcome"),
+    reported_history: sum("reported_history"),
+    overall: sum("overall"),
+    extras: sum("extras"),
+    benchmark_ready: work.every(({ candidate }) => candidate) && results.every(({ error }) => !error) && goldChallenges === 0,
+    gold_challenges: goldChallenges,
+    extra_minor_errors: extraGrades.filter(({ verdict }) => verdict === "minor_error").length,
+    unsupported_extras: extraGrades.filter(({ verdict }) => verdict === "major_error").length,
+    major_errors: scored.reduce((total, score) => total + score.major_errors, 0),
+    case_scores: results.map(({ document_id, citation, score, error }) => ({ document_id, citation, score, error })),
+  };
+  await writeFile(path.join(judgeDir, "summary.json"), `${JSON.stringify(summary, null, 2)}\n`, "utf8");
+  if (flags.quiet !== true) console.log(JSON.stringify(summary, null, 2));
+}
+
 async function judge(flags: Flags) {
   setBelowNormalProcessPriority();
   const gold = flag(flags, "gold");
   const runDir = flag(flags, "run-dir");
   if (!gold || !runDir) throw new Error("judge requires --gold and --run-dir");
+  const goldSha256 = sha256(await readFile(path.resolve(gold), "utf8"));
   const requestedIds = flag(flags, "document-ids");
   const requested = requestedIds ? new Set(parseIds(requestedIds)) : null;
   const benchmarkValues = (await benchmarkCases(gold, runDir)).filter(({ document_id }) =>
@@ -1763,28 +2371,8 @@ async function judge(flags: Flags) {
   const eligible = benchmarkValues.filter(({ candidate }) =>
     candidate !== null && semanticDraftView(candidate, "c") !== null);
   const values = eligible.filter(({ semantic_exact }) => !semantic_exact);
-  const provider = flag(flags, "provider", "codex");
-  if (!["codex", "ox-alpha"].includes(provider)) throw new Error("--provider must be codex or ox-alpha");
-  const oxRouteName = flag(flags, "ox-route");
-  if (provider === "ox-alpha" && !oxRouteName) throw new Error("Ox Alpha judging requires --ox-route");
-  if (provider !== "ox-alpha" && oxRouteName) throw new Error("--ox-route requires --provider ox-alpha");
-  const selectedOxRoute = provider === "ox-alpha" ? oxAlphaRoute(oxRouteName!) : null;
-  let oxRuntime: {
-    credentials: OxAlphaCredentials;
-    limiter: StartLimiter;
-    preflight: Awaited<ReturnType<typeof preflightOxAlpha>>;
-  } | null = null;
-  if (selectedOxRoute) {
-    oxRuntime = {
-      credentials: oxAlphaCredentials(selectedOxRoute),
-      limiter: new EvenStartLimiter(OX_ALPHA_ROUTES[selectedOxRoute].default_requests_per_minute),
-      preflight: await preflightOxAlpha(selectedOxRoute, oxAlphaCredentials(selectedOxRoute)),
-    };
-  }
-  const model = provider === "ox-alpha"
-    ? OX_ALPHA_ROUTES[selectedOxRoute!].model
-    : flag(flags, "model", "gpt-5.6-sol");
-  const effort = flag(flags, "effort", provider === "ox-alpha" ? "low" : "low");
+  const model = flag(flags, "model", "gpt-5.6-sol");
+  const effort = flag(flags, "effort", "low");
   const workers = Math.floor(numberFlag(flags, "workers", 10, 1, 32));
   const timeoutSeconds = numberFlag(flags, "timeout-seconds", 1_800, 1, 7_200);
   const judgeDir = path.resolve(flag(flags, "judge-dir", path.join(runDir, "judge")));
@@ -1812,7 +2400,7 @@ async function judge(flags: Flags) {
   const prior = existsSync(resultsFile) ? await readJsonl<Record<string, unknown>>(resultsFile) : [];
   const reusable = new Map<string, Json>();
   for (const result of prior) {
-    if (result.error === null && typeof result.judge_key === "string") reusable.set(result.judge_key, result as Json);
+    if (typeof result.judge_key === "string" && result.error == null) reusable.set(result.judge_key, result as Json);
   }
   const pending = work.filter(({ judge_key }) => !reusable.has(judge_key));
   const ledgerFile = path.join(judgeDir, "calls.jsonl");
@@ -1833,20 +2421,19 @@ async function judge(flags: Flags) {
     const result = await modelCall({
       prompt, schema: SEMANTIC_JUDGE_SCHEMA, model, effort, max_output_tokens: 16_384,
       timeout_seconds: timeoutSeconds,
-      ox_route: selectedOxRoute ?? undefined,
-      ox_credentials: oxRuntime?.credentials,
-      start_limiter: oxRuntime?.limiter,
       raw, ledger, document_id: value.document_id, stage: "semantic_judge", attempt: 1,
     });
+    const normalized = result.error ? null : normalizeSemanticJudgeResult(result.parsed);
     const resultErrors = result.error
       ? []
-      : semanticJudgeResultErrors(value.expected, value.candidate!, result.parsed, useDraft);
+      : semanticJudgeResultErrors(value.expected, value.candidate!, normalized, useDraft);
     const error = result.error ?? (resultErrors.length ? `Invalid semantic grade: ${resultErrors.join("; ")}` : null);
     const grade = {
       utc: now(), judge_key, document_id: value.document_id, citation: value.citation,
       structure: value.structure,
-      parsed: error ? null : result.parsed, error, output_sha256: result.output_sha256,
-      score: error ? null : semanticJudgeScore(result.parsed),
+      parsed: error ? null : normalized, error, output_sha256: result.output_sha256,
+      score: error ? null : semanticJudgeScore(normalized),
+      semantic_receipt: error ? null : semanticJudgeReceipt(value.expected, value.candidate!, normalized, useDraft),
       elapsed_seconds: result.elapsed_seconds, usage: result.usage,
     };
     grades[index] = grade;
@@ -1856,9 +2443,9 @@ async function judge(flags: Flags) {
   await Promise.all([ledger.close(), output.close(), ...rawWriters.map((writer) => writer.close())]);
   type SemanticGrade = {
     treatment_grades: Array<{ verdict: string }>;
-    extra_candidate_treatments: Array<{ severity: string }>;
+    extra_candidate_treatments: Array<{ verdict: string }>;
     procedural_relationship_grades: Array<{ verdict: string }>;
-    extra_candidate_relationships: Array<{ severity: string }>;
+    extra_candidate_relationships: Array<{ verdict: string }>;
   };
   const judgedGrades = grades.flatMap(({ parsed }) => parsed ? [parsed as SemanticGrade] : []);
   const exactValues = benchmarkValues.filter(({ semantic_exact }) => semantic_exact);
@@ -1889,23 +2476,68 @@ async function judge(flags: Flags) {
   const caseScores = benchmarkValues.map((value) => {
     if (value.semantic_exact) {
       const score = semanticJudgeScore(fixedGradeFor(value, "pass"));
-      return { document_id: value.document_id, citation: value.citation, source: "deterministic_exact", score };
+      const receipt = semanticJudgeReceipt(value.expected, value.candidate);
+      return { document_id: value.document_id, citation: value.citation, source: "deterministic_exact", score, semantic_receipt: receipt };
     }
     if (!eligibleIds.has(value.document_id)) {
       const score = semanticJudgeScore(fixedGradeFor(value, "major_error"));
-      return { document_id: value.document_id, citation: value.citation, source: "no_semantic_draft", score };
+      const receipt = semanticJudgeReceipt(value.expected, value.candidate);
+      return { document_id: value.document_id, citation: value.citation, source: "no_semantic_draft", score, semantic_receipt: receipt };
     }
     const grade = judgedByDocument.get(value.document_id);
+    const receipt = grade?.parsed
+      ? semanticJudgeReceipt(value.expected, value.candidate!, grade.parsed, value.candidate!.ok !== true)
+      : null;
     return {
       document_id: value.document_id,
       citation: value.citation,
       source: "semantic_judge",
       score: grade?.score ?? null,
-      error: grade?.error ?? "semantic judge result missing",
+      semantic_receipt: receipt,
+      error: grade ? grade.error : "semantic judge result missing",
     };
   });
+  const receipts = caseScores.flatMap(({ semantic_receipt }) => semantic_receipt ? [semantic_receipt] : []);
+  const aggregateMatched = (name: "treatments" | "procedural_relationships") => {
+    const referenceItems = receipts.reduce((total, receipt) => total + receipt[name].reference_items, 0);
+    const coveredItems = receipts.reduce((total, receipt) => total + receipt[name].covered_items, 0);
+    const pass = receipts.reduce((total, receipt) => total + receipt[name].pass, 0);
+    const minor = receipts.reduce((total, receipt) => total + receipt[name].minor_error, 0);
+    const major = receipts.reduce((total, receipt) => total + receipt[name].major_error, 0);
+    return {
+      reference_items: referenceItems,
+      covered_items: coveredItems,
+      omitted_items: referenceItems - coveredItems,
+      coverage: referenceItems ? coveredItems / referenceItems : 1,
+      pass,
+      minor_error: minor,
+      major_error: major,
+      accuracy_among_covered: coveredItems ? (pass + minor * 0.5) / coveredItems : 1,
+    };
+  };
+  const aggregateExtras = (name: "extra_treatments" | "extra_procedural_relationships") => ({
+    items: receipts.reduce((total, receipt) => total + receipt[name].items, 0),
+    pass: receipts.reduce((total, receipt) => total + receipt[name].pass, 0),
+    minor_error: receipts.reduce((total, receipt) => total + receipt[name].minor_error, 0),
+    major_error: receipts.reduce((total, receipt) => total + receipt[name].major_error, 0),
+  });
+  const candidateTreatmentItems = receipts.reduce((total, receipt) => total + receipt.candidate_treatments.items, 0);
+  const acceptableCandidateTreatments = receipts.reduce((total, receipt) => total + receipt.candidate_treatments.acceptable_items, 0);
+  const proceduralActionItems = receipts.reduce((total, receipt) => total + receipt.procedural_action_types.reference_items, 0);
+  const matchedProceduralActionTypes = receipts.reduce((total, receipt) => total + receipt.procedural_action_types.matched_items, 0);
+  const majorityReference = receipts.reduce((total, receipt) => total + receipt.majority_support.reference_items, 0);
+  const majorityCovered = receipts.reduce((total, receipt) => total + receipt.majority_support.covered_items, 0);
+  const majorityExact = receipts.reduce((total, receipt) => total + receipt.majority_support.exact_items, 0);
   const complete = caseScores.every(({ score }) => score !== null);
+  const goldChallenges = caseScores.flatMap(({ document_id, citation, semantic_receipt }) => {
+    const treatmentItems = semantic_receipt?.extra_treatments.pass ?? 0;
+    const relationshipItems = semantic_receipt?.extra_procedural_relationships.pass ?? 0;
+    return treatmentItems || relationshipItems
+      ? [{ document_id, citation, treatment_items: treatmentItems, procedural_relationship_items: relationshipItems }]
+      : [];
+  });
   const summary = {
+    gold_sha256: goldSha256,
     cases: benchmarkValues.length,
     scored_cases: caseScores.filter(({ score }) => score !== null).length,
     complete,
@@ -1913,24 +2545,51 @@ async function judge(flags: Flags) {
     unjudgeable_candidate_cases: unjudgeableValues.length,
     judge_cases: grades.length,
     failed_cases: grades.filter(({ error }) => error).length,
+    gold_challenges: goldChallenges,
     score: { ...aggregateScore, passed: complete && aggregateScore.passed },
     treatment_propositions: treatmentGrades.length,
     treatment_pass: treatmentGrades.filter(({ verdict }) => verdict === "pass").length,
     treatment_minor_error: treatmentGrades.filter(({ verdict }) => verdict === "minor_error").length,
     treatment_major_error: treatmentGrades.filter(({ verdict }) => verdict === "major_error").length,
     extra_candidate_treatments: extraTreatments.length,
-    extra_treatment_minor_error: extraTreatments.filter(({ severity }) => severity === "minor").length,
-    extra_treatment_major_error: extraTreatments.filter(({ severity }) => severity === "major").length,
+    extra_treatment_pass: extraTreatments.filter(({ verdict }) => verdict === "pass").length,
+    extra_treatment_minor_error: extraTreatments.filter(({ verdict }) => verdict === "minor_error").length,
+    extra_treatment_major_error: extraTreatments.filter(({ verdict }) => verdict === "major_error").length,
     procedural_relationship_items: relationshipGrades.length,
     procedural_relationship_pass: relationshipGrades.filter(({ verdict }) => verdict === "pass").length,
     procedural_relationship_minor_error: relationshipGrades.filter(({ verdict }) => verdict === "minor_error").length,
     procedural_relationship_major_error: relationshipGrades.filter(({ verdict }) => verdict === "major_error").length,
     extra_candidate_relationships: extraRelationships.length,
+    semantic_receipt: {
+      treatments: aggregateMatched("treatments"),
+      extra_treatments: aggregateExtras("extra_treatments"),
+      candidate_treatments: {
+        items: candidateTreatmentItems,
+        acceptable_items: acceptableCandidateTreatments,
+        score: candidateTreatmentItems ? acceptableCandidateTreatments / candidateTreatmentItems : 1,
+      },
+      procedural_relationships: aggregateMatched("procedural_relationships"),
+      extra_procedural_relationships: aggregateExtras("extra_procedural_relationships"),
+      procedural_action_types: {
+        reference_items: proceduralActionItems,
+        matched_items: matchedProceduralActionTypes,
+        coverage: proceduralActionItems ? matchedProceduralActionTypes / proceduralActionItems : 1,
+      },
+      majority_support: {
+        reference_items: majorityReference,
+        covered_items: majorityCovered,
+        omitted_items: majorityReference - majorityCovered,
+        coverage: majorityReference ? majorityCovered / majorityReference : 1,
+        exact_items: majorityExact,
+        score: majorityReference ? majorityExact / majorityReference : 1,
+      },
+    },
     structure_score: aggregateStructureScore(benchmarkValues),
     case_scores: caseScores,
   };
   await writeFile(path.join(judgeDir, "summary.json"), `${JSON.stringify(summary, null, 2)}\n`, "utf8");
   if (flags.quiet !== true) console.log(JSON.stringify(summary, null, 2));
+  if (flags.quiet !== true && !complete) process.exitCode = 1;
 }
 
 async function appendedText(filename: string, offset: number) {
@@ -1974,6 +2633,7 @@ async function watchJudge(flags: Flags) {
   delete baseFlags["completion-file"];
   delete baseFlags["poll-ms"];
   delete baseFlags["document-ids"];
+  const judgeCurrent = flags["judge-contract"] === "product" ? judgeProduct : judge;
 
   const existingReceipts = await runReceipts(runDir);
   const requested = await requestedRunIds(runDir, existingReceipts);
@@ -1981,7 +2641,7 @@ async function watchJudge(flags: Flags) {
     .filter(([documentId, receipt]) => requested.has(documentId) && receipt.status === "accepted")
     .map(([documentId]) => documentId);
   if (existingIds.length) {
-    await judge({ ...baseFlags, quiet: true, "document-ids": existingIds.join(",") });
+    await judgeCurrent({ ...baseFlags, quiet: true, "document-ids": existingIds.join(",") });
   }
 
   for (;;) {
@@ -2000,14 +2660,47 @@ async function watchJudge(flags: Flags) {
       } catch { /* A final full pass still covers a malformed progress line. */ }
     }
     if (landed.size) {
-      await judge({ ...baseFlags, quiet: true, "document-ids": [...landed].join(",") });
+      await judgeCurrent({ ...baseFlags, quiet: true, "document-ids": [...landed].join(",") });
     }
     if (existsSync(completionFile)) {
-      await judge(baseFlags);
+      await judgeCurrent(baseFlags);
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, pollMilliseconds));
   }
+}
+
+async function runAndJudge(flags: Flags) {
+  const outDir = flag(flags, "out-dir");
+  const gold = flag(flags, "gold");
+  if (!outDir || !gold) throw new Error("run-and-judge requires --out-dir and --gold");
+  const completionFile = path.join(path.resolve(outDir), `.inference-complete-${randomUUID()}`);
+  const watcher = watchJudge({
+    gold: path.resolve(gold),
+    "run-dir": path.resolve(outDir),
+    "completion-file": completionFile,
+    provider: "codex",
+    model: flag(flags, "judge-model", "gpt-5.6-sol"),
+    effort: flag(flags, "judge-effort", "low"),
+    workers: flag(flags, "judge-workers", flag(flags, "workers", "10")),
+    "judge-contract": flag(flags, "judge-contract", "legacy"),
+    watch: true,
+  });
+  let inferenceError: unknown;
+  try {
+    await runInference({ ...flags, quiet: true });
+  } catch (error) {
+    inferenceError = error;
+  } finally {
+    await mkdir(path.dirname(completionFile), { recursive: true });
+    await writeFile(completionFile, "", "utf8");
+  }
+  try {
+    await watcher;
+  } finally {
+    if (existsSync(completionFile)) await rm(completionFile, { force: true });
+  }
+  if (inferenceError) throw inferenceError;
 }
 
 async function exportGold(flags: Flags) {
@@ -2088,9 +2781,13 @@ async function showPrompt(flags: Flags) {
   const stage = flag(flags, "stage", "structure");
   const analysisContract = flag(flags, "analysis-contract", "self-check") as AnalysisContract;
   if (!ANALYSIS_CONTRACTS.includes(analysisContract)) throw new Error("invalid --analysis-contract");
+  const structureStrategy = flag(flags, "structure-strategy", "direct") as StructureStrategy;
+  if (!STRUCTURE_STRATEGIES.includes(structureStrategy)) throw new Error("invalid --structure-strategy");
   const includeStructureHints = flags["structure-hints"] === true;
-  if (stage === "structure") console.log(includeStructureHints ? structurePromptWithHints(material) : structurePrompt(material));
-  else if (stage === "one-stage") console.log(oneStagePrompt(material, includeStructureHints, false, analysisContract));
+  if (stage === "structure") console.log(includeStructureHints
+    ? structurePromptWithHints(material, structureStrategy)
+    : structurePrompt(material, structureStrategy));
+  else if (stage === "one-stage") console.log(oneStagePrompt(material, includeStructureHints, false, analysisContract, structureStrategy));
   else if (stage === "analysis") {
     const goldFile = flag(flags, "gold");
     if (!goldFile) throw new Error("analysis prompt requires --gold");
@@ -2119,14 +2816,20 @@ async function main() {
   else if (command === "show") await showCase(flags);
   else if (command === "packets") await writePackets(flags);
   else if (command === "validate-gold") await validateGold(flags);
+  else if (command === "validate-product-gold") await validateProductGold(flags);
   else if (command === "run") await runInference(flags);
+  else if (command === "run-and-judge") await runAndJudge(flags);
   else if (command === "benchmark") await benchmark(flags);
+  else if (command === "benchmark-structure") await benchmarkStructure(flags);
+  else if (command === "structure-consensus") await structureConsensus(flags);
+  else if (command === "structure-ensemble") await runStructureEnsemble(flags);
   else if (command === "judge") await (flags.watch === true ? watchJudge(flags) : judge(flags));
+  else if (command === "judge-product") await judgeProduct(flags);
   else if (command === "raw-output") await rawOutput(flags);
   else if (command === "export") await exportGold(flags);
   else if (command === "show-prompt") await showPrompt(flags);
   else if (command === "show-schema") await showSchema(flags);
-  else throw new Error("commands: select | show | packets | validate-gold | run | benchmark | judge | raw-output | export | show-prompt | show-schema");
+  else throw new Error("commands: select | show | packets | validate-gold | validate-product-gold | run | run-and-judge | benchmark | benchmark-structure | structure-consensus | structure-ensemble | judge | judge-product | raw-output | export | show-prompt | show-schema");
 }
 
 if (require.main === module) void main()

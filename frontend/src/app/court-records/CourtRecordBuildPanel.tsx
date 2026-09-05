@@ -4,6 +4,7 @@ import { Button } from "@/app/components/ui/button";
 import { cn, formatBytes } from "@/app/lib/utils";
 import { CourtCoverPreview } from "./CourtCoverPreview";
 import { outputFilename } from "./validation";
+import { hasMatchingExhibitCertificate } from "./types";
 import type { BuildArtifact, BuildResult, ComplianceReport, CourtProfile, CoverValues, RecordEntry } from "./types";
 
 type Props = {
@@ -29,26 +30,39 @@ export function CourtRecordBuildPanel(props: Props) {
   const sourcePages = props.entries.reduce((sum, entry) => sum + (entry.pageCount ?? 0), 0);
   const sourceFiles = props.entries.filter((entry) => !entry.descriptionOnly).length;
   const outputFiles = props.result?.artifacts.length;
-  const actionLabel = separate ? "Prepare filing set" : "Build record";
+  const summary = separate || !props.profile.cover.generated;
+  const forSignature = props.profile.documentKinds.some(({ generated }) =>
+    generated === "federal-form-344-certificate") || !!props.profile.exhibitCertificate &&
+    props.entries.some((entry) => entry.kindId === "exhibit" &&
+      !hasMatchingExhibitCertificate(entry));
+  const actionLabel = separate ? "Prepare filing set"
+    : forSignature ? "Build for signature" : "Build record";
   return (
     <aside className="court-record-build-panel min-w-0" aria-label="Build output" aria-busy={props.building || props.saving}>
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-100 px-4 py-3.5">
-          <h2 className="text-base font-semibold leading-6 text-gray-950">{separate ? "Filing set" : "Preview"}</h2>
+          <h2 className="text-base font-semibold leading-6 text-gray-950">
+            {separate ? "Filing set" : pdf ? "Built record"
+              : props.profile.cover.generated ? "Cover preview" : "Record"}
+          </h2>
         </div>
-        <div className="flex h-[24rem] items-center justify-center bg-gray-100 p-4">
-          {separate ? (
+        <div className={cn("flex items-center justify-center bg-gray-100 p-4",
+          separate ? "h-48" : "h-[24rem]")}>
+          {summary && !pdf ? (
             <div className="max-w-xs text-center">
               <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-white text-gray-700 shadow-sm">
                 <Files className="h-5 w-5" aria-hidden="true" />
               </span>
               <p className="mt-3 text-base font-semibold text-gray-950">
-                {outputFiles !== undefined ? `${outputFiles} filing file${outputFiles === 1 ? "" : "s"} prepared`
+                {outputFiles !== undefined ? `${outputFiles} ${separate ? "filing file" : "record"}${outputFiles === 1 ? "" : "s"} prepared`
                   : sourceFiles ? `${sourceFiles} source file${sourceFiles === 1 ? "" : "s"}` : "No files added"}
               </p>
               <p className="mt-1 text-sm leading-5 text-gray-600">
-                {sourceFiles ? "Each file remains separate for filing."
-                  : "Add the files required for this filing set."}
+                {separate
+                  ? sourceFiles ? "Each file remains separate for filing."
+                    : "Add the files required for this filing set."
+                  : sourceFiles ? "The source pages will be combined without adding a cover."
+                    : "Add the affidavit and any exhibits."}
               </p>
             </div>
           ) : pdf ? (
@@ -67,7 +81,7 @@ export function CourtRecordBuildPanel(props: Props) {
                 {sourceFiles ? `${sourceFiles} source file${sourceFiles === 1 ? "" : "s"}${sourcePages ? ` · ${sourcePages} page${sourcePages === 1 ? "" : "s"}` : ""} · ${formatBytes(props.report.inputBytes)}` : "No source files yet"}
               </p>
             </div>
-            {props.report.ready && <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800" title="Ready to build"><Check className="h-4 w-4" /><span className="sr-only">Ready to build</span></span>}
+            {props.report.ready && <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800" title="Ready to assemble"><Check className="h-4 w-4" /><span className="sr-only">Ready to assemble</span></span>}
           </div>
           {!!props.report.review.length && (
             <details className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">

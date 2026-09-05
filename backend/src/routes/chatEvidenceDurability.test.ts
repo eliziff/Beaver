@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   matterDocuments: undefined as string[] | undefined,
   preflightFailure: false,
   providerMessages: [] as { role: string; content: string }[][],
+  queryIds: [] as string[][],
   systemPrompts: [] as string[],
   runLocalAssistantTool: vi.fn(),
   streamChatWithTools: vi.fn(),
@@ -40,7 +41,11 @@ vi.mock("../lib/chat/assistantTools", () => ({
     scope: "main" | "reader";
     artifactFor(documentId: string, versionId: string): string;
     onMutationCommitted(): void;
-  }) => [
+    legalEvidence?: { queries: Map<string, unknown> };
+  }) => {
+    if (runtime.scope === "main")
+      mocks.queryIds.push([...(runtime.legalEvidence?.queries.keys() ?? [])]);
+    return [
     {
       name: "Read",
       inputSchema: { type: "object", additionalProperties: true },
@@ -95,7 +100,8 @@ vi.mock("../lib/chat/assistantTools", () => ({
           : {}),
       };
     },
-  })),
+    }));
+  },
 }));
 vi.mock("../lib/documentProjectionService", () => ({
   documentProjectionService: {
@@ -164,7 +170,7 @@ async function loadApp() {
     application,
     inlineChatTurnQueue(application),
   ));
-  return { app, store: chats, projects: localProjects };
+  return { app, store: chats, projects: localProjects, documents };
 }
 
 async function storedChat(store: ChatStore, chatId: string) {
@@ -189,6 +195,7 @@ beforeEach(async () => {
   mocks.matterDocuments = undefined;
   mocks.preflightFailure = false;
   mocks.providerMessages.length = 0;
+  mocks.queryIds.length = 0;
   mocks.systemPrompts.length = 0;
   mocks.runLocalAssistantTool.mockReset();
   mocks.streamChatWithTools.mockReset();
@@ -224,6 +231,63 @@ afterEach(async () => {
 });
 
 describe("chat PDF evidence durability", () => {
+
+  it("promotes chat receipts as a working revision, not an assistant version", async () => {
+    const { createLegalEvidenceTurnState, legalEvidenceReceiptEvent,
+      registerLegalResearchQueries } = await import("../lib/chat/legalEvidence");
+    const { createResearchFileState, pageResearchItems, readResearchFile,
+      researchFileMarkdown } = await import("../lib/researchFile");
+    const evidence = createLegalEvidenceTurnState();
+    registerLegalResearchQueries(evidence, [{ call_id: "search", tool: "search_sources",
+      executed_at: "2026-09-01T00:00:00.000Z", executor_version: "legal-source-search-v1",
+      input: { query: "fairness" }, results: [{ rank: 1,
+        resource: "source://a2aj/%5B%222026%20SCC%201%22%2C%22cases%22%2C%22scc%22%5D" }] }],
+    "test-model");
+    const loaded = await loadApp(), chat = await request(loaded.app).post("/chat/create").send({}),
+      event = legalEvidenceReceiptEvent(evidence)!, workspace = await loaded.documents.create(
+        { userId: USER_ID }, { filename: "Fairness.research.md", fileType: "md",
+          bytes: Buffer.from(researchFileMarkdown("Fairness", createResearchFileState())) });
+    await loaded.store.commitTurn({ userId: USER_ID }, chat.body.id, { expectedVersion: 0,
+      assistantMessage: { id: crypto.randomUUID(), content: [event] } });
+    const response = await request(loaded.app)
+      .post(`/chat/${chat.body.id}/research-files/${workspace.id}/promote`).send({
+        version_id: workspace.current_version_id, working_revision: 0, includeQueries: true });
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ version_id: workspace.current_version_id,
+      working_revision: 1 });
+    expect((await loaded.documents.versions({ userId: USER_ID }, workspace.id))?.versions)
+      .toHaveLength(1);
+    const saved = (await readResearchFile(loaded.documents,
+      { userId: USER_ID }, workspace.id))!;
+    expect(saved.state.queries?.count).toBe(1);
+    expect((await pageResearchItems(loaded.documents, { userId: USER_ID }, saved,
+      "queries")).items).toHaveLength(1);
+  });
+
+  it("makes prior chat query receipts available to next-turn tools without re-emitting them", async () => {
+    const { createLegalEvidenceTurnState, legalEvidenceReceiptEvent,
+      registerLegalResearchQueries } = await import("../lib/chat/legalEvidence");
+    const evidence = createLegalEvidenceTurnState();
+    registerLegalResearchQueries(evidence, [{ call_id: "prior-search", tool: "search_sources",
+      executed_at: "2026-09-01T00:00:00.000Z", executor_version: "legal-source-search-v1",
+      input: { query: "standard of review" }, results: [{ rank: 1,
+        resource: "source://a2aj/%5B%222019%20SCC%2065%22%2C%22cases%22%2C%22scc%22%5D" }] }],
+    "test-model");
+    const event = legalEvidenceReceiptEvent(evidence)!, queryId = event.queries[0].query_id;
+    const loaded = await loadApp(), created = await request(loaded.app).post("/chat/create").send({});
+    await loaded.store.commitTurn({ userId: USER_ID }, created.body.id, { expectedVersion: 0,
+      assistantMessage: { id: crypto.randomUUID(), content: [event] } });
+
+    const response = await request(loaded.app).post("/chat").send({ chat_id: created.body.id,
+      expected_version: 1, current_turn: { kind: "message", content: "Save that search." } });
+
+    expect(response.status).toBe(200);
+    expect(mocks.queryIds.at(-1)).toContain(queryId);
+    const durable = await storedChat(loaded.store, created.body.id), latest =
+      durable?.messages.filter(({ role }) => role === "assistant").at(-1);
+    expect((latest?.content as Array<{ type?: string }>).some(({ type }) =>
+      type === "legal_evidence_receipt")).toBe(false);
+  });
 
   it("keeps only the latest durable snapshot for each reading agent", async () => {
     mocks.streamChatWithTools.mockImplementation(async (params) => {
@@ -311,7 +375,7 @@ describe("chat PDF evidence durability", () => {
     expect((await request(loaded.app).get(`/chat/${empty.body.id}`)).status).toBe(200);
   });
 
-  it("keeps prior evidence in model history without appending it to each user turn", async () => {
+  it("restores prior evidence once without replaying it through model history", async () => {
     const { createTnaEvidence } = await import("../lib/chat/legalEvidence");
     const evidence = createTnaEvidence({
       jurisdiction: "CA",
@@ -337,6 +401,7 @@ describe("chat PDF evidence durability", () => {
     );
     let turn = 0;
     mocks.streamChatWithTools.mockImplementation(async (params) => {
+      mocks.systemPrompts.push(params.systemPrompt);
       mocks.providerMessages.push(
         params.messages.map(({ role, content }) => ({ role, content })),
       );
@@ -366,8 +431,8 @@ describe("chat PDF evidence durability", () => {
     })).status).toBe(200);
 
     const followUp = mocks.providerMessages.at(-1)!;
-    expect(followUp.some(({ role, content }) =>
-      role === "assistant" && content.includes(evidence.evidence_id))).toBe(true);
+    expect(mocks.systemPrompts.at(-1)).toContain(evidence.evidence_id);
+    expect(followUp.some(({ content }) => content.includes(evidence.evidence_id))).toBe(false);
     expect(followUp.at(-1)).toEqual({ role: "user", content: "Use it again." });
   });
 

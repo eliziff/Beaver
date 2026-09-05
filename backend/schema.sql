@@ -125,32 +125,51 @@ create table if not exists documents (
   library_kind text not null default 'file',
   library_folder_id text references library_folders(id) on delete cascade,
   metadata jsonb not null default '{}', notes text, filename text not null,
-  current_version_id text, created_at text not null, updated_at text not null,
+  current_version_id text not null, created_at text not null, updated_at text not null,
   check(library_kind in ('file','template')),
   check(project_id is null or library_folder_id is null),
   check(project_id is not null or folder_id is null)
 );
 create table if not exists document_versions (
   id text primary key, document_id text not null references documents(id) on delete cascade,
-  version_number integer not null, source text not null, created_at text not null,
+  parent_version_id text,
+  version_number integer not null, working_revision integer not null default 0,
+  source text not null, created_by uuid, author_email text, comment text, created_at text not null,
   filename text not null, file_type text not null, size_bytes integer not null,
   page_count integer, source_sha256 text not null, storage_path text not null,
-  pdf_storage_path text, pdf_profile jsonb, cleanup_paths jsonb not null default '[]',
-  provenance jsonb,
-  unique(document_id,version_number)
+  pdf_storage_path text, pdf_profile jsonb, provenance jsonb,
+  unique(document_id,version_number), unique(id,document_id),
+  foreign key(parent_version_id,document_id) references document_versions(id,document_id),
+  check(version_number>0), check(working_revision>=0),
+  check(comment is null or length(comment)<=1000),
+  check((version_number=1)=(parent_version_id is null)),
+  check(parent_version_id is null or parent_version_id<>id)
+);
+create table if not exists document_version_parts (
+  document_id text not null, version_id text not null, name text not null,
+  size_bytes integer not null, sha256 text not null, storage_path text not null,
+  primary key(version_id,name),
+  foreign key(version_id,document_id) references document_versions(id,document_id) on delete cascade,
+  check(length(name) between 1 and 200), check(size_bytes>=0), check(length(sha256)=64)
 );
 create table if not exists document_edits (
   id text primary key, document_id text not null references documents(id) on delete cascade,
-  version_id text not null references document_versions(id) on delete cascade,
+  version_id text not null,
   change_id text not null, del_w_id text, ins_w_id text,
   deleted_text text not null default '', inserted_text text not null default '',
   context_before text not null default '', context_after text not null default '',
   reason text, diff jsonb not null default '[]', status text not null,
-  resolved_at text, check(status in ('pending','accepted','rejected'))
+  resolved_at text, check(status in ('pending','accepted','rejected')),
+  foreign key(version_id,document_id) references document_versions(id,document_id) on delete cascade
 );
 create table if not exists object_cleanup (
-  storage_path text primary key, user_id uuid not null, created_at text not null
+  storage_path text primary key, created_at text not null,
+  claim_id text, claimed_at text,
+  check((claim_id is null)=(claimed_at is null))
 );
+create index if not exists object_cleanup_created_at_idx on object_cleanup(created_at);
+create index if not exists object_cleanup_claim_idx on object_cleanup(claim_id)
+  where claim_id is not null;
 create table if not exists library_legal_sources (
   user_id uuid not null, id text not null, pointer_json text not null,
   primary key(user_id,id)
@@ -285,7 +304,11 @@ create index if not exists project_members_email on project_members(email,projec
 create index if not exists project_folders_page on project_subfolders(project_id,parent_folder_id,name,id);
 create index if not exists library_folders_page on library_folders(user_id,library_kind,parent_folder_id,name,id);
 create index if not exists documents_scope on documents(user_id,project_id,library_kind,library_folder_id,filename,id);
-create index if not exists document_versions_scope on document_versions(document_id,version_number);
+create index if not exists document_versions_parent on document_versions(parent_version_id);
+create index if not exists document_versions_blob on document_versions(storage_path);
+create index if not exists document_versions_pdf_blob on document_versions(pdf_storage_path);
+create index if not exists document_version_parts_blob on document_version_parts(storage_path);
+create index if not exists document_version_parts_document on document_version_parts(document_id,version_id);
 create index if not exists document_edits_scope on document_edits(document_id,version_id);
 create index if not exists tabular_reviews_page on tabular_reviews(user_id,created_at desc,id desc);
 create index if not exists tabular_members_email on tabular_review_members(email,review_id);
@@ -319,7 +342,7 @@ alter table projects add constraint projects_auth_user foreign key(user_id) refe
 alter table project_subfolders add constraint project_subfolders_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
 alter table library_folders add constraint library_folders_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
 alter table documents add constraint documents_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
-alter table object_cleanup add constraint object_cleanup_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
+alter table document_versions add constraint document_versions_auth_user foreign key(created_by) references auth.users(id) on delete set null;
 alter table library_legal_sources add constraint library_sources_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
 alter table tabular_reviews add constraint tabular_reviews_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
 alter table chats add constraint chats_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
@@ -331,6 +354,31 @@ alter table workflow_shares add constraint workflow_shares_auth_user foreign key
 alter table workflow_open_source_submissions add constraint workflow_submissions_auth_user foreign key(submitted_by_user_id) references auth.users(id) on delete cascade;
 alter table audit_events add constraint audit_events_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
 alter table user_preferences add constraint user_preferences_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
+
+-- Keep object cleanup crash-safe even when an identity/project cascade, rather
+-- than an application delete, removes the final version reference.
+create or replace function queue_deleted_document_version() returns trigger language plpgsql
+security definer set search_path = '' as $$
+declare deleted_at text := to_char(clock_timestamp() at time zone 'utc',
+  'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
+begin
+  insert into public.object_cleanup(storage_path,created_at)
+    select distinct path,deleted_at from
+      (values(to_jsonb(old)->>'storage_path'),
+        (to_jsonb(old)->>'pdf_storage_path')) paths(path)
+      where path is not null
+    on conflict(storage_path) do update set created_at=excluded.created_at,
+      claim_id=null,claimed_at=null;
+  return old;
+end $$;
+drop trigger if exists document_versions_queue_cleanup on document_versions;
+create trigger document_versions_queue_cleanup after delete on document_versions
+  for each row execute procedure queue_deleted_document_version();
+drop trigger if exists document_version_parts_queue_cleanup on document_version_parts;
+create trigger document_version_parts_queue_cleanup after delete on document_version_parts
+  for each row execute procedure queue_deleted_document_version();
+revoke execute on function public.queue_deleted_document_version()
+  from public,anon,authenticated;
 
 -- Supabase administration/export code also writes shared_with. Keep the
 -- indexed authorization tables synchronized without teaching every caller a
@@ -362,7 +410,7 @@ revoke execute on function public.sync_shared_members() from public,anon,authent
 -- Core application data is reachable only through Beaver's scoped HTTP API.
 -- The service role remains available to account/audit/export administration.
 revoke all on table projects,project_members,project_subfolders,library_folders,documents,
-  document_versions,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
+  document_versions,document_version_parts,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
   tabular_review_members,tabular_cells,chats,chat_messages,chat_message_events,
   provider_sessions,application_jobs,
   application_job_events,application_job_commands,workflows,work_products,
@@ -372,7 +420,7 @@ revoke all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oau
   user_mcp_oauth_states,user_mcp_connector_tools,user_mcp_tool_audit_logs
   from public,anon,authenticated;
 grant all on table projects,project_members,project_subfolders,library_folders,documents,
-  document_versions,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
+  document_versions,document_version_parts,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
   tabular_review_members,tabular_cells,chats,chat_messages,chat_message_events,
   provider_sessions,application_jobs,
   application_job_events,application_job_commands,workflows,work_products,
@@ -395,6 +443,7 @@ alter table project_subfolders enable row level security;
 alter table library_folders enable row level security;
 alter table documents enable row level security;
 alter table document_versions enable row level security;
+alter table document_version_parts enable row level security;
 alter table document_edits enable row level security;
 alter table object_cleanup enable row level security;
 alter table library_legal_sources enable row level security;

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { canonicalJson } from "mike/shared/canonical-json.cjs";
+import { canonicalJson } from "mike/shared/canonical-json.mjs";
 
 export { canonicalJson };
 

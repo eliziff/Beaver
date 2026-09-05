@@ -2,7 +2,7 @@ import {
   searchLegalSources,
 } from "../../legalSourceRegistry";
 import type { Tool } from "../../llm";
-import { resourceReference } from "../../resourceReferences";
+import { researchSourceResource } from "../../researchFile";
 import { trimmedText as text } from "../../value";
 import { hasCaseNameInText } from "../legalEvidence";
 import type { BeaverToolPolicy } from "../toolRegistry";
@@ -203,17 +203,7 @@ export async function searchSources(
     ({ provider, message }) => `${provider}: ${message}`,
   );
   const results: Hit[] = searched.results.map((row) => {
-      const resource =
-        row.provider === "a2aj"
-          ? resourceReference.source(
-              "a2aj",
-              JSON.stringify([
-                row.id,
-                row.kind === "legislation" ? "laws" : "cases",
-                row.collection ?? "",
-              ]),
-            )
-          : resourceReference.source(row.provider, row.id);
+      const resource = researchSourceResource(row);
       return {
         provider: row.provider,
         source_type: row.kind,
@@ -223,6 +213,7 @@ export async function searchSources(
         alternate_citation: row.alternateCitation,
         date: row.date,
         collection: row.collection,
+        language: row.language,
         authors: row.authors,
         speaker: row.speaker,
         snippet: row.snippet,

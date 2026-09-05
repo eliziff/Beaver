@@ -1,4 +1,5 @@
 import type { FileSnapshot, WorkProductInput } from "@/app/lib/workProducts";
+import type { CourtRecordWorkProductSlot } from "../../../../shared/court-record-work-products.mjs";
 
 export type JurisdictionId = string;
 export type CourtLanguage = "en" | "fr";
@@ -48,7 +49,8 @@ export type CoverFieldId =
   | "swornDate"
   | "swornPlace";
 
-export type CoverIssueId = CoverFieldId | "partyGroups" | "filingPartyId";
+export type CoverIssueId = CoverFieldId | "partyStyleId" | "partyGroups" | "partyContacts" |
+  "filingPartyIds";
 
 export interface CoverField {
   id: CoverFieldId;
@@ -62,7 +64,10 @@ export interface CoverField {
 export interface CaseParty {
   id: string;
   name: string;
+  contact?: PartyContact;
 }
+
+export type PartyContact = Partial<Record<"name" | "address" | "phone" | "fax" | "email", string>>;
 
 export interface CasePartyGroup {
   id: string;
@@ -91,23 +96,33 @@ export interface CoverDefinition {
   filingGroupId?: string;
 }
 
-export interface DocumentKind {
+export interface DocumentKind extends CourtRecordWorkProductSlot {
   id: string;
   label: string;
-  description: string;
   requirement: Requirement;
   order: number;
   repeatable?: boolean;
   group?: string;
   condition?: string;
   maximumPages?: number;
+  rule70PageLimit?: "standard" | "combined-cross-appeal";
   acceptedFormats?: CourtSourceFormat[];
-  generated?: "fca-form-344-certificate";
+  generated?: "federal-form-344-certificate";
+  appendTo?: string;
   descriptionOnly?: boolean;
+  renderDescriptionPage?: boolean;
   defaultDescription?: string;
   allowUnavailableNote?: boolean;
   separateFile?: boolean;
+  chronological?: boolean;
+  preserveFilename?: boolean;
+  pageLabelScheme?: "abca-transcript";
 }
+
+export const rule70MaximumPages = ({ rule70PageLimit }: Pick<DocumentKind,
+  "rule70PageLimit">) => rule70PageLimit
+  ? rule70PageLimit === "combined-cross-appeal" ? 60 : 30
+  : undefined;
 
 export interface TechnicalRequirements {
   pdfOnly: boolean;
@@ -131,6 +146,8 @@ export interface TechnicalRequirements {
   maxOutputBytes?: number;
   maxOutputPages?: number;
   volumeInstructions?: string;
+  completeIndexEachVolume?: boolean;
+  volumeLabelOnBackCover?: boolean;
   separateSourceFiles?: boolean;
 }
 
@@ -170,26 +187,41 @@ export interface CourtProfile {
 export interface CoverValues extends Partial<Record<CoverFieldId, string>> {
   partyStyleId?: string;
   partyGroups?: CasePartyGroup[];
-  filingPartyId?: string;
+  filingPartyIds?: string[];
+}
+
+export interface SourcePartyGroup {
+  role: string;
+  roleBelow?: string;
+  parties: string[];
 }
 
 export interface SourceDocumentFields {
   cover: Partial<Pick<CoverValues,
-    "courtName" | "courtFileNumber" | "registry" | "affidavitNumber" |
+    "courtName" | "courtFileNumber" | "lowerCourtFileNumber" | "registry" |
+    "decisionMaker" | "decisionDate" | "decisionFileDate" | "affidavitNumber" |
     "deponent" | "swornDate" | "swornPlace" | "recordTitle" | "counselName" |
     "counselAddress" | "counselPhone" | "counselFax" | "counselEmail">>;
   partyStyleId?: string;
-  parties?: { first?: string; second?: string };
+  partyGroups?: SourcePartyGroup[];
   exhibitLabels: string[];
+  exhibitMentions?: Record<string, string[]>;
   explicitExhibitLabel?: string;
   entryTitle?: string;
   entryDate?: string;
 }
 
+export interface SourceExhibits {
+  sourceSha256: string;
+  labels: string[];
+}
+
 export function coverPartyGroups(profile: CourtProfile, cover: CoverValues): CasePartyGroup[] {
   const styles = profile.cover.partyStyles;
   if (!styles?.length) return cover.partyGroups ?? [];
-  const style = styles.find((item) => item.id === cover.partyStyleId) ?? styles[0];
+  const style = styles.find((item) => item.id === cover.partyStyleId) ??
+    (styles.length === 1 ? styles[0] : undefined);
+  if (!style) return cover.partyGroups ?? [];
   return style.groups.flatMap((definition) => {
     const existing = cover.partyGroups?.find((group) => group.id === definition.id);
     if (definition.optional && !existing && definition.id !== profile.cover.filingGroupId) return [];
@@ -206,27 +238,61 @@ export function partyNames(group: CasePartyGroup) {
   return group.parties.map((party) => party.name.trim()).filter(Boolean).join("\n");
 }
 
-export function filingParty(profile: CourtProfile, cover: CoverValues) {
+export function filingParties(profile: CourtProfile, cover: CoverValues) {
   const groups = coverPartyGroups(profile, cover);
   const entered = groups
     .filter((group) => !profile.cover.filingGroupId || group.id === profile.cover.filingGroupId)
     .flatMap((group) => group.parties
       .filter((party) => party.name.trim())
       .map((party) => ({ party, group })));
-  const selected = entered.find(({ party }) => party.id === cover.filingPartyId);
-  if (selected) return selected;
-  return entered.length === 1 ? entered[0] : undefined;
+  const selected = new Set(cover.filingPartyIds ?? []);
+  const explicit = entered.filter(({ party }) => selected.has(party.id));
+  if (Object.hasOwn(cover, "filingPartyIds")) return explicit;
+  return entered.length === 1 || profile.cover.filingGroupId ? entered : [];
 }
+
+export const filingParty = (profile: CourtProfile, cover: CoverValues) =>
+  filingParties(profile, cover)[0];
+
+export const filingPartyNames = (profile: CourtProfile, cover: CoverValues) =>
+  filingParties(profile, cover).map(({ party }) => party.name.trim()).filter(Boolean).join("\n");
+
+export function ap5BookTitle(profile: CourtProfile, cover: CoverValues) {
+  if (cover.recordTitle?.trim()) return cover.recordTitle.trim();
+  const filers = filingParties(profile, cover).map(({ party, group }) =>
+    `${party.name.trim()}, ${group.role}`);
+  return `${profile.cover.title}${filers.length ? ` OF ${filers.join("; ")}` : ""}`;
+}
+
+export const captionPartyGroups = coverPartyGroups;
 
 export function contactGroups(profile: CourtProfile, cover: CoverValues) {
   const groups = coverPartyGroups(profile, cover);
-  const selected = filingParty(profile, cover);
-  const filing = groups.find((group) => group.id === selected?.group.id) ?? groups[0];
-  return [filing, groups.filter((group) => group !== filing)] as const;
+  const selected = filingParties(profile, cover), ids = new Set(selected.map(({ party }) => party.id));
+  const filing = selected.length ? {
+    id: "filing-parties",
+    role: [...new Set(selected.map(({ group }) => group.role))].join(" / "),
+    parties: selected.map(({ party }) => party),
+  } : groups[0];
+  const others = groups.map((group) => ({ ...group,
+    parties: group.parties.filter((party) => !ids.has(party.id)) }))
+    .filter((group) => group.parties.some((party) => party.name.trim()));
+  return [filing, others] as const;
 }
 
 export const groupNames = (...groups: Array<CasePartyGroup | undefined>) => groups
   .filter((group): group is CasePartyGroup => !!group).map(partyNames).filter(Boolean).join("\n");
+
+const ap5PartyRank = (group: CasePartyGroup) =>
+  /^(plaintiff|applicant)$/iu.test(group.roleBelow ?? group.role) ? 0 :
+    /^(defendant|respondent)$/iu.test(group.roleBelow ?? group.role) ? 1 : 2;
+
+export const ap5PartyGroups = (profile: CourtProfile, cover: CoverValues) =>
+  [...coverPartyGroups(profile, cover)].sort((left, right) =>
+    ap5PartyRank(left) - ap5PartyRank(right));
+
+export const ap5PartyLabel = (group: CasePartyGroup) =>
+  ["PLAINTIFF/APPLICANT:", "DEFENDANT/RESPONDENT:", "INTERVENER:"][ap5PartyRank(group)];
 
 export const exhibitIndex = (label = "") => /^[A-Z]+$/u.test(label.trim().toUpperCase())
   ? [...label.trim().toUpperCase()].reduce((value, character) =>
@@ -251,10 +317,15 @@ export interface RecordEntry {
   encrypted: boolean | null;
   textlessPageCount?: number;
   textlessPages?: number[];
+  ocrAttemptedPages?: number[];
+  nonTextPagesConfirmed?: boolean;
+  rule70CountedPages?: number;
   exhibitLabel?: string;
   sourceBookmarks?: SourceBookmark[];
+  pageLabels?: string[] | null;
   sourceTitle?: string;
   sourceFields?: SourceDocumentFields;
+  sourceExhibits?: SourceExhibits;
   ocrTextByPage?: string[];
   origin?: {
     kind: "device" | "library";
@@ -264,10 +335,37 @@ export interface RecordEntry {
   };
   binding?: WorkProductInput;
   lastSeen?: FileSnapshot;
-  inputStatus?: "ready" | "changed" | "missing";
+  inputStatus?: "ready" | "changed" | "stale" | "missing";
   missingReason?: "deleted" | "permission" | "unavailable";
   inspectionError?: string;
   descriptionOnly?: boolean;
+}
+
+export const propagatingSourceFields = (entry: Pick<RecordEntry, "kindId" | "sourceFields">) =>
+  entry.sourceFields && !entry.sourceFields.explicitExhibitLabel &&
+  !/(?:authority|exhibit)/u.test(entry.kindId) ? entry.sourceFields : undefined;
+
+/** Returns the sequential exhibit slots bound to the currently loaded affidavit bytes. */
+export function sourceExhibitSlots(entries: RecordEntry[]): SourceExhibits | undefined {
+  const affidavit = entries.find((entry) => entry.kindId === "affidavit");
+  if (!affidavit) return;
+  const sourceSha256 = affidavit.origin?.sourceSha256 ??
+    (affidavit.binding?.kind === "local-file" ? affidavit.binding.lastSeen.sha256 : undefined) ??
+    affidavit.lastSeen?.sha256;
+  if (!sourceSha256 || !/^[a-f0-9]{64}$/u.test(sourceSha256)) return;
+  const fields = affidavit.sourceFields;
+  const highest = Math.max(-1, ...[
+    ...(fields?.exhibitLabels ?? []), ...Object.keys(fields?.exhibitMentions ?? {}),
+  ].map(exhibitIndex));
+  const savedCount = affidavit.sourceExhibits?.sourceSha256 === sourceSha256
+    ? affidavit.sourceExhibits.labels.length : 0;
+  return { sourceSha256, labels: Array.from({ length: Math.max(highest + 1, savedCount) },
+    (_, index) => exhibitName(index)) };
+}
+
+export function hasMatchingExhibitCertificate(entry: RecordEntry) {
+  const assigned = entry.exhibitLabel?.trim().toUpperCase();
+  return !!assigned && entry.sourceFields?.explicitExhibitLabel?.trim().toUpperCase() === assigned;
 }
 
 export interface CourtRecordDraftEntry {
@@ -275,8 +373,12 @@ export interface CourtRecordDraftEntry {
   kindId: string;
   title: string;
   date?: string;
+  rule70CountedPages?: number;
   exhibitLabel?: string;
+  sourceExhibits?: SourceExhibits;
+  sourceFields?: SourceDocumentFields;
   descriptionOnly?: boolean;
+  nonTextPagesConfirmed?: boolean;
   lastSeen: FileSnapshot;
 }
 

@@ -55,14 +55,14 @@ export async function compareDocumentVersions(
   if (!oldVersionId) {
     const index = listing.versions.findIndex(({ id }) => id === newVersionId);
     if (index < 0) return { ok: false, error: "version_not_found" };
-    if (index === 0) {
+    if (index === listing.versions.length - 1) {
       return {
         ok: false,
         error: "no_prior_version",
         detail: "The document has no earlier version; pass baseline.",
       };
     }
-    oldVersionId = listing.versions[index - 1].id;
+    oldVersionId = listing.versions[index + 1].id;
   }
   if (oldVersionId === newVersionId) return { ok: false, error: "same_version" };
   const [oldFile, newFile] = await Promise.all([

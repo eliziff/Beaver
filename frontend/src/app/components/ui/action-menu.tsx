@@ -3,11 +3,14 @@ import {
     type ReactNode,
     useEffect,
     useId,
+    useLayoutEffect,
     useRef,
     useState,
 } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/app/lib/utils";
+
+const MODAL_BOUNDARY = 'dialog,[role="dialog"],[data-assistant-dock]';
 
 export type ActionMenuItem = {
     label: string;
@@ -30,7 +33,6 @@ export function ActionMenu({
     triggerClassName?: string;
 }) {
     const [open, setOpen] = useState(false);
-    const [position, setPosition] = useState({ top: 0, left: 8 });
     const triggerRef = useRef<HTMLButtonElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
     const menuId = useId();
@@ -40,19 +42,35 @@ export function ActionMenu({
         if (restoreFocus) triggerRef.current?.focus();
     }
 
-    function show() {
+    useLayoutEffect(() => {
+        const menu = menuRef.current;
         const trigger = triggerRef.current;
-        if (!trigger) return;
-        const rect = trigger.getBoundingClientRect();
-        const estimatedHeight = items.length * 40 + 16;
-        setPosition({
-            top: rect.bottom + estimatedHeight <= window.innerHeight
-                ? rect.bottom + 4
-                : Math.max(8, rect.top - estimatedHeight - 4),
-            left: Math.max(8, Math.min(rect.left, window.innerWidth - 184)),
+        if (!open || !menu || !trigger) return;
+        if (typeof menu.showPopover === "function") try { menu.showPopover(); }
+        catch { menu.removeAttribute("popover"); }
+        else menu.removeAttribute("popover");
+        const boundaryRect = trigger.closest<HTMLElement>(MODAL_BOUNDARY)?.getBoundingClientRect();
+        const bounded = boundaryRect && boundaryRect.width > 0 && boundaryRect.height > 0;
+        const leftEdge = Math.max(8, bounded ? boundaryRect.left + 8 : 8);
+        const rightEdge = Math.min(window.innerWidth - 8, bounded ? boundaryRect.right - 8 : window.innerWidth - 8);
+        const topEdge = Math.max(8, bounded ? boundaryRect.top + 8 : 8);
+        const bottomEdge = Math.min(window.innerHeight - 8, bounded ? boundaryRect.bottom - 8 : window.innerHeight - 8);
+        const rect = menu.getBoundingClientRect();
+        const triggerRect = trigger.getBoundingClientRect();
+        const maxHeight = bottomEdge - topEdge;
+        const maxWidth = rightEdge - leftEdge;
+        const height = Math.min(rect.height, maxHeight);
+        const preferredTop = triggerRect.bottom + 4 + height <= bottomEdge
+            ? triggerRect.bottom + 4
+            : triggerRect.top - height - 4;
+        Object.assign(menu.style, {
+            top: `${Math.max(topEdge, Math.min(preferredTop, bottomEdge - height))}px`,
+            left: `${Math.max(leftEdge, Math.min(triggerRect.left, rightEdge - Math.min(rect.width, maxWidth)))}px`,
+            maxHeight: `${maxHeight}px`,
+            maxWidth: `${maxWidth}px`,
         });
-        setOpen(true);
-    }
+        return () => { try { menu.hidePopover?.(); } catch { /* Already closed. */ } };
+    }, [open]);
 
     useEffect(() => {
         if (!open) return;
@@ -76,6 +94,7 @@ export function ActionMenu({
     }, [open]);
 
     function handleMenuKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+        if (event.key === "Tab") return close();
         if (event.key === "Escape") {
             event.preventDefault();
             close(true);
@@ -113,7 +132,7 @@ export function ActionMenu({
                 onClick={(event) => {
                     event.stopPropagation();
                     if (open) close(true);
-                    else show();
+                    else setOpen(true);
                 }}
             >
                 {children}
@@ -124,11 +143,11 @@ export function ActionMenu({
                     id={menuId}
                     role="menu"
                     aria-label={label}
+                    popover="manual"
                     data-shortcut-layer
                     data-shortcut-open="true"
                     onKeyDown={handleMenuKeyDown}
-                    className="fixed bottom-auto left-auto z-[220] m-0 max-h-[min(24rem,calc(100dvh-1rem))] min-w-44 max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white p-1.5 shadow-lg"
-                    style={position}
+                    className="fixed inset-auto z-[220] m-0 max-h-[min(24rem,calc(100dvh-1rem))] min-w-44 max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white p-1.5 shadow-lg"
                 >
                     {items.map((item) => (
                         <button
@@ -148,7 +167,7 @@ export function ActionMenu({
                             {item.label}
                         </button>
                     ))}
-                </div>, triggerRef.current?.closest("dialog") ?? document.body)}
+                </div>, triggerRef.current?.closest(MODAL_BOUNDARY) ?? document.body)}
         </span>
     );
 }

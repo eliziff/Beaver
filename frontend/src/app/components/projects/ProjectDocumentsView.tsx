@@ -11,6 +11,7 @@ import { ProjectSectionTabs, useProjectWorkspace } from "./ProjectWorkspace";
 import { useProjectFiles } from "./useProjectFiles";
 import { assistantWorkflowLaunch, type WorkflowSelection } from "../workflows/workflowRoutes";
 import type { Document } from "../shared/types";
+import { listDirectoryDocuments } from "@/app/lib/beaverApi";
 export function ProjectDocumentsView() {
     const {
         projectId,
@@ -42,6 +43,7 @@ export function ProjectDocumentsView() {
     const toolbarActions = project !== null
         ? <DirectoryActions actions={uploadActions} busy={projectLoading}
             onCreateFolder={createFolderAction} selection={selectionActions}
+            resolveDocuments={() => listDirectoryDocuments(operations.list)}
             onOpenSelectionInChat={(documents) => { void createChat(documents); }}
             onAssistantWorkflowSelect={openAssistantWorkflow} />
         : null;

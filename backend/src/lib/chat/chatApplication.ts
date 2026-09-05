@@ -37,15 +37,14 @@ import { compactionThresholdForModel } from "../llm/contextWindow";
 import { compactChatContext } from "./contextCompaction";
 import { formatChatMessageContent } from "./messageFormatting";
 import { projectChatTranscript } from "./chatTranscript";
+import { availableDocumentsPrompt } from "./resourceTools";
 import { normalizeAskInputsEvent } from "./askInputs";
 import {
-  PRIOR_EVIDENCE_AUTO_CHARS,
   createLegalEvidenceTurnState,
   priorLegalEvidencePrompt,
   priorLegalEvidenceReceipts,
   priorLegalResearchQueryReceipts,
   registerPriorLegalResearchQueries,
-  restorePriorLegalEvidence,
 } from "./legalEvidence";
 import {
   READ_SUBAGENT_SYSTEM_PROMPT,
@@ -63,7 +62,7 @@ import {
 } from "../chatStore";
 import type { DocumentStore } from "../documentStore";
 import type { LibraryStore } from "../libraryStore";
-import type { ProjectStore } from "../projectStore";
+import { projectDocuments, type ProjectStore } from "../projectStore";
 import type { TabularApplication } from "../tabular/application";
 import type {
   AskInputResponseItem,
@@ -149,7 +148,12 @@ export const chatTurnInputSchema = z.object({
   displayed_doc: documentSelection.optional(),
   word_context: wordContext.optional(),
   work_product: z.object({ kind: z.enum(WORK_PRODUCT_KINDS), id: uuid,
-    revision: z.number().int().positive() }).strict().optional(),
+    revision: z.number().int().positive(), focus: z.object({
+      item_id: z.string().trim().min(1).max(200),
+      selection: z.object({ start: z.number().int().nonnegative(),
+        end: z.number().int().nonnegative() }).strict()
+        .refine(({ start, end }) => end >= start, "selection end precedes start").optional(),
+    }).strict().optional() }).strict().optional(),
 }).strict().superRefine((value, context) => {
   if (value.project_id && value.tabular_review_id) {
     context.addIssue({
@@ -161,7 +165,8 @@ export const chatTurnInputSchema = z.object({
 
 export type ChatTurnInput = z.infer<typeof chatTurnInputSchema>;
 export const researchFilePromotionBodySchema = z.object({
-  versionId: z.string().trim().min(1).max(200), includeQueries: z.boolean().default(false),
+  version_id: z.string().trim().min(1).max(200),
+  working_revision: z.number().int().nonnegative(), includeQueries: z.boolean().default(false),
 }).strict();
 type ResearchFilePromotionInput = z.infer<typeof researchFilePromotionBodySchema> &
   { chatId: string; researchFileId: string };
@@ -340,37 +345,6 @@ function requestedModel(value?: string) {
   catch { throw new ChatApplicationError(400, "Unsupported model"); }
 }
 
-async function projectDocuments(
-  projects: ProjectStore,
-  auth: AuthContext,
-  projectId: string,
-) {
-  if (!await projects.get(auth, projectId)) return null;
-  const queue: Array<{ id: string | null; path: string }> = [{ id: null, path: "" }];
-  const documents: Array<Record<string, unknown> & { folder_path?: string }> = [];
-  while (queue.length) {
-    const parent = queue.shift()!;
-    let after: [number, string, string] | null = null;
-    do {
-      const page = await projects.directory(auth, projectId, {
-        q: "", parentFolderId: parent.id, limit: 100, after,
-      });
-      for (const value of page.items) {
-        const row = asRecord(value);
-        const folder = asRecord(row?.folder), document = asRecord(row?.document);
-        if (row?.kind === "folder" && typeof folder?.id === "string") {
-          const name = String(folder.name ?? "").trim();
-          queue.push({ id: folder.id, path: [parent.path, name].filter(Boolean).join(" / ") });
-        } else if (row?.kind === "document" && document) {
-          documents.push({ ...document, ...(parent.path ? { folder_path: parent.path } : {}) });
-        }
-      }
-      after = page.nextAfter;
-    } while (after);
-  }
-  return documents;
-}
-
 async function loadDocumentContext(
   deps: Dependencies,
   auth: AuthContext,
@@ -399,16 +373,8 @@ async function loadDocumentContext(
     }
   }
   for (const id of ids) if (!byId.has(id)) {
-    const details = await deps.documents.versions(auth, id);
-    const version = details?.versions.find(({ id: versionId }) =>
-      versionId === details.current_version_id);
-    if (version) byId.set(id, {
-      id,
-      filename: version.filename,
-      file_type: version.file_type,
-      current_version_id: version.id,
-      active_version_number: version.version_number,
-    });
+    const details = await deps.documents.metadata(auth, id);
+    if (details) byId.set(id, details);
   }
   if (selectedIds.some((id) => !byId.has(id))) {
     throw new ChatApplicationError(400, "Selected document is unavailable");
@@ -460,18 +426,6 @@ function imageForMessage(message: ChatMessage, images: Map<string, LlmImage>) {
   return selected.length ? selected : undefined;
 }
 
-function availableDocumentsPrompt(
-  docIndex: DocIndex,
-  records: Map<string, Record<string, unknown>>,
-) {
-  if (!Object.keys(docIndex).length) return "";
-  const lines = Object.entries(docIndex).map(([label, info]) => {
-    const path = String(records.get(info.document_id)?.folder_path ?? "");
-    return `- ${label}: ${path ? `${path} / ` : ""}${info.filename}`;
-  });
-  return `AVAILABLE DOCUMENTS:\n${lines.join("\n")}\nCall Glob to resolve a doc-N alias, then Read the relevant versioned resource.`;
-}
-
 export function createChatApplication(deps: Dependencies) {
   return {
     async promoteResearchFile(auth: AuthContext, input: ResearchFilePromotionInput) {
@@ -479,7 +433,8 @@ export function createChatApplication(deps: Dependencies) {
         deps.chats.transcript(auth, input.chatId),
         readResearchFile(deps.documents, auth, input.researchFileId)]);
       if (!chat || !rows) throw new ChatApplicationError(404, "Chat not found");
-      if (!file || file.versionId !== input.versionId || file.document.project_id !== null &&
+      if (!file || file.versionId !== input.version_id ||
+          file.workingRevision !== input.working_revision || file.document.project_id !== null &&
           file.document.project_id !== chat.project_id)
         throw new ChatApplicationError(409, "This research file is unavailable or changed");
       const events = rows.filter(({ role }) => role === "assistant").flatMap(({ content }) =>
@@ -489,7 +444,7 @@ export function createChatApplication(deps: Dependencies) {
         queries = input.includeQueries ? searched.map(researchQueryReceipt) : [];
       if (!evidence.length && !queries.length && !sources.length) return file;
       const saved = await saveResearchFile(deps.documents, auth, file.document.id, file.versionId,
-        { type: "merge", evidence, queries, sources }, true);
+        file.workingRevision, { type: "merge", evidence, queries, sources });
       if (!saved) throw new ChatApplicationError(409, "This research file changed. Reload it.");
       return saved;
     },
@@ -718,11 +673,10 @@ export function createChatApplication(deps: Dependencies) {
         workflow: canonicalWorkflow,
       });
       const priorEvents = rows.flatMap((row) => Array.isArray(row.content) ? row.content : []),
-        priorEvidenceReceipts = priorLegalEvidenceReceipts(priorEvents, PRIOR_EVIDENCE_AUTO_CHARS),
+        priorEvidenceReceipts = priorLegalEvidenceReceipts(priorEvents),
+        priorQueries = priorLegalResearchQueryReceipts(priorEvents),
         evidenceState = createLegalEvidenceTurnState();
-      registerPriorLegalResearchQueries(evidenceState,
-        priorLegalResearchQueryReceipts(priorEvents, PRIOR_EVIDENCE_AUTO_CHARS));
-      const priorEvidence = await restorePriorLegalEvidence(priorEvidenceReceipts, signal);
+      registerPriorLegalResearchQueries(evidenceState, priorQueries);
       const images = await loadImages(deps.documents, auth, messages, context.records);
       if (images.size && !modelSupportsImageInput(selectedModel)) {
         throw new ChatApplicationError(400,
@@ -746,10 +700,10 @@ export function createChatApplication(deps: Dependencies) {
         input.subagent_mode === "beaver" ? READ_SUBAGENT_SYSTEM_PROMPT : "",
         jurisdictionPreferencePrompt(input.jurisdiction_preference ?? null),
         features.personalisationPrompt,
-        priorLegalEvidencePrompt(priorEvidenceReceipts),
+        priorLegalEvidencePrompt(priorEvidenceReceipts, priorQueries),
         tabular?.prompt,
         focus.length ? `CURRENT MATTER FOCUS:\n${focus.join("\n")}` : "",
-        availableDocumentsPrompt(context.docIndex, context.records),
+        availableDocumentsPrompt(context.docIndex, context.records, requested),
         hasSpreadsheet ? SPREADSHEET_CITATION_PROMPT : "",
         input.word_context ? [
           `ACTIVE WORD DOCUMENT: ${JSON.stringify(input.word_context.document_name)}`,
@@ -796,6 +750,7 @@ export function createChatApplication(deps: Dependencies) {
         userId: auth.userId,
         userEmail: auth.userEmail,
         model: selectedModel,
+        turnId,
         projectId,
         allowedDocumentIds: context.allowed,
         documentNames: new Map([...context.records].map(([id, record]) => [
@@ -811,6 +766,10 @@ export function createChatApplication(deps: Dependencies) {
           ? input.work_product.id : undefined,
         authoritiesRevision: input.work_product?.kind === "authorities"
           ? input.work_product.revision : undefined,
+        workProductFocus: input.work_product?.focus && {
+          itemId: input.work_product.focus.item_id,
+          selection: input.work_product.focus.selection,
+        },
         courtRecords: deps.courtRecords,
         courtRecordId: input.work_product?.kind === "court-record"
           ? input.work_product.id : undefined,
@@ -940,7 +899,7 @@ export function createChatApplication(deps: Dependencies) {
           jurisdictionPreference: input.jurisdiction_preference as JurisdictionPreference,
           activityDetail: input.activity_detail,
           evidenceState,
-          priorEvidence,
+          priorEvidence: priorEvidenceReceipts,
           resumableSubagents: resumableReadSubagents(rows.flatMap((row) =>
             Array.isArray(row.content) ? row.content : [])),
           providerSession: providerSession

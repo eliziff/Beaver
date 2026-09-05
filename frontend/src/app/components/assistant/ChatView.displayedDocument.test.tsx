@@ -9,9 +9,7 @@ import { createAssistantSessionState } from "@/app/lib/assistantSession";
 const dockMocks = vi.hoisted(() => ({
     addDocument: vi.fn(),
     startWorkflow: vi.fn(),
-    sidePanelModuleLoaded: vi.fn(),
 }));
-const idle = vi.hoisted(() => ({ callback: null as (() => void) | null }));
 
 const session = (messages: Message[] = [], running = false) => ({
     ...createAssistantSessionState({ messages }),
@@ -25,20 +23,14 @@ vi.stubGlobal(
         disconnect() {}
     },
 );
-vi.stubGlobal("requestIdleCallback", vi.fn((callback: IdleRequestCallback) => {
-    idle.callback = () => callback({ didTimeout: false, timeRemaining: () => 50 });
-    return 1;
-}));
-vi.stubGlobal("cancelIdleCallback", vi.fn());
-
 vi.mock("@/app/contexts/SidebarContext", () => ({
     useSidebar: () => ({ setSidebarOpen: vi.fn() }),
 }));
 vi.mock("./UserMessage", () => ({ UserMessage: () => null }));
 vi.mock("./AskInputPopup", () => ({ AskInputPopup: () => null }));
 vi.mock("./AssistantSidePanel", () => {
-    dockMocks.sidePanelModuleLoaded();
-    return { AssistantSidePanel: () => null };
+    return { AssistantSidePanel: ({ researchRefreshKey }: { researchRefreshKey?: string | null }) =>
+        <output aria-label="Research refresh key">{researchRefreshKey ?? "none"}</output> };
 });
 vi.mock("../workflows/ContextualWorkflowPicker", () => ({
     ContextualWorkflowLauncher: () => null,
@@ -88,13 +80,15 @@ vi.mock("@/app/components/library/LibraryWorkspace", () => ({
     },
 }));
 vi.mock("@/app/components/legal/LegalLibrary", () => ({
-    LegalLibraryPage: ({ onResearchFileChange, onOpenSource }: {
+    LegalLibraryPage: ({ onResearchFileChange, onOpenSource, researchRefreshKey }: {
         onResearchFileChange?: (file: unknown) => void;
         onOpenSource?: (tab: unknown) => void;
+        researchRefreshKey?: string | null;
     }) => {
         const [query, setQuery] = React.useState("");
         return <><input aria-label="Sources query" value={query}
             onChange={(event) => setQuery(event.target.value)} />
+            <output aria-label="Sources refresh key">{researchRefreshKey ?? "none"}</output>
             <button type="button" onClick={() => onResearchFileChange?.({
                 document: { id: "research-1", filename: "Appeal research.research.md" },
             })}>Use appeal research</button>
@@ -182,19 +176,6 @@ vi.mock("./ChatInput", () => ({
 }));
 
 describe("ChatView displayed document context", () => {
-    it("defers the reader panel module until browser idle", async () => {
-        dockMocks.sidePanelModuleLoaded.mockClear();
-        idle.callback = null;
-        render(<ChatView session={session([{
-            role: "assistant", content: "", events: [],
-        }])} handleChat={vi.fn()} cancel={vi.fn()} />);
-
-        expect(dockMocks.sidePanelModuleLoaded).not.toHaveBeenCalled();
-        await waitFor(() => expect(window.requestIdleCallback).toHaveBeenCalled());
-        act(() => idle.callback?.());
-        await waitFor(() => expect(dockMocks.sidePanelModuleLoaded).toHaveBeenCalledOnce());
-    });
-
     it("opens supplied project files in the existing assistant dock", async () => {
         const user = userEvent.setup();
         render(
@@ -324,7 +305,47 @@ describe("ChatView displayed document context", () => {
         expect(screen.getByRole("tab", { name: "Sources" }))
             .toHaveAttribute("aria-selected", "true");
         expect(screen.getByRole("button", { name: "Workflows" })).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Save research" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Save sources" })).not.toBeInTheDocument();
+    });
+
+    it("offers Save sources only when an ordinary chat has legal evidence", () => {
+        const props = { chatId: "chat-1", handleChat: vi.fn(), cancel: vi.fn() };
+        const { rerender } = render(<ChatView {...props} session={session()} />);
+        expect(screen.queryByRole("button", { name: "Save sources" })).not.toBeInTheDocument();
+
+        const withLegalEvidence = createAssistantSessionState({ messages: [{
+            id: "assistant-1", role: "assistant", turn_complete: true,
+            content: [{ type: "tool_activity", id: "search-1", tool: "search_sources",
+                label: "Searched sources", status: "completed", citations: [{
+                    kind: "a2aj", ref: 1, citation: "2024 SCC 1", dataset: "SCC", quotes: [],
+                }] }],
+        }] });
+        rerender(<ChatView {...props} session={withLegalEvidence} />);
+        expect(screen.getByRole("button", { name: "Save sources" })).toBeInTheDocument();
+
+        rerender(<ChatView {...props} session={withLegalEvidence}
+            features={{ researchSave: false }} />);
+        expect(screen.queryByRole("button", { name: "Save sources" })).not.toBeInTheDocument();
+    });
+
+    it("signals either open Workspace once a completed assistant turn settles", async () => {
+        const user = userEvent.setup(), complete = createAssistantSessionState({ messages: [{
+            id: "assistant-1", role: "assistant", content: "Done", turn_complete: true,
+        }] });
+        const props = { chatId: "chat-1", handleChat: vi.fn(), cancel: vi.fn() };
+        const { rerender } = render(<ChatView {...props} session={complete} />);
+        await user.click(screen.getByRole("button", { name: "Browse workflows" }));
+        await user.click(screen.getByRole("tab", { name: "Sources" }));
+        expect(screen.getByLabelText("Sources refresh key")).toHaveTextContent("assistant-1");
+
+        rerender(<ChatView {...props} session={{ ...complete,
+            run: { id: "retry-1", status: "running" } }} />);
+        expect(screen.getByLabelText("Sources refresh key")).toHaveTextContent("none");
+        rerender(<ChatView {...props} session={complete} />);
+        expect(screen.getByLabelText("Sources refresh key")).toHaveTextContent("assistant-1");
+
+        await user.click(screen.getByRole("button", { name: "View source" }));
+        expect(screen.getByLabelText("Research refresh key")).toHaveTextContent("assistant-1");
     });
 
     it("moves an embedded Library selection into the mounted workflow dock", async () => {

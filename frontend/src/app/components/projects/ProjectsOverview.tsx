@@ -85,6 +85,7 @@ export function ProjectsOverview() {
     );
     const loading = authLoading || page.loading;
     const rows = page.items;
+    const initialLoading = loading && rows.length === 0;
     useEffect(() => setSelectedIds([]), [activeFilter, deferredSearch]);
     const loadError = page.error ? "Could not load projects." : null;
     function updateProjects(update: (rows: Project[]) => Project[]) {
@@ -155,7 +156,7 @@ export function ProjectsOverview() {
     ];
     return (
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-            <PageHeader loading={loading} actions={[
+            <PageHeader loading={initialLoading} actions={[
                 { type: "search", value: search, onChange: setSearch,
                     placeholder: "Search projects", booleanSearch: true },
                 { type: "new", title: "New project", onClick: () => setModalOpen(true) },
@@ -175,7 +176,7 @@ export function ProjectsOverview() {
                 className="[&>div]:bg-white"
                 header={<TableSelectionHeader
                     label={selectedIds.length ? `${selectedIds.length} selected` : "Name"}
-                    loading={selectedIds.length ? undefined : loading}
+                    loading={selectedIds.length ? undefined : initialLoading}
                     selection={selection} selectionLabel="Select loaded projects"
                     className="w-full min-w-0 bg-white"
                     primaryClassName="min-w-0 flex-1 bg-white"
@@ -207,7 +208,7 @@ export function ProjectsOverview() {
                     </> : <TableHeaderCell className="w-8" />}
                 </TableSelectionHeader>}
             >
-                {loading ? (
+                {initialLoading ? (
                     <TableLoadingRows count={SKELETON_ROWS}
                         rowClassName="h-14 w-full min-w-0 bg-white"
                         primaryClassName="min-w-0 flex-1"

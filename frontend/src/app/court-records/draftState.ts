@@ -1,11 +1,14 @@
 import { fileSnapshot, type WorkProduct } from "@/app/lib/workProducts";
 import type { Document } from "@/app/components/shared/types";
 import { needsOcr, type CourtRecordsHost, type PreparationProgress } from "./host";
-import type { CourtRecordDraft, CoverValues, RecordEntry } from "./types";
+import { COURT_PROFILE_BY_ID } from "./profiles";
+import { propagatingSourceFields, sourceExhibitSlots } from "./types";
+import type { CourtRecordDraft, CoverValues, RecordEntry, SourceDocumentFields } from "./types";
 
 const UNASSIGNED_KIND_ID = "unassigned";
 
-export function courtRecordDraftFromDocuments(documents: Array<Pick<Document, "id" | "filename"> &
+export function courtRecordDraftFromDocuments(profileId: string,
+  documents: Array<Pick<Document, "id" | "filename"> &
   Partial<Pick<Document, "size_bytes" | "created_at" | "source_sha256">>>): CourtRecordDraft {
   const entries = documents.map((document) => ({
     id: document.id,
@@ -15,7 +18,7 @@ export function courtRecordDraftFromDocuments(documents: Array<Pick<Document, "i
       modified: Date.parse(document.created_at ?? "") || 0,
       ...(document.source_sha256 ? { sha256: document.source_sha256 } : {}) },
   }));
-  return { profileId: "", cover: {}, entries,
+  return { profileId, cover: {}, entries,
     bindings: Object.fromEntries(documents.map(({ id }) => [id,
       { kind: "document", documentId: id, version: "latest" }])) };
 }
@@ -25,18 +28,32 @@ export function courtRecordDraft(
   cover: CoverValues,
   entries: RecordEntry[],
 ): CourtRecordDraft {
+  const exhibits = sourceExhibitSlots(entries);
+  const assigned = new Set<string>();
   return {
     profileId,
     cover,
-    entries: entries.map((entry) => ({
-      id: entry.id,
-      kindId: entry.kindId,
-      title: entry.title,
-      ...(entry.date ? { date: entry.date } : {}),
-      ...(entry.exhibitLabel ? { exhibitLabel: entry.exhibitLabel } : {}),
-      ...(entry.descriptionOnly ? { descriptionOnly: true } : {}),
-      lastSeen: entrySnapshot(entry),
-    })),
+    entries: entries.map((entry) => {
+      const label = entry.exhibitLabel?.trim().toUpperCase();
+      const exhibitLabel = entry.kindId === "exhibit" && label &&
+        exhibits?.labels.includes(label) && !assigned.has(label) ? label : undefined;
+      if (exhibitLabel) assigned.add(exhibitLabel);
+      return {
+        id: entry.id,
+        kindId: entry.kindId,
+        title: entry.title,
+        ...(entry.date ? { date: entry.date } : {}),
+        ...(entry.rule70CountedPages !== undefined
+          ? { rule70CountedPages: entry.rule70CountedPages } : {}),
+        ...(exhibitLabel ? { exhibitLabel } : {}),
+        ...(entry.kindId === "affidavit" && exhibits?.labels.length
+          ? { sourceExhibits: exhibits } : {}),
+        ...(entry.sourceFields ? { sourceFields: entry.sourceFields } : {}),
+        ...(entry.descriptionOnly ? { descriptionOnly: true } : {}),
+        ...(entry.nonTextPagesConfirmed ? { nonTextPagesConfirmed: true } : {}),
+        lastSeen: entrySnapshot(entry),
+      };
+    }),
     bindings: Object.fromEntries(entries.flatMap((entry) =>
       entry.binding ? [[entry.id, entry.binding]] : [])),
   };
@@ -49,10 +66,12 @@ export async function restoreCourtRecordDraft(
   current: RecordEntry[] = [],
 ): Promise<RecordEntry[]> {
   const currentById = new Map(current.map((entry) => [entry.id, entry]));
-  return Promise.all(draft.state.entries.map(async (saved): Promise<RecordEntry> => {
-    const { lastSeen, ...values } = saved;
+  const profile = COURT_PROFILE_BY_ID.get(draft.state.profileId);
+  async function restore(saved: CourtRecordDraft["entries"][number]): Promise<RecordEntry> {
+    const { lastSeen, nonTextPagesConfirmed, ...values } = saved;
     if (saved.descriptionOnly) return {
       ...values,
+      ...(nonTextPagesConfirmed ? { nonTextPagesConfirmed } : {}),
       file: new File([], "description-only"),
       pageCount: 0,
       searchable: null,
@@ -62,30 +81,61 @@ export async function restoreCourtRecordDraft(
     const binding = draft.state.bindings[saved.id];
     if (!binding) return missingEntry(saved, "unavailable");
     const existing = currentById.get(saved.id);
-    if (existing && JSON.stringify(existing.binding) === JSON.stringify(binding) &&
+    if (binding.kind !== "work-product-output" && existing &&
+        JSON.stringify(existing.binding) === JSON.stringify(binding) &&
         JSON.stringify(entrySnapshot(existing)) === JSON.stringify(lastSeen)) {
-      return withOcr(host, { ...existing, ...values, lastSeen, binding,
-        inputStatus: "ready" }, progress);
+      return applySourceEntryFields(await withOcr(host, { ...existing, ...values, lastSeen,
+        ...(nonTextPagesConfirmed ? { nonTextPagesConfirmed } : {}),
+        binding, inputStatus: "ready" }, progress), undefined, saved.sourceFields);
     }
-    try {
-      const resolved = await host.resolveInput(binding, progress);
-      if (resolved.status === "missing") return missingEntry(saved, resolved.reason, binding);
-      const prepared = resolved.prepared ?? await host.prepareDeviceFile(resolved.file, progress);
-      const changed = resolved.status === "changed" || !!(
-        lastSeen.sha256 && prepared.origin?.sourceSha256 &&
-        lastSeen.sha256 !== prepared.origin.sourceSha256
-      );
-      return withOcr(host, {
-        ...values,
-        ...prepared,
-        binding: resolved.input,
-        inputStatus: changed ? "changed" : "ready",
-      }, progress);
-    } catch {
-      return missingEntry(saved, "unavailable", binding);
+    const destination = profile?.documentKinds.find(({ id }) => id === saved.kindId);
+    const resolved = await host.resolveInput(binding, progress, destination);
+    if (resolved.status === "missing") return missingEntry(saved, resolved.reason, binding);
+    const prepared = resolved.prepared ?? await host.prepareDeviceFile(resolved.file, progress);
+    const changed = resolved.status === "changed" || !!(
+      lastSeen.sha256 && prepared.origin?.sourceSha256 &&
+      lastSeen.sha256 !== prepared.origin.sourceSha256
+    );
+    return applySourceEntryFields(await withOcr(host, {
+      ...values,
+      ...prepared,
+      ...(!changed && nonTextPagesConfirmed ? { nonTextPagesConfirmed } : {}),
+      binding: resolved.input,
+      inputStatus: resolved.status === "stale" ? "stale" : changed ? "changed" : "ready",
+    }, progress), undefined, saved.sourceFields);
+  }
+
+  const savedEntries = draft.state.entries;
+  const entries = new Array<RecordEntry>(savedEntries.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(4, savedEntries.length) }, async () => {
+    while (next < savedEntries.length) {
+      const index = next++;
+      entries[index] = await restore(savedEntries[index]);
     }
   }));
+  const exhibits = sourceExhibitSlots(entries);
+  return entries.map((entry) => entry.kindId === "affidavit"
+    ? { ...entry, sourceExhibits: exhibits?.labels.length ? exhibits : undefined } : entry);
 }
+
+export function applySourceEntryFields(entry: RecordEntry, replaceTitle?: string,
+  previous?: SourceDocumentFields): RecordEntry {
+  const source = propagatingSourceFields(entry);
+  if (!source) return entry;
+  const sourcedTitle = !!previous?.entryTitle && entry.title === previous.entryTitle;
+  const sourcedDate = !!previous?.entryDate && entry.date === previous.entryDate;
+  return {
+    ...entry,
+    title: source.entryTitle && (!entry.title.trim() || entry.title === replaceTitle || sourcedTitle)
+      ? source.entryTitle : sourcedTitle ? fileTitle(entry.file.name) : entry.title,
+    date: source.entryDate && (!entry.date?.trim() || sourcedDate)
+      ? source.entryDate : sourcedDate ? undefined : entry.date,
+  };
+}
+
+const fileTitle = (filename: string) => filename.replace(/\.(?:pdf|docx)$/iu, "")
+  .replace(/[_-]+/gu, " ").replace(/\s+/gu, " ").trim();
 
 async function withOcr(
   host: CourtRecordsHost,
@@ -102,8 +152,10 @@ async function withOcr(
 }
 
 function entrySnapshot(entry: RecordEntry) {
+  const sha256 = entry.origin?.sourceSha256 ?? (entry.binding?.kind === "local-file"
+    ? entry.binding.lastSeen.sha256 : undefined);
   return { ...(entry.lastSeen ?? fileSnapshot(entry.file)),
-    ...(entry.origin?.sourceSha256 ? { sha256: entry.origin.sourceSha256 } : {}) };
+    ...(sha256 ? { sha256 } : {}) };
 }
 
 function missingEntry(

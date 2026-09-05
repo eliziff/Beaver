@@ -1,32 +1,34 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthoritiesWorkspace } from "@/app/authorities/AuthoritiesWorkspace";
 import { beaverAuthoritiesHost } from "@/app/authorities/beaverHost";
+import { LibraryDocumentPicker } from "@/app/components/shared/LibraryDocumentPicker";
 import type { AuthoritiesProduct, AuthorityIdentity } from "@/app/authorities/types";
 import type { WorkProductMetadata } from "@/app/lib/workProducts";
 import TableOfAuthoritiesPage from "./page";
 
 const api = vi.hoisted(() => ({
   actOnAuthorities: vi.fn(), attachAuthorityPdf: vi.fn(), buildAuthorities: vi.fn(),
-  attachAuthoritiesBookPdf: vi.fn(),
+  attachAuthoritiesBookPdf: vi.fn(), attachAuthoritiesLibraryPdf: vi.fn(),
   createAuthorities: vi.fn(), createWorkProduct: vi.fn(), deleteWorkProduct: vi.fn(),
   downloadDocument: vi.fn(), duplicateWorkProduct: vi.fn(), getDocumentParseStates: vi.fn(),
   getWorkProduct: vi.fn(),
   getWorkProductResolution: vi.fn(), listWorkProductMetadata: vi.fn(),
   listWorkProducts: vi.fn(), prepareAuthoritiesSources: vi.fn(), refreshAuthorities: vi.fn(), replaceAuthoritiesSource: vi.fn(),
   refreshAuthoritiesInput: vi.fn(), reviewAuthorities: vi.fn(),
+  resolveAuthoritiesDiscrepancy: vi.fn(),
   updateWorkProduct: vi.fn(),
-  uploadAuthoritiesDocument: vi.fn(), directoryList: vi.fn(),
+  uploadAuthoritiesDocument: vi.fn(), directoryList: vi.fn(), directoryResource: vi.fn(),
 }));
 const assistant = vi.hoisted(() => ({ options: [] as Record<string, unknown>[],
   handleChat: vi.fn() }));
 
 vi.mock("@/app/lib/beaverApi", () => ({
   ...api,
-  directoryResource: () => ({ list: api.directoryList }),
+  directoryResource: api.directoryResource,
 }));
 vi.mock("@/app/contexts/UserProfileContext", () => ({
   useUserProfile: () => ({ profile: null }),
@@ -35,8 +37,8 @@ vi.mock("@/app/components/assistant/AssistantDock", () => ({
   AssistantDock: ({ tabs, expanded }: { tabs: Array<{ content: ReactNode }>; expanded: boolean }) =>
     <aside aria-label="Assistant dock" hidden={!expanded}>{tabs[0]?.content}</aside>,
 }));
-vi.mock("@/app/components/assistant/ChatView", () => ({
-  ChatView: ({ handleChat, sendDisabled }: {
+vi.mock("@/app/components/assistant/ConversationView", () => ({
+  ConversationView: ({ handleChat, sendDisabled }: {
     handleChat: (...args: never[]) => Promise<unknown>; sendDisabled?: boolean;
   }) => <button type="button" disabled={sendDisabled}
     onClick={() => void handleChat({ content: "Update this draft" } as never)}>Complete turn</button>,
@@ -67,8 +69,10 @@ function draft(id = "draft-1", title = "Book of Authorities"): AuthoritiesProduc
         tableOrder: "alphabetical", tableDelivery: "native-append", tableLocation: "pages",
         passageMarking: "margin", scannedPdfPolicy: "page-margin",
         missingSourcePolicy: "placeholder" },
-      bookParts: { cover: null, index: null },
-      units: [], occurrences: {}, authorities: {}, authorityOrder: [] } };
+      cover: { courtFileNumber: "", partyGroups: [], applicationUnder: "", title: "" },
+      bookParts: { cover: null, index: null, supplements: [] },
+      units: [], occurrences: {}, authorities: {}, authorityOrder: [],
+      discrepancyDecisions: {} } };
 }
 
 function documentDraft(id = "draft-1", title = "Requested draft") {
@@ -83,11 +87,33 @@ function authority(id: string, name: string, source: AuthorityIdentity["source"]
   return { id, key: id, kind: "case", citation: `${name} citation`, name, displayName: null,
     evidenceIds: [], locators: [], sourceIdentity: null, excluded: false, source };
 }
+function attachedSource(bindingRole: string, filename: string, hash = "a",
+  sourceUrl: string | null = null, origin: "manual" | "original" | "reconstructed" = "manual"):
+  AuthorityIdentity["source"] {
+  return { kind: "attached", sources: [{ bindingRole, filename, sourceSha256: hash.repeat(64),
+    sourceUrl, origin, language: "en" }] };
+}
 
 function add(saved: AuthoritiesProduct, ...items: AuthorityIdentity[]) {
   saved.state.authorities = Object.fromEntries(items.map((item) => [item.id, item]));
   saved.state.authorityOrder = items.map(({ id }) => id);
   return saved;
+}
+function addReviewCandidate(saved: AuthoritiesProduct) {
+  const citation = "2024 ABKB 1", id = "authority-1";
+  saved.state.units = [{ id: "footnote:1", kind: "footnote", ordinal: 1, footnoteId: 1,
+    footnoteRefs: [], pageNumbers: [1], text: citation, occurrenceIds: ["occurrence-1"] }];
+  saved.state.occurrences["occurrence-1"] = { id: "occurrence-1", unitId: "footnote:1",
+    start: 0, end: citation.length, text: citation, kind: "case", citation,
+    authoritySpan: { start: 0, end: citation.length, text: citation },
+    coreSpan: { start: 0, end: citation.length, text: citation }, pinpointSpan: null,
+    authorityId: id, reference: null, pinpoints: [{ kind: "paragraph", text: "7" }],
+    evidenceIds: [], sourceTextSha256: "a".repeat(64), localOrdinal: 0, reviewed: true };
+  const item = authority(id, citation, { kind: "resolved" });
+  item.sourceIdentity = { provider: "a2aj", stableSourceId: "cases:1", sourceSha256: "b".repeat(64),
+    version: "2024-01-01", externalUrl: "https://example.test/decision" };
+  add(saved, item);
+  return citation;
 }
 const workspaceRoute = (draftId = "") => ({ draftId, replaceDraft: vi.fn() });
 function deferred<T>() {
@@ -122,6 +148,7 @@ describe("Authorities UI contracts", () => {
     api.prepareAuthoritiesSources.mockResolvedValue(draft());
     api.reviewAuthorities.mockResolvedValue([]);
     api.directoryList.mockResolvedValue({ items: [], next_cursor: null });
+    api.directoryResource.mockReturnValue({ list: api.directoryList });
   });
 
   it("renders the shared blank workspace without opening saved work or an iframe", async () => {
@@ -134,23 +161,63 @@ describe("Authorities UI contracts", () => {
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Automatic", "Manual", "Drafts", "Settings",
     ]);
-    expect(screen.getByRole("heading", { name: "Import and review" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Import and review" })).toBeVisible();
     expect(document.querySelector("iframe")).toBeNull();
     await waitFor(() => expect(api.listWorkProductMetadata).toHaveBeenCalledOnce());
     expect(api.getWorkProduct).not.toHaveBeenCalled();
     expect(screen.queryByRole("heading", { name: "Other draft" })).not.toBeInTheDocument();
   });
 
-  it("resumes the last Authorities draft until the user starts a new one", async () => {
-    const saved = documentDraft("last-draft", "Last draft");
-    const { state: _state, ...savedMetadata } = saved;
-    localStorage.setItem("beaver.authorities.last.library", saved.id);
-    api.listWorkProductMetadata.mockResolvedValue([savedMetadata]);
+  it("searches the active project's files from the primary picker", async () => {
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      LibraryPicker={LibraryDocumentPicker}
+      route={{ ...workspaceRoute(), projectId: "matter-1" }} /></MemoryRouter>);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Project" }));
+    await waitFor(() => expect(api.directoryResource).toHaveBeenCalledWith({ projectId: "matter-1" }));
+    expect(api.directoryList).toHaveBeenCalledWith({ q: "", limit: 30 }, expect.any(AbortSignal));
+  });
+
+  it("binds a project PDF to an authority and book slot through the shared picker", async () => {
+    const saved = add(draft(), authority("grant", "R v Grant", { kind: "unresolved" }));
+    saved.projectId = "matter-1";
+    const document = { id: "pdf-1", project_id: "matter-1", filename: "Grant.pdf",
+      file_type: "pdf", pdf_storage_path: null, size_bytes: 100, page_count: 4,
+      created_at: "2026-09-01T00:00:00Z", current_version_id: "version-2" };
     api.getWorkProduct.mockResolvedValue(saved);
+    api.attachAuthoritiesLibraryPdf.mockResolvedValue(saved);
+    api.directoryList.mockResolvedValue({ items: [{ kind: "document", document }], next_cursor: null });
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      LibraryPicker={LibraryDocumentPicker}
+      route={{ ...workspaceRoute(saved.id), projectId: "matter-1" }} /></MemoryRouter>);
+
+    await userEvent.click(await screen.findByRole("button",
+      { name: "Choose PDF from Project for R v Grant" }));
+    await userEvent.click(await screen.findByRole("button", { name: /Grant\.pdf/u }));
+    await waitFor(() => expect(api.attachAuthoritiesLibraryPdf).toHaveBeenLastCalledWith(
+      saved.id, saved.revision, document.id, document.current_version_id,
+      { kind: "authority", authorityId: "grant", language: "en" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Choose Cover from Project" }));
+    await userEvent.click(await screen.findByRole("button", { name: /Grant\.pdf/u }));
+    await waitFor(() => expect(api.attachAuthoritiesLibraryPdf).toHaveBeenLastCalledWith(
+      saved.id, saved.revision, document.id, document.current_version_id,
+      { kind: "book", slot: "cover", supplementId: undefined }));
+  });
+
+  it("resumes the last Authorities draft until the user starts a new one", async () => {
+    const saved = documentDraft("last-draft", "Last draft"), load = deferred<AuthoritiesProduct>();
+    localStorage.setItem("beaver.authorities.last.library", saved.id);
+    api.getWorkProduct.mockReturnValue(load.promise);
     const route = workspaceRoute();
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={route} /></MemoryRouter>);
 
+    expect(screen.getByText("Loading authorities")).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Import and review" })).not.toBeInTheDocument();
+    await waitFor(() => expect(api.getWorkProduct).toHaveBeenCalledWith("last-draft"));
+    expect(screen.queryByRole("heading", { name: "Import and review" })).not.toBeInTheDocument();
+    load.resolve(saved);
     expect(await screen.findByRole("heading", { name: "Last draft" })).toBeVisible();
     expect(api.getWorkProduct).toHaveBeenCalledWith("last-draft");
     await userEvent.click(screen.getByRole("button", { name: "New" }));
@@ -158,6 +225,48 @@ describe("Authorities UI contracts", () => {
     expect(screen.getByRole("heading", { name: "Import and review" })).toBeVisible();
     expect(localStorage.getItem("beaver.authorities.last.library")).toBeNull();
     expect(route.replaceDraft).toHaveBeenLastCalledWith();
+  });
+
+  it("restores the saved draft after briefly opening the other start mode", async () => {
+    const saved = documentDraft("active", "Active authorities");
+    api.getWorkProduct.mockResolvedValue(saved);
+    const route = workspaceRoute(saved.id);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={route} /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "Active authorities" })).toBeVisible();
+    await userEvent.click(screen.getByRole("tab", { name: "Manual" }));
+
+    expect(screen.getByRole("heading", { name: "Build a book from PDFs" })).toBeVisible();
+    expect(screen.getByRole("tab", { name: "Manual" })).toHaveAttribute("aria-selected", "true");
+    expect(localStorage.getItem("beaver.authorities.last.library")).toBe("active");
+    expect(route.replaceDraft).toHaveBeenLastCalledWith();
+
+    await userEvent.click(screen.getByRole("tab", { name: "Automatic" }));
+    expect(screen.getByRole("heading", { name: "Active authorities" })).toBeVisible();
+    expect(route.replaceDraft).toHaveBeenLastCalledWith("active");
+  });
+
+  it("keeps an automatic draft title out of a new manual book", async () => {
+    const saved = documentDraft("active", "Imported factum");
+    const renamed = { ...saved, title: "Appeal factum", revision: 2 };
+    api.getWorkProduct.mockResolvedValue(saved);
+    api.updateWorkProduct.mockResolvedValue(renamed);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute(saved.id)} /></MemoryRouter>);
+
+    await screen.findByRole("heading", { name: "Imported factum" });
+    await userEvent.click(screen.getByRole("tab", { name: "Manual" }));
+    expect(screen.getByLabelText("Book title")).toHaveValue("Book of Authorities");
+    await userEvent.click(screen.getByRole("tab", { name: "Automatic" }));
+    await userEvent.click(screen.getByRole("button", { name: "authorities draft actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    const title = screen.getByLabelText("Rename authorities draft");
+    await userEvent.clear(title); await userEvent.type(title, renamed.title); fireEvent.blur(title);
+    await waitFor(() => expect(api.updateWorkProduct).toHaveBeenCalledOnce());
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Manual" }));
+    expect(screen.getByLabelText("Book title")).toHaveValue("Book of Authorities");
   });
 
   it("gives a routed draft precedence over a remembered draft", async () => {
@@ -175,7 +284,7 @@ describe("Authorities UI contracts", () => {
     expect(api.getWorkProduct).toHaveBeenCalledWith("requested");
   });
 
-  it("applies the selected source and marking options before importing a document", async () => {
+  it("applies import options without asking a Table-only draft for PDFs", async () => {
     api.uploadAuthoritiesDocument.mockResolvedValue({ id: "uploaded-document" });
     const created = add(documentDraft(), authority("case", "Example v Example",
       { kind: "unresolved" }));
@@ -188,7 +297,7 @@ describe("Authorities UI contracts", () => {
 
     await userEvent.upload(screen.getByLabelText("Add file"), file);
     const setup = screen.getByRole("dialog", { name: "Import options" });
-    await userEvent.click(within(setup).getByLabelText(/Add missing PDFs myself/));
+    await userEvent.click(within(setup).getByLabelText(/Use available original PDFs and manually add the PDFs myself for the rest/));
     await userEvent.click(within(setup).getByLabelText(/Highlight exact quotes/));
     await userEvent.click(within(setup).getByRole("button", { name: "Import and review" }));
 
@@ -197,7 +306,9 @@ describe("Authorities UI contracts", () => {
       title: "Factum", projectId: undefined,
       settings: { profileId: "general", sourceMode: "manual-originals", passageMarking: "text" },
     }));
-    expect(await screen.findByLabelText("Add PDF for Example v Example")).toBeVisible();
+    const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("details")!;
+    expect(sources).not.toHaveAttribute("open");
+    expect(screen.queryByLabelText("Add file for Example v Example")).not.toBeInTheDocument();
   });
 
   it("restores the rebuild-from-text preference", async () => {
@@ -211,22 +322,37 @@ describe("Authorities UI contracts", () => {
     const sources = screen.getByLabelText("Source handling");
     expect(sources).toHaveValue("render");
     expect(within(sources).getAllByRole("option").map(({ textContent }) => textContent))
-      .toEqual(["Automatic sources", "Add missing PDFs myself", "Rebuild all sources from text"]);
+      .toEqual(["Automatic sources", "Use available original PDFs and manually add the PDFs myself for the rest", "Rebuild all sources from text (where available)"]);
   });
 
-  it("creates a manual book in manual order regardless of document-import defaults", async () => {
+  it("normalizes Federal passage marking and omits the invalid no-marks choice", async () => {
+    localStorage.setItem("beaver.authorities.preferences", JSON.stringify({
+      profileId: "federal-court", sourceMode: "automatic", passageMarking: "none",
+    }));
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute()} /></MemoryRouter>);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    const marking = screen.getByLabelText("Passage marking");
+    expect(marking).toHaveValue("margin");
+    expect(within(marking).queryByRole("option", { name: "No passage marks" }))
+      .not.toBeInTheDocument();
+  });
+
+  it("creates a manual book in manual order and rejects a table-only court default", async () => {
     const created = draft(); created.state.outputMode = "book";
     created.state.settings.sourceMode = "manual-originals";
     created.state.settings.passageMarking = "none";
     const added = add({ ...created, revision: 2, state: structuredClone(created.state) },
       authority("manual-1", "First decision", { kind: "unresolved" }));
     const attached = add({ ...added, revision: 3, state: structuredClone(added.state) },
-      authority("manual-1", "First decision", { kind: "attached", bindingRole: "manual-1",
-        filename: "First decision.pdf", sourceSha256: "a".repeat(64), sourceUrl: null,
-        origin: "manual" }));
+      authority("manual-1", "First decision", attachedSource("manual-1", "First decision.pdf")));
     api.createAuthorities.mockResolvedValue(created);
     api.actOnAuthorities.mockResolvedValue(added);
     api.attachAuthorityPdf.mockResolvedValue(attached);
+    localStorage.setItem("beaver.authorities.preferences", JSON.stringify({
+      profileId: "ab-court-of-appeal", sourceMode: "automatic", passageMarking: "none",
+    }));
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute()} /></MemoryRouter>);
 
@@ -237,8 +363,64 @@ describe("Authorities UI contracts", () => {
     await waitFor(() => expect(api.createAuthorities).toHaveBeenCalledWith({
       source: { kind: "manual" }, title: "Book of Authorities", projectId: undefined,
       settings: { profileId: "general", sourceMode: "manual-originals",
-        passageMarking: "none", outputMode: "book" },
+        passageMarking: "margin", outputMode: "book" },
     }));
+  });
+
+  it("starts a manual book from an existing Library PDF without uploading it", async () => {
+    const created = draft(); created.state.outputMode = "book";
+    const added = add({ ...created, revision: 2, state: structuredClone(created.state) },
+      authority("manual-1", "First decision", { kind: "unresolved" }));
+    const attached = add({ ...added, revision: 3, state: structuredClone(added.state) },
+      authority("manual-1", "First decision", attachedSource("manual-1", "First decision.pdf")));
+    const document = { id: "pdf-1", project_id: null, filename: "First decision.pdf",
+      file_type: "pdf", pdf_storage_path: null, size_bytes: 100, page_count: 4,
+      created_at: "2026-09-01T00:00:00Z", current_version_id: "version-2" };
+    api.createAuthorities.mockResolvedValue(created);
+    api.actOnAuthorities.mockResolvedValue(added);
+    api.attachAuthoritiesLibraryPdf.mockResolvedValue(attached);
+    api.directoryList.mockResolvedValue({ items: [{ kind: "document", document }], next_cursor: null });
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      LibraryPicker={LibraryDocumentPicker} route={workspaceRoute()} /></MemoryRouter>);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Manual" }));
+    await userEvent.click(screen.getByRole("button", { name: "Library" }));
+    await userEvent.click(await screen.findByRole("button", { name: /First decision\.pdf/u }));
+
+    await waitFor(() => expect(api.attachAuthoritiesLibraryPdf).toHaveBeenCalledWith(
+      created.id, added.revision, document.id, document.current_version_id,
+      { kind: "authority", authorityId: "manual-1", language: "en" }));
+    expect(api.uploadAuthoritiesDocument).not.toHaveBeenCalled();
+  });
+
+  it("keeps English and French enactment PDFs under one Federal tab", async () => {
+    const english = attachedSource("authority:code:en", "Criminal Code English.pdf");
+    const law = authority("code", "Criminal Code", english);
+    Object.assign(law, { kind: "legislation", citation: "RSC 1985, c C-46" });
+    const saved = add(draft(), law); saved.state.outputMode = "book";
+    saved.state.settings.profileId = "federal-court";
+    const updated = structuredClone(saved); updated.revision = 2;
+    if (updated.state.authorities.code.source.kind === "attached") {
+      updated.state.authorities.code.source.sources.push({
+        bindingRole: "authority:code:fr", filename: "Code criminel français.pdf",
+        sourceSha256: "b".repeat(64), sourceUrl: null, origin: "manual", language: "fr",
+      });
+    }
+    api.getWorkProduct.mockResolvedValue(saved);
+    api.attachAuthorityPdf.mockResolvedValue(updated);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+
+    expect(await screen.findByText("1 PDF")).toBeVisible();
+    const row = screen.getByRole("heading", { name: "Criminal Code" }).closest("article")!;
+    const file = new File(["%PDF-fr"], "Code criminel français.pdf", { type: "application/pdf" });
+    await userEvent.upload(within(row).getByLabelText("Add file for Criminal Code"), file);
+    await userEvent.click(screen.getByRole("button", { name: /^French\./u }));
+
+    await waitFor(() => expect(api.attachAuthorityPdf)
+      .toHaveBeenCalledWith("draft-1", "code", 1, file, "fr"));
+    expect(await screen.findByText("2 PDFs")).toBeVisible();
+    expect(within(row).getByLabelText("Tab 1")).toBeVisible();
   });
 
   it("loads only the draft named by the route", async () => {
@@ -380,9 +562,9 @@ describe("Authorities UI contracts", () => {
   it("opens the exact in-text citation without a confirmation gate", async () => {
     const saved = documentDraft();
     const citation = "2024 ABKB 1", styled = `R v Example, ${citation}`;
-    saved.state.units = [{ id: "body:1", kind: "body", ordinal: 0, footnoteId: null,
+    saved.state.units = [{ id: "footnote:misleading", kind: "body", ordinal: 0, footnoteId: null,
       footnoteRefs: [], pageNumbers: [1], text: styled, occurrenceIds: ["occurrence-1"] }];
-    saved.state.occurrences["occurrence-1"] = { id: "occurrence-1", unitId: "body:1",
+    saved.state.occurrences["occurrence-1"] = { id: "occurrence-1", unitId: "footnote:misleading",
       start: 0, end: styled.length, text: styled, kind: "case", citation,
       authoritySpan: { start: 0, end: styled.length, text: styled },
       coreSpan: { start: styled.indexOf(citation), end: styled.length, text: citation }, pinpointSpan: null,
@@ -405,10 +587,14 @@ describe("Authorities UI contracts", () => {
       .toEqual(["Use selection as citation", "Use selection as pinpoint", "Split at cursor",
         "Merge with previous", "Not a citation"]);
     expect(screen.queryByRole("checkbox", { name: "Reviewed" })).not.toBeInTheDocument();
+    const row = screen.getByRole("heading", { name: "R v Example" }).closest("article")!;
+    await userEvent.click(within(row).getByRole("button", { name: "Options for R v Example" }));
+    expect(screen.getByRole("menuitem", { name: "Edit title" })).toBeVisible();
+    expect(screen.queryByRole("menuitem", { name: "Edit details" })).not.toBeInTheDocument();
   });
 
   it("submits a DOM selection across existing marks and clears the stale selection", async () => {
-    const saved = documentDraft(), text = "See R v Example, 2024 ABKB 1 at para 12.";
+    const saved = documentDraft(), text = "😀 See R v Example, 2024 ABKB 1 at para 12.";
     const start = text.indexOf("R v"), pinpoint = text.indexOf("at para"), end = text.length - 1;
     saved.state.units = [{ id: "body:1", kind: "body", ordinal: 0, footnoteId: null,
       footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: ["occurrence-1"] }];
@@ -424,12 +610,15 @@ describe("Authorities UI contracts", () => {
     const changed = structuredClone(saved); changed.revision = 2;
     changed.state.occurrences["occurrence-1"].authoritySpan =
       { start: 0, end, text: text.slice(0, end) };
+    changed.state.occurrences["occurrence-1"].reviewed = true;
+    const update = deferred<AuthoritiesProduct>(), onDraftChange = vi.fn();
     api.getWorkProduct.mockResolvedValue(saved);
-    api.actOnAuthorities.mockResolvedValue(changed);
+    api.actOnAuthorities.mockReturnValue(update.promise);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      route={workspaceRoute("draft-1")} onDraftChange={onDraftChange} /></MemoryRouter>);
 
     const context = await screen.findByRole("textbox", { name: "In-text citation context" });
+    expect(api.reviewAuthorities).not.toHaveBeenCalled();
     expect([...context.querySelectorAll<HTMLElement>("[data-authority-span]")]
       .map((node) => node.textContent).join("")).toBe(text.slice(start, end));
     expect([...context.querySelectorAll<HTMLElement>("[data-pinpoint-span]")]
@@ -443,7 +632,13 @@ describe("Authorities UI contracts", () => {
     await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1, {
       type: "set-authority-span", occurrenceId: "occurrence-1", start: 0, end,
     }));
+    expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("status")).toHaveTextContent("Updating authorities");
+    await waitFor(() => expect(onDraftChange).toHaveBeenLastCalledWith(saved, false));
+    expect(useSelection).toBeDisabled();
+    update.resolve(changed);
     await waitFor(() => expect(useSelection).toBeDisabled());
+    await waitFor(() => expect(onDraftChange).toHaveBeenLastCalledWith(changed, true));
     expect(window.getSelection()?.rangeCount).toBe(0);
   });
 
@@ -568,11 +763,11 @@ describe("Authorities UI contracts", () => {
     const sources = screen.getByRole("heading", { name: "Sources" }).closest("details")!;
     expect(build.compareDocumentPosition(sources) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(sources).not.toHaveAttribute("open");
-    expect(within(sources).getAllByLabelText(/Add PDF for/u)[0]).not.toBeVisible();
+    expect(within(sources).getAllByLabelText(/Add file for/u)[0]).not.toBeVisible();
     expect(screen.queryByText(/missing source PDF/)).not.toBeInTheDocument();
 
     await userEvent.click(within(sources).getByText("Sources"));
-    expect(within(sources).getAllByLabelText(/Add PDF for/u)[0]).toBeVisible();
+    expect(within(sources).getAllByLabelText(/Add file for/u)[0]).toBeVisible();
     expect(within(sources).getByRole("button", { name: "Add authority" })).toBeVisible();
   });
 
@@ -592,39 +787,55 @@ describe("Authorities UI contracts", () => {
 
     const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("details")!;
     expect(sources).toHaveAttribute("open");
-    expect(within(sources).getByLabelText("Add PDF for Example v Example")).toBeVisible();
+    expect(within(sources).getByLabelText("Add file for Example v Example")).toBeVisible();
     expect(screen.getByText("Filing PDF")).toBeVisible();
   });
 
-  it("shows a high-confidence source discrepancy inside the fixed citation review", async () => {
-    const saved = documentDraft(), citation = "2024 ABKB 1";
-    saved.state.units = [{ id: "footnote:1", kind: "footnote", ordinal: 1, footnoteId: 1,
-      footnoteRefs: [], pageNumbers: [1], text: citation, occurrenceIds: ["occurrence-1"] }];
-    saved.state.occurrences["occurrence-1"] = { id: "occurrence-1", unitId: "footnote:1",
-      start: 0, end: citation.length, text: citation, kind: "case", citation,
-      authoritySpan: { start: 0, end: citation.length, text: citation },
-      coreSpan: { start: 0, end: citation.length, text: citation }, pinpointSpan: null,
-      authorityId: "authority-1", reference: null,
-      pinpoints: [{ kind: "paragraph", text: "7" }], evidenceIds: [],
-      sourceTextSha256: "a".repeat(64), localOrdinal: 0, reviewed: true };
-    add(saved, authority("authority-1", citation, { kind: "resolved" }));
+  it("never offers the Word-copy control for a Book-only draft", async () => {
+    const saved = documentDraft();
+    saved.state.outputMode = "book";
+    saved.state.insertIntoDocument = true;
     api.getWorkProduct.mockResolvedValue(saved);
-    api.reviewAuthorities.mockResolvedValue([{ kind: "quote_mismatch",
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+
+    await screen.findByRole("heading", { name: "Build outputs" });
+    await userEvent.click(screen.getByText("Options"));
+    expect(screen.queryByRole("checkbox", { name: "Add the table to a Word copy" }))
+      .not.toBeInTheDocument();
+  });
+
+  it("shows a high-confidence source discrepancy inside the fixed citation review", async () => {
+    const saved = documentDraft(), citation = addReviewCandidate(saved);
+    api.getWorkProduct.mockResolvedValue(saved);
+    const findingId = "d".repeat(64);
+    api.reviewAuthorities.mockResolvedValue([{ id: findingId,
+      actions: ["ignore", "quote_editorial"], kind: "quote_mismatch",
       occurrenceId: "occurrence-1", authorityId: "authority-1", footnoteId: 1, citation,
       proposition: "The court wrote this.", authoredQuote: "the authored words",
       authoredPinpoint: { kind: "paragraph", text: "7" },
       cited: { locator: { kind: "paragraph", label: "7" }, text: "the source words" },
-      found: null }]);
+      found: { locator: { kind: "paragraph", label: "7" }, text: "the source words" } }]);
+    const corrected = structuredClone(saved); corrected.revision = 2;
+    corrected.state.discrepancyDecisions[findingId] = "quote_editorial";
+    api.resolveAuthoritiesDiscrepancy.mockResolvedValue(corrected);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
 
     expect(await screen.findByText("Source mismatch")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Review source mismatch" }));
     expect(screen.getByText("the authored words")).toBeVisible();
     expect(screen.getByText("the source words")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Use source wording" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Use edited quotation" }));
+    await waitFor(() => expect(api.resolveAuthoritiesDiscrepancy).toHaveBeenCalledWith(
+      "draft-1", { id: findingId, action: "quote_editorial", revision: 1 }));
+    expect(await screen.findByText("Source corrected and draft refreshed")).toBeVisible();
   });
 
   it("surfaces source-check failures and does not rerun review after a build-only revision", async () => {
     const saved = documentDraft(), built = { ...saved, revision: 2 };
+    addReviewCandidate(saved);
     api.getWorkProduct.mockResolvedValue(saved);
     api.reviewAuthorities.mockRejectedValueOnce(new Error("Source service unavailable"))
       .mockResolvedValue([]);
@@ -641,14 +852,42 @@ describe("Authorities UI contracts", () => {
     expect(api.reviewAuthorities).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps source status and outputs stable while a citation-only edit is saved", async () => {
+    const saved = draft(), changed = structuredClone(saved), update = deferred<AuthoritiesProduct>();
+    saved.outputs.book = { documentId: "book", versionId: "book-v1",
+      filename: "Book of Authorities.pdf", mimeType: "application/pdf",
+      sha256: "a".repeat(64), pageCount: 4 };
+    changed.outputs = structuredClone(saved.outputs);
+    changed.revision = 2;
+    changed.state.settings.tabStyle = "alpha";
+    api.getWorkProduct.mockResolvedValue(saved);
+    api.getWorkProductResolution.mockResolvedValue({ inputs: {}, freshness: "current" });
+    api.actOnAuthorities.mockReturnValue(update.promise);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+
+    const download = await screen.findByRole("button", { name: "Download Book of Authorities.pdf" });
+    await waitFor(() => expect(api.getWorkProductResolution).toHaveBeenCalledTimes(1));
+    await userEvent.click(screen.getByText("Options"));
+    await userEvent.selectOptions(screen.getByLabelText("Tabs"), "alpha");
+
+    expect(download).toBeEnabled();
+    expect(screen.queryByText("Previous build — rebuild to update")).not.toBeInTheDocument();
+    expect(api.getWorkProductResolution).toHaveBeenCalledTimes(1);
+    update.resolve(changed);
+    expect(await screen.findByText("Previous build — rebuild to update")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Download previous Book of Authorities.pdf" }))
+      .toBeEnabled();
+    expect(api.getWorkProductResolution).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps prepared sources visible when the final build fails", async () => {
     const saved = add(documentDraft(), authority("case", "Example v Example",
       { kind: "unresolved" }));
     saved.state.outputMode = "book";
     const prepared = structuredClone(saved); prepared.revision = 2;
-    prepared.state.authorities.case.source = { kind: "attached",
-      bindingRole: "authority:case", filename: "Decision.pdf", sourceSha256: "a".repeat(64),
-      sourceUrl: "https://decisions.example/case.pdf", origin: "original" };
+    prepared.state.authorities.case.source = attachedSource("authority:case", "Decision.pdf", "a",
+      "https://decisions.example/case.pdf", "original");
     prepared.state.bindings["authority:case"] = {
       kind: "document", documentId: "pdf-1", version: "latest" };
     api.getWorkProduct.mockResolvedValue(saved);
@@ -662,14 +901,25 @@ describe("Authorities UI contracts", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Build" }));
 
     expect(await screen.findByText("The book could not be built")).toBeVisible();
+    const sources = screen.getByRole("heading", { name: "Sources" }).closest("details")!;
+    expect(sources).not.toHaveAttribute("open");
+    await userEvent.click(within(sources).getByText("Sources"));
     expect(screen.getByText("Decision.pdf")).toBeVisible();
   });
 
   it.each(["federal-court", "ab-court-of-kings-bench"] as const)(
     "stops a required-source %s book before final build", async (profile) => {
-      const saved = add(draft(), authority("missing", "Missing decision", { kind: "unresolved" }));
+      const saved = add(documentDraft(),
+        authority("missing", "Missing decision", { kind: "unresolved" }));
       saved.state.outputMode = "book";
       saved.state.settings.profileId = profile;
+      saved.state.settings.sourceMode = "manual-originals";
+      if (profile === "federal-court") {
+        saved.state.settings.bookRole = "applicant";
+        saved.state.cover = { courtFileNumber: "T-123-26", applicationUnder: "", title: "",
+          partyGroups: [{ role: "Applicant", parties: ["Ada North"] },
+            { role: "Respondent", parties: ["River South"] }] };
+      }
       const prepared = structuredClone(saved); prepared.revision = 2;
       prepared.title = `${profile} prepared`;
       api.getWorkProduct.mockResolvedValue(saved);
@@ -678,10 +928,14 @@ describe("Authorities UI contracts", () => {
       render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
         route={workspaceRoute("draft-1")} /></MemoryRouter>);
 
+      expect(screen.queryByText(/source PDF.*required before building/u)).toBeNull();
       await userEvent.click(await screen.findByRole("button", { name: "Build" }));
 
       expect(await screen.findByText("Attach a source PDF for Missing decision before building.")).toBeVisible();
+      expect(screen.getByText("1 source PDF is required before building.")).toBeVisible();
       expect(screen.getByRole("heading", { name: `${profile} prepared` })).toBeVisible();
+      expect(screen.getByRole("heading", { name: "Sources" }).closest("details"))
+        .toHaveAttribute("open");
       expect(api.buildAuthorities).not.toHaveBeenCalled();
     });
 
@@ -712,10 +966,9 @@ describe("Authorities UI contracts", () => {
     expect(screen.queryByRole("button", { name: "Relink source" })).not.toBeInTheDocument();
   });
 
-  it("offers the normal PDF input when an attached Beaver authority is missing", async () => {
-    const saved = add(draft(), authority("alpha", "Alpha", { kind: "attached",
-      bindingRole: "authority:alpha", filename: "alpha.pdf", sourceSha256: "a".repeat(64),
-      sourceUrl: null, origin: "manual" }));
+  it("remembers a missing attached PDF and offers its replacement", async () => {
+    const saved = add(draft(), authority("alpha", "Alpha",
+      attachedSource("authority:alpha", "alpha.pdf")));
     api.getWorkProduct.mockResolvedValue(saved);
     api.getWorkProductResolution.mockResolvedValue({ inputs: {
       "authority:alpha": { status: "missing", reason: "deleted" },
@@ -724,18 +977,16 @@ describe("Authorities UI contracts", () => {
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
 
     const row = (await screen.findByRole("heading", { name: "Alpha" })).closest("article")!;
-    expect(await within(row).findByLabelText("Add PDF for Alpha")).toBeVisible();
+    expect(await within(row).findByText("Unavailable · alpha.pdf")).toBeVisible();
+    expect(within(row).getByLabelText("Replace file for Alpha")).toBeVisible();
     expect(within(row).queryByRole("button", { name: "Relink PDF" })).not.toBeInTheDocument();
   });
 
   it("replaces or removes a PDF without deleting its procedural slot", async () => {
-    const saved = add(draft(), authority("alpha", "Alpha", { kind: "attached",
-      bindingRole: "authority:alpha", filename: "alpha.pdf", sourceSha256: "a".repeat(64),
-      sourceUrl: null, origin: "manual" }));
+    const saved = add(draft(), authority("alpha", "Alpha",
+      attachedSource("authority:alpha", "alpha.pdf")));
     const replaced = structuredClone(saved); replaced.revision = 2;
-    replaced.state.authorities.alpha.source = { kind: "attached", bindingRole: "authority:alpha",
-      filename: "replacement.pdf", sourceSha256: "b".repeat(64), sourceUrl: null,
-      origin: "manual" };
+    replaced.state.authorities.alpha.source = attachedSource("authority:alpha", "replacement.pdf", "b");
     const cleared = structuredClone(replaced); cleared.revision = 3;
     cleared.state.authorities.alpha.source = { kind: "unresolved" };
     api.getWorkProduct.mockResolvedValue(saved);
@@ -746,16 +997,16 @@ describe("Authorities UI contracts", () => {
 
     const row = (await screen.findByRole("heading", { name: "Alpha" })).closest("article")!;
     const replacement = new File(["%PDF-1.7"], "replacement.pdf", { type: "application/pdf" });
-    await userEvent.upload(within(row).getByLabelText("Replace PDF for Alpha"), replacement);
+    await userEvent.upload(within(row).getByLabelText("Replace file for Alpha"), replacement);
     await waitFor(() => expect(api.attachAuthorityPdf)
-      .toHaveBeenCalledWith("draft-1", "alpha", 1, replacement));
+      .toHaveBeenCalledWith("draft-1", "alpha", 1, replacement, "en"));
     await userEvent.click(within(row).getByRole("button", { name: "Options for Alpha" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Remove PDF" }));
     await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 2,
       { type: "clear-authority-source", authorityId: "alpha" }));
     expect(screen.getByRole("heading", { name: "Alpha" })).toBeVisible();
     expect(screen.getByLabelText("Tab 1")).toBeVisible();
-    expect(await screen.findByLabelText("Add PDF for Alpha")).toBeVisible();
+    expect(await screen.findByLabelText("Add file for Alpha")).toBeVisible();
   });
 
   it("refreshes a changed Beaver input in place", async () => {
@@ -770,12 +1021,50 @@ describe("Authorities UI contracts", () => {
     expect(api.refreshAuthoritiesInput).toHaveBeenCalledWith("draft-1", "source", 1);
   });
 
+  it("does not show source issues from the previous draft while the next draft resolves", async () => {
+    const first = documentDraft("first", "First draft"), second = documentDraft("second", "Second draft");
+    const pending = deferred<{ inputs: Record<string, never> }>();
+    api.getWorkProduct.mockImplementation(async (id) => id === "first" ? first : second);
+    api.getWorkProductResolution.mockImplementation((id) => id === "first"
+      ? Promise.resolve({ inputs: { source: { status: "changed" } } }) : pending.promise);
+    const { rerender } = render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("first")} /></MemoryRouter>);
+    expect(await screen.findByRole("button", { name: "Use updated source" })).toBeVisible();
+
+    rerender(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("second")} /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "Second draft" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Use updated source" })).not.toBeInTheDocument();
+    await act(async () => pending.resolve({ inputs: {} }));
+  });
+
+  it("shows generated order and skips excluded authorities when numbering tabs", async () => {
+    const legislation = authority("act", "Zulu Act", { kind: "unresolved" });
+    legislation.kind = "legislation";
+    const alpha = authority("alpha", "Alpha v Test", { kind: "unresolved" });
+    alpha.excluded = true;
+    const saved = add(documentDraft(), legislation,
+      authority("beta", "Beta v Test", { kind: "unresolved" }), alpha);
+    saved.state.outputMode = "book";
+    api.getWorkProduct.mockResolvedValue(saved);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+
+    const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("details")!;
+    await userEvent.click(within(sources).getByText("Sources"));
+    const rows = within(sources).getAllByRole("article");
+    expect(rows.map((row) => within(row).getByRole("heading").textContent))
+      .toEqual(["Alpha v Test", "Beta v Test", "Zulu Act"]);
+    expect(within(rows[0]).getByLabelText("Not reproduced")).toBeVisible();
+    expect(within(rows[1]).getByLabelText("Tab 1")).toBeVisible();
+    expect(within(rows[2]).getByLabelText("Tab 2")).toBeVisible();
+  });
+
   it("renames a manual draft and derives its procedural tabs", async () => {
     let current = add(draft(),
-      authority("alpha", "Alpha", { kind: "attached", bindingRole: "authority:alpha",
-        filename: "alpha.pdf", sourceSha256: "a".repeat(64), sourceUrl: null, origin: "manual" }),
-      authority("beta", "Beta", { kind: "attached", bindingRole: "authority:beta",
-        filename: "beta.pdf", sourceSha256: "b".repeat(64), sourceUrl: null, origin: "manual" }));
+      authority("alpha", "Alpha", attachedSource("authority:alpha", "alpha.pdf")),
+      authority("beta", "Beta", attachedSource("authority:beta", "beta.pdf", "b")));
     api.getWorkProduct.mockImplementation(async () => current);
     api.updateWorkProduct.mockImplementation(async (_id, patch) => {
       current = { ...current, title: patch.title ?? current.title, revision: current.revision + 1 };
@@ -813,16 +1102,14 @@ describe("Authorities UI contracts", () => {
   });
 
   it("uses one Add files seam to append PDFs to a populated manual book", async () => {
-    const saved = add(draft(), authority("alpha", "Alpha", { kind: "attached",
-      bindingRole: "authority:alpha", filename: "alpha.pdf", sourceSha256: "a".repeat(64),
-      sourceUrl: null, origin: "manual" }));
+    const saved = add(draft(), authority("alpha", "Alpha",
+      attachedSource("authority:alpha", "alpha.pdf")));
     const added = add({ ...saved, revision: 2, state: structuredClone(saved.state) },
       authority("alpha", "Alpha", saved.state.authorities.alpha.source),
       authority("beta", "Beta", { kind: "unresolved" }));
     const attached = add({ ...added, revision: 3, state: structuredClone(added.state) },
       authority("alpha", "Alpha", saved.state.authorities.alpha.source),
-      authority("beta", "Beta", { kind: "attached", bindingRole: "authority:beta",
-        filename: "beta.pdf", sourceSha256: "b".repeat(64), sourceUrl: null, origin: "manual" }));
+      authority("beta", "Beta", attachedSource("authority:beta", "beta.pdf", "b")));
     api.getWorkProduct.mockResolvedValue(saved);
     api.actOnAuthorities.mockResolvedValue(added);
     api.attachAuthorityPdf.mockResolvedValue(attached);
@@ -831,17 +1118,57 @@ describe("Authorities UI contracts", () => {
     await screen.findByRole("heading", { name: "Alpha" });
     const file = new File(["%PDF-1.7"], "beta.pdf", { type: "application/pdf" });
 
-    expect(screen.getAllByLabelText("Add files")).toHaveLength(1);
-    await userEvent.upload(screen.getByLabelText("Add files"), file);
+    const authorities = screen.getByRole("heading", { name: "Authorities" }).closest("section")!;
+    await userEvent.upload(within(authorities).getByLabelText("Add files"), file);
 
     await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1,
       { type: "add-authority", kind: "other", citation: "beta", name: "beta" }));
     await waitFor(() => expect(api.attachAuthorityPdf)
-      .toHaveBeenCalledWith("draft-1", "beta", 2, file));
-    expect(api.attachAuthorityPdf).not.toHaveBeenCalledWith("draft-1", "alpha", 1, file);
+      .toHaveBeenCalledWith("draft-1", "beta", 2, file, "en"));
+    expect(api.attachAuthorityPdf).not.toHaveBeenCalledWith("draft-1", "alpha", 1, file, "en");
   });
 
-  it("offers CanLII only for a known handoff and accepts it through Add PDF", async () => {
+  it("corrects filename-derived manual PDF identity in one editor", async () => {
+    const mistaken = authority("grant", "2009scc32",
+      attachedSource("authority:grant", "2009scc32.pdf"));
+    Object.assign(mistaken, { kind: "other", citation: "2009scc32" });
+    const saved = add(draft(), mistaken), corrected = structuredClone(saved);
+    corrected.revision = 2;
+    Object.assign(corrected.state.authorities.grant,
+      { kind: "case", citation: "2009 SCC 32", name: "R v Grant", displayName: null });
+    api.getWorkProduct.mockResolvedValue(saved);
+    api.getWorkProductResolution.mockResolvedValue({ inputs: {
+      "authority:grant": { status: "missing", reason: "deleted" },
+    } });
+    api.actOnAuthorities.mockResolvedValue(corrected);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+
+    const row = (await screen.findByRole("heading", { name: "2009scc32" })).closest("article")!;
+    expect(await within(row).findByText("Unavailable · 2009scc32.pdf")).toBeVisible();
+    expect(within(row).getByLabelText("Replace file for 2009scc32")).toBeVisible();
+    await userEvent.click(within(row).getByRole("button", { name: "Options for 2009scc32" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Edit details" }));
+    const dialog = screen.getByRole("dialog", { name: "Edit authority" });
+    await userEvent.selectOptions(within(dialog).getByLabelText("Type"), "case");
+    await userEvent.clear(within(dialog).getByLabelText("Citation"));
+    await userEvent.type(within(dialog).getByLabelText("Citation"), "2009 SCC 32");
+    await userEvent.clear(within(dialog).getByLabelText(/Displayed title/u));
+    await userEvent.type(within(dialog).getByLabelText(/Displayed title/u), "R v Grant");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1, {
+      type: "edit-authority", authorityId: "grant", kind: "case",
+      citation: "2009 SCC 32", name: "R v Grant",
+    }));
+    const correctedRow = (await screen.findByRole("heading", { name: "R v Grant" })).closest("article")!;
+    expect(screen.getByText("2009 SCC 32")).toBeVisible();
+    expect(within(correctedRow).getByText("Unavailable · 2009scc32.pdf")).toBeVisible();
+    expect(within(correctedRow).getByLabelText("Replace file for R v Grant")).toBeVisible();
+    expect(api.getWorkProductResolution).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers CanLII only for a known handoff and accepts it through Add file", async () => {
     const pdfUrl = "https://www.canlii.org/en/ca/scc/doc/1986/1986canlii46/1986canlii46.pdf";
     const saved = add(draft(),
       authority("oakes", "R v Oakes", { kind: "pending-canlii", authorityKey: "oakes",
@@ -855,14 +1182,48 @@ describe("Authorities UI contracts", () => {
 
     const known = (await screen.findByRole("heading", { name: "R v Oakes" })).closest("article")!;
     const unknown = screen.getByRole("heading", { name: "Unresolved case" }).closest("article")!;
-    expect(within(known).getByRole("link", { name: "Download from CanLII" }))
-      .toHaveAttribute("href", pdfUrl);
+    const handoff = within(known).getByRole("link", { name: "Download from CanLII" });
+    expect(handoff).toHaveAttribute("href", pdfUrl);
+    expect(fireEvent.click(handoff)).toBe(true);
     expect(within(unknown).queryByRole("link", { name: "Download from CanLII" })).toBeNull();
 
     const file = new File(["%PDF-"], "oakes.pdf", { type: "application/pdf" });
-    await userEvent.upload(within(known).getByLabelText("Add PDF for R v Oakes"), file);
+    await userEvent.upload(within(known).getByLabelText("Add file for R v Oakes"), file);
     await waitFor(() => expect(api.attachAuthorityPdf).toHaveBeenCalledWith(
-      "draft-1", "oakes", 1, file));
+      "draft-1", "oakes", 1, file, "en"));
+  });
+
+  it("prepares a manually added neutral citation before asking for its PDF", async () => {
+    const saved = draft(), added = structuredClone(saved), prepared = structuredClone(saved);
+    added.revision = 2;
+    add(added, { ...authority("jordan", "R v Jordan", { kind: "unresolved" }),
+      citation: "2016 SCC 27", userAdded: true });
+    Object.assign(prepared, added, { state: structuredClone(added.state), revision: 3 });
+    prepared.state.authorities.jordan.source = { kind: "pending-canlii", authorityKey: "jordan",
+      pageUrl: "https://www.canlii.org/en/ca/scc/doc/2016/2016scc27/2016scc27.html",
+      pdfUrl: "https://www.canlii.org/en/ca/scc/doc/2016/2016scc27/2016scc27.pdf" };
+    api.getWorkProduct.mockResolvedValue(saved);
+    api.actOnAuthorities.mockResolvedValue(added);
+    api.prepareAuthoritiesSources.mockResolvedValue(prepared);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Add authority" }));
+    const dialog = screen.getByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText("Citation"), "2016 SCC 27");
+    await userEvent.type(within(dialog).getByLabelText(/Displayed title/u), "R v Jordan");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Add" }));
+
+    await waitFor(() => expect(api.prepareAuthoritiesSources)
+      .toHaveBeenCalledWith("draft-1", 2, undefined));
+    expect(await screen.findByRole("link", { name: "Download from CanLII" }))
+      .toHaveAttribute("href", prepared.state.authorities.jordan.source.kind === "pending-canlii"
+        ? prepared.state.authorities.jordan.source.pdfUrl : "");
+    const row = screen.getByRole("heading", { name: "R v Jordan" }).closest("article")!;
+    await userEvent.click(within(row).getByRole("button", { name: "Options for R v Jordan" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Edit details" }));
+    expect(within(screen.getByRole("dialog", { name: "Edit authority" }))
+      .getByLabelText("Citation")).toHaveValue("2016 SCC 27");
   });
 
   it("keeps book composition visible and accepts a custom cover through the normal file seam", async () => {
@@ -881,7 +1242,7 @@ describe("Authorities UI contracts", () => {
     const file = new File(["%PDF-1.7"], "cover.pdf", { type: "application/pdf" });
     await userEvent.upload(within(cover).getByLabelText("Add file"), file);
     await waitFor(() => expect(api.attachAuthoritiesBookPdf)
-      .toHaveBeenCalledWith("draft-1", 1, "cover", file));
+      .toHaveBeenCalledWith("draft-1", 1, "cover", file, undefined));
     expect(contents).toBeVisible();
     expect(screen.queryByText(/labelled pages will be added/)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Build" }));
@@ -890,25 +1251,104 @@ describe("Authorities UI contracts", () => {
     expect(screen.getByText("Saved to Court outputs")).toBeVisible();
   });
 
+  it("adds other book PDFs in fixed order with procedural tabs and removes them", async () => {
+    const saved = add(draft(), authority("included", "Included case", { kind: "unresolved" }),
+      { ...authority("excluded", "Excluded case", { kind: "unresolved" }), excluded: true });
+    saved.state.settings.missingSourcePolicy = "omit";
+    const added = structuredClone(saved); added.revision = 2;
+    added.state.bookParts.supplements = [{ id: "other-1", bindingRole: "book:other-1",
+      filename: "Other material.pdf", sourceSha256: "a".repeat(64) }];
+    const replaced = structuredClone(added); replaced.revision = 3;
+    replaced.state.bookParts.supplements[0].filename = "Replacement.pdf";
+    const removed = structuredClone(replaced); removed.revision = 4;
+    removed.state.bookParts.supplements = [];
+    api.getWorkProduct.mockResolvedValue(saved);
+    api.attachAuthoritiesBookPdf.mockResolvedValueOnce(added).mockResolvedValueOnce(replaced);
+    api.actOnAuthorities.mockResolvedValue(removed);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "Other book PDFs" })).toBeVisible();
+    const file = new File(["%PDF-other"], "Other material.pdf", { type: "application/pdf" });
+    await userEvent.upload(screen.getByLabelText("Add other book files"), file);
+
+    await waitFor(() => expect(api.attachAuthoritiesBookPdf)
+      .toHaveBeenCalledWith("draft-1", 1, "supplemental", file, undefined));
+    expect(await screen.findByText("Other material.pdf")).toBeVisible();
+    expect(screen.getByText("Tab 1")).toBeVisible();
+    expect(screen.queryByText(/appendix/iu)).not.toBeInTheDocument();
+    const row = screen.getByText("Other material.pdf").closest("div.grid")!;
+    const replacement = new File(["%PDF-replacement"], "Replacement.pdf",
+      { type: "application/pdf" });
+    await userEvent.upload(within(row).getByLabelText("Replace"), replacement);
+    await waitFor(() => expect(api.attachAuthoritiesBookPdf)
+      .toHaveBeenCalledWith("draft-1", 2, "supplemental", replacement, "other-1"));
+    await userEvent.click(screen.getByRole("button", { name: "Replacement.pdf options" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Remove from book" }));
+    await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 3,
+      { type: "remove-book-supplement", id: "other-1" }));
+  });
+
   it("does not offer placeholder pages for a Federal Court book", async () => {
     const saved = add(draft(), authority("missing", "Missing decision", { kind: "unresolved" }));
     Object.assign(saved.state.settings, { profileId: "federal-court" as const,
       filingMedium: "electronic" as const, bookRole: "applicant" as const });
+    const covered = structuredClone(saved); covered.revision = 2;
+    covered.state.cover = { courtFileNumber: "T-123-26", partyGroups: [
+      { role: "Applicant", parties: ["North Prairie Ltd."] },
+      { role: "Respondent", parties: ["Attorney General of Canada"] },
+    ], applicationUnder: "", title: "" };
     api.getWorkProduct.mockResolvedValue(saved);
-    api.actOnAuthorities.mockResolvedValue({ ...saved, revision: 2 });
+    api.actOnAuthorities.mockResolvedValueOnce(covered).mockResolvedValue({ ...covered, revision: 3 });
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
 
     expect(await screen.findByLabelText("Filing")).toHaveValue("electronic");
+    expect(screen.getByText("Details required")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Build" }));
+    const coverDialog = screen.getByRole("dialog", { name: "Cover details" });
+    await userEvent.type(within(coverDialog).getByLabelText("Court file number"), "T-123-26");
+    const names = within(coverDialog).getAllByLabelText(/Party names/u);
+    await userEvent.type(names[0], "North Prairie Ltd.");
+    await userEvent.type(names[1], "Attorney General of Canada");
+    await userEvent.click(within(coverDialog).getByRole("button", { name: "Save cover" }));
+    await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1,
+      { type: "set-cover", cover: covered.state.cover }));
+    await waitFor(() => expect(within(screen.getByText("Cover").parentElement!)
+      .getByText("Generated")).toBeVisible());
     expect(screen.queryByText("1 source PDF is required before building.")).not.toBeInTheDocument();
     const filedBy = screen.getByLabelText("Filed by");
     expect(within(filedBy).getAllByRole("option").map(({ textContent }) => textContent))
-      .toEqual(["Applicant", "Respondent", "Joint"]);
+      .toEqual(["Plaintiff", "Defendant", "Applicant", "Respondent", "Moving party",
+        "Responding party", "Joint"]);
     await userEvent.selectOptions(filedBy, "respondent");
-    await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1,
+    await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 2,
       { type: "set-settings", settings: { bookRole: "respondent" } }));
     await userEvent.click(screen.getByText("Options"));
     expect(screen.queryByLabelText("Missing sources")).not.toBeInTheDocument();
+  });
+
+  it("selects courts across jurisdictions directly in one chooser and keeps book-only choices valid", async () => {
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute()} jurisdictionOrder={["ca-ab"]} /></MemoryRouter>);
+    await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    await userEvent.click(screen.getByRole("button", { name: "Court: No court preset" }));
+    let chooser = screen.getByRole("dialog", { name: "Choose court" });
+    const choices = within(within(chooser).getByRole("group", { name: "Choose court" })).getAllByRole("button");
+    expect(choices[0]).toHaveTextContent("Alberta");
+    expect(within(chooser).getByRole("button", { name: "Court of Appeal of Alberta" })).toBeVisible();
+    await userEvent.click(within(chooser).getByRole("button", { name: "Federal Court", exact: true }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Court: Federal Court", exact: true }));
+    chooser = screen.getByRole("dialog", { name: "Choose court" });
+    await userEvent.click(within(chooser).getByRole("button", { name: "Court of Appeal of Alberta" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Court: Court of Appeal of Alberta" })).toBeVisible();
+    await userEvent.click(screen.getByRole("tab", { name: "Manual" }));
+    await userEvent.click(screen.getByRole("button", { name: /Court:/ }));
+    chooser = screen.getByRole("dialog", { name: "Choose court" });
+    expect(within(chooser).queryByRole("button", { name: "Court of Appeal of Alberta" })).not.toBeInTheDocument();
+    expect(within(chooser).getByRole("button", { name: "Federal Court", exact: true })).toBeVisible();
   });
 
   it("does not offer placeholder pages when the Alberta court preset fixes source handling", async () => {
@@ -935,6 +1375,36 @@ describe("Authorities UI contracts", () => {
     const filedBy = await screen.findByLabelText("Filed by");
     expect(within(filedBy).getAllByRole("option").map(({ textContent }) => textContent))
       .toEqual(["Joint", "Appellant", "Respondent", "Intervener"]);
+  });
+
+  it("gives the scoped Assistant the focused citation and exact DOM selection", async () => {
+    const saved = documentDraft(), text = "See R v Example, 2024 ABKB 1 at para 12.";
+    const start = text.indexOf("R v"), end = text.indexOf(" at para");
+    saved.state.units = [{ id: "body:1", kind: "body", ordinal: 0, footnoteId: null,
+      footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: ["occurrence-1"] }];
+    saved.state.occurrences["occurrence-1"] = { id: "occurrence-1", unitId: "body:1",
+      start, end, text: text.slice(start, end), kind: "case", citation: "2024 ABKB 1",
+      authoritySpan: { start, end, text: text.slice(start, end) },
+      coreSpan: { start: text.indexOf("2024"), end, text: "2024 ABKB 1" },
+      pinpointSpan: null, authorityId: "authority-1", reference: null, pinpoints: [],
+      evidenceIds: [], sourceTextSha256: "a".repeat(64), localOrdinal: 0, reviewed: false };
+    add(saved, { ...authority("authority-1", "R v Example", { kind: "unresolved" }),
+      citation: "2024 ABKB 1" });
+    api.getWorkProduct.mockResolvedValue(saved);
+    render(<MemoryRouter initialEntries={["/table-of-authorities?draft=draft-1"]}>
+      <TableOfAuthoritiesPage />
+    </MemoryRouter>);
+
+    const context = await screen.findByRole("textbox", { name: "In-text citation context" });
+    await waitFor(() => expect(assistant.options.at(-1)?.workProduct).toEqual({
+      kind: "authorities", id: "draft-1", revision: 1,
+      focus: { itemId: "occurrence-1" },
+    }));
+    selectRange(context, 3, end + 3);
+    await waitFor(() => expect(assistant.options.at(-1)?.workProduct).toEqual({
+      kind: "authorities", id: "draft-1", revision: 1,
+      focus: { itemId: "occurrence-1", selection: { start: 3, end: end + 3 } },
+    }));
   });
 
   it("keeps the scoped Assistant mounted through build and tool refresh", async () => {

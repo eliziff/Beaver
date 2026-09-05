@@ -46,6 +46,23 @@ describe("getWorkProductResolution", () => {
 });
 
 describe("work-product uploads", () => {
+  it("carries the selected authority source language", async () => {
+    await configure("local");
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: "draft-1" }), {
+      headers: { "Content-Type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { attachAuthorityPdf } = await import("./beaverApi");
+    const file = new File(["%PDF-1.7"], "French.pdf", { type: "application/pdf" });
+
+    await attachAuthorityPdf("draft-1", "case-1", 3, file, "fr");
+
+    const body = fetchMock.mock.calls[0][1]?.body as FormData;
+    expect(body.get("revision")).toBe("3");
+    expect(body.get("language")).toBe("fr");
+    expect(body.get("file")).toBe(file);
+  });
+
   it("carries Court Draft and Authorities Project context in multipart fields", async () => {
     await configure("local");
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: "document-1" }), {

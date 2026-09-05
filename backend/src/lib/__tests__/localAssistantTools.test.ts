@@ -14,7 +14,7 @@ import * as XLSX from "xlsx";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { zipDocumentBytes } from "./support/documentBytes";
 import { resourceReference } from "../resourceReferences";
-import { globPattern } from "../chat/resourceTools";
+import { availableDocumentsPrompt, globPattern } from "../chat/resourceTools";
 
 vi.mock("../remoteUrlSafety", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../remoteUrlSafety")>()),
@@ -119,6 +119,23 @@ async function expectReadRecipesAccepted(
   }
 }
 
+async function seedResearch(
+  store: typeof import("./support/localDocumentFixtures"),
+  filename: string,
+  actions: import("../researchFile").ResearchFileAction[],
+) {
+  const research = await import("../researchFile"), document = await store.createLocalDocument({
+    userId: "local-user", kind: "file", filename,
+    bytes: Buffer.from(research.researchFileMarkdown(filename.replace(/\.research\.md$/u, ""),
+      research.createResearchFileState())),
+  });
+  let file = await research.readResearchFile(store.localDocuments,
+    { userId: "local-user" }, document.id);
+  for (const action of actions) file = await research.commitResearchFile(store.localDocuments,
+    { userId: "local-user" }, file!, action);
+  return { document, file: file!, resource: resourceReference.document(document.id, file!.versionId) };
+}
+
 afterEach(async () => {
   try {
     await (await import("../relationalDatabase")).closeRelationalDatabase();
@@ -138,6 +155,41 @@ afterEach(async () => {
 });
 
 describe("local assistant tools", () => {
+
+  it("reads saved evidence without fetching and pages historical search receipts", async () => {
+    const { createTnaEvidence, createLegalEvidenceTurnState, registerPriorLegalEvidence,
+      registerLegalResearchQueries, priorLegalEvidencePrompt } = await import("../chat/legalEvidence"),
+      { runLocalAssistantTools } = await import("./support/localAssistantTools"),
+      state = createLegalEvidenceTurnState(), receipt = createTnaEvidence({
+        jurisdiction: "CA", sourceClass: "case", stableSourceId: "saved-case",
+        sourceText: "The appeal is allowed.", spanText: "The appeal is allowed.",
+        citation: "2024 SCC 1", dataset: "SCC", locatorKind: "paragraph", locatorLabel: "12",
+      });
+    registerPriorLegalEvidence(state, [receipt, { ...receipt, evidence_id: "e_corrupted", span_text: "Altered" }]);
+    registerLegalResearchQueries(state, Array.from({ length: 30 }, (_, index) => ({
+      call_id: `search-${index}`, tool: "search_sources" as const, executed_at: "2026-09-04T00:00:00Z",
+      executor_version: "legal-source-search-v1" as const, input: { query: `Search ${index}` },
+      results: Array.from({ length: 3 }, (_, rank) => ({ rank, resource: `source-${index}-${rank}` })),
+    })), "test");
+    const queries = [...state.queries.values()];
+    expect(priorLegalEvidencePrompt([receipt], queries)).not.toContain(queries[0].query_id);
+    vi.stubGlobal("fetch", () => { throw new Error("Saved receipt must not fetch"); });
+    const calls = [receipt.evidence_id, "e_corrupted", "e_missing", "queries", "queries", queries[0].query_id]
+      .map((file_path, index) => ({ id: `read-${index}`, name: "Read", input: { file_path,
+        ...(index >= 3 ? { offset: index === 4 ? 3 : 1, limit: 2 } : {}) } }));
+    const [read, corrupted, missing, first, second, query] = await runLocalAssistantTools(
+      "local-user", calls, { legalEvidence: state });
+    expect(JSON.parse(read.content)).toMatchObject({ evidence_id: receipt.evidence_id,
+      exact_passage: receipt.span_text });
+    expect(JSON.parse(corrupted.content)).toMatchObject({ ok: false });
+    expect(JSON.parse(missing.content)).toMatchObject({ ok: false });
+    expect(JSON.parse(first.content)).toMatchObject({ total: 30, next_offset: 3,
+      items: queries.slice(0, 2).map(({ query_id }) => ({ query_id })) });
+    expect(JSON.parse(second.content)).toMatchObject({ next_offset: 5,
+      items: queries.slice(2, 4).map(({ query_id }) => ({ query_id })) });
+    expect(JSON.parse(query.content)).toMatchObject({ query_id: queries[0].query_id,
+      results: queries[0].results.slice(0, 2), total: 3, next_offset: 3 });
+  });
 
   it.each([
     {
@@ -647,7 +699,7 @@ describe("local assistant tools", () => {
     expect(read.content).toContain("Clause term TERM.");
   });
 
-  it("lists duplicate filenames and edits by canonical resource", async () => {
+  it("lists duplicate filenames and resumes same-turn edits by canonical resource", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-turn-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
@@ -680,12 +732,8 @@ describe("local assistant tools", () => {
     );
     expect(recovered.content).toContain("Alpha Beta.");
 
-    const turnState = new Map<
-      string,
-      { versionId: string; parentVersionId: string }
-    >();
-    const edits = [
-      ...(await tools.runLocalAssistantTools(
+    const turnId = "same-turn";
+    const [firstEdit] = await tools.runLocalAssistantTools(
         "local-user",
         [{
           id: "edit-alpha",
@@ -696,26 +744,26 @@ describe("local assistant tools", () => {
             new_string: "Gamma",
           },
         }],
-        { edits: turnState },
-      )),
-      ...(await tools.runLocalAssistantTools(
+        { edits: new Map(), turnId },
+      );
+    const [secondEdit] = await tools.runLocalAssistantTools(
         "local-user",
         [{
           id: "edit-beta",
           name: "Edit",
           input: {
-            file_path: intendedResource,
+            file_path: JSON.parse(firstEdit.content).resource,
             old_string: "Beta",
             new_string: "Delta",
           },
         }],
-        { edits: turnState },
-      )),
-    ];
+        { edits: new Map(), turnId },
+      );
+    const edits = [firstEdit, secondEdit];
     expect(edits.every((edit) =>
       JSON.parse(edit.content).action === "revised")).toBe(true);
-    expect((await store.listLocalVersions("local-user", intended.id))?.versions)
-      .toHaveLength(2);
+    const history = await store.listLocalVersions("local-user", intended.id);
+    expect(history?.versions).toHaveLength(2);
     expect((await store.listLocalVersions("local-user", other.id))?.versions)
       .toHaveLength(1);
     const revised = JSON.parse(edits.at(-1)!.content);
@@ -733,19 +781,64 @@ describe("local assistant tools", () => {
     const store = await import("./support/localDocumentFixtures");
     const original = await store.createLocalDocument({ userId: "local-user", kind: "file",
       filename: "factum.txt", bytes: Buffer.from("Original filing text.") });
+    const other = await store.createLocalDocument({ userId: "local-user", kind: "file",
+      filename: "other-authority.pdf", bytes: Buffer.from("%PDF-1.7") });
     await store.addLocalVersion({ userId: "local-user", documentId: original.id,
       filename: "factum.txt", bytes: Buffer.from("Later filing text.") });
     const resource = resourceReference.document(original.id, original.current_version_id);
     const tools = await import("./support/localAssistantTools");
     const [listed, read] = await tools.runLocalAssistantTools("local-user", [
-      { id: "glob-index", name: "Glob", input: { pattern: "doc-1" } },
+      { id: "glob-index", name: "Glob", input: { pattern: "*" } },
       { id: "read-index", name: "Read", input: { file_path: resource } },
     ], { docIndex: { "doc-1": { document_id: original.id, filename: "factum.txt",
       version_id: original.current_version_id, version_number: 1 } } });
 
     expect(listed.content).toContain(`${resource}\talias=doc-1\tfilename=factum.txt`);
+    expect(listed.content).toContain(`document://${other.id}/version/${other.current_version_id}` +
+      "\tfilename=other-authority.pdf");
     expect(read.content).toContain("Original filing text.");
     expect(read.content).not.toContain("Later filing text.");
+  });
+
+  it("bounds large document inventories while retaining attachments, later pages, and project isolation", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-inventory-tools-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("./support/localDocumentFixtures"),
+      tools = await import("./support/localAssistantTools"), scope = { userId: "local-user" },
+      project = await store.localProjects.create(scope, { name: "Matter", cmNumber: null,
+        practice: null, sharedWith: [] }),
+      source = await store.localDocuments.create(scope, { filename: "Selected.txt", fileType: "txt",
+        bytes: Buffer.from("The selected document remains readable."), projectId: project.id, libraryKind: "file" }),
+      foreign = await store.createLocalDocument({ userId: "local-user", kind: "file",
+        filename: "Outside.txt", bytes: Buffer.from("Outside this project") }),
+      docIndex = Object.fromEntries(Array.from({ length: 1_001 }, (_, index) => [`doc-${index}`, {
+        document_id: index === 1_000 ? source.id : `document-${index}`,
+        version_id: index === 1_000 ? source.current_version_id : "version-1",
+        version_number: 1, filename: index === 1_000 ? "Selected.txt" : `File-${index}.txt`,
+      }])), records = new Map(Object.values(docIndex).map((document) =>
+        [document.document_id, { folder_path: "Nested folder / ".repeat(1_000) }])),
+      inventory = availableDocumentsPrompt(docIndex, records, [source.id]);
+    expect(inventory.length).toBeLessThanOrEqual(8_000);
+    expect(inventory.indexOf("doc-1000:")).toBeLessThan(inventory.indexOf("doc-0:"));
+    expect(inventory).toContain("Selected.txt");
+    expect(inventory).not.toContain("File-999.txt");
+    const selected = Object.values(docIndex).slice(-50).map(({ document_id }) => document_id),
+      manyAttachments = availableDocumentsPrompt(docIndex, records, selected);
+    expect(manyAttachments.length).toBeLessThanOrEqual(8_000);
+    for (let index = 951; index <= 1_000; index++) expect(manyAttachments).toContain(`- doc-${index}:`);
+    const [first, later, read, rejected] = await tools.runLocalAssistantTools("local-user", [
+      { id: "first", name: "Glob", input: { pattern: "*", limit: 50 } },
+      { id: "later", name: "Glob", input: { pattern: "*", offset: 1_001, limit: 50 } },
+      { id: "read", name: "Read", input: { file_path: resourceReference.document(source.id, source.current_version_id) } },
+      { id: "foreign", name: "Read", input: { file_path: resourceReference.document(foreign.id, foreign.current_version_id) } },
+    ], { matterId: project.id, docIndex });
+    expect(first.content.length).toBeLessThanOrEqual(12_100);
+    expect(first.content).toContain("next_offset=51");
+    expect(first.content).not.toContain("Selected.txt");
+    expect(later.content).toContain(`${resourceReference.document(source.id, source.current_version_id)}\talias=doc-1000`);
+    expect(later.content).not.toContain("next_offset=");
+    expect(read.content).toContain("The selected document remains readable.");
+    expect(rejected.status).toBe("error");
   });
 
   it("discovers root Library files when the chat has no focused documents", async () => {
@@ -778,54 +871,84 @@ describe("local assistant tools", () => {
     expect(read.content).toContain("Library evidence survives an empty chat focus.");
   });
 
+  it("discovers Library files beyond the first page", async () => {
+    const store = await import("./support/localDocumentFixtures");
+    const document = { id: "later-document", filename: "later-opinion.pdf",
+      current_version_id: "later-version", file_type: "pdf", project_id: null,
+      library_kind: "file" };
+    const page = vi.fn(async (_scope, options: { after: unknown }) => options.after
+      ? { items: [{ kind: "document" as const, document }], nextAfter: null }
+      : { items: [], nextAfter: [0, "cursor", "cursor"] as [number, string, string] });
+    const tools = await import("./support/localAssistantTools");
+    const [listed] = await tools.runLocalAssistantTools("local-user", [{
+      id: "glob-later-library-page", name: "Glob", input: { pattern: "later-*" },
+    }], { library: { ...store.localLibraryStore, page } });
+
+    expect(page).toHaveBeenCalledTimes(2);
+    expect(listed.content).toContain(
+      "document://later-document/version/later-version\tfilename=later-opinion.pdf");
+  });
+
   it("does not expose an unverified saved passage as citable evidence", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-read-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
     const { createA2AJPassageEvidence, createLegalEvidenceTurnState } =
       await import("../chat/legalEvidence");
-    const { createResearchFileState, reduceResearchFile, researchFileMarkdown,
-      researchQueryReceipt } =
-      await import("../researchFile");
+    const { commitResearchFile, researchQueryReceipt } = await import("../researchFile");
     const receipt = createA2AJPassageEvidence({ citation: "2026 SCC 1", name: "Example",
       dataset: "scc", language: "en", sourceText: "Bounded holding.",
       spanText: "Bounded holding.", start: 0, end: 16, externalUrl: null,
       sourceClass: "case", sourceReference: { id: "2026 SCC 1" } });
-    let state = reduceResearchFile(createResearchFileState(),
-      { type: "merge", evidence: [receipt] });
-    const sourceId = Object.keys(state.sources)[0], query = researchQueryReceipt({
+    const seeded = await seedResearch(store, "holding.research.md",
+      [{ type: "merge", evidence: [receipt] }]), sourceId = Object.keys(seeded.file.state.sources)[0],
+      removedLabelId = "11111111-1111-4111-8111-111111111111",
+      query = researchQueryReceipt({
       query_id: "q_saved", call_id: "call-saved", tool: "Read",
       executed_at: "2026-09-01T00:00:00.000Z", model: "saved-model",
       executor_version: "legal-source-pattern-v1",
       input: { rules: [{ phrase: "Holding:", direction: "after", unit: "sentence",
-        chars: 100, slot: "Holding" }], source_ids: [sourceId], limit: 25 },
+        chars: 100, slot: removedLabelId }], source_ids: [sourceId],
+        label_ids: [removedLabelId], unlabelled: true, limit: 25 },
       results: [{ rank: 1, evidence_id: receipt.evidence_id }],
     });
     query.sourceIds = [sourceId]; query.evidenceIds = [receipt.evidence_id];
     query.failures = [{ sourceId, code: "not_found" }]; query.slots = {
-      [receipt.evidence_id]: ["Holding"] };
-    state = reduceResearchFile(state, { type: "merge", queries: [query] });
-    const document = await store.createLocalDocument({ userId: "local-user", kind: "file",
-      filename: "holding.research.md", bytes: Buffer.from(researchFileMarkdown("Holding", state)) });
-    const tools = await import("./support/localAssistantTools"), evidence = createLegalEvidenceTurnState();
-    const filePath = resourceReference.document(document.id, document.current_version_id);
-    const [source, search, response] = await tools.runLocalAssistantTools("local-user", [{ id: "read-source",
+      [receipt.evidence_id]: [removedLabelId] };
+    query.sourceFingerprints = { [sourceId]: ["a".repeat(64)] };
+    query.sourceReferences = { [sourceId]: seeded.file.state.sources[sourceId].reference };
+    query.labelPaths = { [removedLabelId]: "Issues / Holding" };
+    const file = await commitResearchFile(store.localDocuments, { userId: "local-user" },
+      seeded.file, { type: "merge", queries: [query] }), document = seeded.document;
+    const tools = await import("./support/localAssistantTools"), evidence = createLegalEvidenceTurnState(),
+      edits = new Map();
+    const filePath = resourceReference.document(document.id, file!.versionId);
+    const [source, search, response, queried] = await tools.runLocalAssistantTools("local-user", [{ id: "read-source",
       name: "Read", input: { file_path: filePath, offset: 1, limit: 1 } }, { id: "read-search",
       name: "Read", input: { file_path: filePath, offset: 2, limit: 1 } },
-    { id: "read-research", name: "Read", input: { file_path: filePath, offset: 3, limit: 1 } }], {
-      documentNames: new Map([[document.id, document.filename]]), legalEvidence: evidence });
+    { id: "read-research", name: "Read", input: { file_path: filePath, offset: 3, limit: 1 } },
+    { id: "query-research", name: "document_operation", input: { action: "research",
+      document_id: filePath, research_action: { type: "query", text: "Bounded",
+        syntax: "literal", target: "passages" } } }], {
+      documentNames: new Map([[document.id, document.filename]]), legalEvidence: evidence, edits });
     expect(JSON.parse(source.content)).toMatchObject({ items: [{ kind: "source",
       resource: resourceReference.source("a2aj",
-        JSON.stringify(["2026 SCC 1", "cases", "scc"])) }] });
+        JSON.stringify(["2026 SCC 1", "cases", "scc", "en"])) }] });
     expect(JSON.parse(search.content)).toMatchObject({ total: 3, items: [{ kind: "search",
-      query_id: "q_saved", scope: { source_ids: [sourceId], limit: 25 },
+      query_id: "q_saved", call_id: "call-saved", model: "saved-model",
+      executor_version: "legal-source-pattern-v1", input: query.input, results: query.results,
       attempted_source_ids: [sourceId], evidence_ids: [receipt.evidence_id],
-      slots: { [receipt.evidence_id]: ["Holding"] },
-      failures: [{ sourceId, code: "not_found" }], rules: [{ slot: "Holding" }] }] });
+      source_fingerprints: { [sourceId]: ["a".repeat(64)] },
+      source_references: { [sourceId]: expect.objectContaining({ id: "2026 SCC 1" }) },
+      label_paths: { [removedLabelId]: "Issues / Holding" },
+      slots: { [receipt.evidence_id]: [removedLabelId] },
+      failures: [{ sourceId, code: "not_found" }] }] });
     const payload = JSON.parse(response.content);
     expect(payload).toMatchObject({ total: 3, items: [{ kind: "unavailable_passage",
       evidence_id: receipt.evidence_id }] });
     expect(response.evidence).toBeUndefined();
+    expect(JSON.parse(queried.content)).toMatchObject({ match_count: 0, matches: [] });
+    expect(queried.evidence).toBeUndefined();
   });
 
   it("creates saved research as an ordinary readable Library file", async () => {
@@ -853,13 +976,28 @@ describe("local assistant tools", () => {
           parentId: rootOutput.label_id } } }], { edits });
     expect(JSON.parse(child.content)).toMatchObject({ label_id: expect.any(String),
       counts: { labels: 2 } });
+    const [stale] = await tools.runLocalAssistantTools("local-user", [{ id: "stale-label",
+      name: "document_operation", input: { action: "research",
+        document_id: JSON.parse(child.content).resource,
+        research_action: { type: "label", id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          name: "Resurrected", scope: "source" } } }], { edits });
+    expect(JSON.parse(stale.content)).toMatchObject({ ok: false, error: "tool_error" });
     const history = await store.listLocalVersions("local-user", output.document_id);
     expect(history?.versions).toHaveLength(1);
     expect(history?.versions[0]).toMatchObject({ provenance: {
       actor: "assistant", action: "created" } });
   });
 
-  it("reuses a named research file and advances same-turn writes", async () => {
+  it("omits research operations where the chat does not support them", async () => {
+    const tools = await import("./support/localAssistantTools"), operation =
+      tools.localAssistantToolRegistry("local-user", { includeResearchTools: false }).all()
+        .find(({ name }) => name === "document_operation");
+    expect(operation).toMatchObject({ inputSchema: { properties: {
+      action: { enum: ["metadata", "fix_supras"] } } } });
+    expect(JSON.stringify(operation)).not.toContain("research_action");
+  });
+
+  it("advances same-turn research writes without checkpointing no-ops", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-reuse-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
@@ -868,23 +1006,51 @@ describe("local assistant tools", () => {
       filename: "Cases.research.md", bytes: Buffer.from(researchFileMarkdown("Cases", createResearchFileState())) });
     const resource = resourceReference.document(document.id, document.current_version_id);
     const tools = await import("./support/localAssistantTools");
-    const [selected, first, second] = await tools.runLocalAssistantTools("local-user", [
-      { id: "reuse", name: "document_operation", input: { action: "research",
-        research_action: { type: "create", title: "Cases" } } },
+    const [selected, , first, second] = await tools.runLocalAssistantTools("local-user", [
+      { id: "read", name: "Read", input: { file_path: resource } },
+      { id: "noop", name: "document_operation", input: { action: "research", document_id: resource,
+        research_action: { type: "note", markdown: "" } } },
       { id: "first", name: "document_operation", input: { action: "research", document_id: resource,
         research_action: { type: "label", name: "First", scope: "source" } } },
       { id: "second", name: "document_operation", input: { action: "research", document_id: resource,
         research_action: { type: "label", name: "Second", scope: "source" } } },
     ], { documentNames: new Map([[document.id, document.filename]]), edits: new Map() });
-    expect(JSON.parse(selected.content)).toMatchObject({ action: "selected", document_id: document.id });
+    expect(JSON.parse(selected.content)).toMatchObject({ document_id: document.id });
     expect(JSON.parse(first.content)).toMatchObject({ counts: { labels: 1 } });
     expect(JSON.parse(second.content)).toMatchObject({ counts: { labels: 2 } });
     const history = await store.listLocalVersions("local-user", document.id);
     expect(history?.versions).toHaveLength(2);
     expect(history?.versions.find(({ id }) => id === history.current_version_id)).toMatchObject({
       source: "assistant_edit", parent_version_id: document.current_version_id,
-      provenance: { actor: "assistant", action: "revised",
-        parent_version_id: document.current_version_id } });
+      provenance: { actor: "assistant", action: "revised" } });
+  });
+
+  it("rejects a first research write after a human autosave", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-race-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("./support/localDocumentFixtures");
+    const { commitResearchFile, createResearchFileState, readResearchFile,
+      researchFileMarkdown } = await import("../researchFile");
+    const document = await store.createLocalDocument({ userId: "local-user", kind: "file",
+      filename: "Cases.research.md",
+      bytes: Buffer.from(researchFileMarkdown("Cases", createResearchFileState())) });
+    const resource = resourceReference.document(document.id, document.current_version_id),
+      edits = new Map(), documentNames = new Map([[document.id, document.filename]]),
+      tools = await import("./support/localAssistantTools");
+    await tools.runLocalAssistantTools("local-user",
+      [{ id: "read", name: "Read", input: { file_path: resource } }],
+      { documentNames, edits });
+    const read = await readResearchFile(store.localDocuments, { userId: "local-user" }, document.id);
+    await commitResearchFile(store.localDocuments, { userId: "local-user" }, read!,
+      { type: "note", markdown: "Human note" });
+    const [attempt] = await tools.runLocalAssistantTools("local-user", [{ id: "assistant-write",
+      name: "document_operation", input: { action: "research", document_id: resource,
+        research_action: { type: "label", name: "Assistant label", scope: "source" } } }],
+    { documentNames, edits });
+    expect(JSON.parse(attempt.content)).toEqual({ ok: false, error: "Version conflict" });
+    const after = await readResearchFile(store.localDocuments, { userId: "local-user" }, document.id);
+    expect(after?.state.note).toBe("Human note");
+    expect(Object.keys(after?.state.labels ?? {})).toHaveLength(0);
   });
 
   it("pages the full saved-research note as ordinary Read rows", async () => {
@@ -905,143 +1071,339 @@ describe("local assistant tools", () => {
     expect(output.items.map((item: { markdown: string }) => item.markdown).join("")).toBe(note);
   });
 
-  it("pages saved-research annotation and query tails without clipping them", async () => {
+  it("pages complete bounded saved-research details without materializing them at once", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-details-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const store = await import("./support/localDocumentFixtures");
-    const { createA2AJPassageEvidence } = await import("../chat/legalEvidence");
-    const { createResearchFileState, reduceResearchFile, researchFileMarkdown,
-      researchQueryReceipt } = await import("../researchFile");
+    const store = await import("./support/localDocumentFixtures"),
+      { a2ajLegalSourceProvider } = await import("../legalSources/a2aj"),
+      { structureNative } = await import("../structureNative");
+    const { createA2AJPassageEvidence, createLegalEvidenceTurnState } = await import("../chat/legalEvidence");
+    const { commitResearchFile, pageResearchItems, researchQueryReceipt } = await import("../researchFile");
+    const passageText = "The exact holding controls. ".repeat(1_300),
+      native = await structureNative().deriveDocumentStructure({ kind: "provider_text", input: {
+        provider: "a2aj", citation: "2026 SCC 1", source_kind: "cases", text: passageText,
+        dataset: "scc", require_report_start: true, url: null } });
     const receipt = createA2AJPassageEvidence({ citation: "2026 SCC 1", name: "Example",
-      dataset: "scc", language: "en", sourceText: "Holding.", spanText: "Holding.",
-      start: 0, end: 8, externalUrl: null, sourceClass: "case",
+      dataset: "scc", language: "en", sourceSha256: structureNative().documentRevision(native),
+      spanText: passageText, start: 0, end: passageText.length, externalUrl: null, sourceClass: "case",
       sourceReference: { id: "2026 SCC 1" } });
-    let state = reduceResearchFile(createResearchFileState(), { type: "merge", evidence: [receipt] });
-    const sourceId = Object.keys(state.sources)[0], ids = Array.from({ length: 105 }, (_, index) =>
+    vi.spyOn(a2ajLegalSourceProvider, "document").mockResolvedValue({ docType: "cases", dataset: "scc",
+      citation: receipt.citation, alternateCitation: null, name: "Example", date: null, url: null,
+      verifiedPdf: null, language: "en", upstreamLicense: null, native });
+    const seeded = await seedResearch(store, "details.research.md", []); let state = seeded.file.state,
+      researchFile = seeded.file;
+    for (const scope of ["source", "highlight"] as const) for (let index = 0; index < 21; index++)
+      { researchFile = (await commitResearchFile(store.localDocuments, { userId: "local-user" },
+        researchFile, { type: "label", name: `${scope} ${index}`, scope }))!; state = researchFile.state; }
+    researchFile = (await commitResearchFile(store.localDocuments, { userId: "local-user" },
+      researchFile, { type: "merge", evidence: [receipt] }))!; state = researchFile.state;
+    const sourceLabelIds = Object.values(state.labels).filter(({ scope }) => scope === "source")
+      .map(({ id }) => id), highlightLabelIds = Object.values(state.labels)
+      .filter(({ scope }) => scope === "highlight").map(({ id }) => id),
+      ids = Array.from({ length: 105 }, (_, index) =>
       `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`),
       evidenceIds = [receipt.evidence_id, ...ids.slice(1).map((_, index) => `e_${index}`)],
-      sourceNote = "s".repeat(500), passageNote = "p".repeat(500), query = researchQueryReceipt({
-        query_id: "q_details", call_id: "details", tool: "Read",
-        executed_at: "2026-09-01T00:00:00.000Z", model: "model",
+      hostileNote = "\0".repeat(13_000), sourceNote = hostileNote, passageNote = hostileNote,
+      hostile = "\0\\\"".repeat(200), fullReference = { provider: "journal", family: "f".repeat(1_000),
+        id: "i".repeat(500), part: "p".repeat(1_000), kind: "case" as const,
+        title: "t".repeat(1_000), citation: "c".repeat(1_000),
+        alternateCitation: "a".repeat(1_000), date: "d".repeat(1_000),
+        collection: "o".repeat(1_000), language: "fr" as const,
+        url: `https://example.test/${"u".repeat(1_000)}` },
+      query = researchQueryReceipt({
+        query_id: "q_details", call_id: hostileNote, tool: "Read",
+        executed_at: "2026-09-01T00:00:00.000Z", model: hostileNote,
         executor_version: "legal-source-pattern-v1",
-        input: { pattern: "holding", source_ids: ids, label_ids: ids }, results: [],
+        input: { pattern: hostile.repeat(20), source_ids: ids, label_ids: ids,
+          rules: ids.slice(0, 50).map((id) => ({ phrase: hostile.slice(0, 500),
+            direction: "after", unit: "sentence", chars: 500, slot: id })) },
+        results: evidenceIds.slice(0, 100).map((evidence_id, rank) => ({ rank: rank + 1, evidence_id })),
       });
     query.sourceIds = ids; query.evidenceIds = evidenceIds;
     query.failures = ids.map((id) => ({ sourceId: id, code: "unavailable" }));
-    state.sources[sourceId].note = sourceNote; state.evidence[receipt.evidence_id].note = passageNote;
-    state = reduceResearchFile(state, { type: "merge", queries: [query] });
-    const document = await store.createLocalDocument({ userId: "local-user", kind: "file",
-      filename: "details.research.md", bytes: Buffer.from(researchFileMarkdown("Details", state)) });
-    const tools = await import("./support/localAssistantTools");
-    const [read] = await tools.runLocalAssistantTools("local-user", [{ id: "read-details",
-      name: "Read", input: { file_path: resourceReference.document(
-        document.id, document.current_version_id), limit: 20 } }], {
-      documentNames: new Map([[document.id, document.filename]]) });
-    const output = JSON.parse(read.content), rows = output.items as Array<Record<string, unknown>>;
-    const continuation = (kind: string) => rows.filter((row) => row.kind === kind)
-      .map((row) => String(row.markdown)).join("");
-    expect(String(rows.find(({ kind }) => kind === "source")?.note) +
-      continuation("source_note_continuation")).toBe(sourceNote);
-    expect(String(rows.find(({ kind }) => kind === "unavailable_passage")?.note) +
-      continuation("passage_note_continuation")).toBe(passageNote);
-    expect(rows.filter(({ kind }) => kind === "search_continuation")
-      .map(({ field, items }) => [field, (items as unknown[]).length])).toEqual([
-        ["scope.source_ids", 5], ["scope.label_ids", 5], ["attempted_source_ids", 5],
-        ["evidence_ids", 5], ["failures", 5],
-      ]);
+    query.slots = Object.fromEntries(evidenceIds.map((id, index) => [id, index
+      ? [ids[index]] : Array.from({ length: 100 }, () => hostile.slice(0, 200))]));
+    query.sourceFingerprints = Object.fromEntries(ids.map((id) => [id, ["a".repeat(64)]]));
+    query.sourceReferences = Object.fromEntries(ids.map((id, index) => [id, index
+      ? { provider: "courtlistener", id: String(index), kind: "case" } : fullReference]));
+    query.labelPaths = Object.fromEntries(ids.map((id, index) => [id,
+      index ? `Issues / Label ${index}` : "\0".repeat(1_000)]));
+    researchFile = (await commitResearchFile(store.localDocuments, { userId: "local-user" },
+      researchFile, { type: "note", markdown: hostileNote }))!;
+    researchFile = (await commitResearchFile(store.localDocuments, { userId: "local-user" },
+      researchFile, { type: "source", reference: fullReference,
+        labelIds: sourceLabelIds, note: sourceNote }))!; state = researchFile.state;
+    const detailedSourceId = Object.values(state.sources)
+      .find(({ reference }) => reference.id === fullReference.id)!.id;
+    const passageSourceId = Object.values(state.sources).find(({ reference }) =>
+      reference.id === "2026 SCC 1")!.id;
+    researchFile = (await commitResearchFile(store.localDocuments, { userId: "local-user" },
+      researchFile, { type: "annotate", kind: "evidence", sourceId: passageSourceId,
+        id: receipt.evidence_id, labelIds: highlightLabelIds, note: passageNote }))!;
+    const discovery = researchQueryReceipt({ query_id: "q_discovery", call_id: "source-search",
+      tool: "search_sources", executed_at: "2026-09-01T00:01:00.000Z", model: "model",
+      executor_version: "legal-source-search-v1", input: { query: "procedural fairness",
+        source_types: ["case", "journal"], syntax: "boolean", search_type: "full_text",
+        jurisdiction: "CA", collection: "ONCA", court: "onca", speaker: "Smith",
+        date_from: "2020-01-01", date_to: "2026-09-01", sort: "most_cited", limit: 20 },
+      results: [{ rank: 1, resource: resourceReference.source("a2aj",
+        JSON.stringify(["2026 ONCA 1", "cases", "onca"])) }] });
+    researchFile = (await commitResearchFile(store.localDocuments, { userId: "local-user" },
+      researchFile, { type: "merge", queries: [query, discovery] }))!; state = researchFile.state;
+    const savedQueries = (await pageResearchItems(store.localDocuments, { userId: "local-user" },
+      researchFile, "queries", 0, 2)).items.flatMap((item) => item.kind === "query" ? [item.value] : []),
+      savedQuery = savedQueries.find(({ query_id }) => query_id === query.query_id)!,
+      savedDiscovery = savedQueries.find(({ query_id }) => query_id === discovery.query_id)!;
+    const document = seeded.document;
+    const tools = await import("./support/localAssistantTools"), evidence = createLegalEvidenceTurnState(),
+      file_path = resourceReference.document(document.id, researchFile.versionId),
+      context = { documentNames: new Map([[document.id, document.filename]]), legalEvidence: evidence },
+      read = async (input: Record<string, unknown>, id: string) => {
+        const [answer] = await tools.runLocalAssistantTools("local-user",
+          [{ id, name: "Read", input: { file_path, ...input } }], context);
+        expect(answer.content.length).toBeLessThan(45_000);
+        return JSON.parse(answer.content) as { items: Array<Record<string, unknown>>;
+          next_offset: number | null; total: number; categories?: Record<string, { count: number }> };
+      }, first = await read({ offset: 1, limit: 1 }, "read-details-first"),
+      rows = [...first.items];
+    expect(first.items).toEqual([expect.objectContaining({ kind: "note" })]);
+    expect(evidence.queries.size).toBe(0);
+    expect(a2ajLegalSourceProvider.document).not.toHaveBeenCalled();
+    let next = first.next_offset, output = first, reads = 1;
+    while (next !== null) {
+      output = await read({ offset: next, limit: 20 }, `read-details-${reads}`);
+      rows.push(...output.items); next = output.next_offset;
+      expect(++reads).toBeLessThan(20);
+    }
+    expect(rows).toHaveLength(output.total);
+    expect(Math.max(...rows.map((row) => JSON.stringify(row).length))).toBeLessThan(45_000);
+    expect(rows.filter(({ kind }) => kind === "note").map(({ markdown }) => markdown).join(""))
+      .toBe(hostileNote);
+    expect(rows.find(({ query_id }) => query_id === query.query_id)).toMatchObject({
+      section: "search:2", continued: true, truncated: true });
+    expect(rows.find(({ sourceId }) => sourceId === detailedSourceId)).toMatchObject({
+      section: expect.stringMatching(/^source:\d+$/u), labels: 21, continued: true });
+    expect(rows.find(({ evidence_id }) => evidence_id === receipt.evidence_id)).toMatchObject({
+      section: expect.stringMatching(/^passage:\d+$/u), labels: 21, continued: true });
+    const decoded = new Map<string, Record<string, unknown>>();
+    for (const head of rows.filter(({ continued }) => continued === true)) {
+      const chunks: Array<Record<string, unknown>> = [];
+      let sectionNext: number | null = 1;
+      while (sectionNext !== null) {
+        const page = await read({ section: head.section, offset: sectionNext, limit: 20 },
+          `read-${head.section}-${sectionNext}`);
+        expect(page.items.length).toBeLessThanOrEqual(3);
+        chunks.push(...page.items); sectionNext = page.next_offset;
+      }
+      let charOffset = 1;
+      for (const chunk of chunks) { expect(chunk).toMatchObject({ section: head.section,
+        field: "receipt", encoding: "json", offset: charOffset });
+        expect(JSON.stringify(chunk).length).toBeLessThan(45_000);
+        charOffset += String(chunk.json).length; }
+      decoded.set(String(head.section), JSON.parse(chunks.map(({ json }) => json).join("")));
+    }
+    const exact = (head: Record<string, unknown>) => head.continued
+      ? decoded.get(String(head.section))! : head,
+      searches = rows.filter(({ kind }) => kind === "search").map(exact),
+      search = searches.find(({ query_id }) => query_id === query.query_id)!,
+      restoredDiscovery = searches.find(({ query_id }) => query_id === discovery.query_id)!;
+    expect(search).toMatchObject({ kind: "search", truncated: false,
+      query_id: query.query_id, call_id: query.call_id, model: query.model });
+    expect(search.input).toEqual(query.input);
+    expect(search.results).toEqual(savedQuery.results);
+    expect(search.attempted_source_ids).toEqual(savedQuery.sourceIds);
+    expect(search.matched_source_ids).toEqual(savedQuery.matchedSourceIds);
+    expect(search.evidence_ids).toEqual(savedQuery.evidenceIds);
+    expect(search.failures).toEqual(savedQuery.failures);
+    expect(search.slots).toEqual(savedQuery.slots);
+    expect(search.source_fingerprints).toEqual(savedQuery.sourceFingerprints);
+    const { url: _url, ...safeReference } = fullReference;
+    const savedDetailedSourceId = Object.entries(savedQuery.sourceReferences ?? {})
+      .find(([, reference]) => reference.id === fullReference.id)![0];
+    expect(search.source_references).toMatchObject({ [savedDetailedSourceId]: safeReference });
+    expect(Object.keys(search.source_references as object)).toHaveLength(savedQuery.sourceIds.length);
+    expect(search.label_paths).toEqual(savedQuery.labelPaths);
+    expect((search.slots as Record<string, string[]>)[receipt.evidence_id]).toHaveLength(100);
+    expect(restoredDiscovery.input).toEqual(discovery.input);
+    expect(restoredDiscovery.results).toEqual(savedDiscovery.results);
+    expect(restoredDiscovery.result_source_ids).toEqual(savedDiscovery.sourceIds);
+    expect(restoredDiscovery.matched_source_ids).toEqual(savedDiscovery.matchedSourceIds);
+    expect(restoredDiscovery.continued).toBeUndefined();
+    const restoredSource = exact(rows.find(({ sourceId }) => sourceId === detailedSourceId)!);
+    expect(restoredSource.reference).toEqual(safeReference);
+    expect(restoredSource.labelIds).toEqual(sourceLabelIds);
+    expect(restoredSource.note).toBe(sourceNote);
+    const restoredPassage = exact(rows.find(({ evidence_id }) => evidence_id === receipt.evidence_id)!);
+    expect(restoredPassage).toMatchObject({ kind: "passage", evidence_id: receipt.evidence_id,
+      sourceId: passageSourceId, locator: receipt.locator });
+    expect(restoredPassage.exact_passage).toBe(passageText);
+    expect(restoredPassage.labelIds).toEqual(highlightLabelIds);
+    expect(restoredPassage.note).toBe(passageNote);
+    expect(evidence.priorQueryIds).toEqual(new Set([query.query_id, discovery.query_id]));
   });
 
-  it("saves and classifies a source-only current search result", async () => {
+  it("saves and classifies a search result and its verified passage", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-source-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
-    const { createLegalEvidenceTurnState, registerLegalResearchQueries } =
+    const { createA2AJPassageEvidence, createLegalEvidenceTurnState, registerLegalEvidence,
+      registerLegalResearchQueries } =
       await import("../chat/legalEvidence");
-    const { createResearchFileState, readResearchFile, reduceResearchFile,
-      researchFileMarkdown } = await import("../researchFile");
-    const state = reduceResearchFile(createResearchFileState(),
-      { type: "label", name: "Leading", scope: "source" });
-    const labelId = Object.keys(state.labels)[0], document = await store.createLocalDocument({
-      userId: "local-user", kind: "file", filename: "cases.research.md",
-      bytes: Buffer.from(researchFileMarkdown("Cases", state)),
-    });
+    const { readResearchEvidenceParts, readResearchFile } = await import("../researchFile"),
+      seeded = await seedResearch(store, "cases.research.md", [
+        { type: "label", name: "Leading", scope: "source" },
+        { type: "label", name: "Holding", scope: "highlight" }]),
+      sourceLabel = Object.values(seeded.file.state.labels).find(({ scope }) => scope === "source")!.id,
+      highlightLabel = Object.values(seeded.file.state.labels).find(({ scope }) => scope === "highlight")!.id,
+      document = seeded.document;
     const source = resourceReference.source("a2aj",
-      JSON.stringify(["2026 SCC 1", "cases", "scc"]));
+      JSON.stringify(["2026 SCC 1", "cases", "scc", "en"]));
     const evidence = createLegalEvidenceTurnState();
     registerLegalResearchQueries(evidence, [{ call_id: "search", tool: "search_sources",
       executed_at: "2026-09-01T00:00:00.000Z", executor_version: "legal-source-search-v1",
       input: { query: "example" }, results: [{ rank: 1, resource: source }] }], "model");
+    const receipt = createA2AJPassageEvidence({ citation: "2026 SCC 1", name: "Example",
+      dataset: "scc", language: "en", sourceText: "The verified holding.",
+      spanText: "The verified holding.", start: 0, end: 21, externalUrl: null,
+      sourceClass: "case", sourceReference: { id: "2026 SCC 1" },
+      locator: { kind: "paragraph", label: "par7" } });
+    registerLegalEvidence(evidence, receipt);
     const tools = await import("./support/localAssistantTools");
-    const [saved] = await tools.runLocalAssistantTools("local-user", [{ id: "save-source",
+    const edits = new Map(), documentNames = new Map([[document.id, document.filename]]);
+    const [, saved] = await tools.runLocalAssistantTools("local-user", [{ id: "read-research",
+      name: "Read", input: { file_path: seeded.resource } }, { id: "save-source",
       name: "document_operation", input: { action: "research",
-        document_id: resourceReference.document(document.id, document.current_version_id),
+        document_id: seeded.resource,
         research_action: { type: "source", reference: { provider: "a2aj",
-          id: "2026 SCC 1", kind: "case" }, labelIds: [labelId], badge: "Lead",
-        note: "Controls the test." } } }], { legalEvidence: evidence });
-    expect(JSON.parse(saved.content)).toMatchObject({ ok: true, counts: { sources: 1 } });
-    expect(JSON.parse(saved.content).source_id).toMatch(/^[0-9a-f-]{36}$/u);
+          id: "2026 SCC 1", kind: "case", title: "Example case" },
+        labelIds: [sourceLabel], badge: "Lead",
+        note: "Controls the test." } } }], { legalEvidence: evidence, documentNames, edits });
+    const sourceOutput = JSON.parse(saved.content);
+    expect(sourceOutput).toMatchObject({ ok: true, counts: { sources: 1 } });
+    expect(sourceOutput.source_id).toMatch(/^[0-9a-f-]{36}$/u);
+    const [passage] = await tools.runLocalAssistantTools("local-user", [{ id: "save-passage",
+      name: "document_operation", input: { action: "research", document_id: sourceOutput.resource,
+        evidence_ids: [receipt.evidence_id], research_action: { type: "save" } } }],
+    { legalEvidence: evidence, documentNames, edits });
+    const passageOutput = JSON.parse(passage.content), savedPassage = passageOutput.saved[0];
+    expect(savedPassage).toEqual({ evidence_id: receipt.evidence_id, source_id: sourceOutput.source_id });
+    await tools.runLocalAssistantTools("local-user", [{ id: "annotate-passage",
+      name: "document_operation", input: { action: "research", document_id: passageOutput.resource,
+        research_action: { type: "annotate", kind: "evidence", id: savedPassage.evidence_id,
+          sourceId: savedPassage.source_id, labelIds: [highlightLabel], note: "Controls." } } }],
+    { legalEvidence: evidence, documentNames, edits });
     const file = await readResearchFile(store.localDocuments, { userId: "local-user" }, document.id);
     expect(Object.values(file!.state.sources)[0]).toMatchObject({
-      labelIds: [labelId], badge: "Lead", note: "Controls the test.",
-      reference: { provider: "a2aj", id: "2026 SCC 1", collection: "scc" },
+      labelIds: [sourceLabel], badge: "Lead", note: "Controls the test.",
+      reference: { provider: "a2aj", id: "2026 SCC 1", title: "Example case",
+        collection: "scc", language: "en" },
     });
+    expect(Object.values((await readResearchEvidenceParts(store.localDocuments,
+      { userId: "local-user" }, file!, [sourceOutput.source_id])).get(sourceOutput.source_id)!))
+      .toEqual([expect.objectContaining({
+        labelIds: [highlightLabel], note: "Controls." })]);
   });
 
-  it("creates a thin Markdown memo linked to the exact research file version", async () => {
+  it("creates a thin Markdown memo linked to its research file", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-memo-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
-    const { createResearchFileState, researchFileMarkdown } = await import("../researchFile");
-    const research = await store.createLocalDocument({ userId: "local-user", kind: "file",
-      filename: "cases.research.md",
-      bytes: Buffer.from(researchFileMarkdown("Cases", createResearchFileState())) });
-    const exact = resourceReference.document(research.id, research.current_version_id);
-    const tools = await import("./support/localAssistantTools");
-    const [created] = await tools.runLocalAssistantTools("local-user", [{ id: "memo",
+    const { createA2AJPassageEvidence, createLegalEvidenceTurnState, registerLegalEvidence } =
+      await import("../chat/legalEvidence");
+    const receipt = createA2AJPassageEvidence({ citation: "2026 SCC 1", name: "Example",
+      dataset: "scc", language: "en", sourceText: "The verified holding.",
+      spanText: "The verified holding.", start: 0, end: 21, externalUrl: null,
+      sourceClass: "case", sourceReference: { id: "2026 SCC 1" },
+      locator: { kind: "paragraph", label: "par7" } }), unsaved = createA2AJPassageEvidence({
+      citation: "2026 SCC 2", name: "Other", dataset: "scc", language: "en",
+      sourceText: "Another verified passage.", spanText: "Another verified passage.", start: 0,
+      end: 25, externalUrl: null, sourceClass: "case", sourceReference: { id: "2026 SCC 2" } });
+    const seeded = await seedResearch(store, "cases.research.md",
+      [{ type: "merge", evidence: [receipt] }]), research = seeded.document, exact = seeded.resource;
+    const tools = await import("./support/localAssistantTools"), evidence = createLegalEvidenceTurnState();
+    registerLegalEvidence(evidence, receipt); registerLegalEvidence(evidence, unsaved);
+    const [, created, rejected] = await tools.runLocalAssistantTools("local-user", [{ id: "read-research",
+      name: "Read", input: { file_path: exact } }, { id: "memo",
       name: "document_operation", input: { action: "research", document_id: exact,
+        evidence_ids: [receipt.evidence_id],
         research_action: { type: "memo", title: "Case memo",
-          markdown: "The authorities support the proposition." } } }]);
+          markdown: `# Case memo\n\n## Analysis\n\nThe authorities support the proposition. [@${receipt.evidence_id}]` } } }, { id: "unsupported-memo",
+      name: "document_operation", input: { action: "research", document_id: exact,
+        evidence_ids: [unsaved.evidence_id], research_action: { type: "memo", title: "Unsupported",
+          markdown: "An unsupported proposition." } } }], {
+      documentNames: new Map([[research.id, research.filename]]), edits: new Map(),
+      legalEvidence: evidence });
     const output = JSON.parse(created.content), file = await store.localDocuments.read(
       { userId: "local-user" }, output.document_id, null, false);
     expect(output).toMatchObject({ ok: true, action: "created", filename: "Case memo.md",
       research: exact });
-    expect(file?.bytes.toString()).toContain(`[Research file](${exact})`);
+    const markdown = file?.bytes.toString() ?? "";
+    expect(markdown.match(/^# Case memo$/gmu)).toHaveLength(1);
+    expect(markdown).toContain(`[Research file](/sources?research_file=${research.id})`);
+    expect(markdown).toContain("## Analysis");
+    expect(markdown).toContain("[2026 SCC 1 · par7](</sources/view?");
+    expect(markdown).not.toContain("document://");
+    expect(markdown).not.toContain("[@");
+    expect(JSON.parse(rejected.content)).toEqual({ ok: false,
+      error: "Unknown or unsaved evidence ID" });
     expect((await store.localDocuments.metadata({ userId: "local-user" }, output.document_id))
       ?.project_id).toBeNull();
   });
 
-  it("runs saved-research queries beyond 25 matches with a bounded preview", async () => {
+  it("bounds model passage queries to one verified result page", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-query-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
-    const { createA2AJPassageEvidence } = await import("../chat/legalEvidence");
-    const { createResearchFileState, reduceResearchFile, researchFileMarkdown } =
-      await import("../researchFile");
+    const { createA2AJPassageEvidence, createLegalEvidenceTurnState } =
+      await import("../chat/legalEvidence");
+    const { a2ajLegalSourceProvider } = await import("../legalSources/a2aj"),
+      { structureNative } = await import("../structureNative");
     const lines = Array.from({ length: 30 }, (_, index) => `Match passage ${index}.`),
-      sourceText = lines.join("\n");
+      sourceText = lines.join("\n"), native = await structureNative().deriveDocumentStructure({
+        kind: "provider_text", input: { provider: "a2aj", citation: "2026 SCC 1",
+          source_kind: "cases", text: sourceText, dataset: "scc", require_report_start: true,
+          url: null } }), sourceSha256 = structureNative().documentRevision(native);
     const receipts = lines.map((spanText) => { const start = sourceText.indexOf(spanText);
       return createA2AJPassageEvidence({ citation: "2026 SCC 1", name: "Example",
-        dataset: "scc", language: "en", sourceText, spanText, start,
+        dataset: "scc", language: "en", sourceSha256, spanText, start,
         end: start + spanText.length, externalUrl: null, sourceClass: "case",
         sourceReference: { id: "2026 SCC 1" } }); });
-    const state = reduceResearchFile(createResearchFileState(),
-      { type: "merge", evidence: receipts });
-    const research = await store.createLocalDocument({ userId: "local-user", kind: "file",
-      filename: "matches.research.md", bytes: Buffer.from(researchFileMarkdown("Matches", state)) });
-    const tools = await import("./support/localAssistantTools");
-    const [queried] = await tools.runLocalAssistantTools("local-user", [{ id: "query",
+    vi.spyOn(a2ajLegalSourceProvider, "document").mockResolvedValue({ docType: "cases",
+      dataset: "scc", citation: "2026 SCC 1", alternateCitation: null, name: "Example",
+      date: null, url: null, verifiedPdf: null, language: "en", upstreamLicense: null, native });
+    const seeded = await seedResearch(store, "matches.research.md",
+      [{ type: "merge", evidence: receipts }]), research = seeded.document;
+    const tools = await import("./support/localAssistantTools"), edits = new Map(),
+      legalEvidence = createLegalEvidenceTurnState(),
+      documentNames = new Map([[research.id, research.filename]]);
+    const resource = seeded.resource;
+    const [, queried] = await tools.runLocalAssistantTools("local-user", [{ id: "read-research",
+      name: "Read", input: { file_path: resource } }, { id: "query",
       name: "document_operation", input: { action: "research",
-        document_id: resourceReference.document(research.id, research.current_version_id),
+        document_id: resource,
         research_action: { type: "query", text: "match", syntax: "literal",
-          target: "passages", limit: 100 } } }]);
+          target: "passages", unlabelled: true, limit: 100 } } }], {
+      documentNames, edits, legalEvidence });
     const output = JSON.parse(queried.content);
-    expect(output).toMatchObject({ ok: true, match_count: 30, matches_truncated: true,
+    expect(output).toMatchObject({ ok: true, match_count: 25,
       counts: { searches: 0 } });
+    expect(output.matches_truncated).toBeUndefined();
     expect(output.matches).toHaveLength(25);
     expect(queried.evidence).toHaveLength(25);
-    expect(queried.queryReceipts).toEqual([expect.objectContaining({ call_id: "query" })]);
+    expect(queried.queryReceipts).toEqual([expect.objectContaining({ call_id: "query",
+      input: expect.objectContaining({ unlabelled: true }) })]);
     expect(queried.mutated).toBeUndefined();
     expect((await store.listLocalVersions("local-user", research.id))?.versions).toHaveLength(1);
+    const queryId = queried.queryReceipts![0].query_id;
+    legalEvidence.queries.set(queryId, queried.queryReceipts![0]);
+    const [saved] =
+      await tools.runLocalAssistantTools("local-user", [{ id: "save-query",
+        name: "document_operation", input: { action: "research", document_id: resource,
+          query_ids: [queryId], research_action: { type: "save" } } }], {
+        documentNames, edits, legalEvidence });
+    expect(JSON.parse(saved.content)).toMatchObject({ ok: true, counts: {
+      passages: 30, searches: 1 } });
+    expect(saved.mutated).toBe(true);
   });
 
   it("bounds adversarial search patterns", async () => {
@@ -1184,6 +1546,7 @@ describe("local assistant tools", () => {
       id: "attach-authority", name: "update_work_product", input: {
         action: "update", kind: "authorities", draft_id: active.id,
         authority_id: "authority-1",
+        source_language: "en",
         document_id: resourceReference.document(document.id, document.current_version_id),
       },
     }], {
@@ -1192,21 +1555,30 @@ describe("local assistant tools", () => {
     });
 
     expect(attachLibraryPdf).toHaveBeenCalledWith({ userId: "local-user" }, active.id, {
-      revision: 3, authorityId: "authority-1", documentId: document.id,
-      versionId: document.current_version_id,
+      revision: 3, documentId: document.id, versionId: document.current_version_id,
+      target: { kind: "authority", authorityId: "authority-1", language: "en" },
     });
     expect(response.mutated).toBe(true);
     expect(JSON.parse(response.content)).toMatchObject({ ok: true,
       work_product: { id: active.id, kind: "authorities", revision: 4 },
+      change: { type: "attach-authority-pdf", authority_id: "authority-1",
+        source_language: "en" },
     });
   });
 
   it("reads Authorities summary-first and returns only requested occurrence detail", async () => {
     const { createAuthoritiesDraft } = await import("../authoritiesDomain");
     const draft = createAuthoritiesDraft({ kind: "manual" });
+    draft.cover = { courtFileNumber: "T-42-26", partyGroups: [
+      { role: "Applicant", parties: ["Ada North"] },
+      { role: "Respondent", parties: ["Boreal Ltd."] },
+    ], applicationUnder: "Federal Courts Act, section 18.1", title: "Book of Authorities" };
     const text = "See R v Jordan, 2016 SCC 27 at para 5.";
     draft.units = [{ id: "body:0", kind: "body", ordinal: 0, footnoteId: null,
-      footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: ["occurrence-1"] }];
+      footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: ["occurrence-1"] },
+    { id: "body:1", kind: "body", ordinal: 1, footnoteId: null,
+      footnoteRefs: [], pageNumbers: [2], text: "See ibid.",
+      occurrenceIds: ["occurrence-2"] }];
     draft.authorities.jordan = { id: "jordan", key: "jordan", kind: "case",
       citation: "2016 SCC 27", name: "R v Jordan", displayName: null, evidenceIds: [],
       locators: [], sourceIdentity: null, excluded: false,
@@ -1218,6 +1590,17 @@ describe("local assistant tools", () => {
         citation: `${index} ${"x".repeat(800)}`, name: `Case ${index} ${"y".repeat(800)}` };
       draft.authorityOrder.push(id);
     }
+    const enSha = "a".repeat(64), frSha = "b".repeat(64);
+    draft.authorities.jordan.source = { kind: "attached", sources: [
+      { bindingRole: "authority:jordan:en", filename: "Jordan EN.pdf", sourceSha256: enSha,
+        sourceUrl: null, origin: "manual", language: "en" },
+      { bindingRole: "authority:jordan:fr", filename: "Jordan FR.pdf", sourceSha256: frSha,
+        sourceUrl: null, origin: "manual", language: "fr" },
+    ] };
+    draft.bindings["authority:jordan:en"] = { kind: "local-file", handleId: "en",
+      lastSeen: { name: "Jordan EN.pdf", size: 1, modified: 1, sha256: enSha } };
+    draft.bindings["authority:jordan:fr"] = { kind: "local-file", handleId: "fr",
+      lastSeen: { name: "Jordan FR.pdf", size: 1, modified: 1, sha256: frSha } };
     draft.occurrences["occurrence-1"] = { id: "occurrence-1", unitId: "body:0",
       start: 4, end: 37, text: text.slice(4, 37),
       authoritySpan: { start: 4, end: 27, text: text.slice(4, 27) },
@@ -1226,6 +1609,12 @@ describe("local assistant tools", () => {
       kind: "case", citation: "2016 SCC 27",
       authorityId: "jordan", reference: null, pinpoints: [{ kind: "paragraph", text: "para 5" }],
       evidenceIds: [], sourceTextSha256: "source-hash", localOrdinal: 4, reviewed: false };
+    draft.occurrences["occurrence-2"] = { ...draft.occurrences["occurrence-1"],
+      id: "occurrence-2", unitId: "body:1", start: 4, end: 8, text: "ibid",
+      authoritySpan: { start: 4, end: 8, text: "ibid" },
+      coreSpan: { start: 4, end: 8, text: "ibid" }, pinpointSpan: null,
+      kind: "reference", citation: "ibid", reference: { kind: "ibid",
+        targetAuthorityId: "jordan" }, pinpoints: [], localOrdinal: 4 };
     const current = { id: "draft-1", kind: "authorities" as const, title: "Authorities",
       projectId: null, revision: 7, state: draft, outputs: {}, createdAt: "now", updatedAt: "now" };
     const act = vi.fn(async (_scope, _id, revision) => ({ ...current, revision: revision + 1 }));
@@ -1239,12 +1628,18 @@ describe("local assistant tools", () => {
     const tools = await import("./support/localAssistantTools");
     const responses = await tools.runLocalAssistantTools("local-user", [
       { id: "read-authorities", name: "update_work_product",
-        input: { action: "read", kind: "authorities" } },
+        input: { action: "read", kind: "authorities", occurrence_limit: 1 } },
+      { id: "page-occurrences", name: "update_work_product",
+        input: { action: "read", kind: "authorities", occurrence_offset: 1,
+          occurrence_limit: 1 } },
       { id: "read-occurrence", name: "update_work_product", input: { action: "read",
         kind: "authorities", occurrence_id: "occurrence-1" } },
       { id: "edit-authorities", name: "update_work_product", input: { action: "update",
         kind: "authorities", authorities_action: { type: "set-authority-span",
           occurrence_id: "occurrence-1", start: 4, end: 27 } } },
+      { id: "remove-occurrence", name: "update_work_product", input: { action: "update",
+        kind: "authorities", authorities_action: { type: "remove-occurrence",
+          occurrence_id: "occurrence-2" } } },
       { id: "refresh-authorities", name: "update_work_product", input: {
         action: "refresh", kind: "authorities", input_role: "source" } },
       { id: "build-authorities", name: "update_work_product",
@@ -1260,37 +1655,109 @@ describe("local assistant tools", () => {
     const summary = JSON.parse(responses[0].content);
     expect(summary).toMatchObject({ ok: true,
       work_product: { id: current.id, kind: "authorities", revision: 7 },
-      draft: { counts: { units: 1, occurrences: 1, authorities: 501 },
+      draft: { counts: { units: 2, occurrences: 2, authorities: 501 },
+        cover: draft.cover,
         book_parts: { cover: null, index: null },
         authorities: expect.arrayContaining([
-          expect.objectContaining({ id: "jordan", citation: "2016 SCC 27" }),
-        ]) },
+          expect.objectContaining({ id: "jordan", citation: "2016 SCC 27", source: {
+            status: "attached", pdf_count: 2,
+            pdfs: expect.arrayContaining([
+              expect.objectContaining({ filename: "Jordan EN.pdf", language: "en" }),
+              expect.objectContaining({ filename: "Jordan FR.pdf", language: "fr" }),
+            ]),
+          } }),
+        ]), occurrence_index: [{ id: "occurrence-1", unit_id: "body:0",
+          start: 4, end: 37, kind: "case", citation: "2016 SCC 27",
+          authority_id: "jordan" }],
+        occurrence_page: { offset: 0, limit: 1, has_more: true } },
     });
     expect(summary.draft).not.toHaveProperty("units");
     expect(summary.draft).not.toHaveProperty("occurrences");
     expect(responses[0].content.length).toBeLessThan(64_000);
-    expect(JSON.parse(responses[1].content)).toMatchObject({ draft: { unit: {
+    expect(JSON.parse(responses[1].content)).toMatchObject({ draft: {
+      occurrence_index: [{ id: "occurrence-2", unit_id: "body:1" }],
+      occurrence_page: { offset: 1, limit: 1, has_more: false },
+    } });
+    expect(JSON.parse(responses[2].content)).toMatchObject({ draft: { unit: {
       id: "body:0", text, text_offset: 0 }, occurrence: { id: "occurrence-1",
       authority_span: { start: 4, end: 27 }, pinpoint_span: { start: 31, end: 37 } } } });
-    expect(responses[1].content).not.toContain("reviewed");
+    expect(responses[2].content).not.toContain("reviewed");
     expect(act).toHaveBeenCalledWith({ userId: "local-user" }, current.id, 7,
       { type: "set-authority-span", occurrenceId: "occurrence-1", start: 4, end: 27 });
+    expect(act).toHaveBeenCalledWith({ userId: "local-user" }, current.id, 8,
+      { type: "remove-occurrence", occurrenceId: "occurrence-2" });
     expect(refreshInput).toHaveBeenCalledWith({ userId: "local-user" }, current.id,
-      { revision: 8, role: "source" });
+      { revision: 9, role: "source" });
     expect(prepareSources).toHaveBeenCalledWith({ userId: "local-user" }, current.id,
-      9, expect.any(AbortSignal));
+      10, expect.any(AbortSignal));
     expect(build).toHaveBeenCalledWith({ userId: "local-user" }, current.id,
-      9, expect.any(AbortSignal));
+      10, expect.any(AbortSignal));
     expect(responses.at(-2)?.events).toEqual([expect.objectContaining({
       status: "complete", tool: "update_work_product",
       id: `work-product:${current.id}`,
-      work_product: { id: current.id, kind: "authorities", revision: 10 },
+      work_product: { id: current.id, kind: "authorities", revision: 11 },
     })]);
     expect(JSON.parse(responses.at(-1)!.content)).toEqual({ ok: false,
       error: "This assistant is bound to a different Authorities draft" });
   });
 
-  it("routes authority and cover edits through the existing Authorities reducer seam", async () => {
+  it("uses the bound Authorities focus without loading or repeating citation coordinates", async () => {
+    const { createAuthoritiesDraft } = await import("../authoritiesDomain");
+    const draft = createAuthoritiesDraft({ kind: "manual" });
+    const text = "😀 R v Example, 2024 ABKB 1", occurrenceId = "occurrence-1";
+    draft.units = [{ id: "body:0", kind: "body", ordinal: 0, footnoteId: null,
+      footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: [occurrenceId] }];
+    draft.occurrences[occurrenceId] = { id: occurrenceId, unitId: "body:0",
+      start: 3, end: text.length, text: text.slice(3), kind: "case", citation: "2024 ABKB 1",
+      authoritySpan: { start: 3, end: text.length, text: text.slice(3) },
+      coreSpan: { start: 16, end: text.length, text: "2024 ABKB 1" }, pinpointSpan: null,
+      authorityId: "example", reference: null, pinpoints: [], evidenceIds: [],
+      sourceTextSha256: "a".repeat(64), localOrdinal: 0, reviewed: false };
+    draft.authorities.example = { id: "example", key: "example", kind: "case",
+      citation: "2024 ABKB 1", name: "R v Example", displayName: null, evidenceIds: [],
+      locators: [], sourceIdentity: null, excluded: false, source: { kind: "unresolved" } };
+    draft.authorityOrder = ["example"];
+    const current = { id: "draft-1", kind: "authorities" as const, title: "Authorities",
+      projectId: null, revision: 5, state: draft, outputs: {}, createdAt: "now", updatedAt: "now" };
+    const act = vi.fn(async (_scope, _id, revision) => ({ ...current, revision: revision + 1 }));
+    const options = { authoritiesId: current.id, authoritiesRevision: current.revision,
+      workProductFocus: { itemId: occurrenceId, selection: { start: 3, end: 16 } },
+      authorities: { act } as never,
+      workProducts: { get: vi.fn(async () => current), resolve: vi.fn(async () => ({
+        product: current, freshness: "unbuilt", inputs: {}, dependencies: [],
+      })) } as never };
+    const tools = await import("./support/localAssistantTools");
+    const registry = tools.localAssistantToolRegistry("local-user", options);
+    expect(registry.visible().map(({ name }) => name)).toContain("update_work_product");
+    expect(registry.specialists()).not.toContain("update_work_product");
+
+    const responses = await tools.runLocalAssistantTools("local-user", [
+      { id: "read-focus", name: "update_work_product",
+        input: { action: "read", kind: "authorities" } },
+      { id: "span-focus", name: "update_work_product", input: { action: "update",
+        kind: "authorities", authorities_action: { type: "set-authority-span" } } },
+      { id: "merge-focus", name: "update_work_product", input: { action: "update",
+        kind: "authorities", authorities_action: { type: "merge-occurrence" } } },
+      { id: "remove-focus", name: "update_work_product", input: { action: "update",
+        kind: "authorities", authorities_action: { type: "remove-occurrence" } } },
+      { id: "relink-focus", name: "update_work_product", input: { action: "update",
+        kind: "authorities", authorities_action: { type: "relink-occurrence",
+          authority_id: "example" } } },
+    ], options);
+
+    expect(JSON.parse(responses[0].content)).toMatchObject({ draft: {
+      occurrence: { id: occurrenceId, unit_id: "body:0" },
+      focus: { occurrence_id: occurrenceId, selection: { start: 3, end: 16 } },
+    } });
+    expect(act.mock.calls.map((call) => call[3])).toEqual([
+      { type: "set-authority-span", occurrenceId, start: 3, end: 16 },
+      { type: "merge-occurrence", occurrenceId },
+      { type: "remove-occurrence", occurrenceId },
+      { type: "relink-occurrence", occurrenceId, authorityId: "example" },
+    ]);
+  });
+
+  it("routes authority edits and Library cover binding through their application seams", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
@@ -1301,6 +1768,8 @@ describe("local assistant tools", () => {
     const current = { id: "draft-1", kind: "authorities" as const, title: "Authorities",
       projectId: null, revision: 2, state: draft, outputs: {}, createdAt: "now", updatedAt: "now" };
     const act = vi.fn(async (_scope, _id, revision) => ({ ...current, revision: revision + 1 }));
+    const attachLibraryPdf = vi.fn(async (_scope, _id, input) =>
+      ({ ...current, revision: input.revision + 1 }));
     const tools = await import("./support/localAssistantTools");
     const resource = resourceReference.document(pdf.id, pdf.current_version_id);
     const actions = [
@@ -1308,6 +1777,11 @@ describe("local assistant tools", () => {
       { type: "remove-authority", authority_id: "unused" },
       { type: "clear-authority-source", authority_id: "unused" },
       { type: "clear-book-part", slot: "cover" },
+      { type: "set-cover", cover: { courtFileNumber: "T-42-26", partyGroups: [
+        { role: "Applicant", parties: ["Ada North"] },
+        { role: "Respondent", parties: ["Boreal Ltd."] },
+      ], applicationUnder: "Federal Courts Act, section 18.1", title: "Book of Authorities" } },
+      { type: "set-settings", settings: { book_role: "moving-party" } },
     ];
     const responses = await tools.runLocalAssistantTools("local-user", [
       ...actions.map((authorities_action, index) => ({ id: `action-${index}`,
@@ -1316,20 +1790,102 @@ describe("local assistant tools", () => {
       { id: "cover", name: "update_work_product", input: { action: "update",
         kind: "authorities", book_slot: "cover", document_id: resource } },
     ], { authoritiesId: current.id, authoritiesRevision: current.revision,
-      authorities: { act } as never,
+      authorities: { act, attachLibraryPdf } as never,
       workProducts: { get: vi.fn(async () => current) } as never });
 
-    expect(act.mock.calls.slice(0, 4).map((call) => call[3])).toEqual([
+    expect(act.mock.calls.slice(0, 6).map((call) => call[3])).toEqual([
       { type: "add-authority", kind: "case", citation: "2026 SCC 1", name: "R v A" },
       { type: "remove-authority", authorityId: "unused" },
       { type: "clear-authority-source", authorityId: "unused" },
       { type: "clear-book-part", slot: "cover" },
+      actions[4],
+      { type: "set-settings", settings: { bookRole: "moving-party" } },
     ]);
-    expect(act.mock.calls[4][3]).toMatchObject({ type: "set-book-part", slot: "cover",
-      pdf: { bindingRole: "book:cover", filename: "appendix.pdf" },
-      binding: { kind: "document", documentId: pdf.id, version: "latest" } });
+    expect(attachLibraryPdf).toHaveBeenCalledWith(expect.objectContaining({ userId: "local-user" }), current.id, {
+      revision: 8, documentId: pdf.id, versionId: pdf.current_version_id,
+      target: { kind: "book", slot: "cover" },
+    });
     expect(JSON.parse(responses.at(-1)!.content)).toMatchObject({ ok: true,
       change: { type: "attach-book-pdf", book_slot: "cover" } });
+  });
+
+  it("inspects, attaches, replaces, and removes a supplemental book PDF", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("./support/localDocumentFixtures");
+    const first = await store.createLocalDocument({ userId: "local-user", kind: "file",
+      filename: "chronology.pdf", bytes: Buffer.from("%PDF-1.7\nfirst\n%%EOF") });
+    const second = await store.createLocalDocument({ userId: "local-user", kind: "file",
+      filename: "chronology revised.pdf", bytes: Buffer.from("%PDF-1.7\nsecond\n%%EOF") });
+    const { createAuthoritiesDraft, reduceAuthoritiesDraft } = await import("../authoritiesDomain");
+    let current = { id: "draft-1", kind: "authorities" as const, title: "Authorities",
+      projectId: null, revision: 1, state: createAuthoritiesDraft({ kind: "manual" }),
+      outputs: {}, createdAt: "now", updatedAt: "now" };
+    const act = vi.fn(async (_scope: unknown, _id: string, revision: number,
+      action: Parameters<typeof reduceAuthoritiesDraft>[1]) => {
+      current = { ...current, revision: revision + 1,
+        state: reduceAuthoritiesDraft(current.state, action) };
+      return current;
+    });
+    const attachLibraryPdf = vi.fn(async (_scope: unknown, _id: string, input: {
+      revision: number; documentId: string; target: { kind: "book"; slot: "supplemental";
+        supplementId?: string } }) => {
+      const document = input.documentId === first.id ? first : second;
+      const id = input.target.supplementId ?? "supplement-1";
+      current = { ...current, revision: input.revision + 1, state: reduceAuthoritiesDraft(
+        current.state, { type: "set-book-supplement", binding: { kind: "document",
+          documentId: document.id, version: "latest" }, supplement: { id,
+          bindingRole: `book:supplemental:${id}`, filename: document.filename,
+          sourceSha256: document.source_sha256 } }) };
+      return current;
+    });
+    const tools = await import("./support/localAssistantTools");
+    const [attached] = await tools.runLocalAssistantTools("local-user", [{
+      id: "attach-supplement", name: "update_work_product", input: {
+        action: "update", kind: "authorities", book_slot: "supplemental",
+        document_id: resourceReference.document(first.id, first.current_version_id),
+      },
+    }], { authoritiesId: current.id, authoritiesRevision: current.revision,
+      authorities: { act, attachLibraryPdf } as never,
+      workProducts: { get: vi.fn(async () => current) } as never });
+    const supplementId = JSON.parse(attached.content).change.supplement_id as string;
+
+    const [inspected, replaced, removed] = await tools.runLocalAssistantTools("local-user", [
+      { id: "read-supplement", name: "update_work_product",
+        input: { action: "read", kind: "authorities" } },
+      { id: "replace-supplement", name: "update_work_product", input: {
+        action: "update", kind: "authorities", book_slot: "supplemental",
+        supplement_id: supplementId,
+        document_id: resourceReference.document(second.id, second.current_version_id),
+      } },
+      { id: "remove-supplement", name: "update_work_product", input: {
+        action: "update", kind: "authorities", authorities_action: {
+          type: "remove-book-supplement", supplement_id: supplementId,
+        },
+      } },
+    ], { authoritiesId: current.id, authoritiesRevision: current.revision,
+      authorities: { act, attachLibraryPdf } as never,
+      workProducts: { get: vi.fn(async () => current), resolve: vi.fn(async () => ({
+        product: current, freshness: "unbuilt", inputs: {}, dependencies: [],
+      })) } as never });
+
+    expect(JSON.parse(inspected.content)).toMatchObject({ draft: { book_parts: {
+      supplements: [{ id: supplementId, filename: "chronology.pdf" }],
+    } } });
+    expect(JSON.parse(replaced.content)).toMatchObject({ change: {
+      type: "attach-book-pdf", book_slot: "supplemental", supplement_id: supplementId,
+    } });
+    expect(JSON.parse(removed.content)).toMatchObject({ change: {
+      type: "remove-book-supplement", supplement_id: supplementId,
+    } });
+    expect(attachLibraryPdf.mock.calls.map((call) => call[2].target)).toEqual([
+      { kind: "book", slot: "supplemental" },
+      { kind: "book", slot: "supplemental", supplementId },
+    ]);
+    expect(act.mock.calls.map((call) => call[3])).toEqual([
+      { type: "remove-book-supplement", id: supplementId },
+    ]);
+    expect(current.state.bookParts.supplements).toEqual([]);
   });
 
   it("reports compact discrepancies and stale inputs, then refreshes one role", async () => {

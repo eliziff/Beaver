@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
     ExternalLink,
@@ -7,9 +7,8 @@ import {
     Search,
 } from "lucide-react";
 import { PageHeader } from "@/app/components/shared/PageHeader";
+import { AssistantDock } from "@/app/components/assistant/AssistantDock";
 import {
-    actOnResearchFile,
-    createResearchFile,
     getResearchFile,
     getLegalSourceCoverage,
     searchLegalSources,
@@ -17,7 +16,7 @@ import {
     type LegalSourceCoverage,
     type LegalSourceSearchResult,
 } from "@/app/lib/beaverApi";
-import { legalSourceViewerHref, type ResearchFile,
+import { legalSourceViewerHref, researchSourceKey, type ResearchFile, type ResearchSource,
     type ResearchSourceReference } from "@/app/lib/researchFiles";
 import {
     LegalSourceViewer,
@@ -29,8 +28,10 @@ import { errorMessage, formatLongDate } from "@/app/lib/utils";
 import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { SearchBar } from "@/app/components/ui/search-bar";
 import { Button } from "@/app/components/ui/button";
+import { TabList } from "@/app/components/ui/tabs";
 import { ResearchLabelPicker } from "./ResearchLabelPicker";
 import { ResearchWorkspaceHost } from "./ResearchWorkspaceHost";
+import { useResearchFileMutations } from "./useResearchFileMutations";
 
 const SOURCE_KINDS = {
     cases: [["court", "Courts"], ["tribunal", "Tribunals and boards"]],
@@ -55,7 +56,7 @@ const researchReference = (result: LegalSourceSearchResult): ResearchSourceRefer
     kind: result.doc_type === "cases" ? "case" : result.doc_type === "laws"
         ? "legislation" : result.doc_type === "articles" ? "journal" : "hansard",
     title: result.name, citation: result.citation, date: result.date,
-    collection: result.dataset, language: "en", url: result.url,
+    collection: result.dataset || null, language: result.language ?? "en", url: result.url,
 });
 
 function SearchSnippet({ children }: { children: string }) {
@@ -79,9 +80,10 @@ function SearchSnippet({ children }: { children: string }) {
 }
 
 export function LegalLibraryPage({ embedded = false, projectId, onResearchFileChange,
-    onOpenSource }: {
+    onOpenSource, researchRefreshKey }: {
     embedded?: boolean; projectId?: string;
     onResearchFileChange?: (file: ResearchFile | null) => void;
+    researchRefreshKey?: string | null;
     onOpenSource?: (tab: LegalSourceTab) => void;
 }) {
     const [params] = useSearchParams();
@@ -100,10 +102,15 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
     const [error, setError] = useState<string | null>(null);
     const [researchFile, setResearchFile] = useState<ResearchFile | null>(null);
     const [researchOpen, setResearchOpen] = useState(!!requestedResearchFileId);
+    const [researchRail, setResearchRail] = useState<HTMLElement | null>(null);
+    const [readingSource, setReadingSource] = useState<LegalSourceTab | null>(null);
+    const [sourceDropNonce, setSourceDropNonce] = useState(0);
     const [researchBusy, setResearchBusy] = useState(false);
+    const refreshedAfter = useRef(researchRefreshKey);
     const publishResearchFile = useCallback((file: ResearchFile | null) => {
-        setResearchFile(file); onResearchFileChange?.(file);
+        setResearchFile(file); if (file) setError(null); onResearchFileChange?.(file);
     }, [onResearchFileChange]);
+    const mutations = useResearchFileMutations(researchFile, publishResearchFile);
     const { docType, jurisdiction, sourceKind, dataset } = filters;
     const updateFilters = (next: Partial<typeof filters>) =>
         setFilters((current) => ({ ...current, ...next }));
@@ -118,20 +125,39 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
         }, (reason) => { if (current) setError(errorMessage(reason, "Could not open research file")); });
         return () => { current = false; };
     }, [publishResearchFile, requestedResearchFileId]);
+    useEffect(() => {
+        const changed = refreshedAfter.current !== researchRefreshKey;
+        refreshedAfter.current = researchRefreshKey;
+        if (!changed || !researchFile || !researchRefreshKey) return;
+        let current = true; void getResearchFile(researchFile.document.id).then((file) => {
+            if (current) publishResearchFile(file);
+        }, () => undefined);
+        return () => { current = false; };
+    }, [publishResearchFile, researchFile, researchRefreshKey]);
     const sourceIndex = useMemo(() => new Map(Object.values(researchFile?.state.sources ?? {})
-        .map((source) => [`${source.reference.provider}\0${source.reference.id}`, source])), [researchFile]);
+        .map((source) => [researchSourceKey(source.reference), source])), [researchFile]);
     const sourceInFile = (result: LegalSourceSearchResult, file = researchFile) => file === researchFile
-        ? sourceIndex.get(`${result.provider}\0${result.source_id ?? result.citation}`)
-        : file && Object.values(file.state.sources).find(({ reference }) => reference.provider === result.provider &&
-            reference.id === (result.source_id ?? result.citation));
+        ? sourceIndex.get(researchSourceKey(researchReference(result)))
+        : file && Object.values(file.state.sources).find(({ reference }) =>
+            researchSourceKey(reference) === researchSourceKey(researchReference(result)));
+    const needResearchFile = () => setResearchOpen(true);
+    const findSources = () => { setResearchOpen(false); setReadingSource(null); };
+    function readSavedSource(source: ResearchSource, locator?: string) {
+        const ref = source.reference, tab: LegalSourceTab = { kind: "legal",
+            id: `legal:${ref.provider}:${ref.id}`, provider: ref.provider === "journal" ? "journal" : "a2aj",
+            citation: ref.citation || ref.id, sourceId: ref.id, name: ref.title ?? null,
+            dataset: ref.collection ?? null, language: ref.language ?? "en",
+            docType: ref.kind === "legislation" ? "laws" : ref.kind === "journal" ? "articles" : "cases",
+            researchFileId: researchFile?.document.id, researchSourceId: source.id, initialLocator: locator };
+        if (embedded && onOpenSource) onOpenSource(tab); else setReadingSource(tab);
+    }
     async function saveResult(result: LegalSourceSearchResult, file = researchFile) {
+        if (!file) throw new Error("Choose or create a workspace first");
         setResearchBusy(true);
         try {
-            const destination = file ?? await createResearchFile({ title: "Research", projectId });
-            const next = await actOnResearchFile(destination.document.id, destination.versionId,
-                { type: "source", reference: researchReference(result) });
-            publishResearchFile(next);
-            return { file: next, itemId: sourceInFile(result, next)!.id };
+            const next = await mutations.act({ type: "source", reference: researchReference(result) });
+            if (!next.sourceId) throw new Error("Saved source was not returned");
+            return { file: next, itemId: next.sourceId };
         } finally { setResearchBusy(false); }
     }
     const typeCoverage = coverage.filter((item) => item.docType === docType);
@@ -209,9 +235,20 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
     return (
         <div className="relative flex h-full min-w-0">
         <div className="flex min-w-0 flex-1 flex-col">
-            {!embedded && <PageHeader breadcrumbs={[{ label: "Sources" }]} />}
-            <div
-                className={`min-h-0 flex-1 overflow-y-auto ${embedded ? "p-3" : "px-4 py-5 sm:px-6"}`}
+            {!embedded && <PageHeader breadcrumbs={[{ label: "Sources", onClick: researchOpen ? findSources : undefined },
+                ...(researchOpen ? [{ label: <span ref={setResearchRail} className="block min-w-0" /> }] : [])]}
+                actions={researchOpen ? [{ label: "Find sources", icon: <Search className="size-4" />, onClick: findSources }] : undefined} />}
+            {embedded && researchOpen && <div className="flex min-w-0 items-center gap-2 border-b border-gray-200 p-3">
+                <span ref={setResearchRail} className="block min-w-0 flex-1" />
+                {researchFile && <Link to={`/sources?research_file=${encodeURIComponent(researchFile.document.id)}`}
+                    aria-label="Open full research view" title="Open full research view"
+                    className="grid size-9 shrink-0 place-items-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-50">
+                    <ExternalLink className="size-4" aria-hidden="true" />
+                </Link>}
+                <Button variant="outline" onClick={findSources}>Find sources</Button>
+            </div>}
+            <div hidden={researchOpen}
+                className={`${researchOpen ? "hidden" : ""} min-h-0 flex-1 overflow-y-auto ${embedded ? "p-3" : "px-4 py-5 sm:px-6"}`}
             >
                 <div className="mx-auto max-w-5xl">
                     <div className="space-y-4">
@@ -219,17 +256,11 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                         onSubmit={runSearch}
                         className="@container rounded-lg border border-gray-200 bg-white p-4"
                     >
-                        <div className="mb-3 flex flex-wrap gap-1 rounded-lg bg-gray-100 p-1 sm:inline-flex"
-                            aria-label="Source category">
-                            {SOURCE_TABS.map(([value, label]) => <button key={value} type="button"
-                                aria-pressed={docType === value} onClick={() => updateFilters({
-                                    docType: value, jurisdiction: "", sourceKind: "", dataset: "" })}
-                                className={`h-8 rounded-md px-3 text-sm font-medium ${docType === value
-                                    ? "bg-white text-gray-900 shadow-sm"
-                                    : "text-gray-600 hover:text-gray-900"}`}>
-                                {label}
-                            </button>)}
-                        </div>
+                        <TabList value={docType} onValueChange={(value) => updateFilters({
+                            docType: value, jurisdiction: "", sourceKind: "", dataset: "" })}
+                            options={SOURCE_TABS.map(([value, label]) => ({ value, label }))}
+                            ariaLabel="Source category"
+                            className="mb-3 [&_.tab-list]:flex-wrap" />
                         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 @min-[42rem]:grid-cols-[minmax(0,1fr)_auto_auto]">
                             <SearchBar name="query" required value={searchQuery}
                                 onValueChange={setSearchQuery} booleanSearch
@@ -256,13 +287,14 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                             </Button>
                             <Button type="button" variant="outline" onClick={() => setResearchOpen(true)}
                                 aria-expanded={researchOpen} aria-label="Open research workspace"
+                                title={researchFile?.document.filename.replace(/\.research\.md$/iu, "") ?? "Workspace"}
                                 className="gap-2">
                                 Workspace
                                 <PanelsTopLeft className="size-4" aria-hidden="true" />
                             </Button>
                         </div>
                         {docType !== "all" && (
-                            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                            <div className="mt-3 grid gap-2 @min-[28rem]:grid-cols-2 @min-[48rem]:grid-cols-4">
                                 {(docType === "cases" || docType === "laws") && <>
                                     <label
                                         htmlFor="legal-jurisdiction"
@@ -272,7 +304,7 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                                         <ModalSelect
                                             id="legal-jurisdiction"
                                             value={jurisdiction}
-                                            searchable
+                                            searchable ariaLabel="Jurisdiction"
                                             onChange={(value) =>
                                                 updateFilters({
                                                     jurisdiction: value,
@@ -318,7 +350,7 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                                     </label>
                                     <label
                                         htmlFor="legal-dataset"
-                                        className={`${FILTER_LABEL} lg:col-span-2`}
+                                        className={`${FILTER_LABEL} @min-[48rem]:col-span-2`}
                                     >
                                         {docType === "cases"
                                             ? "Court or tribunal"
@@ -326,7 +358,7 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                                         <ModalSelect
                                             id="legal-dataset"
                                             value={dataset}
-                                            searchable
+                                            searchable ariaLabel={docType === "cases" ? "Court or tribunal" : "Collection"}
                                             onChange={(value) =>
                                                 updateFilters({ dataset: value })
                                             }
@@ -348,7 +380,7 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                                     </label>
                                 </>}
                                 {docType === "articles" && <>
-                                    <label className={`${FILTER_LABEL} lg:col-span-2`}>
+                                    <label className={`${FILTER_LABEL} @min-[48rem]:col-span-2`}>
                                         Author
                                         <input
                                             type="search"
@@ -357,7 +389,7 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                                             className={FILTER_INPUT}
                                         />
                                     </label>
-                                    <label className={`${FILTER_LABEL} lg:col-span-2`}>
+                                    <label className={`${FILTER_LABEL} @min-[48rem]:col-span-2`}>
                                         Journal
                                         <input
                                             type="search"
@@ -368,7 +400,7 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                                     </label>
                                 </>}
                                 {docType === "hansard" && (
-                                    <label className={`${FILTER_LABEL} sm:col-span-2 lg:col-span-4`}>
+                                    <label className={`${FILTER_LABEL} @min-[28rem]:col-span-2 @min-[48rem]:col-span-4`}>
                                         Speaker
                                         <input
                                             type="search"
@@ -394,7 +426,7 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                                         />
                                     </label>
                                 ))}
-                                <label className={`${FILTER_LABEL} sm:col-span-2`}>
+                                <label className={`${FILTER_LABEL} @min-[28rem]:col-span-2`}>
                                     Sort
                                     <select
                                         name="sort"
@@ -416,7 +448,7 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                         )}
                     </form>
                     {error && (
-                        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                             {error}
                         </p>
                     )}
@@ -431,8 +463,9 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                                         relative: false,
                                     });
                                     const citation = result.provider === "journal" && result.name
-                                        ? result.citation.replace(`“${result.name}”`, "")
-                                            .replace(/\s{2,}/gu, " ").trim()
+                                        ? result.citation.replace(result.name, "")
+                                            .replace(/(?:“”|""|‘’|'')/gu, "")
+                                            .replace(/^[\s"'“”‘’.,:;–—-]+/u, "").replace(/\s{2,}/gu, " ").trim()
                                         : result.citation;
                                     const metadata = [
                                         result.name && result.name !== citation
@@ -448,16 +481,15 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                                             className="rounded-md border border-gray-200 bg-white p-4"
                                         >
                                         <div className={`flex flex-col gap-3 ${embedded ? "" : "sm:flex-row sm:items-start"}`}>
-                                            <div className="flex min-w-0 flex-1 items-center gap-3">
+                                            <div className="flex min-w-0 flex-1 items-start gap-3">
                                                 <ResearchLabelPicker file={researchFile}
                                                     kind="source" itemId={saved?.id}
                                                     labelIds={saved?.labelIds ?? []} badge={saved?.badge} badgeColor={saved?.badgeColor} note={saved?.note}
                                                     title={result.name || result.citation} buttonLabel={saved?.badge}
-                                                    disabled={researchBusy} onChange={publishResearchFile}
-                                                    prepareFile={researchFile ? undefined : async () => {
-                                                        const next = await createResearchFile({ title: "Research", projectId });
-                                                        publishResearchFile(next); return next;
-                                                    }}
+                                                    disabled={researchBusy}
+                                                    mutations={mutations} onError={setError} sourceReference={researchReference(result)}
+                                                    onSourceDrag={() => { setResearchOpen(true); setSourceDropNonce((value) => value + 1); }}
+                                                    onNeedFile={needResearchFile}
                                                     prepare={saved ? undefined : (file) => saveResult(result, file)} />
                                                 <div className="min-w-0 flex-1">
                                                 <h3 className="mt-0.5 text-base font-semibold text-gray-900">
@@ -487,13 +519,13 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                                                         name: result.name,
                                                         dataset: result.dataset,
                                                         docType: result.doc_type === "hansard" ? "auto" : result.doc_type,
-                                                        language: "en",
+                                                        language: result.language,
                                                         researchFileId: researchFile?.document.id,
                                                         researchSourceId: saved?.id,
-                                                    })} className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark">
+                                                    })} aria-label={`View ${result.name || result.citation}`} className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark">
                                                         View
                                                     </button>
-                                                    : <Link
+                                                    : <Link aria-label={`View ${result.name || result.citation}`}
                                                         to={legalSourceViewerHref(researchReference(result), saved && researchFile
                                                             ? { fileId: researchFile.document.id, sourceId: saved.id } : undefined)}
                                                         className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark"
@@ -505,8 +537,8 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                                                         href={sourceHref}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        aria-label="View original source"
-                                                        title="View original source"
+                                                        aria-label={`Site: View original source for ${result.name || result.citation}`}
+                                                        title={`View original source for ${result.name || result.citation}`}
                                                         className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 hover:border-gray-400 hover:bg-gray-50"
                                                     >
                                                         Site
@@ -526,10 +558,20 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                     </div>
                 </div>
             </div>
-        </div>
+        {researchOpen && error && <p role="alert" className="px-6 py-2 text-sm text-red-700">{error}</p>}
         <ResearchWorkspaceHost embedded={embedded} open={researchOpen}
+            inline rail={researchRail} onReadSource={readSavedSource}
+            selectedSourceId={readingSource?.researchSourceId ?? undefined}
             onOpenChange={setResearchOpen} file={researchFile} projectId={projectId}
-            onChange={publishResearchFile} />
+            onChange={publishResearchFile} mutations={mutations} restoreLast={!requestedResearchFileId}
+            sourceDropNonce={sourceDropNonce} />
+        </div>
+        {readingSource && <AssistantDock tabs={[{ id: readingSource.id, label: "Source",
+            content: <LegalSourceViewer key={`${readingSource.id}:${readingSource.initialLocator ?? ""}`} {...readingSource}
+                researchFile={researchFile} onResearchFileChange={publishResearchFile} mutations={mutations} /> }]}
+            activeTabId={readingSource.id} onActivateTab={() => undefined} expanded
+            onExpandedChange={(open) => { if (!open) setReadingSource(null); }} showCollapsedButton={false}
+            defaultWidth={600} minWidth={400} maxWidth="60%" />}
         </div>
     );
 }
@@ -540,6 +582,8 @@ export function LegalLibrarySourcePage({
     const navigate = useNavigate();
     const [researchFile, setResearchFile] = useState<ResearchFile | null | undefined>();
     const [researchOpen, setResearchOpen] = useState(!!viewerProps.researchFileId);
+    const [sourceDropNonce, setSourceDropNonce] = useState(0);
+    const mutations = useResearchFileMutations(researchFile ?? null, setResearchFile);
     return (
         <div className="flex h-full min-h-0 min-w-0">
         <div className="flex min-w-0 flex-1 flex-col">
@@ -557,12 +601,15 @@ export function LegalLibrarySourcePage({
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 <div className="min-h-0 flex-1"><LegalSourceViewer {...viewerProps}
                     researchFile={researchFile} onResearchFileChange={setResearchFile}
-                    onOpenResearch={() => setResearchOpen(true)} /></div>
+                    mutations={mutations}
+                    onOpenResearch={(intent) => { setResearchOpen(true);
+                        if (intent) setSourceDropNonce((value) => value + 1); }} /></div>
             </div>
         </div>
         <ResearchWorkspaceHost embedded={false} open={researchOpen}
             onOpenChange={setResearchOpen} file={researchFile ?? null}
-            projectId={viewerProps.projectId} onChange={setResearchFile} />
+            projectId={viewerProps.projectId} onChange={setResearchFile} mutations={mutations}
+            restoreLast={!viewerProps.researchFileId} sourceDropNonce={sourceDropNonce} />
         </div>
     );
 }

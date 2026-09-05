@@ -1,6 +1,7 @@
 import type { ApplicationScope } from "./applicationError";
 
-export type WorkProductKind = "court-record" | "authorities" | "research-set";
+export const WORK_PRODUCT_KINDS = ["court-record", "authorities"] as const;
+export type WorkProductKind = typeof WORK_PRODUCT_KINDS[number];
 
 export type WorkProductInput =
   | { kind: "local-file"; handleId: string; lastSeen: {
@@ -138,7 +139,7 @@ export function decodeWorkProductBuildReceipt(value: unknown): WorkProductBuildR
   if (receipt?.schemaVersion !== "beaver.work-product-build.v2" ||
       !text(receipt.builtAt, 50) || Number.isNaN(Date.parse(String(receipt.builtAt))) ||
       !product || !text(product.id, 200) ||
-      !["court-record", "authorities", "research-set"].includes(String(product.kind)) ||
+      !WORK_PRODUCT_KINDS.includes(product.kind as WorkProductKind) ||
       !Number.isSafeInteger(product.revision) || Number(product.revision) < 1 ||
       !list(inputs, 500, (value) => {
         const input = closed(value, ["role", "resolved"]);
@@ -169,11 +170,9 @@ type Product<K extends WorkProductKind> = {
   createdAt: string;
   updatedAt: string;
 };
-export type WorkProduct = Product<"court-record"> | Product<"authorities"> |
-  Product<"research-set">;
+export type WorkProduct = Product<"court-record"> | Product<"authorities">;
 export type WorkProductReference = Pick<WorkProduct, "id" | "kind" | "revision">;
-export type WorkProductMetadata = Omit<WorkProduct, "state" | "outputs"> &
-  { outputs?: WorkProduct["outputs"] };
+export type WorkProductMetadata = Omit<WorkProduct, "state"> & { profileId?: string };
 
 export const workProductInputs = (state: WorkProductState) =>
   Object.values(state.bindings ?? {});
@@ -204,7 +203,7 @@ export type WorkProductFailure =
 
 export type WorkProductRepository = {
   list(scope: ApplicationScope, options: {
-    kind?: WorkProductKind; projectId?: string; limit: number; metadata?: boolean;
+    kind?: WorkProductKind; projectId?: string; limit?: number; metadata?: boolean;
   }): Promise<Array<WorkProduct | WorkProductMetadata>>;
   get(scope: ApplicationScope, id: string): Promise<{
     product: WorkProduct; isOwner: boolean;

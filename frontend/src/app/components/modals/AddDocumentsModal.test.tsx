@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({
     listDirectory: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
     listProjects: vi.fn(),
     uploadDocument: vi.fn(),
+    uploadDirectory: vi.fn(),
     uploadStandaloneDocument: vi.fn(),
 }));
 
@@ -17,6 +18,7 @@ vi.mock("@/app/lib/beaverApi", async (importOriginal) => ({
     directoryResource: () => ({
         list: api.listDirectory,
         uploadDocument: api.uploadDocument,
+        uploadDirectory: api.uploadDirectory,
     }),
 }));
 
@@ -43,6 +45,9 @@ function makeDocument(
 describe("AddDocumentsModal project mode", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        api.uploadDocument.mockReset();
+        api.uploadDirectory.mockReset();
+        api.uploadStandaloneDocument.mockReset();
     });
 
     it("uses supplied project documents without fetching", async () => {
@@ -101,7 +106,7 @@ describe("AddDocumentsModal project mode", () => {
             />,
         );
 
-        expect(screen.getByText("No documents available")).toBeInTheDocument();
+        expect(screen.getByText("No files available")).toBeInTheDocument();
         fireEvent.change(screen.getByRole("searchbox"), {
             target: { value: "missing" },
         });
@@ -159,6 +164,7 @@ describe("AddDocumentsModal project mode", () => {
         expect(await screen.findByRole("alert")).toHaveTextContent(
             "Unable to upload Failed.pdf. Check your connection and try again.",
         );
+        expect(screen.getByRole("checkbox", { name: "Select Uploaded.pdf" })).toBeChecked();
         expect(onSelect).toHaveBeenCalledWith([uploaded], "project-1");
         expect(onClose).not.toHaveBeenCalled();
 
@@ -170,6 +176,29 @@ describe("AddDocumentsModal project mode", () => {
             ),
         );
         expect(onClose).toHaveBeenCalledOnce();
+    });
+
+    it("offers files and folders through one upload control", async () => {
+        const uploaded = makeDocument("folder-file", "Folder file.pdf");
+        api.uploadDirectory.mockResolvedValueOnce([uploaded]);
+        const onSelect = vi.fn();
+
+        render(<AddDocumentsModal open onClose={vi.fn()} onSelect={onSelect}
+            breadcrumb={["Project", "Add Documents"]} projectId="project-1"
+            documents={[]} showTabs={false} />);
+
+        expect(screen.getAllByRole("button", { name: "Upload" })).toHaveLength(1);
+        fireEvent.click(screen.getByRole("button", { name: "Upload" }));
+        fireEvent.click(screen.getByRole("menuitem", { name: "Folder" }));
+        const file = new File(["pdf"], "Folder file.pdf", { type: "application/pdf" });
+        fireEvent.change(screen.getByLabelText("Upload folder"), {
+            target: { files: [file] },
+        });
+
+        await waitFor(() => expect(api.uploadDirectory).toHaveBeenCalledWith([file]));
+        expect(await screen.findByRole("checkbox", { name: "Select Folder file.pdf" }))
+            .toBeChecked();
+        expect(onSelect).toHaveBeenCalledWith([uploaded], "project-1");
     });
 
     it("keeps partial project assignments open and retries only failures", async () => {
@@ -224,5 +253,43 @@ describe("AddDocumentsModal project mode", () => {
             "project-1",
         );
         expect(onClose).toHaveBeenCalledOnce();
+    });
+
+    it("retains the open directory state when a kept modal is reopened", async () => {
+        const props = {
+            onClose: vi.fn(),
+            onSelect: vi.fn(),
+            breadcrumb: ["Add documents"],
+            documents: [] as Document[],
+            keepMounted: true,
+        };
+        const view = render(<AddDocumentsModal {...props} open />);
+        await screen.findByText("No files available");
+        fireEvent.change(screen.getByRole("searchbox"), {
+            target: { value: "affidavit" },
+        });
+        await screen.findByText("No matches found");
+
+        view.rerender(<AddDocumentsModal {...props} open={false} />);
+        view.rerender(<AddDocumentsModal {...props} open />);
+
+        expect(screen.getByRole("searchbox")).toHaveValue("affidavit");
+    });
+
+    it("opens a kept picker on a newly requested source tab", async () => {
+        const props = {
+            onClose: vi.fn(), onSelect: vi.fn(), breadcrumb: ["Add documents"],
+            keepMounted: true,
+        };
+        const view = render(<AddDocumentsModal {...props} open initialTab="files" />);
+        expect(screen.getByRole("tab", { name: "Files" })).toHaveAttribute("aria-selected", "true");
+        await screen.findByText("No files available");
+
+        view.rerender(<AddDocumentsModal {...props} open={false} initialTab="templates" />);
+        view.rerender(<AddDocumentsModal {...props} open initialTab="templates" />);
+
+        expect(screen.getByRole("tab", { name: "Templates" }))
+            .toHaveAttribute("aria-selected", "true");
+        await screen.findByText("No files available");
     });
 });

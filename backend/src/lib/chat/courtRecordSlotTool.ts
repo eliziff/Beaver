@@ -1,8 +1,11 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { acceptsWorkProductOutput } from "mike/shared/court-record-work-products.mjs";
 import type { ApplicationScope } from "../applicationError";
 import { COURT_RECORD_PROFILES, COURT_RECORD_PROFILE_BY_ID,
-  courtRecordProfileIsEffective } from "../courtRecordContract";
+  COURT_RECORD_PARTY_CONTACT_FIELDS,
+  type CourtRecordProfileContract } from "../courtRecordContract";
 import type { CourtRecordsApplication } from "../courtRecordsApplication";
+import { contentTypeForDocumentType } from "../documentTypes";
 import type { LibraryStore } from "../libraryStore";
 import { DOCUMENT_OR_DRAFT_PATTERN, parseResourceReference } from "../resourceReferences";
 import { safeErrorMessage } from "../safeError";
@@ -12,7 +15,7 @@ import { workProductEvent, workProductResult } from "./localWorkflowRun";
 import { toolText, type BeaverTool, type BeaverToolPolicy } from "./toolRegistry";
 
 const selectableProfiles = COURT_RECORD_PROFILES.filter((profile) =>
-  courtRecordProfileIsEffective(profile));
+  profile.selectable !== false);
 const profileIds = selectableProfiles.map(({ id }) => id);
 const coverFields = [...new Set(selectableProfiles.flatMap(({ coverFields: fields }) => fields))];
 const partyStyleIds = [...new Set(selectableProfiles.flatMap(({ partyStyles }) =>
@@ -22,10 +25,13 @@ const partyGroupIds = [...new Set(selectableProfiles.flatMap(({ partyStyles }) =
 const slotIds = [...new Set(selectableProfiles.flatMap(({ slots }) => slots.flatMap((slot) =>
   slot.requirement === "forbidden" || slot.generated ? [] : [slot.id])))];
 const textField = (maxLength: number) => ({ type: "string", minLength: 1, maxLength });
+const partyContact = { type: "object", description: "Contact for a non-filing AP-5 party.",
+  properties: Object.fromEntries(COURT_RECORD_PARTY_CONTACT_FIELDS.map((field) =>
+    [field, textField(5_000)])), additionalProperties: false };
 const partyGroups = { type: "array", maxItems: 50, items: { type: "object", properties: {
   id: { type: "string", enum: partyGroupIds },
   parties: { type: "array", minItems: 1, maxItems: 100, items: { type: "object",
-    properties: { id: textField(200), name: textField(5_000) },
+    properties: { id: textField(200), name: textField(5_000), contact: partyContact },
     required: ["id", "name"], additionalProperties: false } },
 }, required: ["id", "parties"], additionalProperties: false } };
 
@@ -34,7 +40,8 @@ export const COURT_RECORD_TOOL_PROPERTIES = {
   cover: { type: "object", properties: {
     ...Object.fromEntries(coverFields.map((field) => [field, textField(5_000)])),
     partyStyleId: { type: "string", enum: partyStyleIds }, partyGroups,
-    filingPartyId: textField(200),
+    filingPartyIds: { type: "array", minItems: 1, maxItems: 100, uniqueItems: true,
+      items: textField(200) },
   }, additionalProperties: false },
   document_id: { type: "string", pattern: DOCUMENT_OR_DRAFT_PATTERN,
     description: "Version-pinned Library document returned by Read." },
@@ -42,9 +49,10 @@ export const COURT_RECORD_TOOL_PROPERTIES = {
   replace_entry_id: { type: "string", minLength: 1 },
   description: textField(1_000),
   date: textField(500),
-  exhibit_label: textField(500),
+  exhibit_label: { ...textField(500),
+    description: "Use a label returned in the source affidavit's sourceExhibits.labels; otherwise omit it." },
   child_draft_id: { type: "string", minLength: 1 },
-  output_role: { type: "string", enum: ["table", "book"] },
+  output_role: textField(100),
 };
 
 const schema: Tool & BeaverToolPolicy = {
@@ -54,7 +62,7 @@ const schema: Tool & BeaverToolPolicy = {
   activity: (input) => input.action === "read" ? "Reading Court Record" : "Updating Court Record",
   description: "Read or update the active Court Record. Read returns its current preset, visible " +
     "cover fields, parties, slots, entries, and bindings. Update fills empty cover or party fields, " +
-    "binds one Library document or Authorities output, and edits its visible description, date, " +
+  "binds one Library document or compatible saved output, and edits its visible description, date, " +
     "or exhibit label. A description-only slot needs no file.",
   annotations: { readOnlyHint: false },
   inputSchema: {
@@ -81,17 +89,25 @@ type Dependencies = {
 };
 
 const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
-const authoritiesChoices = async (dependencies: Dependencies) =>
+const draftOutputChoices = async (dependencies: Dependencies,
+  profile: CourtRecordProfileContract) =>
   (await dependencies.workProducts.list(dependencies.scope, {
-    kind: "authorities", limit: 100, metadata: false,
+    limit: 100, metadata: false,
   })).flatMap((product) => {
     if (!("outputs" in product) || !product.outputs || typeof product.outputs !== "object" ||
-        product.projectId !== dependencies.projectId) return [];
-    const outputs = product.outputs as object;
-    const roles = (["table", "book"] as const)
-      .filter((role) => Object.hasOwn(outputs, role));
+        product.id === dependencies.target.id || product.projectId !== dependencies.projectId) return [];
+    const outputs = product.outputs as Record<string, { mimeType?: string }>;
+    const profileId = product.kind === "court-record" && "state" in product &&
+      typeof product.state.profileId === "string" ? product.state.profileId : undefined;
+    const roles = Object.entries(outputs).flatMap(([role, output]) => {
+      const fileType = (["pdf", "docx"] as const).find((type) =>
+        output.mimeType === contentTypeForDocumentType(type));
+      const source = { kind: product.kind, profileId, role };
+      return fileType && profile.slots.some((slot) => acceptsWorkProductOutput(slot, source) &&
+        (slot.acceptedFormats ?? ["pdf", "docx"]).includes(fileType)) ? [role] : [];
+    }).sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
     return roles.length ? [{ child_draft_id: product.id, title: product.title,
-      revision: product.revision, output_roles: roles }] : [];
+      kind: product.kind, revision: product.revision, output_roles: roles }] : [];
   });
 
 type CourtRecordProduct = Awaited<ReturnType<Dependencies["workProducts"]["get"]>>;
@@ -106,8 +122,8 @@ export function courtRecordResult(product: CourtRecordProduct,
       cover_fields: profile.coverFields,
       ...(profile.partyStyles?.length && {
         party_styles: profile.partyStyles,
-        active_party_style_id: profile.partyStyles.some(({ id }) => id === currentStyleId)
-          ? currentStyleId : profile.partyStyles[0].id,
+        ...(profile.partyStyles.some(({ id }) => id === currentStyleId) &&
+          { active_party_style_id: currentStyleId }),
         ...(profile.filingGroupId && { filing_group_id: profile.filingGroupId }),
       }),
       ...(profile.oneOf?.length && { one_of: profile.oneOf }),
@@ -134,7 +150,8 @@ export function courtRecordSlotTool<Context>(dependencies: Dependencies): Beaver
         const before = revision;
         if (input.action === "read") {
           const result = payload(product, {
-            authorities_drafts: await authoritiesChoices(dependencies),
+            draft_outputs: await draftOutputChoices(dependencies,
+              COURT_RECORD_PROFILE_BY_ID.get(String(product.state.profileId))!),
           });
           return { result: toolText(result), events: [workProductEvent(result, call.id)!] };
         }
@@ -163,22 +180,19 @@ export function courtRecordSlotTool<Context>(dependencies: Dependencies): Beaver
         const changesEntry = !!document || !!childId || !!replaceEntryId ||
           !!description || !!date || !!exhibitLabel || !!slotId;
         if (changesEntry && !slotId) throw new Error("An entry change requires slot_id");
-        if (!!childId !== !!role) throw new Error("An Authorities source requires output_role");
+        if (!!childId !== !!role) throw new Error("A saved draft source requires output_role");
         const profileId = text(input.profile_id);
         if (!profileId && !cover && !changesEntry) {
           throw new Error("No Court Record changes were supplied");
         }
         if (childId && (profileId || cover)) {
-          throw new Error("Update the preset or cover fields before binding an Authorities output");
+          throw new Error("Update the preset or cover fields before binding a saved output");
         }
         let filled: string[] = [], entryId: string | undefined;
         if (childId) {
-          if (slotId !== "authorities" && slotId !== "authority-extract") {
-            throw new Error("Select a visible Authorities output slot");
-          }
           const linked = await dependencies.courtRecords.bindOutput(dependencies.scope, {
             courtRecordId: product.id, revision, kindId: slotId,
-            childWorkProductId: childId, role: role as "table" | "book",
+            childWorkProductId: childId, role,
             ...(replaceEntryId && { replaceEntryId }), projectId: dependencies.projectId,
             ...values,
           });

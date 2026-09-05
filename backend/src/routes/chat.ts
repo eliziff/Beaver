@@ -245,7 +245,8 @@ export function createChatRouter(
       researchFileId: req.params.researchFileId,
       ...parsed.data,
     });
-    res.json({ document_id: file.document.id, version_id: file.versionId });
+    res.json({ document_id: file.document.id, version_id: file.versionId,
+      working_revision: file.workingRevision });
   }));
 
   router.patch("/:chatId", route(async (req, res, scope) => {

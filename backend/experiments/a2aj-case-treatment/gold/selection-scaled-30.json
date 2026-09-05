@@ -1,0 +1,272 @@
+{
+  "format": "a2aj-case-treatment-selection-v1",
+  "seed": 20260828,
+  "requested": 30,
+  "selected": 30,
+  "court_only": true,
+  "sampling": "hard-10 plus every additional multi-opinion case in selection-100, then seeded LCG shuffle of remaining single-opinion court decisions",
+  "document_ids": [
+    193076,
+    190759,
+    118406,
+    142717,
+    189928,
+    195153,
+    192926,
+    13847,
+    126799,
+    224932,
+    190600,
+    188518,
+    135183,
+    814,
+    188057,
+    12801,
+    128901,
+    220108,
+    219243,
+    139223,
+    92143,
+    128475,
+    139100,
+    225103,
+    122920,
+    125095,
+    142972,
+    127930,
+    112480,
+    13208
+  ],
+  "cases": [
+    {
+      "document_id": 193076,
+      "dataset": "SCC",
+      "citation": "[1993] 2 SCR 398",
+      "name": "R. v. Hasselwander",
+      "date": "1993-05-19T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "split reasons use some of the same firearms authorities differently"
+    },
+    {
+      "document_id": 190759,
+      "dataset": "SCC",
+      "citation": "2003 SCC 33",
+      "name": "R. v. Owen",
+      "date": "2003-06-06T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "split reasons address Winko, Palmer, Biniaris, and related authorities differently"
+    },
+    {
+      "document_id": 118406,
+      "dataset": "FCA",
+      "citation": "2011 FCA 272",
+      "name": "Felipa v. Canada (Citizenship and Immigration)",
+      "date": "2011-10-03T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "dense split decision with more than forty proposition treatments divided across two sides"
+    },
+    {
+      "document_id": 142717,
+      "dataset": "ONCA",
+      "citation": "2017 ONCA 301",
+      "name": "Romspen Investment Corporation v. Courtice Auto Wreckers Limited",
+      "date": "2017-04-13T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "split insolvency decision treating GMAC and related doctrine differently"
+    },
+    {
+      "document_id": 189928,
+      "dataset": "SCC",
+      "citation": "[1988] 1 SCR 30",
+      "name": "R. v. Morgentaler",
+      "date": "1988-01-28T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "four separately authored opinions divide on both the result and the constitutional route while treating overlapping authorities differently"
+    },
+    {
+      "document_id": 195153,
+      "dataset": "SCC",
+      "citation": "[1990] 3 SCR 697",
+      "name": "R. v. Keegstra",
+      "date": "1990-12-13T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "two opposed opinions contest the same expression and section 1 authorities, with a third judge joining only the dissent's expression analysis and disposition"
+    },
+    {
+      "document_id": 192926,
+      "dataset": "SCC",
+      "citation": "[1995] 2 SCR 513",
+      "name": "Egan v. Canada",
+      "date": "1995-05-25T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "highly fractured equality decision with issue-dependent majorities that the deterministic detector does not resolve"
+    },
+    {
+      "document_id": 13847,
+      "dataset": "BCCA",
+      "citation": "2002 BCCA 142",
+      "name": "M.B. v. British Columbia",
+      "date": "2002-02-28T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "five opinions produce a 3-2 split on collateral benefits while all judges agree on the separately analyzed interest issue"
+    },
+    {
+      "document_id": 126799,
+      "dataset": "NSCA",
+      "citation": "2011 NSCA 118",
+      "name": "Hayward v. Hayward",
+      "date": "2011-12-20T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "three separate appellate opinions divide over retrospectivity and estoppel while joining different portions of one another's reasons"
+    },
+    {
+      "document_id": 224932,
+      "dataset": "YKCA",
+      "citation": "2018 YKCA 9",
+      "name": "R. v. Larue",
+      "date": "2018-06-13T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "two substantive opinions across a three-judge panel disagree on threshold reliability and the use of corroborating evidence"
+    },
+    {
+      "document_id": 190600,
+      "dataset": "SCC",
+      "citation": "2004 SCC 61",
+      "name": "Entreprises Sibeca Inc. v. Frelighsburg (Municipality)",
+      "date": "2004-10-01T00:00:00"
+    },
+    {
+      "document_id": 188518,
+      "dataset": "SCC",
+      "citation": "[1993] 1 SCR 471",
+      "name": "Université du Québec à Trois-Rivières v. Larocque",
+      "date": "1993-02-25T00:00:00"
+    },
+    {
+      "document_id": 135183,
+      "dataset": "NSSC",
+      "citation": "2025 NSSC 123",
+      "name": "Nova Scotia (Community Services) v MM",
+      "date": "2025-04-03T00:00:00"
+    },
+    {
+      "document_id": 814,
+      "dataset": "BCCA",
+      "citation": "2019 BCCA 348",
+      "name": "Hamilton and Squario v. British Columbia (Attorney General)",
+      "date": "2019-10-17T00:00:00"
+    },
+    {
+      "document_id": 188057,
+      "dataset": "SCC",
+      "citation": "[1927] SCR 136",
+      "name": "Attorney General of Canada v. Attorney General of Alberta",
+      "date": "1927-02-01T00:00:00"
+    },
+    {
+      "document_id": 12801,
+      "dataset": "BCCA",
+      "citation": "2000 BCCA 400",
+      "name": "Romashenko v. Real Estate Council of British Columbia",
+      "date": "2000-06-22T00:00:00"
+    },
+    {
+      "document_id": 128901,
+      "dataset": "NSPC",
+      "citation": "2010 NSPC 12",
+      "name": "R. v. Arsenault",
+      "date": "2010-01-25T00:00:00"
+    },
+    {
+      "document_id": 220108,
+      "dataset": "TCC",
+      "citation": "2005 TCC 643",
+      "name": "Ross v. The Queen",
+      "date": "2005-10-03T00:00:00"
+    },
+    {
+      "document_id": 219243,
+      "dataset": "TCC",
+      "citation": "2006 TCC 35",
+      "name": "Mark v. The Queen",
+      "date": "2006-01-19T00:00:00"
+    },
+    {
+      "document_id": 139223,
+      "dataset": "NSSM",
+      "citation": "2017 NSSM 27",
+      "name": "Billy Stick Food Ltd. v. Khoury",
+      "date": "2017-05-25T00:00:00"
+    },
+    {
+      "document_id": 92143,
+      "dataset": "FC",
+      "citation": "2001 FCT 1214",
+      "name": "Francosteel Canada Inc. v. African Cape (Le)",
+      "date": "2001-11-06T00:00:00"
+    },
+    {
+      "document_id": 128475,
+      "dataset": "NSPC",
+      "citation": "2002 NSPC 20",
+      "name": "R. v. Henneberry",
+      "date": "2002-05-30T00:00:00"
+    },
+    {
+      "document_id": 139100,
+      "dataset": "NSSM",
+      "citation": "2017 NSSM 49",
+      "name": "Kellogg v. Osler",
+      "date": "2017-09-06T00:00:00"
+    },
+    {
+      "document_id": 225103,
+      "dataset": "YKCA",
+      "citation": "2015 YKCA 16",
+      "name": "Ross River Dena Council v. Canada (Attorney General)",
+      "date": "2015-09-16T00:00:00"
+    },
+    {
+      "document_id": 122920,
+      "dataset": "NSCA",
+      "citation": "2021 NSCA 32",
+      "name": "R. v. Rouse",
+      "date": "2021-04-01T00:00:00"
+    },
+    {
+      "document_id": 125095,
+      "dataset": "NSCA",
+      "citation": "2014 NSCA 39",
+      "name": "Doncaster v. Field",
+      "date": "2014-04-15T00:00:00"
+    },
+    {
+      "document_id": 142972,
+      "dataset": "ONCA",
+      "citation": "2017 ONCA 531",
+      "name": "R. v. El-Kasir",
+      "date": "2017-06-26T00:00:00"
+    },
+    {
+      "document_id": 127930,
+      "dataset": "NSFC",
+      "citation": "2001 NSFC 29",
+      "name": "J.Z. v. H.I.",
+      "date": "2001-09-16T00:00:00"
+    },
+    {
+      "document_id": 112480,
+      "dataset": "FCA",
+      "citation": "2004 FCA 389",
+      "name": "Lambert v. Canada",
+      "date": "2004-11-26T00:00:00"
+    },
+    {
+      "document_id": 13208,
+      "dataset": "BCCA",
+      "citation": "2002 BCCA 384",
+      "name": "927966 Ontario Ltd. v. Global Cogeniz Industrial Corp.",
+      "date": "2002-05-22T00:00:00"
+    }
+  ]
+}

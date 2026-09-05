@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
+import { createCourtRecordsApplication } from "../courtRecordsApplication";
+import type { DocumentStore } from "../documentStore";
 import { assistantTools } from "./assistantTools";
+import { COURT_RECORD_TOOL_PROPERTIES } from "./courtRecordSlotTool";
 
 const record = { id: "record-1", kind: "court-record" as const, title: "Record",
   projectId: "matter-1", revision: 7, state: { profileId: "fc-motion-record-moving",
@@ -8,12 +11,27 @@ const record = { id: "record-1", kind: "court-record" as const, title: "Record",
 const authoritiesRecord = { ...record, state: { ...record.state,
   profileId: "ab-kb-chambers-justice-applicant-set" } };
 
+it("offers only user-selectable Court Record presets", () => {
+  expect(COURT_RECORD_TOOL_PROPERTIES.profile_id.enum).not.toContain("general-court-record");
+  expect(COURT_RECORD_TOOL_PROPERTIES.cover.properties.partyGroups.items.properties.parties
+    .items.properties.contact.properties).toHaveProperty("email");
+});
+
 function tools(overrides: Record<string, unknown> = {}, current = record) {
   const committed = vi.fn();
   const create = vi.fn(async () => current), get = vi.fn(async () => current);
   const list = vi.fn(async () => [
     { ...record, id: "authorities-1", kind: "authorities" as const,
-      title: "Motion authorities", outputs: { table: {}, receipt: {} } },
+      title: "Motion authorities", outputs: {
+        "book-10": { mimeType: "application/pdf" },
+        table: { mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+        book: { mimeType: "application/pdf" }, "book-2": { mimeType: "application/pdf" },
+        "book-1": { mimeType: "application/pdf" }, "book-3": { mimeType: "application/msword" },
+        receipt: { mimeType: "application/pdf" },
+      } },
+    { ...record, id: "affidavit-1", title: "Affidavit package",
+      state: { profileId: "fc-affidavit-exhibits", cover: {}, entries: [], bindings: {} },
+      outputs: { record: { mimeType: "application/pdf" } } },
     { ...record, id: "other-matter-authorities", kind: "authorities" as const,
       projectId: "matter-2", outputs: { book: {} } },
     { ...record, id: "unbuilt-authorities", kind: "authorities" as const,
@@ -53,16 +71,17 @@ describe("scoped work-product assistant operation", () => {
     const result = JSON.parse((output.result.content[0] as { text: string }).text);
     expect(result.profile).toMatchObject({
       id: "fc-motion-record-moving",
-      active_party_style_id: "application",
       party_styles: [{ id: "application", groups: [
         { id: "party-a", role: "Applicant" },
         { id: "party-b", role: "Respondent" },
         { id: "intervener", role: "Intervener", optional: true },
-      ] }, { id: "action" }],
+      ] }, { id: "action" }, { id: "appeal" }],
       slots: expect.arrayContaining([expect.objectContaining({ id: "notice-motion" })]),
     });
-    expect(result.authorities_drafts).toEqual([{ child_draft_id: "authorities-1",
-      title: "Motion authorities", revision: 7, output_roles: ["table"] }]);
+    expect(result.profile.active_party_style_id).toBeUndefined();
+    expect(result.draft_outputs).toEqual([{ child_draft_id: "affidavit-1",
+      title: "Affidavit package", kind: "court-record", revision: 7,
+      output_roles: ["record"] }]);
   });
 
   it("creates a typed Court draft and returns a host event", async () => {
@@ -84,20 +103,28 @@ describe("scoped work-product assistant operation", () => {
   });
 
   it("fills parties and entry fields while connecting an authorized document", async () => {
+    const sourceSha256 = "a".repeat(64);
     const current = { ...record, state: { ...record.state,
-      profileId: "ab-kb-affidavit-exhibits" } };
+      profileId: "ab-kb-affidavit-exhibits", entries: [{ id: "affidavit",
+        kindId: "affidavit", title: "Affidavit",
+        lastSeen: { name: "affidavit.pdf", size: 20, modified: 1, sha256: sourceSha256 },
+        sourceExhibits: { sourceSha256, labels: ["A"] } }],
+      bindings: { affidavit: { kind: "document", documentId: "affidavit",
+        version: "latest" } } } };
     const { entries, updateDraft } = tools({ resolveArtifact: (value: string) =>
       value === "draft-1" ? "document://library-1/version/version-2" : undefined }, current);
     const tool = entries.find(({ name }) => name === "update_work_product")!;
     const partyGroups = [{ id: "party-a", parties: [
-      { id: "applicant-1", name: "Ada Applicant" },
+      { id: "applicant-1", name: "Ada Applicant",
+        contact: { name: "A. Counsel", phone: "555-0100" } },
       { id: "applicant-2", name: "Apex Ltd." },
     ] }, { id: "intervener", parties: [
-      { id: "intervener-1", name: "Public Interest Group" },
+      { id: "intervener-1", name: "Public Interest Group",
+        contact: { name: "I. Counsel", email: "i@example.test" } },
     ] }];
     const output = await execute(tool, { action: "update",
       cover: { courtFileNumber: "2401-12345", partyStyleId: "application",
-        partyGroups, filingPartyId: "applicant-1" },
+        partyGroups, filingPartyIds: ["applicant-1", "applicant-2"] },
       slot_id: "exhibit",
       document_id: "draft-1",
       description: "Notice of motion dated August 30, 2026",
@@ -105,7 +132,7 @@ describe("scoped work-product assistant operation", () => {
     expect(updateDraft).toHaveBeenCalledWith({ userId: "user-1", userEmail: undefined }, {
       courtRecordId: "record-1", revision: 7, projectId: "matter-1",
       cover: { courtFileNumber: "2401-12345", partyStyleId: "application",
-        partyGroups, filingPartyId: "applicant-1" },
+        partyGroups, filingPartyIds: ["applicant-1", "applicant-2"] },
       entry: { slotId: "exhibit",
         document: { documentId: "library-1", versionId: "version-2" },
         description: "Notice of motion dated August 30, 2026",
@@ -136,13 +163,34 @@ describe("scoped work-product assistant operation", () => {
     const { entries, bindOutput } = tools({}, authoritiesRecord);
     const tool = entries.find(({ name }) => name === "update_work_product")!;
     await execute(tool, { action: "update",
-      slot_id: "authorities", child_draft_id: "authorities-1", output_role: "book" });
+      slot_id: "authorities", child_draft_id: "authorities-1", output_role: "book-2" });
     expect(bindOutput).toHaveBeenCalledWith({ userId: "user-1", userEmail: undefined }, {
       courtRecordId: "record-1", revision: 7, kindId: "authorities",
-      childWorkProductId: "authorities-1", role: "book", projectId: "matter-1",
+      childWorkProductId: "authorities-1", role: "book-2", projectId: "matter-1",
     });
     expect(entries.some(({ name }) => ["court_record_slot", "court_record_update",
       "create_authorities"].includes(name))).toBe(false);
+  });
+
+  it("advertises only Book outputs for an Authorities slot", async () => {
+    const { entries } = tools({}, authoritiesRecord);
+    const output = await execute(entries.find(({ name }) => name === "update_work_product")!,
+      { action: "read" });
+    const result = JSON.parse((output.result.content[0] as { text: string }).text);
+    expect(result.draft_outputs).toEqual([{ child_draft_id: "authorities-1",
+      title: "Motion authorities", kind: "authorities", revision: 7,
+      output_roles: ["book", "book-2", "book-10"] }]);
+  });
+
+  it("connects a compatible affidavit draft without a bespoke tool", async () => {
+    const { entries, bindOutput } = tools();
+    await execute(entries.find(({ name }) => name === "update_work_product")!, {
+      action: "update", slot_id: "moving-evidence",
+      child_draft_id: "affidavit-1", output_role: "record",
+    });
+    expect(bindOutput).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      kindId: "moving-evidence", childWorkProductId: "affidavit-1", role: "record",
+    }));
   });
 
   it("carries the committed revision through sequential updates in one turn", async () => {
@@ -158,6 +206,63 @@ describe("scoped work-product assistant operation", () => {
       cover: { counselPhone: "555-0100" } });
 
     expect(updateDraft.mock.calls.map(([, input]) => input.revision)).toEqual([7, 8]);
+  });
+
+  it("returns prepared affidavit slots for the following exhibit assignment", async () => {
+    const affidavitSha = "a".repeat(64), exhibitSha = "b".repeat(64);
+    let current = { ...record, state: { profileId: "ab-kb-affidavit-exhibits",
+      cover: {}, entries: [], bindings: {} } };
+    const workProducts = {
+      get: vi.fn(async () => current), list: vi.fn(async () => []),
+      save: vi.fn(async (_scope, _id, patch) => {
+        current = { ...current, ...patch, revision: current.revision + 1 };
+        return current;
+      }),
+    };
+    const store = {
+      metadata: vi.fn(async (_scope, id: string) => ({ id,
+        current_version_id: id === "affidavit-document" ? "affidavit-version" : "exhibit-version",
+        filename: id === "affidavit-document" ? "affidavit.pdf" : "agreement.pdf",
+        file_type: "pdf", size_bytes: 20, page_count: 2,
+        source_sha256: id === "affidavit-document" ? affidavitSha : exhibitSha,
+        updated_at: "2026-09-04T12:00:00.000Z" })),
+      projectionSource: vi.fn(async (_scope, id: string) => ({ documentId: id,
+        versionId: "affidavit-version", fileType: "pdf", sourceSha256: affidavitSha,
+        pdfProfile: { cacheKey: "c".repeat(64), profile: {}, status: "ready" as const },
+        readBytes: async () => Buffer.from("%PDF-1.7") })),
+    } as unknown as DocumentStore;
+    const courtRecords = createCourtRecordsApplication(store, {} as never,
+      workProducts as never, { preparePdf: vi.fn() as never,
+        lookupPdf: vi.fn(async () => ({ status: "found", pages: [
+          { page_number: 1, text: "The signed agreement is attached as Exhibit A." },
+          { page_number: 2, text: "The final invoice is attached as Exhibit C." },
+        ] })) as never });
+    const entries = assistantTools<Record<string, never>>({
+      userId: "user-1", documents: store, library: {} as never, projects: {} as never,
+      workProducts: workProducts as never, authorities: {} as never, courtRecords,
+      courtRecord: { id: current.id, revision: current.revision },
+      courtRecordId: current.id, courtRecordRevision: current.revision,
+      allowedDocumentIds: new Set(["affidavit-document", "exhibit-document"]),
+      matterId: "matter-1", scope: "main", resolveArtifact: () => undefined,
+      artifactFor: () => "", onMutationCommitted: vi.fn(),
+    });
+    const tool = entries.find(({ name }) => name === "update_work_product")!;
+
+    const attached = await execute(tool, { action: "update", slot_id: "affidavit",
+      document_id: "document://affidavit-document/version/affidavit-version" });
+    const attachedResult = JSON.parse((attached.result.content[0] as { text: string }).text);
+    expect(attachedResult.draft.entries[0].sourceExhibits).toEqual({
+      sourceSha256: affidavitSha, labels: ["A", "B", "C"],
+    });
+
+    const assigned = await execute(tool, { action: "update", slot_id: "exhibit",
+      document_id: "document://exhibit-document/version/exhibit-version",
+      exhibit_label: "A" });
+    const assignedResult = JSON.parse((assigned.result.content[0] as { text: string }).text);
+    expect(assignedResult.ok).toBe(true);
+    expect(assignedResult.draft.entries).toContainEqual(expect.objectContaining({
+      kindId: "exhibit", exhibitLabel: "A",
+    }));
   });
 
   it("does not expose mutation operations to reader subagents", () => {

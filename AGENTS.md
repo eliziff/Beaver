@@ -31,6 +31,7 @@
 - Never commit credentials, AppData, downloaded corpora, caches, generated artifacts, or managed runtimes.
 - Do not use metered APIs unless explicitly authorized.
 - Never use the Codex in-app browser or its `browser-client`/Node connector for Beaver testing. Use ChromeDriver and/or screenshots.
+- Changes touching the right-hand assistant dock, including its menus, popovers, or modals, must run `scripts/mike.ps1 smoke -WithAssistantDock` and visually inspect the resulting screenshots.
 - Keep experiments in `experiments/` or a package's `experiments/` directory.
   Experiments may import production; production and its tests must never import
   experiments. Keep experiment checks beside the experiment, raw output ignored,

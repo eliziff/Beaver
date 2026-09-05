@@ -10,7 +10,7 @@ export function ConfirmPopup({ open, title, message, confirmLabel = "Confirm",
 }) {
     const confirmBusy = confirmStatus === "loading";
     const isDeleteAction = typeof confirmLabel === "string" &&
-        confirmLabel.toLowerCase().startsWith("delete");
+        /^(delete|remove)\b/i.test(confirmLabel);
     const resolvedConfirmLabel = <span className="inline-flex h-full items-center gap-1.5">
         {confirmBusy ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
             : isDeleteAction ? <Trash2 className="h-3 w-3 shrink-0" /> : null}

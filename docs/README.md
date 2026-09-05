@@ -28,13 +28,16 @@ not old Beaver design notes.
 
 ## Approved roadmap
 
-Only this section is backlog.
+The master plan alone sets priority and status; spokes specify requirements.
+Its separately marked deferred proposals are not implementation commitments.
 
 - [Master plan](roadmap/master-plan.md) — the sole priority, status, and release
   authority, plus the backlog that is not currently active.
 - [Application boundaries](roadmap/application-boundaries.md) — the active
-  module-by-module plan for composition, routes, DTOs, frontend clients, and
+  cuts for composition, routes, DTOs, frontend clients, and
   process gateways.
+- [Document storage](roadmap/document-versioning.md) — working revisions,
+  checkpoints, scoped content addressing, restore and failure-safety gates.
 - [Shared document structure](roadmap/document-structure.md) — exact Rust
   detector consolidation, Beaver call boundary, OCR/Luna seam, and cross-product
   cutover.
@@ -44,6 +47,8 @@ Only this section is backlog.
 - [Durable legal work products](roadmap/legal-work-products.md) — resumable
   Court Records and Authorities drafts, exact Alberta/federal profiles, the
   TypeScript Authorities cutover, composition, receipts, and live proof.
+- [Saved research](roadmap/research-sets.md) — ordinary files, reference panel/
+  label parity, evidence continuity and realistic dock/browser proof.
 
 ## Adopted decisions and research conclusions
 

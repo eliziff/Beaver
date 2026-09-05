@@ -17,6 +17,7 @@ interface Props {
     renameLabel?: string;
     deleteLabel?: string;
     toolbar?: boolean;
+    additionalItems?: MoreActionsMenuItem[];
 }
 export function RowActions({
     label = "More actions",
@@ -35,8 +36,9 @@ export function RowActions({
     renameLabel = "Rename",
     deleteLabel = "Delete",
     toolbar = false,
+    additionalItems = [],
 }: Props) {
-    const items: MoreActionsMenuItem[] = [];
+    const items: MoreActionsMenuItem[] = [...additionalItems];
     const add = (
         label: string,
         onSelect?: () => void,

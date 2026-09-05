@@ -47,7 +47,7 @@ it("filters one catalogue and opens a singleton workspace in one click", async (
     const view = render(<MemoryRouter><WorkflowList /><Location /></MemoryRouter>);
     const draftingButton = await screen.findByRole("button", { name: /^Open chat:/i });
     expect(draftingButton).toHaveAttribute("data-workflow-id", "drafting");
-    expect(draftingButton).toHaveTextContent("A finished legal draft");
+    expect(screen.getByText("A finished legal draft")).toBeVisible();
     expect(screen.queryByRole("dialog")).toBeNull();
 
     fireEvent.click(screen.getByRole("tab", { name: "Solicitor" }));

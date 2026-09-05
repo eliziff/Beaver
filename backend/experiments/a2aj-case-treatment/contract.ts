@@ -45,12 +45,15 @@ export const PROCEDURAL_ACTIONS = [
   "other",
 ] as const;
 
-export const ANALYSIS_CONTRACTS = ["simple", "self-check"] as const;
+export const ANALYSIS_CONTRACTS = ["hypersimple", "simple", "self-check"] as const;
+export const STRUCTURE_STRATEGIES = ["direct", "boundary-first", "vote-first"] as const;
 
 export type ResultPosition = (typeof RESULT_POSITIONS)[number];
 export type TreatmentSignal = (typeof TREATMENT_SIGNALS)[number];
 export type ProceduralAction = (typeof PROCEDURAL_ACTIONS)[number];
 export type AnalysisContract = (typeof ANALYSIS_CONTRACTS)[number];
+export type StructureStrategy = (typeof STRUCTURE_STRATEGIES)[number];
+type CompilationContract = AnalysisContract | "reference";
 
 /**
  * Model-facing source span. Quotes are exact substrings of the numbered start
@@ -111,6 +114,14 @@ export type DecisionAnalysis = {
       evidence_blocks: SourceBlockId[];
     }>;
   }>;
+  reported_history?: Array<{
+    cited_decision: string;
+    action: ProceduralAction;
+    later_decision: string | null;
+    affected_part: string | null;
+    evidence_blocks: SourceBlockId[];
+    opinion_id?: string;
+  }>;
   treatments: Array<{
     cited_decision: string;
     identifying_block: SourceBlockId;
@@ -121,7 +132,31 @@ export type DecisionAnalysis = {
     treatment: string;
     evidence_blocks: SourceBlockId[];
     supporting_passages?: BlockQuotation[];
-    quoted_passages: BlockQuotation[];
+    quoted_passages?: BlockQuotation[];
+  }>;
+};
+
+export type HypersimpleAnalysis = {
+  direct_outcomes: Array<{
+    cited_decision: string;
+    action: ProceduralAction;
+    affected_part: string | null;
+    evidence_blocks: SourceBlockId[];
+  }>;
+  reported_history: Array<{
+    cited_decision: string;
+    action: ProceduralAction;
+    later_decision: string | null;
+    affected_part: string | null;
+    evidence_blocks: SourceBlockId[];
+  }>;
+  treatments: Array<{
+    cited_decision: string;
+    signal: TreatmentSignal;
+    other_signal: string | null;
+    proposition: string;
+    treatment: string;
+    evidence_blocks: SourceBlockId[];
   }>;
 };
 
@@ -225,6 +260,16 @@ export type CompiledAnalysis = {
       affected_part: string | null;
       evidence_blocks: ResolvedSpan[];
     }>;
+  }>;
+  reported_history: Array<{
+    history_id: string;
+    cited_decision: string;
+    action: ProceduralAction;
+    later_decision: string | null;
+    affected_part: string | null;
+    opinion_id: string;
+    model_opinion_id: string | null;
+    evidence_blocks: ResolvedSpan[];
   }>;
   treatments: Array<{
     treatment_id: string;
@@ -350,6 +395,11 @@ const list = (value: unknown) => Array.isArray(value) ? value : [];
 function requiredList(value: unknown, path: string, errors: string[]) {
   if (!Array.isArray(value)) errors.push(`${path}: expected an array`);
   return list(value);
+}
+function exactKeys(value: Record<string, unknown>, allowed: readonly string[], path: string, errors: string[]) {
+  for (const key of Object.keys(value)) {
+    if (!allowed.includes(key)) errors.push(`${path}.${key}: unexpected field`);
+  }
 }
 const unique = <T>(values: readonly T[]) => [...new Set(values)];
 const personKey = (value: string) => value.normalize("NFKC").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
@@ -477,6 +527,64 @@ export function analysisOutputSchema(
   const opinionId = opinionIds?.length
     ? { type: "string", enum: [...opinionIds] }
     : { type: "string", pattern: "^o[1-9][0-9]*$" };
+  const reportedHistory = {
+    type: "array",
+    maxItems: 100,
+    items: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        cited_decision: { type: "string", minLength: 1, maxLength: 500 },
+        action: { enum: PROCEDURAL_ACTIONS },
+        later_decision: { type: ["string", "null"], maxLength: 500 },
+        affected_part: { type: ["string", "null"], maxLength: 2_000 },
+        evidence_blocks: blockList,
+      },
+      required: ["cited_decision", "action", "later_decision", "affected_part", "evidence_blocks"],
+    },
+  };
+  if (contract === "hypersimple") {
+    return {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        direct_outcomes: {
+          type: "array",
+          maxItems: 100,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              cited_decision: { type: "string", minLength: 1, maxLength: 500 },
+              action: { enum: PROCEDURAL_ACTIONS },
+              affected_part: { type: ["string", "null"], maxLength: 2_000 },
+              evidence_blocks: blockList,
+            },
+            required: ["cited_decision", "action", "affected_part", "evidence_blocks"],
+          },
+        },
+        reported_history: reportedHistory,
+        treatments: {
+          type: "array",
+          maxItems: 2_000,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              cited_decision: { type: "string", minLength: 1, maxLength: 500 },
+              signal: { enum: TREATMENT_SIGNALS },
+              other_signal: { type: ["string", "null"], maxLength: 300 },
+              proposition: { type: "string", minLength: 1, maxLength: 4_000 },
+              treatment: { type: "string", minLength: 1, maxLength: 4_000 },
+              evidence_blocks: blockList,
+            },
+            required: ["cited_decision", "signal", "other_signal", "proposition", "treatment", "evidence_blocks"],
+          },
+        },
+      },
+      required: ["direct_outcomes", "reported_history", "treatments"],
+    } as const;
+  }
   return {
     type: "object",
     additionalProperties: false,
@@ -507,6 +615,7 @@ export function analysisOutputSchema(
             evidence_blocks: blockList,
             actions: {
               type: "array",
+              minItems: 1,
               maxItems: 20,
               items: {
                 type: "object",
@@ -523,6 +632,7 @@ export function analysisOutputSchema(
           required: ["cited_decision", "identifying_block", "description", "evidence_blocks", "actions"],
         },
       },
+      reported_history: reportedHistory,
       treatments: {
         type: "array",
         maxItems: 2_000,
@@ -541,22 +651,102 @@ export function analysisOutputSchema(
             ...(contract === "self-check" ? {
               supporting_passages: { type: "array", minItems: 1, maxItems: 20, items: blockQuotation },
             } : {}),
-            quoted_passages: {
-              type: "array",
-              maxItems: 20,
-              items: blockQuotation,
-            },
+            ...(contract === "self-check" ? {
+              quoted_passages: {
+                type: "array",
+                maxItems: 20,
+                items: blockQuotation,
+              },
+            } : {}),
           },
           required: [
             "cited_decision", "identifying_block",
             ...(contract === "self-check" ? ["opinion_id", "supporting_passages"] : []),
-            "signals", "other_signal", "proposition", "treatment", "evidence_blocks", "quoted_passages",
+            "signals", "other_signal", "proposition", "treatment", "evidence_blocks",
+            ...(contract === "self-check" ? ["quoted_passages"] : []),
           ],
         },
       },
     },
-    required: ["decision_mentions", "procedural_relationships", "treatments"],
+    required: ["decision_mentions", "procedural_relationships", "reported_history", "treatments"],
   };
+}
+
+export function analysisAuditOutputSchema(
+  lineCount: number,
+  opinionIds?: readonly string[],
+  contract: AnalysisContract = "self-check",
+) {
+  if (contract === "hypersimple") {
+    const schema = analysisOutputSchema(lineCount, opinionIds, contract) as {
+      properties: {
+        direct_outcomes: { items: Record<string, unknown> };
+        reported_history: { items: Record<string, unknown> };
+        treatments: { items: Record<string, unknown> };
+      };
+    };
+    return {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        patch: {
+          type: "array",
+          maxItems: 60,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              op: { enum: ["add", "replace", "remove"] },
+              path: { type: "string", pattern: "^/(?:direct_outcomes|reported_history|treatments)/(?:-|0|[1-9][0-9]*)$" },
+              value: { anyOf: [
+                schema.properties.direct_outcomes.items,
+                schema.properties.reported_history.items,
+                schema.properties.treatments.items,
+                { type: "null" },
+              ] },
+            },
+            required: ["op", "path", "value"],
+          },
+        },
+      },
+      required: ["patch"],
+    } as const;
+  }
+  const analysisSchema = analysisOutputSchema(lineCount, opinionIds, contract) as {
+    properties: {
+      decision_mentions: { items: Record<string, unknown> };
+      procedural_relationships: { items: Record<string, unknown> };
+      reported_history: { items: Record<string, unknown> };
+      treatments: { items: Record<string, unknown> };
+    };
+  };
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      patch: {
+        type: "array",
+        maxItems: 60,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            op: { enum: ["add", "replace", "remove"] },
+            path: { type: "string", pattern: "^/(?:decision_mentions|procedural_relationships|reported_history|treatments)/(?:-|0|[1-9][0-9]*)$" },
+            value: { anyOf: [
+              analysisSchema.properties.decision_mentions.items,
+              analysisSchema.properties.procedural_relationships.items,
+              analysisSchema.properties.reported_history.items,
+              analysisSchema.properties.treatments.items,
+              { type: "null" },
+            ] },
+          },
+          required: ["op", "path", "value"],
+        },
+      },
+    },
+    required: ["patch"],
+  } as const;
 }
 
 export function submissionOutputSchema(lineCount: number, contract: AnalysisContract = "self-check") {
@@ -571,12 +761,25 @@ export function submissionOutputSchema(lineCount: number, contract: AnalysisCont
   };
 }
 
+/** Gold keeps opinion attribution but does not require redundant copied support text. */
+export function referenceSubmissionOutputSchema(lineCount: number) {
+  const schema = submissionOutputSchema(lineCount, "self-check");
+  const treatment = schema.properties.analysis.properties.treatments.items;
+  delete (treatment.properties as Record<string, unknown>).supporting_passages;
+  treatment.required = treatment.required.filter((field) => field !== "supporting_passages");
+  const history = schema.properties.analysis.properties.reported_history.items;
+  (history.properties as Record<string, unknown>).opinion_id = { type: "string", pattern: "^o[1-9][0-9]*$" };
+  history.required = [...history.required, "opinion_id"];
+  return schema;
+}
+
 function anchoredSpan(value: unknown, path: string, material: CaseMaterial, errors: string[], maxChars = Number.MAX_SAFE_INTEGER) {
   const item = record(value);
   if (!item) {
     errors.push(`${path}: expected an exact source span`);
     return null;
   }
+  exactKeys(item, ["start_line", "end_line", "start_quote", "end_quote"], path, errors);
   const startLine = Number(item.start_line);
   const endLine = Number(item.end_line);
   const startQuote = typeof item.start_quote === "string" ? item.start_quote : "";
@@ -841,6 +1044,7 @@ function collectBlockQuotation(
     errors.push(`${path}: expected quoted text and its source blocks`);
     return null;
   }
+  exactKeys(item, ["block_ids", "text"], path, errors);
   const modelText = stringValue(item.text, `${path}.text`, errors);
   const rawBlockIds = requiredList(item.block_ids, `${path}.block_ids`, errors);
   if (!rawBlockIds.length) {
@@ -1047,6 +1251,7 @@ export function compileStructure(raw: unknown, material: CaseMaterial): Structur
       coverage: { status: material.coverage.status, required: material.coverage.spans.length, covered: 0 },
     };
   }
+  exactKeys(item, ["disposition_spans", "opinions", "participants", "nonparticipants"], "structure", errors);
   const dispositionSpans = requiredList(item.disposition_spans, "structure.disposition_spans", errors).flatMap((value, index) => {
     const span = collectSpan(value, `structure.disposition_spans[${index}]`, material, errors, grounding, evidence, 12_000);
     return span ? [span] : [];
@@ -1059,6 +1264,7 @@ export function compileStructure(raw: unknown, material: CaseMaterial): Structur
     const path = `structure.opinions[${index}]`;
     const opinion = record(value);
     if (!opinion) { errors.push(`${path}: expected an object`); continue; }
+    exactKeys(opinion, ["opinion_id", "boundary", "collective_author", "result_position", "result_evidence"], path, errors);
     const opinionId = idValue(opinion.opinion_id, /^o[1-9][0-9]*$/u, `${path}.opinion_id`, errors);
     if (opinionIds.has(opinionId)) errors.push(`${path}: duplicate opinion_id ${opinionId}`);
     opinionIds.add(opinionId);
@@ -1072,6 +1278,7 @@ export function compileStructure(raw: unknown, material: CaseMaterial): Structur
     if (opinion.collective_author !== null) {
       if (!collective) errors.push(`${path}.collective_author: expected a named collective author or null`);
       else {
+        exactKeys(collective, ["name", "evidence"], `${path}.collective_author`, errors);
         collectiveName = stringValue(collective.name, `${path}.collective_author.name`, errors, 2);
         collectPersonEvidence(collectiveName, collective.evidence, `${path}.collective_author.evidence`, material, errors, grounding, evidence);
       }
@@ -1100,6 +1307,7 @@ export function compileStructure(raw: unknown, material: CaseMaterial): Structur
     const path = `structure.participants[${index}]`;
     const participant = record(value);
     if (!participant) { errors.push(`${path}: expected an object`); continue; }
+    exactKeys(participant, ["name", "panel_evidence", "result_position", "result_evidence", "opinion_links"], path, errors);
     const name = stringValue(participant.name, `${path}.name`, errors, 2);
     const key = personKey(name);
     if (participantNames.has(key)) errors.push(`${path}: duplicate participant ${name}`);
@@ -1115,6 +1323,7 @@ export function compileStructure(raw: unknown, material: CaseMaterial): Structur
       const linkPath = `${path}.opinion_links[${linkIndex}]`;
       const link = record(linkValue);
       if (!link) { errors.push(`${linkPath}: expected an object`); continue; }
+      exactKeys(link, ["opinion_id", "relation", "evidence"], linkPath, errors);
       const opinionId = idValue(link.opinion_id, /^o[1-9][0-9]*$/u, `${linkPath}.opinion_id`, errors);
       if (!opinionIds.has(opinionId)) errors.push(`${linkPath}: unknown opinion_id ${opinionId}`);
       const relation = enumValue(link.relation, ["wrote", "joined", "joined_in_part"] as const, `${linkPath}.relation`, errors);
@@ -1154,6 +1363,7 @@ export function compileStructure(raw: unknown, material: CaseMaterial): Structur
     const path = `structure.nonparticipants[${index}]`;
     const person = record(value);
     if (!person) { errors.push(`${path}: expected an object`); continue; }
+    exactKeys(person, ["name", "evidence"], path, errors);
     const name = stringValue(person.name, `${path}.name`, errors, 2);
     const key = personKey(name);
     if (participantNames.has(key)) errors.push(`${path}: ${name} is also listed as participating`);
@@ -1349,13 +1559,129 @@ function collectProseGrounding(
   }
 }
 
+function normalizeHypersimpleAnalysis(raw: unknown, material: CaseMaterial) {
+  const errors: string[] = [];
+  const item = record(raw);
+  if (!item) return { errors: ["analysis: expected an object"], value: null };
+  exactKeys(item, ["direct_outcomes", "reported_history", "treatments"], "analysis", errors);
+  const blockIds = (value: unknown, path: string) => {
+    const ids = requiredList(value, path, errors).map((id, index) =>
+      idValue(id, /^p[1-9][0-9]*$/u, `${path}[${index}]`, errors) as SourceBlockId);
+    if (!ids.length) errors.push(`${path}: at least one evidence block is required`);
+    return ids;
+  };
+  const identifyingBlock = (citedDecision: string, evidenceBlocks: SourceBlockId[]) => {
+    const exact = material.source_lines.find(({ start, end }) =>
+      material.text.slice(start, end).includes(citedDecision));
+    return exact ? `p${exact.line}` as SourceBlockId : evidenceBlocks[0] ?? "p1";
+  };
+  const groups = new Map<string, DecisionAnalysis["procedural_relationships"][number]>();
+  for (const [index, value] of requiredList(item.direct_outcomes, "analysis.direct_outcomes", errors).entries()) {
+    const path = `analysis.direct_outcomes[${index}]`;
+    const outcome = record(value);
+    if (!outcome) { errors.push(`${path}: expected an object`); continue; }
+    exactKeys(outcome, ["cited_decision", "action", "affected_part", "evidence_blocks"], path, errors);
+    const citedDecision = stringValue(outcome.cited_decision, `${path}.cited_decision`, errors);
+    const action = enumValue(outcome.action, PROCEDURAL_ACTIONS, `${path}.action`, errors);
+    const affectedPart = outcome.affected_part === null
+      ? null
+      : stringValue(outcome.affected_part, `${path}.affected_part`, errors);
+    const evidenceBlocks = blockIds(outcome.evidence_blocks, `${path}.evidence_blocks`);
+    const key = citedDecision.normalize("NFKC").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+    const current = groups.get(key) ?? {
+      cited_decision: citedDecision,
+      identifying_block: identifyingBlock(citedDecision, evidenceBlocks),
+      description: `${citedDecision} is directly under review.`,
+      evidence_blocks: [],
+      actions: [],
+    };
+    current.evidence_blocks = unique([...current.evidence_blocks, ...evidenceBlocks]);
+    current.actions.push({ action, affected_part: affectedPart, evidence_blocks: evidenceBlocks });
+    groups.set(key, current);
+  }
+  const reportedHistory: NonNullable<DecisionAnalysis["reported_history"]> = [];
+  for (const [index, value] of requiredList(item.reported_history, "analysis.reported_history", errors).entries()) {
+    const path = `analysis.reported_history[${index}]`;
+    const history = record(value);
+    if (!history) { errors.push(`${path}: expected an object`); continue; }
+    exactKeys(history, ["cited_decision", "action", "later_decision", "affected_part", "evidence_blocks"], path, errors);
+    reportedHistory.push({
+      cited_decision: stringValue(history.cited_decision, `${path}.cited_decision`, errors),
+      action: enumValue(history.action, PROCEDURAL_ACTIONS, `${path}.action`, errors),
+      later_decision: history.later_decision === null
+        ? null
+        : stringValue(history.later_decision, `${path}.later_decision`, errors),
+      affected_part: history.affected_part === null
+        ? null
+        : stringValue(history.affected_part, `${path}.affected_part`, errors),
+      evidence_blocks: blockIds(history.evidence_blocks, `${path}.evidence_blocks`),
+    });
+  }
+  const treatments: DecisionAnalysis["treatments"] = [];
+  for (const [index, value] of requiredList(item.treatments, "analysis.treatments", errors).entries()) {
+    const path = `analysis.treatments[${index}]`;
+    const treatment = record(value);
+    if (!treatment) { errors.push(`${path}: expected an object`); continue; }
+    exactKeys(treatment, ["cited_decision", "signal", "other_signal", "proposition", "treatment", "evidence_blocks"], path, errors);
+    const citedDecision = stringValue(treatment.cited_decision, `${path}.cited_decision`, errors);
+    const evidenceBlocks = blockIds(treatment.evidence_blocks, `${path}.evidence_blocks`);
+    const signal = enumValue(treatment.signal, TREATMENT_SIGNALS, `${path}.signal`, errors);
+    const otherSignal = treatment.other_signal === null
+      ? null
+      : stringValue(treatment.other_signal, `${path}.other_signal`, errors);
+    if ((signal === "other") !== Boolean(otherSignal)) errors.push(`${path}.other_signal: required only for signal other`);
+    treatments.push({
+      cited_decision: citedDecision,
+      identifying_block: identifyingBlock(citedDecision, evidenceBlocks),
+      signals: [signal],
+      other_signal: otherSignal,
+      proposition: stringValue(treatment.proposition, `${path}.proposition`, errors),
+      treatment: stringValue(treatment.treatment, `${path}.treatment`, errors),
+      evidence_blocks: evidenceBlocks,
+    });
+  }
+  return {
+    errors: unique(errors),
+    value: {
+      decision_mentions: [],
+      procedural_relationships: [...groups.values()],
+      reported_history: reportedHistory,
+      treatments,
+    } satisfies DecisionAnalysis,
+  };
+}
+
 export function compileAnalysis(
   raw: unknown,
   _structure: DecisionStructure,
   compiledStructure: CompiledStructure,
   material: CaseMaterial,
-  contract: AnalysisContract = "self-check",
+  contract: CompilationContract = "self-check",
 ): AnalysisCompilation {
+  if (contract === "hypersimple") {
+    const normalized = normalizeHypersimpleAnalysis(raw, material);
+    if (!normalized.value) {
+      return {
+        ok: false,
+        errors: normalized.errors,
+        value: null,
+        compiled: null,
+        grounding: [],
+        evidence_receipts: [],
+        prose_copy_receipts: [],
+        deterministic_quote_candidates: deterministicQuoteCandidates(material).map((quote) => ({ ...quote, text_sha256: sha256(quote.text) })),
+        no_oracle_citation_check: { checked: 0, covered: 0, omissions: [], unresolved: [] },
+      };
+    }
+    const compilation = compileAnalysis(normalized.value, _structure, compiledStructure, material, "simple");
+    const errors = unique([...normalized.errors, ...compilation.errors]);
+    return {
+      ...compilation,
+      ok: errors.length === 0,
+      errors,
+      value: record(raw) as unknown as DecisionAnalysis,
+    };
+  }
   const errors: string[] = [];
   const grounding: GroundingReceipt[] = [];
   const evidence = new Map<string, LegalEvidenceReceipt>();
@@ -1378,6 +1704,7 @@ export function compileAnalysis(
       no_oracle_citation_check: { checked: 0, covered: 0, omissions: [], unresolved: [] },
     };
   }
+  exactKeys(item, ["decision_mentions", "procedural_relationships", "reported_history", "treatments"], "analysis", errors);
   const opinions = new Map(compiledStructure.opinions.map((value) => [value.opinion_id, value]));
   const deriveOpinion = (blocks: ResolvedSpan[], path: string) => {
     const blockOpinions = blocks.map((block) => {
@@ -1400,6 +1727,7 @@ export function compileAnalysis(
   };
   const mentions: CompiledAnalysis["decision_mentions"] = [];
   const relationships: CompiledAnalysis["procedural_relationships"] = [];
+  const reportedHistory: CompiledAnalysis["reported_history"] = [];
   const treatments: CompiledAnalysis["treatments"] = [];
   const identities = new Map<string, CompiledAnalysis["decision_mentions"][number]>();
   const identityKey = (value: string) => value.normalize("NFKC").toLocaleLowerCase()
@@ -1415,8 +1743,8 @@ export function compileAnalysis(
       evidence,
     );
     if (!citedDecision || !identifyingBlock) return null;
-    if (!identifyingBlock.exact_text.includes(citedDecision)) {
-      errors.push(`${path}.cited_decision: copy one contiguous exact name or citation from the identifying block`);
+    if (contract !== "simple" && !identifyingBlock.exact_text.includes(citedDecision)) {
+      errors.push(`${path}.cited_decision: copy one contiguous exact name, citation, or identifying description from the identifying block`);
     }
     const key = identityKey(citedDecision);
     let identity = identities.get(key);
@@ -1436,13 +1764,17 @@ export function compileAnalysis(
     const path = `analysis.decision_mentions[${index}]`;
     const mention = record(value);
     if (!mention) errors.push(`${path}: expected an object`);
-    else identify(mention, path);
+    else {
+      exactKeys(mention, ["cited_decision", "identifying_block"], path, errors);
+      identify(mention, path);
+    }
   }
 
   for (const [index, value] of requiredList(item.procedural_relationships, "analysis.procedural_relationships", errors).entries()) {
     const path = `analysis.procedural_relationships[${index}]`;
     const relationship = record(value);
     if (!relationship) { errors.push(`${path}: expected an object`); continue; }
+    exactKeys(relationship, ["cited_decision", "identifying_block", "description", "evidence_blocks", "actions"], path, errors);
     const identity = identify(relationship, path);
     const description = stringValue(relationship.description, `${path}.description`, errors);
     const evidenceBlocks = collectBlocks(
@@ -1463,6 +1795,7 @@ export function compileAnalysis(
       const actionPath = `${path}.actions[${actionIndex}]`;
       const action = record(value);
       if (!action) { errors.push(`${actionPath}: expected an object`); return []; }
+      exactKeys(action, ["action", "affected_part", "evidence_blocks"], actionPath, errors);
       return [{
         action: enumValue(action.action, PROCEDURAL_ACTIONS, `${actionPath}.action`, errors),
         affected_part: action.affected_part === null
@@ -1487,10 +1820,58 @@ export function compileAnalysis(
     });
   }
 
+  const historyValues = contract === "reference" && item.reported_history === undefined
+    ? []
+    : requiredList(item.reported_history, "analysis.reported_history", errors);
+  for (const [index, value] of historyValues.entries()) {
+    const path = `analysis.reported_history[${index}]`;
+    const history = record(value);
+    if (!history) { errors.push(`${path}: expected an object`); continue; }
+    exactKeys(history, [
+      "cited_decision", "action", "later_decision", "affected_part", "evidence_blocks",
+      ...(contract === "reference" ? ["opinion_id"] : []),
+    ], path, errors);
+    const evidenceBlocks = collectBlocks(
+      history.evidence_blocks,
+      `${path}.evidence_blocks`,
+      material,
+      errors,
+      grounding,
+      evidence,
+    );
+    const opinion = deriveOpinion(evidenceBlocks, `${path}.evidence_blocks`);
+    const modelOpinionId = contract === "reference"
+      ? idValue(history.opinion_id, /^o[1-9][0-9]*$/u, `${path}.opinion_id`, errors)
+      : null;
+    if (modelOpinionId && opinion && modelOpinionId !== opinion.opinion_id) {
+      errors.push(`${path}.opinion_id: ${modelOpinionId} conflicts with evidence in ${opinion.opinion_id}`);
+    }
+    if (opinion) reportedHistory.push({
+      history_id: `h${reportedHistory.length + 1}`,
+      cited_decision: stringValue(history.cited_decision, `${path}.cited_decision`, errors),
+      action: enumValue(history.action, PROCEDURAL_ACTIONS, `${path}.action`, errors),
+      later_decision: history.later_decision === null
+        ? null
+        : stringValue(history.later_decision, `${path}.later_decision`, errors),
+      affected_part: history.affected_part === null
+        ? null
+        : stringValue(history.affected_part, `${path}.affected_part`, errors),
+      opinion_id: opinion.opinion_id,
+      model_opinion_id: modelOpinionId || null,
+      evidence_blocks: evidenceBlocks,
+    });
+  }
+
   for (const [index, value] of requiredList(item.treatments, "analysis.treatments", errors).entries()) {
     const path = `analysis.treatments[${index}]`;
     const treatment = record(value);
     if (!treatment) { errors.push(`${path}: expected an object`); continue; }
+    exactKeys(treatment, [
+      "cited_decision", "identifying_block", "signals", "other_signal",
+      "proposition", "treatment", "evidence_blocks",
+      ...(contract === "self-check" ? ["opinion_id", "supporting_passages", "quoted_passages"] : []),
+      ...(contract === "reference" ? ["opinion_id", "quoted_passages"] : []),
+    ], path, errors);
     const identity = identify(treatment, path);
     const modelOpinionId = contract === "self-check"
       ? idValue(treatment.opinion_id, /^o[1-9][0-9]*$/u, `${path}.opinion_id`, errors)
@@ -1545,7 +1926,9 @@ export function compileAnalysis(
           return resolved ? [resolved] : [];
         })
       : [];
-    const quotedPassages = requiredList(treatment.quoted_passages, `${path}.quoted_passages`, errors)
+    const quotedPassages = (contract !== "simple"
+      ? requiredList(treatment.quoted_passages, `${path}.quoted_passages`, errors)
+      : [])
       .flatMap((passage, passageIndex) => {
         const resolved = collectBlockQuotation(
           passage,
@@ -1560,6 +1943,7 @@ export function compileAnalysis(
         return resolved ? [resolved] : [];
       });
     const visible = [
+      ...(identity ? [{ evidenceId: "i1", text: identity.identifying_block.exact_text, span: identity.identifying_block }] : []),
       ...evidenceBlocks.map((span, blockIndex) => ({ evidenceId: `e${blockIndex + 1}`, text: span.exact_text, span })),
       ...supportingPassages.map((span, passageIndex) => ({ evidenceId: `s${passageIndex + 1}`, text: span.exact_text, span })),
       ...quotedPassages.map((span, passageIndex) => ({ evidenceId: `q${passageIndex + 1}`, text: span.exact_text, span })),
@@ -1585,6 +1969,7 @@ export function compileAnalysis(
   const compiled: CompiledAnalysis = {
     decision_mentions: mentions,
     procedural_relationships: relationships,
+    reported_history: reportedHistory,
     treatments,
   };
   const citationCheck = noOracleCitationCheck(material, compiledStructure, compiled);
@@ -1607,7 +1992,7 @@ export function compileAnalysis(
 export function compileSubmission(
   raw: unknown,
   material: CaseMaterial,
-  contract: AnalysisContract = "self-check",
+  contract: CompilationContract = "self-check",
 ): SubmissionCompilation {
   const item = record(raw);
   if (!item) {
@@ -1621,11 +2006,13 @@ export function compileSubmission(
       analysis: null,
     };
   }
+  const rootErrors: string[] = [];
+  exactKeys(item, ["structure", "analysis"], "submission", rootErrors);
   const structure = compileStructure(item.structure, material);
   if (!structure.ok || !structure.value || !structure.compiled) {
     return {
       ok: false,
-      errors: structure.errors,
+      errors: unique([...rootErrors, ...structure.errors]),
       value: null,
       grounding: structure.grounding,
       structure,
@@ -1633,10 +2020,11 @@ export function compileSubmission(
     };
   }
   const analysis = compileAnalysis(item.analysis, structure.value, structure.compiled, material, contract);
+  const errors = unique([...rootErrors, ...structure.errors, ...analysis.errors]);
   return {
-    ok: structure.ok && analysis.ok,
-    errors: unique([...structure.errors, ...analysis.errors]),
-    value: structure.ok && analysis.ok ? item as unknown as CaseTreatmentSubmission : null,
+    ok: errors.length === 0,
+    errors,
+    value: errors.length === 0 ? item as unknown as CaseTreatmentSubmission : null,
     grounding: [...structure.grounding, ...analysis.grounding],
     structure,
     analysis,
@@ -1645,7 +2033,7 @@ export function compileSubmission(
 
 /** Compile human-authored reference truth without requiring model self-check fields. */
 export function compileReferenceSubmission(raw: unknown, material: CaseMaterial): SubmissionCompilation {
-  const compilation = compileSubmission(raw, material, "simple");
+  const compilation = compileSubmission(raw, material, "reference");
   if (!compilation.ok || !compilation.analysis?.compiled) return compilation;
   const analysis = record(record(raw)?.analysis);
   const treatments = list(analysis?.treatments);
@@ -1678,7 +2066,7 @@ const SPAN_INSTRUCTIONS = `Each source block is labelled pN. For structure spans
 
 export const STRUCTURE_INSTRUCTIONS = `Read the complete decision and identify its judicial reasons and votes.
 
-An opinion is an independently reasoned body of judicial reasons. A panel list, headnote, signature, order, correction, disposition-only line, or bare statement such as "I agree" is not a separate opinion. Bound each opinion from its first substantive heading or sentence through its last substantive sentence. Do not include editorial material, counsel lists, signatures, or a bare joinder in an opinion boundary.
+An opinion is an independently reasoned body of judicial reasons. A panel list, headnote, signature, order, correction, disposition-only line, or bare statement such as "I agree" is not a separate opinion. Bound each opinion from its first substantive heading or sentence through its last substantive sentence. Once a judge gives independent reasons, include the whole body of those reasons, including its statements adopting other reasons and its disposition; exclude a bare joinder only when it stands alone instead of forming part of an independently reasoned opinion. Do not include editorial material, counsel lists, or signatures.
 
 List every participating decision-maker. Link a participant to an opinion as wrote, joined, or joined_in_part only when the decision establishes that relationship. For joined_in_part, use the exact passage in which the judge qualifies the agreement; do not summarize its legal scope. Ground every link in a passage that identifies the participant, because a heading such as "Reasons for Judgment" does not by itself identify its writer. Panel membership alone proves neither authorship nor joinder. Use collective_author only when the reasons identify an institutional writer such as "The Court"; otherwise leave it null when no writer is stated. List an expressly nonparticipating judge only in nonparticipants.
 
@@ -1690,15 +2078,17 @@ Return only JSON matching the supplied schema.`;
 
 export const ANALYSIS_INSTRUCTIONS = `Read the complete decision and the supplied judicial-opinion structure. Describe what its judicial opinions say about other adjudicative decisions.
 
-In decision_mentions, list one clear mention of every other decision in the judicial reasons, dispositions, or court-authored procedural account, including decisions quoted there and decisions discussed while recounting a party's argument. Do not list decisions appearing only in editorial metadata, headnotes, histories added by a publisher, or counsel and authority lists. In every list, cited_decision is a short contiguous exact name or citation copied from identifying_block. Do not include legislation, secondary sources, or the present decision.
+In decision_mentions, list one clear mention of every other decision in the judicial reasons, dispositions, or court-authored procedural account, including decisions quoted there and decisions discussed while recounting a party's argument. Do not list decisions appearing only in editorial metadata, headnotes, histories added by a publisher, or counsel and authority lists. In every list, cited_decision is a concise name, citation, or identifying description found in identifying_block. Do not include legislation, secondary sources, or the present decision.
 
-In procedural_relationships, record only decisions from the same litigation. description explains how the earlier decision fits into the litigation. actions records what the present court directly does to it; actions may be empty. Use separate actions when different parts receive different results, and set affected_part to null when an action applies to the whole decision. Reversing a judgment is a procedural action, not precedential overruling.
+In procedural_relationships, record only a decision or order from the same litigation that the present court is directly reviewing. Include each decision under review in a consolidated matter, but do not include other steps merely because they occurred in the same litigation. description identifies the decision under review and its role. actions records what the present court does to it, and every relationship must have at least one action. Use separate actions when different parts receive different results, and set affected_part to null when an action applies to the whole decision. Refusing extra time to start an appeal is not an action on the underlying decision. Reversing a judgment is a procedural action, not precedential overruling.
 
-In treatments, record each legal proposition that a judicial opinion adopts, applies, explains, extends, distinguishes, limits, criticizes, questions, rejects, or otherwise evaluates. proposition states the proposition as the opinion presents it. treatment states succinctly what the opinion does with that proposition and any material limit on its scope. Use separate observations for different opinions, propositions, operations, or material scopes.
+In reported_history, record when an opinion states that another adjudicative decision was later affirmed, reversed, varied, quashed, remitted, or received a material leave disposition. cited_decision is the earlier decision affected; later_decision identifies the later court decision when the opinion names it. This remains in scope when stated inside a chronological procedural account; omit events that state no such relationship. Do not record the present court's own action here.
+
+In treatments, work through each judicial opinion from beginning to end. Whenever an opinion uses or evaluates another decision's holding, legal rule, reasoning, remedial approach, or material factual or procedural analogy, record every distinct point it takes from that decision and what it does with that point. If several decisions support the same point, record each decision separately. A cited decision may require multiple treatment records, and different opinions must receive separate records. Do not stop after the most important or representative treatments. A decision directly under review may have both a procedural relationship and treatments when an opinion also uses or evaluates its reasoning. proposition states the point as the opinion presents it. treatment states succinctly how the opinion uses or evaluates that point and any material limit on the operation. Do not make a treatment from a decision recounted only as an event or background chronology.
 
 A mention alone is not treatment. A party's submission, an unadopted quotation, or another decision's reasoning is not the current opinion's position. evidence_blocks must identify the current judicial opinion's own words adopting or evaluating the proposition.
 
-Each evidence_blocks value is a list of pN block IDs. quoted_passages contains exact words attributed to the cited decision that matter to the treatment. For each quoted passage, give the pN blocks containing it and copy its text verbatim, including visible editorial alterations. It may be empty.
+Each evidence_blocks value is a list of pN block IDs.
 
 signals may contain more than one independently supported operation:
 - explained: interprets or clarifies the cited proposition;
@@ -1716,23 +2106,53 @@ signals may contain more than one independently supported operation:
 
 Return only JSON matching the supplied schema.`;
 
-export const ANALYSIS_EXAMPLES = `EXAMPLE
-{"decision_mentions":[{"cited_decision":"Smith v. Jones, 2023 ABKB 100","identifying_block":"p4"},{"cited_decision":"Brown v. Canada, 2019 SCC 5","identifying_block":"p8"}],"procedural_relationships":[{"cited_decision":"Smith v. Jones, 2023 ABKB 100","identifying_block":"p4","description":"This is the trial judgment under appeal.","evidence_blocks":["p4"],"actions":[{"action":"reversed","affected_part":"the limitation finding","evidence_blocks":["p5"]}]}],"treatments":[{"cited_decision":"Smith v. Jones, 2023 ABKB 100","identifying_block":"p4","opinion_id":"o1","signals":["not_followed"],"other_signal":null,"proposition":"The limitation period began when the plaintiff first suspected an injury.","treatment":"The opinion rejects that proposition because the period begins only with knowledge of the material facts.","evidence_blocks":["p6"],"supporting_passages":[{"block_ids":["p6"],"text":"I respectfully disagree"}],"quoted_passages":[]},{"cited_decision":"Brown v. Canada, 2019 SCC 5","identifying_block":"p8","opinion_id":"o1","signals":["approved","applied"],"other_signal":null,"proposition":"A waiver of statutory rights must be unequivocal.","treatment":"The opinion adopts that requirement and finds no waiver.","evidence_blocks":["p8","p9"],"supporting_passages":[{"block_ids":["p8","p9"],"text":"Brown states that a waiver must be unequivocal. I apply that rule here"}],"quoted_passages":[{"block_ids":["p8"],"text":"A waiver must be unequivocal"}]}]}`;
+export const HYPERSIMPLE_ANALYSIS_INSTRUCTIONS = `Read the complete decision and the supplied judicial-opinion structure.
 
-export const SELF_CHECK_ANALYSIS_INSTRUCTIONS = `For each treatment, state which opinion in the structure made it. In supporting_passages, copy one or more short verbatim passages containing that opinion's own words that directly support the characterization. These passages are distinct from quoted_passages, which reproduce words attributed to the cited decision.`;
+In treatments, work through every judicial opinion from beginning to end. Record every distinct point for which an opinion uses or evaluates another adjudicative decision's holding, legal rule, reasoning, remedial approach, or material factual or procedural analogy, not merely the most important examples. proposition states the point attributed to the cited decision. treatment states succinctly what the present opinion does with that point and any material limit. Choose the single signal that best describes that operation; use other and name the operation in other_signal only when none of the fixed signals fits, otherwise set other_signal to null. Use separate records when different opinions treat the same decision or when one opinion treats distinct propositions from it. Do not make a treatment from a decision recounted only as an event or background chronology.
+
+Use explained for neutral clarification, approved for express endorsement, followed for acceptance as governing authority, applied for use on the present question, extended for use beyond the earlier setting, distinguished for non-application because of a material difference, limited for narrowed scope, criticized for disapproval without refusal, questioned for expressed doubt, not_followed for refusal to follow, and overruled only for express displacement by a court able to do so.
+
+Do not turn a bare citation, a party's submission, an unadopted quotation, or reasoning merely recounted from another decision into the present opinion's treatment. evidence_blocks must identify the present judicial opinion's own words adopting or evaluating the proposition.
+
+In direct_outcomes, record each decision or order from the same litigation that the present court directly affirms, reverses, varies, quashes, remits, or addresses through a listed leave action. Use one row for each distinct action or affected part. This is separate from what the opinions say about that decision's propositions.
+
+In reported_history, record when an opinion says that another adjudicative decision was later affirmed, reversed, varied, quashed, remitted, or received a material leave disposition. cited_decision is the earlier decision affected; later_decision is the later court decision when named. This remains in scope when stated inside a chronological procedural account; omit events that state no such relationship. Do not put the present court's own action here.
+
+Each evidence_blocks value is a list of pN block IDs. cited_decision may be the case name, citation, or another clear label used in the decision.
+
+Return only JSON matching the supplied schema.`;
+
+export const ANALYSIS_EXAMPLES = `EXAMPLE
+{"decision_mentions":[{"cited_decision":"Smith v. Jones, 2023 ABKB 100","identifying_block":"p4"},{"cited_decision":"Brown v. Canada, 2019 SCC 5","identifying_block":"p8"}],"procedural_relationships":[{"cited_decision":"Smith v. Jones, 2023 ABKB 100","identifying_block":"p4","description":"This is the trial judgment under appeal.","evidence_blocks":["p4"],"actions":[{"action":"reversed","affected_part":"the limitation finding","evidence_blocks":["p5"]}]}],"reported_history":[],"treatments":[{"cited_decision":"Smith v. Jones, 2023 ABKB 100","identifying_block":"p4","opinion_id":"o1","signals":["not_followed"],"other_signal":null,"proposition":"The limitation period began when the plaintiff first suspected an injury.","treatment":"The opinion rejects that proposition because the period begins only with knowledge of the material facts.","evidence_blocks":["p6"],"supporting_passages":[{"block_ids":["p6"],"text":"I respectfully disagree"}],"quoted_passages":[]},{"cited_decision":"Brown v. Canada, 2019 SCC 5","identifying_block":"p8","opinion_id":"o1","signals":["approved","applied"],"other_signal":null,"proposition":"A waiver of statutory rights must be unequivocal.","treatment":"The opinion adopts that requirement and finds no waiver.","evidence_blocks":["p8","p9"],"supporting_passages":[{"block_ids":["p8","p9"],"text":"Brown states that a waiver must be unequivocal. I apply that rule here"}],"quoted_passages":[{"block_ids":["p8"],"text":"A waiver must be unequivocal"}]}]}`;
+
+export const SELF_CHECK_ANALYSIS_INSTRUCTIONS = `In every list, copy cited_decision exactly from identifying_block. For each treatment, state which opinion in the structure made it. In supporting_passages, copy one or more short verbatim passages containing that opinion's own words that directly support the characterization. In quoted_passages, copy any exact words attributed to the cited decision that matter to the treatment; use an empty array when there are none.`;
 
 export function analysisExampleText(contract: AnalysisContract) {
+  if (contract === "hypersimple") return "";
   if (contract === "self-check") return ANALYSIS_EXAMPLES;
   const value = JSON.parse(ANALYSIS_EXAMPLES.slice(ANALYSIS_EXAMPLES.indexOf("{") )) as DecisionAnalysis;
   for (const treatment of value.treatments) {
     delete treatment.opinion_id;
     delete treatment.supporting_passages;
+    delete treatment.quoted_passages;
   }
   return `EXAMPLE\n${JSON.stringify(value)}`;
 }
 
-export function structurePrompt(material: CaseMaterial) {
-  return [STRUCTURE_INSTRUCTIONS, numberedDecisionPacket(material)].join("\n\n");
+function structureStrategyInstruction(strategy: StructureStrategy) {
+  if (strategy === "boundary-first") {
+    return "First trace each independently reasoned body from its first substantive sentence to its last, using bylines and changes in judicial voice. Then assign writers, joinders, and result positions from explicit text.";
+  }
+  if (strategy === "vote-first") {
+    return "First identify the panel and each participant's position on the disposition. Then map those positions to independently reasoned bodies, writers, and joinders, checking that every substantive body has one boundary.";
+  }
+  return "";
+}
+
+export function structurePrompt(material: CaseMaterial, strategy: StructureStrategy = "direct") {
+  return [STRUCTURE_INSTRUCTIONS, structureStrategyInstruction(strategy), numberedDecisionPacket(material)]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 function structureHintPacket(material: CaseMaterial) {
@@ -1762,8 +2182,8 @@ function structureHintPacket(material: CaseMaterial) {
   ].join("\n");
 }
 
-export function structurePromptWithHints(material: CaseMaterial) {
-  return [STRUCTURE_INSTRUCTIONS, structureHintPacket(material), numberedDecisionPacket(material)]
+export function structurePromptWithHints(material: CaseMaterial, strategy: StructureStrategy = "direct") {
+  return [STRUCTURE_INSTRUCTIONS, structureStrategyInstruction(strategy), structureHintPacket(material), numberedDecisionPacket(material)]
     .filter(Boolean)
     .join("\n\n");
 }
@@ -1792,8 +2212,11 @@ export function analysisPrompt(
   includeExamples = false,
   contract: AnalysisContract = "self-check",
 ) {
+  const instructions = contract === "hypersimple"
+    ? HYPERSIMPLE_ANALYSIS_INSTRUCTIONS
+    : ANALYSIS_INSTRUCTIONS;
   return [
-    ANALYSIS_INSTRUCTIONS,
+    instructions,
     contract === "self-check" ? SELF_CHECK_ANALYSIS_INSTRUCTIONS : "",
     includeExamples ? analysisExampleText(contract) : "",
     "[JUDICIAL OPINION STRUCTURE]",
@@ -1802,18 +2225,72 @@ export function analysisPrompt(
   ].filter(Boolean).join("\n\n");
 }
 
+export function analysisAuditPrompt(
+  material: CaseMaterial,
+  structure: DecisionStructure,
+  analysis: DecisionAnalysis,
+  contract: AnalysisContract = "self-check",
+) {
+  if (contract === "hypersimple") {
+    return [
+      "Re-read the complete decision from beginning to end and correct the current analysis.",
+      HYPERSIMPLE_ANALYSIS_INSTRUCTIONS.replace(/\n\nReturn only JSON matching the supplied schema\.$/u, ""),
+      "Add omitted treatments, direct outcomes, or reported history; remove unsupported rows; and correct material errors without rewriting correct rows. Return an object whose patch field is an RFC 6902 JSON Patch array against the current analysis. Patch individual rows in direct_outcomes, reported_history, or treatments. Use add with a path ending in /-, replace or remove with the row's zero-based index, and null as the value for remove. Return {\"patch\":[]} if no correction is needed.",
+      "[JUDICIAL OPINION STRUCTURE]",
+      JSON.stringify(compactStructure(structure)),
+      "[CURRENT ANALYSIS]",
+      JSON.stringify(analysis),
+      numberedDecisionPacket(material),
+    ].join("\n\n");
+  }
+  return [
+    "Re-read the complete decision from beginning to end and correct the current analysis.",
+    ANALYSIS_INSTRUCTIONS.replace(/\n\nReturn only JSON matching the supplied schema\.$/u, ""),
+    contract === "self-check" ? SELF_CHECK_ANALYSIS_INSTRUCTIONS : "",
+    "Add omissions, remove unsupported items, and correct material errors without rewriting correct items. Return an object whose patch field is an RFC 6902 JSON Patch array against the current analysis. Patch individual records in decision_mentions, procedural_relationships, reported_history, or treatments. Use add with a path ending in /-, replace or remove with the record's zero-based index, and null as the value for remove. Return {\"patch\":[]} if no correction is needed.",
+    "[JUDICIAL OPINION STRUCTURE]",
+    JSON.stringify(compactStructure(structure)),
+    "[CURRENT ANALYSIS]",
+    JSON.stringify(analysis),
+    unclassifiedDecisionReview(analysis),
+    numberedDecisionPacket(material),
+  ].filter(Boolean).join("\n\n");
+}
+
+export function unclassifiedDecisionReview(analysis: DecisionAnalysis) {
+  const key = (value: string) => value.replace(/\s+/gu, " ").trim().toLocaleLowerCase("en");
+  const classified = new Set([
+    ...analysis.procedural_relationships.map(({ cited_decision }) => key(cited_decision)),
+    ...analysis.treatments.map(({ cited_decision }) => key(cited_decision)),
+  ]);
+  const labels = [...new Map(analysis.decision_mentions
+    .filter(({ cited_decision }) => !classified.has(key(cited_decision)))
+    .map(({ cited_decision }) => [key(cited_decision), cited_decision])).values()];
+  if (!labels.length) return "";
+  return [
+    "[DECISION MENTIONS WITH NO CURRENT CLASSIFICATION]",
+    "Re-check every occurrence of these cited decisions. Add a treatment only if a judicial opinion uses or evaluates it, and add a procedural relationship only if it is a decision directly under review. A bare mention, a party's submission, or an unadopted quotation may correctly remain unclassified.",
+    JSON.stringify(labels),
+  ].join("\n");
+}
+
 export function oneStagePrompt(
   material: CaseMaterial,
   includeStructureHints = false,
   includeAnalysisExamples = false,
   contract: AnalysisContract = "self-check",
+  structureStrategy: StructureStrategy = "direct",
 ) {
+  const instructions = contract === "hypersimple"
+    ? HYPERSIMPLE_ANALYSIS_INSTRUCTIONS
+    : ANALYSIS_INSTRUCTIONS;
   return [
     "Return one structured account of this complete court decision.",
     "[JUDICIAL OPINIONS AND VOTES]",
     STRUCTURE_INSTRUCTIONS.replace(/Return only JSON matching the supplied schema\.$/u, ""),
+    structureStrategyInstruction(structureStrategy),
     "[CITED DECISIONS AND THEIR TREATMENT]",
-    ANALYSIS_INSTRUCTIONS.replace(/^Read the complete decision and the supplied judicial-opinion structure\. /u, "Read the complete decision. ")
+    instructions.replace(/^Read the complete decision and the supplied judicial-opinion structure\. /u, "Read the complete decision. ")
       .replace(/Return only JSON matching the supplied schema\.$/u, ""),
     contract === "self-check" ? SELF_CHECK_ANALYSIS_INSTRUCTIONS : "",
     includeAnalysisExamples ? analysisExampleText(contract) : "",
@@ -2021,10 +2498,10 @@ export const SEMANTIC_JUDGE_SCHEMA = {
         additionalProperties: false,
         properties: {
           candidate_treatment_id: { type: "string", pattern: "^ct[1-9][0-9]*$" },
-          severity: { enum: ["minor", "major"] },
+          verdict: { enum: ["pass", "minor_error", "major_error"] },
           explanation: { type: "string", minLength: 1, maxLength: 2_000 },
         },
-        required: ["candidate_treatment_id", "severity", "explanation"],
+        required: ["candidate_treatment_id", "verdict", "explanation"],
       },
     },
     procedural_relationship_grades: {
@@ -2057,10 +2534,10 @@ export const SEMANTIC_JUDGE_SCHEMA = {
         additionalProperties: false,
         properties: {
           candidate_relationship_id: { type: "string", pattern: "^cr[1-9][0-9]*$" },
-          severity: { enum: ["minor", "major"] },
+          verdict: { enum: ["pass", "minor_error", "major_error"] },
           explanation: { type: "string", minLength: 1, maxLength: 2_000 },
         },
-        required: ["candidate_relationship_id", "severity", "explanation"],
+        required: ["candidate_relationship_id", "verdict", "explanation"],
       },
     },
   },
@@ -2077,14 +2554,14 @@ export const SEMANTIC_PASS_THRESHOLD = 0.8;
 export function semanticJudgeScore(value: unknown) {
   const result = record(value);
   const rows = (name: string) => Array.isArray(result?.[name]) ? result[name] as Array<Record<string, unknown>> : [];
-  const gradePoints = (grade: unknown) => grade === "pass" ? 1 : grade === "minor_error" || grade === "minor" ? 0.5 : 0;
+  const gradePoints = (grade: unknown) => grade === "pass" ? 1 : grade === "minor_error" ? 0.5 : 0;
   const treatmentPoints = [
     ...rows("treatment_grades").map(({ verdict }) => gradePoints(verdict)),
-    ...rows("extra_candidate_treatments").map(({ severity }) => gradePoints(severity)),
+    ...rows("extra_candidate_treatments").map(({ verdict }) => gradePoints(verdict)),
   ];
   const relationshipPoints = [
     ...rows("procedural_relationship_grades").map(({ verdict }) => gradePoints(verdict)),
-    ...rows("extra_candidate_relationships").map(({ severity }) => gradePoints(severity)),
+    ...rows("extra_candidate_relationships").map(({ verdict }) => gradePoints(verdict)),
   ];
   const score = (points: number[]) => ({
     items: points.length,
@@ -2096,10 +2573,10 @@ export function semanticJudgeScore(value: unknown) {
   const overall = score([...treatmentPoints, ...relationshipPoints]);
   const majorErrors = [
     ...rows("treatment_grades").map(({ verdict }) => verdict),
-    ...rows("extra_candidate_treatments").map(({ severity }) => severity),
+    ...rows("extra_candidate_treatments").map(({ verdict }) => verdict),
     ...rows("procedural_relationship_grades").map(({ verdict }) => verdict),
-    ...rows("extra_candidate_relationships").map(({ severity }) => severity),
-  ].filter((grade) => grade === "major_error" || grade === "major").length;
+    ...rows("extra_candidate_relationships").map(({ verdict }) => verdict),
+  ].filter((grade) => grade === "major_error").length;
   return {
     treatment,
     procedural_relationship,
@@ -2107,6 +2584,183 @@ export function semanticJudgeScore(value: unknown) {
     major_errors: majorErrors,
     passed: overall.score >= SEMANTIC_PASS_THRESHOLD && majorErrors === 0,
     passing_threshold: SEMANTIC_PASS_THRESHOLD,
+  };
+}
+
+/** Remove judge-output bookkeeping contradictions that have only one safe interpretation. */
+export function normalizeSemanticJudgeResult(value: unknown) {
+  const result = record(value);
+  if (!result) return value;
+  const normalized = structuredClone(result);
+  const rows = (name: string) => Array.isArray(normalized[name])
+    ? normalized[name] as Array<Record<string, unknown>>
+    : [];
+  const matchedTreatments = new Set(rows("treatment_grades")
+    .flatMap((grade) => list(grade.candidate_treatment_ids))
+    .filter((id): id is string => typeof id === "string"));
+  const matchedRelationships = new Set(rows("procedural_relationship_grades")
+    .flatMap((grade) => list(grade.candidate_relationship_ids))
+    .filter((id): id is string => typeof id === "string"));
+  normalized.extra_candidate_treatments = rows("extra_candidate_treatments")
+    .filter(({ candidate_treatment_id }) => !matchedTreatments.has(String(candidate_treatment_id)));
+  normalized.extra_candidate_relationships = rows("extra_candidate_relationships")
+    .filter(({ candidate_relationship_id }) => !matchedRelationships.has(String(candidate_relationship_id)));
+  for (const name of ["treatment_grades", "procedural_relationship_grades"]) {
+    for (const grade of rows(name)) {
+      if (grade.verdict === "pass") {
+        grade.aspects = [];
+        grade.explanation = null;
+      }
+    }
+  }
+  return normalized;
+}
+
+export function semanticJudgeReceipt(
+  gold: SubmissionCompilation,
+  candidate: SubmissionCompilation | null,
+  value: unknown = null,
+  includeInvalidCandidate = false,
+) {
+  const reference = semanticView(gold, "g");
+  const answer = candidate
+    ? includeInvalidCandidate ? semanticDraftView(candidate, "c") : semanticView(candidate, "c")
+    : null;
+  if (!reference) throw new Error("semantic receipt requires valid gold");
+  const supplied = record(value);
+  const exact = answer && JSON.stringify(reference) === JSON.stringify(answer);
+  const treatmentGrades = supplied && Array.isArray(supplied.treatment_grades)
+    ? supplied.treatment_grades.map(record).filter((item): item is Record<string, unknown> => item !== null)
+    : reference.treatments.map((treatment, index) => ({
+      reference_treatment_id: treatment.treatment_id,
+      candidate_treatment_ids: exact ? [answer!.treatments[index].treatment_id] : [],
+      verdict: exact ? "pass" : "major_error",
+    }));
+  const relationshipGrades = supplied && Array.isArray(supplied.procedural_relationship_grades)
+    ? supplied.procedural_relationship_grades.map(record).filter((item): item is Record<string, unknown> => item !== null)
+    : reference.procedural_relationships.map((relationship, index) => ({
+      reference_relationship_id: relationship.relationship_id,
+      candidate_relationship_ids: exact ? [answer!.procedural_relationships[index].relationship_id] : [],
+      verdict: exact ? "pass" : "major_error",
+    }));
+  const extraTreatments = supplied && Array.isArray(supplied.extra_candidate_treatments)
+    ? supplied.extra_candidate_treatments.map(record).filter((item): item is Record<string, unknown> => item !== null)
+    : [];
+  const extraRelationships = supplied && Array.isArray(supplied.extra_candidate_relationships)
+    ? supplied.extra_candidate_relationships.map(record).filter((item): item is Record<string, unknown> => item !== null)
+    : [];
+  const points = (verdict: unknown) => verdict === "pass" ? 1 : verdict === "minor_error" ? 0.5 : 0;
+  const matched = (rows: Record<string, unknown>[], candidateIds: string) => {
+    const covered = rows.filter((row) => list(row[candidateIds]).length > 0);
+    const earned = covered.reduce((total, row) => total + points(row.verdict), 0);
+    return {
+      reference_items: rows.length,
+      covered_items: covered.length,
+      omitted_items: rows.length - covered.length,
+      coverage: rows.length ? covered.length / rows.length : 1,
+      pass: covered.filter(({ verdict }) => verdict === "pass").length,
+      minor_error: covered.filter(({ verdict }) => verdict === "minor_error").length,
+      major_error: covered.filter(({ verdict }) => verdict === "major_error").length,
+      accuracy_among_covered: covered.length ? earned / covered.length : 1,
+    };
+  };
+  const extras = (rows: Record<string, unknown>[]) => ({
+    items: rows.length,
+    pass: rows.filter(({ verdict }) => verdict === "pass").length,
+    minor_error: rows.filter(({ verdict }) => verdict === "minor_error").length,
+    major_error: rows.filter(({ verdict }) => verdict === "major_error").length,
+  });
+  const supportMap = (compilation: SubmissionCompilation, prefix: string) => {
+    const structure = compilation.structure.compiled;
+    const treatments = compilation.analysis?.compiled?.treatments ?? [];
+    if (!structure) return new Map<string, ReturnType<typeof opinionSupportBounds>["status"]>();
+    return new Map(treatments.map((treatment, index) => [
+      `${prefix}t${index + 1}`,
+      opinionSupportBounds(structure, treatment).status,
+    ]));
+  };
+  const goldSupport = supportMap(gold, "g");
+  const candidateSupport = candidate ? supportMap(candidate, "c") : new Map<string, ReturnType<typeof opinionSupportBounds>["status"]>();
+  const assessableSupport = treatmentGrades.flatMap((grade) => {
+    const referenceId = typeof grade.reference_treatment_id === "string" ? grade.reference_treatment_id : "";
+    const expected = goldSupport.get(referenceId);
+    const candidateIds = list(grade.candidate_treatment_ids).filter((id): id is string => typeof id === "string");
+    if (!expected || expected === "unresolved" || expected === "unknown") return [];
+    const statuses = candidateIds.map((id) => candidateSupport.get(id) ?? "unknown");
+    return [{
+      reference_treatment_id: referenceId,
+      candidate_treatment_ids: candidateIds,
+      expected,
+      candidates: statuses,
+      exact: candidateIds.length > 0 && statuses.every((status) => status === expected),
+    }];
+  });
+  const coveredSupport = assessableSupport.filter(({ candidate_treatment_ids }) => candidate_treatment_ids.length > 0);
+  const exactSupport = assessableSupport.filter(({ exact }) => exact).length;
+  const candidateTreatmentIds = new Set(answer?.treatments.map(({ treatment_id }) => treatment_id) ?? []);
+  const acceptableCandidateIds = new Set<string>();
+  for (const grade of treatmentGrades) {
+    if (grade.verdict !== "major_error") {
+      for (const id of list(grade.candidate_treatment_ids)) if (typeof id === "string") acceptableCandidateIds.add(id);
+    }
+  }
+  for (const grade of extraTreatments) {
+    if (grade.verdict !== "major_error" && typeof grade.candidate_treatment_id === "string") {
+      acceptableCandidateIds.add(grade.candidate_treatment_id);
+    }
+  }
+  const referenceRelationships = new Map(reference.procedural_relationships.map((relationship) => [
+    relationship.relationship_id,
+    relationship,
+  ]));
+  const candidateRelationships = new Map((answer?.procedural_relationships ?? []).map((relationship) => [
+    relationship.relationship_id,
+    relationship,
+  ]));
+  let referenceActions = 0;
+  let matchedActionTypes = 0;
+  for (const grade of relationshipGrades) {
+    const referenceId = typeof grade.reference_relationship_id === "string" ? grade.reference_relationship_id : "";
+    const goldRelationship = referenceRelationships.get(referenceId);
+    if (!goldRelationship) continue;
+    const candidateActions = list(grade.candidate_relationship_ids)
+      .filter((id): id is string => typeof id === "string")
+      .flatMap((id) => candidateRelationships.get(id)?.actions ?? [])
+      .map(({ action }) => action);
+    referenceActions += goldRelationship.actions.length;
+    for (const { action } of goldRelationship.actions) {
+      const index = candidateActions.indexOf(action);
+      if (index < 0) continue;
+      candidateActions.splice(index, 1);
+      matchedActionTypes += 1;
+    }
+  }
+  return {
+    treatments: matched(treatmentGrades, "candidate_treatment_ids"),
+    extra_treatments: extras(extraTreatments),
+    procedural_relationships: matched(relationshipGrades, "candidate_relationship_ids"),
+    extra_procedural_relationships: extras(extraRelationships),
+    procedural_action_types: {
+      reference_items: referenceActions,
+      matched_items: matchedActionTypes,
+      coverage: referenceActions ? matchedActionTypes / referenceActions : 1,
+    },
+    candidate_treatments: {
+      items: candidateTreatmentIds.size,
+      acceptable_items: [...acceptableCandidateIds].filter((id) => candidateTreatmentIds.has(id)).length,
+      score: candidateTreatmentIds.size
+        ? [...acceptableCandidateIds].filter((id) => candidateTreatmentIds.has(id)).length / candidateTreatmentIds.size
+        : 1,
+    },
+    majority_support: {
+      reference_items: assessableSupport.length,
+      covered_items: coveredSupport.length,
+      omitted_items: assessableSupport.length - coveredSupport.length,
+      coverage: assessableSupport.length ? coveredSupport.length / assessableSupport.length : 1,
+      exact_items: exactSupport,
+      score: assessableSupport.length ? exactSupport / assessableSupport.length : 1,
+      mismatches: assessableSupport.filter(({ exact }) => !exact),
+    },
   };
 }
 
@@ -2166,7 +2820,7 @@ export function semanticJudgeResultErrors(
     if (!candidateTreatments.has(id)) errors.push(`extra_candidate_treatments[${index}]: unknown candidate treatment ${id}`);
     if (seenCandidateTreatments.has(id)) errors.push(`extra_candidate_treatments[${index}]: candidate treatment ${id} is already matched`);
     seenCandidateTreatments.add(id);
-    if (!["minor", "major"].includes(String(grade?.severity))) errors.push(`extra_candidate_treatments[${index}]: invalid severity ${String(grade?.severity)}`);
+    if (!["pass", "minor_error", "major_error"].includes(String(grade?.verdict))) errors.push(`extra_candidate_treatments[${index}]: invalid verdict ${String(grade?.verdict)}`);
     if (typeof grade?.explanation !== "string" || !grade.explanation.trim()) errors.push(`extra_candidate_treatments[${index}]: explanation is required`);
   }
   for (const [index, raw] of rows("procedural_relationship_grades").entries()) {
@@ -2199,7 +2853,7 @@ export function semanticJudgeResultErrors(
     if (!candidateRelationships.has(id)) errors.push(`extra_candidate_relationships[${index}]: unknown candidate relationship ${id}`);
     if (seenCandidateRelationships.has(id)) errors.push(`extra_candidate_relationships[${index}]: candidate relationship ${id} is already matched`);
     seenCandidateRelationships.add(id);
-    if (!["minor", "major"].includes(String(grade?.severity))) errors.push(`extra_candidate_relationships[${index}]: invalid severity ${String(grade?.severity)}`);
+    if (!["pass", "minor_error", "major_error"].includes(String(grade?.verdict))) errors.push(`extra_candidate_relationships[${index}]: invalid verdict ${String(grade?.verdict)}`);
     if (typeof grade?.explanation !== "string" || !grade.explanation.trim()) errors.push(`extra_candidate_relationships[${index}]: explanation is required`);
   }
 
@@ -2220,15 +2874,15 @@ export function semanticJudgePrompt(
     ? semanticDraftView(candidate, "c")
     : semanticView(candidate, "c");
   if (!reference || !answer) throw new Error("semantic judgment requires two valid compiled submissions");
-  return `Assess the legal accuracy of the candidate's account of how the current decision treats cited decisions. Use the reference answer as the standard.
+  return `Assess the accuracy of the candidate's account of how the current decision treats cited decisions. Compare it with the reference answer and the source evidence reproduced in both answers.
 
-For each treatment, assess whether the candidate identifies the cited decision, treating opinion, proposition, treatment, material scope, and supporting evidence accurately. Flag a candidate that presents a party's submission, a quotation, or another decision's reasoning as the current opinion's position unless the opinion adopts it. For each procedural relationship, assess how the cited decision fits into the litigation, what the present court did to it, and which parts were affected.
+For each treatment, assess whether the candidate identifies the cited decision, treating opinion, proposition, treatment, material scope, and supporting evidence accurately. Flag a candidate that presents a party's submission, a quotation, or another decision's reasoning as the current opinion's position unless the opinion adopts it. For each procedural relationship, assess whether the candidate identifies a decision directly under review, what the present court did to it, and which parts were affected. The candidate need not repeat every date, file number, factual finding, or item of lower-court reasoning in the reference description.
 
-Equivalent wording and different divisions of the explanation are acceptable when every legal point is preserved.
+Equivalent wording and different divisions of the explanation are acceptable when every material point is preserved.
 
-Return one grade for every reference treatment and procedural relationship. List the candidate IDs that collectively express the same legal point; use an empty array when it is missing. List every unmatched candidate item in the corresponding extra-candidate array.
+Return one grade for every reference treatment and procedural relationship. List the candidate IDs that collectively express the same material point; use an empty array when it is missing. List every unmatched candidate item in the corresponding extra-candidate array. An unmatched candidate item passes when its evidence establishes a real treatment or procedural relationship that the reference omitted; explain that reference omission.
 
-pass means the item is substantively accurate. minor_error means a localized imprecision that does not change the legal operation, proposition, material scope, opinion attribution, procedural action, or affected part. major_error means an omission or invention of a substantive item, attribution to the wrong opinion or speaker, a wrong proposition or treatment direction, a materially wrong scope, a wrong procedural action or affected part, or evidence that does not support the characterization. A signal mismatch is major when it changes the legal operation and minor when the prose remains accurate and the difference is only a less precise compatible label. For a pass, return no aspects and a null explanation; otherwise identify the affected aspects and explain the error concisely.
+pass means the item is substantively accurate. minor_error means a localized imprecision that does not change the legal operation, proposition, material scope, opinion attribution, procedural action, or affected part. major_error means an omission or invention of a substantive item, attribution to the wrong opinion or speaker, a wrong proposition or treatment direction, a materially wrong scope, a wrong procedural action or affected part, or evidence that does not support the characterization. A signal mismatch is major when it changes the legal operation and minor when the prose remains accurate and the difference is only a less precise compatible label. For a matched pass, return no aspects and a null explanation; otherwise identify the affected aspects and explain the error concisely. Every unmatched item requires a concise explanation, including when it passes.
 
 Return only schema JSON.
 
@@ -2323,7 +2977,7 @@ function boundaryDecorationLine(text: string) {
   return BOUNDARY_HEADING.test(unwrapped) || OPINION_BYLINE.test(unwrapped) ||
     /^(?:[a-z]|\d+)[.)]\s*(?:introduction|background|analysis|reasons?|order|conclusion|disposition)\b/iu.test(unwrapped) ||
     /^the (?:judgment|reasons?) of .{1,180} (?:was|were) delivered by\s*:?$/iu.test(unwrapped) ||
-    /^[\p{L}\p{M}.,'\u2019 -]{2,80}\s+(?:c\.?\s*j\.?|j\.?\s*a?\.?|prothonotary|master|registrar)(?:\s*\((?:concurring|dissenting|separate)(?:\s+reasons?)?\))?\s*(?::|--?)?$/iu.test(unwrapped);
+    /^(?:(?:\[\d+\]|\d+)\s+)?[\p{L}\p{M}.,'\u2019 -]{2,80}\s+(?:c\.?\s*j\.?|j{1,2}\.?\s*a?\.?|prothonotary|master|registrar)(?:\s*\((?:concurring|dissenting|separate)(?:\s+reasons?)?\))?\s*(?::|--?|\p{Pd})?$/iu.test(unwrapped);
 }
 
 function recognizedBoundaryHeading(text: string) {

@@ -24,17 +24,21 @@ import type {
   AuthoritiesBuildSettings,
   AuthoritiesBuildReceipt,
   AuthoritiesDiscrepancy,
+  AuthoritiesDiscrepancyAction,
   AuthoritiesOutputMode,
   AuthoritiesProduct,
   AuthoritiesProfileId,
+  AuthoritySourceLanguage,
 } from "@/app/authorities/types";
 import type {
   ResearchAction,
+  ResearchActionResult,
   ResearchFile,
+  ResearchPageItem,
   ResearchQueryInput,
   ResearchQueryResult,
 } from "@/app/lib/researchFiles";
-import { isResearchDocument, newResearchState, researchMarkdown } from "@/app/lib/researchFiles";
+import { newResearchState, researchMarkdown } from "@/app/lib/researchFiles";
 import { apiBlobRequest, apiFetch, apiRequest, responseError } from "./apiTransport";
 const segment = (value: string | number) => encodeURIComponent(String(value));
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -45,7 +49,8 @@ function mutationInit(method: RequestInit["method"], body?: unknown): RequestIni
 const post = <T>(path: string, body?: unknown) => apiRequest<T>(path, mutationInit("POST", body));
 const patch = <T>(path: string, body: unknown) => apiRequest<T>(path, mutationInit("PATCH", body));
 const put = <T>(path: string, body: unknown) => apiRequest<T>(path, mutationInit("PUT", body));
-const remove = <T>(path: string) => apiRequest<T>(path, mutationInit("DELETE"));
+const remove = <T>(path: string, body?: unknown) =>
+  apiRequest<T>(path, mutationInit("DELETE", body));
 function multipartRequest<T>(
   path: string, file: File,
   options?: { method?: string; filename?: string; fields?: Record<string, string> },
@@ -283,9 +288,37 @@ export type LibraryKind = "files" | "templates";
 export type DirectoryEntry =
   | { kind: "document"; document: Document }
   | { kind: "folder"; folder: LibraryFolder | Folder };
+export type DirectoryList = (
+  options?: PageQuery & { parent_id?: string | null },
+  signal?: AbortSignal,
+) => Promise<Page<DirectoryEntry>>;
 export type DirectoryScope =
   | { projectId: string }
   | { library: LibraryKind };
+export async function listDirectoryDocuments(
+  list: DirectoryList,
+  rootFolderId: string | null = null,
+) {
+  const documents = new Map<string, Document>();
+  const seenFolders = new Set(rootFolderId ? [rootFolderId] : []);
+  const pending: Array<string | null> = [rootFolderId];
+  while (pending.length) {
+    const parent_id = pending.pop()!;
+    let cursor: string | null = null;
+    do {
+      const page = await list({ parent_id, cursor, limit: 100 });
+      cursor = page.next_cursor;
+      for (const entry of page.items) {
+        if (entry.kind === "document") documents.set(entry.document.id, entry.document);
+        else if (!seenFolders.has(entry.folder.id)) {
+          seenFolders.add(entry.folder.id);
+          pending.push(entry.folder.id);
+        }
+      }
+    } while (cursor);
+  }
+  return [...documents.values()];
+}
 export async function uploadDocumentsSettled(
   files: File[], upload: (file: File) => Promise<Document>,
 ) {
@@ -403,6 +436,7 @@ export interface LegalSourceSearchResult {
   provider: "a2aj" | "journal" | "hansard";
   doc_type: LegalSearchDocumentType;
   source_id?: string | null;
+  language: "en" | "fr";
   dataset: string;
   citation: string;
   name: string | null;
@@ -424,6 +458,9 @@ export interface LegalSourceViewerPayload {
     provider: string;
     id: string;
     kind: "case" | "legislation" | "journal" | "hansard";
+    citation: string;
+    language: "en" | "fr";
+    dataset: string | null;
     sourceSha256: string;
   };
   metadata: {
@@ -558,13 +595,22 @@ export const removeProjectDocument = (projectId: string, documentId: string) =>
   remove<void>(`/projects/${segment(projectId)}/documents/${segment(documentId)}`);
 export interface DocumentVersion {
   id: string;
-  version_number: number | null;
+  version_number: number;
+  working_revision: number;
+  created_by: string | null;
+  author_email?: string;
+  comment: string | null;
+  parent_version_id: string | null;
   source: string;
-  source_sha256?: string | null;
+  source_sha256: string;
   created_at: string;
-  filename: string | null;
-  size_bytes?: number | null;
-  deleted_at?: string | null;
+  filename: string;
+  file_type: string;
+  size_bytes: number;
+  page_count: number | null;
+  provenance?: { actor?: string; action?: string; change_count?: number; receipt?: {
+    workProduct?: { kind?: string };
+  } } | null;
 }
 export const listDocumentVersions = (documentId: string): Promise<{
   current_version_id: string | null;
@@ -573,34 +619,37 @@ export const listDocumentVersions = (documentId: string): Promise<{
 export const uploadDocumentVersion = (
   documentId: string,
   file: File,
-  filename?: string,
+  expectedCurrentVersionId: string,
+  expectedWorkingRevision: number,
 ) => multipartRequest<DocumentVersion>(
-  `/single-documents/${segment(documentId)}/versions`, file, { filename },
+  `/single-documents/${segment(documentId)}/versions`, file, {
+    fields: { expected_current_version_id: expectedCurrentVersionId,
+      expected_working_revision: String(expectedWorkingRevision) } },
 );
-export const replaceDocumentVersionFile = (
+export const restoreDocumentVersion = (
   documentId: string,
   versionId: string,
-  file: File,
-  filename?: string,
-) => multipartRequest<DocumentVersion>(
-  `/single-documents/${segment(documentId)}/versions/${segment(versionId)}/file`,
-  file,
-  { method: "PUT", filename },
+  expectedCurrentVersionId: string,
+  expectedWorkingRevision: number,
+) => post<DocumentVersion>(
+  `/single-documents/${segment(documentId)}/versions/${segment(versionId)}/restore`,
+  { expected_current_version_id: expectedCurrentVersionId,
+    expected_working_revision: expectedWorkingRevision },
 );
-export const renameDocumentVersion = (
+export const checkpointDocumentVersion = (documentId: string,
+  expectedCurrentVersionId: string, expectedWorkingRevision: number, comment?: string) =>
+  post<DocumentVersion>(`/single-documents/${segment(documentId)}/versions/checkpoint`, {
+    expected_current_version_id: expectedCurrentVersionId,
+    expected_working_revision: expectedWorkingRevision, comment,
+  });
+export const compareDocumentVersions = (
   documentId: string,
+  baselineVersionId: string,
   versionId: string,
-  filename: string | null,
-) => patch<DocumentVersion>(
-  `/single-documents/${segment(documentId)}/versions/${segment(versionId)}`, { filename },
-);
-export const deleteDocumentVersion = (
-  documentId: string,
-  versionId: string,
-): Promise<{
-  deleted_version_id: string;
-  current_version_id: string | null;
-}> => remove(`/single-documents/${segment(documentId)}/versions/${segment(versionId)}`);
+) => apiBlobRequest(pagePath(
+  `/single-documents/${segment(documentId)}/versions/${segment(versionId)}/compare`,
+  { baseline_version_id: baselineVersionId },
+));
 export const uploadStandaloneDocument = (file: File) =>
   multipartRequest<Document>("/single-documents", file);
 export const uploadCourtRecordDocument = (file: File, workProductId?: string) =>
@@ -626,8 +675,13 @@ export const getDocumentParseStates = async (documentIds: string[]) => {
   }
   return states;
 };
-export const deleteDocument = (documentId: string) =>
-  remove<void>(`/single-documents/${segment(documentId)}`);
+export const deleteDocument = (document: Document) =>
+  remove<void>(`/single-documents/${segment(document.id)}`, {
+    expected_current_version_id: document.current_version_id,
+    expected_working_revision: document.current_working_revision,
+    expected_project_id: document.project_id,
+    expected_folder_id: document.folder_id ?? null,
+  });
 export const downloadDocument = (
   documentId: string,
   versionId?: string | null,
@@ -783,7 +837,8 @@ export const streamChat = (payload: {
   time_zone?: string;
   displayed_doc?: { document_id: string };
   word_context?: { document_name: string };
-  work_product?: { kind: WorkProductKind; id: string; revision: number };
+  work_product?: { kind: WorkProductKind; id: string; revision: number;
+    focus?: { item_id: string; selection?: { start: number; end: number } } };
   signal?: AbortSignal;
 }) => {
   const { signal, ...body } = payload;
@@ -935,7 +990,7 @@ export const listWorkProducts = <State>(kind: WorkProductKind, projectId?: strin
   }));
 export const listWorkProductMetadata = (kind: WorkProductKind, projectId?: string) =>
   apiRequest<WorkProductMetadata[]>(pagePath("/work-products", {
-    kind, project_id: projectId, limit: 100, metadata: true,
+    kind, project_id: projectId, metadata: true,
   }));
 export const getWorkProduct = <State>(id: string) =>
   apiRequest<WorkProduct<State>>(`/work-products/${segment(id)}`);
@@ -962,35 +1017,41 @@ export const duplicateWorkProduct = <State>(id: string,
 export const deleteWorkProduct = (id: string) =>
   remove<void>(`/work-products/${segment(id)}`);
 
-export async function listResearchFiles(projectId?: string) {
-  const page = await directoryResource(projectId ? { projectId } : { library: "files" })
-    .list({ q: ".research.md", limit: 100 });
-  return page.items.flatMap((item) => item.kind === "document" &&
-    isResearchDocument(item.document) ? [item.document] : []);
-}
 export async function createResearchFile(input: { title: string; projectId?: string | null; folderId?: string | null }) {
   const title = input.title.trim().replace(/\.research\.md$/iu, "") || "Research";
   const document = await directoryResource(input.projectId
     ? { projectId: input.projectId } : { library: "files" }).uploadDocument(
       new File([researchMarkdown(title)], `${title}.research.md`, { type: "text/markdown" }), input.folderId);
-  return { document, versionId: document.current_version_id!,
+  return { document, versionId: document.current_version_id!, workingRevision: 0,
     state: newResearchState() };
 }
 export const getResearchFile = (id: string) =>
   apiRequest<ResearchFile>(`/single-documents/${segment(id)}/research`);
-export const actOnResearchFile = (id: string, versionId: string, action: ResearchAction) =>
-  post<ResearchFile>(`/single-documents/${segment(id)}/research/actions`, {
-    version_id: versionId, action,
+export const actOnResearchFile = (id: string, versionId: string,
+  workingRevision: number, action: ResearchAction) =>
+  post<ResearchActionResult>(`/single-documents/${segment(id)}/research/actions`, {
+    version_id: versionId, working_revision: workingRevision, action,
   });
+export const getResearchItems = (id: string, input: { kind: "passages" | "queries";
+  sourceId?: string; cursor?: string | null; limit?: number }, signal?: AbortSignal) =>
+  apiRequest<Page<ResearchPageItem> & { total: number }>(pagePath(
+    `/single-documents/${segment(id)}/research/items`, {
+      kind: input.kind, source_id: input.sourceId, cursor: input.cursor, limit: input.limit,
+    }), { signal });
 export const runResearchFileQuery = (id: string,
-  input: ResearchQueryInput & { versionId: string }) =>
+  input: ResearchQueryInput & { versionId: string; workingRevision: number }) =>
   post<ResearchQueryResult>(`/single-documents/${segment(id)}/research/query`, {
-    ...input, version_id: input.versionId, versionId: undefined,
+    ...input, version_id: input.versionId, working_revision: input.workingRevision,
+    versionId: undefined, workingRevision: undefined,
   });
-export const promoteChatResearch = ({ chatId, researchFileId, ...body }: {
-  chatId: string; researchFileId: string; versionId: string; includeQueries: boolean;
+export const promoteChatResearch = ({ chatId, researchFileId, versionId,
+  workingRevision, includeQueries }: {
+  chatId: string; researchFileId: string; versionId: string; workingRevision: number;
+  includeQueries: boolean;
 }) => post<{ document_id: string; version_id: string }>(
-  `/chat/${segment(chatId)}/research-files/${segment(researchFileId)}/promote`, body);
+  `/chat/${segment(chatId)}/research-files/${segment(researchFileId)}/promote`, {
+    version_id: versionId, working_revision: workingRevision, includeQueries,
+  });
 
 export const createAuthorities = (input: {
   source: { kind: "manual" } | { kind: "document"; documentId: string;
@@ -1016,20 +1077,31 @@ export const refreshAuthoritiesInput = (id: string, role: string, revision: numb
 export const reviewAuthorities = (id: string, signal?: AbortSignal) =>
   apiRequest<AuthoritiesDiscrepancy[]>(
     `/authorities/${segment(id)}/discrepancies`, { ...mutationInit("POST", {}), signal });
+export const resolveAuthoritiesDiscrepancy = (id: string, input: {
+  id: string; action: AuthoritiesDiscrepancyAction; revision: number;
+}) => post<AuthoritiesProduct>(`/authorities/${segment(id)}/discrepancies/actions`, input);
 export const replaceAuthoritiesSource = (id: string, revision: number, file: File) =>
   multipartRequest<AuthoritiesProduct>(`/authorities/${segment(id)}/source`, file,
     { fields: { revision: String(revision) } });
 export const attachAuthorityPdf = (
   id: string, authorityId: string, revision: number, file: File,
+  language: AuthoritySourceLanguage,
 ) => multipartRequest<AuthoritiesProduct>(
   `/authorities/${segment(id)}/attachments/${segment(authorityId)}`, file,
-  { fields: { revision: String(revision) } },
+  { fields: { revision: String(revision), language } },
 );
+export const attachAuthoritiesLibraryPdf = (id: string, revision: number,
+  documentId: string, versionId: string, target:
+    { kind: "authority"; authorityId: string; language: AuthoritySourceLanguage } |
+    { kind: "book"; slot: "cover" | "index" | "supplemental"; supplementId?: string }) =>
+  post<AuthoritiesProduct>(`/authorities/${segment(id)}/library-pdfs`, {
+    revision, documentId, versionId, target,
+  });
 export const attachAuthoritiesBookPdf = (id: string, revision: number,
-  slot: "cover" | "index" | "supplemental", file: File) =>
+  slot: "cover" | "index" | "supplemental", file: File, supplementId?: string) =>
   multipartRequest<AuthoritiesProduct>(
     `/authorities/${segment(id)}/book-parts/${slot}`, file,
-    { fields: { revision: String(revision) } },
+    { fields: { revision: String(revision), ...(supplementId ? { supplement_id: supplementId } : {}) } },
   );
 export const buildAuthorities = (id: string, revision: number, signal?: AbortSignal) =>
   apiRequest<{ product: AuthoritiesProduct; receipt: AuthoritiesBuildReceipt }>(

@@ -144,6 +144,7 @@ describe("A2AJ client", () => {
         id: "2024 ONCA 1",
         kind: "case",
         collection: "ONCA",
+        language: "en",
         citation: "2024 ONCA 1",
         alternateCitation: null,
         title: "Example v. Example",
@@ -302,7 +303,7 @@ describe("A2AJ client", () => {
   });
 
   it("uses the supplied source URL to disambiguate duplicate citation records", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => new Response(JSON.stringify({
       results: [
         { dataset: "SCC", citation_en: "2099 SCC 9",
           source_url_en: "https://example.test/first", unofficial_text_en: "Wrong record." },
@@ -310,6 +311,9 @@ describe("A2AJ client", () => {
           source_url_en: "https://example.test/second", unofficial_text_en: "Correct record." },
       ],
     }), { status: 200, headers: { "content-type": "application/json" } })));
+
+    await expect(a2ajLegalSourceProvider.document({ citation: "2099 SCC 9", dataset: "SCC" }))
+      .resolves.toMatchObject({ url: "https://example.test/first", searchText: "Wrong record." });
 
     await expect(a2ajLegalSourceProvider.document({
       citation: "2099 SCC 9",
@@ -409,6 +413,15 @@ describe("A2AJ client", () => {
       [...anchors, ...(primary ? [primary] : [])],
     ).filter(({ kind }) => kind === "paragraph"))
       .toHaveLength(6);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const retrieved = await a2ajLegalSourceProvider.readPassage({
+      source: { provider: "a2aj", kind: "case", id: "2099 SCC 2", citation: "2099 SCC 2",
+        collection: "SCC", language: "en", url: first!.payload.metadata.url },
+      locator: { kind: "paragraph", value: "1" }, contextBlocks: 0,
+    });
+    expect(retrieved[0].text).toContain("Decision paragraph 1");
+    expect(structureNative().documentRevision(retrieved[0].documentArtifact))
+      .toBe(first!.payload.reference.sourceSha256);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     await expect(a2ajLegalSourceProvider.document({
       citation: "2099 SCC 2",

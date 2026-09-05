@@ -1,4 +1,6 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Document } from "@/app/components/shared/types";
 import type { DocumentVersion } from "@/app/lib/beaverApi";
@@ -44,56 +46,38 @@ const document: Document = {
   status: "ready",
   created_at: "2026-07-27T00:00:00.000Z",
   active_version_number: 3,
+  current_version_id: "version-3",
 };
 
 const version3: DocumentVersion = {
   id: "version-3",
   version_number: 3,
+  working_revision: 0,
+  created_by: "local-user",
   source: "upload",
   created_at: "2026-07-27T00:00:00.000Z",
   filename: "Brief.pdf",
   file_type: "pdf",
-  deleted_at: null,
+  size_bytes: 100,
+  page_count: 1,
+  source_sha256: "a".repeat(64),
+  comment: null,
+  parent_version_id: "version-2",
 };
 
-function renderPanel({
-  versions,
-  onDelete = vi.fn(async () => {}),
-  onSelectVersion = vi.fn(),
-  onClose = vi.fn(),
-  onOpenWorkflows,
-  documentRemovalMode = "delete",
-}: {
-  versions: DocumentVersion[];
-  onDelete?: (doc: Document) => Promise<void>;
-  onSelectVersion?: (versionId: string, label: string) => void;
-  onClose?: () => void;
-  onOpenWorkflows?: (documents: Document[]) => void;
-  documentRemovalMode?: "delete" | "detach";
-}) {
-  render(
-    <DocumentSidePanel
-      doc={document}
-      versions={versions}
-      versionsLoading={false}
-      onClose={onClose}
-      onLoadVersions={vi.fn()}
-      onSelectVersion={onSelectVersion}
-      onDownloadDocument={vi.fn()}
-      onDownloadVersion={vi.fn()}
-      onRenameVersion={vi.fn()}
-      onDeleteVersion={vi.fn()}
-      onUploadNewVersion={vi.fn(async () => {})}
-      onReplaceVersion={vi.fn()}
-      onDelete={onDelete}
-      onOpenWorkflows={onOpenWorkflows}
-      documentRemovalMode={documentRemovalMode}
-    />,
-  );
-}
+type PanelProps = ComponentProps<typeof DocumentSidePanel>;
+const panel = (props: Partial<PanelProps> & Pick<PanelProps, "versions">) =>
+  <DocumentSidePanel doc={document} versionsLoading={false} onClose={vi.fn()}
+    onLoadVersions={vi.fn()} onSelectVersion={vi.fn()} onDownloadVersion={vi.fn()}
+    onRenameDocument={vi.fn()} onCheckpointVersion={vi.fn()} onRestoreVersion={vi.fn()}
+    onCompareVersions={vi.fn()} onUploadNewVersion={vi.fn(async () => {})}
+    onDelete={vi.fn()} {...props} />;
+const renderPanel = (props: Partial<PanelProps> & Pick<PanelProps, "versions">) =>
+  render(panel(props));
 
 describe("DocumentSidePanel document removal", () => {
   it("previews a current research document and links to its Sources workspace", async () => {
+    const onRenameDocument = vi.fn();
     const researchDocument: Document = { ...document, project_id: null,
       filename: "Authorities.research.md", file_type: "md",
       storage_path: "authorities.research.md", pdf_storage_path: null,
@@ -101,7 +85,8 @@ describe("DocumentSidePanel document removal", () => {
     const researchVersion: DocumentVersion = { ...version3, id: "research-version",
       filename: researchDocument.filename, file_type: "md" };
     api.getResearchFile.mockResolvedValue({ document: researchDocument,
-      versionId: researchVersion.id, state: { schemaVersion: "beaver.research.v1",
+      versionId: researchVersion.id, workingRevision: 0,
+      state: { schemaVersion: "beaver.research.v2",
         labels: {
           fairness: { id: "fairness", name: "Fairness", parentId: null,
             color: "#991b1b", order: 0, scope: "source" },
@@ -111,33 +96,99 @@ describe("DocumentSidePanel document removal", () => {
         sources: { baker: { id: "baker", reference: { provider: "canlii",
           id: "1999canlii699", kind: "case", title: "Baker v Canada",
           citation: "[1999] 2 SCR 817" }, labelIds: ["hearing"], badge: "",
-          note: "Leading procedural fairness authority." } },
-        evidence: { passage: { sourceId: "baker", labelIds: ["hearing"],
-          note: "Use for the participatory-rights analysis.", receipt: {
-            evidence_id: "passage", provider: "canlii", stable_source_id: "1999canlii699",
-            source_sha256: "source", span_sha256: "span", block_id: "p22",
-            span_text: "The values underlying the duty of procedural fairness...",
-            citation: "Baker at para 22", name: "Baker", external_url: null,
-            locator: { kind: "paragraph", label: "22" } } } },
-        queries: {}, note: "Authorities on procedural fairness." } });
+          note: "Leading procedural fairness authority.",
+          passages: { count: 1, sha256: "a".repeat(64), labelCounts: {}, unlabelledCount: 1 } } },
+        queries: { count: 1, sha256: "b".repeat(64) },
+        note: "Authorities on procedural fairness." } });
 
-    render(<DocumentSidePanel doc={researchDocument} currentVersionId={researchVersion.id}
-      versions={[researchVersion]} versionsLoading={false} onClose={vi.fn()}
-      onLoadVersions={vi.fn()} onSelectVersion={vi.fn()} onDownloadDocument={vi.fn()}
-      onDownloadVersion={vi.fn()} onRenameVersion={vi.fn()} onDeleteVersion={vi.fn()}
-      onUploadNewVersion={vi.fn(async () => {})} onReplaceVersion={vi.fn()}
-      onDelete={vi.fn()} />);
+    renderPanel({ doc: researchDocument, currentVersionId: researchVersion.id,
+      versions: [researchVersion], onRenameDocument });
 
+    expect(screen.getByText("Authorities")).toBeInTheDocument();
     expect(await screen.findByText("Baker v Canada")).toBeInTheDocument();
-    expect(screen.getAllByText("Fairness / Right to a hearing")).toHaveLength(2);
+    const labels = screen.getByRole("list", { name: "Labels" });
+    expect(within(labels).getByText("Fairness")).toBeInTheDocument();
+    expect(within(labels).getByText("Right to a hearing")).toBeInTheDocument();
+    const nestedMarker = within(labels).getByRole("group", {
+      name: "Labels: Fairness / Right to a hearing",
+    });
+    expect([...nestedMarker.querySelectorAll("[data-label-layer]")]
+      .map((layer) => layer.getAttribute("fill"))).toEqual(["#991b1b", "#1d4ed8"]);
     expect(screen.getByText("Authorities on procedural fairness.")).toBeInTheDocument();
     expect(screen.getByText("Leading procedural fairness authority.")).toBeInTheDocument();
-    expect(screen.getByText("1 passage")).toBeInTheDocument();
+    expect(screen.getByLabelText("Workspace contents")).toHaveTextContent(
+      "1 source · 1 highlight · 2 labels · 1 search",
+    );
+    expect(screen.queryByText(/values underlying/u)).toBeNull();
+    expect(screen.queryByLabelText("Research panels")).toBeNull();
     expect(screen.getByRole("link", { name: "Open in Sources" })).toHaveAttribute(
       "href", "/sources?research_file=document-1",
     );
     expect(api.getResearchFile).toHaveBeenCalledWith(researchDocument.id);
     expect(screen.queryByTestId("word-preview")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Rename document" }));
+    const name = screen.getByRole("textbox", { name: "Document name" });
+    expect(name).toHaveValue("Authorities");
+    expect(name).toHaveFocus();
+    fireEvent.change(name, { target: { value: "Cancelled rename" } });
+    fireEvent.keyDown(name, { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeVisible();
+    expect(screen.getByText("Authorities")).toBeVisible();
+    expect(onRenameDocument).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Rename document" }));
+    const editedName = screen.getByRole("textbox", { name: "Document name" });
+    expect(editedName).toHaveValue("Authorities");
+    fireEvent.change(editedName, { target: { value: "Appeal authorities" } });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save document name" })));
+    expect(onRenameDocument).toHaveBeenCalledWith(document.id, "Appeal authorities.research.md");
+  });
+
+  it("bounds a large research preview until more sources are requested", async () => {
+    const researchDocument: Document = { ...document, project_id: null,
+      filename: "Large.research.md", file_type: "md",
+      storage_path: "large.research.md", pdf_storage_path: null,
+      current_version_id: "large-version" };
+    const researchVersion: DocumentVersion = { ...version3, id: "large-version",
+      filename: researchDocument.filename, file_type: "md" };
+    const long = "x".repeat(1_100), labels = Object.fromEntries(Array.from({ length: 41 }, (_, index) => [
+      `label-${index}`, { id: `label-${index}`, name: `Label ${index}`, parentId: index ? null : "label-20",
+        color: "#991b1b", order: index === 20 ? 0 : index, scope: index > 20 ? "highlight" as const : "source" as const },
+    ])), sources = Object.fromEntries(Array.from({ length: 41 }, (_, index) => [
+      `source-${index}`, { id: `source-${index}`, reference: { provider: "canlii",
+        id: `case-${index}`, kind: "case", title: `Source ${index}` },
+        labelIds: index ? [] : ["label-0"], badge: "", note: index ? "" : `Source note ${long} SOURCE_NOTE_TAIL`,
+        passages: index ? null : { count: 41, sha256: "c".repeat(64) } },
+    ]));
+    api.getResearchFile.mockResolvedValue({ document: researchDocument,
+      versionId: researchVersion.id, workingRevision: 0,
+      state: { schemaVersion: "beaver.research.v2", labels, sources,
+        queries: null, note: `Workspace note ${long} WORKSPACE_NOTE_TAIL` } });
+
+    const { container } = renderPanel({ doc: researchDocument, currentVersionId: researchVersion.id,
+      versions: [researchVersion] });
+
+    const sourceList = await screen.findByRole("list", { name: "Saved sources" });
+    expect(within(sourceList).getByText("Source 39")).toBeInTheDocument();
+    expect(within(sourceList).queryByText("Source 40")).toBeNull();
+    const labelList = screen.getByRole("list", { name: "Labels" });
+    expect(within(labelList).getAllByRole("listitem")).toHaveLength(41);
+    expect(within(labelList).getByText("Label 40")).toBeInTheDocument();
+    expect(within(labelList).getByRole("group", {
+      name: "Labels: Label 20 / Label 0",
+    })).toBeInTheDocument();
+    expect(screen.getByLabelText("Workspace contents")).toHaveTextContent(
+      "41 sources · 41 highlights · 41 labels",
+    );
+    expect(container).not.toHaveTextContent(/(?:SOURCE|PASSAGE|WORKSPACE)_(?:NOTE|TEXT)_TAIL/u);
+    expect(container.textContent?.match(/…/gu)).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Next sources" }));
+
+    expect(await within(sourceList).findByText("Source 40")).toBeInTheDocument();
+    expect(within(sourceList).queryByText("Source 0")).toBeNull();
+    expect(screen.getByRole("button", { name: "Previous sources" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Next sources" })).toBeDisabled();
   });
 
   it("hands its document to an existing workflow dock", async () => {
@@ -160,77 +211,33 @@ describe("DocumentSidePanel document removal", () => {
       storage_path: "brief.docx",
       pdf_storage_path: "brief.pdf",
       current_version_id: "version-3",
+      current_working_revision: 4,
       updated_at: "2026-07-28T00:00:00.000Z",
     };
     const docxVersion = {
       ...version3,
       filename: "Brief.docx",
       file_type: "docx",
+      working_revision: 4,
     };
 
-    const { rerender } = render(
-      <DocumentSidePanel
-        doc={docxDocument}
-        versions={[]}
-        versionsLoading
-        onClose={vi.fn()}
-        onLoadVersions={vi.fn()}
-        onSelectVersion={vi.fn()}
-        onDownloadDocument={vi.fn()}
-        onDownloadVersion={vi.fn()}
-        onRenameVersion={vi.fn()}
-        onDeleteVersion={vi.fn()}
-        onUploadNewVersion={vi.fn(async () => {})}
-        onReplaceVersion={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+    const { rerender } = renderPanel({ doc: docxDocument, versions: [], versionsLoading: true });
 
     const preview = await screen.findByTestId("word-preview");
-    expect(preview.parentElement).toHaveClass(
-      "flex",
-      "min-h-0",
-      "flex-col",
-      "overflow-hidden",
-    );
     expect(preview).toHaveAttribute("data-version-id", "version-3");
     expect(preview).toHaveAttribute("data-prefer-pdf", "true");
     expect(preview).toHaveAttribute(
       "data-revision",
-      "2026-07-28T00:00:00.000Z",
+      "version-3:4",
     );
-    const versionList = screen.getByRole("list", {
-      name: "Document versions",
-    });
-    expect(versionList).toHaveClass("min-w-0", "overflow-x-hidden");
-    expect(versionList.closest("aside")).toHaveClass(
-      "min-w-0",
-      "overflow-hidden",
-    );
-
-    rerender(
-      <DocumentSidePanel
-        doc={docxDocument}
-        currentVersionId="version-3"
-        versions={[docxVersion]}
-        versionsLoading={false}
-        onClose={vi.fn()}
-        onLoadVersions={vi.fn()}
-        onSelectVersion={vi.fn()}
-        onDownloadDocument={vi.fn()}
-        onDownloadVersion={vi.fn()}
-        onRenameVersion={vi.fn()}
-        onDeleteVersion={vi.fn()}
-        onUploadNewVersion={vi.fn(async () => {})}
-        onReplaceVersion={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+    rerender(panel({ doc: docxDocument, currentVersionId: "version-3",
+      versions: [docxVersion] }));
 
     expect(screen.getByTestId("word-preview")).toBe(preview);
   });
 
-  it("bounds and searches long version histories with keyboard navigation", async () => {
+  it("reveals long version histories incrementally", async () => {
+    const user = userEvent.setup();
     const versions = Array.from({ length: 1000 }, (_, index) => {
       const number = index + 1;
       return {
@@ -239,38 +246,111 @@ describe("DocumentSidePanel document removal", () => {
         version_number: number,
         filename: `Brief revision ${number}.pdf`,
       };
-    });
-    const onSelectVersion = vi.fn();
-    renderPanel({ versions, onSelectVersion });
+    }).reverse();
+    renderPanel({ versions });
 
     const list = await screen.findByRole("list", {
       name: "Document versions",
     });
-    expect(within(list).getAllByRole("listitem")).toHaveLength(40);
+    const previews = within(list).getAllByRole("button", {
+      name: /^Preview Version/u,
+    });
+    expect(previews).toHaveLength(40);
 
-    const options = within(list).getAllByRole("listitem");
-    options[0].focus();
-    fireEvent.keyDown(options[0], { key: "ArrowDown" });
-    expect(options[1]).toHaveFocus();
-    fireEvent.keyDown(options[1], { key: "Enter" });
-    expect(onSelectVersion).toHaveBeenCalledWith(
-      "version-999",
-      "Brief revision 999.pdf",
+    await user.click(within(list).getByRole("button", { name: "Show more" }));
+    expect(within(list).getAllByRole("button", {
+      name: /^Preview Version/u,
+    })).toHaveLength(80);
+  });
+
+  it("keeps history read-only and restores or compares through explicit actions", async () => {
+    const onRestoreVersion = vi.fn(async () => {});
+    const onCompareVersions = vi.fn(async () => {});
+    const versions = [3, 2].map((number) => ({ ...version3,
+      id: `version-${number}`, version_number: number, filename: "Brief.docx",
+      file_type: "docx", parent_version_id: number === 2 ? "version-1" : "version-2" }));
+    renderPanel({ versions, onRestoreVersion, onCompareVersions, versionId: "version-2" });
+
+    expect(screen.queryByRole("button", { name: /Replace current/u })).toBeNull();
+    await act(async () => fireEvent.click(
+      screen.getByRole("button", {
+        name: "Download comparison: Version 2 to current Version 3",
+      }),
+    ));
+    expect(onCompareVersions).toHaveBeenCalledWith(
+      "document-1", "version-2", "version-3",
     );
+    fireEvent.click(screen.getByRole("button", {
+      name: "Restore Version 2 as a new current version",
+    }));
+    expect(screen.getByText(/become a new current version/u)).toBeInTheDocument();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Restore" })));
+    expect(onRestoreVersion).toHaveBeenCalledWith("document-1", "version-2");
+    expect(screen.queryByRole("button", { name: "Rename document" })).toBeNull();
+  });
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Search versions" }), {
-      target: { value: "Brief revision 237.pdf" },
-    });
-    expect(within(list).getAllByRole("listitem")).toHaveLength(1);
-    expect(
-      within(list).getByText("Brief revision 237.pdf"),
-    ).toBeInTheDocument();
+  it("creates an explicit version with an optional comment", async () => {
+    const user = userEvent.setup(), onCheckpointVersion = vi.fn(async () => {});
+    renderPanel({ versions: [version3], onCheckpointVersion });
+    const form = await screen.findByRole("form", { name: "Save version" });
+    await user.type(within(form).getByRole("textbox", { name: /Version comment/u }),
+      "Before filing");
+    await user.click(within(form).getByRole("button", { name: "Save version" }));
+    expect(onCheckpointVersion).toHaveBeenCalledWith("document-1", "Before filing");
+  });
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Search versions" }), {
-      target: { value: "" },
+  it("reports and retries a failed version-history load", async () => {
+    const user = userEvent.setup(), onLoadVersions = vi.fn();
+    renderPanel({ versions: [], versionsError: true, onLoadVersions });
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load version history");
+    onLoadVersions.mockClear();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(onLoadVersions).toHaveBeenCalledWith("document-1", true);
+  });
+
+  it("does not offer a broken preview for unsupported versions", () => {
+    renderPanel({ versions: [{ ...version3, filename: "Slides.pptx", file_type: "pptx" }] });
+    expect(screen.queryByRole("button", { name: /Preview Version 3/u })).toBeNull();
+    expect(screen.getByText("Preview is not available for this file type.")).toBeInTheDocument();
+    expect(screen.getByText(/Preview unavailable/u)).toBeInTheDocument();
+  });
+
+  it("reports a failed version action without closing the document", async () => {
+    const user = userEvent.setup();
+    renderPanel({
+      versions: [version3],
+      onDownloadVersion: vi.fn().mockRejectedValue(new Error("offline")),
     });
-    fireEvent.click(within(list).getByRole("button", { name: "Show more" }));
-    expect(within(list).getAllByRole("listitem")).toHaveLength(80);
+
+    await user.click(await screen.findByRole("button", {
+      name: "Download Version 3",
+    }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not download this version.",
+    );
+    expect(screen.getByRole("dialog", { name: "Brief.pdf" })).toBeInTheDocument();
+  });
+
+  it("uses stored file type and concise assistant provenance", async () => {
+    const versions = [
+      { ...version3, id: "version-2", version_number: 2,
+        filename: "Brief.pdf", file_type: "docx" },
+      { ...version3, filename: "Brief.pdf", file_type: "docx",
+        author_email: "lawyer@example.test", comment: "Ready for review",
+        provenance: { actor: "assistant", action: "edited", change_count: 2 } },
+    ];
+    renderPanel({ versions });
+
+    expect(await screen.findByRole("button", {
+      name: "Download comparison: Version 2 to current Version 3",
+    })).toBeInTheDocument();
+    expect(screen.getByText(/Beaver edit · 2 changes/u)).toBeInTheDocument();
+    expect(screen.getByText(/lawyer@example\.test/u)).toBeInTheDocument();
+    expect(screen.getByText(/You/u)).toBeInTheDocument();
+    expect(screen.queryByText(/local-user/u)).toBeNull();
+    expect(screen.getByText("Ready for review")).toBeInTheDocument();
+    expect(screen.getByText("Created")).toBeInTheDocument();
   });
 
   it("counts the surviving version rows instead of the version number", async () => {

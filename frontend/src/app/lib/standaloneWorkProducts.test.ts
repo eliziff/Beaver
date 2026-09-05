@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { bindStandaloneFile, chooseStandaloneOutputFolder, clearStandaloneOutputFolder,
-  getStandaloneOutputFolder, inspectStandaloneFile, listStandaloneOutputs, pickRetainedFiles,
+  getStandaloneFilingContact, getStandaloneOutputFolder, inspectStandaloneFile,
+  listStandaloneOutputs, pickRetainedFiles,
   readStandaloneOutput, resolveRetainedFile, resolveStandaloneFile,
-  saveStandaloneArtifacts, standaloneWorkProducts,
+  saveStandaloneArtifacts, setStandaloneFilingContact, standaloneWorkProducts,
   writeStandaloneArtifactsToOutputFolder } from "./standaloneWorkProducts";
 
 const input = { kind: "local-file" as const, handleId: "handle-1", lastSeen: {
@@ -65,6 +66,14 @@ describe("standalone retained files", () => {
         }) } as unknown as FileSystemDirectoryHandle;
     vi.stubGlobal("window", { showOpenFilePicker: picker,
       showDirectoryPicker: vi.fn(async () => directory) });
+    await expect(getStandaloneFilingContact()).resolves.toEqual({
+      name: "", address: "", phone: "", fax: "", email: "",
+    });
+    await setStandaloneFilingContact({ name: "Ada Lawyer", address: "1 Court Street",
+      phone: "555-0100", fax: "", email: "ada@example.test" });
+    await expect(getStandaloneFilingContact()).resolves.toMatchObject({
+      name: "Ada Lawyer", email: "ada@example.test",
+    });
     await expect(chooseStandaloneOutputFolder()).resolves.toBe("Court outputs");
     await expect(getStandaloneOutputFolder()).resolves.toBe("Court outputs");
     const draft = await standaloneWorkProducts.create({ kind: "court-record", title: "Record",
@@ -157,17 +166,21 @@ describe("standalone retained files", () => {
     const renamed = await standaloneWorkProducts.update(rebuilt.id, {
       revision: rebuilt.revision, title: "Renamed record",
     });
-    expect(renamed.outputs).toEqual({});
-    expect(memory.stores.get("outputs")?.size).toBe(0);
-    await expect(listStandaloneOutputs()).resolves.toEqual([]);
+    expect(renamed.outputs).toEqual(rebuilt.outputs);
+    expect(memory.stores.get("outputs")?.size).toBe(1);
+    await expect(readStandaloneOutput(renamed.id, "record"))
+      .resolves.toMatchObject({ bytes: rebuiltBytes, receipt: { build: 2 }, stale: false });
     const rebuiltAgain = await saveStandaloneArtifacts(renamed, [{ role: "record",
       filename: "Record.pdf", mimeType: "application/pdf", sha256: rebuiltHash,
       pageCount: 1, bytes: rebuiltBytes, receipt: { build: 3 } }]);
     const edited = await standaloneWorkProducts.update(rebuiltAgain.id, {
       revision: rebuiltAgain.revision, state: { bindings: {} },
     });
-    expect(edited.outputs).toEqual({});
-    expect(memory.stores.get("outputs")?.size).toBe(0);
+    expect(edited.outputs).toEqual(rebuiltAgain.outputs);
+    expect(memory.stores.get("outputs")?.size).toBe(1);
+    await expect(readStandaloneOutput(edited.id, "record"))
+      .resolves.toMatchObject({ receipt: { build: 3 }, stale: true });
+    await expect(listStandaloneOutputs()).resolves.toEqual([]);
 
     await standaloneWorkProducts.remove(draft.id);
     expect(memory.stores.get("outputs")?.size).toBe(0);

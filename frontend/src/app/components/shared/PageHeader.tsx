@@ -53,12 +53,14 @@ export function PageHeader({
     shrink = false,
     breadcrumbs,
     loading = false,
+    className,
 }: {
     children?: ReactNode;
     actions?: OptionalAction[];
     shrink?: boolean;
     breadcrumbs?: PageHeaderBreadcrumb[];
     loading?: boolean;
+    className?: string;
 }) {
     const items = actions?.filter(
         (action): action is PageHeaderAction => Boolean(action),
@@ -67,12 +69,13 @@ export function PageHeader({
         loading || !!breadcrumbs?.some((breadcrumb) => breadcrumb.loading);
     const stackActions = (items?.length ?? 0) > 4;
     const wideMobileActions = stackActions || !!items?.some((action) =>
-        action.type === "search" || action.type === "custom");
+        action.type === "search");
     return (
         <div
             className={cn(
                 "mx-4 flex min-h-14 min-w-0 flex-row flex-wrap items-center justify-between gap-3 py-2 md:mx-6 lg:min-h-[max(76px,4.625rem)] lg:flex-nowrap lg:gap-4 lg:pb-4 lg:pt-5.5",
                 shrink && "shrink-0",
+                className,
             )}
         >
             {breadcrumbs?.length ? (

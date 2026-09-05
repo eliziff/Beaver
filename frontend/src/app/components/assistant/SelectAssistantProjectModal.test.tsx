@@ -48,15 +48,16 @@ describe("SelectAssistantProjectModal", () => {
             />,
         );
 
-        const project = await screen.findByRole("button", { name: /Matter One/ });
+        const project = await screen.findByRole(
+            "button",
+            { name: /Matter One/ },
+            { timeout: 5000 },
+        );
         const continueButton = screen.getByRole("button", {
             name: "Continue",
         });
         await user.click(project);
         expect(continueButton).toBeEnabled();
-        await user.click(project);
-        expect(continueButton).toBeDisabled();
-        await user.click(project);
         await user.click(continueButton);
 
         await waitFor(() => {

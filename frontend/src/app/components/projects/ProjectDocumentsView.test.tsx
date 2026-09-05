@@ -54,7 +54,8 @@ vi.mock("../documents/DocTable", () => ({
         Proofread selected
     </button>,
 }));
-vi.mock("../documents/UploadAction", () => ({ DirectoryActions: () => null }));
+vi.mock("../documents/UploadAction", () => ({ DirectoryActions: () =>
+    <button type="button">Document actions</button> }));
 vi.mock("../modals/AddDocumentsModal", () => ({ AddDocumentsModal: () => null }));
 vi.mock("./ProjectPageParts", () => ({
     ProjectPageHeader: () => null,
@@ -85,6 +86,10 @@ it("creates a project chat carrying the selected workflow and documents", async 
             <Location />
         </ProjectWorkspaceProvider>
     </MemoryRouter>);
+
+    const actions = screen.getByRole("button", { name: "Document actions" });
+    expect(actions.closest("[data-project-section-actions]")).toBeInTheDocument();
+    expect(screen.getByRole("tablist", { name: "Project sections" })).not.toContainElement(actions);
 
     await userEvent.click(screen.getByRole("button", { name: "Proofread selected" }));
 

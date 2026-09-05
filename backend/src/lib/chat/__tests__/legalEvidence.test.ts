@@ -14,11 +14,15 @@ import {
   legalEvidenceCitationEntries,
   legalEvidenceReceiptEvent,
   legalEvidenceRequested,
+  legalEvidenceProseIntegrityErrors,
   priorLegalEvidenceReceipts,
+  priorLegalEvidencePrompt,
   priorLegalResearchQueryReceipts,
   registerLegalEvidence,
   registerLegalResearchQueries,
   registerPriorLegalEvidence,
+  registerPriorLegalResearchQueries,
+  readPriorLegalEvidence,
   renderLegalEvidenceAnswer,
   restorePriorLegalEvidence,
   selectGroundedQuotationPolicy,
@@ -102,6 +106,15 @@ describe("production legal evidence", () => {
     expect(priorLegalResearchQueryReceipts([event])).toEqual(event.queries);
     expect(priorLegalResearchQueryReceipts([{ ...event, status: "failed" }]))
       .toEqual(event.queries);
+    const restored = createLegalEvidenceTurnState();
+    registerPriorLegalResearchQueries(restored,
+      priorLegalResearchQueryReceipts([event]));
+    expect([...restored.queries]).toEqual([[event.queries[0].query_id, event.queries[0]]]);
+    expect(legalEvidenceReceiptEvent(restored)).toBeNull();
+    const inventory = priorLegalEvidencePrompt([], event.queries);
+    expect(inventory).toContain(event.queries[0].query_id);
+    expect(inventory).toContain("standard of review");
+    expect(inventory).not.toContain("executor_version");
   });
 
   it("strips DOCX citation-handle markers that leak into chat claims", () => {
@@ -250,6 +263,49 @@ describe("production legal evidence", () => {
     expect(followUp.evidence.get(evidence.evidence_id)?.receipt).toEqual(evidence);
   });
 
+  it("keeps a bounded inventory while old exact passages remain readable without source fetches", () => {
+    const receipts = Array.from({ length: 100 }, (_, index) => {
+      const text = `Passage ${index}. ${"Verified source text. ".repeat(100)}`;
+      return createLibraryEvidence({
+        documentId: `doc-${index}`, filename: `Document ${index}`, versionId: "v1",
+        sourceText: text, spanText: text, start: 0, end: text.length,
+        locator: { kind: "page", label: "1" },
+      });
+    });
+    const state = createLegalEvidenceTurnState();
+    registerPriorLegalEvidence(state, receipts);
+    const inventory = priorLegalEvidencePrompt(receipts);
+    expect(inventory.length).toBeLessThanOrEqual(8_000);
+    expect(inventory).toContain(receipts.at(-1)!.evidence_id);
+    expect(inventory).not.toContain(receipts[0].evidence_id);
+    expect(inventory).not.toContain(receipts.at(-1)!.span_text);
+    expect(readPriorLegalEvidence(state, receipts[0].evidence_id)?.receipt).toEqual(receipts[0]);
+    expect(readPriorLegalEvidence(state, "e_missing")).toBeNull();
+    registerPriorLegalEvidence(state, [{ ...receipts[0], span_text: "Tampered passage" }]);
+    expect(readPriorLegalEvidence(state, receipts[0].evidence_id)).toBeNull();
+    registerPriorLegalEvidence(state, [{ ...receipts[0], exact_span_sha256: "tampered" }]);
+    expect(readPriorLegalEvidence(state, receipts[0].evidence_id)).toBeNull();
+  });
+
+  it("checks full prior passages only when read or cited, while still checking inventory previews", () => {
+    const copied = "The responding party must provide written notice before the hearing can proceed to the final determination of the disputed factual issues.",
+      text = "Unrelated introductory discussion. ".repeat(10_000) + copied,
+      receipt = createLibraryEvidence({ documentId: "large", versionId: "v1", filename: "Record",
+        sourceText: text, spanText: text, start: 0, end: text.length }),
+      state = createLegalEvidenceTurnState();
+    registerPriorLegalEvidence(state, [receipt]);
+    expect(legalEvidenceProseIntegrityErrors(copied, [], state)).toEqual([]);
+    expect(legalEvidenceProseIntegrityErrors(`"${copied}"`, [receipt.evidence_id], state)).toEqual([]);
+    expect(readPriorLegalEvidence(state, receipt.evidence_id)).not.toBeNull();
+    expect(legalEvidenceProseIntegrityErrors(copied, [], state).join(" ")).toContain("unmarked copied passage");
+
+    const preview = createLibraryEvidence({ documentId: "preview", versionId: "v1", filename: "Other record",
+      sourceText: copied, spanText: copied, start: 0, end: copied.length });
+    const unopened = createLegalEvidenceTurnState();
+    registerPriorLegalEvidence(unopened, [preview]);
+    expect(legalEvidenceProseIntegrityErrors(copied, [], unopened).join(" ")).toContain("unmarked copied passage");
+  });
+
   it("restores a prior A2AJ receipt against its unchanged full source", async () => {
     const text = [
       "Delay in seeking child support may arise for unrelated reasons.",
@@ -297,6 +353,14 @@ describe("production legal evidence", () => {
       receipt,
       document,
     }]);
+    const state = createLegalEvidenceTurnState();
+    registerLegalEvidence(state, receipt, { document });
+    registerLegalEvidence(state, receipt);
+    expect(state.evidence.get(receipt.evidence_id)?.document).toBe(document);
+    const related = { ...receipt, evidence_id: "e_other_passage", block_id: "par102" };
+    vi.spyOn(a2ajLegalSourceProvider, "document").mockRejectedValue(new Error("must reuse loaded source"));
+    expect(await restorePriorLegalEvidence([related], undefined, false,
+      [...state.evidence.values()])).toEqual([{ receipt: related, document }]);
   });
 
   it("emits typed public-source citations from provider receipts", () => {

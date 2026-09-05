@@ -13,7 +13,8 @@ import type { LegalSourceTab } from "../legal/LegalSourceViewer";
 
 export function InitialDockPanel({ tab, libraryKind, workflowDocuments,
     onLibraryKindChange, onOpenInChat, onOpenWorkflows, onWorkflowSelect,
-    initialWorkflowId, projectId, onResearchFileChange, onOpenSource }: {
+    initialWorkflowId, projectId, onResearchFileChange, researchRefreshKey,
+    onOpenSource, active = true }: {
     tab: "library" | "workflows" | "sources";
     libraryKind: LibraryKind;
     workflowDocuments: WorkflowDocument[];
@@ -24,18 +25,22 @@ export function InitialDockPanel({ tab, libraryKind, workflowDocuments,
     initialWorkflowId?: string;
     projectId?: string;
     onResearchFileChange?: (file: ResearchFile | null) => void;
+    researchRefreshKey?: string | null;
     onOpenSource?: (tab: LegalSourceTab) => void;
+    active?: boolean;
 }) {
     if (tab === "library") return (
         <LibraryWorkspaceProvider>
             <LibraryCollectionPage kind={libraryKind}
+                active={active}
                 onKindChange={onLibraryKindChange}
                 onOpenInChat={onOpenInChat}
                 onOpenWorkflows={onOpenWorkflows} embedded />
         </LibraryWorkspaceProvider>
     );
     if (tab === "sources") return <LegalLibraryPage embedded projectId={projectId}
-        onResearchFileChange={onResearchFileChange} onOpenSource={onOpenSource} />;
+        onResearchFileChange={onResearchFileChange} researchRefreshKey={researchRefreshKey}
+        onOpenSource={onOpenSource} />;
     return <ContextualWorkflowPicker documents={workflowDocuments}
         initialWorkflowId={initialWorkflowId}
         onAssistantSelect={onWorkflowSelect} className="p-3" />;

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MoreHorizontal, Zap } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
@@ -20,11 +20,10 @@ import {
     useAssistantPreferences,
 } from "./assistantPreferences";
 import type { ColumnConfig, Document, Message } from "../shared/types";
-const NewTRModal = lazy(() => import("../tabular/NewTRModal").then(({ NewTRModal }) => ({ default: NewTRModal })));
-const SelectAssistantProjectModal = lazy(() => import("./SelectAssistantProjectModal").then(({ SelectAssistantProjectModal }) => ({ default: SelectAssistantProjectModal })));
-const NewProjectModal = lazy(() => import("../projects/NewProjectModal").then(({ NewProjectModal }) => ({ default: NewProjectModal })));
-const InitialDockPanel = lazy(() => import("./InitialDockPanel")
-    .then(({ InitialDockPanel }) => ({ default: InitialDockPanel })));
+import { NewTRModal } from "../tabular/NewTRModal";
+import { SelectAssistantProjectModal } from "./SelectAssistantProjectModal";
+import { NewProjectModal } from "../projects/NewProjectModal";
+import { InitialDockPanel } from "./InitialDockPanel";
 type InitialModal = "project" | "newProject" | "review" | "quickActions";
 const DOCUMENT_WORKFLOW_ACTIONS: Partial<
     Record<
@@ -163,6 +162,7 @@ export function InitialView({
     };
     const dockPanel = (tab: "library" | "workflows" | "sources") => (
         <InitialDockPanel tab={tab} libraryKind={libraryKind}
+            active={dockOpen && dockTab === tab}
             workflowDocuments={workflowDocuments}
             onLibraryKindChange={setLibraryKind}
             onOpenInChat={(documents) => {
@@ -297,33 +297,27 @@ export function InitialView({
                 </Modal>
             )}
             {modal === "project" && (
-                <Suspense fallback={null}>
-                    <SelectAssistantProjectModal
-                        open
-                        onClose={() => setModal(null)}
-                    />
-                </Suspense>
+                <SelectAssistantProjectModal
+                    open
+                    onClose={() => setModal(null)}
+                />
             )}
             {modal === "newProject" && (
-                <Suspense fallback={null}>
-                    <NewProjectModal
-                        open
-                        onClose={() => setModal(null)}
-                        onCreated={(project) => {
-                            setModal(null);
-                            navigate(`/projects/${project.id}`);
-                        }}
-                    />
-                </Suspense>
+                <NewProjectModal
+                    open
+                    onClose={() => setModal(null)}
+                    onCreated={(project) => {
+                        setModal(null);
+                        navigate(`/projects/${project.id}`);
+                    }}
+                />
             )}
             {modal === "review" && (
-                <Suspense fallback={null}>
-                    <NewTRModal
-                        open
-                        onClose={() => setModal(null)}
-                        onAdd={handleNewReview}
-                    />
-                </Suspense>
+                <NewTRModal
+                    open
+                    onClose={() => setModal(null)}
+                    onAdd={handleNewReview}
+                />
             )}
         </div>
         <AssistantDock tabs={dockTabs} activeTabId={dockTab}

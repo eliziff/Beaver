@@ -3,7 +3,8 @@ import { applicationScope, reject } from "../lib/applicationError";
 import type {
   AuthorityOccurrence,
 } from "../lib/authoritiesDomain";
-import { authoritiesProfileIds, type AuthoritiesBuildSettings,
+import { AUTHORITIES_BOOK_ROLES, authoritiesProfileIds, type AuthoritiesBuildSettings,
+  type AuthoritiesCover, type AuthoritiesDiscrepancyAction,
   type AuthoritiesProfileId } from "../lib/authoritiesDomain";
 import type {
   AuthoritiesInitialSettings,
@@ -24,6 +25,11 @@ function text(value: unknown, max = 500) {
 }
 const nullableText = (value: unknown, max = 500) =>
   value === null ? null : text(value, max);
+const plain = (value: unknown, max = 500) => {
+  if (typeof value !== "string" || value.length > max ||
+      /[\u0000-\u001f\u007f]/u.test(value)) return bad();
+  return value.trim();
+};
 function integer(value: unknown, min = 0) {
   if (!Number.isSafeInteger(value) || Number(value) < min) return bad();
   return Number(value);
@@ -45,7 +51,7 @@ const settingsChoices = {
   scannedPdfPolicy: ["page-margin", "cited-pages", "full"],
   missingSourcePolicy: ["placeholder", "omit"],
   filingMedium: ["electronic", "paper"],
-  bookRole: ["applicant", "respondent", "joint", "appellant", "intervener"],
+  bookRole: AUTHORITIES_BOOK_ROLES,
 } as const satisfies { [K in keyof AuthoritiesBuildSettings]: readonly AuthoritiesBuildSettings[K][] };
 
 export function decodeAuthoritiesInitialSettings(value: unknown): AuthoritiesInitialSettings {
@@ -80,6 +86,21 @@ function reference(value: unknown): AuthorityOccurrence["reference"] {
     targetAuthorityId: text(item.targetAuthorityId) };
 }
 
+function cover(value: unknown): AuthoritiesCover {
+  const item = object(value), keys = ["courtFileNumber", "partyGroups", "applicationUnder", "title"];
+  if (Object.keys(item).some((key) => !keys.includes(key)) ||
+      !Array.isArray(item.partyGroups) || item.partyGroups.length > 50) return bad();
+  return { courtFileNumber: plain(item.courtFileNumber, 100),
+    applicationUnder: plain(item.applicationUnder, 2_000), title: plain(item.title),
+    partyGroups: item.partyGroups.map((value) => {
+      const group = object(value);
+      if (Object.keys(group).some((key) => !["role", "parties"].includes(key)) ||
+          !Array.isArray(group.parties) || group.parties.length > 50) return bad();
+      return { role: plain(group.role, 100),
+        parties: group.parties.map((party) => plain(party)) };
+    }) };
+}
+
 export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserAction {
   const item = object(value), type = text(item.type, 60);
   switch (type) {
@@ -94,6 +115,9 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
     case "remove-authority": return { type, authorityId: text(item.authorityId) };
     case "exclude-authority": return { type, authorityId: text(item.authorityId),
       excluded: typeof item.excluded === "boolean" ? item.excluded : bad() };
+    case "edit-authority": return { type, authorityId: text(item.authorityId),
+      kind: choice(item.kind, authorityKinds), citation: text(item.citation, 2_000),
+      name: nullableText(item.name, 2_000) };
     case "rename-authority": return { type, authorityId: text(item.authorityId),
       displayName: nullableText(item.displayName, 2_000) };
     case "split-occurrence": return { type, occurrenceId: text(item.occurrenceId),
@@ -116,6 +140,8 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
     case "clear-authority-source": return { type, authorityId: text(item.authorityId) };
     case "clear-book-part": return { type,
       slot: choice(item.slot, ["cover", "index"] as const) };
+    case "remove-book-supplement": return { type, id: text(item.id) };
+    case "set-cover": return { type, cover: cover(item.cover) };
     case "set-profile": return { type,
       profileId: choice(item.profileId, authoritiesProfileIds) };
     case "set-settings": return { type, settings: settings(item.settings) };
@@ -129,6 +155,16 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
 
 function revision(value: unknown, multipart = false) {
   return integer(multipart && typeof value === "string" ? Number(value) : value, 1);
+}
+
+export function decodeAuthoritiesDiscrepancyAction(value: unknown): {
+  id: string; action: AuthoritiesDiscrepancyAction; revision: number;
+} {
+  const item = object(value);
+  if (Object.keys(item).sort().join(",") !== "action,id,revision") return bad();
+  return { id: text(item.id, 64), action: choice(item.action,
+    ["ignore", "pinpoint", "quote_exact", "quote_editorial"] as const),
+  revision: revision(item.revision) };
 }
 
 function documentImport(value: unknown): Parameters<
@@ -152,6 +188,25 @@ function documentImport(value: unknown): Parameters<
   })();
   return { source: { kind: "document", documentId: text(source.documentId), version },
     ...options };
+}
+
+function libraryPdf(value: unknown): Parameters<
+  AuthoritiesWorkspaceApplication["attachLibraryPdf"]
+>[2] {
+  const item = object(value), target = object(item.target);
+  if (Object.keys(item).sort().join(",") !== "documentId,revision,target,versionId") return bad();
+  const common = { revision: revision(item.revision), documentId: text(item.documentId),
+    versionId: text(item.versionId) };
+  if (target.kind === "authority" &&
+      Object.keys(target).sort().join(",") === "authorityId,kind,language") {
+    return { ...common, target: { kind: "authority", authorityId: text(target.authorityId),
+      language: choice(target.language, ["en", "fr", "bilingual"] as const) } };
+  }
+  const keys = Object.keys(target).sort().join(",");
+  if (target.kind !== "book" || !["kind,slot", "kind,slot,supplementId"].includes(keys)) return bad();
+  return { ...common, target: { kind: "book",
+    slot: choice(target.slot, ["cover", "index", "supplemental"] as const),
+    ...(target.supplementId === undefined ? {} : { supplementId: text(target.supplementId) }) } };
 }
 
 export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplication) {
@@ -181,6 +236,11 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
     const review = new AbortController(); res.once("close", () => review.abort());
     res.json(await application.discrepancies(
       applicationScope(res), text(req.params.id), review.signal));
+  }));
+  router.post("/:id/discrepancies/actions", asyncRoute(async (req, res) => {
+    const review = new AbortController(); res.once("close", () => review.abort());
+    res.json(await application.resolveDiscrepancy(applicationScope(res),
+      text(req.params.id), decodeAuthoritiesDiscrepancyAction(req.body), review.signal));
   }));
   router.post("/:id/actions", asyncRoute(async (req, res) => {
     const body = object(req.body);
@@ -213,14 +273,21 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
       res.json(await application.attachPdf(applicationScope(res), text(req.params.id), {
         revision: revision(req.body?.revision, true),
         authorityId: text(req.params.authorityId), file: uploadedDocument(file),
+        language: choice(req.body?.language, ["en", "fr", "bilingual"] as const),
       }));
     }));
+  router.post("/:id/library-pdfs", asyncRoute(async (req, res) => {
+    res.json(await application.attachLibraryPdf(applicationScope(res), text(req.params.id),
+      libraryPdf(req.body)));
+  }));
   router.post("/:id/book-parts/:slot", singleFileUpload("file"),
     asyncRoute(async (req, res) => {
       const file = req.file ?? reject(400, "file is required");
       res.json(await application.attachBookPdf(applicationScope(res), text(req.params.id), {
         revision: revision(req.body?.revision, true),
-        slot: choice(req.params.slot, ["cover", "index"] as const),
+        slot: choice(req.params.slot, ["cover", "index", "supplemental"] as const),
+        supplementId: typeof req.body?.supplement_id === "string"
+          ? text(req.body.supplement_id) : undefined,
         file: uploadedDocument(file),
       }));
     }));

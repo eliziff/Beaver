@@ -47,6 +47,9 @@ test("fresh receipts skip conditional network checks unless selected", () => {
   assert.equal(needsAudit(source, previous, options, now), false);
   assert.equal(needsAudit(source, previous, { ...options,
     ids: new Set([source.id]) }, now), true);
+  assert.equal(needsAudit({ ...source, url: "https://example.test/current" }, {
+    ...previous, url: "https://example.test/old",
+  }, options, now), true);
 });
 
 test("manifest receipts name exact profiles and mark CanLII manual-only", () => {
@@ -82,7 +85,24 @@ test("current Alberta authority profiles do not consume the superseded Book chec
   const manifest = JSON.parse(readFileSync(new URL(
     "../docs/decisions/court-output-preset-receipts.json", import.meta.url), "utf8"));
   const guide = manifest.sources.find(({ id }) => id === "ab-ca-authorities-guide");
+  const rules = manifest.sources.find(({ id }) => id === "ab-rules-part-13-14");
   assert(guide.profiles.includes("ab-court-of-appeal"));
-  assert.equal(guide.locator.includes("Rule 14.25(1)(h)"), true);
+  assert.equal(guide.locator.includes("Rule 14.25(1)(h)"), false);
+  assert.match(rules.locator, /14\.18.*14\.26.*14\.30/u);
   assert.equal(manifest.sources.some(({ url }) => url === guide.supersedes.url), false);
+});
+
+test("every court-specific Authorities profile cites matching source receipts", () => {
+  const manifest = JSON.parse(readFileSync(new URL(
+    "../docs/decisions/court-output-preset-receipts.json", import.meta.url), "utf8"));
+  const profiles = JSON.parse(readFileSync(new URL(
+    "../shared/authorities-profiles.json", import.meta.url), "utf8"));
+  const sources = new Map(manifest.sources.map((source) => [source.id, source]));
+  for (const profile of profiles.filter(({ id }) => id !== "general")) {
+    assert(profile.sourceIds?.length, `${profile.id} has no source receipts`);
+    for (const id of profile.sourceIds) {
+      assert(sources.get(id)?.profiles.includes(profile.id),
+        `${profile.id} does not match source receipt ${id}`);
+    }
+  }
 });

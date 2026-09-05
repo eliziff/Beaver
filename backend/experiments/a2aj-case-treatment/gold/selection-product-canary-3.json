@@ -1,0 +1,32 @@
+{
+  "format": "a2aj-case-treatment-selection-v1",
+  "seed": 20260830,
+  "requested": 3,
+  "selected": 3,
+  "court_only": true,
+  "sampling": "one simple case and two difficult multi-opinion cases from the audited product-30 benchmark",
+  "document_ids": [220108, 224932, 195153],
+  "cases": [
+    {
+      "document_id": 220108,
+      "dataset": "TCC",
+      "citation": "2005 TCC 643",
+      "name": "Ross v. The Queen",
+      "selection_reason": "short single-opinion control"
+    },
+    {
+      "document_id": 224932,
+      "dataset": "YKCA",
+      "citation": "2018 YKCA 9",
+      "name": "R. v. Larue",
+      "selection_reason": "multi-opinion and quoted-authority attribution stress case"
+    },
+    {
+      "document_id": 195153,
+      "dataset": "SCC",
+      "citation": "[1990] 3 SCR 697",
+      "name": "R. v. Keegstra",
+      "selection_reason": "long split decision with dense competing treatments"
+    }
+  ]
+}

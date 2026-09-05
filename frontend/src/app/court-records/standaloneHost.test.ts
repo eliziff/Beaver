@@ -7,6 +7,12 @@ const mocks = vi.hoisted(() => ({
   listOutputs: vi.fn(),
   readOutput: vi.fn(),
   saveArtifacts: vi.fn(),
+  getFilingContact: vi.fn(),
+  setFilingContact: vi.fn(),
+  getOutputFolder: vi.fn(),
+  chooseOutputFolder: vi.fn(),
+  clearOutputFolder: vi.fn(),
+  writeOutputs: vi.fn(),
   prepare: vi.fn(),
   bindFile: vi.fn(),
   resolveFile: vi.fn(),
@@ -25,6 +31,12 @@ vi.mock("@/app/lib/standaloneWorkProducts", () => ({
   listStandaloneOutputs: mocks.listOutputs,
   readStandaloneOutput: mocks.readOutput,
   saveStandaloneArtifacts: mocks.saveArtifacts,
+  getStandaloneFilingContact: mocks.getFilingContact,
+  setStandaloneFilingContact: mocks.setFilingContact,
+  getStandaloneOutputFolder: mocks.getOutputFolder,
+  chooseStandaloneOutputFolder: mocks.chooseOutputFolder,
+  clearStandaloneOutputFolder: mocks.clearOutputFolder,
+  writeStandaloneArtifactsToOutputFolder: mocks.writeOutputs,
 }));
 vi.mock("@/app/lib/apiTransport", () => ({
   apiRequest: mocks.apiRequest,
@@ -38,10 +50,13 @@ vi.mock("./prepareDeviceFile", () => ({
 import type { WorkProduct, WorkProductOutput } from "@/app/lib/workProducts";
 import { restoreCourtRecordDraft } from "./draftState";
 import { standaloneCourtRecordsHost } from "./standaloneHost";
+import { COURT_PROFILE_BY_ID } from "./profiles";
 import type { BuildArtifact, CourtRecordDraft, CourtRecordReceipt, RecordEntry } from "./types";
 
 const hash = (letter: string) => letter.repeat(64);
 const builtAt = "2026-08-30T12:00:00.000Z";
+const destination = COURT_PROFILE_BY_ID.get("fc-motion-record-moving")!.documentKinds
+  .find(({ id }) => id === "moving-evidence")!;
 
 function output(versionId = "version-1", sha256 = hash("a")): WorkProductOutput {
   return { documentId: "document-1", versionId, filename: "Appeal authorities.pdf",
@@ -50,7 +65,7 @@ function output(versionId = "version-1", sha256 = hash("a")): WorkProductOutput 
 
 function product(id: string, item?: WorkProductOutput): WorkProduct<CourtRecordDraft> {
   return { id, kind: "court-record", title: id === "child" ? "Appeal authorities" : "Record",
-    projectId: null, revision: 2, state: { profileId: "fc-motion-record-moving",
+    projectId: null, revision: 2, state: { profileId: id === "child" ? "fc-affidavit-exhibits" : "fc-motion-record-moving",
       cover: {}, entries: [], bindings: {} }, outputs: item ? { record: item } : {},
     createdAt: builtAt, updatedAt: builtAt };
 }
@@ -81,9 +96,31 @@ beforeEach(() => {
     searchable: true, encrypted: false, textlessPageCount: 0, textlessPages: [] }));
   mocks.getDraft.mockResolvedValue(product("record"));
   mocks.listOutputs.mockResolvedValue([]);
+  mocks.getFilingContact.mockResolvedValue({ name: "Ada Lawyer", address: "1 Court Street",
+    phone: "555-0100", fax: "", email: "ada@example.test" });
+  mocks.getOutputFolder.mockResolvedValue("Court outputs");
+  mocks.chooseOutputFolder.mockResolvedValue("Filed records");
+  mocks.writeOutputs.mockResolvedValue(null);
 });
 
 describe("standalone Court outputs", () => {
+  it("shares the standalone output-folder preference", async () => {
+    await expect(standaloneCourtRecordsHost.outputFolder!.get()).resolves.toBe("Court outputs");
+    await expect(standaloneCourtRecordsHost.outputFolder!.choose()).resolves.toBe("Filed records");
+    await standaloneCourtRecordsHost.outputFolder!.clear();
+    expect(mocks.clearOutputFolder).toHaveBeenCalledOnce();
+  });
+
+  it("reuses explicitly saved filing details for new records", async () => {
+    await expect(standaloneCourtRecordsHost.newDraftCover!()).resolves.toEqual({
+      counselName: "Ada Lawyer", counselAddress: "1 Court Street", counselPhone: "555-0100",
+      counselFax: "", counselEmail: "ada@example.test",
+    });
+    await standaloneCourtRecordsHost.saveFilingContact!({ counselEmail: " new@example.test " });
+    expect(mocks.setFilingContact).toHaveBeenCalledWith({ name: "Ada Lawyer",
+      address: "1 Court Street", phone: "555-0100", fax: "", email: "new@example.test" });
+  });
+
   it("binds a directly added file for later draft restoration", async () => {
     const file = new File(["%PDF-file"], "Affidavit.pdf", { lastModified: 2 });
 
@@ -91,6 +128,15 @@ describe("standalone Court outputs", () => {
 
     expect(prepared).toMatchObject({ file, binding: { kind: "local-file",
       handleId: "session:direct", lastSeen: { name: "Affidavit.pdf" } } });
+  });
+
+  it("verifies retained file contents before treating a restored source as current", async () => {
+    const binding = { kind: "local-file" as const, handleId: "retained:affidavit",
+      lastSeen: { name: "Affidavit.pdf", size: 12, modified: 7, sha256: hash("a") } };
+
+    await standaloneCourtRecordsHost.resolveInput(binding);
+
+    expect(mocks.resolveFile).toHaveBeenCalledWith(binding, true);
   });
 
   it("makes a textless device PDF searchable without replacing its file binding", async () => {
@@ -110,7 +156,7 @@ describe("standalone Court outputs", () => {
 
     expect(merged).toMatchObject({ file, origin: { kind: "device" }, binding,
       pageCount: 2, searchable: true, textlessPageCount: 0, textlessPages: [],
-      ocrTextByPage: ["", "Recognized second page"] });
+      ocrTextByPage: ["", "Recognized second page"], ocrAttemptedPages: [2] });
     const [path, request] = mocks.apiRequest.mock.calls[0];
     expect(path).toBe("/court-records/pdf-preparation");
     expect((request.body as FormData).get("file")).toMatchObject({
@@ -128,11 +174,11 @@ describe("standalone Court outputs", () => {
       output: child.outputs.record, bytes: new Uint8Array([1, 2]), receipt: {} });
 
     const choices = await standaloneCourtRecordsHost.searchDraftOutputs!(
-      "appeal", ["pdf"], "record");
+      "appeal", destination, "record");
     expect(choices).toMatchObject([{ workProductId: "child", role: "record",
       workProductTitle: "Appeal authorities", output: { versionId: "version-1" } }]);
 
-    const prepared = await standaloneCourtRecordsHost.importDraftOutput!(choices[0]);
+    const prepared = await standaloneCourtRecordsHost.importDraftOutput!(choices[0], destination);
     expect(mocks.readOutput).toHaveBeenCalledWith("child", "record", "version-1");
     expect(prepared).toMatchObject({ binding: { kind: "work-product-output",
       workProductId: "child", role: "record" }, origin: { documentId: "document-1",
@@ -146,7 +192,7 @@ describe("standalone Court outputs", () => {
     const binding = { kind: "work-product-output" as const, workProductId: "child", role: "record" };
     const parent = product("record");
     parent.state = { ...parent.state, bindings: { authorities: binding }, entries: [{
-      id: "authorities", kindId: "authorities", title: "Authorities",
+      id: "authorities", kindId: "moving-evidence", title: "Authorities",
       lastSeen: { name: "Appeal authorities.pdf", size: 1, modified: 1,
         sha256: hash("a") },
     }] };
@@ -157,12 +203,28 @@ describe("standalone Court outputs", () => {
 
     mocks.readOutput.mockRejectedValue(new Error(
       "The record output is missing. Rebuild Appeal authorities and try again."));
-    await expect(standaloneCourtRecordsHost.resolveInput(binding))
+    await expect(standaloneCourtRecordsHost.resolveInput(binding, undefined, destination))
       .resolves.toEqual({ status: "missing", reason: "deleted" });
     await expect(standaloneCourtRecordsHost.importDraftOutput!({
       workProductId: "child", workProductTitle: "Appeal authorities", role: "record",
       output: rebuilt, document: {} as never,
-    })).rejects.toThrow("Rebuild Appeal authorities");
+    }, destination)).rejects.toThrow("Rebuild Appeal authorities");
+  });
+
+  it("retains a stale child output but blocks it until that draft is rebuilt", async () => {
+    const child = product("child", output());
+    mocks.readOutput.mockResolvedValue({ product: child, role: "record",
+      output: child.outputs.record, bytes: new Uint8Array([1]), receipt: {}, stale: true });
+    const binding = { kind: "work-product-output" as const,
+      workProductId: "child", role: "record" };
+
+    await expect(standaloneCourtRecordsHost.resolveInput(binding, undefined, destination)).resolves.toMatchObject({
+      status: "stale", prepared: { stale: true },
+    });
+    await expect(standaloneCourtRecordsHost.importDraftOutput!({
+      workProductId: "child", workProductTitle: "Appeal authorities", role: "record",
+      output: child.outputs.record, document: {} as never,
+    }, destination)).rejects.toThrow("Rebuild Appeal authorities");
   });
 
   it("persists one receipt-matched artifact batch and returns the CAS-owned product", async () => {
@@ -174,6 +236,9 @@ describe("standalone Court outputs", () => {
       entries: [], receipt: receipt(item) })).resolves.toMatchObject({ product: saved,
       outputs: { record: { documentId: "document-1", versionId: "version-2" } } });
     expect(mocks.saveArtifacts).toHaveBeenCalledWith(current, [expect.objectContaining({
+      role: "record", bytes: item.bytes, receipt: receipt(item),
+    })]);
+    expect(mocks.writeOutputs).toHaveBeenCalledWith([expect.objectContaining({
       role: "record", bytes: item.bytes, receipt: receipt(item),
     })]);
 

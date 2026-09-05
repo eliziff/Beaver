@@ -40,12 +40,14 @@ import {
   LEGAL_EVIDENCE_SUBMIT_TOOL,
   LEGAL_EVIDENCE_TOOL_NAME,
   legalEvidenceReceiptEvent,
+  legalEvidenceCitationEntries,
   legalEvidenceRequested,
   modelEvidencePassage,
   registerLegalEvidence,
   registerLegalResearchQueries,
   registerPriorLegalEvidence,
   renderLegalEvidenceAnswer,
+  restorePriorLegalEvidence,
   submitLegalEvidenceAnswer,
   type PriorLegalEvidence,
   type LegalEvidenceReceiptEvent,
@@ -431,7 +433,7 @@ export async function runChatTurn(options: {
       const used = new Set(grounding.claims.flatMap((claim) => claim.evidence_ids));
       for (const evidenceId of used) {
         const registered = child.evidence.evidence.get(evidenceId);
-        if (registered) evidence.evidence.set(evidenceId, registered);
+        if (registered) registerLegalEvidence(evidence, registered.receipt, registered);
       }
       if (resume) resumableReaders.delete(resume.id);
       publish({
@@ -826,6 +828,12 @@ export async function runChatTurn(options: {
         text = "";
         throw new Error("Grounding verification failed after correction attempts");
       }
+      const priorCitations = legalEvidenceCitationEntries(evidence).filter(({ receipt, document, source }) =>
+        evidence.priorEvidenceIds.has(receipt.evidence_id) && !document && !source);
+      if (priorCitations.length) for (const { receipt, ...source } of await restorePriorLegalEvidence(
+        priorCitations.map(({ receipt }) => receipt), signal, false,
+        [...evidence.presentedEvidenceIds].map((id) => evidence.evidence.get(id)!)))
+        registerLegalEvidence(evidence, receipt, source);
       text = renderLegalEvidenceAnswer(evidence) ?? text.trimEnd();
     }
   } catch (error) {
