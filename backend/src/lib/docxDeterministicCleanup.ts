@@ -8,6 +8,7 @@ export async function fixDocumentSupras(
   options: {
     saveVersion?: (input: {
       sourceVersionId: string;
+      sourceWorkingRevision: number;
       filename: string;
       bytes: Buffer;
     }) => Promise<{
@@ -43,11 +44,14 @@ export async function fixDocumentSupras(
   const version = options.saveVersion
     ? await options.saveVersion({
         sourceVersionId: file.version.id,
+        sourceWorkingRevision: file.version.working_revision,
         filename,
         bytes: cleanup.bytes,
       })
     : await documents.addVersion(
-        { userId }, documentId, { filename, bytes: cleanup.bytes, fileType: "docx" },
+        { userId }, documentId, { filename, bytes: cleanup.bytes, fileType: "docx",
+          expectedCurrentVersionId: file.version.id,
+          expectedCurrentWorkingRevision: file.version.working_revision },
       );
   if (!version) throw new Error("Document disappeared before saving");
   const downloadUrl =

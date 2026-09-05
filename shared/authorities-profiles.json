@@ -10,6 +10,7 @@
     "id": "ab-court-of-kings-bench",
     "label": "Court of King’s Bench of Alberta",
     "courtId": "ab-kb",
+    "sourceIds": ["ab-kb-citation-guidelines","ab-kb-general-pn1"],
     "defaults": {"outputMode":"book","settings":{"sourceMode":"automatic","tabStyle":"numeric","tableOrder":"alphabetical","tableDelivery":"native-append","tableLocation":"pages","passageMarking":"margin","scannedPdfPolicy":"full","missingSourcePolicy":"omit"}},
     "locked": {"settings":{"missingSourcePolicy":"omit"}},
     "requirements": {"completeBookSources":true}
@@ -18,6 +19,7 @@
     "id": "ab-court-of-appeal",
     "label": "Court of Appeal of Alberta",
     "courtId": "ab-ca",
+    "sourceIds": ["ab-ca-authorities-guide","ab-ca-electronic-format"],
     "defaults": {"outputMode":"table","settings":{"sourceMode":"automatic","tabStyle":"numeric","tableOrder":"first-reference","tableDelivery":"linked-append","tableLocation":"pinpoints","passageMarking":"none","scannedPdfPolicy":"page-margin","missingSourcePolicy":"omit"}},
     "locked": {"outputMode":"table","settings":{"tableDelivery":"linked-append","tableOrder":"first-reference","missingSourcePolicy":"omit"}},
     "requirements": {"documentOutputDefault":true,"unlinkedPdfTableSources":true}
@@ -26,16 +28,30 @@
     "id": "federal-court",
     "label": "Federal Court",
     "courtId": "fc",
-    "defaults": {"outputMode":"book","settings":{"sourceMode":"automatic","tabStyle":"numeric","tableOrder":"alphabetical","tableDelivery":"native-append","tableLocation":"pages","passageMarking":"margin","scannedPdfPolicy":"full","missingSourcePolicy":"omit","filingMedium":"electronic","bookRole":"applicant"}},
-    "options": {"filingMedium":[{"value":"electronic","label":"Electronic"},{"value":"paper","label":"Paper"}],"bookRole":[{"value":"applicant","label":"Applicant"},{"value":"respondent","label":"Respondent"},{"value":"joint","label":"Joint"}]},
-    "requirements": {"completeBookSources":true}
+    "bookTitle": "Book of Authorities",
+    "sourceIds": ["fc-rules","fc-practice-guidelines-2025","fc-efiling","fc-efiling-guide-2020"],
+    "defaults": {"outputMode":"book","settings":{"sourceMode":"automatic","tabStyle":"numeric","tableOrder":"alphabetical","tableDelivery":"native-append","tableLocation":"pages","passageMarking":"margin","scannedPdfPolicy":"full","missingSourcePolicy":"omit","filingMedium":"electronic"}},
+    "options": {"filingMedium":[{"value":"electronic","label":"Electronic"},{"value":"paper","label":"Paper"}],"bookRole":[{"value":"plaintiff","label":"Plaintiff"},{"value":"defendant","label":"Defendant"},{"value":"applicant","label":"Applicant"},{"value":"respondent","label":"Respondent"},{"value":"moving-party","label":"Moving party"},{"value":"responding-party","label":"Responding party"},{"value":"joint","label":"Joint"}]},
+    "requirements": {"completeBookSources":true,"markedPassages":true,"federalFormatting":true,"bilingualEnactments":true,"electronicVolumes":{"maxPages":500,"maxBytes":104857600,"completeToc":true,"coverLabels":true}}
+  },
+  {
+    "id": "federal-court-appeal",
+    "label": "Federal Court — appeal",
+    "courtId": "fc",
+    "bookTitle": "Book of Statutes, Regulations and Authorities",
+    "sourceIds": ["fc-rules","fc-practice-guidelines-2025","fc-efiling","fc-efiling-guide-2020"],
+    "defaults": {"outputMode":"book","settings":{"sourceMode":"automatic","tabStyle":"numeric","tableOrder":"alphabetical","tableDelivery":"native-append","tableLocation":"pages","passageMarking":"margin","scannedPdfPolicy":"full","missingSourcePolicy":"omit","filingMedium":"electronic","bookRole":"joint"}},
+    "options": {"filingMedium":[{"value":"electronic","label":"Electronic"},{"value":"paper","label":"Paper"}],"bookRole":[{"value":"joint","label":"Joint"},{"value":"appellant","label":"Appellant"},{"value":"respondent","label":"Respondent"},{"value":"intervener","label":"Intervener"}]},
+    "requirements": {"completeBookSources":true,"markedPassages":true,"federalFormatting":true,"bilingualEnactments":true,"appealPaperCovers":true,"electronicVolumes":{"maxPages":500,"maxBytes":104857600,"completeToc":true,"coverLabels":true}}
   },
   {
     "id": "federal-court-of-appeal",
     "label": "Federal Court of Appeal",
     "courtId": "fca",
+    "bookTitle": "Book of Statutes, Regulations and Authorities",
+    "sourceIds": ["fc-rules","fca-consolidated-direction-2026","fca-efiling-guide"],
     "defaults": {"outputMode":"book","settings":{"sourceMode":"automatic","tabStyle":"numeric","tableOrder":"alphabetical","tableDelivery":"native-append","tableLocation":"pages","passageMarking":"margin","scannedPdfPolicy":"full","missingSourcePolicy":"omit","filingMedium":"electronic","bookRole":"joint"}},
     "options": {"filingMedium":[{"value":"electronic","label":"Electronic"},{"value":"paper","label":"Paper"}],"bookRole":[{"value":"joint","label":"Joint"},{"value":"appellant","label":"Appellant"},{"value":"respondent","label":"Respondent"},{"value":"intervener","label":"Intervener"}]},
-    "requirements": {"completeBookSources":true}
+    "requirements": {"completeBookSources":true,"markedPassages":true,"federalFormatting":true,"bilingualEnactments":true,"appealPaperCovers":true,"electronicVolumes":{"maxPages":500,"maxBytes":104857600,"completeToc":true,"coverLabels":true}}
   }
 ]

@@ -52,7 +52,7 @@ export type LegalEvidenceReceipt = {
   jurisdiction: string;
   source_class: LegalSourceClass;
   stable_source_id: string;
-  source_reference?: Pick<LegalSourceReference, "id" | "part">;
+  source_reference?: Pick<LegalSourceReference, "id" | "part" | "family">;
   source_sha256: string;
   scope: "document" | "passage";
   block_id: string;
@@ -98,6 +98,7 @@ export function legalEvidenceSourceReference(receipt: LegalEvidenceReceipt): Leg
       : receipt.provider === "hansard" ? "hansard" : null
     : receipt.source_class;
   return reference && kind ? { provider: receipt.provider, id: reference.id,
+    ...(reference.family ? { family: reference.family } : {}),
     ...(reference.part ? { part: reference.part } : {}), kind,
     title: receipt.name, citation: receipt.citation, date: receipt.version,
     collection: receipt.dataset, language: receipt.language, url: receipt.external_url } : null;
@@ -139,6 +140,9 @@ export type LegalEvidenceTurnState = {
   mode: LegalEvidenceMode | null;
   evidence: Map<string, RegisteredEvidence>;
   priorEvidenceIds: Set<string>;
+  presentedEvidenceIds: Set<string>;
+  priorEvidencePreviews: Map<string, string>;
+  priorQueryIds: Set<string>;
   documentEvidenceIds: Set<string>;
   queries: Map<string, LegalResearchQueryReceipt>;
   answer: GroundedLegalClaim[] | null;
@@ -153,6 +157,9 @@ export function createLegalEvidenceTurnState(
     mode,
     evidence: new Map(),
     priorEvidenceIds: new Set(),
+    presentedEvidenceIds: new Set(),
+    priorEvidencePreviews: new Map(),
+    priorQueryIds: new Set(),
     documentEvidenceIds: new Set(),
     queries: new Map(),
     answer: null,
@@ -184,6 +191,7 @@ export function registerLegalResearchQueries(
       ...receipt,
       model,
     };
+    state.priorQueryIds.delete(value.query_id);
     state.queries.set(value.query_id, value);
   }
 }
@@ -233,7 +241,7 @@ export function createA2AJPassageEvidence(args: {
   end: number;
   externalUrl: string | null;
   sourceClass: LegalSourceClass;
-  sourceReference?: Pick<LegalSourceReference, "id" | "part">;
+  sourceReference?: Pick<LegalSourceReference, "id" | "part" | "family">;
   blockId?: string;
   locator?: LegalEvidenceReceipt["locator"];
 }): LegalEvidenceReceipt {
@@ -247,6 +255,7 @@ export function createA2AJPassageEvidence(args: {
     source_class: args.sourceClass,
     stable_source_id: stableA2AJSourceId(args),
     ...(args.sourceReference ? { source_reference: { id: args.sourceReference.id,
+      ...(args.sourceReference.family ? { family: args.sourceReference.family } : {}),
       ...(args.sourceReference.part ? { part: args.sourceReference.part } : {}) } } : {}),
     sourceText: args.sourceText,
     sourceSha256: args.sourceSha256,
@@ -268,7 +277,7 @@ type DirectSourceEvidenceArgs = {
   jurisdiction: string;
   sourceClass: LegalSourceClass;
   stableSourceId: string;
-  sourceReference?: Pick<LegalSourceReference, "id" | "part">;
+  sourceReference?: Pick<LegalSourceReference, "id" | "part" | "family">;
   sourceText?: string;
   sourceSha256?: string;
   spanText: string;
@@ -295,6 +304,7 @@ function createDirectSourceEvidence(
       ? {
           source_reference: {
             id: args.sourceReference.id,
+            ...(args.sourceReference.family ? { family: args.sourceReference.family } : {}),
             ...(args.sourceReference.part ? { part: args.sourceReference.part } : {}),
           },
         }
@@ -482,6 +492,8 @@ function createJournalEvidence(args: {
   text: string;
   sourceSha256?: string;
   articleId: string;
+  family?: string;
+  collection?: string | null;
   language?: "en" | "fr";
   locatorKind: LegalEvidenceReceipt["locator"]["kind"];
   locatorLabel: string;
@@ -491,13 +503,13 @@ function createJournalEvidence(args: {
     jurisdiction: "CA",
     source_class: "commentary",
     stable_source_id: `journal:${args.articleId}`,
-    source_reference: { id: args.articleId },
+    source_reference: { id: args.articleId, ...(args.family ? { family: args.family } : {}) },
     sourceText: args.text,
     sourceSha256: args.sourceSha256,
     block_id: `article:${args.articleId}:${args.locatorKind}:${args.locatorLabel}`,
     citation: args.citation,
     name: args.name,
-    dataset: "journal",
+    dataset: args.collection ?? "journal",
     language: args.language ?? "en",
     version: args.date,
     external_url: args.url,
@@ -545,7 +557,9 @@ export function legalSourceEvidence(passage: LegalSourcePassage,
     date: passage.source.date ?? null, url: passage.source.url ?? null,
     text: span?.text ?? passage.text,
     sourceSha256: structureNative().documentRevision(passage.documentArtifact),
-    articleId: passage.source.id, language: passage.source.language,
+    articleId: passage.source.id, family: passage.source.family,
+    collection: passage.source.collection,
+    language: passage.source.language,
     locatorKind: span?.locator?.kind ?? passage.locator.requested?.kind ?? "document",
     locatorLabel: span?.locator?.label ?? passage.locator.label,
   });
@@ -576,7 +590,12 @@ export function registerLegalEvidence(
   receipt: LegalEvidenceReceipt | undefined,
   source: Omit<RegisteredEvidence, "receipt"> = {},
 ) {
-  if (receipt) state.evidence.set(receipt.evidence_id, { receipt, ...source });
+  if (!receipt) return;
+  const previous = state.evidence.get(receipt.evidence_id);
+  state.evidence.set(receipt.evidence_id, {
+    ...(previous?.receipt.source_sha256 === receipt.source_sha256 ? previous : {}), receipt, ...source,
+  });
+  state.presentedEvidenceIds.add(receipt.evidence_id);
 }
 
 export function registerDocumentLegalEvidence(
@@ -586,7 +605,7 @@ export function registerDocumentLegalEvidence(
   evidenceIds.forEach((evidenceId) => state.documentEvidenceIds.add(evidenceId));
 }
 
-function storedReceipt(value: unknown): LegalEvidenceReceipt | null {
+export function storedLegalEvidenceReceipt(value: unknown): LegalEvidenceReceipt | null {
   const row = object(value);
   const locator = object(row?.locator);
   const sourceReference = object(row?.source_reference);
@@ -599,6 +618,7 @@ function storedReceipt(value: unknown): LegalEvidenceReceipt | null {
     typeof row.jurisdiction === "string" && locator &&
     (row.source_reference === undefined || Boolean(
       sourceReference && typeof sourceReference.id === "string" &&
+      (sourceReference.family === undefined || typeof sourceReference.family === "string") &&
       (sourceReference.part === undefined || typeof sourceReference.part === "string"),
     )) &&
     typeof locator.kind === "string" && typeof locator.label === "string"
@@ -606,7 +626,7 @@ function storedReceipt(value: unknown): LegalEvidenceReceipt | null {
     : null;
 }
 
-function storedQueryReceipt(value: unknown): LegalResearchQueryReceipt | null {
+export function storedLegalResearchQueryReceipt(value: unknown): LegalResearchQueryReceipt | null {
   const row = object(value);
   if (!row || typeof row.query_id !== "string" || !row.query_id.startsWith("q_") ||
       typeof row.call_id !== "string" ||
@@ -636,8 +656,11 @@ export function priorLegalEvidenceReceipts(events: readonly unknown[]) {
         : null;
     if (source?.status !== "passed" || !Array.isArray(source.evidence)) continue;
     for (const value of source.evidence) {
-      const receipt = storedReceipt(value);
-      if (receipt) receipts.set(receipt.evidence_id, receipt);
+      const receipt = storedLegalEvidenceReceipt(value);
+      if (receipt) {
+        receipts.delete(receipt.evidence_id);
+        receipts.set(receipt.evidence_id, receipt);
+      }
     }
   }
   return [...receipts.values()];
@@ -654,11 +677,18 @@ export function priorLegalResearchQueryReceipts(events: readonly unknown[]) {
         : null;
     if (!source || !Array.isArray(source.queries)) continue;
     for (const value of source.queries) {
-      const receipt = storedQueryReceipt(value);
+      const receipt = storedLegalResearchQueryReceipt(value);
       if (receipt) receipts.set(receipt.query_id, receipt);
     }
   }
   return [...receipts.values()];
+}
+
+export function registerPriorLegalResearchQueries(state: LegalEvidenceTurnState,
+  receipts: readonly LegalResearchQueryReceipt[]) {
+  receipts.forEach((receipt) => {
+    state.queries.set(receipt.query_id, receipt); state.priorQueryIds.add(receipt.query_id);
+  });
 }
 
 export function registerPriorLegalEvidence(
@@ -670,30 +700,34 @@ export function registerPriorLegalEvidence(
     const { receipt, ...source } = entry;
     registerLegalEvidence(state, receipt, source);
     state.priorEvidenceIds.add(receipt.evidence_id);
+    state.presentedEvidenceIds.delete(receipt.evidence_id);
   }
+  state.priorEvidencePreviews = new Map(recentInventory([...state.priorEvidenceIds].map(
+    (id) => state.evidence.get(id)!.receipt), modelEvidencePreview, 6_000)
+    .map(({ evidence_id, preview }) => [evidence_id, preview ?? ""]));
 }
 
 export async function restorePriorLegalEvidence(
   receipts: readonly LegalEvidenceReceipt[],
   signal?: AbortSignal,
+  verifySpans = false,
+  available: readonly RegisteredEvidence[] = [],
 ): Promise<RegisteredEvidence[]> {
   const sources = new Map<
     string,
     Promise<Omit<RegisteredEvidence, "receipt"> | null>
   >();
+  const sourceKey = (receipt: LegalEvidenceReceipt) => JSON.stringify([receipt.provider,
+    receipt.source_reference?.id ?? receipt.stable_source_id, receipt.source_reference?.part ?? "",
+    receipt.source_sha256]);
+  for (const { receipt, document, source } of available) if (document || source)
+    sources.set(sourceKey(receipt), Promise.resolve({ ...(document && { document }), ...(source && { source }) }));
   const restoreSource = (receipt: LegalEvidenceReceipt) => {
     const providerSource = legalEvidenceSourceReference(receipt);
     if (receipt.provider !== "a2aj" && !providerSource) {
       return Promise.resolve(null);
     }
-    const key = providerSource
-      ? JSON.stringify([
-          receipt.provider,
-          providerSource.id,
-          providerSource.part ?? "",
-          receipt.source_sha256,
-        ])
-      : `${receipt.stable_source_id}:${receipt.source_sha256}`;
+    const key = sourceKey(receipt);
     let pending = sources.get(key);
     if (!pending) {
       pending = (async () => {
@@ -733,10 +767,18 @@ export async function restorePriorLegalEvidence(
     }
     return pending;
   };
-  return Promise.all(receipts.map(async (receipt) => {
+  const restored = await Promise.all(receipts.map(async (receipt) => {
     const restored = await restoreSource(receipt);
+    if (verifySpans) {
+      const span = receipt.span_text, native = restored?.document?.native ?? restored?.source;
+      const normalized = span && normalizeWhitespace(span);
+      if (!span || !native || receipt.exact_span_sha256 && sha256(span) !== receipt.exact_span_sha256 ||
+          sha256(normalized!) !== receipt.span_sha256 ||
+          !normalizeWhitespace(structureNative().documentText(native)).includes(normalized!)) return null;
+    }
     return { receipt, ...(restored ?? {}) };
   }));
+  return restored.filter((value): value is RegisteredEvidence => value !== null);
 }
 
 const CITATION_REQUEST = /\b(?:cite|cites|citation|citations|source|sources|pinpoint|footnote)\b/iu;
@@ -754,20 +796,47 @@ export function legalEvidenceRequested(messages: readonly {
     CITATION_REQUEST.test(requests.at(-2) ?? "");
 }
 
-export const modelEvidencePassage = ({ evidence_id, citation, name, locator,
-  span_text }: LegalEvidenceReceipt) => ({
-  evidence_id, citation, name, locator, exact_passage: span_text,
-});
+export function modelEvidencePassage({ evidence_id, citation, name, locator,
+  span_text }: LegalEvidenceReceipt) {
+  return { evidence_id, citation, name, locator, exact_passage: span_text };
+}
 
-export function priorLegalEvidencePrompt(receipts: readonly LegalEvidenceReceipt[]) {
-  const passages = receipts.filter((receipt) => receipt.scope === "passage" && receipt.span_text);
-  return passages.length
-    ? [
-        "VERIFIED EVIDENCE AVAILABLE FROM PRIOR TURNS:",
-        "These exact passages and evidence_ids are already registered in this turn. Use them directly in submit_grounded_answer. Do not re-fetch them. Test each passage against the current request and omit merely related material.",
-        ...passages.map((receipt) => JSON.stringify(modelEvidencePassage(receipt))),
-      ].join("\n")
-    : "";
+export function readPriorLegalEvidence(state: LegalEvidenceTurnState, evidenceId: string) {
+  const entry = state.evidence.get(evidenceId), receipt = entry?.receipt, span = receipt?.span_text;
+  if (!span || sha256(normalizeWhitespace(span)) !== receipt.span_sha256 ||
+    receipt.exact_span_sha256 && sha256(span) !== receipt.exact_span_sha256) return null;
+  state.presentedEvidenceIds.add(evidenceId);
+  return entry!;
+}
+
+export function modelEvidencePreview({ evidence_id, citation, name, locator, span_text }: LegalEvidenceReceipt) {
+  return { evidence_id, citation: citation.slice(0, 240), name: name?.slice(0, 240),
+    locator, preview: span_text?.slice(0, 160) };
+}
+
+export function modelResearchQueryPreview({ query_id, tool, input, results }: LegalResearchQueryReceipt) {
+  return { query_id, tool, query: String(input.pattern ?? input.query ?? "").slice(0, 160), results: results.length };
+}
+
+function recentInventory<T, U>(values: readonly T[], format: (value: T) => U, budget: number) {
+  const selected: U[] = [];
+  for (let index = values.length - 1; index >= 0; index--) {
+    const value = format(values[index]), size = JSON.stringify(value).length + 1;
+    if (size > budget) break;
+    selected.push(value); budget -= size;
+  }
+  return selected.reverse();
+}
+
+export function priorLegalEvidencePrompt(receipts: readonly LegalEvidenceReceipt[],
+  queries: readonly LegalResearchQueryReceipt[] = []) {
+  if (!receipts.length && !queries.length) return "";
+  return ["PRIOR RESEARCH:",
+    `${receipts.length} saved passages; ${queries.length} previous searches. Recent inventory follows.`,
+    "Read(file_path=evidence_id) returns the saved exact passage; Read(file_path=query_id) returns the previous search. Read(file_path='evidence' or 'queries', offset, limit) lists older entries. Use saved evidence IDs for grounding; previews are not complete passages.",
+    ...recentInventory(queries, modelResearchQueryPreview, 1_400).map((value) => JSON.stringify(value)),
+    ...recentInventory(receipts, modelEvidencePreview, 6_000).map((value) => JSON.stringify(value)),
+  ].join("\n");
 }
 
 /**
@@ -817,11 +886,17 @@ export function legalEvidenceProseIntegrityErrors(
   citedEvidenceIds: readonly string[],
   state: LegalEvidenceTurnState,
 ) {
-  const visible = [...state.evidence.values()].flatMap(({ receipt }) => receipt.span_text
-    ? [{ evidenceId: receipt.evidence_id, text: receipt.span_text,
+  const passages = new Map(state.priorEvidencePreviews);
+  for (const id of [...state.presentedEvidenceIds, ...citedEvidenceIds]) {
+    const text = state.evidence.get(id)?.receipt.span_text;
+    if (text) passages.set(id, text);
+  }
+  const visible = [...passages].flatMap(([evidenceId, text]) => {
+    const receipt = state.evidence.get(evidenceId)?.receipt;
+    return receipt && text ? [{ evidenceId, text,
         labels: [receipt.name, receipt.citation].filter(
-          (value): value is string => Boolean(value)) }]
-    : []);
+          (value): value is string => Boolean(value)) }] : [];
+  });
   return structureNative().groundedProseErrors(text, citedEvidenceIds, visible);
 }
 
@@ -1028,9 +1103,10 @@ export function legalEvidenceReceiptEvent(
   const ids = new Set([
     ...claims.flatMap((claim) => claim.evidence_ids),
     ...state.documentEvidenceIds,
-    ...[...state.evidence.keys()].filter((id) => !state.priorEvidenceIds.has(id)),
+    ...[...state.presentedEvidenceIds].filter((id) => !state.priorEvidenceIds.has(id)),
   ]);
-  const queries = [...state.queries.values()];
+  const queries = [...state.queries.values()].filter(({ query_id }) =>
+    !state.priorQueryIds.has(query_id));
   if (!state.attempted && !ids.size && !queries.length) return null;
   const passed = !state.failure && Boolean(state.answer || ids.size || queries.length);
   return {

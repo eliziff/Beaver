@@ -1,5 +1,3 @@
-"use strict";
-
 /** Recursively sorts object keys while preserving JSON array order. */
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
@@ -10,4 +8,4 @@ function canonicalJson(value) {
   return JSON.stringify(value) ?? "null";
 }
 
-exports.canonicalJson = canonicalJson;
+export { canonicalJson };

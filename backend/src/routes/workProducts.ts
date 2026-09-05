@@ -2,10 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { applicationScope } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
-import { createResearchSetState, publicResearchSetActionSchema } from "../lib/researchSet";
-import { createResearchSetQueryService, verifyPublicResearchPassageAction,
-  type ResearchPassageReader, type ResearchSetQueryService } from "../lib/researchSetQuery";
 import type { WorkProductApplication } from "../lib/workProductApplication";
+import { WORK_PRODUCT_KINDS } from "../lib/workProduct";
 import { requireAuth } from "../middleware/auth";
 
 const id = z.string().uuid();
@@ -19,30 +17,17 @@ const create = z.discriminatedUnion("kind", [
     project_id: project, state: z.unknown() }).strict(),
   z.object({ kind: z.literal("authorities"), title: label(300),
     project_id: project, state: z.unknown() }).strict(),
-  z.object({ kind: z.literal("research-set"), title: label(300),
-    project_id: project }).strict(),
 ]);
 const update = z.object({ revision: z.number().int().positive(), title: label(300).optional(),
   project_id: project, state: z.unknown().optional(), outputs: outputRefs.optional() }).strict()
   .refine((value) => ["title", "project_id", "state", "outputs"]
     .some((key) => Object.hasOwn(value, key)), "No draft changes supplied");
 const duplicate = z.object({ title: label(300).optional(), project_id: project }).strict();
-const query = z.object({ kind: z.enum(["court-record", "authorities", "research-set"]).optional(),
-  project_id: id.optional(), limit: z.coerce.number().int().min(1).max(100).default(50),
+const query = z.object({ kind: z.enum(WORK_PRODUCT_KINDS).optional(),
+  project_id: id.optional(), limit: z.coerce.number().int().min(1).max(100).optional(),
   metadata: z.literal("true").optional() }).strict();
 
-const uuidArray = (max: number) => z.array(id).max(max).refine((items) =>
-  new Set(items).size === items.length, "IDs must be unique");
-const researchUpdate = z.object({ revision: z.number().int().positive(),
-  action: publicResearchSetActionSchema }).strict();
-const researchQuery = z.object({ revision: z.number().int().positive(), text: label(10_000),
-  syntax: z.enum(["literal", "terms"]), target: z.enum(["sources", "passages"]),
-  sourceIds: uuidArray(10_000).optional(), labelIds: uuidArray(1_000).optional(),
-  limit: z.number().int().min(1).max(5_000).optional() }).strict();
-
-export function createWorkProductsRouter(application: WorkProductApplication,
-  researchQueries: ResearchSetQueryService = createResearchSetQueryService(application),
-  passageReader?: ResearchPassageReader) {
+export function createWorkProductsRouter(application: WorkProductApplication) {
   const router = Router();
   router.use(requireAuth);
   router.get("/", asyncRoute(async (req, res) => {
@@ -57,8 +42,7 @@ export function createWorkProductsRouter(application: WorkProductApplication,
     const scope = applicationScope(res);
     res.status(201).json(await application.create(scope, {
       kind: values.kind, title: values.title, projectId: values.project_id,
-      state: "state" in values ? values.state : createResearchSetState(
-        { kind: "human", id: scope.userId }, values.title),
+      state: values.state,
     }));
   }));
   router.get("/:id/resolution", asyncRoute(async (req, res) => {
@@ -73,18 +57,6 @@ export function createWorkProductsRouter(application: WorkProductApplication,
       revision: values.revision, title: values.title, projectId: values.project_id,
       state: values.state, outputs: values.outputs,
     }));
-  }));
-  router.post("/:id/research-actions", asyncRoute(async (req, res) => {
-    const values = researchUpdate.parse(req.body);
-    const scope = applicationScope(res), productId = id.parse(req.params.id);
-    const action = await verifyPublicResearchPassageAction(application, scope, productId,
-      values.revision, values.action, passageReader);
-    res.json(await application.applyResearchSetAction(scope,
-      productId, { revision: values.revision, action }));
-  }));
-  router.post("/:id/research-query", asyncRoute(async (req, res) => {
-    res.json(await researchQueries.run(applicationScope(res), id.parse(req.params.id),
-      researchQuery.parse(req.body)));
   }));
   router.post("/:id/duplicate", asyncRoute(async (req, res) => {
     const values = duplicate.parse(req.body ?? {});

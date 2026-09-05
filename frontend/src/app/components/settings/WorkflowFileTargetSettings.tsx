@@ -86,8 +86,8 @@ function TargetPicker({ title, current, onClose, onSave }: {
         ? current.projectId : "");
     const [folder, setFolder] = useState<Folder | null>(null);
     const [saving, setSaving] = useState(false), [error, setError] = useState("");
-    const list = useMemo(() => directoryResource(kind === "project"
-        ? { projectId } : { library: "files" }).list, [kind, projectId]);
+    const directory = useMemo(() => directoryResource(kind === "project"
+        ? { projectId } : { library: "files" }), [kind, projectId]);
     async function choose() {
         if (!folder || saving) return;
         setSaving(true); setError("");
@@ -114,7 +114,7 @@ function TargetPicker({ title, current, onClose, onSave }: {
         {kind === "project" && !projectId
             ? <ProjectChoiceList value={null} onChange={(id) => setProjectId(id)} />
             : <FolderBrowser key={`${kind}:${projectId}`}
-                list={list}
+                list={directory.list} createFolder={directory.createFolder}
                 rootLabel={kind === "project" ? "Project folders" : "Library folders"}
                 onSelect={setFolder}
                 onBack={kind === "project" ? () => {

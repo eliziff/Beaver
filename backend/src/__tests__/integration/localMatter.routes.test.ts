@@ -74,15 +74,18 @@ function spreadsheetBytes(value: string) {
 
 async function loadApi() {
   vi.resetModules();
-  const [{ api }, { runtime }] = await Promise.all([
+  const starting = Promise.all([
     import("../../api"), import("../../runtime"),
-  ]);
-  const workers = await runtime.startWorkers();
-  closeLocalStores = async () => {
-    await workers.stop();
-    await runtime.shutdown();
-  };
-  return api;
+  ]).then(async ([{ api }, { runtime }]) => {
+    const workers = await runtime.startWorkers();
+    return { api, close: async () => {
+      await workers.stop();
+      await runtime.shutdown();
+    } };
+  });
+  // Teardown must await startup even if the test times out during module loading.
+  closeLocalStores = async () => (await starting).close();
+  return (await starting).api;
 }
 
 beforeEach(async () => {
@@ -117,7 +120,6 @@ afterEach(async () => {
   await closeLocalStores?.();
   closeLocalStores = null;
   vi.unstubAllEnvs();
-  vi.resetModules();
   await rm(dataHome, { recursive: true, force: true });
 });
 

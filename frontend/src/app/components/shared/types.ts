@@ -45,6 +45,7 @@ export interface Document {
   created_at: string | null;
   updated_at?: string | null;
   current_version_id?: string | null;
+  current_working_revision?: number | null;
   source_sha256?: string | null;
   active_version_number?: number | null;
 }

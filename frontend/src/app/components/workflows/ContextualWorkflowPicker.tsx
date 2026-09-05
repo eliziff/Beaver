@@ -3,17 +3,16 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
     createAuthorities,
-    createWorkProduct,
     fixLibraryDocxSupras,
     inspectDocxWorkflowCapabilities,
     type DeterministicDocxActionResult,
 } from "@/app/lib/beaverApi";
-import { courtRecordDraftFromDocuments } from "@/app/court-records/draftState";
 import { publishWorkflowRun, workflowOperationLabel } from "../assistant/WorkflowRun";
 import { WorkflowSkeuoIcon } from "../shared/AppSidebarSkeuoIcons";
 import type { Document, WorkflowOperationName } from "../shared/types";
 import { Button } from "../ui/button";
 import { Modal } from "../modals/Modal";
+import { WarningPopup } from "../popups/WarningPopup";
 import { cn } from "@/app/lib/utils";
 import { WorkflowPickerContent } from "./WorkflowPickerContent";
 import { useWorkflowPickerState } from "./WorkflowPickerModal";
@@ -108,17 +107,10 @@ export function ContextualWorkflowPicker({ documents = [], initialWorkflowId,
                 setLaunchError("Court Records accepts PDF or Word files.");
                 return;
             }
-            setLaunching("product"); setLaunchError(null);
-            try {
-                const projectId = sharedProjectId(documents);
-                const product = await createWorkProduct({ kind: "court-record",
-                    title: "Untitled court record", projectId,
-                    state: courtRecordDraftFromDocuments(documents) });
-                onLaunched?.();
-                navigate(`/court-records?draft=${encodeURIComponent(product.id)}`);
-            } catch {
-                setLaunchError("Unable to create Court Records. Try again.");
-            } finally { setLaunching(null); }
+            const projectId = sharedProjectId(documents);
+            onLaunched?.();
+            navigate(`/court-records${projectId ? `?project=${encodeURIComponent(projectId)}` : ""}`,
+                { state: { documents: documents.map(({ id, filename }) => ({ id, filename })) } });
             return;
         }
         const source = documents.length === 1 && documents[0].library_kind !== "template" &&
@@ -136,7 +128,8 @@ export function ContextualWorkflowPicker({ documents = [], initialWorkflowId,
                 projectId: source.project_id,
             });
             onLaunched?.();
-            navigate(`/table-of-authorities?draft=${encodeURIComponent(product.id)}`);
+            navigate(`/table-of-authorities?draft=${encodeURIComponent(product.id)}${source.project_id
+                ? `&project=${encodeURIComponent(source.project_id)}` : ""}`);
         } catch {
             setLaunchError("Unable to create Authorities. Try again.");
         } finally { setLaunching(null); }
@@ -206,32 +199,59 @@ export function ContextualWorkflowPicker({ documents = [], initialWorkflowId,
     </div>;
 }
 
-export function ContextualWorkflowLauncher({ documents = [], onAssistantSelect,
+export function ContextualWorkflowLauncher<T extends WorkflowDocument>({ documents = [], onAssistantSelect,
     onDocumentChanged, onOpen, className, labelClassName = "hidden sm:inline",
-    disabled = false, showDisabled = false }: Pick<PickerProps, "documents" | "onAssistantSelect" |
-        "onDocumentChanged"> & { onOpen?: (documents: WorkflowDocument[]) => void;
+    disabled = false, showDisabled = false, resolveDocuments }: {
+            documents?: T[];
+            onAssistantSelect?: (selection: WorkflowSelection, documents: T[]) => void;
+            onDocumentChanged?: PickerProps["onDocumentChanged"];
+            onOpen?: (documents: T[]) => void;
             className?: string; labelClassName?: string; disabled?: boolean;
-            showDisabled?: boolean }) {
+            showDisabled?: boolean;
+            resolveDocuments?: () => Promise<T[]> }) {
     const [open, setOpen] = useState(false);
-    const available = !!documents?.length;
+    const [resolved, setResolved] = useState<T[]>([]);
+    const [resolving, setResolving] = useState(false);
+    const [resolveError, setResolveError] = useState("");
+    const available = !!documents?.length || !!resolveDocuments;
     if (!available && !showDisabled) return null;
     return <>
         <Button variant="outline" size="compact" className={cn("h-8", className)}
-            disabled={disabled || !available}
-            aria-label="Workflows" onClick={(event) => {
+            disabled={disabled || resolving || !available}
+            aria-label="Workflows" onClick={async (event) => {
                 event.stopPropagation();
-                if (onOpen) onOpen(documents);
-                else setOpen(true);
+                setResolveError("");
+                if (documents.length) {
+                    if (onOpen) onOpen(documents);
+                    else { setResolved(documents); setOpen(true); }
+                    return;
+                }
+                setResolving(true);
+                try {
+                    const selected = await resolveDocuments?.() ?? [];
+                    if (!selected.length) {
+                        setResolveError("There are no documents in this location."); return;
+                    }
+                    if (onOpen) onOpen(selected);
+                    else { setResolved(selected); setOpen(true); }
+                } catch {
+                    setResolveError("The documents could not be opened. Try again.");
+                } finally { setResolving(false); }
             }}>
-            <WorkflowSkeuoIcon className="text-base leading-none" />
+            {resolving ? <Loader2 className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />
+                : <WorkflowSkeuoIcon className="text-base leading-none" />}
             <span className={labelClassName}>Workflows</span>
         </Button>
         {!onOpen && <Modal open={open} onClose={() => setOpen(false)} size="xl"
             breadcrumbs={["Workflows"]}>
-            <ContextualWorkflowPicker documents={documents}
-                onAssistantSelect={onAssistantSelect}
+            <ContextualWorkflowPicker documents={documents.length ? documents : resolved}
+                onAssistantSelect={onAssistantSelect
+                    ? (selection, selected) => onAssistantSelect(selection, selected as T[])
+                    : undefined}
                 onDocumentChanged={onDocumentChanged}
                 onLaunched={() => setOpen(false)} className="pb-4" />
         </Modal>}
+        <WarningPopup open={!!resolveError} onClose={() => setResolveError("")}
+            message={resolveError} />
     </>;
 }

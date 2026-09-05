@@ -1,7 +1,8 @@
 import { indexPageCount } from "./layout";
 import { acceptedSourceFormats, sourceFormat } from "./formats";
 import { formatBytes } from "@/app/lib/utils";
-import { coverPartyGroups, exhibitIndex, filingParty, partyNames } from "./types";
+import { contactGroups, coverPartyGroups, exhibitIndex, filingParties, filingPartyNames,
+  hasMatchingExhibitCertificate, partyNames, rule70MaximumPages } from "./types";
 import type {
   ComplianceFinding,
   ComplianceReport,
@@ -15,19 +16,21 @@ const generatedPages = (profile: CourtProfile, entries: RecordEntry[]) => {
   if (profile.outputMode === "separate-files") return 0;
   if (profile.outputMode === "affidavit-with-exhibits") {
     return profile.exhibitCertificate
-      ? entries.filter((entry) => entry.kindId === "exhibit").length
+      ? entries.filter((entry) => entry.kindId === "exhibit" &&
+        !hasMatchingExhibitCertificate(entry)).length
       : 0;
   }
   const kinds = new Map(profile.documentKinds.map((kind) => [kind.id, kind]));
+  const generated = profile.documentKinds.filter((kind) => kind.generated &&
+    !entries.some((entry) => entry.kindId === kind.id));
   const indexItems = [
     ...entries.filter((entry) => !kinds.get(entry.kindId)?.separateFile)
       .map((entry) => ({ group: kinds.get(entry.kindId)?.group })),
-    ...profile.documentKinds.filter((kind) => kind.generated).map((kind) => ({ group: kind.group })),
+    ...generated.map((kind) => ({ group: kind.group })),
   ];
-  const generatedContentPages = profile.documentKinds.filter((kind) => kind.generated).length;
   return (profile.cover.generated ? 1 : 0) +
     indexPageCount(indexItems, profile.technical.indexRowsPerPage) +
-    generatedContentPages;
+    generated.length;
 };
 
 const finding = (
@@ -38,13 +41,52 @@ const finding = (
   extra: Partial<ComplianceFinding> = {},
 ): ComplianceFinding => ({ id, level, title, detail, ...extra });
 
+const documentDate = (value?: string) => {
+  const date = Date.parse(value?.trim() ?? "");
+  return Number.isNaN(date) ? undefined : date;
+};
+
+const ROMAN_DIGITS = [["m", 1000], ["cm", 900], ["d", 500], ["cd", 400],
+  ["c", 100], ["xc", 90], ["l", 50], ["xl", 40], ["x", 10], ["ix", 9],
+  ["v", 5], ["iv", 4], ["i", 1]] as const;
+function lowerRoman(value: number) {
+  let result = "";
+  for (const [digit, amount] of ROMAN_DIGITS) {
+    result += digit.repeat(Math.floor(value / amount));
+    value %= amount;
+  }
+  return result;
+}
+
+function validAbcaTranscriptLabels(labels?: string[] | null) {
+  if (!labels?.length) return false;
+  let index = 0;
+  while (index < labels.length) {
+    if (labels[index++] !== "") return false;
+    let page = 1;
+    while (index < labels.length && labels[index] !== "" && !/^\d+$/u.test(labels[index])) {
+      if (labels[index++] !== lowerRoman(page++)) return false;
+    }
+    if (page === 1) return false;
+    page = 1;
+    while (index < labels.length && labels[index] !== "") {
+      if (labels[index++] !== String(page++)) return false;
+    }
+    if (page === 1) return false;
+  }
+  return true;
+}
+
 export function sortedEntries(profile: CourtProfile, entries: RecordEntry[]) {
-  const order = new Map(profile.documentKinds.map((item) => [item.id, item.order]));
+  const kinds = new Map(profile.documentKinds.map((item) => [item.id, item]));
   return entries
     .map((entry, index) => ({ entry, index }))
     .sort((left, right) =>
-      (order.get(left.entry.kindId) ?? Number.MAX_SAFE_INTEGER) -
-        (order.get(right.entry.kindId) ?? Number.MAX_SAFE_INTEGER) ||
+      (kinds.get(left.entry.kindId)?.order ?? Number.MAX_SAFE_INTEGER) -
+        (kinds.get(right.entry.kindId)?.order ?? Number.MAX_SAFE_INTEGER) ||
+      (left.entry.kindId === right.entry.kindId && kinds.get(left.entry.kindId)?.chronological
+        ? (documentDate(left.entry.date) ?? Number.MAX_SAFE_INTEGER) -
+          (documentDate(right.entry.date) ?? Number.MAX_SAFE_INTEGER) : 0) ||
       (profile.family === "affidavit" && left.entry.kindId === "exhibit" &&
         right.entry.kindId === "exhibit"
         ? (exhibitIndex(left.entry.exhibitLabel) + 1 || Number.MAX_SAFE_INTEGER) -
@@ -57,14 +99,17 @@ export function staleBuildSource(receipt: CourtRecordReceipt, entries: RecordEnt
   const byId = new Map(entries.map((entry) => [entry.id, entry]));
   return receipt.sources.find((source) => {
     const entry = byId.get(source.entryId);
-    if (!entry || entry.inputStatus === "missing" || entry.inputStatus === "changed") return true;
+    if (!entry || ["missing", "changed", "stale"].includes(entry.inputStatus ?? "")) return true;
     if ((entry.origin?.kind ?? "device") !== source.origin.kind) return true;
     if (entry.origin?.kind === "library") {
       return entry.origin.documentId !== source.origin.documentId ||
         entry.origin.versionId !== source.origin.versionId ||
         entry.origin.sourceSha256 !== source.origin.sourceSha256;
     }
-    return entry.file.name !== source.filename || entry.file.size !== source.byteCount;
+    const sha256 = entry.binding?.kind === "local-file"
+      ? entry.binding.lastSeen.sha256 : entry.lastSeen?.sha256;
+    return entry.file.name !== source.filename || entry.file.size !== source.byteCount ||
+      !sha256 || sha256 !== source.sha256;
   });
 }
 
@@ -82,7 +127,10 @@ export function validateCourtRecord({
   const passes: ComplianceFinding[] = [];
   const kinds = new Map(profile.documentKinds.map((item) => [item.id, item]));
 
-  const styleId = cover.partyStyleId ?? profile.cover.partyStyles?.[0]?.id;
+  const styles = profile.cover.partyStyles;
+  const style = styles?.find((item) => item.id === cover.partyStyleId) ??
+    (styles?.length === 1 ? styles[0] : undefined);
+  const styleId = style?.id;
   for (const coverField of profile.cover.fields.filter((item) => item.required &&
     (!item.partyStyleId || item.partyStyleId === styleId))) {
     if (!cover[coverField.id]?.trim()) {
@@ -98,10 +146,12 @@ export function validateCourtRecord({
     }
   }
 
-  if (profile.cover.partyStyles?.length) {
+  if ((styles?.length ?? 0) > 1 && !style) {
+    blockers.push(finding("party-style", "blocker", "Party style is required",
+      "Choose the style of cause used in the proceeding.", { fieldId: "partyStyleId" }));
+  }
+  if (style) {
     const groups = coverPartyGroups(profile, cover);
-    const style = profile.cover.partyStyles.find((item) => item.id === cover.partyStyleId) ??
-      profile.cover.partyStyles[0];
     const requiredGroups = new Set(style.groups.filter((group) => !group.optional ||
       group.id === profile.cover.filingGroupId)
       .map((group) => group.id));
@@ -116,14 +166,25 @@ export function validateCourtRecord({
         ));
       }
     }
-    if (!filingParty(profile, cover)) {
+    const filers = filingParties(profile, cover);
+    if (!filers.length) {
       blockers.push(finding(
         "filing-party",
         "blocker",
         "Filing party is required",
         "Enter the party names, then choose who is filing this record.",
-        { fieldId: "filingPartyId" },
+        { fieldId: "filingPartyIds" },
       ));
+    } else if (profile.cover.template === "abca-ap5") {
+      const [, otherGroups] = contactGroups(profile, cover);
+      for (const party of otherGroups.flatMap((group) => group.parties)
+        .filter(({ name }) => name.trim())) {
+        if ([party.contact?.name, party.contact?.address, party.contact?.phone]
+          .some((value) => !value?.trim())) blockers.push(finding(
+          `contact-${party.id}`, "blocker", `Contact information for ${party.name} is required`,
+          "Enter a name, address, and telephone number.", { fieldId: "partyContacts" },
+        ));
+      }
     }
   }
 
@@ -170,14 +231,17 @@ export function validateCourtRecord({
       ));
       continue;
     }
-    if (entry.inputStatus === "missing") {
+    if (entry.inputStatus === "missing" || entry.inputStatus === "stale") {
       const nested = entry.binding?.kind === "work-product-output";
+      const stale = entry.inputStatus === "stale";
       blockers.push(finding(
         `missing-file-${entry.id}`,
         "blocker",
         nested ? "Rebuild the source draft" : "Relink the source file",
         nested
-          ? `${entry.file.name} comes from a draft whose current output is unavailable. Rebuild that draft, then refresh this record.`
+          ? stale
+            ? `${entry.file.name} comes from a draft changed since its last build. Rebuild that draft, then refresh this record.`
+            : `${entry.file.name} comes from a draft whose current output is unavailable. Rebuild that draft, then refresh this record.`
           : `${entry.file.name} is no longer available to this draft.`,
         { entryId: entry.id },
       ));
@@ -198,6 +262,17 @@ export function validateCourtRecord({
         "blocker",
         `${documentKind.label} is not permitted`,
         `Remove ${entry.file.name} to continue.`,
+        { entryId: entry.id },
+      ));
+    }
+    if (documentKind.appendTo && !entries.some((item) => item.kindId === documentKind.appendTo) &&
+        !blockers.some((item) => item.id === `missing-${documentKind.appendTo}`)) {
+      const target = kinds.get(documentKind.appendTo);
+      blockers.push(finding(
+        `missing-${documentKind.appendTo}`,
+        "blocker",
+        `${target?.label ?? "Related document"} is missing`,
+        `Add ${(target?.label ?? "the related document").toLowerCase()} before attaching ${documentKind.label.toLowerCase()}.`,
         { entryId: entry.id },
       ));
     }
@@ -224,12 +299,13 @@ export function validateCourtRecord({
         { entryId: entry.id },
       ));
     }
-    if (profile.technical.indexDate === "required" && !entry.date?.trim()) {
-      blockers.push(finding(
-        `date-${entry.id}`,
-        "blocker",
-        "Document date is required",
-        `Enter the date for ${entry.title || entry.file.name}.`,
+    if (profile.technical.indexDate === "required" || documentKind.chronological) {
+      const date = entry.date?.trim();
+      if (!date || documentDate(date) === undefined) blockers.push(finding(
+        `date-${entry.id}`, "blocker",
+        date ? "Use a valid document date" : "Document date is required",
+        date ? `Correct the date for ${entry.title || entry.file.name}.`
+          : `Enter the date for ${entry.title || entry.file.name}.`,
         { entryId: entry.id },
       ));
     }
@@ -256,6 +332,17 @@ export function validateCourtRecord({
         { entryId: entry.id },
       ));
     }
+    if (preparedPdf && documentKind.pageLabelScheme === "abca-transcript" &&
+        (!validAbcaTranscriptLabels(entry.pageLabels) || entry.pageCount !== null &&
+          entry.pageLabels?.length !== entry.pageCount)) {
+      blockers.push(finding(
+        `page-labels-${entry.id}`,
+        "blocker",
+        "Fix transcript page labels",
+        `${entry.file.name} must have an unnumbered cover, a table of contents numbered i, ii, iii, and proceedings numbered 1, 2, 3.`,
+        { entryId: entry.id },
+      ));
+    }
     if (preparedPdf && entry.encrypted === true) {
       blockers.push(finding(
         `security-${entry.id}`,
@@ -265,15 +352,19 @@ export function validateCourtRecord({
         { entryId: entry.id },
       ));
     }
-    if (preparedPdf && profile.technical.searchable && entry.searchable === false) {
+    if (preparedPdf && profile.technical.searchable && entry.searchable === false &&
+        !entry.nonTextPagesConfirmed) {
       blockers.push(finding(
         `searchability-${entry.id}`,
         "blocker",
-        "OCR is required",
-        `${entry.file.name} has no searchable text layer. OCR it before building the filing copy.`,
+        entry.ocrAttemptedPages?.length ? "Confirm non-text pages" : "OCR is required",
+        entry.ocrAttemptedPages?.length
+          ? `OCR found no text on ${entry.textlessPageCount === 1 ? "this page" : "these pages"}. Confirm they contain only photographs or other non-text material.`
+          : `${entry.file.name} has no searchable text layer. OCR it before building the filing copy.`,
         { entryId: entry.id },
       ));
-    } else if (preparedPdf && profile.technical.searchable && (entry.textlessPageCount ?? 0) > 0) {
+    } else if (preparedPdf && profile.technical.searchable && !entry.nonTextPagesConfirmed &&
+        (entry.textlessPageCount ?? 0) > 0) {
       review.push(finding(
         `textless-pages-${entry.id}`,
         "review",
@@ -282,7 +373,28 @@ export function validateCourtRecord({
         { entryId: entry.id },
       ));
     }
-    if (preparedPdf && documentKind.maximumPages && entry.pageCount !== null && entry.pageCount > documentKind.maximumPages) {
+    const rule70Limit = rule70MaximumPages(documentKind);
+    if (preparedPdf && rule70Limit && entry.pageCount !== null && entry.pageCount > rule70Limit) {
+      const counted = entry.rule70CountedPages;
+      if (typeof counted !== "number" || !Number.isSafeInteger(counted) ||
+          counted < 1 || counted > entry.pageCount) {
+        blockers.push(finding(
+          `rule70-pages-${entry.id}`,
+          "blocker",
+          "Enter the Parts I–IV page count",
+          `${entry.file.name} is ${entry.pageCount} pages. Enter how many pages are occupied by Parts I–IV; Part V and appendices do not count.`,
+          { entryId: entry.id },
+        ));
+      } else if (counted > rule70Limit) {
+        blockers.push(finding(
+          `rule70-pages-${entry.id}`,
+          "blocker",
+          `Parts I–IV exceed ${rule70Limit} pages`,
+          `${entry.file.name} has ${counted} pages in Parts I–IV.`,
+          { entryId: entry.id },
+        ));
+      }
+    } else if (preparedPdf && documentKind.maximumPages && entry.pageCount !== null && entry.pageCount > documentKind.maximumPages) {
       blockers.push(finding(
         `kind-pages-${entry.id}`,
         "blocker",
@@ -292,10 +404,10 @@ export function validateCourtRecord({
       ));
     }
     if (entry.inspectionError) {
-      review.push(finding(
+      blockers.push(finding(
         `inspection-${entry.id}`,
-        "review",
-        "Document inspection was incomplete",
+        "blocker",
+        "PDF could not be inspected",
         `${entry.file.name}: ${entry.inspectionError}`,
         { entryId: entry.id },
       ));
@@ -381,11 +493,11 @@ export function validateCourtRecord({
   };
 }
 
-export function outputFilename(profile: CourtProfile, cover: CoverValues) {
+export function outputFilename(profile: CourtProfile, cover: CoverValues, kind = "Document") {
   const replacements: Record<string, string> = {
     courtFileNumber: cover.courtFileNumber ?? "file",
-    filingParty: filingParty(profile, cover)?.party.name ?? "party",
-    kind: "Document",
+    filingParty: filingPartyNames(profile, cover) || "party",
+    kind,
   };
   return profile.filenamePattern.replace(/\{([^}]+)\}/gu, (_match, key: string) =>
     sanitizeFilename(replacements[key] ?? key));

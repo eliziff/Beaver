@@ -1,8 +1,11 @@
 import express from "express";
+import { Document, FootnoteReferenceRun, Packer, Paragraph, TextRun } from "docx";
+import JSZip from "jszip";
 import { PDFDocument } from "pdf-lib";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AuthoritiesDraft } from "../lib/authoritiesDomain";
+import type { AuthoritiesDiscrepancy } from "../lib/authoritiesDiscrepancy";
 import { sha256 } from "../lib/hash";
 import { assertAuthoritiesBuildUploadSize, createAuthoritiesRuntimeRouter } from
   "./authoritiesRuntime";
@@ -25,12 +28,13 @@ afterEach(() => { vi.restoreAllMocks(); vi.clearAllMocks(); });
 
 const manualState = () => ({ schemaVersion: "beaver.authorities-draft.v1" as const,
   import: { kind: "manual" as const }, bindings: {}, outputMode: "table" as const,
+  cover: { courtFileNumber: "", partyGroups: [], applicationUnder: "", title: "" },
   settings: { profileId: "general" as const, sourceMode: "automatic" as const,
     tabStyle: "numeric" as const, tableOrder: "alphabetical" as const,
     tableDelivery: "native-append" as const, tableLocation: "pages" as const,
     passageMarking: "margin" as const, scannedPdfPolicy: "page-margin" as const,
     missingSourcePolicy: "placeholder" as const },
-  bookParts: { cover: null, index: null },
+  bookParts: { cover: null, index: null, supplements: [] },
   insertIntoDocument: false, ledger: null, units: [], occurrences: {},
   authorityOrder: ["case"], authorities: { case: {
     id: "case", key: "case", kind: "case" as const, citation: "2024 ABKB 123",
@@ -51,9 +55,101 @@ describe("standalone Authorities runtime", () => {
       .send({ draft: manualState() }).expect(200, []);
   });
 
+  it("accepts an advertised ignore decision without requiring a source upload", async () => {
+    const id = "d".repeat(64), finding: AuthoritiesDiscrepancy = {
+      id, actions: ["ignore"], kind: "quote_mismatch", occurrenceId: "cite",
+      authorityId: "case", footnoteId: 1, citation: "2020 SCC 1", proposition: "Proposition",
+      authoredQuote: "authored words", authoredPinpoint: { kind: "paragraph", text: "7" },
+      cited: { locator: { kind: "paragraph", label: "7" }, text: "source words" }, found: null,
+    };
+    const ignoreApp = express(); ignoreApp.use(express.json());
+    ignoreApp.use("/authorities-runtime", createAuthoritiesRuntimeRouter(resolveSources,
+      (_req, _res, next) => next(), async () => [finding]));
+    const response = await request(ignoreApp).post("/authorities-runtime/discrepancies/actions")
+      .send({ draft: manualState(), request: { id, action: "ignore", revision: 1 } })
+      .expect(200);
+    expect(response.body.discrepancyDecisions).toEqual({ [id]: "ignore" });
+  });
+
+  it("returns a corrected Word copy and refreshed standalone draft", async () => {
+    const note = "2020 SCC 1 at para 19", body = "The court quoted the source.";
+    const bytes = await Packer.toBuffer(new Document({
+      footnotes: { 7: { children: [new Paragraph({ children: [new TextRun(note)] })] } },
+      sections: [{ children: [new Paragraph({ children: [
+        new TextRun(body), new FootnoteReferenceRun(7),
+      ] })] }],
+    }));
+    const state = structuredClone(manualState()) as AuthoritiesDraft;
+    state.import = { kind: "document", bindingRole: "source", filename: "Factum.docx",
+      fileType: "docx", snapshot: null };
+    state.bindings.source = { kind: "local-file", handleId: "source", lastSeen: {
+      name: "Factum.docx", size: bytes.length, modified: 1, sha256: sha256(bytes),
+    } };
+    state.authorities.case.citation = "2020 SCC 1";
+    const pinpoint = note.indexOf("19");
+    state.units = [
+      { id: "body:0", kind: "body", ordinal: 0, footnoteId: null,
+        footnoteRefs: [[1, body.length]], pageNumbers: [], text: body, occurrenceIds: [] },
+      { id: "footnote:7", kind: "footnote", ordinal: 1, footnoteId: 1,
+        footnoteRefs: [], pageNumbers: [], text: note, occurrenceIds: ["cite"] },
+    ];
+    state.occurrences = { cite: { id: "cite", unitId: "footnote:7", start: 0,
+      end: note.length, text: note, authoritySpan: { start: 0, end: 10, text: "2020 SCC 1" },
+      coreSpan: { start: 0, end: 10, text: "2020 SCC 1" }, pinpointSpan: {
+        start: pinpoint, end: pinpoint + 2, text: "19" }, kind: "case", citation: "2020 SCC 1",
+      authorityId: "case", reference: null, pinpoints: [{ kind: "paragraph", text: "19" }],
+      evidenceIds: [], sourceTextSha256: sha256(Buffer.from(note)), localOrdinal: 0,
+      reviewed: true } };
+    const id = "e".repeat(64), finding: AuthoritiesDiscrepancy = {
+      id, actions: ["ignore", "pinpoint"], kind: "wrong_pinpoint", occurrenceId: "cite",
+      authorityId: "case", footnoteId: 1, citation: "2020 SCC 1", proposition: body,
+      authoredQuote: "the source", authoredPinpoint: { kind: "paragraph", text: "19" },
+      cited: { locator: { kind: "paragraph", label: "19" }, text: "Different." },
+      found: { locator: { kind: "paragraph", label: "20" }, text: "the source" },
+    };
+    mocks.importFile.mockImplementationOnce(async (input) => {
+      const fresh = structuredClone(state); fresh.import.filename = input.filename;
+      fresh.bindings.source = { kind: "local-file", handleId: "standalone", lastSeen: {
+        name: input.filename, size: input.bytes.length, modified: 0, sha256: sha256(input.bytes),
+      } };
+      fresh.units[1].text = note.replace("19", "20");
+      Object.assign(fresh.occurrences.cite, { text: fresh.units[1].text,
+        pinpointSpan: { start: pinpoint, end: pinpoint + 2, text: "20" },
+        pinpoints: [{ kind: "paragraph", text: "20" }],
+        sourceTextSha256: sha256(Buffer.from(fresh.units[1].text)) });
+      return fresh;
+    });
+    const correctionApp = express(); correctionApp.use(express.json());
+    correctionApp.use("/authorities-runtime", createAuthoritiesRuntimeRouter(resolveSources,
+      (_req, _res, next) => next(), async () => [finding]));
+    const response = await request(correctionApp).post("/authorities-runtime/discrepancies/actions")
+      .field("draft", JSON.stringify(state)).field("request", JSON.stringify({
+        id, action: "pinpoint", revision: 1,
+      })).field("modified", "1").attach("file", bytes, "Factum.docx")
+      .buffer(true).parse((res, done) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => done(null, Buffer.concat(chunks)));
+      });
+    expect(response.status, String(response.body)).toBe(200);
+    const form = await new Response(response.body as Buffer, { headers: {
+      "content-type": response.headers["content-type"],
+    } }).formData();
+    const corrected = form.get("source") as File;
+    const xml = await (await JSZip.loadAsync(await corrected.arrayBuffer()))
+      .file("word/footnotes.xml")!.async("string");
+    const refreshed = JSON.parse(String(form.get("draft"))) as AuthoritiesDraft;
+
+    expect(xml).toContain("at para 20");
+    expect(refreshed.import).toMatchObject({ filename: "Factum corrected.docx" });
+    expect(refreshed.discrepancyDecisions).toEqual({ [id]: "pinpoint" });
+    expect(refreshed.bindings.source).toMatchObject({ kind: "local-file",
+      lastSeen: { sha256: sha256(Buffer.from(await corrected.arrayBuffer())) } });
+  });
+
   it("applies create settings without starting source work", async () => {
     const response = await request(app).post("/authorities-runtime/create").send({ settings: {
-      profileId: "federal-court", sourceMode: "manual-originals", outputMode: "both",
+      profileId: "federal-court", sourceMode: "manual-originals", outputMode: "book",
     } }).expect(200);
 
     expect(resolveSources).not.toHaveBeenCalled();
@@ -79,6 +175,7 @@ describe("standalone Authorities runtime", () => {
     resolveSources.mockImplementationOnce(async (state) => ({ draft: state, attachments: [{
       authorityId: "case", filename: "Example v Example.pdf", bytes, sourceSha256,
       sourceUrl: "https://decisions.example/case.pdf", origin: "original" as const,
+      language: "en" as const,
     }] }));
     const response = await request(app).post("/authorities-runtime/sources")
       .send({ draft: manualState() })
@@ -90,9 +187,17 @@ describe("standalone Authorities runtime", () => {
     const body = response.body as Buffer;
 
     expect(response.headers["content-type"]).toMatch(/^multipart\/form-data; boundary=/u);
-    expect(body.includes(bytes)).toBe(true);
-    expect(body.includes(Buffer.from(`stored:${sourceSha256}`))).toBe(true);
-    expect(body.includes(Buffer.from('"origin":"original"'))).toBe(true);
+    const form = await new Response(body, { headers: {
+      "content-type": response.headers["content-type"],
+    } }).formData();
+    expect(Buffer.from(await (form.get("file-0") as File).arrayBuffer())).toEqual(bytes);
+    const returned = JSON.parse(String(form.get("draft"))) as AuthoritiesDraft;
+    expect(Object.values(returned.bindings)[0]).toMatchObject({
+      handleId: `stored:${sourceSha256}`,
+    });
+    expect(returned.authorities.case.source).toMatchObject({
+      sources: [expect.objectContaining({ origin: "original", language: "en" })],
+    });
   });
 
   it("refreshes a changed imported source through the domain reducer", async () => {
@@ -180,9 +285,24 @@ describe("standalone Authorities runtime", () => {
       .field("modified", "6").attach("file", index, "Index.pdf").expect(200);
     expect(indexed.body.bookParts.index).toMatchObject({ filename: "Index.pdf",
       sourceSha256: sha256(index) });
-    await request(app).post("/authorities-runtime/book-part")
+    const supplemented = await request(app).post("/authorities-runtime/book-part")
       .field("draft", JSON.stringify(indexed.body)).field("slot", "supplemental")
-      .field("modified", "7").attach("file", index, "Extra.pdf").expect(400);
+      .field("modified", "7").attach("file", index, "Extra.pdf").expect(200);
+    const extraId = supplemented.body.bookParts.supplements[0].id;
+    const replacedExtra = await request(app).post("/authorities-runtime/book-part")
+      .field("draft", JSON.stringify(supplemented.body)).field("slot", "supplemental")
+      .field("supplement_id", extraId).field("modified", "8")
+      .attach("file", replacement, "Replacement extra.pdf").expect(200);
+    expect(replacedExtra.body.bookParts.supplements).toEqual([
+      expect.objectContaining({ id: extraId, bindingRole:
+        supplemented.body.bookParts.supplements[0].bindingRole,
+      filename: "Replacement extra.pdf" }),
+    ]);
+    const second = await request(app).post("/authorities-runtime/book-part")
+      .field("draft", JSON.stringify(replacedExtra.body)).field("slot", "supplemental")
+      .field("modified", "9").attach("file", index, "Later.pdf").expect(200);
+    expect(second.body.bookParts.supplements.map(({ filename }: { filename: string }) => filename))
+      .toEqual(["Replacement extra.pdf", "Later.pdf"]);
   });
 
   it("accepts only actual PDF uploads for book parts", async () => {
@@ -211,7 +331,7 @@ describe("standalone Authorities runtime", () => {
   it("keeps edits local and resolves only at the explicit source stage", async () => {
     await request(app).post("/authorities-runtime/action").send({
       draft: manualState(), action: { type: "set-output-mode", outputMode: "both" },
-    }).expect(200);
+    }).expect(400);
     expect(resolveSources).not.toHaveBeenCalled();
 
     await request(app).post("/authorities-runtime/action").send({
@@ -259,8 +379,12 @@ describe("standalone Authorities runtime", () => {
         res.on("end", () => done(null, Buffer.concat(chunks)));
       }).expect(200);
     expect(response.headers["content-type"]).toMatch(/^multipart\/form-data; boundary=/u);
-    expect((response.body as Buffer).includes(Buffer.from("beaver.authorities-build.v1"))).toBe(true);
-    expect((response.body as Buffer).includes(Buffer.from("PK"))).toBe(true);
+    const form = await new Response(response.body as Buffer, { headers: {
+      "content-type": response.headers["content-type"],
+    } }).formData();
+    expect(JSON.parse(String(form.get("receipt"))).schemaVersion).toBe("beaver.authorities-build.v1");
+    const table = await JSZip.loadAsync(await (form.get("table") as File).arrayBuffer());
+    expect(await table.file("word/document.xml")!.async("string")).toContain("Example v Example");
   });
 
   it("does not prepare PDFs when an unmarked original-page book cannot use page text", async () => {
@@ -273,8 +397,9 @@ describe("standalone Authorities runtime", () => {
       },
     } } });
     state.settings.passageMarking = "none";
-    state.authorities.case.source = { kind: "attached", bindingRole: "source",
-      filename: "Example.pdf", sourceSha256, sourceUrl: null, origin: "manual" };
+    state.authorities.case.source = { kind: "attached", sources: [{ bindingRole: "source",
+      filename: "Example.pdf", sourceSha256, sourceUrl: null, origin: "manual",
+      language: "en" }] };
 
     await request(app).post("/authorities-runtime/build")
       .field("draft", JSON.stringify(state)).field("roles", JSON.stringify(["source"]))

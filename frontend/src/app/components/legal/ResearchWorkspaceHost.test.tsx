@@ -1,49 +1,47 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, vi } from "vitest";
-import * as api from "@/app/lib/beaverApi";
+import { beforeEach, expect, it, vi } from "vitest";
+import type { ResearchFile } from "@/app/lib/researchFiles";
 import { ResearchWorkspaceHost } from "./ResearchWorkspaceHost";
 
-vi.mock("./ResearchFileBar", () => ({ ResearchFileBar: () => <div>Workspace panels
-  <button onKeyDown={(event) => event.preventDefault()}>Nested menu</button></div> }));
-vi.mock("@/app/lib/beaverApi", () => ({ getResearchFile: vi.fn() }));
-beforeEach(() => localStorage.clear());
-const file = { document: { id: "research-1" } } as never;
+const api = vi.hoisted(() => ({ getResearchFile: vi.fn() }));
+vi.mock("@/app/lib/beaverApi", () => api);
+vi.mock("./ResearchFileBar", () => ({ ResearchFileBar: () => <div>Saved sources</div> }));
+const file = { document: { id: "research-1" } } as ResearchFile;
 
-it("renders the embedded workspace above the dock and closes it", () => {
+beforeEach(() => { localStorage.clear(); vi.clearAllMocks(); });
+
+it("keeps the collection inline and retains its contents when returning to search", () => {
+  const view = render(<ResearchWorkspaceHost embedded inline open onOpenChange={vi.fn()}
+    file={file} onChange={vi.fn()} />);
+  expect(screen.getByRole("region", { name: "Research collection" })).toBeVisible();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  const contents = screen.getByText("Saved sources");
+  view.rerender(<ResearchWorkspaceHost embedded inline open={false} onOpenChange={vi.fn()}
+    file={file} onChange={vi.fn()} />);
+  expect(contents).toBeInTheDocument();
+  expect(contents).not.toBeVisible();
+});
+
+it("uses the shared reading companion dock and supports a narrow collection", () => {
   const close = vi.fn();
-  render(<div data-testid="clipping-parent" style={{ overflow: "hidden" }}>
-    <ResearchWorkspaceHost embedded open onOpenChange={close} file={file} onChange={vi.fn()} />
-  </div>);
-  const workspace = screen.getByRole("dialog", { name: "Workspace" });
-  expect(workspace.parentElement).toBe(document.body);
-  fireEvent.click(screen.getByRole("button", { name: "Close workspace" }));
+  render(<ResearchWorkspaceHost embedded={false} open onOpenChange={close} file={null} onChange={vi.fn()} />);
+  const dock = screen.getByRole("complementary", { name: "Workspace" });
+  const separator = screen.getByRole("separator", { name: "Resize workspace" });
+  fireEvent.pointerDown(separator, { clientX: 0 });
+  fireEvent.pointerMove(window, { clientX: 1000 }); fireEvent.pointerUp(window);
+  expect(dock.style.getPropertyValue("--assistant-dock-width")).toBe("300px");
+  fireEvent.click(screen.getByRole("button", { name: "Collapse workspace" }));
   expect(close).toHaveBeenCalledWith(false);
 });
 
-it("leaves Escape to a nested chooser", () => {
-  const close = vi.fn();
-  render(<ResearchWorkspaceHost embedded open onOpenChange={close} file={file} onChange={vi.fn()} />);
-  const workspace = screen.getByRole("dialog", { name: "Workspace" });
-  const chooser = document.createElement("dialog"); chooser.open = true;
-  const button = document.createElement("button"); chooser.append(button); workspace.append(chooser);
-  fireEvent.keyDown(button, { key: "Escape" }); expect(close).not.toHaveBeenCalled();
-  fireEvent.keyDown(screen.getByRole("button", { name: "Nested menu" }), { key: "Escape" });
-  expect(close).not.toHaveBeenCalled();
-  fireEvent.keyDown(workspace, { key: "Escape" }); expect(close).toHaveBeenCalledWith(false);
-});
-
-it("uses the shared resizable dock outside embedded Sources", () => {
-  render(<ResearchWorkspaceHost embedded={false} open onOpenChange={vi.fn()}
-    file={null} onChange={vi.fn()} />);
-  expect(screen.getByRole("complementary", { name: "Assistant dock" })).toBeVisible();
-  expect(screen.getByText("Workspace panels")).toBeVisible();
-});
-
-it("restores the selected personal research document by id", async () => {
+it("restores a remembered file only when requested", async () => {
   localStorage.setItem("beaver.research.current:personal", "research-1");
-  vi.mocked(api.getResearchFile).mockResolvedValue(file as never);
-  const onChange = vi.fn();
-  render(<ResearchWorkspaceHost embedded={false} open onOpenChange={vi.fn()} file={null} onChange={onChange} />);
+  api.getResearchFile.mockResolvedValue(file); const onChange = vi.fn();
+  const view = render(<ResearchWorkspaceHost embedded={false} open onOpenChange={vi.fn()}
+    file={null} onChange={onChange} restoreLast={false} />);
+  expect(api.getResearchFile).not.toHaveBeenCalled();
+  view.rerender(<ResearchWorkspaceHost embedded={false} open onOpenChange={vi.fn()}
+    file={null} onChange={onChange} />);
   await waitFor(() => expect(api.getResearchFile).toHaveBeenCalledWith("research-1"));
   expect(onChange).toHaveBeenCalledWith(file);
 });

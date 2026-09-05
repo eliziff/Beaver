@@ -17,16 +17,19 @@ export function LibraryDocumentPicker({ open, title, formatLabel, query, results
   onClose: () => void;
 }) {
   return <Modal open={open} onClose={onClose} size="2xl" breadcrumbs={[title]}>
-    <div className="pb-5">
+    <div className="flex min-h-0 flex-1 flex-col pb-5">
       <p className="mb-3 text-sm text-gray-500">{formatLabel} files</p>
       <SearchBar autoFocus value={query} onValueChange={onQuery} booleanSearch
-        placeholder={`Search ${sourceLabel} ${formatLabel} files`} aria-label={`Search ${sourceLabel} ${formatLabel} files`} />
-      <div className="mt-3 max-h-[min(28rem,55vh)] min-h-44 overflow-y-auto rounded-xl border border-gray-200" aria-busy={busy}>
-        {busy ? <CollectionState loading className="h-44 gap-2"><Loader2 className="h-4 w-4 motion-safe:animate-spin" /> Loading {sourceLabel}</CollectionState>
+        placeholder={`Search ${sourceLabel}`} aria-label={`Search ${sourceLabel}`} />
+      <div className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-xl border border-gray-200" aria-busy={busy}>
+        {busy ? <CollectionState loading className="h-full gap-2"><Loader2 className="h-4 w-4 motion-safe:animate-spin" /> Loading {sourceLabel}</CollectionState>
           : results.length ? <ul className="divide-y divide-gray-100">{results.map((document) => <li key={document.id}>
             <DocumentResultRow filename={document.filename} fileType={document.file_type}
-              onClick={() => onSelect(document)} metadata={detail?.(document) ?? <>{document.page_count ? `${document.page_count} pages` : "Page count unavailable"}{document.size_bytes ? ` · ${formatBytes(document.size_bytes)}` : ""}</>} />
-          </li>)}</ul> : <CollectionState className="h-44">No matching files.</CollectionState>}
+              onClick={() => onSelect(document)} metadata={detail?.(document) ?? [
+                document.page_count ? `${document.page_count} pages` : "",
+                document.size_bytes ? formatBytes(document.size_bytes) : "",
+              ].filter(Boolean).join(" · ")} />
+          </li>)}</ul> : <CollectionState className="h-full">No matching files.</CollectionState>}
       </div>
     </div>
   </Modal>;

@@ -1,5 +1,6 @@
 import type { ApplicationScope } from "./applicationError";
-import { relationalDatabase, sql, type RelationalDatabase, type SqlStatement } from "./relationalDatabase";
+import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql,
+  type RelationalDatabase, type SqlStatement } from "./relationalDatabase";
 
 export type Row = Record<string, any>;
 export const now = () => new Date().toISOString();
@@ -10,6 +11,54 @@ export const one = async <T extends Row>(statement: SqlStatement, db?: Relationa
   (await rows<T>(statement, db))[0] ?? null;
 export const changes = async (statement: SqlStatement, db?: RelationalDatabase) =>
   (await (db ?? await relationalDatabase()).query(statement)).changes;
+
+export async function queueObjectCleanup(db: RelationalDatabase, keys: string[]) {
+  const unique = [...new Set(keys)];
+  const createdAt = now();
+  for (let start = 0; start < unique.length; start += 250) {
+    const batch = unique.slice(start, start + 250);
+    await changes(sql`INSERT INTO object_cleanup(storage_path,created_at) VALUES
+      ${sql.join(batch.map((key) => sql`(${key},${createdAt})`))}
+      ON CONFLICT(storage_path) DO UPDATE SET created_at=excluded.created_at`, db);
+  }
+}
+
+export async function deleteDocumentRows(db: RelationalDatabase, ids: string[]) {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return 0;
+  const selected = new Set(unique);
+  const reviews = new Map<string, { id: string; document_ids: unknown }>();
+  for (let start = 0; start < unique.length; start += 250) {
+    const batch = unique.slice(start, start + 250);
+    for (const review of await rows<{ id: string; document_ids: unknown }>(
+      db.engine === "postgres" ? sql`SELECT id,document_ids FROM tabular_reviews
+        WHERE document_ids ?| ARRAY[${sql.join(batch)}] ORDER BY id FOR UPDATE`
+        : sql`SELECT id,document_ids FROM tabular_reviews WHERE EXISTS(
+          SELECT 1 FROM json_each(tabular_reviews.document_ids)
+          WHERE value IN(${sql.join(batch)})) ORDER BY id`, db)) reviews.set(review.id, review);
+  }
+  for (const review of reviews.values()) {
+    const current = decode<string[]>(review.document_ids, []);
+    const next = current.filter((id) => !selected.has(id));
+    if (next.length !== current.length) await changes(sql`UPDATE tabular_reviews
+      SET document_ids=${encode(next)},updated_at=${now()} WHERE id=${review.id}`, db);
+  }
+  let deleted = 0;
+  for (let start = 0; start < unique.length; start += 250) {
+    const batch = unique.slice(start, start + 250);
+    await changes(sql`DELETE FROM tabular_cells WHERE document_id IN(${sql.join(batch)})`, db);
+    const objects = await rows<{ storage_path: string }>(sql`
+      SELECT v.storage_path FROM document_versions v WHERE v.document_id IN(${sql.join(batch)})
+      UNION SELECT v.pdf_storage_path FROM document_versions v
+        WHERE v.document_id IN(${sql.join(batch)})
+          AND v.pdf_storage_path IS NOT NULL
+      UNION SELECT p.storage_path FROM document_version_parts p
+        WHERE p.document_id IN(${sql.join(batch)})`, db);
+    await queueObjectCleanup(db, objects.map(({ storage_path }) => storage_path));
+    deleted += await changes(sql`DELETE FROM documents WHERE id IN(${sql.join(batch)})`, db);
+  }
+  return deleted;
+}
 
 export const projectAccess = (scope: ApplicationScope, owner = false) => owner || !email(scope)
   ? sql`p.user_id=${scope.userId}`

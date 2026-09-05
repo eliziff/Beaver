@@ -319,12 +319,12 @@ async function document(args: {
   args.signal?.throwIfAborted();
   const docType = args.docType ?? "cases";
   const language = args.language === "fr" ? "fr" : "en";
-  const key = JSON.stringify([
+  const cacheKey = (sourceUrl: string) => JSON.stringify([
     docType, language, args.dataset?.trim().toLowerCase() ?? "",
-    citation.toLowerCase(), args.sourceUrl?.trim() ?? "", args.section?.trim() ?? "",
-  ]);
-  const cached = documents.get(key);
-  if (cached && cached.expires > Date.now()) return cached.value;
+    citation.toLowerCase(), sourceUrl, args.section?.trim() ?? "",
+  ]), sourceUrl = args.sourceUrl?.trim() ?? "", key = cacheKey(sourceUrl);
+  const cached = documents.get(key) ?? (sourceUrl ? documents.get(cacheKey("")) : undefined);
+  if (cached && cached.expires > Date.now() && (!sourceUrl || cached.value.url === sourceUrl)) return cached.value;
   if (cached) documents.delete(key);
   const section = args.section?.trim();
   if (section) {
@@ -603,7 +603,8 @@ const provider: LegalSourceProvider<A2AJCompiledDocument> = {
         querySyntax: request.syntax, signal: request.signal }))
         .map((row): LegalSourceSearchHit => ({ provider: "a2aj", id: row.citation, kind,
           title: row.name, citation: row.citation, alternateCitation: row.alternateCitation,
-          date: row.date, collection: row.dataset, url: row.url, snippet: row.snippet }));
+          date: row.date, collection: row.dataset, language: request.language === "fr" ? "fr" : "en",
+          url: row.url, snippet: row.snippet }));
       hits.push(...(kind === "case" && ["relevance", "most_cited", "most_discussed"].includes(request.sort ?? "")
         ? rankCases(rows, request.sort as "relevance" | "most_cited" | "most_discussed") : rows));
     }

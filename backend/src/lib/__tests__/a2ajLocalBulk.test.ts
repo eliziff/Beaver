@@ -138,6 +138,9 @@ describe("local A2AJ bulk data", () => {
       "2023 ONCA 9",
       "2024 SCC 1",
     ]);
+    const aliases = ["2024 SCC 1", "2024 CSC 1", "500 D.L.R. (4th) 10"];
+    expect(bulk.a2ajCitationAliasKeysBatch(aliases)).toEqual(aliases.map(() =>
+      ["2024csc1", "2024scc1", "500dlr4th10"]));
 
     const longDocument = bulk.fetchLocalA2AJDocument({
       citation: "2022 SCC 88",

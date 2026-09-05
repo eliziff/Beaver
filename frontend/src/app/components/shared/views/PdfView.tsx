@@ -150,7 +150,7 @@ export function PdfView({
         if (generation !== generationRef.current) return;
         const naturalWidth = firstPage.getViewport({ scale: 1 }).width;
         const scale = Math.max(
-            0.5,
+            0.1,
             (panelWidth - SIDE_PADDING) / naturalWidth,
         ) * zoomRef.current;
         let firstRenderError: unknown = null;
@@ -283,21 +283,14 @@ export function PdfView({
     useEffect(() => {
         const element = scrollRef.current;
         if (!element) return;
-        let timer: ReturnType<typeof setTimeout> | null = null;
         const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
             if (!pdfRef.current) return;
-            if (timer) clearTimeout(timer);
-            timer = setTimeout(() => {
-                const width = containerRef.current?.clientWidth ?? 0;
-                if (width > 0 && Math.abs(width - widthRef.current) >= 1)
-                    void renderPdf(quotesRef.current);
-            }, 150);
+            const width = containerRef.current?.clientWidth ?? 0;
+            if (width > 0 && Math.abs(width - widthRef.current) >= 1)
+                void renderPdf(quotesRef.current);
         });
         observer?.observe(element);
-        return () => {
-            observer?.disconnect();
-            if (timer) clearTimeout(timer);
-        };
+        return () => observer?.disconnect();
     }, [renderPdf]);
 
     useEffect(() => {

@@ -20,12 +20,9 @@ vi.mock("./AssistantDock", () => ({
   AssistantDock: ({ tabs, expanded }: { tabs: Array<{ content: React.ReactNode }>;
     expanded: boolean }) => <aside aria-label="Assistant dock" hidden={!expanded}>{tabs[0].content}</aside>,
 }));
-vi.mock("./ChatView", () => ({
-  ChatView: ({ sendDisabled, features }: { sendDisabled?: boolean;
-    features?: { researchSave?: boolean } }) => <>
-    <button type="button" disabled={sendDisabled}>Send</button>
-    <output aria-label="Research save">{String(features?.researchSave)}</output>
-  </>,
+vi.mock("./ConversationView", () => ({
+  ConversationView: ({ sendDisabled }: { sendDisabled?: boolean }) =>
+    <button type="button" disabled={sendDisabled}>Send</button>,
 }));
 
 const product = { id: "record-1", kind: "court-record" as const,
@@ -60,33 +57,19 @@ it("keeps drafting available while disabling send until the product is synchroni
   expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
 });
 
-it.each(["court-record", "authorities"] as const)(
-  "does not offer research promotion inside the %s assistant",
-  (kind) => {
-    render(<WorkProductAssistantPanel product={{ ...product, kind }}
-      onChatIdChange={vi.fn()} onClose={vi.fn()} />);
-    expect(screen.getByRole("status", { name: "Research save" })).toHaveTextContent("false");
-  },
-);
-
-it("preloads in idle time, reserves the dock, and stays mounted after first expansion", async () => {
-  const idle = vi.fn((_callback: IdleRequestCallback, _options?: IdleRequestOptions) => 1);
-  vi.stubGlobal("requestIdleCallback", idle); vi.stubGlobal("cancelIdleCallback", vi.fn());
+it("reserves the dock and stays mounted while collapsed", async () => {
   const props = { product, onChatIdChange: vi.fn(), onClose: vi.fn() };
   const { rerender } = render(<WorkProductAssistant {...props} expanded={false} />);
-  expect(idle).toHaveBeenCalledWith(expect.any(Function), { timeout: 1_000 });
-  expect(screen.queryByLabelText("Assistant dock")).not.toBeInTheDocument();
+  const dock = screen.getByLabelText("Assistant dock");
+  expect(dock).toHaveAttribute("hidden");
 
   rerender(<WorkProductAssistant {...props} expanded />);
-  expect(screen.getByLabelText("Assistant dock")).toHaveAttribute("aria-busy", "true");
-  expect(screen.getByLabelText("Assistant dock"))
-    .toHaveStyle({ "--assistant-dock-width": "480px" });
   await screen.findByRole("button", { name: "Send" });
-  const dock = screen.getByLabelText("Assistant dock");
+  expect(screen.getByLabelText("Assistant dock")).toBe(dock);
   rerender(<WorkProductAssistant {...props} expanded={false} />);
   expect(dock).toHaveAttribute("hidden");
-  rerender(<WorkProductAssistant {...props} expanded />);
-  expect(screen.getByLabelText("Assistant dock")).toBe(dock);
+  rerender(<WorkProductAssistant {...props} product={{ ...product, id: "record-2" }} />);
+  expect(screen.getByLabelText("Assistant dock")).not.toBe(dock);
 });
 
 it("keeps one conversation per work product without assistant-owned draft state", async () => {
@@ -107,4 +90,43 @@ it("keeps one conversation per work product without assistant-owned draft state"
   expect(screen.getByRole("status", { name: "Chat" })).toHaveTextContent("none");
   await user.click(screen.getByRole("button", { name: "Record" }));
   expect(screen.getByRole("status", { name: "Chat" })).toHaveTextContent("chat-record-1");
+});
+
+it("blocks another assistant turn until a tool-updated product has refreshed", async () => {
+  function Harness() {
+    const state = useWorkProductAssistantState<typeof product>();
+    return <><output aria-label="Sync">{String(state.synced)}</output>
+      <button onClick={() => state.onProductChange(product, true)}>Open</button>
+      <button onClick={() => state.onProductUpdated(3)}>Tool update</button>
+      <button onClick={() => state.onProductChange({ ...product, revision: 3 }, true)}>Refresh</button></>;
+  }
+  const user = userEvent.setup();
+  render(<Harness />);
+  await user.click(screen.getByRole("button", { name: "Open" }));
+  expect(screen.getByRole("status", { name: "Sync" })).toHaveTextContent("true");
+  await user.click(screen.getByRole("button", { name: "Tool update" }));
+  expect(screen.getByRole("status", { name: "Sync" })).toHaveTextContent("false");
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
+  expect(screen.getByRole("status", { name: "Sync" })).toHaveTextContent("true");
+});
+
+it("emits a fresh product-scoped refresh when the next draft has a lower revision", async () => {
+  function Harness() {
+    const state = useWorkProductAssistantState<typeof product>();
+    return <><output aria-label="Refresh">{JSON.stringify(state.refreshToken)}</output>
+      <button onClick={() => state.onProductChange({ ...product, revision: 10 }, true)}>High draft</button>
+      <button onClick={() => state.onProductUpdated(11)}>High update</button>
+      <button onClick={() => state.onProductChange({ ...product, id: "record-2", revision: 1 }, true)}>Low draft</button>
+      <button onClick={() => state.onProductUpdated(2)}>Low update</button></>;
+  }
+  const user = userEvent.setup();
+  render(<Harness />);
+  await user.click(screen.getByRole("button", { name: "High draft" }));
+  await user.click(screen.getByRole("button", { name: "High update" }));
+  expect(screen.getByRole("status", { name: "Refresh" })).toHaveTextContent(
+    JSON.stringify({ id: "record-1", revision: 11, sequence: 1 }));
+  await user.click(screen.getByRole("button", { name: "Low draft" }));
+  await user.click(screen.getByRole("button", { name: "Low update" }));
+  expect(screen.getByRole("status", { name: "Refresh" })).toHaveTextContent(
+    JSON.stringify({ id: "record-2", revision: 2, sequence: 2 }));
 });

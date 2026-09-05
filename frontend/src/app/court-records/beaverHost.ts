@@ -17,8 +17,9 @@ import {
   listWorkProducts,
   prepareAuthoritiesSources,
   retryLibraryPdfParse,
-  refreshAuthorities,
+  refreshAuthoritiesInput,
   saveCourtRecordBuild,
+  updateUserProfile,
   updateWorkProduct,
   uploadCourtRecordDocument,
 } from "@/app/lib/beaverApi";
@@ -28,15 +29,16 @@ import type { ResolvedWorkProductInput, WorkProduct, WorkProductBuildReceipt,
   WorkProductInput, WorkProductResolution,
   WorkProductStore } from "@/app/lib/workProducts";
 import type { BuildArtifact, BuildReceiptSource, CourtRecordDraft, CourtRecordReceipt,
-  RecordEntry, SourceDocumentFields } from "./types";
-import { draftOutputChoice } from "./host";
+  DocumentKind, RecordEntry, SourceDocumentFields } from "./types";
+import { draftOutputChoice, filingContactCover, mergeFilingContact } from "./host";
 import type { CourtRecordsHost, DraftOutputChoice, PreparedFile,
   PreparationProgress } from "./host";
-import { DOCX_MIME, sourceFormat } from "./formats";
+import { acceptedSourceFormats, DOCX_MIME, sourceFormat } from "./formats";
 import { prepareDeviceFile, prepareDocxRendition } from "./prepareDeviceFile";
-import { affidavitSourceFields } from "./sourceFields";
+import { sourceDocumentFields } from "./sourceFields";
 import { COURT_PROFILE_BY_ID } from "./profiles";
-import { canonicalJson } from "../../../../shared/canonical-json.cjs";
+import { canonicalJson } from "../../../../shared/canonical-json.mjs";
+import { acceptsWorkProductOutput } from "../../../../shared/court-record-work-products.mjs";
 import type { AuthoritiesProduct } from "../authorities/types";
 
 const resolutionRequests = new Map<string, Promise<WorkProductResolution>>();
@@ -49,19 +51,24 @@ function currentResolution(id: string, progress?: PreparationProgress) {
     }
     let product = resolution.product;
     try {
-      if (Object.values(resolution.inputs).some(({ status }) => status === "changed")) {
+      const changed = Object.entries(resolution.inputs)
+        .filter(([, input]) => input.status === "changed").map(([role]) => role);
+      if (changed.length) {
         progress?.(`Refreshing ${resolution.product.title}`);
-        product = await refreshAuthorities(id, product.revision);
+        for (const role of changed) {
+          product = await refreshAuthoritiesInput(id, role, product.revision);
+        }
       }
       product = await prepareAuthoritiesSources(id, product.revision);
       const draft = product.state as AuthoritiesProduct["state"];
       for (const authority of Object.values(draft.authorities)) {
         if (authority.excluded || authority.source.kind !== "attached") continue;
-        const source = authority.source;
-        const binding = draft.bindings[source.bindingRole];
-        if (binding?.kind !== "document") continue;
-        await waitForPdfPreparation(binding.documentId,
-          (status) => progress?.(`${source.filename}: ${status}`));
+        for (const source of authority.source.sources) {
+          const binding = draft.bindings[source.bindingRole];
+          if (binding?.kind !== "document") continue;
+          await waitForPdfPreparation(binding.documentId,
+            (status) => progress?.(`${source.filename}: ${status}`));
+        }
       }
       progress?.(`Building ${resolution.product.title}`);
       await buildAuthorities(id, product.revision);
@@ -93,10 +100,12 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
   drafts,
   async newDraftCover() {
     try {
-      const contact = (await getUserProfile()).filingContact;
-      return { counselName: contact.name, counselAddress: contact.address,
-        counselPhone: contact.phone, counselFax: contact.fax, counselEmail: contact.email };
+      return filingContactCover((await getUserProfile()).filingContact);
     } catch { return {}; }
+  },
+  async saveFilingContact(cover) {
+    const profile = await getUserProfile();
+    await updateUserProfile({ filingContact: mergeFilingContact(profile.filingContact, cover) });
   },
   async prepareDeviceFile(file, progress, context) {
     let prepared: PreparedFile;
@@ -136,7 +145,8 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
   async importLibraryDocument(document, progress) {
     return prepareLibraryDocument(document, document.current_version_id, progress);
   },
-  async searchDraftOutputs(query, formats, excludeId) {
+  async searchDraftOutputs(query, destination, excludeId) {
+    const formats = acceptedSourceFormats(destination);
     const projectId = excludeId ? (await getWorkProduct(excludeId)).projectId : null;
     const products = (await Promise.all([
       listWorkProductMetadata("authorities", projectId ?? undefined),
@@ -150,23 +160,27 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
         const format = sourceFormat({ name: output.filename, type: output.mimeType });
         const matches = !needle || `${product.title} ${role} ${output.filename}`
           .toLowerCase().includes(needle);
-        return format && formats.includes(format) && matches ? [choice] : [];
+        return format && formats.includes(format) && matches &&
+          acceptsWorkProductOutput(destination, choice) ? [choice] : [];
       }));
   },
   importDraftOutput: prepareDraftOutput,
-  async resolveInput(input, progress) {
+  async resolveInput(input, progress, destination) {
     if (input.kind === "work-product-output") {
+      if (!destination) return { status: "missing", reason: "unavailable" };
       try {
         const resolution = await currentResolution(input.workProductId, progress);
         const product = resolution.product;
         const output = product.outputs[input.role];
+        if (!output) return { status: "missing", reason: "unavailable" };
+        const choice = draftOutputChoice(product, input.role, output);
+        if (!acceptsWorkProductOutput(destination, choice)) {
+          return { status: "missing", reason: "unavailable" };
+        }
         if (resolution.freshness !== "current") {
           throw new Error(`${product.title} is out of date. Open that draft and build it again.`);
         }
-        if (!output) throw new Error(
-          `${product.title} does not produce a ${input.role} output. Open its Authorities draft.`,
-        );
-        const prepared = await prepareDraftOutput(draftOutputChoice(product, input.role, output), progress);
+        const prepared = await prepareDraftOutput(choice, destination, progress);
         return { status: "ready", file: prepared.file, input, prepared };
       } catch (error) {
         if (error instanceof BeaverApiError && error.status === 404) {
@@ -185,8 +199,11 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
         return { status: "missing", reason: "unavailable" };
       }
       return { status: "ready", file: prepared.file, input, prepared };
-    } catch {
-      return { status: "missing", reason: "deleted" };
+    } catch (error) {
+      if (error instanceof BeaverApiError && error.status === 404) {
+        return { status: "missing", reason: "deleted" };
+      }
+      throw error;
     }
   },
   async runOcr(entry, progress) {
@@ -225,7 +242,7 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
       prepared = await getCourtRecordPreparation(documentId, versionId);
       merged = withProjection(merged, prepared);
     }
-    return merged;
+    return { ...merged, ocrAttemptedPages: entry.textlessPages ?? [] };
   },
   async saveArtifacts({ artifacts, product, entries, receipt }) {
     const receipts = await courtRecordOutputReceipts(product, entries, receipt, artifacts);
@@ -240,7 +257,11 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
   },
 };
 
-async function prepareDraftOutput(choice: DraftOutputChoice, progress?: PreparationProgress) {
+async function prepareDraftOutput(choice: DraftOutputChoice, destination: DocumentKind,
+  progress?: PreparationProgress) {
+  if (!acceptsWorkProductOutput(destination, choice)) {
+    throw new Error("This saved output cannot be added to this document slot.");
+  }
   const document = await getDocument(choice.output.documentId);
   const prepared = await prepareLibraryDocument(document, choice.output.versionId, progress);
   if (prepared.origin?.versionId !== choice.output.versionId ||
@@ -403,7 +424,7 @@ function withProjection(
     textlessPageCount: missing.length,
     textlessPages: missing,
     sourceFields: mergeSourceFields(prepared.sourceFields,
-      affidavitSourceFields(projection.pages.map((page) => page.text))),
+      sourceDocumentFields(projection.pages.map((page) => page.text))),
     origin: {
       kind: "library",
       documentId: projection.document_id,
@@ -416,11 +437,17 @@ function withProjection(
 function mergeSourceFields(...sources: (SourceDocumentFields | undefined)[]) {
   const values = sources.filter((source): source is SourceDocumentFields => Boolean(source));
   if (!values.length) return;
+  const mentionLabels = [...new Set(values.flatMap(({ exhibitMentions }) =>
+    Object.keys(exhibitMentions ?? {})))];
+  const exhibitMentions = Object.fromEntries(mentionLabels.map((label) => [label,
+    [...new Set(values.flatMap((source) => source.exhibitMentions?.[label] ?? []))],
+  ]));
   return {
     cover: Object.assign({}, ...values.map(({ cover }) => cover)),
     partyStyleId: values.findLast(({ partyStyleId }) => partyStyleId)?.partyStyleId,
-    parties: Object.assign({}, ...values.map(({ parties }) => parties)),
+    partyGroups: values.flatMap(({ partyGroups }) => partyGroups ?? []),
     exhibitLabels: [...new Set(values.flatMap(({ exhibitLabels }) => exhibitLabels))],
+    ...(mentionLabels.length && { exhibitMentions }),
     explicitExhibitLabel: values.findLast(({ explicitExhibitLabel }) => explicitExhibitLabel)?.explicitExhibitLabel,
     entryTitle: values.findLast(({ entryTitle }) => entryTitle)?.entryTitle,
     entryDate: values.findLast(({ entryDate }) => entryDate)?.entryDate,

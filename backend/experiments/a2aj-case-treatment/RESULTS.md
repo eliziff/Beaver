@@ -84,12 +84,6 @@ indexed ID pool plus primary-key eligibility probes reduced seeded selection
 from about 20 seconds to 1.05 seconds on this workstation. Thirty complete
 authoring packets then compiled in 6.4 seconds with eight workers.
 
-Ox Alpha routing is implemented for OpenRouter, anonymous OpenCode Zen,
-subscription OpenCode Go, Nous through the official local Hermes OAuth proxy,
-and anonymous or keyed Kilo. A single run may shard cases round-robin across
-those ingress routes while retaining route-local limits, preflights, raw
-output, and receipts. No Ox inference call has been made.
-
 ## 2026-08-22 Luna High canary
 
 The 15-record gold file validates cleanly. Across the five completed Luna High
@@ -251,3 +245,85 @@ non-treatment run settings match. Initial model calls now record the system
 instruction and response schema hashes; correction calls record the same
 system hash and request JSON Patch arrays. These are local contract checks
 only; they do not add a v6 quality result.
+
+## 2026-08-29 direct-coverage prompt ablation
+
+The current simple contract, fresh ten-case gold, accepted Sol Medium opinion
+checkpoints, judge, and all run settings were held constant. The only treatment
+change told the model to work through every opinion from beginning to end,
+return every distinct treated proposition, keep separate records across
+opinions, and not stop at representative treatments.
+
+All ten treatment drafts compiled. Compared with the original Sol Medium run,
+the direct prompt increased candidate treatments from 177 to 228, raised the
+treatment score from 78.3% to 85.1%, and reduced omitted gold treatments from
+40 to 20. Gold treatments graded pass increased from 191 to 212. Major errors
+on matched treatments increased from 8 to 13 as the model attempted more, while
+unsupported major extras remained 2. Procedural history, whose prompt was
+unchanged, moved from 64.0% to 62.5%. Overall score rose from 77.0% to 83.2%.
+
+The dense five-opinion BCCA decision improved from 33 to 44 returned treatments
+and from 59.1% to 80.3% treatment accuracy. The prompt therefore fixes a large
+part of the observed compression, but the remaining 20 omissions show that a
+single case-wide pass is not yet exhaustive.
+
+## 2026-08-30 procedural-score audit
+
+The current procedural score is not yet a clean measure of whether a model
+found the decision under review and its principal disposition. In 2011 FCA 272,
+seven of eight completed outputs identified the appealed order and reversal but
+lost the entire relationship because they omitted the separate costs variation.
+The same all-or-nothing pattern appears when a model finds an overall appellate
+result but omits one affected part. Keep this as a possible instruction or
+scoring-granularity failure; do not weaken the gold until the pattern is tested
+on more decisions.
+
+The temporary-care order in 2025 NSSC 123 was not a separate decision directly
+affirmed, reversed, or varied by the present court. Its procedural relationship
+has been removed from the gold while its source mention remains in the decision
+inventory. Existing candidate and judge receipts remain frozen and have not
+been re-judged.
+
+## 2026-08-30 structure-diversity transport canary
+
+Nine two-case Luna structure members ran through one Node process and one Codex
+app server at six-call concurrency. All 18 case outputs compiled; there were no
+provider or transport failures. Supported variation across low/medium/high
+effort, three reading orders, and conservative hints produced a distinct
+structure for every member on both cases.
+
+One direct low member scored 16/18 mechanical categories. A three-member medoid
+reached 17/18 (94.4%); nine members did not improve further. The sole remaining
+error omitted Stratas J.A.'s express partial joinder in `2011 FCA 272`. Opinion
+counts, exact boundaries, writers, full joiners, result positions, participant
+votes, and nonparticipants were all exact. This canary supports testing a small
+cheap ensemble, not ten-member consensus by default.
+
+## 2026-08-30 product-aligned Simple versus hypersimple
+
+Ten Luna Max cases used the same complete decisions, shared opinion-structure
+checkpoints, one analysis audit, ten workers, and below-normal priority. Both
+arms produced accepted analyses for all ten cases. The product gold contains
+348 treatments, six direct-review relationship groups containing eleven scored
+actions, and seven reported appellate-history statements.
+
+| Analysis contract | Gold-item accuracy | Treatment | Direct outcome | Reported history | Extra-claim precision |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Simple | 80.7% | 81.8% | 72.7% | 42.9% | 90.5% |
+| Hypersimple | 82.2% | 83.2% | 81.8% | 35.7% | 88.8% |
+
+Hypersimple used about 15% fewer output tokens and 16.5% fewer reasoning tokens
+than Simple, with essentially unchanged wall time. It therefore preserved the
+useful semantic result in this single matched run while removing fields the
+host can derive. This is an ablation result, not evidence that one headline
+signal always preserves every multi-operation treatment.
+
+The benchmark is not yet ready for a corpus-scale quality conclusion. The
+judge found 71 source-supported Simple extras and 87 hypersimple extras,
+concentrated in treatments of decisions directly under review. Those are gold
+completeness challenges, not model errors, and must be checked against the
+primary decisions before another model comparison. Reported-history recall was
+also weak in both arms. The prompts now state expressly that an affirmance or
+reversal remains in scope when embedded in chronological prose. Scoring now
+uses gold items for the headline and reports extra-claim precision separately;
+an accurate extra can no longer offset a missed gold proposition.

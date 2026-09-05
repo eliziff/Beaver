@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { verifiedDecisiaPdf } from "../legalSourcePresentation";
+import { rankedPublisherPdfLinks, verifiedDecisiaPdf } from "../legalSourcePresentation";
 
 describe("verified Decisia PDF evidence", () => {
   it("accepts the PDF anchor in the Decisia documents control", () => {
@@ -40,5 +40,16 @@ describe("verified Decisia PDF evidence", () => {
     const markup = `<article><a href="/fc-cf/decisions/en/530291/1/document.do">
       cited judgment</a></article>`;
     expect(verifiedDecisiaPdf(markup, canonical)).toBeNull();
+  });
+
+  it("follows the same-origin Decisia decision frame to its PDF control", () => {
+    const canonical =
+      "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/21505/index.do";
+    expect(rankedPublisherPdfLinks(
+      '<iframe src="/scc-csc/scc-csc/en/item/21505/index.do?iframe=true"></iframe>',
+      canonical,
+    )).toEqual([
+      "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/21505/index.do?iframe=true",
+    ]);
   });
 });

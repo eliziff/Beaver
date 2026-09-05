@@ -89,7 +89,7 @@ function OpenNewWorkflowModal({ onClose, onCreated, editWorkflow, onUpdated }: O
                         void importMarkdown(file);
                     }} />
                 <div className={`grid gap-5 ${editWorkflow
-                    ? "sm:grid-cols-2" : "sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"}`}>
+                    ? "sm:grid-cols-2" : "md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"}`}>
                     <FormField label="Workflow name" htmlFor="workflow-title">
                         <ModalTextInput name="title" required autoFocus
                             defaultValue={editWorkflow?.metadata.title} />

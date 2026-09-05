@@ -30,14 +30,14 @@ export function ModalSegmentedToggle<T extends string>({
                         type="button"
                         onClick={() => onChange(option.value)}
                         aria-pressed={active}
-                        className={`flex items-center justify-center gap-1.5 whitespace-normal break-normal rounded-sm px-3 py-1 text-xs leading-tight ${
+                        className={`flex items-center justify-center gap-1.5 whitespace-normal break-normal rounded-sm px-3 py-1 text-xs font-medium leading-tight outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 ${
                             active
-                                ? "bg-gray-100 text-gray-900"
-                                : "text-gray-500 hover:text-gray-700"
+                                ? "bg-gray-900 text-white"
+                                : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                         }`}
                     >
                         {Icon && (
-                            <Icon className="h-3 w-3" />
+                            <Icon aria-hidden="true" className="h-3 w-3" />
                         )}
                         {option.label}
                     </button>

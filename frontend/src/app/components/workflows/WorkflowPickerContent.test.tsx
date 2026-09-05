@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import type { Workflow, WorkflowVariant } from "../shared/types";
@@ -6,8 +6,9 @@ import { WorkflowPickerContent } from "./WorkflowPickerContent";
 
 const variant = (id = "check", label = "Check against source",
     result: string | null = null, execution: WorkflowVariant["execution"] = "assistant",
-    skill_md: string | null = null): WorkflowVariant => ({
-    id, label, result, execution, skill_md,
+    description: string | null = null): WorkflowVariant => ({
+    id, label, result, execution, description,
+    skill_md: "SYSTEM_PROMPT_MUST_NOT_RENDER",
     columns_config: execution === "tabular" ? [] : null,
 });
 const workflow = (id: string, description: string,
@@ -20,139 +21,157 @@ const workflow = (id: string, description: string,
 const props = { search: "", audience: "general" as const,
     onSearchChange: vi.fn(), onAudienceChange: vi.fn() };
 
-it("shows explicit workflow details once without exposing model instructions", async () => {
+it("opens exact workflow details without exposing model instructions", async () => {
     const onSelect = vi.fn();
     const summary = workflow("quote-checking", "Compare quotations with their sources.", {
         kind: "instructions", variants: [
-            { ...variant("check", "Check against source", "Source-linked findings",
-                "assistant", "SYSTEM_PROMPT_MUST_NOT_RENDER"),
-                description: "Verify quoted text and proposition support against the source." },
+            variant("check", "Check against source", "Source-linked findings", "assistant",
+                "Verify quoted text and proposition support against the source."),
             variant("citations", "Check citations", "Citation locations and corrections"),
         ],
     }, "Check quotations");
-
+    summary.metadata.jurisdictions = ["Alberta"];
+    summary.metadata.contributors = [{ name: "Open Legal Products", organisation: null,
+        role: null, linkedin: null }];
     render(<WorkflowPickerContent {...props} workflows={[summary, summary]}
         contextLabel="Factum.docx" onSelect={onSelect} />);
 
     expect(screen.getByText("Using Factum.docx")).toBeVisible();
     expect(screen.getByRole("heading", { name: "Research & verify" })).toBeVisible();
     expect(screen.getAllByText(summary.metadata.description!)).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "Details for Check quotations" })).toBeVisible();
 
     await userEvent.click(screen.getByRole("button", { name: "Details for Check quotations" }));
-    expect(screen.queryByText("SYSTEM_PROMPT_MUST_NOT_RENDER")).toBeNull();
+    expect(screen.getAllByText("Check against source")).toHaveLength(1);
     expect(screen.getByText("Source-linked findings")).toBeVisible();
-    expect(screen.getByText("Verify quoted text and proposition support against the source."))
-        .not.toBeVisible();
-    await userEvent.click(screen.getByLabelText("Details for Check against source"));
-    expect(screen.getByText("Verify quoted text and proposition support against the source.")).toBeVisible();
-    expect(screen.getByText("Citation locations and corrections")).toBeVisible();
-    await userEvent.click(screen.getByRole("button", {
-        name: "Open chat: Check against source",
-    }));
+    expect(screen.queryByText("Verify quoted text and proposition support against the source."))
+        .toBeNull();
 
+    await userEvent.click(screen.getByRole("button", { name: "Info about Check against source" }));
+    const dialog = screen.getByRole("dialog", { name: "Check against source" });
+    expect(await within(dialog).findByText(
+        "Verify quoted text and proposition support against the source.")).toBeVisible();
+    expect(within(dialog).getByRole("heading", { name: "Chat" })).toBeVisible();
+    expect(within(dialog).getByText("Alberta")).toBeVisible();
+    expect(within(dialog).getByText("Open Legal Products")).toBeVisible();
+    expect(within(dialog).queryByText("SYSTEM_PROMPT_MUST_NOT_RENDER")).toBeNull();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open chat: Check against source" }));
     expect(onSelect).toHaveBeenCalledWith(summary,
         expect.objectContaining({ id: "check", execution: "assistant" }));
 });
 
-it("launches a single workflow option directly with its destination visible", async () => {
+it("keeps a singleton compact with separate equal Info and Chat actions", async () => {
     const onSelect = vi.fn();
     const research = workflow("legal-research", "Research with cited sources.", {
-        kind: "instructions", variants: [{ ...variant("research", "Research a legal issue",
-            "Grounded research memo with linked sources"),
-            description: "Research the issue using authoritative legal sources and pinpoints." }],
+        kind: "instructions", variants: [variant("research", "Research a legal issue",
+            "Grounded research memo with linked sources", "assistant",
+            "Research the issue using authoritative legal sources and pinpoints.")],
     }, "Research a legal issue");
-    render(<WorkflowPickerContent {...props} workflows={[research]} onSelect={onSelect} />);
+    render(<WorkflowPickerContent {...props} workflows={[research]} onSelect={onSelect}
+        workflowAction={() => <button type="button">More</button>} />);
 
-    const details = screen.getByRole("button", { name: "Details for Research a legal issue" });
-    expect(details).toHaveTextContent("Grounded research memo with linked sources");
-    await userEvent.click(details);
-    expect(screen.getByText("Research the issue using authoritative legal sources and pinpoints.")).toBeVisible();
-    const launch = screen.getByRole("button", { name: "Open chat: Research a legal issue" });
+    const actions = screen.getByRole("group", { name: "Research a legal issue actions" });
+    const info = within(actions).getByRole("button", { name: "Info about Research a legal issue" });
+    const launch = within(actions).getByRole("button", { name: "Open chat: Research a legal issue" });
+    expect(info).toHaveTextContent("Info");
     expect(launch).toHaveTextContent("Chat");
+    expect(within(actions).getByRole("button", { name: "More" })).toBeVisible();
+    expect(info.className).toBe(launch.className);
+
+    await userEvent.click(info);
+    const dialog = screen.getByRole("dialog", { name: "Research a legal issue" });
+    expect(await within(dialog).findByText(
+        "Research the issue using authoritative legal sources and pinpoints.")).toBeVisible();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     await userEvent.click(launch);
-    expect(onSelect).toHaveBeenCalledWith(research,
-        expect.objectContaining({ id: "research" }));
+    expect(onSelect).toHaveBeenCalledWith(research, expect.objectContaining({ id: "research" }));
 });
 
-it("shows one choice with concise outcomes and optional detail for both destinations", async () => {
-    const fullDescription = "Review one lease and report prioritized risks with clause references, " +
-        "recommended changes, and an overall risk assessment from the represented party's perspective.";
+it("groups the same variant label once while preserving Chat and Tab", async () => {
+    const fullDescription = "Review one lease and report prioritized risks with clause references.";
     const grouped = workflow("agreement-work", "Review or extract agreement terms.", {
         kind: "instructions", variants: [
-            { ...variant("review", "Commercial lease", "Material risks and recommended changes"),
-                description: fullDescription },
-            { ...variant("extract", "Commercial lease", "Key terms across each selected lease", "tabular"),
-                description: "Extract rent, term, repair, assignment, and termination terms by lease." },
+            variant("review", "Commercial lease", "Material risks and recommended changes",
+                "assistant", fullDescription),
+            { ...variant("extract", "Commercial lease", "Key terms across each selected lease",
+                "tabular", "Extract the principal lease terms."), columns_config: [{ index: 0,
+                name: "Termination right", prompt: "MODEL_COLUMN_PROMPT_MUST_NOT_RENDER",
+                format: "text", tags: ["Landlord", "Tenant"] }] },
         ],
     }, "Agreement work");
     render(<WorkflowPickerContent {...props} workflows={[grouped]} onSelect={vi.fn()} />);
 
     await userEvent.click(screen.getByRole("button", { name: "Details for Agreement work" }));
     expect(screen.getAllByText("Commercial lease")).toHaveLength(1);
-    expect(screen.getByText("Material risks and recommended changes")).toBeVisible();
-    expect(screen.getByText("Key terms across each selected lease")).toBeVisible();
-    expect(screen.getByText(fullDescription)).not.toBeVisible();
-    await userEvent.click(screen.getByLabelText("Details for Commercial lease (Chat)"));
-    expect(screen.getByText(fullDescription)).toBeVisible();
-    expect(screen.queryByText(/remaining/iu)).toBeNull();
-    expect(screen.getByRole("button", { name: "Open chat: Commercial lease" })).toBeVisible();
-    expect(screen.getByRole("button", {
-        name: "Start Tabular Review: Commercial lease",
-    })).toBeVisible();
+    expect(screen.getByText(/Material risks and recommended changes/u)).toBeVisible();
+    expect(screen.getByText(/Key terms across each selected lease/u)).toBeVisible();
+    const info = screen.getByRole("button", { name: "Info about Commercial lease" });
+    const chat = screen.getByRole("button", { name: "Open chat: Commercial lease" });
+    const tab = screen.getByRole("button", { name: "Start Tabular Review: Commercial lease" });
+    expect(new Set([info.className, chat.className, tab.className]).size).toBe(1);
+
+    await userEvent.click(info);
+    const dialog = screen.getByRole("dialog", { name: "Commercial lease" });
+    expect(await within(dialog).findByText(fullDescription)).toBeVisible();
+    expect(within(dialog).getByRole("heading", { name: "Chat" })).toBeVisible();
+    expect(within(dialog).getByRole("heading", { name: "Tab" })).toBeVisible();
+    expect(within(dialog).getByText("Termination right")).toBeVisible();
+    expect(within(dialog).getByText(/Landlord.*Tenant/u)).toBeVisible();
+    expect(within(dialog).queryByText("MODEL_COLUMN_PROMPT_MUST_NOT_RENDER")).toBeNull();
 });
 
 it.each([
     ["court-records", "Prepare court materials.", { kind: "court_records" } as const,
-        /Court Records/giu, "Court Records"],
+        "Court Records", "Court Records"],
     ["authorities", "Build the filing set.", { kind: "authorities" } as const,
-        /Authorities/giu, "Create table/book of authorities"],
-])("does not repeat an embedded destination for %s", (id, description, launcher, match, title) => {
+        "Create table/book of authorities", "Authorities"],
+])("shows one workspace label and one Open action for %s", async (id, description, launcher, title,
+    destination) => {
     const direct = workflow(id, description, launcher, title);
     render(<WorkflowPickerContent {...props} workflows={[direct]} onSelect={vi.fn()} />);
 
-    const button = screen.getByRole("button", { name: /^Open:/u });
-    expect(button.textContent?.match(match)).toHaveLength(1);
+    expect(screen.getAllByText(title)).toHaveLength(1);
+    const info = screen.getByRole("button", { name: `Info about ${title}` });
+    expect(info).toHaveTextContent("Info");
+    expect(screen.getByRole("button", { name: `Open: ${title}` })).toHaveTextContent("Open");
+    await userEvent.click(info);
+    expect(within(screen.getByRole("dialog", { name: title }))
+        .getByRole("heading", { name: `Opens in ${destination}` })).toBeVisible();
 });
 
 it("names a direct tabular destination as an action", () => {
     const review = workflow("evidence-review", "Organize evidence by document.", {
-        kind: "instructions",
-        variants: [{ ...variant("review", "Review evidence", "Evidence organized by document", "tabular"),
-            description: "Extract dates, people, summaries, and privilege flags by document." }],
+        kind: "instructions", variants: [variant("review", "Review evidence",
+            "Evidence organized by document", "tabular",
+            "Extract dates, people, summaries, and privilege flags by document.")],
     }, "Review evidence");
     render(<WorkflowPickerContent {...props} workflows={[review]} onSelect={vi.fn()} />);
 
-    const details = screen.getByRole("button", { name: "Details for Review evidence" });
-    expect(details).toHaveTextContent("Evidence organized by document");
-    const launch = screen.getByRole("button", {
-        name: "Start Tabular Review: Review evidence",
-    });
+    expect(screen.getByRole("button", { name: "Info about Review evidence" }))
+        .toHaveTextContent("Info");
+    const launch = screen.getByRole("button", { name: "Start Tabular Review: Review evidence" });
     expect(launch).toHaveAttribute("data-workflow-variant-id", "review");
     expect(launch).toHaveTextContent("Tab");
 });
 
-it("moves the open disclosure when another workflow is requested", async () => {
+it("moves the open variant list when another workflow is requested", async () => {
     const first = workflow("quote-checking", "Check quotations.", {
         kind: "instructions", variants: [variant(), variant("other", "Check citations")],
     }, "Check quotations");
-    const secondVariant = variant("proofread", "Proofread");
     const second = workflow("drafting", "Draft, revise or proofread.", {
-        kind: "instructions", variants: [secondVariant, variant("draft", "Draft or revise")],
+        kind: "instructions", variants: [variant("proofread", "Proofread"),
+            variant("draft", "Draft or revise")],
     }, "Drafting and templates");
     const view = render(<WorkflowPickerContent {...props} workflows={[first, second]}
         initialWorkflowId={first.id} onSelect={vi.fn()} />);
 
-    expect(await screen.findByRole("button", {
-        name: "Open chat: Check against source",
-    })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Open chat: Check against source" }))
+        .toBeVisible();
     view.rerender(<WorkflowPickerContent {...props} workflows={[first, second]}
         initialWorkflowId={second.id} onSelect={vi.fn()} />);
 
     expect(await screen.findByRole("button", { name: "Open chat: Proofread" })).toBeVisible();
-    expect(screen.queryByRole("button", {
-        name: "Open chat: Check against source",
-    })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open chat: Check against source" })).toBeNull();
 });
 
 it("offers a retry when the catalogue cannot load", async () => {

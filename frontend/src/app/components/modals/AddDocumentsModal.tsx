@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Loader2, Upload, X } from "lucide-react";
+import { AlertCircle, X } from "lucide-react";
 import {
   addDocumentToProject,
   directoryResource,
@@ -13,6 +13,7 @@ import {
 } from "@/app/lib/documentUploadValidation";
 import { FileDirectory, type DirectoryTab } from "../shared/FileDirectory";
 import type { Document } from "../shared/types";
+import { UploadAction } from "../documents/UploadAction";
 import { Modal } from "./Modal";
 
 interface Props {
@@ -60,6 +61,7 @@ export function AddDocumentsModal({
   keepMounted = false,
 }: Props) {
   const input = useRef<HTMLInputElement>(null);
+  const folderInput = useRef<HTMLInputElement>(null);
   const wasOpen = useRef(false);
   const [selected, setSelected] = useState<Document[]>([]);
   const [uploaded, setUploaded] = useState<Document[]>([]);
@@ -119,18 +121,27 @@ export function AddDocumentsModal({
     }
   }
 
-  async function upload(files: File[]) {
+  async function upload(files: File[], folder = false) {
     const { supported, unsupported } = partitionSupportedDocumentFiles(files);
     const unsupportedMessage = formatUnsupportedDocumentWarning(unsupported);
     setWarning(unsupportedMessage);
     if (!supported.length) return;
     setPendingNames(supported.map(({ name }) => name));
-    const uploadDocument = projectId
-      ? directoryResource({ projectId }).uploadDocument
-      : uploadStandaloneDocument;
-    const results = await uploadDocumentsSettled(supported, uploadDocument);
-    const added = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
-    const failed = supported.filter((_, index) => results[index].status === "rejected");
+    let added: Document[] = [], failed: File[] = [];
+    if (folder && projectId) {
+      try {
+        added = await directoryResource({ projectId }).uploadDirectory(supported);
+      } catch {
+        failed = supported;
+      }
+    } else {
+      const uploadDocument = projectId
+        ? directoryResource({ projectId }).uploadDocument
+        : uploadStandaloneDocument;
+      const results = await uploadDocumentsSettled(supported, uploadDocument);
+      added = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+      failed = supported.filter((_, index) => results[index].status === "rejected");
+    }
     setUploaded((current) => merge(added, current));
     setSelected((current) => merge(current, added));
     setPendingNames([]);
@@ -143,6 +154,7 @@ export function AddDocumentsModal({
       }
     }
     if (input.current) input.current.value = "";
+    if (folderInput.current) folderInput.current.value = "";
   }
 
   return (
@@ -152,12 +164,10 @@ export function AddDocumentsModal({
       onClose={onClose}
       keepMounted={keepMounted}
       breadcrumbs={breadcrumb}
-      secondaryAction={{
-        label: busy ? "Uploading…" : "Upload",
-        icon: busy ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />,
-        onClick: () => input.current?.click(),
-        disabled: busy,
-      }}
+      headerAction={<UploadAction busy={busy} actions={{
+        files: () => input.current?.click(),
+        folder: () => folderInput.current?.click(),
+      }} />}
       primaryAction={{
         label: busy ? "Saving…" : primaryLabel,
         onClick: () => void confirm(),
@@ -167,11 +177,15 @@ export function AddDocumentsModal({
       <input
         ref={input}
         type="file"
+        aria-label="Upload files"
         accept={accept}
         multiple
         className="hidden"
         onChange={(event) => void upload([...event.currentTarget.files ?? []])}
       />
+      <input ref={folderInput} type="file" aria-label="Upload folder" accept={accept} multiple
+        className="hidden" {...{ webkitdirectory: "", directory: "" }}
+        onChange={(event) => void upload([...event.currentTarget.files ?? []], true)} />
       {warning && (
         <p role="alert" aria-atomic="true" className="mb-2 flex items-center gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-gray-900">
           <AlertCircle className="size-3.5 shrink-0 text-red-600" aria-hidden="true" />
@@ -184,7 +198,7 @@ export function AddDocumentsModal({
       )}
       <div className="flex min-h-0 flex-1 flex-col">
         <FileDirectory
-          key={`${initialTab}:${open ? "open" : "closed"}`}
+          key={initialTab}
           documents={documents ? merge(uploaded, documents) : uploaded}
           selectedDocuments={selected}
           onChange={setSelected}

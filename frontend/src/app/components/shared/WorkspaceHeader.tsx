@@ -2,8 +2,8 @@ import { ArrowLeft } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import { Input } from "@/app/components/ui/input";
-import { cn } from "@/app/lib/utils";
 import { MoreActionsMenu } from "./MoreActionsMenu";
+import { PageHeader } from "./PageHeader";
 
 type Draft = { id: string; title: string };
 type Active = { current: Draft; itemLabel: string; onBack(): void;
@@ -27,9 +27,21 @@ export function WorkspaceHeader(props: (Active | Static) & { busy?: boolean;
     const next = title.trim(); setEditing(false);
     if (next && next !== current.title) props.onRename(next); else setTitle(current.title);
   };
+  const menu = current && "onRename" in props ? <MoreActionsMenu
+    label={`${props.itemLabel} actions`}
+    triggerClassName="h-9 w-9 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-950"
+    items={[
+      { label: "Rename", disabled: busy, onSelect: () => {
+        cancelRename.current = false; setTitle(current.title); setEditing(true);
+      } },
+      { label: "Duplicate", disabled: busy, onSelect: props.onDuplicate },
+      { label: "Delete", disabled: busy, onSelect: () => setConfirmDelete(true) },
+    ]} /> : null;
+  const actions = props.headerActions || menu ? [{ type: "custom" as const,
+    render: <div className="flex min-h-9 items-center gap-2">{props.headerActions}{menu}</div> }] : undefined;
   return <header data-workspace-header className="shrink-0">
-    <div className={cn("builder-header mx-auto grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-4 py-2 sm:gap-3 sm:px-6 lg:min-h-[max(76px,4.625rem)] lg:pb-4 lg:pt-5.5", props.className)}>
-      {current && "onBack" in props ? <div className="flex min-w-0 items-center gap-2">
+    <PageHeader shrink className={props.className} actions={actions}>
+      {current && "onBack" in props ? <div className="flex min-w-0 flex-1 items-center gap-2">
         <button type="button" disabled={busy} onClick={props.onBack}
           aria-label={`Back from ${props.itemLabel}`}
           className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-gray-700 outline-none hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-950 disabled:opacity-50">
@@ -44,26 +56,14 @@ export function WorkspaceHeader(props: (Active | Static) & { busy?: boolean;
               event.preventDefault(); cancelRename.current = true;
               setTitle(current.title); setEditing(false);
             }
-          }} className="h-9 max-w-xl border-gray-400 font-serif text-lg font-medium" />
-          : <h1 className="truncate font-serif text-2xl font-medium leading-tight text-gray-900">
+          }} className="h-9 max-w-xl border-gray-400 text-lg font-medium" />
+          : <h1 className="truncate text-2xl font-medium leading-tight text-gray-900">
             {current.title}
           </h1>}
-      </div> : <h1 className="truncate font-serif text-2xl font-medium leading-tight text-gray-900">
+      </div> : <h1 className="truncate text-2xl font-medium leading-tight text-gray-900">
         {props.title}
       </h1>}
-      <div className="flex min-h-9 items-center justify-self-end gap-2">
-        {props.headerActions}
-        {current && "onRename" in props ? <MoreActionsMenu label={`${props.itemLabel} actions`}
-          triggerClassName="h-9 w-9 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-950"
-          items={[
-            { label: "Rename", disabled: busy, onSelect: () => {
-              cancelRename.current = false; setTitle(current.title); setEditing(true);
-            } },
-            { label: "Duplicate", disabled: busy, onSelect: props.onDuplicate },
-            { label: "Delete", disabled: busy, onSelect: () => setConfirmDelete(true) },
-          ]} /> : !props.headerActions && <span className="size-9" aria-hidden="true" />}
-      </div>
-    </div>
+    </PageHeader>
     {current && "onDelete" in props && <ConfirmPopup open={confirmDelete}
       title={`Delete ${props.itemLabel}?`} message={`Permanently delete ${current.title}?`}
       confirmLabel="Delete" confirmStatus={busy ? "loading" : "idle"}

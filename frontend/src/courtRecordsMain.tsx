@@ -1,5 +1,5 @@
 import { createRoot } from "react-dom/client";
-import "@/app/globals.css";
+import "@/app/court-records.css";
 import { CourtRecordsWorkspace } from "@/app/court-records/CourtRecordsWorkspace";
 import { standaloneCourtRecordsHost } from "@/app/court-records/standaloneHost";
 

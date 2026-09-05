@@ -1,6 +1,7 @@
 import { FileStack } from "lucide-react";
 import type { CourtProfile, CoverValues } from "./types";
-import { contactGroups, coverPartyGroups, filingParty, groupNames, partyNames } from "./types";
+import { ap5BookTitle, ap5PartyGroups, ap5PartyLabel, captionPartyGroups, contactGroups, coverPartyGroups, filingPartyNames, groupNames,
+  partyNames } from "./types";
 import { courtProfileForCover } from "./profiles";
 
 export function CourtCoverPreview({ profile: sourceProfile, cover }: {
@@ -18,7 +19,9 @@ export function CourtCoverPreview({ profile: sourceProfile, cover }: {
         </div>
         <div className="border-t border-gray-300 pt-3 text-[8px] leading-4 text-gray-700">
           <p>{cover.courtFileNumber || "Court file number"}</p>
-          <p className="font-semibold">{filingParty(profile, cover)?.party.name || "Filing party"}</p>
+          <p className="whitespace-pre-line font-semibold">
+            {filingPartyNames(profile, cover) || "Filing party"}
+          </p>
         </div>
       </div>
     );
@@ -38,16 +41,16 @@ type PreviewProps = {
 };
 
 function AbcaCover({ className, style, profile, cover }: PreviewProps) {
-  const groups = coverPartyGroups(profile, cover);
+  const groups = ap5PartyGroups(profile, cover);
   const rows: Array<[string, string | undefined]> = [
     ["COURT OF APPEAL FILE NUMBER:", cover.courtFileNumber],
     ["TRIAL COURT FILE NUMBER:", cover.lowerCourtFileNumber],
     ["REGISTRY OFFICE:", cover.registry],
     ...groups.flatMap((group): Array<[string, string | undefined]> => [
-      [`${group.roleBelow || group.role}:`, partyNames(group)],
+      [ap5PartyLabel(group), partyNames(group)],
       ["STATUS ON APPEAL:", group.role],
     ]),
-    ["DOCUMENT:", cover.recordTitle || profile.cover.title],
+    ["DOCUMENT:", profile.cover.title],
   ];
   const [filing, others] = contactGroups(profile, cover);
   return (
@@ -66,17 +69,24 @@ function AbcaCover({ className, style, profile, cover }: PreviewProps) {
         <p>{cover.decisionDate ? `Dated ${cover.decisionDate}` : "Dated __________________"}</p>
         <p>{cover.decisionFileDate ? `Filed ${cover.decisionFileDate}` : "Filed __________________"}</p>
       </div>
-      <p className="border-b border-current/70 py-2 text-[8px] font-bold">{profile.cover.title}</p>
+      <p className="border-b border-current/70 py-2 text-[8px] font-bold">
+        {ap5BookTitle(profile, cover)}
+      </p>
       <div className="grid grid-cols-2 gap-4 pt-2 text-left text-[6px] leading-3">
         <p className="whitespace-pre-line">Lawyer for {groupNames(filing) || "filing party"}<br />{cover.counselName || "Name"}<br />{cover.counselAddress || "Address"}<br />{cover.counselPhone || "Phone"}<br />{cover.counselFax || "Fax"}<br />{cover.counselEmail || "Email"}</p>
-        <p className="whitespace-pre-line">Lawyer for {groupNames(...others) || "other parties"}<br />{cover.otherCounselName || "Name"}<br />{cover.otherCounselAddress || "Address"}<br />{cover.otherCounselPhone || "Phone"}<br />{cover.otherCounselFax || "Fax"}<br />{cover.otherCounselEmail || "Email"}</p>
+        <div>{others.flatMap((group) => group.parties).filter(({ name }) => name.trim())
+          .map((party) => <p key={party.id} className="mb-1 whitespace-pre-line">
+            Lawyer for {party.name}<br />{party.contact?.name || "Name"}<br />
+            {party.contact?.address || "Address"}<br />{party.contact?.phone || "Phone"}<br />
+            {party.contact?.fax || "Fax"}<br />{party.contact?.email || "Email"}
+          </p>)}</div>
       </div>
     </div>
   );
 }
 
 function FederalCover({ className, style, profile, cover }: PreviewProps) {
-  const groups = coverPartyGroups(profile, cover);
+  const groups = captionPartyGroups(profile, cover);
   const [filing, others] = contactGroups(profile, cover);
   return (
     <div aria-hidden="true" className={`${className} [font-family:var(--font-court-document)]`} style={style}>
@@ -122,7 +132,9 @@ function GenericCover({ className, style, profile, cover }: PreviewProps) {
       <p className="mt-8 text-base font-bold uppercase">{cover.recordTitle || profile.cover.title}</p>
       <div className="absolute inset-x-5 bottom-5 text-left text-[7px] leading-4">
         <p>{cover.courtFileNumber || "Court file number"}</p>
-        <p className="font-semibold">{filingParty(profile, cover)?.party.name || "Filing party"}</p>
+        <p className="whitespace-pre-line font-semibold">
+          {filingPartyNames(profile, cover) || "Filing party"}
+        </p>
       </div>
     </div>
   );

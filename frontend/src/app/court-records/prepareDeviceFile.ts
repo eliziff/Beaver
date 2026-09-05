@@ -1,7 +1,7 @@
 import { inspectPdf } from "./inspectPdf";
 import { sourceFormat } from "./formats";
 import type { PreparedFile, PreparationProgress } from "./host";
-import { affidavitSourceFields } from "./sourceFields";
+import { sourceDocumentFields } from "./sourceFields";
 
 export async function prepareDeviceFile(
   file: File,
@@ -43,7 +43,8 @@ export async function prepareDeviceFile(
       textlessPageCount: inspection.textlessPageCount,
       textlessPages: inspection.textlessPages,
       sourceBookmarks: inspection.sourceBookmarks,
-      sourceFields: affidavitSourceFields(inspection.pageTexts),
+      pageLabels: inspection.pageLabels,
+      sourceFields: sourceDocumentFields(inspection.pageTexts),
       origin: { kind: "device" },
     };
   } catch (error) {

@@ -21,6 +21,7 @@ import { usePagedDirectory } from "../../hooks/usePagedDirectory";
 import {
     directoryResource,
     getDocumentParseStates,
+    listDirectoryDocuments,
     retryLibraryPdfParse,
     type LibraryKind,
 } from "../../lib/beaverApi";
@@ -72,6 +73,7 @@ type LibraryCollectionProps = {
     onOpenInChat?: (documents: Document[]) => void;
     onOpenWorkflows?: (documents: Document[]) => void;
     embedded?: boolean;
+    active?: boolean;
 };
 
 export function LibraryCollectionPage(props: LibraryCollectionProps) {
@@ -81,7 +83,8 @@ export function LibraryCollectionPage(props: LibraryCollectionProps) {
     }, [props.kind, visited]);
     return LIBRARY_TABS.filter(({ id }) => id === props.kind || visited.has(id)).map(({ id }) =>
         <div key={id} hidden={id !== props.kind} className="h-full min-h-0">
-            <LibraryCollection {...props} kind={id} />
+            <LibraryCollection {...props} kind={id}
+                active={(props.active ?? true) && id === props.kind} />
         </div>);
 }
 
@@ -91,6 +94,7 @@ function LibraryCollection({
     onOpenInChat,
     onOpenWorkflows,
     embedded = false,
+    active = true,
 }: LibraryCollectionProps) {
     const navigate = useNavigate();
     const workspace = useContext(LibraryWorkspace);
@@ -174,6 +178,7 @@ function LibraryCollection({
                         <DirectoryActions actions={uploadActions}
                             busy={directory.loading} compact={embedded}
                             onCreateFolder={createFolder} selection={selectionActions}
+                            resolveDocuments={() => listDirectoryDocuments(resource.list)}
                             onOpenSelectionInChat={openChat} onOpenWorkflows={onOpenWorkflows}
                             onAssistantWorkflowSelect={openAssistantWorkflow}
                             openSelectionLabel={onOpenInChat ? "Open in chat" : "Open in new chat"} />
@@ -184,11 +189,13 @@ function LibraryCollection({
                     documents={directory.documents}
                     folders={directory.folders as DocTableFolder[]}
                     loading={directory.loading}
+                    active={active}
                     search={search}
                     operations={operations}
                     onUploadActionsChange={setUploadActions}
                     onCreateFolderActionChange={setCreateFolder}
                     onSelectionActionsChange={setSelectionActions}
+                    onOpenInChat={openChat}
                     onOpenWorkflows={onOpenWorkflows}
                     onAssistantWorkflowSelect={openAssistantWorkflow}
                     selectionFirst

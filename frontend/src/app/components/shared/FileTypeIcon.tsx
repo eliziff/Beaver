@@ -1,11 +1,14 @@
+import { BookMarked } from "lucide-react";
+
 type FileTypeKind =
+    | "research"
     | "pdf"
     | "word"
     | "excel"
     | "ppt"
     | "image"
     | "other";
-const FILE_SYMBOLS: Record<FileTypeKind, string> = {
+const FILE_SYMBOLS: Record<Exclude<FileTypeKind, "research">, string> = {
     pdf: "§",
     word: "≡",
     excel: "▦",
@@ -15,6 +18,7 @@ const FILE_SYMBOLS: Record<FileTypeKind, string> = {
 };
 export function fileTypeKind(value: string | null | undefined): FileTypeKind {
     const raw = (value ?? "").toLowerCase().trim();
+    if (raw.endsWith(".research.md")) return "research";
     const ext = raw.includes("/")
         ? (raw.split("/").pop() ?? "")
         : raw.includes(".")
@@ -29,14 +33,18 @@ export function fileTypeKind(value: string | null | undefined): FileTypeKind {
 }
 export function FileTypeIcon({
     fileType,
+    filename,
     className = "h-3.5 w-3.5",
     muted = false,
 }: {
     fileType: string | null | undefined;
+    filename?: string;
     className?: string;
     muted?: boolean;
 }) {
-    const kind = fileTypeKind(fileType);
+    const kind = fileTypeKind(filename) === "research" ? "research" : fileTypeKind(fileType);
+    if (kind === "research") return <BookMarked aria-hidden="true" data-file-kind={kind}
+        className={`${className} shrink-0 text-red-700${muted ? " opacity-35" : ""}`} />;
     return (
         <span
             aria-hidden="true"

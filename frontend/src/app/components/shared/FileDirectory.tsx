@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import type { Document, Folder, LibraryFolder, Project } from "./types";
 import { FileTypeIcon } from "./FileTypeIcon";
@@ -6,12 +6,13 @@ import { FolderSvgIcon } from "./FolderSvgIcon";
 import { Tabs } from "@/app/components/ui/tabs";
 import { APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
 import { buildDocumentTree } from "@/app/components/documents/documentTree";
-import { directoryResource, listProjects } from "@/app/lib/beaverApi";
+import { directoryResource, listProjects, type DirectoryScope } from "@/app/lib/beaverApi";
 import { usePagedDirectory } from "@/app/hooks/usePagedDirectory";
 import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 import { SearchBar } from "@/app/components/ui/search-bar";
 
 export type DirectoryTab = "files" | "templates" | "projects";
+export type DirectoryLocation = DirectoryScope | { projectId: null };
 const TABS: [DirectoryTab, string][] = [
     ["files", "Files"], ["templates", "Templates"], ["projects", "Projects"],
 ];
@@ -31,11 +32,12 @@ interface Props {
     multiple?: boolean;
     excludeProjectId?: string;
     documentFilter?: (document: Document) => boolean;
+    onLocationChange?: (location: DirectoryLocation) => void;
 }
 
 export function FileDirectory({ documents = EMPTY, projectId,
     loading: externalLoading = false, selectedDocuments, onChange,
-    uploadingFilenames = [], showTabs, initialTab = "files", tabs = TABS, noun = "files", multiple = true, excludeProjectId, documentFilter }: Props) {
+    uploadingFilenames = [], showTabs, initialTab = "files", tabs = TABS, noun = "files", multiple = true, excludeProjectId, documentFilter, onLocationChange }: Props) {
     const [tab, setTab] = useState<DirectoryTab>(initialTab);
     const [search, setSearch] = useState("");
     const [expanded, setExpanded] = useState(new Set<string>());
@@ -44,6 +46,10 @@ export function FileDirectory({ documents = EMPTY, projectId,
     const query = search.trim();
     const libraryKind = activeTab === "templates" ? "templates" : "files";
     const activeProjectId = projectId ?? selectedProjectId;
+    const reportLocation = useEffectEvent((location: DirectoryLocation) => onLocationChange?.(location));
+    useEffect(() => reportLocation(!showTabs && projectId ? { projectId }
+        : activeTab === "projects" ? { projectId: selectedProjectId || null }
+            : { library: libraryKind }), [activeTab, libraryKind, projectId, selectedProjectId, showTabs]);
     const libraryResource = useMemo(
         () => directoryResource({ library: libraryKind }),
         [libraryKind],
@@ -103,7 +109,7 @@ export function FileDirectory({ documents = EMPTY, projectId,
                 {projects.loading && !projects.items.length && <Skeleton />}
                 {projects.items.filter(({ id }) => id !== excludeProjectId).map((item) =>
                     <button type="button" key={item.id} onClick={() => {
-                        setSelectedProjectId(item.id); setSearch("");
+                        setSelectedProjectId(item.id); setSearch(""); if (selected.size) onChange([]);
                     }}
                         className={`flex min-h-10 w-full items-center gap-2 rounded px-2 text-left text-sm ${APP_SURFACE_HOVER_CLASS}`}>
                         <FolderSvgIcon className="h-4 w-4" /><span className="truncate">{item.name}</span>
@@ -114,7 +120,7 @@ export function FileDirectory({ documents = EMPTY, projectId,
             </> : loading && !tree.rows.length ? <Skeleton /> : tree.rows.length || uploadingFilenames.length ? <>
                 {showTabs && activeTab === "projects" && selectedProjectId &&
                     <button type="button" onClick={() => {
-                        setSelectedProjectId(""); setSearch("");
+                        setSelectedProjectId(""); setSearch(""); if (selected.size) onChange([]);
                     }}
                         className="mb-1 min-h-9 px-2 text-sm text-gray-600 hover:text-gray-900">← Projects</button>}
                 {uploadingFilenames.map((name) => <div key={name}
@@ -141,7 +147,7 @@ export function FileDirectory({ documents = EMPTY, projectId,
                         <input type={multiple ? "checkbox" : "radio"} checked={selected.has(doc.id)} aria-label={`Select ${name}`}
                             onChange={() => toggleDocument(doc)}
                             className="h-[18px] w-[18px] shrink-0 cursor-pointer rounded border-gray-500 accent-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2" />
-                        <FileTypeIcon fileType={doc.file_type} className="h-4 w-4 shrink-0" />
+                        <FileTypeIcon fileType={doc.file_type} filename={doc.filename} className="h-4 w-4 shrink-0" />
                         <span className="min-w-0 flex-1 truncate">{name}</span></label>;
                 })}
             </> : <Empty query={query} noun={noun} />}
@@ -150,10 +156,10 @@ export function FileDirectory({ documents = EMPTY, projectId,
     return <div className="flex min-h-0 flex-1 flex-col gap-2">
         <SearchBar autoFocus value={search} onValueChange={setSearch} booleanSearch
             placeholder={`Search ${noun}`} aria-label={`Search ${noun}`} />
-        {showTabs ? <Tabs value={activeTab} variant="pill" ariaLabel="File source"
+        {showTabs ? <Tabs value={activeTab} variant="segmented" ariaLabel="File source"
             options={tabs.map(([value, label]) => ({ value, label }))}
             onValueChange={(value) => {
-                setTab(value as DirectoryTab); setSelectedProjectId(""); setExpanded(new Set());
+                setTab(value as DirectoryTab); setSelectedProjectId(""); setExpanded(new Set()); if (selected.size) onChange([]);
             }} actions={selected.size ? <span className="text-xs text-gray-500">
                 {selected.size} selected
             </span> : null} className="min-h-0 flex-1">

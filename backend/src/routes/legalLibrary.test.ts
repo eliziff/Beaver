@@ -41,6 +41,14 @@ afterEach(() => {
 });
 
 describe("legal Library viewer responses", () => {
+  it("keeps optional coverage failures from breaking Sources", async () => {
+    process.env.AUTH_MODE = "local";
+    vi.spyOn(a2ajLegalSourceProvider, "coverage").mockRejectedValue(new Error("offline"));
+    const response = await request(app).get("/sources/coverage");
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ coverage: [] });
+  });
+
   it("keeps Library filters and DTOs while searching through the registry", async () => {
     process.env.AUTH_MODE = "local";
     searchLegalSources.mockResolvedValue({
@@ -90,6 +98,7 @@ describe("legal Library viewer responses", () => {
       provider: "journal",
       doc_type: "articles",
       source_id: "17",
+      language: "en",
       dataset: "Alberta Law Review",
       citation: "42 Alta L Rev 1",
       alternateCitation: null,

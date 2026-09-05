@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { WorkProductAssistant, WorkProductAssistantButton,
   useWorkProductAssistantState } from "@/app/components/assistant/WorkProductAssistant";
 import { CourtRecordsWorkspace } from "@/app/court-records/CourtRecordsWorkspace";
@@ -10,6 +10,8 @@ import { useUserProfile } from "@/app/contexts/UserProfileContext";
 
 export default function CourtRecordsPage() {
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { profile } = useUserProfile();
   const assistant = useWorkProductAssistantState<WorkProduct<CourtRecordDraft>>();
   const { onProductChange } = assistant;
@@ -30,11 +32,16 @@ export default function CourtRecordsPage() {
         host={beaverCourtRecordsHost}
         locked={assistant.busy}
         initialDraftId={params.get("draft") ?? undefined}
+        initialDocuments={location.state?.documents}
+        onDocumentsConsumed={() => navigate(location.pathname + location.search,
+          { replace: true, state: null })}
+        projectId={params.get("project") || undefined}
         onDraftChange={onDraftChange}
         refreshToken={assistant.refreshToken}
         jurisdictionOrder={profile?.jurisdictionPreference.jurisdictions}
-        headerActions={<WorkProductAssistantButton available={!!assistant.product}
-          expanded={assistant.expanded} onClick={() => assistant.setExpanded((open) => !open)} />}
+        headerActions={assistant.product ? <WorkProductAssistantButton available
+          expanded={assistant.expanded} onClick={() => assistant.setExpanded((open) => !open)} />
+          : undefined}
       />
     </div>
     {draftId && <WorkProductAssistant key={draftId} expanded={assistant.expanded}

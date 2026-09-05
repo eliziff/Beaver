@@ -3,23 +3,46 @@ import type { InputResolution, WorkProduct, WorkProductInput, WorkProductOutput,
   WorkProductOutputRef, WorkProductStore } from "@/app/lib/workProducts";
 import { downloadBlob } from "@/app/lib/download";
 import type { BuildArtifact, CourtRecordDraft, CourtRecordReceipt, CoverValues,
-  RecordEntry } from "./types";
+  DocumentKind, RecordEntry } from "./types";
 import type { CourtSourceFormat } from "./types";
+import type { CourtRecordWorkProductOutput } from "../../../../shared/court-record-work-products.mjs";
 import { sourceFormat } from "./formats";
+import type { OutputFolderPort } from "@/app/components/shared/OutputFolderSetting";
+
+export type FilingContact = {
+  name: string; address: string; phone: string; fax: string; email: string;
+};
+export const FILING_CONTACT_FIELDS = ["counselName", "counselAddress", "counselPhone",
+  "counselFax", "counselEmail"] as const;
+export type FilingContactCover = Partial<Pick<CoverValues,
+  (typeof FILING_CONTACT_FIELDS)[number]>>;
+
+export const filingContactCover = (contact: FilingContact): FilingContactCover => ({
+  counselName: contact.name, counselAddress: contact.address, counselPhone: contact.phone,
+  counselFax: contact.fax, counselEmail: contact.email,
+});
+
+export const mergeFilingContact = (contact: FilingContact,
+  cover: FilingContactCover): FilingContact => ({
+  name: cover.counselName?.trim() ?? contact.name,
+  address: cover.counselAddress?.trim() ?? contact.address,
+  phone: cover.counselPhone?.trim() ?? contact.phone,
+  fax: cover.counselFax?.trim() ?? contact.fax,
+  email: cover.counselEmail?.trim() ?? contact.email,
+});
 
 export type PreparationProgress = (message: string, completed?: number, total?: number) => void;
 export type PreparationContext = { workProductId?: string };
 
 export type PreparedFile = Pick<RecordEntry,
   "file" | "pdfRendition" | "pageCount" | "searchable" | "encrypted" | "textlessPageCount" |
-  "textlessPages" | "sourceBookmarks" | "ocrTextByPage" | "origin" | "binding" | "inspectionError" |
+  "textlessPages" | "sourceBookmarks" | "pageLabels" | "ocrTextByPage" | "ocrAttemptedPages" | "origin" | "binding" | "inspectionError" |
   "sourceFields">;
 
 export type SelectedFile = { file: File; input?: WorkProductInput };
-export type DraftOutputChoice = {
+export type DraftOutputChoice = CourtRecordWorkProductOutput & {
   workProductId: string;
   workProductTitle: string;
-  role: string;
   output: WorkProductOutput;
   document: Document;
 };
@@ -27,34 +50,42 @@ export type DraftOutputChoice = {
 export interface CourtRecordsHost {
   mode: "standalone" | "beaver";
   drafts: WorkProductStore;
-  newDraftCover?(): Promise<CoverValues>;
+  newDraftCover?(): Promise<FilingContactCover>;
+  saveFilingContact?(cover: FilingContactCover): Promise<void>;
   prepareDeviceFile(file: File, progress?: PreparationProgress,
     context?: PreparationContext): Promise<PreparedFile>;
   pickDeviceFiles?(multiple: boolean): Promise<SelectedFile[]>;
-  resolveInput(input: WorkProductInput, progress?: PreparationProgress): Promise<InputResolution & { prepared?: PreparedFile }>;
+  resolveInput(input: WorkProductInput, progress?: PreparationProgress,
+    destination?: DocumentKind): Promise<InputResolution & { prepared?: PreparedFile }>;
   relinkInput?(input: WorkProductInput): Promise<InputResolution & { prepared?: PreparedFile }>;
   runOcr?(entry: RecordEntry, progress?: PreparationProgress): Promise<Partial<RecordEntry>>;
   searchLibrary?(query: string, formats: CourtSourceFormat[], context?: PreparationContext):
     Promise<Document[]>;
   importLibraryDocument?(document: Document, progress?: PreparationProgress): Promise<PreparedFile>;
-  searchDraftOutputs?(query: string, formats: CourtSourceFormat[], excludeId?: string):
+  searchDraftOutputs?(query: string, destination: DocumentKind, excludeId?: string):
     Promise<DraftOutputChoice[]>;
-  importDraftOutput?(choice: DraftOutputChoice, progress?: PreparationProgress):
+  importDraftOutput?(choice: DraftOutputChoice, destination: DocumentKind,
+    progress?: PreparationProgress):
     Promise<PreparedFile>;
   saveArtifacts?(input: { artifacts: BuildArtifact[]; product: WorkProduct<CourtRecordDraft>;
     entries: RecordEntry[]; receipt: CourtRecordReceipt }): Promise<{
     documents: Document[];
     outputs: Record<string, WorkProductOutputRef>;
     product: WorkProduct<CourtRecordDraft>;
+    notice?: string;
   }>;
+  outputFolder?: OutputFolderPort;
 }
 
 export const needsOcr = (entry: Pick<RecordEntry,
-  "encrypted" | "searchable" | "textlessPageCount">) =>
-  entry.encrypted !== true &&
+  "encrypted" | "searchable" | "textlessPageCount" | "nonTextPagesConfirmed">) =>
+  !entry.nonTextPagesConfirmed && entry.encrypted !== true &&
     (entry.searchable === false || (entry.textlessPageCount ?? 0) > 0);
 
-type OutputProduct = Pick<WorkProduct, "id" | "title" | "projectId" | "updatedAt">;
+type OutputProduct = Pick<WorkProduct,
+  "id" | "kind" | "title" | "projectId" | "updatedAt"> & {
+    profileId?: string; state?: unknown;
+  };
 
 export function outputDocument(product: OutputProduct, output: WorkProductOutput): Document {
   return { id: output.documentId, project_id: product.projectId,
@@ -67,7 +98,10 @@ export function outputDocument(product: OutputProduct, output: WorkProductOutput
 
 export function draftOutputChoice(product: OutputProduct, role: string,
   output: WorkProductOutput): DraftOutputChoice {
-  return { workProductId: product.id, workProductTitle: product.title, role, output,
+  const profileId = product.kind === "court-record" ? product.profileId ??
+    (product.state as Partial<CourtRecordDraft> | undefined)?.profileId : undefined;
+  return { workProductId: product.id, workProductTitle: product.title,
+    kind: product.kind, ...(profileId && { profileId }), role, output,
     document: outputDocument(product, output) };
 }
 

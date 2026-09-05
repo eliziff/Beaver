@@ -109,15 +109,16 @@ export async function buildUserAccountExport(db: Db, userId: string,
   const projectIds = idsFrom(projects);
   const projectDocuments = await read.byIds("documents", "project_id", projectIds);
   const documents = [...standaloneDocuments, ...projectDocuments];
-  const [folders, versions, edits, tabularCells] = await Promise.all([
+  const [folders, versions, parts, edits, tabularCells] = await Promise.all([
     read.byIds("project_subfolders", "project_id", projectIds),
     read.byIds("document_versions", "document_id", idsFrom(documents)),
+    read.byIds("document_version_parts", "document_id", idsFrom(documents)),
     read.byIds("document_edits", "document_id", idsFrom(documents)),
     read.byIds("tabular_cells", "review_id", idsFrom(tabularReviews)),
   ]);
   return { ...exportHeader(userId, userEmail), profile, api_keys: apiKeys, projects,
     project_subfolders: folders, documents, document_versions: versions,
-    document_edits: edits, workflows, work_products: workProducts,
+    document_version_parts: parts, document_edits: edits, workflows, work_products: workProducts,
     workflow_open_source_submissions: workflowOpenSourceSubmissions,
     workflow_shares_by_user: workflowSharesByUser,
     workflow_shares_with_user: workflowSharesWithUser, chats: assistantChats,

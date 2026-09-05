@@ -1,0 +1,118 @@
+{
+  "format": "a2aj-proposition-treatment-v1-selection",
+  "sampling": "purposeful_adversarial_hard_case",
+  "requested": 10,
+  "selected": 10,
+  "criteria": [
+    "multiple substantive judicial opinions",
+    "opposing or materially distinct reasons",
+    "dense or legally consequential treatment of shared authorities",
+    "older report-format decisions as well as neutral-citation decisions",
+    "representation from SCC, FCA, ONCA, BCCA, NSCA, and YKCA",
+    "opinion structure difficult for the conservative deterministic detector"
+  ],
+  "document_ids": [
+    193076,
+    190759,
+    118406,
+    142717,
+    189928,
+    195153,
+    192926,
+    13847,
+    126799,
+    224932
+  ],
+  "cases": [
+    {
+      "document_id": 193076,
+      "dataset": "SCC",
+      "citation": "[1993] 2 SCR 398",
+      "name": "R. v. Hasselwander",
+      "date": "1993-05-19T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "split reasons use some of the same firearms authorities differently"
+    },
+    {
+      "document_id": 190759,
+      "dataset": "SCC",
+      "citation": "2003 SCC 33",
+      "name": "R. v. Owen",
+      "date": "2003-06-06T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "split reasons address Winko, Palmer, Biniaris, and related authorities differently"
+    },
+    {
+      "document_id": 118406,
+      "dataset": "FCA",
+      "citation": "2011 FCA 272",
+      "name": "Felipa v. Canada (Citizenship and Immigration)",
+      "date": "2011-10-03T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "dense split decision with more than forty proposition treatments divided across two sides"
+    },
+    {
+      "document_id": 142717,
+      "dataset": "ONCA",
+      "citation": "2017 ONCA 301",
+      "name": "Romspen Investment Corporation v. Courtice Auto Wreckers Limited",
+      "date": "2017-04-13T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "split insolvency decision treating GMAC and related doctrine differently"
+    },
+    {
+      "document_id": 189928,
+      "dataset": "SCC",
+      "citation": "[1988] 1 SCR 30",
+      "name": "R. v. Morgentaler",
+      "date": "1988-01-28T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "four separately authored opinions divide on both the result and the constitutional route while treating overlapping authorities differently"
+    },
+    {
+      "document_id": 195153,
+      "dataset": "SCC",
+      "citation": "[1990] 3 SCR 697",
+      "name": "R. v. Keegstra",
+      "date": "1990-12-13T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "two opposed opinions contest the same expression and section 1 authorities, with a third judge joining only the dissent's expression analysis and disposition"
+    },
+    {
+      "document_id": 192926,
+      "dataset": "SCC",
+      "citation": "[1995] 2 SCR 513",
+      "name": "Egan v. Canada",
+      "date": "1995-05-25T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "highly fractured equality decision with issue-dependent majorities that the deterministic detector does not resolve"
+    },
+    {
+      "document_id": 13847,
+      "dataset": "BCCA",
+      "citation": "2002 BCCA 142",
+      "name": "M.B. v. British Columbia",
+      "date": "2002-02-28T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "five opinions produce a 3-2 split on collateral benefits while all judges agree on the separately analyzed interest issue"
+    },
+    {
+      "document_id": 126799,
+      "dataset": "NSCA",
+      "citation": "2011 NSCA 118",
+      "name": "Hayward v. Hayward",
+      "date": "2011-12-20T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "three separate appellate opinions divide over retrospectivity and estoppel while joining different portions of one another's reasons"
+    },
+    {
+      "document_id": 224932,
+      "dataset": "YKCA",
+      "citation": "2018 YKCA 9",
+      "name": "R. v. Larue",
+      "date": "2018-06-13T00:00:00",
+      "gold_status": "audited",
+      "selection_reason": "two substantive opinions across a three-judge panel disagree on threshold reliability and the use of corroborating evidence"
+    }
+  ]
+}

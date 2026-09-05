@@ -196,4 +196,51 @@ describe("ProjectExplorer document removal", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it("moves a document from its row menu without drag and drop", async () => {
+    const user = userEvent.setup();
+    const onMoveDoc = vi.fn(async () => {});
+    const document = {
+      id: "document-1", project_id: "matter-1", folder_id: null,
+      filename: "Authorities.research.md", file_type: "md", storage_path: "authorities.research.md",
+      pdf_storage_path: "brief.pdf", size_bytes: 10, page_count: 1,
+      structure_tree: null, status: "ready" as const,
+      created_at: "2026-07-27T00:00:00.000Z",
+    };
+    render(<ProjectExplorer documents={[document]} folders={[{
+      id: "evidence", project_id: "matter-1", user_id: "user-1", name: "Evidence",
+      parent_folder_id: null, created_at: "2026-07-27T00:00:00.000Z",
+      updated_at: "2026-07-27T00:00:00.000Z",
+    }]} onDocClick={vi.fn()} onMoveDoc={onMoveDoc} />);
+
+    const row = screen.getByText("Authorities").closest("li")!;
+    expect(screen.queryByText("Authorities.research.md")).not.toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Move/u }));
+    const destination = within(screen.getByRole("dialog", { name: "Move Authorities" }))
+      .getByRole("button", { name: "Evidence" });
+    destination.focus();
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => expect(onMoveDoc).toHaveBeenCalledWith("document-1", "evidence"));
+  });
+
+  it("renames a folder from a standalone keyboard-editable field", async () => {
+    const user = userEvent.setup();
+    const onRenameFolder = vi.fn(async () => {});
+    render(<ProjectExplorer documents={[]} folders={[{
+      id: "evidence", project_id: "matter-1", user_id: "user-1", name: "Evidence",
+      parent_folder_id: null, created_at: "2026-07-27T00:00:00.000Z",
+      updated_at: "2026-07-27T00:00:00.000Z",
+    }]} onDocClick={vi.fn()} onRenameFolder={onRenameFolder} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    const input = screen.getByRole("textbox", { name: "Rename Evidence" });
+    expect(input.closest("button")).toBeNull();
+    await user.clear(input);
+    await user.type(input, "Exhibits{Enter}");
+
+    await waitFor(() => expect(onRenameFolder).toHaveBeenCalledWith("evidence", "Exhibits"));
+  });
 });

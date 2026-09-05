@@ -1,5 +1,7 @@
 import { rgb, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
-import { contactGroups, coverPartyGroups, filingParty, groupNames, partyNames } from "./types";
+import { courtPdfText as latin, courtPdfTextWidth, drawCourtPdfText } from "./pdfText";
+import { ap5BookTitle, ap5PartyGroups, ap5PartyLabel, captionPartyGroups, contactGroups, coverPartyGroups, filingPartyNames,
+  groupNames, partyNames } from "./types";
 import type { CourtProfile, CoverValues } from "./types";
 
 type VolumeLabel = { number: number; count: number };
@@ -42,20 +44,22 @@ export function drawCourtExhibitCertificate(
     drawAlbertaExhibitCertificate(page, regular, label, deponent, date);
     return;
   }
-  centred(page, `EXHIBIT ${latin(label)}`, height - 118, bold, 17);
+  centred(page, `EXHIBIT ${latin(label)}`, height - 118, bold, 12);
 
   const wording = `This is Exhibit “${label}” referred to in the affidavit of ${deponent}, sworn (or affirmed) before me on ${date}.`;
   const signature = "Signature and capacity of the person before whom the affidavit was sworn or affirmed";
   const reference = "Federal Courts Rule 80(3)";
 
-  wrap(wording, regular, 12, width - 144).forEach((text, index) =>
-    page.drawText(text, { x: 72, y: height - 206 - index * 19, font: regular, size: 12 }));
-  rule(page, 286, 276, width - 72, 276);
-  signature.split("\n").flatMap((value) => wrap(value, regular, 9, width - 358))
-    .forEach((text, index) => page.drawText(text, {
-      x: 286, y: 259 - index * 12, font: regular, size: 9,
+  wrap(wording, regular, 12, width - (2 * FEDERAL_MARGIN)).forEach((text, index) =>
+    drawCourtPdfText(page, text, { x: FEDERAL_MARGIN, y: height - 206 - index * 19,
+      font: regular, size: 12 }));
+  rule(page, 286, 276, width - FEDERAL_MARGIN, 276);
+  signature.split("\n").flatMap((value) =>
+    wrap(value, regular, 12, width - FEDERAL_MARGIN - 286))
+    .forEach((text, index) => drawCourtPdfText(page, text, {
+      x: 286, y: 255 - index * 15, font: regular, size: 12,
     }));
-  page.drawText(reference, { x: 72, y: 62, font: regular, size: 8 });
+  drawCourtPdfText(page, reference, { x: FEDERAL_MARGIN, y: 75, font: regular, size: 12 });
 }
 
 export function drawFederalForm344(
@@ -69,20 +73,25 @@ export function drawFederalForm344(
   fill(page, "#FFFFFF");
   const y = drawFederalHeading(page, regular, bold, profile, cover);
   centred(page, "Certificate of Completeness of Appeal Book", y - 8, bold, 12);
-  const name = latin(cover.counselName || filingParty(profile, cover)?.party.name || "____________________________");
-  const statement = `I, ${name}, solicitor for the appellant, certify that the contents of the appeal book in this appeal are complete and legible.`;
+  const name = latin(cover.counselName || filingPartyNames(profile, cover) || "____________________________");
+  const statement = `I, ${name}, solicitor for the appellant (or appellant), certify that the contents of the appeal book in this appeal are complete and legible.`;
   wrap(statement, regular, 12, width - (2 * FEDERAL_MARGIN)).forEach((text, index) =>
-    page.drawText(text, { x: FEDERAL_MARGIN, y: y - 50 - index * 16, size: 12, font: regular }));
-  page.drawText("(Date)", { x: FEDERAL_MARGIN, y: y - 116, font: regular, size: 12 });
+    drawCourtPdfText(page, text, { x: FEDERAL_MARGIN, y: y - 50 - index * 16,
+      size: 12, font: regular }));
+  drawCourtPdfText(page, "(Date)", { x: FEDERAL_MARGIN, y: y - 116,
+    font: regular, size: 12 });
   rule(page, 352, y - 116, width - FEDERAL_MARGIN, y - 116);
-  page.drawText("(Signature of solicitor or appellant)", { x: 352, y: y - 134, font: regular, size: 12 });
+  drawCourtPdfText(page, "(Signature of solicitor or appellant)", {
+    x: 352, y: y - 134, font: regular, size: 12,
+  });
   const contact = [
     cover.counselName,
     cover.counselAddress,
     cover.counselPhone && `Telephone: ${cover.counselPhone}`,
     cover.counselFax && `Fax: ${cover.counselFax}`,
   ].filter((value): value is string => !!value).map(latin);
-  contact.forEach((text, index) => page.drawText(text, {
+  assertCoverSpace(y - 158 - contact.length * 16);
+  contact.forEach((text, index) => drawCourtPdfText(page, text, {
     x: 352, y: y - 158 - index * 16, font: regular, size: 12,
   }));
 }
@@ -96,10 +105,11 @@ function drawAbcaAp5(
   volume: VolumeLabel,
 ) {
   const { width, height } = page.getSize();
-  const groups = coverPartyGroups(profile, cover);
+  const groups = ap5PartyGroups(profile, cover);
   centred(page, "COURT OF APPEAL OF ALBERTA", height - 83.28, bold, 12);
   page.drawText("Form AP-5", { x: 468, y: height - 95.64, font: bold, size: 10 });
-  page.drawText(profile.cover.ruleReference ? `[${latin(profile.cover.ruleReference)}]` : "[Rule 14.87]", {
+  drawCourtPdfText(page,
+    profile.cover.ruleReference ? `[${latin(profile.cover.ruleReference)}]` : "[Rule 14.87]", {
     x: 468, y: height - 107.64, font: regular, size: 10,
   });
   page.drawRectangle({ x: 470.5, y: height - 226.7, width: 118.1, height: 107.3,
@@ -111,10 +121,10 @@ function drawAbcaAp5(
     ["TRIAL COURT FILE NUMBER:", cover.lowerCourtFileNumber],
     ["REGISTRY OFFICE:", cover.registry],
     ...groups.flatMap((group): Array<[string, string | undefined]> => [
-      [latin(`${group.roleBelow || group.role}:`).toUpperCase(), partyNames(group)],
+      [ap5PartyLabel(group), partyNames(group)],
       ["STATUS ON APPEAL:", group.role],
     ]),
-    ["DOCUMENT:", cover.recordTitle || profile.cover.title],
+    ["DOCUMENT:", profile.cover.title],
   ];
   const rowStep = groups.length > 2 ? 22 : 27.84;
   let y = height - 133.44;
@@ -122,7 +132,7 @@ function drawAbcaAp5(
     page.drawText(label, { x: 77.4, y, font: regular, size: 12 });
     const valueFont = label === "DOCUMENT:" ? bold : regular;
     const lines = wrap(latin(value || ""), valueFont, 12, width - 305);
-    lines.forEach((text, index) => page.drawText(text, {
+    lines.forEach((text, index) => drawCourtPdfText(page, text, {
       x: 289.8, y: y - (index * 13), font: valueFont, size: 12,
     }));
     y -= Math.max(rowStep, lines.length * 13 + 5);
@@ -141,15 +151,18 @@ function drawAbcaAp5(
     decisionTop - index * 15.88, regular, 12));
   const decisionRule = decisionTop - 67;
   rule(page, 70.56, decisionRule, width - 70.56, decisionRule);
-  const volumeText = volume.count > 1 ? ` - VOLUME ${volume.number} OF ${volume.count}` : "";
   const titleY = decisionRule - 25;
-  centred(page, `${latin(cover.recordTitle || profile.cover.title).toUpperCase()}${volumeText}`,
-    titleY, regular, 12);
-  const titleRule = titleY - 18;
+  const titleLines = [...wrap(latin(ap5BookTitle(profile, cover)).toUpperCase(),
+    regular, 12, width - 141.12),
+  ...(volume.count > 1 ? [`VOLUME ${volume.number} OF ${volume.count}`] : [])];
+  titleLines.forEach((text, index) => centred(page, text, titleY - index * 15, regular, 12));
+  const titleRule = titleY - titleLines.length * 15 - 3;
   rule(page, 70.56, titleRule, width - 70.56, titleRule);
   const contactTop = titleRule - 25;
-  drawAbcaContactColumns(page, regular, bold, profile, cover, contactTop);
-  rule(page, 70.56, contactTop - 87, width - 70.56, contactTop - 87);
+  const contactBottom = drawAbcaContactColumns(page, regular, bold, profile, cover, contactTop);
+  const contactRule = Math.min(contactTop - 87, contactBottom - 3);
+  assertCoverSpace(contactRule);
+  rule(page, 70.56, contactRule, width - 70.56, contactRule);
 }
 
 function drawFederalRecord(
@@ -181,7 +194,7 @@ function drawFederalRecord(
     y -= 18;
   }
   rule(page, FEDERAL_MARGIN, y - 8, width - FEDERAL_MARGIN, y - 8);
-  drawFederalContactColumns(page, regular, bold, profile, cover, y - 40);
+  assertCoverSpace(drawFederalContactColumns(page, regular, bold, profile, cover, y - 40));
 }
 
 function drawFederalHeading(
@@ -197,7 +210,7 @@ function drawFederalHeading(
   centred(page, profile.courtAbbreviation === "FCA" ? "FEDERAL COURT OF APPEAL" : "FEDERAL COURT",
     height - 118, bold, 12);
   page.drawText("BETWEEN:", { x: FEDERAL_MARGIN, y: height - 157, font: regular, size: 12 });
-  const groups = coverPartyGroups(profile, cover);
+  const groups = captionPartyGroups(profile, cover);
   let y = height - 193;
   groups.forEach((group, index) => {
     const names = wrap(latin(partyNames(group) || "____________________________"), regular, 12,
@@ -209,8 +222,8 @@ function drawFederalHeading(
     const roleY = y - 20;
     right(page, latin(group.role), width - FEDERAL_MARGIN, roleY, regular, 12);
     if (index < groups.length - 1) {
-      centred(page, "and", roleY - 36, regular, 12);
-      y = roleY - 72;
+      centred(page, "and", roleY - 26, regular, 12);
+      y = roleY - 52;
     } else y = roleY - 32;
   });
   if ((cover.partyStyleId ?? profile.cover.partyStyles?.[0]?.id) === "application" &&
@@ -236,18 +249,19 @@ function drawFederalContactColumns(
   const gap = 28;
   const columnWidth = (page.getWidth() - (2 * FEDERAL_MARGIN) - gap) / 2;
   const [filing, others] = contactGroups(profile, cover);
-  exactContactBlock(page, regular, bold, [
+  const left = exactContactBlock(page, regular, bold, [
     [groupNames(filing), true], [filing?.role, false], [cover.counselName, false],
     [cover.counselAddress, false], [cover.counselPhone && `Tel: ${cover.counselPhone}`, false],
     [cover.counselFax && `Fax: ${cover.counselFax}`, false],
     [cover.counselEmail && `Email: ${cover.counselEmail}`, false],
   ], FEDERAL_MARGIN, top, columnWidth);
-  exactContactBlock(page, regular, bold, [
+  const right = exactContactBlock(page, regular, bold, [
     [groupNames(...others), true], [others.map((group) => group.role).join(" / "), false], [cover.otherCounselName, false],
     [cover.otherCounselAddress, false], [cover.otherCounselPhone && `Tel: ${cover.otherCounselPhone}`, false],
     [cover.otherCounselFax && `Fax: ${cover.otherCounselFax}`, false],
     [cover.otherCounselEmail && `Email: ${cover.otherCounselEmail}`, false],
   ], FEDERAL_MARGIN + columnWidth + gap, top, columnWidth);
+  return Math.min(left, right);
 }
 
 function drawAbcaContactColumns(
@@ -262,16 +276,23 @@ function drawAbcaContactColumns(
   const rightX = 329.16;
   const width = 212;
   const [filing, others] = contactGroups(profile, cover);
-  exactContactBlock(page, regular, bold, [
+  const filingBottom = exactContactBlock(page, regular, bold, [
     [`Lawyer for ${groupNames(filing) || "________________"}`, false], [cover.counselName, false],
     [cover.counselAddress, false], [cover.counselPhone, false], [cover.counselFax, false],
     [cover.counselEmail, false],
   ], left, top, width, 13.8);
-  exactContactBlock(page, regular, bold, [
-    [`Lawyer for ${groupNames(...others) || "________________"}`, false], [cover.otherCounselName, false],
-    [cover.otherCounselAddress, false], [cover.otherCounselPhone, false], [cover.otherCounselFax, false],
-    [cover.otherCounselEmail, false],
-  ], rightX, top, width, 13.8);
+  const parties = others.flatMap((group) => group.parties).filter(({ name }) => name.trim());
+  let otherBottom = top;
+  for (const party of parties) {
+    otherBottom = exactContactBlock(page, regular, bold, [
+      [`Lawyer for ${party.name}`, false], [party.contact?.name, false],
+      [party.contact?.address, false], [party.contact?.phone, false], [party.contact?.fax, false],
+      [party.contact?.email, false],
+    ], rightX, otherBottom - (otherBottom === top ? 0 : 5), width, 13.8);
+  }
+  if (!parties.length) otherBottom = exactContactBlock(page, regular, bold,
+    [["Lawyer for ________________", false]], rightX, top, width, 13.8);
+  return Math.min(filingBottom, otherBottom);
 }
 
 function exactContactBlock(
@@ -289,10 +310,11 @@ function exactContactBlock(
     if (!value) continue;
     const font = strong ? bold : regular;
     for (const text of wrap(latin(value), font, 12, width)) {
-      page.drawText(text, { x, y, font, size: 12 });
+      drawCourtPdfText(page, text, { x, y, font, size: 12 });
       y -= lineHeight;
     }
   }
+  return y;
 }
 
 function drawAlbertaExhibitCertificate(
@@ -305,10 +327,10 @@ function drawAlbertaExhibitCertificate(
   const left = 126;
   const rightX = page.getWidth() - left;
   const top = page.getHeight() - 180;
-  page.drawText(`This is Exhibit "${latin(label)}" referred to in the Affidavit of:`, {
+  drawCourtPdfText(page, `This is Exhibit "${latin(label)}" referred to in the Affidavit of:`, {
     x: left, y: top, font, size: 12,
   });
-  page.drawText(deponent, { x: left + 6, y: top - 31, font, size: 12 });
+  drawCourtPdfText(page, deponent, { x: left + 6, y: top - 31, font, size: 12 });
   rule(page, left, top - 35, rightX, top - 35);
   centredAt(page, "(name of person making the affidavit)", page.getWidth() / 2,
     top - 52, font, 10);
@@ -319,7 +341,7 @@ function drawAlbertaExhibitCertificate(
   page.drawRectangle({ x: left + 82, y: top - 90, width: 10, height: 10, borderWidth: 0.8,
     borderColor: rgb(0, 0, 0), color: rgb(1, 1, 1) });
   page.drawText("Affirmed before me this", { x: left + 98, y: top - 89, font, size: 12 });
-  page.drawText(date, { x: left + 6, y: top - 122, font, size: 12 });
+  drawCourtPdfText(page, date, { x: left + 6, y: top - 122, font, size: 12 });
   rule(page, left, top - 126, rightX, top - 126);
   rule(page, left, top - 184, rightX, top - 184);
   centredAt(page, "Commissioner for Oaths, Justice of the Peace,", page.getWidth() / 2,
@@ -356,10 +378,21 @@ function drawGenericCover(
     y -= 22;
   });
   const titleY = Math.min(height - 348, y - 24);
+  assertCoverSpace(titleY - (volume.count > 1 ? 45 : 20), 170);
   centred(page, latin(cover.recordTitle || profile.cover.title).toUpperCase(), titleY, bold, 18);
   if (volume.count > 1) centred(page, `VOLUME ${volume.number} OF ${volume.count}`, titleY - 27, bold, 10);
-  page.drawText(latin(cover.courtFileNumber || ""), { x: 64, y: 148, font: regular, size: 9 });
-  page.drawText(latin(filingParty(profile, cover)?.party.name || ""), { x: 64, y: 130, font: bold, size: 9 });
+  drawCourtPdfText(page, latin(cover.courtFileNumber || ""), {
+    x: 64, y: 148, font: regular, size: 9,
+  });
+  drawCourtPdfText(page, latin(filingPartyNames(profile, cover)), {
+    x: 64, y: 130, font: bold, size: 9,
+  });
+}
+
+function assertCoverSpace(bottom: number, minimum = 71) {
+  if (bottom < minimum) throw new Error(
+    "The style of cause and filing details do not fit the prescribed one-page cover.",
+  );
 }
 
 function fill(page: PDFPage, colour: string) {
@@ -387,7 +420,9 @@ function centredAt(
   size: number,
   color: RGB = rgb(0.05, 0.05, 0.05),
 ) {
-  page.drawText(text, { x: centre - font.widthOfTextAtSize(text, size) / 2, y, font, size, color });
+  drawCourtPdfText(page, text, {
+    x: centre - courtPdfTextWidth(text, font, size) / 2, y, font, size, color,
+  });
 }
 
 function right(
@@ -398,7 +433,9 @@ function right(
   font: PDFFont,
   size: number,
 ) {
-  page.drawText(text, { x: x - font.widthOfTextAtSize(text, size), y, font, size });
+  drawCourtPdfText(page, text, {
+    x: x - courtPdfTextWidth(text, font, size), y, font, size,
+  });
 }
 
 function rule(page: PDFPage, x1: number, y1: number, x2: number, y2: number) {
@@ -413,7 +450,7 @@ function wrap(text: string, font: PDFFont, size: number, maxWidth: number) {
     let current = "";
     for (const word of words) {
       const candidate = current ? `${current} ${word}` : word;
-      if (current && font.widthOfTextAtSize(candidate, size) > maxWidth) {
+      if (current && courtPdfTextWidth(candidate, font, size) > maxWidth) {
         lines.push(current);
         current = word;
       } else current = candidate;
@@ -434,14 +471,6 @@ function legalDate(value: string) {
   const suffix = day % 10 === 1 && day !== 11 ? "st"
     : day % 10 === 2 && day !== 12 ? "nd" : day % 10 === 3 && day !== 13 ? "rd" : "th";
   return `the ${day}${suffix} day of ${month}, ${year}`;
-}
-
-function latin(value: string) {
-  return value.normalize("NFKC")
-    .replace(/[‘’]/gu, "'")
-    .replace(/[“”]/gu, '"')
-    .replace(/[–—]/gu, "-")
-    .replace(/[^\x20-\x7E\n]/gu, "");
 }
 
 function hex(value: string): RGB {

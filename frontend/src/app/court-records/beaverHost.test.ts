@@ -4,7 +4,7 @@ import { courtRecordOutputReceipts } from "./beaverHost";
 import { COURT_PROFILE_BY_ID } from "./profiles";
 import type { BuildArtifact, BuildReceiptSource, CourtRecordDraft, CourtRecordReceipt,
   RecordEntry } from "./types";
-import { canonicalJson } from "../../../../shared/canonical-json.cjs";
+import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
 const sha = (letter: string) => letter.repeat(64);
 const builtAt = "2026-08-30T12:00:00.000Z";

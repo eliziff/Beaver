@@ -6,7 +6,8 @@ import {
 } from "@/app/lib/standaloneWorkProducts";
 import { apiResponse } from "@/app/lib/apiTransport";
 import type { WorkProductInput } from "@/app/lib/workProducts";
-import type { AuthoritiesAction, AuthoritiesDraft } from "./types";
+import type { AuthoritiesAction, AuthoritiesDraft, AttachedAuthoritySource,
+  AuthoritySourceLanguage } from "./types";
 import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
 import { authoritiesProfile } from "./profiles";
 
@@ -59,11 +60,16 @@ async function runtimeDraft(path: string, body: BodyInit, json = false, signal?:
   const state = JSON.parse(String(form.get("draft"))) as AuthoritiesDraft;
   const attachments = JSON.parse(String(form.get("attachments"))) as Array<{
     part: string; authorityId: string; filename: string; sourceSha256: string;
+    language: AuthoritySourceLanguage;
   }>;
   for (const item of attachments) {
     signal?.throwIfAborted();
-    const source = state.authorities[item.authorityId]?.source, part = form.get(item.part);
-    if (source?.kind !== "attached" || source.filename !== item.filename ||
+    const decision = state.authorities[item.authorityId]?.source;
+    const source = decision?.kind === "attached" ? decision.sources.find((candidate) =>
+      candidate.language === item.language && candidate.filename === item.filename &&
+      candidate.sourceSha256 === item.sourceSha256) : undefined;
+    const part = form.get(item.part);
+    if (!source ||
         !(part instanceof File) ||
         !/^[a-f0-9]{64}$/u.test(item.sourceSha256)) {
       throw new Error("An automatic authority source was invalid.");
@@ -120,6 +126,39 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     return runtimeResponse("discrepancies", JSON.stringify({ draft: product.state }), true, signal)
       .then((response) => response.json());
   },
+  async resolveDiscrepancy(id, input) {
+    const product = await currentProduct(id, input.revision);
+    let response: Response;
+    if (input.action === "ignore") {
+      response = await runtimeResponse("discrepancies/actions",
+        JSON.stringify({ draft: product.state, request: input }), true);
+    } else {
+      const imported = product.state.import;
+      if (imported.kind !== "document" || imported.fileType !== "docx")
+        throw new Error("Source corrections require an imported Word document.");
+      const file = await resolveExact(product.state.bindings[imported.bindingRole]);
+      const form = new FormData(); form.append("draft", JSON.stringify(product.state));
+      form.append("request", JSON.stringify(input)); form.append("file", file, file.name);
+      form.append("modified", String(file.lastModified));
+      response = await runtimeResponse("discrepancies/actions", form);
+    }
+    if (!response.headers.get("content-type")?.startsWith("multipart/form-data")) {
+      return save(id, input.revision, await response.json() as AuthoritiesDraft);
+    }
+    const form = await response.formData(), state = JSON.parse(String(form.get("draft"))) as AuthoritiesDraft;
+    const source = form.get("source"), imported = state.import;
+    if (!(source instanceof File) || imported.kind !== "document" || imported.fileType !== "docx")
+      throw new Error("The corrected Word document was invalid.");
+    const file = new File([await source.arrayBuffer()], imported.filename,
+      { type: source.type, lastModified: 0 });
+    const binding = await retainStandaloneFile(file), expected = state.bindings[imported.bindingRole];
+    if (expected?.kind !== "local-file" ||
+        expected.lastSeen.sha256 !== binding.lastSeen.sha256) {
+      throw new Error("The corrected Word document did not match the reviewed source.");
+    }
+    state.bindings[imported.bindingRole] = binding;
+    return save(id, input.revision, state);
+  },
   async refresh(id, revision) {
     const product = await currentProduct(id, revision);
     if (product.state.import.kind !== "document") return product;
@@ -140,29 +179,43 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     return JSON.stringify(prepared) === JSON.stringify(product.state)
       ? product : save(product.id, product.revision, prepared);
   },
-  async attach(id, authorityId, revision, selected) {
+  async attach(id, authorityId, revision, selected, language = "en") {
     if (!await validPdf(selected.file)) throw new Error("Add a valid PDF.");
     const product = await currentProduct(id, revision);
     const state = structuredClone(product.state), authority = state.authorities[authorityId];
     if (!authority) throw new Error("This authority no longer exists.");
     const binding = await bindStandaloneFile(selected.file, selected.input);
-    const sourceUrl = authority.source.kind === "pending-canlii" ? authority.source.pdfUrl : null;
-    const role = authority.source.kind === "attached" ? authority.source.bindingRole
-      : `authority:${crypto.randomUUID()}`;
+    const previous = authority.source.kind === "attached" ? authority.source.sources : [];
+    const replaced = previous.find((source) => source.language === language);
+    const sourceUrl = authority.source.kind === "pending-canlii" ? authority.source.pdfUrl
+      : replaced?.sourceUrl ?? null;
+    const role = replaced?.bindingRole ?? `authority:${crypto.randomUUID()}:${language}`;
+    const source: AttachedAuthoritySource = { bindingRole: role, filename: selected.file.name,
+      sourceSha256: binding.lastSeen.sha256!, sourceUrl, origin: "manual", language };
+    const sources = language === "bilingual" ? [source]
+      : [...previous.filter((item) => item.language !== "bilingual" &&
+        item.language !== language), source].sort((left) => left.language === "en" ? -1 : 1);
+    const retained = new Set(sources.map(({ bindingRole }) => bindingRole));
+    for (const item of previous) if (!retained.has(item.bindingRole)) {
+      delete state.bindings[item.bindingRole];
+    }
     state.bindings[role] = binding;
-    authority.source = { kind: "attached", bindingRole: role, filename: selected.file.name,
-      sourceSha256: binding.lastSeen.sha256!, sourceUrl, origin: "manual" };
+    authority.source = { kind: "attached", sources };
     return save(id, revision, state);
   },
-  async attachBookPdf(id, revision, slot, selected) {
+  async attachBookPdf(id, revision, slot, selected, supplementId) {
     if (!await validPdf(selected.file)) throw new Error("Add a valid PDF.");
     const product = await currentProduct(id, revision);
     const binding = await bindStandaloneFile(selected.file, selected.input);
     const form = new FormData(); form.append("draft", JSON.stringify(product.state));
     form.append("slot", slot); form.append("file", selected.file, selected.file.name);
+    if (supplementId) form.append("supplement_id", supplementId);
     form.append("modified", String(selected.file.lastModified));
     const state = await runtimeDraft("book-part", form);
-    const part = state.bookParts[slot];
+    const part = slot === "supplemental" ? state.bookParts.supplements.find(({ id }) =>
+      supplementId ? id === supplementId
+        : !product.state.bookParts.supplements.some((current) => current.id === id))
+      : state.bookParts[slot];
     if (!part || part.sourceSha256 !== binding.lastSeen.sha256)
       throw new Error("The selected PDF changed while it was being added.");
     state.bindings[part.bindingRole] = binding;
@@ -177,11 +230,12 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     const roles = [
       ...(product.state.outputMode === "table" && !filingPdfs ? [] :
         Object.values(product.state.authorities).flatMap(({ excluded, source }) =>
-          !excluded && source.kind === "attached" ? [source.bindingRole] : [])),
+          !excluded && source.kind === "attached"
+            ? source.sources.map(({ bindingRole }) => bindingRole) : [])),
       ...(product.state.insertIntoDocument && product.state.import.kind === "document"
         ? [product.state.import.bindingRole] : []),
       ...(product.state.outputMode === "table" ? [] : [product.state.bookParts.cover,
-        product.state.bookParts.index]
+        product.state.bookParts.index, ...product.state.bookParts.supplements]
         .flatMap((part) => part ? [part.bindingRole] : [])),
     ];
     const form = new FormData(); form.append("draft", JSON.stringify(product.state));
@@ -218,7 +272,15 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     const saved = await readStandaloneOutputByDocument(documentId, versionId);
     return new Blob([saved.bytes.slice().buffer], { type: saved.output.mimeType });
   },
-  sourceIssues: (draft) => findSourceIssues(draft.state),
+  readSource: async (draft, role) => resolveExact(draft.state.bindings[role]),
+  async inspectDraft(draft) {
+    const role = Object.keys(draft.outputs)[0];
+    let outputFreshness: "unbuilt" | "current" | "stale" = role ? "stale" : "unbuilt";
+    if (role) try {
+      outputFreshness = (await readStandaloneOutput(draft.id, role)).stale ? "stale" : "current";
+    } catch { /* A retained output whose bytes disappeared is stale. */ }
+    return { sourceIssues: await findSourceIssues(draft.state), outputFreshness };
+  },
   pickFiles: ({ multiple, accept }) => pickRetainedFiles(multiple, accept),
   async relinkSource(id, role, revision) {
     const product = await currentProduct(id, revision);
@@ -227,12 +289,14 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     const state = structuredClone(product.state);
     const imported = state.import.kind === "document" && state.import.bindingRole === role
       ? state.import : null;
-    const authority = Object.values(state.authorities).find(({ source }) =>
-      source.kind === "attached" && source.bindingRole === role);
-    const bookPdf = [state.bookParts.cover, state.bookParts.index]
+    const authoritySource = Object.values(state.authorities).flatMap(({ source }) =>
+      source.kind === "attached" ? source.sources : []).find(({ bindingRole }) =>
+      bindingRole === role);
+    const bookPdf = [state.bookParts.cover, state.bookParts.index, ...state.bookParts.supplements]
       .find((part) => part?.bindingRole === role);
-    const boundPdf = authority?.source.kind === "attached" ? authority.source : bookPdf;
-    const resolved = await relinkStandaloneFile(binding, true, authority || bookPdf ? "pdf" : "source");
+    const boundPdf = authoritySource ?? bookPdf;
+    const resolved = await relinkStandaloneFile(binding, true,
+      authoritySource || bookPdf ? "pdf" : "source");
     if (resolved.status === "missing") throw new Error("Choose the source file to relink it.");
     if (resolved.input.kind !== "local-file") throw new Error("This source cannot be relinked.");
     const current = resolved.input.lastSeen;

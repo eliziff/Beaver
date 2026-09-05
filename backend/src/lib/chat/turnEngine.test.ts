@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const stream = vi.hoisted(() => vi.fn());
 vi.mock("../llm", async (importOriginal) => ({
@@ -21,6 +21,8 @@ import {
 } from "./legalEvidence";
 import { runChatTurn, type ChatToolContext } from "./turnEngine";
 import { toolText, type BeaverTool } from "./toolRegistry";
+import { a2ajLegalSourceProvider } from "../legalSources/a2aj";
+import { structureNative } from "../structureNative";
 const ASSISTANT_TOOLS = assistantTools<ChatToolContext>({
   userId: "test",
   scope: "main",
@@ -37,6 +39,39 @@ const ASSISTANT_TOOLS = assistantTools<ChatToolContext>({
 
 beforeEach(() => {
   stream.mockReset();
+});
+afterEach(() => vi.restoreAllMocks());
+
+it("starts from saved receipts and restores only cited sources for final pinpoints", async () => {
+  const text = "The appeal is allowed.", native = await structureNative().deriveDocumentStructure({
+    kind: "provider_text", input: { provider: "a2aj", citation: "2024 SCC 1",
+      source_kind: "cases", text, dataset: "SCC", require_report_start: true },
+  }), receipt = { ...createTnaEvidence({
+    jurisdiction: "CA", sourceClass: "case", stableSourceId: "case-1",
+    sourceText: text, spanText: text, citation: "2024 SCC 1", name: "Example v Example",
+    dataset: "SCC", externalUrl: "https://example.test/case",
+    locatorKind: "paragraph", locatorLabel: "par12",
+  }), provider: "a2aj" as const, source_sha256: structureNative().documentRevision(native) },
+    document = { docType: "cases" as const, dataset: "SCC", citation: receipt.citation,
+      alternateCitation: null, name: receipt.name, date: null, url: receipt.external_url!,
+      verifiedPdf: null, language: "en" as const, upstreamLicense: null, native },
+    load = vi.spyOn(a2ajLegalSourceProvider, "document").mockResolvedValue(document);
+  stream.mockImplementationOnce(async ({ runTools }) => {
+    expect(load).not.toHaveBeenCalled();
+    await runTools([{ id: "answer", name: "submit_grounded_answer", input: {
+      claims: [{ text, evidence_ids: [receipt.evidence_id] }],
+    } }]);
+    return { fullText: "" };
+  });
+  const result = await runChatTurn({ model: "gemini-3-flash-preview", systemPrompt: "",
+    messages: [{ role: "user", content: "What happened to the appeal?" }],
+    priorEvidence: [receipt, { ...receipt, evidence_id: "e_unused", citation: "2023 SCC 2" }],
+    createTools: () => [], emit: () => {},
+  });
+  expect(result.fullText).toBe(`${text} [1]`);
+  expect(result.citations).toEqual([expect.objectContaining({ citation: "2024 SCC 1", locator: "12" })]);
+  expect(result.evidence.evidence.get(receipt.evidence_id)?.document).toBe(document);
+  expect(load.mock.calls.map(([request]) => request.citation)).toEqual([receipt.citation]);
 });
 
 it("preserves one tool activity through running and completed states", async () => {

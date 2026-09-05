@@ -47,14 +47,25 @@ export type DocumentParseState = {
 };
 export type DocumentRecord = Record<string, unknown> & { id: string; filename?: string | null;
   current_version_id?: string | null; active_version_number?: number | null;
+  current_working_revision?: number | null;
   file_type?: string | null; parse_state?: DocumentParseState | null };
 export type CreatedDocumentRecord = DocumentRecord & { filename: string;
   current_version_id: string; active_version_number: number; file_type: string;
-  source_sha256: string };
+  current_working_revision: number; source_sha256: string;
+  project_id: string | null; folder_id: string | null };
 export type DocumentVersion = Record<string, unknown> & { id: string; version_number: number;
-  source: string; created_at: string; filename: string; storage_path?: string | null;
+  working_revision: number;
+  created_by: string | null; author_email?: string; comment?: string | null;
+  parent_version_id: string | null;
+  source: string; created_at: string; filename: string;
   file_type: string; size_bytes: number; page_count?: number | null;
-  deleted_at?: string | null; source_sha256: string };
+  source_sha256: string };
+export type DocumentHeadExpectation = { versionId: string; workingRevision: number;
+  projectId: string | null; folderId: string | null };
+export type CreatedDocumentVersion = DocumentVersion & {
+  project_id: string | null; folder_id: string | null };
+export type DocumentRollback = { documentId: string; versionId?: string;
+  expected: DocumentHeadExpectation };
 export type DocumentProjectionSource = Readonly<{
   documentId: string; versionId: string; fileType: string; sourceSha256: string;
   pdfProfile?: PdfProfileSelection; provenance?: DocumentProvenance;
@@ -70,8 +81,7 @@ export type AssistantEdit = { changeId: string; delWId?: string; insWId?: string
 export type StoredAssistantEdit = AssistantEdit & { id: string;
   status: "pending" | "accepted" | "rejected" };
 export type AssistantDocumentProvenance = { schemaVersion: 1; actor: "assistant";
-  action: "created" | "revised"; parentVersionId?: string; changeCount?: number;
-  trackedEdits?: StoredAssistantEdit[]; generation?: {
+  action: "created" | "revised"; turnId?: string; changeCount?: number; generation?: {
     rendererVersion: "beaver.docx-markdown.v2"; markdownSha256: string;
     fieldValuesSha256: string; sourceRegistrySha256: string; evidenceBindings: Array<{
       id: string; evidenceIds: string[]; sourceSha256s: string[]; locators: string[];
@@ -82,10 +92,14 @@ export type DocumentProvenance = AssistantDocumentProvenance |
     receipt: WorkProductBuildReceipt };
 export type CommitAssistantVersionResult = { status: "committed"; version: DocumentVersion;
   edits: StoredAssistantEdit[] } | { status: "conflict" | "missing" };
-export type CopyVersionResult = { status: "created"; version: DocumentVersion }
-  | { status: "target-missing" | "source-missing" | "forbidden" };
+export type RestoreVersionResult = { status: "restored"; version: DocumentVersion }
+  | { status: "missing" | "conflict" | "pending-edits" };
+export type CheckpointVersionResult = { status: "created"; version: DocumentVersion }
+  | { status: "missing" | "conflict" | "pending-edits" };
+export type CompareVersionResult = { status: "compared"; bytes: Buffer; filename: string }
+  | { status: "missing" | "type-mismatch" | "same" };
 export type ReplaceVersionResult = { status: "replaced"; version: DocumentVersion }
-  | { status: "missing" | "type-mismatch" };
+  | { status: "missing" | "type-mismatch" | "conflict" };
 export type DeleteVersionResult = { status: "deleted"; currentVersionId: string | null }
   | { status: "missing" | "only" };
 export type RelocateDocumentResult = { status: "moved"; document: DocumentRecord }
@@ -97,6 +111,9 @@ export type ResolveEditResult = { status: "missing" | "invalid" }
 export type DocumentFile = { filename: string; fileType: string; expectedSha256?: string } & (
   { bytes: Buffer } | { path: string; sizeBytes: number }
 );
+export type DocumentPartFile = { name: string; bytes: Buffer; expectedSha256?: string };
+export type DocumentPartsChange = { put?: DocumentPartFile[]; remove?: string[] };
+export type DocumentPartContent = { name: string; bytes: Buffer; sha256: string };
 
 export type DocumentStore = {
   resumeCleanup(): Promise<void>;
@@ -105,12 +122,15 @@ export type DocumentStore = {
     id: string; parse_state: DocumentParseState | null; page_count: number | null;
   }>>;
   create(scope: DocumentScope, input: DocumentFile & { projectId?: string | null;
-    libraryKind?: LibraryKind; folderId?: string | null; provenance?: DocumentProvenance }):
+    libraryKind?: LibraryKind; folderId?: string | null; provenance?: DocumentProvenance;
+    parts?: DocumentPartFile[] }):
     Promise<CreatedDocumentRecord>;
-  deleteDocument(scope: DocumentScope, id: string): Promise<boolean>;
+  deleteDocument(scope: DocumentScope, id: string, owner?: boolean,
+    expected?: DocumentHeadExpectation): Promise<boolean>;
   deleteUserDocuments(scope: DocumentScope, input: { projectIds: string[];
-    includeOwned: boolean; purgeObjects: boolean }): Promise<number>;
+    includeOwned: boolean }): Promise<number>;
   relocate(scope: DocumentScope, id: string, input: { expectedProjectId: string | null;
+    expectedFolderId: string | null;
     projectId: string | null; folderId: string | null; owner: boolean }):
     Promise<RelocateDocumentResult>;
   updateMetadata(scope: DocumentScope, id: string,
@@ -118,6 +138,8 @@ export type DocumentStore = {
   files(scope: DocumentScope, ids: string[], maxBytes?: number): Promise<DocumentContent[]>;
   read(scope: DocumentScope, id: string, versionId: string | null,
     preferPdf: boolean): Promise<DocumentContent | null>;
+  readParts(scope: DocumentScope, id: string, versionId: string | null,
+    names: string[]): Promise<DocumentPartContent[] | null>;
   recordPdfPreparation(scope: DocumentScope, id: string, input: { versionId: string;
     sourceSha256: string; pageCount: number; pdfProfile: PdfProfileSelection }): Promise<boolean>;
   projectionSource(scope: DocumentScope, id: string, versionId: string | null):
@@ -127,18 +149,57 @@ export type DocumentStore = {
   versions(scope: DocumentScope, id: string): Promise<{ current_version_id: string | null;
     versions: DocumentVersion[] } | null>;
   addVersion(scope: DocumentScope, id: string,
-    file: DocumentFile & { provenance?: DocumentProvenance }): Promise<DocumentVersion | null>;
+    file: DocumentFile & { provenance?: DocumentProvenance;
+      comment?: string | null; expectedCurrentVersionId?: string;
+      expectedCurrentWorkingRevision?: number; expectedCurrentSha256?: string;
+      parts?: DocumentPartsChange }):
+    Promise<CreatedDocumentVersion | null>;
   commitAssistantVersion(scope: DocumentScope, id: string, input: { sourceVersionId: string;
-    turnVersionId?: string; parentVersionId: string; filename: string; bytes: Buffer;
-    edits: AssistantEdit[]; status: StoredAssistantEdit["status"] }):
+    expectedWorkingRevision: number;
+    turnVersionId?: string; turnId?: string; filename: string; bytes: Buffer;
+    fileType: string; edits: AssistantEdit[]; status: StoredAssistantEdit["status"];
+    parts?: DocumentPartsChange }):
     Promise<CommitAssistantVersionResult>;
-  copyVersion(scope: DocumentScope, targetId: string, sourceId: string,
-    filename?: string): Promise<CopyVersionResult>;
+  restoreVersion(scope: DocumentScope, id: string, versionId: string,
+    expectedCurrentVersionId: string, expectedCurrentWorkingRevision: number,
+    comment?: string | null):
+    Promise<RestoreVersionResult>;
+  checkpointVersion(scope: DocumentScope, id: string, expectedCurrentVersionId: string,
+    expectedCurrentWorkingRevision: number, comment?: string | null):
+    Promise<CheckpointVersionResult>;
+  compareVersions(scope: DocumentScope, id: string, baselineVersionId: string,
+    versionId: string): Promise<CompareVersionResult>;
   renameVersion(scope: DocumentScope, id: string, versionId: string,
-    filename: string): Promise<DocumentVersion | null>;
+    filename: string, expectedWorkingRevision: number): Promise<DocumentVersion | null>;
   replaceVersion(scope: DocumentScope, id: string, versionId: string,
-    file: DocumentFile): Promise<ReplaceVersionResult>;
-  deleteVersion(scope: DocumentScope, id: string, versionId: string): Promise<DeleteVersionResult>;
+    expectedWorkingRevision: number, file: DocumentFile & { parts?: DocumentPartsChange }):
+    Promise<ReplaceVersionResult>;
+  deleteVersion(scope: DocumentScope, id: string, versionId: string,
+    expected?: DocumentHeadExpectation): Promise<DeleteVersionResult>;
   resolveEdits(scope: DocumentScope, id: string, editIds: string[],
     mode: "accept" | "reject"): Promise<ResolveEditResult>;
 };
+
+export const createdDocumentRollback = (created: CreatedDocumentRecord): DocumentRollback => ({
+  documentId: created.id, expected: { versionId: created.current_version_id,
+    workingRevision: created.current_working_revision, projectId: created.project_id,
+    folderId: created.folder_id },
+});
+export const createdVersionRollback = (
+  documentId: string, version: CreatedDocumentVersion,
+): DocumentRollback => ({ documentId, versionId: version.id, expected: {
+  versionId: version.id, workingRevision: version.working_revision,
+  projectId: version.project_id, folderId: version.folder_id,
+} });
+export async function rollbackDocuments(documents: DocumentStore, scope: DocumentScope,
+  rollback: DocumentRollback[], error: unknown, message: string): Promise<never> {
+  const failures: unknown[] = [];
+  for (const item of [...rollback].reverse()) try {
+    const removed = item.versionId
+      ? (await documents.deleteVersion(scope, item.documentId,
+        item.versionId, item.expected)).status === "deleted"
+      : await documents.deleteDocument(scope, item.documentId, true, item.expected);
+    if (!removed) throw new Error(`Created document could not be removed: ${item.documentId}`);
+  } catch (cleanup) { failures.push(cleanup); }
+  throw failures.length ? new AggregateError([error, ...failures], message) : error;
+}

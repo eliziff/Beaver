@@ -134,11 +134,19 @@ function markupLinks(markup: string) {
 export function rankedPublisherPdfLinks(markup: string, rawUrl: string | URL) {
   const source = httpUrl(String(rawUrl));
   if (!source) return [];
-  return markupLinks(markup).map(({ url: raw, label }, position) => {
+  const links = markupLinks(markup).map((link) => ({ ...link, frame: false }));
+  for (const match of markup.matchAll(/<iframe\b([^>]*)>/giu)) {
+    const src = match[1].match(/\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/iu);
+    const url = src?.[1] ?? src?.[2] ?? src?.[3];
+    if (url) links.push({ url, label: "", frame: true });
+  }
+  return links.map(({ url: raw, label, frame }, position) => {
     const url = httpUrl(raw, source);
     if (!url) return null;
     const clue = `${label} ${url.pathname} ${url.search}`.toLowerCase();
     let score = url.pathname.toLowerCase().endsWith(".pdf") ? 50 : 0;
+    if (frame && url.origin === source.origin && url.pathname === source.pathname &&
+        url.searchParams.get("iframe") === "true") score += 90;
     if (url.pathname.toLowerCase().includes("/document.do")) score += 90;
     if (/download pdf|view pdf|full[- ]text pdf/u.test(clue)) score += 80;
     else if (/download|viewcontent|article\/view|galley/u.test(clue)) score += 35;

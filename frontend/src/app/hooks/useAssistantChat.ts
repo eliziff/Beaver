@@ -31,7 +31,7 @@ import {
   readAssistantPreferences,
 } from "@/app/components/assistant/assistantPreferences";
 import { DEFAULT_MODEL_ID } from "@/app/components/assistant/ModelToggle";
-import type { WorkProductKind } from "@/app/lib/workProducts";
+import type { WorkProductFocus, WorkProductKind } from "@/app/lib/workProducts";
 
 interface UseAssistantChatOptions {
   chatId?: string;
@@ -40,7 +40,8 @@ interface UseAssistantChatOptions {
   onChatIdChange?: (chatId: string) => void;
   onTitleChange?: (chatId: string, title: string) => void;
   stayInPlace?: boolean;
-  workProduct?: { kind: WorkProductKind; id: string; revision: number };
+  workProduct?: { kind: WorkProductKind; id: string; revision: number;
+    focus?: WorkProductFocus };
   wordClient?: {
     context(): Promise<{ document_name: string }>;
     execute(call: Extract<ProtocolEvent, { type: "client_tool_call" }>): Promise<unknown>;
@@ -404,7 +405,11 @@ export function useAssistantChat({
           ? { document_id: turnOptions.displayedDoc.documentId }
           : undefined,
         word_context: wordContext,
-        work_product: workProduct,
+        work_product: workProduct && { kind: workProduct.kind, id: workProduct.id,
+          revision: workProduct.revision, ...(workProduct.focus && { focus: {
+            item_id: workProduct.focus.itemId,
+            ...(workProduct.focus.selection && { selection: workProduct.focus.selection }),
+          } }) },
         signal: controller.signal,
       });
       if (!response.ok) {

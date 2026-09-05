@@ -1,6 +1,4 @@
 import {
-  lazy,
-  Suspense,
   useEffect,
   useRef,
   useState,
@@ -25,26 +23,9 @@ import {
   APP_SURFACE_HOVER_CLASS,
 } from "@/app/components/ui/liquid-surface";
 import type { Chat } from "@/app/components/shared/types";
-
-const loadRecyclingBinModal = () =>
-  import("@/app/components/assistant/RecyclingBinModal").then(
-    ({ RecyclingBinModal }) => RecyclingBinModal,
-  );
-const loadSettingsModal = () =>
-  import("@/app/components/settings/AppSettingsModal").then(
-    ({ AppSettingsModal }) => AppSettingsModal,
-  );
-const RecyclingBinModal = lazy(async () => ({
-  default: await loadRecyclingBinModal(),
-}));
-const AppSettingsModal = lazy(async () => ({
-  default: await loadSettingsModal(),
-}));
-const SelectAssistantProjectModal = lazy(() =>
-  import("@/app/components/assistant/SelectAssistantProjectModal").then(
-    ({ SelectAssistantProjectModal }) => ({ default: SelectAssistantProjectModal }),
-  ),
-);
+import { RecyclingBinModal } from "@/app/components/assistant/RecyclingBinModal";
+import { AppSettingsModal } from "@/app/components/settings/AppSettingsModal";
+import { SelectAssistantProjectModal } from "@/app/components/assistant/SelectAssistantProjectModal";
 const NAV_ITEMS = [
   { href: "/assistant", label: "Assistant", icon: ChatSkeuoIcon },
   { href: "/projects", label: "Projects", icon: FolderSvgIcon },
@@ -401,7 +382,6 @@ export function AppSidebar({
               <button
                 type="button"
                 disabled={recyclingBusy}
-                onPointerEnter={() => void loadRecyclingBinModal()}
                 onClick={() => {
                   if (selectedChatIds.size) {
                     void recycleChats([...selectedChatIds]);
@@ -464,7 +444,6 @@ export function AppSidebar({
         <div className="mt-auto border-t border-gray-300 p-1">
           <button
             type="button"
-            onPointerEnter={() => void loadSettingsModal()}
             onClick={() => {
               setSettingsOpen(true);
               if (mobileOpen) onToggle();
@@ -479,7 +458,6 @@ export function AppSidebar({
           </button>
         </div>
       </aside>
-      <Suspense fallback={null}>
         {chatProjectTarget && (
           <SelectAssistantProjectModal
             open
@@ -503,7 +481,6 @@ export function AppSidebar({
             onClose={() => setSettingsOpen(false)}
           />
         )}
-      </Suspense>
     </>
   );
 }

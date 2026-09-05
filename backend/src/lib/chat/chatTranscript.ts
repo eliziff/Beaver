@@ -2,10 +2,6 @@ import type { ChatMessageRecord } from "../chatStore";
 import type { Provider, ProviderContextCheckpoint } from "../llm/types";
 import type { AskInputItem, ChatMessage } from "./types";
 import { jsonRecord as record, trimmedText as text } from "../value";
-import {
-  priorLegalEvidencePrompt,
-  priorLegalEvidenceReceipts,
-} from "./legalEvidence";
 
 const PUBLIC_EVENTS = new Set([
   "ask_inputs", "ask_inputs_response", "workflow_run", "compaction",
@@ -124,8 +120,6 @@ function projectAssistant(content: unknown): ChatMessage[] {
       }
     }
   }
-  const evidence = priorLegalEvidencePrompt(priorLegalEvidenceReceipts(content));
-  if (evidence) pending += `${pending ? "\n\n" : ""}${evidence}`;
   flush();
   return messages;
 }

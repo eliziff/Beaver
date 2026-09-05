@@ -1,44 +1,53 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
+import { Files, Settings2 } from "lucide-react";
 import type { Document } from "@/app/components/shared/types";
 import { cn } from "@/app/lib/utils";
 import { CourtRecordBuildPanel } from "./CourtRecordBuildPanel";
 import { CourtRecordDocuments } from "./CourtRecordDocuments";
+import { buildCourtRecord } from "./assembly";
 import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { Button } from "@/app/components/ui/button";
 import { LibraryDocumentPicker } from "@/app/components/shared/LibraryDocumentPicker";
 import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
-import { courtRecordDraft, restoreCourtRecordDraft } from "./draftState";
+import { Modal } from "@/app/components/modals/Modal";
+import { OutputFolderSetting } from "@/app/components/shared/OutputFolderSetting";
+import { applySourceEntryFields, courtRecordDraft, courtRecordDraftFromDocuments, restoreCourtRecordDraft } from "./draftState";
 import { acceptedSourceFormats, sourceFormatLabel } from "./formats";
 import { CourtRecordChooser, CourtRecordSetup } from "./CourtRecordSetup";
-import { downloadArtifact, needsOcr, type CourtRecordsHost, type DraftOutputChoice,
-  type SelectedFile } from "./host";
-import { COURT_PROFILE_BY_ID, effectiveCourtProfiles } from "./profiles";
-import type { WorkProduct, WorkProductMetadata } from "@/app/lib/workProducts";
-import { errorMessage, formatDate } from "@/app/lib/utils";
+import { downloadArtifact, FILING_CONTACT_FIELDS, needsOcr, type CourtRecordsHost,
+  type DraftOutputChoice, type FilingContactCover, type SelectedFile } from "./host";
+import { COURT_PROFILE_BY_ID } from "./profiles";
+import type { WorkProduct, WorkProductMetadata, WorkProductRefresh } from "@/app/lib/workProducts";
+import { errorMessage, formatDateTime } from "@/app/lib/utils";
 import type {
   BuildResult,
   BuildArtifact,
   ComplianceFinding,
   CourtRecordDraft,
+  CoverFieldId,
   CoverValues,
   CourtProfile,
+  DocumentKind,
   RecordEntry,
   SourceDocumentFields,
 } from "./types";
+import { exhibitName, propagatingSourceFields, sourceExhibitSlots } from "./types";
 import { staleBuildSource, validateCourtRecord } from "./validation";
 
 const DEFAULT_PROFILE_ID = "general-affidavit-exhibits";
-let assembly: Promise<typeof import("./assembly")> | undefined;
-const loadAssembly = () => assembly ??= import("./assembly");
 
 export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refreshToken,
-  initialDraftId, locked = false }: {
+  initialDraftId, initialDocuments, onDocumentsConsumed, projectId, locked = false, jurisdictionOrder = [] }: {
   host: CourtRecordsHost;
   headerActions?: ReactNode;
   onDraftChange?: (draft: WorkProduct<CourtRecordDraft> | undefined, synced: boolean) => void;
-  refreshToken?: number;
+  refreshToken?: WorkProductRefresh;
   initialDraftId?: string;
+  initialDocuments?: Parameters<typeof courtRecordDraftFromDocuments>[1];
+  onDocumentsConsumed?: () => void;
+  projectId?: string;
   locked?: boolean;
+  jurisdictionOrder?: string[];
 }) {
   const [profileId, setProfileId] = useState(DEFAULT_PROFILE_ID);
   const [cover, setCover] = useState<CoverValues>({});
@@ -47,31 +56,36 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const [draft, setDraft] = useState<WorkProduct<CourtRecordDraft>>();
   const [draftBusy, setDraftBusy] = useState(true);
   const [creating, setCreating] = useState(false);
+  const pendingDocuments = useRef(initialDraftId ? undefined : initialDocuments);
   const [savedOpen, setSavedOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [busyEntryId, setBusyEntryId] = useState<string>();
   const [progress, setProgress] = useState<string>();
   const [error, setError] = useState<string>();
   const [building, setBuilding] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingFilingContact, setSavingFilingContact] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
   const [result, setResult] = useState<BuildResult>();
   const [sourceKindId, setSourceKindId] = useState<string>();
+  const [sourceExhibitLabel, setSourceExhibitLabel] = useState<string>();
   const [sourceQuery, setSourceQuery] = useState("");
   const [sourceResults, setSourceResults] = useState<Array<{
     document: Document; draft?: DraftOutputChoice;
   }>>([]);
   const [sourceBusy, setSourceBusy] = useState(false);
   const sourceSearchId = useRef(0);
-  const refreshSeen = useRef(refreshToken);
+  const refreshSeen = useRef(0);
   const openRequest = useRef(0);
+  const routeLoading = useRef(false);
   const openingRevision = useRef<{ id: string; revision: number } | undefined>(undefined);
   const draftRef = useRef(draft);
   const stateRef = useRef<CourtRecordDraft>(undefined!);
+  const mounted = useRef(true);
   stateRef.current ||= courtRecordDraft(profileId, cover, entries);
   const savingDraft = useRef<Promise<WorkProduct<CourtRecordDraft> | undefined> | undefined>(undefined);
   const stateVersion = useRef(0);
   const profile = COURT_PROFILE_BY_ID.get(profileId) ?? COURT_PROFILE_BY_ID.get(DEFAULT_PROFILE_ID)!;
-  const hasProfile = COURT_PROFILE_BY_ID.has(profileId);
   const isAffidavit = profile.family === "affidavit";
   const hasCaseDetails = !!(profile.cover.fields.length || profile.cover.partyStyles?.length);
   const operationBusy = draftBusy || building || saving || !!busyEntryId || sourceBusy;
@@ -84,38 +98,77 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   stateRef.current = courtRecordDraft(profileId, cover, entries);
 
   useEffect(() => {
-    if (initialDraftId && initialDraftId === draftRef.current?.id) return;
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      void saveDraftEffect();
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
+    setDrafts([]);
+    void (async () => {
+      const saved = host.drafts.listMetadata
+        ? await host.drafts.listMetadata("court-record", projectId)
+        : (await host.drafts.list<CourtRecordDraft>("court-record", projectId))
+          .map(({ state, ...item }) => ({ ...item, profileId: state.profileId }));
+      if (!cancelled) setDrafts((current) => [...new Map(
+        [...saved, ...current].map((item) => [item.id, item])).values()]
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)));
+    })().catch((caught) => {
+      if (!cancelled) setError(errorMessage(caught, "Saved records could not be listed."));
+    });
+    return () => { cancelled = true; };
+  }, [host, projectId]);
+
+  useEffect(() => {
+    if (initialDraftId && initialDraftId === draftRef.current?.id &&
+        (draftRef.current.projectId ?? "") === (projectId ?? "")) return;
+    let cancelled = false;
+    routeLoading.current = true;
     setDraftBusy(true);
     void (async () => {
       if (draftRef.current && !await saveDraftEffect()) return;
-      const summaries = host.drafts.listMetadata
-        ? await host.drafts.listMetadata("court-record") : undefined;
-      const saved = summaries ?? await host.drafts.list<CourtRecordDraft>("court-record");
       if (cancelled) return;
-      setDrafts(saved);
-      if (!initialDraftId) { clearDraftEffect(); return; }
-      const requested = summaries
-        ? await host.drafts.get<CourtRecordDraft>(initialDraftId)
-        : (saved as WorkProduct<CourtRecordDraft>[]).find(({ id }) => id === initialDraftId) ??
-          await host.drafts.get<CourtRecordDraft>(initialDraftId);
+      if (!initialDraftId) {
+        clearDraftEffect();
+        setCreating(!!pendingDocuments.current?.length);
+        return;
+      }
+      const requested = await host.drafts.get<CourtRecordDraft>(initialDraftId);
       if (requested.kind !== "court-record") throw new Error("This is not a Court Record draft.");
       if (!cancelled) await openDraftEffect(requested);
     })().catch((caught) => {
-      if (!cancelled) setError(errorMessage(caught, "Drafts could not be opened."));
-    }).finally(() => { if (!cancelled) setDraftBusy(false); });
+      if (!cancelled) {
+        if (projectId && draftRef.current?.projectId !== projectId) clearDraftEffect();
+        setError(errorMessage(caught, "Drafts could not be opened."));
+      }
+    }).finally(() => { if (!cancelled) {
+      routeLoading.current = false;
+      setDraftBusy(false);
+    } });
     return () => { cancelled = true; openRequest.current += 1; };
-  }, [host, initialDraftId]);
+  }, [host, initialDraftId, projectId]);
 
   useEffect(() => {
-    onDraftChange?.(draft, !operationBusy && (!draft || sameState(draft.state, stateRef.current)));
+    if (!initialDraftId && initialDocuments?.length) {
+      pendingDocuments.current = initialDocuments;
+      if (!routeLoading.current) setCreating(true);
+    }
+  }, [initialDraftId, initialDocuments]);
+
+  useEffect(() => {
+    onDraftChange?.(draft, !routeLoading.current && draft === draftRef.current &&
+      !operationBusy && (!draft || sameState(draft.state, stateRef.current)));
   }, [draft, operationBusy, profileId, cover, entries, onDraftChange]);
 
   useEffect(() => {
-    if (refreshToken === undefined || refreshToken <= (refreshSeen.current ?? 0)) return;
-    refreshSeen.current = refreshToken;
-    void refreshDraftEffect(refreshToken);
-  }, [refreshToken]);
+    if (!draft?.id || refreshToken?.id !== draft.id ||
+        refreshToken.sequence <= refreshSeen.current) return;
+    refreshSeen.current = refreshToken.sequence;
+    void refreshDraftEffect(refreshToken.revision);
+  }, [draft?.id, refreshToken]);
 
   useEffect(() => {
     if (!draft || operationBusy || sameState(draft.state, stateRef.current)) return;
@@ -139,8 +192,12 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
 
   function rememberDraft(next: WorkProduct<CourtRecordDraft>) {
     draftRef.current = next;
+    if (!mounted.current) return;
     setDraft(next);
-    setDrafts((current) => [next, ...current.filter((item) => item.id !== next.id)]
+    if (projectId && next.projectId !== projectId) return;
+    const { state, ...metadata } = next;
+    setDrafts((current) => [{ ...metadata, profileId: state.profileId },
+      ...current.filter((item) => item.id !== next.id)]
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)));
   }
 
@@ -154,7 +211,8 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     setCover({}); setEntries([]);
     setResult(undefined); setShowErrors(false);
     setCreating(false); setSavedOpen(false);
-    setSourceKindId(undefined); setError(undefined); setProgress(undefined);
+    setSourceKindId(undefined); setSourceExhibitLabel(undefined);
+    setError(undefined); setProgress(undefined);
   }
 
   function saveCurrentDraft(): Promise<WorkProduct<CourtRecordDraft> | undefined> {
@@ -162,14 +220,15 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     const current = draftRef.current;
     const state = stateRef.current;
     if (!current || sameState(current.state, state)) return Promise.resolve(current);
-    const operation = host.drafts.update<CourtRecordDraft>(current.id, {
+    const operation = Promise.resolve(host.drafts.update<CourtRecordDraft>(current.id, {
       revision: current.revision,
       state,
-    }).then((saved) => {
+    })).then((saved) => {
+      if (!saved) return;
       rememberDraft(saved);
       return saved;
     }).catch((caught) => {
-      setError(errorMessage(caught, "This draft could not be saved."));
+      if (mounted.current) setError(errorMessage(caught, "This draft could not be saved."));
       return undefined;
     });
     savingDraft.current = operation;
@@ -180,6 +239,9 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   }
 
   async function openDraft(next: WorkProduct<CourtRecordDraft>) {
+    if (projectId && next.projectId !== projectId) {
+      throw new Error("This Court Record draft is not in this project.");
+    }
     const opening = openingRevision.current;
     if (opening?.id === next.id && opening.revision > next.revision) return;
     openingRevision.current = { id: next.id, revision: next.revision };
@@ -188,22 +250,22 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     setError(undefined);
     setProgress("Opening draft");
     try {
+      const definition = COURT_PROFILE_BY_ID.get(next.state.profileId);
+      if (!definition) throw new Error("This filing format is not available.");
       const restored = await restoreCourtRecordDraft(next, host, (message) => {
         if (request === openRequest.current) setProgress(message);
       },
         draftRef.current?.id === next.id ? entries : []);
       if (request !== openRequest.current) return;
       stateVersion.current += 1;
-      const nextProfile = COURT_PROFILE_BY_ID.has(next.state.profileId)
-        ? next.state.profileId : "";
-      setProfileId(nextProfile);
+      setProfileId(definition.id);
       const restoredCover = next.state.cover ?? {};
-      setCover(nextProfile ? fillSourceCover(COURT_PROFILE_BY_ID.get(nextProfile)!, restoredCover,
-        restored.flatMap((entry) => entry.sourceFields ? [entry.sourceFields] : [])) : restoredCover);
+      setCover(fillSourceCover(definition, restoredCover,
+        coverSourceFields(restored), coverSourceFields(next.state.entries)));
       setEntries(fillExhibitLabels(restored));
       setResult(undefined);
       setShowErrors(false);
-      setCreating(!nextProfile);
+      setCreating(false);
       rememberDraft(next);
     } catch (caught) {
       if (request === openRequest.current) {
@@ -234,8 +296,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
 
   async function newDraft(nextProfileId: string) {
     setCreating(false);
-    const nextProfile = effectiveCourtProfiles().some(({ id }) => id === nextProfileId)
-      ? nextProfileId : DEFAULT_PROFILE_ID;
+    const nextProfile = COURT_PROFILE_BY_ID.has(nextProfileId) ? nextProfileId : DEFAULT_PROFILE_ID;
     setDraftBusy(true);
     try {
       const definition = COURT_PROFILE_BY_ID.get(nextProfile)!;
@@ -243,7 +304,13 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       const defaults = Object.fromEntries(Object.entries(await host.newDraftCover?.() ?? {})
         .filter(([field]) => allowed.has(field))) as CoverValues;
       const created = await host.drafts.create({ kind: "court-record",
-        title: "Untitled court record", state: courtRecordDraft(nextProfile, defaults, []) });
+        title: definition.label, ...(projectId && { projectId }),
+        state: { ...courtRecordDraftFromDocuments(nextProfile, pendingDocuments.current ?? []),
+          cover: defaults } });
+      if (pendingDocuments.current) {
+        pendingDocuments.current = undefined;
+        onDocumentsConsumed?.();
+      }
       await openDraft(created);
     } catch (caught) {
       setError(errorMessage(caught, "The court record could not be created."));
@@ -269,12 +336,8 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   async function duplicateDraft() {
     const current = await saveCurrentDraft();
     if (!current) return;
-    const created = await host.drafts.create({
-      kind: "court-record",
-      title: `${current.title} copy`,
-      projectId: current.projectId,
-      state: stateRef.current,
-    });
+    const created = await host.drafts.duplicate<CourtRecordDraft>(current.id,
+      { title: `${current.title} copy`, projectId: current.projectId });
     await openDraft(created);
   }
 
@@ -312,31 +375,41 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     const next = COURT_PROFILE_BY_ID.get(nextId);
     if (!next) return;
     if (next.id === profileId) { setCreating(false); return; }
-    const assigned = entries.some((entry) =>
-      profile.documentKinds.some((kind) => kind.id === entry.kindId));
-    if (assigned && !window.confirm("Changing the format will remove the assigned source files in this build.")) return;
-    const sourceFields = entries.filter((entry) =>
-      !profile.documentKinds.some((kind) => kind.id === entry.kindId))
-      .flatMap((entry) => entry.sourceFields ? [entry.sourceFields] : []);
+    const sourceFields = coverSourceFields(entries);
     setCover((current) => {
       const fields = new Set<string>(next.cover.fields.map(({ id }) => id));
       const kept = Object.fromEntries(Object.entries(current)
         .filter(([field]) => fields.has(field))) as CoverValues;
-      const styleId = current.partyStyleId ?? profile.cover.partyStyles?.[0]?.id;
-      const style = next.cover.partyStyles?.find(({ id }) => id === styleId);
+      const styleId = current.partyStyleId;
+      const styles = next.cover.partyStyles;
+      const style = styles?.find(({ id }) => id === styleId) ??
+        (styles?.length === 1 ? styles[0] : undefined);
       if (!style) return fillSourceCover(next, kept, sourceFields);
-      const groups = current.partyGroups?.filter(({ id }) =>
-        style.groups.some((group) => group.id === id));
-      const filingPartyId = current.filingPartyId && groups?.some((group) =>
-        (!next.cover.filingGroupId || group.id === next.cover.filingGroupId) &&
-        group.parties.some(({ id }) => id === current.filingPartyId))
-        ? current.filingPartyId : undefined;
+      const groups = current.partyGroups?.flatMap((group) => {
+        const definition = style.groups.find(({ id }) => id === group.id);
+        return definition ? [{ ...group, role: definition.role,
+          roleBelow: definition.roleBelow }] : [];
+      });
+      const eligible = new Set(groups?.filter((group) => !next.cover.filingGroupId ||
+        group.id === next.cover.filingGroupId).flatMap((group) => group.parties.map(({ id }) => id)));
+      const retainedFilers = current.filingPartyIds?.filter((id) => eligible.has(id));
+      const filingPartyIds = retainedFilers?.length ? retainedFilers
+        : next.cover.filingGroupId ? [...eligible] : undefined;
       return fillSourceCover(next,
-        { ...kept, partyStyleId: style.id, partyGroups: groups, filingPartyId }, sourceFields);
+        { ...kept, partyStyleId: style.id, partyGroups: groups, filingPartyIds }, sourceFields);
     });
     setProfileId(next.id);
-    setEntries((current) => current.filter((entry) =>
-      !profile.documentKinds.some((kind) => kind.id === entry.kindId)));
+    const oldKinds = new Set(profile.documentKinds.map(({ id }) => id));
+    const nextKinds = new Set(next.documentKinds.map(({ id }) => id));
+    const noteKinds = next.documentKinds.filter(({ descriptionOnly, requirement }) =>
+      descriptionOnly && requirement !== "forbidden");
+    setEntries((current) => fillExhibitLabels(current.map((entry) =>
+      !oldKinds.has(entry.kindId) || nextKinds.has(entry.kindId) ? entry : {
+        ...entry, kindId: entry.descriptionOnly
+          ? noteKinds.length === 1 ? noteKinds[0].id : entry.kindId
+          : "other-document",
+        exhibitLabel: undefined,
+      })));
     setShowErrors(false);
     setCreating(false);
     invalidate();
@@ -346,23 +419,27 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     const kind = profile.documentKinds.find((item) => item.id === kindId &&
       item.requirement !== "forbidden" && !item.generated && !item.descriptionOnly);
     if (!kind) return;
+    const assigned = entries.find((entry) => entry.id === id);
     setEntries((current) => fillExhibitLabels(current.map((entry) => {
       if (entry.id !== id) return entry;
-      const title = kind.repeatable ? titleFromFile(entry.file.name) : kind.label;
-      return sourceEntry({ ...entry, kindId, title }, title);
+      return applySourceEntryFields({ ...entry, kindId });
     })));
+    if (assigned) {
+      applySourceCover(applySourceEntryFields({ ...assigned, kindId }));
+    }
     invalidate();
   }
 
-  async function addFiles(kindId: string, files: File[]) {
-    return addSelectedFiles(kindId, files.map((file) => ({ file })));
+  async function addFiles(kindId: string, files: File[], exhibitLabel?: string) {
+    return addSelectedFiles(kindId, files.map((file) => ({ file })), exhibitLabel);
   }
 
-  async function pickFiles(kindId: string) {
+  async function pickFiles(kindId: string, exhibitLabel?: string) {
     const kind = profile.documentKinds.find((item) => item.id === kindId);
     if (!kind || !host.pickDeviceFiles) return;
     try {
-      await addSelectedFiles(kindId, await host.pickDeviceFiles(!!kind.repeatable));
+      await addSelectedFiles(kindId,
+        await host.pickDeviceFiles(!!kind.repeatable && !exhibitLabel), exhibitLabel);
     } catch (caught) {
       if (!(caught instanceof DOMException && caught.name === "AbortError")) {
         setError(errorMessage(caught, "The file could not be selected."));
@@ -370,52 +447,59 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     }
   }
 
-  async function addSelectedFiles(kindId: string, files: SelectedFile[]) {
+  async function addSelectedFiles(kindId: string, files: SelectedFile[], exhibitLabel?: string) {
     const kind = profile.documentKinds.find((item) => item.id === kindId);
     if (!kind || kind.requirement === "forbidden" || !files.length) return;
-    const selected = kind.repeatable ? files : files.slice(0, 1);
+    const selected = kind.repeatable && !exhibitLabel ? files : files.slice(0, 1);
     for (const selection of selected) {
       const { file } = selection;
-      const id = crypto.randomUUID();
+      const previous = replacementEntry(entries, kind, exhibitLabel);
+      const id = previous?.id ?? crypto.randomUUID();
       const pending: RecordEntry = {
         id,
         kindId,
         file,
-        title: kind.repeatable ? titleFromFile(file.name) : kind.label,
+        title: previous?.title ?? titleFromFile(file.name),
+        ...(previous?.date ? { date: previous.date } : {}),
+        ...(previous?.sourceExhibits ? { sourceExhibits: previous.sourceExhibits } : {}),
         pageCount: null,
         searchable: null,
         encrypted: null,
         origin: { kind: "device" },
         binding: selection.input,
       };
-      setEntries((current) => [...current, pending]);
+      setEntries((current) => current.some((entry) => entry.id === id)
+        ? current.map((entry) => entry.id === id ? pending : entry)
+        : [...current, pending]);
       setBusyEntryId(id);
       setProgress(`Preparing ${file.name}`);
       invalidate();
       try {
         const prepared = await host.prepareDeviceFile(file, (message) => setProgress(message),
           { workProductId: draftRef.current?.id });
-        let ready = sourceEntry({ ...pending, ...prepared,
-          binding: prepared.binding ?? selection.input }, pending.title);
-        setEntries((current) => fillExhibitLabels(current.map((entry) => entry.id === id ? ready : entry)));
-        applySourceCover(ready.sourceFields);
+        let ready = applySourceEntryFields({ ...pending, ...prepared,
+          binding: prepared.binding ?? selection.input }, previous ? undefined : pending.title,
+        previous?.sourceFields);
+        setEntries((current) => putPreparedEntry(current, ready, exhibitLabel));
+        applySourceCover(ready);
         if (host.runOcr && needsOcr(ready)) {
           try {
             const patch = await ocr(ready);
             if (patch) {
-              ready = sourceEntry({ ...ready, ...patch }, pending.title);
-              setEntries((current) => fillExhibitLabels(current.map((entry) => entry.id === id ? ready : entry)));
-              applySourceCover(ready.sourceFields);
+              ready = applySourceEntryFields({ ...ready, ...patch },
+                previous ? undefined : pending.title, ready.sourceFields);
+              setEntries((current) => putPreparedEntry(current, ready, exhibitLabel));
+              applySourceCover(ready);
             }
           } catch (caught) {
             setError(errorMessage(caught, "OCR failed."));
           }
         }
       } catch (caught) {
-        setEntries((current) => current.map((entry) => entry.id === id ? {
-          ...entry,
-          inspectionError: errorMessage(caught, "The PDF could not be prepared."),
-        } : entry));
+        setEntries((current) => current.map((entry) => entry.id === id
+          ? previous ?? { ...entry,
+            inspectionError: errorMessage(caught, "The PDF could not be prepared.") }
+          : entry));
       } finally {
         setBusyEntryId(undefined);
         setProgress(undefined);
@@ -457,15 +541,18 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       if (resolved.status === "missing") return;
       const prepared = resolved.prepared ?? await host.prepareDeviceFile(resolved.file,
         (message) => setProgress(message), { workProductId: draftRef.current?.id });
-      setEntries((current) => fillExhibitLabels(current.map((item) => item.id === id ? sourceEntry({
-        ...item,
+      const ready = applySourceEntryFields({
+        ...entry,
         ...prepared,
         binding: resolved.input,
         inputStatus: resolved.status,
         missingReason: undefined,
         lastSeen: undefined,
-      }) : item)));
-      applySourceCover(prepared.sourceFields);
+        nonTextPagesConfirmed: undefined,
+      }, undefined, entry.sourceFields);
+      setEntries((current) => fillExhibitLabels(current.map((item) =>
+        item.id === id ? ready : item)));
+      applySourceCover(ready);
       invalidate();
     } catch (caught) {
       if (!(caught instanceof DOMException && caught.name === "AbortError")) {
@@ -486,9 +573,9 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     try {
       const patch = await ocr(entry);
       if (!patch) return;
-      const ready = sourceEntry({ ...entry, ...patch });
+      const ready = applySourceEntryFields({ ...entry, ...patch }, undefined, entry.sourceFields);
       setEntries((current) => fillExhibitLabels(current.map((item) => item.id === id ? ready : item)));
-      applySourceCover(ready.sourceFields);
+      applySourceCover(ready);
     } catch (caught) {
       setError(errorMessage(caught, "OCR failed."));
     } finally {
@@ -500,14 +587,19 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   async function currentInputs(items: RecordEntry[]) {
     return Promise.all(items.map(async (entry) => {
       if (!entry.binding || entry.descriptionOnly) return entry;
-      const resolved = await host.resolveInput(entry.binding, (message) => setProgress(message));
+      const destination = profile.documentKinds.find(({ id }) => id === entry.kindId);
+      const resolved = await host.resolveInput(entry.binding,
+        (message) => setProgress(message), destination);
       if (resolved.status === "missing") {
         return { ...entry, inputStatus: "missing" as const, missingReason: resolved.reason };
       }
       const prepared = resolved.prepared ?? await host.prepareDeviceFile(resolved.file,
         (message) => setProgress(message), { workProductId: draftRef.current?.id });
-      let next: RecordEntry = sourceEntry({ ...entry, ...prepared, binding: resolved.input,
-        inputStatus: resolved.status, missingReason: undefined });
+      let next: RecordEntry = applySourceEntryFields({ ...entry, ...prepared,
+        binding: resolved.input, inputStatus: resolved.status, missingReason: undefined,
+        nonTextPagesConfirmed: resolved.status === "ready"
+          ? entry.nonTextPagesConfirmed : undefined },
+      undefined, entry.sourceFields);
       if (host.runOcr && needsOcr(next)) next = { ...next, ...await ocr(next) };
       return next;
     }));
@@ -515,7 +607,9 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
 
   async function build() {
     if (operationBusy || locked) return;
-    if (!report.ready) {
+    const sourceMayFill = report.blockers.some(({ fieldId }) => fieldId) &&
+      entries.some((entry) => sourceKindMayFillCover(entry.kindId) && entry.binding);
+    if (!report.ready && !sourceMayFill) {
       setShowErrors(true);
       setError(report.blockers[0]?.title ?? "Complete the required information.");
       requestAnimationFrame(() => focusFinding(report.blockers[0]));
@@ -527,18 +621,20 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     const version = stateVersion.current;
     try {
       const buildEntries = fillExhibitLabels(await currentInputs(entries));
+      const buildCover = fillSourceCover(profile, cover, coverSourceFields(buildEntries),
+        coverSourceFields(entries));
       setEntries(buildEntries);
-      const buildReport = validateCourtRecord({ profile, entries: buildEntries, cover });
+      setCover(buildCover);
+      const buildReport = validateCourtRecord({ profile, entries: buildEntries, cover: buildCover });
       if (!buildReport.ready) {
         setShowErrors(true);
         requestAnimationFrame(() => focusFinding(buildReport.blockers[0]));
         throw new Error(buildReport.blockers[0]?.title ?? "Complete the required information.");
       }
-      const { buildCourtRecord } = await loadAssembly();
       const built = await buildCourtRecord({
         profile,
         entries: buildEntries,
-        cover,
+        cover: buildCover,
         preparationDate: new Date().toLocaleDateString("en-CA"),
         needsAttention: buildReport.review.map(({ title, detail }) => ({ title, detail })),
         onProgress: (message, completed, total) => setProgress(`${message} · ${completed}/${total}`),
@@ -594,12 +690,28 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       const saved = await host.saveArtifacts({ artifacts: result.artifacts,
         product: current, entries: currentEntries, receipt: result.receipt });
       rememberDraft(saved.product);
-      setProgress(`${result.artifacts.length} file${result.artifacts.length === 1 ? "" : "s"} saved`);
+      setProgress(saved.notice ??
+        `${result.artifacts.length} file${result.artifacts.length === 1 ? "" : "s"} saved`);
     } catch (caught) {
       setError(errorMessage(caught, "The built files could not be saved."));
     } finally {
       setSaving(false);
     }
+  }
+
+  async function saveFilingContact() {
+    if (!host.saveFilingContact) return;
+    const allowed = new Set(profile.cover.fields.map(({ id }) => id));
+    const values = Object.fromEntries(FILING_CONTACT_FIELDS
+      .filter((field) => allowed.has(field) && cover[field] !== undefined)
+      .map((field) => [field, cover[field]])) as FilingContactCover;
+    setSavingFilingContact(true); setError(undefined);
+    try {
+      await host.saveFilingContact(values);
+      setProgress("Filing details saved for new records");
+    } catch (caught) {
+      setError(errorMessage(caught, "Filing details could not be saved."));
+    } finally { setSavingFilingContact(false); }
   }
 
   async function searchSources(query: string, kindId = sourceKindId) {
@@ -614,7 +726,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       const [library, outputs] = await Promise.all([
         host.searchLibrary?.(query, formats,
           { workProductId: draftRef.current?.id }) ?? [],
-        host.searchDraftOutputs?.(query, formats, draftRef.current?.id) ?? [],
+        host.searchDraftOutputs?.(query, kind, draftRef.current?.id) ?? [],
       ]);
       const results = new Map<string, { document: Document; draft?: DraftOutputChoice }>(
         library.map((document) => [document.id, { document }]),
@@ -632,8 +744,9 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     }
   }
 
-  function openSource(kindId: string) {
+  function openSource(kindId: string, exhibitLabel?: string) {
     setSourceKindId(kindId);
+    setSourceExhibitLabel(exhibitLabel);
     setSourceQuery("");
     setSourceResults([]);
     void searchSources("", kindId);
@@ -643,7 +756,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     if (!sourceKindId) return;
     const selected = sourceResults.find((item) => item.document.id === document.id);
     if (!selected) return;
-    const kindId = sourceKindId;
+    const kindId = sourceKindId, exhibitLabel = sourceExhibitLabel;
     const kind = profile.documentKinds.find((item) => item.id === kindId);
     if (!kind) return;
     setSourceBusy(true);
@@ -651,12 +764,16 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     setResult(undefined);
     try {
       const prepared = selected.draft
-        ? await host.importDraftOutput!(selected.draft, (message) => setProgress(message))
+        ? await host.importDraftOutput!(selected.draft, kind,
+          (message) => setProgress(message))
         : await host.importLibraryDocument!(selected.document, (message) => setProgress(message));
+      const previous = replacementEntry(entries, kind, exhibitLabel);
       const entry: RecordEntry = {
-        id: crypto.randomUUID(),
+        id: previous?.id ?? crypto.randomUUID(),
         kindId,
-        title: kind.repeatable ? titleFromFile(prepared.file.name) : kind.label,
+        title: previous?.title ?? titleFromFile(prepared.file.name),
+        ...(previous?.date ? { date: previous.date } : {}),
+        ...(previous?.sourceExhibits ? { sourceExhibits: previous.sourceExhibits } : {}),
         ...prepared,
       };
       setBusyEntryId(entry.id);
@@ -665,10 +782,12 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         try { patch = await ocr(entry); }
         catch (caught) { setError(errorMessage(caught, "OCR failed.")); }
       }
-      const ready = sourceEntry({ ...entry, ...patch }, entry.title);
-      setEntries((current) => fillExhibitLabels([...current, ready]));
-      applySourceCover(ready.sourceFields);
+      const ready = applySourceEntryFields({ ...entry, ...patch },
+        previous ? undefined : entry.title, previous?.sourceFields);
+      setEntries((current) => putPreparedEntry(current, ready, exhibitLabel));
+      applySourceCover(ready);
       setSourceKindId(undefined);
+      setSourceExhibitLabel(undefined);
     } catch (caught) {
       setError(errorMessage(caught, "The selected file could not be added."));
     } finally {
@@ -680,9 +799,12 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
 
   const sourceKind = profile.documentKinds.find((item) => item.id === sourceKindId);
 
-  function applySourceCover(fields?: SourceDocumentFields) {
-    if (!fields) return;
-    setCover((current) => fillSourceCover(profile, current, [fields]));
+  function applySourceCover(entry?: RecordEntry) {
+    if (!entry || !propagatingSourceFields(entry)) return;
+    const previous = coverSourceFields(entries);
+    const sources = [...coverSourceFields(entries.filter(({ id }) => id !== entry.id)),
+      entry.sourceFields!];
+    setCover((current) => fillSourceCover(profile, current, sources, previous));
     invalidate();
   }
   const WorkspaceElement = host.mode === "standalone" ? "main" : "div";
@@ -695,69 +817,101 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       kindIds={kindIds}
       showUnassigned={showUnassigned}
       heading={heading}
-      onFiles={(kindId, files) => void addFiles(kindId, files)}
+      onFiles={(kindId, files, exhibitLabel) => void addFiles(kindId, files, exhibitLabel)}
       onDescription={addDescription}
-      onPick={host.pickDeviceFiles ? (kindId) => void pickFiles(kindId) : undefined}
+      onPick={host.pickDeviceFiles
+        ? (kindId, exhibitLabel) => void pickFiles(kindId, exhibitLabel) : undefined}
       onLibrary={host.searchLibrary || host.searchDraftOutputs ? openSource : undefined}
-      sourceLabel={host.searchLibrary ? "Library" : "Saved drafts"}
+      sourceLabel={host.searchLibrary ? "Library" : "Saved outputs"}
       onEntry={(id, patch) => { setEntries((current) => current.map((entry) => entry.id === id ? { ...entry, ...patch } : entry)); invalidate(); }}
-      onMove={(id, beforeId) => { setEntries((current) => moveEntry(current, id, beforeId)); invalidate(); }}
       onAssign={(id, label) => { setEntries((current) => assignExhibit(current, id, label)); invalidate(); }}
+      onAddExhibit={() => {
+        const slots = sourceExhibitSlots(entries);
+        const affidavit = entries.find((entry) => entry.kindId === "affidavit");
+        if (!slots || !affidavit || slots.labels.length >= 702) return;
+        setEntries((current) => current.map((entry) => entry.id === affidavit.id ? {
+          ...entry, sourceExhibits: { sourceSha256: slots.sourceSha256,
+            labels: [...slots.labels, exhibitName(slots.labels.length)] },
+        } : entry));
+        invalidate();
+      }}
       onAssignKind={assignKind}
-      onRemove={(id) => { setEntries((current) => current.filter((entry) => entry.id !== id)); invalidate(); }}
+      onRemove={(id) => { setEntries((current) =>
+        fillExhibitLabels(current.filter((entry) => entry.id !== id))); invalidate(); }}
       onOcr={host.runOcr ? (id) => void runOcr(id) : undefined}
       onRelink={host.relinkInput ? (id) => void relinkEntry(id) : undefined}
     />
   );
+  const canSaveFilingContact = !!host.saveFilingContact && FILING_CONTACT_FIELDS.some((field) =>
+    profile.cover.fields.some(({ id }) => id === field));
   const setup = (heading: string) => <CourtRecordSetup
     profile={profile} cover={cover} missingFields={missingFields} heading={heading}
+    onSaveFilingContact={canSaveFilingContact ? () => void saveFilingContact() : undefined}
+    savingFilingContact={savingFilingContact}
     onCover={(field, value) => {
-      setCover((current) => ({ ...current, [field]: value })); invalidate();
+      setCover((current) => field === "partyStyleId" && typeof value === "string"
+        ? fillSourceCover(profile, { ...current, [field]: value }, coverSourceFields(entries))
+        : { ...current, [field]: value });
+      invalidate();
     }} />;
+  const actions = <>{host.outputFolder && <Button type="button" variant="outline"
+    aria-label="Settings" className="h-9 w-9 shrink-0 border-gray-400 px-0 sm:w-auto sm:px-4"
+    disabled={operationBusy || locked}
+    onClick={() => setSettingsOpen(true)}>
+    <Settings2 /><span className="hidden sm:inline">Settings</span></Button>}{headerActions}</>;
+  const headerClass = host.mode === "standalone"
+    ? "mx-auto w-[calc(100%-2rem)] max-w-[78rem] max-sm:[&_h1]:text-xl md:w-[calc(100%-3rem)]"
+    : undefined;
   return (
     <div className={cn("court-records-workspace bg-app-background [scrollbar-gutter:stable]", host.mode === "standalone"
       ? "min-h-dvh"
       : "h-full min-h-0 overflow-y-auto")}>
       <a href="#court-record-workspace" className="fixed left-3 top-3 z-50 -translate-y-20 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-950 shadow focus:translate-y-0 focus:ring-2 focus:ring-red-600">Skip to builder</a>
-      {draft ? <WorkspaceHeader className={host.mode === "standalone" ? "max-w-[78rem]" : "w-full"} current={draft}
-          busy={operationBusy || locked} itemLabel="court record" headerActions={headerActions}
+      {draft ? <WorkspaceHeader className={headerClass} current={draft}
+          busy={operationBusy || locked} itemLabel="court record" headerActions={actions}
           onBack={() => void closeDraft()} onRename={(title) => void renameDraft(title)}
           onDuplicate={() => void duplicateDraft()} onDelete={() => void deleteDraft()} />
-          : <WorkspaceHeader className={host.mode === "standalone" ? "max-w-[50rem]" : "w-full"} title="Court Records"
-            headerActions={headerActions} />}
+          : <WorkspaceHeader className={headerClass} title="Court Records"
+            headerActions={actions} />}
       {!draft ? <WorkspaceElement id="court-record-workspace" tabIndex={-1}
         aria-busy={draftBusy} inert={draftBusy}
         className="mx-auto min-h-80 max-w-[50rem] px-4 py-4 outline-none sm:px-6">
         <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm sm:p-5">
-        {!(draftBusy && initialDraftId) && <><h2 className="font-semibold text-gray-950">Start a court record</h2>
-        <p className="text-sm text-gray-600">Choose a filing format or open a saved record.</p>
+        {draftBusy && initialDraftId ? <p className="text-sm text-gray-600" role="status">
+          Opening court record
+        </p> : <><div className="flex items-center gap-3">
+          <Files className="h-6 w-6 shrink-0 text-red-700" aria-hidden="true" />
+          <p className="text-sm text-gray-600">{drafts.length
+            ? "Create a filing or continue a saved record."
+            : "Choose a filing format to begin."}</p>
+        </div>
         <div className="mt-5 flex flex-wrap gap-2">
           <Button disabled={draftBusy} onClick={() => setCreating(true)}>New court record</Button>
           {!!drafts.length && <Button variant="outline" disabled={draftBusy}
             onClick={() => setSavedOpen(true)}>Open saved record</Button>}
+          {(error || progress || draftBusy) && <p className={cn("inline-flex min-h-10 items-center text-sm",
+            error ? "text-red-700" : "text-gray-600")} role={error ? "alert" : "status"}>
+            {error || progress || (initialDraftId ? "Opening court record" : "Loading court records")}
+          </p>}
         </div></>}
-        <p className={cn("mt-4 min-h-5 text-sm", error ? "text-red-700" : "text-gray-600")}
-          role={error ? "alert" : "status"}>{error || progress || (draftBusy
-            ? initialDraftId ? "Opening court record" : "Loading court records" : "")}</p>
         </section>
-      </WorkspaceElement> : !hasProfile ? <WorkspaceElement id="court-record-workspace"
-        tabIndex={-1} className="mx-auto min-h-80 max-w-[78rem] outline-none" />
-      : <div inert={locked} aria-busy={locked || undefined}
+      </WorkspaceElement> : <div inert={locked} aria-busy={locked || undefined}
         className="court-record-layout mx-auto grid max-w-[78rem] grid-cols-[minmax(0,1fr)] items-start gap-5 px-4 py-5 sm:px-6">
         <WorkspaceElement id="court-record-workspace" tabIndex={-1}
           aria-busy={operationBusy || locked} inert={operationBusy || locked}
           className="min-w-0 space-y-4 outline-none">
           <section className="px-1 pb-1" aria-labelledby="builder-intro-heading">
-            <h2 id="builder-intro-heading" className="text-balance font-serif text-xl font-semibold leading-tight text-gray-950 sm:text-2xl">
+            <h2 id="builder-intro-heading" className="text-balance text-xl font-semibold leading-tight text-gray-950 sm:text-2xl">
               {isAffidavit ? "Build an affidavit with exhibits" : `Build ${profile.label.toLowerCase()}`}
             </h2>
             <p className="mt-1 max-w-2xl text-base leading-6 text-gray-600">
               {isAffidavit ? "Add the affidavit, complete the case details, then add the exhibits in order."
-                : hasCaseDetails ? "Add the documents, complete the case details, then review and build the record."
+                : hasCaseDetails ? "Complete the case details, add the documents, then review and build the record."
                   : "Add the documents, then review and prepare the filing set."}
             </p>
           </section>
-          <CourtRecordChooser profile={profile} onProfile={chooseProfile} />
+          <CourtRecordChooser profile={profile} onProfile={chooseProfile}
+            jurisdictionOrder={jurisdictionOrder} />
           {isAffidavit ? <>
             {documents("1. Add the affidavit", ["affidavit"], true)}
             {setup("2. Case details")}
@@ -785,14 +939,20 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         />
       </div>}
       {creating && <CourtRecordChooser creating profile={profile}
-        onProfile={(id) => draft && !hasProfile ? chooseProfile(id) : void newDraft(id)}
-        onCancel={() => draft && !hasProfile ? void closeDraft() : setCreating(false)} />}
+        jurisdictionOrder={jurisdictionOrder}
+        onProfile={(id) => void newDraft(id)}
+        onCancel={() => {
+          setCreating(false);
+          pendingDocuments.current = undefined;
+          onDocumentsConsumed?.();
+        }} />}
       {savedOpen && <SearchableChoiceModal open title="Open saved record"
         searchLabel="Search saved records" searchable={drafts.length > 8}
-        size="lg" className="h-[min(28rem,calc(100dvh-2rem))]"
+        size="lg"
+        listClassName="space-y-1 [&>button]:border [&>button]:border-gray-200 [&>button]:px-3 [&>button]:py-2"
         value={null} options={drafts.map(({ id, title, profileId, createdAt }) => ({
           value: id, label: title,
-          description: `${COURT_PROFILE_BY_ID.get(profileId ?? "")?.shortLabel ?? "Court record"} · Created ${formatDate(createdAt)}`,
+          description: `${COURT_PROFILE_BY_ID.get(profileId ?? "")?.shortLabel ?? "Court record"} · Created ${formatDateTime(createdAt)}`,
         }))}
         onChange={(id) => {
           const next = drafts.find((item) => item.id === id);
@@ -801,9 +961,9 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       {draft && sourceKindId && sourceKind && (
         <LibraryDocumentPicker
           open
-          title={`Add ${sourceKind.label} from ${host.searchLibrary ? "Library" : "saved drafts"}`}
+          title={`Choose ${sourceKind.label}`}
           formatLabel={sourceFormatLabel(sourceKind)}
-          sourceLabel={host.searchLibrary ? "Library" : "Saved drafts"}
+          sourceLabel={host.searchLibrary ? "Library" : "Saved outputs"}
           query={sourceQuery}
           results={sourceResults.map(({ document }) => document)}
           busy={sourceBusy}
@@ -813,9 +973,13 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
           }}
           onQuery={(query) => void searchSources(query)}
           onSelect={(document) => void importSource(document)}
-          onClose={() => setSourceKindId(undefined)}
+          onClose={() => { setSourceKindId(undefined); setSourceExhibitLabel(undefined); }}
         />
       )}
+      {host.outputFolder && <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)}
+        size="lg" breadcrumbs={["Settings"]}>
+        <OutputFolderSetting port={host.outputFolder} busy={operationBusy} />
+      </Modal>}
     </div>
   );
 }
@@ -832,7 +996,14 @@ function findingsByEntry(findings: ComplianceFinding[]) {
 function focusFinding(finding?: ComplianceFinding) {
   if (!finding) return;
   let target: HTMLElement | null = null;
-  if (finding.fieldId === "partyGroups") {
+  if (finding.fieldId === "partyContacts") {
+    const details = [...document.querySelectorAll<HTMLDetailsElement>("[data-contact-finding-id]")]
+      .find((item) => item.dataset.contactFindingId === finding.id);
+    if (details) {
+      details.open = true;
+      target = details.querySelector<HTMLElement>("[aria-invalid=true], input, textarea");
+    }
+  } else if (finding.fieldId === "partyGroups") {
     target = document.querySelector(`[data-party-group-id="${finding.id.slice(6)}"] input`);
   } else if (finding.fieldId) {
     target = document.getElementById(`cover-${finding.fieldId}`);
@@ -857,67 +1028,135 @@ function titleFromFile(filename: string) {
   return filename.replace(/\.(?:pdf|docx)$/iu, "").replace(/[_-]+/gu, " ").replace(/\s+/gu, " ").trim();
 }
 
+const sourceKindMayFillCover = (kindId: string) => !/(?:authority|exhibit)/u.test(kindId);
+const coverSourceFields = (entries: Array<{ kindId: string;
+  sourceFields?: SourceDocumentFields }>) => entries.flatMap((entry) =>
+  propagatingSourceFields(entry) ? [entry.sourceFields!] : []);
+
 function fillSourceCover(profile: CourtProfile, current: CoverValues,
-  sources: SourceDocumentFields[]): CoverValues {
-  if (!sources.length) return current;
-  const allowed = new Set(profile.cover.fields.map(({ id }) => id));
+  sources: SourceDocumentFields[], previous: SourceDocumentFields[] = []): CoverValues {
+  if (!sources.length && !previous.length) return current;
+  const allowedFields = new Set(profile.cover.fields.flatMap(({ id }) =>
+    profile.cover.template === "abca-ap5" && id === "recordTitle" ? [] : [id]));
   const cover = { ...current };
-  for (const source of sources) {
-    for (const [field, value] of Object.entries(source.cover)) {
-      if (allowed.has(field as keyof typeof source.cover) && value &&
-        !cover[field as keyof typeof source.cover]?.trim()) {
-        cover[field as keyof typeof source.cover] = value;
-      }
+  for (const id of allowedFields) {
+    const next = sourceCoverValue(sources, id), prior = sourceCoverValue(previous, id);
+    if (!cover[id]?.trim() || prior && cover[id] === prior) {
+      if (next) cover[id] = next;
+      else if (prior) delete cover[id];
     }
   }
   const styles = profile.cover.partyStyles;
-  const partySources = sources.filter((source) => source.parties);
-  if (!styles?.length || !partySources.length) return cover;
-  const sourceStyleId = sources.find((source) =>
-    styles.some(({ id }) => id === source.partyStyleId))?.partyStyleId;
-  const styleId = cover.partyStyleId || sourceStyleId || styles[0].id;
-  const style = styles.find(({ id }) => id === styleId)!;
-  const groups = style.groups.flatMap((definition, index) => {
+  const partySources = sources.filter((source) => source.partyGroups?.length);
+  const priorPartySources = previous.filter((source) => source.partyGroups?.length);
+  if (!styles?.length || !partySources.length && !priorPartySources.length) return cover;
+  const currentStyle = styles.find(({ id }) => id === cover.partyStyleId);
+  const priorStyle = resolveSourceStyle(styles, priorPartySources);
+  const detectedStyle = resolveSourceStyle(styles, partySources);
+  const selected = !currentStyle || currentStyle.id === priorStyle?.id
+    ? detectedStyle ?? currentStyle : currentStyle;
+  const definitions = selected?.groups ?? commonPartyGroups(styles);
+  const groups = definitions.flatMap((definition) => {
     const existing = cover.partyGroups?.find(({ id }) => id === definition.id);
-    if (definition.optional && !existing) return [];
-    const value = partySources.map((source) => index ? source.parties?.second
-      : source.parties?.first).find((name) => name?.trim());
-    const parties = existing?.parties?.length ? existing.parties.map((party, partyIndex) =>
-      partyIndex === 0 && !party.name.trim() && value ? { ...party, name: value } : party)
-      : [{ id: `${definition.id}-1`, name: value ?? "" }];
+    const direct = sourceNames(partySources, definition.role);
+    const names = direct.length ? direct : sourceNames(partySources, definition.roleBelow);
+    const priorDirect = sourceNames(priorPartySources, definition.role);
+    const priorNames = priorDirect.length ? priorDirect
+      : sourceNames(priorPartySources, definition.roleBelow);
+    const currentNames = existing?.parties.map(({ name }) => name.trim()).filter(Boolean) ?? [];
+    const sourceOwned = !!priorPartySources.length && sameNames(currentNames, priorNames);
+    if (definition.optional && (!existing || sourceOwned) && !names.length &&
+        definition.id !== profile.cover.filingGroupId) return [];
+    const parties = sourceOwned ? names.map((name, index) => ({
+      ...existing?.parties[index],
+      id: existing?.parties[index]?.id ?? `${definition.id}-${index + 1}`, name,
+    })) : existing?.parties?.length ? existing.parties.map((party) => ({ ...party })) : [];
+    const known = new Set(parties.map(({ name }) => name.trim().toLocaleLowerCase()).filter(Boolean));
+    const pending = priorPartySources.length && !sourceOwned ? []
+      : names.filter((name) => !known.has(name.toLocaleLowerCase()));
+    parties.forEach((party) => { if (!party.name.trim() && pending.length) party.name = pending.shift()!; });
+    for (const name of pending) {
+      let index = parties.length + 1;
+      while (parties.some(({ id }) => id === `${definition.id}-${index}`)) index += 1;
+      parties.push({ id: `${definition.id}-${index}`, name });
+    }
+    if (!parties.length) parties.push({ id: `${definition.id}-1`, name: "" });
     return [{ id: definition.id, role: definition.role, roleBelow: definition.roleBelow, parties }];
   });
-  return { ...cover, partyStyleId: styleId, partyGroups: groups };
+  const eligibleParties = groups.filter((group) => !profile.cover.filingGroupId ||
+    group.id === profile.cover.filingGroupId).flatMap((group) => group.parties);
+  const eligible = eligibleParties.filter(({ name }) => name.trim()).map(({ id }) => id);
+  const allowedIds = new Set(eligibleParties.map(({ id }) => id));
+  const filingPartyIds = Object.hasOwn(cover, "filingPartyIds")
+    ? cover.filingPartyIds?.filter((id) => allowedIds.has(id)) ?? []
+    : profile.cover.filingGroupId || eligible.length === 1 ? eligible : undefined;
+  return { ...cover, ...(selected && { partyStyleId: selected.id }), partyGroups: groups,
+    ...(filingPartyIds && { filingPartyIds }) };
+}
+
+const sourceCoverValue = (sources: SourceDocumentFields[], id: CoverFieldId) =>
+  sources.map(({ cover }) => (cover as Partial<Record<CoverFieldId, string>>)[id])
+    .find((value) => value?.trim());
+const sameNames = (left: string[], right: string[]) => left.length === right.length &&
+  left.every((name, index) => name.toLocaleLowerCase() === right[index]?.toLocaleLowerCase());
+
+const roleKey = (value = "") => value.toLocaleLowerCase().replace(/[^a-z]+/gu, "")
+  .replace(/s$/u, "").replace("intervenor", "intervener")
+  .replace("petitioner", "applicant").replace("claimant", "plaintiff");
+function sourceNames(sources: SourceDocumentFields[], role?: string) {
+  if (!role) return [];
+  const names: string[] = [];
+  for (const group of sources.flatMap((source) => source.partyGroups ?? [])) {
+    if (![group.role, group.roleBelow].some((value) => roleKey(value) === roleKey(role))) continue;
+    for (const name of group.parties.map((value) => value.trim()).filter(Boolean)) {
+      if (!names.some((value) => value.toLocaleLowerCase() === name.toLocaleLowerCase())) names.push(name);
+    }
+  }
+  return names;
+}
+function resolveSourceStyle(styles: NonNullable<CourtProfile["cover"]["partyStyles"]>,
+  sources: SourceDocumentFields[]) {
+  const exact = [...new Set(sources.map(({ partyStyleId }) => partyStyleId)
+    .filter((id): id is string => !!id && styles.some((style) => style.id === id)))];
+  if (exact.length === 1) return styles.find(({ id }) => id === exact[0]);
+  if (styles.length === 1) return styles[0];
+  const scored = styles.map((style) => ({ style, score: style.groups.reduce((score, group) => {
+    if (!group.roleBelow) return score;
+    const direct = new Set(sourceNames(sources, group.role).map((name) => name.toLocaleLowerCase()));
+    return score + sourceNames(sources, group.roleBelow)
+      .filter((name) => direct.has(name.toLocaleLowerCase())).length;
+  }, 0) })).sort((left, right) => right.score - left.score);
+  return scored[0]?.score && scored[0].score > (scored[1]?.score ?? 0) ? scored[0].style : undefined;
+}
+function commonPartyGroups(styles: NonNullable<CourtProfile["cover"]["partyStyles"]>) {
+  return styles[0].groups.flatMap((group) => {
+    const matches = styles.map((style) => style.groups.find(({ id }) => id === group.id));
+    if (matches.some((item) => !item || item.role !== group.role)) return [];
+    const roleBelow = matches.every((item) => item?.roleBelow === group.roleBelow)
+      ? group.roleBelow : undefined;
+    return [{ ...group, roleBelow }];
+  });
 }
 
 function fillExhibitLabels(entries: RecordEntry[]) {
-  const labels = entries.find((entry) => entry.kindId === "affidavit")?.sourceFields?.exhibitLabels ?? [];
-  const used = new Set(entries.flatMap((entry) => entry.exhibitLabel?.trim()
-    ? [entry.exhibitLabel.trim().toUpperCase()] : []));
+  const labels = sourceExhibitSlots(entries)?.labels ?? [];
+  const allowed = new Set(labels), used = new Set<string>();
   return entries.map((entry) => {
-    if (entry.kindId !== "exhibit" || entry.exhibitLabel?.trim()) return entry;
-    const explicit = entry.sourceFields?.explicitExhibitLabel;
-    if (!explicit || !labels.includes(explicit) || used.has(explicit)) return entry;
-    used.add(explicit);
-    return { ...entry, exhibitLabel: explicit };
+    if (entry.kindId !== "exhibit") return entry;
+    const current = entry.exhibitLabel?.trim().toUpperCase();
+    if (current && allowed.has(current) && !used.has(current)) {
+      used.add(current); return current === entry.exhibitLabel ? entry : { ...entry, exhibitLabel: current };
+    }
+    return current ? { ...entry, exhibitLabel: undefined } : entry;
   });
-}
-
-function sourceEntry(entry: RecordEntry, replaceTitle?: string): RecordEntry {
-  const source = entry.sourceFields;
-  if (!source) return entry;
-  return {
-    ...entry,
-    title: source.entryTitle && (!entry.title.trim() || entry.title === replaceTitle)
-      ? source.entryTitle : entry.title,
-    date: entry.date?.trim() ? entry.date : source.entryDate,
-  };
 }
 
 function assignExhibit(entries: RecordEntry[], id: string, label?: string) {
   const dragged = entries.find((entry) => entry.id === id);
   if (!dragged || dragged.kindId !== "exhibit") return entries;
   const nextLabel = label?.trim().toUpperCase() || undefined;
+  const slots = sourceExhibitSlots(entries)?.labels ?? [];
+  if (nextLabel && !slots.includes(nextLabel)) return entries;
   const previous = dragged.exhibitLabel;
   return entries.map((entry) => entry.id === id ? { ...entry, exhibitLabel: nextLabel }
     : nextLabel && entry.kindId === "exhibit" && entry.exhibitLabel?.toUpperCase() === nextLabel
@@ -925,13 +1164,23 @@ function assignExhibit(entries: RecordEntry[], id: string, label?: string) {
       : entry);
 }
 
-function moveEntry(entries: RecordEntry[], id: string, beforeId?: string) {
-  const from = entries.findIndex((entry) => entry.id === id);
-  if (from < 0 || id === beforeId) return entries;
-  const next = [...entries], [entry] = next.splice(from, 1);
-  const to = beforeId ? next.findIndex((item) => item.id === beforeId) : next.length;
-  next.splice(to < 0 ? next.length : to, 0, entry);
-  return fillExhibitLabels(next);
+const assignPreparedExhibit = (entries: RecordEntry[], id: string, label?: string) =>
+  fillExhibitLabels(label ? assignExhibit(entries, id, label) : entries);
+
+function replacementEntry(entries: RecordEntry[], kind: DocumentKind, label?: string) {
+  const exhibitLabel = label?.trim().toUpperCase();
+  return exhibitLabel
+    ? entries.find((entry) => entry.kindId === "exhibit" &&
+      entry.exhibitLabel?.trim().toUpperCase() === exhibitLabel)
+    : kind.repeatable ? undefined : entries.find((entry) => entry.kindId === kind.id);
+}
+
+function putPreparedEntry(entries: RecordEntry[], entry: RecordEntry, label?: string) {
+  const next = entries.some(({ id }) => id === entry.id)
+    ? entries.map((current) => current.id === entry.id ? entry : current)
+    : [...entries, entry];
+  return assignPreparedExhibit(next, entry.id,
+    label ?? entry.sourceFields?.explicitExhibitLabel);
 }
 
 function sameState(left: CourtRecordDraft, right: CourtRecordDraft) {

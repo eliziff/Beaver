@@ -1,0 +1,107 @@
+{
+  "format": "a2aj-proposition-treatment-v1-selection",
+  "sampling": "purposeful_adversarial_hard_case",
+  "requested": 10,
+  "selected": 10,
+  "criteria": [
+    "multiple substantive judicial opinions",
+    "opposing or materially distinct reasons",
+    "dense use of judicial authorities",
+    "competing opinions treating shared authorities or propositions",
+    "opinion structure difficult for the conservative deterministic detector"
+  ],
+  "document_ids": [
+    193076,
+    190759,
+    118406,
+    142717,
+    193870,
+    193903,
+    194036,
+    193606,
+    190669,
+    193027
+  ],
+  "cases": [
+    {
+      "document_id": 193076,
+      "dataset": "SCC",
+      "citation": "[1993] 2 SCR 398",
+      "name": "R. v. Hasselwander",
+      "date": "1993-05-19T00:00:00",
+      "selection_reason": "split reasons that use some of the same firearms authorities differently; audited gold exists"
+    },
+    {
+      "document_id": 190759,
+      "dataset": "SCC",
+      "citation": "2003 SCC 33",
+      "name": "R. v. Owen",
+      "date": "2003-06-06T00:00:00",
+      "selection_reason": "split reasons addressing Winko, Palmer, Biniaris and related authorities differently; audited gold exists"
+    },
+    {
+      "document_id": 118406,
+      "dataset": "FCA",
+      "citation": "2011 FCA 272",
+      "name": "Felipa v. Canada (Citizenship and Immigration)",
+      "date": "2011-10-03T00:00:00",
+      "selection_reason": "dense split decision with 35 audited proposition treatments across the two sides"
+    },
+    {
+      "document_id": 142717,
+      "dataset": "ONCA",
+      "citation": "2017 ONCA 301",
+      "name": "Romspen Investment Corporation v. Courtice Auto Wreckers Limited",
+      "date": "2017-04-13T00:00:00",
+      "selection_reason": "split insolvency decision whose reasons treat GMAC and related doctrine differently; audited gold exists"
+    },
+    {
+      "document_id": 193870,
+      "dataset": "SCC",
+      "citation": "2019 SCC 65",
+      "name": "Canada (Minister of Citizenship and Immigration) v. Vavilov",
+      "date": "2019-12-19T00:00:00",
+      "selection_reason": "very long, citation-dense majority and dissent that reorganize and contest administrative-law precedent"
+    },
+    {
+      "document_id": 193903,
+      "dataset": "SCC",
+      "citation": "2021 SCC 11",
+      "name": "References re Greenhouse Gas Pollution Pricing Act",
+      "date": "2021-03-25T00:00:00",
+      "selection_reason": "exceptionally long and citation-dense reference with several sets of reasons and opposing results"
+    },
+    {
+      "document_id": 194036,
+      "dataset": "SCC",
+      "citation": "2018 SCC 40",
+      "name": "Mikisew Cree First Nation v. Canada (Governor General in Council)",
+      "date": "2018-10-11T00:00:00",
+      "selection_reason": "four materially distinct sets of reasons, testing concurrence and proposition support rather than a simple binary dissent"
+    },
+    {
+      "document_id": 193606,
+      "dataset": "SCC",
+      "citation": "2018 SCC 32",
+      "name": "Law Society of British Columbia v. Trinity Western University",
+      "date": "2018-06-15T00:00:00",
+      "selection_reason": "long majority, separate concurrence and dissent applying overlapping administrative and Charter authorities"
+    },
+    {
+      "document_id": 190669,
+      "dataset": "SCC",
+      "citation": "2005 SCC 35",
+      "name": "Chaoulli v. Quebec (Attorney General)",
+      "date": "2005-06-09T00:00:00",
+      "selection_reason": "fractured constitutional decision with several opinions, different legal routes, and difficult vote aggregation"
+    },
+    {
+      "document_id": 193027,
+      "dataset": "SCC",
+      "citation": "2013 SCC 5",
+      "name": "Quebec (Attorney General) v. A",
+      "date": "2013-01-25T00:00:00",
+      "selection_reason": "very long, fractured equality decision with issue-dependent alignments and several sets of reasons"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
-import type { DocumentStore } from "./documentStore";
+import type { DocumentRecord, DocumentStore } from "./documentStore";
 import { abortChatTurnForDeletion } from "./chatTurns";
 import { normalizeDocumentFilename } from "./normalize";
-import { deleteFolderDocuments, validateFolderMove } from "./folderApplication";
+import { validateFolderMove } from "./folderApplication";
 import { ApplicationError, notFound as missing, type ApplicationScope } from "./applicationError";
 import { deterministicUuid } from "./hash";
 
@@ -38,7 +38,6 @@ export type ProjectRepository = {
   }): Promise<ProjectFolder | null>;
   updateFolder(scope: ProjectScope, projectId: string, folderId: string, input: {
     name?: string; parentFolderId?: string | null }): Promise<ProjectFolder | null>;
-  folderDocumentIds(scope: ProjectScope, projectId: string, folderId: string): Promise<string[] | null>;
   deleteFolder(scope: ProjectScope, projectId: string, folderId: string): Promise<boolean>;
 };
 
@@ -66,6 +65,31 @@ export type ProjectStore = {
     folderId: string | null): Promise<ProjectRecord>;
 };
 
+export async function projectDocuments(projects: ProjectStore, scope: ApplicationScope,
+  projectId: string) {
+  if (!await projects.get(scope, projectId)) return null;
+  const queue: Array<{ id: string | null; path: string }> = [{ id: null, path: "" }],
+    documents: Array<DocumentRecord & { folder_path?: string }> = [];
+  for (const parent of queue) {
+    let after: [number, string, string] | null = null;
+    do {
+      const page = await projects.directory(scope, projectId, {
+        q: "", parentFolderId: parent.id, limit: 100, after,
+      });
+      for (const row of page.items) {
+        const folder = row.folder as ProjectFolder | undefined,
+          document = row.document as DocumentRecord | undefined;
+        if (row.kind === "folder" && folder?.id) queue.push({ id: folder.id,
+          path: [parent.path, String(folder.name ?? "").trim()].filter(Boolean).join(" / ") });
+        else if (row.kind === "document" && document) documents.push({ ...document,
+          ...(parent.path ? { folder_path: parent.path } : {}) });
+      }
+      after = page.nextAfter;
+    } while (after);
+  }
+  return documents;
+}
+
 export function createProjectStore(
   repository: ProjectRepository,
   documents: DocumentStore,
@@ -82,9 +106,6 @@ export function createProjectStore(
   };
   const remove = async (scope: ProjectScope, projectId: string) => {
     if (!await repository.project(scope, projectId, true)) return false;
-    await documents.deleteUserDocuments(scope, {
-      projectIds: [projectId], includeOwned: false, purgeObjects: false,
-    });
     const chatIds = await repository.remove(scope, projectId);
     chatIds?.forEach(abortChatTurnForDeletion);
     if (chatIds && cancel) await Promise.all(chatIds.map((id) => cancel(scope, id)));
@@ -129,7 +150,9 @@ export function createProjectStore(
       const document = await documents.metadata(scope, documentId, true);
       if (document?.project_id !== projectId) return false;
       return (await documents.relocate(scope, documentId, {
-        expectedProjectId: projectId, projectId: null, folderId: null, owner: true,
+        expectedProjectId: projectId,
+        expectedFolderId: typeof document.folder_id === "string" ? document.folder_id : null,
+        projectId: null, folderId: null, owner: true,
       })).status === "moved";
     },
     async attachDocument(scope, projectId, documentId) {
@@ -139,7 +162,9 @@ export function createProjectStore(
       if (source.project_id === projectId) return { document: source, created: false };
       if (source.project_id === null) {
         const assigned = await documents.relocate(scope, documentId, {
-          expectedProjectId: null, projectId, folderId: null, owner: true,
+          expectedProjectId: null,
+          expectedFolderId: typeof source.folder_id === "string" ? source.folder_id : null,
+          projectId, folderId: null, owner: true,
         });
         if (assigned.status === "conflict") throw new ApplicationError(
           409, "Document moved concurrently");
@@ -164,10 +189,11 @@ export function createProjectStore(
       const filename = normalizeDocumentFilename(requested, currentName);
       if (!filename) throw new ApplicationError(400, "filename is required");
       const versionId = current.current_version_id;
-      if (!versionId || !await documents.renameVersion(
-        scope, documentId, versionId, filename,
-      )) throw missing("Document not found");
-      return { ...current, filename };
+      const renamed = versionId && await documents.renameVersion(
+        scope, documentId, versionId, filename, Number(current.current_working_revision),
+      );
+      if (!renamed) throw missing("Document not found");
+      return { ...current, filename, current_working_revision: renamed.working_revision };
     },
     getFolder: (scope, projectId, folderId) =>
       repository.folder(scope, projectId, folderId),
@@ -195,9 +221,6 @@ export function createProjectStore(
         ?? Promise.reject(missing("Folder not found"));
     },
     async deleteFolder(scope, projectId, folderId) {
-      const ids = await repository.folderDocumentIds(scope, projectId, folderId);
-      if (!ids) throw missing("Folder not found");
-      await deleteFolderDocuments(ids, (id) => documents.deleteDocument(scope, id));
       if (!await repository.deleteFolder(scope, projectId, folderId)) {
         throw missing("Folder not found");
       }
@@ -205,9 +228,10 @@ export function createProjectStore(
     async moveDocument(scope, projectId, documentId, folderId) {
       const document = await documents.metadata(scope, documentId);
       if (!document || document.project_id !== projectId) throw missing("Document not found");
-      if (folderId) await folder(scope, projectId, folderId);
       const moved = await documents.relocate(scope, documentId, {
-        expectedProjectId: projectId, projectId, folderId, owner: false,
+        expectedProjectId: projectId,
+        expectedFolderId: typeof document.folder_id === "string" ? document.folder_id : null,
+        projectId, folderId, owner: false,
       });
       if (moved.status === "conflict") throw new ApplicationError(
         409, "Document moved concurrently");

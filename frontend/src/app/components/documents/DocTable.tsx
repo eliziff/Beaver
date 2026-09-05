@@ -2,9 +2,8 @@ import { type Dispatch, type DragEvent, type ReactNode, type SetStateAction,
     useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { AlertCircle, ChevronDown, ChevronRight, Eye, Loader2 }
     from "lucide-react";
-import { deleteDocument, deleteDocumentVersion, downloadDocumentsZip,
-    downloadDocument, listDocumentVersions, renameDocumentVersion,
-    replaceDocumentVersionFile, uploadDocumentVersion,
+import { checkpointDocumentVersion, compareDocumentVersions, deleteDocument, downloadDocumentsZip,
+    downloadDocument, listDirectoryDocuments, listDocumentVersions, restoreDocumentVersion, uploadDocumentVersion,
     type DocumentVersion } from "@/app/lib/beaverApi";
 import { downloadBlob } from "@/app/lib/download";
 import type { Document, Folder as ProjectFolder, LibraryFolder }
@@ -30,10 +29,10 @@ import { TableHeaderCell, TableHeaderRow, TableScrollArea,
     from "@/app/components/shared/TablePrimitive";
 import { Button } from "@/app/components/ui/button";
 import { getPdfJs } from "@/app/components/shared/views/highlightQuote";
-import { DocumentSidePanel, preloadDocumentViewer }
-    from "@/app/components/shared/DocumentSidePanel";
+import { DocumentSidePanel } from "@/app/components/shared/DocumentSidePanel";
 import type { DocumentSelectionActions, UploadActions } from "./UploadAction";
 import type { WorkflowSelection } from "@/app/components/workflows/workflowRoutes";
+import { ContextualWorkflowPicker } from "@/app/components/workflows/ContextualWorkflowPicker";
 import { Modal } from "@/app/components/modals/Modal";
 import { buildDocumentTree, CHAT_DOCUMENT_DRAG_TYPE, descendantFolderIds, DOCUMENT_DRAG_TYPE,
     documentTreeDropFolder, FOLDER_DRAG_TYPE, hasDocumentTreeDrag,
@@ -70,7 +69,6 @@ const EMPTY_METADATA_VALUE = (
 );
 const WARNING_KINDS = ["upload", "rename", "collection"] as const;
 function prewarmDocumentView(doc: Document) {
-    void preloadDocumentViewer().catch(() => undefined);
     const type = (doc.file_type ?? doc.filename.split(".").pop() ?? "")
         .toLowerCase().replace(/^\./u, "");
     if (type === "pdf" || !!doc.pdf_storage_path) {
@@ -185,11 +183,12 @@ interface DocTableOperations {
 type PendingDocumentRemoval = { documents: Document[]; fromSelection: boolean; deleting: boolean };
 type PendingFolderDeletion = { folder: DocTableFolder; deleting: boolean };
 type PendingMove = { documentIds: string[] } | { folderId: string };
+type DocumentVersionHistory = { currentVersionId: string | null; versions: DocumentVersion[] };
 type DocTableState = {
     addDocsOpen: boolean; viewingDoc: Document | null; viewingDocVersionId: string | null;
     selectedDocIds: string[];
-    versionsByDocId: Map<string, { currentVersionId: string | null; versions: DocumentVersion[] }>;
-    loadingVersionDocIds: Set<string>; renamingDocumentId: string | null;
+    versionsByDocId: Map<string, DocumentVersionHistory>;
+    loadingVersionDocIds: Set<string>; versionErrorDocIds: Set<string>; renamingDocumentId: string | null;
     expandedFolderIds: Set<string>; newFolderParentId?: string | null;
     renamingFolderId: string | null; dragOverFolderId: string | null;
     dragOverSurface: "root" | `version:${string}` | null;
@@ -199,6 +198,8 @@ type DocTableState = {
     pendingDocumentRemoval: PendingDocumentRemoval | null;
     pendingDeleteFolder: PendingFolderDeletion | null;
     pendingMove: PendingMove | null;
+    folderTaskId: string | null;
+    folderWorkflowDocuments: Document[] | null;
 };
 const emphasis = (value: ReactNode) =>
     <span className="font-medium text-gray-950">{value}</span>;
@@ -228,8 +229,8 @@ function documentRemovalMessage(pending: PendingDocumentRemoval | null,
           : <>Delete {name}? This will delete the document and all of its versions.</>}
     </p></div>;
 }
-function MoveDialog({ title, list, rootLabel, disabledIds, canMove, onClose, onMove }: {
-    title: string; list: FolderList; rootLabel: string; disabledIds?: Set<string>;
+function MoveDialog({ title, list, createFolder, rootLabel, disabledIds, canMove, onClose, onMove }: {
+    title: string; list: FolderList; createFolder: DocTableOperations["createFolder"]; rootLabel: string; disabledIds?: Set<string>;
     canMove: (destinationId: string | null) => boolean;
     onClose: () => void; onMove: (destinationId: string | null) => Promise<void>;
 }) {
@@ -256,7 +257,7 @@ function MoveDialog({ title, list, rootLabel, disabledIds, canMove, onClose, onM
         cancelAction={{ label: "Cancel", onClick: close, disabled: moving }}
         primaryAction={{ label: moving ? "Moving…" : "Move here",
             onClick: () => void move(), disabled: moving || !canMove(destinationId) }}>
-        <FolderBrowser list={list} rootLabel={rootLabel} onSelect={(folder) => {
+        <FolderBrowser list={list} createFolder={createFolder} rootLabel={rootLabel} onSelect={(folder) => {
             setDestination(folder); setError("");
         }}
             disabledIds={disabledIds} />
@@ -264,12 +265,13 @@ function MoveDialog({ title, list, rootLabel, disabledIds, canMove, onClose, onM
 }
 interface DocTableProps {
     scopeKey: string; documents: Document[]; folders: DocTableFolder[];
-    loading: boolean; search: string; operations: DocTableOperations; emptyDropLabel?: string;
+    loading: boolean; active?: boolean; search: string; operations: DocTableOperations; emptyDropLabel?: string;
     renderAddDocumentsModal?: (open: boolean, onClose: () => void,
         onSelect: (documents: Document[]) => void) => ReactNode;
     onUploadActionsChange?: (actions: UploadActions | null) => void;
     onCreateFolderActionChange?: (action: (() => void) | null) => void;
     onSelectionActionsChange?: (actions: DocumentSelectionActions | null) => void;
+    onOpenInChat?: (documents: Document[]) => void;
     onOpenWorkflows?: (documents: Document[]) => void;
     onAssistantWorkflowSelect?: (selection: WorkflowSelection, documents: Document[]) => void;
     onOwnerOnlyAction?: Dispatch<SetStateAction<string | null>>;
@@ -295,11 +297,11 @@ const PROJECT_TABLE_LOADING = (
         ]} />
 );
 export function DocTable({
-    scopeKey, documents, folders, loading, search, operations,
+    scopeKey, documents, folders, loading, active = true, search, operations,
     emptyDropLabel = "Drop PDF, Word, Excel, or PowerPoint files here",
     renderAddDocumentsModal, onUploadActionsChange,
     onCreateFolderActionChange, onSelectionActionsChange, onOpenWorkflows,
-    onAssistantWorkflowSelect, onOwnerOnlyAction,
+    onOpenInChat, onAssistantWorkflowSelect, onOwnerOnlyAction,
     documentRemovalMode = "delete", selectionFirst = false, compact = false,
     hasMoreParents = new Set(), loadingParents = new Set(),
     onFolderExpanded, onLoadMore,
@@ -307,7 +309,7 @@ export function DocTable({
     const { user } = useAuth();
     const [state, setState] = useState<DocTableState>(() => ({
         addDocsOpen: false, viewingDoc: null, viewingDocVersionId: null,
-        selectedDocIds: [], versionsByDocId: new Map(), loadingVersionDocIds: new Set(),
+        selectedDocIds: [], versionsByDocId: new Map(), loadingVersionDocIds: new Set(), versionErrorDocIds: new Set(),
         renamingDocumentId: null, expandedFolderIds: new Set(), renamingFolderId: null,
         dragOverFolderId: null, dragOverSurface: null, uploadingVersionDocIds: new Set(),
         uploadingDroppedFilenames: [], deletingDocIds: new Set(),
@@ -315,6 +317,7 @@ export function DocTable({
         pendingDocumentRemoval: null,
         pendingDeleteFolder: null,
         pendingMove: null,
+        folderTaskId: null, folderWorkflowDocuments: null,
     }));
     function set<K extends keyof DocTableState>(key: K,
         next: DocTableState[K] | ((current: DocTableState[K]) => DocTableState[K])) {
@@ -327,22 +330,18 @@ export function DocTable({
     }
     const {
         addDocsOpen, viewingDoc, viewingDocVersionId, selectedDocIds, versionsByDocId,
-        loadingVersionDocIds, renamingDocumentId, expandedFolderIds, newFolderParentId,
+        loadingVersionDocIds, versionErrorDocIds, renamingDocumentId, expandedFolderIds, newFolderParentId,
         renamingFolderId, dragOverFolderId, dragOverSurface, uploadingVersionDocIds,
         uploadingDroppedFilenames, deletingDocIds, warnings,
         pendingDocumentRemoval, pendingDeleteFolder,
         pendingMove,
+        folderTaskId, folderWorkflowDocuments,
     } = state;
     const documentUploadInputRef = useRef<HTMLInputElement>(null);
     const directoryUploadInputRef = useRef<HTMLInputElement>(null);
     const loadingRef = useRef(loading);
     const renderAddDocumentsModalRef = useRef(renderAddDocumentsModal);
     const detachesDocument = documentRemovalMode === "detach";
-    useEffect(() => {
-        const timer = window.setTimeout(() => void preloadDocumentViewer().catch(() => undefined), 500);
-        return () => window.clearTimeout(timer);
-    }, []);
-    const removeDocument = operations.removeDocument ?? deleteDocument;
     const refreshCollection = operations.refreshCollection;
     const activePreparationIds = documents.flatMap(({ id, parse_state: parseState }) =>
         parseState?.status === "queued" || parseState?.status === "parsing" ? [id] : []);
@@ -350,7 +349,7 @@ export function DocTable({
     const refreshActiveDocuments = useEffectEvent(() =>
         operations.refreshDocumentParseStates(activePreparationIds));
     useEffect(() => {
-        if (!activePreparationKey) return;
+        if (!active || !activePreparationKey) return;
         let stopped = false;
         let timer: ReturnType<typeof setTimeout>;
         const poll = async () => {
@@ -362,7 +361,7 @@ export function DocTable({
         };
         timer = setTimeout(poll, 500);
         return () => { stopped = true; clearTimeout(timer); };
-    }, [activePreparationKey]);
+    }, [active, activePreparationKey]);
     useEffect(() => {
         loadingRef.current = loading;
         renderAddDocumentsModalRef.current = renderAddDocumentsModal;
@@ -375,27 +374,53 @@ export function DocTable({
         }
         documentUploadInputRef.current?.click();
     }, []);
-    const loadDocumentVersions = async (docId: string) => {
-        if (versionsByDocId.has(docId)) return;
+    const loadDocumentVersions = async (docId: string, force = false) => {
+        const cached = versionsByDocId.get(docId);
+        if (!force && cached) return cached;
         set("loadingVersionDocIds", (prev) => new Set(prev).add(docId));
+        set("versionErrorDocIds", (prev) => without(prev, [docId]));
         try {
             const res = await listDocumentVersions(docId);
-            set("versionsByDocId", (prev) => new Map(prev).set(docId, {
+            const history = {
                 currentVersionId: res.current_version_id, versions: res.versions,
-            }));
+            };
+            set("versionsByDocId", (prev) => new Map(prev).set(docId, history));
+            return history;
         } catch (e) {
             console.error("listDocumentVersions failed", e);
+            set("versionErrorDocIds", (prev) => new Set(prev).add(docId));
         } finally {
             set("loadingVersionDocIds", (prev) => without(prev, [docId]));
         }
     };
+    function cachedVersion(docId: string, versionId: string) {
+        const version = versionsByDocId.get(docId)?.versions.find(({ id }) => id === versionId);
+        if (!version) throw new Error("Document history is not loaded");
+        return version;
+    }
+    function cachedHead(docId: string) {
+        const current = versionsByDocId.get(docId)?.currentVersionId;
+        if (!current) throw new Error("Document history is not loaded");
+        return cachedVersion(docId, current);
+    }
+    function documentHead(doc: Document) {
+        if (!doc.current_version_id || doc.current_working_revision == null)
+            throw new Error("Document revision is unavailable");
+        return { id: doc.current_version_id, working_revision: doc.current_working_revision };
+    }
+    const refreshDocumentVersionState = useCallback(async (docId: string) => {
+        const [res] = await Promise.all([listDocumentVersions(docId), refreshCollection()]);
+        set("versionsByDocId", (prev) => new Map(prev).set(docId, {
+            currentVersionId: res.current_version_id, versions: res.versions,
+        }));
+    }, [refreshCollection]);
+    async function versionMutation<T>(docId: string, mutation: () => Promise<T>) {
+        try { return await mutation(); }
+        finally { await refreshDocumentVersionState(docId).catch(console.error); }
+    }
     async function downloadDocVersion(docId: string, versionId: string, filename: string) {
-        try {
-            const resolved = await downloadDocument(docId, versionId);
-            downloadBlob(resolved.blob, resolved.filename || filename);
-        } catch (e) {
-            console.error("downloadDocVersion failed", e);
-        }
+        const resolved = await downloadDocument(docId, versionId);
+        downloadBlob(resolved.blob, resolved.filename || filename);
     }
     function handleUploadNewVersion(doc: Document) {
         versionUploadTargetDocRef.current = doc;
@@ -409,66 +434,35 @@ export function DocTable({
         if (!file || !doc) return;
         await handleDropDocumentVersions(doc, [file]);
     }
-    async function submitNewVersion(doc: Document, file: File, filename: string) {
-        try {
-            await uploadDocumentVersion(doc.id, file, filename);
-            await refreshDocumentVersionState(doc.id);
-        } catch (e) {
-            console.error("uploadDocumentVersion failed", e);
-        }
+    async function submitNewVersion(doc: Document, file: File) {
+        const head = documentHead(doc);
+        const version = await versionMutation(doc.id, () => uploadDocumentVersion(
+            doc.id, file, head.id, head.working_revision));
+        set("viewingDocVersionId", version.id);
     }
-    async function replaceVersionFile(docId: string, versionId: string,
-        file: File, filename: string) {
-        await replaceDocumentVersionFile(docId, versionId, file, filename);
-        const res = await refreshDocumentVersionState(docId);
-        if (res.versions.some((version) => version.id === versionId))
-            set("viewingDocVersionId", versionId);
+    async function handlePanelRename(docId: string, filename: string) {
+        await versionMutation(docId, () =>
+            operations.renameDocument(docId, filename));
     }
-    const refreshDocumentVersionState = useCallback(async (docId: string) => {
-        await refreshCollection();
-        const res = await listDocumentVersions(docId);
-        set("versionsByDocId", (prev) => new Map(prev).set(docId, {
-            currentVersionId: res.current_version_id, versions: res.versions,
-        }));
-        return res;
-    }, [refreshCollection]);
-    async function handleRenameVersion(docId: string, versionId: string,
-        filename: string | null) {
-        const previousFilename = versionsByDocId.get(docId)?.versions
-            .find((version) => version.id === versionId)?.filename?.trim();
-        if (previousFilename && (filename == null ||
-            hasFilenameExtensionChange(previousFilename, filename))) {
-            setWarning("rename", filenameExtensionChangeWarning(previousFilename));
-            return;
-        }
-        try {
-            const updated = await renameDocumentVersion(docId, versionId, filename);
-            set("versionsByDocId", (prev) => {
-                const cached = prev.get(docId);
-                if (!cached) return prev;
-                return new Map(prev).set(docId, {
-                    ...cached,
-                    versions: cached.versions.map((v) => v.id === versionId ? updated : v),
-                });
-            });
-            await refreshCollection();
-        } catch (e) {
-            console.error("renameDocumentVersion failed", e);
-        }
+    async function handleRestoreVersion(docId: string, versionId: string) {
+        const head = cachedHead(docId);
+        const restored = await versionMutation(docId, () => restoreDocumentVersion(
+                docId,
+                versionId,
+                head.id,
+                head.working_revision,
+            ));
+        set("viewingDocVersionId", restored.id);
     }
-    async function handleDeleteVersion(docId: string, versionId: string) {
-        try {
-            await deleteDocumentVersion(docId, versionId);
-            const res = await refreshDocumentVersionState(docId);
-            const activeVersions = res.versions.filter((version) => version.deleted_at == null);
-            const nextVersion =
-                activeVersions.find((version) => version.id === res.current_version_id) ??
-                activeVersions[activeVersions.length - 1] ?? null;
-            set("viewingDocVersionId", nextVersion?.id ?? null);
-        } catch (e) {
-            console.error("deleteDocumentVersion failed", e);
-            setWarning("rename", "Could not delete this version.");
-        }
+    async function handleCheckpointVersion(docId: string, comment?: string) {
+        const head = cachedHead(docId);
+        const version = await versionMutation(docId, () => checkpointDocumentVersion(
+            docId, head.id, head.working_revision, comment));
+        set("viewingDocVersionId", version.id);
+    }
+    async function handleCompareVersions(docId: string, baselineId: string, versionId: string) {
+        const result = await compareDocumentVersions(docId, baselineId, versionId);
+        downloadBlob(result.blob, result.filename ?? "document changes.docx");
     }
     const versionUploadInputRef = useRef<HTMLInputElement>(null);
     const versionUploadTargetDocRef = useRef<Document | null>(null);
@@ -502,6 +496,9 @@ export function DocTable({
     const filteredDocs = tree.visibleDocuments;
     const docsById = useMemo(() =>
         new Map(documents.map((doc) => [doc.id, doc])), [documents]);
+    function removeDocument(doc: Document) {
+        return operations.removeDocument?.(doc.id) ?? deleteDocument(doc);
+    }
     const foldersById = tree.folderById;
     const foldersByParent = tree.foldersByParent;
     const selection = useTableSelection(
@@ -517,6 +514,17 @@ export function DocTable({
             else next.add(id);
             return next;
         });
+    }
+    async function openFolder(folderId: string, action: (documents: Document[]) => void) {
+        if (folderTaskId) return;
+        set("folderTaskId", folderId); setWarning("collection", null);
+        try {
+            const selected = await listDirectoryDocuments(operations.list, folderId);
+            if (selected.length) action(selected);
+            else setWarning("collection", "There are no documents in this folder.");
+        } catch {
+            setWarning("collection", "The folder could not be opened. Try again.");
+        } finally { set("folderTaskId", null); }
     }
     async function handleCreateFolder(parentId: string | null, value: string) {
         const name = value.trim();
@@ -627,14 +635,12 @@ export function DocTable({
         }
     }
     async function handleRemoveDocuments(
-        documentIds: string[],
+        documentsToRemove: Document[],
         fromSelection: boolean,
     ) {
-        const owned = documentIds.filter((id) => {
-            const doc = docsById.get(id);
-            return !doc || !doc.user_id || !user?.id || doc.user_id === user.id;
-        });
-        const blocked = documentIds.length - owned.length;
+        const owned = documentsToRemove.filter((doc) =>
+            !doc.user_id || !user?.id || doc.user_id === user.id);
+        const blocked = documentsToRemove.length - owned.length;
         if (!fromSelection && blocked) {
             onOwnerOnlyAction?.(
                 detachesDocument
@@ -646,19 +652,21 @@ export function DocTable({
         if (fromSelection) {
             set("selectedDocIds", []);
         } else {
-            set("deletingDocIds", (prev) => new Set([...prev, ...owned]));
+            set("deletingDocIds", (prev) => new Set([
+                ...prev, ...owned.map(({ id }) => id),
+            ]));
         }
         try {
             const results = await Promise.allSettled(
-                owned.map((id) => removeDocument(id)),
+                owned.map(removeDocument),
             );
             const removedIds = new Set(
                 owned.filter(
                     (_, index) => results[index].status === "fulfilled",
-                ),
+                ).map(({ id }) => id),
             );
-            if (removedIds.size) await refreshParents(...[...removedIds]
-                .map((id) => docsById.get(id)?.folder_id));
+            if (removedIds.size) await refreshParents(...owned
+                .filter(({ id }) => removedIds.has(id)).map(({ folder_id }) => folder_id));
             if (fromSelection && removedIds.size) {
                 set("versionsByDocId", (prev) => {
                     const next = new Map(prev);
@@ -694,7 +702,7 @@ export function DocTable({
             }
         } finally {
             if (!fromSelection) {
-                set("deletingDocIds", (prev) => without(prev, owned));
+                set("deletingDocIds", (prev) => without(prev, owned.map(({ id }) => id)));
             }
         }
     }
@@ -766,13 +774,15 @@ export function DocTable({
         if (supported.length === 0) return;
         set("uploadingVersionDocIds", (prev) => new Set(prev).add(doc.id));
         try {
+            let head = documentHead(doc);
             for (const file of supported) {
-                await uploadDocumentVersion(doc.id, file, file.name);
+                head = await uploadDocumentVersion(
+                    doc.id, file, head.id, head.working_revision);
             }
-            await refreshDocumentVersionState(doc.id);
         } catch (err) {
             console.error("Document version drop upload failed", err);
         } finally {
+            await refreshDocumentVersionState(doc.id).catch(console.error);
             set("uploadingVersionDocIds", (prev) => without(prev, [doc.id]));
         }
     }
@@ -998,6 +1008,17 @@ export function DocTable({
                                 {FOLDER_METADATA_CELLS}
                                 <div className="flex w-8 shrink-0 justify-end">
                                     <RowActions
+                                        additionalItems={[
+                                            ...(onOpenInChat ? [{ label: "Open in new chat",
+                                                disabled: !!folderTaskId,
+                                                onSelect: () => void openFolder(folder.id, onOpenInChat) }] : []),
+                                            ...(onOpenWorkflows || onAssistantWorkflowSelect ? [{ label: "Workflows",
+                                                disabled: !!folderTaskId,
+                                                onSelect: () => void openFolder(folder.id, (selected) => {
+                                                    if (onOpenWorkflows) onOpenWorkflows(selected);
+                                                    else set("folderWorkflowDocuments", selected);
+                                                }) }] : []),
+                                        ]}
                                         onNewSubfolder={() => {
                                             set("newFolderParentId", folder.id);
                                             set("expandedFolderIds", (current) =>
@@ -1060,7 +1081,7 @@ export function DocTable({
                                     <span className="mr-2 shrink-0">
                                         {isError
                                             ? <AlertCircle className="h-4 w-4 text-red-500" />
-                                            : <FileTypeIcon fileType={doc.file_type}
+                                            : <FileTypeIcon fileType={doc.file_type} filename={doc.filename}
                                                 className="h-4 w-4" />}
                                     </span>
                                     {renamingDocumentId === doc.id ? <InlineNameInput kind="document"
@@ -1147,7 +1168,7 @@ export function DocTable({
             current ? { ...current, deleting: true } : current);
         try {
             await handleRemoveDocuments(
-                pending.documents.map((document) => document.id), pending.fromSelection);
+                pending.documents, pending.fromSelection);
             set("pendingDocumentRemoval", null);
         } catch (err) {
             if (pending.fromSelection) throw err;
@@ -1195,7 +1216,7 @@ export function DocTable({
     const pendingDeleteDocVersionCount = pendingDeleteDoc
         ? versionsByDocId
               .get(pendingDeleteDoc.id)
-              ?.versions.filter((version) => version.deleted_at == null).length
+              ?.versions.length
         : undefined;
     const pendingDeleteMessage = documentRemovalMessage(
         pendingDocumentRemoval,
@@ -1224,7 +1245,7 @@ export function DocTable({
         <div className={`relative flex h-full min-h-0 flex-1 flex-col overflow-hidden ${compact ? "[&_.document-metadata]:hidden" : ""}`}
             onDragEnd={clearDragOver}>
             <input ref={versionUploadInputRef} type="file"
-                accept=".pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.ppt"
+                accept={SUPPORTED_DOCUMENT_ACCEPT}
                 className="hidden" onChange={handleVersionUploadInputChange} />
             <input ref={documentUploadInputRef} type="file"
                 accept={SUPPORTED_DOCUMENT_ACCEPT} multiple className="hidden"
@@ -1274,10 +1295,21 @@ export function DocTable({
                 onConfirm={() => void confirmDeletePendingFolder()} />
             {pendingMove && <MoveDialog key={"folderId" in pendingMove
                 ? pendingMove.folderId : pendingMove.documentIds.join("\0")}
-                title={pendingMoveTitle ?? "Move"} list={operations.list}
+                title={pendingMoveTitle ?? "Move"} list={operations.list} createFolder={operations.createFolder}
                 rootLabel={rootLabel} disabledIds={disabledMoveFolders}
                 canMove={canMovePendingTo}
                 onClose={() => set("pendingMove", null)} onMove={movePending} />}
+            <Modal open={!!folderWorkflowDocuments}
+                onClose={() => set("folderWorkflowDocuments", null)}
+                size="xl" breadcrumbs={["Workflows"]}>
+                <ContextualWorkflowPicker documents={folderWorkflowDocuments ?? []}
+                    onAssistantSelect={onAssistantWorkflowSelect
+                        ? (selection, selected) => onAssistantWorkflowSelect(selection, selected as Document[])
+                        : undefined}
+                    onDocumentChanged={() => refreshCollection()}
+                    onLaunched={() => set("folderWorkflowDocuments", null)}
+                    className="pb-4" />
+            </Modal>
             <TableScrollArea className="document-table"
                 header={<TableHeaderRow className="!min-w-0 w-full pr-2">
                     <TableStickyCell header widthClassName={DOC_NAME_COL_W}>
@@ -1292,7 +1324,9 @@ export function DocTable({
                     <TableHeaderCell className="w-8" />
                 </TableHeaderRow>}
             >
-                    {loading ? PROJECT_TABLE_LOADING : (
+                    {loading && documents.length === 0 && folders.length === 0 &&
+                    newFolderParentId === undefined && uploadingDroppedFilenames.length === 0
+                        ? PROJECT_TABLE_LOADING : (
                         <div className="flex-1 flex flex-col min-h-0">
                             <div className="flex-1 flex flex-col min-h-0 relative">
                                 {dragOverSurface === "root" && dragOverFolderId === null && (
@@ -1334,6 +1368,8 @@ export function DocTable({
                     ? versionsByDocId.get(sidePanelDoc.id)?.versions ?? [] : []}
                 versionsLoading={sidePanelDoc
                     ? loadingVersionDocIds.has(sidePanelDoc.id) : false}
+                versionsError={sidePanelDoc
+                    ? versionErrorDocIds.has(sidePanelDoc.id) : false}
                 onClose={() => {
                     set("viewingDoc", null);
                     set("viewingDocVersionId", null);
@@ -1341,15 +1377,16 @@ export function DocTable({
                 onLoadVersions={loadDocumentVersions}
                 onSelectVersion={(id) => set("viewingDocVersionId", id)}
                 onDownloadVersion={downloadDocVersion}
-                onRenameVersion={handleRenameVersion}
-                onDeleteVersion={handleDeleteVersion}
+                onRenameDocument={handlePanelRename}
+                onCheckpointVersion={handleCheckpointVersion}
+                onRestoreVersion={handleRestoreVersion}
+                onCompareVersions={handleCompareVersions}
                 onUploadNewVersion={submitNewVersion}
-                onReplaceVersion={replaceVersionFile}
                 canDelete={!isSharedDocument(sidePanelDoc)}
                 onOwnerOnlyAction={onOwnerOnlyAction}
                 onOpenWorkflows={onOpenWorkflows}
                 onAssistantWorkflowSelect={onAssistantWorkflowSelect}
-                onDelete={(doc) => handleRemoveDocuments([doc.id], false)}
+                onDelete={(doc) => handleRemoveDocuments([doc], false)}
                 documentRemovalMode={documentRemovalMode} />
         </div>
     );

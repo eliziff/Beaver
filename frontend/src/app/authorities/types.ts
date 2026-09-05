@@ -5,7 +5,8 @@ export type AuthoritiesOutputMode = "table" | "book" | "both";
 export type AuthoritiesSourceMode = "automatic" | "manual-originals" | "render";
 export type AuthoritiesProfileId = string;
 export type AuthoritiesBookRole = "applicant" | "respondent" | "joint" |
-  "appellant" | "intervener";
+  "appellant" | "intervener" | "plaintiff" | "defendant" |
+  "moving-party" | "responding-party";
 export type AuthoritiesBuildSettings = {
   sourceMode: AuthoritiesSourceMode;
   tabStyle: "numeric" | "alpha";
@@ -23,6 +24,13 @@ export type AuthoritiesBoundPdf = {
   filename: string;
   sourceSha256: string;
 };
+export type AuthoritiesCover = {
+  courtFileNumber: string;
+  partyGroups: Array<{ role: string; parties: string[] }>;
+  applicationUnder: string;
+  title: string;
+};
+export type AuthoritiesBookSupplement = AuthoritiesBoundPdf & { id: string };
 type AuthoritySourceIdentity = {
   provider: string;
   stableSourceId: string;
@@ -31,12 +39,19 @@ type AuthoritySourceIdentity = {
   externalUrl: string | null;
 };
 
+export type AuthoritySourceLanguage = "en" | "fr" | "bilingual";
+export type AttachedAuthoritySource = {
+  bindingRole: string;
+  filename: string;
+  sourceSha256: string;
+  sourceUrl: string | null;
+  origin: "manual" | "original" | "reconstructed";
+  language: AuthoritySourceLanguage;
+};
 type AuthoritySource =
   | { kind: "unresolved" }
   | { kind: "resolved" }
-  | { kind: "attached"; bindingRole: string; filename: string;
-      sourceSha256: string; sourceUrl: string | null;
-      origin: "manual" | "original" | "reconstructed" }
+  | { kind: "attached"; sources: AttachedAuthoritySource[] }
   | { kind: "pending-canlii"; authorityKey: string; pageUrl: string; pdfUrl: string };
 
 export type AuthorityIdentity = {
@@ -51,6 +66,7 @@ export type AuthorityIdentity = {
   sourceIdentity: AuthoritySourceIdentity | null;
   excluded: boolean;
   source: AuthoritySource;
+  userAdded?: true;
 };
 
 export type AuthorityOccurrence = {
@@ -84,9 +100,11 @@ export type AuthoritiesDraft = {
   bindings: Record<string, WorkProductInput>;
   outputMode: AuthoritiesOutputMode;
   settings: AuthoritiesBuildSettings & { profileId: AuthoritiesProfileId };
+  cover: AuthoritiesCover;
   bookParts: {
     cover: AuthoritiesBoundPdf | null;
     index: AuthoritiesBoundPdf | null;
+    supplements: AuthoritiesBookSupplement[];
   };
   insertIntoDocument: boolean;
   ledger: unknown | null;
@@ -96,10 +114,15 @@ export type AuthoritiesDraft = {
   occurrences: Record<string, AuthorityOccurrence>;
   authorities: Record<string, AuthorityIdentity>;
   authorityOrder: string[];
+  discrepancyDecisions: Record<string, AuthoritiesDiscrepancyAction>;
 };
 
 export type AuthoritiesProduct = WorkProduct<AuthoritiesDraft>;
+export type AuthoritiesDiscrepancyAction =
+  "ignore" | "pinpoint" | "quote_exact" | "quote_editorial";
 export type AuthoritiesDiscrepancy = {
+  id: string;
+  actions: AuthoritiesDiscrepancyAction[];
   kind: "quote_mismatch" | "wrong_pinpoint";
   occurrenceId: string;
   authorityId: string;
@@ -117,6 +140,8 @@ export type AuthoritiesAction =
   | { type: "add-authority"; kind: AuthorityKind; citation: string; name?: string | null }
   | { type: "remove-authority"; authorityId: string }
   | { type: "exclude-authority"; authorityId: string; excluded: boolean }
+  | { type: "edit-authority"; authorityId: string; kind: AuthorityKind;
+      citation: string; name: string | null }
   | { type: "rename-authority"; authorityId: string; displayName: string | null }
   | { type: "split-occurrence"; occurrenceId: string; cursor: number }
   | { type: "merge-occurrence"; occurrenceId: string }
@@ -130,6 +155,8 @@ export type AuthoritiesAction =
   | { type: "begin-canlii-handoff"; authorityId: string }
   | { type: "clear-authority-source"; authorityId: string }
   | { type: "clear-book-part"; slot: "cover" | "index" }
+  | { type: "remove-book-supplement"; id: string }
+  | { type: "set-cover"; cover: AuthoritiesCover }
   | { type: "set-profile"; profileId: AuthoritiesProfileId }
   | { type: "set-settings"; settings: Partial<AuthoritiesBuildSettings> }
   | { type: "set-output-mode"; outputMode: AuthoritiesOutputMode }

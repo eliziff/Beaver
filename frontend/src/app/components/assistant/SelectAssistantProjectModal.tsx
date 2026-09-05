@@ -58,7 +58,6 @@ export function SelectAssistantProjectModal({
         <Modal
             open={open}
             onClose={onClose}
-            className="!h-auto max-h-[min(600px,calc(100dvh-2rem))]"
             breadcrumbs={["Assistant", actionLabel]}
             primaryAction={{
                 label: creating

@@ -9,8 +9,3 @@ export async function validateFolderMove(id: string, parentId: string | null,
     parentId = (await load(parentId)).parent_folder_id;
   }
 }
-
-export async function deleteFolderDocuments(ids: string[], remove: (id: string) => Promise<boolean>) {
-  for (const id of ids) if (!await remove(id))
-    throw new Error("Failed to delete folder document");
-}

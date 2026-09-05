@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import "@/app/globals.css";
+import "@/app/authorities.css";
 import { AuthoritiesWorkspace } from "@/app/authorities/AuthoritiesWorkspace";
 import { standaloneAuthoritiesHost } from "@/app/authorities/standaloneHost";
 
