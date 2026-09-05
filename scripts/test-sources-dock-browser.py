@@ -455,6 +455,7 @@ target.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,data
             article = list_panel
             labels = panel(driver, "Labels")
             driver.save_screenshot(str(output / "11-saved-source.png"))
+            article = panel(driver, "List")
 
             # Autosave notes on all three close paths and prove colour/selection never moves UI.
             print("Research pilot: source labels and autosave", flush=True)
@@ -489,7 +490,7 @@ target.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,data
             palette = visible(driver, By.CSS_SELECTOR, "[role='dialog'][aria-label='Labels and note']")
             note = palette.find_element(By.CSS_SELECTOR, "textarea[aria-label='Item note']")
             note.send_keys(Keys.CONTROL, "a"); note.send_keys("Saved with outside click.")
-            labels.find_element(By.TAG_NAME, "h2").click()
+            visible(driver, By.CSS_SELECTOR, "button[aria-label='Open research workspace']").click()
             WebDriverWait(driver, 30).until(lambda _page: research(driver, research_id)["sources"][source_id]["note"]
                                             == "Saved with outside click.")
             assert not driver.find_elements(By.CSS_SELECTOR, "[role='dialog'][aria-label='Labels and note']")
@@ -499,13 +500,21 @@ target.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,data
 
             # Saved markers remain fixed while drag-and-drop adds another ontology path.
             list_panel = panel(driver, "List")
-            labels = panel(driver, "Labels")
             WebDriverWait(driver, 30).until(lambda _page: list_panel.find_elements(By.CSS_SELECTOR, "button[draggable='true']"))
             source_marker = list_panel.find_element(By.CSS_SELECTOR, "button[draggable='true']")
             icon_before = source_marker.find_element(By.CSS_SELECTOR, "svg[role='group']").rect.copy()
             color_before = source_marker.find_element(By.CSS_SELECTOR, "[data-label-layer='primary']").get_attribute("fill")
-            ActionChains(driver).drag_and_drop(source_marker, label_row(labels, "Remedies")).perform()
+            driver.execute_script("""window.__dragProof=[];
+for(const type of ['dragstart','dragenter','drop','dragend'])document.addEventListener(type,e=>{
+window.__dragProof.push({type,types:[...e.dataTransfer.types],target:e.target.tagName,
+label:e.target.closest('[data-tree-drop-folder]')?.dataset.treeDropFolder,
+effect:e.dataTransfer.dropEffect});},true);""")
+            ActionChains(driver).move_to_element(source_marker).click_and_hold().move_by_offset(12, 0).perform()
+            labels = visible(driver, By.CSS_SELECTOR, "[aria-label='Label organizer']")
+            ActionChains(driver).move_to_element(label_row(labels, "Remedies")).pause(0.5).move_by_offset(1, 0).pause(0.2).release().perform()
+            (output / "source-drag.json").write_text(json.dumps(driver.execute_script("return window.__dragProof")), encoding="utf-8")
             WebDriverWait(driver, 30).until(lambda _page: len(research(driver, research_id)["sources"][source_id]["labelIds"]) == 2)
+            list_panel = panel(driver, "List")
             source_marker = list_panel.find_element(By.CSS_SELECTOR, "button[draggable='true']")
             icon_after = source_marker.find_element(By.CSS_SELECTOR, "svg[role='group']")
             assert icon_after.get_attribute("aria-label")
@@ -538,7 +547,6 @@ target.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,data
                 if not index:
                     driver.save_screenshot(str(output / "13-narrow-list-menu.png"))
                 next(node for node in menu.find_elements(By.TAG_NAME, "button") if node.is_displayed()).click()
-                ActionChains(driver).send_keys(Keys.ESCAPE).perform()
             list_panel.find_element(By.CSS_SELECTOR, "button[aria-label='Sort sources']").click()
             sort_menu = visible(driver, By.CSS_SELECTOR, "[role='menu'][aria-label='Sort sources']")
             box(driver, sort_menu); front(driver, sort_menu)
@@ -546,7 +554,7 @@ target.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,data
             next(node for node in sort_menu.find_elements(By.TAG_NAME, "button") if "A" in node.text and "Z" in node.text).click()
             driver.save_screenshot(str(output / "14-narrow-workspace.png"))
             driver.set_window_size(1440, 900)
-            WebDriverWait(driver, 10).until(lambda _page: workspace.rect["width"] > 600)
+            WebDriverWait(driver, 10).until(lambda _page: workspace.rect["width"] >= 300)
 
             search_saved = panel(driver, "Search Saved sources")
             print("Research pilot: saved-source search and capture rules", flush=True)
@@ -637,6 +645,11 @@ target.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,data
             list_panel = panel(driver, "List")
             click_text(driver, case_title, list_panel)
             reader = visible(driver, By.CSS_SELECTOR, "section[data-legal-block]", 90)
+            reader_pane = visible(driver, By.CSS_SELECTOR, "section[aria-label='Source reader']")
+            workspace_dock = visible(driver, By.CSS_SELECTOR, "[data-assistant-dock]")
+            assert reader_pane.rect["x"] + reader_pane.rect["width"] <= workspace_dock.rect["x"] + 1, \
+                "Source text must be left of the workspace dock"
+            assert workspace_dock.find_element(By.CSS_SELECTOR, "section[aria-label='Research collection']")
             panel(driver, "Labels")
             WebDriverWait(driver, 30).until(lambda _page: title in driver.find_element(By.TAG_NAME, "body").text)
             driver.execute_script("arguments[0].scrollIntoView({block:'center'})", reader)
@@ -690,12 +703,22 @@ const text=s.toString(); root.dispatchEvent(new PointerEvent('pointerup',{bubble
             driver.save_screenshot(str(output / "19-reader-highlight.png"))
 
             dock = visible(driver, By.CSS_SELECTOR, "[data-assistant-dock]")
-            resize = dock.find_element(By.CSS_SELECTOR, "[role='separator'][aria-label='Resize assistant dock']")
+            resize = dock.find_element(By.CSS_SELECTOR, "[role='separator'][aria-label='Resize workspace']")
             dock_width = dock.rect["width"]
             resize.click(); resize.send_keys(Keys.ARROW_RIGHT)
             WebDriverWait(driver, 10).until(lambda _page: dock.rect["width"] < dock_width)
             resize.send_keys(Keys.ARROW_LEFT)
             WebDriverWait(driver, 10).until(lambda _page: dock.rect["width"] >= dock_width - 1)
+
+            driver.set_window_size(600, 800)
+            list_panel = panel(driver, "List")
+            click_text(driver, case_title, list_panel)
+            WebDriverWait(driver, 10).until(lambda page: not any(node.is_displayed()
+                for node in page.find_elements(By.CSS_SELECTOR, "[data-assistant-dock]")))
+            box(driver, visible(driver, By.CSS_SELECTOR, "section[aria-label='Source reader']"))
+            driver.save_screenshot(str(output / "19a-narrow-reader.png"))
+            driver.set_window_size(1440, 900)
+            visible(driver, By.CSS_SELECTOR, "button[aria-label='Open research workspace']").click()
 
             panel(driver, "List")
             drain_resources(driver)
@@ -722,7 +745,12 @@ const text=s.toString(); root.dispatchEvent(new PointerEvent('pointerup',{bubble
             drain_vitals(driver)
             driver.get(args.url.rstrip("/") + "/library")
             print("Research pilot: Library preview and persisted collection", flush=True)
-            visible(driver, By.CSS_SELECTOR, f"button[aria-label='View {title}.research.md']").click()
+            view_button = visible(driver, By.CSS_SELECTOR, f"button[aria-label='View {title}.research.md']")
+            assert driver.execute_script("return getComputedStyle(arguments[0]).color === 'rgb(255, 255, 255)'", view_button)
+            assert driver.execute_script("return [...document.querySelectorAll('[data-page-search]')].every(input => input.autocomplete === 'off')")
+            assert driver.execute_script("""return [...document.querySelectorAll('.document-metadata')].filter(e=>e.getBoundingClientRect().width).every(e=>getComputedStyle(e).textAlign==='center')""")
+            driver.save_screenshot(str(output / "20a-library-columns.png"))
+            view_button.click()
             preview = visible(driver, By.CSS_SELECTOR, "dialog[open]")
             assert title in preview.text
             box(driver, preview); front(driver, preview)

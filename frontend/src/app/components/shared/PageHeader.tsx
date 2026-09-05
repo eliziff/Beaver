@@ -136,25 +136,7 @@ function Action({
         );
     }
     if (action.type === "new") {
-        const title = action.title ?? "New";
-        return (
-            <ActionButton
-                primary
-                onClick={action.onClick}
-                disabled={disabled || action.disabled || action.loading}
-                title={title}
-                aria-label={title}
-                aria-keyshortcuts="Alt+N"
-                data-page-new
-            >
-                {action.loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                    <Plus className="h-4 w-4" />
-                )}
-                <span className="hidden sm:inline">{title}</span>
-            </ActionButton>
-        );
+        return <NewPageAction {...action} disabled={disabled || action.disabled} />;
     }
     return (
         <ActionButton
@@ -166,6 +148,27 @@ function Action({
         >
             {action.icon}
             {action.label}
+        </ActionButton>
+    );
+}
+
+export function NewPageAction({ title = "New", onClick, disabled, loading }: Omit<NewAction, "type">) {
+    return (
+        <ActionButton
+            primary
+            onClick={onClick}
+            disabled={disabled || loading}
+            title={title}
+            aria-label={title}
+            aria-keyshortcuts="Alt+N"
+            data-page-new
+        >
+            {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+                <Plus className="h-4 w-4" />
+            )}
+            <span className="hidden sm:inline">{title}</span>
         </ActionButton>
     );
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
 import { ProjectSectionTabs, useProjectWorkspace } from "@/app/components/projects/ProjectWorkspace";
-import { PageHeader } from "@/app/components/shared/PageHeader";
+import { NewPageAction, PageHeader } from "@/app/components/shared/PageHeader";
 import { TableToolbar } from "@/app/components/shared/TableToolbar";
 import type {
     ColumnConfig,
@@ -250,12 +250,6 @@ function ReviewCollection({ projectContext }: { projectContext?: ProjectContext 
                         placeholder: "Search reviews...",
                         booleanSearch: true,
                     },
-                    {
-                        type: "new",
-                        onClick: () => setNewReviewOpen(true),
-                        loading: creating,
-                        title: "New tabular review",
-                    },
                 ]}
             >
                 <h1 className="font-serif text-2xl font-medium text-gray-900">
@@ -263,7 +257,9 @@ function ReviewCollection({ projectContext }: { projectContext?: ProjectContext 
                 </h1>
             </PageHeader>
             <TableToolbar items={REVIEW_SCOPES} active={scope} onChange={setScope}
-                ariaLabel="Tabular review filters" />
+                ariaLabel="Tabular review filters"
+                actions={<NewPageAction title="New tabular review" disabled={loading}
+                    loading={creating} onClick={() => setNewReviewOpen(true)} />} />
             {collection}
         </div>
     );

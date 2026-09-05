@@ -14,6 +14,13 @@
     },
     "dependencies": {
         "@pdf-lib/fontkit": "^1.1.1",
+        "@tiptap/core": "3.31.3",
+        "@tiptap/extension-link": "3.31.3",
+        "@tiptap/extension-table": "3.31.3",
+        "@tiptap/markdown": "3.31.3",
+        "@tiptap/pm": "3.31.3",
+        "@tiptap/react": "3.31.3",
+        "@tiptap/starter-kit": "3.31.3",
         "lucide-react": "^0.553.0",
         "pdf-lib": "^1.17.1",
         "pdfjs-dist": "^4.10.38",
