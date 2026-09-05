@@ -8,8 +8,10 @@ the source store/provider. Humans/models use the same operations; chat evidence
 stays chat-local until explicitly collected. Normal Sources has a selected file
 or generic personal collection; unsupported chats expose no research action.
 
-Replace the four-panel mini-desktop with a collection-first, reader-friendly
-form factor. The previous UI snapshot is retained at
+Use the main left pane for source text and the shared right-hand dock for the
+workspace. Search results occupy the main pane until a source is opened. On
+narrow screens the workspace is a collapsible overlay; opening a source reveals
+the reader. The previous four-panel UI snapshot is retained at
 `.tmp/research-four-panel-20260905.zip`; its layout is no longer an acceptance
 requirement. Preserve its capability depth: nested coloured labels/folders and
 drag/drop, saved source lists, passage highlights, notes, capture rules and

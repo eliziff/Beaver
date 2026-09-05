@@ -70,7 +70,7 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
                 />
                 <input
                     ref={ref}
-                    type="search"
+                    type="search" autoComplete="off"
                     value={value}
                     placeholder={placeholder}
                     onChange={(event) => onValueChange(event.target.value)}

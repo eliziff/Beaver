@@ -122,7 +122,7 @@ export function JurisdictionPreferenceEditor({
                 </label>
                 <input
                     id={`${id}-search`}
-                    type="search"
+                    type="search" autoComplete="off"
                     value={query}
                     disabled={disabled}
                     onChange={(event) => setQuery(event.currentTarget.value)}

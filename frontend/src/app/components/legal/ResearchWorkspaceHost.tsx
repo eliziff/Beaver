@@ -33,7 +33,7 @@ export function ResearchWorkspaceHost({ embedded, open, onOpenChange, file, proj
   </section>;
   return <AssistantDock
     tabs={[{ id: "research", label: "Workspace", actions: <div ref={setRail} className="min-w-0" />,
-      content: <div className="h-full min-h-0 overflow-hidden px-3 pb-3">{body}</div> }]}
+      content: <section aria-label="Research collection" className="h-full min-h-0 overflow-hidden px-3 pb-3">{body}</section> }]}
     activeTabId="research" onActivateTab={() => undefined} expanded={open}
     onExpandedChange={onOpenChange} showCollapsedButton={false} defaultWidth={400} minWidth={300} maxWidth="40%" />;
 }

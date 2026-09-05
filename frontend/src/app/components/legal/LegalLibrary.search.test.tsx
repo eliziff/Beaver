@@ -15,9 +15,15 @@ vi.mock("@/app/lib/beaverApi", async (original) => ({
     ...(await original<typeof import("@/app/lib/beaverApi")>()),
     ...api,
 }));
-vi.mock("./ResearchFileBar", () => ({ ResearchFileBar: ({ onChange }: { onChange: (file: unknown) => void }) =>
-    <button onClick={() => onChange({ document: { id: "chosen", filename: "Chosen.research.md" }, versionId: "v1", workingRevision: 0,
-        state: { schemaVersion: "beaver.research.v2", labels: {}, sources: {}, queries: null, note: "" } })}>Choose fixture</button> }));
+vi.mock("./ResearchFileBar", () => ({ ResearchFileBar: ({ onChange, onReadSource }: { onChange: (file: unknown) => void; onReadSource: (source: any) => void }) =>
+    <><button onClick={() => onChange({ document: { id: "chosen", filename: "Chosen.research.md" }, versionId: "v1", workingRevision: 0,
+        state: { schemaVersion: "beaver.research.v2", labels: {}, sources: {}, queries: null, note: "" } })}>Choose fixture</button>
+    <button onClick={() => onReadSource({ id: "saved-source", reference: {
+        provider: "a2aj", id: "case-1", kind: "case", title: "Saved decision" } })}>Read saved decision</button></> }));
+vi.mock("./LegalSourceViewer", async (original) => ({
+    ...await original<typeof import("./LegalSourceViewer")>(),
+    LegalSourceViewer: () => <div>Decision text</div>,
+}));
 const linked = { document: { id: "linked-file", filename: "Linked.research.md" },
     versionId: "version-1", workingRevision: 0,
     state: { schemaVersion: "beaver.research.v2" as const,
@@ -56,6 +62,23 @@ describe("LegalLibraryPage search", () => {
         await waitFor(() => expect(api.getResearchFile).toHaveBeenCalledWith("linked-file"));
         expect(screen.getByRole("region", { name: "Research collection" })).toBeVisible();
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("reads a saved source in the main area while retaining its workspace in the dock", async () => {
+        api.getResearchFile.mockResolvedValue(linked);
+        render(<MemoryRouter initialEntries={["/sources?research_file=linked-file"]}>
+            <LegalLibraryPage />
+        </MemoryRouter>);
+        fireEvent.click(await screen.findByRole("button", { name: "Read saved decision" }));
+        const reader = screen.getByRole("region", { name: "Source reader" });
+        expect(reader).toHaveTextContent("Decision text");
+        const workspace = screen.getByRole("complementary", { name: "Workspace" });
+        expect(workspace).not.toContainElement(reader);
+        expect(workspace).toContainElement(screen.getByRole("region", { name: "Research collection" }));
+        fireEvent.click(screen.getByRole("button", { name: "Collapse workspace" }));
+        expect(reader).toBeVisible();
+        fireEvent.click(screen.getByRole("button", { name: "Open research workspace" }));
+        expect(screen.getByRole("region", { name: "Research collection" })).toBeVisible();
     });
 
     it("shows an unavailable workspace error in the open collection", async () => {

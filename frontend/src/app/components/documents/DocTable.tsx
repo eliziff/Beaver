@@ -53,12 +53,12 @@ const DOCUMENT_METADATA_COLUMNS = [
         header: "document-metadata hidden w-32 items-center gap-1 xl:flex", skeleton: "h-3 w-16 rounded bg-gray-100" },
 ] as const;
 const DOCUMENT_METADATA_HEADERS = DOCUMENT_METADATA_COLUMNS.map(({ label, header }) =>
-    <TableHeaderCell key={label} className={header}><span>{label}</span></TableHeaderCell>);
+    <TableHeaderCell key={label} className={`${header} justify-center text-center`}><span>{label}</span></TableHeaderCell>);
 const FOLDER_METADATA_CELLS = DOCUMENT_METADATA_COLUMNS.map(
     ({ label, row }) => (
         <div
             key={label}
-            className={`${row} ${label === "Type" ? "text-xs" : "text-sm"} text-gray-300`}
+            className={`${row} text-center ${label === "Type" ? "text-xs" : "text-sm"} text-gray-300`}
         >
             —
         </div>
@@ -151,14 +151,14 @@ function DocumentMetadataCells({ doc, onOpen }: { doc: Document; onOpen: () => v
                     title="Open version history"
                     aria-label={`Open version history for ${doc.filename}`}>{version}</button>
             ) : (
-                <span className="pl-1 text-gray-300">—</span>
+                <span className="text-gray-300">—</span>
             ),
         Created: doc.created_at ? formatDate(doc.created_at) : EMPTY_METADATA_VALUE,
         Updated: doc.updated_at ? formatDate(doc.updated_at) : EMPTY_METADATA_VALUE,
     };
     return DOCUMENT_METADATA_COLUMNS.map(({ label, row }) => (
         <div key={label}
-            className={`${row} ${label === "Type" ? "text-xs uppercase" : "text-sm"} ${label === "Version" ? "flex items-center gap-1" : "truncate"} text-gray-500`}
+            className={`${row} text-center ${label === "Type" ? "text-xs uppercase" : "text-sm"} ${label === "Version" ? "flex items-center justify-center gap-1" : "truncate"} text-gray-500`}
             onClick={label === "Version" ? (event) => event.stopPropagation() : undefined}>
             {values[label]}</div>
     ));
@@ -1103,7 +1103,7 @@ export function DocTable({
                                             ? () => void retryParse(doc.id)
                                             : undefined} />
                                     {selectionFirst && (
-                                        <Button variant="outline" size="compact"
+                                        <Button size="compact"
                                             aria-label={`View ${docName}`}
                                             title={`View ${docName}`}
                                             disabled={renamingDocumentId === doc.id}

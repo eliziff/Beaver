@@ -76,14 +76,15 @@ it("keeps a singleton compact with separate equal Info and Chat actions", async 
     expect(info).toHaveTextContent("Info");
     expect(launch).toHaveTextContent("Chat");
     expect(within(actions).getByRole("button", { name: "More" })).toBeVisible();
-    expect(info.className).toBe(launch.className);
+
 
     await userEvent.click(info);
     const dialog = screen.getByRole("dialog", { name: "Research a legal issue" });
     expect(await within(dialog).findByText(
         "Research the issue using authoritative legal sources and pinpoints.")).toBeVisible();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
-    await userEvent.click(launch);
+    expect(within(dialog).queryByText(research.metadata.description!)).toBeNull();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Open chat: Research a legal issue" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(onSelect).toHaveBeenCalledWith(research, expect.objectContaining({ id: "research" }));
 });
 
@@ -108,7 +109,7 @@ it("groups the same variant label once while preserving Chat and Tab", async () 
     const info = screen.getByRole("button", { name: "Info about Commercial lease" });
     const chat = screen.getByRole("button", { name: "Open chat: Commercial lease" });
     const tab = screen.getByRole("button", { name: "Start Tabular Review: Commercial lease" });
-    expect(new Set([info.className, chat.className, tab.className]).size).toBe(1);
+    expect(chat.className).toBe(tab.className);
 
     await userEvent.click(info);
     const dialog = screen.getByRole("dialog", { name: "Commercial lease" });

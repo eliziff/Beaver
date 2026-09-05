@@ -232,7 +232,7 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
     {!tree.size ? <p className="my-3 text-center text-sm text-gray-500">
       No {scope === "source" ? "labels" : "highlight categories"} yet.
     </p> : <div className="mt-2 grid gap-1 border-b border-gray-200 pb-2">
-      {Object.values(labels).filter((label) => label.scope === scope).length > 6 && <input type="search" value={search} onChange={(event) => setSearch(event.target.value)}
+      {Object.values(labels).filter((label) => label.scope === scope).length > 6 && <input type="search" autoComplete="off" value={search} onChange={(event) => setSearch(event.target.value)}
         aria-label={`Search ${scope === "source" ? "labels" : "highlight categories"}`} placeholder="Search labels"
         className="h-8 min-w-0 rounded-md border border-gray-300 px-2 text-sm" />}
       <div className="flex min-w-0 flex-wrap gap-1">

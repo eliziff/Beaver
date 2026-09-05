@@ -37,7 +37,7 @@ Word review continues under document capabilities.
 | 2 | [Shared structure](document-structure.md) | Literal ports, direct consumers, separate corpus gates and exact shipped engine identities; no parallel semantics or ingestion/query regression. |
 | 3 | [Document capabilities](document-capabilities.md) | Word baseline and safe handles before breadth; Library/Office.js parity, citation linking, deterministic quotation checks, then optional support review. |
 | 4 | [Legal work products](legal-work-products.md) | Complete artifact/live proof for durable Court Records/Authorities, every AB/FC/FCA profile, reference parity and receipt-based composition. |
-| 5 | [Saved research](research-sets.md) | Replace four-panel mini-desktop with collection-first reader UI; preserve label/passage/rule depth, thin persistence, exhaustive human/model reuse and live dock proof. |
+| 5 | [Saved research](research-sets.md) | Source reader on the left, workspace in the right dock; preserve label/passage/rule depth, thin persistence, exhaustive human/model reuse and live dock proof. |
 
 Independent structure and profile/UI work may proceed alongside boundary work.
 Shared persistence/handle seams precede their consumers. Plans do not prove gates

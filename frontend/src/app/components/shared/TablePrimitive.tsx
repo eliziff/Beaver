@@ -284,7 +284,7 @@ export function TableHeaderCell({ children, className, ...props }: DivProps) {
     return (
         <div role="columnheader"
             className={cn(
-                "flex shrink-0 items-center px-2 text-left",
+                "flex shrink-0 items-center justify-center px-2 text-center",
                 className,
             )}
             {...props}
@@ -297,7 +297,7 @@ export function TableCell({ children, className, ...props }: DivProps) {
     return (
         <div role="cell"
             className={cn(
-                "shrink-0 truncate px-2 text-sm text-gray-700",
+                "shrink-0 justify-center truncate px-2 text-center text-sm text-gray-700",
                 className,
             )}
             {...props}
