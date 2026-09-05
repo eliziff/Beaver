@@ -87,6 +87,7 @@ export function ResearchFileBar(props: Props) {
 function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, sourceDropNonce, onReadSource, selectedSourceId }: Props) {
   const localMutations = useResearchFileMutations(file, onChange), commit = mutations ?? localMutations;
   const root = useRef<HTMLDivElement>(null), [wide, setWide] = useState(false);
+  const [sourceDragging, setSourceDragging] = useState(false);
   const [labelsChoice, setLabelsOpen] = useState<boolean | null>(null), labelsOpen = labelsChoice ?? wide;
   useLayoutEffect(() => { const node = root.current; if (!node) return;
     const breakpoint = 44 * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
@@ -417,7 +418,7 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
       <button type="button" aria-pressed={selection === null} onClick={() => setSelection(null)} className={`rounded px-2 py-1 text-sm font-semibold ${selection === null ? "bg-gray-200" : "hover:bg-gray-100"}`}>View all</button>
       <button type="button" aria-pressed={selection?.size === 0} onClick={() => setSelection(new Set())} className={`rounded px-2 py-1 text-sm font-semibold text-gray-500 ${selection?.size === 0 ? "bg-gray-200" : "hover:bg-gray-100"}`}>View none</button>
     </div>
-      <input type="search" value={labelSearch[scope]} onChange={(event) => setLabelSearch((value) => ({ ...value, [scope]: event.target.value }))}
+      <input type="search" autoComplete="off" value={labelSearch[scope]} onChange={(event) => setLabelSearch((value) => ({ ...value, [scope]: event.target.value }))}
         aria-label={scope === "source" ? "Search labels" : "Search highlight categories"}
         placeholder={scope === "source" ? "Search labels" : "Search categories"}
         className="mb-1 h-8 w-full min-w-0 rounded-md border border-gray-300 px-2 text-sm" />
@@ -451,7 +452,7 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
     </button></>; }
   const listPanel = () => <>
     <div className="mb-3 flex items-center gap-2">
-      <input type="search" value={listSearch} onChange={(event) => setListSearch(event.target.value)} aria-label="Search list"
+      <input type="search" autoComplete="off" value={listSearch} onChange={(event) => setListSearch(event.target.value)} aria-label="Search list"
         placeholder="Filter sources" className="h-9 min-w-0 flex-1 rounded-md border border-gray-300 px-2 text-sm" />
       <ChoiceMenu className="w-32 shrink-0" label="Sort sources" value={sort} onChange={setSort} options={[
         { value: "saved", label: "Saved order" }, { value: "az", label: "A–Z" }, { value: "date", label: "Date" }]} />
@@ -481,7 +482,7 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
           className="grid size-5 shrink-0 place-items-center rounded hover:bg-gray-200"><ChevronRight aria-hidden="true" className="size-3 text-gray-500 group-open:rotate-90" /></button>
         <ResearchLabelPicker file={file} kind="source" itemId={source.id} labelIds={source.labelIds}
           badge={source.badge} badgeColor={source.badgeColor} note={source.note} title={sourceName(source)} size="sm"
-          onError={setStatus} onSourceDrag={revealLabels} mutations={commit} />
+          onError={setStatus} onSourceDrag={() => requestAnimationFrame(revealLabels)} mutations={commit} />
         <span className="min-w-0 flex-1"><span className="block break-words">{sourceLink(source, sourceName(source), undefined, true)}</span>
           {source.reference.citation && source.reference.citation !== sourceName(source) && <span className="mt-0.5 block text-sm text-gray-600">{source.reference.citation}</span>}
           {source.note && <span className="mt-0.5 line-clamp-1 whitespace-pre-wrap font-normal text-gray-600 group-open:line-clamp-none">{source.note}</span>}</span>
@@ -515,7 +516,7 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
     historyQueries = queryChain?.items.flatMap((item) => item.kind === "query" ? [item.value] : []) ?? [];
   const searchPanel = () => file ? <>
     <form onSubmit={runPlain} className="mb-2 grid grid-cols-2 gap-1.5 border-b border-gray-200 pb-2">
-      <input required value={plain} onChange={(event) => setPlain(event.target.value)} aria-label="Search saved source text"
+      <input required autoComplete="off" value={plain} onChange={(event) => setPlain(event.target.value)} aria-label="Search saved source text"
         placeholder="Find in saved text" className="col-span-2 h-8 min-w-0 rounded-md border border-gray-300 px-2 text-sm" />
       <ChoiceMenu label="Search syntax" value={syntax} onChange={(value) => setSyntax(value as typeof syntax)}
         options={[{ value: "literal", label: "Exact" }, { value: "terms", label: "All terms" }]} />
@@ -619,7 +620,9 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
   ]} triggerClassName="grid size-8 place-items-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
     <Ellipsis className="size-4" aria-hidden="true" />
   </ActionMenu></div> : <span className="text-base font-semibold text-gray-900">Workspaces</span>;
-  return <div ref={root} className="@container relative flex h-full min-h-0 flex-col overflow-hidden" onKeyDown={(event) => {
+  return <div ref={root} className="@container relative flex h-full min-h-0 flex-col overflow-hidden"
+    onDragStart={(event) => { if (event.dataTransfer.types.includes(RESEARCH_SOURCE_DRAG)) setSourceDragging(true); }}
+    onDragEnd={() => setSourceDragging(false)} onKeyDown={(event) => {
     const overlay = (event.target as Element).closest("dialog,[role='dialog'],[role='alertdialog'],[role='menu']");
     if (overlay && !overlay.contains(event.currentTarget)) return;
     if (event.key === "Escape" && !event.defaultPrevented && (labelsOpen || searchOpen)) {
@@ -667,7 +670,7 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
           </div>
           {labelPanel(labelScope)}
         </aside>}
-        <section aria-label="Saved sources" className={`min-w-0 flex-1 overflow-y-auto ${searchOpen ? "hidden" : labelsOpen ? "invisible @[44rem]:visible" : ""}`}>
+        <section aria-label="Saved sources" className={`min-w-0 flex-1 overflow-y-auto ${searchOpen ? "hidden" : labelsOpen && !sourceDragging ? "invisible @[44rem]:visible" : ""}`}>
           {matches && <div className="mb-3 flex items-center justify-between gap-2 text-sm"><span>Search matches</span>
             <button type="button" onClick={() => { setMatches(null); setSearchResult(null); }} className="rounded border border-gray-300 px-2 py-1 hover:bg-gray-50">Clear search matches</button></div>}
           {searchResult && <div className="mb-3 space-y-2 text-sm text-gray-600">
@@ -693,7 +696,7 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
       primaryAction={{ label: "Run rules", onClick: () => { closeRule(); runQuery(); }, disabled: busy }}>
       {ruleEditor !== null && recipe.rules[ruleEditor] && <div className="grid grid-cols-2 gap-3 pb-5 text-[13px]">
         <label className="col-span-2 grid gap-1 text-gray-600">Phrase to find
-          <input autoFocus value={recipe.rules[ruleEditor].phrase} onChange={(event) => editRule({ phrase: event.target.value })}
+          <input autoFocus autoComplete="off" value={recipe.rules[ruleEditor].phrase} onChange={(event) => editRule({ phrase: event.target.value })}
             className="h-9 rounded border border-gray-300 px-2 text-sm text-gray-900" />
         </label>
         <label className="grid gap-1 text-gray-600">Direction

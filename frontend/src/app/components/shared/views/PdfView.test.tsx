@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
     cancelled: 0,
+    rendered: [] as number[],
+    renderDelay: 20,
     clientWidth: 620,
     buffer: new ArrayBuffer(8),
     documentError: null as Error | null,
@@ -15,11 +17,12 @@ const mocks = vi.hoisted(() => ({
     standardFontDataUrl: "",
 }));
 
+let fileResult: { type: "pdf"; buffer: ArrayBuffer };
 vi.mock("@/app/hooks/useDocumentFile", () => ({
     useDocumentFile: () => {
         mocks.hookCalls += 1;
         return {
-            result: { type: "pdf" as const, buffer: mocks.buffer },
+            result: fileResult,
             loading: false,
             error: null,
         };
@@ -35,14 +38,15 @@ vi.mock("./highlightQuote", () => {
             return {
                 getViewport: ({ scale }: { scale: number }) => ({
                     width: 600 * scale,
-                    height: 800 * scale,
+                    height: (pageNumber % 2 ? 800 : 1000) * scale,
                 }),
                 render: () => {
+                    mocks.rendered.push(pageNumber);
                     let reject!: (error: unknown) => void;
                     let timer: ReturnType<typeof setTimeout>;
                     const promise = new Promise<void>((resolve, rejectPromise) => {
                         reject = rejectPromise;
-                        timer = setTimeout(resolve, 20);
+                        timer = setTimeout(resolve, mocks.renderDelay);
                     });
                     return {
                         promise,
@@ -97,6 +101,7 @@ vi.mock("./highlightQuote", () => {
                 mocks.standardFontDataUrl = standardFontDataUrl;
                 structuredClone(data.buffer, { transfer: [data.buffer] });
                 return {
+                    destroy: vi.fn(),
                     promise: mocks.documentError
                         ? Promise.reject(mocks.documentError)
                         : Promise.resolve(pdf),
@@ -119,8 +124,11 @@ class ResizeObserverMock {
 describe("PdfView", () => {
     beforeEach(() => {
         mocks.cancelled = 0;
+        mocks.rendered = [];
+        mocks.renderDelay = 20;
         mocks.clientWidth = 620;
         mocks.buffer = new ArrayBuffer(8);
+        fileResult = { type: "pdf", buffer: mocks.buffer };
         mocks.documentError = null;
         mocks.hookCalls = 0;
         mocks.numPages = 3;
@@ -130,6 +138,11 @@ describe("PdfView", () => {
         mocks.resize = null;
         mocks.standardFontDataUrl = "";
         vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+        vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => setTimeout(() => callback(0), 0));
+        vi.stubGlobal("cancelAnimationFrame", clearTimeout);
+        HTMLElement.prototype.scrollTo = vi.fn(function (this: HTMLElement, options: ScrollToOptions) {
+            this.scrollTop = options.top ?? 0;
+        });
         vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
             {} as CanvasRenderingContext2D,
         );
@@ -146,7 +159,7 @@ describe("PdfView", () => {
         const { container } = render(
             <PdfView doc={{ document_id: "doc-1", version_id: "version-1" }} />,
         );
-        await screen.findByRole("button", { name: "Zoom in" });
+        await waitFor(() => expect(mocks.rendered.length).toBeGreaterThan(0));
         fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
 
         await waitFor(() => expect(
@@ -163,6 +176,32 @@ describe("PdfView", () => {
         });
         expect(mocks.cancelled).toBeGreaterThan(0);
         expect(container.querySelector(".pdf-text-layer")).toBeNull();
+    });
+
+    it("reserves mixed-size geometry before painting and bounds canvases when jumping", async () => {
+        mocks.numPages = 300;
+        mocks.renderDelay = 60;
+        const { container } = render(<PdfView doc={null} bytes={new Uint8Array([1])} />);
+        await waitFor(() => expect(container.querySelectorAll("[data-page-number]")).toHaveLength(300));
+        const pages = [...container.querySelectorAll<HTMLElement>("[data-page-number]")];
+        const heights = pages.map((page) => page.style.height);
+        expect(heights.slice(0, 2)).toEqual(["800px", "1000px"]);
+        expect(container.querySelectorAll("canvas").length).toBeLessThan(4);
+        await waitFor(() => expect(pages[0].querySelector("canvas")).not.toBeNull());
+        const scroller = container.querySelector<HTMLElement>(".overflow-auto")!;
+        // Page 201 starts after 100 pairs of mixed-size pages and gaps.
+        scroller.scrollTop = 181600;
+        fireEvent.scroll(scroller);
+        await waitFor(() => expect(pages[200].querySelector("canvas")).not.toBeNull());
+        expect(mocks.rendered.length).toBeLessThan(10);
+        expect(container.querySelectorAll("canvas").length).toBeLessThan(6);
+        expect(pages[0].querySelector("canvas")).toBeNull();
+        expect(pages.map((page) => page.style.height)).toEqual(heights);
+        expect(scroller.scrollTop).toBe(181600);
+        scroller.scrollTop = 0;
+        fireEvent.scroll(scroller);
+        await waitFor(() => expect(pages[0].querySelector("canvas")).not.toBeNull());
+        expect(pages[200].querySelector("canvas")).toBeNull();
     });
 
     it("renders provided bytes in the full viewer without detaching the artifact", async () => {
@@ -194,7 +233,7 @@ describe("PdfView", () => {
                 {} as ResizeObserver);
             await Promise.resolve();
         });
-        expect(mocks.pageRequests.length).toBeGreaterThan(requests);
+        expect(mocks.pageRequests.length).toBe(requests);
         await waitFor(() => expect(container.querySelector("canvas")?.width)
             .toBeLessThanOrEqual(200));
     });

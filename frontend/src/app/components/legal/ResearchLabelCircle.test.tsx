@@ -9,12 +9,15 @@ const labels = {
 };
 
 describe("ResearchLabelCircle", () => {
-  it("nests primary ancestry without treating other memberships as layers", () => {
+  it("keeps the primary folder in front of its hierarchy and shows additional memberships on its face", () => {
     render(<ResearchLabelCircle labels={labels} labelIds={["detail", "root"]} />);
     const stack = screen.getByRole("group", { name: "Labels: Root / Child / Detail, Root" });
     expect(stack.querySelector('[data-label-layer="primary"]')).toHaveAttribute("fill", "#1d4ed8");
     expect(stack.querySelector('[data-label-layer="middle"]')).toHaveAttribute("fill", "#047857");
     expect(stack.querySelector('[data-label-layer="inner"]')).toHaveAttribute("fill", "#991b1b");
+    expect([...stack.querySelectorAll("[data-label-layer]")].map((layer) => layer.getAttribute("fill")))
+      .toEqual(["#991b1b", "#047857", "#1d4ed8"]);
+    expect(stack.querySelector('[data-additional-label="root"]')).toHaveAttribute("fill", "#1d4ed8");
   });
 
   it("keeps an unassigned stack outlined", () => {

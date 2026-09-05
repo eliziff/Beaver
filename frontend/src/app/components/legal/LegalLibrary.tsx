@@ -7,7 +7,6 @@ import {
     Search,
 } from "lucide-react";
 import { PageHeader } from "@/app/components/shared/PageHeader";
-import { AssistantDock } from "@/app/components/assistant/AssistantDock";
 import {
     getResearchFile,
     getLegalSourceCoverage,
@@ -149,7 +148,11 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
             dataset: ref.collection ?? null, language: ref.language ?? "en",
             docType: ref.kind === "legislation" ? "laws" : ref.kind === "journal" ? "articles" : "cases",
             researchFileId: researchFile?.document.id, researchSourceId: source.id, initialLocator: locator };
-        if (embedded && onOpenSource) onOpenSource(tab); else setReadingSource(tab);
+        if (embedded && onOpenSource) onOpenSource(tab);
+        else {
+            setReadingSource(tab);
+            if (window.matchMedia?.("(max-width: 1279px)").matches) setResearchOpen(false);
+        }
     }
     async function saveResult(result: LegalSourceSearchResult, file = researchFile) {
         if (!file) throw new Error("Choose or create a workspace first");
@@ -232,12 +235,20 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
             setSearched(true);
         }
     }
+    const workspace = <ResearchWorkspaceHost embedded={embedded} open={researchOpen}
+        rail={researchRail} onReadSource={readSavedSource}
+        selectedSourceId={readingSource?.researchSourceId ?? undefined}
+        onOpenChange={setResearchOpen} file={researchFile} projectId={projectId}
+        onChange={publishResearchFile} mutations={mutations} restoreLast={!requestedResearchFileId}
+        sourceDropNonce={sourceDropNonce} />;
     return (
         <div className="relative flex h-full min-w-0">
         <div className="flex min-w-0 flex-1 flex-col">
-            {!embedded && <PageHeader breadcrumbs={[{ label: "Sources", onClick: researchOpen ? findSources : undefined },
-                ...(researchOpen ? [{ label: <span ref={setResearchRail} className="block min-w-0" /> }] : [])]}
-                actions={researchOpen ? [{ label: "Find sources", icon: <Search className="size-4" />, onClick: findSources }] : undefined} />}
+            {!embedded && <PageHeader breadcrumbs={[{ label: "Sources", onClick: readingSource ? () => setReadingSource(null) : undefined },
+                ...(readingSource ? [{ label: "Source" }] : [])]}
+                actions={readingSource ? [{ label: "Workspace", title: "Open research workspace",
+                    icon: <PanelsTopLeft className="size-4" />, onClick: () => setResearchOpen(true) }]
+                    : researchOpen ? [{ label: "Find sources", icon: <Search className="size-4" />, onClick: findSources }] : undefined} />}
             {embedded && researchOpen && <div className="flex min-w-0 items-center gap-2 border-b border-gray-200 p-3">
                 <span ref={setResearchRail} className="block min-w-0 flex-1" />
                 {researchFile && <Link to={`/sources?research_file=${encodeURIComponent(researchFile.document.id)}`}
@@ -247,12 +258,18 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                 </Link>}
                 <Button variant="outline" onClick={findSources}>Find sources</Button>
             </div>}
-            <div hidden={researchOpen}
-                className={`${researchOpen ? "hidden" : ""} min-h-0 flex-1 overflow-y-auto ${embedded ? "p-3" : "px-4 py-5 sm:px-6"}`}
+            {readingSource && <section aria-label="Source reader" className="min-h-0 min-w-0 flex-1">
+                <LegalSourceViewer key={`${readingSource.id}:${readingSource.initialLocator ?? ""}`} {...readingSource}
+                    researchFile={researchFile} onResearchFileChange={publishResearchFile} mutations={mutations}
+                    onOpenResearch={(intent) => { setResearchOpen(true);
+                        if (intent) setSourceDropNonce((value) => value + 1); }} />
+            </section>}
+            <div hidden={!!readingSource || embedded && researchOpen}
+                className={`${readingSource || embedded && researchOpen ? "hidden" : ""} min-h-0 flex-1 overflow-y-auto ${embedded ? "p-3" : "px-4 py-5 sm:px-6"}`}
             >
                 <div className="mx-auto max-w-5xl">
                     <div className="space-y-4">
-                    <form
+                    <form autoComplete="off"
                         onSubmit={runSearch}
                         className="@container rounded-lg border border-gray-200 bg-white p-4"
                     >
@@ -558,20 +575,10 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                     </div>
                 </div>
             </div>
-        {researchOpen && error && <p role="alert" className="px-6 py-2 text-sm text-red-700">{error}</p>}
-        <ResearchWorkspaceHost embedded={embedded} open={researchOpen}
-            inline rail={researchRail} onReadSource={readSavedSource}
-            selectedSourceId={readingSource?.researchSourceId ?? undefined}
-            onOpenChange={setResearchOpen} file={researchFile} projectId={projectId}
-            onChange={publishResearchFile} mutations={mutations} restoreLast={!requestedResearchFileId}
-            sourceDropNonce={sourceDropNonce} />
+        {(readingSource || embedded && researchOpen) && error && <p role="alert" className="px-6 py-2 text-sm text-red-700">{error}</p>}
+        {embedded && workspace}
         </div>
-        {readingSource && <AssistantDock tabs={[{ id: readingSource.id, label: "Source",
-            content: <LegalSourceViewer key={`${readingSource.id}:${readingSource.initialLocator ?? ""}`} {...readingSource}
-                researchFile={researchFile} onResearchFileChange={publishResearchFile} mutations={mutations} /> }]}
-            activeTabId={readingSource.id} onActivateTab={() => undefined} expanded
-            onExpandedChange={(open) => { if (!open) setReadingSource(null); }} showCollapsedButton={false}
-            defaultWidth={600} minWidth={400} maxWidth="60%" />}
+        {!embedded && workspace}
         </div>
     );
 }

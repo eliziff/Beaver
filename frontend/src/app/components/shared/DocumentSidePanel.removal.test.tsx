@@ -113,7 +113,7 @@ describe("DocumentSidePanel document removal", () => {
       name: "Labels: Fairness / Right to a hearing",
     });
     expect([...nestedMarker.querySelectorAll("[data-label-layer]")]
-      .map((layer) => layer.getAttribute("fill"))).toEqual(["#991b1b", "#1d4ed8"]);
+      .map((layer) => layer.getAttribute("fill"))).toEqual(["#1d4ed8", "#991b1b"]);
     expect(screen.getByText("Authorities on procedural fairness.")).toBeInTheDocument();
     expect(screen.getByText("Leading procedural fairness authority.")).toBeInTheDocument();
     expect(screen.getByLabelText("Workspace contents")).toHaveTextContent(

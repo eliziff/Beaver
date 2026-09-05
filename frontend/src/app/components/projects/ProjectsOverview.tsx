@@ -17,7 +17,7 @@ import { NewProjectModal } from "./NewProjectModal";
 import { ProjectDetailsModal } from "./ProjectDetailsModal";
 import { TableToolbar } from "@/app/components/shared/TableToolbar";
 import { RowActions } from "@/app/components/shared/RowActions";
-import { PageHeader } from "@/app/components/shared/PageHeader";
+import { NewPageAction, PageHeader } from "@/app/components/shared/PageHeader";
 import {
     SkeletonLine,
     TableBody,
@@ -159,7 +159,6 @@ export function ProjectsOverview() {
             <PageHeader loading={initialLoading} actions={[
                 { type: "search", value: search, onChange: setSearch,
                     placeholder: "Search projects", booleanSearch: true },
-                { type: "new", title: "New project", onClick: () => setModalOpen(true) },
             ]}>
                 <h1 className="font-serif text-2xl font-medium text-gray-900">Projects</h1>
             </PageHeader>
@@ -167,6 +166,8 @@ export function ProjectsOverview() {
                 items={PROJECT_FILTERS}
                 active={activeFilter}
                 ariaLabel="Project filters"
+                actions={<NewPageAction title="New project" disabled={initialLoading}
+                    onClick={() => setModalOpen(true)} />}
                 onChange={(nextFilter) => {
                     setActiveFilter(nextFilter);
                     setSelectedIds([]);
