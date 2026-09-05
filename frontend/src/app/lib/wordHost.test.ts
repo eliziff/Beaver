@@ -37,6 +37,19 @@ function installWord(text: string, matches: Array<Record<string, unknown>> = [])
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Word host adapter", () => {
+    it.each([
+        { original: "old", replacement: "x".repeat(10_001) },
+        { original: "old", replacement: "new", formats: [] },
+        { original: "old", formats: ["bold", "bold"] },
+        { original: "old", formats: ["unsupported"] },
+    ])("rejects malformed edit %# before touching Word", async (edit) => {
+        const { body } = installWord("old");
+        await expect(executeWordClientTool({ type: "client_tool_call", callId: callId(),
+            name: "apply_word_edits", input: { edits: [edit] },
+        })).resolves.toEqual({ error: "Invalid Word edit request." });
+        expect(body.search).not.toHaveBeenCalled();
+    });
+
     it("identifies the active document and reads bounded chunks", async () => {
         installWord("0123456789");
         await expect(wordDocumentContext()).resolves.toEqual({

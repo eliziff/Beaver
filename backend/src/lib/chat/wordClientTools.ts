@@ -1,4 +1,6 @@
 import type { Tool } from "../llm";
+import { MAX_WORD_EDITS, MAX_WORD_ANCHOR_CHARS, WORD_FORMATS, parseWordEdits } from
+  "mike/shared/word-edits.mjs";
 import { jsonRecord } from "../value";
 import type { ChatToolContext } from "./turnEngine";
 import { toolText, type BeaverTool } from "./toolRegistry";
@@ -6,25 +8,12 @@ import { toolText, type BeaverTool } from "./toolRegistry";
 export const READ_ACTIVE_DOCUMENT = "read_active_document";
 export const APPLY_WORD_EDITS = "apply_word_edits";
 const MAX_READ_CHARS = 50_000;
-const MAX_EDITS = 20;
-const MAX_ORIGINAL_CHARS = 255;
-const FORMATS = new Set([
-  "bold", "italic", "underline", "heading1", "heading2", "heading3",
-]);
 
 export type WordClientCall = (
   name: string,
   input: Record<string, unknown>,
   signal: AbortSignal,
 ) => Promise<unknown>;
-
-type WordEdit = {
-  original: string;
-  replacement?: string;
-  formats?: string[];
-  occurrence?: "all";
-  reason?: string;
-};
 
 const objectSchema = (
   properties: Record<string, object>,
@@ -35,34 +24,6 @@ const objectSchema = (
   ...(required.length ? { required } : {}),
   additionalProperties: false,
 });
-
-function edits(value: unknown): WordEdit[] | null {
-  if (!Array.isArray(value) || !value.length || value.length > MAX_EDITS) return null;
-  const parsed: WordEdit[] = [];
-  for (const candidate of value) {
-    const row = jsonRecord(candidate);
-    const original = typeof row?.original === "string" ? row.original : "";
-    const replacement = typeof row?.replacement === "string" ? row.replacement : undefined;
-    const formats = Array.isArray(row?.formats) && row.formats.length
-      ? [...new Set(row.formats.filter((item): item is string =>
-          typeof item === "string" && FORMATS.has(item)))]
-      : undefined;
-    if (!original || original.length > MAX_ORIGINAL_CHARS || /[\r\n^]/u.test(original) ||
-        (replacement === undefined) === (formats === undefined) ||
-        (Array.isArray(row?.formats) && formats?.length !== row.formats.length) ||
-        (replacement?.length ?? 0) > 10_000 ||
-        (row?.occurrence !== undefined && row.occurrence !== "all")) return null;
-    parsed.push({
-      original,
-      ...(replacement !== undefined ? { replacement } : {}),
-      ...(formats ? { formats } : {}),
-      ...(row?.occurrence === "all" ? { occurrence: "all" as const } : {}),
-      ...(typeof row?.reason === "string" && row.reason.trim()
-        ? { reason: row.reason.trim().slice(0, 500) } : {}),
-    });
-  }
-  return parsed;
-}
 
 function readResult(value: unknown) {
   const row = jsonRecord(value);
@@ -151,25 +112,25 @@ export function wordClientTools(options: {
     description:
       "Edit the active Word document using exact text copied from " +
       "read_active_document. Each original must be one contiguous passage of at " +
-      `most ${MAX_ORIGINAL_CHARS} characters in one paragraph. Omit occurrence ` +
+      `most ${MAX_WORD_ANCHOR_CHARS} characters in one paragraph. Omit occurrence ` +
       "unless the user explicitly requested replace-all. Review mode writes native " +
       "Word tracked changes; Direct mode writes ordinary edits. Inspect each returned " +
       "status and retry only not-found or ambiguous rows with a better exact anchor.",
     inputSchema: objectSchema({
       edits: {
-        type: "array", minItems: 1, maxItems: MAX_EDITS,
+        type: "array", minItems: 1, maxItems: MAX_WORD_EDITS,
         items: objectSchema({
-          original: { type: "string", minLength: 1, maxLength: MAX_ORIGINAL_CHARS },
+          original: { type: "string", minLength: 1, maxLength: MAX_WORD_ANCHOR_CHARS },
           replacement: { type: "string", maxLength: 10_000 },
           formats: { type: "array", minItems: 1, uniqueItems: true,
-            items: { type: "string", enum: [...FORMATS] } },
+            items: { type: "string", enum: WORD_FORMATS } },
           occurrence: { type: "string", enum: ["all"] },
           reason: { type: "string", maxLength: 500 },
         }, ["original"]),
       },
     }, ["edits"]),
     async execute(input, _context, signal) {
-      const parsed = edits(input.edits);
+      const parsed = parseWordEdits(input.edits);
       if (!parsed) return {
         result: toolText({ ok: false, error: "Invalid Word edit request." }, true),
       };

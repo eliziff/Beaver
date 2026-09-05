@@ -90,38 +90,6 @@ async function readDocument(input: Record<string, unknown>) {
     });
 }
 
-type WordEdit = {
-    original: string;
-    replacement?: string;
-    formats?: string[];
-    occurrence?: "all";
-};
-const FORMATS = new Set([
-    "bold", "italic", "underline", "heading1", "heading2", "heading3",
-]);
-function parseEdits(source: unknown): WordEdit[] | null {
-    if (!Array.isArray(source) || !source.length || source.length > 20) return null;
-    const parsed: WordEdit[] = [];
-    for (const value of source) {
-        if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-        const row = value as Record<string, unknown>;
-        const original = typeof row.original === "string" ? row.original : "";
-        const replacement = typeof row.replacement === "string" ? row.replacement : undefined;
-        const rawFormats = Array.isArray(row.formats) ? row.formats : [];
-        const formats = rawFormats.length
-            ? [...new Set(rawFormats.filter((item): item is string =>
-                typeof item === "string" && FORMATS.has(item)))] : undefined;
-        if (!original || original.length > 255 || /[\r\n^]/u.test(original) ||
-            (replacement === undefined) === (formats === undefined) ||
-            (formats && formats.length !== rawFormats.length) ||
-            (row.occurrence !== undefined && row.occurrence !== "all")) return null;
-        parsed.push({ original, ...(replacement !== undefined ? { replacement } : {}),
-            ...(formats ? { formats } : {}),
-            ...(row.occurrence === "all" ? { occurrence: "all" as const } : {}) });
-    }
-    return parsed;
-}
-
 async function applyOne(edit: WordEdit, review: boolean) {
     const { word } = globals();
     if (!word) return { status: "error", error: "Word is unavailable." };
@@ -191,7 +159,7 @@ async function applyOne(edit: WordEdit, review: boolean) {
 }
 
 async function applyEdits(input: Record<string, unknown>) {
-    const edits = parseEdits(input.edits);
+    const edits = parseWordEdits(input.edits);
     if (!edits) return { error: "Invalid Word edit request." };
     const review = input.mode !== "direct";
     const outcomes = [];
@@ -233,3 +201,4 @@ export async function executeWordClientTool(call: ClientToolCall) {
     remember(call.callId, result);
     return result;
 }
+import { parseWordEdits, type WordEdit } from "../../../../shared/word-edits.mjs";
