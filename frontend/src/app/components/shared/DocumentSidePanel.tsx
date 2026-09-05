@@ -1,27 +1,25 @@
 import {
-    lazy,
-    Suspense,
     useEffect,
     useEffectEvent,
     useRef,
     useState,
     type ChangeEvent,
-    type ComponentProps,
-    type KeyboardEvent,
+    type FormEvent,
 } from "react";
-import { createPortal } from "react-dom";
 import {
     AlertCircle,
     Check,
     Download,
     Eye,
+    FileDiff,
     Loader2,
     Pencil,
-    Search,
+    RotateCcw,
+    Save,
     Trash2,
     Upload,
-    X,
 } from "lucide-react";
+import { Modal } from "@/app/components/modals/Modal";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { ContextualWorkflowLauncher } from "@/app/components/workflows/ContextualWorkflowPicker";
@@ -33,8 +31,10 @@ import {
     isDocxFilename,
     isSpreadsheetFilename,
 } from "@/app/components/shared/types";
+import { DocumentViewer } from "@/app/components/shared/views/DocumentViewer";
 import type { DocumentVersion } from "@/app/lib/beaverApi";
 import { formatBytes } from "@/app/lib/utils";
+import { SUPPORTED_DOCUMENT_ACCEPT } from "@/app/lib/documentUploadValidation";
 import {
     filenameExtensionChangeWarning,
     hasFilenameExtensionChange,
@@ -48,43 +48,35 @@ import {
 } from "@/app/lib/researchFiles";
 
 const VERSION_PAGE = 40;
-const VERSION_SEARCH_AT = 12;
-const ACCEPT = ".pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.ppt";
-
+const PREVIEW_TEXT = 1_000;
+const previewText = (text: string) => text.length > PREVIEW_TEXT ? `${text.slice(0, PREVIEW_TEXT)}…` : text;
 interface Props {
     doc: Document | null;
     versionId?: string | null;
     currentVersionId?: string | null;
     versions: DocumentVersion[];
     versionsLoading: boolean;
+    versionsError?: boolean;
     onClose: () => void;
-    onLoadVersions: (docId: string) => Promise<void> | void;
-    onSelectVersion: (versionId: string, label: string) => void;
+    onLoadVersions: (docId: string, force?: boolean) => Promise<unknown> | void;
+    onSelectVersion: (versionId: string) => void;
     onDownloadVersion: (
         docId: string,
         versionId: string,
         filename: string,
     ) => Promise<void> | void;
-    onRenameVersion: (
-        docId: string,
-        versionId: string,
-        filename: string,
-    ) => Promise<void> | void;
-    onDeleteVersion: (
+    onRenameDocument: (docId: string, filename: string) => Promise<void> | void;
+    onCheckpointVersion: (docId: string, comment?: string) => Promise<void> | void;
+    onRestoreVersion: (
         docId: string,
         versionId: string,
     ) => Promise<void> | void;
-    onUploadNewVersion: (
-        doc: Document,
-        file: File,
-        filename: string,
-    ) => Promise<void>;
-    onReplaceVersion: (
+    onCompareVersions: (
         docId: string,
+        baselineVersionId: string,
         versionId: string,
-        file: File,
-        filename: string,
     ) => Promise<void> | void;
+    onUploadNewVersion: (doc: Document, file: File) => Promise<void>;
     canDelete?: boolean;
     onOwnerOnlyAction?: (action: string) => void;
     onDelete: (doc: Document) => Promise<void> | void;
@@ -103,36 +95,9 @@ const PLAIN_TEXT_VIEW_EXTENSIONS = new Set([
     "log",
 ]);
 
-export const preloadDocumentViewer = () =>
-    import("@/app/components/shared/views/DocumentViewer").then(
-        ({ DocumentViewer }) => ({ default: DocumentViewer }),
-    );
-
-const LazyDocumentViewer = lazy(preloadDocumentViewer);
-
-function DocumentViewer(props: ComponentProps<typeof LazyDocumentViewer>) {
-    return (
-        <Suspense
-            fallback={
-                <div
-                    role="status"
-                    className="grid h-full place-items-center text-gray-500"
-                >
-                    <Loader2
-                        aria-hidden="true"
-                        className="h-4 w-4 animate-spin"
-                    />
-                    <span className="sr-only">Loading document</span>
-                </div>
-            }
-        >
-            <LazyDocumentViewer {...props} />
-        </Suspense>
-    );
-}
-
 function ResearchFilePreview({ documentId }: { documentId: string }) {
     const [file, setFile] = useState<ResearchFile | null>();
+    const [sourcePage, setSourcePage] = useState(0);
     useEffect(() => {
         let current = true;
         void getResearchFile(documentId).then(
@@ -144,56 +109,71 @@ function ResearchFilePreview({ documentId }: { documentId: string }) {
     if (file === undefined) return <div role="status" className="grid h-full place-items-center text-sm text-gray-500">Loading research…</div>;
     if (!file) return <div role="alert" className="grid h-full place-items-center text-sm text-red-700">Could not load this research file.</div>;
 
-    const { labels, sources, evidence, note } = file.state;
-    const savedSources = Object.values(sources);
-    const passages = Object.values(evidence);
-    const savedLabels = Object.values(labels).sort((a, b) => a.order - b.order);
-    const noteCount = Number(!!note.trim()) + savedSources.filter((source) => source.note.trim()).length
-        + passages.filter((passage) => passage.note.trim()).length;
-    const passageCounts = passages.reduce<Record<string, [number, number]>>((counts, passage) => {
-        const count = counts[passage.sourceId] ?? [0, 0];
-        count[0] += 1;
-        count[1] += Number(!!passage.note.trim());
-        counts[passage.sourceId] = count;
-        return counts;
-    }, {});
+    const { labels, sources, queries, note } = file.state;
+    const savedSourceIds = Object.keys(sources), sourcePageIndex = Math.min(sourcePage,
+        Math.max(0, Math.ceil(savedSourceIds.length / VERSION_PAGE) - 1)), sourceStart = sourcePageIndex * VERSION_PAGE,
+        shownSources = savedSourceIds.slice(sourceStart, sourceStart + VERSION_PAGE).map((id) => sources[id]),
+        passageCount = savedSourceIds.reduce((sum, id) => sum + (sources[id].passages?.count ?? 0), 0),
+        searches = queries?.count ?? 0, allLabels = Object.values(labels), shownLabels = [...allLabels]
+            .sort((left, right) => {
+                if (left.scope !== right.scope) return left.scope.localeCompare(right.scope);
+                const a = researchLabelPath(labels, left.id), b = researchLabelPath(labels, right.id);
+                for (let index = 0; index < Math.max(a.length, b.length); index++) {
+                    if (!a[index]) return -1;
+                    if (!b[index]) return 1;
+                    const order = a[index].order - b[index].order;
+                    if (order) return order;
+                }
+                return left.name.localeCompare(right.name);
+            }).slice(0, VERSION_PAGE * 2);
 
-    return <div className="h-full overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm">
-        <p className="mb-4 text-gray-600">{savedSources.length} saved sources · {passages.length} passages · {savedLabels.length} labels · {noteCount} notes</p>
-        {note.trim() && <section className="mb-5">
-            <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Research note</h2>
-            <p className="whitespace-pre-wrap text-gray-800">{note}</p>
+    return <div className="h-full overflow-auto rounded-lg bg-gray-50 px-4 py-4 text-sm">
+        <p aria-label="Workspace contents" className="mb-5 text-sm text-gray-600">{savedSourceIds.length} {savedSourceIds.length === 1 ? "source" : "sources"} · {passageCount} {passageCount === 1 ? "highlight" : "highlights"} · {allLabels.length} {allLabels.length === 1 ? "label" : "labels"} · {searches} {searches === 1 ? "search" : "searches"}</p>
+        {previewText(note).trim() && <section className="mb-6">
+            <h2 className="mb-2 text-base font-semibold text-gray-950">Note</h2>
+            <p className="whitespace-pre-wrap leading-6 text-gray-700">{previewText(note)}</p>
         </section>}
-        <section className="mb-5">
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Labels</h2>
-            {savedLabels.length ? <ul className="flex flex-wrap gap-1.5">
-                {savedLabels.map((label) => <li key={label.id} className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2 py-1 text-xs">
-                    <ResearchLabelCircle labels={labels} labelIds={[label.id]} size="sm" />
-                    {researchLabelPath(labels, label.id).map(({ name }) => name).join(" / ")}
-                </li>)}
-            </ul> : <p className="text-gray-500">No labels</p>}
-        </section>
-        <section>
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Sources</h2>
-            {savedSources.length ? <ul className="space-y-2">
-                {savedSources.map((source) => {
-                    const title = source.reference.title || source.reference.citation || source.reference.id;
-                    const [sourcePassages, passageNotes] = passageCounts[source.id] ?? [0, 0];
-                    return <li key={source.id} className="rounded-md border border-gray-200 bg-white p-3">
-                        <div className="flex items-center gap-2">
-                            <ResearchLabelCircle labels={labels} labelIds={source.labelIds} size="sm" />
-                            <div className="min-w-0 flex-1">
-                                <p className="font-medium text-gray-900">{title}</p>
-                                {source.reference.citation && source.reference.citation !== title && <p className="text-xs text-gray-500">{source.reference.citation}</p>}
-                            </div>
-                            <span className="shrink-0 text-xs text-gray-500">{sourcePassages} {sourcePassages === 1 ? "passage" : "passages"}</span>
-                        </div>
-                        {!!source.labelIds.length && <p className="mt-1.5 text-xs text-gray-500">{source.labelIds.map((id) => researchLabelPath(labels, id).map(({ name }) => name).join(" / ")).join(", ")}</p>}
-                        {source.note.trim() && <p className="mt-2 whitespace-pre-wrap text-gray-700">{source.note}</p>}
-                        {!!passageNotes && <p className="mt-1 text-xs text-gray-500">{passageNotes} passage {passageNotes === 1 ? "note" : "notes"}</p>}
+        <section className="mb-6">
+            <h2 className="mb-2 text-base font-semibold text-gray-950">Labels</h2>
+            {shownLabels.length ? <ul aria-label="Labels" className="grid gap-1 sm:grid-cols-2">
+                {shownLabels.map((label) => {
+                    const path = researchLabelPath(labels, label.id);
+                    return <li key={label.id} className="flex min-h-9 items-center gap-2 rounded-md bg-white px-2.5 py-1.5"
+                        style={{ paddingInlineStart: `${10 + (path.length - 1) * 14}px` }}>
+                        <ResearchLabelCircle labels={labels} labelIds={[label.id]} size="sm" />
+                        <span className="min-w-0 truncate font-medium text-gray-800">{label.name}</span>
+                        <span className="ms-auto text-xs text-gray-500">{label.scope === "source" ? "Source" : "Highlight"}</span>
                     </li>;
                 })}
-            </ul> : <p className="text-gray-500">No saved sources</p>}
+            </ul> : <p className="text-sm text-gray-500">No labels yet</p>}
+            {allLabels.length > shownLabels.length && <p className="mt-2 text-sm text-gray-500">{allLabels.length - shownLabels.length} more labels</p>}
+        </section>
+        <section>
+            <h2 className="mb-2 text-base font-semibold text-gray-950">Sources</h2>
+            {savedSourceIds.length ? <><ul aria-label="Saved sources" className="space-y-3">
+                {shownSources.map((source) => {
+                    const title = source.reference.title || source.reference.citation || source.reference.id,
+                        sourcePassages = source.passages?.count ?? 0;
+                    return <li key={source.id} className="rounded-lg border border-gray-200 bg-white p-3">
+                        <article>
+                            <header className="flex items-start gap-2">
+                                <ResearchLabelCircle labels={labels} labelIds={source.labelIds} size="sm" />
+                                <div className="min-w-0 flex-1">
+                                    <h3 className="break-words font-semibold leading-5 text-gray-900">{title}</h3>
+                                    {source.reference.citation && source.reference.citation !== title && <p className="text-[13px] text-gray-500">{source.reference.citation}</p>}
+                                </div>
+                                <span className="shrink-0 text-sm tabular-nums text-gray-500">{sourcePassages} {sourcePassages === 1 ? "highlight" : "highlights"}</span>
+                            </header>
+                            {previewText(source.note).trim() && <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-700">{previewText(source.note)}</p>}
+                        </article>
+                    </li>;
+                })}
+            </ul>{savedSourceIds.length > VERSION_PAGE && <div className="mt-3 flex items-center justify-between text-xs">
+                <button type="button" disabled={!sourcePageIndex} onClick={() => setSourcePage(sourcePageIndex - 1)}>Previous sources</button>
+                <span>{sourceStart + 1}-{sourceStart + shownSources.length} of {savedSourceIds.length}</span>
+                <button type="button" disabled={sourceStart + VERSION_PAGE >= savedSourceIds.length}
+                    onClick={() => setSourcePage(sourcePageIndex + 1)}>Next sources</button>
+            </div>}</> : <p className="text-[13px] text-gray-500">No saved sources yet</p>}
         </section>
     </div>;
 }
@@ -204,14 +184,16 @@ export function DocumentSidePanel({
     currentVersionId,
     versions,
     versionsLoading,
+    versionsError = false,
     onClose,
     onLoadVersions,
     onSelectVersion,
     onDownloadVersion,
-    onRenameVersion,
-    onDeleteVersion,
+    onRenameDocument,
+    onCheckpointVersion,
+    onRestoreVersion,
+    onCompareVersions,
     onUploadNewVersion,
-    onReplaceVersion,
     canDelete = true,
     onOwnerOnlyAction,
     onDelete,
@@ -219,8 +201,6 @@ export function DocumentSidePanel({
     onOpenWorkflows,
     onAssistantWorkflowSelect,
 }: Props) {
-    const [mounted, setMounted] = useState(false);
-    const [versionQuery, setVersionQuery] = useState("");
     const [visibleVersionCount, setVisibleVersionCount] =
         useState(VERSION_PAGE);
     const [editingName, setEditingName] = useState(false);
@@ -228,181 +208,95 @@ export function DocumentSidePanel({
     const [savingName, setSavingName] = useState(false);
     const [extensionWarningOpen, setExtensionWarningOpen] = useState(false);
     const [uploading, setUploading] = useState(false);
-    const [uploadError, setUploadError] = useState<string | null>(null);
-    const [deletingVersionId, setDeletingVersionId] = useState<string | null>(
-        null,
-    );
-    const [replaceTarget, setReplaceTarget] = useState<DocumentVersion | null>(
-        null,
-    );
-    const [replaceFile, setReplaceFile] = useState<File | null>(null);
-    const [replacingId, setReplacingId] = useState<string | null>(null);
+    const [checkpointing, setCheckpointing] = useState(false);
+    const [actionError, setActionError] = useState<string | null>(null);
+    const [restoreTarget, setRestoreTarget] = useState<DocumentVersion | null>(null);
+    const [restoringId, setRestoringId] = useState<string | null>(null);
+    const [comparingId, setComparingId] = useState<string | null>(null);
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [deleteStatus, setDeleteStatus] = useState<
         "idle" | "deleting" | "deleted"
     >("idle");
-    const [deleteError, setDeleteError] = useState<string | null>(null);
-    const panelRef = useRef<HTMLDivElement>(null);
     const uploadRef = useRef<HTMLInputElement>(null);
-    const replaceRef = useRef<HTMLInputElement>(null);
-    const previousFocus = useRef<HTMLElement | null>(null);
+    const deleteTarget = useRef<Document | null>(null);
     const loadVersions = useEffectEvent(onLoadVersions);
     const docId = doc?.id;
 
-    useEffect(() => setMounted(true), []);
-
     useEffect(() => {
         if (!docId) return;
-        previousFocus.current =
-            document.activeElement instanceof HTMLElement
-                ? document.activeElement
-                : null;
         void loadVersions(docId);
-        return () => {
-            if (previousFocus.current?.isConnected) {
-                previousFocus.current.focus();
-            }
-        };
     }, [docId]);
 
     useEffect(() => {
-        setVersionQuery("");
         setVisibleVersionCount(VERSION_PAGE);
-        setEditingName(false);
-        setNameDraft("");
-        setUploadError(null);
-        setDeleteError(null);
+        setActionError(null);
+        deleteTarget.current = null;
         setDeleteOpen(false);
-        setReplaceTarget(null);
-        setReplaceFile(null);
-    }, [doc?.id, versionId, currentVersionId]);
+    }, [doc?.id]);
 
     useEffect(() => {
-        if (!mounted || !doc) return;
-        const closeOutside = (event: PointerEvent) => {
-            const target = event.target;
-            if (
-                !(target instanceof Node) ||
-                panelRef.current?.contains(target)
-            ) {
-                return;
-            }
-            if (
-                event
-                    .composedPath()
-                    .some(
-                        (node) =>
-                            node instanceof HTMLElement &&
-                            (node.hasAttribute("data-document-row") ||
-                                node.hasAttribute("data-shortcut-layer")),
-                    )
-            ) {
-                return;
-            }
-            if (!extensionWarningOpen && !replaceFile && !deleteOpen) {
-                onClose();
-            }
-        };
-        document.addEventListener("pointerdown", closeOutside);
-        return () =>
-            document.removeEventListener("pointerdown", closeOutside);
-    }, [
-        deleteOpen,
-        doc,
-        extensionWarningOpen,
-        mounted,
-        onClose,
-        replaceFile,
-    ]);
+        setEditingName(false);
+        setNameDraft("");
+        setRestoreTarget(null);
+    }, [versionId, currentVersionId]);
 
-    if (!mounted || !doc) return null;
+    if (!doc) return null;
 
     const activeDoc = doc;
     const currentId =
         currentVersionId ?? activeDoc.current_version_id ?? null;
-    const ordered = [...versions].reverse();
-    const query = versionQuery.trim().toLocaleLowerCase();
-    const filtered = !query
-        ? ordered
-        : ordered.filter((version) =>
-              [
-                  versionFilename(version),
-                  versionTitle(version),
-                  version.source,
-                  version.created_at,
-              ]
-                  .join(" ")
-                  .toLocaleLowerCase()
-                  .includes(query),
-          );
-    const visible = filtered.slice(0, visibleVersionCount);
+    const ordered = versions;
+    const current = versions.find(({ id }) => id === currentId) ?? null;
+    const comparisonCurrent = current && fileType(current, "") === "docx" ? current : null;
+    const priorCurrent = comparisonCurrent
+        ? ordered.find(({ version_number }) =>
+            version_number < comparisonCurrent.version_number) ?? null
+        : null;
+    const visible = ordered.slice(0, visibleVersionCount);
     const selected =
         versions.find((version) => version.id === versionId) ??
-        versions.find((version) => version.id === currentId) ??
+        current ??
         ordered[0] ??
         null;
     const selectedId = selected?.id ?? versionId ?? currentId;
-    const filename = selected?.filename?.trim() || activeDoc.filename;
+    const filename = selected?.filename.trim() || activeDoc.filename;
+    const displayFilename = filename.replace(/\.research\.md$/iu, "");
     const type = fileType(selected, activeDoc.file_type);
     const size = selected?.size_bytes ?? activeDoc.size_bytes;
+    const extension = filename.split(".").pop()?.toLowerCase() ?? "";
     const isDocx =
         isDocxFilename(filename) || type === "docx" || type === "doc";
-    const revision =
-        selectedId === currentId
-            ? (activeDoc.updated_at ?? selected?.created_at)
-            : (selected?.created_at ?? activeDoc.updated_at);
-    const activeVersionCount = versions.filter(
-        (version) => version.deleted_at == null,
-    ).length;
+    const isSpreadsheet =
+        isSpreadsheetFilename(filename) ||
+        ["xlsx", "xlsm", "xls"].includes(type);
+    const revision = selectedId && selectedId === currentId
+        ? `${selectedId}:${selected?.working_revision ?? activeDoc.current_working_revision ?? 0}`
+        : selected ? `${selected.id}:${selected.working_revision}` : activeDoc.updated_at;
+    const pages = selected?.page_count ??
+        (selectedId === currentId ? activeDoc.page_count : null);
+    const activeVersionCount = versions.length;
     const showResearchPreview =
         isResearchDocument(activeDoc) && selectedId === currentId;
-
-    function versionKeyDown(
-        event: KeyboardEvent<HTMLDivElement>,
-        version: DocumentVersion,
-    ) {
-        if (version.deleted_at != null) return;
-        if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onSelectVersion(version.id, versionFilename(version));
-            return;
-        }
-        if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
-            return;
-        }
-        const list = event.currentTarget.closest('[role="list"]');
-        const options = Array.from(
-            list?.querySelectorAll<HTMLElement>(
-                '[data-version-option]:not([aria-disabled="true"])',
-            ) ?? [],
-        );
-        const index = options.indexOf(event.currentTarget);
-        const next =
-            event.key === "Home"
-                ? 0
-                : event.key === "End"
-                  ? options.length - 1
-                  : event.key === "ArrowUp"
-                    ? Math.max(0, index - 1)
-                    : Math.min(options.length - 1, index + 1);
-        event.preventDefault();
-        options[next]?.focus();
-    }
+    const previewable = showResearchPreview || isDocx || isSpreadsheet || type === "pdf" ||
+        PLAIN_TEXT_VIEW_EXTENSIONS.has(extension) || PLAIN_TEXT_VIEW_EXTENSIONS.has(type);
 
     async function saveName() {
-        if (!selectedId) return;
-        const next = nameDraft.trim();
-        if (!next) return;
+        if (!selectedId || selectedId !== currentId) return;
+        const entered = nameDraft.trim();
+        if (!entered) return;
+        const next = isResearchDocument(activeDoc)
+            ? `${entered.replace(/\.research\.md$/iu, "")}.research.md` : entered;
         if (hasFilenameExtensionChange(filename, next)) {
             return setExtensionWarningOpen(true);
         }
         if (next === filename) return setEditingName(false);
         setSavingName(true);
+        setActionError(null);
         try {
-            await onRenameVersion(activeDoc.id, selectedId, next);
+            await onRenameDocument(activeDoc.id, next);
             setEditingName(false);
         } catch {
-            /* Keep the existing name when persistence fails. */
+            setActionError("Could not rename this document.");
         } finally {
             setSavingName(false);
         }
@@ -413,62 +307,93 @@ export function DocumentSidePanel({
         event.target.value = "";
         if (!file) return;
         setUploading(true);
-        setUploadError(null);
+        setActionError(null);
         try {
-            await onUploadNewVersion(activeDoc, file, file.name);
+            await onUploadNewVersion(activeDoc, file);
         } catch {
-            setUploadError("Could not upload the new version.");
+            setActionError("Could not upload the new version.");
         } finally {
             setUploading(false);
         }
     }
 
-    function chooseReplacement(event: ChangeEvent<HTMLInputElement>) {
-        const file = event.target.files?.[0];
-        event.target.value = "";
-        if (file && replaceTarget) {
-            setReplaceFile(file);
-        }
-    }
-
-    async function replaceVersion() {
-        if (!replaceTarget || !replaceFile) return;
-        setReplacingId(replaceTarget.id);
-        setUploadError(null);
+    async function checkpoint(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const comment = String(new FormData(form).get("comment") ?? "").trim();
+        setCheckpointing(true);
+        setActionError(null);
         try {
-            await onReplaceVersion(
-                activeDoc.id,
-                replaceTarget.id,
-                replaceFile,
-                replaceFile.name,
-            );
-            setReplaceTarget(null);
-            setReplaceFile(null);
+            await onCheckpointVersion(activeDoc.id, comment || undefined);
+            form.reset();
         } catch {
-            setUploadError("Could not replace this version.");
+            setActionError("Could not create this version.");
         } finally {
-            setReplacingId(null);
+            setCheckpointing(false);
         }
     }
 
-    async function removeVersion(id: string) {
-        if (!canDelete) {
-            return onOwnerOnlyAction?.("delete this document version");
-        }
-        setDeletingVersionId(id);
+    async function restoreVersion() {
+        if (!restoreTarget) return;
+        setRestoringId(restoreTarget.id);
+        setActionError(null);
         try {
-            await onDeleteVersion(activeDoc.id, id);
+            await onRestoreVersion(activeDoc.id, restoreTarget.id);
+            setRestoreTarget(null);
+        } catch {
+            setRestoreTarget(null);
+            setActionError(
+                "Could not restore this version. Review the latest history and try again.",
+            );
         } finally {
-            setDeletingVersionId(null);
+            setRestoringId(null);
         }
+    }
+
+    async function compareVersions(rowId: string, baselineId: string, comparedId: string) {
+        setComparingId(rowId);
+        setActionError(null);
+        try {
+            await onCompareVersions(activeDoc.id, baselineId, comparedId);
+        } catch {
+            setActionError("Could not create the comparison.");
+        } finally {
+            setComparingId(null);
+        }
+    }
+
+    async function downloadVersion(version: DocumentVersion) {
+        setActionError(null);
+        try {
+            await onDownloadVersion(
+                activeDoc.id,
+                version.id,
+                versionFilename(version),
+            );
+        } catch {
+            setActionError("Could not download this version.");
+        }
+    }
+
+    function comparison(version: DocumentVersion) {
+        if (!comparisonCurrent) return null;
+        const baseline = version.id === currentId
+            ? priorCurrent
+            : version;
+        if (!baseline || fileType(baseline, "") !== "docx") return null;
+        return {
+            baselineId: baseline.id,
+            comparedId: comparisonCurrent.id,
+            label: `Download comparison: ${version.id === currentId ? "prior " : ""}${versionTitle(baseline)} to current ${versionTitle(comparisonCurrent)}`,
+        };
     }
 
     async function removeDocument() {
         if (deleteStatus === "deleting") return;
         setDeleteStatus("deleting");
-        setDeleteError(null);
+        setActionError(null);
         try {
-            await onDelete(activeDoc);
+            await onDelete(deleteTarget.current ?? activeDoc);
             setDeleteStatus("deleted");
             window.setTimeout(() => {
                 setDeleteOpen(false);
@@ -476,8 +401,9 @@ export function DocumentSidePanel({
                 onClose();
             }, 650);
         } catch {
+            setDeleteOpen(false);
             setDeleteStatus("idle");
-            setDeleteError(
+            setActionError(
                 documentRemovalMode === "detach"
                     ? "The document could not be removed from this project. Please try again."
                     : "The document could not be deleted. Please try again.",
@@ -494,84 +420,86 @@ export function DocumentSidePanel({
             );
         }
         setDeleteStatus("idle");
+        deleteTarget.current = activeDoc;
         setDeleteOpen(true);
     }
 
     const deleteMessage =
         documentRemovalMode === "detach"
-            ? `Remove ${filename} from this project? The Library file and its links in other projects will be kept.`
+            ? `Remove ${displayFilename} from this project? The Library file and its links in other projects will be kept.`
             : activeVersionCount > 0
-              ? `${filename} has ${activeVersionCount} ${
+              ? `${displayFilename} has ${activeVersionCount} ${
                     activeVersionCount === 1 ? "version" : "versions"
                 }. Deleting this document will delete all of its versions.`
-              : `Delete ${filename}? This will delete the document and all of its versions.`;
+              : `Delete ${displayFilename}? This will delete the document and all of its versions.`;
 
-    return createPortal(
-        <div
-            ref={panelRef}
-            role="dialog"
-            aria-modal="true"
-            aria-label={filename}
-            data-shortcut-layer
-            data-shortcut-open="true"
-            className="fixed inset-3 z-[190] mx-auto flex max-w-[960px] flex-col overflow-hidden rounded-xl border border-gray-300 bg-white shadow-xl"
-        >
-            <header className="flex min-h-12 shrink-0 items-center gap-2 border-b border-gray-200 px-4">
+    return (
+        <Modal
+            open
+            onClose={onClose}
+            size="2xl"
+            className="!h-[calc(100dvh-1.5rem)] !max-w-[960px]"
+            breadcrumbs={[
+                <span key="document" className="flex h-8 min-w-0 items-center gap-2 text-sm font-medium leading-5 text-gray-900">
                 <FileTypeIcon
                     fileType={type || filename}
+                    filename={filename}
                     className="h-4 w-4 shrink-0"
                 />
                 {editingName ? (
-                    <>
-                        <input
-                            autoFocus
-                            value={nameDraft}
-                            onChange={(event) => {
-                                setNameDraft(event.target.value);
-                            }}
-                            onKeyDown={(event) => {
-                                if (event.key === "Enter") void saveName();
-                                if (event.key === "Escape") {
-                                    setEditingName(false);
-                                }
-                            }}
-                            className="h-8 min-w-0 flex-1 border-b border-gray-400 bg-transparent text-sm outline-none"
-                            aria-label="Document name"
-                        />
-                        <button
-                            type="button"
-                            onClick={() => void saveName()}
-                            disabled={savingName}
-                            aria-label="Save document name"
-                            className="h-8 w-8 rounded hover:bg-gray-100"
-                        >
-                            {savingName ? (
-                                <Loader2 className="mx-auto h-4 w-4 animate-spin" />
-                            ) : (
-                                <Check className="mx-auto h-4 w-4" />
-                            )}
-                        </button>
-                    </>
+                    <input
+                        autoFocus
+                        value={nameDraft}
+                        onChange={(event) => setNameDraft(event.target.value)}
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter") void saveName();
+                            if (event.key === "Escape") {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setEditingName(false);
+                            }
+                        }}
+                        className="h-8 min-w-0 max-w-80 border-0 border-b border-gray-400 bg-transparent p-0 text-sm font-medium leading-5 text-gray-900 outline-none [field-sizing:content] focus-visible:border-gray-900"
+                        aria-label="Document name"
+                    />
                 ) : (
-                    <>
-                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
-                            {filename}
-                        </span>
-                        {selectedId && (
-                            <button
-                                type="button"
-                                aria-label="Rename document"
-                                onClick={() => {
-                                    setNameDraft(filename);
-                                    setEditingName(true);
-                                }}
-                                className="h-8 w-8 rounded hover:bg-gray-100"
-                            >
-                                <Pencil className="mx-auto h-4 w-4" />
-                            </button>
-                        )}
-                    </>
+                    <span className="min-w-0 truncate">
+                        {displayFilename}
+                    </span>
                 )}
+                </span>,
+            ]}
+            headerAction={
+                <div className="flex shrink-0 items-center gap-1.5">
+                {editingName ? (
+                    <button
+                        type="button"
+                        onClick={() => void saveName()}
+                        disabled={savingName}
+                        aria-label="Save document name"
+                        title="Save document name"
+                        className="h-8 w-8 rounded hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
+                    >
+                        {savingName ? (
+                            <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+                        ) : (
+                            <Check className="mx-auto h-4 w-4" />
+                        )}
+                    </button>
+                ) : selectedId === currentId ? (
+                    <button
+                        type="button"
+                        aria-label="Rename document"
+                        title="Rename document"
+                        onClick={() => {
+                            setNameDraft(displayFilename);
+                            setEditingName(true);
+                        }}
+                        className="h-8 w-8 rounded hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
+                    >
+                        <Pencil className="mx-auto h-4 w-4" />
+                    </button>
+                ) : null}
                 <ContextualWorkflowLauncher
                     documents={[activeDoc]}
                     onOpen={onOpenWorkflows ? () => {
@@ -582,8 +510,8 @@ export function DocumentSidePanel({
                         ? (selection) => onAssistantWorkflowSelect(selection, [activeDoc])
                         : undefined}
                     onDocumentChanged={async (result) => {
-                        await onLoadVersions(activeDoc.id);
-                        onSelectVersion(result.version_id, result.filename);
+                        await onLoadVersions(activeDoc.id, true);
+                        onSelectVersion(result.version_id);
                     }}
                 />
                 {showResearchPreview && (
@@ -594,33 +522,23 @@ export function DocumentSidePanel({
                         Open in Sources
                     </a>
                 )}
-                <button
-                    type="button"
-                    data-shortcut-close
-                    onClick={onClose}
-                    aria-label="Close"
-                    className="h-8 w-8 rounded border border-gray-300 hover:bg-gray-100"
-                >
-                    <X className="mx-auto h-3.5 w-3.5" />
-                </button>
-            </header>
+                </div>
+            }
+        >
+            <div className="-mx-5 flex min-h-0 flex-1 flex-col overflow-hidden">
             <main className="grid min-h-0 flex-1 md:grid-cols-[minmax(0,1fr)_20rem]">
                 <section className="flex min-h-0 min-w-0 flex-col overflow-hidden p-3">
                     {showResearchPreview ? <ResearchFilePreview
-                        key={`${activeDoc.id}:${revision ?? ""}`} documentId={activeDoc.id} /> : <DocumentViewer
+                        key={`${activeDoc.id}:${revision ?? ""}`} documentId={activeDoc.id} /> : previewable ? <DocumentViewer
                         key={`${activeDoc.id}:${
                             selectedId ?? "current"
                         }:${revision ?? ""}`}
                         documentId={activeDoc.id}
                         kind={
-                            isSpreadsheetFilename(filename)
+                            isSpreadsheet
                                 ? "spreadsheet"
-                                : PLAIN_TEXT_VIEW_EXTENSIONS.has(
-                                        filename
-                                            .split(".")
-                                            .pop()
-                                            ?.toLowerCase() ?? "",
-                                    )
+                                : PLAIN_TEXT_VIEW_EXTENSIONS.has(extension) ||
+                                    PLAIN_TEXT_VIEW_EXTENSIONS.has(type)
                                   ? "text"
                                   : isDocx
                                     ? "docx"
@@ -631,22 +549,22 @@ export function DocumentSidePanel({
                         preferPdfRendition={isDocx}
                         refetchKey={revision ?? undefined}
                         revision={revision}
-                    />}
+                    /> : <p className="m-auto text-sm text-gray-500">Preview is not available for this file type.</p>}
                 </section>
                 <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden border-t border-gray-200 p-4 md:border-l md:border-t-0">
                     <div className="mb-3 grid gap-1 text-xs">
                         <Info label="Type" value={type || "—"} />
                         <Info label="Size" value={formatBytes(size) ?? "—"} />
                         <Info
-                            label="Uploaded"
+                            label="Created"
                             value={formatDate(
                                 selected?.created_at ?? activeDoc.created_at,
                             )}
                         />
-                        {activeDoc.page_count != null && (
+                        {pages != null && (
                             <Info
                                 label="Pages"
-                                value={String(activeDoc.page_count)}
+                                value={String(pages)}
                             />
                         )}
                     </div>
@@ -657,39 +575,23 @@ export function DocumentSidePanel({
                                 {versions.length}
                             </span>
                         </h2>
-                        {versions.length > VERSION_SEARCH_AT && (
-                            <label className="ml-auto flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded border border-gray-300 px-2">
-                                <Search className="h-3.5 w-3.5 shrink-0 text-gray-500" />
-                                <span className="sr-only">
-                                    Search versions
-                                </span>
-                                <input
-                                    value={versionQuery}
-                                    onChange={(event) => {
-                                        setVersionQuery(event.target.value);
-                                        setVisibleVersionCount(VERSION_PAGE);
-                                    }}
-                                    placeholder="Search versions"
-                                    className="min-w-0 flex-1 bg-transparent text-xs outline-none"
-                                />
-                            </label>
-                        )}
                     </div>
-                    <div
-                        role="list"
+                    <ul
                         aria-label="Document versions"
                         className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden rounded border border-gray-300"
                     >
                         {versionsLoading && !versions.length ? (
-                            <VersionLoading />
+                            <li><VersionLoading /></li>
+                        ) : versionsError ? (
+                            <li role="alert" className="p-3 text-xs text-red-700">
+                                Could not load version history. <button type="button"
+                                    onClick={() => void onLoadVersions(activeDoc.id, true)}
+                                    className="font-semibold underline">Retry</button>
+                            </li>
                         ) : !ordered.length ? (
-                            <p className="p-3 text-xs text-gray-500">
+                            <li className="p-3 text-xs text-gray-500">
                                 No version history.
-                            </p>
-                        ) : !filtered.length ? (
-                            <p className="p-3 text-xs text-gray-600">
-                                No matching versions.
-                            </p>
+                            </li>
                         ) : (
                             <>
                                 {visible.map((version) => (
@@ -697,68 +599,59 @@ export function DocumentSidePanel({
                                         key={version.id}
                                         version={version}
                                         selected={version.id === selectedId}
-                                        deleting={
-                                            deletingVersionId === version.id
-                                        }
-                                        replacing={
-                                            replacingId === version.id
-                                        }
-                                        canDelete={
-                                            canDelete &&
-                                            activeVersionCount > 1
-                                        }
-                                        onSelect={() =>
-                                            version.deleted_at == null &&
-                                            onSelectVersion(
-                                                version.id,
-                                                versionFilename(version),
-                                            )
-                                        }
-                                        onKeyDown={(event) =>
-                                            versionKeyDown(event, version)
-                                        }
-                                        onReplace={() => {
-                                            setReplaceTarget(version);
-                                            setReplaceFile(null);
-                                            window.setTimeout(
-                                                () =>
-                                                    replaceRef.current?.click(),
-                                                0,
-                                            );
-                                        }}
-                                        onDownload={() =>
-                                            void onDownloadVersion(
-                                                activeDoc.id,
-                                                version.id,
-                                                versionFilename(version),
-                                            )
-                                        }
-                                        onDelete={() =>
-                                            void removeVersion(version.id)
-                                        }
+                                        current={version.id === currentId}
+                                        restoring={restoringId === version.id}
+                                        comparing={comparingId === version.id}
+                                        onSelect={canPreviewVersion(version) ? () => {
+                                            setActionError(null);
+                                            onSelectVersion(version.id);
+                                        } : undefined}
+                                        onDownload={() => void downloadVersion(version)}
+                                        onRestore={version.id === currentId ? undefined
+                                            : () => setRestoreTarget(version)}
+                                        comparison={comparison(version)}
+                                        onCompare={(baselineId, comparedId) =>
+                                            void compareVersions(version.id,
+                                                baselineId, comparedId)}
                                     />
                                 ))}
-                                {visible.length < filtered.length && (
-                                    <button
-                                        type="button"
-                                        className="w-full border-t border-gray-200 py-2 text-xs font-medium hover:bg-gray-50"
-                                        onClick={() =>
-                                            setVisibleVersionCount(
-                                                (count) =>
-                                                    count + VERSION_PAGE,
-                                            )
-                                        }
-                                    >
-                                        Show more
-                                    </button>
+                                {visible.length < ordered.length && (
+                                    <li>
+                                        <button
+                                            type="button"
+                                            className="w-full border-t border-gray-200 py-2 text-xs font-medium hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gray-900"
+                                            onClick={() =>
+                                                setVisibleVersionCount(
+                                                    (count) =>
+                                                        count + VERSION_PAGE,
+                                                )
+                                            }
+                                        >
+                                            Show more
+                                        </button>
+                                    </li>
                                 )}
                             </>
                         )}
-                    </div>
-                    {uploadError && (
-                        <p className="flex items-center gap-2 py-2 text-xs text-red-700">
-                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                            {uploadError}
+                    </ul>
+                    <form aria-label="Save version" onSubmit={checkpoint}
+                        className="grid shrink-0 gap-2 pt-2">
+                        <label htmlFor="version-comment" className="sr-only">Version comment (optional)</label>
+                        <input id="version-comment" name="comment" maxLength={1000}
+                            placeholder="Comment (optional)"
+                            className="h-8 min-w-0 flex-1 rounded border border-gray-300 bg-white px-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
+                        />
+                        <Button variant="outline" size="compact" type="submit"
+                            disabled={checkpointing || versionsLoading || !current}>
+                            {checkpointing ? <Loader2 aria-hidden className="animate-spin" />
+                                : <Save aria-hidden />}
+                            Save version
+                        </Button>
+                    </form>
+                    {actionError && (
+                        <p role="alert" className="flex items-center gap-2 py-2 text-xs text-red-700">
+                            <AlertCircle aria-hidden className="h-3.5 w-3.5 shrink-0" />
+                            {actionError}
                         </p>
                     )}
                     <div className="flex shrink-0 justify-between gap-2 pt-3">
@@ -777,16 +670,10 @@ export function DocumentSidePanel({
                                 ? "Remove"
                                 : "Delete"}
                         </Button>
-                        <Button
-                            size="compact"
-                            onClick={() => uploadRef.current?.click()}
-                            disabled={uploading}
-                        >
-                            {uploading ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                                <Upload className="h-3.5 w-3.5" />
-                            )}
+                        <Button size="compact" onClick={() => uploadRef.current?.click()}
+                            disabled={uploading}>
+                            {uploading ? <Loader2 aria-hidden className="animate-spin" />
+                                : <Upload aria-hidden />}
                             Upload new version
                         </Button>
                     </div>
@@ -795,49 +682,24 @@ export function DocumentSidePanel({
             <input
                 ref={uploadRef}
                 type="file"
-                accept={ACCEPT}
+                accept={SUPPORTED_DOCUMENT_ACCEPT}
                 className="hidden"
                 onChange={upload}
-            />
-            <input
-                ref={replaceRef}
-                type="file"
-                accept={
-                    fileType(replaceTarget, type) === "pdf"
-                        ? ".pdf"
-                        : ".docx,.doc"
-                }
-                className="hidden"
-                onChange={chooseReplacement}
             />
             <WarningPopup
                 open={extensionWarningOpen}
                 onClose={() => setExtensionWarningOpen(false)}
                 message={filenameExtensionChangeWarning(filename)}
             />
-            <WarningPopup
-                open={!!deleteError}
-                onClose={() => setDeleteError(null)}
-                message={deleteError ?? ""}
-            />
             <ConfirmPopup
-                open={!!replaceFile}
-                title="Replace version?"
-                message={`This will replace ${versionTitle(
-                    replaceTarget,
-                )} with ${
-                    replaceFile?.name ?? "the selected file"
-                }. Save as a new version instead if you want to keep both copies.`}
-                confirmLabel="Replace"
-                confirmStatus={replacingId ? "loading" : "idle"}
+                open={!!restoreTarget}
+                title="Restore this version?"
+                message={`${versionTitle(restoreTarget)} will become a new current version. Existing history will be kept.`}
+                confirmLabel="Restore"
+                confirmStatus={restoringId ? "loading" : "idle"}
                 cancelLabel="Cancel"
-                onCancel={() => {
-                    if (!replacingId) {
-                        setReplaceTarget(null);
-                        setReplaceFile(null);
-                    }
-                }}
-                onConfirm={() => void replaceVersion()}
+                onCancel={() => { if (!restoringId) setRestoreTarget(null); }}
+                onConfirm={() => void restoreVersion()}
             />
             <ConfirmPopup
                 open={deleteOpen}
@@ -860,14 +722,15 @@ export function DocumentSidePanel({
                 cancelLabel="Cancel"
                 onCancel={() => {
                     if (deleteStatus !== "deleting") {
+                        deleteTarget.current = null;
                         setDeleteOpen(false);
                         setDeleteStatus("idle");
                     }
                 }}
                 onConfirm={() => void removeDocument()}
             />
-        </div>,
-        document.body,
+            </div>
+        </Modal>
     );
 }
 
@@ -896,141 +759,147 @@ function VersionLoading() {
 function VersionRow({
     version,
     selected,
-    deleting,
-    replacing,
-    canDelete,
+    current,
+    restoring,
+    comparing,
     onSelect,
-    onKeyDown,
-    onReplace,
     onDownload,
-    onDelete,
+    onRestore,
+    comparison,
+    onCompare,
 }: {
     version: DocumentVersion;
     selected: boolean;
-    deleting: boolean;
-    replacing: boolean;
-    canDelete: boolean;
-    onSelect: () => void;
-    onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
-    onReplace: () => void;
+    current: boolean;
+    restoring: boolean;
+    comparing: boolean;
+    onSelect?: () => void;
     onDownload: () => void;
-    onDelete: () => void;
+    onRestore?: () => void;
+    comparison: {
+        baselineId: string;
+        comparedId: string;
+        label: string;
+    } | null;
+    onCompare: (baselineId: string, comparedId: string) => void;
 }) {
-    const deleted = version.deleted_at != null;
     const title = versionTitle(version);
     const name = versionFilename(version);
+    const downloadLabel = `Download ${title}`;
+    const restoreLabel = `Restore ${title} as a new current version`;
+    const actor = version.author_email || (version.created_by ? "You" : "");
+    const summary = <>
+        <span className="flex min-w-0 items-center gap-1.5">
+            <FileTypeIcon fileType={name} className="h-3 w-3 shrink-0" />
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">{name}</span>
+            <span className="flex shrink-0 items-center gap-1 text-xs text-gray-500">
+                {selected && <Eye aria-hidden className="h-3 w-3" />}{title}
+            </span>
+        </span>
+        <span className="block min-w-0 truncate text-xs text-gray-500">
+            {formatDate(version.created_at)} · {versionOrigin(version)}
+            {actor ? ` · ${actor}` : ""}
+            {current ? " · Current" : ""}{!onSelect ? " · Preview unavailable" : ""}
+        </span>
+        {version.comment?.trim() && <span className="mt-0.5 block line-clamp-2 text-xs text-gray-700">
+            {version.comment}
+        </span>}
+    </>;
 
     return (
-        <div
-            role="listitem"
-            data-version-option
-            tabIndex={selected && !deleted ? 0 : -1}
-            aria-disabled={deleted}
-            aria-current={selected && !deleted ? "true" : undefined}
-            onClick={onSelect}
-            onKeyDown={onKeyDown}
-            className={`group flex min-h-14 flex-col border-b border-gray-200 px-3 py-2 outline-none ${
-                deleted
-                    ? "cursor-not-allowed opacity-50"
-                    : "cursor-pointer hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600"
-            } ${
-                selected && !deleted
+        <li
+            className={`group grid min-h-14 grid-cols-[minmax(0,1fr)_auto] border-b border-gray-200 ${
+                selected
                     ? "border-l-2 border-l-gray-950 bg-gray-100"
                     : "border-l-2 border-l-transparent"
             }`}
         >
-            <div className="flex min-w-0 items-center gap-1.5">
-                <FileTypeIcon
-                    fileType={name}
-                    className="h-3 w-3 shrink-0"
-                />
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                    {name}
-                </span>
-                <span className="flex shrink-0 items-center gap-1 text-xs text-gray-500">
-                    {selected && !deleted && <Eye className="h-3 w-3" />}
-                    {title}
-                </span>
-            </div>
-            <div className="flex min-w-0 items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-xs text-gray-500">
-                    {formatDate(version.created_at)}
-                </span>
-                {deleted ? (
-                    <span className="text-xs">Deleted</span>
-                ) : (
-                    <span className="flex h-8 items-center">
-                        <button
+            {onSelect ? <button type="button" aria-current={selected ? "true" : undefined}
+                aria-label={`Preview ${title}: ${name}`} onClick={onSelect}
+                className="min-w-0 px-3 py-2 text-left outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gray-900">
+                {summary}
+            </button> : <div className="min-w-0 px-3 py-2 text-left">{summary}</div>}
+            <div className="flex h-full items-end pb-1 pr-1">
+                        {comparison && <button
                             type="button"
-                            aria-label={`Replace ${title}`}
-                            disabled={replacing || deleting}
-                            onClick={(event) => {
-                                event.stopPropagation();
-                                onReplace();
-                            }}
-                            className="h-8 w-8 rounded hover:bg-gray-200"
-                        >
-                            {replacing ? (
-                                <Loader2 className="mx-auto h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                                <Upload className="mx-auto h-3.5 w-3.5" />
+                            aria-label={comparison.label}
+                            title={comparison.label}
+                            disabled={comparing || restoring}
+                            onClick={() => onCompare(
+                                comparison.baselineId,
+                                comparison.comparedId,
                             )}
-                        </button>
+                            className="h-8 w-8 rounded hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
+                        >
+                            {comparing ? <Loader2 aria-hidden className="mx-auto h-3.5 w-3.5 animate-spin" />
+                                : <FileDiff aria-hidden className="mx-auto h-3.5 w-3.5" />}
+                        </button>}
                         <button
                             type="button"
-                            aria-label={`Download ${title}`}
-                            onClick={(event) => {
-                                event.stopPropagation();
-                                onDownload();
-                            }}
-                            className="h-8 w-8 rounded hover:bg-gray-200"
+                            aria-label={downloadLabel}
+                            title={downloadLabel}
+                            onClick={onDownload}
+                            className="h-8 w-8 rounded hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
                         >
-                            <Download className="mx-auto h-3.5 w-3.5" />
+                            <Download aria-hidden className="mx-auto h-3.5 w-3.5" />
                         </button>
-                        <button
+                        {onRestore && <button
                             type="button"
-                            aria-label={`Delete ${title}`}
-                            disabled={!canDelete || deleting}
-                            onClick={(event) => {
-                                event.stopPropagation();
-                                onDelete();
-                            }}
-                            className="h-8 w-8 rounded text-red-700 hover:bg-red-50 disabled:opacity-40"
+                            aria-label={restoreLabel}
+                            title={restoreLabel}
+                            disabled={restoring || comparing}
+                            onClick={onRestore}
+                            className="h-8 w-8 rounded hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 disabled:opacity-40"
                         >
-                            {deleting ? (
-                                <Loader2 className="mx-auto h-3.5 w-3.5 animate-spin" />
+                            {restoring ? (
+                                <Loader2 aria-hidden className="mx-auto h-3.5 w-3.5 animate-spin" />
                             ) : (
-                                <Trash2 className="mx-auto h-3.5 w-3.5" />
+                                <RotateCcw aria-hidden className="mx-auto h-3.5 w-3.5" />
                             )}
-                        </button>
-                    </span>
-                )}
+                        </button>}
             </div>
-        </div>
+        </li>
     );
+}
+
+function versionOrigin(version: DocumentVersion) {
+    if (version.source === "restore") return "Restored";
+    if (version.source === "snapshot") return "Created";
+    if (version.provenance?.actor === "assistant") {
+        const changes = version.provenance.change_count;
+        return changes
+            ? `Beaver edit · ${changes} ${changes === 1 ? "change" : "changes"}`
+            : "Beaver edit";
+    }
+    if (version.provenance?.actor === "work-product") {
+        const kind = version.provenance.receipt?.workProduct?.kind;
+        return kind === "authorities" ? "Authorities build"
+            : kind === "court-record" ? "Court record build" : "Generated build";
+    }
+    return version.source === "generated" ? "Generated" : "Uploaded";
 }
 
 function versionTitle(version: DocumentVersion | null) {
-    return version?.version_number && version.version_number >= 1
-        ? `Version ${version.version_number}`
-        : "Version";
+    return version ? `Version ${version.version_number}` : "Version";
 }
 
 function versionFilename(version: DocumentVersion) {
-    return (
-        version.filename?.trim() ||
-        (version.source === "upload" ? "Original" : "—")
-    );
+    return version.filename.trim() || (version.source === "upload" ? "Original" : "—");
+}
+
+function canPreviewVersion(version: DocumentVersion) {
+    const name = versionFilename(version), type = fileType(version, "");
+    const extension = name.split(".").pop()?.toLowerCase() ?? "";
+    return type === "pdf" || type === "doc" || type === "docx" ||
+        isSpreadsheetFilename(name) || PLAIN_TEXT_VIEW_EXTENSIONS.has(type) ||
+        PLAIN_TEXT_VIEW_EXTENSIONS.has(extension);
 }
 
 function fileType(
     version: DocumentVersion | null,
     fallback: string | null | undefined,
 ) {
-    const name = version?.filename?.trim() ?? "";
-    if (name.toLowerCase().endsWith(".pdf")) return "pdf";
-    if (isDocxFilename(name)) return "docx";
-    return fallback ?? "";
+    return version?.file_type.toLowerCase() || fallback?.toLowerCase() || "";
 }
 
 function formatDate(iso: string | null | undefined) {

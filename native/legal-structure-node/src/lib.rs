@@ -602,26 +602,42 @@ mod legalpdf_exports {
                     let hits = pdf
                         .pages
                         .iter()
-                        .flat_map(|page| page.lines.iter())
-                        .filter_map(|line| {
-                            plan.fallback_markers
+                        .flat_map(|page| {
+                            page.lines
                                 .iter()
-                                .position(|marker| starts_with_exact_marker(&line.text, marker))
-                                .map(|marker| (marker, line))
+                                .filter_map(|line| {
+                                    plan.fallback_markers
+                                        .iter()
+                                        .position(|marker| {
+                                            starts_with_exact_marker(&line.text, marker)
+                                        })
+                                        .map(|marker| (marker, page.number, line))
+                                })
+                                .collect::<Vec<_>>()
                         })
                         .collect::<Vec<_>>();
                     let counts = (0..plan.fallback_markers.len())
-                        .map(|marker| hits.iter().filter(|(index, _)| *index == marker).count())
+                        .map(|marker| hits.iter().filter(|(index, _, _)| *index == marker).count())
                         .collect::<Vec<_>>();
                     let exact = !counts.is_empty() && counts.iter().all(|count| *count == 1);
                     let ambiguous = counts.iter().any(|count| *count > 1);
-                    if exact {
+                    let colocated = !counts.is_empty()
+                        && counts.iter().all(|count| *count > 0)
+                        && (0..counts.len()).all(|marker| {
+                            hits.iter()
+                                .filter(|(index, _, _)| *index == marker)
+                                .map(|(_, page, _)| page)
+                                .collect::<HashSet<_>>()
+                                .len()
+                                == 1
+                        });
+                    if exact || colocated {
                         selected.clear();
-                        selected.extend(hits.iter().map(|(_, line)| line.id.as_str()));
+                        selected.extend(hits.iter().map(|(_, _, line)| line.id.as_str()));
                     } else if ambiguous {
                         selected.clear();
                     }
-                    let status = if exact {
+                    let status = if exact || colocated {
                         legalpdf::PdfLookupStatus::Found
                     } else if ambiguous {
                         legalpdf::PdfLookupStatus::Ambiguous

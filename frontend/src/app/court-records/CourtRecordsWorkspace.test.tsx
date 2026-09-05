@@ -3,6 +3,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { MemoryRouter, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import type { WorkProduct, WorkProductStore } from "@/app/lib/workProducts";
 import type { CourtRecordsHost } from "./host";
 import { CourtRecordsWorkspace } from "./CourtRecordsWorkspace";
@@ -14,10 +15,13 @@ vi.mock("./assembly", () => ({ buildCourtRecord: mocks.build }));
 vi.mock("./host", async (original) => ({
   ...await original<typeof import("./host")>(), downloadArtifact: mocks.download,
 }));
+vi.mock("@/app/components/shared/views/PdfView", () => ({
+  PdfView: ({ ariaLabel }: { ariaLabel: string }) => <div role="region" aria-label={ariaLabel} />,
+}));
 
 const saved = (id: string): WorkProduct<CourtRecordDraft> => ({
   id, kind: "court-record", title: id, projectId: null, revision: 1,
-  state: { profileId: "general-court-record", cover: {}, entries: [], bindings: {} },
+  state: { profileId: "general-affidavit-exhibits", cover: {}, entries: [], bindings: {} },
   outputs: {}, createdAt: "2026-08-30T00:00:00.000Z",
   updatedAt: "2026-08-30T00:00:00.000Z",
 });
@@ -33,13 +37,13 @@ function readyRecord(id = "record") {
     origin: { kind: "library" as const, documentId: "book", versionId: "version-1",
       sourceSha256: "a".repeat(64) } };
   const draft: WorkProduct<CourtRecordDraft> = { ...saved(id), state: {
-    profileId: "general-court-record", cover: {
-      courtName: "Federal Court", courtFileNumber: "T-1-26", recordTitle: "Record",
+    profileId: "ab-kb-commercial-compendium", cover: {
+      courtFileNumber: "2401-1",
       partyStyleId: "application", partyGroups: [
         { id: "party-a", role: "Applicant", parties: [{ id: "a", name: "Applicant" }] },
         { id: "party-b", role: "Respondent", parties: [{ id: "b", name: "Respondent" }] },
-      ], filingPartyId: "a",
-    }, entries: [{ id: "entry", kindId: "document", title: "Authorities",
+      ], filingPartyIds: ["a"],
+    }, entries: [{ id: "entry", kindId: "authority-extract", title: "Authorities",
       lastSeen: { name: file.name, size: file.size, modified: file.lastModified,
         sha256: "a".repeat(64) } }], bindings: { entry: input },
   } };
@@ -47,52 +51,88 @@ function readyRecord(id = "record") {
 }
 
 describe("CourtRecordsWorkspace", () => {
+  it("opens standalone output settings without starting a record", async () => {
+    const store = { list: vi.fn(async () => []), get: vi.fn(), create: vi.fn(),
+      update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
+    const choose = vi.fn(async () => "Filed records");
+    const host = { mode: "standalone", drafts: store, prepareDeviceFile: vi.fn(),
+      resolveInput: vi.fn(), outputFolder: { get: vi.fn(async () => "Court outputs"),
+        choose, clear: vi.fn() } } as unknown as CourtRecordsHost;
+    const user = userEvent.setup();
+    render(<CourtRecordsWorkspace host={host} />);
+
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    expect(screen.getByRole("dialog", { name: "Settings" })).toHaveTextContent("Court outputs");
+    await user.click(screen.getByRole("button", { name: "Choose folder" }));
+    await waitFor(() => expect(choose).toHaveBeenCalledOnce());
+    expect(screen.getByRole("dialog", { name: "Settings" })).toHaveTextContent("Filed records");
+    expect(store.create).not.toHaveBeenCalled();
+  });
+
   it("restores contextual files and saves their explicit slot assignments", async () => {
     const binding = { kind: "document" as const, documentId: "notice", version: "latest" as const };
     const file = new File(["notice"], "Notice.docx", {
       type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     });
-    const draft: WorkProduct<CourtRecordDraft> = { ...saved("contextual"), state: {
-      profileId: "", cover: {},
-      entries: [{ id: "notice", kindId: "unassigned", title: "Notice",
-        lastSeen: { name: file.name, size: file.size, modified: file.lastModified } }],
-      bindings: { notice: binding },
-    } };
+    let draft = saved("contextual");
     const update = vi.fn(async (_id, change) => ({ ...draft, revision: 2,
       state: change.state }));
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(), create: vi.fn(),
+    let finishListing!: (items: []) => void;
+    const store = { listMetadata: () => new Promise<[]>((resolve) => { finishListing = resolve; }),
+      get: vi.fn(),
+      create: vi.fn(async (input) => (draft = { ...draft, ...input })),
       update, duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const prepared = { file, pdfRendition: new File(["pdf"], "Notice.pdf",
       { type: "application/pdf" }), pageCount: 1, searchable: true, encrypted: false,
       textlessPageCount: 0, textlessPages: [], binding,
       origin: { kind: "library" as const, documentId: "notice" }, sourceFields: {
-        cover: { courtFileNumber: "T-42-26" }, parties: {}, exhibitLabels: [],
+        cover: { courtFileNumber: "T-42-26" }, exhibitLabels: [],
       } };
     const host = { mode: "beaver", drafts: store, prepareDeviceFile: vi.fn(),
       resolveInput: vi.fn(async () => ({ status: "ready" as const, file, input: binding,
         prepared })) } as unknown as CourtRecordsHost;
-    render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
+    const user = userEvent.setup();
+    const consumed = vi.fn();
+    render(<CourtRecordsWorkspace host={host}
+      initialDocuments={[{ id: "notice", filename: file.name }]}
+      onDocumentsConsumed={consumed} />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Application record" }));
-    await userEvent.click(within(screen.getByRole("dialog", { name: "Application record format" }))
-      .getByRole("button", { name: /^FC\b.*Applicant$/u }));
+    await user.selectOptions(await screen.findByRole("combobox", { name: "Jurisdiction" }), "ca");
+    await user.click(within(screen.getByRole("dialog", { name: "Choose document" }))
+      .getByRole("button", { name: "Application record" }));
+    await user.click(within(screen.getByRole("group", { name: "Application record format" }))
+      .getByRole("button", { name: "Application record — applicant" }));
+    expect(draft.state).toMatchObject({ profileId: "fc-application-record-applicant",
+      entries: [{ id: "notice", kindId: "unassigned" }], bindings: { notice: binding } });
+    expect(consumed).toHaveBeenCalledOnce();
     expect(await screen.findByRole("region", { name: "Files to assign" })).toBeVisible();
+    await act(async () => finishListing([]));
+    expect(screen.getByRole("region", { name: "Files to assign" })).toBeVisible();
     expect(screen.getByLabelText(/Court file number/iu)).toHaveValue("T-42-26");
     const kind = COURT_PROFILE_BY_ID.get("fc-application-record-applicant")!
       .documentKinds.find(({ id }) => id === "notice-application")!;
     await userEvent.selectOptions(screen.getByLabelText("Document type for Notice.docx"), kind.id);
 
-    await waitFor(() => expect(update).toHaveBeenCalled());
-    expect(update.mock.calls.at(-1)![1].state).toMatchObject({
+    await waitFor(() => expect(update.mock.calls.at(-1)![1].state).toMatchObject({
       profileId: "fc-application-record-applicant",
-      entries: [{ id: "notice", kindId: kind.id }],
+      entries: [{ id: "notice", kindId: kind.id, title: "Notice" }],
       bindings: { notice: binding },
-    });
+    }));
+
+    await user.click(screen.getByRole("button", { name: "Document: Application record" }));
+    await user.click(within(screen.getByRole("dialog", { name: "Choose document" }))
+      .getByRole("button", { name: "Trial record" }));
+    await waitFor(() => expect(update.mock.calls.at(-1)![1].state).toMatchObject({
+      profileId: "fc-trial-record",
+      entries: [{ id: "notice", kindId: "other-document" }],
+      bindings: { notice: binding },
+    }));
   });
 
-  it("creates nothing until an exact filing format is selected", async () => {
+  it("creates nothing until an exact filing format is selected in the active project", async () => {
     const existing = saved("existing");
-    const created = { ...saved("created"), title: "Untitled court record", state: {
+    const created = { ...saved("created"), projectId: "matter-1",
+      title: "Moving party’s motion record", state: {
       profileId: "fc-motion-record-moving", cover: {}, entries: [], bindings: {},
     } };
     const store = {
@@ -103,21 +143,119 @@ describe("CourtRecordsWorkspace", () => {
       prepareDeviceFile: vi.fn(), resolveInput: vi.fn() } as unknown as CourtRecordsHost;
     const onDraftChange = vi.fn();
 
-    render(<CourtRecordsWorkspace host={host} onDraftChange={onDraftChange} />);
+    const user = userEvent.setup();
+    render(<CourtRecordsWorkspace host={host} projectId="matter-1"
+      onDraftChange={onDraftChange} />);
 
     await waitFor(() => expect(onDraftChange).toHaveBeenCalledWith(undefined, true));
     expect(store.create).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Open saved record" })).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: "New court record" }));
-    await userEvent.click(screen.getByRole("button", { name: "Motion record" }));
-    await userEvent.click(within(screen.getByRole("dialog", { name: "Motion record format" }))
-      .getByRole("button", { name: /^FC\b.*Moving party$/u }));
+    await user.click(screen.getByRole("button", { name: "New court record" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Jurisdiction" }), "ca");
+    await user.click(within(screen.getByRole("dialog", { name: "Choose document" }))
+      .getByRole("button", { name: "Motion record" }));
+    await user.click(within(screen.getByRole("group", { name: "Motion record format" }))
+      .getByRole("button", { name: "Motion record — moving" }));
 
+    expect(store.list).toHaveBeenCalledWith("court-record", "matter-1");
     expect(store.create).toHaveBeenCalledWith({ kind: "court-record",
-      title: "Untitled court record", state: {
+      projectId: "matter-1",
+      title: "Moving party’s motion record", state: {
         profileId: "fc-motion-record-moving", cover: {}, entries: [], bindings: {},
-      } });
+    } });
     await waitFor(() => expect(onDraftChange).toHaveBeenCalledWith(created, true));
+    await user.click(screen.getByRole("button", { name: "Back from court record" }));
+    await user.click(screen.getByRole("button", { name: "Open saved record" }));
+    expect(screen.getByRole("dialog", { name: "Open saved record" }))
+      .toHaveTextContent(/Motion record.+moving/u);
+  });
+
+  it("discards a cancelled file handoff before starting another record", async () => {
+    const create = vi.fn(async (input) => ({ ...saved("new"), ...input }));
+    const host = { mode: "beaver", drafts: { list: async () => [], create },
+      resolveInput: vi.fn(), prepareDeviceFile: vi.fn() } as unknown as CourtRecordsHost;
+    const consumed = vi.fn();
+    render(<CourtRecordsWorkspace host={host}
+      initialDocuments={[{ id: "notice", filename: "Notice.pdf" }]}
+      onDocumentsConsumed={consumed} />);
+    await screen.findByRole("combobox", { name: "Jurisdiction" });
+    await userEvent.keyboard("{Escape}");
+    expect(create).not.toHaveBeenCalled();
+    expect(consumed).toHaveBeenCalledOnce();
+    await userEvent.click(screen.getByRole("button", { name: "New court record" }));
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Jurisdiction" }), "ab");
+    await userEvent.click(within(screen.getByRole("dialog", { name: "Choose document" }))
+      .getByRole("button", { name: "Affidavit with exhibits" }));
+    expect(create.mock.calls[0][0].state).toMatchObject({
+      profileId: "ab-kb-affidavit-exhibits", entries: [], bindings: {},
+    });
+  });
+
+  it("finishes an old draft save without restoring its route over a new file handoff", async () => {
+    const old = { ...saved("old"), state: { ...saved("old").state,
+      profileId: "fc-motion-record-moving" } };
+    let finishSave!: () => void;
+    const store = {
+      listMetadata: async () => [], get: async () => old,
+      create: vi.fn(async (input) => ({ ...saved("new"), ...input })),
+      update: (id: string, change: { state: CourtRecordDraft }) => id === "new"
+        ? Promise.resolve({ ...saved("new"), ...change, revision: 2 })
+        : new Promise((resolve) => { finishSave = () => resolve({ ...old, ...change, revision: 2 }); }),
+    } as unknown as WorkProductStore;
+    const file = new File(["pdf"], "Notice.pdf");
+    const host = { mode: "beaver", drafts: store,
+      resolveInput: async (input: unknown) => ({ status: "ready", input, file,
+        prepared: { file, pageCount: 1, searchable: true, encrypted: false } }),
+    } as unknown as CourtRecordsHost;
+    function RoutedBuilder() {
+      const [params, setParams] = useSearchParams();
+      const location = useLocation(), navigate = useNavigate();
+      return <>
+        <output aria-label="Route">{location.search}</output>
+        <button onClick={() => navigate("/court-records", { state: {
+          documents: [{ id: "notice", filename: "Notice.pdf" }],
+        } })}>Start selected filing</button>
+        <CourtRecordsWorkspace host={host} initialDraftId={params.get("draft") ?? undefined}
+          initialDocuments={location.state?.documents}
+          onDocumentsConsumed={() => navigate(location.pathname + location.search,
+            { replace: true, state: null })}
+          onDraftChange={(draft, synced) => {
+            if (!synced || (params.get("draft") ?? undefined) === draft?.id) return;
+            setParams(draft ? { draft: draft.id } : {}, { replace: true });
+          }} />
+      </>;
+    }
+    render(<MemoryRouter initialEntries={["/court-records?draft=old"]}>
+      <RoutedBuilder /></MemoryRouter>);
+    const field = await screen.findByLabelText(/Court file number/iu);
+    fireEvent.change(field, { target: { value: "T-42-26" } });
+    await userEvent.click(screen.getByRole("button", { name: "Start selected filing" }));
+    await waitFor(() => expect(finishSave).toBeTypeOf("function"));
+    expect(screen.getByRole("status", { name: "Route" })).not.toHaveTextContent("old");
+    await act(async () => finishSave());
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Jurisdiction" }), "ab");
+    await userEvent.click(within(screen.getByRole("dialog", { name: "Choose document" }))
+      .getByRole("button", { name: "Affidavit with exhibits" }));
+    await waitFor(() => expect(screen.getByRole("status", { name: "Route" }))
+      .toHaveTextContent("?draft=new"));
+    expect(await screen.findByRole("region", { name: "Files to assign" })).toHaveTextContent("Notice.pdf");
+  });
+
+  it("does not open a routed draft from another project", async () => {
+    const requested = { ...saved("other-project"), projectId: "matter-2" };
+    const store = { list: vi.fn(async () => []), get: vi.fn(async () => requested),
+      create: vi.fn(), update: vi.fn(), duplicate: vi.fn(), remove: vi.fn(),
+    } as unknown as WorkProductStore;
+    const host = { mode: "beaver", drafts: store, prepareDeviceFile: vi.fn(),
+      resolveInput: vi.fn() } as unknown as CourtRecordsHost;
+    const onDraftChange = vi.fn();
+
+    render(<CourtRecordsWorkspace host={host} projectId="matter-1"
+      initialDraftId={requested.id} onDraftChange={onDraftChange} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("not in this project");
+    expect(screen.queryByRole("heading", { name: requested.title })).not.toBeInTheDocument();
+    expect(store.list).toHaveBeenCalledWith("court-record", "matter-1");
   });
 
   it("keeps saved filing-contact defaults only where the selected cover accepts them", async () => {
@@ -130,16 +268,36 @@ describe("CourtRecordsWorkspace", () => {
       counselName: "Ada Lawyer", counselEmail: "ada@example.test",
     })), prepareDeviceFile: vi.fn(), resolveInput: vi.fn() } as unknown as CourtRecordsHost;
 
+    const user = userEvent.setup();
     render(<CourtRecordsWorkspace host={host} />);
-    await userEvent.click(await screen.findByRole("button", { name: "New court record" }));
-    await userEvent.click(screen.getByRole("button", { name: "Affidavit with exhibits" }));
-    await userEvent.click(within(screen.getByRole("dialog", {
-      name: "Affidavit with exhibits format",
-    })).getByRole("button", { name: "ABKB" }));
+    await user.click(await screen.findByRole("button", { name: "New court record" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Jurisdiction" }), "ab");
+    await user.click(within(screen.getByRole("dialog", { name: "Choose document" }))
+      .getByRole("button", { name: "Affidavit with exhibits" }));
 
     expect(store.create).toHaveBeenCalledWith(expect.objectContaining({
       state: { profileId: "ab-kb-affidavit-exhibits", cover: {}, entries: [], bindings: {} },
     }));
+  });
+
+  it("saves only the visible filing details when the user asks", async () => {
+    const draft = { ...saved("contact"), state: { profileId: "fc-motion-record-moving",
+      cover: { counselName: "Ada Lawyer", counselEmail: "ada@example.test" },
+      entries: [], bindings: {} } };
+    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
+      update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
+    const saveFilingContact = vi.fn(async () => undefined);
+    const host = { mode: "standalone", drafts: store, saveFilingContact,
+      prepareDeviceFile: vi.fn(), resolveInput: vi.fn() } as unknown as CourtRecordsHost;
+
+    render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
+    await userEvent.click(await screen.findByRole("button", {
+      name: "Save filing details for new records",
+    }));
+
+    expect(saveFilingContact).toHaveBeenCalledWith({ counselName: "Ada Lawyer",
+      counselEmail: "ada@example.test" });
+    expect(await screen.findByText("Filing details saved for new records")).toBeVisible();
   });
 
   it("resumes an exact deep link beyond the first saved page", async () => {
@@ -166,7 +324,7 @@ describe("CourtRecordsWorkspace", () => {
 
     rerender(<CourtRecordsWorkspace host={host} onDraftChange={onDraftChange} />);
     await waitFor(() => expect(onDraftChange).toHaveBeenLastCalledWith(undefined, true));
-    expect(screen.getByRole("heading", { name: "Start a court record" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "New court record" })).toBeVisible();
   });
 
   it("keeps the newest assistant refresh when responses arrive out of order", async () => {
@@ -175,22 +333,22 @@ describe("CourtRecordsWorkspace", () => {
       updatedAt: `2026-08-30T00:0${revision}:00.000Z` }));
     const pending: Array<(draft: WorkProduct<CourtRecordDraft>) => void> = [];
     const get = vi.fn(() => new Promise<WorkProduct<CourtRecordDraft>>((resolve) =>
-      pending.push(resolve)));
+      pending.push(resolve))).mockResolvedValueOnce(initial);
     const store = { list: vi.fn(async () => [initial]), get, create: vi.fn(),
       update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const host = { mode: "beaver", drafts: store, prepareDeviceFile: vi.fn(),
       resolveInput: vi.fn() } as unknown as CourtRecordsHost;
     const onDraftChange = vi.fn();
     const { rerender } = render(<CourtRecordsWorkspace host={host} initialDraftId={initial.id}
-      refreshToken={1} onDraftChange={onDraftChange} />);
+      refreshToken={{ id: initial.id, revision: 1, sequence: 1 }} onDraftChange={onDraftChange} />);
 
     await waitFor(() => expect(onDraftChange).toHaveBeenLastCalledWith(initial, true));
     rerender(<CourtRecordsWorkspace host={host} initialDraftId={initial.id}
-      refreshToken={2} onDraftChange={onDraftChange} />);
-    await waitFor(() => expect(get).toHaveBeenCalledOnce());
+      refreshToken={{ id: initial.id, revision: 2, sequence: 2 }} onDraftChange={onDraftChange} />);
+    await waitFor(() => expect(pending).toHaveLength(1));
     rerender(<CourtRecordsWorkspace host={host} initialDraftId={initial.id}
-      refreshToken={3} onDraftChange={onDraftChange} />);
-    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+      refreshToken={{ id: initial.id, revision: 3, sequence: 3 }} onDraftChange={onDraftChange} />);
+    await waitFor(() => expect(pending).toHaveLength(2));
 
     await act(async () => pending[1](revisions[1]));
     await waitFor(() => expect(onDraftChange).toHaveBeenLastCalledWith(revisions[1], true));
@@ -202,7 +360,7 @@ describe("CourtRecordsWorkspace", () => {
     const draft = saved("Working record");
     const update = vi.fn(async (_id, change) => ({ ...draft, revision: 2,
       state: change.state }));
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(), create: vi.fn(),
+    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
       update, duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const host = { mode: "standalone", drafts: store, prepareDeviceFile: vi.fn(),
       resolveInput: vi.fn() } as unknown as CourtRecordsHost;
@@ -214,7 +372,25 @@ describe("CourtRecordsWorkspace", () => {
 
     await waitFor(() => expect(update).toHaveBeenCalledOnce());
     expect(update.mock.calls[0][1].state.cover.courtFileNumber).toBe("T-1-26");
-    expect(screen.getByRole("heading", { name: "Start a court record" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "New court record" })).toBeVisible();
+  });
+
+  it("flushes the latest edit when navigation unmounts before autosave", async () => {
+    const draft = saved("Navigation-safe record");
+    const update = vi.fn(async (_id, change) => ({ ...draft, revision: 2,
+      state: change.state }));
+    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
+      update, duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
+    const host = { mode: "standalone", drafts: store, prepareDeviceFile: vi.fn(),
+      resolveInput: vi.fn() } as unknown as CourtRecordsHost;
+    const view = render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
+
+    fireEvent.change(await screen.findByLabelText(/Court file number/iu),
+      { target: { value: "T-99-26" } });
+    view.unmount();
+
+    await waitFor(() => expect(update).toHaveBeenCalledOnce());
+    expect(update.mock.calls[0][1].state.cover.courtFileNumber).toBe("T-99-26");
   });
 
   it("flushes an edit made during an in-flight autosave before returning", async () => {
@@ -225,7 +401,7 @@ describe("CourtRecordsWorkspace", () => {
       new Promise<WorkProduct<CourtRecordDraft>>((resolve) => pending.push({
         state: change.state, resolve,
       })));
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(), create: vi.fn(),
+    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
       update, duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const host = { mode: "standalone", drafts: store, prepareDeviceFile: vi.fn(),
       resolveInput: vi.fn() } as unknown as CourtRecordsHost;
@@ -243,7 +419,7 @@ describe("CourtRecordsWorkspace", () => {
     await act(async () => pending[1].resolve({ ...draft, revision: 3,
       state: pending[1].state }));
 
-    expect(await screen.findByRole("heading", { name: "Start a court record" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "New court record" })).toBeVisible();
   });
 
   it("never publishes a build completed against an edited record", async () => {
@@ -252,7 +428,7 @@ describe("CourtRecordsWorkspace", () => {
     mocks.build.mockImplementationOnce(() => new Promise((resolve) => {
       finishBuild = resolve;
     }));
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(), create: vi.fn(),
+    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
       update: vi.fn(async (_id, change) => ({ ...draft, revision: 2,
         state: change.state })), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const host = { mode: "beaver", drafts: store,
@@ -267,8 +443,8 @@ describe("CourtRecordsWorkspace", () => {
     await userEvent.click(build);
     await waitFor(() => expect(build).toBeDisabled());
     expect(onDraftChange).toHaveBeenLastCalledWith(draft, false);
-    fireEvent.change(screen.getByLabelText(/Record title/iu), {
-      target: { value: "Changed during build" },
+    fireEvent.change(screen.getByLabelText(/Court file number/iu), {
+      target: { value: "2401-2" },
     });
     await act(async () => finishBuild({ artifacts: [{ role: "record",
       filename: "stale.pdf", mimeType: "application/pdf", bytes: new Uint8Array([1]),
@@ -278,17 +454,80 @@ describe("CourtRecordsWorkspace", () => {
     expect(screen.queryByRole("button", { name: /stale\.pdf/iu })).not.toBeInTheDocument();
   });
 
+  it("refreshes source-owned affidavit fields without overwriting manual values", async () => {
+    mocks.build.mockClear();
+    const binding = { kind: "document" as const, documentId: "affidavit",
+      version: "latest" as const };
+    const file = new File(["%PDF"], "affidavit.pdf", { type: "application/pdf" });
+    const base = { file, pageCount: 1, searchable: true, encrypted: false,
+      textlessPageCount: 0, textlessPages: [], binding,
+      origin: { kind: "library" as const, documentId: "affidavit",
+        versionId: "version-1", sourceSha256: "a".repeat(64) } };
+    const previousFields = { cover: { courtFileNumber: "2401-11111",
+      deponent: "Old deponent", swornDate: "January 1, 2026" }, partyStyleId: "action",
+      partyGroups: [{ role: "Plaintiff", parties: ["Old applicant"] },
+        { role: "Defendant", parties: ["Old respondent"] }], exhibitLabels: ["A"],
+      entryTitle: "Affidavit of Old deponent", entryDate: "January 1, 2026" };
+    const draft: WorkProduct<CourtRecordDraft> = { ...saved("latest-affidavit"), state: {
+      profileId: "ab-kb-affidavit-exhibits", cover: {
+        courtFileNumber: "2401-11111", deponent: "Counsel override",
+        swornDate: "January 1, 2026", partyStyleId: "action",
+        partyGroups: [
+          { id: "party-a", role: "Plaintiff", parties: [{ id: "a", name: "Old applicant" }] },
+          { id: "party-b", role: "Defendant", parties: [{ id: "b", name: "Old respondent" }] },
+        ], filingPartyIds: ["a"] },
+      entries: [{ id: "affidavit", kindId: "affidavit",
+        title: "Affidavit of Old deponent", date: "January 1, 2026",
+        sourceFields: previousFields,
+        lastSeen: { name: file.name, size: file.size, modified: file.lastModified } }],
+      bindings: { affidavit: binding },
+    } };
+    const current = { ...base, sourceFields: previousFields };
+    const finalized = { ...base, origin: { ...base.origin, versionId: "version-2",
+      sourceSha256: "b".repeat(64) }, sourceFields: {
+      cover: { courtFileNumber: "2401-99999", deponent: "Ada Applicant",
+        swornDate: "September 4, 2026" }, partyStyleId: "action",
+      partyGroups: [{ role: "Plaintiff", parties: ["Ada Applicant"] },
+        { role: "Defendant", parties: ["Riley Respondent"] }], exhibitLabels: ["A"],
+      entryTitle: "Affidavit of Ada Applicant", entryDate: "September 4, 2026" } };
+    const resolveInput = vi.fn()
+      .mockResolvedValueOnce({ status: "ready", file, input: binding, prepared: current })
+      .mockResolvedValue({ status: "changed", file, input: binding, prepared: finalized });
+    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
+      update: vi.fn(async (_id, change) => ({ ...draft, revision: 2, state: change.state })),
+      duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
+    const host = { mode: "beaver", drafts: store, prepareDeviceFile: vi.fn(),
+      resolveInput } as unknown as CourtRecordsHost;
+    mocks.build.mockResolvedValueOnce({ artifacts: [], receipt: { sources: [] } });
+    render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
+
+    await waitFor(() => expect(resolveInput).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Build record" })).toBeEnabled());
+    await userEvent.click(screen.getByRole("button", { name: "Build record" }));
+
+    await waitFor(() => expect(mocks.build).toHaveBeenCalledOnce());
+    expect(mocks.build.mock.calls[0][0].cover).toMatchObject({
+      courtFileNumber: "2401-99999", deponent: "Counsel override",
+      swornDate: "September 4, 2026",
+      partyGroups: [expect.objectContaining({ parties: [{ id: "a", name: "Ada Applicant" }] }),
+        expect.objectContaining({ parties: [{ id: "b", name: "Riley Respondent" }] })],
+    });
+    expect(mocks.build.mock.calls[0][0].entries[0]).toMatchObject({
+      title: "Affidavit of Ada Applicant", date: "September 4, 2026",
+    });
+  });
+
   it("focuses the exact party field that blocks a build", async () => {
     const draft = { ...saved("missing-party"), state: {
-      profileId: "general-court-record", cover: {
-        courtName: "Federal Court", courtFileNumber: "T-1-26", recordTitle: "Record",
+      profileId: "ab-kb-commercial-compendium", cover: {
+        courtFileNumber: "2401-1",
         partyStyleId: "application", partyGroups: [
           { id: "party-a", role: "Applicant", parties: [{ id: "a", name: "" }] },
           { id: "party-b", role: "Respondent", parties: [{ id: "b", name: "Respondent" }] },
-        ], filingPartyId: "b",
+        ], filingPartyIds: ["b"],
       }, entries: [], bindings: {},
     } };
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(), create: vi.fn(),
+    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
       update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const host = { mode: "standalone", drafts: store, prepareDeviceFile: vi.fn(),
       resolveInput: vi.fn() } as unknown as CourtRecordsHost;
@@ -300,7 +539,7 @@ describe("CourtRecordsWorkspace", () => {
 
   it("focuses relinking rather than an unrelated field when an input is missing", async () => {
     const { draft } = readyRecord("missing-input");
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(), create: vi.fn(),
+    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
       update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const host = { mode: "standalone", drafts: store, prepareDeviceFile: vi.fn(),
       resolveInput: vi.fn(async () => ({ status: "missing" as const, reason: "deleted" as const })),
@@ -324,13 +563,13 @@ describe("CourtRecordsWorkspace", () => {
       } } };
     mocks.build.mockResolvedValue({ artifacts: [artifact], receipt: {
       sources: [{ order: 0, entryId: "entry", filename: file.name, title: "Authorities",
-        kindId: "document", sha256: "a".repeat(64), mimeType: file.type,
+        kindId: "authority-extract", sha256: "a".repeat(64), mimeType: file.type,
         byteCount: file.size, pageCount: 1, origin: prepared.origin, ocrAppliedPages: [] }],
     } });
     const resolveInput = vi.fn().mockResolvedValue({ status: "ready", file, input, prepared });
     let finishSave!: (value: object) => void;
     const saveArtifacts = vi.fn(() => new Promise((resolve) => { finishSave = resolve; }));
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(), create: vi.fn(),
+    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
       update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const host = { mode: "beaver", drafts: store, prepareDeviceFile: vi.fn(),
       resolveInput, saveArtifacts } as unknown as CourtRecordsHost;
@@ -339,7 +578,9 @@ describe("CourtRecordsWorkspace", () => {
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id}
       onDraftChange={onDraftChange} />);
 
-    await user.click(await screen.findByRole("button", { name: "Build record" }));
+    await waitFor(() => expect(resolveInput).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Build record" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Build record" }));
     const download = await screen.findByRole("button", { name: /Court record\.pdf/iu });
     const saveButton = screen.getByRole("button", { name: "Save to Library" });
     await user.click(saveButton);
@@ -357,8 +598,14 @@ describe("CourtRecordsWorkspace", () => {
     expect(await screen.findByText("Rebuild the source draft")).toBeVisible();
   });
 
-  it("binds a saved output selected through the Library picker", async () => {
+  it("binds a saved output and replaces an occupied fixed slot", async () => {
     const draft = saved("record");
+    const oldFile = new File(["old"], "Old affidavit.pdf", { type: "application/pdf" });
+    const oldBinding = { kind: "document" as const, documentId: "old-affidavit",
+      version: "latest" as const };
+    draft.state.entries = [{ id: "affidavit", kindId: "affidavit", title: "My affidavit",
+      lastSeen: { name: oldFile.name, size: oldFile.size, modified: oldFile.lastModified } }];
+    draft.state.bindings = { affidavit: oldBinding };
     const libraryDocument = { id: "authorities-document", project_id: null,
       filename: "Authorities.pdf", file_type: "pdf", pdf_storage_path: null,
       size_bytes: 4, page_count: 1, created_at: "2026-08-30T00:00:00.000Z",
@@ -374,7 +621,7 @@ describe("CourtRecordsWorkspace", () => {
     const file = new File(["book"], libraryDocument.filename, { type: "application/pdf" });
     const update = vi.fn(async (_id, change) => ({ ...draft, revision: 2,
       state: change.state }));
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(), create: vi.fn(),
+    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
       update, duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const importLibraryDocument = vi.fn();
     const importDraftOutput = vi.fn(async () => ({ file, pageCount: 1, searchable: true,
@@ -383,32 +630,35 @@ describe("CourtRecordsWorkspace", () => {
         versionId: libraryDocument.current_version_id,
         sourceSha256: libraryDocument.source_sha256 } }));
     const host = { mode: "beaver", drafts: store, prepareDeviceFile: vi.fn(),
-      resolveInput: vi.fn(), searchLibrary: vi.fn(async () => [libraryDocument]),
+      resolveInput: vi.fn(async () => ({ status: "ready" as const, file: oldFile,
+        input: oldBinding, prepared: { file: oldFile, pageCount: 1, searchable: true,
+          encrypted: false, binding: oldBinding, origin: { kind: "library" as const } } })),
+      searchLibrary: vi.fn(async () => [libraryDocument]),
       searchDraftOutputs: vi.fn(async () => [choice]), importLibraryDocument,
       importDraftOutput } as unknown as CourtRecordsHost;
     const user = userEvent.setup();
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
 
-    await waitFor(() => expect(document.querySelector("[data-kind-id=document]"))
+    await waitFor(() => expect(document.querySelector("[data-kind-id=affidavit]"))
       .toBeInTheDocument());
-    await user.click(within(document.querySelector("[data-kind-id=document]")!)
+    await user.click(within(document.querySelector("[data-kind-id=affidavit]")!)
       .getByRole("button", { name: "Library" }));
     const picker = await screen.findByRole("dialog");
     const result = within(picker).getAllByRole("button", { name: /Authorities\.pdf/iu });
     expect(result).toHaveLength(1);
     await user.click(result[0]);
 
-    await waitFor(() => expect(importDraftOutput).toHaveBeenCalledWith(choice,
-      expect.any(Function)));
     expect(importLibraryDocument).not.toHaveBeenCalled();
     await waitFor(() => expect(update).toHaveBeenCalled());
-    expect(Object.values(update.mock.calls.at(-1)![1].state.bindings))
-      .toContainEqual(binding);
+    const state = update.mock.calls.at(-1)![1].state;
+    expect(state.entries).toEqual([expect.objectContaining({ id: "affidavit",
+      kindId: "affidavit", title: "My affidavit" })]);
+    expect(state.bindings).toEqual({ affidavit: binding });
   });
 
   it("automatically OCRs a textless upload", async () => {
     const draft = saved("ocr");
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(), create: vi.fn(),
+    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
       update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const prepareDeviceFile = vi.fn(async (file: File) => ({ file, pageCount: 1,
       searchable: false, encrypted: false, textlessPageCount: 1, textlessPages: [1],
@@ -421,9 +671,9 @@ describe("CourtRecordsWorkspace", () => {
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id}
       onDraftChange={onDraftChange} />);
 
-    await waitFor(() => expect(document.getElementById("court-record-document-file"))
+    await waitFor(() => expect(document.getElementById("court-record-affidavit-file"))
       .toBeInTheDocument());
-    const input = document.getElementById("court-record-document-file")!;
+    const input = document.getElementById("court-record-affidavit-file")!;
     fireEvent.change(input, { target: { files: [new File(["scan"], "scan.pdf",
       { type: "application/pdf" })] } });
 
@@ -435,22 +685,29 @@ describe("CourtRecordsWorkspace", () => {
     expect(screen.queryByRole("button", { name: "OCR text pages" })).not.toBeInTheDocument();
   });
 
-  it("fills empty affidavit details and explicit exhibit slots without guessing from filenames", async () => {
+  it("propagates the affidavit, auto-slots certified exhibits, and replaces files", async () => {
+    const sourceSha256 = "a".repeat(64);
     const draft: WorkProduct<CourtRecordDraft> = {
       ...saved("affidavit"),
       state: { profileId: "ab-kb-affidavit-exhibits", cover: { deponent: "Edited deponent" },
         entries: [], bindings: {} },
     };
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(), create: vi.fn(),
+    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
       update: vi.fn(async (_id, update) => ({ ...draft, revision: 2, state: update.state })),
       duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const prepared = (file: File, sourceFields?: object) => ({ file, pageCount: 1,
       searchable: true, encrypted: false, textlessPageCount: 0, textlessPages: [],
-      sourceBookmarks: [], origin: { kind: "device" as const }, sourceFields });
+      sourceBookmarks: [], origin: { kind: "device" as const }, sourceFields,
+      binding: { kind: "local-file" as const, handleId: file.name,
+        lastSeen: { name: file.name, size: file.size, modified: file.lastModified,
+          sha256: sourceSha256 } } });
     const prepareDeviceFile = vi.fn(async (file: File) => prepared(file,
-      file.name === "affidavit.pdf" ? {
+      file.name.endsWith("affidavit.pdf") ? {
         cover: { courtFileNumber: "2401-12345", deponent: "Source deponent" },
-        partyStyleId: "action", parties: { first: "Alpha Person", second: "Beta Person" },
+        partyStyleId: "action", partyGroups: [
+          { role: "Plaintiff", parties: ["Alpha Person"] },
+          { role: "Defendant", parties: ["Beta Person"] },
+        ],
         exhibitLabels: ["A", "B"],
         entryTitle: "Affidavit of Source deponent", entryDate: "January 2, 2026",
       } : file.name === "source-labelled.pdf"
@@ -469,34 +726,49 @@ describe("CourtRecordsWorkspace", () => {
     expect(screen.getByLabelText("Contents description")).toHaveValue("Affidavit of Source deponent");
     expect(document.querySelector<HTMLInputElement>("[data-party-group=Plaintiff] input"))
       .toHaveValue("Alpha Person");
+    fireEvent.drop(document.querySelector("[data-kind-id=affidavit]")!, {
+      dataTransfer: { types: ["Files"], files: [new File(["updated"],
+        "updated-affidavit.pdf", { type: "application/pdf" })] },
+    });
+    await waitFor(() => expect(screen.getByText("updated-affidavit.pdf")).toBeVisible());
+    expect(screen.queryByText("affidavit.pdf")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add exhibit" }));
+    expect(screen.getByRole("region", { name: "Exhibit C slot" })).toBeVisible();
     const exhibits = [new File(["a"], "source-labelled.pdf", { type: "application/pdf" }),
       new File(["b"], "Exhibit B.pdf", { type: "application/pdf" })];
     fireEvent.change(document.querySelector<HTMLInputElement>("[data-kind-id=exhibit] input[type=file]")!, {
       target: { files: exhibits },
     });
-    await waitFor(() => expect(screen.getAllByLabelText("Exhibit label").map((input) =>
-      (input as HTMLInputElement).value)).toEqual(["A", ""]));
-    const bId = screen.getByText("Exhibit B.pdf").closest("article")!.dataset.entryId!;
-    fireEvent.drop(screen.getByRole("region", { name: "Exhibit A slot" }), {
-      dataTransfer: { getData: () => bId, files: [] },
+    const pool = screen.getByText("Unassigned files").parentElement!;
+    await waitFor(() => expect(within(screen.getByRole("region", { name: "Exhibit A slot" }))
+      .getByText("source-labelled.pdf")).toBeVisible());
+    expect(within(pool).queryByText("source-labelled.pdf")).toBeNull();
+    expect(within(pool).getByText("Exhibit B.pdf")).toBeVisible();
+    fireEvent.change(document.getElementById("court-record-exhibit-A")!, {
+      target: { files: [new File(["replacement"], "replacement.pdf",
+        { type: "application/pdf" })] },
     });
     await waitFor(() => expect(within(screen.getByRole("region", { name: "Exhibit A slot" }))
-      .getByText("Exhibit B.pdf")).toBeVisible());
-    const pool = screen.getByText("Unassigned files").parentElement!;
-    fireEvent.drop(pool, { dataTransfer: { getData: () => bId, files: [] } });
-    await waitFor(() => expect(within(pool).getByText("Exhibit B.pdf")).toBeVisible());
+      .getByText("replacement.pdf")).toBeVisible());
+    expect(screen.queryByText("source-labelled.pdf")).toBeNull();
   });
 
-  it("fills missing case details from every restored source without replacing typed values", async () => {
+  it("fills case details from filing sources but ignores exhibit metadata", async () => {
     const input = (documentId: string) => ({ kind: "document" as const, documentId,
       version: "latest" as const });
     const snapshot = (name: string) => ({ name, size: 1, modified: 1 });
     const draft: WorkProduct<CourtRecordDraft> = { ...saved("restored"), state: {
-      profileId: "ab-kb-affidavit-exhibits", cover: { deponent: "Typed deponent" },
+      profileId: "ab-kb-affidavit-exhibits", cover: { deponent: "Typed deponent",
+        partyStyleId: "action", partyGroups: [
+          { id: "party-a", role: "Plaintiff", parties: [{ id: "typed", name: "Typed Plaintiff" }] },
+          { id: "party-b", role: "Defendant", parties: [{ id: "blank", name: "" }] },
+        ] },
       entries: [
         { id: "affidavit", kindId: "affidavit", title: "Affidavit", lastSeen: snapshot("affidavit.pdf") },
+        { id: "filing", kindId: "other-document", title: "Notice", lastSeen: snapshot("notice.pdf") },
         { id: "exhibit", kindId: "exhibit", title: "Exhibit", lastSeen: snapshot("exhibit.pdf") },
-      ], bindings: { affidavit: input("affidavit"), exhibit: input("exhibit") },
+      ], bindings: { affidavit: input("affidavit"), filing: input("filing"),
+        exhibit: input("exhibit") },
     } };
     const resolveInput = vi.fn(async (binding: ReturnType<typeof input>) => {
       const file = new File([binding.documentId], `${binding.documentId}.pdf`,
@@ -504,13 +776,18 @@ describe("CourtRecordsWorkspace", () => {
       return { status: "ready" as const, input: binding, file, prepared: {
         file, pageCount: 1, searchable: true, encrypted: false,
         origin: { kind: "library" as const }, sourceFields: binding.documentId === "affidavit"
-          ? { cover: { courtFileNumber: "2401-12345", deponent: "Source deponent" },
-            partyStyleId: "action", parties: { first: "Alpha Person" }, exhibitLabels: [] }
-          : { cover: { registry: "Calgary" }, parties: { second: "Beta Person" },
+          ? { cover: { deponent: "Source deponent" },
+            partyStyleId: "action",
+            partyGroups: [{ role: "Plaintiff", parties: ["Alpha Person"] }],
+            exhibitLabels: [] }
+          : binding.documentId === "filing"
+            ? { cover: { courtFileNumber: "2401-12345" }, exhibitLabels: [] }
+          : { cover: { registry: "Calgary" },
+            partyGroups: [{ role: "Defendant", parties: ["Beta Person"] }],
             exhibitLabels: [] },
       } };
     });
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(), create: vi.fn(),
+    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
       update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const host = { mode: "standalone", drafts: store, resolveInput,
       prepareDeviceFile: vi.fn() } as unknown as CourtRecordsHost;
@@ -518,12 +795,12 @@ describe("CourtRecordsWorkspace", () => {
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
 
     expect(await screen.findByLabelText(/Court file number/iu)).toHaveValue("2401-12345");
-    expect(screen.getByLabelText(/Registry/iu)).toHaveValue("Calgary");
+    expect(screen.getByLabelText(/Registry/iu)).toHaveValue("");
     expect(screen.getByLabelText(/Deponent/iu)).toHaveValue("Typed deponent");
-    expect(document.querySelector<HTMLInputElement>("[data-party-group=Plaintiff] input"))
-      .toHaveValue("Alpha Person");
+    expect([...document.querySelectorAll<HTMLInputElement>("[data-party-group=Plaintiff] input")]
+      .map(({ value }) => value)).toEqual(["Typed Plaintiff", "Alpha Person"]);
     expect(document.querySelector<HTMLInputElement>("[data-party-group=Defendant] input"))
-      .toHaveValue("Beta Person");
+      .toHaveValue("");
   });
 
   it("keeps only cover and party values supported by the selected format", async () => {
@@ -532,55 +809,64 @@ describe("CourtRecordsWorkspace", () => {
       { id: "party-b", role: "Respondent", parties: [{ id: "respondent", name: "Beta Ltd." }] },
     ];
     const draft: WorkProduct<CourtRecordDraft> = { ...saved("switch-format"), state: {
-      profileId: "general-court-record", cover: {
-        courtName: "Old Court", courtFileNumber: "T-1-26", registry: "Calgary",
-        recordTitle: "Old record", partyStyleId: "application", partyGroups: parties,
-        filingPartyId: "respondent",
+      profileId: "ab-kb-commercial-compendium", cover: {
+        courtFileNumber: "T-1-26", partyStyleId: "application", partyGroups: parties,
+        filingPartyIds: ["respondent"],
       }, entries: [], bindings: {},
     } };
     const update = vi.fn(async (_id, change) => ({ ...draft,
       revision: update.mock.calls.length + 1, state: change.state }));
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(), create: vi.fn(),
+    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
       update, duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const host = { mode: "standalone", drafts: store, resolveInput: vi.fn(),
       prepareDeviceFile: vi.fn() } as unknown as CourtRecordsHost;
     const user = userEvent.setup();
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
 
-    await user.click(await screen.findByRole("button", { name: "Document: Court record" }));
+    await user.click(await screen.findByRole("button", {
+      name: "Document: Commercial List hearing compendium",
+    }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Jurisdiction" }), "ca");
     const documents = within(screen.getByRole("dialog", { name: "Choose document" }));
-    expect(documents.getByText("Trial and applications")).toBeVisible();
-    expect(documents.getByText("Appeal")).toBeVisible();
+    expect(documents.getByRole("tab", { name: "Trial" })).toBeVisible();
+    expect(documents.getByRole("tab", { name: "Appeal" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Application record" }));
-    await user.click(within(screen.getByRole("dialog", { name: "Application record format" }))
-      .getByRole("button", { name: /^FC\b.*Applicant$/u }));
+    await user.click(within(screen.getByRole("group", { name: "Application record format" }))
+      .getByRole("button", { name: "Application record — applicant" }));
 
     expect(screen.getByLabelText(/Court file number/iu)).toHaveValue("T-1-26");
-    expect(screen.queryByLabelText("Court")).not.toBeInTheDocument();
     expect(document.querySelector<HTMLInputElement>("[data-party-group=Applicant] input"))
       .toHaveValue("Alpha Ltd.");
-    await waitFor(() => expect(update).toHaveBeenCalledOnce());
-    const applicantCover = update.mock.calls[0][1].state.cover;
-    expect(applicantCover).not.toHaveProperty("recordTitle");
+    await waitFor(() => expect(update.mock.calls.some(([, change]) =>
+      change.state.profileId === "fc-application-record-applicant")).toBe(true));
+    const applicantCover = update.mock.calls.find(([, change]) =>
+      change.state.profileId === "fc-application-record-applicant")![1].state.cover;
     expect(applicantCover.partyStyleId).toBe("application");
-    expect(applicantCover.filingPartyId).toBe("applicant");
+    expect(applicantCover.filingPartyIds).toEqual(["applicant"]);
 
     await user.click(screen.getByRole("button", { name: "Document: Application record" }));
-    await user.click(screen.getByRole("button", { name: "Trial record" }));
+    await user.click(within(screen.getByRole("dialog", { name: "Choose document" }))
+      .getByRole("button", { name: "Trial record" }));
     expect(screen.queryByRole("dialog", { name: "Trial record format" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Format: FC" })).toBeVisible();
 
-    await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
-    const trialCover = update.mock.calls[1][1].state.cover;
+    await waitFor(() => expect(update.mock.calls.some(([, change]) =>
+      change.state.profileId === "fc-trial-record" &&
+      change.state.cover.partyGroups?.[0]?.role === "Plaintiff")).toBe(true));
+    const trialCover = [...update.mock.calls].reverse().find(([, change]) =>
+      change.state.profileId === "fc-trial-record" &&
+      change.state.cover.partyGroups?.[0]?.role === "Plaintiff")![1].state.cover;
     expect(trialCover.courtFileNumber).toBe("T-1-26");
-    expect(trialCover.partyStyleId).toBeUndefined();
-    expect(trialCover.partyGroups).toBeUndefined();
+    expect(trialCover.partyStyleId).toBe("action");
+    expect(trialCover.partyGroups).toMatchObject([
+      { role: "Plaintiff", parties: [{ name: "Alpha Ltd." }] },
+      { role: "Defendant", parties: [{ name: "Beta Ltd." }] },
+    ]);
   });
 
   it("omits an empty Case details step", async () => {
     const draft = { ...saved("filing-set"), state: { profileId: "fca-leave-response-set",
       cover: {}, entries: [], bindings: {} } };
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(), create: vi.fn(),
+    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
       update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const host = { mode: "standalone", drafts: store, resolveInput: vi.fn(),
       prepareDeviceFile: vi.fn() } as unknown as CourtRecordsHost;

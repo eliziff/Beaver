@@ -97,7 +97,6 @@ for (const path of ["/single-documents", "/library/:kind/documents",
   api.post(path, uploadLimiter);
 for (const path of ["/court-records/docx-rendition", "/court-records/pdf-preparation"])
   api.post(path, workSlot);
-api.put("/single-documents/:documentId/versions/:versionId/file", uploadLimiter);
 for (const path of ["/user/export", "/user/chats/export",
   "/user/tabular-reviews/export", "/tabular-review/:reviewId/export",
   "/workflows/:workflowId/export"]) api.get(path, exportLimiter, workSlot);

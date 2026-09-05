@@ -31,6 +31,7 @@ const lazy = <T>(load: () => Promise<T>): Lazy<T> => {
   return get;
 };
 const backgroundTasks = new Set<Promise<unknown>>();
+let cleanupTimer: ReturnType<typeof setInterval> | undefined;
 function background(task: Promise<unknown>, message: string) {
   const handled = task.catch((error) => console.error(message, safeErrorLog(error)));
   backgroundTasks.add(handled);
@@ -259,6 +260,8 @@ const chat = lazy(async () => {
   });
 });
 const shutdown = lazy(async () => {
+  if (cleanupTimer) clearInterval(cleanupTimer);
+  cleanupTimer = undefined;
   await import("./lib/llm/codexAppServer")
     .then(({ shutdownCodexAppServers }) => shutdownCodexAppServers());
   while (backgroundTasks.size) await Promise.all([...backgroundTasks]);
@@ -267,14 +270,24 @@ const shutdown = lazy(async () => {
 });
 export const runtime = { mode: local ? "local" as const : "cloud" as const, capabilities,
   initialize: async (options: { cleanup?: boolean } = {}) => {
-    // Force lazy native citation grammars before the server accepts requests.
-    structureNative().hasCitationInText("");
+    // Compile the native grammars before the first user import.
+    const native = structureNative();
+    native.citationOccurrencesInText("R v Jordan, 2016 SCC 27");
+    native.authorityReferencesInText("Jordan, supra note 1");
     if (!local) encryptionSecret("USER_API_KEYS_ENCRYPTION_SECRET");
     if (capabilities.connectors) {
       encryptionSecret("MCP_CONNECTORS_ENCRYPTION_SECRET");
       publicOrigin();
     }
-    if (options.cleanup !== false) await (await documents()).resumeCleanup();
+    if (options.cleanup !== false) {
+      background(documents().then((store) => store.resumeCleanup()),
+        "[document-cleanup] startup sweep failed");
+      cleanupTimer ??= setInterval(() => background(
+        documents().then((store) => store.resumeCleanup()),
+        "[document-cleanup] scheduled sweep failed",
+      ), 60 * 60 * 1_000);
+      cleanupTimer.unref();
+    }
   }, authoritiesWorkspace, courtRecords, chat, chats, documents,
   audit, background, connectors, legalSources, library, projects, startWorkers, workProducts,
   tabular, workflows, preferences, user, shutdown };

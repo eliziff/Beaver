@@ -1,5 +1,6 @@
 import { jsonRecord as row, trimmedText as text } from "../value";
-import type { WorkProductReference } from "../workProduct";
+import { WORK_PRODUCT_KINDS, type WorkProductKind,
+  type WorkProductReference } from "../workProduct";
 
 type WorkflowRunTool =
   | "update_work_product"
@@ -12,7 +13,7 @@ const workProduct = (value: unknown) => {
   const item = row(value), id = text(item?.id), revision = number(item?.revision);
   const kind = item?.kind;
   return id && Number.isSafeInteger(revision) && revision! >= 1 &&
-    ["court-record", "authorities", "research-set"].includes(String(kind))
+    WORK_PRODUCT_KINDS.includes(kind as WorkProductKind)
     ? { id, kind, revision } : undefined;
 };
 

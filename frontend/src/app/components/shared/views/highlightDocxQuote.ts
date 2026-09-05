@@ -36,39 +36,59 @@ export function highlightDocxQuote(
     root: HTMLElement,
     quote: string,
 ): HTMLElement | null {
-    clearDocxQuoteHighlights(root);
-    return addDocxQuoteHighlight(root, quote);
+    return highlightDocxQuotes(root, [quote])[0] ?? null;
 }
 
-function addDocxQuoteHighlight(
+/** Highlight every verified text directive from one index of the rendered text. */
+export function highlightDocxQuotes(
     root: HTMLElement,
-    quote: string,
-    quoteIndex?: number,
-): HTMLElement | null {
-    if (!quote) return null;
-    const segments = quote
-        .split(/\.{3}|…/)
-        .map(normalizeQuoteText)
-        .filter((s) => s.length > 0);
-    if (segments.length === 0) return null;
-    const textNodes = collectTextNodes(root);
-    const nodeStartInFull: number[] = [];
+    quotes: readonly (string | { quote: string; locator: string })[],
+): Array<HTMLElement | null> {
+    clearDocxQuoteHighlights(root);
+    const matches = quotes.map(() => null as HTMLElement | null);
+    if (!quotes.some(Boolean)) return matches;
+    const scoped = quotes.some((quote) => typeof quote !== "string");
+    const textNodes = collectTextNodes(root), ranges = textNodes.map(() => [] as Array<{
+        start: number; end: number; quoteIndex: number;
+    }>);
+    const nodeStartInFull: number[] = [], locators = new Map<string, [number, number]>();
     const nodeStrippedLen: number[] = [];
     let fullStripped = "";
     for (const node of textNodes) {
         const stripped = normalizeQuoteText(node.data);
-        nodeStartInFull.push(fullStripped.length);
+        const start = fullStripped.length;
+        nodeStartInFull.push(start);
         nodeStrippedLen.push(stripped.length);
         fullStripped += stripped;
+        const locator = scoped
+            ? node.parentElement?.closest<HTMLElement>("[data-locator-value]")?.dataset.locatorValue : undefined;
+        if (locator) locators.set(locator, [locators.get(locator)?.[0] ?? start, fullStripped.length]);
     }
-    type Range = { nodeIdx: number; origStart: number; origEnd: number };
-    const ranges: Range[] = [];
-    for (const segment of segments) {
-        const searchKey = segment.slice(0, 30);
-        const matchPos = fullStripped.indexOf(searchKey);
-        if (matchPos < 0) continue;
+    const firstNodeAt = (position: number) => {
+        let low = 0, high = textNodes.length;
+        while (low < high) { const middle = (low + high) >>> 1;
+            if (nodeStartInFull[middle] + nodeStrippedLen[middle] <= position) low = middle + 1;
+            else high = middle; }
+        return low;
+    };
+    const locatorBounds = (value: string) => {
+        let bounds = locators.get(value);
+        for (let split = value.indexOf("-"); !bounds && split > 0;
+            split = value.indexOf("-", split + 1)) {
+            const first = locators.get(value.slice(0, split)), last = locators.get(value.slice(split + 1));
+            if (first && last) bounds = [first[0], last[1]];
+        }
+        return bounds;
+    };
+    quotes.forEach((input, quoteIndex) => {
+      const quote = typeof input === "string" ? input : input.quote;
+      const bounds = typeof input === "string" ? [0, fullStripped.length] : locatorBounds(input.locator);
+      if (!bounds) return;
+      quote.split(/\.{3}|…/).map(normalizeQuoteText).filter(Boolean).forEach((segment) => {
+        const matchPos = fullStripped.indexOf(segment, bounds[0]);
         const matchEnd = matchPos + segment.length;
-        for (let i = 0; i < textNodes.length; i++) {
+        if (matchPos < 0 || matchEnd > bounds[1]) return;
+        for (let i = firstNodeAt(matchPos); i < textNodes.length && nodeStartInFull[i] < matchEnd; i++) {
             const start = nodeStartInFull[i];
             const end = start + nodeStrippedLen[i];
             if (matchPos >= end || matchEnd <= start) continue;
@@ -78,36 +98,31 @@ function addDocxQuoteHighlight(
             const origStart = strippedToOriginal(text, localStart);
             const origEnd = strippedToOriginal(text, localEnd);
             if (origStart >= origEnd) continue;
-            ranges.push({ nodeIdx: i, origStart, origEnd });
+            ranges[i].push({ start: origStart, end: origEnd, quoteIndex });
         }
-    }
-    if (ranges.length === 0) return null;
-    ranges.sort((a, b) => {
-        if (a.nodeIdx !== b.nodeIdx) return b.nodeIdx - a.nodeIdx;
-        return b.origStart - a.origStart;
+      });
     });
-    const spans: HTMLElement[] = [];
-    for (const r of ranges) {
-        const node = textNodes[r.nodeIdx];
-        const mid = node.splitText(r.origStart);
-        mid.splitText(r.origEnd - r.origStart);
-        const span = document.createElement("span");
-        span.className = HIGHLIGHT_CLASS;
-        if (quoteIndex !== undefined) span.dataset.qspan = String(quoteIndex);
-        mid.parentNode?.insertBefore(span, mid);
-        span.appendChild(mid);
-        spans.push(span);
-    }
-    return spans[spans.length - 1] ?? null;
-}
-
-/** Highlight every verified text directive without one span erasing another. */
-export function highlightDocxQuotes(
-    root: HTMLElement,
-    quotes: readonly string[],
-): Array<HTMLElement | null> {
-    clearDocxQuoteHighlights(root);
-    return quotes.map((quote, index) =>
-        addDocxQuoteHighlight(root, quote, index),
-    );
+    ranges.forEach((items, index) => {
+        if (!items.length) return;
+        const node = textNodes[index], text = node.data,
+            points = [...new Set(items.flatMap(({ start, end }) => [start, end]))].sort((a, b) => a - b),
+            fragment = document.createDocumentFragment();
+        let cursor = points[0];
+        node.data = text.slice(0, cursor);
+        for (let at = 0; at < points.length - 1; at++) {
+            const start = points[at], end = points[at + 1];
+            if (cursor < start) fragment.append(text.slice(cursor, start));
+            let child: Node = document.createTextNode(text.slice(start, end));
+            for (const quoteIndex of new Set(items.filter((item) => item.start <= start && item.end >= end)
+              .map((item) => item.quoteIndex))) {
+                const span = document.createElement("span");
+                span.className = HIGHLIGHT_CLASS; span.dataset.qspan = String(quoteIndex);
+                span.append(child); child = span; matches[quoteIndex] ??= span;
+            }
+            fragment.append(child); cursor = end;
+        }
+        if (cursor < text.length) fragment.append(text.slice(cursor));
+        node.after(fragment);
+    });
+    return matches;
 }

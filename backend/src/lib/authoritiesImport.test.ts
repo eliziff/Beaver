@@ -56,6 +56,26 @@ const receipt = (evidenceId: string, label: string): LegalEvidenceReceipt => ({
 });
 
 describe("authorities import application", () => {
+  it("propagates Form 66 fields from an imported filing", async () => {
+    const lines = ["Court File No. T-982-19", "FEDERAL COURT", "BETWEEN:",
+      "North Prairie Ltd.", "Applicant", "and", "Attorney General of Canada", "Respondent",
+      "APPLICATION UNDER Federal Courts Act, section 18.1"];
+    const native = { docxAuthorityTextUnits: vi.fn(async () => lines.map((text, ordinal) => ({
+      key: `body:${ordinal}`, kind: "body" as const, ordinal, footnote_id: null,
+      page_numbers: [], text, footnote_refs: [],
+    }))), pdfAuthorityTextUnits: vi.fn(), citationOccurrencesInText: vi.fn(() => []),
+    authorityReferencesInText: vi.fn(() => []), citationLookupKey: vi.fn(() => "") };
+
+    const state = await importStandaloneAuthoritiesFile({ filename: "Memorandum.docx",
+      fileType: "docx", bytes: Buffer.from("filing"), modified: 1 },
+    { read: vi.fn() as never }, native);
+
+    expect(state.cover).toEqual({ courtFileNumber: "T-982-19", partyGroups: [
+      { role: "Applicant", parties: ["North Prairie Ltd."] },
+      { role: "Respondent", parties: ["Attorney General of Canada"] },
+    ], applicationUnder: "Federal Courts Act, section 18.1", title: "" });
+  });
+
   it("coalesces reciprocal neutral, reporter, and French case citations before supra", async () => {
     const citations = ["2015 SCC 5", "[2015] 1 SCR 331", "2015 CSC 5"];
     await useAliasGraph(citations.map((citation) => [citation, "carter"]));
@@ -111,7 +131,7 @@ describe("authorities import application", () => {
       .toEqual(["other", "other", "case"]);
   });
 
-  it("runs standalone DOCX bytes through the installed Rust runtime", async () => {
+  it("keeps standalone manual-source imports unresolved until source preparation", async () => {
     const bytes = await Packer.toBuffer(new Document({ sections: [{ children: [
       new Paragraph("Example v Example, 2024 ABKB 123 at para 7 [Example]."),
       new Paragraph("Ibid at para 9."),
@@ -121,10 +141,7 @@ describe("authorities import application", () => {
       fileType: "docx", bytes, modified: 1, sourceMode: "manual-originals" });
     expect(state.authorityOrder).toHaveLength(1);
     expect(state.authorities[state.authorityOrder[0]].citation).toBe("2024 ABKB 123");
-    expect(state.authorities[state.authorityOrder[0]].source).toMatchObject({
-      kind: "pending-canlii",
-      pdfUrl: "https://www.canlii.org/en/ab/abkb/doc/2024/2024abkb123/2024abkb123.pdf",
-    });
+    expect(state.authorities[state.authorityOrder[0]].source).toEqual({ kind: "unresolved" });
     expect(Object.values(state.occurrences).filter(({ kind }) => kind === "reference"))
       .toMatchObject([
         { citation: "Ibid", text: "Ibid at para 9", authoritySpan: { text: "Ibid" },
@@ -243,7 +260,7 @@ describe("authorities import application", () => {
     const importer = createAuthoritiesImporter(
       documents, { read: read as never }, native as never);
     const binding = { kind: "document" as const, documentId: "brief",
-      version: "latest" as const };
+      version: { versionId: "v1", sha256: sourceSha256 } };
 
     const state = await importer.draft(scope, binding);
 
@@ -268,7 +285,7 @@ describe("authorities import application", () => {
       citation: core, name: "R. v. Jordan", source: { kind: "unresolved" },
     });
     expect(docxAuthorityTextUnits).toHaveBeenCalledWith(bytes);
-    expect(documents.projectionSource).toHaveBeenCalledWith(scope, "brief", null);
+    expect(documents.projectionSource).toHaveBeenCalledWith(scope, "brief", "v1");
     expect(read).not.toHaveBeenCalled();
   });
 
@@ -324,8 +341,7 @@ describe("authorities import application", () => {
       projectionSource: vi.fn(async () => ({ documentId: "brief", versionId: "v1",
         fileType: "docx", sourceSha256, readBytes,
         provenance: { actor: "assistant" as const, generation: { authorityLedger: ledger } } })),
-      versions: vi.fn(async () => ({ current_version_id: "v1", versions: [{ id: "v1",
-        filename: "Brief.docx", source_sha256: sourceSha256 }] })),
+      metadata: vi.fn(async () => ({ current_version_id: "v1", filename: "Brief.docx" })),
     } as unknown as DocumentStore;
     const native = {
       citationOccurrencesInText: vi.fn(() => { throw new Error("ledger must not be scanned"); }),
@@ -359,8 +375,7 @@ describe("authorities import application", () => {
     const documents = {
       projectionSource: vi.fn(async () => ({ documentId: "brief", versionId: "v1",
         fileType: "pdf", sourceSha256, readBytes })),
-      versions: vi.fn(async () => ({ current_version_id: "v1", versions: [{ id: "v1",
-        filename: "Brief.pdf", source_sha256: sourceSha256 }] })),
+      metadata: vi.fn(async () => ({ current_version_id: "v1", filename: "Brief.pdf" })),
     } as unknown as DocumentStore;
     const pdfAuthorityTextUnits = vi.fn(() => [{ key: "body:0", kind: "body" as const,
       ordinal: 0, footnote_id: null, page_numbers: [2, 4], text: "2024 FCA 1",

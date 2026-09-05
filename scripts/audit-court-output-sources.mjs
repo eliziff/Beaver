@@ -139,7 +139,7 @@ export function validateAuditCoverage(manifest, audit) {
 }
 
 export function needsAudit(source, previous, options, now = Date.now()) {
-  if (options.refreshAll || options.ids?.has(source.id) || !previous) return true;
+  if (options.refreshAll || options.ids?.has(source.id) || !previous || previous.url !== source.url) return true;
   if (!Number.isFinite(options.maxAgeDays) || options.maxAgeDays < 0)
     throw new Error("--max-age-days must be a non-negative number");
   const checked = Date.parse(previous.checked_at ?? "");

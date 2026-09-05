@@ -12,8 +12,8 @@ export type RegisteredCourt = {
 const registry = registryJson as {
   jurisdictions: CourtJurisdiction[]; levels: CourtLevel[]; courts: RegisteredCourt[];
 };
-export const COURT_JURISDICTIONS = registry.jurisdictions.toSorted((a, b) => a.order - b.order);
-export const COURT_LEVELS = registry.levels.toSorted((a, b) => a.order - b.order);
+export const COURT_JURISDICTIONS = [...registry.jurisdictions].sort((a, b) => a.order - b.order);
+export const COURT_LEVELS = [...registry.levels].sort((a, b) => a.order - b.order);
 export const COURTS = registry.courts;
 
 export function registeredCourt(id: string) {

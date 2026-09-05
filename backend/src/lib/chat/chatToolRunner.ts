@@ -1,4 +1,4 @@
-import { assistantTools } from "./assistantTools";
+import { assistantTools, type WorkProductFocus } from "./assistantTools";
 import type { ChatToolContext } from "./turnEngine";
 import type { BeaverTool } from "./toolRegistry";
 import type { DocIndex, TabularCellStore, WorkflowStore } from "./types";
@@ -32,18 +32,16 @@ export function createChatToolRunner(options: {
   documents: DocumentStore;
   library: LibraryStore;
   projects: ProjectStore;
-  workProducts: Pick<WorkProductApplication,
-    "create" | "get" | "list" | "resolve" | "applyResearchSetAction">;
+  workProducts: Pick<WorkProductApplication, "create" | "get" | "list" | "resolve">;
   model?: string;
-  chatId?: string;
-  researchSetId?: string;
-  researchSetRevision?: number;
+  turnId?: string;
   authorities: Pick<AuthoritiesWorkspaceApplication,
     "importDraft" | "act" | "refresh" | "refreshInput" | "prepareSources" |
       "discrepancies" | "build" |
       "addReceipts" | "attachLibraryPdf">;
   authoritiesId?: string;
   authoritiesRevision?: number;
+  workProductFocus?: WorkProductFocus;
   courtRecords?: Pick<CourtRecordsApplication, "bindOutput" | "updateDraft">;
   courtRecordId?: string;
   courtRecordRevision?: number;
@@ -103,16 +101,16 @@ export function createChatToolRunner(options: {
         projects: options.projects,
         workProducts: options.workProducts,
         model: options.model,
-        chatId: options.chatId,
-        researchSetId: options.researchSetId,
-        researchSetRevision: options.researchSetRevision,
+        turnId: options.turnId,
         authorities: options.authorities,
         authoritiesId: options.authoritiesId,
         authoritiesRevision: options.authoritiesRevision,
+        workProductFocus: options.workProductFocus,
         courtRecords: options.courtRecords,
-        courtRecordId: options.courtRecordId,
-        courtRecordRevision: options.courtRecordRevision,
+        courtRecord: options.courtRecordId && options.courtRecordRevision
+          ? { id: options.courtRecordId, revision: options.courtRecordRevision } : undefined,
         productFeatures: options.productFeatures,
+        includeResearchTools: options.includeResearchTools,
         draftingStyle: options.draftingStyle,
         workflows: options.workflows,
         allowedDocumentIds: options.allowedDocumentIds,

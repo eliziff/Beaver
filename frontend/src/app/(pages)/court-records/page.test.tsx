@@ -8,19 +8,24 @@ import CourtRecordsPage from "./page";
 const assistantMock = vi.hoisted(() => ({ options: [] as Record<string, unknown>[] }));
 
 vi.mock("@/app/court-records/CourtRecordsWorkspace", () => ({
-  CourtRecordsWorkspace: ({ headerActions, onDraftChange, initialDraftId }: {
+  CourtRecordsWorkspace: ({ headerActions, onDraftChange, initialDraftId, projectId }: {
     headerActions: ReactNode;
     initialDraftId?: string;
+    projectId?: string;
     onDraftChange: (draft: unknown, synced: boolean) => void;
   }) => <section aria-label="Court record builder">
     {headerActions}
     <span>Requested draft: {initialDraftId ?? "none"}</span>
+    <span>Requested project: {projectId ?? "none"}</span>
     <button type="button" onClick={() => onDraftChange({ id: "record-1",
       revision: 1, kind: "court-record", projectId: "matter-1", state: {} }, true)}>Open test draft</button>
     <button type="button" onClick={() => onDraftChange({ id: "record-1",
       revision: 1, kind: "court-record", projectId: "matter-1", state: {} }, false)}>Edit test draft</button>
     <button type="button" onClick={() => onDraftChange(undefined, true)}>Close test draft</button>
   </section>,
+}));
+vi.mock("@/app/contexts/UserProfileContext", () => ({
+  useUserProfile: () => ({ profile: null }),
 }));
 vi.mock("@/app/components/assistant/AssistantDock", () => ({
   AssistantDock: ({ tabs, expanded, onExpandedChange }: {
@@ -31,8 +36,8 @@ vi.mock("@/app/components/assistant/AssistantDock", () => ({
     {expanded && <button type="button" onClick={() => onExpandedChange(false)}>Close assistant</button>}
   </aside>,
 }));
-vi.mock("@/app/components/assistant/ChatView", () => ({
-  ChatView: ({ sendDisabled }: { sendDisabled?: boolean }) => {
+vi.mock("@/app/components/assistant/ConversationView", () => ({
+  ConversationView: ({ sendDisabled }: { sendDisabled?: boolean }) => {
     const [turns, setTurns] = useState(0);
     return <button type="button" disabled={sendDisabled}
       onClick={() => setTurns((count) => count + 1)}>
@@ -56,12 +61,15 @@ vi.mock("@/app/hooks/useAssistantChat", () => ({
 
 describe("Court Records assistant composition", () => {
   it("opens beside the builder and preserves the conversation when collapsed", async () => {
-    render(<MemoryRouter><CourtRecordsPage /><LocationProbe /></MemoryRouter>);
-    const assistant = screen.getByRole("button", { name: "Assistant" });
-    expect(assistant).toBeDisabled();
+    render(<MemoryRouter initialEntries={["/court-records?project=matter-1"]}>
+      <CourtRecordsPage /><LocationProbe /></MemoryRouter>);
+    expect(screen.getByText("Requested project: matter-1")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Assistant" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Open test draft" }));
+    const assistant = screen.getByRole("button", { name: "Assistant" });
     expect(assistant).toBeEnabled();
-    expect(screen.getByRole("status", { name: "Location" })).toHaveTextContent("?draft=record-1");
+    expect(screen.getByRole("status", { name: "Location" }))
+      .toHaveTextContent("?project=matter-1&draft=record-1");
     await userEvent.click(assistant);
     expect(assistantMock.options.at(-1)).toMatchObject({ projectId: "matter-1",
       workProduct: { kind: "court-record", id: "record-1", revision: 1 } });
@@ -79,7 +87,7 @@ describe("Court Records assistant composition", () => {
       workProduct: { kind: "court-record", id: "record-1", revision: 1 },
     });
     await userEvent.click(screen.getByRole("button", { name: "Close test draft" }));
-    expect(screen.getByRole("status", { name: "Location" })).toBeEmptyDOMElement();
-    expect(assistant).toBeDisabled();
+    expect(screen.getByRole("status", { name: "Location" })).toHaveTextContent("?project=matter-1");
+    expect(screen.queryByRole("button", { name: "Assistant" })).toBeNull();
   });
 });

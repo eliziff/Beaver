@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { renderMarkdownDocx } from "../chat/tools/documentOps";
 import {
   applyDocxBodyEdit,
+  applyAuthorityDiscrepancyCorrection,
   applyTableOfAuthorities,
   addNativeTableOfAuthorities,
   inspectDocxBody,
@@ -113,6 +114,36 @@ describe("exact DOCX body operation receipt", () => {
 });
 
 describe("native Word Table of Authorities output", () => {
+  it("replaces exact reviewed spans in body text and footnotes", async () => {
+    const body = "The court wrote This and that.";
+    const note = "Example v Example, 2020 SCC 1 at para 19.";
+    const source = await Packer.toBuffer(new Document({
+      footnotes: { 7: { children: [new Paragraph({ children: [new TextRun(note)] })] } },
+      sections: [{ children: [new Paragraph({ children: [
+        new TextRun(body), new FootnoteReferenceRun(7),
+      ] })] }],
+    }));
+    const bodyStart = body.indexOf("This and that");
+    const first = await applyAuthorityDiscrepancyCorrection(source, [
+      { id: "body:0", text: body }, { id: "footnote:7", text: note },
+    ], { unitId: "body:0", start: bodyStart, end: bodyStart + 13,
+      expected: "This and that", replacement: "This long passage" });
+    const revisedBody = body.replace("This and that", "This long passage");
+    const noteStart = note.indexOf("19");
+    const second = await applyAuthorityDiscrepancyCorrection(first, [
+      { id: "body:0", text: revisedBody }, { id: "footnote:7", text: note },
+    ], { unitId: "footnote:7", start: noteStart, end: noteStart + 2,
+      expected: "19", replacement: "20" });
+    const zip = await JSZip.loadAsync(second);
+    expect(await zip.file("word/document.xml")!.async("string")).toContain("This long passage");
+    expect(await zip.file("word/footnotes.xml")!.async("string")).toContain("at para 20");
+    await expect(applyAuthorityDiscrepancyCorrection(source,
+      [{ id: "body:0", text: `${body} changed` }], {
+        unitId: "body:0", start: bodyStart, end: bodyStart + 13,
+        expected: "This and that", replacement: "tampered",
+      })).rejects.toThrow("Reviewed text no longer matches");
+  });
+
   it("supports mark-only and static linked append without conflating their structures",
     async () => {
     const body = "R v Grant, 2009 SCC 32";

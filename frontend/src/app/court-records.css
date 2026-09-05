@@ -1,0 +1,4 @@
+@import "tailwindcss" source(none);
+@import "./standalone.css";
+@source "../courtRecordsMain.tsx";
+@source "./court-records";

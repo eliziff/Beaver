@@ -42,7 +42,7 @@ it("rejects unsupported per-turn provider controls", () => {
   }).success).toBe(false);
 });
 
-it("accepts only typed Court Record, Authorities, and Research Set scopes", () => {
+it("accepts only typed Court Record and Authorities scopes", () => {
   const base = { current_turn: { kind: "message", content: "Connect the book" },
     expected_version: 0 };
   expect(chatTurnInputSchema.safeParse({ ...base, work_product: {
@@ -54,12 +54,18 @@ it("accepts only typed Court Record, Authorities, and Research Set scopes", () =
     revision: 3,
   } }).success).toBe(true);
   expect(chatTurnInputSchema.safeParse({ ...base, work_product: {
-    kind: "research-set", id: "00000000-0000-4000-8000-000000000001",
-    revision: 3,
-  } }).success).toBe(true);
-  expect(chatTurnInputSchema.safeParse({ ...base, work_product: {
     kind: "other", id: "00000000-0000-4000-8000-000000000001", revision: 3,
   } }).success).toBe(false);
+});
+
+it("bounds work-product focus and its UTF-16 selection", () => {
+  const base = { current_turn: { kind: "message", content: "Fix this citation" },
+    expected_version: 0, work_product: { kind: "authorities",
+      id: "00000000-0000-4000-8000-000000000001", revision: 3,
+      focus: { item_id: "occurrence-1", selection: { start: 4, end: 18 } } } };
+  expect(chatTurnInputSchema.safeParse(base).success).toBe(true);
+  expect(chatTurnInputSchema.safeParse({ ...base, work_product: { ...base.work_product,
+    focus: { item_id: "occurrence-1", selection: { start: 18, end: 4 } } } }).success).toBe(false);
 });
 
 it("rejects an explicit unknown model instead of silently rerouting it", () => {

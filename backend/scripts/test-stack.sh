@@ -12,6 +12,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 SCHEMA_FILE="$BACKEND_DIR/schema.sql"
+FINGERPRINT_FILE="$SCRIPT_DIR/schema-fingerprint.sql"
+RESET_TEST_SCHEMA="${BEAVER_RESET_TEST_SCHEMA:-false}"
+
+if [[ "$RESET_TEST_SCHEMA" != "true" && "$RESET_TEST_SCHEMA" != "false" ]]; then
+    echo "BEAVER_RESET_TEST_SCHEMA must be true or false." >&2
+    exit 1
+fi
 
 if ! command -v supabase >/dev/null 2>&1; then
     echo "supabase CLI not found. Install: brew install supabase/tap/supabase" >&2
@@ -41,18 +48,46 @@ if ! command -v psql >/dev/null 2>&1; then
     exit 1
 fi
 
-# A newly started local stack contains Supabase's system schemas but none of
-# Beaver's application tables. Initialize only an empty stack: silently resetting
-# or modifying an existing application database would be surprising.
+# Pin the disposable stack to both this schema source and its live catalog. This
+# prevents a long-running local stack from silently exercising yesterday's schema.
+SOURCE_FINGERPRINT="$(node -e "const{createHash}=require('node:crypto');const{readFileSync}=require('node:fs');process.stdout.write(createHash('sha256').update(readFileSync(process.argv[1],'utf8').replace(/\\r\\n/g,'\\n')).digest('hex'))" "$SCHEMA_FILE")"
+schema_fingerprint() {
+    psql "$SUPABASE_TEST_DB_URL" -XAtq --set ON_ERROR_STOP=1 \
+        --file "$FINGERPRINT_FILE" \
+        | node -e "const{createHash}=require('node:crypto');let s='';process.stdin.setEncoding('utf8');process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(createHash('sha256').update(s.replace(/\\r\\n/g,'\\n')).digest('hex')))"
+}
+load_schema() {
+    if [[ "${1:-}" == "reset" ]]; then
+        psql "$SUPABASE_TEST_DB_URL" -X --set ON_ERROR_STOP=1 \
+            -c 'drop schema public cascade;' \
+            -c 'create schema public;' \
+            -c 'grant usage on schema public to anon, authenticated, service_role;'
+    fi
+    echo "Loading Beaver schema from $SCHEMA_FILE"
+    psql "$SUPABASE_TEST_DB_URL" -X --set ON_ERROR_STOP=1 --file "$SCHEMA_FILE"
+    psql "$SUPABASE_TEST_DB_URL" -Xq --set ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema';"
+    local marker="beaver-test-schema:$SOURCE_FINGERPRINT:$(schema_fingerprint)"
+    psql "$SUPABASE_TEST_DB_URL" -Xq --set ON_ERROR_STOP=1 \
+        -c "comment on schema public is '$marker';"
+}
+
 PROJECTS_TABLE="$(
     psql "$SUPABASE_TEST_DB_URL" -XAtq \
         -c "select to_regclass('public.projects');"
 )"
-if [[ "$PROJECTS_TABLE" != "projects" ]]; then
-    echo "Beaver schema not found; loading $SCHEMA_FILE"
-    psql "$SUPABASE_TEST_DB_URL" -X \
-        --set ON_ERROR_STOP=1 \
-        --file "$SCHEMA_FILE"
+if [[ "$RESET_TEST_SCHEMA" == "true" ]]; then
+    load_schema reset
+elif [[ "$PROJECTS_TABLE" != "projects" ]]; then
+    load_schema
+else
+    SCHEMA_MARKER="$(psql "$SUPABASE_TEST_DB_URL" -XAtq --set ON_ERROR_STOP=1 \
+        -c "select coalesce(obj_description('public'::regnamespace,'pg_namespace'),'');")"
+    EXPECTED_MARKER="beaver-test-schema:$SOURCE_FINGERPRINT:$(schema_fingerprint)"
+    if [[ "$SCHEMA_MARKER" != "$EXPECTED_MARKER" ]]; then
+        echo "Beaver test schema drifted or predates fingerprinting." >&2
+        echo "Re-run with BEAVER_RESET_TEST_SCHEMA=true to replace the disposable public schema." >&2
+        exit 1
+    fi
 fi
 
 echo "Running stack integration tests against $SUPABASE_TEST_URL"
@@ -63,6 +98,6 @@ TESTS=(
     src/lib/__tests__/relationalRepositories.postgres.test.ts
 )
 if [[ "${S3_CONTRACT_TEST:-false}" == "true" ]]; then
-    TESTS+=(src/lib/__tests__/storage.test.ts)
+    TESTS+=(src/lib/__tests__/storage.test.ts src/lib/__tests__/documentApplication.test.ts)
 fi
 exec npx vitest run "${TESTS[@]}" "$@"

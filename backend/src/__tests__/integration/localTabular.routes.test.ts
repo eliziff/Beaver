@@ -339,7 +339,9 @@ describe("account-free tabular reviews", () => {
       (
         await request(api).delete(
           `/single-documents/${uploaded.body.id}`,
-        )
+        ).send({ expected_current_version_id: uploaded.body.current_version_id,
+          expected_working_revision: uploaded.body.current_working_revision,
+          expected_project_id: project.body.id, expected_folder_id: null })
       ).status,
     ).toBe(204);
     const reviewWithoutDocument = await request(api).get(

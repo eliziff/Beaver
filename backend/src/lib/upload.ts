@@ -7,6 +7,7 @@ import { documentFileType } from "./documentTypes";
 import { concurrentRequests } from "./requestConcurrency";
 
 const MAX_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024;
+const MAX_FILES_PER_UPLOAD = 500;
 const MAX_UPLOAD_SIZE_MB = Math.round(
   MAX_UPLOAD_SIZE_BYTES / (1024 * 1024),
 );
@@ -16,8 +17,8 @@ export function singleFileUpload(fieldName: string): RequestHandler {
 }
 
 export function multipleFileUpload(fieldName: string, maxFiles: number): RequestHandler {
-  if (!Number.isSafeInteger(maxFiles) || maxFiles < 1 || maxFiles > 100) {
-    throw new Error("maxFiles must be between 1 and 100");
+  if (!Number.isSafeInteger(maxFiles) || maxFiles < 1 || maxFiles > MAX_FILES_PER_UPLOAD) {
+    throw new Error(`maxFiles must be between 1 and ${MAX_FILES_PER_UPLOAD}`);
   }
   return stagedFiles(stagedUpload(maxFiles).array(fieldName, maxFiles));
 }

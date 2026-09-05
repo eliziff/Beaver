@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { DocPanel, type DocPanelMode } from "./DocPanel";
 import type {
@@ -13,6 +13,8 @@ import {
 } from "@/app/components/legal/LegalSourceViewer";
 import { ResearchWorkspaceHost } from "@/app/components/legal/ResearchWorkspaceHost";
 import type { ResearchFile } from "@/app/lib/researchFiles";
+import { getResearchFile } from "@/app/lib/beaverApi";
+import { useResearchFileMutations } from "@/app/components/legal/useResearchFileMutations";
 import { cn } from "@/app/lib/utils";
 import { LIQUID_PANEL_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
 import { WorkflowRunPanel } from "./WorkflowRun";
@@ -64,20 +66,34 @@ interface Props {
     onScrollChange?: (tabId: string, scrollTop: number) => void;
     onOpenWorkflows?: (documents: WorkflowDocument[]) => void;
     onResearchFileChange?: (file: ResearchFile | null) => void;
+    researchRefreshKey?: string | null;
     embedded?: boolean;
 }
-function LegalResearchPanel({ tab, projectId, active, onResearchFileChange }: { tab: LegalSourceTab;
+function LegalResearchPanel({ tab, projectId, active, onResearchFileChange, researchRefreshKey }: { tab: LegalSourceTab;
     projectId?: string; active: boolean;
-    onResearchFileChange?: (file: ResearchFile | null) => void }) {
-    const [file, setFile] = useState<ResearchFile | null | undefined>();
-    const [open, setOpen] = useState(false);
+    onResearchFileChange?: (file: ResearchFile | null) => void; researchRefreshKey?: string | null }) {
+  const [file, setFile] = useState<ResearchFile | null | undefined>();
+  const [open, setOpen] = useState(false), [sourceDropNonce, setSourceDropNonce] = useState(0);
+  const refreshedAfter = useRef(researchRefreshKey);
+  const mutations = useResearchFileMutations(file ?? null, setFile);
     useEffect(() => { if (active) onResearchFileChange?.(file ?? null); },
         [active, file, onResearchFileChange]);
+    useEffect(() => {
+        const changed = refreshedAfter.current !== researchRefreshKey;
+        refreshedAfter.current = researchRefreshKey;
+        if (!changed || !active || !file || !researchRefreshKey) return;
+        let live = true; void getResearchFile(file.document.id).then((next) => {
+            if (live) setFile(next);
+        }).catch(() => undefined);
+        return () => { live = false; };
+    }, [active, file, researchRefreshKey]);
     return <>
         <LegalSourceViewer {...tab} compact projectId={projectId} researchFile={file}
-            onResearchFileChange={setFile} onOpenResearch={() => setOpen(true)} />
+            onResearchFileChange={setFile} onOpenResearch={(intent) => { setOpen(true);
+                if (intent) setSourceDropNonce((value) => value + 1); }} mutations={mutations} />
         <ResearchWorkspaceHost embedded open={open && active} onOpenChange={setOpen}
-            file={file ?? null} projectId={projectId} onChange={setFile} />
+            file={file ?? null} projectId={projectId} onChange={setFile} mutations={mutations}
+            sourceDropNonce={sourceDropNonce} />
     </>;
 }
 export function AssistantSidePanel({
@@ -96,9 +112,14 @@ export function AssistantSidePanel({
     onScrollChange,
     onOpenWorkflows,
     onResearchFileChange,
+    researchRefreshKey,
     embedded = false,
 }: Props) {
     const active = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
+    useEffect(() => {
+        if (active?.kind !== "legal") onResearchFileChange?.(null);
+        return () => onResearchFileChange?.(null);
+    }, [active?.id, active?.kind, onResearchFileChange]);
     if (!active) return null;
     const options = tabs.map((tab) => {
         const title = tab.kind === "workflow-run" ? "Workflow"
@@ -144,7 +165,8 @@ export function AssistantSidePanel({
                         }
                         if (tab.kind === "legal") {
                             return <LegalResearchPanel tab={tab} projectId={projectId} active={isActive}
-                                onResearchFileChange={onResearchFileChange} />;
+                                onResearchFileChange={onResearchFileChange}
+                                researchRefreshKey={researchRefreshKey} />;
                         }
                         const mode: DocPanelMode =
                             tab.kind === "citation"

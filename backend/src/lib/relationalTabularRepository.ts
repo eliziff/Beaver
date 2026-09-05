@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { ApplicationScope } from "./applicationError";
 import type { TabularCell, TabularColumn, TabularRepository, TabularReview, WriteResult } from "./tabularStore";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
-import { changes, missingProfileEmail, now, one, projectAccess, replaceMembers, reviewAccess, rows, type Row } from "./relationalRepositorySupport";
+import { changes, documentAccess, missingProfileEmail, now, one, projectAccess,
+  replaceMembers, reviewAccess, rows, type Row } from "./relationalRepositorySupport";
 import { searchFilter } from "./searchQuery";
 
 const tabularReview = (scope: ApplicationScope, row: Row): TabularReview => {
@@ -49,6 +50,16 @@ async function syncCells(db: RelationalDatabase, reviewId: string,
       ${created},${created})`, db);
   }
 }
+async function lockDocuments(db: RelationalDatabase, scope: ApplicationScope,
+  documentIds: string[], projectId: string | null) {
+  const ids = [...new Set(documentIds)];
+  if (!ids.length) return true;
+  const found = await rows<{ id: string }>(sql`SELECT d.id FROM documents d
+    WHERE d.id IN(${sql.join(ids)}) AND ${documentAccess(scope)}
+      ${projectId ? sql`AND d.project_id=${projectId}` : sql.raw("")}
+    ${db.engine === "postgres" ? sql.raw("FOR SHARE OF d") : sql.raw("")}`, db);
+  return found.length === ids.length;
+}
 const nextVersion = (expected: string) => new Date(Math.max(
   Date.now(), (Date.parse(expected) || 0) + 1,
 )).toISOString();
@@ -77,6 +88,8 @@ export const tabularRepository: TabularRepository = {
     return db.transaction(async (tx) => {
       if (input.projectId && !await one(sql`SELECT 1 ok FROM projects p
         WHERE p.id=${input.projectId} AND ${projectAccess(scope)}`, tx))
+        return { status: "missing" } as const;
+      if (!await lockDocuments(tx, scope, input.documentIds, input.projectId))
         return { status: "missing" } as const;
       const shared = input.sharedWith ?? [];
       await changes(sql`INSERT INTO tabular_reviews(id,user_id,project_id,title,columns_config,
@@ -130,6 +143,8 @@ export const tabularRepository: TabularRepository = {
       const documentIds = input.documentIds ?? current.document_ids;
       const workflowId = input.workflowId === undefined ? current.workflow_id : input.workflowId;
       const shared = input.sharedWith ?? current.shared_with;
+      if (!await lockDocuments(tx, scope, documentIds, projectId))
+        return { status: "missing" };
       const updated = nextVersion(expected);
       if (!await changes(sql`UPDATE tabular_reviews SET title=${title},project_id=${projectId},
         columns_config=${encode(columns)},document_ids=${encode(documentIds)},

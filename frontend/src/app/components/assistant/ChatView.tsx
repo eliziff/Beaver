@@ -1,30 +1,20 @@
 import {
     forwardRef,
-    lazy,
-    Suspense,
     useCallback,
     useEffect,
     useImperativeHandle,
-    useLayoutEffect,
     useMemo,
     useRef,
     useState,
     type ReactNode,
 } from "react";
-import {
-    ArrowDown,
-    CircleStop,
-    Loader2,
-} from "lucide-react";
-import { UserMessage } from "./UserMessage";
-import { AssistantMessage } from "./AssistantMessage";
 import { workflowRunKey } from "./WorkflowRun";
-import { ChatInput } from "./ChatInput";
 import type { ChatInputHandle } from "./ChatInput";
-import { AskInputPopup } from "./AskInputPopup";
-import type {
-    AssistantDocumentTab,
-    AssistantSidePanelTab,
+import { ConversationView } from "./ConversationView";
+import {
+    AssistantSidePanel,
+    type AssistantDocumentTab,
+    type AssistantSidePanelTab,
 } from "./AssistantSidePanel";
 import { AssistantDock, type AssistantDockTab } from "./AssistantDock";
 import type { WorkflowDocument } from "../workflows/ContextualWorkflowPicker";
@@ -48,7 +38,6 @@ import {
     type AssistantTurnOptions,
 } from "@/app/lib/assistantSession";
 import { invalidateDocumentFile } from "@/app/hooks/useDocumentFile";
-import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import {
     legalSourceLocatorFromUrl,
@@ -62,14 +51,7 @@ import { ReadSubagentTabs, type ReadSubagentGroup } from "./ReadSubagentTabs";
 import { useAssistantPreferences } from "./assistantPreferences";
 import { ChatResearchSave } from "./ChatResearchSave";
 import type { ResearchFile } from "@/app/lib/researchFiles";
-const loadAssistantSidePanel = () => import("./AssistantSidePanel");
-const preloadAssistantSidePanel = () =>
-    void loadAssistantSidePanel().catch(() => undefined);
-const LazyAssistantSidePanel = lazy(async () => ({
-    default: (await loadAssistantSidePanel()).AssistantSidePanel,
-}));
-const InitialDockPanel = lazy(() => import("./InitialDockPanel")
-    .then(({ InitialDockPanel }) => ({ default: InitialDockPanel })));
+import { InitialDockPanel } from "./InitialDockPanel";
 interface Props {
     chatId?: string | null;
     session: AssistantSessionState;
@@ -108,10 +90,10 @@ export interface ChatViewHandle {
     closeDocument: (documentId: string) => void;
     openDocument: (document: Document) => void;
 }
-const DEFAULT_ASSISTANT_BOTTOM_PADDING = 116;
-const LATEST_ASSISTANT_MIN_HEIGHT = "calc(100dvh - 16rem)";
 const READ_SUBAGENT_PANELS_KEY = "beaver.readSubagentPanels.v1";
 const READ_SUBAGENT_RUN_LIMIT = 9;
+const isLegalCitation = (citation: Citation) =>
+    citation.kind === "a2aj" || citation.kind === "public_legal";
 
 function readStoredSubagentPanelIds(storageKey: string): string[] {
     if (typeof window === "undefined") return [];
@@ -219,8 +201,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     },
     ref,
 ) {
-    const { messages, rejectedTurn } = session;
-    const isResponseLoading = session.run !== null;
+    const { messages } = session;
     const [{ readSubagents }] = useAssistantPreferences();
     const dockEnabled = features?.dock ?? true;
     const contextToolsEnabled = features?.contextTools ?? true;
@@ -250,9 +231,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const [workflowDocuments, setWorkflowDocuments] = useState<WorkflowDocument[]>(
         initialDocuments ?? [],
     );
-    const [hiddenAskInputKey, setHiddenAskInputKey] = useState<string | null>(
-        null,
-    );
     const previousReadSubagentCount = useRef(0);
     const editFocusKey = useRef(0);
     const [editState, setEditState] = useState(() => ({
@@ -260,15 +238,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         editIds: new Set<string>(),
         statuses: {} as Record<string, "accepted" | "rejected">,
     }));
-    useEffect(() => {
-        if (typeof window.requestIdleCallback === "function") {
-            const idle = window.requestIdleCallback(preloadAssistantSidePanel,
-                { timeout: 1_500 });
-            return () => window.cancelIdleCallback(idle);
-        }
-        const timeout = window.setTimeout(preloadAssistantSidePanel, 500);
-        return () => window.clearTimeout(timeout);
-    }, []);
     const closeAllTabs = useCallback(() => {
         setTabs([]);
         setActiveTabId(null);
@@ -290,7 +259,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     );
     const upsertTab = useCallback(
         (tab: AssistantSidePanelTab, activateDock = true) => {
-            preloadAssistantSidePanel();
             setTabs((prev) => {
                 const idx = prev.findIndex((current) =>
                     isDocumentTab(tab)
@@ -381,19 +349,13 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         },
         [upsertTab],
     );
-    const lastUserIndex = messages.findLastIndex(({ role }) => role === "user");
-    const lastAssistantIndex = messages.findLastIndex(({ role }) => role === "assistant");
     const workflowRuns = messages.flatMap((message) => message.role === "assistant" ? message.workflowRuns : []);
-    const latestAssistant = messages[lastAssistantIndex];
-    const responseInProgress = session.run?.status === "running" &&
-        !(latestAssistant?.role === "assistant" && latestAssistant.contentFinal);
-    const responseAnnouncement = responseInProgress
-        ? "Assistant is responding."
-        : latestAssistant?.role === "assistant" &&
-            !latestAssistant.error &&
-            !latestAssistant.turnStatus
-          ? "Response ready."
-          : "";
+    const latestAssistant = messages.findLast((message) => message.role === "assistant");
+    const hasResearchSources = messages.some((message) => message.role === "assistant" &&
+        (message.citations.some(isLegalCitation) || message.activities.some(({ citations }) =>
+            citations?.some(isLegalCitation))));
+    const researchRefreshKey = session.run || latestAssistant?.role !== "assistant" ||
+        !latestAssistant.contentFinal ? null : latestAssistant.id;
     const latestWorkflowRun = (run: WorkflowRunEvent) =>
         workflowRuns.findLast((candidate) => workflowRunKey(candidate) === workflowRunKey(run)) ?? run;
     const openWorkflowRun = (run: WorkflowRunEvent) => {
@@ -463,17 +425,13 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             editIds: without(state.editIds, args.editId),
         }));
     };
-    const messagesContainerRef = useRef<HTMLDivElement>(null);
-    const messagesEndRef = useRef<HTMLDivElement>(null);
-    const latestUserMessageRef = useRef<HTMLDivElement>(null);
-    const chatInputRef = useRef<ChatInputHandle | null>(null);
+    const conversationRef = useRef<ChatInputHandle>(null);
     const attachedInitialDocuments = useRef(false);
     const startedInitialWorkflow = useRef(false);
-    const [showScrollButton, setShowScrollButton] = useState(false);
     useEffect(() => {
         if (attachedInitialDocuments.current || !initialDocuments?.length) return;
         attachedInitialDocuments.current = true;
-        initialDocuments.forEach((document) => chatInputRef.current?.addDoc(document));
+        initialDocuments.forEach((document) => conversationRef.current?.addDoc(document));
     }, [initialDocuments]);
     useEffect(() => {
         if (startedInitialWorkflow.current || !initialWorkflow) return;
@@ -482,50 +440,11 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         const hasDocument = tab === "templates"
             ? initialDocuments?.some(({ library_kind }) => library_kind === "template")
             : !!initialDocuments?.length;
-        chatInputRef.current?.startWorkflowDocumentSelection(
+        conversationRef.current?.startWorkflowDocumentSelection(
             initialWorkflow.workflow, undefined,
             { initialDocumentTab: tab, openDocumentPicker: !hasDocument },
         );
     }, [initialDocuments, initialWorkflow]);
-    const updateScrollButton = useCallback(() => {
-        const c = messagesContainerRef.current;
-        if (!c) return;
-        const isScrolledUp = c.scrollHeight - c.scrollTop - c.clientHeight > 10;
-        setShowScrollButton(isScrolledUp && c.scrollHeight > c.clientHeight);
-    }, []);
-    useEffect(() => {
-        const c = messagesContainerRef.current;
-        if (!c) return;
-        c.addEventListener("scroll", updateScrollButton);
-        const content = messagesEndRef.current?.parentElement;
-        const observer = new ResizeObserver(updateScrollButton);
-        if (content) observer.observe(content);
-        const frame = requestAnimationFrame(updateScrollButton);
-        return () => {
-            cancelAnimationFrame(frame);
-            observer.disconnect();
-            c.removeEventListener("scroll", updateScrollButton);
-        };
-    }, [updateScrollButton]);
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-    };
-    const scrollLatestUserToTop = useCallback(() => {
-        const container = messagesContainerRef.current;
-        const element = latestUserMessageRef.current;
-        if (!container || !element) return;
-        container.scrollTo({
-            top: element.offsetTop - 24,
-            behavior: "auto",
-        });
-    }, []);
-    useLayoutEffect(() => {
-        if (messages.length > 0) scrollLatestUserToTop();
-    }, [chatId, messages.length, scrollLatestUserToTop]);
-    const activeInput =
-        session.pendingInput?.key !== hiddenAskInputKey
-            ? session.pendingInput
-            : null;
     const activeDocument = tabs.find(
         (tab): tab is AssistantDocumentTab =>
             tab.id === activeTabId && isDocumentTab(tab),
@@ -537,7 +456,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         initialWorkflowId?: string,
         documents: WorkflowDocument[] = [],
     ) => {
-        for (const document of documents) chatInputRef.current?.addDoc({
+        for (const document of documents) conversationRef.current?.addDoc({
             id: document.id, filename: document.filename,
             project_id: document.project_id ?? null,
             file_type: document.file_type ?? null,
@@ -551,7 +470,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     };
     const selectWorkflow = (selection: WorkflowSelection) => {
         const tab = workflowDocumentTab(selection);
-        chatInputRef.current?.startWorkflowDocumentSelection(
+        conversationRef.current?.startWorkflowDocumentSelection(
             workflowMessage(selection), undefined,
             { initialDocumentTab: tab, openDocumentPicker: tab === "templates" },
         );
@@ -560,7 +479,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         ref,
         () => ({
             attachDocument: (document) =>
-                chatInputRef.current?.addDoc(document),
+                conversationRef.current?.addDoc(document),
             closeDocument: closeTab,
             openDocument: (document) =>
                 openDocument({
@@ -682,16 +601,12 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const assistantSideGutterVisible = dockEnabled && dockOpen;
     const readerPanel = (embedded = false) =>
         tabs.length ? (
-            <Suspense fallback={<div role="status"
-                className="grid h-full place-items-center text-gray-500">
-                <Loader2 aria-hidden="true" className="size-4 motion-safe:animate-spin" />
-                <span className="sr-only">Loading source</span>
-            </div>}>
-                <LazyAssistantSidePanel
+            <AssistantSidePanel
                     embedded={embedded}
                     tabs={visibleTabs}
                     activeTabId={activeTabId}
                     projectId={projectId}
+                    researchRefreshKey={researchRefreshKey}
                     onResearchFileChange={setActiveResearchFile}
                     onActivateTab={setActiveTabId}
                     onCloseTab={closeTab}
@@ -709,7 +624,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                         patchTab(tabId, { initialScrollTop })
                     }
                 />
-            </Suspense>
         ) : null;
     const groupedAgents = new Map<string, ReadSubagentPanel[]>();
     if (readSubagents.showDock) {
@@ -723,15 +637,16 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     );
     const dockPanel = (tab: "library" | "workflows" | "sources") =>
         <InitialDockPanel tab={tab} libraryKind={libraryKind}
+            active={dockOpen && activeDockTab === tab}
             workflowDocuments={workflowDocuments}
             onLibraryKindChange={setLibraryKind}
             onOpenInChat={(documents) => {
-                for (const document of documents) chatInputRef.current?.addDoc(document);
+                for (const document of documents) conversationRef.current?.addDoc(document);
             }}
             onOpenWorkflows={(documents) => openWorkflows(undefined, documents)}
             onWorkflowSelect={selectWorkflow} initialWorkflowId={workflowInitialId}
             projectId={projectId ?? undefined} onResearchFileChange={setActiveResearchFile}
-            onOpenSource={upsertTab} />;
+            researchRefreshKey={researchRefreshKey} onOpenSource={upsertTab} />;
     const dockTabs: AssistantDockTab[] = [
         ...(projectFiles ? [{
             id: "project-files",
@@ -770,251 +685,66 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const resolvedDockTab = dockTabs.some((tab) => tab.id === activeDockTab)
         ? activeDockTab
         : "sources";
-    return (
-        <div className="h-full w-full flex relative">
-            <div
-                role="status"
-                aria-live="polite"
-                aria-atomic="true"
-                className="sr-only"
+    const header = (onProjectClick ||
+        (chatId && researchSaveEnabled && hasResearchSources)) ? (
+        <div className="flex min-h-9 shrink-0 items-center justify-between gap-2 border-b border-gray-100 px-4 pe-12">
+            {onProjectClick ? <button
+                type="button"
+                onClick={onProjectClick}
+                aria-label={projectName ? "Change project: " + projectName : "Add chat to project"}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-800"
             >
-                {responseAnnouncement}
-            </div>
-            <div className="flex min-w-0 flex-col h-full flex-1 relative">
-                {(onProjectClick || (chatId && researchSaveEnabled)) && (
-                    <div className="flex min-h-9 shrink-0 items-center justify-between gap-2 border-b border-gray-100 px-4 pe-12">
-                        {onProjectClick ? <button
-                            type="button"
-                            onClick={onProjectClick}
-                            aria-label={
-                                projectName
-                                    ? `Change project: ${projectName}`
-                                    : "Add chat to project"
-                            }
-                            className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-800"
-                        >
-                            <FolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate">
-                                {projectName ?? "Add to project"}
-                            </span>
-                        </button> : <span />}
-                        {chatId && researchSaveEnabled && <ChatResearchSave
-                            chatId={chatId} projectId={projectId} />}
-                    </div>
-                )}
-                <div
-                    ref={messagesContainerRef}
-                    className="flex-1 w-full overflow-y-auto"
-                    style={{ scrollbarGutter: "stable both-edges" }}
-                >
-                    <div
-                        className={`w-full min-h-full flex flex-col relative ${layout === "panel" ? "px-4 pt-4" : "px-6 pt-6 md:px-8 md:pt-8"} ${assistantSideGutterVisible ? "ms-auto me-0 max-w-5xl md:max-lg:pe-2" : "mx-auto max-w-4xl"}`}
-                        style={{
-                            paddingBottom: DEFAULT_ASSISTANT_BOTTOM_PADDING,
-                        }}
-                    >
-                        <div className="space-y-6 md:space-y-8">
-                            {messages.map((msg, i) => (
-                                <div
-                                    key={msg.id}
-                                    ref={
-                                        i === lastUserIndex
-                                            ? latestUserMessageRef
-                                            : null
-                                    }
-                                >
-                                    {msg.role === "user" ? (
-                                        <UserMessage
-                                            content={msg.content ?? ""}
-                                            files={msg.files}
-                                            workflow={msg.workflow}
-                                        />
-                                    ) : (
-                                        <AssistantMessage
-                                            message={msg}
-                                            isStreaming={
-                                                i === messages.length - 1 &&
-                                                responseInProgress &&
-                                                !msg.contentFinal
-                                            }
-                                            onCitationClick={openCitation}
-                                            citationTitle={citationTitle}
-                                            onWorkflowRunClick={openWorkflowRun}
-                                            onReaderClick={
-                                                readSubagents.showDock
-                                                    ? (readerId) => {
-                                                          const reader = session.readers.find(
-                                                              (candidate) => candidate.id === readerId,
-                                                          );
-                                                          if (reader) openReadSubagentPanel(reader);
-                                                      }
-                                                    : undefined
-                                            }
-                                            minHeight={
-                                                msg.turnStatus
-                                                    ? "0px"
-                                                    : i === lastAssistantIndex
-                                                    ? layout === "panel"
-                                                        ? "min(50vh, 28rem)"
-                                                        : LATEST_ASSISTANT_MIN_HEIGHT
-                                                    : "0px"
-                                            }
-                                            onEditViewClick={openEditor}
-                                            onOpenDocument={openDocument}
-                                            onEditResolveStart={
-                                                handleEditResolveStart
-                                            }
-                                            onEditResolved={handleEditResolved}
-                                            onEditError={handleEditError}
-                                            isDocReloading={(docId) =>
-                                                editState.docIds.has(docId)
-                                            }
-                                            isEditReloading={(editId) =>
-                                                editState.editIds.has(editId)
-                                            }
-                                            resolvedEditStatuses={editState.statuses}
-                                        />
-                                    )}
-                                    {msg.role === "assistant" && msg.turnStatus && (
-                                        <div
-                                            role="status"
-                                            className={`mt-2 flex items-center gap-1.5 text-xs ${
-                                                msg.turnStatus === "interrupted"
-                                                    ? "text-red-700"
-                                                    : "text-gray-500"
-                                            }`}
-                                        >
-                                            <CircleStop className="size-3.5" aria-hidden="true" />
-                                            <span>
-                                                {msg.turnStatus === "cancelled"
-                                                    ? "Response stopped"
-                                                    : "Response interrupted"}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                            <div ref={messagesEndRef} />
-                        </div>
-                    </div>
-                </div>
-                <div className="absolute bottom-3 left-0 right-0 w-full z-30">
-                    <div
-                        className={`relative w-full px-4 md:px-6 ${assistantSideGutterVisible ? "ms-auto me-0 max-w-5xl md:max-lg:pe-2" : "mx-auto max-w-4xl"}`}
-                    >
-                        {showScrollButton && !activeInput && (
-                            <button
-                                type="button"
-                                aria-label="Scroll to latest message"
-                                onClick={scrollToBottom}
-                                className="absolute bottom-[calc(100%+1rem)] left-1/2 z-20 -translate-x-1/2 cursor-pointer rounded-full border border-gray-300 bg-white p-2 text-gray-500 hover:bg-gray-100"
-                            >
-                                <ArrowDown className="h-6 w-6" />
-                            </button>
-                        )}
-                        {activeInput && (
-                            <div
-                                data-ask-input-dock
-                                className="absolute inset-x-4 bottom-[calc(100%+0.5rem)] md:inset-x-6"
-                            >
-                                <AskInputPopup
-                                    key={activeInput.key}
-                                    event={activeInput.event}
-                                    onSubmit={(response, content, files) => {
-                                        setHiddenAskInputKey(activeInput.key);
-                                        void handleChat(
-                                            { role: "user", content, files },
-                                            { askInputsResponse: response },
-                                        );
-                                    }}
-                                    onDismiss={() => {
-                                        setHiddenAskInputKey(activeInput.key);
-                                        cancel();
-                                    }}
-                                />
-                            </div>
-                        )}
-                        <ChatInput
-                            ref={chatInputRef}
-                            onSubmit={submitMessage}
-                            promptHistory={messages.flatMap((message) =>
-                                message.role === "user" &&
-                                (message.content ?? "").trim()
-                                    ? [message.content ?? ""]
-                                    : [],
-                            )}
-                            onCancel={() => {
-                                if (activeInput)
-                                    setHiddenAskInputKey(activeInput.key);
-                                cancel();
-                            }}
-                            isLoading={isResponseLoading || !!activeInput}
-                            disabled={sendDisabled}
-                            contextUsage={
-                                session.contextUsage || session.compaction === "running"
-                                    ? {
-                                          usedTokens: session.contextUsage?.usedTokens ?? 0,
-                                          windowTokens: session.contextUsage?.windowTokens ?? 1,
-                                          compacting: session.compaction === "running",
-                                      }
-                                    : undefined
-                            }
-                            showContextTools={contextToolsEnabled}
-                            rows={layout === "panel" ? 2 : 1}
-                            onOpenWorkflows={dockEnabled ? openWorkflows : undefined}
-                            projectName={projectName ?? undefined}
-                            projectCmNumber={projectCmNumber}
-                            initialModel={initialModel}
-                            initialReasoningEffort={initialReasoningEffort}
-                            editModeLabels={editModeLabels}
-                            restoreDraft={
-                                rejectedTurn?.options?.askInputsResponse
-                                    ? null
-                                    : rejectedTurn?.message
-                            }
-                        />
-                    </div>
-                </div>
-            </div>
-            {dockEnabled && (dockActivated || dockOpen) && (
-                <AssistantDock
-                    tabs={dockTabs}
-                    activeTabId={resolvedDockTab}
-                    onActivateTab={setActiveDockTab}
-                    expanded={dockOpen}
-                    onExpandedChange={setDockExpanded}
-                />
-            )}
-            <WarningPopup
-                open={!!rejectedTurn}
-                title={
-                    rejectedTurn?.options?.askInputsResponse
-                        ? "Inputs not sent"
-                        : "Response interrupted"
-                }
-                message={
-                    rejectedTurn?.detail ?? (rejectedTurn?.options?.askInputsResponse
-                        ? "Your selections were kept. Retry them after reviewing the latest response."
-                        : "Retry the original request, or dismiss this notice to edit the restored draft.")
-                }
-                onClose={() => onRejectedTurnRestored?.()}
-                primaryAction={
-                    onRetryRejectedTurn && rejectedTurn?.retryable !== false
-                        ? {
-                              label: "Retry",
-                              onClick: () => {
-                                  if (
-                                      !rejectedTurn?.options
-                                          ?.askInputsResponse
-                                  ) {
-                                      chatInputRef.current?.clearDraft();
-                                  }
-                                  onRetryRejectedTurn();
-                              },
-                          }
-                        : undefined
-                }
-            />
+                <FolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{projectName ?? "Add to project"}</span>
+            </button> : <span />}
+            {chatId && researchSaveEnabled && hasResearchSources &&
+                <ChatResearchSave chatId={chatId} projectId={projectId} />}
         </div>
-    );
+    ) : undefined;
+    const dock = dockEnabled && (dockActivated || dockOpen) ? (
+        <AssistantDock
+            tabs={dockTabs}
+            activeTabId={resolvedDockTab}
+            onActivateTab={setActiveDockTab}
+            expanded={dockOpen}
+            onExpandedChange={setDockExpanded}
+        />
+    ) : undefined;
+    return <ConversationView
+        ref={conversationRef}
+        chatId={chatId}
+        session={session}
+        handleChat={handleChat}
+        cancel={cancel}
+        onSubmit={submitMessage}
+        onRejectedTurnRestored={onRejectedTurnRestored}
+        onRetryRejectedTurn={onRetryRejectedTurn}
+        onCitationClick={openCitation}
+        citationTitle={citationTitle}
+        onWorkflowRunClick={openWorkflowRun}
+        onReaderClick={readSubagents.showDock ? (readerId) => {
+            const reader = session.readers.find((candidate) => candidate.id === readerId);
+            if (reader) openReadSubagentPanel(reader);
+        } : undefined}
+        onEditViewClick={openEditor}
+        onOpenDocument={openDocument}
+        onEditResolveStart={handleEditResolveStart}
+        onEditResolved={handleEditResolved}
+        onEditError={handleEditError}
+        isDocReloading={(documentId) => editState.docIds.has(documentId)}
+        isEditReloading={(editId) => editState.editIds.has(editId)}
+        resolvedEditStatuses={editState.statuses}
+        layout={layout}
+        gutterVisible={assistantSideGutterVisible}
+        header={header}
+        dock={dock}
+        showContextTools={contextToolsEnabled}
+        onOpenWorkflows={dockEnabled ? openWorkflows : undefined}
+        projectName={projectName ?? undefined}
+        projectCmNumber={projectCmNumber}
+        initialModel={initialModel}
+        initialReasoningEffort={initialReasoningEffort}
+        editModeLabels={editModeLabels}
+        sendDisabled={sendDisabled}
+    />;
 });

@@ -8,7 +8,7 @@ import { COURT_PROFILE_BY_ID } from "./profiles";
 import type { CourtProfile, RecordEntry } from "./types";
 
 const profile = { documentKinds: [{ id: "authorities", label: "Authorities",
-  description: "", requirement: "optional", order: 1 }],
+  requirement: "optional", order: 1 }],
   technical: { indexDate: "none" }, outputMode: "separate-files" } as CourtProfile;
 const required = { profile, entries: [], entryFindings: new Map(),
   onFiles: vi.fn(), onDescription: vi.fn(), onEntry: vi.fn(), onRemove: vi.fn(),
@@ -27,29 +27,115 @@ describe("Court Record documents", () => {
   });
 
   it("keeps affidavit files in a pool and assigns them to referenced slots", () => {
+    const sourceSha256 = "a".repeat(64);
     const affidavit = { id: "affidavit", kindId: "affidavit",
       file: new File(["affidavit"], "affidavit.pdf"), title: "Affidavit", pageCount: 1,
-      searchable: true, encrypted: false, sourceFields: { cover: {}, exhibitLabels: ["A", "B"] } } as RecordEntry;
+      searchable: true, encrypted: false, sourceFields: { cover: {}, exhibitLabels: ["A"],
+        exhibitMentions: {
+          A: ["The January order is attached as Exhibit A."],
+          C: ["The June email is attached as Exhibit C.",
+            "The reply is also attached as Exhibit C."],
+        } },
+      origin: { kind: "library", sourceSha256 } } as RecordEntry;
     const exhibit = { id: "pool", kindId: "exhibit", file: new File(["one"], "letter.pdf"),
       title: "Letter", pageCount: 1, searchable: true, encrypted: false } as RecordEntry;
-    const onAssign = vi.fn(), onFiles = vi.fn();
+    const onAssign = vi.fn(), onFiles = vi.fn(), onAddExhibit = vi.fn();
     render(<CourtRecordDocuments {...required} profile={COURT_PROFILE_BY_ID.get("ab-kb-affidavit-exhibits")!}
-      kindIds={["exhibit"]} entries={[affidavit, exhibit]} onAssign={onAssign} onFiles={onFiles} />);
+      kindIds={["exhibit"]} entries={[affidavit, exhibit]} onAssign={onAssign} onFiles={onFiles}
+      onAddExhibit={onAddExhibit} />);
 
-    expect(screen.getByRole("region", { name: "Exhibit A slot" })).toBeVisible();
-    expect(screen.getByRole("region", { name: "Exhibit B slot" })).toBeVisible();
-    expect(screen.queryByRole("region", { name: "Exhibit C slot" })).toBeNull();
+    const slotA = screen.getByRole("region", { name: "Exhibit A slot" });
+    const slotB = screen.getByRole("region", { name: "Exhibit B slot" });
+    const slotC = screen.getByRole("region", { name: "Exhibit C slot" });
+    expect(slotA).toBeVisible();
+    expect(slotB).toBeVisible();
+    expect(slotC).toBeVisible();
+    expect(within(slotA).getByText("Affidavit said:")).toBeVisible();
+    const detailsA = slotA.querySelector("details")!;
+    expect(detailsA).not.toHaveAttribute("open");
+    fireEvent.click(detailsA.querySelector("summary")!);
+    expect(within(slotA).getAllByText("The January order is attached as Exhibit A.").at(-1))
+      .toBeVisible();
+    expect(within(slotB).queryByText("Affidavit said:")).toBeNull();
+    const details = slotC.querySelector("details")!;
+    expect(details).not.toHaveAttribute("open");
+    fireEvent.click(details.querySelector("summary")!);
+    expect(details).toHaveAttribute("open");
+    expect(within(slotC).getByText("The reply is also attached as Exhibit C.")).toBeVisible();
     expect(screen.getByText("Unassigned files")).toBeVisible();
     expect(screen.queryByRole("button", { name: /Move .* (?:up|down)/ })).toBeNull();
-    fireEvent.drop(screen.getByRole("region", { name: "Exhibit B slot" }), {
+    fireEvent.change(screen.getByLabelText("Assign letter.pdf to an exhibit"), {
+      target: { value: "B" },
+    });
+    expect(onAssign).toHaveBeenCalledWith("pool", "B");
+    fireEvent.drop(slotB, {
       dataTransfer: { getData: () => "pool" },
     });
     expect(onAssign).toHaveBeenCalledWith("pool", "B");
+    fireEvent.click(screen.getByRole("button", { name: "Add exhibit" }));
+    expect(onAddExhibit).toHaveBeenCalledOnce();
     fireEvent.change(screen.getAllByLabelText("Add file")[0], {
       target: { files: [new File(["a"], "a.pdf"), new File(["b"], "b.pdf")] },
     });
     expect(onFiles).toHaveBeenCalledWith("exhibit", expect.any(Array));
     expect(onFiles.mock.calls[0][1]).toHaveLength(2);
+  });
+
+  it("offers a real file replacement for an occupied nonrepeatable slot", () => {
+    const authority = { id: "authority", kindId: "authorities",
+      file: new File(["old"], "old.pdf", { type: "application/pdf" }), title: "Authorities",
+      pageCount: 1, searchable: true, encrypted: false } as RecordEntry;
+    const onFiles = vi.fn();
+    render(<CourtRecordDocuments {...required} entries={[authority]} onFiles={onFiles} />);
+
+    fireEvent.change(screen.getByLabelText("Replace file"), {
+      target: { files: [new File(["new"], "new.pdf", { type: "application/pdf" })] },
+    });
+
+    expect(onFiles).toHaveBeenCalledWith("authorities", [expect.objectContaining({ name: "new.pdf" })]);
+  });
+
+  it("asks for non-text confirmation only after OCR has run", () => {
+    const scan = { id: "scan", kindId: "authorities",
+      file: new File(["scan"], "photograph.pdf", { type: "application/pdf" }),
+      title: "Photograph", pageCount: 1, searchable: false, encrypted: false,
+      textlessPageCount: 1, textlessPages: [1] } as RecordEntry;
+    const onEntry = vi.fn(), onOcr = vi.fn();
+    const { rerender } = render(<CourtRecordDocuments {...required} entries={[scan]}
+      onEntry={onEntry} onOcr={onOcr} />);
+    expect(screen.getByRole("button", { name: "OCR text pages" })).toBeVisible();
+
+    rerender(<CourtRecordDocuments {...required}
+      entries={[{ ...scan, ocrAttemptedPages: [1] }]} onEntry={onEntry} onOcr={onOcr} />);
+    fireEvent.click(screen.getByRole("button", { name: "Confirm non-text pages" }));
+    expect(onEntry).toHaveBeenCalledWith("scan", { nonTextPagesConfirmed: true });
+    expect(screen.queryByRole("button", { name: "OCR text pages" })).toBeNull();
+  });
+
+  it("offers the signed Form 344 PDF as a replacement for the generated certificate", () => {
+    const profile = COURT_PROFILE_BY_ID.get("fca-appeal-book")!;
+    const onFiles = vi.fn();
+    const { rerender } = render(<CourtRecordDocuments {...required} profile={profile}
+      onFiles={onFiles} />);
+
+    const add = screen.getByLabelText("Add signed PDF");
+    expect(screen.getByRole("heading", { name: "Form 344 certificate" })).toBeVisible();
+    expect(add).toHaveAttribute("accept", "application/pdf,.pdf");
+    expect(add).not.toHaveAttribute("aria-required");
+    fireEvent.change(add, { target: { files: [new File(["signed"], "form-344.pdf", {
+      type: "application/pdf",
+    })] } });
+    expect(onFiles).toHaveBeenCalledWith("form-344",
+      [expect.objectContaining({ name: "form-344.pdf" })]);
+
+    const signed = { id: "signed", kindId: "form-344",
+      file: new File(["signed"], "form-344.pdf", { type: "application/pdf" }),
+      title: "Form 344 certificate", pageCount: 1, searchable: true,
+      encrypted: false } as RecordEntry;
+    rerender(<CourtRecordDocuments {...required} profile={profile} entries={[signed]}
+      onFiles={onFiles} />);
+    expect(screen.getByLabelText("Replace signed PDF")).toBeVisible();
+    expect(screen.queryByLabelText("Add signed PDF")).toBeNull();
   });
 
   it("shows only the fulfilled one-of slot until its entry is removed", () => {
@@ -71,6 +157,19 @@ describe("Court Record documents", () => {
     expect(screen.getByRole("textbox", { name: /Part 3 .* No oral record/u })).toBeVisible();
   });
 
+  it("collects dates for each chronologically ordered pleading", () => {
+    const pleadings = ["claim", "defence"].map((id) => ({
+      id, kindId: "part-1-pleading", file: new File([id], `${id}.pdf`), title: id,
+      pageCount: 1, searchable: true, encrypted: false,
+    } as RecordEntry));
+    render(<CourtRecordDocuments {...required}
+      profile={COURT_PROFILE_BY_ID.get("ab-ca-appeal-record")!} entries={pleadings} />);
+
+    const dates = screen.getAllByRole("textbox", { name: /Document date/u });
+    expect(dates).toHaveLength(2);
+    for (const date of dates) expect(date).toBeRequired();
+  });
+
   it("groups required slots before visible optional slots", () => {
     render(<CourtRecordDocuments {...required}
       profile={COURT_PROFILE_BY_ID.get("fc-application-record-applicant")!} />);
@@ -85,10 +184,38 @@ describe("Court Record documents", () => {
     expect(screen.queryByText("Required")).toBeNull();
   });
 
+  it("asks for the Rule 70 count only when excluded sections can affect the limit", () => {
+    const profile = COURT_PROFILE_BY_ID.get("fc-application-record-applicant")!;
+    const memorandum = { id: "memorandum", kindId: "memorandum",
+      file: new File(["memo"], "memorandum.pdf", { type: "application/pdf" }),
+      title: "Memorandum of fact and law", pageCount: 45, searchable: true,
+      encrypted: false } as RecordEntry;
+    const finding = { id: "rule70-pages-memorandum", level: "blocker" as const,
+      title: "Enter the Parts I–IV page count", detail: "Enter the counted pages.",
+      entryId: memorandum.id };
+    const onEntry = vi.fn();
+    const { rerender } = render(<CourtRecordDocuments {...required} profile={profile}
+      entries={[memorandum]} entryFindings={new Map([[memorandum.id, [finding]]])}
+      onEntry={onEntry} />);
+
+    const input = screen.getByRole("spinbutton", { name: "Pages in Parts I–IV" });
+    expect(input).toHaveAttribute("min", "1");
+    expect(input).toHaveAttribute("max", "45");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAccessibleDescription("Enter the counted pages.");
+    fireEvent.change(input, { target: { value: "30" } });
+    expect(onEntry).toHaveBeenCalledWith("memorandum", { rule70CountedPages: 30 });
+
+    rerender(<CourtRecordDocuments {...required} profile={profile}
+      entries={[{ ...memorandum, pageCount: 30 }]} />);
+    expect(screen.queryByRole("spinbutton", { name: "Pages in Parts I–IV" })).toBeNull();
+  });
+
   it("keeps the required affidavit slot before its exhibit pool", () => {
     const affidavit = { id: "affidavit", kindId: "affidavit",
       file: new File(["affidavit"], "affidavit.pdf"), title: "Affidavit", pageCount: 1,
-      searchable: true, encrypted: false, sourceFields: { cover: {}, exhibitLabels: ["A"] } } as RecordEntry;
+      searchable: true, encrypted: false, sourceFields: { cover: {}, exhibitLabels: ["A"] },
+      origin: { kind: "library", sourceSha256: "a".repeat(64) } } as RecordEntry;
     render(<CourtRecordDocuments {...required}
       profile={COURT_PROFILE_BY_ID.get("ab-kb-affidavit-exhibits")!}
       kindIds={["affidavit", "exhibit"]} entries={[affidavit]} />);
@@ -122,5 +249,23 @@ describe("Court Record documents", () => {
     expect(onRemove).toHaveBeenCalledWith("physical-2");
     fireEvent.click(screen.getByRole("button", { name: "Add another description" }));
     expect(onDescription).toHaveBeenCalledWith("physical-exhibit");
+  });
+
+  it("keeps an incompatible description as a note, not a fake file", () => {
+    const note = { id: "note", kindId: "old-description", file: new File([], "description-only"),
+      title: "Original object", pageCount: 0, searchable: null, encrypted: null,
+      descriptionOnly: true } as RecordEntry;
+    const onEntry = vi.fn(), onRemove = vi.fn();
+    render(<CourtRecordDocuments {...required} entries={[note]} showUnassigned
+      onEntry={onEntry} onRemove={onRemove} />);
+
+    expect(screen.getByRole("region", { name: "Unassigned notes" })).toBeVisible();
+    expect(screen.queryByRole("region", { name: "Files to assign" })).toBeNull();
+    fireEvent.change(screen.getByRole("textbox", { name: "Unassigned note" }), {
+      target: { value: "Updated object" },
+    });
+    expect(onEntry).toHaveBeenCalledWith("note", { title: "Updated object" });
+    fireEvent.click(screen.getByRole("button", { name: "Remove note" }));
+    expect(onRemove).toHaveBeenCalledWith("note");
   });
 });

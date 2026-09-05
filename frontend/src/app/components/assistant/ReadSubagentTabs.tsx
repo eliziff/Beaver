@@ -6,15 +6,15 @@ import { ReadSubagentDock, type ReadSubagentPanel } from "./ReadSubagentDock";
 export type ReadSubagentGroup = { id: string; label: string; panels: ReadSubagentPanel[] };
 
 function AgentStatus({ panels }: { panels: ReadSubagentPanel[] }) {
+    let status = null;
     if (panels.some(({ status }) => status === "running")) {
-        return <span role="status" className="shrink-0" title="Working"><LoaderCircle className="size-3 motion-safe:animate-spin" aria-hidden="true" /><span className="sr-only">Working</span></span>;
+        status = <span role="status" title="Working"><LoaderCircle className="size-3 motion-safe:animate-spin" aria-hidden="true" /><span className="sr-only">Working</span></span>;
+    } else if (panels.some(({ status }) => status === "interrupted")) {
+        status = <span title="Stopped"><CircleStop className="size-3 text-gray-400" aria-hidden="true" /><span className="sr-only">Stopped</span></span>;
+    } else if (panels.every(({ status }) => status === "completed")) {
+        status = <span className="size-1.5 rounded-full bg-gray-400" title="Done"><span className="sr-only">Done</span></span>;
     }
-    if (panels.some(({ status }) => status === "interrupted")) {
-        return <span title="Stopped" className="shrink-0"><CircleStop className="size-3 text-gray-400" aria-hidden="true" /><span className="sr-only">Stopped</span></span>;
-    }
-    return panels.every(({ status }) => status === "completed")
-        ? <span className="size-1.5 shrink-0 rounded-full bg-gray-400" title="Done"><span className="sr-only">Done</span></span>
-        : null;
+    return <span className="grid size-3 shrink-0 place-items-center">{status}</span>;
 }
 
 export function ReadSubagentTabs({
@@ -36,7 +36,8 @@ export function ReadSubagentTabs({
                 <span className="truncate">{group.label}</span>
                 <AgentStatus panels={group.panels} />
             </span> }))}
-            ariaLabel="Reading agents" variant="dock" className="h-full">
+            ariaLabel="Reading agents" variant="segmented" className="h-full"
+            railClassName="m-2 mb-0">
         <ReadSubagentDock idPrefix={`reading-agent-${active.id}`}
             panels={active.panels} onCitationClick={onCitationClick} embedded />
     </Tabs>;

@@ -20,6 +20,17 @@ export function formatDate(iso: string | null | undefined): string | null {
     });
 }
 
+const DATE_TIME = new Intl.DateTimeFormat("en-CA", { month: "long", day: "numeric",
+    year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+export function formatDateTime(iso: string | null | undefined): string | null {
+    if (!iso) return null;
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return iso;
+    const parts = Object.fromEntries(DATE_TIME.formatToParts(date)
+        .map(({ type, value }) => [type, value]));
+    return `${parts.month} ${parts.day}, ${parts.year} ${parts.hour}:${parts.minute} ${parts.dayPeriod.replaceAll(".", "").toUpperCase()}`;
+}
+
 export const errorMessage = (error: unknown, fallback = "") =>
     error instanceof Error ? error.message : fallback;
 

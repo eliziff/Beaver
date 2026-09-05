@@ -97,7 +97,7 @@ describe("user data cleanup", () => {
     await deleteUserAccountData(db, documents, "u1", " U1@Example.com ");
     expect(documents.deleteUserDocuments).toHaveBeenCalledWith(
       { userId: "u1", userEmail: " U1@Example.com " },
-      { projectIds: ["mine"], includeOwned: true, purgeObjects: true },
+      { projectIds: ["mine"], includeOwned: true },
     );
     expect(ids(tables.projects)).toEqual(["shared"]);
     expect(tables.projects[0].shared_with).toEqual(["keep@example.com"]);

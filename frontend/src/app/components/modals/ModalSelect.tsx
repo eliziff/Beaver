@@ -106,6 +106,7 @@ type SearchableChoice = {
     group?: string;
     keywords?: string;
     description?: string;
+    disabled?: boolean;
 };
 export function SearchableChoiceModal({
     open,
@@ -172,9 +173,10 @@ export function SearchableChoiceModal({
                     value={query}
                     onValueChange={setQuery}
                     onKeyDown={(event) => {
-                        if (event.key === "Enter" && visible[0]) {
+                        const first = visible.find((option) => !option.disabled);
+                        if (event.key === "Enter" && first) {
                             event.preventDefault();
-                            choose(visible[0].value);
+                            choose(first.value);
                         }
                     }}
                     placeholder={searchLabel}
@@ -198,11 +200,12 @@ export function SearchableChoiceModal({
                             )}
                         <button
                             type="button"
+                            disabled={option.disabled}
                             aria-pressed={option.value === value}
                             aria-label={option.description
                                 ? `${option.label}. ${option.description}` : undefined}
                             onClick={() => choose(option.value)}
-                            className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-gray-800 hover:bg-gray-100"
+                            className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-gray-800 outline-none hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 disabled:hover:bg-gray-50"
                         >
                             <Check
                                 aria-hidden="true"

@@ -9,17 +9,23 @@ const scope = { userId: "user-1" };
 
 function documents(fileType = "pdf") {
   return {
-    metadata: vi.fn(async () => ({
-      id: "document-1", current_version_id: "version-1", page_count: 2,
+    metadata: vi.fn(async (_scope, id: string) => ({
+      id, current_version_id: id === "document-1" ? "version-1" : "authority-version",
+      filename: id === "document-1" ? `document.${fileType}` : "Authorities.pdf",
+      file_type: fileType, size_bytes: 20, page_count: 2,
+      source_sha256: (id === "document-1" ? "a" : "d").repeat(64),
+      updated_at: "2026-08-30T12:00:00.000Z",
     })),
-    projectionSource: vi.fn(async () => ({
-      documentId: "document-1", versionId: "version-1", fileType,
-      sourceSha256: "a".repeat(64),
+    projectionSource: vi.fn(async (_scope, id: string, versionId: string | null) => ({
+      documentId: id, versionId: versionId ?? (id === "document-1"
+        ? "version-1" : "authority-version"), fileType,
+      sourceSha256: (id === "document-1" ? "a" : "d").repeat(64),
       pdfProfile: { cacheKey: "b".repeat(64), profile: {}, status: "ready" as const },
       readBytes: async () => Buffer.from("%PDF-1.7"),
     })),
     addVersion: vi.fn(async (_scope, _id, file: { expectedSha256?: string }) => ({
-      id: "version-2", source_sha256: file.expectedSha256,
+      id: "version-2", working_revision: 0, source_sha256: file.expectedSha256,
+      project_id: null, folder_id: null,
     })),
     deleteDocument: vi.fn(async () => true),
     deleteVersion: vi.fn(async () => ({ status: "deleted" as const,
@@ -57,7 +63,8 @@ function dependencies(value = product()) {
   return {
     files: { create: vi.fn(async (_scope, _workflow, file: { expectedSha256?: string }) => ({
       id: "output-1", current_version_id: "created-version",
-      source_sha256: file.expectedSha256,
+      current_working_revision: 0, source_sha256: file.expectedSha256,
+      project_id: value.projectId, folder_id: "output-folder",
     })) },
     workProducts: { get: vi.fn(async () => value),
       save: vi.fn(async () => ({ ...value, revision: value.revision + 1 })) },
@@ -199,6 +206,23 @@ describe("court records application", () => {
     });
   });
 
+  it("saves a separate-file record with more than 32 document outputs", async () => {
+    const { files, workProducts } = dependencies();
+    const application = createCourtRecordsApplication(
+      documents(), files as never, workProducts as never,
+    );
+    const artifacts = Array.from({ length: 33 }, (_, index) => {
+      const filename = `Part ${index + 1}.pdf`;
+      return { file: { filename, fileType: "pdf" as const,
+        bytes: Buffer.from(`part-${index + 1}`) }, receipt: receipt({
+        role: `entry-${index + 1}`, filename, sha256: index.toString(16).padStart(64, "0"),
+      }) };
+    });
+
+    await expect(application.saveBuild(scope, artifacts)).resolves.toMatchObject({ revision: 4 });
+    expect(files.create).toHaveBeenCalledTimes(33);
+  });
+
   it("accepts the same exact Draft state regardless of object-key order", async () => {
     const reordered = { ...product(), state: {
       bindings: {}, profileId: "fc-motion-record-moving",
@@ -255,8 +279,10 @@ describe("court records application", () => {
   });
 
   it("replaces a deleted stable output and lets the WorkProduct CAS verify it", async () => {
-    const store = documents() as DocumentStore & { addVersion: ReturnType<typeof vi.fn> };
+    const store = documents() as DocumentStore & { addVersion: ReturnType<typeof vi.fn>;
+      metadata: ReturnType<typeof vi.fn> };
     store.addVersion.mockResolvedValueOnce(null);
+    store.metadata.mockResolvedValueOnce(null);
     const outputs = { record: { documentId: "deleted-output", versionId: "old-version",
       filename: "Motion record.pdf", mimeType: "application/pdf",
       sha256: "a".repeat(64), pageCount: 2 } };
@@ -278,13 +304,17 @@ describe("court records application", () => {
     const store = documents();
     const { files, workProducts } = dependencies();
     files.create.mockResolvedValueOnce({ id: "bad-output", current_version_id: "bad-version",
-      source_sha256: "0".repeat(64) });
+      current_working_revision: 0, source_sha256: "0".repeat(64),
+      project_id: null, folder_id: "output-folder" });
     const application = createCourtRecordsApplication(store, files as never,
       workProducts as never);
     await expect(application.saveBuild(scope, [{ file: {
       filename: "Motion record.pdf", fileType: "pdf", bytes: Buffer.from("record"),
     }, receipt: receipt() }])).rejects.toThrow(/hash does not match/iu);
-    expect(store.deleteDocument).toHaveBeenCalledWith(scope, "bad-output");
+    expect(store.deleteDocument).toHaveBeenCalledWith(scope, "bad-output", true, {
+      versionId: "bad-version", workingRevision: 0,
+      projectId: null, folderId: "output-folder",
+    });
     expect(workProducts.save).not.toHaveBeenCalled();
   });
 
@@ -329,15 +359,35 @@ describe("court records application", () => {
     await expect(application.saveBuild(scope, [{ file: {
       filename: "Motion record.pdf", fileType: "pdf", bytes: Buffer.from("record"),
     }, receipt: receipt() }])).rejects.toMatchObject({ status: 409 });
-    expect(store.deleteVersion).toHaveBeenCalledWith(scope, "stable-output", "version-2");
+    expect(store.deleteVersion).toHaveBeenCalledWith(scope, "stable-output", "version-2", {
+      versionId: "version-2", workingRevision: 0, projectId: null, folderId: null,
+    });
   });
 
-  it("fills an empty Authorities slot from a live named output without changing cover fields", async () => {
+  it("reports a rollback conflict instead of deleting a concurrently changed output", async () => {
+    const store = documents();
+    store.deleteVersion = vi.fn(async () => ({ status: "missing" }));
+    const outputs = { record: { documentId: "stable-output", versionId: "old-version",
+      filename: "Motion record.pdf", mimeType: "application/pdf",
+      sha256: "a".repeat(64), pageCount: 2 } };
+    const { files, workProducts } = dependencies(product(outputs));
+    workProducts.save.mockRejectedValueOnce(new ApplicationError(409, "Draft changed"));
+    const application = createCourtRecordsApplication(store, files as never,
+      workProducts as never);
+    await expect(application.saveBuild(scope, [{ file: {
+      filename: "Motion record.pdf", fileType: "pdf", bytes: Buffer.from("record"),
+    }, receipt: receipt() }])).rejects.toBeInstanceOf(AggregateError);
+    expect(store.deleteVersion).toHaveBeenCalledWith(scope, "stable-output", "version-2", {
+      versionId: "version-2", workingRevision: 0, projectId: null, folderId: null,
+    });
+  });
+
+  it("fills an empty Authorities slot from a live second-volume output", async () => {
     const record = product();
     record.state = { profileId: "ab-kb-chambers-justice-applicant-set",
       cover: { counselName: "Ada Lawyer" }, entries: [], bindings: {} };
-    const child: WorkProduct = { ...product({ book: { documentId: "authority-document",
-      versionId: "authority-version", filename: "Authorities.pdf",
+    const child: WorkProduct = { ...product({ "book-2": { documentId: "authority-document",
+      versionId: "authority-version", filename: "Authorities volume 2.pdf",
       mimeType: "application/pdf", sha256: "d".repeat(64), pageCount: 2 } }),
       id: "authorities-1", kind: "authorities", state: {} };
     const saved = { ...record, revision: 4 };
@@ -346,20 +396,49 @@ describe("court records application", () => {
     const application = createCourtRecordsApplication(documents(), { create: vi.fn() } as never,
       workProducts as never);
     await expect(application.bindOutput(scope, { courtRecordId: record.id, revision: 3,
-      kindId: "authorities", childWorkProductId: child.id, role: "book" }))
+      kindId: "authorities", childWorkProductId: child.id, role: "book-2" }))
       .resolves.toMatchObject({ product: saved, entryId: expect.any(String) });
     expect(workProducts.save).toHaveBeenCalledWith(scope, record.id, expect.objectContaining({
       revision: 3, state: expect.objectContaining({
         cover: { counselName: "Ada Lawyer" },
         entries: [expect.objectContaining({ kindId: "authorities",
-          title: "Authorities", lastSeen: { name: "Authorities.pdf", size: 20,
+          title: "Authorities volume 2", lastSeen: { name: "Authorities volume 2.pdf", size: 20,
             modified: Date.parse("2026-08-30T12:00:00.000Z"), sha256: "d".repeat(64) } })],
       }),
     }));
     const state = workProducts.save.mock.calls[0][2].state as { entries: Array<{ id: string }>;
       bindings: Record<string, unknown> };
     expect(state.bindings[state.entries[0].id]).toEqual({ kind: "work-product-output",
-      workProductId: child.id, role: "book" });
+      workProductId: child.id, role: "book-2" });
+    child.outputs["book-1"] = child.outputs["book-2"]!;
+    await expect(application.bindOutput(scope, { courtRecordId: record.id, revision: 3,
+      kindId: "authorities", childWorkProductId: child.id, role: "book-1" }))
+      .rejects.toMatchObject({ status: 409 });
+    expect(workProducts.save).toHaveBeenCalledOnce();
+  });
+
+  it("binds an affidavit package only into matching-court evidence slots", async () => {
+    const record = product();
+    record.state = { profileId: "fc-motion-record-moving", cover: {}, entries: [], bindings: {} };
+    const child: WorkProduct = { ...product({ record: { documentId: "affidavit-document",
+      versionId: "authority-version", filename: "Affidavit.pdf", mimeType: "application/pdf",
+      sha256: "d".repeat(64), pageCount: 2 } }), id: "affidavit-1",
+      state: { profileId: "fc-affidavit-exhibits", cover: {}, entries: [], bindings: {} } };
+    const saved = { ...record, revision: 4 };
+    const workProducts = { get: vi.fn(async (_scope, id: string) =>
+      id === record.id ? record : child), save: vi.fn(async () => saved) };
+    const application = createCourtRecordsApplication(documents(), { create: vi.fn() } as never,
+      workProducts as never);
+    await expect(application.bindOutput(scope, { courtRecordId: record.id, revision: 3,
+      kindId: "moving-evidence", childWorkProductId: child.id, role: "record" }))
+      .resolves.toMatchObject({ product: saved, entryId: expect.any(String) });
+    expect(workProducts.save).toHaveBeenCalledOnce();
+
+    child.state = { profileId: "fc-motion-record-moving", cover: {}, entries: [], bindings: {} };
+    await expect(application.bindOutput(scope, { courtRecordId: record.id, revision: 3,
+      kindId: "moving-evidence", childWorkProductId: child.id, role: "record" }))
+      .rejects.toMatchObject({ status: 409 });
+    expect(workProducts.save).toHaveBeenCalledOnce();
   });
 
   it("preserves a replaced slot's lawyer-authored fields and refuses missing child output", async () => {
@@ -402,28 +481,39 @@ describe("court records application", () => {
   });
 
   it("fills empty cover and party fields and binds a described Library entry", async () => {
-    const record = product();
-    record.state = { profileId: "general-court-record",
-      cover: { courtFileNumber: "2401-10000", registry: "" }, entries: [], bindings: {} };
+    const record = product(), sourceSha256 = "d".repeat(64);
+    record.state = { profileId: "ab-kb-affidavit-exhibits",
+      cover: { courtFileNumber: "2401-10000", registry: "", partyStyleId: "application",
+        partyGroups: [{ id: "party-a", role: "Applicant", parties: [
+          { id: "applicant-1", name: "Ada Applicant",
+            contact: { name: "Typed Counsel" } },
+        ] }] }, entries: [{
+        id: "affidavit", kindId: "affidavit", title: "Affidavit",
+        lastSeen: { name: "affidavit.pdf", size: 20, modified: 1, sha256: sourceSha256 },
+        sourceExhibits: { sourceSha256, labels: ["A"] },
+      }], bindings: { affidavit: { kind: "document", documentId: "affidavit-document",
+        version: "latest" } } };
     const saved = { ...record, revision: 4 };
     const workProducts = { get: vi.fn(async () => record), save: vi.fn(async () => saved) };
     const application = createCourtRecordsApplication(documents(),
       { create: vi.fn() } as never, workProducts as never);
     const partyGroups = [{ id: "party-a", parties: [
-      { id: "applicant-1", name: "Ada Applicant" },
+      { id: "applicant-1", name: "Ada Applicant",
+        contact: { name: "A. Counsel", phone: "555-0100" } },
       { id: "applicant-2", name: "Apex Ltd." },
     ] }, { id: "intervener", parties: [
-      { id: "intervener-1", name: "Public Interest Group" },
+      { id: "intervener-1", name: "Public Interest Group",
+        contact: { name: "I. Counsel", email: "i@example.test" } },
     ] }];
     await expect(application.updateDraft(scope, { courtRecordId: record.id, revision: 3,
-      profileId: "ab-kb-affidavit-exhibits",
       cover: { courtFileNumber: "2401-99999", registry: "Calgary",
-        partyStyleId: "application", partyGroups, filingPartyId: "applicant-1" },
+        partyStyleId: "application", partyGroups,
+        filingPartyIds: ["applicant-1", "applicant-2"] },
       entry: { slotId: "exhibit", description: "Employment agreement",
         date: "August 30, 2026", exhibitLabel: "A",
         document: { documentId: "library-1", versionId: "authority-version" } } }))
       .resolves.toMatchObject({ product: saved,
-        filled: ["registry", "partyStyleId", "partyGroups", "filingPartyId"],
+        filled: ["registry", "partyGroups", "filingPartyIds"],
         entryId: expect.any(String) });
     const state = workProducts.save.mock.calls[0][2].state as {
       profileId: string; cover: Record<string, string>;
@@ -433,18 +523,116 @@ describe("court records application", () => {
     expect(state).toMatchObject({ profileId: "ab-kb-affidavit-exhibits",
       cover: { courtFileNumber: "2401-10000", registry: "Calgary",
         partyStyleId: "application", partyGroups: [
-          { id: "party-a", role: "Applicant", parties: partyGroups[0].parties },
+          { id: "party-a", role: "Applicant", parties: [
+            { id: "applicant-1", name: "Ada Applicant",
+              contact: { name: "Typed Counsel", phone: "555-0100" } },
+            partyGroups[0].parties[1],
+          ] },
           { id: "intervener", role: "Intervener", parties: partyGroups[1].parties },
-        ], filingPartyId: "applicant-1" },
-      entries: [{ kindId: "exhibit", title: "Employment agreement",
+        ], filingPartyIds: ["applicant-1", "applicant-2"] },
+      entries: [{ kindId: "affidavit" }, { kindId: "exhibit", title: "Employment agreement",
         date: "August 30, 2026", exhibitLabel: "A" }] });
-    expect(state.bindings[state.entries[0].id]).toEqual({ kind: "document",
+    expect(state.bindings[state.entries[1].id]).toEqual({ kind: "document",
       documentId: "library-1", version: "latest" });
 
     await expect(application.updateDraft(scope, { courtRecordId: record.id, revision: 3,
       entry: { slotId: "not-a-slot",
         document: { documentId: "library-1", versionId: "authority-version" } } }))
       .rejects.toMatchObject({ status: 409 });
+  });
+
+  it("retains case fields extracted from a Library filing attached by the assistant", async () => {
+    const record = product();
+    record.state = { profileId: "fc-application-record-applicant",
+      cover: {}, entries: [], bindings: {} };
+    const workProducts = { get: vi.fn(async () => record),
+      save: vi.fn(async (_scope, _id, patch) => ({ ...record, revision: 4, state: patch.state })) };
+    const lookupPdf = vi.fn(async () => ({ status: "found" as const, pages: [
+      { page_number: 1, text: ["Court File No. T-123-26", "FEDERAL COURT", "BETWEEN:",
+        "Alpha Ltd.", "Applicant", "and", "Beta Ltd.", "Respondent"].join("\n") },
+      { page_number: 2, text: "Notice of application" },
+    ] }));
+    const application = createCourtRecordsApplication(documents(), { create: vi.fn() } as never,
+      workProducts as never, { lookupPdf: lookupPdf as never, preparePdf: vi.fn() as never });
+
+    await application.updateDraft(scope, { courtRecordId: record.id, revision: 3,
+      entry: { slotId: "notice-application",
+        document: { documentId: "library-1", versionId: "authority-version" } } });
+
+    expect(workProducts.save.mock.calls[0][2].state).toMatchObject({ entries: [{
+      kindId: "notice-application",
+      sourceFields: { cover: { courtFileNumber: "T-123-26" },
+        partyStyleId: "application", exhibitLabels: [] },
+    }] });
+  });
+
+  it("rejects invented, duplicate, and stale source exhibit labels", async () => {
+    const sourceSha256 = "d".repeat(64);
+    const sourceRecord = (labels: Array<string | undefined>, pinned = false) => {
+      const record = product();
+      record.state = { profileId: "ab-kb-affidavit-exhibits", cover: {}, entries: [{
+        id: "affidavit", kindId: "affidavit", title: "Affidavit",
+        lastSeen: { name: "affidavit.pdf", size: 20, modified: 1, sha256: sourceSha256 },
+        sourceExhibits: { sourceSha256, labels: ["A"] },
+      }, ...labels.map((exhibitLabel, index) => ({
+        id: `exhibit-${index}`, kindId: "exhibit", title: `Exhibit ${index + 1}`,
+        lastSeen: { name: `${index}.pdf`, size: 20, modified: 1, sha256: sourceSha256 },
+        ...(exhibitLabel && { exhibitLabel }),
+      }))], bindings: { affidavit: { kind: "document", documentId: "affidavit-document",
+        version: pinned ? { versionId: "affidavit-version", sha256: sourceSha256 }
+          : "latest" }, ...Object.fromEntries(labels.map((_, index) => [`exhibit-${index}`,
+        { kind: "document", documentId: `exhibit-document-${index}`, version: "latest" }])) } };
+      return record;
+    };
+    const change = (record: WorkProduct, exhibitLabel: string, store = documents()) => {
+      const workProducts = { get: vi.fn(async () => record), save: vi.fn() };
+      const application = createCourtRecordsApplication(store, { create: vi.fn() } as never,
+        workProducts as never);
+      const savedEntries = record.state.entries as unknown[];
+      return application.updateDraft(scope, { courtRecordId: record.id, revision: 3,
+        entry: { slotId: "exhibit", replaceEntryId: `exhibit-${savedEntries.length - 2}`,
+          exhibitLabel } });
+    };
+
+    await expect(change(sourceRecord([undefined]), "B")).rejects.toMatchObject({ status: 409 });
+    await expect(change(sourceRecord(["A", undefined]), "A")).rejects.toMatchObject({ status: 409 });
+    const staleLatest = documents() as DocumentStore & {
+      projectionSource: ReturnType<typeof vi.fn> };
+    staleLatest.projectionSource.mockResolvedValue({ documentId: "affidavit-document",
+      versionId: "new-version", fileType: "pdf", sourceSha256: "e".repeat(64),
+      readBytes: async () => Buffer.alloc(0) });
+    await expect(change(sourceRecord([undefined]), "A", staleLatest))
+      .rejects.toMatchObject({ status: 409 });
+    await expect(change(sourceRecord([undefined], true), "A", staleLatest))
+      .rejects.toMatchObject({ status: 409 });
+  });
+
+  it("clears source slots and assignments when the affidavit file is replaced", async () => {
+    const sourceSha256 = "d".repeat(64), record = product();
+    record.state = { profileId: "ab-kb-affidavit-exhibits", cover: {}, entries: [{
+      id: "affidavit", kindId: "affidavit", title: "Affidavit",
+      lastSeen: { name: "old.pdf", size: 20, modified: 1, sha256: sourceSha256 },
+      sourceExhibits: { sourceSha256, labels: ["A"] },
+    }, { id: "exhibit", kindId: "exhibit", title: "Contract", exhibitLabel: "A",
+      lastSeen: { name: "contract.pdf", size: 20, modified: 1, sha256: sourceSha256 } }],
+    bindings: {
+      affidavit: { kind: "document", documentId: "old-affidavit", version: "latest" },
+      exhibit: { kind: "document", documentId: "contract", version: "latest" },
+    } };
+    const workProducts = { get: vi.fn(async () => record),
+      save: vi.fn(async (_scope, _id, patch) => ({ ...record, revision: 4, state: patch.state })) };
+    const application = createCourtRecordsApplication(documents(), { create: vi.fn() } as never,
+      workProducts as never);
+
+    await application.updateDraft(scope, { courtRecordId: record.id, revision: 3,
+      entry: { slotId: "affidavit", replaceEntryId: "affidavit",
+        document: { documentId: "new-affidavit", versionId: "authority-version" } } });
+
+    const state = workProducts.save.mock.calls[0][2].state as { entries: Array<Record<string, unknown>> };
+    expect(state.entries).toEqual([
+      expect.not.objectContaining({ sourceExhibits: expect.anything() }),
+      expect.not.objectContaining({ exhibitLabel: expect.anything() }),
+    ]);
   });
 
   it("adds a description-only entry and never creates a file binding for it", async () => {
@@ -489,16 +677,10 @@ describe("court records application", () => {
   it("does not turn an assistant-selected historical version into a latest binding", async () => {
     const record = product();
     record.state = { profileId: "fc-motion-record-moving", cover: {}, entries: [], bindings: {} };
-    const store = documents() as DocumentStore & { versions: ReturnType<typeof vi.fn> };
-    store.versions.mockResolvedValue({ current_version_id: "current-version", versions: [{
-      id: "historical-version", version_number: 1, source: "upload",
-      created_at: "2026-08-29T12:00:00.000Z", filename: "old-motion.pdf",
-      file_type: "pdf", size_bytes: 20, source_sha256: "e".repeat(64),
-    }, {
-      id: "current-version", version_number: 2, source: "upload",
-      created_at: "2026-08-30T12:00:00.000Z", filename: "motion.pdf",
-      file_type: "pdf", size_bytes: 21, source_sha256: "f".repeat(64),
-    }] });
+    const store = documents() as DocumentStore & { metadata: ReturnType<typeof vi.fn> };
+    store.metadata.mockResolvedValue({ id: "library-1", current_version_id: "current-version",
+      filename: "motion.pdf", file_type: "pdf", size_bytes: 21,
+      source_sha256: "f".repeat(64), updated_at: "2026-08-30T12:00:00.000Z" });
     const { files } = dependencies(record);
     const workProducts = { get: vi.fn(async () => record), save: vi.fn() };
     const application = createCourtRecordsApplication(store, files as never,

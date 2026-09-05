@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { AuthoritiesDraft, AuthorityOccurrence } from "./authoritiesDomain";
-import { findAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
+import { editorialQuote, findAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
 
 const phrase = "The deadline is seven business days.";
 
@@ -31,6 +31,7 @@ function draft(body: string, occurrences = [occurrence()],
 
 const source = (cited: string, alternatives: Array<{ label: string; text: string }> = []) => [{
   occurrenceId: "citation",
+  sourceVersion: "b".repeat(64),
   cited: { locator: { kind: "paragraph" as const, label: "7" }, text: cited },
   alternatives: alternatives.map(({ label, text }) => ({
     locator: { kind: "paragraph" as const, label }, text,
@@ -48,6 +49,7 @@ describe("authorities discrepancy review", () => {
     expect(findings).toEqual([expect.objectContaining({
       kind: "quote_mismatch", proposition: `The court wrote "${phrase}"`,
       authoredQuote: phrase, footnoteId: 2, found: null,
+      id: expect.stringMatching(/^[a-f0-9]{64}$/u), actions: ["ignore"],
     })]);
   });
 
@@ -66,7 +68,10 @@ describe("authorities discrepancy review", () => {
     expect(findings).toEqual([expect.objectContaining({
       kind: "wrong_pinpoint", authoredPinpoint: { kind: "paragraph", text: "7" },
       found: { locator: { kind: "paragraph", label: "9" }, text: phrase },
+      actions: ["ignore", "pinpoint"],
     })]);
+    expect(findAuthoritiesDiscrepancies(draft(`The court wrote "${phrase}"`),
+      source("No match.", [{ label: "9", text: phrase }]))[0].id).toBe(findings[0].id);
   });
 
   it("suppresses ambiguous matches and footnotes with more than one source", () => {
@@ -78,5 +83,27 @@ describe("authorities discrepancy review", () => {
       source("No match."))).toEqual([]);
     expect(findAuthoritiesDiscrepancies(draft(body, [occurrence("citation", "case", false)]),
       source("No match."))).toEqual([expect.objectContaining({ kind: "quote_mismatch" })]);
+  });
+
+  it("returns a bounded source repair and the pinned oracle's editorial wording", () => {
+    const authored = "the landlord may deliver a written notice to terminate the lease within seven calendar days";
+    const cited = "If rent is unpaid, the landlord may deliver a written notice to terminate the lease " +
+      "not less than seven business days after receipt of the notice by the tenant.";
+    const finding = findAuthoritiesDiscrepancies(draft(`The court wrote "${authored}"`),
+      source(cited))[0];
+    expect(finding).toMatchObject({ kind: "quote_mismatch",
+      actions: ["ignore", "quote_exact", "quote_editorial"],
+      found: { text: expect.stringContaining("not less than seven") } });
+    expect(finding.found!.text.length).toBeLessThan(cited.length);
+    expect(finding.found!.text.match(/[\p{L}\p{N}]+/gu)).toHaveLength(
+      authored.match(/[\p{L}\p{N}]+/gu)!.length);
+    expect(editorialQuote("This and that", "This long passage and another"))
+      .toBe("This ... and [that]");
+    expect([
+      editorialQuote("The test applies", "the test applies"),
+      editorialQuote("court", "courts"),
+      editorialQuote("alpha gamma", "alpha beta gamma"),
+      editorialQuote("A, B", "A B"),
+    ]).toEqual(["[T]he test applies", "[court]", "alpha ... gamma", "A, B"]);
   });
 });

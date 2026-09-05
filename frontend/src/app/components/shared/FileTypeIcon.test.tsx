@@ -22,6 +22,8 @@ describe("file types", () => {
             ["report.pdf", "pdf"],
             ["Quarterly Deck.PPTX", "ppt"],
             ["model.final.xlsx", "excel"],
+            ["Fairness.RESEARCH.md", "research"],
+            ["memo.md", "other"],
             ["  PDF ", "pdf"],
             ["DOCX", "word"],
             ["txt", "other"],
@@ -46,5 +48,10 @@ describe("file types", () => {
 
         rerender(<FileTypeIcon fileType={null} />);
         expect(icon).toHaveAttribute("data-file-kind", "other");
+    });
+
+    it("recognizes workspaces even when their stored file type is Markdown", () => {
+        const { container } = render(<FileTypeIcon fileType="md" filename="Fairness.research.md" />);
+        expect(container.querySelector("svg[data-file-kind='research']")).toHaveAttribute("aria-hidden", "true");
     });
 });

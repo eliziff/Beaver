@@ -1,20 +1,21 @@
-import { ChevronDown, FileText, Plus, Scale, X } from "lucide-react";
+import { ChevronDown, FileText, Plus, Scale, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { ChoiceModalButton, JurisdictionModal } from "@/app/components/modals/JurisdictionModal";
-import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
+import { ChoiceModalButton, courtJurisdictionOptions } from "@/app/components/modals/JurisdictionModal";
+import { Modal } from "@/app/components/modals/Modal";
 import { ModalTextarea } from "@/app/components/modals/ModalTextarea";
 import { Input } from "@/app/components/ui/input";
 import { Button } from "@/app/components/ui/button";
 import { TabList } from "@/app/components/ui/tabs";
-import { COURT_JURISDICTIONS, registeredCourt, registeredLevel } from "@/app/lib/courtRegistry";
+import { registeredCourt, registeredJurisdiction, registeredLevel } from "@/app/lib/courtRegistry";
 import { cn } from "@/app/lib/utils";
-import { effectiveCourtProfiles } from "./profiles";
+import { COURT_PROFILES } from "./profiles";
 import type {
   CourtProfile,
   CasePartyGroup,
   CoverField,
   CoverIssueId,
   CoverValues,
+  PartyContact,
 } from "./types";
 import { coverPartyGroups } from "./types";
 
@@ -23,101 +24,114 @@ export function CourtRecordChooser({ profile, onProfile, creating = false, onCan
   profile: CourtProfile; onProfile: (profileId: string) => void; creating?: boolean;
   onCancel?: () => void; jurisdictionOrder?: string[];
 }) {
-  const [dialog, setDialog] = useState<"jurisdiction" | "document" | "format" | undefined>(
-    creating ? "jurisdiction" : undefined);
-  const [documentId, setDocumentId] = useState(() => profile.documentLabel);
-  const [jurisdiction, setJurisdiction] = useState(profile.jurisdiction);
-  const [levelId, setLevelId] = useState(() => levelFor(profile).id);
-  const choosing = useRef(false);
+  const [open, setOpen] = useState(creating), [query, setQuery] = useState("");
+  const [choice, setChoice] = useState(() => ({ ...choiceFor(profile), jurisdiction: creating ? "" : profile.jurisdiction }));
   const selected = selectionFor(profile);
-  const jurisdictionProfiles = PROFILES.filter((item) => item.jurisdiction === jurisdiction);
+  const jurisdictionProfiles = PROFILES.filter((item) => item.jurisdiction === choice.jurisdiction);
   const levels = levelChoices(jurisdictionProfiles);
-  const activeLevel = levels.some(({ id }) => id === levelId) ? levelId : levels[0]?.id;
+  const activeLevel = levels.some(({ id }) => id === choice.levelId)
+    ? choice.levelId : levels[0]?.id;
   const documents = documentChoices(jurisdictionProfiles.filter((item) =>
     levelFor(item).id === activeLevel));
-  const document = documents.find((item) => item.id === documentId) ?? documents[0];
+  const filteredDocuments = documents.filter(({ label }) => label.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
+  const hasFormatChoice = PROFILES.filter((item) => item.jurisdiction === profile.jurisdiction &&
+    levelFor(item).id === levelFor(profile).id && item.documentFamily === profile.documentFamily).length > 1;
+  const jurisdictions = [...JURISDICTIONS].sort((a, b) => {
+    const left = jurisdictionOrder.indexOf(a.preferenceKey ?? a.value), right = jurisdictionOrder.indexOf(b.preferenceKey ?? b.value);
+    return (left < 0 ? jurisdictionOrder.length : left) - (right < 0 ? jurisdictionOrder.length : right);
+  });
 
-  useEffect(() => {
-    setDocumentId(profile.documentLabel); setJurisdiction(profile.jurisdiction);
-    setLevelId(levelFor(profile).id);
-  }, [profile]);
+  useEffect(() => { if (!creating) setChoice(choiceFor(profile)); }, [profile, creating]);
+
+  function chooseProfile(next: CourtProfile) {
+    onProfile(next.id); setOpen(false);
+  }
 
   function chooseJurisdiction(id: string) {
     const profiles = PROFILES.filter((item) => item.jurisdiction === id);
-    choosing.current = true; setJurisdiction(id);
-    if (profiles.length === 1) { onProfile(profiles[0].id); setDialog(undefined); return; }
-    const firstLevel = levelChoices(profiles)[0]?.id;
-    setLevelId(firstLevel ?? "");
-    setDocumentId(documentChoices(profiles.filter((item) =>
-      levelFor(item).id === firstLevel))[0]?.id ?? "");
-    setDialog("document");
+    const nextLevels = levelChoices(profiles), nextLevel = nextLevels[0]?.id ?? "";
+    setChoice({ jurisdiction: id, levelId: nextLevel, documentId: "" }); setQuery("");
   }
 
   function chooseLevel(id: string) {
-    setLevelId(id);
-    setDocumentId(documentChoices(jurisdictionProfiles.filter((item) =>
-      levelFor(item).id === id))[0]?.id ?? "");
+    setChoice((current) => ({ ...current, levelId: id, documentId: "" })); setQuery("");
   }
 
   function chooseDocument(id: string) {
     const profiles = documents.find((item) => item.id === id)?.profiles ?? [];
-    choosing.current = true;
-    if (profiles.length === 1) {
-      onProfile(profiles[0].id); setDialog(undefined); return;
-    }
-    setDocumentId(id); setDialog("format");
+    setChoice((current) => ({ ...current, documentId: id }));
+    if (profiles.length === 1) { chooseProfile(profiles[0]); return; }
   }
 
-  function closeDialog(kind: "jurisdiction" | "document" | "format") {
-    if (choosing.current) { choosing.current = false; return; }
-    setDialog((current) => current === kind ? undefined : current);
+  function closeDialog() {
+    setOpen(false); setQuery("");
+    setChoice(choiceFor(profile));
     if (creating) onCancel?.();
   }
 
+  function openDialog() {
+    setChoice(choiceFor(profile)); setQuery(""); setOpen(true);
+  }
+
   return <>
-    {!creating && <section className="flex flex-wrap gap-2 px-1" aria-label="Document format"
+    {!creating && <section className="flex flex-wrap gap-2 px-1" aria-label="Court record format"
       data-court-record-chooser data-selected-profile={profile.id}>
+      <ChoiceModalButton icon={<Scale className="h-4 w-4 shrink-0 text-gray-500" />}
+        label="Court" value={selected.court}
+        onClick={openDialog} />
       <ChoiceModalButton icon={<FileText className="h-4 w-4 shrink-0 text-gray-500" />}
         label="Document" value={selected.document}
-        onClick={() => setDialog("jurisdiction")} />
-      <ChoiceModalButton icon={<Scale className="h-4 w-4 shrink-0 text-gray-500" />}
+        onClick={openDialog} />
+      {hasFormatChoice && <ChoiceModalButton
+        icon={<SlidersHorizontal className="h-4 w-4 shrink-0 text-gray-500" />}
         label="Format" value={selected.format}
-        onClick={() => setDialog("format")} />
+        onClick={openDialog} />}
     </section>}
-    <JurisdictionModal open={dialog === "jurisdiction"} value={jurisdiction}
-      options={JURISDICTIONS} preferredKeys={jurisdictionOrder}
-      onChange={chooseJurisdiction}
-      onClose={() => closeDialog("jurisdiction")} />
-    <SearchableChoiceModal open={dialog === "document"} title="Choose document"
-      searchLabel="Search documents"
-      controls={<><button type="button" onClick={() => setDialog("jurisdiction")}
-        className="mb-2 min-h-9 rounded-md px-2 text-sm font-medium text-gray-700 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-900">
-        {JURISDICTIONS.find(({ value }) => value === jurisdiction)?.label}
-      </button>{levels.length > 1 && <TabList value={activeLevel} onValueChange={chooseLevel}
+    <Modal open={open} onClose={closeDialog} breadcrumbs={["Choose document"]} size="2xl">
+      <label className="mb-3 block shrink-0 text-sm font-medium text-gray-800">Jurisdiction
+        <select autoFocus aria-label="Jurisdiction" value={choice.jurisdiction} onChange={(event) => chooseJurisdiction(event.target.value)}
+          className="mt-1 h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-base font-normal text-gray-900 sm:text-sm">
+          {!choice.jurisdiction && <option value="" disabled>Choose jurisdiction</option>}
+          {jurisdictions.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+        </select>
+      </label>
+      {levels.length > 1 && <TabList value={activeLevel} onValueChange={chooseLevel}
         options={levels.map(({ id, label }) => ({ value: id, label }))}
-        ariaLabel="Court level" variant="dock"
-        className="mb-2 min-h-0 border-0 bg-transparent px-0 py-0" />}</>}
-      options={documents.map((item) => ({ value: item.id, label: item.label }))}
-      size="2xl" value={documentId} onChange={(id) => id && chooseDocument(id)}
-      onClose={() => closeDialog("document")} />
-    {document && <SearchableChoiceModal open={dialog === "format"} title={`${document.label} format`}
-      options={document.profiles.map((item) => ({ value: item.id, label: selectionFor(item).format }))}
-      value={profile.id} searchable={false}
-      onChange={(id) => { if (id) { choosing.current = true; onProfile(id); } setDialog(undefined); }}
-      onClose={() => closeDialog("format")} />}
+        ariaLabel="Court level" variant="segmented"
+        className="mb-2 min-h-0 shrink-0 px-0 py-1 [&_[role=tab]]:min-w-24" />}
+      {documents.length > 8 && <Input type="search" aria-label="Search documents" value={query}
+        onChange={(event) => setQuery(event.target.value)} className="mb-2 shrink-0" />}
+      <div role="group" aria-label="Documents" className="min-h-0 space-y-1 overflow-y-auto pb-4">
+        {!!query.trim() && !filteredDocuments.length && <p className="px-3 py-4 text-sm text-gray-600">No matching documents.</p>}
+        {filteredDocuments.map((document) =>
+          <div key={document.id}>
+            <button type="button" aria-pressed={document.id === choice.documentId}
+              onClick={() => chooseDocument(document.id)}
+              className="flex min-h-10 w-full items-center rounded-md border border-gray-200 px-3 py-2 text-left text-sm hover:bg-gray-100 aria-pressed:bg-gray-100">
+              {document.label}</button>
+            {document.id === choice.documentId && document.profiles.length > 1 && <div role="group"
+              aria-label={`${document.label} format`} className="my-2 space-y-1 border-s-2 border-gray-200 ps-3">
+              <p className="text-sm font-medium text-gray-700">Format</p>
+              {document.profiles.map((item) => <button key={item.id} type="button" onClick={() => chooseProfile(item)}
+                aria-pressed={item.id === profile.id} className="block min-h-9 w-full rounded px-3 py-1.5 text-left text-sm hover:bg-gray-100 aria-pressed:bg-gray-100">
+                {item.shortLabel}</button>)}
+            </div>}
+          </div>)}
+      </div>
+    </Modal>
   </>;
 }
 
-const PROFILES = effectiveCourtProfiles().filter(({ selectable }) => selectable);
-const AVAILABLE_JURISDICTIONS = new Set(PROFILES.map(({ jurisdiction }) => jurisdiction));
-const JURISDICTIONS = COURT_JURISDICTIONS.filter(({ id }) => AVAILABLE_JURISDICTIONS.has(id))
-  .map(({ id, label, preferenceKey }) => ({ value: id, label, preferenceKey }));
+const PROFILES = COURT_PROFILES.filter(({ selectable }) => selectable);
+const JURISDICTIONS = courtJurisdictionOptions(PROFILES.map(({ jurisdiction }) => jurisdiction));
 
 function documentChoices(profiles: CourtProfile[]) {
   const groups = new Map<string, { id: string; label: string; profiles: CourtProfile[] }>();
   for (const profile of profiles) {
-    const document = profile.documentLabel;
-    const current = groups.get(document) ?? { id: document, label: document, profiles: [] };
+    const document = profile.documentFamily;
+    const current = groups.get(document) ?? {
+      id: document, label: profile.documentLabel, profiles: [],
+    };
     current.profiles.push(profile);
     groups.set(document, current);
   }
@@ -125,14 +139,15 @@ function documentChoices(profiles: CourtProfile[]) {
 }
 
 function selectionFor(profile: CourtProfile) {
-  const division = profile.division?.split("-").map((part) =>
-    part[0]?.toUpperCase() + part.slice(1)).join(" ");
-  return { document: profile.documentLabel,
-    format: [...new Set([profile.courtAbbreviation, division, profile.role].filter(Boolean))]
-      .join(" · ") };
+  return { court: profile.jurisdiction === "general"
+      ? registeredJurisdiction(profile.jurisdiction).label : profile.court,
+    document: profile.documentLabel,
+    format: profile.shortLabel };
 }
 
 const levelFor = ({ courtId }: CourtProfile) => registeredLevel(registeredCourt(courtId).levelId);
+const choiceFor = (profile: CourtProfile) => ({ jurisdiction: profile.jurisdiction,
+  levelId: levelFor(profile).id, documentId: profile.documentFamily });
 function levelChoices(profiles: CourtProfile[]) {
   return [...new Map(profiles.map((profile) => {
     const level = levelFor(profile);
@@ -145,70 +160,121 @@ type Props = {
   cover: CoverValues;
   missingFields: Set<CoverIssueId>;
   heading: string;
-  onCover: (field: keyof CoverValues, value: string | CasePartyGroup[]) => void;
+  onCover: (field: keyof CoverValues, value: string | string[] | CasePartyGroup[]) => void;
+  onSaveFilingContact?: () => void;
+  savingFilingContact?: boolean;
 };
 
-export function CourtRecordSetup({ profile, cover, missingFields, heading, onCover }: Props) {
-  const styleId = cover.partyStyleId ?? profile.cover.partyStyles?.[0]?.id;
+const PARTY_CONTACT_FIELDS = [
+  ["name", "counselName"], ["address", "counselAddress"], ["phone", "counselPhone"],
+  ["fax", "counselFax"], ["email", "counselEmail"],
+] as const;
+
+export function CourtRecordSetup({ profile, cover, missingFields, heading, onCover,
+  onSaveFilingContact, savingFilingContact }: Props) {
+  const styles = profile.cover.partyStyles;
+  const styleId = cover.partyStyleId ?? (styles?.length === 1 ? styles[0].id : undefined);
   const fields = profile.cover.fields.filter((item) =>
     !item.partyStyleId || item.partyStyleId === styleId);
   const requiredFields = fields.filter((item) => item.required);
   const optionalFields = fields.filter((item) => !item.required);
+  const style = styles?.find((item) => item.id === styleId);
+  const groups = styles?.length ? coverPartyGroups(profile, cover) : [];
+  const partyError = missingFields.has("partyStyleId") || missingFields.has("partyGroups") ||
+    missingFields.has("partyContacts");
+  const partiesIncomplete = !style || style.groups
+    .filter((group) => !group.optional || group.id === profile.cover.filingGroupId)
+    .some((group) => !groups.find((item) => item.id === group.id)
+      ?.parties.some(({ name }) => name.trim()));
+  const [partiesOpen, setPartiesOpen] = useState(partiesIncomplete || partyError);
+  const partyProfileId = useRef(profile.id);
+  useEffect(() => {
+    if (partyProfileId.current !== profile.id) {
+      partyProfileId.current = profile.id;
+      setPartiesOpen(partiesIncomplete || partyError);
+    }
+  }, [partiesIncomplete, partyError, profile.id]);
+  useEffect(() => { if (partyError) setPartiesOpen(true); }, [partyError]);
+  const partySummary = groups.map((group) => {
+    const names = group.parties.map(({ name }) => name.trim()).filter(Boolean);
+    return names.length ? `${group.role}: ${names.join(", ")}` : "";
+  }).filter(Boolean).join(" · ");
   return (
     <section className="rounded-xl border border-gray-200 bg-white shadow-sm" aria-labelledby="filing-heading">
       <div className="px-4 py-3.5">
         <h2 id="filing-heading" className="text-base font-semibold leading-6 text-gray-950">{heading}</h2>
       </div>
       {!!profile.cover.partyStyles?.length && (
-        <PartyEditor profile={profile} cover={cover} missingFields={missingFields} onCover={onCover} />
+        <details open={partiesOpen} onToggle={(event) => setPartiesOpen(event.currentTarget.open)}
+          className="group border-t border-gray-100">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 px-4 py-2.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600 [&::-webkit-details-marker]:hidden">
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-gray-950">Style of cause</span>
+              <span className="block truncate text-xs text-gray-600" title={partySummary || undefined}>
+                {partySummary || "Add parties"}
+              </span>
+            </span>
+            <ChevronDown className="size-4 shrink-0 text-gray-500 group-open:rotate-180"
+              aria-hidden="true" />
+          </summary>
+          <PartyEditor profile={profile} cover={cover} missingFields={missingFields} onCover={onCover} />
+        </details>
       )}
       <div className="grid gap-x-3 gap-y-3 border-t border-gray-100 p-4 sm:grid-cols-2">
         <CoverFields fields={requiredFields} cover={cover} missingFields={missingFields} onCover={onCover} />
+        <CoverFields fields={optionalFields} cover={cover} missingFields={missingFields} onCover={onCover} />
       </div>
-      {!!optionalFields.length && (
-        <details className="group border-t border-gray-100">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-4 py-2.5 text-sm font-medium text-gray-700 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600 [&::-webkit-details-marker]:hidden">
-            More details <ChevronDown className="h-4 w-4 motion-safe:transition-transform group-open:rotate-180" aria-hidden="true" />
-          </summary>
-          <div className="grid gap-x-3 gap-y-3 border-t border-gray-100 p-4 sm:grid-cols-2">
-            <CoverFields fields={optionalFields} cover={cover} missingFields={missingFields} onCover={onCover} />
-          </div>
-        </details>
-      )}
+      {onSaveFilingContact && <div className="flex justify-end border-t border-gray-100 px-4 py-3">
+        <Button type="button" variant="outline" data-save-filing-details
+          className="h-auto min-h-9 w-full whitespace-normal py-2 sm:h-9 sm:w-auto sm:py-0"
+          disabled={savingFilingContact} onClick={onSaveFilingContact}>
+          {savingFilingContact ? "Saving…" : "Save filing details for new records"}
+        </Button>
+      </div>}
     </section>
   );
 }
 
 function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "heading">) {
   const styles = profile.cover.partyStyles!;
-  const activeStyle = styles.find((style) => style.id === cover.partyStyleId) ?? styles[0];
+  const activeStyle = styles.find((style) => style.id === cover.partyStyleId) ??
+    (styles.length === 1 ? styles[0] : undefined);
   const groups = coverPartyGroups(profile, cover);
   const candidates = groups
     .filter((group) => !profile.cover.filingGroupId || group.id === profile.cover.filingGroupId)
     .flatMap((group) => group.parties
       .filter((party) => party.name.trim())
       .map((party) => ({ party, group })));
-  const onlyCandidateId = candidates.length === 1 ? candidates[0]?.party.id : undefined;
-  const inferredFiler = useRef<string | undefined>(undefined);
-  const optional = activeStyle.groups.find((group) => group.optional &&
+  const candidateKey = candidates.map(({ party }) => party.id).join("\0");
+  const allowedKey = groups
+    .filter((group) => !profile.cover.filingGroupId || group.id === profile.cover.filingGroupId)
+    .flatMap((group) => group.parties.map(({ id }) => id)).join("\0");
+  const inferredFiler = useRef(!cover.filingPartyIds?.length);
+  const optional = activeStyle?.groups.find((group) => group.optional &&
     !groups.some((current) => current.id === group.id));
 
   const setGroups = (next: CasePartyGroup[]) => onCover("partyGroups", next);
   const focus = (id: string) => requestAnimationFrame(() => document.getElementById(id)?.focus());
 
   useEffect(() => {
-    if (onlyCandidateId && !cover.filingPartyId) {
-      inferredFiler.current = onlyCandidateId;
-      onCover("filingPartyId", onlyCandidateId);
-    } else if (!onlyCandidateId && inferredFiler.current &&
-        inferredFiler.current === cover.filingPartyId) {
-      inferredFiler.current = undefined;
-      onCover("filingPartyId", "");
+    const candidateIds = candidateKey ? candidateKey.split("\0") : [];
+    const allowed = new Set(allowedKey ? allowedKey.split("\0") : []);
+    const selected = (cover.filingPartyIds ?? []).filter((id) => allowed.has(id));
+    const infer = candidateIds.length === 1 && !selected.length || inferredFiler.current &&
+      (!!profile.cover.filingGroupId || candidateIds.length === 1);
+    const next = infer ? candidateIds : inferredFiler.current ? [] : selected;
+    if (next.join("\0") !== (cover.filingPartyIds ?? []).join("\0")) {
+      onCover("filingPartyIds", next);
     }
-  }, [cover.filingPartyId, onCover, onlyCandidateId]);
+  }, [allowedKey, candidateKey, cover.filingPartyIds, onCover, profile.cover.filingGroupId]);
+
+  useEffect(() => {
+    if (styles.length === 1 && !cover.partyStyleId) onCover("partyStyleId", styles[0].id);
+  }, [cover.partyStyleId, onCover, styles]);
 
   function changeStyle(styleId: string) {
-    const nextStyle = styles.find((style) => style.id === styleId)!;
+    const nextStyle = styles.find((style) => style.id === styleId);
+    if (!nextStyle) return;
     const current = new Map(groups.map((group) => [group.id, group]));
     const next = nextStyle.groups.flatMap((definition) => {
       const existing = current.get(definition.id);
@@ -220,8 +286,8 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
         parties: existing?.parties ?? [{ id: `${definition.id}-1`, name: "" }],
       }];
     });
-    onCover("partyStyleId", styleId);
     setGroups(next);
+    onCover("partyStyleId", styleId);
   }
 
   function changeName(groupId: string, partyId: string, name: string) {
@@ -229,7 +295,17 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
       ...group,
       parties: group.parties.map((party) => party.id === partyId ? { ...party, name } : party),
     } : group));
-    if (!name.trim() && cover.filingPartyId === partyId) onCover("filingPartyId", "");
+    if (!name.trim() && cover.filingPartyIds?.includes(partyId)) {
+      inferredFiler.current = false;
+      onCover("filingPartyIds", cover.filingPartyIds.filter((id) => id !== partyId));
+    }
+  }
+
+  function changeContact(groupId: string, partyId: string, field: keyof PartyContact,
+    value: string) {
+    setGroups(groups.map((group) => group.id === groupId ? { ...group,
+      parties: group.parties.map((party) => party.id === partyId
+        ? { ...party, contact: { ...party.contact, [field]: value } } : party) } : group));
   }
 
   function addParty(group: CasePartyGroup) {
@@ -244,7 +320,10 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
     setGroups(groups.map((current) => current.id === group.id
       ? { ...current, parties: current.parties.filter((party) => party.id !== partyId) }
       : current));
-    if (cover.filingPartyId === partyId) onCover("filingPartyId", "");
+    if (cover.filingPartyIds?.includes(partyId)) {
+      inferredFiler.current = false;
+      onCover("filingPartyIds", cover.filingPartyIds.filter((id) => id !== partyId));
+    }
     focus(`add-${group.id}`);
   }
 
@@ -262,7 +341,11 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
 
   function removeOptionalGroup(group: CasePartyGroup) {
     setGroups(groups.filter((current) => current.id !== group.id));
-    if (group.parties.some((party) => party.id === cover.filingPartyId)) onCover("filingPartyId", "");
+    const removed = new Set(group.parties.map(({ id }) => id));
+    if (cover.filingPartyIds?.some((id) => removed.has(id))) {
+      inferredFiler.current = false;
+      onCover("filingPartyIds", cover.filingPartyIds.filter((id) => !removed.has(id)));
+    }
     focus(`add-${group.id}`);
   }
 
@@ -272,45 +355,53 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
       <div className="grid gap-3 sm:grid-cols-2">
         {styles.length > 1 && (
           <label className="block text-sm font-medium leading-5 text-gray-700">
-            Party style
+            Style of cause<span className="ml-1 text-red-600" aria-hidden="true">*</span>
             <select
-              value={activeStyle.id}
+              id="court-record-party-style"
+              value={activeStyle?.id ?? ""}
               onChange={(event) => changeStyle(event.target.value)}
-              className="mt-1.5 h-10 w-full rounded-lg border border-gray-400 bg-white px-3 text-base font-normal text-gray-900 outline-none focus-visible:border-red-500 focus-visible:ring-2 focus-visible:ring-red-200"
+              aria-invalid={missingFields.has("partyStyleId") || undefined}
+              aria-describedby={missingFields.has("partyStyleId") ? "party-style-error" : undefined}
+              className={cn("mt-1.5 h-10 w-full rounded-lg border bg-white px-3 text-base font-normal text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-red-200",
+                missingFields.has("partyStyleId") ? "border-red-500" : "border-gray-400 focus-visible:border-red-500")}
             >
+              <option value="">Choose style</option>
               {styles.map((style) => <option key={style.id} value={style.id}>{style.label}</option>)}
             </select>
+            {missingFields.has("partyStyleId") && <span id="party-style-error"
+              className="mt-1 block text-sm font-normal text-red-700">Choose the style of cause.</span>}
           </label>
         )}
-        {candidates.length > 1 && <label className="block text-sm font-medium leading-5 text-gray-700">
-          Filing party<span className="ml-1 text-red-600" aria-hidden="true">*</span>
-          <select
-            id="cover-filingPartyId"
-            value={cover.filingPartyId ?? ""}
-            onChange={(event) => {
-              inferredFiler.current = undefined;
-              onCover("filingPartyId", event.target.value);
-            }}
-            aria-invalid={missingFields.has("filingPartyId") || undefined}
-            aria-describedby={missingFields.has("filingPartyId") ? "filing-party-error" : undefined}
-            className={cn(
-              "mt-1.5 h-10 w-full rounded-lg border bg-white px-3 text-base font-normal text-gray-900 outline-none focus-visible:ring-2",
-              missingFields.has("filingPartyId")
-                ? "border-red-500 focus-visible:ring-red-200"
-                : "border-gray-400 focus-visible:border-red-500 focus-visible:ring-red-200",
-            )}
-          >
-            <option value="">Choose party</option>
-            {candidates.map(({ party, group }) => (
-              <option key={party.id} value={party.id}>{party.name} — {group.role}</option>
-            ))}
-          </select>
-          {missingFields.has("filingPartyId") && <span id="filing-party-error" className="mt-1 block text-sm font-normal text-red-700">Choose the party filing this record.</span>}
-        </label>}
+        {candidates.length > 1 && <fieldset className={cn("rounded-lg border px-3 py-2",
+          missingFields.has("filingPartyIds") ? "border-red-500" : "border-gray-300")}>
+          <legend className="px-1 text-sm font-medium leading-5 text-gray-700">
+            Filing parties<span className="ml-1 text-red-600" aria-hidden="true">*</span>
+          </legend>
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {candidates.map(({ party, group }) => <label key={party.id}
+              className="flex min-h-7 items-center gap-2 text-sm text-gray-900">
+              <input type="checkbox" value={party.id}
+                checked={cover.filingPartyIds?.includes(party.id) ?? false}
+                onChange={(event) => {
+                  inferredFiler.current = false;
+                  const selected = new Set(cover.filingPartyIds ?? []);
+                  if (event.target.checked) selected.add(party.id);
+                  else selected.delete(party.id);
+                  onCover("filingPartyIds", candidates.map(({ party }) => party.id)
+                    .filter((id) => selected.has(id)));
+                }} className="size-4 accent-red-700" />
+              <span>{party.name} <span className="text-gray-500">— {group.role}</span></span>
+            </label>)}
+          </div>
+          {missingFields.has("filingPartyIds") && <p className="mt-1 text-sm text-red-700">
+            Choose at least one filing party.
+          </p>}
+        </fieldset>}
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {groups.map((group) => {
-          const definition = activeStyle.groups.find((item) => item.id === group.id);
+          const definition = activeStyle?.groups.find((item) => item.id === group.id) ??
+            styles.flatMap((style) => style.groups).find((item) => item.id === group.id);
           const required = !definition?.optional || group.id === profile.cover.filingGroupId;
           const invalid = required && missingFields.has("partyGroups") &&
             !group.parties.some((party) => party.name.trim());
@@ -330,26 +421,67 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
                 )}
               </div>
               <div className="mt-1.5 grid gap-1.5">
-                {group.parties.map((party, index) => (
-                  <div key={party.id} className="flex items-end gap-2">
+                {group.parties.map((party, index) => <div key={party.id}>
+                  <div className="flex items-end gap-2">
                     <label className="min-w-0 flex-1">
                       <span className="sr-only">{group.role} {index + 1}</span>
-                      <Input
-                        id={`party-${party.id}`}
-                        value={party.name}
+                      <Input id={`party-${party.id}`} value={party.name}
                         onChange={(event) => changeName(group.id, party.id, event.target.value)}
                         aria-invalid={invalid || undefined}
                         aria-describedby={invalid ? `party-${group.id}-error` : undefined}
-                        className={cn("h-9 border-gray-400 bg-white font-normal md:text-base", invalid && "border-red-500")}
-                      />
+                        className={cn("h-9 border-gray-400 bg-white font-normal md:text-base", invalid && "border-red-500")} />
                     </label>
-                    {index > 0 && (
-                      <button type="button" aria-label={`Remove ${group.role.toLowerCase()} ${index + 1}`} onClick={() => removeParty(group, party.id)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 outline-none hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-red-600">
-                        <X className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    )}
+                    {index > 0 ? <button type="button"
+                      aria-label={`Remove ${group.role.toLowerCase()} ${index + 1}`}
+                      onClick={() => removeParty(group, party.id)}
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 outline-none hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-red-600">
+                      <X className="h-4 w-4" aria-hidden="true" />
+                    </button> : <span className="h-10 w-10 shrink-0" aria-hidden="true" />}
                   </div>
-                ))}
+                  {profile.cover.template === "abca-ap5" && !!cover.filingPartyIds?.length &&
+                    !cover.filingPartyIds.includes(party.id) && !!party.name.trim() &&
+                    <details data-contact-finding-id={`contact-${party.id}`}
+                      className={cn("group mt-1.5 rounded-md border bg-white px-2.5 py-1.5",
+                        missingFields.has("partyContacts") &&
+                        [party.contact?.name, party.contact?.address, party.contact?.phone]
+                          .some((value) => !value?.trim())
+                          ? "border-red-500" : "border-gray-200")}>
+                      <summary className="flex min-h-6 cursor-pointer items-center gap-2 text-xs font-medium text-gray-700 outline-none focus-visible:ring-2 focus-visible:ring-red-600">
+                        <span className="min-w-0 flex-1 truncate">Contact for {party.name}{missingFields.has("partyContacts") &&
+                          [party.contact?.name, party.contact?.address, party.contact?.phone]
+                            .some((value) => !value?.trim()) &&
+                          <span className="ml-1 text-red-700">Required</span>}</span>
+                        <ChevronDown className="size-3.5 shrink-0 group-open:rotate-180" aria-hidden="true" />
+                      </summary>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        {PARTY_CONTACT_FIELDS.map(([key, fieldId]) => {
+                          const field = profile.cover.fields.find(({ id }) => id === fieldId)!;
+                          const required = key === "name" || key === "address" || key === "phone";
+                          const invalid = required && missingFields.has("partyContacts") &&
+                            !party.contact?.[key]?.trim();
+                          return <label key={key}
+                            className={cn("text-xs font-medium text-gray-700",
+                              field.multiline && "sm:col-span-2")}>
+                            {field.label}{required && <span className="ml-1 text-red-600"
+                              aria-hidden="true">*</span>}<span className="sr-only"> for {party.name}</span>
+                            {field.multiline
+                              ? <ModalTextarea rows={2} value={party.contact?.[key] ?? ""}
+                                required={required} aria-invalid={invalid || undefined}
+                                aria-label={`${field.label} for ${party.name}`}
+                                onChange={(event) => changeContact(group.id, party.id, key,
+                                  event.target.value)} className={cn("mt-1 min-h-16 font-normal",
+                                  invalid && "border-red-500")} />
+                              : <Input value={party.contact?.[key] ?? ""}
+                                required={required} aria-invalid={invalid || undefined}
+                                aria-label={`${field.label} for ${party.name}`}
+                                onChange={(event) => changeContact(group.id, party.id, key,
+                                  event.target.value)} className={cn("mt-1 h-8 bg-white font-normal",
+                                  invalid && "border-red-500")} />}
+                          </label>;
+                        })}
+                      </div>
+                    </details>}
+                </div>)}
                 {invalid && <p id={`party-${group.id}-error`} className="text-sm text-red-700">Enter at least one name.</p>}
                 <Button id={`add-${group.id}`} variant="ghost" size="compact" onClick={() => addParty(group)} className="w-fit text-sm">
                   <Plus className="h-4 w-4" aria-hidden="true" /> Add {group.role.toLowerCase()}

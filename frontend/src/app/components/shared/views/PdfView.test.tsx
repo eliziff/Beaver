@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
     cancelled: 0,
+    clientWidth: 620,
     buffer: new ArrayBuffer(8),
     documentError: null as Error | null,
     hookCalls: 0,
@@ -118,6 +119,7 @@ class ResizeObserverMock {
 describe("PdfView", () => {
     beforeEach(() => {
         mocks.cancelled = 0;
+        mocks.clientWidth = 620;
         mocks.buffer = new ArrayBuffer(8);
         mocks.documentError = null;
         mocks.hookCalls = 0;
@@ -131,7 +133,8 @@ describe("PdfView", () => {
         vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
             {} as CanvasRenderingContext2D,
         );
-        vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(620);
+        vi.spyOn(HTMLElement.prototype, "clientWidth", "get")
+            .mockImplementation(() => mocks.clientWidth);
     });
 
     afterEach(() => {
@@ -171,6 +174,29 @@ describe("PdfView", () => {
         await screen.findByRole("button", { name: "Zoom in" });
         expect(mocks.pdfDataLength).toBe(4);
         expect(bytes).toEqual(new Uint8Array([1, 2, 3, 4]));
+    });
+
+    it("fits a page inside a narrow preview without horizontal clipping", async () => {
+        mocks.clientWidth = 200;
+        const { container } = render(<PdfView doc={null} bytes={new Uint8Array([1])} />);
+
+        await waitFor(() => expect(container.querySelector("canvas")?.width)
+            .toBeLessThanOrEqual(200));
+    });
+
+    it("refits immediately when a preview narrows", async () => {
+        const { container } = render(<PdfView doc={null} bytes={new Uint8Array([1])} />);
+        await waitFor(() => expect(container.querySelectorAll("[data-page-number]")).toHaveLength(3));
+        const requests = mocks.pageRequests.length;
+        mocks.clientWidth = 200;
+        await act(async () => {
+            mocks.resize!([{ contentRect: { width: 200 } } as ResizeObserverEntry],
+                {} as ResizeObserver);
+            await Promise.resolve();
+        });
+        expect(mocks.pageRequests.length).toBeGreaterThan(requests);
+        await waitFor(() => expect(container.querySelector("canvas")?.width)
+            .toBeLessThanOrEqual(200));
     });
 
     it("shows a visible error when the file is not a valid PDF", async () => {

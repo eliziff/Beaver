@@ -3,21 +3,26 @@ import { randomUUID } from "node:crypto";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { docxToPdf } from "./convert";
 import { contentTypeForDocumentType, validateDocumentFile } from "./documentTypes";
-import { COURT_RECORD_PROFILE_BY_ID, courtRecordProfileIsEffective, decodeCourtRecordDraftState,
+import { COURT_RECORD_PROFILE_BY_ID, decodeCourtRecordDraftState,
+  decodeCourtRecordPartyContact, type CourtRecordPartyContact,
   type CourtRecordPartyStyleContract, type CourtRecordProfileContract } from "./courtRecordContract";
 import { documentProjectionService } from "./documentProjectionService";
-import type { DocumentFile, DocumentStore } from "./documentStore";
+import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
+  type DocumentFile, type DocumentRollback, type DocumentStore } from "./documentStore";
 import { decodeWorkProductBuildReceipt, type WorkProductInput,
   type WorkProductOutputRef } from "./workProduct";
 import type { WorkProductApplication } from "./workProductApplication";
 import type { WorkflowFiles } from "./workflowFiles";
 import { canonicalJson, canonicalJsonSha256, sha256 } from "./hash";
+import { sourceExhibitLabels } from "mike/shared/court-record-exhibits.mjs";
+import { sourceDocumentFields } from "mike/shared/court-record-source-fields.mjs";
+import { acceptsWorkProductOutput } from "mike/shared/court-record-work-products.mjs";
 
 type ProjectionReader = Pick<typeof documentProjectionService, "lookupPdf" | "preparePdf">;
-export const MAX_COURT_BUILD_OUTPUTS = 32;
+export const MAX_COURT_BUILD_OUTPUTS = 500;
 
 type PartyGroup = { id: string; role: string; roleBelow?: string;
-  parties: Array<{ id: string; name: string }> };
+  parties: Array<{ id: string; name: string; contact?: CourtRecordPartyContact }> };
 type EntryPatch = { slotId: string; replaceEntryId?: string;
   document?: { documentId: string; versionId: string };
   description?: string; date?: string; exhibitLabel?: string };
@@ -75,7 +80,7 @@ export function createCourtRecordsApplication(
         throw new ApplicationError(409, "The built files do not match the current court record");
       }
       const refs: Record<string, WorkProductOutputRef> = {};
-      const rollback: Array<{ documentId: string; versionId?: string }> = [];
+      const rollback: DocumentRollback[] = [];
       try {
         for (let index = 0; index < artifacts.length; index += 1) {
           const { file } = artifacts[index], receipt = receipts[index]!;
@@ -84,18 +89,25 @@ export function createCourtRecordsApplication(
               action: "built" as const, receipt } };
           const existing = product.outputs[receipt.output.role];
           const version = existing
-            ? await documents.addVersion(scope, existing.documentId, output) : null;
+            ? await documents.addVersion(scope, existing.documentId, {
+              ...output, expectedCurrentVersionId: existing.versionId,
+              expectedCurrentSha256: existing.sha256,
+            }) : null;
           if (version) {
-            rollback.push({ documentId: existing.documentId, versionId: version.id });
+            rollback.push(createdVersionRollback(existing.documentId, version));
             if (version.source_sha256 !== receipt.output.sha256) {
               throw new Error("The saved Court Record output hash does not match its build");
             }
             refs[receipt.output.role] = { documentId: existing.documentId,
               versionId: version.id };
           } else {
+            if (existing && await documents.metadata(scope, existing.documentId)) {
+              throw new ApplicationError(409,
+                "A Court Record output changed while the new build was being saved");
+            }
             const created = await files.create(scope, "court-records", output,
               { projectId: product.projectId });
-            rollback.push({ documentId: created.id });
+            rollback.push(createdDocumentRollback(created));
             if (!created.current_version_id ||
                 created.source_sha256 !== receipt.output.sha256) {
               throw new Error("The saved Court Record output hash does not match its build");
@@ -107,23 +119,12 @@ export function createCourtRecordsApplication(
         return await workProducts.save(scope, product.id, {
           revision: product.revision, outputs: refs,
         });
-      } catch (error) {
-        const failures: unknown[] = [];
-        for (const item of rollback.reverse()) {
-          try {
-            if (item.versionId) await documents.deleteVersion(scope,
-              item.documentId, item.versionId);
-            else await documents.deleteDocument(scope, item.documentId);
-          } catch (cleanup) { failures.push(cleanup); }
-        }
-        if (failures.length) throw new AggregateError([error, ...failures],
-          "Court Record outputs could not be saved or rolled back");
-        throw error;
-      }
+      } catch (error) { return rollbackDocuments(documents, scope, rollback, error,
+        "Court Record outputs could not be saved or rolled back"); }
     },
     async bindOutput(scope: ApplicationScope, input: {
-      courtRecordId: string; revision: number; kindId: "authorities" | "authority-extract";
-      childWorkProductId: string; role: "table" | "book"; replaceEntryId?: string;
+      courtRecordId: string; revision: number; kindId: string;
+      childWorkProductId: string; role: string; replaceEntryId?: string;
       description?: string; date?: string; exhibitLabel?: string;
       projectId?: string | null;
     }) {
@@ -131,26 +132,14 @@ export function createCourtRecordsApplication(
         workProducts.get(scope, input.courtRecordId),
         workProducts.get(scope, input.childWorkProductId),
       ]);
-      if (record.kind !== "court-record" || child.kind !== "authorities" ||
-          child.projectId !== record.projectId) {
-        throw new ApplicationError(409, "Select a Court Record and an Authorities draft");
+      if (record.kind !== "court-record" || child.projectId !== record.projectId) {
+        throw new ApplicationError(409, "Select a Court Record and a saved draft output");
       }
       if (Object.hasOwn(input, "projectId") && record.projectId !== input.projectId) {
         throw new ApplicationError(404, "Court record not found in this matter");
       }
       if (record.revision !== input.revision) {
         throw new ApplicationError(409, "This court record changed. Reload it before editing");
-      }
-      const output = child.outputs[input.role];
-      const fileType = input.role === "table" ? "docx" : "pdf";
-      if (!output || output.mimeType !== contentTypeForDocumentType(fileType)) {
-        throw new ApplicationError(409, `The Authorities ${input.role} output is unavailable`);
-      }
-      const history = await documents.versions(scope, output.documentId);
-      const version = history?.versions.find(({ id }) => id === output.versionId);
-      if (!version || version.source_sha256 !== output.sha256 ||
-          version.file_type !== fileType) {
-        throw new ApplicationError(409, `The Authorities ${input.role} output is unavailable`);
       }
       const state = record.state as { entries?: unknown; bindings?: unknown };
       if (!Array.isArray(state.entries) || !state.bindings ||
@@ -160,8 +149,22 @@ export function createCourtRecordsApplication(
       const profile = COURT_RECORD_PROFILE_BY_ID.get(String(record.state.profileId));
       const slot = profile?.slots.find(({ id }) => id === input.kindId);
       if (!slot || slot.requirement === "forbidden" || slot.generated || slot.descriptionOnly ||
-          !(slot.acceptedFormats ?? ["pdf", "docx"]).includes(fileType)) {
-        throw new ApplicationError(409, "Select an Authorities output slot available in this format");
+          !acceptsWorkProductOutput(slot, { kind: child.kind,
+            profileId: child.kind === "court-record" ? String(child.state.profileId) : undefined,
+            role: input.role })) {
+        throw new ApplicationError(409, "Select a saved output accepted by this Court Record slot");
+      }
+      const output = child.outputs[input.role];
+      const fileType = output && (["pdf", "docx"] as const).find((type) =>
+        output.mimeType === contentTypeForDocumentType(type));
+      if (!output || !fileType || !(slot.acceptedFormats ?? ["pdf", "docx"]).includes(fileType)) {
+        throw new ApplicationError(409, `The ${input.role} output is unavailable`);
+      }
+      const history = await documents.versions(scope, output.documentId);
+      const version = history?.versions.find(({ id }) => id === output.versionId);
+      if (!version || version.source_sha256 !== output.sha256 ||
+          version.file_type !== fileType) {
+        throw new ApplicationError(409, `The ${input.role} output is unavailable`);
       }
       const entries = structuredClone(state.entries) as Array<Record<string, unknown>>;
       const lastSeen = { name: output.filename, size: version.size_bytes,
@@ -199,7 +202,7 @@ export function createCourtRecordsApplication(
       }
       const profileId = input.profileId ?? String(state.profileId ?? "");
       const profile = COURT_RECORD_PROFILE_BY_ID.get(profileId);
-      if (!profile || !courtRecordProfileIsEffective(profile)) {
+      if (!profile) {
         throw new ApplicationError(400, "Select an available court record format");
       }
       if (profileId !== state.profileId && state.entries.length) {
@@ -217,7 +220,8 @@ export function createCourtRecordsApplication(
       const currentStyleId = typeof cover.partyStyleId === "string"
         ? cover.partyStyleId.trim() : "";
       const partyStyle = partyStyles.find(({ id }) => id === currentStyleId) ??
-        partyStyles.find(({ id }) => id === requestedStyleId) ?? partyStyles[0];
+        partyStyles.find(({ id }) => id === requestedStyleId) ??
+        (partyStyles.length === 1 ? partyStyles[0] : undefined);
       const filled: string[] = [];
       for (const [field, value] of Object.entries(input.cover ?? {})) {
         if (field === "partyGroups") {
@@ -231,7 +235,19 @@ export function createCourtRecordsApplication(
           }
           continue;
         }
-        if (![...profile.coverFields, "partyStyleId", "filingPartyId"].includes(field) ||
+        if (field === "filingPartyIds") {
+          if (!Array.isArray(value) || !value.length || value.length > 100 ||
+              new Set(value).size !== value.length || value.some((id) =>
+                typeof id !== "string" || !id.trim() || id.length > 200)) {
+            throw new ApplicationError(400, "Invalid cover field: filingPartyIds");
+          }
+          if (!Array.isArray(cover.filingPartyIds) || !cover.filingPartyIds.length) {
+            cover.filingPartyIds = value;
+            filled.push(field);
+          }
+          continue;
+        }
+        if (![...profile.coverFields, "partyStyleId"].includes(field) ||
             typeof value !== "string" || !value.trim() || value.length > 5_000) {
           throw new ApplicationError(400, `Invalid cover field: ${field}`);
         }
@@ -259,6 +275,8 @@ export function createCourtRecordsApplication(
         if (values.exhibitLabel && slot.id !== "exhibit") {
           throw new ApplicationError(400, "Only an exhibit entry has an exhibit label");
         }
+        if (values.exhibitLabel) await assertExhibitAssignment(documents, scope, entries,
+          bindings, values.exhibitLabel, patch.replaceEntryId);
         if (note) {
           if (patch.document || !values.description && !patch.replaceEntryId) {
             throw new ApplicationError(409, "This slot requires a description, not a file");
@@ -266,21 +284,44 @@ export function createCourtRecordsApplication(
           entryId = upsertEntry(entries, slot.id, patch.replaceEntryId, !!slot.repeatable,
             slot.label, { name: "description-only", size: 0, modified: 0 }, values, true);
         } else if (patch.document) {
-          const history = await documents.versions(scope, patch.document.documentId);
-          const version = history?.versions.find(({ id }) => id === patch.document!.versionId);
-          const format = version?.file_type.toLowerCase();
-          if (!version || history?.current_version_id !== version.id ||
+          const version = await documents.metadata(scope, patch.document.documentId);
+          const format = version?.file_type?.toLowerCase();
+          if (!version || version.current_version_id !== patch.document.versionId ||
+              typeof version.filename !== "string" ||
+              typeof version.size_bytes !== "number" ||
+              typeof version.source_sha256 !== "string" ||
               (format !== "pdf" && format !== "docx") ||
               !(slot.acceptedFormats ?? ["pdf", "docx"]).includes(format)) {
             throw new ApplicationError(409, "The selected Library version cannot fill this slot");
           }
           const lastSeen = { name: version.filename, size: version.size_bytes,
-            modified: Date.parse(version.created_at) || 0, sha256: version.source_sha256 };
+            modified: Date.parse(String(version.updated_at ?? "")) || 0,
+            sha256: version.source_sha256 };
           entryId = upsertEntry(entries, slot.id, patch.replaceEntryId, !!slot.repeatable,
             slot.repeatable ? withoutExtension(version.filename) : slot.label,
             lastSeen, values);
           bindings[entryId] = { kind: "document", documentId: patch.document.documentId,
             version: "latest" };
+          const attached = entries.find(({ id }) => id === entryId)!;
+          delete attached.sourceFields;
+          const prepared = format === "pdf"
+            ? await readPreparedPageText(documents, projection, scope,
+              patch.document.documentId, patch.document.versionId, version).catch(() => null)
+            : null;
+          if (prepared) attached.sourceFields = sourceDocumentFields(
+            prepared.pages.map(({ text }) => text));
+          if (slot.id === "affidavit") {
+            const affidavit = attached;
+            delete affidavit.sourceExhibits;
+            for (const entry of entries) if (entry.kindId === "exhibit") {
+              delete entry.exhibitLabel;
+            }
+            const labels = prepared
+              ? sourceExhibitLabels(prepared.pages.map(({ text }) => text)) : [];
+            if (prepared && labels.length) affidavit.sourceExhibits = {
+              sourceSha256: prepared.source_sha256, labels,
+            };
+          }
         } else {
           if (!patch.replaceEntryId || !Object.keys(values).length) {
             throw new ApplicationError(409, "Select an existing entry or add a file");
@@ -355,47 +396,7 @@ export function createCourtRecordsApplication(
       documentId: string,
       versionId: string | null,
     ) {
-      const [metadata, source] = await Promise.all([
-        documents.metadata(scope, documentId),
-        documents.projectionSource(scope, documentId, versionId),
-      ]);
-      if (!metadata || !source) throw new ApplicationError(404, "Document not found");
-      if (source.fileType.toLowerCase() !== "pdf") {
-        throw new ApplicationError(409, "Court record sources must be PDFs");
-      }
-      const pageCount = source.versionId === metadata.current_version_id
-        ? Number(metadata.page_count ?? metadata.parse_state?.page_count)
-        : Number((await documents.read(scope, documentId, source.versionId, false))
-          ?.version.page_count);
-      if (!Number.isSafeInteger(pageCount) || pageCount < 1 || pageCount > 2_000) {
-        throw new ApplicationError(409, "Prepare this PDF before using it in a court record");
-      }
-      const lookup = await projection.lookupPdf(source.readBytes, {
-        locatorKind: "page",
-        locator: pageCount === 1 ? "1" : `1-${pageCount}`,
-        contextBlocks: 0,
-      }, {
-        persistEvidence: false,
-        documentId,
-        versionId: source.versionId,
-        sourceSha256: source.sourceSha256,
-        pdfProfile: source.pdfProfile,
-      });
-      if (lookup.status !== "found") {
-        throw new ApplicationError(409, "The prepared PDF page text is unavailable");
-      }
-      const text = new Map(lookup.pages.map((page) => [page.page_number, page.text]));
-      return {
-        document_id: documentId,
-        version_id: source.versionId,
-        source_sha256: source.sourceSha256,
-        page_count: pageCount,
-        parser_status: source.pdfProfile?.status ?? "ready",
-        pages: Array.from({ length: pageCount }, (_, index) => ({
-          page_number: index + 1,
-          text: text.get(index + 1) ?? "",
-        })),
-      };
+      return readPreparedPageText(documents, projection, scope, documentId, versionId);
     },
     async pdfRendition(file: DocumentFile) {
       if (file.fileType !== "docx") {
@@ -404,6 +405,42 @@ export function createCourtRecordsApplication(
       return convert("bytes" in file ? file.bytes : await readFile(file.path));
     },
   });
+}
+
+async function readPreparedPageText(documents: DocumentStore, projection: ProjectionReader,
+  scope: ApplicationScope, documentId: string, versionId: string | null,
+  knownMetadata?: Awaited<ReturnType<DocumentStore["metadata"]>>) {
+  const [metadata, source] = await Promise.all([
+    knownMetadata ?? documents.metadata(scope, documentId),
+    documents.projectionSource(scope, documentId, versionId),
+  ]);
+  if (!metadata || !source) throw new ApplicationError(404, "Document not found");
+  if (source.fileType.toLowerCase() !== "pdf") {
+    throw new ApplicationError(409, "Court record sources must be PDFs");
+  }
+  const pageCount = source.versionId === metadata.current_version_id
+    ? Number(metadata.page_count ?? metadata.parse_state?.page_count)
+    : Number((await documents.read(scope, documentId, source.versionId, false))
+      ?.version.page_count);
+  if (!Number.isSafeInteger(pageCount) || pageCount < 1 || pageCount > 2_000) {
+    throw new ApplicationError(409, "Prepare this PDF before using it in a court record");
+  }
+  const lookup = await projection.lookupPdf(source.readBytes, {
+    locatorKind: "page", locator: pageCount === 1 ? "1" : `1-${pageCount}`, contextBlocks: 0,
+  }, {
+    persistEvidence: false, documentId, versionId: source.versionId,
+    sourceSha256: source.sourceSha256, pdfProfile: source.pdfProfile,
+  });
+  if (lookup.status !== "found") {
+    throw new ApplicationError(409, "The prepared PDF page text is unavailable");
+  }
+  const text = new Map(lookup.pages.map((page) => [page.page_number, page.text]));
+  return { document_id: documentId, version_id: source.versionId,
+    source_sha256: source.sourceSha256, page_count: pageCount,
+    parser_status: source.pdfProfile?.status ?? "ready",
+    pages: Array.from({ length: pageCount }, (_, index) => ({
+      page_number: index + 1, text: text.get(index + 1) ?? "",
+    })) };
 }
 
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -443,9 +480,30 @@ function entryValues(input: { description?: string; date?: string; exhibitLabel?
     if (typeof value !== "string" || !value.trim() || value.length > max) {
       throw new ApplicationError(400, `Invalid entry field: ${field}`);
     }
-    values[field] = value.trim();
+    values[field] = field === "exhibitLabel" ? value.trim().toUpperCase() : value.trim();
   }
   return values;
+}
+
+async function assertExhibitAssignment(documents: DocumentStore, scope: ApplicationScope,
+  entries: Array<Record<string, unknown>>, bindings: Record<string, WorkProductInput>,
+  label: string, replaceId?: string) {
+  const affidavit = entries.find(({ kindId }) => kindId === "affidavit");
+  const source = object(affidavit?.sourceExhibits) ? affidavit.sourceExhibits : null;
+  if (!source || !Array.isArray(source.labels) || !source.labels.includes(label) ||
+      entries.some((entry) => entry.kindId === "exhibit" && entry.id !== replaceId &&
+        entry.exhibitLabel === label)) {
+    throw new ApplicationError(409, "Choose an unfilled exhibit slot from the source affidavit");
+  }
+  const binding = bindings[String(affidavit?.id ?? "")];
+  if (binding?.kind !== "document") return;
+  const version = await documents.projectionSource(scope, binding.documentId,
+    binding.version === "latest" ? null : binding.version.versionId);
+  if (!version || version.sourceSha256 !== source.sourceSha256 ||
+      binding.version !== "latest" && binding.version.sha256 !== source.sourceSha256) {
+    throw new ApplicationError(409,
+      "The source affidavit changed. Reload it before assigning exhibits");
+  }
 }
 
 function selectedOcrPages(value: unknown) {
@@ -468,10 +526,13 @@ function parsePartyGroups(value: unknown, profile: CourtRecordProfileContract,
     const definition = definitions.get(String(group?.id));
     const parties = Array.isArray(group?.parties) ? group.parties.map((rawParty) => {
       const party = object(rawParty) ? rawParty : null;
-      if (typeof party?.id !== "string" || typeof party.name !== "string") {
+      const contact = party?.contact === undefined ? undefined
+        : decodeCourtRecordPartyContact(party.contact);
+      if (typeof party?.id !== "string" || typeof party.name !== "string" ||
+          party.contact !== undefined && !contact) {
         throw new ApplicationError(400, "Invalid cover field: partyGroups");
       }
-      return { id: party.id, name: party.name };
+      return { id: party.id, name: party.name, ...(contact && { contact }) };
     }) : null;
     if (!group || !definition || !parties) {
       throw new ApplicationError(400, "Invalid cover field: partyGroups");
@@ -491,7 +552,9 @@ function parsePartyGroups(value: unknown, profile: CourtRecordProfileContract,
   return groups.map((group) => ({ ...group, role: group.role.trim(),
     ...(group.roleBelow ? { roleBelow: group.roleBelow.trim() } : {}),
     parties: group.parties.map((party) => ({ id: String(party.id),
-      name: String(party.name).trim() })) }));
+      name: String(party.name).trim(), ...(party.contact && { contact: Object.fromEntries(
+        Object.entries(party.contact).map(([key, value]) => [key, value.trim()]),
+      ) }) })) }));
 }
 
 function mergePartyGroups(value: unknown, incoming: PartyGroup[]): PartyGroup[] {
@@ -503,7 +566,14 @@ function mergePartyGroups(value: unknown, incoming: PartyGroup[]): PartyGroup[] 
     for (const party of group.parties) {
       const partyIndex = parties.findIndex(({ id }) => id === party.id);
       if (partyIndex < 0) parties.push(party);
-      else if (!parties[partyIndex].name.trim()) parties[partyIndex] = party;
+      else {
+        const currentParty = parties[partyIndex];
+        parties[partyIndex] = { ...currentParty,
+          ...(!currentParty.name.trim() && { name: party.name }),
+          ...(party.contact && { contact: { ...party.contact, ...Object.fromEntries(
+            Object.entries(currentParty.contact ?? {}).filter(([, value]) => value.trim()),
+          ) } }) };
+      }
     }
     groups[index] = { ...current,
       ...(!current.role.trim() && { role: group.role }),
@@ -516,20 +586,22 @@ function mergePartyGroups(value: unknown, incoming: PartyGroup[]): PartyGroup[] 
 function cleanCoverForProfile(cover: Record<string, unknown>, profile: CourtRecordProfileContract) {
   const styles = profile.partyStyles ?? [];
   const allowed = new Set([...profile.coverFields,
-    ...(styles.length ? ["partyStyleId", "partyGroups", "filingPartyId"] : [])]);
+    ...(styles.length ? ["partyStyleId", "partyGroups", "filingPartyIds"] : [])]);
   for (const key of Object.keys(cover)) if (!allowed.has(key)) delete cover[key];
   const style = styles.find(({ id }) => id === cover.partyStyleId);
   if (!style) {
-    delete cover.partyStyleId; delete cover.partyGroups; delete cover.filingPartyId;
+    delete cover.partyStyleId; delete cover.partyGroups; delete cover.filingPartyIds;
     return;
   }
   const groups = parsePartyGroups(cover.partyGroups ?? [], profile, style);
   cover.partyGroups = groups;
-  const filingId = String(cover.filingPartyId ?? "");
-  const filingGroup = groups.find(({ parties }) => parties.some(({ id }) => id === filingId));
-  if (!filingGroup || profile.filingGroupId && filingGroup.id !== profile.filingGroupId) {
-    delete cover.filingPartyId;
-  }
+  const eligible = new Set(groups.filter((group) => !profile.filingGroupId ||
+    group.id === profile.filingGroupId).flatMap((group) => group.parties.map(({ id }) => id)));
+  const filingPartyIds = Array.isArray(cover.filingPartyIds)
+    ? cover.filingPartyIds.filter((id): id is string => typeof id === "string" && eligible.has(id))
+    : [];
+  if (filingPartyIds.length) cover.filingPartyIds = filingPartyIds;
+  else delete cover.filingPartyIds;
 }
 
 export type CourtRecordsApplication = ReturnType<typeof createCourtRecordsApplication>;

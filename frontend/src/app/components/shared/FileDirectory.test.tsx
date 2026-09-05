@@ -78,6 +78,35 @@ describe("FileDirectory folders", () => {
         await waitFor(() => expect(screen.getByRole("searchbox")).toHaveValue(""));
     });
 
+    it("clears hidden selections when changing directory scope", async () => {
+        const onChange = vi.fn();
+        const onLocationChange = vi.fn();
+        listDirectory.mockResolvedValue({
+            items: [{ kind: "document", document: { ...document, folder_id: null } }],
+            next_cursor: null,
+        });
+        listProjects.mockResolvedValue({
+            items: [{ id: "project-1", name: "Matter A" }], next_cursor: null,
+        });
+        render(<FileDirectory selectedDocuments={[document]} onChange={onChange}
+            onLocationChange={onLocationChange} showTabs />);
+
+        fireEvent.click(screen.getByRole("tab", { name: "Projects" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Matter A" }));
+        fireEvent.click(await screen.findByRole("button", { name: /Projects/ }));
+        fireEvent.click(screen.getByRole("tab", { name: "Files" }));
+
+        expect(onChange).toHaveBeenCalledTimes(4);
+        expect(onChange).toHaveBeenNthCalledWith(1, []);
+        expect(onChange).toHaveBeenNthCalledWith(2, []);
+        expect(onChange).toHaveBeenNthCalledWith(3, []);
+        expect(onChange).toHaveBeenNthCalledWith(4, []);
+        expect(onLocationChange.mock.calls.map(([location]) => location)).toEqual([
+            { library: "files" }, { projectId: null }, { projectId: "project-1" },
+            { projectId: null }, { library: "files" },
+        ]);
+    });
+
     it("can limit selection to documents accepted by the caller", async () => {
         const research = { ...document, id: "research", folder_id: null, filename: "Notes.research.md", file_type: "markdown" };
         listDirectory.mockResolvedValue({ items: [], next_cursor: null });

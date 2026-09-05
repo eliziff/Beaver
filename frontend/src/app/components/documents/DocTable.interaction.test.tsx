@@ -14,13 +14,25 @@ vi.mock("@/app/contexts/AuthContext", () => ({
 }));
 vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
 
+const { listVersions, uploadVersion } = vi.hoisted(() => ({
+    listVersions: vi.fn(), uploadVersion: vi.fn(),
+}));
+vi.mock("@/app/lib/beaverApi", async (importOriginal) => ({
+    ...await importOriginal<typeof import("@/app/lib/beaverApi")>(),
+    listDocumentVersions: listVersions,
+    uploadDocumentVersion: uploadVersion,
+}));
+
 const sidePanelRender = vi.hoisted(() => vi.fn());
 vi.mock("@/app/components/shared/DocumentSidePanel", () => ({
     preloadDocumentViewer: vi.fn(() => Promise.resolve()),
-    DocumentSidePanel: ({ doc }: { doc: Document | null }) => {
-        sidePanelRender();
+    DocumentSidePanel: (props: { doc: Document | null; versionsError?: boolean;
+        currentVersionId?: string | null;
+        onLoadVersions: (id: string, force?: boolean) => Promise<unknown> | void }) => {
+        const { doc } = props;
+        sidePanelRender(props);
         return doc ? (
-            <div data-testid="document-view">{doc.filename}</div>
+            <div data-testid="document-view">{doc.filename}{props.currentVersionId && <span>Current {props.currentVersionId}</span>}</div>
         ) : null;
     },
 }));
@@ -28,6 +40,7 @@ vi.mock("@/app/components/shared/DocumentSidePanel", () => ({
 const document: Document = {
     id: "document-1",
     user_id: "local-user",
+    project_id: null,
     filename: "Brief.pdf",
     file_type: "pdf",
     storage_path: "brief.pdf",
@@ -37,6 +50,8 @@ const document: Document = {
     structure_tree: null,
     status: "ready",
     created_at: "2026-07-27T00:00:00.000Z",
+    current_version_id: "version-1",
+    current_working_revision: 7,
 };
 
 const wordDocument: Document = {
@@ -65,6 +80,8 @@ function Harness({
         filename,
     }),
     onOpenWorkflows,
+    onOpenInChat,
+    list,
     search = "",
 }: {
     selectionFirst?: boolean;
@@ -84,16 +101,21 @@ function Harness({
         filename: string,
     ) => Promise<Document>;
     onOpenWorkflows?: (documents: Document[]) => void;
+    onOpenInChat?: (documents: Document[]) => void;
+    list?: (options: { parent_id?: string | null; cursor?: string | null }) => Promise<{
+        items: Array<{ kind: "document"; document: Document } | { kind: "folder"; folder: DocTableFolder }>;
+        next_cursor: string | null;
+    }>;
     search?: string;
 }) {
     const [selection, setSelection] = useState<DocumentSelectionActions | null>(null);
     const operations = useRef({
-        list: async ({ parent_id }: { parent_id?: string | null }) => ({
+        list: list ?? (async ({ parent_id }: { parent_id?: string | null }) => ({
             items: initialFolders
                 .filter((folder) => (folder.parent_folder_id ?? null) === (parent_id ?? null))
                 .map((folder) => ({ kind: "folder" as const, folder })),
             next_cursor: null,
-        }),
+        })),
         uploadDocument,
         uploadDocuments,
         refreshCollection: async () => { await refreshCollection(); },
@@ -118,6 +140,7 @@ function Harness({
             selectionFirst={selectionFirst}
             onCreateFolderActionChange={onCreateFolderActionChange}
             onSelectionActionsChange={setSelection}
+            onOpenInChat={onOpenInChat}
             onOpenWorkflows={onOpenWorkflows}
         /></>
     );
@@ -165,6 +188,34 @@ describe("DocTable Library interactions", () => {
         });
 
         expect(values.has(CHAT_DOCUMENT_DRAG_TYPE)).toBe(false);
+    });
+
+    it("resolves every descendant before opening a folder in chat", async () => {
+        const research = { id: "folder-1", name: "Research", parent_folder_id: null } as DocTableFolder;
+        const cases = { id: "folder-2", name: "Cases", parent_folder_id: "folder-1" } as DocTableFolder;
+        const inside = { ...document, id: "inside", folder_id: "folder-1" };
+        const nested = { ...wordDocument, id: "nested", folder_id: "folder-2" };
+        const list = vi.fn(async ({ parent_id, cursor }: { parent_id?: string | null; cursor?: string | null }) => {
+            if (parent_id === "folder-1" && !cursor) return { items: [
+                { kind: "document" as const, document: inside },
+                { kind: "folder" as const, folder: cases },
+            ], next_cursor: "page-2" };
+            if (parent_id === "folder-1") return { items: [], next_cursor: null };
+            if (parent_id === "folder-2") return { items: [
+                { kind: "document" as const, document: nested },
+            ], next_cursor: null };
+            return { items: [], next_cursor: null };
+        });
+        const openChat = vi.fn();
+        render(<Harness initialDocuments={[]} initialFolders={[research]}
+            list={list} onOpenInChat={openChat} />);
+
+        fireEvent.click(within(screen.getByText("Research").closest("[data-tree-drop-folder]")!)
+            .getByRole("button", { name: "More actions" }));
+        fireEvent.click(screen.getByRole("menuitem", { name: "Open in new chat" }));
+
+        await waitFor(() => expect(openChat).toHaveBeenCalledWith([inside, nested]));
+        expect(list).toHaveBeenCalledTimes(3);
     });
 
     it("avoids empty-state and version-picker rerenders", () => {
@@ -231,15 +282,31 @@ describe("DocTable Library interactions", () => {
         expect(screen.getByPlaceholderText("Folder name")).toBeVisible();
     });
 
-    it("keeps version-file drag feedback on its document row", () => {
+    it("refreshes once after a partial chained version drop", async () => {
+        const files = ["one", "two", "three"].map((name) => new File([name], `${name}.pdf`));
+        uploadVersion.mockReset()
+            .mockResolvedValueOnce({ id: "version-2", working_revision: 8 })
+            .mockResolvedValueOnce({ id: "version-3", working_revision: 9 })
+            .mockRejectedValueOnce(new Error("third failed"));
+        listVersions.mockReset().mockResolvedValue({
+            current_version_id: "version-3", versions: [{ id: "version-3" }],
+        });
+        const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
         render(<Harness />);
-        const row = documentRow();
-        const dataTransfer = { types: ["Files"], files: [] };
+        fireEvent.click(screen.getByRole("button", { name: "View Brief.pdf" }));
+        const row = documentRow(), dataTransfer = { types: ["Files"], files };
 
-        fireEvent.dragOver(row, { dataTransfer });
-        expect(row).toHaveClass("bg-red-50", "ring-red-200");
-        fireEvent.dragLeave(row, { relatedTarget: window.document.body });
-        expect(row).not.toHaveClass("bg-red-50", "ring-red-200");
+        fireEvent.drop(row, { dataTransfer });
+
+        await waitFor(() => expect(uploadVersion).toHaveBeenCalledTimes(3));
+        expect(uploadVersion.mock.calls.map(([, , id, revision]) =>
+            [id, revision])).toEqual([
+            ["version-1", 7], ["version-2", 8],
+            ["version-3", 9],
+        ]);
+        expect(await screen.findByText("Current version-3")).toBeVisible();
+        expect(listVersions).toHaveBeenCalledTimes(1);
+        error.mockRestore();
     });
 
     it("keeps inline rename geometry without per-keystroke commits", async () => {
@@ -438,6 +505,17 @@ describe("DocTable Library interactions", () => {
         expect(await screen.findByTestId("document-view")).toHaveTextContent(
             "Brief.pdf",
         );
+    });
+
+    it("surfaces a version-history load failure to the document panel", async () => {
+        const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+        listVersions.mockRejectedValueOnce(new Error("offline"));
+        render(<Harness />);
+        fireEvent.click(screen.getByRole("button", { name: "View Brief.pdf" }));
+        const load = sidePanelRender.mock.calls.at(-1)?.[0].onLoadVersions;
+        await act(async () => load("document-1", true));
+        await waitFor(() => expect(sidePanelRender.mock.calls.at(-1)?.[0].versionsError).toBe(true));
+        error.mockRestore();
     });
 
     it("opens the selected row with Enter", async () => {

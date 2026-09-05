@@ -16,21 +16,25 @@ const access = (scope: ApplicationScope) => sql`(w.user_id=${scope.userId} OR
   (w.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM projects p
     WHERE p.id=w.project_id AND ${projectAccess(scope)})))`;
 
+const profileMetadata = (row: Row) => {
+  const profileId = row.kind === "authorities" ? undefined
+    : typeof row.profile_id === "string" ? row.profile_id
+      : decode<Record<string, unknown>>(row.state_json, {}).profileId;
+  return typeof profileId === "string" ? { profileId } : {};
+};
 const metadata = (row: Row): WorkProductMetadata => ({
   id: String(row.id),
-  kind: row.kind === "authorities" || row.kind === "research-set"
-    ? row.kind : "court-record",
+  kind: row.kind === "authorities" ? row.kind : "court-record",
   title: String(row.title),
   projectId: typeof row.project_id === "string" ? row.project_id : null,
   revision: Number(row.revision),
-  ...(row.kind === "research-set" ? {}
-    : { outputs: decode<Record<string, WorkProductOutput>>(row.outputs_json, {}) }),
+  outputs: decode<Record<string, WorkProductOutput>>(row.outputs_json, {}),
   createdAt: String(row.created_at),
   updatedAt: String(row.updated_at),
+  ...profileMetadata(row),
 });
 const product = (row: Row): WorkProduct => ({ ...metadata(row),
   state: decode<WorkProductState>(row.state_json, {}),
-  outputs: decode<Record<string, WorkProductOutput>>(row.outputs_json, {}),
 } as WorkProduct);
 
 async function find(scope: ApplicationScope, id: string, db: RelationalDatabase) {
@@ -283,11 +287,12 @@ async function outputs(scope: ApplicationScope, product: WorkProduct,
 export const workProductRepository: WorkProductRepository = {
   async list(scope, options) {
     const result = await rows(sql`SELECT ${options.metadata ? sql.raw(
-      "w.id,w.kind,w.title,w.project_id,w.revision,w.outputs_json,w.created_at,w.updated_at") : sql.raw("w.*")}
+      "w.id,w.kind,w.title,w.project_id,w.revision,w.outputs_json,w.created_at,w.updated_at,w.state_json->>'profileId' profile_id") : sql.raw("w.*")}
       FROM work_products w WHERE ${access(scope)}
       ${options.kind ? sql`AND w.kind=${options.kind}` : sql.raw("")}
       ${options.projectId ? sql`AND w.project_id=${options.projectId}` : sql.raw("")}
-      ORDER BY w.updated_at DESC,w.id DESC LIMIT ${options.limit}`);
+      ORDER BY w.updated_at DESC,w.id DESC
+      ${options.limit === undefined ? sql.raw("") : sql`LIMIT ${options.limit}`}`);
     return result.map(options.metadata ? metadata : product);
   },
   async get(scope, id) {

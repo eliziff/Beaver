@@ -85,7 +85,7 @@ export const toolText = (value: unknown, isError = false): CallToolResult => ({
   content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value) }],
   ...(isError && { isError: true }),
 });
-const withoutUrls = (value: unknown): unknown => Array.isArray(value)
+export const withoutUrls = (value: unknown): unknown => Array.isArray(value)
   ? value.map(withoutUrls)
   : value && typeof value === "object"
     ? Object.fromEntries(Object.entries(value as Record<string, unknown>)

@@ -1,6 +1,6 @@
 import type { DocumentRecord, DocumentStore } from "./documentStore";
 import { normalizeDocumentFilename, type LibraryKind } from "./normalize";
-import { deleteFolderDocuments, validateFolderMove } from "./folderApplication";
+import { validateFolderMove } from "./folderApplication";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { deterministicUuid } from "./hash";
 
@@ -26,7 +26,6 @@ export type LibraryRepository = {
     stableId?: string): Promise<LibraryFolder | null>;
   updateFolder(scope: LibraryScope, folderId: string, update: { name?: string;
     parentFolderId?: string | null }): Promise<LibraryFolder | null>;
-  folderDocumentIds(scope: LibraryScope, folderId: string): Promise<string[] | null>;
   deleteFolder(scope: LibraryScope, folderId: string): Promise<boolean>;
 };
 
@@ -83,18 +82,16 @@ export function createLibraryStore(
       return repository.updateFolder(scope, id, update);
     },
     async deleteFolder(scope, id) {
-      if (!await repository.folder(scope, id)) return false;
-      const ids = await repository.folderDocumentIds(scope, id);
-      if (!ids) return false;
-      await deleteFolderDocuments(ids, (documentId) => documents.deleteDocument(scope, documentId));
       return repository.deleteFolder(scope, id);
     },
     document,
     async moveDocument(scope, id, folderId) {
-      if (!await document(scope, id)) return null;
-      if (folderId) await folder(scope, folderId, "Parent folder not found");
+      const current = await document(scope, id);
+      if (!current) return null;
       const moved = await documents.relocate(scope, id, {
-        expectedProjectId: null, projectId: null, folderId, owner: true,
+        expectedProjectId: null,
+        expectedFolderId: typeof current.folder_id === "string" ? current.folder_id : null,
+        projectId: null, folderId, owner: true,
       });
       if (moved.status === "conflict") throw new ApplicationError(
         409, "Document moved concurrently");
@@ -107,9 +104,11 @@ export function createLibraryStore(
         ? current.filename : "Untitled document";
       const filename = normalizeDocumentFilename(update.filename, currentName);
       if (!filename) throw new ApplicationError(400, "filename is required");
-      if (!await documents.renameVersion(scope, id, current.current_version_id, filename)) {
-        return null;
-      }
+      const renamed = await documents.renameVersion(scope, id, current.current_version_id,
+        filename, Number(current.current_working_revision));
+      if (!renamed) return null;
+      if (update.metadata === undefined && update.notes === undefined) return isLibraryDocument(
+        scope, { ...current, filename, current_working_revision: renamed.working_revision });
       return isLibraryDocument(scope, await documents.updateMetadata(scope, id, {
         ...(update.metadata !== undefined ? { metadata: update.metadata } : {}),
         ...(update.notes !== undefined ? { notes: update.notes } : {}),

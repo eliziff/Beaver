@@ -11,10 +11,10 @@ import {
 } from "pdf-lib";
 import { drawCourtCover, drawCourtExhibitCertificate, drawFederalForm344 } from "./courtForms";
 import { acceptedSourceFormats, DOCX_MIME, sourceFormat } from "./formats";
-import { indexChunks, indexPageCount } from "./layout";
+import { indexChunks } from "./layout";
 import { outputFilename, sortedEntries, validateCourtRecord } from "./validation";
 import { courtProfileForCover } from "./profiles";
-import { exhibitName } from "./types";
+import { exhibitName, hasMatchingExhibitCertificate } from "./types";
 import type {
   BuildArtifact,
   BuildResult,
@@ -24,7 +24,13 @@ import type {
   RecordEntry,
   SourceBookmark,
 } from "./types";
-import { canonicalJson } from "../../../../shared/canonical-json.cjs";
+import { canonicalJson } from "../../../../shared/canonical-json.mjs";
+import {
+  courtPdfText as latin,
+  courtPdfTextWidth,
+  drawCourtPdfText,
+  registerCourtPdfFonts,
+} from "./pdfText";
 
 const LETTER: [number, number] = [612, 792];
 const GENERATED_OVERHEAD_BYTES = 160_000;
@@ -33,10 +39,10 @@ type Progress = (message: string, completed: number, total: number) => void;
 
 type AssemblyItem = {
   id: string;
+  tab: number;
   kindId: string;
   title: string;
   baseTitle?: string;
-  description: string;
   group?: string;
   date?: string;
   pageCount: number;
@@ -44,9 +50,14 @@ type AssemblyItem = {
   entry?: RecordEntry;
   sourcePageStart?: number;
   sourcePageEnd?: number;
-  generated?: "fca-form-344-certificate" | "exhibit-certificate";
+  generated?: "federal-form-344-certificate" | "exhibit-certificate";
   exhibitLabel?: string;
   descriptionOnly?: boolean;
+  indexLines?: string[];
+  indexChildren?: Array<{ id: string; title: string; pageOffset: number; lines: string[] }>;
+  indexParentId?: string;
+  indexPageOffset?: number;
+  descriptionLines?: string[];
 };
 
 type Outline = {
@@ -99,9 +110,15 @@ export async function buildCourtRecord(input: BuildCourtRecordInput): Promise<Bu
       }
       continue;
     }
+    if (!entry.file) throw new Error(`${entry.title} requires a source file.`);
     const format = sourceFormat(entry.file);
     if (!format || !acceptedSourceFormats(kind).includes(format)) {
       throw new Error(`${entry.file.name} is not an accepted source format for ${kind.label}.`);
+    }
+    if (profile.outputMode === "separate-files" && format === "docx" &&
+        !preservesWord(profile, entry) && (!entry.pdfRendition ||
+          sourceFormat(entry.pdfRendition) !== "pdf")) {
+      throw new Error(`${entry.file.name} must be converted to PDF before building.`);
     }
     if (profile.outputMode !== "separate-files" &&
         sourceFormat(entry.pdfRendition ?? entry.file) !== "pdf") {
@@ -114,23 +131,24 @@ export async function buildCourtRecord(input: BuildCourtRecordInput): Promise<Bu
     const kind = allowedKinds.get(entry.kindId);
     return {
       id: entry.id,
+      tab: 0,
       kindId: entry.kindId,
       title: entry.title.trim() || kind!.label,
       baseTitle: entry.title.trim() || kind!.label,
-      description: kind!.description,
       group: kind!.group,
       date: entry.date,
-      pageCount: entry.pageCount ?? 0,
+      pageCount: entry.descriptionOnly ? (kind!.renderDescriptionPage ? 1 : 0) : entry.pageCount ?? 0,
       bytes: entry.descriptionOnly ? 0 : (entry.pdfRendition ?? entry.file).size,
       entry: entry.descriptionOnly ? undefined : entry,
       descriptionOnly: entry.descriptionOnly,
     };
   });
-  const generated = profile.documentKinds.flatMap<AssemblyItem>((kind) => kind.generated ? [{
+  const generated = profile.documentKinds.flatMap<AssemblyItem>((kind) =>
+    kind.generated && !entries.some((entry) => entry.kindId === kind.id) ? [{
     id: `generated:${kind.id}`,
+    tab: 0,
     kindId: kind.id,
     title: kind.label,
-    description: kind.description,
     group: kind.group,
     pageCount: 1,
     bytes: 0,
@@ -139,7 +157,8 @@ export async function buildCourtRecord(input: BuildCourtRecordInput): Promise<Bu
   const order = new Map(profile.documentKinds.map((kind) => [kind.id, kind.order]));
   const items = [...uploadItems, ...generated].sort((left, right) =>
     (order.get(left.kindId) ?? Number.MAX_SAFE_INTEGER) -
-    (order.get(right.kindId) ?? Number.MAX_SAFE_INTEGER));
+    (order.get(right.kindId) ?? Number.MAX_SAFE_INTEGER))
+    .map((item, index) => ({ ...item, tab: index + 1 }));
 
   const sourceReceipts = await Promise.all(entries.filter((entry) => !entry.descriptionOnly).map(async (entry, order) => ({
     order,
@@ -156,23 +175,23 @@ export async function buildCourtRecord(input: BuildCourtRecordInput): Promise<Bu
       .flatMap((text, index) => text?.trim() ? [index + 1] : []),
   })));
 
-  let outputArtifacts: BuildArtifact[];
+  let outputArtifacts: BuildArtifact[], volumeCount = 1;
   if (profile.outputMode === "separate-files") {
-    outputArtifacts = (await buildSeparateFiles(profile, entries, input.onProgress))
-      .map((artifact, index) => ({ ...artifact, role: entryOutputRole(entries, index) }));
+    outputArtifacts = await buildSeparateFiles(profile, entries, cover, input.onProgress, true);
   } else {
     const records = profile.outputMode === "affidavit-with-exhibits"
       ? [await buildAffidavit(profile, recordEntries, cover, input.onProgress)]
       : await buildMeasuredVolumes(profile, items, cover, input.onProgress);
-    const separate = await buildSeparateFiles(profile, separateEntries, input.onProgress, true);
+    volumeCount = records.length;
+    const separate = await buildSeparateFiles(profile, separateEntries, cover, input.onProgress, true);
     outputArtifacts = [
       ...records.map((artifact, index) => ({ ...artifact,
         role: index ? `record-${index + 1}` : "record" })),
-      ...separate.map((artifact, index) => ({ ...artifact,
-        role: entryOutputRole(separateEntries, index) })),
+      ...separate,
     ];
   }
 
+  outputArtifacts = uniqueArtifactFilenames(outputArtifacts);
   enforceOutputLimits(profile, outputArtifacts);
   const profileSha256 = await sha256Bytes(new TextEncoder().encode(canonicalJson(profile)));
 
@@ -203,38 +222,54 @@ export async function buildCourtRecord(input: BuildCourtRecordInput): Promise<Bu
       sha256: artifact.sha256,
       page_count: artifact.pageCount ?? null,
     })),
-    automatic_steps: automaticSteps(profile, entries, outputArtifacts.length),
+    automatic_steps: automaticSteps(profile, entries, volumeCount),
     needs_attention: input.needsAttention ?? [],
   };
   input.onProgress?.("Record ready", 1, 1);
   return { artifacts: outputArtifacts, receipt };
 }
 
-function entryOutputRole(entries: RecordEntry[], index: number) {
-  const entry = entries[index];
+function entryOutputRole(entry: RecordEntry | undefined, index: number) {
   if (!entry) return `file-${index + 1}`;
-  const occurrence = entries.slice(0, index + 1).filter((item) => item.kindId === entry.kindId).length;
-  const repeated = entries.filter((item) => item.kindId === entry.kindId).length > 1;
-  return repeated ? `${entry.kindId}-${occurrence}` : entry.kindId;
+  return `${entry.kindId}:${entry.id}`;
 }
 
 async function buildSeparateFiles(
   profile: CourtProfile,
   entries: RecordEntry[],
+  cover: CoverValues,
   progress?: Progress,
   preserve = false,
 ) {
   const artifacts: BuildArtifact[] = [];
-  const filenames = new Map<string, number>();
-  for (let index = 0; index < entries.length; index += 1) {
-    const entry = entries[index];
-    progress?.(`Preparing ${entry.title}`, index, entries.length);
-    const format = sourceFormat(entry.file);
+  const filenames = new Set<string>();
+  const kinds = new Map(profile.documentKinds.map((kind) => [kind.id, kind]));
+  const filingEntries = entries.filter((entry) => !kinds.get(entry.kindId)?.appendTo);
+  for (let index = 0; index < filingEntries.length; index += 1) {
+    const entry = filingEntries[index];
+    progress?.(`Preparing ${entry.title}`, index, filingEntries.length);
+    if (!entry.file) throw new Error(`${entry.title} requires a source file.`);
+    const input = filingInput(profile, entry);
+    if (!input) throw new Error(`${entry.file.name} must be converted to PDF before building.`);
+    const format = sourceFormat(input);
     if (!format) throw new Error(`${entry.file.name} is not a supported filing artifact.`);
-    const raw = await fileBytes(entry.file);
-    const filename = uniqueFilename(entry.file.name, filenames);
+    const patterned = profile.outputMode === "separate-files"
+      ? outputFilename(profile, cover, entry.kindId) : `${entry.kindId}.pdf`;
+    const filename = uniqueFilename(kinds.get(entry.kindId)?.preserveFilename
+      ? entry.file.name : patterned.replace(/\.[^.]+$/u, `.${format}`), filenames);
+    const attachments = entries.filter((candidate) =>
+      kinds.get(candidate.kindId)?.appendTo === entry.kindId);
+    if (attachments.length) {
+      if (format !== "pdf") throw new Error(`${entry.file.name} must be converted to PDF before attaching related filing material.`);
+      artifacts.push(await buildAttachedPdf(profile, entry, attachments, filename));
+      continue;
+    }
+    const raw = await fileBytes(input);
+    if (format === "docx") {
+      artifacts.push(await fileArtifact(filename, DOCX_MIME, raw));
+      continue;
+    }
     if (preserve) {
-      if (format !== "pdf") throw new Error(`${entry.file.name} must remain a separate PDF.`);
       if (!entry.ocrTextByPage?.some((text) => text?.trim())) {
         artifacts.push(await pdfArtifact(filename, raw, entry.pageCount ?? 0));
         continue;
@@ -244,10 +279,6 @@ async function buildSeparateFiles(
       output.getPages().forEach((page, pageIndex) =>
         applyOcrText(page, font, entry.ocrTextByPage?.[pageIndex]));
       artifacts.push(await pdfArtifact(filename, await output.save(), output.getPageCount()));
-      continue;
-    }
-    if (format === "docx") {
-      artifacts.push(await fileArtifact(filename, DOCX_MIME, raw));
       continue;
     }
     const output = await PDFDocument.create();
@@ -270,7 +301,45 @@ async function buildSeparateFiles(
     const bytes = await output.save();
     artifacts.push(await pdfArtifact(filename, bytes, pages.length));
   }
-  return artifacts;
+  return artifacts.map((artifact, index) => ({ ...artifact,
+    role: entryOutputRole(filingEntries[index], index) }));
+}
+
+async function buildAttachedPdf(
+  profile: CourtProfile,
+  entry: RecordEntry,
+  attachments: RecordEntry[],
+  filename: string,
+) {
+  const document = await PDFDocument.create();
+  const sources = [entry, ...attachments];
+  const font = sources.some((source) => source.ocrTextByPage?.some((text) => text?.trim()))
+    ? await document.embedFont(StandardFonts.Helvetica) : undefined;
+  const outlines: Outline[] = [];
+  for (const sourceEntry of sources) {
+    const input = filingInput(profile, sourceEntry);
+    if (!input || sourceFormat(input) !== "pdf") {
+      throw new Error(`${sourceEntry.file.name} must be prepared as a PDF before it can be attached.`);
+    }
+    const source = await PDFDocument.load(await fileBytes(input));
+    const start = document.getPageCount();
+    const pages = await document.copyPages(source, source.getPageIndices());
+    pages.forEach((page, pageIndex) => {
+      document.addPage(page);
+      if (font) applyOcrText(page, font, sourceEntry.ocrTextByPage?.[pageIndex]);
+    });
+    const kind = profile.documentKinds.find(({ id }) => id === sourceEntry.kindId);
+    outlines.push({ title: sourceEntry === entry ? sourceEntry.title : kind?.label ?? sourceEntry.title,
+      pageIndex: start, children: sourceOutlines(sourceEntry.sourceBookmarks, start) });
+  }
+  applyOutlines(document, outlines, profile.technical.bookmarksPanelOpen);
+  setMetadata(document, `${profile.label} — ${entry.title}`);
+  return pdfArtifact(filename, await document.save(), document.getPageCount());
+}
+
+function filingInput(profile: CourtProfile, entry: RecordEntry) {
+  return sourceFormat(entry.file) === "docx" && !preservesWord(profile, entry)
+    ? entry.pdfRendition : entry.file;
 }
 
 async function buildAffidavit(
@@ -282,12 +351,16 @@ async function buildAffidavit(
   const output = await PDFDocument.create();
   const regular = await output.embedFont(StandardFonts.TimesRoman);
   const bold = await output.embedFont(StandardFonts.TimesRomanBold);
+  await registerCourtPdfFonts(output, [regular, bold], { profile,
+    deponent: cover.deponent, swornDate: cover.swornDate,
+    exhibitLabels: entries.map(({ exhibitLabel }) => exhibitLabel) }, profile.jurisdiction !== "ca");
   const outlines: Outline[] = [];
   let pageNumber = 1;
   for (let entryIndex = 0; entryIndex < entries.length; entryIndex += 1) {
     const entry = entries[entryIndex];
     progress?.(`Adding ${entry.title}`, entryIndex, entries.length);
-    if (entry.kindId === "exhibit" && profile.exhibitCertificate) {
+    if (entry.kindId === "exhibit" && profile.exhibitCertificate &&
+        !hasMatchingExhibitCertificate(entry)) {
       const label = entry.exhibitLabel?.trim() || exhibitName(
         entries.slice(0, entryIndex).filter((item) => item.kindId === "exhibit").length,
       );
@@ -330,10 +403,11 @@ async function buildMeasuredVolumes(
   cover: CoverValues,
   progress?: Progress,
 ) {
+  items = await measureIndexItems(profile, items);
   const plans = planVolumes(profile, items);
   const maximumSplits = items.reduce((sum, item) => sum + item.pageCount, 0) + 1;
   for (let attempt = 0; attempt < maximumSplits; attempt += 1) {
-    numberVolumePlans(profile, plans);
+    const global = numberVolumePlans(profile, plans);
     const artifacts: BuildArtifact[] = [];
     for (const plan of plans) {
       progress?.(
@@ -341,7 +415,7 @@ async function buildMeasuredVolumes(
         plan.number - 1,
         plan.count,
       );
-      artifacts.push(await buildCombinedVolume(profile, plan, cover));
+      artifacts.push(await buildCombinedVolume(profile, plan, cover, global));
     }
     const oversizedIndex = artifacts.findIndex((artifact) => exceedsOutputLimit(profile, artifact));
     if (oversizedIndex < 0) return artifacts;
@@ -355,14 +429,108 @@ async function buildMeasuredVolumes(
   throw new Error("The record could not be divided into filing-sized volumes.");
 }
 
+async function measureIndexItems(profile: CourtProfile, items: AssemblyItem[]) {
+  const document = await PDFDocument.create();
+  const regular = await document.embedFont(StandardFonts.TimesRoman);
+  const sans = await document.embedFont(StandardFonts.Helvetica);
+  await registerCourtPdfFonts(document, [regular, sans], { profile, items },
+    profile.jurisdiction !== "ca");
+  const style = profile.technical.indexStyle;
+  const font = style === "federal" ? regular : sans;
+  const width = style === "federal" ? 297 : style === "abca" ? 400 : 322;
+  const size = style === "federal" || style === "abca" ? 12 : 8.5;
+  const described = new Set(profile.documentKinds.filter(({ renderDescriptionPage }) =>
+    renderDescriptionPage).map(({ id }) => id));
+  return items.map((item) => {
+    const descriptionLines = item.descriptionOnly && described.has(item.kindId)
+      ? wrap(latin(item.title), regular, 12, 612 - 198.42) : undefined;
+    const sourceStart = item.sourcePageStart ?? 0;
+    const sourceEnd = item.sourcePageEnd ?? item.entry?.pageCount ?? item.pageCount;
+    const bookmarks = (item.entry?.sourceBookmarks ?? []).filter(({ pageIndex }) =>
+      pageIndex >= sourceStart && pageIndex < sourceEnd);
+    const compound = bookmarks.length > 1 && (item.entry?.binding?.kind === "work-product-output" ||
+      bookmarks.some(({ title }) => /^Exhibit\b/iu.test(title)));
+    const indexChildren = compound ? bookmarks.map((bookmark, index) => ({
+      id: `${item.id}:bookmark:${index}`,
+      title: latin(bookmark.title),
+      pageOffset: bookmark.pageIndex - sourceStart,
+      lines: wrap(latin(bookmark.title), font, size, width - 14),
+    })) : undefined;
+    return { ...item,
+      ...(descriptionLines && { descriptionLines,
+        pageCount: Math.ceil(descriptionLines.length / 36) }),
+      ...(indexChildren?.length && { indexChildren }),
+      indexLines: [
+        ...wrap(latin(item.title), font, size, width),
+        ...(item.date && (style === "abca" ||
+          style === "federal" && profile.technical.indexDate !== "none")
+          ? [`Dated ${latin(item.date)}`] : []),
+      ] };
+  });
+}
+
+function expandedIndexItems(profile: CourtProfile, items: AssemblyItem[]) {
+  const maxLines = profile.technical.indexStyle === "federal" ||
+    profile.technical.indexStyle === "abca" ? 20 : 40;
+  const split = (item: AssemblyItem) => {
+    const lines = item.indexLines ?? [latin(item.title)];
+    const parts = Array.from({ length: Math.ceil(lines.length / maxLines) }, (_, index) =>
+      lines.slice(index * maxLines, (index + 1) * maxLines));
+    return parts.map((indexLines) => ({ ...item, indexLines }));
+  };
+  return items.flatMap((item) => [...split(item), ...(item.indexChildren ?? []).flatMap((child) =>
+    split({ ...item, id: child.id, title: child.title, date: undefined, bytes: 0,
+      pageCount: 1, indexLines: child.lines, indexChildren: undefined,
+      indexParentId: item.id, indexPageOffset: child.pageOffset }))]);
+}
+
+function indexRange(item: AssemblyItem, ranges: Map<string, { start: number; end: number }>) {
+  const range = ranges.get(item.indexParentId ?? item.id)!;
+  return item.indexPageOffset === undefined ? range : {
+    start: range.start + item.indexPageOffset,
+    end: range.start + item.indexPageOffset,
+  };
+}
+
+const indexIsLocal = (item: AssemblyItem, localIds: Set<string>) =>
+  localIds.has(item.indexParentId ?? item.id);
+
+function indexRowUnits(profile: CourtProfile, item: AssemblyItem) {
+  const lines = Math.max(1, item.indexLines?.length ?? 1);
+  if (profile.technical.indexStyle === "federal") return Math.max(32, lines * 15 + 10) / 32;
+  if (profile.technical.indexStyle === "abca") return 1 + Math.max(0, lines - 2) * 16 / 39.6;
+  return Math.max(24, lines * 11 + 13) / 24;
+}
+
+function plannedIndexChunks(profile: CourtProfile, items: AssemblyItem[]) {
+  const groupRows = profile.technical.indexStyle === "federal" ? 22 / 32
+    : profile.technical.indexStyle === "abca" ? 1 : 21 / 24;
+  return indexChunks(expandedIndexItems(profile, items), profile.technical.indexRowsPerPage,
+    (item) => indexRowUnits(profile, item), groupRows);
+}
+
+const plannedIndexPageCount = (profile: CourtProfile, items: AssemblyItem[]) =>
+  plannedIndexChunks(profile, items).length;
+
 function numberVolumePlans(profile: CourtProfile, plans: VolumePlan[]) {
+  const allItems = plans.flatMap(({ items }) => items);
+  const ranges = new Map<string, { start: number; end: number }>();
   let nextNumber = 1;
   plans.forEach((plan, index) => {
-    plan.startNumber = nextNumber;
     plan.number = index + 1;
     plan.count = plans.length;
-    nextNumber += volumePageCount(profile, plan.items);
   });
+  for (const plan of plans) {
+    plan.startNumber = nextNumber;
+    const indexItems = profile.technical.completeIndexEachVolume ? allItems : plan.items;
+    let next = plan.startNumber + frontPageCount(profile, indexItems);
+    for (const item of plan.items) {
+      ranges.set(item.id, { start: next, end: next + item.pageCount - 1 });
+      next += item.pageCount;
+    }
+    nextNumber = next + backCoverPageCount(profile, plan);
+  }
+  return { allItems, ranges };
 }
 
 function splitVolumePlan(plan: VolumePlan): [VolumePlan, VolumePlan] | undefined {
@@ -394,6 +562,14 @@ function splitVolumePlan(plan: VolumePlan): [VolumePlan, VolumePlan] | undefined
 }
 
 function splitAssemblyItem(item: AssemblyItem): [AssemblyItem[], AssemblyItem[]] | undefined {
+  if (item.descriptionLines && item.pageCount > 1) {
+    const middle = Math.ceil(item.pageCount / 2) * 36;
+    const part = (lines: string[], suffix: string): AssemblyItem => ({ ...item,
+      id: `${item.id}:${suffix}`, descriptionLines: lines,
+      pageCount: Math.ceil(lines.length / 36) });
+    return [[part(item.descriptionLines.slice(0, middle), "part-1")],
+      [part(item.descriptionLines.slice(middle), "part-2")]];
+  }
   if (!item.entry || item.pageCount < 2) return undefined;
   const start = item.sourcePageStart ?? 0;
   const end = item.sourcePageEnd ?? item.entry.pageCount ?? item.pageCount;
@@ -438,26 +614,28 @@ async function buildCombinedVolume(
   profile: CourtProfile,
   plan: VolumePlan,
   cover: CoverValues,
+  global: ReturnType<typeof numberVolumePlans>,
 ) {
   const output = await PDFDocument.create();
   const regular = await output.embedFont(StandardFonts.TimesRoman);
   const bold = await output.embedFont(StandardFonts.TimesRomanBold);
   const sans = await output.embedFont(StandardFonts.Helvetica);
   const sansBold = await output.embedFont(StandardFonts.HelveticaBold);
-  const chunks = indexChunks(plan.items, profile.technical.indexRowsPerPage);
+  await registerCourtPdfFonts(output, [regular, bold, sans, sansBold], { profile, cover,
+    items: global.allItems.map(({ title, group, date, exhibitLabel }) =>
+      ({ title, group, date, exhibitLabel })) }, profile.jurisdiction !== "ca");
+  const indexItems = profile.technical.completeIndexEachVolume ? global.allItems : plan.items;
+  const chunks = plannedIndexChunks(profile, indexItems);
   const indexPages = chunks.length;
-  const frontPages = (profile.cover.generated ? 1 : 0) + indexPages;
-  const ranges = new Map<string, { start: number; end: number }>();
-  let next = plan.startNumber + frontPages;
-  for (const item of plan.items) {
-    ranges.set(item.id, { start: next, end: next + item.pageCount - 1 });
-    next += item.pageCount;
-  }
+  const localIds = new Set(plan.items.map(({ id }) => id));
 
   if (profile.cover.generated) {
     const sansCover = profile.cover.template === "abca-ap5";
     drawCourtCover(output.addPage(LETTER), sansCover ? sans : regular,
-      sansCover ? sansBold : bold, profile, cover, plan);
+      sansCover ? sansBold : bold, profile, cover, {
+        number: plan.number,
+        count: plan.count,
+      });
   }
   const indexTargets: IndexTarget[] = [];
   for (let index = 0; index < indexPages; index += 1) {
@@ -471,7 +649,8 @@ async function buildCombinedVolume(
       profile,
       plan,
       chunks[index],
-      ranges,
+      global.ranges,
+      localIds,
       indexTargets,
       index,
       indexPages,
@@ -482,9 +661,15 @@ async function buildCombinedVolume(
     pageIndex: profile.cover.generated ? 1 : 0 }];
   const groupOutlines = new Map<string, Outline>();
   for (const item of plan.items) {
-    if (item.descriptionOnly) continue;
+    if (item.descriptionOnly && !item.descriptionLines) continue;
     const pageIndex = output.getPageCount();
-    if (item.entry) {
+    if (item.descriptionLines) {
+      Array.from({ length: item.pageCount }, (_, index) =>
+        item.descriptionLines!.slice(index * 36, (index + 1) * 36))
+        .forEach((lines, index) => drawPhysicalExhibitDescription(
+          output.addPage(LETTER), regular, bold, lines, index,
+        ));
+    } else if (item.entry) {
       const source = await PDFDocument.load(await fileBytes(
         item.entry.pdfRendition ?? item.entry.file,
       ));
@@ -495,7 +680,7 @@ async function buildCombinedVolume(
         output.addPage(page);
         applyOcrText(page, sans, item.entry?.ocrTextByPage?.[sourceStart + localIndex]);
       });
-    } else if (item.generated === "fca-form-344-certificate") {
+    } else if (item.generated === "federal-form-344-certificate") {
       drawFederalForm344(output.addPage(LETTER), regular, bold, profile, cover);
     }
     const outline: Outline = {
@@ -514,6 +699,14 @@ async function buildCombinedVolume(
     } else {
       outlines.push(outline);
     }
+  }
+
+  if (backCoverPageCount(profile, plan)) {
+    const page = output.addPage(LETTER);
+    page.drawRectangle({ x: 0, y: 0, width: page.getWidth(), height: page.getHeight(),
+      color: hex(profile.cover.colourHex) });
+    centredText(page, `VOLUME ${plan.number} OF ${plan.count}`, page.getHeight() / 2,
+      bold, 12);
   }
 
   const numberFont = profile.technical.indexStyle === "abca" ? sans : regular;
@@ -550,7 +743,7 @@ function planVolumes(profile: CourtProfile, items: AssemblyItem[]): VolumePlan[]
   let currentBytes = GENERATED_OVERHEAD_BYTES;
   for (const item of sourceItems) {
     const front = (profile.cover.generated ? 1 : 0) +
-      indexPageCount([...current, item], profile.technical.indexRowsPerPage);
+      plannedIndexPageCount(profile, [...current, item]);
     const tooManyPages = maxPages !== undefined && current.length > 0 &&
       currentPages + item.pageCount + front > maxPages;
     const tooManyBytes = maxBytes !== undefined && current.length > 0 &&
@@ -576,10 +769,28 @@ function planVolumes(profile: CourtProfile, items: AssemblyItem[]): VolumePlan[]
   }));
 }
 
-function volumePageCount(profile: CourtProfile, items: AssemblyItem[]) {
+function frontPageCount(profile: CourtProfile, indexItems: AssemblyItem[]) {
   return (profile.cover.generated ? 1 : 0) +
-    indexPageCount(items, profile.technical.indexRowsPerPage) +
-    items.reduce((sum, item) => sum + item.pageCount, 0);
+    plannedIndexPageCount(profile, indexItems);
+}
+
+function backCoverPageCount(profile: CourtProfile, plan: VolumePlan) {
+  return plan.count > 1 && profile.technical.volumeLabelOnBackCover ? 1 : 0;
+}
+
+function drawPhysicalExhibitDescription(
+  page: PDFPage,
+  regular: PDFFont,
+  bold: PDFFont,
+  lines: string[],
+  index: number,
+) {
+  page.drawRectangle({ x: 0, y: 0, width: 612, height: 792, color: rgb(1, 1, 1) });
+  centredText(page, `DESCRIPTION OF PHYSICAL EXHIBIT${index ? " — CONTINUED" : ""}`,
+    708, bold, 12);
+  lines.forEach((text, lineIndex) => drawCourtPdfText(page, text, {
+    x: 99.21, y: 660 - lineIndex * 16, font: regular, size: 12,
+  }));
 }
 
 function drawIndexPage(
@@ -592,23 +803,24 @@ function drawIndexPage(
   plan: VolumePlan,
   items: AssemblyItem[],
   ranges: Map<string, { start: number; end: number }>,
+  localIds: Set<string>,
   links: IndexTarget[],
   indexPage: number,
   indexPageCount: number,
 ) {
   if (profile.technical.indexStyle === "federal") {
-    drawFederalIndexPage(page, regular, bold, profile, plan, items, ranges, links);
+    drawFederalIndexPage(page, regular, bold, profile, plan, items, ranges, localIds, links);
     return;
   }
   if (profile.technical.indexStyle === "abca") {
-    drawAbcaIndexPage(page, sans, sansBold, profile, plan, items, ranges, links);
+    drawAbcaIndexPage(page, sans, sansBold, profile, plan, items, ranges, localIds, links);
     return;
   }
   const { width, height } = page.getSize();
   page.drawRectangle({ x: 0, y: 0, width, height, color: rgb(1, 1, 1) });
   page.drawRectangle({ x: 44, y: height - 92, width: 8, height: 40,
     color: hex(profile.cover.colourHex) });
-  page.drawText(profile.technical.indexTitle ?? "TABLE OF CONTENTS", {
+  drawCourtPdfText(page, profile.technical.indexTitle ?? "TABLE OF CONTENTS", {
     x: 64, y: height - 70, font: bold, size: 15,
   });
   const suffix = [plan.count > 1 ? `Volume ${plan.number} of ${plan.count}` : "",
@@ -619,7 +831,7 @@ function drawIndexPage(
   page.drawRectangle({ x: 48, y: top - 19, width: width - 96, height: 22,
     color: rgb(0.12, 0.14, 0.17) });
   page.drawText("TAB", { x: 56, y: top - 12, font: sansBold, size: 8, color: rgb(1, 1, 1) });
-  page.drawText(profile.technical.indexDocumentLabel ?? "DOCUMENT", {
+  drawCourtPdfText(page, profile.technical.indexDocumentLabel ?? "DOCUMENT", {
     x: 96, y: top - 12, font: sansBold, size: 8, color: rgb(1, 1, 1),
   });
   page.drawText("DATE", { x: 430, y: top - 12, font: sansBold, size: 8, color: rgb(1, 1, 1) });
@@ -630,26 +842,30 @@ function drawIndexPage(
     if (item.group && item.group !== lastGroup) {
       page.drawRectangle({ x: 48, y: y - 3, width: width - 96, height: 18,
         color: rgb(0.94, 0.95, 0.96) });
-      page.drawText(latin(item.group), { x: 56, y: y + 2, font: sansBold, size: 8,
+      drawCourtPdfText(page, latin(item.group), { x: 56, y: y + 2, font: sansBold, size: 8,
         color: rgb(0.22, 0.24, 0.27) });
       y -= 21;
       lastGroup = item.group;
     }
-    const range = ranges.get(item.id)!;
+    const range = indexRange(item, ranges);
     const rowTop = y + 10;
-    const title = truncate(latin(item.title), sans, 8.5, 322);
-    const visible = item.descriptionOnly ? "" : range.start === range.end
+    const lines = item.indexLines ?? [latin(item.title)];
+    const rowHeight = Math.max(24, lines.length * 11 + 13);
+    const visible = !item.pageCount ? "" : range.start === range.end
       ? `${range.start}` : `${range.start}–${range.end}`;
-    page.drawText(String(plan.items.indexOf(item) + 1), { x: 57, y, font: sans, size: 8.5 });
-    page.drawText(title, { x: 96, y, font: sans, size: 8.5 });
-    page.drawText(latin(item.date ?? ""), { x: 430, y, font: sans, size: 8.2 });
+    page.drawText(item.indexParentId ? "" : String(item.tab), { x: 57, y, font: sans, size: 8.5 });
+    lines.forEach((text, index) => drawCourtPdfText(page, text, {
+      x: 96 + (item.indexParentId ? 12 : 0), y: y - index * 11, font: sans, size: 8.5,
+    }));
+    drawCourtPdfText(page, latin(item.date ?? ""), { x: 430, y, font: sans, size: 8.2 });
     drawRight(page, visible, width - 56, y, sans, 8.5, rgb(0.12, 0.12, 0.12));
-    line(page, 48, y - 7, width - 48, y - 7, rgb(0.86, 0.87, 0.89), 0.5);
-    if (!item.descriptionOnly) links.push({
-      page, rect: [48, y - 7, width - 48, rowTop],
+    const bottom = y - (lines.length - 1) * 11 - 7;
+    line(page, 48, bottom, width - 48, bottom, rgb(0.86, 0.87, 0.89), 0.5);
+    if (item.pageCount && indexIsLocal(item, localIds)) links.push({
+      page, rect: [48, bottom, width - 48, rowTop],
       targetPageIndex: range.start - plan.startNumber,
     });
-    y -= 24;
+    y -= rowHeight;
   }
 }
 
@@ -661,6 +877,7 @@ function drawFederalIndexPage(
   plan: VolumePlan,
   items: AssemblyItem[],
   ranges: Map<string, { start: number; end: number }>,
+  localIds: Set<string>,
   links: IndexTarget[],
 ) {
   const { width, height } = page.getSize();
@@ -677,7 +894,7 @@ function drawFederalIndexPage(
   vertical(page, left + tabWidth, headerBottom, top);
   vertical(page, right - pageWidth, headerBottom, top);
   page.drawText("TAB", { x: left + 8, y: headerBottom + 7, font: bold, size: 12 });
-  page.drawText(profile.technical.indexDocumentLabel ?? "DOCUMENT", {
+  drawCourtPdfText(page, profile.technical.indexDocumentLabel ?? "DOCUMENT", {
     x: left + tabWidth + 8, y: headerBottom + 7, font: bold, size: 12,
   });
   drawRight(page, "PAGE", right - 8, headerBottom + 7, bold, 12, rgb(0.05, 0.05, 0.05));
@@ -692,24 +909,24 @@ function drawFederalIndexPage(
       top = bottom;
       lastGroup = item.group;
     }
-    const range = ranges.get(item.id)!;
-    const description = `${latin(item.title)}${item.date ? `, dated ${latin(item.date)}` : ""}`;
-    const lines = wrap(description, regular, 12, right - pageWidth - left - tabWidth - 16).slice(0, 2);
+    const range = indexRange(item, ranges);
+    const lines = item.indexLines ?? [latin(item.title)];
     const rowHeight = Math.max(32, lines.length * 15 + 10);
     const bottom = top - rowHeight;
     page.drawRectangle({ x: left, y: bottom, width: right - left, height: rowHeight,
       borderColor: rgb(0.25, 0.25, 0.25), borderWidth: 0.7 });
     vertical(page, left + tabWidth, bottom, top);
     vertical(page, right - pageWidth, bottom, top);
-    centredAt(page, String(plan.items.indexOf(item) + 1), left + (tabWidth / 2), top - 20,
+    centredAt(page, item.indexParentId ? "" : String(item.tab), left + (tabWidth / 2), top - 20,
       regular, 12);
-    lines.forEach((text, index) => page.drawText(text, {
-      x: left + tabWidth + 8, y: top - 20 - index * 15, font: regular, size: 12,
+    lines.forEach((text, index) => drawCourtPdfText(page, text, {
+      x: left + tabWidth + 8 + (item.indexParentId ? 12 : 0),
+      y: top - 20 - index * 15, font: regular, size: 12,
     }));
-    const visible = item.descriptionOnly ? "" : range.start === range.end
+    const visible = !item.pageCount ? "" : range.start === range.end
       ? `${range.start}` : `${range.start}-${range.end}`;
     centredAt(page, visible, right - (pageWidth / 2), top - 20, regular, 12);
-    if (!item.descriptionOnly) links.push({ page, rect: [left, bottom, right, top],
+    if (item.pageCount && indexIsLocal(item, localIds)) links.push({ page, rect: [left, bottom, right, top],
       targetPageIndex: range.start - plan.startNumber });
     top = bottom;
   }
@@ -723,6 +940,7 @@ function drawAbcaIndexPage(
   plan: VolumePlan,
   items: AssemblyItem[],
   ranges: Map<string, { start: number; end: number }>,
+  localIds: Set<string>,
   links: IndexTarget[],
 ) {
   const { width, height } = page.getSize();
@@ -744,24 +962,24 @@ function drawAbcaIndexPage(
     } else if (first) y -= 33.12;
     else y -= 39.6;
     first = false;
-    const range = ranges.get(item.id)!;
-    const description = `${latin(item.title)}${item.date ? `, dated ${latin(item.date)}` : ""}`;
-    const lines = wrap(description, regular, 12, 366).slice(0, 2);
+    const range = indexRange(item, ranges);
+    const lines = item.indexLines ?? [latin(item.title)];
     const top = y + 12;
-    lines.forEach((text, index) => page.drawText(text, {
-      x: left, y: y - index * 16, font: regular, size: 12,
+    lines.forEach((text, index) => drawCourtPdfText(page, text, {
+      x: left + (item.indexParentId ? 12 : 0), y: y - index * 16, font: regular, size: 12,
     }));
-    const visible = item.descriptionOnly ? "" : range.start === range.end
+    const visible = !item.pageCount ? "" : range.start === range.end
       ? `${range.start}` : `${range.start}-${range.end}`;
     drawRight(page, visible, pageRight, y, regular, 12, rgb(0.05, 0.05, 0.05));
     const bottom = y - (Math.max(1, lines.length) * 16) - 8;
-    if (!item.descriptionOnly) links.push({ page, rect: [left, bottom, pageRight, top],
+    if (item.pageCount && indexIsLocal(item, localIds)) links.push({ page, rect: [left, bottom, pageRight, top],
       targetPageIndex: range.start - plan.startNumber });
+    y -= Math.max(0, lines.length - 2) * 16;
   }
 }
 
 function centredText(page: PDFPage, value: string, y: number, font: PDFFont, size: number) {
-  page.drawText(value, { x: (page.getWidth() - font.widthOfTextAtSize(value, size)) / 2,
+  drawCourtPdfText(page, value, { x: (page.getWidth() - courtPdfTextWidth(value, font, size)) / 2,
     y, font, size });
 }
 
@@ -773,7 +991,8 @@ function centredAt(
   font: PDFFont,
   size: number,
 ) {
-  page.drawText(value, { x: x - (font.widthOfTextAtSize(value, size) / 2), y, font, size });
+  drawCourtPdfText(page, value, { x: x - (courtPdfTextWidth(value, font, size) / 2),
+    y, font, size });
 }
 
 function vertical(page: PDFPage, x: number, bottom: number, top: number) {
@@ -797,8 +1016,8 @@ function drawPageNumber(
   const right = position.endsWith("right");
   if (angle === 90) {
     page.drawText(text, {
-      x: top ? width - 20 : 12,
-      y: right ? height - 36 - textWidth : (height - textWidth) / 2,
+      x: top ? width - offset : offset,
+      y: right ? height - inset - textWidth : (height - textWidth) / 2,
       size,
       font,
       rotate: degrees(90),
@@ -806,8 +1025,8 @@ function drawPageNumber(
     });
   } else if (angle === 180) {
     page.drawText(text, {
-      x: right ? 36 + textWidth : (width + textWidth) / 2,
-      y: top ? 12 : height - 20,
+      x: right ? inset + textWidth : (width + textWidth) / 2,
+      y: top ? offset : height - offset,
       size,
       font,
       rotate: degrees(180),
@@ -815,8 +1034,8 @@ function drawPageNumber(
     });
   } else if (angle === 270) {
     page.drawText(text, {
-      x: top ? 12 : width - 20,
-      y: right ? 36 + textWidth : (height + textWidth) / 2,
+      x: top ? offset : width - offset,
+      y: right ? inset + textWidth : (height + textWidth) / 2,
       size,
       font,
       rotate: degrees(270),
@@ -962,9 +1181,9 @@ function automaticSteps(profile: CourtProfile, entries: RecordEntry[], volumes: 
     `Printed continuous ${profile.technical.pageNumberPosition.replace("-", " ")} page numbers`,
     "Matched PDF page labels to the printed page numbers",
     "Added meaningful document bookmarks and opened the bookmarks panel where required",
-    "Linked each generated table-of-contents row to its document",
+    "Linked each table-of-contents row whose document is in the same output",
   ];
-  if (profile.outputMode === "separate-files" && entries.some((entry) => sourceFormat(entry.file) === "docx")) {
+  if (profile.outputMode === "separate-files" && entries.some((entry) => preservesWord(profile, entry))) {
     steps.push("Preserved editable Word filing artifacts byte-for-byte");
   }
   if (entries.some((entry) => entry.ocrTextByPage?.some(Boolean))) {
@@ -974,14 +1193,27 @@ function automaticSteps(profile: CourtProfile, entries: RecordEntry[], volumes: 
   if (entries.some((entry) => kinds.get(entry.kindId)?.separateFile)) {
     steps.push("Kept stand-alone source PDFs separate from the assembled record");
   }
-  if (profile.exhibitCertificate) {
-    steps.push("Inserted an exhibit certificate before each exhibit");
+  if (entries.some((entry) => kinds.get(entry.kindId)?.appendTo)) {
+    steps.push("Appended related filing material in the same bookmarked PDF");
   }
-  if (profile.documentKinds.some((kind) => kind.generated === "fca-form-344-certificate")) {
+  const exhibits = entries.filter((entry) => entry.kindId === "exhibit");
+  const insertedCertificates = exhibits.filter((entry) => !hasMatchingExhibitCertificate(entry));
+  if (profile.exhibitCertificate && insertedCertificates.length) {
+    steps.push(insertedCertificates.length === exhibits.length
+      ? "Generated an exhibit certificate for signature before each exhibit"
+      : "Generated an exhibit certificate for signature before each exhibit that did not already include one");
+  }
+  if (profile.documentKinds.some((kind) => kind.generated === "federal-form-344-certificate" &&
+    !entries.some((entry) => entry.kindId === kind.id))) {
     steps.push("Generated the Form 344 certificate for signature");
   }
   if (volumes > 1) steps.push(`Split the record into ${volumes} continuously numbered volumes`);
   return steps;
+}
+
+function preservesWord(profile: CourtProfile, entry: RecordEntry) {
+  const formats = profile.documentKinds.find(({ id }) => id === entry.kindId)?.acceptedFormats;
+  return sourceFormat(entry.file) === "docx" && formats?.length === 1 && formats[0] === "docx";
 }
 
 async function pdfArtifact(filename: string, bytes: Uint8Array, pageCount: number) {
@@ -1002,12 +1234,19 @@ async function fileArtifact(
   return { filename, mimeType, bytes, sha256: await sha256Bytes(bytes) };
 }
 
-function uniqueFilename(filename: string, used: Map<string, number>) {
-  const key = filename.toLocaleLowerCase("en-CA");
-  const next = (used.get(key) ?? 0) + 1;
-  used.set(key, next);
-  if (next === 1) return filename;
-  return filename.replace(/(\.[^.]+)$/u, `-${next}$1`);
+function uniqueArtifactFilenames(artifacts: BuildArtifact[]) {
+  const used = new Set<string>();
+  return artifacts.map((artifact) => ({ ...artifact,
+    filename: uniqueFilename(artifact.filename, used) }));
+}
+
+function uniqueFilename(filename: string, used: Set<string>) {
+  let candidate = filename, next = 2;
+  while (used.has(candidate.toLocaleLowerCase("en-CA"))) {
+    candidate = filename.replace(/(\.[^.]+)$/u, `-${next}$1`); next += 1;
+  }
+  used.add(candidate.toLocaleLowerCase("en-CA"));
+  return candidate;
 }
 
 async function sha256Bytes(bytes: Uint8Array) {
@@ -1028,7 +1267,8 @@ function drawRight(
   size: number,
   color: ReturnType<typeof rgb>,
 ) {
-  page.drawText(text, { x: right - font.widthOfTextAtSize(text, size), y, font, size, color });
+  drawCourtPdfText(page, text, { x: right - courtPdfTextWidth(text, font, size),
+    y, font, size, color });
 }
 
 function line(
@@ -1048,31 +1288,21 @@ function wrap(text: string, font: PDFFont, size: number, maxWidth: number) {
   const words = text.trim().split(/\s+/u).filter(Boolean);
   const lines: string[] = [];
   let current = "";
-  for (const word of words) {
+  for (let word of words) {
     const next = current ? `${current} ${word}` : word;
-    if (font.widthOfTextAtSize(next, size) <= maxWidth || !current) current = next;
-    else { lines.push(current); current = word; }
+    if (courtPdfTextWidth(next, font, size) <= maxWidth) { current = next; continue; }
+    if (current) lines.push(current);
+    while (courtPdfTextWidth(word, font, size) > maxWidth) {
+      let split = 1;
+      while (split < word.length &&
+        courtPdfTextWidth(word.slice(0, split + 1), font, size) <= maxWidth) split += 1;
+      lines.push(word.slice(0, split));
+      word = word.slice(split);
+    }
+    current = word;
   }
   if (current) lines.push(current);
   return lines.length ? lines : [""];
-}
-
-function truncate(text: string, font: PDFFont, size: number, maxWidth: number) {
-  if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
-  let value = text;
-  while (value && font.widthOfTextAtSize(`${value}…`, size) > maxWidth) value = value.slice(0, -1);
-  return `${value.trimEnd()}…`;
-}
-
-function latin(value: string) {
-  return value.normalize("NFKC")
-    .replace(/[‘’]/gu, "'")
-    .replace(/[“”]/gu, '"')
-    .replace(/[–—]/gu, "-")
-    .replace(/…/gu, "...")
-    .split(/\r?\n/u)
-    .map((line) => line.replace(/[^\x20-\x7e\u00a0-\u00ff]/gu, "?"))
-    .join("\n");
 }
 
 function hex(value: string) {

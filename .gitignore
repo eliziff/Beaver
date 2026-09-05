@@ -30,7 +30,8 @@ __pycache__/
 *.py[cod]
 
 # Raw experiment output stays local. Reviewed findings belong in RESULTS.md.
-experiments/**/results/
+experiments/**/results*/
+experiments/research-ui-qa-*/final*/
 experiments/**/receipts/
 experiments/instrument_lineation_parity/cache/
 backend/experiments/**/results/
@@ -98,3 +99,12 @@ benchmarks/harvey-labs/_titles.txt
 
 # Raw local citation-split diagnostic output; durable findings live in RESULTS.md.
 original_details.jsonl
+
+# Local browser QA captures and raw experiment runs.
+/experiments/research-ui-qa-*/*/
+/experiments/document-version-ui-qa/run*/
+/experiments/project-impact-ui/run*/
+/research/**/*.png
+/research/**/RESULTS.json
+/backend/experiments/a2aj-case-treatment/gold/*-validation.json
+/backend/experiments/a2aj-case-treatment/gold/packet-ranking-*.json

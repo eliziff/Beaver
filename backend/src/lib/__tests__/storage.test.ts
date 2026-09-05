@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -7,13 +7,14 @@ import {
   downloadHeaders,
   createFilesystemObjectStorage,
   createS3ObjectStorage,
+  documentBlobKey,
   normalizeDownloadFilename,
   readS3Configuration,
   scopeObjectStorage,
   type ObjectStorage,
   validateObjectKey,
-  versionStorageKey,
 } from "../storage";
+import { sha256 } from "../hash";
 
 let temporaryRoot: string;
 let stores: { name: string; value: ObjectStorage }[];
@@ -31,29 +32,63 @@ afterAll(async () => {
 });
 
 describe("object storage contract", () => {
+  it("cleans interrupted filesystem staging on restart", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "beaver-storage-restart-"));
+    try {
+      const staging = path.join(root, ".staging");
+      await mkdir(staging); await writeFile(path.join(staging, "partial"), "partial");
+      const objects = createFilesystemObjectStorage(root), bytes = Buffer.from("complete");
+      await objects.put("complete.bin", bytes, "application/octet-stream",
+        { expectedSha256: sha256(bytes) });
+      expect(await readdir(staging)).toEqual([]);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
   it("runs the common contract against filesystem and configured MinIO", async () => {
     for (const store of stores) {
       const objects = scopeObjectStorage(store.value, `contract-${randomUUID()}`);
       await objects.remove("missing.bin");
-      await objects.put("pages/a.txt", Buffer.from("alpha"), "text/plain");
-      await objects.put("pages/b.txt", Buffer.from("bravo"), "text/plain");
-      await objects.put("pages/c.txt", Buffer.from("charlie"), "text/plain");
+      await objects.put("pages/a.txt", Buffer.from("alpha"), "text/plain",
+        { expectedSha256: sha256(Buffer.from("alpha")) });
+      const immutable = Buffer.from("first"), immutableDigest = sha256(immutable);
+      await expect(objects.put("immutable.txt", immutable, "text/plain",
+        { expectedSha256: immutableDigest })).resolves.toBe("created");
+      await expect(objects.put("immutable.txt", immutable, "text/plain",
+        { expectedSha256: immutableDigest })).resolves.toBe("exists");
+      if (store.name === "filesystem") {
+        await expect(objects.put("immutable.txt", {
+          path: path.join(temporaryRoot, "missing"), sizeBytes: immutable.byteLength,
+        }, "text/plain", { expectedSha256: immutableDigest })).resolves.toBe("exists");
+      }
+      await expect(objects.put("immutable.txt", Buffer.from("other"), "text/plain",
+        { expectedSha256: sha256(Buffer.from("other")) })).rejects.toThrow(/integrity/u);
+      expect((await objects.get("immutable.txt"))?.toString()).toBe("first");
+      const shared = Buffer.alloc(16 * 1024 * 1024, 7), sharedDigest = sha256(shared);
+      const concurrent = await Promise.all([1, 2].map(async () => {
+        const result = await objects.put("shared.bin", shared, "application/octet-stream",
+          { expectedSha256: sharedDigest });
+        return [result, result === "exists" ? sha256((await objects.get("shared.bin"))!) : null];
+      }));
+      expect(concurrent.map(([result]) => result).sort()).toEqual(["created", "exists"]);
+      expect(concurrent.find(([result]) => result === "exists")?.[1]).toBe(sharedDigest);
       expect((await objects.get("pages/a.txt"))?.toString()).toBe("alpha");
+      const changed = path.join(temporaryRoot, `${randomUUID()}.txt`);
+      await writeFile(changed, "bravo");
+      await expect(objects.put("changed.txt", { path: changed, sizeBytes: 5 }, "text/plain",
+        { expectedSha256: sha256(Buffer.from("alpha")) })).rejects.toThrow();
+      expect(await objects.get("changed.txt")).toBeNull();
       await expect(objects.get("pages/a.txt", { maxBytes: 4 })).rejects.toThrow(/limit/u);
-      const first = await objects.list("pages", { limit: 2 });
-      const second = await objects.list("pages", { limit: 2, cursor: first.cursor });
-      expect([...first.keys, ...second.keys]).toEqual([
-        "pages/a.txt", "pages/b.txt", "pages/c.txt",
-      ]);
       const aborted = new AbortController();
       aborted.abort();
       await expect(objects.get("pages/a.txt", { signal: aborted.signal })).rejects.toThrow();
       await expect(objects.put(
         "timeout.bin", Buffer.alloc(16 * 1024 * 1024), "application/octet-stream",
-        { timeoutMs: 1 },
+        { timeoutMs: 1, expectedSha256: sha256(Buffer.alloc(16 * 1024 * 1024)) },
       )).rejects.toThrow();
       await objects.remove("timeout.bin");
-      await Promise.all([...first.keys, ...second.keys].map((key) => objects.remove(key)));
+      await objects.remove("pages/a.txt");
+      await objects.remove("shared.bin");
+      await objects.remove("immutable.txt");
       expect(await objects.get("pages/a.txt")).toBeNull();
     }
   });
@@ -63,14 +98,32 @@ describe("object storage contract", () => {
     async () => {
       const config = readS3Configuration();
       const objects = scopeObjectStorage(createS3ObjectStorage(config), `signed-${randomUUID()}`);
-      await objects.put("brief.txt", Buffer.from("private"), "text/plain");
+      const bytes = Buffer.from("private"), digest = sha256(bytes);
+      await objects.put("brief.txt", bytes, "text/plain", { expectedSha256: digest });
       const url = await objects.signedGet!("brief.txt", {
-        filename: "Résumé final.txt", disposition: "attachment", expiresIn: 60,
+        filename: "Résumé final.txt", contentType: "text/plain",
+        expectedSha256: digest, sizeBytes: bytes.byteLength,
+        disposition: "attachment", expiresIn: 60,
       });
-      const response = await fetch(url);
+      const response = await fetch(url!);
       expect([response.status, await response.text()]).toEqual([200, "private"]);
       expect(response.headers.get("content-disposition")).toContain("filename*=UTF-8''");
+      expect(response.headers.get("content-type")).toContain("text/plain");
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      const changed = Buffer.from("changed"), changedDigest = sha256(changed);
+      await objects.put("changed.txt", changed, "text/plain", {
+        expectedSha256: changedDigest,
+      });
+      await expect(objects.signedGet!("changed.txt", {
+        filename: "changed.txt", contentType: "text/plain",
+        expectedSha256: digest, sizeBytes: bytes.byteLength,
+      })).rejects.toThrow(/integrity/u);
+      await objects.remove("changed.txt");
       await objects.remove("brief.txt");
+      await expect(objects.signedGet!("brief.txt", {
+        filename: "brief.txt", contentType: "text/plain",
+        expectedSha256: digest, sizeBytes: bytes.byteLength,
+      })).resolves.toBeNull();
       const broken = createS3ObjectStorage({ ...config, bucket: `${config.bucket}-missing` });
       await expect(broken.get("anything")).rejects.toBeTruthy();
     },
@@ -96,10 +149,15 @@ describe("storage boundary", () => {
       expect(() => validateObjectKey(key)).toThrow();
     }
     const digest = "a".repeat(64);
-    expect(versionStorageKey("user", "document", "version", digest, "brief.docx"))
-      .toBe(`user/document/version-${digest.slice(0, 16)}.docx`);
-    expect(() => versionStorageKey("../user", "document", "version", digest, "x"))
-      .toThrow();
+    expect(documentBlobKey({ userId: "user", projectId: null }, digest))
+      .toBe(`users/user/blobs/sha256/${digest.slice(0, 2)}/${digest.slice(2)}`);
+    expect(documentBlobKey({ userId: "user", projectId: "project" }, digest))
+      .toBe(`projects/project/blobs/sha256/${digest.slice(0, 2)}/${digest.slice(2)}`);
+    for (const scope of [
+      { userId: "user/other", projectId: null },
+      { userId: "user", projectId: "project/other" },
+      { userId: "user\\other", projectId: null },
+    ]) expect(() => documentBlobKey(scope, digest)).toThrow();
     expect(normalizeDownloadFilename("../Résumé\u0000.pdf")).toBe(".._Résumé_.pdf");
     expect(downloadHeaders("application/pdf", "Résumé.pdf")["Content-Disposition"])
       .toContain("filename*=UTF-8''R%C3%A9sum%C3%A9.pdf");

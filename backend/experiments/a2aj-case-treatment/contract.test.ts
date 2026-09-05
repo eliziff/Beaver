@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { modelSourceLines } from "../a2aj-decision-roster/caseTargetMvpReduced";
 import {
+  analysisAuditOutputSchema,
+  analysisAuditPrompt,
   analysisOutputSchema,
   analysisPrompt,
   CASE_TREATMENT_CONTRACT_VERSION,
@@ -11,14 +13,17 @@ import {
   deterministicQuoteCandidates,
   oneStagePrompt,
   noOracleCitationCheck,
+  normalizeSemanticJudgeResult,
   paragraphCoverageEnd,
   opinionSupportBounds,
   SEMANTIC_JUDGE_SCHEMA,
   semanticDraftView,
   semanticJudgePrompt,
+  semanticJudgeReceipt,
   semanticJudgeResultErrors,
   semanticJudgeScore,
   semanticView,
+  referenceSubmissionOutputSchema,
   submissionReviewFlags,
   submissionOutputSchema,
   type AnchoredSpan,
@@ -152,6 +157,7 @@ function submission(): CaseTreatmentSubmission {
         identifying_block: block("Prior v. Example, 2020 SCC 1"),
       }],
       procedural_relationships: [],
+      reported_history: [],
       treatments: [{
         cited_decision: "Prior v. Example, 2020 SCC 1",
         identifying_block: block("Prior v. Example, 2020 SCC 1"),
@@ -198,11 +204,19 @@ describe("proposition-first case treatment contract", () => {
     expect(JSON.stringify(analysisOutputSchema(sourceLines.length, ["o1"]))).not.toContain("treatment_id");
   });
 
+  it("rejects fields outside the model contract", () => {
+    const draft = submission();
+    (draft.analysis.treatments[0] as unknown as Record<string, unknown>).scope = "legacy field";
+    expect(compileSubmission(draft, material).errors).toContain(
+      "analysis.treatments[0].scope: unexpected field",
+    );
+  });
+
   it("requires every cited-decision label to be copied from its identifying block", () => {
     const draft = submission();
     draft.analysis.decision_mentions[0].cited_decision = "Invented v. Authority";
     expect(compileSubmission(draft, material).errors).toContain(
-      "analysis.decision_mentions[0].cited_decision: copy one contiguous exact name or citation from the identifying block",
+      "analysis.decision_mentions[0].cited_decision: copy one contiguous exact name, citation, or identifying description from the identifying block",
     );
   });
 
@@ -210,6 +224,7 @@ describe("proposition-first case treatment contract", () => {
     const simple = submission();
     delete simple.analysis.treatments[0].opinion_id;
     delete simple.analysis.treatments[0].supporting_passages;
+    delete simple.analysis.treatments[0].quoted_passages;
     const compiled = compileSubmission(simple, material, "simple");
     expect(compiled.ok).toBe(true);
     expect(compiled.analysis!.compiled!.treatments[0]).toMatchObject({
@@ -222,16 +237,81 @@ describe("proposition-first case treatment contract", () => {
     const checkedSchema = JSON.stringify(analysisOutputSchema(sourceLines.length, ["o1"], "self-check"));
     expect(simpleSchema).not.toContain('"opinion_id"');
     expect(simpleSchema).not.toContain('"supporting_passages"');
+    expect(simpleSchema).not.toContain('"quoted_passages"');
     expect(checkedSchema).toContain('"opinion_id"');
     expect(checkedSchema).toContain('"supporting_passages"');
+    expect(checkedSchema).toContain('"quoted_passages"');
     expect(analysisPrompt(material, simple.structure, false, "simple")).not.toContain("supporting_passages");
     expect(analysisPrompt(material, simple.structure, false, "self-check")).toContain("supporting_passages");
+  });
+
+  it("compiles the hypersimple treatment surface into the same semantic record", () => {
+    const source = submission();
+    const hypersimple = {
+      structure: source.structure,
+      analysis: {
+        direct_outcomes: [],
+        reported_history: [],
+        treatments: [{
+          cited_decision: "Prior v. Example, 2020 SCC 1",
+          signal: "extended",
+          other_signal: null,
+          proposition: source.analysis.treatments[0].proposition,
+          treatment: source.analysis.treatments[0].treatment,
+          evidence_blocks: source.analysis.treatments[0].evidence_blocks,
+        }],
+      },
+    } as unknown as CaseTreatmentSubmission;
+    const compiled = compileSubmission(hypersimple, material, "hypersimple");
+    expect(compiled.ok).toBe(true);
+    expect(semanticView(compiled)?.treatments[0]).toMatchObject({
+      cited_decision: "Prior v. Example, 2020 SCC 1",
+      treating_opinion: "Alpha J.",
+      signals: ["extended"],
+      proposition: source.analysis.treatments[0].proposition,
+      treatment: source.analysis.treatments[0].treatment,
+    });
+
+    const schema = JSON.stringify(analysisOutputSchema(sourceLines.length, ["o1"], "hypersimple"));
+    expect(schema).toContain('"direct_outcomes"');
+    expect(schema).toContain('"reported_history"');
+    expect(schema).not.toContain('"decision_mentions"');
+    expect(schema).not.toContain('"identifying_block"');
+    expect(schema).not.toContain('"opinion_id"');
+    expect(schema).not.toContain('"supporting_passages"');
+    expect(JSON.stringify(analysisAuditOutputSchema(sourceLines.length, ["o1"], "hypersimple")))
+      .toContain("direct_outcomes");
+    expect(analysisPrompt(material, source.structure, false, "hypersimple")).not.toContain("decision_mentions");
+    expect(analysisPrompt(material, source.structure, false, "hypersimple"))
+      .toContain("inside a chronological procedural account");
+    expect(analysisPrompt(material, source.structure, false, "simple"))
+      .toContain("inside a chronological procedural account");
+    expect(Object.keys(analysisOutputSchema(sourceLines.length, ["o1"], "hypersimple").properties))
+      .toEqual(["direct_outcomes", "reported_history", "treatments"]);
+    expect(schema).toContain('"other_signal"');
   });
 
   it("compiles reference truth without candidate-only self-check passages", () => {
     const reference = submission();
     delete reference.analysis.treatments[0].supporting_passages;
     expect(compileReferenceSubmission(reference, material).ok).toBe(true);
+
+    reference.analysis.reported_history = [{
+      cited_decision: "Prior v. Example, 2020 SCC 1",
+      action: "affirmed",
+      later_decision: "Later v. Example, 2022 SCC 2",
+      affected_part: null,
+      evidence_blocks: [block("In Prior v. Example")],
+      opinion_id: "o1",
+    }];
+    const withHistory = compileReferenceSubmission(reference, material);
+    expect(withHistory.ok).toBe(true);
+    expect(withHistory.analysis?.compiled?.reported_history[0]).toMatchObject({
+      opinion_id: "o1",
+      model_opinion_id: "o1",
+      action: "affirmed",
+    });
+    expect(JSON.stringify(referenceSubmissionOutputSchema(sourceLines.length))).toContain('"reported_history"');
 
     delete reference.analysis.treatments[0].opinion_id;
     expect(compileReferenceSubmission(reference, material).errors).toContain(
@@ -577,6 +657,9 @@ describe("proposition-first case treatment contract", () => {
     expect(comparison.metrics.exact_boundaries).toBe(0);
 
     const bylineText = [
+      "REASONS FOR JUDGMENT",
+      "SHARLOW and DAWSON JJ.A.",
+      "1 Deschamps J. —",
       "//Alpha J.//",
       "The judgment of Beta and Alpha JJ. was delivered by",
       "A. introduction",
@@ -695,13 +778,36 @@ describe("proposition-first case treatment contract", () => {
     const prompt = analysisPrompt(material, submission().structure);
     expect(prompt).toContain("list one clear mention of every other decision");
     expect(prompt).toContain("Do not list decisions appearing only in editorial metadata, headnotes");
-    expect(prompt).toContain("short contiguous exact name or citation copied from identifying_block");
+    expect(prompt).toContain("copy cited_decision exactly from identifying_block");
+    expect(prompt).toContain("work through each judicial opinion from beginning to end");
+    expect(prompt).toContain("Do not stop after the most important or representative treatments");
+    expect(prompt).toContain("that the present court is directly reviewing");
+    expect(prompt).toContain("Refusing extra time to start an appeal is not an action");
+    expect(oneStagePrompt(material)).toContain("include the whole body of those reasons");
     expect(prompt).not.toContain("POSSIBLE DECISION REFERENCES");
     expect(prompt).not.toContain("detected_occurrence_id");
     expect(prompt).not.toContain('"c1"');
     expect(prompt).not.toContain("partial_adopters");
     expect(prompt).not.toContain("EXAMPLE");
     expect(analysisPrompt(material, submission().structure, true)).toContain("EXAMPLE");
+    const auditSubmission = submission();
+    auditSubmission.analysis.decision_mentions.push({
+      cited_decision: "Unclassified v. Example, 2018 SCC 2",
+      identifying_block: "p5",
+    });
+    const auditPrompt = analysisAuditPrompt(material, auditSubmission.structure, auditSubmission.analysis);
+    expect(auditPrompt).toContain("[CURRENT ANALYSIS]");
+    expect(auditPrompt).toContain("Do not list decisions appearing only in editorial metadata");
+    expect(auditPrompt).toContain("procedural_relationships");
+    expect(auditPrompt).toContain("DECISION MENTIONS WITH NO CURRENT CLASSIFICATION");
+    expect(auditPrompt).toContain("A bare mention, a party's submission, or an unadopted quotation may correctly remain unclassified");
+    const auditSchemaObject = analysisAuditOutputSchema(sourceLines.length, ["o1"]);
+    expect(auditSchemaObject.type).toBe("object");
+    expect(auditSchemaObject.properties).toHaveProperty("patch");
+    const auditSchema = JSON.stringify(auditSchemaObject);
+    expect(auditSchema).toContain("decision_mentions");
+    expect(auditSchema).toContain("procedural_relationships");
+    expect(auditSchema).toContain("treatments");
   });
 
   it("keeps qualified agreements as source evidence rather than interpreted treatment fields", () => {
@@ -780,12 +886,42 @@ describe("proposition-first case treatment contract", () => {
       extra_candidate_relationships: [],
     };
     expect(semanticJudgeResultErrors(compiled, compiled, grade)).toEqual([]);
+    const redundant = normalizeSemanticJudgeResult({
+      ...grade,
+      treatment_grades: [{
+        ...grade.treatment_grades[0],
+        aspects: ["treatment"],
+        explanation: "Redundant prose on a pass.",
+      }],
+      extra_candidate_treatments: [{
+        candidate_treatment_id: "ct1",
+        verdict: "pass",
+        explanation: "Already matched.",
+      }],
+    });
+    expect(semanticJudgeResultErrors(compiled, compiled, redundant)).toEqual([]);
     expect(semanticJudgeScore(grade)).toMatchObject({
       treatment: { items: 1, earned: 1, score: 1 },
       overall: { items: 1, earned: 1, score: 1 },
       passed: true,
       major_errors: 0,
       passing_threshold: 0.8,
+    });
+    expect(semanticJudgeReceipt(compiled, compiled, grade)).toMatchObject({
+      treatments: { reference_items: 1, covered_items: 1, omitted_items: 0, coverage: 1 },
+      majority_support: { reference_items: 1, covered_items: 1, exact_items: 1, score: 1 },
+    });
+    expect(semanticJudgeReceipt(compiled, null, {
+      ...grade,
+      treatment_grades: [{
+        ...grade.treatment_grades[0],
+        candidate_treatment_ids: [],
+        verdict: "major_error",
+        aspects: ["coverage"],
+        explanation: "Missing.",
+      }],
+    }).majority_support).toMatchObject({
+      reference_items: 1, covered_items: 0, omitted_items: 1, exact_items: 0, score: 0,
     });
     expect(semanticJudgeScore({
       ...grade,

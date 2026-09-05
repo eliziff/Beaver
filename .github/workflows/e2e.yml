@@ -53,9 +53,6 @@ jobs:
         run: |
           supabase init --force --with-vscode-settings=false || supabase init --force
           supabase start
-          DB_URL=$(supabase status -o json | jq -r '.DB_URL')
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -f backend/schema.sql
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema';"
 
       - name: Configure Beaver
         run: |

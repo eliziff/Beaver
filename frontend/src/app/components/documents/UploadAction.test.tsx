@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { expect, it, vi } from "vitest";
 import type { Document } from "@/app/components/shared/types";
@@ -40,4 +40,20 @@ it("keeps one stable action rail and enables selection actions in place", () => 
     expect(openChat).toHaveBeenCalledWith(selection.documents);
     expect(screen.getByRole("button", { name: "Workflows" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "More actions" })).toBeEnabled();
+});
+
+it("resolves the whole location only when an empty selection is launched", async () => {
+    const documents = [{ id: "brief", filename: "Brief.docx" } as Document];
+    const resolveDocuments = vi.fn().mockResolvedValue(documents);
+    const openChat = vi.fn(), openWorkflows = vi.fn();
+    render(<MemoryRouter><DirectoryActions actions={null} onCreateFolder={null}
+        resolveDocuments={resolveDocuments} onOpenSelectionInChat={openChat}
+        onOpenWorkflows={openWorkflows} /></MemoryRouter>);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open in new chat" }));
+    await waitFor(() => expect(openChat).toHaveBeenCalledWith(documents));
+    fireEvent.click(screen.getByRole("button", { name: "Workflows" }));
+    await waitFor(() => expect(openWorkflows).toHaveBeenCalledWith(documents));
+    expect(resolveDocuments).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: "More actions" })).toBeDisabled();
 });

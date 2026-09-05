@@ -226,10 +226,11 @@ async function runWorker(shard: number) {
             failure: "provider_unavailable", error_sha256: hash("provider_unavailable") };
         } else try {
           const doc = await native.deriveDocumentStructure({
-            kind: "a2aj", input: { citation: document.citation,
+            kind: "provider_text", input: { provider: "a2aj", citation: document.citation,
               source_kind: document.docType ?? "cases",
               text: document.sectionMap ? "" : document.text, url: document.url,
               alternate_citation: document.alternateCitation, dataset: document.dataset,
+              require_report_start: document.docType === "cases" && document.dataset?.toUpperCase() === "SCC",
               name: document.name,
               ...(document.sectionMap
                 ? { section_map: Object.entries(document.sectionMap) } : {}) } });

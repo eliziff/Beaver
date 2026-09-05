@@ -1,8 +1,8 @@
-import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useId, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 
-type TabVariant = "segmented" | "dock" | "underline" | "pill" | "settings" | "sheets";
+type TabVariant = "segmented" | "dock" | "pill" | "settings" | "sheets";
 type TabOption<T extends string = string> = { value: T; label: ReactNode;
     onClose?: () => void; closeLabel?: string };
 type TabListProps<T extends string> = { value: T; onValueChange: (value: T) => void;
@@ -15,31 +15,27 @@ type TabsProps<T extends string> = { value: T; onValueChange: (value: T) => void
 const railClass: Record<TabVariant, string> = {
     segmented: "",
     dock: "min-h-12 border-b border-gray-200 px-2 py-1.5",
-    underline: "border-b border-gray-200",
     pill: "",
     settings: "sticky top-0 z-10 border-b border-gray-200 bg-white pb-2",
     sheets: "h-9 border-t border-gray-300 bg-gray-100",
 };
 const listClass: Record<TabVariant, string> = {
     segmented: "gap-1 rounded-lg bg-gray-100 p-1",
-    dock: "gap-0.5",
-    underline: "gap-0.5 sm:gap-1.5",
+    dock: "gap-1",
     pill: "w-full flex-wrap items-center gap-1 py-0.5 sm:w-auto sm:gap-2",
-    settings: "grid flex-1 grid-cols-3 gap-1 sm:grid-cols-5",
+    settings: "flex-1 grid-cols-2 gap-1 sm:grid-cols-5",
     sheets: "h-full items-stretch",
 };
 const tabClass: Record<TabVariant, string> = {
     segmented: "h-8 shrink-0 rounded-md px-1 text-sm font-medium sm:px-3",
-    dock: "h-9 max-w-40 shrink-0 rounded-md px-1.5 text-[13px] font-semibold sm:text-sm",
-    underline: "min-h-10 border-b-2 px-2 text-sm font-medium sm:px-3",
+    dock: "h-9 max-w-40 shrink-0 rounded-md px-2 text-[13px] font-semibold sm:text-sm",
     pill: "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-sm font-medium sm:px-4",
-    settings: "min-h-10 min-w-0 rounded-md border px-2 text-sm font-medium",
+    settings: "min-h-10 w-full min-w-0 rounded-md border px-2 text-sm font-medium",
     sheets: "h-full shrink-0 border-r border-gray-300 px-4 text-xs font-medium",
 };
 const selectedClass: Record<TabVariant, string> = {
-    segmented: "bg-white text-gray-900 shadow-sm",
+    segmented: "bg-gray-900 text-white shadow-sm",
     dock: "bg-gray-900 text-white",
-    underline: "border-gray-900 text-gray-900",
     pill: "border-gray-900 bg-gray-900 text-white",
     settings: "border-gray-900 bg-gray-900 text-white",
     sheets: "bg-white text-gray-900",
@@ -47,7 +43,6 @@ const selectedClass: Record<TabVariant, string> = {
 const idleClass: Record<TabVariant, string> = {
     segmented: "text-gray-600 hover:bg-white/70 hover:text-gray-900",
     dock: "text-gray-600 hover:bg-white/70 hover:text-gray-900",
-    underline: "border-transparent text-gray-600 hover:text-gray-900",
     pill: "border-gray-300 bg-white text-gray-700 hover:bg-gray-100 hover:text-gray-900",
     settings: "border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-900",
     sheets: "text-gray-600 hover:bg-gray-50",
@@ -60,7 +55,7 @@ export function TabList<T extends string>({ value, onValueChange, options,
     const listRef = useRef<HTMLDivElement>(null);
     const refs = useRef<(HTMLButtonElement | null)[]>([]);
     const active = Math.max(0, options.findIndex((option) => option.value === value));
-    useEffect(() => {
+    useLayoutEffect(() => {
         const list = listRef.current;
         const tab = refs.current[active];
         if (!list || !tab || list.scrollWidth <= list.clientWidth + 1) return;
@@ -79,11 +74,12 @@ export function TabList<T extends string>({ value, onValueChange, options,
     return <div data-tabs-rail className={cn("flex min-w-0 shrink-0 items-center",
         actions && "gap-2", railClass[variant], className)}>
             {!!options.length && <div ref={listRef} role="tablist" aria-label={ariaLabel}
-                className={cn("tab-list flex min-w-0 overflow-x-auto",
+                className={cn("tab-list min-w-0 overflow-x-auto",
+                    variant === "settings" ? "grid" : "flex",
                     variant === "segmented" ? "max-w-full" : "flex-1",
                     listClass[variant])}>
                 {options.map((option, index) => <div key={option.value}
-                    className="relative shrink-0"><button type="button"
+                    className="relative min-w-0 shrink-0"><button type="button"
                     ref={(node) => { refs.current[index] = node; }}
                     id={`${listId}-tab-${index}`} role="tab"
                     aria-selected={index === active} aria-controls={panelId}

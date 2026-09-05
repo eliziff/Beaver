@@ -1,4 +1,6 @@
 import {
+  Check,
+  ChevronDown,
   FilePlus2,
   FileText,
   FolderSearch,
@@ -7,12 +9,12 @@ import {
   Trash2,
 } from "lucide-react";
 import { Fragment } from "react";
-import { Button } from "@/app/components/ui/button";
+import { Button, buttonClassName } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { cn, formatBytes } from "@/app/lib/utils";
 import { acceptedSourceFormats, sourceAccept, sourceFormat } from "./formats";
 import { needsOcr } from "./host";
-import { exhibitIndex, exhibitName } from "./types";
+import { rule70MaximumPages, sourceExhibitSlots } from "./types";
 import type { ComplianceFinding, CourtProfile, DocumentKind, RecordEntry } from "./types";
 
 type Props = {
@@ -28,6 +30,7 @@ type Props = {
   onEntry: (id: string, patch: Partial<RecordEntry>) => void;
   onRemove: (id: string) => void;
   onAssign: (id: string, label?: string) => void;
+  onAddExhibit?: () => void;
   onAssignKind: (id: string, kindId: string) => void;
   onOcr?: (id: string) => void;
   onRelink?: (id: string) => void;
@@ -42,7 +45,7 @@ export function CourtRecordDocuments(props: Props) {
     return fulfilled.length ? slots.filter((id) => !fulfilled.includes(id)) : [];
   }));
   const permitted = props.profile.documentKinds
-    .filter((kind) => kind.requirement !== "forbidden" && !kind.generated &&
+    .filter((kind) => kind.requirement !== "forbidden" &&
       !hiddenAlternatives.has(kind.id) && (!props.kindIds || props.kindIds.includes(kind.id)))
     .sort((left, right) => Number(right.requirement === "required") -
       Number(left.requirement === "required") || left.order - right.order);
@@ -53,6 +56,8 @@ export function CourtRecordDocuments(props: Props) {
   const knownKinds = new Set(props.profile.documentKinds.map(({ id }) => id));
   const unassigned = props.showUnassigned
     ? props.entries.filter((entry) => !knownKinds.has(entry.kindId)) : [];
+  const notes = unassigned.filter(({ descriptionOnly }) => descriptionOnly);
+  const files = unassigned.filter(({ descriptionOnly }) => !descriptionOnly);
   const groups = [
     ["Required documents", shown.filter((kind) => kind.requirement === "required")],
     ["Other documents", shown.filter((kind) => kind.requirement !== "required")],
@@ -62,7 +67,8 @@ export function CourtRecordDocuments(props: Props) {
       <h2 id={headingId} className="text-base font-semibold leading-6 text-gray-950">{props.heading ?? "2. Add documents"}</h2>
 
       <div className="mt-3 space-y-4">
-        {!!unassigned.length && <PendingFiles pending={unassigned} {...props} />}
+        {!!notes.length && <PendingNotes notes={notes} {...props} />}
+        {!!files.length && <PendingFiles pending={files} {...props} />}
         {groups.map(([label, kinds], index) => <Fragment key={label}>
           {!!kinds.length && <section aria-label={label}>
             <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</h3>
@@ -75,6 +81,22 @@ export function CourtRecordDocuments(props: Props) {
       </div>
     </section>
   );
+}
+
+function PendingNotes({ notes, onEntry, onRemove }: Props & { notes: RecordEntry[] }) {
+  return <section aria-label="Unassigned notes" className="rounded-lg bg-gray-50 p-2.5">
+    <h3 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-gray-600">
+      Unassigned notes
+    </h3>
+    <div className="space-y-2">{notes.map((entry) => <div key={entry.id}
+      className="flex items-center gap-2">
+      <Input value={entry.title} aria-label="Unassigned note"
+        onChange={(event) => onEntry(entry.id, { title: event.target.value })}
+        className="h-9 border-gray-400 bg-white md:text-base" />
+      <Button type="button" variant="ghost" className="size-9 shrink-0 px-0"
+        aria-label="Remove note" onClick={() => onRemove(entry.id)}><Trash2 /></Button>
+    </div>)}</div>
+  </section>;
 }
 
 function PendingFiles(props: Props & { pending: RecordEntry[] }) {
@@ -137,7 +159,11 @@ function DocumentSlot({ profile, kind, entries, busyEntryId, entryFindings, onFi
     </div>;
   }
   const canAdd = kind.repeatable || matching.length === 0;
-  const canDrop = canAdd;
+  const canReplace = !kind.repeatable && matching.length === 1;
+  const canDrop = canAdd || canReplace;
+  const fileLabel = kind.generated
+    ? canReplace ? "Replace signed PDF" : "Add signed PDF"
+    : canReplace ? "Replace file" : "Add file";
   return (
     <div
       data-kind-id={kind.id}
@@ -150,7 +176,7 @@ function DocumentSlot({ profile, kind, entries, busyEntryId, entryFindings, onFi
         if (canDrop && event.dataTransfer.types.includes("Files")) event.preventDefault();
       }}
       onDrop={(event) => {
-        if (!canDrop || !canAdd) return;
+        if (!canDrop) return;
         event.preventDefault();
         onFiles(kind.id, [...event.dataTransfer.files]);
       }}
@@ -159,11 +185,12 @@ function DocumentSlot({ profile, kind, entries, busyEntryId, entryFindings, onFi
         <div className="min-w-0">
           <h4 className="text-sm font-medium leading-5 text-gray-900">{kind.label}</h4>
         </div>
-        {canAdd && (
+        {(canAdd || canReplace) && (
           <div className="flex shrink-0 flex-wrap gap-2">
             <><AddFileControls kind={kind} onFiles={onFiles} onPick={onPick}
-              onLibrary={onLibrary} sourceLabel={sourceLabel} />
-              {kind.allowUnavailableNote && <Button type="button" variant="outline"
+              onLibrary={onLibrary} sourceLabel={sourceLabel}
+              label={fileLabel} />
+              {canAdd && kind.allowUnavailableNote && <Button type="button" variant="outline"
                 className="h-9 border-gray-500/80 px-3" onClick={() => onDescription(kind.id)}>
                 <FilePlus2 /> Add note
               </Button>}</>
@@ -179,7 +206,7 @@ function DocumentSlot({ profile, kind, entries, busyEntryId, entryFindings, onFi
               kind={kind}
               busy={busyEntryId === entry.id}
               findings={entryFindings.get(entry.id) ?? []}
-              dateRequired={profile.technical.indexDate === "required"}
+              dateRequired={profile.technical.indexDate === "required" || !!kind.chronological}
               descriptionLabel={profile.outputMode === "separate-files" ? "Document name" : "Contents description"}
               onEntry={onEntry}
               onRemove={onRemove}
@@ -198,10 +225,10 @@ function DocumentSlot({ profile, kind, entries, busyEntryId, entryFindings, onFi
 function ExhibitPool(props: Props & { kind: DocumentKind }) {
   const { kind, entries, onFiles, onAssign } = props;
   const exhibits = entries.filter((entry) => entry.kindId === kind.id);
-  const detected = entries.find((entry) => entry.kindId === "affidavit")
-    ?.sourceFields?.exhibitLabels ?? [];
-  const highest = Math.max(-1, ...detected.map(exhibitIndex));
-  const labels = Array.from({ length: highest + 1 }, (_, index) => exhibitName(index));
+  const slots = sourceExhibitSlots(entries);
+  const labels = slots?.labels ?? [];
+  const mentions = entries.find((entry) => entry.kindId === "affidavit")
+    ?.sourceFields?.exhibitMentions ?? {};
   const assigned = new Map<string, RecordEntry>(), pool: RecordEntry[] = [];
   for (const entry of exhibits) {
     const label = entry.exhibitLabel?.trim().toUpperCase();
@@ -211,7 +238,12 @@ function ExhibitPool(props: Props & { kind: DocumentKind }) {
   return <section data-kind-id="exhibit" className="rounded-xl border border-gray-200 bg-white">
     <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-3">
       <h3 className="text-sm font-medium text-gray-900">Exhibits</h3>
-      <div className="flex flex-wrap gap-2"><AddFileControls {...props} /></div>
+      <div className="flex flex-wrap gap-2">
+        {slots && labels.length < 702 && props.onAddExhibit && <Button type="button"
+          variant="outline" className="h-9 border-gray-500/80 px-3"
+          onClick={props.onAddExhibit}><FilePlus2 /> Add exhibit</Button>}
+        <AddFileControls {...props} />
+      </div>
     </div>
     {!!labels.length && <div className="grid gap-2 border-t border-gray-100 bg-gray-50/50 p-2.5">
       {labels.map((label) => {
@@ -224,7 +256,7 @@ function ExhibitPool(props: Props & { kind: DocumentKind }) {
             else if (event.dataTransfer.files.length) {
               event.preventDefault(); onFiles(kind.id, [...event.dataTransfer.files], label);
             } }}>
-          <div className="flex items-center justify-between gap-2 px-1 pb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1 pb-2">
             <h4 className="text-sm font-semibold text-gray-950">Exhibit {label}</h4>
             <AddFileControls {...props} targetLabel={label}
               label={entry ? "Replace file" : "Add file"} />
@@ -236,6 +268,7 @@ function ExhibitPool(props: Props & { kind: DocumentKind }) {
             <p className="rounded-md border border-dashed border-gray-300 px-3 py-4 text-center text-sm text-gray-500">
               Drop a file here, or assign one from unassigned files.
             </p>}
+          <AffidavitWording statements={mentions[label]} />
         </section>;
       })}
     </div>}
@@ -253,12 +286,31 @@ function ExhibitPool(props: Props & { kind: DocumentKind }) {
         <EntryRow key={entry.id} {...props} entry={entry}
           busy={props.busyEntryId === entry.id} findings={props.entryFindings.get(entry.id) ?? []}
           dateRequired={false} descriptionLabel="Contents description"
-          dragEnabled />)}</div> :
+          assignmentLabels={labels} dragEnabled />)}</div> :
         <p className="rounded-md border border-dashed border-gray-300 px-3 py-4 text-center text-sm text-gray-500">
-          Drop several exhibit files here or use Add files.
+          Drop several exhibit files here or use Add file.
         </p>}
     </div>
   </section>;
+}
+
+function AffidavitWording({ statements = [] }: { statements?: string[] }) {
+  const distinct = [...new Set(statements.map((statement) => statement.trim()).filter(Boolean))];
+  if (!distinct.length) return null;
+  const preview = <span className="min-w-0">
+    <span className="block whitespace-nowrap font-semibold text-gray-900 sm:inline">Affidavit said:</span>
+    <span className="mt-0.5 line-clamp-2 sm:ms-1 sm:mt-0 sm:inline" title={distinct[0]}>
+      {distinct[0]}
+    </span>
+  </span>;
+  return <details className="group mx-1 mt-2 min-w-0 border-t border-gray-100 pt-1">
+    <summary className="grid min-h-6 min-w-0 cursor-pointer list-none grid-cols-[minmax(0,1fr)_0.75rem] items-center gap-1.5 rounded-sm text-xs text-gray-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-950 [&::-webkit-details-marker]:hidden">
+      {preview}<ChevronDown className="size-3.5 group-open:rotate-180" aria-hidden="true" />
+    </summary>
+    <ul className="max-h-32 list-disc space-y-1 overflow-y-auto py-1.5 ps-4 text-xs leading-5 text-gray-600 sm:ms-[5.55rem]">
+      {distinct.map((statement) => <li key={statement}>{statement}</li>)}
+    </ul>
+  </details>;
 }
 
 function AddFileControls({ kind, onFiles, onPick, onLibrary, sourceLabel = "Library",
@@ -268,26 +320,30 @@ function AddFileControls({ kind, onFiles, onPick, onLibrary, sourceLabel = "Libr
   }) {
   const multiple = !!kind.repeatable && !targetLabel;
   const id = `court-record-${kind.id}-${targetLabel ?? "file"}`;
+  const variant = label.startsWith("Replace") ? "outline" : "default";
   const withTarget = <T,>(callback: (kindId: string, targetLabel?: string) => T) =>
     targetLabel ? callback(kind.id, targetLabel) : callback(kind.id);
   return <>
     {onLibrary && <Button type="button" variant="outline" className="h-9 border-gray-500/80 px-3"
       onClick={() => withTarget(onLibrary)}><FolderSearch /> {sourceLabel}</Button>}
-    {onPick ? <Button id={id} type="button" className="h-9 bg-gray-950 px-3 text-white hover:bg-gray-800"
+    {onPick ? <Button id={id} type="button" variant={variant} className="h-9 px-3"
       onClick={() => withTarget(onPick)}><FilePlus2 /> {label}</Button> :
-      <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md bg-gray-950 px-3 text-sm font-medium text-white outline-none hover:bg-gray-800 focus-within:ring-3 focus-within:ring-gray-400">
+      <label className={buttonClassName({ variant,
+        className: "h-9 cursor-pointer px-3 focus-within:ring-3 focus-within:ring-ring/50" })}>
         <FilePlus2 className="h-4 w-4" aria-hidden="true" /> {label}
         <input id={id} className="sr-only" type="file" accept={sourceAccept(kind)} multiple={multiple}
-          aria-required={kind.requirement === "required" || undefined} onChange={(event) => {
+          aria-required={(kind.requirement === "required" && !kind.generated) || undefined}
+          onChange={(event) => {
             const files = [...(event.target.files ?? [])];
-            targetLabel ? onFiles(kind.id, files, targetLabel) : onFiles(kind.id, files);
+            if (targetLabel) onFiles(kind.id, files, targetLabel);
+            else onFiles(kind.id, files);
             event.target.value = "";
           }} />
       </label>}
   </>;
 }
 
-function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel, onEntry, onRemove, onAssign, onAssignKind, assignmentKinds, assignmentLabel, dragEnabled = false, onOcr, onRelink }: {
+function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel, onEntry, onRemove, onAssign, onAssignKind, assignmentKinds, assignmentLabels, assignmentLabel, dragEnabled = false, onOcr, onRelink }: {
   entry: RecordEntry;
   kind?: DocumentKind;
   busy: boolean;
@@ -299,6 +355,7 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
   onAssign: Props["onAssign"];
   onAssignKind: Props["onAssignKind"];
   assignmentKinds?: DocumentKind[];
+  assignmentLabels?: string[];
   assignmentLabel?: string;
   dragEnabled?: boolean;
   onOcr?: Props["onOcr"];
@@ -307,6 +364,10 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
   const isPdf = sourceFormat(entry.file) === "pdf";
   const dateMissing = findings.some((finding) => finding.id === `date-${entry.id}`);
   const titleMissing = findings.some((finding) => finding.id === `description-${entry.id}`);
+  const rule70Limit = kind && rule70MaximumPages(kind);
+  const rule70Finding = findings.find((finding) => finding.id === `rule70-pages-${entry.id}`);
+  const confirmNonText = !!entry.ocrAttemptedPages?.length &&
+    (entry.textlessPageCount ?? 0) > 0 && !entry.nonTextPagesConfirmed;
   return (
     <article
       className={cn("min-w-0", assignmentLabel
@@ -365,6 +426,34 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
               </select>
             </label>
           : <p className="text-xs text-red-700">No compatible document type in this format.</p>)}
+        {!!assignmentLabels?.length && (assignmentLabels.length === 1
+          ? <Button type="button" variant="outline" className="h-9 border-gray-500/80"
+              onClick={() => onAssign(entry.id, assignmentLabels[0])}>
+              Assign to Exhibit {assignmentLabels[0]}
+            </Button>
+          : <label className="block min-w-44 text-xs font-medium text-gray-600">
+              Exhibit slot
+              <select value="" aria-label={`Assign ${entry.file.name} to an exhibit`}
+                onChange={(event) => onAssign(entry.id, event.target.value)}
+                className="mt-1 h-9 w-full rounded-md border border-gray-500/80 bg-white px-2 text-sm text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-red-600">
+                <option value="">Assign to exhibit</option>
+                {assignmentLabels.map((label) => <option key={label} value={label}>
+                  Exhibit {label}
+                </option>)}
+              </select>
+            </label>)}
+        {rule70Limit && entry.pageCount !== null && entry.pageCount > rule70Limit &&
+          <label className="block w-full max-w-40 text-xs font-medium text-gray-600">
+            Pages in Parts I–IV
+            <Input type="number" inputMode="numeric" min={1} max={entry.pageCount} step={1}
+              value={entry.rule70CountedPages ?? ""}
+              aria-invalid={!!rule70Finding || undefined}
+              aria-describedby={rule70Finding ? `finding-${rule70Finding.id}` : undefined}
+              onChange={(event) => onEntry(entry.id, { rule70CountedPages:
+                event.target.value ? event.target.valueAsNumber : undefined })}
+              className={cn("mt-1 h-9 border-gray-500/80 md:text-base",
+                rule70Finding && "border-red-500")} />
+          </label>}
         {dateRequired && <label className="block w-full max-w-52 text-xs font-medium text-gray-600">
           Document date <span className="text-red-600" aria-hidden="true">*</span>
           <Input id={`entry-${entry.id}-date`} value={entry.date ?? ""}
@@ -377,18 +466,23 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
             className="h-9 border-red-500 text-red-800" disabled={busy}
             onClick={() => onRelink(entry.id)}><FilePlus2 /> {entry.missingReason === "permission" ? "Allow file access" : "Relink file"}</Button>
         )}
-        {entry.inputStatus !== "missing" && isPdf && needsOcr(entry) && onOcr && (
+        {entry.inputStatus !== "missing" && isPdf && needsOcr(entry) && onOcr && !confirmNonText && (
           <Button id={`entry-${entry.id}-ocr`} type="button" variant="outline"
             className="h-9 border-gray-500/80" disabled={busy} onClick={() => onOcr(entry.id)}>
             {busy ? <Loader2 className="motion-safe:animate-spin" /> : <ScanText />}
             {busy ? "Running OCR" : "OCR text pages"}
           </Button>
         )}
+        {confirmNonText && <Button type="button" variant="outline"
+          className="h-9 border-gray-500/80" onClick={() => onEntry(entry.id,
+            { nonTextPagesConfirmed: true })}>
+          <Check /> Confirm non-text pages
+        </Button>}
       </div>
       {!busy && !!findings.length && (
         <div className="mt-2 space-y-1" role="status">
           {findings.map((finding) => (
-            <p key={finding.id} className={cn("text-xs leading-5", finding.level === "blocker" ? "text-red-700" : "text-amber-800")}>{finding.detail}</p>
+            <p id={`finding-${finding.id}`} key={finding.id} className={cn("text-xs leading-5", finding.level === "blocker" ? "text-red-700" : "text-amber-800")}>{finding.detail}</p>
           ))}
         </div>
       )}

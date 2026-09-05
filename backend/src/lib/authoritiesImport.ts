@@ -4,12 +4,14 @@ import {
   createAuthoritiesDraft,
   reduceAuthoritiesDraft,
   type AuthoritiesFreshReview,
+  type AuthoritiesCover,
   type AuthoritiesImport,
   type AuthoritiesSourceMode,
   type AuthorityIdentity,
   type AuthorityKind,
   type AuthorityOccurrence,
 } from "./authoritiesDomain";
+import { sourceDocumentFields } from "mike/shared/court-record-source-fields.mjs";
 import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
 import { documentProjectionService } from "./documentProjectionService";
 import type { DocumentStore } from "./documentStore";
@@ -17,7 +19,6 @@ import { sha256 } from "./hash";
 import { structureNative, type NativeAuthorityReferenceOccurrence,
   type NativeAuthorityTextUnit, type NativeCitationOccurrence } from "./structureNative";
 import type { WorkProductInput } from "./workProduct";
-import { buildCanliiCaseUrlFromCitation } from "./canliiUrls";
 import { citationAliasKeysBatch } from "./caselawCitator";
 
 type DocumentInput = Extract<WorkProductInput, { kind: "document" }>;
@@ -147,7 +148,7 @@ function scanReview(
         authorities[key] = { id: key, key, kind, citation: match.coreCitation.text,
           name: observedName, displayName: null, excluded: false,
           evidenceIds: [], locators: [], sourceIdentity: null,
-          source: { kind: "unresolved" } };
+          source: { kind: "unresolved" }, scanOnly: true };
         authorityOrder.push(key);
       } else if (!authorities[key].name && observedName) {
         authorities[key].name = observedName;
@@ -169,8 +170,19 @@ function scanReview(
       footnoteId: unit.footnote_id, pageNumbers: unit.page_numbers, text: unit.text,
       footnoteRefs: unit.footnote_refs, occurrenceIds };
   });
-  return { import: imported, bindings, units: reviewUnits, occurrences,
-    authorities, authorityOrder };
+  return { import: imported, bindings, cover: importedCover(units), units: reviewUnits,
+    occurrences, authorities, authorityOrder };
+}
+
+function importedCover(units: NativeAuthorityTextUnit[]): AuthoritiesCover {
+  const body = units.filter(({ kind }) => kind === "body");
+  const firstPage = body.filter(({ page_numbers }) => page_numbers.includes(1));
+  const opening = (firstPage.length ? firstPage : body.slice(0, 80))
+    .map(({ text }) => text).join("\n");
+  const fields = sourceDocumentFields(opening ? [opening] : []);
+  return { courtFileNumber: fields?.cover.courtFileNumber ?? "",
+    partyGroups: fields?.partyGroups ?? [],
+    applicationUnder: fields?.cover.applicationUnder ?? "", title: "" };
 }
 
 async function documentDraft(
@@ -180,16 +192,20 @@ async function documentDraft(
   projection: ProjectionReader,
   native: AuthoritiesNative,
 ) {
+  const latest = binding.version === "latest";
   const requestedVersion = binding.version === "latest" ? null : binding.version.versionId;
-  const [source, history] = await Promise.all([
+  const [source, current, history] = await Promise.all([
     documents.projectionSource(scope, binding.documentId, requestedVersion),
-    documents.versions(scope, binding.documentId),
+    latest ? documents.metadata(scope, binding.documentId) : null,
+    latest ? null : documents.versions(scope, binding.documentId),
   ]);
-  if (!source || !history) throw new ApplicationError(404, "Document not found");
-  const version = history.versions.find(({ id }) => id === source.versionId);
-  if (!version) throw new ApplicationError(404, "Document version not found");
-  const pinnedHash = binding.version === "latest" ? source.sourceSha256 : binding.version.sha256;
-  if (source.sourceSha256 !== pinnedHash || version.source_sha256 !== source.sourceSha256) {
+  if (!source) throw new ApplicationError(404, "Document not found");
+  const filename = current?.current_version_id === source.versionId
+    ? current.filename : history?.versions.find(({ id }) => id === source.versionId)?.filename;
+  if (typeof filename !== "string") {
+    throw new ApplicationError(404, "Document version not found");
+  }
+  if (binding.version !== "latest" && source.sourceSha256 !== binding.version.sha256) {
     throw new ApplicationError(409, "Document version hash does not match its source");
   }
   const fileType = source.fileType.trim().toLowerCase();
@@ -197,7 +213,7 @@ async function documentDraft(
     throw new ApplicationError(409, "Authorities sources must be PDF or Word documents");
   }
   const imported: AuthoritiesImport = { kind: "document", bindingRole: "source",
-    filename: version.filename, fileType, snapshot: { documentId: source.documentId,
+    filename, fileType, snapshot: { documentId: source.documentId,
       versionId: source.versionId, sha256: source.sourceSha256 } };
   const bindings = { source: binding };
   const storedLedger = source.provenance?.actor === "assistant"
@@ -276,18 +292,9 @@ native: AuthoritiesNative = structureNative()) {
   let initial = createAuthoritiesDraft(imported, bindings);
   if (input.sourceMode) initial = reduceAuthoritiesDraft(initial, { type: "set-settings",
     settings: { sourceMode: input.sourceMode } });
-  let draft = reduceAuthoritiesDraft(initial, {
+  return reduceAuthoritiesDraft(initial, {
     type: "refresh", review: scanReview(imported, bindings, units, native),
   });
-  for (const authority of input.sourceMode === "manual-originals"
-    ? Object.values(draft.authorities) : []) {
-    const pageUrl = authority.kind === "case"
-      ? buildCanliiCaseUrlFromCitation([authority.citation]) : null;
-    if (pageUrl) draft = reduceAuthoritiesDraft(draft, {
-      type: "begin-canlii-handoff", authorityId: authority.id, pageUrl,
-    });
-  }
-  return draft;
 }
 
 export type AuthoritiesImporter = ReturnType<typeof createAuthoritiesImporter>;

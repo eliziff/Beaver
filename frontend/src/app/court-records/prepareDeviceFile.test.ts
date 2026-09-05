@@ -12,6 +12,7 @@ describe("device PDF preparation", () => {
     textlessPageCount: 0,
     textlessPages: [],
     sourceBookmarks: [],
+    pageLabels: ["", "i", "1"],
     pageTexts: [],
   }));
 
@@ -20,7 +21,8 @@ describe("device PDF preparation", () => {
     await expect(prepareDeviceFile(
       new File(["%PDF-1.7"], "record.pdf", { type: "application/pdf" }),
       progress,
-    )).resolves.toMatchObject({ searchable: true, encrypted: false });
+    )).resolves.toMatchObject({ searchable: true, encrypted: false,
+      pageLabels: ["", "i", "1"] });
     expect(progress).not.toHaveBeenCalled();
     expect(inspectPdf).toHaveBeenCalledWith(expect.any(File));
   });

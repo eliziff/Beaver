@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { ApplicationScope } from "./applicationError";
 import type { ProjectFolder, ProjectRecord, ProjectRepository } from "./projectStore";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
-import { changes, email, missingProfileEmail, now, one, projectAccess, replaceMembers, rows, type Row } from "./relationalRepositorySupport";
+import { changes, deleteDocumentRows, email, missingProfileEmail, now, one, projectAccess,
+  replaceMembers, rows, type Row } from "./relationalRepositorySupport";
 import { searchFilter } from "./searchQuery";
 
 const projectRecord = (scope: ApplicationScope, row: Row): ProjectRecord => ({
@@ -15,9 +16,11 @@ const projectRecord = (scope: ApplicationScope, row: Row): ProjectRecord => ({
   owner_email: row.owner_email ?? null, owner_display_name: row.owner_display_name ?? null,
 });
 async function findProject(scope: ApplicationScope, id: string, owner = false,
-  db?: RelationalDatabase) {
+  db?: RelationalDatabase, lock: "share" | "update" | false = false) {
   const row = await one(sql`SELECT p.* FROM projects p WHERE p.id=${id}
-    AND ${projectAccess(scope, owner)}`, db);
+    AND ${projectAccess(scope, owner)}
+    ${lock && db?.engine === "postgres"
+      ? sql.raw(`FOR ${lock.toUpperCase()} OF p`) : sql.raw("")}`, db);
   return row ? projectRecord(scope, row) : null;
 }
 const projectFolder = (row: Row): ProjectFolder => ({ ...row, id: String(row.id),
@@ -105,7 +108,7 @@ export const projectRepository: ProjectRepository = {
   async update(scope, id, input) {
     const db = await relationalDatabase();
     return db.transaction(async (tx) => {
-      const current = await findProject(scope, id, true, tx);
+      const current = await findProject(scope, id, true, tx, "update");
       if (!current) return null;
       const shared = input.sharedWith ?? current.shared_with as string[];
       await changes(sql`UPDATE projects SET name=${input.name ?? String(current.name)},
@@ -121,7 +124,12 @@ export const projectRepository: ProjectRepository = {
   async remove(scope, id) {
     const db = await relationalDatabase();
     return db.transaction(async (tx) => {
-      if (!await findProject(scope, id, true, tx)) return null;
+      if (!await findProject(scope, id, true, tx, "update")) return null;
+      const documentIds = (await rows<{ id: string }>(sql`SELECT d.id FROM documents d
+        WHERE d.project_id=${id}
+        ${tx.engine === "postgres" ? sql.raw("FOR UPDATE OF d") : sql.raw("")}`, tx))
+        .map(({ id: documentId }) => documentId);
+      await deleteDocumentRows(tx, documentIds);
       const ids = (await rows<{ id: string }>(sql`SELECT id FROM chats WHERE project_id=${id}`, tx))
         .map(({ id: chatId }) => chatId);
       return await changes(sql`DELETE FROM projects WHERE id=${id} AND user_id=${scope.userId}`, tx)
@@ -132,7 +140,7 @@ export const projectRepository: ProjectRepository = {
   async createFolder(scope, projectId, input) {
     const db = await relationalDatabase();
     return db.transaction(async (tx) => {
-      if (!await findProject(scope, projectId, false, tx) || input.parentFolderId &&
+      if (!await findProject(scope, projectId, false, tx, "share") || input.parentFolderId &&
         !await findProjectFolder(scope, projectId, input.parentFolderId, tx)) return null;
       const id = input.stableId ?? randomUUID(), created = now();
       await changes(sql`INSERT INTO project_subfolders(id,user_id,project_id,name,
@@ -145,6 +153,7 @@ export const projectRepository: ProjectRepository = {
   async updateFolder(scope, projectId, id, input) {
     const db = await relationalDatabase();
     return db.transaction(async (tx) => {
+      if (!await findProject(scope, projectId, false, tx, "share")) return null;
       const current = await findProjectFolder(scope, projectId, id, tx);
       if (!current) return null;
       const parent = input.parentFolderId === undefined
@@ -155,18 +164,22 @@ export const projectRepository: ProjectRepository = {
       return findProjectFolder(scope, projectId, id, tx);
     });
   },
-  async folderDocumentIds(scope, projectId, id) {
-    if (!await findProjectFolder(scope, projectId, id)) return null;
-    return (await rows<{ id: string }>(sql`WITH RECURSIVE descendants(id) AS (
-      SELECT id FROM project_subfolders WHERE id=${id} AND project_id=${projectId}
-      UNION ALL SELECT f.id FROM project_subfolders f JOIN descendants d
-        ON f.parent_folder_id=d.id WHERE f.project_id=${projectId})
-      SELECT id FROM documents WHERE project_id=${projectId}
-        AND folder_id IN(SELECT id FROM descendants)`)).map(({ id: value }) => value);
-  },
   async deleteFolder(scope, projectId, id) {
-    if (!await findProject(scope, projectId)) return false;
-    return await changes(sql`DELETE FROM project_subfolders WHERE id=${id}
-      AND project_id=${projectId}`) > 0;
+    const db = await relationalDatabase();
+    return db.transaction(async (tx) => {
+      if (!await findProject(scope, projectId, false, tx, "update")) return false;
+      if (!await findProjectFolder(scope, projectId, id, tx)) return false;
+      const documentIds = (await rows<{ id: string }>(sql`WITH RECURSIVE descendants(id) AS (
+        SELECT id FROM project_subfolders WHERE id=${id} AND project_id=${projectId}
+        UNION ALL SELECT f.id FROM project_subfolders f JOIN descendants d
+          ON f.parent_folder_id=d.id WHERE f.project_id=${projectId})
+        SELECT d.id FROM documents d WHERE d.project_id=${projectId}
+          AND d.folder_id IN(SELECT id FROM descendants)
+        ${tx.engine === "postgres" ? sql.raw("FOR UPDATE OF d") : sql.raw("")}`, tx))
+        .map(({ id: documentId }) => documentId);
+      await deleteDocumentRows(tx, documentIds);
+      return await changes(sql`DELETE FROM project_subfolders WHERE id=${id}
+        AND project_id=${projectId}` , tx) > 0;
+    });
   },
 };

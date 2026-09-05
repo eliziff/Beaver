@@ -3,15 +3,16 @@ import { describe, expect, it, vi } from "vitest";
 import { ActionMenu } from "./action-menu";
 
 describe("ActionMenu", () => {
-    it("can run the same action repeatedly without a native picker", () => {
-        const onSelect = vi.fn();
-        render(
+    it("repeats actions and keeps current items without remeasuring", () => {
+        const onSelect = vi.fn(), current = vi.fn();
+        const { rerender } = render(
             <ActionMenu label="Actions" items={[{ label: "Download", onSelect }]}>
                 Actions
             </ActionMenu>,
         );
         const trigger = screen.getByRole("button", { name: "Actions" });
         fireEvent.click(trigger);
+        expect(screen.getByRole("menu").parentElement).toBe(document.body);
         expect(screen.getByRole("menu")).toHaveAttribute("data-shortcut-layer");
         fireEvent.click(screen.getByRole("menuitem", { name: "Download" }));
         fireEvent.click(trigger);
@@ -19,9 +20,15 @@ describe("ActionMenu", () => {
         expect(onSelect).toHaveBeenCalledTimes(2);
         expect(screen.queryByRole("menu")).not.toBeInTheDocument();
         expect(trigger).toHaveFocus();
+        const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+        fireEvent.click(trigger); const measurements = rect.mock.calls.length;
+        rerender(<ActionMenu label="Actions" items={[{ label: "Open", onSelect: current }]}>Actions</ActionMenu>);
+        expect(rect).toHaveBeenCalledTimes(measurements);
+        fireEvent.click(screen.getByRole("menuitem", { name: "Open" }));
+        expect(current).toHaveBeenCalledOnce(); rect.mockRestore();
     });
 
-    it("supports arrow navigation and Escape with focus restoration", () => {
+    it("supports arrow navigation, Escape, and non-blocking Tab dismissal", () => {
         render(
             <ActionMenu label="Actions" items={[
                 { label: "Rename", onSelect: vi.fn() },
@@ -40,6 +47,9 @@ describe("ActionMenu", () => {
         fireEvent.keyDown(remove, { key: "Escape" });
         expect(screen.queryByRole("menu")).not.toBeInTheDocument();
         expect(trigger).toHaveFocus();
+        fireEvent.click(trigger);
+        expect(fireEvent.keyDown(screen.getByRole("menuitem", { name: "Rename" }), { key: "Tab" })).toBe(true);
+        expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     });
 
     it("stays open for its own scroll and closes when its anchor scrolls", () => {
@@ -49,5 +59,39 @@ describe("ActionMenu", () => {
         expect(screen.getByRole("menu")).toBeVisible();
         fireEvent.scroll(window);
         expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    });
+
+    it("measures and clamps inside a native dialog", () => {
+        const box = (left: number, top: number, width: number, height: number) => ({
+            left, top, width, height, right: left + width, bottom: top + height,
+            x: left, y: top, toJSON: () => ({}),
+        }) as DOMRect;
+        const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect")
+            .mockImplementation(function () {
+                if (this.tagName === "DIALOG") return box(100, 100, 500, 400);
+                if (this.getAttribute("role") === "menu") return box(0, 0, 220, 180);
+                if (this.getAttribute("aria-label") === "Actions") return box(540, 440, 32, 24);
+                return box(0, 0, 0, 0);
+            });
+        const onSelect = vi.fn();
+        render(<dialog open><ActionMenu label="Actions" items={[{ label: "Open", onSelect }]}>Actions</ActionMenu></dialog>);
+
+        fireEvent.click(screen.getByRole("button", { name: "Actions" }));
+        const menu = screen.getByRole("menu");
+        expect(screen.getByRole("dialog")).toContainElement(menu);
+        expect(menu).toHaveStyle({ top: "256px", left: "372px", maxHeight: "384px", maxWidth: "484px" });
+        fireEvent.click(screen.getByRole("menuitem", { name: "Open" }));
+        expect(onSelect).toHaveBeenCalledOnce();
+        rect.mockRestore();
+    });
+
+    it("keeps an assistant-dock menu inside its focus boundary", () => {
+        render(<aside data-assistant-dock aria-label="Assistant dock">
+            <ActionMenu label="Actions" items={[{ label: "Open", onSelect: vi.fn() }]}>Actions</ActionMenu>
+        </aside>);
+        fireEvent.click(screen.getByRole("button", { name: "Actions" }));
+        const dock = screen.getByRole("complementary", { name: "Assistant dock" });
+        expect(dock).toContainElement(screen.getByRole("menu"));
+        expect(dock).toContainElement(document.activeElement as HTMLElement);
     });
 });

@@ -1,6 +1,12 @@
 import {
+  authoritiesBookPdfs,
+  attachedAuthoritySources,
+  authoritiesProfile,
   validateAuthoritiesDraft,
   authorityCitationForms,
+  federalEnactmentCitation,
+  hasBilingualAuthoritySource,
+  type AttachedAuthoritySource,
   type AuthoritiesBookParts,
   type AuthoritiesBoundPdf,
   type AuthoritiesDraft,
@@ -16,8 +22,10 @@ import { applyTableOfAuthorities, type DocxAuthorityMark } from "./docxOperation
 import type { NativePdfPassageGeometry, NativePdfPassageTarget } from "./structureNative";
 import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
   WorkProductInput } from "./workProduct";
+import { deriveAuthorityProcedure, tabLabel } from "mike/shared/authorities-order.mjs";
 
-export type AuthoritiesOutputRole = "table" | "book" | "annotated-document";
+export type AuthoritiesOutputRole = "table" | "book" | `book-${number}` |
+  "annotated-document";
 export type AuthoritiesBuildArtifact = {
   role: AuthoritiesOutputRole;
   filename: string;
@@ -35,6 +43,7 @@ export type AuthoritiesBuildReceipt = {
   draft: { schemaVersion: AuthoritiesDraft["schemaVersion"];
     outputMode: AuthoritiesDraft["outputMode"];
     settings: AuthoritiesSettings;
+    cover: AuthoritiesDraft["cover"];
     bookParts: AuthoritiesBookParts;
     insertIntoDocument: boolean;
     document: AuthoritiesDocumentSnapshot | null };
@@ -43,7 +52,7 @@ export type AuthoritiesBuildReceipt = {
     tab: string; excluded: boolean; source: AuthoritySourceDecision;
     sourceIdentity: AuthoritySourceIdentity | null;
     evidenceIds: string[]; locators: Array<{ kind: string; label: string }>;
-    binding: WorkProductInput | null;
+    bindings: WorkProductInput[];
   }>;
   outputs: Partial<Record<AuthoritiesOutputRole, {
     filename: string; mimeType: string; sha256: string; pageCount: number | null;
@@ -137,10 +146,10 @@ export function authorityPassageTargets(draft: AuthoritiesDraft, authorityId: st
 
 export function authoritiesTextRoles(draft: AuthoritiesDraft) {
   if (draft.outputMode === "table") return new Set<string>();
+  const federal = authoritiesProfile(draft.settings.profileId).requirements?.federalFormatting;
   return new Set(Object.values(draft.authorities).flatMap((authority) => {
     if (authority.excluded || authority.source.kind !== "attached") return [];
-    const paperExtract = ["federal-court", "federal-court-of-appeal"]
-      .includes(draft.settings.profileId) && draft.settings.filingMedium === "paper" &&
+    const paperExtract = federal && draft.settings.filingMedium === "paper" &&
       freePublicDatabaseReference(authority);
     const requests = authorityPassageRequests(draft, authority.id);
     const locatorKinds = new Set(requests.flatMap(({ locators }) =>
@@ -151,7 +160,7 @@ export function authoritiesTextRoles(draft: AuthoritiesDraft) {
     const needsQuoteText = ["margin", "text"].includes(draft.settings.passageMarking) &&
       requests.some(({ exactQuotes }) => exactQuotes.length);
     return paperExtract || needsOcr || needsLocatorText || needsQuoteText
-      ? [authority.source.bindingRole] : [];
+      ? authority.source.sources.map(({ bindingRole }) => bindingRole) : [];
   }));
 }
 
@@ -170,12 +179,10 @@ type PdfDocument = import("pdf-lib").PDFDocument;
 type PdfPage = import("pdf-lib").PDFPage;
 type PdfRef = import("pdf-lib").PDFRef;
 type PdfFont = import("pdf-lib").PDFFont;
+type PdfColor = import("pdf-lib").Color;
 
-const GROUPS: ReadonlyArray<readonly [string, AuthorityKind]> = [
-  ["Cases", "case"], ["Legislation", "legislation"],
-  ["Secondary sources", "commentary"], ["Other sources", "other"],
-];
-const RENDERERS: Record<AuthoritiesOutputRole, string> = {
+type RequestedRole = Exclude<AuthoritiesOutputRole, `book-${number}`>;
+const RENDERERS: Record<RequestedRole, string> = {
   table: "beaver.authorities.table-docx.v1",
   book: "beaver.authorities.book-pdf.v2",
   "annotated-document": "beaver.authorities.filing-output.v1",
@@ -217,60 +224,26 @@ function citedAt(draft: AuthoritiesDraft, authorityId: string) {
   return value || "—";
 }
 
-const sortName = (draft: AuthoritiesDraft, authority: AuthorityIdentity) =>
-  authorityName(draft, authority)
-  .normalize("NFKD").toLocaleLowerCase("en-CA");
-const alphabetical = (draft: AuthoritiesDraft) =>
-  (left: AuthorityIdentity, right: AuthorityIdentity) =>
-  sortName(draft, left).localeCompare(sortName(draft, right), "en-CA") ||
-  left.citation.localeCompare(right.citation, "en-CA");
-
-function firstReferenceIds(draft: AuthoritiesDraft) {
-  const seen = new Set<string>(), ids: string[] = [];
-  for (const unit of [...draft.units].sort((left, right) =>
-    left.ordinal - right.ordinal || left.id.localeCompare(right.id))) {
-    for (const occurrenceId of unit.occurrenceIds) {
-      const id = draft.occurrences[occurrenceId]?.authorityId;
-      if (id && !seen.has(id)) { seen.add(id); ids.push(id); }
-    }
-  }
-  return [...ids, ...draft.authorityOrder.filter((id) => !seen.has(id))];
-}
-
-function bookAuthorities(draft: AuthoritiesDraft) {
-  const ordered = draft.authorityOrder.map((id) => draft.authorities[id]);
-  if (draft.import.kind === "manual") return ordered;
-  return GROUPS.flatMap(([, kind]) => ordered.filter((authority) =>
-    authority.kind === kind).sort(alphabetical(draft)));
-}
-
-function automaticTab(index: number, style: AuthoritiesDraft["settings"]["tabStyle"]) {
-  if (style === "numeric") return `Tab ${index}`;
-  let value = "", number = index;
-  while (number) {
-    number -= 1; value = String.fromCharCode(65 + number % 26) + value;
-    number = Math.floor(number / 26);
-  }
-  return `Tab ${value}`;
-}
-
 const reproducedInBook = (draft: AuthoritiesDraft, authority: AuthorityIdentity) =>
   !authority.excluded && (authority.source.kind === "attached" ||
     draft.settings.missingSourcePolicy === "placeholder");
 
-function bookTabs(draft: AuthoritiesDraft) {
-  const tabs = new Map<string, string>(); let index = 0;
-  for (const authority of bookAuthorities(draft)) {
-    const reproduced = reproducedInBook(draft, authority);
-    if (!authority.excluded) index += 1;
-    tabs.set(authority.id, !reproduced ? "Not reproduced"
-      : automaticTab(index, draft.settings.tabStyle));
-  }
-  return tabs;
-}
+const authorityProcedure = (draft: AuthoritiesDraft, purpose: "table" | "book") =>
+  deriveAuthorityProcedure({
+    authorities: draft.authorityOrder.map((id) => {
+      const authority = draft.authorities[id];
+      return { id, kind: authority.kind, citation: authority.citation,
+        sortLabel: authority.displayName || authority.name || authority.citation,
+        excluded: authority.excluded, reproduced: reproducedInBook(draft, authority) };
+    }),
+    units: draft.units, occurrences: draft.occurrences,
+    manual: draft.import.kind === "manual", purpose,
+    tableOrder: draft.settings.tableOrder, tabStyle: draft.settings.tabStyle,
+  });
 
 function authoritySourceUrl(authority: AuthorityIdentity) {
-  const value = authority.source.kind === "attached" ? authority.source.sourceUrl
+  const value = authority.source.kind === "attached"
+    ? authority.source.sources.find(({ sourceUrl }) => sourceUrl)?.sourceUrl ?? null
     : authority.source.kind === "pending-canlii" ? authority.source.pageUrl
       : authority.sourceIdentity?.externalUrl ?? null;
   try { return value && ["http:", "https:"].includes(new URL(value).protocol) ? value : null; }
@@ -289,31 +262,17 @@ function freePublicDatabaseReference(authority: AuthorityIdentity) {
 }
 
 function groupedEntries(draft: AuthoritiesDraft, purpose: "table" | "book") {
-  const tabs = bookTabs(draft);
-  const ids = purpose === "book" ? bookAuthorities(draft).map(({ id }) => id)
-    : draft.settings.tableOrder === "first-reference"
-      ? firstReferenceIds(draft) : draft.authorityOrder;
-  const ordered = ids.map((id) => draft.authorities[id]);
-  const entry = (authority: AuthorityIdentity): Entry => ({ authority,
+  const planned = authorityProcedure(draft, purpose);
+  const entry = ({ id, tab }: typeof planned[number]): Entry => {
+    const authority = draft.authorities[id]; return { authority,
     name: authorityName(draft, authority), citedAt: citedAt(draft, authority.id),
-    tab: tabs.get(authority.id) ?? "", sourceUrl: authoritySourceUrl(authority) });
-  if (purpose === "book" && draft.import.kind === "manual") {
-    return ordered.length ? [{ label: "Authorities", entries: ordered.map(entry) }] : [];
-  }
-  if (purpose === "table" && draft.settings.tableOrder === "first-reference") {
-    return ordered.length ? [{ label: "Authorities", entries: ordered.map(entry) }] : [];
-  }
-  return GROUPS.flatMap(([label, kind]): Group[] => {
-    let authorities = ordered.filter((authority) => authority.kind === kind);
-    if (purpose === "book" || draft.settings.tableOrder === "alphabetical") {
-      authorities = authorities.sort(alphabetical(draft));
-    }
-    return authorities.length ? [{ label, entries: authorities.map(entry) }] : [];
-  });
+    tab, sourceUrl: authoritySourceUrl(authority) }; };
+  return [...new Set(planned.map(({ group }) => group))].map((label): Group =>
+    ({ label, entries: planned.filter(({ group }) => group === label).map(entry) }));
 }
 
 async function tableArtifact(groups: Group[], filename: string, subtitle: string,
-  linked = false) {
+  linked = false, tabs = false) {
   const { BorderStyle, Document, ExternalHyperlink, HeadingLevel, Packer, Paragraph,
     Table, TableCell, TableRow, TextRun, WidthType } = await import("docx");
   const border = { style: BorderStyle.SINGLE, size: 1, color: "B7B7B7" };
@@ -341,11 +300,13 @@ async function tableArtifact(groups: Group[], filename: string, subtitle: string
       borders: { top: border, bottom: border, left: border, right: border,
         insideHorizontal: border, insideVertical: border }, rows: [
         new TableRow({ tableHeader: true, children: [
-          cell("Tab", 1050, true), cell("Authority", 4800, true),
+          ...(tabs ? [cell("Tab", 1050, true)] : []),
+          cell("Authority", tabs ? 4800 : 5850, true),
           cell("Cited at", 1850, true), cell("Source", 1660, true),
         ] }),
         ...group.entries.map((entry) => new TableRow({ cantSplit: true, children: [
-          cell(entry.tab, 1050), cell(entry.name, 4800), cell(entry.citedAt, 1850),
+          ...(tabs ? [cell(entry.tab, 1050)] : []),
+          cell(entry.name, tabs ? 4800 : 5850), cell(entry.citedAt, 1850),
           new TableCell({ width: { size: 1660, type: WidthType.DXA }, children: [
             new Paragraph({ children: entry.sourceUrl ? [new ExternalHyperlink({
               link: entry.sourceUrl, children: [new TextRun({ text: "Open source",
@@ -561,7 +522,8 @@ async function filingPdfArtifact(groups: Group[], filename: string,
   const appended = await Promise.all(entries.flatMap((entry) => {
     const source = entry.authority.source;
     return !entry.sourceUrl && source.kind === "attached"
-      ? [loadBookPdf(pdf, source, entry.name, attached).then((document) => ({ entry, document }))]
+      ? [loadAuthorityPdf(pdf, source.sources, entry.name, attached)
+        .then(({ document }) => ({ entry, document }))]
       : [];
   }));
   const document = await pdf.PDFDocument.create(), regular = await document.embedFont(
@@ -614,20 +576,76 @@ async function filingPdfArtifact(groups: Group[], filename: string,
 }
 
 type BookRow = { key: string; name: string; tab: string; sourceUrl?: string | null };
-type LoadedBookPdf = BookRow & { document: PdfDocument; authority: AuthorityIdentity;
+type LoadedBookPdf = BookRow & { document: PdfDocument; authority: AuthorityIdentity | null;
   pageTextByPage?: string[]; ocrTextByPage?: string[];
   passageGeometry?: NativePdfPassageGeometry };
+type PreparedBookPdf = LoadedBookPdf & { pageIndices: number[];
+  databaseReference: { url: string; host: string } | null };
+type BookSlice = { source: PreparedBookPdf; pageIndices: number[] };
 
 const FEDERAL_BOOK_ROLE_LABELS = {
   applicant: "Applicant", respondent: "Respondent", joint: "Joint",
-  appellant: "Appellant", intervener: "Intervener",
+  appellant: "Appellant", intervener: "Intervener", plaintiff: "Plaintiff",
+  defendant: "Defendant", "moving-party": "Moving Party",
+  "responding-party": "Responding Party",
 } as const;
-const FCA_PAPER_COVERS = {
+const FEDERAL_APPEAL_PAPER_COVERS = {
   joint: { rgb: [128 / 255, 0, 32 / 255], dark: true },
   appellant: { rgb: [245 / 255, 245 / 255, 220 / 255], dark: false },
   respondent: { rgb: [169 / 255, 209 / 255, 142 / 255], dark: false },
   intervener: { rgb: [159 / 255, 197 / 255, 220 / 255], dark: false },
 } as const;
+
+function drawFederalForm66Cover(page: PdfPage, regular: PdfFont, bold: PdfFont,
+  draft: AuthoritiesDraft, court: string, title: string, filedBy: string | null,
+  color: PdfColor) {
+  const margin = 99.21, { width, height } = page.getSize();
+  const clean = (value: string) => {
+    const text = value.normalize("NFKC").replace(/[\u2018\u2019]/gu, "'")
+      .replace(/[\u201c\u201d]/gu, '"').replace(/[\u2013\u2014]/gu, "-")
+      .replace(/\u2026/gu, "...");
+    if (/[^\x09\x0a\x0d\x20-\x7e\xa0-\xff]/u.test(text)) throw new Error(
+      "The Federal cover contains characters unavailable in the prescribed court fonts.");
+    return text;
+  };
+  const centred = (value: string, y: number, font = regular) => {
+    const text = clean(value);
+    page.drawText(text, { x: (width - font.widthOfTextAtSize(text, 12)) / 2,
+      y, size: 12, font, color });
+  };
+  const file = clean(`Court File No. ${draft.cover.courtFileNumber}`);
+  page.drawText(file, { x: width - margin - regular.widthOfTextAtSize(file, 12),
+    y: height - 78, size: 12, font: regular, color });
+  centred(court, height - 118, bold);
+  page.drawText("BETWEEN:", { x: margin, y: height - 157, size: 12, font: regular, color });
+  let y = height - 193;
+  draft.cover.partyGroups.forEach(({ role, parties }, index) => {
+    const names = wrapped(regular, clean(parties.join(", ")), 12, width - (2 * margin));
+    names.forEach((name) => { centred(name, y); y -= 14; });
+    y -= 20;
+    const label = clean(role);
+    page.drawText(label, { x: width - margin - regular.widthOfTextAtSize(label, 12),
+      y, size: 12, font: regular, color });
+    if (index < draft.cover.partyGroups.length - 1) {
+      centred("and", y - 26); y -= 52;
+    } else y -= 32;
+  });
+  if (draft.cover.applicationUnder) {
+    for (const line of wrapped(regular, clean(
+      `APPLICATION UNDER ${draft.cover.applicationUnder}`), 12, width - (2 * margin))) {
+      centred(line, y); y -= 15;
+    }
+    y -= 17;
+  }
+  y -= 8;
+  for (const line of wrapped(bold, clean(title.toUpperCase()), 12, width - (2 * margin))) {
+    centred(line, y, bold); y -= 16;
+  }
+  if (filedBy) { y -= 10; centred(filedBy, y); y -= 16; }
+  if (y < 135) throw new Error(
+    "The Federal style of cause is too long for one Form 66 cover page.");
+  return y - 10;
+}
 
 async function loadBookPdf(
   pdf: PdfModule, part: AuthoritiesBoundPdf, label: string,
@@ -647,18 +665,67 @@ async function loadBookPdf(
   return document;
 }
 
-async function missingSourcePdf(pdf: PdfModule, label: string) {
+async function loadAuthorityPdf(
+  pdf: PdfModule, sources: AttachedAuthoritySource[], label: string,
+  attached: NonNullable<AuthoritiesBuildInput["sources"]>,
+) {
+  const loaded = await Promise.all(sources.map(async (source) => ({ source,
+    document: await loadBookPdf(pdf, source, label, attached),
+    text: attached[source.bindingRole] })));
+  if (loaded.length === 1) return { document: loaded[0].document,
+    pageTextByPage: loaded[0].text?.pageTextByPage,
+    ocrTextByPage: loaded[0].text?.ocrTextByPage,
+    passageGeometry: loaded[0].text?.passageGeometry };
   const document = await pdf.PDFDocument.create();
-  const regular = await document.embedFont(pdf.StandardFonts.Helvetica);
-  const bold = await document.embedFont(pdf.StandardFonts.HelveticaBold);
+  const pageTextByPage: string[] = [], ocrTextByPage: string[] = [];
+  const geometries: Array<{ offset: number; value: NativePdfPassageGeometry }> = [];
+  let offset = 0;
+  for (const item of loaded) {
+    const count = item.document.getPageCount();
+    for (const page of await document.copyPages(item.document, item.document.getPageIndices())) {
+      document.addPage(page);
+    }
+    pageTextByPage.push(...Array.from({ length: count }, (_, index) =>
+      item.text?.pageTextByPage?.[index] ?? ""));
+    ocrTextByPage.push(...Array.from({ length: count }, (_, index) =>
+      item.text?.ocrTextByPage?.[index] ?? ""));
+    if (item.text?.passageGeometry) geometries.push({ offset, value: item.text.passageGeometry });
+    offset += count;
+  }
+  const first = geometries[0]?.value;
+  const passageGeometry = first ? { ...first,
+    sourceSha256: sha256(Buffer.from(sources.map(({ sourceSha256 }) => sourceSha256).join("\0"))),
+    targets: geometries.flatMap(({ offset: pageOffset, value }, sourceIndex) =>
+      value.targets.map((target) => ({ ...target, id: `${sourceIndex}:${target.id}`,
+        pages: target.pages.map((page) => ({ ...page,
+          pageNumber: page.pageNumber + pageOffset })),
+        quotes: target.quotes.map((quote) => ({ ...quote,
+          ...(quote.pageNumber === undefined ? {} : {
+            pageNumber: quote.pageNumber + pageOffset,
+          }) })) }))),
+  } satisfies NativePdfPassageGeometry : undefined;
+  return { document, pageTextByPage,
+    ocrTextByPage: ocrTextByPage.some(Boolean) ? ocrTextByPage : undefined,
+    passageGeometry };
+}
+
+async function missingSourcePdf(pdf: PdfModule, label: string, federal = false) {
+  const document = await pdf.PDFDocument.create();
+  const regular = await document.embedFont(federal
+    ? pdf.StandardFonts.TimesRoman : pdf.StandardFonts.Helvetica);
+  const bold = await document.embedFont(federal
+    ? pdf.StandardFonts.TimesRomanBold : pdf.StandardFonts.HelveticaBold);
   const page = document.addPage([612, 792]);
-  page.drawText("Source PDF unavailable", { x: 72, y: 620, size: 24, font: bold });
+  const margin = federal ? 99.21 : 72;
+  page.drawText("Source PDF unavailable", { x: margin, y: 620,
+    size: federal ? 12 : 24, font: bold });
   let y = 575;
-  for (const line of wrapped(regular, label, 12, 468)) {
-    page.drawText(line, { x: 72, y, size: 12, font: regular }); y -= 18;
+  for (const line of wrapped(regular, label, 12, 612 - (2 * margin))) {
+    page.drawText(line, { x: margin, y, size: 12, font: regular }); y -= 18;
   }
   page.drawText("No source PDF was attached for this authority.",
-    { x: 72, y: y - 18, size: 10, font: regular, color: pdf.rgb(.35, .35, .35) });
+    { x: margin, y: y - 18, size: federal ? 12 : 10,
+      font: regular, color: pdf.rgb(.35, .35, .35) });
   return document;
 }
 
@@ -668,45 +735,61 @@ async function bookArtifact(
 ) {
   signal?.throwIfAborted();
   const pdf = await import("pdf-lib");
-  const federal = draft.settings.profileId === "federal-court" ||
-    draft.settings.profileId === "federal-court-of-appeal";
+  const profile = authoritiesProfile(draft.settings.profileId);
+  const federal = !!profile.requirements?.federalFormatting;
   const role = draft.settings.bookRole;
   const coverLine = federal && role
     ? role === "joint" ? "Filed jointly" : `Filed by ${FEDERAL_BOOK_ROLE_LABELS[role]}`
     : null;
-  const paperCover = draft.settings.profileId === "federal-court-of-appeal" &&
-    draft.settings.filingMedium === "paper" && role && role in FCA_PAPER_COVERS
-    ? FCA_PAPER_COVERS[role as keyof typeof FCA_PAPER_COVERS] : null;
-  const bookTitle = draft.import.kind === "manual" ? subtitle : "Book of Authorities";
+  const paperCover = profile.requirements?.appealPaperCovers &&
+    draft.settings.filingMedium === "paper" && role && role in FEDERAL_APPEAL_PAPER_COVERS
+    ? FEDERAL_APPEAL_PAPER_COVERS[role as keyof typeof FEDERAL_APPEAL_PAPER_COVERS] : null;
+  const bookTitle = profile.bookTitle ??
+    (draft.import.kind === "manual" ? subtitle : "Book of Authorities");
+  const documentTitle = draft.cover.title || bookTitle;
+  if (federal && !draft.bookParts.cover && !role) {
+    throw new Error("Choose who is filing the Federal Court book.");
+  }
+  if (federal && !draft.bookParts.cover && (!draft.cover.courtFileNumber ||
+      draft.cover.partyGroups.length < 2 || draft.cover.partyGroups.some(({ role, parties }) =>
+        !role || !parties.length || parties.some((party) => !party)))) {
+    throw new Error("Add the Court file number and complete party names and roles for the Federal Form 66 cover.");
+  }
   const authorityRows = groups.flatMap(({ entries }) => entries.filter(({ authority }) =>
     reproducedInBook(draft, authority)));
-  const rows: BookRow[] = authorityRows.map((entry) => ({
+  const supplementRows: BookRow[] = draft.bookParts.supplements.map((item, index) => ({
+    key: `supplement:${item.id}`,
+    name: item.filename.replace(/\.pdf$/iu, "").trim() || item.filename,
+    tab: tabLabel(authorityRows.length + index + 1, draft.settings.tabStyle),
+  }));
+  const rows: BookRow[] = [...authorityRows.map((entry) => ({
     key: `authority:${entry.authority.id}`, name: entry.name, tab: entry.tab,
     sourceUrl: entry.sourceUrl,
-  }));
-  if (!rows.length) throw new Error("Add at least one authority before building the book.");
-  const [authoritySources, customCover, customIndex] = await Promise.all([
+  })), ...supplementRows];
+  if (!rows.length) throw new Error(
+    "Add at least one authority or supplemental PDF before building the book.");
+  const [authoritySources, supplementalSources, customCover, customIndex] = await Promise.all([
     Promise.all(authorityRows.map(async (entry): Promise<LoadedBookPdf> => {
       const source = entry.authority.source;
+      const loaded = source.kind === "attached"
+        ? await loadAuthorityPdf(pdf, source.sources, entry.name, attached)
+        : { document: await missingSourcePdf(pdf, entry.name, federal) };
       return { key: `authority:${entry.authority.id}`, name: entry.name, tab: entry.tab,
         sourceUrl: entry.sourceUrl, authority: entry.authority,
-        document: source.kind === "attached"
-          ? await loadBookPdf(pdf, source, entry.name, attached)
-          : await missingSourcePdf(pdf, entry.name),
-        pageTextByPage: source.kind === "attached"
-          ? attached[source.bindingRole]?.pageTextByPage : undefined,
-        ocrTextByPage: source.kind === "attached"
-          ? attached[source.bindingRole]?.ocrTextByPage : undefined,
-        passageGeometry: source.kind === "attached"
-          ? attached[source.bindingRole]?.passageGeometry : undefined };
+        ...loaded };
     })),
+    Promise.all(draft.bookParts.supplements.map(async (item, index): Promise<LoadedBookPdf> => ({
+      ...supplementRows[index], authority: null,
+      document: await loadBookPdf(pdf, item, item.filename, attached),
+    }))),
     draft.bookParts.cover
       ? loadBookPdf(pdf, draft.bookParts.cover, "the custom cover", attached) : null,
     draft.bookParts.index
       ? loadBookPdf(pdf, draft.bookParts.index, "the custom index", attached) : null,
   ]);
-  const sources = authoritySources.map((source) => {
-    const extract = federalPaperExtract(draft, source);
+  const sources: PreparedBookPdf[] = [...authoritySources, ...supplementalSources].map((source) => {
+    const pageLabels = pdfPageLabelIndices(pdf, source.document);
+    const extract = federalPaperExtract(draft, source, pageLabels);
     return { ...source, pageIndices: extract?.pageIndices ?? source.document.getPageIndices(),
       databaseReference: extract?.databaseReference ?? null };
   });
@@ -717,6 +800,7 @@ async function bookArtifact(
       .map(({ authority }) => rowByKey.get(`authority:${authority.id}`)!);
     return kept.length ? [{ label, entries: kept }] : [];
   });
+  if (supplementRows.length) rowGroups.push({ label: "Documents", entries: supplementRows });
   const tokens = rowGroups.flatMap((group) => [
     { label: group.label, entry: null as BookRow | null },
     ...group.entries.map((entry) => ({ label: "", entry })),
@@ -724,166 +808,257 @@ async function bookArtifact(
   const chunks = Array.from({ length: Math.ceil(tokens.length / 23) }, (_, index) =>
     tokens.slice(index * 23, index * 23 + 23));
   const coverPageCount = customCover?.getPageCount() ?? 1;
-  const indexPageCount = customIndex?.getPageCount() ?? chunks.length;
-  const starts = new Map<string, number>();
-  let next = coverPageCount + indexPageCount;
-  for (const source of sources) {
-    starts.set(source.key, next);
-    next += source.pageIndices.length;
+  const limits = draft.settings.filingMedium === "electronic"
+    ? profile.requirements?.electronicVolumes : undefined;
+  const all: BookSlice[] = sources.map((source) => ({ source,
+    pageIndices: source.pageIndices }));
+  const splitAt = (slices: BookSlice[], size: number) => {
+    const volumes: BookSlice[][] = [], push = (source: PreparedBookPdf, pages: number[]) => {
+      const last = volumes.at(-1), used = last?.reduce((sum, item) =>
+        sum + item.pageIndices.length, 0) ?? size;
+      if (!last || used >= size) volumes.push([]);
+      const current = volumes.at(-1)!, room = size - current.reduce((sum, item) =>
+        sum + item.pageIndices.length, 0), take = pages.splice(0, room);
+      current.push({ source, pageIndices: take });
+      if (pages.length) push(source, pages);
+    };
+    slices.forEach(({ source, pageIndices }) => push(source, [...pageIndices]));
+    return volumes;
+  };
+  const customIndexPages = customIndex?.getPageCount() ?? 0;
+  const singlePages = coverPageCount + (customIndexPages || chunks.length) +
+    all.reduce((sum, item) => sum + item.pageIndices.length, 0) +
+    (paperCover && !customCover ? 1 : 0);
+  const splitOverhead = coverPageCount + (customIndexPages || chunks.length) +
+    (limits?.coverLabels ? 1 : 0);
+  if (limits && splitOverhead >= limits.maxPages) {
+    throw new Error("The required Federal volume front matter exceeds the filing page limit.");
   }
-  const document = await pdf.PDFDocument.create();
-  const regular = await document.embedFont(pdf.StandardFonts.Helvetica);
-  const bold = await document.embedFont(pdf.StandardFonts.HelveticaBold);
-  const serif = await document.embedFont(pdf.StandardFonts.TimesRoman);
-  if (customCover) {
-    for (const page of await document.copyPages(customCover, customCover.getPageIndices())) {
-      document.addPage(page);
-    }
-  } else {
-    const cover = document.addPage([612, 792]);
-    if (paperCover) cover.drawRectangle({ x: 0, y: 0, width: 612, height: 792,
-      color: pdf.rgb(paperCover.rgb[0], paperCover.rgb[1], paperCover.rgb[2]) });
-    const ink = paperCover?.dark ? pdf.rgb(1, 1, 1) : pdf.rgb(.18, .18, .18);
-    cover.drawRectangle({ x: 0, y: 0, width: 18, height: 792,
-      color: ink });
-    cover.drawLine({ start: { x: 72, y: 626 }, end: { x: 540, y: 626 },
-      thickness: 2, color: ink });
-    cover.drawText(fit(bold, bookTitle, 28, 468),
-      { x: 72, y: 500, size: 28, font: bold, color: ink });
-    if (coverLine) cover.drawText(coverLine,
-      { x: 72, y: 462, size: 13, font: serif, color: ink });
-    if (bookTitle !== subtitle) cover.drawText(fit(serif, subtitle, 13, 468),
-      { x: 72, y: coverLine ? 438 : 462, size: 13, font: serif, color: ink });
+  let volumes = limits && singlePages > limits.maxPages
+    ? splitAt(all, limits.maxPages - splitOverhead) : [all];
+  if (customIndex && volumes.length > 1 && limits?.completeToc) {
+    throw new Error("Remove the custom index so the builder can generate a complete index for every filing volume.");
   }
-  const links: Array<{ page: PdfPage; entry: BookRow;
-    internal: number[]; external?: number[] }> = [];
-  if (customIndex) {
-    for (const page of await document.copyPages(customIndex, customIndex.getPageIndices())) {
-      document.addPage(page);
-    }
-  } else {
-    chunks.forEach((chunk, chunkIndex) => {
-      const page = document.addPage([612, 792]);
-      page.drawText(chunkIndex ? "Table of Contents — continued" : "Table of Contents",
-        { x: 48, y: 730, size: 20, font: bold });
-      let y = 690;
-      for (const token of chunk) {
-        if (!token.entry) {
-          page.drawRectangle({ x: 48, y: y - 8, width: 516, height: 22,
-            color: pdf.rgb(.92, .92, .92) });
-          page.drawText(token.label.toUpperCase(), { x: 56, y, size: 8.5, font: bold });
-          y -= 27;
-          continue;
-        }
-        const start = starts.get(token.entry.key)!;
-        page.drawText(token.entry.tab, { x: 54, y, size: 7.5, font: bold });
-        page.drawText(fit(serif, token.entry.name, 8.8, token.entry.sourceUrl ? 350 : 390),
-          { x: 102, y, size: 8.8, font: serif });
-        if (token.entry.sourceUrl) page.drawText("source", { x: 477, y, size: 7.5,
-          font: regular, color: pdf.rgb(.55, .05, .05) });
-        page.drawText(String(start + 1), { x: 535, y, size: 8, font: bold });
-        page.drawLine({ start: { x: 102, y: y - 7 }, end: { x: 564, y: y - 7 },
-          thickness: .45, color: pdf.rgb(.82, .82, .82) });
-        links.push({ page, entry: token.entry,
-          internal: [48, y - 10, token.entry.sourceUrl ? 470 : 564, y + 10],
-          ...(token.entry.sourceUrl ? { external: [472, y - 10, 526, y + 10] } : {}) });
-        y -= 25;
-      }
-      page.drawText(String(coverPageCount + chunkIndex + 1),
-        { x: 540, y: 24, size: 8, font: regular });
+
+  const render = async () => {
+    const multi = volumes.length > 1;
+    const generatedToc = !customIndex;
+    const indexPageCount = customIndexPages + (generatedToc ? chunks.length : 0);
+    const backPageCount = multi && limits?.coverLabels ? 1 : paperCover && !customCover ? 1 : 0;
+    let globalStart = 0;
+    const ranges = new Map<string, string[]>();
+    const plans = volumes.map((slices) => {
+      let localStart = coverPageCount + indexPageCount;
+      const placed = slices.map((slice) => {
+        const result = { ...slice, localStart, globalStart: globalStart + localStart };
+        const first = result.globalStart + 1, last = first + slice.pageIndices.length - 1;
+        (ranges.get(slice.source.key) ?? ranges.set(slice.source.key, []).get(slice.source.key)!)
+          .push(first === last ? String(first) : `${first}–${last}`);
+        localStart += slice.pageIndices.length;
+        return result;
+      });
+      const pageCount = localStart + backPageCount;
+      const result = { slices: placed, globalStart, pageCount };
+      globalStart += pageCount;
+      return result;
     });
-  }
-  for (const source of sources) {
-    signal?.throwIfAborted();
-    const cited = citedSourcePages(draft, source.authority.id, source.pageTextByPage ?? [],
-      source.document.getPageCount());
-    const pages = await document.copyPages(source.document, source.pageIndices);
-    pages.forEach((page, copiedIndex) => {
+    return Promise.all(plans.map(async (plan, volumeIndex) => {
       signal?.throwIfAborted();
-      const index = source.pageIndices[copiedIndex];
-      document.addPage(page);
-      if (draft.settings.scannedPdfPolicy === "full" ||
-          draft.settings.scannedPdfPolicy === "cited-pages" && cited.has(index)) {
-        addOcrText(page, regular, source.ocrTextByPage?.[index]);
+      const document = await pdf.PDFDocument.create();
+      const serif = await document.embedFont(pdf.StandardFonts.TimesRoman);
+      const serifBold = await document.embedFont(pdf.StandardFonts.TimesRomanBold);
+      const regular = federal ? serif : await document.embedFont(pdf.StandardFonts.Helvetica);
+      const bold = federal ? serifBold : await document.embedFont(pdf.StandardFonts.HelveticaBold);
+      const margin = federal ? 99.21 : 72, contentWidth = 612 - (2 * margin);
+      let coverBottom = 400;
+      if (customCover) {
+        for (const page of await document.copyPages(customCover, customCover.getPageIndices()))
+          document.addPage(page);
+      } else {
+        const cover = document.addPage([612, 792]);
+        if (paperCover) cover.drawRectangle({ x: 0, y: 0, width: 612, height: 792,
+          color: pdf.rgb(paperCover.rgb[0], paperCover.rgb[1], paperCover.rgb[2]) });
+        const ink = paperCover?.dark ? pdf.rgb(1, 1, 1) : pdf.rgb(.18, .18, .18);
+        if (federal) coverBottom = drawFederalForm66Cover(cover, regular, bold, draft,
+          profile.courtId === "fca" ? "FEDERAL COURT OF APPEAL" : "FEDERAL COURT",
+          documentTitle, coverLine, ink);
+        else {
+          cover.drawRectangle({ x: 0, y: 0, width: 18, height: 792, color: ink });
+          cover.drawLine({ start: { x: margin, y: 626 }, end: { x: 612 - margin, y: 626 },
+            thickness: 2, color: ink });
+          cover.drawText(fit(bold, documentTitle, 28, contentWidth),
+            { x: margin, y: 500, size: 28, font: bold, color: ink });
+          if (bookTitle !== subtitle) cover.drawText(fit(serif, subtitle, 13, contentWidth),
+            { x: margin, y: 462, size: 13, font: serif, color: ink });
+        }
       }
-      if (draft.settings.passageMarking !== "none") addPassageMarks(pdf, page, index,
-        draft.settings.passageMarking, cited.has(index), source.passageGeometry);
-      if (source.databaseReference) addDatabaseReference(pdf, page, bold,
-        source.databaseReference.url, source.databaseReference.host);
-    });
+      const volumeLabel = `Volume ${volumeIndex + 1} of ${volumes.length}`;
+      if (multi && limits?.coverLabels) document.getPage(0).drawText(volumeLabel,
+        { x: margin, y: Math.min(400, coverBottom), size: 12, font: bold });
+      if (customIndex) for (const page of await document.copyPages(customIndex,
+        customIndex.getPageIndices())) document.addPage(page);
+      const localStarts = new Map(plan.slices.map(({ source, localStart }) =>
+        [source.key, localStart]));
+      const links: Array<{ page: PdfPage; entry: BookRow; rect: number[];
+        external?: number[] }> = [];
+      if (generatedToc) chunks.forEach((chunk, chunkIndex) => {
+        const page = document.addPage([612, 792]);
+        page.drawText(chunkIndex ? "Table of Contents — continued" : "Table of Contents",
+          { x: federal ? margin : 48, y: federal ? 708 : 730,
+            size: federal ? 12 : 20, font: bold });
+        let y = federal ? 670 : 690;
+        for (const token of chunk) {
+          if (!token.entry) {
+            page.drawRectangle({ x: federal ? margin : 48, y: y - 8,
+              width: federal ? contentWidth : 516, height: 22,
+              color: pdf.rgb(.92, .92, .92) });
+            page.drawText(token.label.toUpperCase(), { x: federal ? margin + 8 : 56, y,
+              size: federal ? 12 : 8.5, font: bold });
+            y -= 27; continue;
+          }
+          const bodySize = federal ? 12 : 8.8, tabX = federal ? margin + 6 : 54;
+          const titleX = federal ? margin + 52 : 102, sourceX = federal ? 447 : 477;
+          const pageRight = federal ? 612 - margin : 547;
+          page.drawText(token.entry.tab, { x: tabX, y,
+            size: federal ? 12 : 7.5, font: bold });
+          page.drawText(fit(serif, token.entry.name, bodySize,
+            token.entry.sourceUrl ? sourceX - titleX - 8 : pageRight - titleX - 28),
+          { x: titleX, y, size: bodySize, font: serif });
+          if (token.entry.sourceUrl) page.drawText("source", { x: sourceX, y,
+            size: federal ? 12 : 7.5, font: regular, color: pdf.rgb(.55, .05, .05) });
+          const pageLabel = ranges.get(token.entry.key)?.join(", ") ?? "—";
+          const pageSize = federal ? 12 : 8;
+          page.drawText(pageLabel, { x: pageRight - bold.widthOfTextAtSize(pageLabel, pageSize),
+            y, size: pageSize, font: bold });
+          page.drawLine({ start: { x: titleX, y: y - 7 },
+            end: { x: federal ? 612 - margin : 564, y: y - 7 },
+            thickness: .45, color: pdf.rgb(.82, .82, .82) });
+          links.push({ page, entry: token.entry,
+            rect: [federal ? margin : 48, y - 10,
+              token.entry.sourceUrl ? sourceX - 5 : federal ? 612 - margin : 564, y + 10],
+            ...(token.entry.sourceUrl ? { external: [sourceX - 5, y - 10,
+              federal ? 492 : 526, y + 10] } : {}) });
+          y -= 25;
+        }
+        if (!(federal && draft.settings.filingMedium === "electronic")) {
+          const value = String(plan.globalStart + coverPageCount + customIndexPages +
+            chunkIndex + 1), size = federal ? 12 : 8;
+          page.drawText(value, { x: federal
+            ? (612 - regular.widthOfTextAtSize(value, size)) / 2 : 540,
+            y: federal ? 75 : 24, size, font: regular });
+        }
+      });
+      for (const slice of plan.slices) {
+        signal?.throwIfAborted();
+        const source = slice.source, cited = source.authority
+          ? citedSourcePages(draft, source.authority.id, source.pageTextByPage ?? [],
+            undefined, source.document.getPageCount()) : new Set<number>();
+        const pages = await document.copyPages(source.document, slice.pageIndices);
+        pages.forEach((page, copiedIndex) => {
+          const index = slice.pageIndices[copiedIndex]; document.addPage(page);
+          if (!source.authority) return;
+          if (draft.settings.scannedPdfPolicy === "full" ||
+              draft.settings.scannedPdfPolicy === "cited-pages" && cited.has(index))
+            addOcrText(page, regular, source.ocrTextByPage?.[index]);
+          if (draft.settings.passageMarking !== "none") addPassageMarks(pdf, page, index,
+            draft.settings.passageMarking, cited.has(index), source.passageGeometry);
+          if (source.databaseReference) addDatabaseReference(pdf, page, bold,
+            source.databaseReference.url, source.databaseReference.host);
+        });
+      }
+      if (backPageCount) {
+        const back = document.addPage([612, 792]);
+        if (paperCover) back.drawRectangle({ x: 0, y: 0, width: 612, height: 792,
+          color: pdf.rgb(paperCover.rgb[0], paperCover.rgb[1], paperCover.rgb[2]) });
+        if (multi && limits?.coverLabels) back.drawText(volumeLabel,
+          { x: margin, y: 400, size: 12, font: bold });
+      }
+      for (const link of links) {
+        const start = localStarts.get(link.entry.key);
+        if (start !== undefined) addLink(link.page, link.rect, document.getPage(start));
+        if (link.external && link.entry.sourceUrl)
+          addExternalLink(pdf, link.page, link.external, link.entry.sourceUrl);
+      }
+      const localGroups = rowGroups.flatMap(({ label, entries }) => {
+        const local = entries.filter(({ key }) => localStarts.has(key));
+        return local.length ? [{ label, entries: local }] : [];
+      });
+      addOutlines(pdf, document, [
+        { title: documentTitle, pageIndex: 0 },
+        { title: "Table of Contents", pageIndex: coverPageCount +
+          (generatedToc ? customIndexPages : 0) },
+        ...localGroups.map(({ label, entries }): Outline => ({ title: label,
+          pageIndex: localStarts.get(entries[0].key)!, children: entries.map((entry) => {
+            const source = sourceByKey.get(entry.key), seen = new Set<string>();
+            const slice = plan.slices.find(({ source: item }) => item.key === entry.key);
+            const passages = source?.passageGeometry?.targets.flatMap((target) =>
+              target.status === "found" ? target.pages.flatMap(({ pageNumber }) => {
+                const key = `${target.locatorKind}\0${target.locator}\0${pageNumber}`;
+                if (seen.has(key)) return []; seen.add(key);
+                const offset = slice?.pageIndices.indexOf(pageNumber - 1) ?? -1;
+                const title = target.locatorKind === "paragraph" ? "para"
+                  : target.locatorKind === "section" ? "s" : "p";
+                return offset < 0 ? [] : [{ title: `${title} ${target.locator}`,
+                  pageIndex: localStarts.get(entry.key)! + offset }];
+              }) : []) ?? [];
+            return { title: `${entry.tab} — ${entry.name}`,
+              pageIndex: localStarts.get(entry.key)!, children: passages };
+          }) })),
+      ]);
+      document.setTitle(documentTitle);
+      document.setSubject("Navigable book of legal authorities");
+      document.setCreator("Beaver"); document.setProducer("Beaver · pdf-lib");
+      document.setCreationDate(new Date(0)); document.setModificationDate(new Date(0));
+      document.catalog.set(pdf.PDFName.of("Lang"), pdf.PDFHexString.fromText("en-CA"));
+      document.catalog.set(pdf.PDFName.of("PageLabels"), document.context.register(
+        document.context.obj({ Nums: [0, document.context.obj(
+          { S: "D", St: plan.globalStart + 1 })] }),
+      ));
+      if (federal && draft.settings.filingMedium === "electronic")
+        addVisiblePageNumbers(pdf, document, regular, plan.globalStart + 1);
+      const bytes = Buffer.from(await document.save({ useObjectStreams: false }));
+      const outputName = multi ? filename.replace(/\.pdf$/iu,
+        `.volume-${volumeIndex + 1}-of-${volumes.length}.pdf`) : filename;
+      const role: AuthoritiesOutputRole = volumeIndex ? `book-${volumeIndex + 1}` : "book";
+      return artifact(role, outputName, "application/pdf", bytes, document.getPageCount());
+    }));
+  };
+  while (true) {
+    const built = await render();
+    if (!limits) return built;
+    const oversized = built.findIndex((item) =>
+      item.pageCount! > limits.maxPages || item.bytes.length > limits.maxBytes);
+    if (oversized < 0) return built;
+    const volume = volumes[oversized], pageCount = volume.reduce((sum, item) =>
+      sum + item.pageIndices.length, 0);
+    if (pageCount < 2) throw new Error(
+      "One PDF page exceeds the Federal electronic filing size limit.");
+    const left = splitAt(volume, Math.ceil(pageCount / 2));
+    volumes.splice(oversized, 1, ...left);
   }
-  if (paperCover && !customCover) {
-    const back = document.addPage([612, 792]);
-    back.drawRectangle({ x: 0, y: 0, width: 612, height: 792,
-      color: pdf.rgb(paperCover.rgb[0], paperCover.rgb[1], paperCover.rgb[2]) });
-  }
-  for (const link of links) {
-    addLink(link.page, link.internal, document.getPage(starts.get(link.entry.key)!));
-    if (link.external && link.entry.sourceUrl)
-      addExternalLink(pdf, link.page, link.external, link.entry.sourceUrl);
-  }
-  addOutlines(pdf, document, [
-    { title: bookTitle, pageIndex: 0 },
-    { title: "Table of Contents", pageIndex: coverPageCount },
-    ...rowGroups.map(({ label, entries }): Outline => ({ title: label,
-      pageIndex: starts.get(entries[0].key)!, children: entries.map((entry) => {
-        const source = sourceByKey.get(entry.key), seen = new Set<string>();
-        const passages = source?.passageGeometry?.targets.flatMap((target) =>
-          target.status === "found" ? target.pages.flatMap(({ pageNumber }) => {
-            const key = `${target.locatorKind}\0${target.locator}\0${pageNumber}`;
-            if (seen.has(key)) return []; seen.add(key);
-            const label = target.locatorKind === "paragraph" ? "para"
-              : target.locatorKind === "section" ? "s" : "p";
-            const offset = source?.pageIndices.indexOf(pageNumber - 1) ?? -1;
-            return offset < 0 ? [] : [{ title: `${label} ${target.locator}`,
-              pageIndex: starts.get(entry.key)! + offset }];
-          }) : []) ?? [];
-        return { title: `${entry.tab} — ${entry.name}`,
-          pageIndex: starts.get(entry.key)!, children: passages };
-      }) })),
-  ]);
-  document.setTitle(bookTitle);
-  document.setSubject("Navigable book of legal authorities");
-  document.setCreator("Beaver");
-  document.setProducer("Beaver · pdf-lib");
-  document.setCreationDate(new Date(0));
-  document.setModificationDate(new Date(0));
-  document.catalog.set(pdf.PDFName.of("Lang"), pdf.PDFHexString.fromText("en-CA"));
-  document.catalog.set(pdf.PDFName.of("PageLabels"), document.context.register(
-    document.context.obj({ Nums: [0, document.context.obj({ S: "D", St: 1 })] }),
-  ));
-  const electronicFederal = federal && draft.settings.filingMedium === "electronic";
-  if (electronicFederal) {
-    addVisiblePageNumbers(pdf, document, regular);
-    if (draft.settings.profileId === "federal-court" && document.getPageCount() > 500)
-      throw new Error("This Federal book exceeds 500 pages. Split it into labelled volumes.");
-  }
-  const bytes = Buffer.from(await document.save({ useObjectStreams: false }));
-  if (electronicFederal && bytes.length > 100 * 1024 * 1024)
-    throw new Error("This Federal book exceeds the 100 MB electronic filing limit.");
-  return artifact("book", filename, "application/pdf", bytes, document.getPageCount());
 }
 
-function addVisiblePageNumbers(pdf: PdfModule, document: PdfDocument, font: PdfFont) {
+function addVisiblePageNumbers(pdf: PdfModule, document: PdfDocument, font: PdfFont, startAt = 1) {
   document.getPages().forEach((page, index) => {
-    const value = String(index + 1), width = font.widthOfTextAtSize(value, 8);
+    const value = String(startAt + index), size = 12, width = font.widthOfTextAtSize(value, size);
+    const inset = 99.21, offset = 54;
     const crop = page.getCropBox(), angle = ((page.getRotation().angle % 360) + 360) % 360;
     const options = angle === 90
-      ? { x: crop.x + crop.width - 10, y: crop.y + (crop.height + width) / 2,
-        rotate: pdf.degrees(-90) }
+      ? { x: crop.x + offset, y: crop.y + crop.height - inset - width,
+        rotate: pdf.degrees(90) }
       : angle === 180
-        ? { x: crop.x + (crop.width + width) / 2, y: crop.y + crop.height - 10,
+        ? { x: crop.x + inset + width, y: crop.y + crop.height - offset,
           rotate: pdf.degrees(180) }
         : angle === 270
-          ? { x: crop.x + 10, y: crop.y + (crop.height - width) / 2,
-            rotate: pdf.degrees(90) }
-          : { x: crop.x + (crop.width - width) / 2, y: crop.y + 10 };
-    page.drawText(value, { ...options, size: 8, font, color: pdf.rgb(.12, .12, .12) });
+          ? { x: crop.x + crop.width - offset, y: crop.y + inset + width,
+            rotate: pdf.degrees(270) }
+          : { x: crop.x + crop.width - inset - width, y: crop.y + offset };
+    page.drawText(value, { ...options, size, font, color: pdf.rgb(.12, .12, .12) });
   });
 }
 
 function citedSourcePages(draft: AuthoritiesDraft, authorityId: string, pages: string[],
-  pageCount: number) {
+  pageLabels?: Map<string, number[]>, pageCount = pages.length) {
   const authority = draft.authorities[authorityId];
   const locators = [...(authority?.locators ?? []), ...Object.values(draft.occurrences)
     .flatMap((occurrence) => occurrence.authorityId === authorityId
@@ -894,7 +1069,8 @@ function citedSourcePages(draft: AuthoritiesDraft, authorityId: string, pages: s
       const numbers = [...label.matchAll(/\d+/gu)].map(([value]) => Number(value));
       const first = numbers[0] ?? 0, last = numbers[1] ?? first;
       for (let number = Math.min(first, last); number <= Math.max(first, last); number += 1) {
-        if (number > 0 && number <= pageCount) result.add(number - 1);
+        if (pageLabels) pageLabels.get(String(number))?.forEach((index) => result.add(index));
+        else if (number > 0 && number <= pageCount) result.add(number - 1);
       }
     }
     if ((kind === "paragraph" || kind === "section") && label.trim()) {
@@ -904,7 +1080,7 @@ function citedSourcePages(draft: AuthoritiesDraft, authorityId: string, pages: s
       for (const value of values) {
         const escaped = value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
         const marker = kind === "paragraph"
-          ? new RegExp(`(?:^|\\n)\\s*\\[?${escaped}\\]?(?:\\s|[.)])`, "iu")
+          ? new RegExp(`(?:\\[\\s*${escaped}\\s*\\]|(?:^|\\n)\\s*${escaped}(?:\\s|[.)]))`, "iu")
           : new RegExp(`(?:^|\\n|\\s)(?:s(?:ec(?:tion)?)?\\.?\\s*)?${escaped}(?:\\s|[.)])`, "iu");
         pages.forEach((text, index) => { if (marker.test(text)) matched.push(index); });
       }
@@ -915,8 +1091,46 @@ function citedSourcePages(draft: AuthoritiesDraft, authorityId: string, pages: s
   return result;
 }
 
-function federalPaperExtract(draft: AuthoritiesDraft, source: LoadedBookPdf) {
-  if (!["federal-court", "federal-court-of-appeal"].includes(draft.settings.profileId) ||
+function pdfPageLabelIndices(pdf: PdfModule, document: PdfDocument) {
+  const result = new Map<string, number[]>();
+  if (!document.catalog.has(pdf.PDFName.of("PageLabels"))) return result;
+  const rules: Array<{ index: number; prefix: string; style: string; start: number }> = [];
+  const visit = (node: import("pdf-lib").PDFDict) => {
+    if (node.has(pdf.PDFName.of("Nums"))) {
+      const nums = node.lookup(pdf.PDFName.of("Nums"), pdf.PDFArray);
+      for (let offset = 0; offset + 1 < nums.size(); offset += 2) {
+        const index = nums.lookup(offset, pdf.PDFNumber).asNumber();
+        const spec = nums.lookup(offset + 1, pdf.PDFDict);
+        const prefix = spec.lookupMaybe(pdf.PDFName.of("P"), pdf.PDFString, pdf.PDFHexString);
+        const style = spec.lookupMaybe(pdf.PDFName.of("S"), pdf.PDFName);
+        const start = spec.lookupMaybe(pdf.PDFName.of("St"), pdf.PDFNumber);
+        rules.push({ index, prefix: prefix?.decodeText() ?? "",
+          style: style?.asString().slice(1) ?? "", start: start?.asNumber() ?? 1 });
+      }
+    }
+    if (node.has(pdf.PDFName.of("Kids"))) {
+      const kids = node.lookup(pdf.PDFName.of("Kids"), pdf.PDFArray);
+      for (let index = 0; index < kids.size(); index += 1)
+        visit(kids.lookup(index, pdf.PDFDict));
+    }
+  };
+  visit(document.catalog.lookup(pdf.PDFName.of("PageLabels"), pdf.PDFDict));
+  rules.sort((left, right) => left.index - right.index);
+  let active = -1;
+  for (let index = 0; index < document.getPageCount(); index += 1) {
+    if (rules[active + 1]?.index === index) active += 1;
+    const rule = rules[active];
+    if (!rule || rule.style !== "D") continue;
+    const label = `${rule.prefix}${rule.start + index - rule.index}`;
+    (result.get(label) ?? result.set(label, []).get(label)!).push(index);
+  }
+  return result;
+}
+
+function federalPaperExtract(draft: AuthoritiesDraft, source: LoadedBookPdf,
+  pageLabels = new Map<string, number[]>()) {
+  if (!source.authority ||
+      !authoritiesProfile(draft.settings.profileId).requirements?.federalFormatting ||
       draft.settings.filingMedium !== "paper") return null;
   const databaseReference = freePublicDatabaseReference(source.authority);
   if (!databaseReference) return null;
@@ -925,7 +1139,7 @@ function federalPaperExtract(draft: AuthoritiesDraft, source: LoadedBookPdf) {
     source.pageTextByPage?.[index]?.trim() || source.ocrTextByPage?.[index] || "");
   const reasonsStart = text.findIndex((page) =>
     /(?:^|\n)\s*(?:\[\s*1\s*\]|1[.)])(?:\s|$)/u.test(page));
-  const cited = citedSourcePages(draft, source.authority.id, text, pageCount);
+  const cited = citedSourcePages(draft, source.authority.id, text, pageLabels);
   source.passageGeometry?.targets.forEach((target) => {
     if (target.status === "found") target.pages.forEach(({ pageNumber }) => {
       if (pageNumber > 0 && pageNumber <= pageCount) cited.add(pageNumber - 1);
@@ -943,13 +1157,13 @@ function federalPaperExtract(draft: AuthoritiesDraft, source: LoadedBookPdf) {
 function addDatabaseReference(pdf: PdfModule, page: PdfPage, font: PdfFont,
   url: string, host: string) {
   const crop = page.getCropBox(), label = `FREE PUBLIC DATABASE: ${host}`;
-  const size = 7.5, textWidth = font.widthOfTextAtSize(label, size);
-  const x = crop.x + 18, y = crop.y + crop.height - 17, width = textWidth + 10;
-  page.drawRectangle({ x: x - 5, y: y - 3, width, height: 13,
+  const size = 12, textWidth = font.widthOfTextAtSize(label, size);
+  const x = crop.x + 99.21, y = crop.y + crop.height - 80, width = textWidth + 10;
+  page.drawRectangle({ x: x - 5, y: y - 3, width, height: 18,
     color: pdf.rgb(1, 1, 1), borderColor: pdf.rgb(.15, .15, .15), borderWidth: .6,
     opacity: .94, borderOpacity: 1 });
   page.drawText(label, { x, y, size, font, color: pdf.rgb(.08, .08, .08) });
-  addExternalLink(pdf, page, [x - 5, y - 3, x - 5 + width, y + 10], url);
+  addExternalLink(pdf, page, [x - 5, y - 3, x - 5 + width, y + 15], url);
 }
 
 function addPageMargin(pdf: PdfModule, page: PdfPage, black = false) {
@@ -1078,11 +1292,10 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
   const tableGroups = groupedEntries(input.draft, "table");
   const bookGroups = groupedEntries(input.draft, "book");
   const sources = input.sources ?? {};
-  const wanted: AuthoritiesOutputRole[] = input.draft.outputMode === "both"
+  const wanted: RequestedRole[] = input.draft.outputMode === "both"
     ? ["table", "book"] : [input.draft.outputMode];
-  const completeBook = input.draft.settings.profileId === "ab-court-of-kings-bench"
-    ? "Alberta King's Bench" : ["federal-court", "federal-court-of-appeal"]
-      .includes(input.draft.settings.profileId) ? "Federal" : null;
+  const profile = authoritiesProfile(input.draft.settings.profileId);
+  const completeBook = profile.requirements?.completeBookSources ? profile.label : null;
   if (wanted.includes("book") && completeBook) {
     const missing = input.draft.authorityOrder.map((id) => input.draft.authorities[id])
       .filter((authority) => !authority.excluded && authority.source.kind !== "attached");
@@ -1090,7 +1303,16 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
       `Attach a complete PDF or exclude ${authorityName(input.draft, missing[0])} before building this ${completeBook} book.`,
     );
   }
-  if (input.draft.settings.profileId === "ab-court-of-appeal") {
+  if (wanted.includes("book") && profile.requirements?.bilingualEnactments) {
+    const incomplete = input.draft.authorityOrder.map((id) => input.draft.authorities[id])
+      .find((authority) => !authority.excluded && authority.kind === "legislation" &&
+        federalEnactmentCitation(authority.citation) && authority.source.kind === "attached" &&
+        !hasBilingualAuthoritySource(authority.source));
+    if (incomplete) throw new Error(
+      `Attach one bilingual PDF or both English and French PDFs for ${authorityName(input.draft, incomplete)}.`,
+    );
+  }
+  if (profile.requirements?.unlinkedPdfTableSources) {
     const unlinked = tableGroups.flatMap(({ entries }) => entries).find(({ sourceUrl, authority }) =>
       !sourceUrl && !(input.draft.insertIntoDocument &&
         input.draft.import.kind === "document" && input.draft.import.fileType === "pdf" &&
@@ -1120,15 +1342,15 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
   const inputs = [...imported, ...input.draft.authorityOrder.flatMap((id) => {
     const authority = input.draft.authorities[id];
     if (authority.source.kind !== "attached") return [];
-    const role = authority.source.bindingRole;
-    return [{ role, resolved: resolvedInput(role, input.draft.bindings[role],
-      authority.source.filename, authority.source.sourceSha256, sources[role]?.resolved) }];
-  }), ...(wanted.includes("book") ? [input.draft.bookParts.cover,
-    input.draft.bookParts.index].flatMap((part) => {
-      if (!part) return [];
+    return authority.source.sources.map((source) => {
+      const role = source.bindingRole;
+      return { role, resolved: resolvedInput(role, input.draft.bindings[role],
+        source.filename, source.sourceSha256, sources[role]?.resolved) };
+    });
+  }), ...(wanted.includes("book") ? authoritiesBookPdfs(input.draft).map((part) => {
       const role = part.bindingRole;
-      return [{ role, resolved: resolvedInput(role, input.draft.bindings[role],
-        part.filename, part.sourceSha256, sources[role]?.resolved) }];
+      return { role, resolved: resolvedInput(role, input.draft.bindings[role],
+        part.filename, part.sourceSha256, sources[role]?.resolved) };
     }) : [])];
   const cleaned = input.title.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/gu, "-")
     .replace(/[. ]+$/u, "").slice(0, 120) || "Authorities";
@@ -1136,22 +1358,24 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
     .test(cleaned) ? `_${cleaned}` : cleaned;
   const subtitle = input.draft.import.kind === "document"
     ? input.draft.import.filename : input.title;
-  const built = await Promise.all(wanted.map((role) => role === "table"
-    ? tableArtifact(tableGroups, `${base}.table-of-authorities.docx`, subtitle,
-      input.draft.settings.tableDelivery === "linked-append")
+  const bookName = (profile.bookTitle ?? "Book of Authorities").toLowerCase()
+    .replace(/[^a-z0-9]+/gu, "-").replace(/^-|-$/gu, "");
+  const built = (await Promise.all(wanted.map(async (role) => role === "table"
+    ? [await tableArtifact(tableGroups, `${base}.table-of-authorities.docx`, subtitle,
+      input.draft.settings.tableDelivery === "linked-append", wanted.includes("book"))]
     : role === "book"
-      ? bookArtifact(input.draft, bookGroups, `${base}.book-of-authorities.pdf`, subtitle,
+      ? bookArtifact(input.draft, bookGroups, `${base}.${bookName}.pdf`, subtitle,
         sources, input.signal)
       : input.draft.import.kind === "document" && input.draft.import.fileType === "pdf"
-        ? filingPdfArtifact(tableGroups,
+        ? [await filingPdfArtifact(tableGroups,
           `${base}.with-table-of-authorities.pdf`,
           sources[input.draft.import.bindingRole]?.bytes ?? new Uint8Array(),
-          imported[0]?.resolved.sha256 ?? "", sources)
-        : documentArtifact(input.draft, tableGroups,
+          imported[0]?.resolved.sha256 ?? "", sources)]
+        : [await documentArtifact(input.draft, tableGroups,
           `${base}.with-table-of-authorities.docx`,
           sources[input.draft.import.kind === "document"
             ? input.draft.import.bindingRole : "source"]?.bytes ?? new Uint8Array(),
-          imported[0]?.resolved.sha256 ?? "")));
+          imported[0]?.resolved.sha256 ?? "")]))).flat();
   input.signal?.throwIfAborted();
   const builtAt = new Date().toISOString();
   const settings: WorkProductBuildReceipt["settings"] = {
@@ -1164,16 +1388,19 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
       outputMode: input.draft.outputMode,
       insertIntoDocument: input.draft.insertIntoDocument,
       settings: input.draft.settings,
+      cover: input.draft.cover,
       bookParts: input.draft.bookParts,
       renderers: wanted.map((role) => [role, RENDERERS[role]]),
     }),
     sourceReceiptIds: [...new Set([
+      ...(profile.sourceIds ?? []),
       ...Object.values(input.draft.authorities).flatMap(({ evidenceIds }) => evidenceIds),
       ...Object.values(input.draft.occurrences).flatMap(({ evidenceIds }) => evidenceIds),
     ])].sort(),
     audit: { effective: null, valuesJson: canonicalJson({ title: input.title,
       outputMode: input.draft.outputMode, insertIntoDocument: input.draft.insertIntoDocument,
-      settings: input.draft.settings, bookParts: input.draft.bookParts,
+      settings: input.draft.settings, cover: input.draft.cover,
+      bookParts: input.draft.bookParts,
       authorityOrder: input.draft.authorityOrder,
       authorities: input.draft.authorityOrder.map((id) => {
         const authority = input.draft.authorities[id];
@@ -1187,8 +1414,8 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
     receipt: { schemaVersion: "beaver.work-product-build.v2", builtAt,
       workProduct: { ...input.workProduct, kind: "authorities" }, inputs, settings,
       steps: item.role === "table" ? ["Rendered grouped Table of Authorities"]
-        : item.role === "book"
-          ? ["Combined attached authority PDFs", "Added index links and PDF bookmarks"]
+        : item.role.startsWith("book")
+          ? ["Combined attached PDFs", "Added index links and PDF bookmarks"]
           : item.mimeType === "application/pdf"
             ? ["Appended the linked Table of Authorities",
               ...tableGroups.some(({ entries }) => entries.some(({ sourceUrl }) => !sourceUrl))
@@ -1212,6 +1439,7 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
     workProduct: { ...input.workProduct, kind: "authorities" }, inputs,
     draft: { schemaVersion: input.draft.schemaVersion, outputMode: input.draft.outputMode,
       settings: structuredClone(input.draft.settings),
+      cover: structuredClone(input.draft.cover),
       bookParts: structuredClone(input.draft.bookParts),
       insertIntoDocument: input.draft.insertIntoDocument,
       document: input.draft.import.kind === "document" ? input.draft.import.snapshot : null },
@@ -1220,8 +1448,8 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
       name, tab, excluded: authority.excluded, source: structuredClone(authority.source),
       sourceIdentity: structuredClone(authority.sourceIdentity),
       evidenceIds: [...authority.evidenceIds], locators: structuredClone(authority.locators),
-      binding: authority.source.kind === "attached"
-        ? structuredClone(input.draft.bindings[authority.source.bindingRole]) : null,
+      bindings: attachedAuthoritySources(authority.source).map(({ bindingRole }) =>
+        structuredClone(input.draft.bindings[bindingRole])),
     })),
     outputs,
   } };

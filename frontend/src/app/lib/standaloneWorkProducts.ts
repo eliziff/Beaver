@@ -7,6 +7,7 @@ import {
   type WorkProductMetadata,
   type WorkProductStore,
 } from "./workProducts";
+import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
 const DATABASE = "beaver-work-products";
 const DRAFTS = "drafts";
@@ -14,7 +15,8 @@ const METADATA = "metadata";
 const HANDLES = "fileHandles";
 const FILES = "files";
 const OUTPUTS = "outputs";
-const OUTPUT_FOLDER = "preference:authorities-output-folder";
+const OUTPUT_FOLDER = "preference:output-folder";
+const FILING_CONTACT = "preference:filing-contact";
 const MAX_UNCLAIMED_HANDLES = 64;
 const UNCLAIMED_HANDLE_MAX_AGE = 24 * 60 * 60 * 1_000;
 
@@ -32,12 +34,16 @@ export type StandaloneNamedOutput = {
   role: string;
   output: WorkProduct["outputs"][string];
 };
+export type StandaloneFilingContact = {
+  name: string; address: string; phone: string; fax: string; email: string;
+};
 type StoredOutput = Omit<StandaloneArtifact, "bytes"> & {
   id: string;
   workProductId: string;
   documentId: string;
   bytes: ArrayBuffer;
   createdAt: string;
+  stateSha256: string;
 };
 type StoredHandle = {
   id: string;
@@ -104,22 +110,18 @@ export const standaloneWorkProducts: WorkProductStore = {
     if (patch.outputs !== undefined) {
       throw new Error("Standalone outputs must be saved with their built artifacts.");
     }
-    const invalidatesOutput = patch.title !== undefined || patch.state !== undefined;
     const next: WorkProduct = {
       ...current,
       title: patch.title === undefined ? current.title : draftTitle(patch.title),
       projectId: patch.projectId === undefined ? current.projectId : patch.projectId,
       state: patch.state === undefined ? current.state : patch.state,
-      outputs: invalidatesOutput ? {} : current.outputs,
+      outputs: current.outputs,
       revision: current.revision + 1,
       updatedAt: new Date().toISOString(),
     };
     assertDependencies(id, next.state, drafts);
     store.put(next);
     transaction.objectStore(METADATA).put(draftMetadata(next));
-    if (invalidatesOutput) for (const output of Object.values(current.outputs)) {
-      transaction.objectStore(OUTPUTS).delete(output.versionId);
-    }
     await cleanupHandles(transaction.objectStore(HANDLES), [
       ...drafts.filter((draft) => draft.id !== id), next,
     ], handleIds(current));
@@ -189,6 +191,7 @@ export async function saveStandaloneArtifacts<State>(
     }
     return { ...artifact, role };
   }));
+  const stateSha256 = await digestState(product.state);
   const database = await openDatabase();
   const transaction = database.transaction([DRAFTS, METADATA, OUTPUTS], "readwrite");
   const drafts = transaction.objectStore(DRAFTS), outputs = transaction.objectStore(OUTPUTS);
@@ -207,7 +210,7 @@ export async function saveStandaloneArtifacts<State>(
     const output = { documentId, versionId, filename: artifact.filename,
       mimeType: artifact.mimeType, sha256: artifact.sha256, pageCount: artifact.pageCount };
     outputs.add({ ...artifact, id: versionId, workProductId: product.id, documentId,
-      bytes: artifact.bytes.slice().buffer, createdAt: now } satisfies StoredOutput);
+      bytes: artifact.bytes.slice().buffer, createdAt: now, stateSha256 } satisfies StoredOutput);
     return [artifact.role, output];
   }));
   const next: WorkProduct<State> = { ...current, outputs: saved,
@@ -226,11 +229,14 @@ export async function listStandaloneOutputs(excludeId?: string): Promise<Standal
     request<StoredOutput[]>(transaction.objectStore(OUTPUTS).getAll()),
   ]);
   const versions = new Map(stored.map((output) => [output.id, output]));
+  const hashes = new Map(await Promise.all(drafts.map(async (product) =>
+    [product.id, await digestState(product.state)] as const)));
   return drafts.filter((product) => product.id !== excludeId)
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
     .flatMap((product) => Object.entries(product.outputs).flatMap(([role, output]) => {
       const saved = versions.get(output.versionId);
-      return saved && exactOutput(saved, product.id, role, output) ? [{ product, role, output }] : [];
+      return saved && saved.stateSha256 === hashes.get(product.id) &&
+        exactOutput(saved, product.id, role, output) ? [{ product, role, output }] : [];
     }));
 }
 
@@ -249,7 +255,8 @@ export async function readStandaloneOutput(workProductId: string, role: string,
     throw new Error(`The ${role} output is unavailable. Rebuild ${product.title} and try again.`);
   }
   return { product, role, output: storedOutput(saved), bytes: new Uint8Array(saved.bytes.slice(0)),
-    receipt: structuredClone(saved.receipt) };
+    receipt: structuredClone(saved.receipt),
+    stale: saved.stateSha256 !== await digestState(product.state) };
 }
 
 function draftTitle(value: string) {
@@ -319,6 +326,19 @@ async function outputFolder() {
   return saved?.handle.kind === "directory" ? saved.handle : null;
 }
 
+export async function getStandaloneFilingContact(): Promise<StandaloneFilingContact> {
+  const saved = await read<Partial<StandaloneFilingContact>>(METADATA, FILING_CONTACT);
+  const text = (value: unknown) => typeof value === "string" ? value : "";
+  return { name: text(saved?.name), address: text(saved?.address), phone: text(saved?.phone),
+    fax: text(saved?.fax), email: text(saved?.email) };
+}
+
+export async function setStandaloneFilingContact(contact: StandaloneFilingContact) {
+  const database = await openDatabase(), transaction = database.transaction(METADATA, "readwrite");
+  transaction.objectStore(METADATA).put({ id: FILING_CONTACT, ...contact });
+  await completed(transaction);
+}
+
 export async function getStandaloneOutputFolder() {
   try {
     const handle = await outputFolder(), query = (handle as PermissionHandle | null)?.queryPermission;
@@ -332,7 +352,7 @@ export async function chooseStandaloneOutputFolder() {
     : (window as PickerWindow).showDirectoryPicker;
   if (!picker) return null;
   try {
-    const handle = await picker({ id: "authorities-output", mode: "readwrite" });
+    const handle = await picker({ id: "work-product-output", mode: "readwrite" });
     const database = await openDatabase(), transaction = database.transaction(HANDLES, "readwrite");
     transaction.objectStore(HANDLES).put({ id: OUTPUT_FOLDER, handle,
       createdAt: Date.now() } satisfies StoredHandle);
@@ -648,6 +668,9 @@ async function digestBytes(bytes: Uint8Array) {
   const hash = await crypto.subtle.digest("SHA-256", bytes.slice().buffer);
   return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
+
+const digestState = (state: unknown) =>
+  digestBytes(new TextEncoder().encode(canonicalJson(state)));
 
 async function snapshotFile(file: File) {
   return { ...fileSnapshot(file), sha256: await digestBytes(new Uint8Array(await file.arrayBuffer())) };

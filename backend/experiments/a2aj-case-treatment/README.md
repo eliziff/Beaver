@@ -1,5 +1,12 @@
 # A2AJ case-treatment experiment
 
+The product-aligned ten-case benchmark is
+`gold/gold-product-10-v1.jsonl`. It keeps only scored opinion structure,
+direct-review outcomes, reported appellate history, and proposition-level
+treatments. `gold/gold-fresh-10-v2.jsonl` remains the unchanged exhaustive
+source annotation used to build and audit that pared projection. See
+`GOLD.md` for the inclusion rule.
+
 This experiment asks one practical question: given a complete court decision,
 can a model recover the judicial opinions and accurately describe what each
 opinion does with every cited decision?
@@ -39,23 +46,31 @@ hashes, attempts, validation errors, and final receipt.
 - full joinders and exact passages expressing qualified agreement; and
 - each opinion's and participant's position on the disposition.
 
-`analysis` is three flat case-wide lists:
+The normal `simple` analysis has four flat case-wide lists:
 
-- one exact in-source label for every adjudicative decision cited, quoted, or
+- one in-source label for every adjudicative decision cited, quoted, or
   described in the judicial reasons, disposition, or court-authored procedural
   account;
-- same-litigation procedural relationships, including any action the present
-  court takes on the earlier decision; and
-- each opinion's proposition-level treatments of that decision, with a compact
+- each same-litigation decision directly under review and every action the
+  present court takes on it; and
+- each statement that another decision was later affirmed, reversed, varied,
+  quashed, remitted, or received a material leave disposition; and
+- each opinion's proposition-level treatments of any other decision, including
+  a directly reviewed decision whose reasoning is used or evaluated, with a compact
   signal, semantic explanation, source blocks, and any exact words reproduced
   from the cited decision.
 
-The treatment stage has two interchangeable contracts. `simple` asks Luna only
-for the cited decision, proposition, treatment, signals, and source blocks; the
-host derives the treating opinion. `self-check` additionally makes Luna name the
-treating opinion and copy short verbatim supporting passages. The host aligns
+The treatment stage has three interchangeable contracts. `simple` asks Luna for
+the cited decision, proposition, treatment, signals, and source blocks; the
+host derives the treating opinion and separately retains deterministic quote
+candidates. `self-check` additionally makes Luna name the treating opinion and
+copy short verbatim support and cited-decision quotations. The host aligns
 those copies to exact offsets and independently checks the stated opinion. Both
-contracts compile to the same record and use the same gold and semantic judge.
+rich contracts compile to the same record and use the same gold and semantic judge.
+The `hypersimple` ablation removes the citation inventory, identifying blocks,
+copied passages, and model-written opinion IDs. It returns only flat direct
+outcomes, reported history, and treatments with one headline signal; the host
+derives opinion attribution and exact offsets from source blocks.
 
 There is no case-issue table or issue identifier. A proposition is the smallest
 legally meaningful unit for the relationship being described. It may be a
@@ -111,8 +126,10 @@ opinion does with it, the scope of that treatment, and what the present court
 directly did to a decision under review. Those fields are graded semantically
 against the gold. Opinion boundaries, writers, joins, votes, express result-only
 agreement, exact spans, and no-oracle receipts are checked mechanically. The
-semantic judge receives only treatments and same-litigation relationships, not
-the citation roster or mechanical validation work.
+semantic judge receives only treatments, direct outcomes, and reported history,
+not the citation roster or mechanical validation work. Gold-reference accuracy
+is scored separately from unmatched candidate claims, so accurate extra
+discoveries cannot compensate for omitted gold propositions.
 
 Point-level support is deliberately conservative. Writers and full joiners are
 confirmed supporters. A qualified agreement is retained as exact source
@@ -120,6 +137,30 @@ evidence but is not assigned to individual treatments by the extraction model.
 If qualified agreements could change the count, support is `unresolved` until a
 later case-wide semantic resolver groups compatible positions and applies those
 agreements.
+
+## Gold authoring
+
+Fresh gold is authored through Beaver's Codex app-server transport, not through
+the benchmark CLI. From `backend`:
+
+```powershell
+node_modules\.bin\tsx.cmd experiments\a2aj-case-treatment\author-gold.ts `
+  --case-file experiments\a2aj-case-treatment\gold\selection-smoke-10.json `
+  --run-dir experiments\a2aj-case-treatment\runs\fresh-gold-10-v2 `
+  --gold experiments\a2aj-case-treatment\gold\gold-fresh-10-v2.jsonl `
+  --model gpt-5.6-sol --effort max --workers 10 --audits 2
+```
+
+Each case uses a distinct author thread. Compiler feedback is returned as
+targeted JSON Patch requests. Per-case drafts, raw streamed output, patches,
+usage, and receipts survive interruption; rerun the same command to resume.
+Each record then receives two complete primary-source audits in its persisted
+case thread. Draft and admitted partial files remain in the run directory, but
+the requested gold file is written only after every selected case has completed
+both audits.
+`--audits 0` or `--audits 1` may be used to stop at a resumable draft stage;
+neither can publish benchmark gold. `--dry-run` checks source availability,
+prompts, and schemas without making model calls.
 
 ## CLI
 
@@ -139,19 +180,20 @@ node_modules\.bin\tsx.cmd experiments\a2aj-case-treatment\cli.ts validate-gold `
 node_modules\.bin\tsx.cmd experiments\a2aj-case-treatment\cli.ts run `
   --case-file experiments\a2aj-case-treatment\gold\selection.json `
   --mode two-stage --provider codex --model gpt-5.6-luna --effort max `
-  --analysis-contract simple `
+  --analysis-contract simple --analysis-audits 1 `
   --workers 10 --out-dir experiments\a2aj-case-treatment\runs\luna-max
 ```
 
 For the normal inference, mechanical benchmark, and semantic-judge sequence,
 use the single launcher from the repository root. It starts semantic judging as
 each case receipt lands; one slow inference case does not hold the others at a
-run-wide barrier.
+run-wide barrier. Inference and judging share one Codex app-server process;
+the launcher never starts competing transport processes.
 
 ```powershell
 .\backend\experiments\a2aj-case-treatment\run-benchmark.ps1 `
   -CaseFile backend\experiments\a2aj-case-treatment\gold\selection-smoke-10.json `
-  -Gold backend\experiments\a2aj-case-treatment\gold\gold-ablation-10-v6.jsonl `
+  -Gold backend\experiments\a2aj-case-treatment\gold\gold-product-scale-current.jsonl `
   -RunName v6-simple-luna-max -Model gpt-5.6-luna -Effort max -Workers 10 `
   -AnalysisContract simple
 ```
@@ -163,7 +205,7 @@ first run as the source of the shared opinion pass:
 ```powershell
 .\backend\experiments\a2aj-case-treatment\run-benchmark.ps1 `
   -CaseFile backend\experiments\a2aj-case-treatment\gold\selection-smoke-10.json `
-  -Gold backend\experiments\a2aj-case-treatment\gold\gold-ablation-10-v6.jsonl `
+  -Gold backend\experiments\a2aj-case-treatment\gold\gold-product-scale-current.jsonl `
   -RunName v6-self-check-luna-max -Model gpt-5.6-luna -Effort max -Workers 10 `
   -AnalysisContract self-check -StructureRunName v6-simple-luna-max
 ```
@@ -174,36 +216,23 @@ use the same cases, provider, model, effort, structure prompt, examples,
 correction policy, limits, and worker count. The launcher allows up to 131,072
 output tokens by default so difficult full-case analyses are not truncated.
 
+`-AnalysisContract hypersimple` is the minimal treatment ablation. It reuses a
+completed two-stage opinion run and asks only for flat direct-outcome and
+treatment rows. The host derives cited-decision inventory, treatment opinion,
+source offsets, exact text, hashes, and grouped procedural relationships. It
+compiles to the same semantic judge surface as `simple`; fields the model was
+never asked to emit are not treated as semantic errors.
+
 Rerunning the same command recompiles preserved stage drafts first, then resumes
 only stages and cases that still need model work. Model-call
 budgets auto-size to the pending work; `--call-budget` remains available as a
 per-invocation ceiling for direct CLI use. Provider failures stop immediately
 and can be retried by rerunning the command.
 
-Ox Alpha can be spread across several gateway routes in the same run. Case
-assignment is stable round-robin over the requested document IDs, each route
-has its own limiter and preflight, and a failed case never moves silently to a
-different route:
-
-```powershell
-hermes portal
-hermes proxy start
-
-node_modules\.bin\tsx.cmd experiments\a2aj-case-treatment\cli.ts run `
-  --case-file experiments\a2aj-case-treatment\gold\selection.json `
-  --mode two-stage --provider ox-alpha --effort high `
-  --ox-routes openrouter,opencode-zen,nous,kilo `
-  --workers 10 --call-budget 180 `
-  --out-dir experiments\a2aj-case-treatment\runs\ox-alpha-multi
-```
-
-OpenRouter requires `OPENROUTER_API_KEY`; OpenCode Zen is anonymous; OpenCode
-Go is an optional subscription route using `OPENCODE_API_KEY`; Nous uses the
-official local Hermes OAuth proxy; Kilo is anonymous unless `KILO_API_KEY` is
-set. A live model-catalog preflight verifies the route/model and, where the
-catalog supplies prices, fails closed unless both token prices remain zero.
-Kilo currently flags the free model as eligible for prompt training, so use
-that route only for public material.
+After a valid case-wide analysis, one case-wide audit call returns only JSON
+Patch operations for omitted or inaccurate decision mentions, procedural
+relationships, or treatments. The patched analysis is recompiled and saved as
+its own checkpoint. Set `--analysis-audits 0` only for an ablation.
 
 `show-prompt`, `show-schema`, and `show` expose the exact model surface and
 numbered primary text before a run. `benchmark` performs the mechanical
@@ -216,3 +245,12 @@ hashes.
 
 Generated packets and run output are ignored. The selected case list, authored
 gold, contract, tests, and durable findings are tracked.
+
+For mechanically graded opinion structure, `run-structure-consensus.ps1`
+runs independent structure-only members and reports single-member and prefix
+consensus accuracy, token usage, and measured output diversity. Codex app-server
+does not expose temperature or seed, so the default nine-member design crosses
+Luna low/medium/high effort with direct, boundary-first, and vote-first reading;
+the conservative structure cues are alternated across those combinations. If
+the outputs do not differ, the receipt shows that consensus supplied no extra
+signal.

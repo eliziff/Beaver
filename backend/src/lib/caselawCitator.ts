@@ -5,6 +5,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { courtLevel } from "./courtLevels";
 import { withReadonlySqlite } from "./legalDataPath";
 import { structureNative } from "./structureNative";
+import { a2ajCitationAliasKeysBatch } from "./a2ajLocalBulk";
 
 /**
  * Read surface for the Stage 1 citator note-up graph built by
@@ -153,7 +154,8 @@ function keysForQuery(database: DatabaseSync, key: string): string[] {
 
 /**
  * Expand citation aliases on one database handle. Invalid text produces no
- * key, and an absent graph degrades to the literal normalized key.
+ * key; without the note-up graph, the installed A2AJ citation index supplies
+ * the same exact decision identity before falling back to the literal key.
  */
 export function citationAliasKeysBatch(citations: string[]): string[][] {
   const keys = structureNative().citationLookupKeys(citations);
@@ -161,7 +163,8 @@ export function citationAliasKeysBatch(citations: string[]): string[][] {
   return (
     withDatabase((database) =>
       keys.map((key) => (key ? keysForQuery(database, key) : [])),
-    ) ?? keys.map((key) => (key ? [key] : []))
+    ) ?? a2ajCitationAliasKeysBatch(citations) ??
+      keys.map((key) => (key ? [key] : []))
   );
 }
 /** Batch authority counts for ranked retrieval: one DB handle, no excerpts. */

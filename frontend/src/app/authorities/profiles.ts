@@ -15,7 +15,8 @@ export type AuthoritiesProfile = {
     missingSourcePolicy?: boolean;
   };
   requirements?: { completeBookSources?: boolean; documentOutputDefault?: boolean;
-    unlinkedPdfTableSources?: boolean };
+    unlinkedPdfTableSources?: boolean; markedPassages?: boolean;
+    federalFormatting?: boolean; appealPaperCovers?: boolean; bilingualEnactments?: boolean };
 };
 
 export const AUTHORITIES_PROFILES = (values as AuthoritiesProfile[]).map((profile) => {

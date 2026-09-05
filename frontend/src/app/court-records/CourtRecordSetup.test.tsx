@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { COURT_PROFILE_BY_ID } from "./profiles";
 import { CourtRecordChooser, CourtRecordSetup } from "./CourtRecordSetup";
-import type { CoverValues } from "./types";
+import type { CoverIssueId, CoverValues } from "./types";
 
 function Setup() {
   const [cover, setCover] = useState<CoverValues>({});
@@ -18,8 +18,26 @@ function Setup() {
       heading="Case details"
       onCover={(field, value) => setCover((current) => ({ ...current, [field]: value }))}
     />
-    <output data-testid="filing-party-id">{cover.filingPartyId}</output></>
+    <output data-testid="filing-party-ids">{cover.filingPartyIds?.join(",")}</output></>
   );
+}
+
+function Ap5Setup({ missingFields = new Set<CoverIssueId>() }: {
+  missingFields?: Set<CoverIssueId>;
+} = {}) {
+  const [cover, setCover] = useState<CoverValues>({ partyStyleId: "action-plaintiff",
+    partyGroups: [
+      { id: "party-a", role: "Appellant", roleBelow: "Plaintiff",
+        parties: [{ id: "appellant", name: "Ada North" }] },
+      { id: "party-b", role: "Respondent", roleBelow: "Defendant",
+        parties: [{ id: "respondent", name: "River South" }] },
+      { id: "intervener", role: "Intervener", roleBelow: "Intervener",
+        parties: [{ id: "intervener", name: "Justice Centre" }] },
+    ], filingPartyIds: ["appellant"] });
+  return <><CourtRecordSetup profile={COURT_PROFILE_BY_ID.get("ab-ca-extracts-appellant")!}
+    cover={cover} missingFields={missingFields} heading="Case details"
+    onCover={(field, value) => setCover((current) => ({ ...current, [field]: value }))} />
+    <output data-testid="ap5-cover">{JSON.stringify(cover)}</output></>;
 }
 
 describe("CourtRecordSetup parties", () => {
@@ -27,31 +45,104 @@ describe("CourtRecordSetup parties", () => {
     const user = userEvent.setup();
     render(<Setup />);
 
-    expect(screen.getByLabelText(/Application under/u)).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText("Party style"), "action");
+    expect(screen.getByText("Add parties").closest("details")).toHaveAttribute("open");
+    expect(screen.queryByLabelText(/Application under/u)).not.toBeInTheDocument();
+    const required = screen.getByRole("textbox", { name: "Court file number" });
+    const optional = screen.getByRole("textbox", { name: "Fax" });
+    expect(required.compareDocumentPosition(optional) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    expect(optional).toBeVisible();
+    expect(screen.getByLabelText(/Style of cause/u)).toHaveDisplayValue("Choose style");
+    await user.selectOptions(screen.getByLabelText(/Style of cause/u), "action");
     expect(screen.queryByLabelText(/Application under/u)).not.toBeInTheDocument();
     const plaintiffs = screen.getByRole("region", { name: /Plaintiff/u });
     const defendants = screen.getByRole("region", { name: /Defendant/u });
     await user.type(within(plaintiffs).getByLabelText("Plaintiff 1"), "Ada North");
-    expect(screen.getByTestId("filing-party-id")).toHaveTextContent("party-a-1");
-    expect(screen.queryByRole("combobox", { name: /Filing party/u })).toBeNull();
+    expect(screen.getByTestId("filing-party-ids")).toHaveTextContent("party-a-1");
+    expect(screen.queryByRole("group", { name: /Filing parties/u })).toBeNull();
     await user.click(within(plaintiffs).getByRole("button", { name: "Add plaintiff" }));
     await user.type(within(plaintiffs).getByLabelText("Plaintiff 2"), "Acme Ltd.");
-    expect(screen.getByTestId("filing-party-id")).toBeEmptyDOMElement();
+    expect(screen.getByTestId("filing-party-ids")).toBeEmptyDOMElement();
     await user.type(within(defendants).getByLabelText("Defendant 1"), "River South");
     await user.click(screen.getByRole("button", { name: "Add intervener" }));
     await user.type(within(screen.getByRole("region", { name: "Intervener" })).getByLabelText("Intervener 1"), "Justice Centre");
 
-    const filingParty = screen.getByRole("combobox", { name: /Filing party/u });
-    expect(filingParty).toHaveDisplayValue("Choose party");
-    await user.selectOptions(filingParty,
-      screen.getByRole("option", { name: "Acme Ltd. — Plaintiff" }));
-    expect(filingParty).toHaveDisplayValue("Acme Ltd. — Plaintiff");
+    const filingParties = screen.getByRole("group", { name: /Filing parties/u });
+    await user.click(within(filingParties).getByRole("checkbox", {
+      name: "Ada North — Plaintiff",
+    }));
+    await user.click(within(filingParties).getByRole("checkbox", {
+      name: "Acme Ltd. — Plaintiff",
+    }));
+    expect(screen.getByTestId("filing-party-ids").textContent?.split(",")).toHaveLength(2);
     expect(screen.queryByText(/First party|Second party/u)).not.toBeInTheDocument();
+  });
+
+  it("keeps a complete style of cause compact until the user opens it", async () => {
+    const user = userEvent.setup();
+    render(<CourtRecordSetup
+      profile={COURT_PROFILE_BY_ID.get("fc-motion-record-moving")!}
+      cover={{ partyStyleId: "application", partyGroups: [
+        { id: "party-a", role: "Applicant", parties: [{ id: "a", name: "Ada North" }] },
+        { id: "party-b", role: "Respondent", parties: [{ id: "b", name: "River South" }] },
+      ], filingPartyIds: ["a"] }}
+      missingFields={new Set()} heading="Case details" onCover={() => undefined}
+    />);
+
+    const details = screen.getByText("Applicant: Ada North · Respondent: River South")
+      .closest("details")!;
+    expect(details).not.toHaveAttribute("open");
+    await user.click(details.querySelector("summary")!);
+    expect(details).toHaveAttribute("open");
+    expect(screen.getByRole("region", { name: /^Applicant/u })).toBeVisible();
+  });
+
+  it("selects the sole filer left after the selected party is removed", async () => {
+    const user = userEvent.setup();
+    render(<Setup />);
+    await user.selectOptions(screen.getByLabelText(/Style of cause/u), "action");
+    const plaintiffs = screen.getByRole("region", { name: /Plaintiff/u });
+    await user.type(within(plaintiffs).getByLabelText("Plaintiff 1"), "Ada North");
+    await user.click(within(plaintiffs).getByRole("button", { name: "Add plaintiff" }));
+    await user.type(within(plaintiffs).getByLabelText("Plaintiff 2"), "Acme Ltd.");
+    await user.click(screen.getByRole("checkbox", { name: /Acme Ltd\./u }));
+    await user.click(within(plaintiffs).getByRole("button", { name: "Remove plaintiff 2" }));
+    expect(screen.getByTestId("filing-party-ids")).toHaveTextContent("party-a-1");
+  });
+
+  it("keeps separate AP-5 contacts on each non-filing party", async () => {
+    const user = userEvent.setup();
+    render(<Ap5Setup />);
+    await user.click(screen.getByText(/Appellant: Ada North/u).closest("summary")!);
+    const respondent = screen.getByText("Contact for River South").closest("details")!;
+    const intervener = screen.getByText("Contact for Justice Centre").closest("details")!;
+    await user.click(within(respondent).getByText("Contact for River South"));
+    await user.type(within(respondent).getByRole("textbox", {
+      name: "Lawyer or filing person for River South",
+    }), "R. Counsel");
+    await user.click(within(intervener).getByText("Contact for Justice Centre"));
+    await user.type(within(intervener).getByRole("textbox", {
+      name: "Lawyer or filing person for Justice Centre",
+    }), "I. Counsel");
+
+    const saved = JSON.parse(screen.getByTestId("ap5-cover").textContent!) as CoverValues;
+    expect(saved.partyGroups?.[1].parties[0].contact?.name).toBe("R. Counsel");
+    expect(saved.partyGroups?.[2].parties[0].contact?.name).toBe("I. Counsel");
+    expect(screen.queryByText(/Other party.s lawyer/u)).not.toBeInTheDocument();
+  });
+
+  it("marks only the AP-5 contact details needed to reach another party", () => {
+    render(<Ap5Setup missingFields={new Set(["partyContacts"])} />);
+    const details = screen.getByText(/Contact for River South/u).closest("details")!;
+    expect(details).toHaveAttribute("data-contact-finding-id", "contact-respondent");
+    expect(details.querySelector('[aria-label="Lawyer or filing person for River South"]'))
+      .toHaveAttribute("required");
+    expect(details.querySelector('[aria-label="Fax (or N/A) for River South"]'))
+      .not.toHaveAttribute("required");
   });
 });
 
-it("selects a document directly when it has only one format", async () => {
+it("keeps jurisdiction and court levels in one dialog and skips singleton formats", async () => {
   const user = userEvent.setup();
   function Chooser() {
     const [profile, setProfile] = useState(COURT_PROFILE_BY_ID.get("general-affidavit-exhibits")!);
@@ -62,14 +153,31 @@ it("selects a document directly when it has only one format", async () => {
   }
   render(<Chooser />);
 
+  expect(screen.queryByRole("button", { name: /^Format:/u })).toBeNull();
   await user.click(screen.getByRole("button", { name: "Document: Affidavit with exhibits" }));
-  expect(screen.queryByRole("button", { name: "Court Record" })).toBeNull();
-  await user.click(screen.getByRole("button", { name: "Informal motion letter" }));
+  expect(screen.getByRole("dialog", { name: "Choose document" })).toBeVisible();
+  await user.click(within(screen.getByRole("dialog", { name: "Choose document" }))
+    .getByRole("button", { name: "Close" }));
+  await user.click(screen.getByRole("button", { name: "Court: No court preset" }));
+  const dialog = screen.getByRole("dialog", { name: "Choose document" }), jurisdictions = within(dialog);
+  expect(jurisdictions.getByRole("option", { name: "Alberta" })).toBeInTheDocument();
+  expect(jurisdictions.getByRole("option", { name: "No court preset" })).toBeInTheDocument();
+  expect(jurisdictions.queryByRole("option", { name: /British Columbia/ })).not.toBeInTheDocument();
+  await user.selectOptions(jurisdictions.getByRole("combobox", { name: "Jurisdiction" }), "ca");
+  expect(screen.getByRole("dialog", { name: "Choose document" })).toBe(dialog);
+
+  const documents = within(screen.getByRole("dialog", { name: "Choose document" }));
+  expect(documents.getByRole("tab", { name: "Trial" })).toHaveAttribute("aria-selected", "true");
+  await user.click(documents.getByRole("tab", { name: "Appeal" }));
+  expect(screen.getByRole("dialog", { name: "Choose document" })).toBe(dialog);
+  await user.click(documents.getByRole("button", { name: "Informal motion letter" }));
+  expect(screen.getByRole("button", { name: "Court: Federal Court of Appeal" })).toBeVisible();
   expect(screen.getByText("fca-informal-motion-letter")).toBeInTheDocument();
   expect(screen.queryByRole("dialog", { name: /format/u })).toBeNull();
+  expect(screen.queryByRole("button", { name: /^Format:/u })).toBeNull();
 });
 
-it("keeps the format chooser open when the document chooser closes", async () => {
+it("keeps the format chooser open and distinguishes reply formats", async () => {
   const user = userEvent.setup();
   function Chooser() {
     const [profile, setProfile] = useState(COURT_PROFILE_BY_ID.get("general-affidavit-exhibits")!);
@@ -80,9 +188,61 @@ it("keeps the format chooser open when the document chooser closes", async () =>
   }
   render(<Chooser />);
 
-  await user.click(screen.getByRole("button", { name: "Document: Affidavit with exhibits" }));
-  await user.click(screen.getByRole("button", { name: "Motion record" }));
-  const formats = screen.getByRole("dialog", { name: "Motion record format" });
-  await user.click(within(formats).getByRole("button", { name: /^FC\b.*Moving party$/u }));
+  await user.click(screen.getByRole("button", { name: "Court: No court preset" }));
+  const dialog = screen.getByRole("dialog", { name: "Choose document" });
+  await user.selectOptions(screen.getByRole("combobox", { name: "Jurisdiction" }), "ca");
+  await user.click(within(screen.getByRole("dialog", { name: "Choose document" }))
+    .getByRole("button", { name: "Motion record" }));
+  expect(screen.getByRole("dialog", { name: "Choose document" })).toBe(dialog);
+  const formats = screen.getByRole("group", { name: "Motion record format" });
+  expect(within(formats).getByRole("button", { name: "Motion reply — moving party" }))
+    .toBeVisible();
+  await user.click(within(formats).getByRole("button", { name: "Motion record — moving" }));
   expect(screen.getByText("fc-motion-record-moving")).toBeInTheDocument();
+});
+
+it("discards an abandoned court choice before opening the current format", async () => {
+  const user = userEvent.setup();
+  render(<CourtRecordChooser
+    profile={COURT_PROFILE_BY_ID.get("fc-motion-record-moving")!}
+    onProfile={() => undefined}
+  />);
+
+  await user.click(screen.getByRole("button", { name: "Court: Federal Court" }));
+  await user.selectOptions(screen.getByRole("combobox", { name: "Jurisdiction" }), "ab");
+  const documents = screen.getByRole("dialog", { name: "Choose document" });
+  await user.click(within(documents).getByRole("button", { name: "Close" }));
+  await user.click(screen.getByRole("button", { name: "Format: Motion record — moving" }));
+  expect(screen.getByRole("combobox", { name: "Jurisdiction" })).toHaveValue("ca");
+  expect(screen.getByRole("group", { name: "Motion record format" })).toBeVisible();
+});
+
+it("selects the singleton document without an extra format step", async () => {
+  const user = userEvent.setup(), onProfile = vi.fn();
+  render(<CourtRecordChooser profile={COURT_PROFILE_BY_ID.get("fc-motion-record-moving")!}
+    onProfile={onProfile} />);
+
+  await user.click(screen.getByRole("button", { name: "Court: Federal Court" }));
+  const dialog = screen.getByRole("dialog", { name: "Choose document" });
+  await user.selectOptions(screen.getByRole("combobox", { name: "Jurisdiction" }), "general");
+  expect(screen.getByRole("dialog", { name: "Choose document" })).toBe(dialog);
+  await user.click(within(dialog).getByRole("button", { name: "Affidavit with exhibits" }));
+  expect(onProfile).toHaveBeenCalledWith("general-affidavit-exhibits");
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+it("starts a new record unselected and only cancels on an explicit close", async () => {
+  const user = userEvent.setup(), onCancel = vi.fn();
+  render(<CourtRecordChooser creating
+    profile={COURT_PROFILE_BY_ID.get("general-affidavit-exhibits")!}
+    onProfile={() => undefined} onCancel={onCancel} />);
+
+  const dialog = screen.getByRole("dialog", { name: "Choose document" }), jurisdictions = within(dialog);
+  expect(jurisdictions.getByRole("combobox", { name: "Jurisdiction" })).toHaveValue("");
+  await user.selectOptions(jurisdictions.getByRole("combobox", { name: "Jurisdiction" }), "ca");
+  expect(screen.getByRole("dialog", { name: "Choose document" })).toBe(dialog);
+  expect(onCancel).not.toHaveBeenCalled();
+  await user.click(within(screen.getByRole("dialog", { name: "Choose document" }))
+    .getByRole("button", { name: "Close" }));
+  expect(onCancel).toHaveBeenCalledOnce();
 });

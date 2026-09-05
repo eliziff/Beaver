@@ -274,10 +274,14 @@ export function ProjectSectionTabs({ actions, children }: {
       )}
       options={sections.map(({ id, label }) => ({ value: id, label }))}
       ariaLabel="Project sections"
-      variant="underline"
-      actions={actions}
-      className="document-directory min-h-0 flex-1 [&>[data-tabs-rail]]:mx-4 [&>[data-tabs-rail]]:gap-2 [&>[role=tabpanel]]:pt-2 md:[&>[data-tabs-rail]]:mx-6"
+      variant="dock"
+      className="document-directory min-h-0 flex-1"
+      railClassName="px-4 md:px-6"
     >
+      {actions && <div data-project-section-actions
+        className="flex min-h-10 shrink-0 items-center justify-end overflow-x-auto px-4 py-1 md:px-6">
+        {actions}
+      </div>}
       {children}
     </Tabs>
   );

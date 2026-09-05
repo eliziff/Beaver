@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "verified_on": "2026-09-01",
+  "verified_on": "2026-09-03",
   "purpose": "Auditable official-source receipts for the Authorities and Court Record Builder presets. The presets encode filing mechanics; they do not decide what proceeding or document a legal professional should use.",
   "audit_method": "Conditionally GET only the listed official URLs, retain final URL, ETag, Last-Modified, byte count and SHA-256, and compare HTML markers. A stable_parent_url is retained for manual rediscovery when a deep link moves. Never crawl beyond the listed URLs.",
   "canlii_policy": "CanLII URLs are manual_only. The audit command makes no request to CanLII, just as the Authorities download handoff makes no programmatic CanLII request.",
@@ -20,7 +20,6 @@
     {
       "id": "ab-rules-part-13-14",
       "profiles": [
-        "ab-court-of-appeal",
         "ab-kb-affidavit-exhibits",
         "ab-ca-appeal-record",
         "ab-ca-extracts-appellant",
@@ -31,7 +30,7 @@
       "kind": "rule",
       "url": "https://kings-printer.alberta.ca/documents/rules2010/Rules_vol_1.pdf",
       "stable_parent_url": "https://kings-printer.alberta.ca/1125.cfm",
-      "locator": "Rules 13.19 and 13.21; Rule 14.25(1)(h) requires a factum table of authorities, following the 2023 repeal of the separate civil Book provisions",
+      "locator": "Rules 13.19 and 13.21 (affidavit exhibits), 14.18 (appeal records), 14.26–14.30 (factums, Extracts of Key Evidence and condensed books) and 14.87 (electronic document format)",
       "reference_sha256": "956f7aaef5968f14320d8b428f725efdf0065ce09fa876ef80dfafba0549e930",
       "expected_markers": ["Identification of exhibits", "25 or more pages", "consecutively numbered"]
     },
@@ -73,8 +72,8 @@
       ],
       "kind": "court-guidance",
       "url": "https://albertacourts.ca/kb/court-operations-schedules/guidelines-for-documents-filed-by-email-or-digital-upload",
-      "locator": "PDF, OCR, bookmarks, separate-file, open-source hyperlink and 100MB requirements",
-      "expected_markers": ["searchable", "100MB", "bookmarked"]
+      "locator": "PDF, OCR, bookmarks, separate-file, open-source hyperlink and 100MB requirements; proposed orders for Justice and Family Chambers must be in Word format",
+      "expected_markers": ["searchable", "100MB", "bookmarked", "proposed orders", "word format"]
     },
     {
       "id": "ab-kb-cpn1",
@@ -130,6 +129,7 @@
       "url": "https://albertacourts.ca/kb/resources/announcements/KB-filing-digital-service-civil-and-chambers-to-include-applications-judges-chambers-applications",
       "stable_parent_url": "https://www.albertacourts.ca/kb/court-operations-schedules/kb-justice-digital-services",
       "locator": "Applications Judge chambers filing set and mandatory proposed order",
+      "application_note": "The receipt establishes that a proposed order is mandatory; the Digital Orders receipt governs its separate submission rather than a PDF slot.",
       "expected_markers": ["proposed", "supporting", "Applications Judge"]
     },
     {
@@ -172,7 +172,7 @@
       "kind": "court-guidance",
       "url": "https://www.albertacourts.ca/docs/default-source/ca/finding-and-providing-authorities.pdf?sfvrsn=a3952e82_5",
       "stable_parent_url": "https://www.albertacourts.ca/ca/registry/filing",
-      "locator": "Finding and Providing Authorities (12 January 2024), pages 1–2 and Civil Rule 14.25(1)(h): no separate civil Book; first-reference Table in the filing document; public hyperlinks preferred; otherwise append and bookmark the authority",
+      "locator": "Finding and Providing Authorities (12 January 2024), pages 1–2: no separate civil Book; first-reference Table in the filing document; public hyperlinks preferred; otherwise append and bookmark the authority",
       "supersedes": {
         "url": "https://albertacourts.ca/docs/default-source/ca/book-of-authorities-mandatory-requirements-and-check-return-form.pdf?sfvrsn=4048d980_0",
         "revised": "2019-02-07",
@@ -219,6 +219,20 @@
       "expected_markers": ["Appeal Record Requirements", "sample Table of Contents"]
     },
     {
+      "id": "ab-ca-extracts-requirements",
+      "profiles": [
+        "ab-ca-extracts-appellant",
+        "ab-ca-extracts-respondent",
+        "ab-ca-extracts-intervener"
+      ],
+      "kind": "court-guidance",
+      "url": "https://albertacourts.ca/docs/default-source/ca/extracts-of-key-evidence-mandatory-requirements-and-check-return-form.pdf?sfvrsn=5648d980_2",
+      "stable_parent_url": "https://www.albertacourts.ca/ca/registry/filing/requirements",
+      "locator": "Revised 30 November 2021, sections C–E: every document and affidavit exhibit in each volume's table of contents; approximately 200 pages per volume",
+      "application_note": "The checklist's former 30-page attached-to-factum option is not encoded: current Rule 14.26 says Extracts must not be attached to factums and Rule 14.29(d) was repealed in 2023.",
+      "expected_markers": []
+    },
+    {
       "id": "ab-ca-appeal-transcripts",
       "profiles": ["ab-ca-appeal-record"],
       "kind": "court-guidance",
@@ -226,6 +240,33 @@
       "stable_parent_url": "https://www.albertacourts.ca/ca/registry/filing/requirements",
       "locator": "Appeal Record and Transcripts: Parts 1 and 2 red book; Part 3 transcripts as stand-alone PDFs; unavailable-document table-of-contents notation",
       "expected_markers": ["Parts 1 and 2", "Part 3", "stand-alone PDF"]
+    },
+    {
+      "id": "ab-ca-transcript-filing",
+      "profiles": ["ab-ca-appeal-record"],
+      "kind": "court-guidance",
+      "url": "https://www.albertacourts.ca/ca/transcriptfiling",
+      "stable_parent_url": "https://www.albertacourts.ca/ca/registry/filing/requirements",
+      "locator": "Transcript Filing: multiple transcripts must be combined into one PDF before filing",
+      "expected_markers": ["Electronic Transcript Checklist", "combined into a single PDF file"]
+    },
+    {
+      "id": "ab-ca-electronic-transcript-checklist",
+      "profiles": ["ab-ca-appeal-record"],
+      "kind": "court-guidance",
+      "url": "https://albertacourts.ca/docs/default-source/ca/electronic-transcript-checklist.pdf?sfvrsn=b14ad980_6",
+      "stable_parent_url": "https://www.albertacourts.ca/ca/transcriptfiling",
+      "locator": "Electronic Transcript Checklist: official filename, title page, contents, bookmarks, consecutive proceedings pages and searchable text requirements",
+      "expected_markers": []
+    },
+    {
+      "id": "ab-ca-electronic-filing-direction",
+      "profiles": ["ab-ca-appeal-record"],
+      "kind": "practice-direction",
+      "url": "https://cams.albertacourts.ca/public-portal/files/practiceDirection.pdf",
+      "stable_parent_url": "https://www.albertacourts.ca/ca/publications/directions",
+      "locator": "Section 12(c)(i)-(iv): transcript cover unnumbered, contents in lower-case Roman numerals, proceedings in Arabic numerals from 1, and matching Adobe page labels",
+      "expected_markers": []
     },
     {
       "id": "ab-ca-consolidated-directions",
@@ -272,6 +313,7 @@
       "id": "fc-rules",
       "profiles": [
         "federal-court",
+        "federal-court-appeal",
         "federal-court-of-appeal",
         "fc-affidavit-exhibits",
         "fca-affidavit-exhibits",
@@ -294,13 +336,14 @@
       ],
       "kind": "rule",
       "url": "https://laws-lois.justice.gc.ca/eng/regulations/sor-98-106/FullText.html",
-      "locator": "Rules 65, 70, 80, 268–269, 309–310, 344, 348, 352–356 (including reply under Rule 355), 364–366, 369(3) and 369.2(3); Rules 70(1)(e)–(g), 70(2)–(2.1) and 348 govern Federal authority lists and books",
-      "expected_markers": ["Trial Record", "Motion Record", "Book of Authorities", "Enactments in both official languages", "Colour of cover", "FORM 344", "motion for leave to appeal shall serve any reply", "written representations in reply within four days after being served", "written representations in reply within four days after the day"]
+      "locator": "Rules 65, 66 and Form 66; Rules 70, 80, 268–269, 309–310, 343–348.1, 352–356 (including Rule 353 motion-record contents and reply under Rule 355), 364–366, 369(3) and 369.2(3); Rules 70(1)(e)–(g), 70(2)–(2.1) and 348 govern Federal authority lists and books",
+      "expected_markers": ["Trial Record", "Motion Record", "Book of Authorities", "Enactments in both official languages", "Colour of cover", "FORM 66", "FORM 344", "motion for leave to appeal shall serve any reply", "written representations in reply within four days after being served", "written representations in reply within four days after the day"]
     },
     {
       "id": "fc-practice-guidelines-2025",
       "profiles": [
         "federal-court",
+        "federal-court-appeal",
         "fc-affidavit-exhibits",
         "fc-motion-record-moving",
         "fc-motion-record-responding",
@@ -312,13 +355,14 @@
       "kind": "practice-direction",
       "url": "https://www.fct-cf.gc.ca/Content/assets/pdf/base/2025-06-20__Amended-Consolidated-General-Practice-Guidelines.pdf",
       "stable_parent_url": "https://www.fct-cf.gc.ca/en/pages/law-and-practice/practice-guidelines",
-      "locator": "Paragraphs 19(d)–(h) and 83–84, including authority-book filer identification, joint books and hyperlink treatment",
-      "expected_markers": ["Book of Authorities", "joint book", "hyperlinked", "highlighted"]
+      "locator": "Paragraphs 19(d)–(h), 35 and 83–84: pagination, bookmarks, OCR, accessibility, proof of service in the same bookmarked PDF, and authority-book preparation",
+      "expected_markers": ["Book of Authorities", "joint book", "hyperlinked", "highlighted", "proof of service together with the document in a single PDF"]
     },
     {
       "id": "fc-efiling",
       "profiles": [
         "federal-court",
+        "federal-court-appeal",
         "fc-affidavit-exhibits",
         "fc-motion-record-moving",
         "fc-motion-record-responding",
@@ -328,9 +372,28 @@
         "fc-trial-record"
       ],
       "kind": "court-guidance",
-      "url": "https://www.fct-cf.gc.ca/en/pages/online-access/e-filing",
-      "locator": "Searchability, bookmarks, proof of service, 100 MB and 500-page limits",
+      "url": "https://www-u.fct-cf.gc.ca/en/pages/online-access/e-filing",
+      "stable_parent_url": "https://efiling.fct-cf.gc.ca/en/home",
+      "locator": "Searchability, bookmarks, and the 100 MB and 500-page limits for an electronic filing",
       "expected_markers": ["100 MB", "500", "bookmark"]
+    },
+    {
+      "id": "fc-efiling-guide-2020",
+      "profiles": [
+        "federal-court",
+        "federal-court-appeal",
+        "fc-motion-record-moving",
+        "fc-motion-record-responding",
+        "fc-application-record-applicant",
+        "fc-application-record-respondent",
+        "fc-trial-record"
+      ],
+      "kind": "court-guidance",
+      "url": "https://www.fct-cf.gc.ca/content/assets/pdf/base/E-filing-Guide-May-7-2020-Final-EN.pdf",
+      "stable_parent_url": "https://www.fct-cf.gc.ca/en/pages/online-access/e-filing",
+      "locator": "Page 15: when a Record is split into multiple volumes, mark Volume X of Y on both front and back covers and include a complete table of contents in each volume",
+      "reference_sha256": "7556737226bc016553fdab51d63ae452106d2b77f51ede9b426dad300a9465eb",
+      "expected_markers": []
     },
     {
       "id": "fca-efiling-guide",
@@ -358,6 +421,7 @@
     {
       "id": "fca-consolidated-direction-2026",
       "profiles": [
+        "federal-court-of-appeal",
         "fca-affidavit-exhibits",
         "fca-motion-record-moving",
         "fca-motion-record-responding",
@@ -423,9 +487,9 @@
       "profiles": ["fc-motion-record-moving", "fc-motion-record-responding"],
       "kind": "official-example",
       "url": "https://www.fct-cf.gc.ca/content/assets/pdf/base/Sample%20Document%201%20%28MR%20-%20Constitutional%29.pdf",
-      "locator": "Official motion-record cover and index",
+      "locator": "Official motion-record cover and TAB / PLEADING / PAGE index",
       "reference_sha256": "87fb799cc1e879d3e7970433feb3422ea317f49a95ddcea768fc5cd3ad9bd4b9",
-      "expected_markers": ["MOTION RECORD", "INDEX"]
+      "expected_markers": ["MOTION RECORD", "INDEX", "PLEADING"]
     },
     {
       "id": "fc-action-guide",

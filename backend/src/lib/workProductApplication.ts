@@ -1,8 +1,7 @@
 import { ApplicationError, reject, type ApplicationScope } from "./applicationError";
 import { decodeAuthoritiesDraft } from "./authoritiesDomain";
-import { decodeCourtRecordDraftState } from "./courtRecordContract";
-import { decodeResearchSetState, recordResearchSetAudit, reduceResearchSet,
-  type ResearchSetAction, type ResearchSetActor } from "./researchSet";
+import { acceptsWorkProductOutput } from "mike/shared/court-record-work-products.mjs";
+import { COURT_RECORD_PROFILE_BY_ID, decodeCourtRecordDraftState } from "./courtRecordContract";
 import { decodeWorkProductState, workProductInputs,
   type WorkProductFailure, type WorkProductKind,
   type WorkProduct, type WorkProductOutputRef, type WorkProductRepository,
@@ -16,16 +15,35 @@ function title(value: string) {
 
 function state(kind: WorkProductKind, value: unknown): WorkProductState {
   const decoded = decodeWorkProductState(value);
-  const name = kind === "court-record" ? "Court Record" : kind === "authorities"
-    ? "Authorities" : "research set";
+  const name = kind === "court-record" ? "Court Record" : "Authorities";
   if (!decoded) return reject(400, `Invalid ${name} state`);
   const valid = kind === "court-record" ? decodeCourtRecordDraftState(decoded)
-    : kind === "authorities" ? decodeAuthoritiesDraft(decoded) : decodeResearchSetState(decoded);
+    : decodeAuthoritiesDraft(decoded);
   if (!valid) return reject(400, `Invalid ${name} state`);
   if (workProductInputs(valid).some(({ kind: inputKind }) => inputKind === "local-file")) {
     reject(400, "Local file handles belong in the standalone draft store");
   }
   return valid;
+}
+
+async function validateCourtRecordOutputs(scope: ApplicationScope, draft: WorkProductState,
+  repository: WorkProductRepository) {
+  const profile = COURT_RECORD_PROFILE_BY_ID.get(String(draft.profileId));
+  const entries = new Map((draft.entries as Array<{ id: string; kindId: string }>).map(
+    ({ id, kindId }) => [id, kindId]));
+  const bindings = draft.bindings ?? {};
+  const ids = [...new Set(Object.values(bindings).flatMap((input) =>
+    input.kind === "work-product-output" ? [input.workProductId] : []))];
+  const children = new Map(await Promise.all(ids.map(async (id) =>
+    [id, (await repository.get(scope, id))?.product] as const)));
+  for (const [entryId, input] of Object.entries(bindings)) {
+    if (input.kind !== "work-product-output") continue;
+    const child = children.get(input.workProductId);
+    const slot = profile?.slots.find(({ id }) => id === entries.get(entryId));
+    if (child && (!slot || !acceptsWorkProductOutput(slot, { kind: child.kind,
+      profileId: child.kind === "court-record" ? String(child.state.profileId) : undefined,
+      role: input.role }))) reject(400, "A saved draft output does not match this Court Record slot");
+  }
 }
 
 const checked = <T extends WorkProduct>(product: T): T =>
@@ -64,7 +82,9 @@ export function createWorkProductApplication(repository: WorkProductRepository) 
     async list(scope: ApplicationScope, options: {
       kind?: WorkProductKind; projectId?: string; limit?: number; metadata?: boolean;
     } = {}) {
-      const products = await repository.list(scope, { ...options, limit: options.limit ?? 50 });
+      const products = await repository.list(scope, {
+        ...options, limit: options.limit ?? (options.metadata ? undefined : 50),
+      });
       return products.map((product) => "state" in product ? checked(product) : product);
     },
     async get(scope: ApplicationScope, id: string) {
@@ -83,6 +103,9 @@ export function createWorkProductApplication(repository: WorkProductRepository) 
       const initial = input.state === undefined
         ? reject(400, "Draft state is required")
         : state(input.kind, input.state);
+      if (input.kind === "court-record") {
+        await validateCourtRecordOutputs(scope, initial, repository);
+      }
       return created(await repository.create(scope, {
         kind: input.kind, title: name, projectId, state: initial,
       }));
@@ -93,14 +116,14 @@ export function createWorkProductApplication(repository: WorkProductRepository) 
     }) {
       const found = await repository.get(scope, id);
       if (!found) throw new ApplicationError(404, "Draft not found");
-      if (found.product.kind === "research-set" && input.state !== undefined) {
-        reject(400, "Use research actions to edit saved research");
-      }
       const nextState = input.state === undefined ? found.product.state
         : state(found.product.kind, input.state);
       if (input.projectId !== undefined && input.projectId !== found.product.projectId &&
           populated(nextState, input.outputs ?? found.product.outputs)) {
         reject(409, "Remove this draft's inputs and outputs before moving it to another matter");
+      }
+      if (found.product.kind === "court-record") {
+        await validateCourtRecordOutputs(scope, nextState, repository);
       }
       const result = await repository.save(scope, id, {
         ...input,
@@ -112,11 +135,9 @@ export function createWorkProductApplication(repository: WorkProductRepository) 
     async duplicate(scope: ApplicationScope, id: string, input: {
       title?: string; projectId?: string | null;
     } = {}) {
-      const source = (await repository.get(scope, id))?.product ??
-        reject(404, "Draft not found");
-      const copyState = source.kind === "research-set"
-        ? recordResearchSetAudit(source.state, { kind: "human", id: scope.userId },
-          "duplicate", [source.id]) : source.state;
+      const source = checked((await repository.get(scope, id))?.product ??
+        reject(404, "Draft not found"));
+      const copyState = source.state;
       const projectId = input.projectId === undefined ? source.projectId : input.projectId;
       if (projectId !== source.projectId && populated(copyState)) {
         reject(409, "Remove this draft's inputs before copying it to another matter");
@@ -130,23 +151,6 @@ export function createWorkProductApplication(repository: WorkProductRepository) 
     },
     async remove(scope: ApplicationScope, id: string) {
       if (!await repository.remove(scope, id)) reject(404, "Draft not found");
-    },
-    async applyResearchSetAction(scope: ApplicationScope, id: string, input: {
-      revision: number; action: ResearchSetAction;
-    }, actor: ResearchSetActor = { kind: "human", id: scope.userId }) {
-      const found = await repository.get(scope, id);
-      if (!found) throw new ApplicationError(404, "Research set not found");
-      if (found.product.kind !== "research-set") reject(404, "Research set not found");
-      const next: WorkProductState = (() => {
-        try { return reduceResearchSet(found.product.state, input.action, actor); }
-      catch (error) {
-          throw new ApplicationError(400,
-            error instanceof Error ? error.message : "Invalid research action");
-        }
-      })();
-      const result = await repository.save(scope, id,
-        { revision: input.revision, state: next });
-      return result.status === "saved" ? result.product : failed(result);
     },
   });
 }

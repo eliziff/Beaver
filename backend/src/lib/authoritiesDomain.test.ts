@@ -73,12 +73,80 @@ const occurrence = (
 });
 
 describe("authorities draft domain", () => {
+  it("corrects the canonical identity of a manual PDF without replacing its source", () => {
+    let draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
+      type: "add-authority", authority: { ...authority("2009scc32"), kind: "other",
+        citation: "2009scc32", name: "2009scc32" },
+    });
+    draft = reduceAuthoritiesDraft(draft, { type: "attach-source", authorityId: "2009scc32",
+      bindingRole: "authority:2009scc32", binding: { kind: "local-file", handleId: "grant" },
+      filename: "2009scc32.pdf", sourceSha256: "a".repeat(64), sourceUrl: null,
+      language: "en" });
+    const source = draft.authorities["2009scc32"].source;
+
+    draft = reduceAuthoritiesDraft(draft, { type: "edit-authority",
+      authorityId: "2009scc32", kind: "case", citation: "  2009 SCC 32  ",
+      name: "  R v Grant  " });
+
+    expect(draft.authorities["2009scc32"]).toMatchObject({ kind: "case",
+      citation: "2009 SCC 32", name: "R v Grant", displayName: null, source });
+  });
+
+  it("keeps explicit English and French PDFs together and lets a bilingual PDF replace them", () => {
+    let draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }),
+      { type: "add-authority", authority: authority("act") });
+    const attach = (language: "en" | "fr" | "bilingual") => {
+      const role = `authority:act:${language}`;
+      draft = reduceAuthoritiesDraft(draft, { type: "attach-source", authorityId: "act",
+        bindingRole: role, binding: { kind: "local-file", handleId: role,
+          lastSeen: { name: `${language}.pdf`, size: 10, modified: 1,
+            sha256: language[0].repeat(64) } }, filename: `${language}.pdf`,
+        sourceSha256: language[0].repeat(64), sourceUrl: null, language });
+    };
+    attach("fr"); attach("en");
+    expect(draft.authorities.act.source).toMatchObject({ kind: "attached",
+      sources: [{ language: "en" }, { language: "fr" }] });
+    expect(Object.keys(draft.bindings)).toEqual(["authority:act:fr", "authority:act:en"]);
+
+    attach("bilingual");
+    expect(draft.authorities.act.source).toMatchObject({ kind: "attached",
+      sources: [{ language: "bilingual", bindingRole: "authority:act:bilingual" }] });
+    expect(Object.keys(draft.bindings)).toEqual(["authority:act:bilingual"]);
+    expect(validateAuthoritiesDraft(draft)).toEqual([]);
+  });
+
+  it("fills missing cover data without replacing manual Form 66 values", () => {
+    let draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
+      type: "set-cover", cover: { courtFileNumber: "T-9-26", partyGroups: [
+        { role: "Applicant", parties: ["Edited Applicant"] },
+        { role: "Respondent", parties: ["Edited Respondent"] },
+      ], applicationUnder: "", title: "Applicant's Authorities" },
+    });
+    draft = reduceAuthoritiesDraft(draft, { type: "refresh", review: {
+      import: draft.import, bindings: draft.bindings, units: [], occurrences: {},
+      authorities: {}, authorityOrder: [], cover: { courtFileNumber: "T-1-26",
+        partyGroups: [{ role: "Applicant", parties: ["Source Applicant"] },
+          { role: "Respondent", parties: ["Source Respondent"] }],
+        applicationUnder: "Federal Courts Act, section 18.1", title: "" },
+    } });
+    expect(draft.cover).toEqual({ courtFileNumber: "T-9-26", partyGroups: [
+      { role: "Applicant", parties: ["Edited Applicant"] },
+      { role: "Respondent", parties: ["Edited Respondent"] },
+    ], applicationUnder: "Federal Courts Act, section 18.1",
+    title: "Applicant's Authorities" });
+  });
+
   it("decodes canonical and rejects malformed nested durable state", () => {
     const canonical = createAuthoritiesDraft({ kind: "manual" });
     expect(decodeAuthoritiesDraft(canonical)).toEqual(canonical);
     const oldShape = structuredClone(canonical) as Partial<AuthoritiesDraft>;
     delete oldShape.settings; delete oldShape.bookParts;
     expect(decodeAuthoritiesDraft(oldShape)).toEqual(canonical);
+    const prior = structuredClone(canonical) as Partial<AuthoritiesDraft>;
+    delete prior.discrepancyDecisions;
+    expect(decodeAuthoritiesDraft(prior)).toEqual(canonical);
+    expect(decodeAuthoritiesDraft({ ...canonical,
+      discrepancyDecisions: { invalid: "quote_exact" } })).toBeNull();
 
     const stored = structuredClone({ ...canonical,
       bindings: { pdf: { kind: "document" as const, documentId: "pdf", version: "latest" as const } },
@@ -89,9 +157,7 @@ describe("authorities draft domain", () => {
       authorities: Record<string, Record<string, unknown>>;
     };
     delete stored.settings; delete stored.bookParts;
-    expect(decodeAuthoritiesDraft(stored)).toMatchObject({ authorities: { a: {
-      source: { origin: "manual" },
-    } } });
+    expect(decodeAuthoritiesDraft(stored)).toBeNull();
     const incomplete = structuredClone(canonical) as Partial<AuthoritiesDraft>;
     delete incomplete.bookParts;
     expect(decodeAuthoritiesDraft(incomplete)).toBeNull();
@@ -128,11 +194,21 @@ describe("authorities draft domain", () => {
   });
 
   it("offers source-document output only for imported document drafts", () => {
-    const source = createAuthoritiesDraft(sourceImport, sourceBindings);
-    expect(reduceAuthoritiesDraft(source,
-      { type: "set-document-output", enabled: true }).insertIntoDocument).toBe(true);
-    const pdf = createAuthoritiesDraft({ ...sourceImport, filename: "Factum.pdf",
-      fileType: "pdf" }, sourceBindings);
+    const source = reduceAuthoritiesDraft(createAuthoritiesDraft(sourceImport, sourceBindings),
+      { type: "set-output-mode", outputMode: "table" });
+    const enabled = reduceAuthoritiesDraft(source,
+      { type: "set-document-output", enabled: true });
+    expect(enabled.insertIntoDocument).toBe(true);
+    expect(reduceAuthoritiesDraft(enabled,
+      { type: "set-output-mode", outputMode: "book" }).insertIntoDocument).toBe(false);
+    const book = reduceAuthoritiesDraft(source,
+      { type: "set-output-mode", outputMode: "book" });
+    expect(() => reduceAuthoritiesDraft(book,
+      { type: "set-document-output", enabled: true })).toThrowError(AuthoritiesDomainError);
+    expect(decodeAuthoritiesDraft({ ...book, insertIntoDocument: true })).toBeNull();
+    const pdf = reduceAuthoritiesDraft(createAuthoritiesDraft({ ...sourceImport,
+      filename: "Factum.pdf", fileType: "pdf" }, sourceBindings),
+    { type: "set-output-mode", outputMode: "table" });
     expect(reduceAuthoritiesDraft(pdf,
       { type: "set-document-output", enabled: true }).insertIntoDocument).toBe(true);
     expect(() => reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }),
@@ -145,7 +221,12 @@ describe("authorities draft domain", () => {
     expect(general).toMatchObject({ outputMode: "book", settings: {
       profileId: "general", sourceMode: "automatic", tableOrder: "alphabetical",
     } });
-    const appeal = reduceAuthoritiesDraft(general,
+    expect(() => reduceAuthoritiesDraft(general,
+      { type: "set-output-mode", outputMode: "table" })).toThrow(AuthoritiesDomainError);
+    expect(() => reduceAuthoritiesDraft(general,
+      { type: "set-profile", profileId: "ab-court-of-appeal" }))
+      .toThrow(AuthoritiesDomainError);
+    const appeal = reduceAuthoritiesDraft(createAuthoritiesDraft(sourceImport, sourceBindings),
       { type: "set-profile", profileId: "ab-court-of-appeal" });
     expect(appeal).toMatchObject({ outputMode: "table", settings: {
       tableDelivery: "linked-append", tableLocation: "pinpoints",
@@ -159,13 +240,13 @@ describe("authorities draft domain", () => {
     expect(() => reduceAuthoritiesDraft(appeal, { type: "set-settings",
       settings: { tableOrder: "alphabetical" } })).toThrow(AuthoritiesDomainError);
     for (const profileId of ["ab-court-of-kings-bench", "federal-court",
-      "federal-court-of-appeal"] as const) {
+      "federal-court-appeal", "federal-court-of-appeal"] as const) {
       expect(reduceAuthoritiesDraft(general, { type: "set-profile", profileId }))
         .toMatchObject({ outputMode: "book", settings: {
           sourceMode: "automatic", scannedPdfPolicy: "full",
         } });
     }
-    const kingsBench = reduceAuthoritiesDraft(general,
+    const kingsBench = reduceAuthoritiesDraft(createAuthoritiesDraft(sourceImport, sourceBindings),
       { type: "set-profile", profileId: "ab-court-of-kings-bench" });
     expect(kingsBench.settings).toMatchObject({ missingSourcePolicy: "omit" });
     expect(reduceAuthoritiesDraft(kingsBench,
@@ -177,22 +258,38 @@ describe("authorities draft domain", () => {
     })).toThrow(AuthoritiesDomainError);
     const federal = reduceAuthoritiesDraft(general,
       { type: "set-profile", profileId: "federal-court" });
-    expect(federal.settings).toMatchObject({ filingMedium: "electronic", bookRole: "applicant" });
+    expect(federal.settings).toMatchObject({ filingMedium: "electronic" });
+    expect(federal.settings.bookRole).toBeUndefined();
+    for (const bookRole of ["plaintiff", "defendant", "applicant", "respondent",
+      "moving-party", "responding-party", "joint"] as const) {
+      expect(reduceAuthoritiesDraft(federal,
+        { type: "set-settings", settings: { bookRole } }).settings.bookRole).toBe(bookRole);
+    }
     expect(reduceAuthoritiesDraft(federal, { type: "set-settings",
       settings: { filingMedium: "paper", bookRole: "respondent" } }).settings)
       .toMatchObject({ filingMedium: "paper", bookRole: "respondent" });
     expect(reduceAuthoritiesDraft(federal, { type: "set-settings",
       settings: { bookRole: "joint" } }).settings.bookRole).toBe("joint");
-    const federalAppeal = reduceAuthoritiesDraft(general,
-      { type: "set-profile", profileId: "federal-court-of-appeal" });
-    expect(federalAppeal.settings).toMatchObject({ filingMedium: "electronic", bookRole: "joint" });
-    for (const bookRole of ["appellant", "respondent", "intervener"] as const) {
-      expect(reduceAuthoritiesDraft(federalAppeal,
-        { type: "set-settings", settings: { bookRole } }).settings.bookRole).toBe(bookRole);
+    expect(() => reduceAuthoritiesDraft(federal, { type: "set-settings",
+      settings: { passageMarking: "none" } })).toThrow(AuthoritiesDomainError);
+    expect(reduceAuthoritiesDraft(federal, { type: "set-settings",
+      settings: { passageMarking: "text" } }).settings.passageMarking).toBe("text");
+    for (const profileId of ["federal-court-appeal", "federal-court-of-appeal"] as const) {
+      const federalAppeal = reduceAuthoritiesDraft(general,
+        { type: "set-profile", profileId });
+      expect(federalAppeal.settings).toMatchObject({ filingMedium: "electronic", bookRole: "joint" });
+      for (const bookRole of ["appellant", "respondent", "intervener"] as const) {
+        expect(reduceAuthoritiesDraft(federalAppeal,
+          { type: "set-settings", settings: { bookRole } }).settings.bookRole).toBe(bookRole);
+      }
+      expect(() => reduceAuthoritiesDraft(federalAppeal, { type: "set-settings",
+        settings: { passageMarking: "none" } })).toThrow(AuthoritiesDomainError);
+      expect(() => reduceAuthoritiesDraft(federalAppeal, { type: "set-settings",
+        settings: { bookRole: "applicant" } })).toThrow(AuthoritiesDomainError);
     }
   });
 
-  it("binds one cover and one index", () => {
+  it("binds front matter and append-only supplemental PDFs", () => {
     const input = (name: string, digest: string) => ({ kind: "local-file" as const,
       handleId: `${name}-handle`, lastSeen: { name: `${name}.pdf`, size: 10,
         modified: 1, sha256: digest } });
@@ -203,8 +300,12 @@ describe("authorities draft domain", () => {
       pdf: pdf("cover", "1".repeat(64)), binding: input("cover", "1".repeat(64)) });
     draft = reduceAuthoritiesDraft(draft, { type: "set-book-part", slot: "index",
       pdf: pdf("index", "2".repeat(64)), binding: input("index", "2".repeat(64)) });
+    for (const [id, digest] of [["one", "3".repeat(64)], ["two", "4".repeat(64)]]) {
+      draft = reduceAuthoritiesDraft(draft, { type: "set-book-supplement",
+        supplement: { id, ...pdf(id, digest) }, binding: input(id, digest) });
+    }
     expect(draft.bookParts).toMatchObject({ cover: { bindingRole: "book:cover" },
-      index: { bindingRole: "book:index" } });
+      index: { bindingRole: "book:index" }, supplements: [{ id: "one" }, { id: "two" }] });
     expect(validateAuthoritiesDraft(draft)).toEqual([]);
     expect(decodeAuthoritiesDraft(draft)).toEqual(draft);
 
@@ -213,7 +314,8 @@ describe("authorities draft domain", () => {
       .toThrow("Binding is assigned more than once");
 
     draft = reduceAuthoritiesDraft(draft, { type: "clear-book-part", slot: "index" });
-    expect(Object.keys(draft.bindings)).toEqual(["book:cover"]);
+    draft = reduceAuthoritiesDraft(draft, { type: "remove-book-supplement", id: "one" });
+    expect(Object.keys(draft.bindings).sort()).toEqual(["book:cover", "book:two"]);
   });
 
   it("keeps append order and clears an attached source without deleting its authority", () => {
@@ -225,7 +327,8 @@ describe("authorities draft domain", () => {
       bindingRole: "authority:second", binding: { kind: "local-file", handleId: "second",
         lastSeen: { name: "second.pdf", size: 10, modified: 1,
           sha256: "a".repeat(64) } },
-      filename: "second.pdf", sourceSha256: "a".repeat(64), sourceUrl: null });
+      filename: "second.pdf", sourceSha256: "a".repeat(64), sourceUrl: null,
+      language: "en" });
 
     const cleared = reduceAuthoritiesDraft(draft,
       { type: "clear-authority-source", authorityId: "second" });
@@ -233,6 +336,34 @@ describe("authorities draft domain", () => {
     expect(cleared.authorities.second).toMatchObject({ displayName: "Second case",
       citation: "second", source: { kind: "unresolved" } });
     expect(cleared.bindings).not.toHaveProperty("authority:second");
+  });
+
+  it("clears machine-selected sources when source mode changes", () => {
+    const digest = "a".repeat(64), binding = (id: string) => ({ kind: "local-file" as const,
+      handleId: id, lastSeen: { name: `${id}.pdf`, size: 10, modified: 1, sha256: digest } });
+    let draft = createAuthoritiesDraft({ kind: "manual" });
+    for (const [id, origin] of [["original", "original"], ["rendered", "reconstructed"],
+      ["manual", "manual"]] as const) {
+      draft = reduceAuthoritiesDraft(draft, { type: "add-authority", authority: authority(id) });
+      draft = reduceAuthoritiesDraft(draft, { type: "attach-source", authorityId: id,
+        bindingRole: `authority:${id}`, binding: binding(id), filename: `${id}.pdf`,
+        sourceSha256: digest, sourceUrl: null, origin, language: "en" });
+    }
+    draft = reduceAuthoritiesDraft(draft,
+      { type: "add-authority", authority: authority("pending") });
+    draft = reduceAuthoritiesDraft(draft, { type: "begin-canlii-handoff",
+      authorityId: "pending",
+      pageUrl: "https://www.canlii.org/en/ca/scc/doc/2009/2009scc32/2009scc32.html" });
+    draft.authorities.original.scanOnly = true;
+
+    const changed = reduceAuthoritiesDraft(draft,
+      { type: "set-settings", settings: { sourceMode: "render" } });
+    expect(["original", "rendered", "pending"].map((id) => changed.authorities[id].source))
+      .toEqual(Array(3).fill({ kind: "unresolved" }));
+    expect(changed.authorities.manual.source).toMatchObject({ kind: "attached",
+      sources: [{ origin: "manual" }] });
+    expect(Object.keys(changed.bindings)).toEqual(["authority:manual"]);
+    expect(decodeAuthoritiesDraft(changed)).toEqual(changed);
   });
 
   it("returns canonical and linked parallel citations in occurrence order", () => {
@@ -390,9 +521,10 @@ describe("authorities draft domain", () => {
       bindingRole: "authority:b", binding: { kind: "local-file", handleId: "handle-b",
         lastSeen: { name: "grant.pdf", size: 20, modified: 1,
           sha256: "e".repeat(64) } },
-      filename: "grant.pdf", sourceSha256: "e".repeat(64), sourceUrl: null });
+      filename: "grant.pdf", sourceSha256: "e".repeat(64), sourceUrl: null,
+      language: "en" });
     expect(draft.authorities.b.source).toMatchObject({
-      kind: "attached", bindingRole: "authority:b", filename: "grant.pdf",
+      kind: "attached", sources: [{ bindingRole: "authority:b", filename: "grant.pdf" }],
     });
     expect(draft.bindings).toHaveProperty("authority:b");
     draft = reduceAuthoritiesDraft(draft,
@@ -495,6 +627,65 @@ describe("authorities draft domain", () => {
     expect(unmapped.occurrences.fresh).toMatchObject({ authorityId: "other", reviewed: false });
   });
 
+  it("retains an explicit user-added authority when an imported source is rescanned", () => {
+    let draft = reduceAuthoritiesDraft(createAuthoritiesDraft(sourceImport, sourceBindings), {
+      type: "add-authority", authority: { ...authority("added", "added-key"), userAdded: true },
+    });
+    draft = reduceAuthoritiesDraft(draft, { type: "attach-source", authorityId: "added",
+      bindingRole: "authority:added", binding: { kind: "local-file", handleId: "added-pdf" },
+      filename: "Added.pdf", sourceSha256: "a".repeat(64), sourceUrl: null,
+      language: "en" });
+    const refreshed = reduceAuthoritiesDraft(draft, { type: "refresh", review: {
+      import: sourceImport, bindings: sourceBindings, units: [], occurrences: {},
+      authorities: {}, authorityOrder: [],
+    } });
+
+    expect(refreshed.authorityOrder).toEqual(["added"]);
+    expect(refreshed.authorities.added).toMatchObject({ userAdded: true,
+      source: { kind: "attached", sources: [{ bindingRole: "authority:added" }] } });
+    expect(refreshed.bindings).toHaveProperty("authority:added");
+    expect(reduceAuthoritiesDraft(refreshed, { type: "edit-authority", authorityId: "added",
+      kind: "case", citation: "2024 ABKB 13", name: "Jones v Smith" })
+      .authorities.added.citation).toBe("2024 ABKB 13");
+
+    const scanned = reduceAuthoritiesDraft(createAuthoritiesDraft(sourceImport, sourceBindings), {
+      type: "add-authority", authority: { ...authority("scan"), scanOnly: true },
+    });
+    expect(() => reduceAuthoritiesDraft(scanned, { type: "edit-authority", authorityId: "scan",
+      kind: "case", citation: "2024 ABKB 13", name: "Jones v Smith" }))
+      .toThrow("Only a manual authority can be edited directly.");
+  });
+
+  it("keeps a reviewed false positive removed when the source is rescanned", () => {
+    const text = "This is not 2024 ABKB 1.";
+    let draft: AuthoritiesDraft = {
+      ...createAuthoritiesDraft({ kind: "manual" }),
+      units: [{ id: "footnote:1", kind: "footnote", ordinal: 1, footnoteId: 1,
+        footnoteRefs: [[1, 0]], pageNumbers: [], text, occurrenceIds: ["false-positive"] }],
+      occurrences: {
+        "false-positive": occurrence("false-positive", text, 12, text.length - 1, "case"),
+      },
+      authorities: { case: { ...authority("case"), scanOnly: true } },
+      authorityOrder: ["case"],
+    };
+    draft = reduceAuthoritiesDraft(draft,
+      { type: "remove-occurrence", occurrenceId: "false-positive" });
+
+    const refreshed = reduceAuthoritiesDraft(draft, { type: "refresh", review: {
+      import: { kind: "manual" }, bindings: {},
+      units: [{ ...draft.units[0], occurrenceIds: ["detected-again"] }],
+      occurrences: {
+        "detected-again": occurrence("detected-again", text, 12, text.length - 1, "case"),
+      },
+      authorities: { case: { ...authority("case"), scanOnly: true } }, authorityOrder: ["case"],
+    } });
+
+    expect(refreshed.units[0].occurrenceIds).toEqual([]);
+    expect(refreshed.occurrences).not.toHaveProperty("detected-again");
+    expect(refreshed.authorityOrder).toEqual([]);
+    expect(refreshed.authorities).toEqual({});
+  });
+
   it("merges receipts only for the same exact source identity", () => {
     const sourceIdentity = { provider: "a2aj", stableSourceId: "grant",
       sourceSha256: "a".repeat(64), version: "2009", externalUrl: null };
@@ -505,9 +696,9 @@ describe("authorities draft domain", () => {
       bindings: { "authority:grant": binding },
       authorities: { old: { ...authority("old", "grant-key"),
         evidenceIds: ["old-evidence"], locators: [{ kind: "paragraph", label: "12" }],
-        sourceIdentity, source: { kind: "attached", bindingRole: "authority:grant",
+        sourceIdentity, source: { kind: "attached", sources: [{ bindingRole: "authority:grant",
           filename: "grant.pdf", sourceSha256: "b".repeat(64), sourceUrl: null,
-          origin: "manual" } } },
+          origin: "manual", language: "en" }] } } },
       authorityOrder: ["old"],
     };
     const reviewWith = (identity: typeof sourceIdentity, evidenceId: string,
@@ -525,7 +716,7 @@ describe("authorities draft domain", () => {
       evidenceIds: ["new-evidence", "old-evidence"],
       locators: [{ kind: "paragraph", label: "12" },
         { kind: "paragraph", label: "14" }],
-      source: { kind: "attached", bindingRole: "authority:grant" },
+      source: { kind: "attached", sources: [{ bindingRole: "authority:grant" }] },
     });
     expect(sameSource.bindings).toHaveProperty("authority:grant");
 
@@ -574,7 +765,7 @@ describe("authorities draft domain", () => {
       draft = reduceAuthoritiesDraft(draft, { type: "attach-source", authorityId,
         bindingRole: role, binding: { kind: "local-file", handleId: role,
           lastSeen: { name: `${role}.pdf`, size: 10, modified: 1, sha256: digest } },
-        filename: `${role}.pdf`, sourceSha256: digest, sourceUrl: null });
+        filename: `${role}.pdf`, sourceSha256: digest, sourceUrl: null, language: "en" });
     };
     const source = { provider: "a2aj", stableSourceId: "a2aj:en:scc:2015 scc 5",
       sourceSha256: "c".repeat(64), version: "2015-02-06", externalUrl: null };
@@ -593,7 +784,8 @@ describe("authorities draft domain", () => {
       displayName: "Carter (Charter)", excluded: false,
       evidenceIds: ["french-evidence", "neutral-evidence", "reporter-evidence"],
       locators: [{ kind: "paragraph", label: "1" }, { kind: "paragraph", label: "2" }],
-      sourceIdentity: source, source: { kind: "attached", bindingRole: "authority:neutral" },
+      sourceIdentity: source, source: { kind: "attached",
+        sources: [{ bindingRole: "authority:neutral" }] },
     });
     expect(Object.keys(draft.bindings)).toEqual(["authority:neutral"]);
     expect(Object.values(draft.occurrences).map(({ authorityId }) => authorityId))

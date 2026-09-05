@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { sha256 } from "../hash";
+import { MAX_OBJECT_SIZE_BYTES } from "../storage";
 import type { WorkProductBuildReceipt } from "../workProduct";
 import { zipDocumentBytes } from "./support/documentBytes";
 
@@ -19,13 +20,12 @@ async function localStores() {
       import("../relationalUserPreferencesRepository"), import("../relationalDatabase"),
       import("../workflowFiles"),
     ]);
-  const documents = createDocumentApplication(
-    documentRepository, objects.filesystemDocumentObjects(),
-  );
+  const objectStore = objects.filesystemDocumentObjects();
+  const documents = createDocumentApplication(documentRepository, objectStore);
   const library = createLibraryStore(libraryRepository, documents);
   const preferences = createUserPreferencesRepository(await relationalDatabase());
   const projects = createProjectStore(projectRepository, documents);
-  return { documents, library, preferences,
+  return { documents, library, preferences, objects: objectStore,
     projects,
     workflowFiles: createWorkflowFiles(documents, library, preferences, projects) };
 }
@@ -52,6 +52,105 @@ afterEach(async () => {
 });
 
 describe("SQLite and filesystem document adapters", () => {
+  it("versions, moves, validates, and cleans named CAS parts", async () => {
+    root = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
+    process.env.MIKE_LOCAL_DATA_DIR = root;
+    process.env.AUTH_MODE = "local";
+    const { documents, projects, objects } = await localStores(), scope = { userId: "local-user" };
+    const source = Buffer.from("source one"), queries = Buffer.from("queries"),
+      rootBytes = Buffer.from("# research");
+    const created = await documents.create(scope, { filename: "research.md", fileType: "md",
+      bytes: rootBytes, parts: [{ name: "source.one.json", bytes: source },
+        { name: "queries.json", bytes: queries }] });
+    const firstId = created.current_version_id;
+    expect((await documents.readParts(scope, created.id, null,
+      ["queries.json", "missing.json", "source.one.json"]))?.map(({ name, bytes }) =>
+      [name, bytes.toString()])).toEqual([["queries.json", "queries"],
+      ["source.one.json", "source one"]]);
+
+    const { relationalDatabase, sql } = await import("../relationalDatabase"),
+      database = await relationalDatabase(), get = vi.spyOn(objects, "get");
+    await database.query(sql`UPDATE document_version_parts SET size_bytes=${MAX_OBJECT_SIZE_BYTES}
+      WHERE document_id=${created.id}`); get.mockClear();
+    await expect(documents.readParts(scope, created.id, null,
+      ["queries.json", "source.one.json"])).rejects.toMatchObject({ status: 413 });
+    expect(get).not.toHaveBeenCalled();
+    await database.query(sql`UPDATE document_version_parts SET size_bytes=CASE name
+      WHEN 'queries.json' THEN ${queries.length} ELSE ${source.length} END
+      WHERE document_id=${created.id}`);
+
+    const part = (await database.query<{ sha256: string; storage_path: string }>(sql`
+      SELECT sha256,storage_path FROM document_version_parts
+      WHERE document_id=${created.id} AND name='queries.json'`)).rows[0]!;
+    await objects.remove(part.storage_path);
+    expect(await documents.checkpointVersion(scope, created.id, firstId, 0))
+      .toEqual({ status: "missing" });
+    await objects.put(part.storage_path, queries, "application/octet-stream",
+      { expectedSha256: part.sha256 });
+    const checkpoint = await documents.checkpointVersion(scope, created.id, firstId, 0);
+    expect(checkpoint.status).toBe("created");
+    if (checkpoint.status !== "created") return;
+    const secondId = checkpoint.version.id;
+
+    const changed = await documents.replaceVersion(scope, created.id, secondId, 0, {
+      filename: "research.md", fileType: "md", bytes: Buffer.from("# changed"),
+      parts: { put: [{ name: "source.one.json", bytes: Buffer.from("source two") }],
+        remove: ["queries.json"] },
+    });
+    expect(changed.status).toBe("replaced");
+    await expect(documents.replaceVersion(scope, created.id, secondId, 0, {
+      filename: "research.md", fileType: "md", bytes: Buffer.from("# stale"),
+      parts: { put: [{ name: "source.one.json", bytes: Buffer.from("stale") }] },
+    })).resolves.toEqual({ status: "conflict" });
+    expect((await documents.read(scope, created.id, null, false))?.bytes.toString()).toBe("# changed");
+    expect((await documents.readParts(scope, created.id, secondId,
+      ["source.one.json", "queries.json"]))?.map(({ bytes }) => bytes.toString()))
+      .toEqual(["source two"]);
+
+    const restored = await documents.restoreVersion(scope, created.id, firstId, secondId, 1);
+    expect(restored.status).toBe("restored");
+    if (restored.status !== "restored") return;
+    expect((await documents.readParts(scope, created.id, restored.version.id,
+      ["source.one.json", "queries.json"]))?.map(({ bytes }) => bytes.toString()))
+      .toEqual(["source one", "queries"]);
+
+    const project = await projects.create(scope, {
+      name: "Matter", cmNumber: null, practice: null, sharedWith: [],
+    });
+    await expect(projects.attachDocument(scope, project.id, created.id)).resolves
+      .toMatchObject({ document: { project_id: project.id } });
+    const moved = (await database.query<{ version_id: string; name: string; sha256: string;
+      storage_path: string }>(sql`SELECT version_id,name,sha256,storage_path
+      FROM document_version_parts WHERE document_id=${created.id}`)).rows;
+    expect((await documents.readParts(scope, created.id, null,
+      ["source.one.json"]))?.[0].bytes.toString()).toBe("source one");
+
+    const currentPart = moved.find(({ version_id, name }) =>
+      version_id === restored.version.id && name === "source.one.json")!;
+    await database.query(sql`UPDATE document_version_parts SET sha256=${"f".repeat(64)}
+      WHERE version_id=${currentPart.version_id} AND name=${currentPart.name}`);
+    await expect(documents.readParts(scope, created.id, restored.version.id,
+      [currentPart.name])).rejects.toThrow("integrity check");
+    await database.query(sql`UPDATE document_version_parts SET sha256=${currentPart.sha256}
+      WHERE version_id=${currentPart.version_id} AND name=${currentPart.name}`);
+    const uniquePart = moved.find(({ version_id, name }) =>
+      version_id === secondId && name === "source.one.json")!;
+    await objects.remove(uniquePart.storage_path);
+    await expect(documents.readParts(scope, created.id, secondId,
+      [uniquePart.name])).rejects.toThrow("unavailable");
+    await expect(documents.restoreVersion(scope, created.id, secondId,
+      restored.version.id, restored.version.working_revision)).resolves.toEqual({ status: "missing" });
+    expect((await documents.versions(scope, created.id))?.current_version_id)
+      .toBe(restored.version.id);
+
+    const retainedKey = moved.find(({ name }) => name === "queries.json")!.storage_path;
+    expect(await objects.get(retainedKey)).toEqual(queries);
+    expect(await documents.deleteDocument(scope, created.id)).toBe(true);
+    await database.query(sql`UPDATE object_cleanup SET created_at='2000-01-01T00:00:00.000Z'`);
+    await documents.resumeCleanup();
+    expect(await objects.get(retainedKey)).toBeNull();
+  });
+
   it("persist the shared lifecycle and expose library paging", async () => {
     root = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
     process.env.MIKE_LOCAL_DATA_DIR = root;
@@ -73,6 +172,22 @@ describe("SQLite and filesystem document adapters", () => {
     expect(page.items[0]).toMatchObject({
       kind: "document", document: { id: document.id, filename: "Brief.docx" },
     });
+    const pending = await documents.commitAssistantVersion(scope, document.id, {
+      sourceVersionId: document.current_version_id, expectedWorkingRevision: 0,
+      filename: document.filename, fileType: "docx", bytes, status: "pending", edits: [{
+        changeId: "edit", deletedText: "old", insertedText: "new",
+        contextBefore: "", contextAfter: "", diff: [],
+      }],
+    });
+    expect(pending.status).toBe("committed");
+    if (pending.status !== "committed") return;
+    expect(await documents.checkpointVersion(scope, document.id, pending.version.id, 0))
+      .toEqual({ status: "pending-edits" });
+    const clean = await documents.addVersion(scope, document.id, {
+      filename: document.filename, fileType: "docx", bytes,
+    });
+    expect(await documents.restoreVersion(scope, document.id, pending.version.id, clean!.id, 0))
+      .toEqual({ status: "pending-edits" });
     expect(await library.deleteFolder({ ...scope, kind: "file" }, folder!.id)).toBe(true);
     expect(await documents.read(scope, document.id, null, false)).toBeNull();
   });
@@ -91,6 +206,50 @@ describe("SQLite and filesystem document adapters", () => {
     expect((await second.documents.read(
       { userId: "local-user" }, created.id, null, false,
     ))?.bytes.toString()).toBe("record");
+  });
+
+  it("moves all version blobs between Library and project scopes atomically", async () => {
+    root = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
+    process.env.MIKE_LOCAL_DATA_DIR = root;
+    process.env.AUTH_MODE = "local";
+    const { documents, projects } = await localStores(), scope = { userId: "local-user" };
+    const project = await projects.create(scope, {
+      name: "Matter", cmNumber: null, practice: null, sharedWith: [],
+    });
+    const first = Buffer.from("shared"), moving = await documents.create(scope, {
+      filename: "notes.md", fileType: "md", bytes: first,
+    });
+    await documents.addVersion(scope, moving.id, {
+      filename: "notes.md", fileType: "md", bytes: Buffer.from("revised"),
+    });
+    const sibling = await documents.create(scope, {
+      filename: "copy.md", fileType: "md", bytes: first,
+    });
+    const { relationalDatabase, sql } = await import("../relationalDatabase");
+    const database = await relationalDatabase();
+    const paths = async (id: string) => (await database.query<{ storage_path: string }>(sql`
+      SELECT storage_path FROM document_versions WHERE document_id=${id}
+      ORDER BY version_number`)).rows.map(({ storage_path }) => storage_path);
+    const libraryKeys = await paths(moving.id);
+    expect(await paths(sibling.id)).toEqual([libraryKeys[0]]);
+    await projects.attachDocument(scope, project.id, moving.id);
+    const projectKeys = await paths(moving.id);
+    expect(projectKeys.every((key) => key.startsWith(`projects/${project.id}/blobs/`))).toBe(true);
+    expect((await database.query<{ storage_path: string }>(sql`SELECT storage_path
+      FROM object_cleanup WHERE storage_path IN(${sql.join(libraryKeys)})`)).rows
+      .map(({ storage_path }) => storage_path).sort()).toEqual([...libraryKeys].sort());
+    await expect(projects.detachDocument(scope, project.id, moving.id)).resolves.toBe(true);
+    expect(await paths(moving.id)).toEqual(libraryKeys);
+    expect((await database.query(sql`SELECT storage_path FROM object_cleanup
+      WHERE storage_path IN(${sql.join(libraryKeys)})`)).rows).toEqual([]);
+    expect((await database.query<{ storage_path: string }>(sql`SELECT storage_path
+      FROM object_cleanup WHERE storage_path IN(${sql.join(projectKeys)}) ORDER BY storage_path`))
+      .rows.map(({ storage_path }) => storage_path)).toEqual([...projectKeys].sort());
+    expect((await documents.read(scope, moving.id, null, false))?.bytes.toString()).toBe("revised");
+    await database.query(sql`UPDATE document_versions SET storage_path=${projectKeys[1]}
+      WHERE document_id=${moving.id} AND version_number=2`);
+    await expect(documents.read(scope, moving.id, null, false))
+      .rejects.toThrow("different storage scope");
   });
 
   it("contains direct Court Records and Authorities PDFs in their durable targets", async () => {
@@ -171,9 +330,13 @@ describe("SQLite and filesystem document adapters", () => {
     const reopened = await localStores();
     const versions = await reopened.documents.versions(scope, created.id);
     expect(versions?.versions.map((version) => version.provenance)).toEqual([
-      { schema_version: 1, actor: "work-product", action: "built", receipt: receipt1 },
-      { schema_version: 1, actor: "work-product", action: "built", receipt: receipt2 },
+      { schema_version: 1, actor: "work-product", action: "built",
+        receipt: { workProduct: { kind: "authorities" } } },
+      { schema_version: 1, actor: "work-product", action: "built",
+        receipt: { workProduct: { kind: "authorities" } } },
     ]);
+    expect((await reopened.documents.projectionSource(
+      scope, created.id, null))?.provenance).toMatchObject({ receipt: receipt2 });
     expect((await reopened.documents.read(scope, created.id, null, false))?.bytes).toEqual(v2);
   });
 });

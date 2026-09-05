@@ -31,17 +31,15 @@ CHROME = next((path for path in (
 CHROMEDRIVER = next(iter(sorted(Path.home().parent.glob(
     r"*/.cache/selenium/chromedriver/win64/*/chromedriver.exe"
 ), reverse=True)), None)
-DOCUMENTS = {
-    "ab-kb-affidavit-exhibits": "Affidavit with exhibits",
-    "fc-motion-record-moving": "Motion record",
-    "fca-motion-record-moving": "Motion record",
-    "ab-ca-appeal-record": "Civil appeal record",
+CHOICES = {
+    "ab-kb-affidavit-exhibits": ("Alberta", "Trial", "Affidavit with exhibits"),
+    "fc-motion-record-moving": ("Federal courts", "Trial", "Motion record"),
+    "fca-motion-record-moving": ("Federal courts", "Appeal", "Motion record"),
+    "ab-ca-appeal-record": ("Alberta", "Appeal", "Appeal record"),
 }
 FORMATS = {
-    "ab-kb-affidavit-exhibits": ".//button[normalize-space()='ABKB']",
-    "fc-motion-record-moving": ".//button[starts-with(normalize-space(),'FC ') and contains(normalize-space(),'Moving party')]",
-    "fca-motion-record-moving": ".//button[starts-with(normalize-space(),'FCA ') and contains(normalize-space(),'Moving party')]",
-    "ab-ca-appeal-record": ".//button[normalize-space()='ABCA']",
+    "fc-motion-record-moving": ".//button[normalize-space()='Motion record — moving']",
+    "fca-motion-record-moving": ".//button[normalize-space()='Motion record — moving']",
 }
 RESPONSIVE_SCROLL_RESETS: list[dict[str, object]] = []
 
@@ -85,6 +83,20 @@ def make_long_pdf(path: Path, pages: int = 80) -> None:
     document.close()
 
 
+def make_transcript_pdf(path: Path) -> None:
+    document = fitz.open()
+    for text in ("TRANSCRIPT OF PROCEEDINGS", "TABLE OF CONTENTS", "ORAL PROCEEDINGS TRANSCRIPT"):
+        page = document.new_page(width=612, height=792)
+        page.insert_text((72, 72), text, fontsize=11, fontname="Times-Roman")
+    document.set_page_labels([
+        {"startpage": 0, "prefix": "", "style": "", "firstpagenum": 1},
+        {"startpage": 1, "prefix": "", "style": "r", "firstpagenum": 1},
+        {"startpage": 2, "prefix": "", "style": "D", "firstpagenum": 1},
+    ])
+    document.save(path)
+    document.close()
+
+
 def make_fixtures(directory: Path) -> dict[str, Path]:
     directory.mkdir()
     fixtures = {
@@ -99,7 +111,8 @@ def make_fixtures(directory: Path) -> dict[str, Path]:
         "appeal_reasons": directory / "Reasons-for-Judgment.pdf",
         "appeal_order": directory / "Formal-Order.pdf",
         "appeal_notice": directory / "Notice-of-Appeal.pdf",
-        "appeal_transcript": directory / "Oral-Proceedings-Transcript.pdf",
+        "appeal_transcript_prior": directory / "Prior-Transcript.pdf",
+        "appeal_transcript": directory / "EVK26DOEJ.pdf",
     }
     make_pdf(fixtures["affidavit"], [
         "COURT OF KING'S BENCH OF ALBERTA",
@@ -158,10 +171,15 @@ def make_fixtures(directory: Path) -> dict[str, Path]:
         ("appeal_reasons", "REASONS FOR JUDGMENT"),
         ("appeal_order", "FORMAL ORDER"),
         ("appeal_notice", "NOTICE OF APPEAL"),
-        ("appeal_transcript", "ORAL PROCEEDINGS TRANSCRIPT"),
     ):
+        metadata = (["Trial Court File Number: 2301-00456",
+            "Decision Maker Appealed From: The Honourable Justice A. Ng",
+            "Decision Date: March 4, 2026", "Decision Filing Date: March 5, 2026"]
+            if key == "appeal_reasons" else [])
         make_pdf(fixtures[key], [heading, "Court File Number 2403-00789",
-                                 "North Prairie Ltd. v. Riverstone Inc."])
+                                 "North Prairie Ltd. v. Riverstone Inc.", *metadata])
+    make_transcript_pdf(fixtures["appeal_transcript_prior"])
+    make_transcript_pdf(fixtures["appeal_transcript"])
     return fixtures
 
 
@@ -260,18 +278,29 @@ def chooser_contract(
         set_viewport(driver, width, height)
         metrics = driver.execute_script("""
 const d=arguments[0],r=d.getBoundingClientRect(),id=d.getAttribute('aria-labelledby'),
-  controls=[...d.querySelectorAll('button,input')].filter(n=>n.getBoundingClientRect().width>1);
+  heading=document.getElementById(id),close=d.querySelector("button[aria-label='Close']"),
+  h=heading?.getBoundingClientRect(),c=close?.getBoundingClientRect(),
+  controls=[...d.querySelectorAll('button,input,select')].filter(n=>n.getBoundingClientRect().width>1);
 return {name:document.getElementById(id)?.textContent?.trim(),left:r.left,right:r.right,
   top:r.top,bottom:r.bottom,overflow:document.documentElement.scrollWidth-innerWidth,
+  heading:h&&{left:h.left,right:h.right,top:h.top,bottom:h.bottom},
+  close:c&&{left:c.left,right:c.right,top:c.top,bottom:c.bottom},
+  panelOverflow:d.scrollWidth-d.clientWidth,scrollLeft:d.scrollLeft,
   active:document.activeElement?.getAttribute('aria-label')||document.activeElement?.textContent?.trim(),
   smallTargets:controls.filter(n=>{const x=n.getBoundingClientRect();return x.width<24||x.height<24})
     .map(n=>n.getAttribute('aria-label')||n.textContent.trim()),
-  smallFormText:controls.filter(n=>n.tagName==='INPUT'&&parseFloat(getComputedStyle(n).fontSize)<16)
+  smallFormText:controls.filter(n=>['INPUT','SELECT'].includes(n.tagName)&&parseFloat(getComputedStyle(n).fontSize)<16)
     .map(n=>getComputedStyle(n).fontSize)};
 """, dialog)
         assert metrics["name"] and metrics["overflow"] <= 1, metrics
         assert metrics["left"] >= 0 and metrics["right"] <= width, metrics
         assert metrics["top"] >= 0 and metrics["bottom"] <= height, metrics
+        for control in (metrics["heading"], metrics["close"]):
+            assert control and control["left"] >= metrics["left"] - 1 \
+                and control["right"] <= metrics["right"] + 1 \
+                and control["top"] >= metrics["top"] - 1 \
+                and control["bottom"] <= metrics["bottom"] + 1, metrics
+        assert metrics["panelOverflow"] <= 1 and metrics["scrollLeft"] == 0, metrics
         assert not metrics["smallTargets"], metrics
         if width == 320:
             assert not metrics["smallFormText"], metrics
@@ -339,14 +368,14 @@ return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,
 
 def header_geometry(driver: webdriver.Chrome) -> dict[str, object]:
     return driver.execute_script("""
-const rail=document.querySelector('.court-records-workspace > header'),
-  content=rail?.querySelector('.builder-header'), title=content?.querySelector('h1'),
+const rail=document.querySelector('[data-workspace-header]'),
+  content=rail?.firstElementChild, title=content?.querySelector('h1'),
   actions=content?.lastElementChild, r=rail?.getBoundingClientRect(),
   c=content?.getBoundingClientRect(), t=title?.getBoundingClientRect(),
   a=actions?.getBoundingClientRect();
 return {rail:{top:r?.top,bottom:r?.bottom,height:r?.height},
   content:{left:c?.left,right:c?.right,height:c?.height},
-  title:t?{left:t.left,top:t.top,bottom:t.bottom}:null,
+  title:t?{left:t.left,right:t.right,top:t.top,bottom:t.bottom,width:t.width}:null,
   actions:a?{left:a.left,right:a.right,top:a.top,bottom:a.bottom}:null};
 """)
 
@@ -357,18 +386,28 @@ def choose_new_profile(
     wait = WebDriverWait(driver, 20)
     driver.find_element(By.XPATH, "//button[normalize-space()='New court record']").click()
     dialog = wait.until(lambda item: item.find_element(By.CSS_SELECTOR, "dialog[open]"))
-    groups = [item.text.strip().casefold() for item in dialog.find_elements(
-        By.XPATH, ".//*[@role='group']/div"
-    )]
-    assert groups == ["trial and applications", "appeal"], groups
-    proof: dict[str, object] = {
-        "document_groups": ["Trial and applications", "Appeal"],
-    }
+    jurisdiction, level, document = CHOICES[profile_id]
+    proof: dict[str, object] = {"jurisdiction": jurisdiction, "level": level,
+                               "document": document}
     if chooser_output:
-        proof["document"] = chooser_contract(driver, dialog, chooser_output, "document")
-    dialog.find_element(
-        By.XPATH, f".//button[normalize-space()='{DOCUMENTS[profile_id]}']"
-    ).click()
+        proof["jurisdiction_viewports"] = chooser_contract(
+            driver, dialog, chooser_output, "jurisdiction")
+    Select(dialog.find_element(By.CSS_SELECTOR, "select[aria-label='Jurisdiction']")).select_by_visible_text(jurisdiction)
+    assert driver.find_elements(By.CSS_SELECTOR, "dialog[open]") == [dialog], "Jurisdiction replaced the dialog"
+    wait.until(lambda _item: dialog.find_element(By.XPATH,
+        ".//*[@role='tablist' and @aria-label='Court level']"))
+    levels = dialog.find_elements(By.XPATH,
+        ".//*[@role='tablist' and @aria-label='Court level']//*[@role='tab']")
+    assert [item.text.strip() for item in levels] == ["Trial", "Appeal"], [
+        item.text for item in levels]
+    next(item for item in levels if item.text.strip() == level).click()
+    wait.until(lambda _item: next(item for item in dialog.find_elements(
+        By.XPATH, ".//*[@role='tablist' and @aria-label='Court level']//*[@role='tab']")
+        if item.text.strip() == level).get_attribute("aria-selected") == "true")
+    if chooser_output:
+        proof["document_viewports"] = chooser_contract(
+            driver, dialog, chooser_output, "document")
+    dialog.find_element(By.XPATH, f".//button[normalize-space()='{document}']").click()
     direct = wait.until(lambda item: (
         any(node.get_attribute("data-selected-profile") == profile_id
             for node in item.find_elements(By.CSS_SELECTOR, "[data-court-record-chooser]"))
@@ -377,9 +416,9 @@ def choose_new_profile(
     if direct is True:
         proof["format"] = {"direct": True}
         return proof
-    dialog = direct
+    assert direct == dialog, "Format selection replaced the dialog"
     if chooser_output:
-        proof["format"] = chooser_contract(driver, dialog, chooser_output, "format")
+        proof["format_viewports"] = chooser_contract(driver, dialog, chooser_output, "format")
     dialog.find_element(By.XPATH, FORMATS[profile_id]).click()
     wait.until(lambda item: item.find_element(
         By.CSS_SELECTOR, "[data-court-record-chooser]"
@@ -409,16 +448,30 @@ def reset_workspace(
     )
     if parsed.path.endswith("court-records.html"):
         assert not assistant, "The standalone builder exposed Beaver's assistant."
-    else:
-        assert len(assistant) == 1, assistant
     blank_header = header_geometry(driver)
     if chooser_output:
         assert driver.save_screenshot(str(chooser_output / "blank-start.png"))
+        set_viewport(driver, 320, 800)
+        blank_narrow = header_geometry(driver)
+        assert blank_narrow["content"]["left"] >= 12
+        assert blank_narrow["content"]["right"] <= 308
+        assert driver.save_screenshot(str(chooser_output / "blank-start-320.png"))
+        restore_viewport(driver)
     chooser_proof = choose_new_profile(driver, profile_id, chooser_output)
+    draft_header = header_geometry(driver)
+    assert abs(blank_header["content"]["left"] - draft_header["content"]["left"]) <= 1
+    assert abs(blank_header["content"]["right"] - draft_header["content"]["right"]) <= 1
     chooser_proof.update({"blank_start": True, "header": {
-        "blank": blank_header, "draft": header_geometry(driver),
+        "blank": blank_header, "draft": draft_header,
     }})
     if chooser_output:
+        set_viewport(driver, 320, 800)
+        draft_narrow = header_geometry(driver)
+        assert abs(blank_narrow["rail"]["height"] - draft_narrow["rail"]["height"]) <= 1
+        assert draft_narrow["title"]["width"] >= 88, draft_narrow
+        restore_viewport(driver)
+        chooser_proof["header"]["blank_320"] = blank_narrow
+        chooser_proof["header"]["draft_320"] = draft_narrow
         chooser_proof["assistant"] = assistant_contract(driver, chooser_output)
     return round((time.perf_counter() - started) * 1000, 1), timing, chooser_proof
 
@@ -428,11 +481,15 @@ def field(driver: webdriver.Chrome, field_id: str):
 
 
 def select_filing_party(driver: webdriver.Chrome, name: str) -> None:
-    control = Select(driver.find_element(
-        By.XPATH, "//label[contains(.,'Filing party')]/select"
-    ))
-    control.select_by_visible_text(next(option.text for option in control.options
-                                        if option.text.startswith(f"{name} ")))
+    group = driver.find_elements(By.XPATH,
+        "//fieldset[.//legend[contains(normalize-space(.),'Filing parties')]]")
+    if not group:
+        return  # A single eligible party is selected automatically.
+    label = next(item for item in group[0].find_elements(By.TAG_NAME, "label")
+                 if item.text.casefold().startswith(name.casefold()))
+    control = label.find_element(By.CSS_SELECTOR, "input[type='checkbox']")
+    if not control.is_selected():
+        control.click()
 
 
 def enter(element, value: str) -> None:
@@ -447,6 +504,19 @@ def reveal(driver: webdriver.Chrome, element) -> None:
     )
 
 
+def toggle_disclosure(driver: webdriver.Chrome, details) -> None:
+    original = driver.execute_script("return arguments[0].open", details)
+    summary = details.find_element(By.TAG_NAME, "summary")
+    summary.click()
+    WebDriverWait(driver, 5).until(
+        lambda _item: driver.execute_script("return arguments[0].open", details) != original
+    )
+    summary.click()
+    WebDriverWait(driver, 5).until(
+        lambda _item: driver.execute_script("return arguments[0].open", details) == original
+    )
+
+
 def upload(driver: webdriver.Chrome, kind_id: str, path: Path) -> None:
     selector = f"[data-kind-id='{kind_id}']"
     before = len(driver.find_elements(By.CSS_SELECTOR, f"{selector} [data-entry-id]"))
@@ -457,7 +527,8 @@ def upload(driver: webdriver.Chrome, kind_id: str, path: Path) -> None:
     else:
         driver.find_element(
             By.XPATH,
-            f"//*[@data-kind-id='{kind_id}']//button[starts-with(normalize-space(),'Add file')]",
+            f"//*[@data-kind-id='{kind_id}']//button[normalize-space()='Add file' or "
+            "normalize-space()='Replace file']",
         ).click()
         picker = WebDriverWait(driver, 5).until(lambda item: item.find_element(
             By.CSS_SELECTOR, "input[data-chromedriver-file-picker]"
@@ -465,8 +536,11 @@ def upload(driver: webdriver.Chrome, kind_id: str, path: Path) -> None:
     picker.send_keys(str(path.resolve()))
 
     def prepared(item: webdriver.Chrome) -> bool:
-        rows = item.find_elements(By.CSS_SELECTOR, f"{selector} [data-entry-id]")
-        return len(rows) > before and all(row.get_attribute("aria-busy") != "true" for row in rows)
+        return bool(item.execute_script("""
+const rows=[...document.querySelectorAll(arguments[0])];
+return rows.length>=arguments[2]&&rows.some(row=>[...row.querySelectorAll('span[title]')]
+  .some(node=>node.title===arguments[1]))&&rows.every(row=>row.getAttribute('aria-busy')!=='true');
+""", f"{selector} [data-entry-id]", path.name, max(1, before)))
 
     WebDriverWait(driver, 30).until(prepared)
     if dynamic:
@@ -567,19 +641,26 @@ const visible=node=>{const s=getComputedStyle(node),r=node.getBoundingClientRect
   return s.display!=='none'&&s.visibility!=='hidden'&&r.width>1&&r.height>1&&!node.classList.contains('sr-only')};
 const name=node=>node.getAttribute('aria-label')||[...(node.labels||[])].map(x=>x.textContent).join(' ').trim()||node.textContent.trim()||node.title;
 const controls=[...document.querySelectorAll("button,summary,select,input:not([type=file]),textarea,label:has(input[type=file]),a[href]")].filter(visible);
+const targetRect=node=>['checkbox','radio'].includes(node.type)&&node.closest('label')
+  ? node.closest('label').getBoundingClientRect():node.getBoundingClientRect();
 const ids=[...document.querySelectorAll('[id]')].map(node=>node.id);
+const save=document.querySelector('[data-save-filing-details]'), saveRect=save?.getBoundingClientRect(),
+  setupRect=save?.closest('section')?.getBoundingClientRect();
 return {width:innerWidth,overflow:document.documentElement.scrollWidth-document.documentElement.clientWidth,
   dpr:devicePixelRatio,header:(()=>{const r=document.querySelector('.court-records-workspace>header')?.getBoundingClientRect();return r&&{left:r.left,right:r.right,height:r.height}})(),
   duplicateIds:[...new Set(ids.filter((id,index)=>ids.indexOf(id)!==index))],
   unnamed:controls.filter(node=>!name(node)).map(node=>node.outerHTML.slice(0,120)),
-  smallTargets:controls.filter(node=>{const r=node.getBoundingClientRect();return r.width<24||r.height<24})
-    .map(node=>`${node.tagName}:${name(node)}:${Math.round(node.getBoundingClientRect().width)}x${Math.round(node.getBoundingClientRect().height)}`),
-  smallFormText:innerWidth>640?[]:[...document.querySelectorAll('input:not([type=file]),select,textarea')].filter(visible)
+  smallTargets:controls.filter(node=>{const r=targetRect(node);return r.width<24||r.height<24})
+    .map(node=>{const r=targetRect(node);return `${node.tagName}:${name(node)}:${Math.round(r.width)}x${Math.round(r.height)}`}),
+  smallFormText:innerWidth>640?[]:[...document.querySelectorAll('input:not([type=file]):not([type=checkbox]):not([type=radio]),select,textarea')].filter(visible)
     .filter(node=>parseFloat(getComputedStyle(node).fontSize)<16).map(node=>`${node.tagName}:${getComputedStyle(node).fontSize}`),
   positiveTabindex:[...document.querySelectorAll('[tabindex]')].filter(node=>Number(node.tabIndex)>0).map(node=>node.outerHTML.slice(0,120)),
   crampedEntryFields:[...document.querySelectorAll('[data-entry-id] > div:first-of-type label input')]
     .filter(visible).filter(node=>node.getBoundingClientRect().width<120)
     .map(node=>`${name(node)}:${Math.round(node.getBoundingClientRect().width)}px`),
+  filingDetails:saveRect&&setupRect?{left:saveRect.left,right:saveRect.right,
+    containerLeft:setupRect.left,containerRight:setupRect.right,
+    contained:saveRect.left>=setupRect.left-1&&saveRect.right<=setupRect.right+1}:null,
   wideNodes:[...document.querySelectorAll('body *')].filter(visible)
     .filter(node=>node.getBoundingClientRect().right>document.documentElement.clientWidth+1)
     .map(node=>{const r=node.getBoundingClientRect(),s=getComputedStyle(node);return `${node.tagName}.${node.className}:left=${Math.round(r.left)},width=${Math.round(r.width)},right=${Math.round(r.right)},min=${s.minWidth}`}).slice(0,12)};
@@ -604,6 +685,8 @@ return {main:main?.scrollTop||0,workspace:workspace?.scrollTop||0};
         assert not metrics["smallFormText"], metrics
         assert not metrics["positiveTabindex"], metrics
         assert not metrics["crampedEntryFields"], metrics
+        assert not metrics["filingDetails"] or metrics["filingDetails"]["contained"], metrics
+        assert not metrics["wideNodes"], metrics
         assert metrics["scrollOwner"]["main"] == 0, metrics
         assert metrics["dpr"] == dpr, metrics
         assert metrics["header"]["left"] >= 0 and metrics["header"]["right"] <= width, metrics
@@ -623,17 +706,15 @@ def build_and_download(
     reveal(driver, button)
     button.click()
     if busy_proof is not None:
-        WebDriverWait(driver, 5).until(
-            lambda _item: button.get_attribute("aria-busy") == "true"
-        )
-        workspace = driver.find_element(By.ID, "court-record-workspace")
-        back = driver.find_element(By.CSS_SELECTOR, "button[aria-label='Back from court record']")
-        busy_proof.update({
-            "observed": button.get_attribute("aria-busy") == "true",
-            "workspace_inert": driver.execute_script("return arguments[0].inert", workspace),
-            "back_disabled": not back.is_enabled(),
-            "build_disabled": not button.is_enabled(),
-        })
+        state = WebDriverWait(driver, 5).until(lambda _item: driver.execute_script("""
+const build=arguments[0];
+if (build.getAttribute('aria-busy') !== 'true') return null;
+const workspace=document.getElementById('court-record-workspace');
+const back=document.querySelector("button[aria-label='Back from court record']");
+return {observed:true,workspace_inert:workspace.inert,
+  back_disabled:back.disabled,build_disabled:build.disabled};
+""", button))
+        busy_proof.update(state)
     WebDriverWait(driver, 45).until(lambda _item:
         button.get_attribute("aria-busy") != "true" and "Build complete" in panel.text)
     preview = WebDriverWait(driver, 10).until(lambda item: item.find_element(
@@ -652,7 +733,25 @@ def build_and_download(
                                       ("200pct", 640, 500, 2)):
         set_viewport(driver, width, height, dpr)
         reveal(driver, preview)
+        fit_started = time.perf_counter()
+        fit = WebDriverWait(driver, 5, poll_frequency=.02).until(
+            lambda _item: driver.execute_script("""
+const scroller=arguments[0].querySelector('.overflow-auto'), r=scroller.getBoundingClientRect();
+const pages=[...arguments[0].querySelectorAll('[data-page-number]')]
+  .map(page=>{const p=page.getBoundingClientRect();return {left:p.left,right:p.right,width:p.width}});
+const result={clientWidth:scroller.clientWidth,scrollWidth:scroller.scrollWidth,
+  rect:{left:r.left,right:r.right},pages};
+return result.scrollWidth<=result.clientWidth+1&&pages.every(page=>
+  page.left>=r.left-1&&page.right<=r.right+1)&&result;
+""", preview))
+        if busy_proof is not None:
+            busy_proof.setdefault("preview_fit_ms", {})[label] = round(
+                (time.perf_counter() - fit_started) * 1000, 1)
         driver.save_screenshot(str(directory.parent / f"{slug}-{label}-built-preview.png"))
+        assert fit["scrollWidth"] <= fit["clientWidth"] + 1, fit
+        assert all(page["left"] >= fit["rect"]["left"] - 1 and
+                   page["right"] <= fit["rect"]["right"] + 1
+                   for page in fit["pages"]), fit
         assert driver.execute_script(
             "return document.documentElement.scrollWidth-document.documentElement.clientWidth"
         ) <= 1
@@ -677,13 +776,23 @@ def stale_build_contract(
     driver: webdriver.Chrome, large_file: Path, output: Path
 ) -> dict[str, object]:
     upload(driver, "other-filed-material", large_file)
+    driver.execute_script("""
+const original=Blob.prototype.arrayBuffer;
+window.__courtBuildGate={original,waiting:false,release:null};
+Blob.prototype.arrayBuffer=function(){
+  const gate=window.__courtBuildGate;
+  if(!gate.waiting){gate.waiting=true;return new Promise(resolve=>gate.release=resolve)
+    .then(()=>original.call(this));}
+  return original.call(this);
+};
+""")
     button = driver.find_element(By.CSS_SELECTOR, "[data-court-record-build]")
     panel = button.find_element(By.XPATH, "ancestor::aside[1]")
     reveal(driver, button)
     button.click()
-    WebDriverWait(driver, 10).until(
-        lambda _item: button.get_attribute("aria-busy") == "true"
-    )
+    WebDriverWait(driver, 10).until(lambda _item:
+        button.get_attribute("aria-busy") == "true" and
+        driver.execute_script("return window.__courtBuildGate.waiting"))
     workspace = driver.find_element(By.ID, "court-record-workspace")
     locked = {
         "workspace_inert": driver.execute_script("return arguments[0].inert", workspace),
@@ -700,6 +809,9 @@ const input=arguments[0], value=arguments[1], set=Object.getOwnPropertyDescripto
   HTMLInputElement.prototype,'value').set;
 set.call(input,value); input.dispatchEvent(new Event('input',{bubbles:true}));
 """, changed, "Changed during build")
+    driver.execute_script("""
+const gate=window.__courtBuildGate; Blob.prototype.arrayBuffer=gate.original; gate.release();
+""")
     WebDriverWait(driver, 60).until(
         lambda _item: button.get_attribute("aria-busy") != "true"
     )
@@ -720,7 +832,7 @@ def reopen_saved_contract(
     driver: webdriver.Chrome, profile_id: str, expected: dict[str, str],
     filenames: list[str], output: Path,
 ) -> dict[str, object]:
-    title = driver.find_element(By.CSS_SELECTOR, ".builder-header h1").text
+    title = driver.find_element(By.CSS_SELECTOR, "[data-workspace-header] h1").text
     started = time.perf_counter()
     back = WebDriverWait(driver, 10).until(lambda item: next((button for button in
         item.find_elements(By.CSS_SELECTOR, "button[aria-label='Back from court record']")
@@ -748,7 +860,7 @@ def reopen_saved_contract(
                for key, value in expected.items())
     assert all(driver.find_elements(By.CSS_SELECTOR, f"span[title='{name}']")
                for name in filenames)
-    assert driver.find_element(By.CSS_SELECTOR, ".builder-header h1").text == title
+    assert driver.find_element(By.CSS_SELECTOR, "[data-workspace-header] h1").text == title
     assert driver.save_screenshot(str(output / "saved-record-reopened.png"))
     return {"title": title, "files": filenames, "values": expected,
             "visible_wait_ms": visible_wait_ms,
@@ -780,8 +892,7 @@ def save_and_nest_contract(
                        "counselAddress": "100 Legal Avenue\nCalgary, Alberta",
                        "counselPhone": "403-555-0100",
                        "counselEmail": "jlee@example.test",
-                       "recordSubtitle": "Motion for procedural directions",
-                       "applicationUnder": "Federal Courts Act, section 18.1"}.items():
+                       "recordSubtitle": "Motion for procedural directions"}.items():
         enter(field(driver, key), value)
 
     driver.find_element(By.CSS_SELECTOR, "[data-kind-id='moving-evidence'] button").click()
@@ -799,11 +910,14 @@ def save_and_nest_contract(
     )
     WebDriverWait(driver, 10).until(lambda item: item.find_element(
         By.CSS_SELECTOR, "[data-party-group='Applicant'] input"
-    ).get_attribute("value") == "North Prairie Ltd.")
+    ).get_attribute("value") == "NORTH PRAIRIE LTD.")
     assert driver.find_element(
         By.CSS_SELECTOR, "[data-party-group='Respondent'] input"
-    ).get_attribute("value") == "Riverstone Inc."
+    ).get_attribute("value") == "RIVERSTONE INC."
     select_filing_party(driver, "North Prairie Ltd.")
+    application_under = field(driver, "applicationUnder")
+    reveal(driver, application_under)
+    enter(application_under, "Federal Courts Act, section 18.1")
     build = driver.find_element(By.CSS_SELECTOR, "[data-court-record-build]")
     reveal(driver, build)
     build.click()
@@ -821,16 +935,17 @@ def inspect_affidavit(path: Path, output: Path) -> dict[str, object]:
     try:
         pages = [page.get_text() for page in document]
         toc = [row[1] for row in document.get_toc()]
-        assert document.page_count == 5, pages
-        assert [page.get_label() for page in document] == ["1", "2", "3", "4", "5"]
+        assert document.page_count == 4, pages
+        assert [page.get_label() for page in document] == ["1", "2", "3", "4"]
         assert not document.is_encrypted and all(text.strip() for text in pages)
         assert 'This is Exhibit "A" referred to in the Affidavit of:' in pages[1]
         assert "SERVICE AGREEMENT" in pages[2]
-        assert 'This is Exhibit "B" referred to in the Affidavit of:' in pages[3]
-        assert "PROJECT LEDGER" in pages[4]
-        assert toc.index("Exhibit A certificate") < toc.index("Exhibit B certificate"), toc
+        assert 'This is Exhibit "B" referred to in the Affidavit.' in pages[3]
+        assert "PROJECT LEDGER" in pages[3]
+        assert toc.count("Exhibit A certificate") == 1, toc
+        assert "Exhibit B certificate" not in toc, toc
         for page_number, name in ((0, "affidavit-output"), (1, "exhibit-a-certificate"),
-                                  (3, "exhibit-b-certificate")):
+                                  (3, "exhibit-b-with-certificate")):
             document[page_number].get_pixmap(
                 matrix=fitz.Matrix(1.5, 1.5), alpha=False
             ).save(output / f"{name}.png")
@@ -880,6 +995,7 @@ def inspect_appeal_record(
         toc = [row[1] for row in record.get_toc()]
         links = sum(len(page.get_links()) for page in record)
         corner = record[0].get_pixmap(alpha=False).pixel(5, 5)[:3]
+        index_text = " ".join(pages[1].split())
         assert record.page_count == 6, pages
         assert [page.get_label() for page in record] == [str(value) for value in range(1, 7)]
         assert corner[0] > 240 and corner[1] < 15 and corner[2] < 15, corner
@@ -887,10 +1003,21 @@ def inspect_appeal_record(
                       "STATEMENT OF CLAIM", "REASONS FOR JUDGMENT", "FORMAL ORDER",
                       "NOTICE OF APPEAL"):
             assert value in text, value
+        cover_text = " ".join(pages[0].split())
+        for value in ("Jordan Lee", "403-555-0100", "403-555-0101", "Riley Counsel",
+                      "200 Court Street", "780-555-0123"):
+            assert value in cover_text, (value, cover_text)
+        for description in ("STATEMENT OF CLAIM", "REASONS FOR JUDGMENT", "Formal Order",
+                            "NOTICE OF APPEAL"):
+            assert description in index_text, (description, index_text)
+        assert "Part 2 - Formal order or decision" not in index_text, index_text
+        assert index_text.count("Part 2") == 1, index_text
         assert "ORAL PROCEEDINGS TRANSCRIPT" not in text
         assert links >= 4 and len(toc) >= 6, (links, toc)
-        assert transcript.page_count == 1 and not transcript.is_encrypted
-        assert "ORAL PROCEEDINGS TRANSCRIPT" in transcript[0].get_text()
+        assert transcript.page_count == 3 and not transcript.is_encrypted
+        assert [page.get_label() for page in transcript] == ["", "i", "1"]
+        assert "ORAL PROCEEDINGS TRANSCRIPT" in transcript[2].get_text()
+        assert transcript_path.name == source_transcript.name
         assert sha256(transcript_path) == sha256(source_transcript)
         record[0].get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False).save(
             output / "appeal-record-cover.png"
@@ -901,9 +1028,11 @@ def inspect_appeal_record(
         return {
             "record": {"filename": record_path.name, "sha256": sha256(record_path),
                        "pages": record.page_count, "bookmarks": toc,
-                       "internal_links": links, "cover_rgb": list(corner)},
+                       "internal_links": links, "cover_rgb": list(corner),
+                       "filename_descriptions": True},
             "transcript": {"filename": transcript_path.name,
                            "sha256": sha256(transcript_path), "pages": transcript.page_count,
+                           "page_labels": [page.get_label() for page in transcript],
                            "preserved_byte_for_byte": True},
         }
     finally:
@@ -941,20 +1070,24 @@ def check_affidavit(
     for field_id in ("courtFileNumber", "registry", "affidavitNumber", "deponent", "swornDate", "swornPlace"):
         assert not field(driver, field_id).get_attribute("value"), field_id
 
-    Select(driver.find_element(By.XPATH, "//label[contains(.,'Party style')]/select")).select_by_visible_text("Action")
+    Select(driver.find_element(By.ID, "court-record-party-style")).select_by_visible_text("Action")
     reveal(driver, field(driver, "registry"))
     enter(field(driver, "registry"), "Edmonton")
     enter(driver.find_element(By.CSS_SELECTOR, "[data-party-group='Plaintiff'] input"), "Existing Plaintiff")
     upload(driver, "affidavit", fixtures["affidavit"])
     expected = {
         "courtFileNumber": "2401-12345", "registry": "Edmonton", "affidavitNumber": "2",
-        "deponent": "Alexandra Smith", "swornDate": "August 29, 2026", "swornPlace": "Calgary",
+        "deponent": "Alexandra Smith", "swornDate": "AUGUST 29, 2026", "swornPlace": "CALGARY",
     }
     WebDriverWait(driver, 20).until(lambda item: all(
         field(item, key).get_attribute("value") == value for key, value in expected.items()
     ))
-    assert driver.find_element(By.CSS_SELECTOR, "[data-party-group='Plaintiff'] input").get_attribute("value") == "Existing Plaintiff"
-    assert driver.find_element(By.CSS_SELECTOR, "[data-party-group='Defendant'] input").get_attribute("value") == "Riverstone Inc."
+    plaintiffs = [item.get_attribute("value") for item in driver.find_elements(
+        By.CSS_SELECTOR, "[data-party-group='Plaintiff'] input")]
+    defendants = [item.get_attribute("value") for item in driver.find_elements(
+        By.CSS_SELECTOR, "[data-party-group='Defendant'] input")]
+    assert plaintiffs == ["Existing Plaintiff", "NORTH PRAIRIE LTD."], plaintiffs
+    assert defendants == ["RIVERSTONE INC."], defendants
     select_filing_party(driver, "Existing Plaintiff")
     for label in ("A", "B"):
         WebDriverWait(driver, 10).until(lambda item, value=label: exhibit_slot(item, value))
@@ -965,31 +1098,28 @@ def check_affidavit(
     assert contains_file(unassigned_pool(driver), fixtures["ambiguous"].name)
 
     drag_events = drag(driver, article(driver, fixtures["ambiguous"].name),
-                       exhibit_slot(driver, "C"))
+                       exhibit_slot(driver, "A"))
     assert any(event["type"] == "drop" and event["trusted"]
                for event in drag_events["events"]), drag_events
     WebDriverWait(driver, 5).until(
-        lambda item: contains_file(exhibit_slot(item, "C"), fixtures["ambiguous"].name)
+        lambda item: contains_file(exhibit_slot(item, "A"), fixtures["ambiguous"].name)
     )
-    article(driver, fixtures["ambiguous"].name).find_element(
-        By.XPATH, ".//label[contains(normalize-space(.),'Exhibit label')]/input"
-    ).send_keys(Keys.CONTROL, "a", Keys.BACKSPACE)
+    drag(driver, article(driver, fixtures["ambiguous"].name), unassigned_pool(driver))
     WebDriverWait(driver, 5).until(
         lambda item: contains_file(unassigned_pool(item), fixtures["ambiguous"].name)
     )
-    article(driver, fixtures["ambiguous"].name).find_element(
-        By.XPATH, ".//label[contains(normalize-space(.),'Exhibit label')]/input"
-    ).send_keys("A")
+    drag(driver, article(driver, fixtures["ambiguous"].name), exhibit_slot(driver, "A"))
     WebDriverWait(driver, 5).until(
         lambda item: contains_file(exhibit_slot(item, "A"), fixtures["ambiguous"].name)
     )
     assert contains_file(exhibit_slot(driver, "B"), fixtures["exhibit_b"].name)
+    toggle_disclosure(driver, exhibit_slot(driver, "A").find_element(By.TAG_NAME, "details"))
 
     keyboard = keyboard_contract(driver)
     viewports = viewport_contract(driver, output, "affidavit", "[data-kind-id='exhibit']")
     busy: dict[str, object] = {}
     downloads = build_and_download(
-        driver, output / "affidavit-downloads", "affidavit", 5, busy
+        driver, output / "affidavit-downloads", "affidavit", 4, busy
     )
     pdf = next(path for path in downloads.values() if path.suffix.lower() == ".pdf")
     inspected = inspect_affidavit(pdf, output)
@@ -1015,8 +1145,8 @@ def check_federal(
     WebDriverWait(driver, 10).until(
         lambda item: field(item, "courtFileNumber").get_attribute("value") == "T-982-19"
     )
-    assert driver.find_element(By.CSS_SELECTOR, "[data-party-group='Applicant'] input").get_attribute("value") == "North Prairie Ltd."
-    assert driver.find_element(By.CSS_SELECTOR, "[data-party-group='Respondent'] input").get_attribute("value") == "Riverstone Inc."
+    assert driver.find_element(By.CSS_SELECTOR, "[data-party-group='Applicant'] input").get_attribute("value") == "NORTH PRAIRIE LTD."
+    assert driver.find_element(By.CSS_SELECTOR, "[data-party-group='Respondent'] input").get_attribute("value") == "RIVERSTONE INC."
     select_filing_party(driver, "North Prairie Ltd.")
     for field_id, value in {
         "counselName": "Jordan Lee", "counselAddress": "100 Legal Avenue\nCalgary, Alberta",
@@ -1028,7 +1158,6 @@ def check_federal(
         enter(field(driver, field_id), value)
     upload(driver, "written-representations", fixtures["representations"])
     assert not driver.find_elements(By.CSS_SELECTOR, "[draggable='true']")
-    assert not driver.find_elements(By.XPATH, "//label[contains(.,'Exhibit label')]")
     viewports = viewport_contract(
         driver, output, "federal-motion", "[data-kind-id='notice-motion']"
     )
@@ -1051,9 +1180,7 @@ def check_federal_appeal(
     profile_ms, navigation, chooser = reset_workspace(
         driver, url, "fca-motion-record-moving"
     )
-    Select(driver.find_element(
-        By.XPATH, "//label[contains(.,'Party style')]/select"
-    )).select_by_visible_text("Application")
+    Select(driver.find_element(By.ID, "court-record-party-style")).select_by_visible_text("Application")
     upload(driver, "notice-motion", fixtures["notice"])
     WebDriverWait(driver, 10).until(
         lambda item: field(item, "courtFileNumber").get_attribute("value") == "T-982-19"
@@ -1099,16 +1226,40 @@ def check_appeal_record(
     driver: webdriver.Chrome, url: str, fixtures: dict[str, Path], output: Path
 ) -> dict[str, object]:
     profile_ms, navigation, _chooser = reset_workspace(driver, url, "ab-ca-appeal-record")
+    style = Select(driver.find_element(By.ID, "court-record-party-style"))
+    style.select_by_visible_text(next(option.text for option in style.options
+                                      if "plaintiff appeals" in option.text))
     for selector, value in (("[data-party-group='Appellant'] input", "North Prairie Ltd."),
                             ("[data-party-group='Respondent'] input", "Riverstone Inc.")):
         enter(driver.find_element(By.CSS_SELECTOR, selector), value)
+    select_filing_party(driver, "North Prairie Ltd.")
     for field_id, value in {
         "courtFileNumber": "2403-00789", "registry": "Calgary",
         "counselName": "Jordan Lee", "counselAddress": "100 Legal Avenue\nCalgary, Alberta",
         "counselPhone": "403-555-0100", "counselEmail": "jlee@example.test",
+        "counselFax": "403-555-0101",
     }.items():
         reveal(driver, field(driver, field_id))
         enter(field(driver, field_id), value)
+    assert field(driver, "counselFax").get_dom_attribute("required") is not None
+    for label, value in {
+        "Lawyer or filing person": "Riley Counsel",
+        "Address for service": "200 Court Street\nEdmonton, Alberta",
+        "Telephone": "780-555-0123",
+    }.items():
+        control = driver.find_element(
+            By.CSS_SELECTOR, f'[aria-label="{label} for Riverstone Inc."]'
+        )
+        assert control.get_dom_attribute("required") is not None
+        reveal(driver, control)
+        enter(control, value)
+    toggle_disclosure(driver, driver.find_element(
+        By.CSS_SELECTOR, "section[aria-labelledby='filing-heading'] > details"
+    ))
+    toggle_disclosure(driver, driver.find_element(
+        By.CSS_SELECTOR, "details[data-contact-finding-id]"
+    ))
+    upload(driver, "part-3-transcript", fixtures["appeal_transcript_prior"])
     for kind_id, fixture in (
         ("part-1-pleading", "appeal_pleading"),
         ("part-2-reasons", "appeal_reasons"),
@@ -1117,6 +1268,32 @@ def check_appeal_record(
         ("part-3-transcript", "appeal_transcript"),
     ):
         upload(driver, kind_id, fixtures[fixture])
+    transcript_slot = driver.find_element(By.CSS_SELECTOR, "[data-kind-id='part-3-transcript']")
+    assert not transcript_slot.find_elements(
+        By.CSS_SELECTOR, f"span[title='{fixtures['appeal_transcript_prior'].name}']"
+    )
+    assert len(transcript_slot.find_elements(By.CSS_SELECTOR, "[data-entry-id]")) == 1
+    pleading_date = article(driver, fixtures["appeal_pleading"].name).find_element(
+        By.CSS_SELECTOR, "input[id$='-date']"
+    )
+    assert pleading_date.get_attribute("value") == ""
+    enter(pleading_date, "January 15, 2026")
+    propagated = {"lowerCourtFileNumber": "2301-00456",
+                  "decisionMaker": "The Honourable Justice A. Ng",
+                  "decisionDate": "March 4, 2026",
+                  "decisionFileDate": "March 5, 2026"}
+    WebDriverWait(driver, 10).until(lambda item: all(
+        field(item, key).get_attribute("value") == value for key, value in propagated.items()))
+    expected_titles = {
+        "appeal_pleading": "STATEMENT OF CLAIM",
+        "appeal_reasons": "REASONS FOR JUDGMENT",
+        "appeal_order": "Formal Order",
+        "appeal_notice": "NOTICE OF APPEAL",
+        "appeal_transcript": "TRANSCRIPT OF PROCEEDINGS",
+    }
+    assert {key: article(driver, fixtures[key].name).find_element(
+        By.CSS_SELECTOR, "input[id$='-title']").get_attribute("value")
+        for key in expected_titles} == expected_titles
     assert not driver.find_elements(By.CSS_SELECTOR, "[draggable='true']")
     viewports = viewport_contract(
         driver, output, "appeal-record", "[data-kind-id='part-3-transcript']"
@@ -1150,7 +1327,7 @@ def check_appeal_record(
     assert len(no_record_downloads) == 1, no_record_downloads
     no_record_pdf = next(iter(no_record_downloads.values()))
     return {"profile": "ab-ca-appeal-record", "reset_and_profile_ms": profile_ms,
-            "navigation": navigation, "viewports": viewports,
+            "navigation": navigation, "propagated": propagated, "viewports": viewports,
             "build_busy": busy, "outputs": inspected,
             "description_only": {"build_busy": no_record_busy,
                                  "output": inspect_no_oral_record(
@@ -1192,19 +1369,15 @@ def check_workflows(driver: webdriver.Chrome, court_url: str, output: Path) -> d
     assert drafting.get_attribute("aria-expanded") == "false"
     assert not dock.find_elements(By.ID, first_panel)
     research = dock.find_element(By.CSS_SELECTOR, "[data-workflow-id='legal-research']")
-    assert research.get_attribute("aria-label") == "Details for Research a legal issue"
-    summary = research.text.strip()
-    assert summary
-    research.click()
-    details = wait.until(lambda _item: dock.find_element(
-        By.ID, research.get_attribute("aria-controls")
-    ))
-    assert details.text.strip() and details.text.strip() not in summary
-    assert "##" not in details.text and "Instructions" not in details.text
-    assert dock.find_element(
-        By.CSS_SELECTOR,
-        "button[aria-label='Open chat: Research a legal issue']",
-    ).text.strip() == "Chat"
+    assert research.get_attribute("aria-label") == "Open chat: Research a legal issue"
+    assert research.text.strip() == "Chat"
+    dock.find_element(By.CSS_SELECTOR,
+        "button[aria-label='Info about Research a legal issue']").click()
+    details = wait.until(lambda item: item.find_element(By.CSS_SELECTOR, "dialog[open]"))
+    wait.until(lambda _item: "Produces" in details.text)
+    assert len(details.text) > 150, details.text
+    details.find_element(By.CSS_SELECTOR, "button[aria-label='Close']").click()
+    wait.until(lambda item: not item.find_elements(By.CSS_SELECTOR, "dialog[open]"))
 
     next(tab for tab in tabs if tab.text.strip() == "Litigator").click()
     court = wait.until(lambda _item: dock.find_element(
@@ -1213,15 +1386,16 @@ def check_workflows(driver: webdriver.Chrome, court_url: str, output: Path) -> d
     authorities = dock.find_element(By.CSS_SELECTOR, "[data-workflow-id='authorities']")
     tabular = dock.find_element(By.CSS_SELECTOR, "[data-workflow-id='evidence-review']")
     assert court.get_attribute("aria-label") == "Open: Court Records"
-    assert court.text.count("Court Records") == 1
     assert authorities.get_attribute("aria-label") == "Open: Create table/book of authorities"
-    assert "Create table/book of authorities" in authorities.text
-    assert tabular.get_attribute("aria-label") == "Details for Review evidence"
-    assert tabular.text.strip()
-    assert dock.find_element(
-        By.CSS_SELECTOR,
-        "button[aria-label='Start Tabular Review: Review evidence']",
-    ).text.strip() == "Tabular review"
+    assert dock.text.splitlines().count("Court Records") == 1, dock.text
+    assert dock.text.splitlines().count("Create table/book of authorities") == 1, dock.text
+    assert tabular.get_attribute("aria-label") == "Start Tabular Review: Review evidence"
+    assert tabular.text.strip() == "Tab"
+    dock.find_element(By.CSS_SELECTOR, "button[aria-label='Info about Court Records']").click()
+    details = wait.until(lambda item: item.find_element(By.CSS_SELECTOR, "dialog[open]"))
+    assert "Opens in Court Records" in details.text, details.text
+    details.find_element(By.CSS_SELECTOR, "button[aria-label='Close']").click()
+    wait.until(lambda item: not item.find_elements(By.CSS_SELECTOR, "dialog[open]"))
 
     metrics: dict[str, object] = {}
     for width, height in ((1440, 1000), (320, 800)):
@@ -1239,8 +1413,8 @@ return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,
         metrics[str(width)] = result
     restore_viewport(driver)
     return {"available": True, "mode": "beaver", "groups": headings,
-            "details_visible": True, "expanded_choice_swaps": True,
-            "direct_destinations": ["Chat", "Tabular review", "Authorities", "Court Records"],
+            "info_modal": True, "expanded_choice_swaps": True,
+            "direct_destinations": ["Chat", "Tab", "Authorities", "Court Records"],
             "viewports": metrics}
 
 
@@ -1250,7 +1424,11 @@ def main() -> int:
     )
     parser.add_argument("--url", help="Optional served court-records entry point.")
     parser.add_argument("--headed", action="store_true")
+    parser.add_argument("--chooser-only", action="store_true", help="Check selection, cancellation and responsive dialog geometry without building PDFs.")
     parser.add_argument("--artifacts", type=Path, help="Screenshot and proof-file directory.")
+    parser.add_argument("--built-asset", type=Path, help="Exact main bundle served for this proof.")
+    parser.add_argument("--server-pid", type=int)
+    parser.add_argument("--server-command")
     args = parser.parse_args()
     RESPONSIVE_SCROLL_RESETS.clear()
 
@@ -1258,11 +1436,13 @@ def main() -> int:
         session = Path(temporary)
         output = args.artifacts.resolve() if args.artifacts else session / "artifacts"
         output.mkdir(parents=True, exist_ok=True)
-        fixtures = make_fixtures(session / "fixtures")
+        fixtures = {} if args.chooser_only else make_fixtures(session / "fixtures")
 
         server = None
         thread = None
         url = args.url
+        if url and url.endswith("/court-records"):
+            url += "/"  # Vite otherwise serves the standalone court-records.html entry.
         if not url:
             dist = ROOT / "frontend" / "dist"
             if not (dist / "court-records.html").is_file():
@@ -1277,6 +1457,25 @@ def main() -> int:
         driver = start_browser(session / "chrome-profile", args.headed)
         started = time.perf_counter()
         try:
+            if args.chooser_only:
+                proofs = {}
+                for profile_id in CHOICES:
+                    print(f"Court Records chooser: {profile_id}", flush=True)
+                    case_output = output / profile_id
+                    case_output.mkdir(exist_ok=True)
+                    proofs[profile_id] = reset_workspace(driver, url, profile_id, case_output)[2]
+                    driver.find_element(By.CSS_SELECTOR, "button[aria-label^='Court:']").click()
+                    dialog = driver.find_element(By.CSS_SELECTOR, "dialog[open]")
+                    Select(dialog.find_element(By.CSS_SELECTOR, "select[aria-label='Jurisdiction']")).select_by_visible_text("No court preset")
+                    assert driver.find_elements(By.CSS_SELECTOR, "dialog[open]") == [dialog]
+                    dialog.send_keys(Keys.ESCAPE)
+                    assert not driver.find_elements(By.CSS_SELECTOR, "dialog[open]")
+                    assert driver.find_element(By.CSS_SELECTOR, "[data-court-record-chooser]").get_attribute("data-selected-profile") == profile_id
+                errors = [row for row in driver.get_log("browser") if row["level"] == "SEVERE"]
+                assert not errors, errors
+                (output / "chooser-proof.json").write_text(json.dumps(proofs, indent=2), encoding="utf-8")
+                print(f"PASS Court Records single-dialog selection; screenshots: {output}", flush=True)
+                return 0
             result = {
                 "schema_version": "beaver.court-record-browser-test.v3",
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1310,10 +1509,30 @@ def main() -> int:
                 "ABCA": result["alberta_appeal_record"]["navigation"],
             }
             slowest = max(navigations.items(), key=lambda item: item[1]["domContentLoaded"])
+            production = not any("/@vite/" in resource["name"] or "/src/" in resource["name"]
+                for timing in navigations.values() for resource in timing["resources"])
+            if args.built_asset:
+                loaded = driver.execute_async_script("""
+const done=arguments[arguments.length-1],entry=performance.getEntriesByType('resource')
+  .find(({name})=>/\/assets\/courtRecords-[^/]+\.js$/u.test(name));
+if(!entry){done(null);return;}
+fetch(entry.name,{cache:'no-store'}).then(async response=>{
+  const bytes=await response.arrayBuffer(),digest=await crypto.subtle.digest('SHA-256',bytes);
+  done({url:entry.name,sha256:[...new Uint8Array(digest)]
+    .map(value=>value.toString(16).padStart(2,'0')).join('')});
+}).catch(error=>done({error:String(error)}));
+""")
+                built_hash = sha256(args.built_asset)
+                assert loaded and loaded.get("sha256") == built_hash, (loaded, built_hash)
+                result["served_build"] = {"server_pid": args.server_pid,
+                    "server_command": args.server_command,
+                    "built_asset": str(args.built_asset.resolve()), "built_sha256": built_hash,
+                    "loaded_url": loaded["url"], "loaded_sha256": loaded["sha256"]}
             result["cold_load_budget"] = {
                 "target_ms": 50, "measurements": {
                     name: timing["domContentLoaded"] for name, timing in navigations.items()
-                }, "slowest": slowest[0], "passes": slowest[1]["domContentLoaded"] <= 50,
+                }, "production": production, "slowest": slowest[0],
+                "passes": production and slowest[1]["domContentLoaded"] <= 50,
             }
             failures = [*(f"SEVERE browser log: {item['message']}" for item in severe)]
             if RESPONSIVE_SCROLL_RESETS:
@@ -1324,7 +1543,7 @@ def main() -> int:
                 failures.append(
                     f"Header rail shifts {abs(blank_height - draft_height):.1f}px between blank and draft states."
                 )
-            if slowest[1]["domContentLoaded"] > 50:
+            if production and slowest[1]["domContentLoaded"] > 50:
                 failures.append(
                     f"{slowest[0]} cold DOMContentLoaded was {slowest[1]['domContentLoaded']:.1f}ms (50ms target)."
                 )

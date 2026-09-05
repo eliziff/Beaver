@@ -67,7 +67,7 @@ export async function deleteUserAccountData(
     ]);
     await documents.deleteUserDocuments(
         { userId, userEmail: userEmail ?? undefined },
-        { projectIds: ownedProjectIds, includeOwned: true, purgeObjects: true },
+        { projectIds: ownedProjectIds, includeOwned: true },
     );
 
     const deletions = [
@@ -89,7 +89,6 @@ export async function deleteUserAccountData(
         db.from("work_products").delete().eq("user_id", userId),
         db.from("audit_events").delete().eq("user_id", userId),
         db.from("user_preferences").delete().eq("user_id", userId),
-        db.from("object_cleanup").delete().eq("user_id", userId),
         db.from("projects").delete().eq("user_id", userId),
     ];
 

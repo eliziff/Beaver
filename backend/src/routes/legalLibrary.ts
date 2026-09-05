@@ -161,13 +161,13 @@ router.get("/", asyncRoute(async (_req, res) => {
   res.json({ references: await store.list(userId(res)) });
 }));
 router.get("/coverage", asyncRoute(async (_req, res) => {
-  const [cases, laws] = await providerCall("Legal source coverage unavailable", () =>
-    Promise.all([
-      a2ajLegalSourceProvider.coverage("cases"),
-      a2ajLegalSourceProvider.coverage("laws"),
-    ]));
+  const results = await Promise.allSettled([
+    a2ajLegalSourceProvider.coverage("cases"),
+    a2ajLegalSourceProvider.coverage("laws"),
+  ]);
   res.set("Cache-Control", "private, max-age=3600");
-  res.json({ coverage: [...cases, ...laws] });
+  res.json({ coverage: results.flatMap((result) =>
+    result.status === "fulfilled" ? result.value : []) });
 }));
 
 const searchType = {
@@ -189,6 +189,7 @@ function searchResult(result: LegalSourceSearchHit) {
     provider: result.provider,
     doc_type,
     source_id: result.id,
+    language: result.language ?? "en",
     dataset: result.collection ?? (hansard ? "Hansard" : ""),
     citation: hansard
       ? [result.date, result.speaker].filter(Boolean).join(" — ") || result.id

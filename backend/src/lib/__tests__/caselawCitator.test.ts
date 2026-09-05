@@ -116,6 +116,7 @@ let temporaryDirectory: string | null = null;
 
 afterEach(async () => {
   delete process.env.MIKE_CITATOR_DB;
+  delete process.env.MIKE_A2AJ_BULK_DB;
   delete process.env.MIKE_JOURNAL_COMMENTARY_DB;
   if (temporaryDirectory) {
     await rm(temporaryDirectory, { recursive: true, force: true });
@@ -707,9 +708,12 @@ describe("caselaw citator note-up graph", () => {
       "beaver-citator-missing",
       "absent.sqlite",
     );
+    process.env.MIKE_A2AJ_BULK_DB = path.join(
+      os.tmpdir(), "beaver-a2aj-missing", "absent.sqlite",
+    );
     const citator = await import("../caselawCitator");
     expect(citator.noteUpCitations({ citation: "2015 SCC 5" })).toBeNull();
-    // An absent graph degrades to literal normalized keys.
+    // With both exact-identity indexes absent, keep literal normalized keys.
     const inputs = ["2015 SCC 5", "prose that keys anyway", "  -- "];
     expect(citator.citationAliasKeysBatch(inputs)).toEqual([
       ["2015scc5"],

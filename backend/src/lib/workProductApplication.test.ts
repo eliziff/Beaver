@@ -8,13 +8,13 @@ const now = "2026-08-30T12:00:00.000Z";
 const binding = { kind: "document" as const, documentId: "document-1",
   version: "latest" as const };
 const courtState = (bound = false): WorkProductState => ({
-  profileId: "general-court-record",
-  cover: { partyStyleId: "appeal", partyGroups: [{ id: "party-a", role: "Appellant", parties: [
+  profileId: "ab-kb-commercial-compendium",
+  cover: { partyStyleId: "action", partyGroups: [{ id: "party-a", role: "Plaintiff", parties: [
     { id: "appellant-1", name: "A Corp." }, { id: "appellant-2", name: "B Corp." },
   ] }, { id: "intervener", role: "Intervener", parties: [
     { id: "intervener-1", name: "Public Interest Group" },
   ] }] },
-  entries: bound ? [{ id: "entry-1", kindId: "document", title: "Motion record",
+  entries: bound ? [{ id: "entry-1", kindId: "document-extract", title: "Motion record",
     lastSeen: { name: "motion.pdf", size: 20, modified: 10 } }] : [],
   bindings: bound ? { "entry-1": binding } : {},
 });
@@ -24,10 +24,13 @@ function product(state: WorkProductState = courtState()): WorkProduct {
     revision: 1, state, outputs: {}, createdAt: now, updatedAt: now };
 }
 
-function setup(current = product()) {
+function setup(current = product(), children: WorkProduct[] = []) {
   const repository = {
     list: vi.fn(async () => []),
-    get: vi.fn(async () => ({ product: current, isOwner: true })),
+    get: vi.fn(async (_scope, id: string) => {
+      const found = [current, ...children].find((item) => item.id === id);
+      return found ? { product: found, isOwner: true } : null;
+    }),
     resolve: vi.fn(),
     create: vi.fn(async (_scope, input) => ({ status: "created", product: {
       ...current, kind: input.kind, title: input.title, projectId: input.projectId,
@@ -42,11 +45,42 @@ function setup(current = product()) {
 }
 
 describe("WorkProduct application state contract", () => {
+  it("keeps full draft listings bounded but returns all lightweight metadata", async () => {
+    const { application, repository } = setup();
+    await application.list(scope);
+    await application.list(scope, { kind: "authorities", metadata: true });
+    expect(repository.list).toHaveBeenNthCalledWith(1, scope, { limit: 50 });
+    expect(repository.list).toHaveBeenNthCalledWith(2, scope, {
+      kind: "authorities", metadata: true, limit: undefined,
+    });
+  });
+
   it("accepts a typed Court draft with multiple parties and interveners", async () => {
     const { application, repository } = setup();
     await expect(application.create(scope, { kind: "court-record", title: "Appeal record",
       state: courtState(true) })).resolves.toMatchObject({ kind: "court-record" });
     expect(repository.create).toHaveBeenCalledOnce();
+  });
+
+  it("accepts only the configured producer profile for a nested Court output", async () => {
+    const nested: WorkProductState = { profileId: "fc-motion-record-moving", cover: {},
+      entries: [{ id: "evidence", kindId: "moving-evidence", title: "Affidavit package",
+        lastSeen: { name: "Affidavit.pdf", size: 20, modified: 1 } }],
+      bindings: { evidence: { kind: "work-product-output", workProductId: "child",
+        role: "record" } } };
+    const affidavit = { ...product(), id: "child",
+      state: { profileId: "fc-affidavit-exhibits", cover: {}, entries: [], bindings: {} } };
+    const accepted = setup(product(), [affidavit]);
+    await expect(accepted.application.create(scope, { kind: "court-record", title: "Record",
+      state: nested })).resolves.toMatchObject({ kind: "court-record" });
+    expect(accepted.repository.create).toHaveBeenCalledOnce();
+
+    const motion = { ...affidavit,
+      state: { profileId: "fc-motion-record-moving", cover: {}, entries: [], bindings: {} } };
+    const rejected = setup(product(), [motion]);
+    await expect(rejected.application.save(scope, "draft-1", { revision: 1, state: nested }))
+      .rejects.toMatchObject({ status: 400 });
+    expect(rejected.repository.save).not.toHaveBeenCalled();
   });
 
   it("rejects malformed binding discriminants and Court slots before persistence", async () => {
@@ -73,7 +107,7 @@ describe("WorkProduct application state contract", () => {
     const wrongFiler: WorkProductState = { profileId: "fc-application-record-applicant",
       cover: { partyStyleId: "application", partyGroups: [{ id: "party-b",
         role: "Respondent", parties: [{ id: "respondent", name: "Canada" }] }],
-      filingPartyId: "respondent" }, entries: [], bindings: {} };
+      filingPartyIds: ["respondent"] }, entries: [], bindings: {} };
     await expect(application.create(scope, { kind: "court-record", title: "Record",
       state: wrongFiler })).rejects.toMatchObject({ status: 400 });
     expect(repository.create).not.toHaveBeenCalled();
