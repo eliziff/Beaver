@@ -130,8 +130,9 @@ describe("local startup", () => {
         expect(mocks.getAuthSession).not.toHaveBeenCalled();
     });
 
-    it("does not load the unused local profile on Library", async () => {
-        mocks.pathname = "/library";
+    it.each(["/library", "/sources"])("loads the profile for global Settings on %s", async (pathname) => {
+        mocks.pathname = pathname;
+        mocks.getUserProfile.mockResolvedValue(profileResponse());
         await configure("local");
         const { AuthProvider } = await import("./AuthContext");
         const { UserProfileProvider, useUserProfile } = await import(
@@ -139,7 +140,7 @@ describe("local startup", () => {
         );
 
         function Probe() {
-            return <output>{String(useUserProfile().loading)}</output>;
+            return <output>{useUserProfile().profile ? "settings ready" : "loading"}</output>;
         }
 
         render(
@@ -148,8 +149,7 @@ describe("local startup", () => {
             </AuthProvider>,
         );
 
-        expect(screen.getByText("false")).toBeInTheDocument();
-        expect(mocks.getUserProfile).not.toHaveBeenCalled();
+        expect(await screen.findByText("settings ready")).toBeInTheDocument();
     });
 
     it("restores cloud auth through the backend cookie and keeps MFA fail-closed while the profile loads", async () => {

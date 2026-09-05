@@ -448,6 +448,7 @@ def reset_workspace(
     )
     if parsed.path.endswith("court-records.html"):
         assert not assistant, "The standalone builder exposed Beaver's assistant."
+    restore_viewport(driver)
     blank_header = header_geometry(driver)
     if chooser_output:
         assert driver.save_screenshot(str(chooser_output / "blank-start.png"))
@@ -460,7 +461,7 @@ def reset_workspace(
     chooser_proof = choose_new_profile(driver, profile_id, chooser_output)
     draft_header = header_geometry(driver)
     assert abs(blank_header["content"]["left"] - draft_header["content"]["left"]) <= 1
-    assert abs(blank_header["content"]["right"] - draft_header["content"]["right"]) <= 1
+    assert abs(blank_header["content"]["right"] - draft_header["content"]["right"]) <= 1, (blank_header, draft_header)
     chooser_proof.update({"blank_start": True, "header": {
         "blank": blank_header, "draft": draft_header,
     }})

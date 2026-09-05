@@ -392,6 +392,24 @@ describe("ResearchFileBar", () => {
     expect(api.getResearchItems.mock.calls.some(([, input]) => input.kind === "passages" && !input.sourceId)).toBe(false);
   });
 
+  it("shows saved query matches beyond the first passage page and restores unfiltered passages", async () => {
+    const unrelated = { ...evidence, receipt: { ...evidence.receipt,
+      evidence_id: "other-passage", span_text: "An unrelated passage." } };
+    api.getResearchItems.mockImplementation(async (_id, input) => input.kind === "queries"
+      ? { items: [{ kind: "query", index: 0, value: receipt }], next_cursor: null }
+      : { items: [{ kind: "passage", index: input.cursor ? 50 : 0,
+          value: input.cursor ? evidence : unrelated }], next_cursor: input.cursor ? null : "page-2" });
+    await renderWorkspace(); openSearch();
+    fireEvent.click(screen.getByText("Search history", { selector: "summary" }));
+    fireEvent.click(await screen.findByText("duty", { selector: "span" }));
+    fireEvent.click(screen.getByRole("button", { name: "View matches" }));
+    openBaker();
+    expect(await screen.findByText("A duty of fairness applies.")).toBeVisible();
+    expect(screen.queryByText("An unrelated passage.")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear search matches" }));
+    expect(await screen.findByText("An unrelated passage.")).toBeVisible();
+  });
+
   it("continues a partial search without dropping earlier matches or reusing an old revision", async () => {
     await renderWorkspace(); openSearch();
     api.runResearchFileQuery.mockResolvedValueOnce({ file: { ...file, workingRevision: 1 }, receipt,
