@@ -516,7 +516,9 @@ target.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,data
             # At minimum width, list controls stay on one line and every menu stays above the workspace.
             panel(driver, "List")
             driver.set_window_size(600, 700)
-            WebDriverWait(driver, 10).until(lambda _page: workspace.rect["width"] < 600)
+            WebDriverWait(driver, 10).until(lambda page: page.execute_script(
+                "return document.querySelector(\"section[aria-label='Research collection']\")?.getBoundingClientRect().width < 600"))
+            workspace = visible(driver, By.CSS_SELECTOR, "section[aria-label='Research collection']")
             research_panels = workspace.find_element(By.CSS_SELECTOR, "section[aria-label='Saved sources']")
             assert driver.execute_script("return arguments[0].scrollWidth<=arguments[0].clientWidth+1", research_panels)
             list_panel = panel(driver, "List")
