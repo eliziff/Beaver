@@ -7,6 +7,7 @@ import {
 } from "react-router-dom";
 import { PanelLeft } from "lucide-react";
 import { AppSidebar } from "@/app/components/shared/AppSidebar";
+import { CollectionState } from "@/app/components/shared/CollectionState";
 import { KeyboardShortcuts } from "@/app/components/shared/KeyboardShortcuts";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
@@ -94,9 +95,9 @@ export default function AppShell() {
                                     className="flex h-full w-full flex-1 flex-col overflow-y-auto lg:overflow-clip"
                                 >
                                     {authLoading ? (
-                                        <p className="m-auto px-6 text-sm text-gray-500" role="status">
+                                        <CollectionState loading className="m-auto min-h-0 px-6">
                                             Loading…
-                                        </p>
+                                        </CollectionState>
                                     ) : unavailable ? (
                                         <div className="m-auto px-6 text-center">
                                             <h1 className="font-serif text-2xl font-medium text-gray-900">
