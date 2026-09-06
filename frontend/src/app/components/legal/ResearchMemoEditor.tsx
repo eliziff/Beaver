@@ -1,18 +1,19 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Node, type Editor } from "@tiptap/core";
 import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, useEditor, useEditorState, type NodeViewProps } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "@tiptap/markdown";
-import { Bold, Italic, Underline, List, ListOrdered, Heading2, Table2, Undo2, Redo2 } from "lucide-react";
+import { Bold, Italic, Underline, List, ListOrdered, Heading2, Quote, Table2, Undo2, Redo2 } from "lucide-react";
 import { CitationPill } from "@/app/components/assistant/message/MarkdownContent";
 import { citationPillParts } from "@/app/components/assistant/message/CitationSources";
 import { ActionMenu } from "@/app/components/ui/action-menu";
+import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
 import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { RESEARCH_SOURCE_DRAG, RESEARCH_SOURCE_REFERENCE_DRAG } from "./ResearchLabelPicker";
 import { citationMarkdown, memoCitation, RESEARCH_PASSAGE_DRAG, RESEARCH_PASSAGE_REFERENCE_DRAG, type MemoSourceReference } from "./researchMemo";
-import { getResearchCitation } from "@/app/lib/api/researchFiles";
+import { getResearchCitation, getResearchItems } from "@/app/lib/api/researchFiles";
 import type { ResearchEvidence, ResearchFile } from "@/app/lib/researchFiles";
 
 function CitationView({ node, extension }: NodeViewProps) {
@@ -41,7 +42,7 @@ const MemoLink = Link.extend({
 export const memoExtensions = [StarterKit.configure({ link: false }), MemoLink.configure({ openOnClick: false }),
   TableKit.configure({ table: { resizable: false } }), Markdown, MemoCitation];
 
-function Toolbar({ editor }: { editor: Editor }) {
+function Toolbar({ editor, onCite }: { editor: Editor; onCite: () => void }) {
   const active = useEditorState({ editor, selector: ({ editor: current }) => ({
     bold: current.isActive("bold"), italic: current.isActive("italic"), underline: current.isActive("underline"),
     heading: current.isActive("heading"), bullet: current.isActive("bulletList"), ordered: current.isActive("orderedList"),
@@ -61,6 +62,8 @@ function Toolbar({ editor }: { editor: Editor }) {
     {actions.map(({ label, icon: Icon, pressed, disabled, run }) => <button key={label} type="button" title={label}
       aria-label={label} aria-pressed={pressed} disabled={disabled} onClick={run}
       className="grid size-8 place-items-center rounded text-gray-600 hover:bg-gray-100 aria-pressed:bg-gray-200 aria-pressed:text-gray-950 disabled:opacity-30 focus-visible:outline focus-visible:outline-2"><Icon className="size-3.5" /></button>)}
+    <button type="button" title="Insert citation" aria-label="Insert citation" onClick={onCite}
+      className="grid size-8 place-items-center rounded text-gray-600 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2"><Quote className="size-3.5" /></button>
     <ActionMenu label="Table" items={active.table ? [
       { label: "Add row", onSelect: () => { editor.chain().focus().addRowAfter().run(); } },
       { label: "Add column", onSelect: () => { editor.chain().focus().addColumnAfter().run(); } },
@@ -72,14 +75,15 @@ function Toolbar({ editor }: { editor: Editor }) {
   </div>;
 }
 
-export default function ResearchMemoEditor({ file, value, onChange, onOpenCitation, citation, readOnly = false, onResolveReference, onCitationError }: {
+export default function ResearchMemoEditor({ file, value, onChange, onOpenCitation, readOnly = false, onResolveReference, onCitationError }: {
   file: ResearchFile; value: string; onChange?: (markdown: string) => void; onOpenCitation: (href: string) => void;
-  citation?: { href: string; sequence: number };
   readOnly?: boolean;
   onResolveReference?: (reference: MemoSourceReference) => Promise<string | null>;
   onCitationError?: (message: string) => void;
 }) {
   const openCitation = useRef(onOpenCitation); openCitation.current = onOpenCitation;
+  const [citing, setCiting] = useState<null | { sourceId?: string }>(null);
+  const [passages, setPassages] = useState<ResearchEvidence[]>([]);
   const editor = useEditor({ extensions: [...memoExtensions.filter((extension) => extension.name !== "memoCitation"),
     MemoCitation.configure({ onOpen: (href: string) => openCitation.current(href) })], content: value, contentType: "markdown",
     shouldRerenderOnTransaction: false, editable: !readOnly,
@@ -119,12 +123,39 @@ export default function ResearchMemoEditor({ file, value, onChange, onOpenCitati
   });
   useEffect(() => { if (editor && value !== editor.getMarkdown()) editor.commands.setContent(value, { contentType: "markdown", emitUpdate: false }); }, [editor, value]);
   useEffect(() => {
-    if (!editor || !citation) return;
-    const source = memoCitation(citation.href); if (!source) return;
-    const parts = citationPillParts(source);
-    editor.chain().focus().insertContent({ type: "memoCitation", attrs: {
-      href: citation.href, label: `${parts.styleOfCause ?? ""}${parts.rest}` } }).run();
-  }, [editor, citation]);
+    const sourceId = citing?.sourceId;
+    if (!sourceId) return setPassages([]);
+    let live = true;
+    void getResearchItems(file.document.id, { kind: "passages", sourceId, limit: 200 })
+      .then((page) => { if (live) setPassages(page.items.flatMap((item) => item.kind === "passage" ? [item.value] : [])); })
+      .catch(() => onCitationError?.("Could not load saved passages."));
+    return () => { live = false; };
+  }, [citing?.sourceId, file.document.id, onCitationError]);
   if (!editor) return null;
-  return <>{!readOnly && <Toolbar editor={editor} />}<EditorContent editor={editor} className="min-h-0 flex-1 overflow-auto bg-white" /></>;
+  const sources = Object.values(file.state.sources);
+  const sourceLabel = (id: string) => { const reference = file.state.sources[id]?.reference;
+    return reference?.title || reference?.citation || id; };
+  const cite = async (sourceId: string, evidenceId?: string) => {
+    try {
+      const { href } = await getResearchCitation(file.document.id, sourceId, evidenceId);
+      const source = memoCitation(href); if (!source) return;
+      const parts = citationPillParts(source);
+      editor.chain().focus().insertContent({ type: "memoCitation", attrs: {
+        href, label: `${parts.styleOfCause ?? ""}${parts.rest}` } }).run();
+      setCiting(null);
+    } catch { onCitationError?.("Could not add this citation. Try again."); }
+  };
+  return <>{!readOnly && <Toolbar editor={editor} onCite={() => setCiting({})} />}
+    <EditorContent editor={editor} className="min-h-0 flex-1 overflow-auto bg-white" />
+    <SearchableChoiceModal open={!!citing} onClose={() => setCiting(null)} closeOnSelect={false} value={null}
+      title={citing?.sourceId ? sourceLabel(citing.sourceId) : "Insert citation"}
+      options={citing?.sourceId
+        ? [{ value: "", label: "Whole source" }, ...passages.map((item) => ({ value: item.receipt.evidence_id,
+            label: item.receipt.locator.label, description: item.receipt.span_text ?? undefined }))]
+        : sources.map((source) => ({ value: source.id, label: sourceLabel(source.id),
+            description: source.passages?.count ? `${source.passages.count} saved` : undefined }))}
+      onChange={(id) => { if (id === null) return;
+        if (citing?.sourceId) void cite(citing.sourceId, id || undefined);
+        else setCiting({ sourceId: id }); }} />
+  </>;
 }

@@ -90,3 +90,17 @@ it("rejects passages outside a row's chosen scope and answers from unlinked chat
   input.arrangement.cells[0].items = [{ kind: "answer", chatId: "unrelated", answerId: "message-1:answer:0", resource: "source://other" }];
   await expect(resolveResearchArrangement({ ...input, strict: true })).rejects.toMatchObject({ status: 409 });
 });
+
+it("reads the live note on a source without copying it into the cell", async () => {
+  const input = fixture();
+  input.file.state.sources[sourceId].note = "Check the renewal window";
+  input.columns.push({ index: 6, name: "Note", prompt: "The saved note" });
+  input.arrangement.cells.push({ rowId: "branch-0", columnIndex: 6, items: [{ kind: "note", sourceId }] });
+  const note = (cells: Awaited<ReturnType<typeof resolveResearchArrangement>>["cells"]) =>
+    cells.find(({ column_index }) => column_index === 6)?.content;
+  expect(note((await resolveResearchArrangement({ ...input, strict: true })).cells))
+    .toMatchObject({ value: "Check the renewal window", evidence: [], claims: [] });
+  input.file.state.sources[sourceId].note = "Renewed";
+  expect(note((await resolveResearchArrangement({ ...input, strict: true })).cells)?.value).toBe("Renewed");
+  expect(input.arrangement.cells.at(-1)!.items[0]).toEqual({ kind: "note", sourceId });
+});

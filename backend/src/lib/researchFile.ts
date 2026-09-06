@@ -64,7 +64,7 @@ export type ResearchPageItem = { kind: "passage"; index: number; value: Research
 
 const uuid = z.string().uuid(), text = (max: number) => z.string().trim().min(1).max(max);
 const ids = z.array(uuid).max(10_000).transform((values) => [...new Set(values)]);
-const locator = z.object({ kind: z.enum(["paragraph", "section", "page", "footnote"]),
+const locator = z.object({ kind: z.enum(["paragraph", "section", "page", "footnote", "document"]),
   value: text(500), endValue: text(500).optional() }).strict();
 const researchMutationSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("label"), id: uuid.optional(), name: text(200),
@@ -81,7 +81,7 @@ const researchMutationSchema = z.discriminatedUnion("type", [
     badgeColor: z.string().regex(/^#[a-f0-9]{6}$/iu).optional(),
     note: z.string().max(50_000).optional() }).strict(),
   z.object({ type: z.literal("passage"), sourceId: uuid, locator,
-    quote: text(50_000) }).strict(),
+    quote: text(50_000), labelIds: ids.optional() }).strict(),
   z.object({ type: z.literal("label-selection"), target: z.enum(["sources", "passages"]),
     sourceIds: ids.optional(), evidenceIds: z.array(text(200)).max(100_000).optional(),
     members: z.array(z.object({ sourceId: uuid, evidenceIds: z.array(text(200)).max(100_000).optional() }).strict()).max(100_000).optional(),
