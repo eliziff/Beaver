@@ -8,7 +8,6 @@ import {
   type DirectoryScope,
 } from "@/app/lib/api/documents";
 import { type Project, listProjects } from "@/app/lib/api/projects";
-import { isResearchDocument } from "@/app/lib/researchFiles";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { FolderSvgIcon } from "./FolderSvgIcon";
 import { Tabs } from "@/app/components/ui/tabs";
@@ -24,8 +23,6 @@ import { errorMessage } from "@/app/lib/utils";
 
 export type DirectoryTab = "files" | "templates" | "projects";
 export type DirectoryLocation = DirectoryScope | { projectId: null };
-/** Research sets are reached through Import, never listed as ordinary document rows. */
-const ORDINARY_DOCUMENT = (document: Document) => !isResearchDocument(document);
 const TABS: [DirectoryTab, string][] = [
     ["files", "Files"], ["templates", "Templates"], ["projects", "Projects"],
 ];
@@ -58,7 +55,7 @@ interface Props {
 
 export function FileDirectory({ documents = EMPTY, projectId, autoFocus = true,
     loading: externalLoading = false, selectedDocuments, onChange,
-    uploadingFilenames = [], showTabs, initialTab = "files", initialLocation, tabs = TABS, noun = "files", multiple = true, excludeProjectId, documentFilter = ORDINARY_DOCUMENT, onLocationChange, newDocument }: Props) {
+    uploadingFilenames = [], showTabs, initialTab = "files", initialLocation, tabs = TABS, noun = "files", multiple = true, excludeProjectId, documentFilter, onLocationChange, newDocument }: Props) {
     const [tab, setTab] = useState<DirectoryTab>(initialLocation
         ? "projectId" in initialLocation ? "projects" : initialLocation.library : initialTab);
     const [search, setSearch] = useState("");
@@ -109,8 +106,7 @@ export function FileDirectory({ documents = EMPTY, projectId, autoFocus = true,
         ...(directory?.documents ?? []),
         ...(!query ? createdDocuments.filter((doc) => (doc.project_id ?? null) ===
             (activeTab === "projects" || !showTabs ? activeProjectId || null : null)) : []),
-    ].map((doc) => [doc.id, doc])).values()].filter((doc) => documentFilter(doc)
-        || createdDocuments.some(({ id }) => id === doc.id)),
+    ].map((doc) => [doc.id, doc])).values()].filter((document) => !documentFilter || documentFilter(document)),
     [activeProjectId, activeTab, createdDocuments, directory?.documents, documentFilter, documents, query, showTabs]);
     const tree = buildDocumentTree(allDocuments,
         (directory?.folders ?? []) as (Folder | LibraryFolder)[], expanded,

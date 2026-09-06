@@ -19,8 +19,9 @@ function readDraft(key: string, markdown: string): Draft {
   return { markdown, base: markdown };
 }
 
-export default function ResearchMemoPane({ file, mutations, onOpenCitation }: {
+export default function ResearchMemoPane({ file, mutations, onOpenCitation, citation }: {
   file: ResearchFile; mutations: ResearchFileMutations; onOpenCitation: (href: string) => void;
+  citation?: { href: string; sequence: number };
 }) {
   const key = `beaver.research.memo-draft:${file.document.id}`;
   const [draft, setDraft] = useState(() => readDraft(key, file.state.note));
@@ -126,7 +127,7 @@ export default function ResearchMemoPane({ file, mutations, onOpenCitation }: {
       {conflict && <Button variant="outline" size="compact" disabled={saving} onClick={() => setConfirmReload(true)}>Load saved memo</Button>}
     </div>}
     {citationError && <p role="alert" className="border-b border-red-200 bg-red-50 px-3 py-2 text-xs text-red-900">{citationError}</p>}
-    <ResearchMemoEditor file={file} value={draft.markdown} onChange={change} onOpenCitation={onOpenCitation}
+    <ResearchMemoEditor file={file} value={draft.markdown} onChange={change} onOpenCitation={onOpenCitation} citation={citation}
       onResolveReference={resolveReference} onCitationError={setCitationError} />
     <ConfirmPopup open={confirmReload} onCancel={() => setConfirmReload(false)} onConfirm={() => { void reload(); }}
       confirmStatus={saving ? "loading" : "idle"}

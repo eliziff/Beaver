@@ -31,7 +31,7 @@ it("reads the stored answer and grounds chat in its original source, with cell n
   const answer = { summary: "5", value: 5, flag: "green" as const,
     reasoning: "The initial lease term is five years, before any renewal.",
     claims: [{ text: "The initial term is five years.", evidence_ids: [receipt.evidence_id] }],
-    evidence: [receipt], query_ids: ["q_read"], outcome: "answered" as const, coverage: "complete" as const,
+    evidence: [receipt], outcome: "answered" as const, coverage: "complete" as const,
     resource: "document://doc-1/version/v1" };
   const result = readTabularCells({ review_id: "review-1",
     columns: [{ index: 7, name: "Term" }],
@@ -42,7 +42,6 @@ it("reads the stored answer and grounds chat in its original source, with cell n
   const read = JSON.parse(result.content);
   const { evidence: _receipts, ...storedAnswer } = answer;
   expect(read.cells).toEqual([{ col_index: 0, row_index: 0, status: "done", ...storedAnswer }]);
-  expect(read.cells[0].query_ids).toEqual(["q_read"]);
   expect(read.evidence).toEqual([{ evidence_id: receipt.evidence_id,
     citation: receipt.citation, name: receipt.name, locator: receipt.locator,
     exact_passage: receipt.span_text }]);

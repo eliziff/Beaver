@@ -1,40 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { getResearchItems } from "@/app/lib/api/researchFiles";
 import { researchLabelPath, type ResearchChange, type ResearchFile, type ResearchLabel } from "@/app/lib/researchFiles";
-import { actOnTabularChange, getTabularHistory, updateTabularReview, type ColumnConfig, type TabularDocument, type TabularReview } from "@/app/lib/api/tabular";
+import { actOnTabularChange, getTabularHistory, type TabularDocument, type TabularReview } from "@/app/lib/api/tabular";
 import { usePagedChains } from "@/app/hooks/usePagedChains";
 import { errorMessage } from "@/app/lib/utils";
 import { Modal } from "../modals/Modal";
 import { Button } from "../ui/button";
-import { TableProposalReview, isColumnProposal } from "../tabular/TableProposalReview";
-import { ResearchTree } from "./ResearchTree";
-import { SourcesWorkspace } from "./SourcesWorkspace";
 import type { ResearchFileMutations } from "./useResearchFileMutations";
 
 const object = (value: unknown): Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value)
   ? value as Record<string, unknown> : {};
-/** A proposal that only creates labels and assigns sources reads as the tree it would produce. */
-function labelProposal(change: ResearchChange, file: ResearchFile) {
-  const labels = { ...file.state.labels }, marks: Record<string, "added" | "changed"> = {};
-  const sources = Object.fromEntries(Object.entries(file.state.sources)
-    .map(([id, source]) => [id, { ...source, labelIds: [...source.labelIds] }]));
-  for (const item of change.changes) {
-    if (item.target === "label" && item.after) {
-      const current = labels[item.id];
-      if (item.field === "$") { labels[item.id] = object(item.after) as unknown as ResearchLabel; }
-      else if (current) labels[item.id] = { ...current, [item.field]: item.after };
-      else return null;
-      marks[item.id] = item.before ? "changed" : "added";
-    } else if (item.target === "source" && item.field.startsWith("labelIds.")) {
-      const source = sources[item.sourceId ?? item.id]; if (!source) return null;
-      const labelId = item.field.slice("labelIds.".length);
-      source.labelIds = item.after ? [...new Set([...source.labelIds, labelId])]
-        : source.labelIds.filter((id) => id !== labelId);
-      marks[source.id] = "changed";
-    } else return null;
-  }
-  return Object.keys(marks).length ? { labels, marks, sources: Object.values(sources) } : null;
-}
 function descriptions(change: ResearchChange, file?: ResearchFile, review?: TabularReview, documents: TabularDocument[] = []) {
   const labels = { ...file?.state.labels };
   for (const item of change.changes) if (item.target === "label" && item.field === "$") {
@@ -80,14 +55,6 @@ function descriptions(change: ResearchChange, file?: ResearchFile, review?: Tabu
     });
 }
 
-/** Accepting an edited column proposal applies it first, then saves the edits against the accepted version. */
-async function applyToTable(review: TabularReview, changeId: string, type: "accept" | "reject" | "undo", columns?: ColumnConfig[]) {
-  const accepted = await actOnTabularChange(review, changeId, type);
-  return type === "accept" && columns
-    ? updateTabularReview(review.id, { columns_config: columns, expected_version: accepted.updated_at })
-    : accepted;
-}
-
 type Props = { historyOpen: boolean; onCloseHistory: () => void } &
   ({ file: ResearchFile; mutations: ResearchFileMutations; review?: never; documents?: never; onChanged?: never }
   | { review: TabularReview; documents: TabularDocument[]; onChanged: () => Promise<void>; file?: never; mutations?: never });
@@ -112,11 +79,11 @@ export function ResearchChanges({ file, mutations, review, documents, onChanged,
       void pages.fetchPage("history", chain.nextCursor, true);
   }, [reviewing, historyOpen, visible.length, pending.length, chain, pages.fetchPage]);
   const close = () => { if (!busy) { setReviewing(false); setError(""); onCloseHistory(); } };
-  const run = async (type: "accept" | "reject" | "undo", changeId: string, columns?: ColumnConfig[]) => {
+  const run = async (type: "accept" | "reject" | "undo", changeId: string) => {
     setBusy(true); setError("");
     try {
       const proposals = mutations ? (await mutations.act({ type, changeId })).state.proposals
-        : (await applyToTable(review!, changeId, type, columns)).proposals;
+        : (await actOnTabularChange(review!, changeId, type)).proposals;
       await onChanged?.();
       if (type === "accept") setUndo(changeId);
       if (type === "undo") setUndo(null);
@@ -140,35 +107,24 @@ export function ResearchChanges({ file, mutations, review, documents, onChanged,
     <Modal open={open} onClose={close} size="lg" breadcrumbs={[historyOpen ? `${file ? "Workspace" : "Table"} history` : "Review changes"]}
       footerStatus={error && <p role="alert" className="text-sm text-red-700">{error}</p>}>
       <div className="space-y-3 pb-3 text-sm">
-        {visible.map((change) => { const proposed = file && change.status === "pending" && !historyOpen
-          ? labelProposal(change, file) : null;
-          return <details key={change.id} open={reviewing && !historyOpen} className="border-b border-gray-200 pb-3 last:border-0">
+        {visible.map((change) => <details key={change.id} open={reviewing && !historyOpen} className="border-b border-gray-200 pb-3 last:border-0">
           <summary className="cursor-pointer font-medium text-gray-900">{change.title}</summary>
           <p className="my-2 text-xs text-gray-500">{change.executor === "human" ? "You" : "Assistant"} · {new Date(change.createdAt).toLocaleString()}
             {historyOpen && ` · ${change.status}`}</p>
           <p className="mb-2 text-xs text-gray-500">{Object.entries(change.counts).filter(([, count]) => count > 0)
             .map(([kind, count]) => `${count} ${count === 1 ? kind.replace(/s$/u, "") : kind}`).join(" · ")}</p>
-          {review && change.status === "pending" && !historyOpen && isColumnProposal(change)
-            ? <TableProposalReview review={review} change={change} busy={busy}
-                onAccept={(columns) => void run("accept", change.id, columns ?? undefined)}
-                onReject={() => void run("reject", change.id)} />
-            : <>
-              {proposed
-                ? <SourcesWorkspace file={file}><ResearchTree sources={proposed.sources}
-                    preview={{ labels: proposed.labels, marks: proposed.marks }} /></SourcesWorkspace>
-                : <ul className="space-y-3">{descriptions(change, file, review, documents).map((item, index) => <li key={index}>
-                <p className="font-medium text-gray-700">{item.label}</p>
-                <del className="block whitespace-pre-wrap text-gray-500 [overflow-wrap:anywhere]">{item.before}</del>
-                <ins className="block whitespace-pre-wrap text-green-800 no-underline [overflow-wrap:anywhere]">{item.after}</ins>
-              </li>)}</ul>}
-              <div className="mt-3 flex gap-2">
-                {change.status === "pending" ? <><Button size="compact" disabled={busy} onClick={() => void run("accept", change.id)}>Accept changes</Button>
-                  <Button variant="outline" size="compact" disabled={busy} onClick={() => void run("reject", change.id)}>Keep existing</Button></>
-                  : change.status === "applied" && !undone.has(change.id) && <Button variant="outline" size="compact" disabled={busy}
-                    onClick={() => void run("undo", change.id)}>Undo</Button>}
-              </div>
-            </>}
-        </details>; })}
+          <ul className="space-y-3">{descriptions(change, file, review, documents).map((item, index) => <li key={index}>
+            <p className="font-medium text-gray-700">{item.label}</p>
+            <del className="block whitespace-pre-wrap text-gray-500 [overflow-wrap:anywhere]">{item.before}</del>
+            <ins className="block whitespace-pre-wrap text-green-800 no-underline [overflow-wrap:anywhere]">{item.after}</ins>
+          </li>)}</ul>
+          <div className="mt-3 flex gap-2">
+            {change.status === "pending" ? <><Button size="compact" disabled={busy} onClick={() => void run("accept", change.id)}>Accept changes</Button>
+              <Button variant="outline" size="compact" disabled={busy} onClick={() => void run("reject", change.id)}>Keep existing</Button></>
+              : change.status === "applied" && !undone.has(change.id) && <Button variant="outline" size="compact" disabled={busy}
+                onClick={() => void run("undo", change.id)}>Undo</Button>}
+          </div>
+        </details>)}
         {chain?.loading && <p role="status" className="text-gray-500">Loading changes…</p>}
         {!!chain?.error && <p role="alert" className="text-red-700">Could not load changes. <button type="button" className="underline"
           onClick={() => void pages.fetchPage("history", null, false)}>Retry</button></p>}

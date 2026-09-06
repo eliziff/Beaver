@@ -403,10 +403,7 @@ export function useAssistantChat({
               turn_id: turnOptions?.turnId,
               content: message.content,
               files: message.files?.map(({ document_id }) => ({ document_id })),
-              workflow: message.workflow ? {
-                id: message.workflow.id,
-                ...(message.workflow.variant_id ? { variant_id: message.workflow.variant_id } : {}),
-              } : undefined,
+              workflow: message.workflow ? { id: message.workflow.id } : undefined,
             },
         expected_version: current.transcriptVersion,
         chat_id: current.chatId,
