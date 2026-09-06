@@ -76,7 +76,7 @@ const renderPanel = (props: Partial<PanelProps> & Pick<PanelProps, "versions">) 
   render(panel(props));
 
 describe("DocumentSidePanel document removal", () => {
-  it("previews a current research document and links to its Sources workspace", async () => {
+  it("previews curated research without counting raw reads as highlights", async () => {
     const onRenameDocument = vi.fn();
     const researchDocument: Document = { ...document, project_id: null,
       filename: "Authorities.research.md", file_type: "md",
@@ -97,7 +97,10 @@ describe("DocumentSidePanel document removal", () => {
           id: "1999canlii699", kind: "case", title: "Baker v Canada",
           citation: "[1999] 2 SCR 817" }, labelIds: ["hearing"], badge: "",
           note: "Leading procedural fairness authority.",
-          passages: { count: 1, sha256: "a".repeat(64), labelCounts: {}, unlabelledCount: 1 } } },
+          passages: { count: 1, sha256: "a".repeat(64), labelCounts: {}, unlabelledCount: 1 } },
+          observed: { id: "observed", observedOnly: true, reference: { provider: "canlii",
+            id: "only-read", kind: "case", title: "Read but not collected" },
+            labelIds: [], badge: "", note: "", passages: null } },
         queries: { count: 1, sha256: "b".repeat(64) },
         note: "Authorities on procedural fairness." } });
 
@@ -117,8 +120,9 @@ describe("DocumentSidePanel document removal", () => {
     expect(screen.getByText("Authorities on procedural fairness.")).toBeInTheDocument();
     expect(screen.getByText("Leading procedural fairness authority.")).toBeInTheDocument();
     expect(screen.getByLabelText("Workspace contents")).toHaveTextContent(
-      "1 source · 1 highlight · 2 labels · 1 search",
+      "1 source · 0 highlights · 2 labels · 1 search",
     );
+    expect(screen.queryByText("Read but not collected")).toBeNull();
     expect(screen.queryByText(/values underlying/u)).toBeNull();
     expect(screen.queryByLabelText("Research panels")).toBeNull();
     expect(screen.getByRole("link", { name: "Open in Sources" })).toHaveAttribute(
@@ -158,7 +162,8 @@ describe("DocumentSidePanel document removal", () => {
       `source-${index}`, { id: `source-${index}`, reference: { provider: "canlii",
         id: `case-${index}`, kind: "case", title: `Source ${index}` },
         labelIds: index ? [] : ["label-0"], badge: "", note: index ? "" : `Source note ${long} SOURCE_NOTE_TAIL`,
-        passages: index ? null : { count: 41, sha256: "c".repeat(64) } },
+        passages: index ? null : { count: 41, sha256: "c".repeat(64),
+          labelCounts: { "label-21": 41 }, unlabelledCount: 0 } },
     ]));
     api.getResearchFile.mockResolvedValue({ document: researchDocument,
       versionId: researchVersion.id, workingRevision: 0,

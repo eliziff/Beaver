@@ -143,7 +143,7 @@ import { readResearchEvidenceParts,
   researchFileActionSchema, researchReferenceFromEvidence,
   researchQueryReceipt, researchQuerySources,
   researchSourceFromResource, researchSourceKey, researchSourceResource,
-  type ResearchEvidence, type ResearchFile, type ResearchFileAction, type ResearchQueryReceipt } from "../researchFile";
+  isResearchSource, researchHighlightCount, type ResearchEvidence, type ResearchFile, type ResearchFileAction, type ResearchQueryReceipt } from "../researchFile";
 import { researchCaptureRuleSchema, runResearchFileQuery } from "../researchFileQuery";
 import { COURT_RECORD_TOOL_PROPERTIES, courtRecordResult,
   courtRecordSlotTool } from "./courtRecordSlotTool";
@@ -2353,7 +2353,7 @@ export function assistantTools<Context extends {
         if (evidence.some((item) => !item) || queries.some((item) => !item))
           throw new Error("Unknown evidence or query ID");
         if (!evidence.length && !queries.length) throw new Error("Select evidence_ids or query_ids");
-        action = { type: "merge" as const,
+        action = { type: "merge" as const, saveHighlights: true,
           evidence: evidence.filter((item): item is LegalEvidenceReceipt => !!item),
           queries: queries.filter(Boolean).map((receipt) => researchQueryReceipt(receipt!)) };
       } else {
@@ -2410,9 +2410,9 @@ export function assistantTools<Context extends {
         matches: preview.map(compactEvidence), ...(matched.length > preview.length
           ? { matches_truncated: true } : {}) } : {}),
       counts: { labels: Object.keys(next.state.labels).length,
-        sources: Object.keys(next.state.sources).length,
+        sources: Object.values(next.state.sources).filter(isResearchSource).length,
         passages: Object.values(next.state.sources).reduce((sum, source) =>
-          sum + (source.passages?.count ?? 0), 0),
+          sum + researchHighlightCount(source), 0),
         searches: next.state.queries?.count ?? 0 } };
     return { ...(checkpointed ? mutationResult(content) : result(content)), evidence: preview,
       ...(queryReceipt ? { queryReceipts: [queryReceipt] } : {}) };

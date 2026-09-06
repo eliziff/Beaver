@@ -4,7 +4,7 @@ import { ConfirmPopup } from "../popups/ConfirmPopup";
 import { ResearchSelectionLabels } from "../shared/ResearchSelectionLabels";
 import { Tabs } from "../ui/tabs";
 import { Button } from "../ui/button";
-import { type ResearchAction, type ResearchEvidence, type ResearchLabel, type ResearchSelection,
+import { isResearchHighlight, isResearchSource, researchHighlightCount, type ResearchAction, type ResearchEvidence, type ResearchLabel, type ResearchSelection,
   type ResearchSource } from "@/app/lib/researchFiles";
 import { errorMessage } from "@/app/lib/utils";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
@@ -29,7 +29,7 @@ export function ResearchFileBar(props: Props) {
 }
 function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource, selectedSourceId }: Props) {
   const { file, mutations: commit, selection: workspaceSelection, setSelection,
-    passages: passagePages, highlight } = useSourcesWorkspace();
+    passages: savedPassages, evidence: readEvidence, highlight } = useSourcesWorkspace();
   const [scope, setScope] = useState<ResearchSelection>(() => workspaceSelection);
   const [tab, setTab] = useState<"labels" | "search" | "memo">("labels");
   const searchOpen = tab === "search", noteOpen = tab === "memo";
@@ -40,9 +40,10 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
   const [status, setStatus] = useState(""), [removing, setRemoving] = useState<ResearchRemoval | null>(null);
   const handledDrop = useRef(0);
   const revealLabels = useCallback(() => setTab("labels"), []);
+  const passagePages = searchOpen && matches ? readEvidence : savedPassages;
   const reader = useSourceReader({ file, passagePages, onReadSource, onStatus: setStatus });
   const labels = useMemo(() => file?.state.labels ?? {}, [file?.state.labels]);
-  const allSources = useMemo(() => Object.values(file?.state.sources ?? {}), [file?.state.sources]);
+  const allSources = useMemo(() => Object.values(file?.state.sources ?? {}).filter(isResearchSource), [file?.state.sources]);
   const pen = highlight.pen && labels[highlight.pen]?.scope === "highlight" ? highlight.pen : null;
   const activePen = pen ? labels[pen] : Object.values(labels).filter(({ scope }) => scope === "highlight")
     .sort((a, b) => a.order - b.order)[0];
@@ -51,8 +52,7 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
     (!scope.evidenceIds || scope.evidenceIds.includes(item.receipt.evidence_id)) &&
     (!scope.members || scope.members.some((member) => member.sourceId === item.sourceId &&
       (!member.evidenceIds || member.evidenceIds.includes(item.receipt.evidence_id)))) &&
-    (!pen || item.labelIds.includes(pen)) &&
-    (matches === null || matches.evidence.has(item.receipt.evidence_id)), [scope, pen, matches]);
+    (searchOpen && matches ? matches.evidence.has(item.receipt.evidence_id) : isResearchHighlight(item)), [scope, searchOpen, matches]);
   useEffect(() => {
     for (const id of openedSources) {
       const page = passagePages.chains[id];
@@ -66,15 +66,14 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
   const named = useMemo(() => allSources.filter((source) =>
     (!scope.sourceIds || scope.sourceIds.includes(source.id)) &&
     (!scope.members || scope.members.some(({ sourceId }) => sourceId === source.id)) &&
-    (!pen || (source.passages?.labelCounts[pen] ?? 0) > 0) &&
-    sourceMatches(source, filter)), [allSources, scope, pen, filter]);
+    sourceMatches(source, filter)), [allSources, scope, filter]);
   const list = useMemo(() => named.filter((source) => matches === null || matches.sources.has(source.id)),
     [named, matches]);
   const constrain = (selection: ResearchSelection): ResearchSelection => ({ ...scope, ...selection,
     ...(scope.members ? { members: scope.members.filter(({ sourceId }) => selection.sourceIds?.includes(sourceId)), sourceIds: undefined } : {}),
     ...(scope.evidenceIds ? { evidenceIds: selection.evidenceIds ? selection.evidenceIds.filter((id) => scope.evidenceIds!.includes(id)) : scope.evidenceIds } : {}) });
-  const viewSelection = constrain({ target: scope.target === "passages" || pen || matches ? "passages" : "sources",
-    sourceIds: list.map(({ id }) => id), ...(pen ? { labelIds: [pen] } : {}),
+  const viewSelection = constrain({ target: scope.target === "passages" || matches ? "passages" : "sources",
+    sourceIds: list.map(({ id }) => id),
     ...(matches ? { evidenceIds: [...matches.evidence] } : {}) });
   const selectionKey = JSON.stringify(viewSelection);
   useEffect(() => { setSelection(JSON.parse(selectionKey) as ResearchSelection); }, [selectionKey, setSelection]);
@@ -100,9 +99,9 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
       .some((item) => item.kind === "passage" && picked.has(item.value.receipt.evidence_id))).map(({ id }) => id);
     let target = activePen?.id;
     if (!target) { target = crypto.randomUUID();
-      if (!await act({ type: "label", id: target, name: "Highlight", parentId: null, scope: "highlight", color: "#eab308" })) return;
+      if (!await act({ type: "label", id: target, name: "Highlight", parentId: null, scope: "highlight", color: "#d6b656" })) return;
       highlight.setPen(target); }
-    if (await act({ type: "label-selection", target: "passages", sourceIds, evidenceIds, assign: [target], mode: "add" }))
+    if (await act({ type: "label-selection", target: "passages", sourceIds, evidenceIds, assign: [target], mode: "replace" }))
       setPicked(new Set());
   }
   const handedOff = !!(scope.members || scope.sourceIds || scope.evidenceIds);
@@ -110,12 +109,12 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
     for (const label of Object.values(labels)) if (label.parentId && ids.has(label.parentId)) ids.add(label.id);
     return ids; };
   const removalMessage = (() => { if (!removing) return "";
-    if (removing.kind === "source") { const count = file?.state.sources[removing.id]?.passages?.count ?? 0;
+    if (removing.kind === "source") { const source = file?.state.sources[removing.id], count = source ? researchHighlightCount(source) : 0;
       return `Remove “${removing.name}” and ${count} saved passage${count === 1 ? "" : "s"} from this workspace?`; }
     if (removing.kind === "evidence") return `Delete the saved passage at ${removing.name}?`;
     const ids = descendants(removing.id), prefix =
       `Delete “${removing.name}”${ids.size > 1 ? ` and ${ids.size - 1} nested label${ids.size === 2 ? "" : "s"}` : ""}?`;
-    if (labels[removing.id]?.scope === "highlight") return `${prefix} Saved passages using it will lose it.`;
+    if (labels[removing.id]?.scope === "highlight") return `${prefix} Its passages will keep their highlights using the default Highlight type.`;
     const affected = allSources.filter((item) => item.labelIds.some((id) => ids.has(id))).length;
     return `${prefix} ${affected} saved source${affected === 1 ? "" : "s"} will lose ${ids.size === 1 ? "this label" : "these labels"}.`;
   })();
@@ -159,7 +158,7 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
               {matches && <Button size="compact" variant="outline" onClick={() => { setMatches(null); setPicked(new Set()); }}>Clear matches</Button>}
             </span>
           </div>
-          <ResearchTree reader={reader} sources={list} filter={filter} matches={matches}
+          <ResearchTree passagePages={passagePages} reader={reader} sources={list} filter={filter} matches={matches}
             opened={openedSources} setOpened={setOpenedSources} passageVisible={passageVisible}
             selectedSourceId={selectedSourceId} picked={matches && searchOpen ? picked : undefined}
             onPick={matches && searchOpen ? (id, value) => setPicked((current) => { const next = new Set(current);

@@ -1,3 +1,4 @@
+import { isResearchSource, researchHighlightCount } from "@/app/lib/researchFiles";
 import { useEffect, useRef, useState } from "react";
 import { Node, type Editor } from "@tiptap/core";
 import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, useEditor, useEditorState, type NodeViewProps } from "@tiptap/react";
@@ -132,7 +133,7 @@ export default function ResearchMemoEditor({ file, value, onChange, onOpenCitati
     return () => { live = false; };
   }, [citing?.sourceId, file.document.id, onCitationError]);
   if (!editor) return null;
-  const sources = Object.values(file.state.sources);
+  const sources = Object.values(file.state.sources).filter(isResearchSource);
   const sourceLabel = (id: string) => { const reference = file.state.sources[id]?.reference;
     return reference?.title || reference?.citation || id; };
   const cite = async (sourceId: string, evidenceId?: string) => {
@@ -153,7 +154,7 @@ export default function ResearchMemoEditor({ file, value, onChange, onOpenCitati
         ? [{ value: "", label: "Whole source" }, ...passages.map((item) => ({ value: item.receipt.evidence_id,
             label: item.receipt.locator.label, description: item.receipt.span_text ?? undefined }))]
         : sources.map((source) => ({ value: source.id, label: sourceLabel(source.id),
-            description: source.passages?.count ? `${source.passages.count} saved` : undefined }))}
+            description: researchHighlightCount(source) ? `${researchHighlightCount(source)} saved` : undefined }))}
       onChange={(id) => { if (id === null) return;
         if (citing?.sourceId) void cite(citing.sourceId, id || undefined);
         else setCiting({ sourceId: id }); }} />

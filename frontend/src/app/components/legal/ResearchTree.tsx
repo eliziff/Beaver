@@ -4,7 +4,7 @@ import { ChevronRight, Circle, FileText, Scale } from "lucide-react";
 import { InlineNameInput } from "../shared/InlineNameInput";
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { Button } from "../ui/button";
-import { researchLabelPath, type ResearchAction, type ResearchEvidence, type ResearchLabel,
+import { isResearchHighlight, researchHighlightCount, researchLabelPath, type ResearchAction, type ResearchEvidence, type ResearchLabel,
   type ResearchSource } from "@/app/lib/researchFiles";
 import { errorMessage } from "@/app/lib/utils";
 import { researchLabelColor } from "./ResearchLabelCircle";
@@ -17,13 +17,12 @@ import { sourceMatches, sourceName, type SourceReader } from "./useSourceReader"
 
 const LABEL_DRAG = "application/x-beaver-research-label";
 const COLLAPSED = "beaver.research.collapsed.v1";
-const UNSORTED = "__unsorted__";
 export type ResearchRemoval = { kind: "label" | "source" | "evidence"; id: string; name: string; sourceId?: string };
 /** Proposed labels and assignments rendered in place of the saved ones, marked where they differ. */
 export type ResearchTreePreview = { labels: Record<string, ResearchLabel>;
   marks: Record<string, "added" | "changed"> };
 type Row = { key: string; depth: number } & ({ kind: "label"; label: ResearchLabel; count: number }
-  | { kind: "unsorted"; count: number } | { kind: "source"; source: ResearchSource }
+  | { kind: "source"; source: ResearchSource }
   | { kind: "passage"; source: ResearchSource; item: ResearchEvidence }
   | { kind: "extra"; source: ResearchSource });
 type Drop = { id: string; mode: "before" | "inside" | "after" };
@@ -36,9 +35,10 @@ const readCollapsed = (id?: string) => { try { const value = id
 const NO_ROWS = new Set<string>();
 /** One tree: labels are nodes, sources leaves under every label they carry, passages under a source. */
 export function ResearchTree({ reader, sources, filter = "", matches = null, picked, onPick, selectedSourceId,
-  opened = NO_ROWS, setOpened = () => undefined, passageVisible = () => true,
-  onRemove = () => undefined, onStatus = () => undefined, onSourceDrag, preview }: {
+  opened = NO_ROWS, setOpened = () => undefined, passageVisible = isResearchHighlight,
+  onRemove = () => undefined, onStatus = () => undefined, onSourceDrag, preview, passagePages: suppliedPages }: {
   reader?: SourceReader; sources: ResearchSource[]; filter?: string;
+  passagePages?: ReturnType<typeof useSourcesWorkspace>["passages"];
   matches?: { evidence: Set<string>; sources: Set<string> } | null;
   picked?: Set<string>; onPick?: (evidenceId: string, picked: boolean) => void; selectedSourceId?: string;
   opened?: Set<string>; setOpened?: Dispatch<SetStateAction<Set<string>>>;
@@ -46,7 +46,8 @@ export function ResearchTree({ reader, sources, filter = "", matches = null, pic
   onRemove?: (removal: ResearchRemoval) => void; onStatus?: (message: string) => void;
   onSourceDrag?: () => void; preview?: ResearchTreePreview;
 }) {
-  const { file, mutations: commit, passages: passagePages } = useSourcesWorkspace();
+  const { file, mutations: commit, passages: savedPages } = useSourcesWorkspace();
+  const passagePages = suppliedPages ?? savedPages;
   const labels = preview?.labels ?? file?.state.labels ?? {};
   const [collapsed, setCollapsed] = useState(() => readCollapsed(file?.document.id));
   const [renaming, setRenaming] = useState<string | null>(null), [busy, setBusy] = useState(false);
@@ -124,12 +125,9 @@ export function ResearchTree({ reader, sources, filter = "", matches = null, pic
     }
   }
   pushLabels(null, 0, false);
-  const unsorted = sources.filter(({ labelIds }) => !labelIds.some((id) => labels[id]?.scope === "source"));
-  const shownUnsorted = unsorted.filter((source) => sourceMatches(source, needle));
-  if (shownUnsorted.length || (!needle && !preview)) {
-    rows.push({ key: UNSORTED, depth: 0, kind: "unsorted", count: unsorted.length });
-    if (!collapsed.has(UNSORTED)) for (const source of shownUnsorted) pushSource(source, UNSORTED, 1);
-  }
+  // A source without a whole-source label is an ordinary root item, not a pseudo-label.
+  for (const source of sources) if (!source.labelIds.some((id) => labels[id]?.scope === "source") && sourceMatches(source, needle))
+    pushSource(source, "root", 0);
 
   if (!file) return null;
   const mark = (id: string) => preview?.marks[id];
@@ -234,7 +232,7 @@ export function ResearchTree({ reader, sources, filter = "", matches = null, pic
       <span data-mark={mark(source.id)} title={name} className="min-w-0 flex-1 truncate">
         {openLink(source, name, undefined, `max-w-full truncate text-start text-sm ${markClass(source.id)}`,
           selectedSourceId === source.id)}</span>
-      {!!source.passages?.count && <span className="ms-auto shrink-0 tabular-nums text-xs text-gray-500">{source.passages.count}</span>}
+      {!!researchHighlightCount(source) && <span className="ms-auto shrink-0 tabular-nums text-xs text-gray-500">{researchHighlightCount(source)}</span>}
       {!preview && <span className="opacity-0 focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
         <MoreActionsMenu label={`${name} options`} items={[
           ...(href || reader?.canRead(source) ? [{ label: "Open", onSelect: openIt }] : []),
@@ -280,16 +278,8 @@ export function ResearchTree({ reader, sources, filter = "", matches = null, pic
 
   const body: ReactNode[] = rows.map((row) => {
     const content = row.kind === "label" ? labelRow(row) : row.kind === "source" ? sourceRow(row)
-      : row.kind === "passage" ? passageRow(row) : row.kind === "extra" ? extraRow(row)
-      : <div className={rowClass(false, UNSORTED)} style={{ paddingInlineStart: 4 + row.depth * 16 }}>
-        {row.count ? chevron(!collapsed.has(UNSORTED), `${collapsed.has(UNSORTED) ? "Expand" : "Collapse"} Unsorted`,
-          () => toggle(UNSORTED)) : spacer}
-        <Circle aria-hidden="true" className="size-3 shrink-0 text-gray-400" />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-500">Unsorted</span>
-        <span className="ms-auto shrink-0 tabular-nums text-xs text-gray-500">{row.count}</span>
-      </div>;
+      : row.kind === "passage" ? passageRow(row) : extraRow(row);
     const name = row.kind === "label" ? `${row.label.name}, ${row.count} sources`
-      : row.kind === "unsorted" ? `Unsorted, ${row.count} sources`
       : row.kind === "source" ? sourceName(row.source) : row.kind === "passage" ? row.item.receipt.locator.label : undefined;
     return <div key={row.key} role={row.kind === "extra" ? undefined : "treeitem"} aria-label={name} aria-level={row.depth + 1}
       aria-expanded={row.kind === "label" ? !collapsed.has(row.label.id) : row.kind === "source" ? opened.has(row.source.id) : undefined}

@@ -349,7 +349,7 @@ function LegalSourceViewerContent({
       const item = savedPassages[Number(span.dataset.qspan) - quoteTexts.length];
       if (!item) return;
       const color = researchLabels?.[item.labelIds[0]]?.color ?? "#eab308";
-      const category = researchLabels?.[item.labelIds[0]]?.name ?? "Unclassified";
+      const category = researchLabels?.[item.labelIds[0]]?.name ?? "Highlight";
       span.style.setProperty("background-color", /^#[\da-f]{6}$/iu.test(color)
         ? `${color}33` : color, "important");
       span.style.setProperty("border-bottom", `3px solid ${color}`);

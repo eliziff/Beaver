@@ -276,18 +276,22 @@ const scoped = (columns: { index: number; name: string; prompt: string; format?:
         documents: [{ ...first.document, selection: { target: "sources", members: [{ sourceId: "source-1" }] } }] };
 };
 
-it("adds workspace sources that are not rows yet", async () => {
+it("offers only curated workspace sources that are not rows yet", async () => {
     mocks.getTabularReview.mockResolvedValue(scoped([{ index: 0, name: "Term", prompt: "Find term" }]));
     mocks.getResearchFile.mockResolvedValue(workspaceFile({
         "source-1": { id: "source-1", reference: { title: "Lease" }, labelIds: [], badge: "", note: "", passages: null },
         "source-2": { id: "source-2", reference: { title: "Ruling" }, labelIds: [], badge: "", note: "", passages: null },
+        "read-only": { id: "read-only", observedOnly: true, reference: { title: "Unused read" },
+            labelIds: [], badge: "", note: "", passages: null },
     }));
     mocks.updateReview.mockResolvedValue({});
     render(<TRView reviewId="review-1" />);
     await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
 
     fireEvent.click(screen.getByRole("button", { name: "Documents" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Add Ruling" }));
+    expect(await screen.findByRole("button", { name: "Add Ruling" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Add Unused read" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add Ruling" }));
     await waitFor(() => expect(mocks.updateReview).toHaveBeenCalledWith("review-1", {
         research_selection: { target: "sources", members: [{ sourceId: "source-1" }, { sourceId: "source-2" }] },
     }));

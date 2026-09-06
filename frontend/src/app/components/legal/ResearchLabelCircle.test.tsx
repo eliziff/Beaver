@@ -31,6 +31,6 @@ describe("ResearchLabelCircle", () => {
 
   it("shares the saved-label scope defaults", () => {
     expect(researchLabelColor({ ...labels.root, color: null })).toBe("#3498db");
-    expect(researchLabelColor({ ...labels.root, color: null, scope: "highlight" })).toBe("#eab308");
+    expect(researchLabelColor({ ...labels.root, color: null, scope: "highlight" })).toBe("#d6b656");
   });
 });

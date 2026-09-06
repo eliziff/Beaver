@@ -111,12 +111,12 @@ describe("ResearchFileBar", () => {
     });
   });
 
-  it("nests a source under every label it carries and leaves unlabelled sources in Unsorted", async () => {
+  it("preserves label browsing and keeps unlabelled sources visible without a synthetic folder", async () => {
     await renderWorkspace();
     const tree = screen.getByRole("tree", { name: "Labels and sources" });
     const names = within(tree).getAllByRole("treeitem").map((row) => row.getAttribute("aria-label"));
     expect(names).toEqual(["Fairness, 1 sources", "Baker v Canada", "Other, 1 sources", "Baker v Canada",
-      "Unsorted, 1 sources", "Appeal case"]);
+      "Appeal case"]);
     expect(screen.queryByRole("complementary", { name: "Label organizer" })).not.toBeInTheDocument();
   });
 
@@ -195,7 +195,7 @@ describe("ResearchFileBar", () => {
     expect(screen.getByRole("tree", { name: "Labels and sources" })).toBeVisible();
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Labels", "Search", "Memo"]);
     expect(screen.queryByRole("textbox", { name: "Search saved source text" })).not.toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Pens" })).toBeVisible();
+    expect(screen.getByRole("group", { name: "Highlight types" })).toBeVisible();
     expect(screen.getByRole("searchbox", { name: "Filter" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "List options" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Organize" })).not.toBeInTheDocument();
@@ -213,12 +213,15 @@ describe("ResearchFileBar", () => {
     expect(within(tree).queryByRole("treeitem", { name: "Baker v Canada" })).not.toBeInTheDocument();
   });
 
-  it("filters the tree to sources highlighted with the selected pen", async () => {
+  it("selects a highlight type without hiding other research sources", async () => {
     await renderWorkspace();
     fireEvent.click(screen.getByRole("button", { name: "Holding" }));
     const tree = screen.getByRole("tree", { name: "Labels and sources" });
     expect(within(tree).getAllByRole("treeitem", { name: "Baker v Canada" })[0]).toBeVisible();
-    expect(within(tree).queryByRole("treeitem", { name: "Appeal case" })).not.toBeInTheDocument();
+    expect(within(tree).getByRole("treeitem", { name: "Appeal case" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Holding" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Holding" }));
+    expect(screen.getByRole("button", { name: "Holding" })).toHaveAttribute("aria-pressed", "true");
     expect(api.getResearchItems.mock.calls.some(([, input]) => input.kind === "passages")).toBe(false);
   });
 
@@ -314,7 +317,7 @@ describe("ResearchFileBar", () => {
     menu("Holding options");
     fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
     dialog = screen.getByRole("alertdialog", { name: "Delete label?" });
-    expect(dialog).toHaveTextContent("Saved passages using it will lose it.");
+    expect(dialog).toHaveTextContent("Its passages will keep their highlights using the default Highlight type.");
     expect(dialog).not.toHaveTextContent(/\d+ saved source/u);
   });
 
@@ -365,7 +368,7 @@ describe("ResearchFileBar", () => {
     await waitFor(() => expect(api.runResearchFileQuery).toHaveBeenCalledTimes(2));
     expect(api.runResearchFileQuery).toHaveBeenLastCalledWith("file-1", expect.objectContaining({
       syntax: "literal", target: "sources", conflict: "append",
-      rules: [{ phrase: "natural justice", direction: "after", unit: "sentence", slot: "Unclassified" }],
+      rules: [{ phrase: "natural justice", direction: "after", unit: "sentence", slot: "" }],
     }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -378,7 +381,7 @@ describe("ResearchFileBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Holding" }));
     fireEvent.click(screen.getByRole("button", { name: "Highlight 1 as Holding" }));
     await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", 0,
-      { type: "label-selection", target: "passages", sourceIds: ["baker"], evidenceIds: ["e_1"], assign: ["holding"], mode: "add" }));
+      { type: "label-selection", target: "passages", sourceIds: ["baker"], evidenceIds: ["e_1"], assign: ["holding"], mode: "replace" }));
   });
 
   it("loads receipt history only when opened and returns to sources for its matches", async () => {

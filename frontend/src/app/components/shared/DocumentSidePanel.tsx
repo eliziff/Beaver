@@ -50,6 +50,8 @@ import { useLibraryReaderCapture } from "@/app/components/shared/useLibraryReade
 import type { CitationQuote } from "@/app/lib/citations";
 import {
     isResearchDocument,
+    isResearchSource,
+    researchHighlightCount,
     researchLabelPath,
     researchSourceKey,
     type ResearchFile,
@@ -120,10 +122,10 @@ function ResearchFilePreview({ documentId }: { documentId: string }) {
     if (!file) return <div role="alert" className="grid h-full place-items-center text-sm text-red-700">Could not load this research file.</div>;
 
     const { labels, sources, queries, note } = file.state;
-    const savedSourceIds = Object.keys(sources), sourcePageIndex = Math.min(sourcePage,
+    const savedSourceIds = Object.values(sources).filter(isResearchSource).map(({ id }) => id), sourcePageIndex = Math.min(sourcePage,
         Math.max(0, Math.ceil(savedSourceIds.length / VERSION_PAGE) - 1)), sourceStart = sourcePageIndex * VERSION_PAGE,
         shownSources = savedSourceIds.slice(sourceStart, sourceStart + VERSION_PAGE).map((id) => sources[id]),
-        passageCount = savedSourceIds.reduce((sum, id) => sum + (sources[id].passages?.count ?? 0), 0),
+        passageCount = savedSourceIds.reduce((sum, id) => sum + researchHighlightCount(sources[id]), 0),
         searches = queries?.count ?? 0, allLabels = Object.values(labels), shownLabels = [...allLabels]
             .sort((left, right) => {
                 if (left.scope !== right.scope) return left.scope.localeCompare(right.scope);
@@ -166,7 +168,7 @@ function ResearchFilePreview({ documentId }: { documentId: string }) {
             {savedSourceIds.length ? <><ul aria-label="Saved sources" className="space-y-3">
                 {shownSources.map((source) => {
                     const title = source.reference.title || source.reference.citation || source.reference.id,
-                        sourcePassages = source.passages?.count ?? 0;
+                        sourcePassages = researchHighlightCount(source);
                     return <li key={source.id} className="rounded-lg border border-gray-200 bg-white p-3">
                         <article>
                             <header className="flex items-start gap-2">
@@ -253,21 +255,21 @@ export function DocumentSidePanel({
             : null;
     useLibraryReaderCapture(readerBody, captureReference, highlightController);
     const [savedQuotes, setSavedQuotes] = useState<CitationQuote[]>([]);
-    const ontologyFile = sourcesController?.file ?? null;
+    const researchFile = sourcesController?.file ?? null;
     const captureKey = captureReference ? researchSourceKey(captureReference) : null;
     useEffect(() => {
-        if (!ontologyFile || !captureKey) { setSavedQuotes([]); return; }
-        const source = Object.values(ontologyFile.state.sources).find(({ reference }) =>
+        if (!researchFile || !captureKey) { setSavedQuotes([]); return; }
+        const source = Object.values(researchFile.state.sources).find(({ reference }) =>
             researchSourceKey(reference) === captureKey);
         if (!source) { setSavedQuotes([]); return; }
         let cancelled = false;
-        void getResearchItems(ontologyFile.document.id, { kind: "passages", sourceId: source.id }).then((page) => {
+        void getResearchItems(researchFile.document.id, { kind: "passages", sourceId: source.id }).then((page) => {
             if (cancelled) return;
             setSavedQuotes(page.items.flatMap((item) => item.kind === "passage" && item.value.receipt.span_text
                 ? [{ quote: item.value.receipt.span_text }] : []));
         }).catch(() => { if (!cancelled) setSavedQuotes([]); });
         return () => { cancelled = true; };
-    }, [ontologyFile, captureKey]);
+    }, [researchFile, captureKey]);
     const loadVersions = useEffectEvent(onLoadVersions);
     const docId = doc?.id;
 

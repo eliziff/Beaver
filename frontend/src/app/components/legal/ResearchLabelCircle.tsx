@@ -1,7 +1,7 @@
 import { researchLabelPath, type ResearchLabel } from "@/app/lib/researchFiles";
 
 export const researchLabelColor = (label: ResearchLabel) => label.color ??
-  (label.scope === "highlight" ? "#eab308" : "#3498db");
+  (label.scope === "highlight" ? "#d6b656" : "#3498db");
 
 export function ResearchLabelCircle({ labels, labelIds, size = "md" }: {
   labels: Record<string, ResearchLabel>; labelIds: string[]; size?: "sm" | "md" }) {

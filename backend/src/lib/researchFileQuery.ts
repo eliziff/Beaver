@@ -8,7 +8,7 @@ import { createLegalEvidenceTurnState, createLibraryEvidence, legalSourceEvidenc
 import type { DocumentStore } from "./documentStore";
 import { legalSourceOperations } from "./legalSourceApplication";
 import { commitResearchFile, readResearchFile,
-  researchLabelPath, researchSourceKey, researchSourceResource, readResearchQueries,
+  researchLabelPath, researchSourceKey, isResearchSource, researchSourceResource, readResearchQueries,
   type PublicResearchFileAction,
   type ResearchFile, type ResearchFileAction, type ResearchFileState,
   type ResearchQueryReceipt } from "./researchFile";
@@ -22,7 +22,7 @@ import type { ResearchReadContext } from "./researchReader";
 
 export const researchCaptureRuleSchema = z.object({ phrase: z.string().trim().min(1).max(500),
   direction: z.enum(["before", "after", "around"]), unit: z.enum(["sentence", "line", "paragraph", "chars"]),
-  chars: z.number().int().min(1).max(50_000).optional(), slot: z.string().trim().min(1).max(200) }).strict();
+  chars: z.number().int().min(1).max(50_000).optional(), slot: z.string().trim().max(200).default("") }).strict();
 export type ResearchCaptureRule = z.infer<typeof researchCaptureRuleSchema>;
 export type ResearchFileQueryInput = ResearchSelection & { versionId: string; workingRevision: number; text?: string;
   syntax: "literal" | "terms"; limit?: number; after?: string; rules?: ResearchCaptureRule[];
@@ -73,7 +73,7 @@ export async function verifyResearchPassage(file: ResearchFile, action: PublicRe
   if (action.type !== "passage") return action;
   const source = file.state.sources[action.sourceId]?.reference;
   if (!source) throw new ApplicationError(400, "Research source not found");
-  const labelled = (evidence: LegalEvidenceReceipt): ResearchFileAction => ({ type: "merge", evidence: [evidence],
+  const labelled = (evidence: LegalEvidenceReceipt): ResearchFileAction => ({ type: "merge", saveHighlights: true, evidence: [evidence],
     ...(action.labelIds?.length ? { labels: { [evidence.evidence_id]: action.labelIds } } : {}) });
   if (source.kind === "document") {
     const projection = context && await context.documents.projectionSource(context.scope, source.id, source.versionId);
@@ -176,9 +176,9 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
   catch { throw new ApplicationError(400, "Capture rules are invalid"); }
   if ((!query && !rules.length) || !!query === !!rules.length || query.length > 10_000)
     throw new ApplicationError(400, "Query text is invalid");
-  if (rules.some(({ slot }) => slot !== "Unclassified" &&
+  if (rules.some(({ slot }) => !!slot &&
       state.labels[slot]?.scope !== "highlight"))
-    throw new ApplicationError(400, "Capture slots must use a highlight label or Unclassified");
+    throw new ApplicationError(400, "A capture assignment must identify a highlight type");
   const needles = [...new Set((input.syntax === "literal" ? [query] : query.split(/\s+/u))
     .filter(Boolean).map((term) => term.toLowerCase()))];
   if (needles.length > 100) throw new ApplicationError(400, "Query has too many terms");
@@ -188,7 +188,8 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
     evidenceIds: input.evidenceIds, members: input.members, labelIds: input.labelIds, unlabelled: input.unlabelled }),
     labels = researchSelectionLabels(state, input.labelIds ?? []),
     limit = Math.max(1, Math.min(5_000, input.limit ?? 500)),
-    baseline = input.members?.map(({ sourceId }) => sourceId) ?? input.sourceIds ?? Object.keys(state.sources),
+    baseline = input.members?.map(({ sourceId }) => sourceId) ?? input.sourceIds ?? Object.values(state.sources)
+      .filter((source) => isResearchSource(source) || !!input.evidenceIds || !!options.context?.restricted).map(({ id }) => id),
     contextResources = options.context?.restricted && new Set(options.context.subjects?.map(({ resource }) => resource)),
     requested = [...new Set(baseline)].filter((id) => {
       if (!state.sources[id]) throw new ApplicationError(400, "Invalid source selection");
@@ -247,7 +248,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
       captureFull = captured === MAX_CAPTURE_CHARS; }
     if (slot) {
       const names = slots[found.evidence_id] ??= []; if (!names.includes(slot)) names.push(slot);
-      if (slot !== "Unclassified" && assign) { const ids = labelsByEvidence[found.evidence_id] ??= [];
+      if (!!slot && assign) { const ids = labelsByEvidence[found.evidence_id] ??= [];
         if (!ids.includes(slot)) ids.push(slot); }
     }
   };
@@ -262,7 +263,6 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
     if (cursor?.[0] === sourceId && cursor[2] !== sha256(JSON.stringify([...new Set(hashes)].sort())))
       throw new ApplicationError(409, "Research source changed. Restart the search.");
   };
-  const native = structureNative();
   const scan = async (savedSource: ResearchFileState["sources"][string]): Promise<{ sourceId: string;
     sourceSha256s?: string[]; failure?: string; found: Array<{ span: string;
       receipt: LegalEvidenceReceipt | undefined; slot?: string; assign?: boolean }> }> => {
@@ -286,6 +286,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
         }
         return { sourceId: source.id, sourceSha256s, found };
       }
+      const native = structureNative();
       const reference = source.reference, passages: Array<{ documentArtifact: Parameters<ReturnType<typeof structureNative>["documentText"]>[0];
         evidence: (span: LegalEvidenceSpan) => LegalEvidenceReceipt | undefined }> = [];
       if (reference.kind === "document") {
@@ -451,8 +452,13 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
     sourceReferences: Object.fromEntries(attempted.map((id) =>
       [id, structuredClone(state.sources[id].reference)])),
     labelPaths: Object.fromEntries([...new Set([...(input.labelIds ?? []), ...rules.flatMap(
-      ({ slot }) => slot === "Unclassified" ? [] : [slot])])].flatMap((id) => {
+      ({ slot }) => !slot ? [] : [slot])])].flatMap((id) => {
       const path = researchLabelPath(state, id); return path ? [[id, path]] : []; })) };
+  // Two rules may identify the same exact span. Keep both candidate assignments in
+  // the receipt, but leave that match for the user to classify rather than give one
+  // highlight two types (or silently pick a winner).
+  for (const [id, assignments] of Object.entries(labelsByEvidence))
+    if (assignments.length > 1) delete labelsByEvidence[id];
   const checkpointed = !!options.assistant;
   const updated = await commitResearchFile(documents, scope, file,
       { type: "merge", evidence, queries: [receipt], labels: labelsByEvidence }, options.assistant, options.operation);

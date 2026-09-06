@@ -1,4 +1,4 @@
-import { researchLabelPath, type ResearchEvidence, type ResearchFile } from "../researchFile";
+import { isResearchHighlight, researchLabelPath, type ResearchEvidence, type ResearchFile } from "../researchFile";
 import type { ResearchFinding } from "../researchChat";
 import { researchSelectionLabels, type ResearchSubject } from "../researchSelection";
 import type { TabularColumn } from "../tabularStore";
@@ -42,7 +42,7 @@ export function researchTableArrangement(file: ResearchFile, subjects: ResearchS
   }
   const scoped = new Map(sourceIds.map((sourceId) => { const limit = allowed.get(sourceId) ?? null;
     return [sourceId, Object.values(parts.get(sourceId) ?? {}).filter((item) =>
-      inPen(item) && (!limit || limit.has(item.receipt.evidence_id)))]; }));
+      inPen(item) && (limit ? limit.has(item.receipt.evidence_id) : isResearchHighlight(item)))]; }));
 
   const rows: ResearchArrangement["rows"] = [];
   for (const sourceId of sourceIds) {

@@ -2,7 +2,7 @@ import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { z } from "zod";
 import type { DocumentStore } from "./documentStore";
 import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
-import { readResearchFile, visitResearchEvidenceParts, researchSourceResource,
+import { readResearchFile, visitResearchEvidenceParts, researchSourceResource, isResearchSource, isResearchHighlight,
   type ResearchFile, type ResearchFileState, type ResearchEvidence, type ResearchSourceReference } from "./researchFile";
 
 const selectionIds = z.array(z.string().min(1).max(200)).max(100_000)
@@ -81,7 +81,8 @@ export async function resolveResearchSelection(documents: DocumentStore, scope: 
   if (availableOnly && input.labelIds?.length && !selectedLabels?.length)
     return { research_file_id: file.document.id, versionId: file.versionId, workingRevision: file.workingRevision, subjects: [] };
   const labels = researchSelectionLabels(file.state, selectedLabels ?? []),
-    requested = input.sourceIds ?? Object.keys(file.state.sources),
+    requested = input.sourceIds ?? Object.values(file.state.sources)
+      .filter((source) => isResearchSource(source) || !!input.evidenceIds).map(({ id }) => id),
     selectedEvidence = input.evidenceIds && new Set(input.evidenceIds),
     sources = [...new Set(requested)].flatMap((id) => {
       const source = file.state.sources[id];
@@ -99,6 +100,7 @@ export async function resolveResearchSelection(documents: DocumentStore, scope: 
     if (input.target === "sources" && !matches(source.labelIds)) continue;
     const evidence = Object.values(parts.get(source.id) ?? {}).filter((item) => {
       if (selectedEvidence && !selectedEvidence.has(item.receipt.evidence_id)) return false;
+      if (!selectedEvidence && !isResearchHighlight(item)) return false;
       if (input.target === "passages" && !matches(item.labelIds) && !source.labelIds.some((id) => labels.has(id))) return false;
       found.add(item.receipt.evidence_id); return true;
     }).map(({ receipt }) => receipt);

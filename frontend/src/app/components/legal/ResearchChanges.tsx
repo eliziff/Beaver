@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getResearchItems } from "@/app/lib/api/researchFiles";
-import { researchLabelPath, type ResearchChange, type ResearchFile, type ResearchLabel } from "@/app/lib/researchFiles";
+import { isResearchSource, researchLabelPath, type ResearchChange, type ResearchFile, type ResearchLabel } from "@/app/lib/researchFiles";
 import { actOnTabularChange, getTabularHistory, updateTabularReview, type ColumnConfig, type TabularDocument, type TabularReview } from "@/app/lib/api/tabular";
 import { usePagedChains } from "@/app/hooks/usePagedChains";
 import { errorMessage } from "@/app/lib/utils";
@@ -33,7 +33,7 @@ function labelProposal(change: ResearchChange, file: ResearchFile) {
       marks[source.id] = "changed";
     } else return null;
   }
-  return Object.keys(marks).length ? { labels, marks, sources: Object.values(sources) } : null;
+  return Object.keys(marks).length ? { labels, marks, sources: Object.values(sources).filter(isResearchSource) } : null;
 }
 function descriptions(change: ResearchChange, file?: ResearchFile, review?: TabularReview, documents: TabularDocument[] = []) {
   const labels = { ...file?.state.labels };

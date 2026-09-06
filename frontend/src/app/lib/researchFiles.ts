@@ -11,12 +11,18 @@ export type ResearchSourceReference = { id: string;
     family?: never; part?: never } | { provider: string; family?: string; part?: string;
     kind: "case" | "legislation" | "journal" | "hansard"; versionId?: never });
 export type ResearchSource = { id: string; reference: ResearchSourceReference;
+  observedOnly?: boolean;
   labelIds: string[]; badge: string; badgeColor?: string; note: string;
   passages: (ResearchPartReference & { labelCounts: Record<string, number>;
     unlabelledCount: number }) | null };
 export type ResearchEvidenceReceipt = GroundedEvidence;
 export type ResearchEvidence = { receipt: ResearchEvidenceReceipt; sourceId: string;
   labelIds: string[]; note: string };
+/** A highlight type is the single highlight-scoped label: name, colour and parent. */
+export const isResearchHighlight = (item: ResearchEvidence) => item.labelIds.length === 1;
+export const researchHighlightCount = (source: ResearchSource) => source.passages
+  ? source.passages.count - source.passages.unlabelledCount : 0;
+export const isResearchSource = (source: ResearchSource) => !source.observedOnly || source.labelIds.length > 0 || researchHighlightCount(source) > 0;
 export type ResearchQueryReceipt = { query_id: string; call_id: string;
   tool: "search_sources" | "Read"; executed_at: string; model: string;
   executor_version: "legal-source-search-v1" | "legal-source-pattern-v1";

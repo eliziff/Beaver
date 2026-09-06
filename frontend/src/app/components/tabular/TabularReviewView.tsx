@@ -39,7 +39,7 @@ import { ResearchViews } from "../shared/ResearchViews";
 import { ResearchSelectionLabels } from "../shared/ResearchSelectionLabels";
 import { ResearchChanges } from "../legal/ResearchChanges";
 import { SourcesWorkspace, useSourcesWorkspace } from "../legal/SourcesWorkspace";
-import type { ResearchSelection } from "@/app/lib/researchFiles";
+import { isResearchSource, type ResearchSelection } from "@/app/lib/researchFiles";
 import { AssistantDock } from "../assistant/AssistantDock";
 import { ResearchWorkspaceHost } from "../legal/ResearchWorkspaceHost";
 import { PageHeader, type PageHeaderAction, type PageHeaderBreadcrumb } from "../shared/PageHeader";
@@ -509,7 +509,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
         setUi({ dockTab: "sources" });
     }
     const rowMembers = rowSelection(documents).members ?? [];
-    const workspaceSources = Object.values(workspace.file?.state.sources ?? {})
+    const workspaceSources = Object.values(workspace.file?.state.sources ?? {}).filter(isResearchSource)
         .filter(({ id }) => !rowMembers.some((member) => member.sourceId === id))
         .map(({ id, reference }) => ({ id, title: reference.title ?? reference.citation ?? id }));
     async function addSources(sourceIds: string[]) {

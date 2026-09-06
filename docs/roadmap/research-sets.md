@@ -6,8 +6,9 @@ Retain nested colour labels, versioned Library and public source references,
 exact passage/evidence receipts, notes and query receipts. Bodies remain in the
 source store/provider. Humans/models use the same selection and label operations.
 Chat evidence stays in its transcript until the user opens a workspace or table;
-that action binds the chat, and subsequent reads are collected into the same
-workspace. Chat, Workspace and Table are connected by the shared Open as menu.
+that action binds the chat. Subsequent reads are retained as background receipts,
+not highlights or findings. Supported answers and deliberately collected sources
+remain distinct from those observations. Chat, Workspace and Table are connected by the shared Open as menu.
 
 Use the main left pane for source text and the shared right-hand dock for the
 workspace. Search results occupy the main pane until a source is opened. On
@@ -19,16 +20,15 @@ drag/drop, saved source lists, passage highlights, notes, capture rules and
 Search Saved sources. Reading stays primary; collection interaction must work
 in full Sources and its narrow assistant placement without clipping or jumps.
 Library previews contents and offers Open in Sources, not another workspace UI.
-Library and project tables share one labels ontology per scope: document rows
-show their label dots and workspace count, filter by label or workspace, and
-offer Label and Add to workspace row actions. The document panel's Highlight
-tool (or Ctrl+Shift+H) saves the selection with the current pen; pens live in
-the research rail beside the workspace tree.
+Library and project tables have no global research classification or primary
+workspace. Add to research explicitly references a document from a chosen set.
+Highlight types are names, colours and optional parents, not a separate colour
+palette layered over categories. One saved highlight has one type.
 Collection selection/name/rename are cohesive; autosave, ordinary Library placement
 and existing folder interactions remain. No export concept.
 
 The entire workspace is one Beaver Library/project file. Its source references,
-verified passage parts, label ontologies, query receipts and optional Markdown
+original evidence receipts, research-set labels, query receipts and optional Markdown
 memo move and version together. Internal parts are an implementation detail;
 creating or editing the memo must not create a second Library document.
 
@@ -74,9 +74,9 @@ jobs: resumable conversational delegation and durable cell generation have
 different completion and retry requirements. Consolidate further only where
 the same behavior is implemented twice.
 
-The optional memo supports formatted editing with inline assistant citation pills,
+The optional memo supports formatted editing with stable evidence-bound citations,
 bold, italics, underline, lists, headings and tables. Sources and saved passages
-can be dragged into it or inserted with Cite. Humans and models update the same
+can be inserted using Insert citation. Humans and models update the same
 memo through research operations; stale memo writes must not overwrite newer text.
 Workspace navigation and memo recovery follow the
 [behavior contract](../current/behavior-contracts.md#sources-workspace).
@@ -91,3 +91,22 @@ than silently bounded analysis. Validate labels/highlights/notes/rules/query sel
 citations with real clicks/screenshots in both Sources placements. An authorized
 live Luna-low research run must collect cases into nested labels, highlight
 relevant passages, draft a memo and survive reload/model-context transfer.
+
+## Delivery sequence (2026-09-06)
+
+PR 1 establishes neutral Library storage, read/highlight/grounded-support boundaries,
+one highlight type per mark, and removal of synthetic Unsorted labels. Source and
+evidence IDs are preserved; a read is not upgraded by switching views.
+
+PR 2 simplifies the existing Sources dock into virtual-folder browsing and a
+canonical source list, with a small nested highlight-type editor and normal-looking
+memo citations. PR 3 cleans Tabular Review controls and its scrolling inspector.
+PR 4 reuses existing classifications, highlights and findings in meaningful table
+arrangements and supports explicit return of results to Sources. PR 5 adds richer
+grounded Chat conversion and semantic proposals. PR 6 finishes Library flows and
+broader round-trip/browser hardening. None requires a generalized ontology system.
+
+Storage note: removing the experimental Library-label pointer advances the strict
+local SQL schema to 17. Older local databases are rejected without being altered;
+use a separate fresh local data directory. No automatic migration, reset or deletion
+is performed. Existing evidence/label IDs are reused within the research format.

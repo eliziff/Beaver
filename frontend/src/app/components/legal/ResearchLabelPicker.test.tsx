@@ -52,8 +52,10 @@ describe("ResearchLabelPicker", () => {
     render(<ResearchLabelEditor target={{ file, kind: "evidence", itemId: "e-1", sourceId: "source-1",
       labelIds: [], title: "Passage" }} mutations={lane(act)} onClose={vi.fn()} />);
     expect(screen.queryByLabelText("Badge")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add label assignment" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "None", exact: true })).not.toBeInTheDocument();
     const choice = screen.getByRole("button", { name: "H" }), icon = choice.querySelector("span[style]");
-    expect(icon).toHaveStyle({ backgroundColor: "#eab308" });
+    expect(icon).toHaveStyle({ backgroundColor: "#d6b656" });
     fireEvent.click(choice);
     expect(screen.getByRole("button", { name: "H" })).toBe(choice);
     expect(choice).toHaveAttribute("aria-pressed", "true");

@@ -307,7 +307,6 @@ create table if not exists user_preferences (
   title_model text, tabular_model text,
   last_selected_chat_model text, last_selected_reasoning_effort text,
   legal_research_us integer not null default 1,
-  library_labels_id text,
   features jsonb not null default '{"authorities":true}',
   workflow_file_targets jsonb not null default '{}',
   filing_contact jsonb not null default '{}',

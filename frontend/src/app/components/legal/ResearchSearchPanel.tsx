@@ -9,7 +9,7 @@ import { errorMessage } from "@/app/lib/utils";
 import { sourceName } from "./useSourceReader";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 
-const UNCLASSIFIED = "Unclassified", PAGE_SIZE = 50;
+const PAGE_SIZE = 50;
 type Rule = NonNullable<ResearchQueryInput["rules"]>[number];
 type Extent = "match" | `${Rule["direction"]}:${"sentence" | "paragraph"}`;
 /** How much text each match carries; anything beyond the match reuses the capture-rule machinery. */
@@ -32,7 +32,7 @@ const slotSummary = (slots: Record<string, string[]>, labels: Record<string, Res
   return [...counts].map(([name, count]) => `${name}${count > 1 ? ` × ${count}` : ""}`).join(", ");
 };
 const ruleText = (labels: Record<string, ResearchLabel>, rule: Rule, paths?: Record<string, string>) =>
-  `${rule.phrase} → ${rule.direction} ${rule.unit}${rule.unit === "chars" ? ` (${rule.chars ?? 100})` : ""} → ${receiptLabel(labels, rule.slot, paths)}`;
+  `${rule.phrase} → ${rule.direction} ${rule.unit}${rule.unit === "chars" ? ` (${rule.chars ?? 100})` : ""} → ${rule.slot ? receiptLabel(labels, rule.slot, paths) : "Search result"}`;
 
 function ChoiceMenu<T extends string>({ label, value, options, onChange, disabled }: { label: string; value: T;
   options: readonly { value: T; label: string }[]; onChange: (value: T) => void; disabled?: boolean }) {
@@ -82,7 +82,7 @@ export function ResearchSearchPanel({ active, selection, matches, onMatches, onS
     event.preventDefault(); const phrase = text.trim(); if (!phrase) return;
     const [direction, unit] = extent.split(":") as [Rule["direction"], Rule["unit"]];
     void query(extentAllowed && extent !== "match"
-      ? { syntax: "literal", target: "sources", rules: [{ phrase, direction, unit, slot: UNCLASSIFIED }], conflict: "append" }
+      ? { syntax: "literal", target: "sources", rules: [{ phrase, direction, unit, slot: "" }], conflict: "append" }
       : { text: phrase, syntax, target: "sources" });
   }
   const rerun = (input: Record<string, unknown>) => { const rules = queryRules(input);

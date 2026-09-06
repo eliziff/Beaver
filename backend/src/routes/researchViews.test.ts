@@ -117,13 +117,17 @@ it("reuses stored chat answers and their original Library/public evidence across
   expect(model).not.toHaveBeenCalled();
 }, 60_000);
 
-it("opens collected passages as grounded cells before a chat has a final answer", async () => {
+it("retains unfinished chat reads without presenting them as highlights or grounded cells", async () => {
   const f = await fixture(false), response = await request(f.api).post(`/source-workspaces/${f.workspace.id}/table`)
     .send({ chatId: f.chat.id, messageIds: [f.assistantId] });
-  expect(response.status).toBe(200);
-  const table = await arrange(f, response.body.id, false);
-  expect(table.body.cells.flatMap((cell: { content: { claims: { text: string }[] } }) =>
-    cell.content.claims.map(({ text }) => text))).toEqual(expect.arrayContaining(f.receipts.map((receipt) => receipt.span_text)));
+  expect(response.status).toBe(400);
+  const findings = await request(f.api).get(`/source-workspaces/${f.workspace.id}/findings`);
+  expect(findings.body.items).toEqual([]);
+  const passages = await request(f.api).get(`/source-workspaces/${f.workspace.id}/items?kind=passages`),
+    receipts = await request(f.api).get(`/source-workspaces/${f.workspace.id}/items?kind=evidence`);
+  expect(passages.body.total).toBe(0);
+  expect(receipts.body.items.map(({ value }: { value: { receipt: unknown } }) => value.receipt))
+    .toEqual(expect.arrayContaining(f.receipts));
   expect(model).not.toHaveBeenCalled();
 });
 
@@ -183,16 +187,11 @@ it("keeps the chat and its answers when its table and Sources workspace are dele
   expect((await f.chats.transcript(owner, f.chat.id))?.some(({ id }) => id === f.assistantId)).toBe(true);
 });
 
-it("keeps one ontology set per scope, reports Library membership and proposes labels from a column", async () => {
+it("keeps Library neutral and proposes column labels only inside the selected research set", async () => {
   const f = await fixture(), sources = await f.runtime.sources(), tables = await f.runtime.tabular(),
     labelId = randomUUID();
-  const created = await request(f.api).post("/source-workspaces/ontology").send({});
-  expect(created.status).toBe(200);
-  expect((await request(f.api).post("/source-workspaces/ontology").send({})).body.document.id)
-    .toBe(created.body.document.id);
-  expect((await request(f.api).get("/source-workspaces/ontology")).body.document.id).toBe(created.body.document.id);
-  expect(created.body.document.filename).toBe("Library labels.research.md");
-  expect((await request(f.api).get("/user/profile")).body.libraryLabelsId).toBe(created.body.document.id);
+  expect((await request(f.api).post("/source-workspaces/ontology").send({})).status).toBe(404);
+  expect((await request(f.api).get("/user/profile")).body).not.toHaveProperty("libraryLabelsId");
 
   const file = (await sources.get(owner, f.workspace.id))!, sourceId = Object.values(file.state.sources)
     .find(({ reference }) => f.research.researchSourceResource(reference) === f.resource)!.id;
@@ -201,12 +200,9 @@ it("keeps one ontology set per scope, reports Library membership and proposes la
       version_id: current.versionId, working_revision: current.workingRevision, action }); };
   await act({ type: "label", id: labelId, name: "Leases", scope: "source" });
   await act({ type: "annotate", kind: "source", id: sourceId, labelIds: [labelId] });
-  const membership = await request(f.api).get(`/source-workspaces/membership?document_ids=${f.source.id}`);
-  expect(membership.status).toBe(200);
-  expect(membership.body[f.source.id].workspaces)
-    .toEqual([{ id: f.workspace.id, title: "Review", sourceId }]);
-  expect(membership.body[f.source.id].labels)
-    .toEqual([{ id: labelId, name: "Leases", color: null, workspaceId: f.workspace.id }]);
+  expect((await request(f.api).get(`/source-workspaces/membership?document_ids=${f.source.id}`)).status).toBe(404);
+  const metadata = await f.documents.metadata(owner, f.source.id);
+  expect(metadata).not.toHaveProperty("labelsResearchFileId");
 
   const review = await sources.table(owner, f.workspace.id, { chatId: f.chat.id });
   expect(review.columns_config.map(({ name }) => name).slice(0, 2)).toEqual(["Labels", "Note"]);

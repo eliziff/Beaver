@@ -57,7 +57,7 @@ describe("Sources workspace routes", () => {
     const response = await request(app).post("/source-workspaces/d1/actions").send({
       version_id: "v1", working_revision: 0, action: { type: "passage", sourceId,
         locator: { kind: "paragraph", value: "1" }, quote: "holding" } });
-    expect(response.status).toBe(200);
+    expect(response.status, response.text).toBe(200);
     expect(response.body).toMatchObject({ sourceId, evidenceId: receipt.evidence_id });
     expect(documents.metadata).toHaveBeenCalledTimes(1);
     expect(documents.read).toHaveBeenCalledTimes(1);
@@ -81,13 +81,13 @@ describe("Sources workspace routes", () => {
     ]);
   });
 
-  it("passes the Unclassified scope through workspace queries", async () => {
+  it("keeps no-source-labels as a query predicate, not a workspace label", async () => {
     const { app, documents } = fixture();
     saved(documents);
     const response = await request(app).post("/source-workspaces/d1/query").send({
       version_id: "v1", working_revision: 0, text: "fairness", syntax: "literal",
       target: "sources", unlabelled: true });
-    expect(response.status).toBe(200);
+    expect(response.status, response.text).toBe(200);
     expect(response.body.coverage).toMatchObject({ complete: true, next_after: null,
       attempted_sources: 0, selected_sources: 0 });
     const written = vi.mocked(documents.replaceVersion).mock.calls[0][4], queryPart =
@@ -97,7 +97,7 @@ describe("Sources workspace routes", () => {
     expect(stored.input).toMatchObject({ unlabelled: true });
   });
 
-  it("keeps item cursors across metadata edits but rejects changed passage content", async () => {
+  it("keeps explicit evidence cursors across metadata edits but rejects changed receipts", async () => {
     const { app, documents } = fixture(), receipts = Array.from({ length: 3 }, (_, index) => createA2AJPassageEvidence({
       citation: "Example", name: "Example", dataset: "scc", language: "en",
       sourceText: `holding ${index}`, spanText: `holding ${index}`, start: 0, end: 9,
@@ -115,19 +115,19 @@ describe("Sources workspace routes", () => {
         ? [{ name: `source.${sourceId}.json`, bytes: part, sha256: sha256(part) }] : []);
 
     const items = (query: Record<string, unknown>) => request(app).get("/source-workspaces/d1/items").query(query);
-    const first = await items({ kind: "passages", source_id: sourceId, limit: 2 });
+    const first = await items({ kind: "evidence", source_id: sourceId, limit: 2 });
     expect(first.body).toMatchObject({ total: 3, items: [{ index: 0 }, { index: 1 }] });
     expect(first.body.next_cursor).toEqual(expect.any(String));
-    const second = await items({ kind: "passages", source_id: sourceId, limit: 2, cursor: first.body.next_cursor });
+    const second = await items({ kind: "evidence", source_id: sourceId, limit: 2, cursor: first.body.next_cursor });
     expect(second.body).toMatchObject({ total: 3, items: [{ index: 2 }], next_cursor: null });
-    expect((await items({ kind: "passages", source_id: "20000000-0000-4000-8000-000000000002" })).status).toBe(404);
+    expect((await items({ kind: "evidence", source_id: "20000000-0000-4000-8000-000000000002" })).status).toBe(404);
     state.sources[sourceId]!.note = "Updated source note";
     saved(documents, state, 1);
-    const continued = await items({ kind: "passages", source_id: sourceId, limit: 2, cursor: first.body.next_cursor });
+    const continued = await items({ kind: "evidence", source_id: sourceId, limit: 2, cursor: first.body.next_cursor });
     expect(continued.status).toBe(200);
     expect(continued.body).toMatchObject({ items: [{ index: 2 }], next_cursor: null });
     state.sources[sourceId]!.passages!.sha256 = sha256("changed");
     saved(documents, state, 1);
-    expect((await items({ kind: "passages", source_id: sourceId, limit: 2, cursor: first.body.next_cursor })).status).toBe(400);
+    expect((await items({ kind: "evidence", source_id: sourceId, limit: 2, cursor: first.body.next_cursor })).status).toBe(400);
   });
 });
