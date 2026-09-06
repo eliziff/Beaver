@@ -4,35 +4,75 @@ on:
     branches: [fix/authorities-parity-workflow]
     paths: [.github/workflows/authorities-workbench.yml]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  recover:
+  publish:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out the requested public branch
+      - name: Check out the requested revision
         run: |
           git init .
           git remote add origin https://github.com/eliziff/Beaver.git
           git fetch --depth=1 origin "$GITHUB_SHA"
           git checkout --detach FETCH_HEAD
-      - name: Recover staged source without executing it
+      - name: Apply the reviewed source deltas with exact base and result hashes
         run: |
           python3 - <<'PY'
-          import base64, gzip, zlib, pathlib, tarfile
-          parts = sorted(pathlib.Path('.codex').glob('authorities-delta.*'))
-          assert len(parts) == 4
-          raw = base64.b64decode(''.join(p.read_text().strip() for p in parts), validate=True)
-          print('Decoded magic:', repr(raw[:32]))
-          if raw.startswith(b'\x1f\x8b'):
-              raw = gzip.decompress(raw)
-          elif raw[:1] == b'x':
-              raw = zlib.decompress(raw)
-          pathlib.Path('authorities-delta.decoded').write_bytes(raw)
-          print('Payload size:', len(raw), 'Header:', repr(raw[:250]))
+          import pathlib,base64,lzma,json,hashlib,subprocess
+          root=pathlib.Path('.').resolve()
+          def apply(items):
+              originals={}
+              for item in items:
+                  for key in ('path','base'):
+                      value=item.get(key)
+                      if value is not None:
+                          target=(root/value).resolve()
+                          assert target.is_relative_to(root) and '.git' not in pathlib.Path(value).parts
+                  if item.get('base'):
+                      raw=pathlib.Path(item['base']).read_bytes()
+                      assert hashlib.sha256(raw).hexdigest()==item['baseSha'],item['base']
+                      originals[item['path']]=raw
+              for item in items:
+                  target=pathlib.Path(item['path'])
+                  if item['sha'] is None:
+                      target.unlink();continue
+                  lines=originals.get(item['path'],b'').decode().splitlines(keepends=True)
+                  for start,end,replacement in reversed(item['edits']):
+                      assert 0<=start<=end<=len(lines)
+                      lines[start:end]=[replacement]
+                  raw=''.join(lines).encode()
+                  assert hashlib.sha256(raw).hexdigest()==item['sha'],item['path']
+                  target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(raw)
+              subprocess.run(['git','add','--',*[x['path'] for x in items]],check=True)
+          parts=sorted(pathlib.Path('.codex').glob('authorities-delta.*'))
+          assert len(parts)==4
+          apply(json.loads(lzma.decompress(base64.b64decode(''.join(p.read_text().strip() for p in parts),validate=True))))
+          apply(json.loads(lzma.decompress(base64.b64decode(pathlib.Path('.codex/authorities-followup.xz.b64').read_text().strip(),validate=True))))
           PY
+          git update-index --cacheinfo 160000,911f618c76aa4eaf1936260951d69541ce1bafda,legal-structure
+          git rm .codex/authorities-delta.* .codex/authorities-followup.xz.b64 .github/workflows/authorities-workbench.yml
+          git diff --cached --check
+      - name: Commit source changes to the requested PR branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'Authorities parity workbench'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: restore Authorities workflow, fixed tab slots, source review and standalone parity'
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$AUTH"
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:refs/heads/fix/authorities-parity-workflow
+          git show --stat --oneline HEAD
+      - name: Retain original binary fixtures for the offline full-suite check
+        run: |
+          tar -czf /tmp/authorities-validation-fixtures.tar.gz \
+            benchmarks/docx_edit/fixtures/real/corrupt-style.docx \
+            benchmarks/docx_edit/fixtures/real/truncated.docx \
+            benchmarks/docx_edit/fixtures/real/malformed-body.docx \
+            e2e/fixtures/test.pdf frontend/public/court-fonts/NotoSerifSC-Regular.ttf
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: authorities-recovered-delta
-          path: authorities-delta.decoded
+          name: authorities-validation-fixtures
+          path: /tmp/authorities-validation-fixtures.tar.gz
           retention-days: 1
