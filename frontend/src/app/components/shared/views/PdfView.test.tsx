@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
     cancelled: 0,
     rendered: [] as number[],
+    textPages: [] as number[],
+    textDelay: 0,
+    textError: null as Error | null,
     renderDelay: 20,
     clientWidth: 620,
     buffer: new ArrayBuffer(8),
@@ -76,6 +79,9 @@ vi.mock("./highlightQuote", () => {
             this.pageNumber = textContentSource.pageNumber;
         }
         async render() {
+            mocks.textPages.push(this.pageNumber);
+            if (mocks.textDelay) await new Promise((resolve) => setTimeout(resolve, mocks.textDelay));
+            if (mocks.textError) throw mocks.textError;
             const span = document.createElement("span");
             span.textContent = `Page ${this.pageNumber} text`;
             this.container.appendChild(span);
@@ -125,6 +131,9 @@ describe("PdfView", () => {
     beforeEach(() => {
         mocks.cancelled = 0;
         mocks.rendered = [];
+        mocks.textPages = [];
+        mocks.textDelay = 0;
+        mocks.textError = null;
         mocks.renderDelay = 20;
         mocks.clientWidth = 620;
         mocks.buffer = new ArrayBuffer(8);
@@ -151,11 +160,12 @@ describe("PdfView", () => {
     });
 
     afterEach(() => {
+        window.getSelection()?.removeAllRanges();
         vi.restoreAllMocks();
         vi.unstubAllGlobals();
     });
 
-    it("renders every page with same-origin standard fonts and cancels obsolete work", async () => {
+    it("reserves every page with locators and same-origin fonts and cancels obsolete work", async () => {
         const { container } = render(
             <PdfView doc={{ document_id: "doc-1", version_id: "version-1" }} />,
         );
@@ -175,6 +185,50 @@ describe("PdfView", () => {
             maxImageSize: 40_000_000,
         });
         expect(mocks.cancelled).toBeGreaterThan(0);
+        for (const page of container.querySelectorAll<HTMLElement>("[data-page-number]")) {
+            expect(page).toHaveAttribute("data-legal-block");
+            expect(page).toHaveAttribute("data-locator-kind", "page");
+            expect(page).toHaveAttribute("data-locator-value", page.dataset.pageNumber);
+        }
+        expect(await screen.findByText("Page 1 text")).toBeVisible();
+    });
+
+    it("allows an ordinary reader selection to resolve to its PDF page", async () => {
+        mocks.numPages = 1;
+        render(<PdfView doc={null} bytes={new Uint8Array([1])} />);
+        const text = await screen.findByText("Page 1 text");
+        const range = document.createRange();
+        range.setStart(text.firstChild!, 0);
+        range.setEnd(text.firstChild!, 6);
+        const selection = window.getSelection()!;
+        selection.removeAllRanges();
+        selection.addRange(range);
+        expect(selection.toString()).toBe("Page 1");
+        expect(text.closest("[data-legal-block]")).toHaveAttribute("data-locator-value", "1");
+        expect(text.parentElement).toHaveStyle({ userSelect: "text", pointerEvents: "auto" });
+    });
+
+    it("shares an in-flight text layer between painting and quote search", async () => {
+        mocks.renderDelay = 0;
+        mocks.textDelay = 40;
+        const { container } = render(<PdfView doc={null} bytes={new Uint8Array([1])}
+            quotes={[{ quote: "Page 1 text" }]} />);
+        await screen.findByText("Page 3 text");
+        expect(container.querySelectorAll(".pdf-text-layer")).toHaveLength(3);
+        expect(screen.getAllByText("Page 1 text")).toHaveLength(1);
+        expect(mocks.textPages).toEqual([1, 2, 3]);
+    });
+
+    it.each([false, true])("keeps the PDF readable when text extraction fails (quotes: %s)", async (withQuotes) => {
+        mocks.numPages = 1;
+        mocks.textError = new Error("Unreadable text stream");
+        const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+        const { container } = render(<PdfView doc={null} bytes={new Uint8Array([1])}
+            quotes={withQuotes ? [{ quote: "Missing text" }] : undefined} />);
+        await waitFor(() => expect(container.querySelector("canvas")).not.toBeNull());
+        await waitFor(() => expect(warning).toHaveBeenCalled());
+        expect(screen.queryByRole("alert")).toBeNull();
+        expect(screen.getByRole("button", { name: "Zoom in" })).toBeVisible();
         expect(container.querySelector(".pdf-text-layer")).toBeNull();
     });
 
@@ -188,6 +242,9 @@ describe("PdfView", () => {
         expect(heights.slice(0, 2)).toEqual(["800px", "1000px"]);
         expect(container.querySelectorAll("canvas").length).toBeLessThan(4);
         await waitFor(() => expect(pages[0].querySelector("canvas")).not.toBeNull());
+        await screen.findByText("Page 1 text");
+        expect(pages[100].querySelector(".pdf-text-layer")).toBeNull();
+        expect(mocks.textPages.length).toBeLessThan(4);
         const scroller = container.querySelector<HTMLElement>(".overflow-auto")!;
         // Page 201 starts after 100 pairs of mixed-size pages and gaps.
         scroller.scrollTop = 181600;
@@ -202,6 +259,9 @@ describe("PdfView", () => {
         fireEvent.scroll(scroller);
         await waitFor(() => expect(pages[0].querySelector("canvas")).not.toBeNull());
         expect(pages[200].querySelector("canvas")).toBeNull();
+        expect(pages[0].querySelectorAll(".pdf-text-layer")).toHaveLength(1);
+        expect(mocks.textPages.filter((page) => page === 1)).toHaveLength(1);
+        expect(mocks.textPages.length).toBeLessThan(10);
     });
 
     it("renders provided bytes in the full viewer without detaching the artifact", async () => {
