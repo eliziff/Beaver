@@ -376,7 +376,13 @@ describe("PdfView", () => {
         expect(container.querySelector('[data-page-number="2"]')).toHaveAttribute("data-geometry-ready", "false");
         expect(mocks.textRequests).toEqual([299]);
         expect(mocks.textLayers.length).toBeLessThan(5);
+        // The viewport can include the bottom of an unresolved preceding page.
+        // Keep the readable target fixed, not a fractional point in that estimate.
+        const scroll = container.querySelector<HTMLElement>(".overflow-auto")!;
+        Object.defineProperty(scroll, "clientHeight", { value: 800 });
+        scroll.scrollTop += selected().getBoundingClientRect().top - 200;
         const top = selected().getBoundingClientRect().top;
+        expect(top).toBeCloseTo(200);
         await act(async () => release());
         await waitFor(() => expect(container.querySelector('[data-page-number="298"]'))
             .toHaveAttribute("data-geometry-ready", "true"));
