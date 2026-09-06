@@ -54,6 +54,14 @@ jobs:
           cmp frontend/package-lock.json .collection-baseline/frontend/package-lock.json
           ln -s "$PWD/frontend/node_modules" .collection-baseline/frontend/node_modules
           (cd .collection-baseline/frontend && npx vite build --outDir ../../.collection-validation/baseline --emptyOutDir) 2>&1 | tee .collection-validation/baseline-build.log
+      - name: Reproduce the Authorities regression on unchanged main
+        if: ${{ !cancelled() }}
+        run: |
+          set +e
+          (cd .collection-baseline/frontend && npx vitest run src/app/authorities/standaloneHost.test.tsx) 2>&1 | tee .collection-validation/baseline-authorities.log
+          status=${PIPESTATUS[0]}
+          echo "Pinned main Authorities test exit status: $status" | tee .collection-validation/baseline-authorities-status.txt
+          exit "$status"
       - name: Production browser reuse, freshness and mutation checks
         if: ${{ !cancelled() }}
         run: |
