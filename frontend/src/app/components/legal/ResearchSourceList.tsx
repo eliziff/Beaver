@@ -100,7 +100,7 @@ export function ResearchSourceList({ sources, reader, opened, setOpened, passage
         evidence = sourcePage?.items.flatMap((item) => item.kind === "passage" && passageVisible(item.value) ? [item.value] : []) ?? [];
       return <li key={source.id} className={`border-b border-gray-200 last:border-0 ${selectedSourceId === source.id ? "bg-gray-100" : ""}`}>
         <details open={open} className="group rounded hover:bg-gray-50" onToggle={(event) => toggle(source.id, event.currentTarget.open)}>
-          <summary className="grid list-none grid-cols-[1.5rem_auto_minmax(0,1fr)_auto] items-start gap-1.5 py-1.5 text-sm"
+          <summary className="relative grid list-none grid-cols-[1.5rem_auto_minmax(0,1fr)] items-start gap-1.5 py-1.5 pe-1 text-sm"
             onClick={(event) => { if (!(event.target as Element).closest("button,a,input")) event.preventDefault(); }}>
             <button type="button" aria-label={`Passages in ${name}`} aria-expanded={open}
               onClick={(event) => { event.preventDefault(); toggle(source.id); }}
@@ -112,7 +112,7 @@ export function ResearchSourceList({ sources, reader, opened, setOpened, passage
             <span className="min-w-0 [overflow-wrap:anywhere]"><span className="block">{link(source, name, undefined, true)}</span>
               {source.reference.citation && source.reference.citation !== name && <span className="block text-xs text-gray-600">{source.reference.citation}</span>}
               {source.note && <span className="line-clamp-1 whitespace-pre-wrap text-xs text-gray-600 group-open:line-clamp-none">{source.note}</span>}</span>
-            <span className="flex items-center gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+            <span className="absolute end-1 top-1 flex items-center gap-0.5 rounded bg-white/90 opacity-0 focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:static [@media(hover:none)]:col-span-3 [@media(hover:none)]:opacity-100">
               <Button variant="outline" size="compact" aria-label={`Cite ${name}`} onClick={(event) => { event.preventDefault(); onCite(source); }}>Cite</Button>
               <MoreActionsMenu label={`${name} options`} items={[
                 ...(reader.sourceHref(source) ? [{ label: "Open source", onSelect: () => openSource(source) }] : []),
@@ -127,13 +127,13 @@ export function ResearchSourceList({ sources, reader, opened, setOpened, passage
               return <div key={item.receipt.evidence_id} draggable
                 onDragStart={(event) => { event.dataTransfer.setData(RESEARCH_PASSAGE_DRAG, JSON.stringify(item)); }}
                 className="group/passage border-s-2 border-gray-200 ps-2">
-                <div className="grid min-w-0 grid-cols-[auto_auto_minmax(0,1fr)_auto] items-start gap-1">
+                <div className="relative grid min-w-0 grid-cols-[auto_auto_minmax(0,1fr)] items-start gap-1 pe-1">
                   {onPick ? <input type="checkbox" aria-label={`Select ${locator}`} checked={picked?.has(item.receipt.evidence_id) ?? false}
                     onChange={(event) => onPick(item.receipt.evidence_id, event.target.checked)} className="mt-1.5" /> : <span />}
                   <ResearchLabelPicker file={file} kind="evidence" itemId={item.receipt.evidence_id} sourceId={source.id}
                     labelIds={item.labelIds} note={item.note} title={locator} size="sm" onError={onStatus} mutations={commit} />
                   {link(source, locator, locator)}
-                  <span className="ms-auto flex gap-0.5 opacity-0 focus-within:opacity-100 group-hover/passage:opacity-100 [@media(hover:none)]:opacity-100">
+                  <span className="absolute end-0 top-0 flex gap-0.5 rounded bg-white/90 opacity-0 focus-within:opacity-100 group-hover/passage:opacity-100 [@media(hover:none)]:static [@media(hover:none)]:col-span-3 [@media(hover:none)]:opacity-100">
                     <Button variant="outline" size="compact" aria-label={`Cite ${locator}`} onClick={() => onCite(source, item)}>Cite</Button>
                     <button type="button" aria-label={`Delete ${locator}`}
                       onClick={() => onRemove({ kind: "evidence", id: item.receipt.evidence_id, sourceId: source.id, name: locator })}
