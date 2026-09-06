@@ -1,10 +1,12 @@
 // Production-bundle probe; fixture API only, never a live backend.
-// node scripts/test-cold-load.mjs CANDIDATE_DIST [BASELINE_DIST] [REPORT_DIR]
+// Build backend first. node scripts/test-cold-load.mjs CANDIDATE_DIST [BASELINE_DIST] [REPORT_DIR]
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { chromium } from '@playwright/test';
+import express from '../backend/node_modules/express/index.js';
+import { precompressedAssets } from '../backend/dist/lib/precompressedAssets.js';
 
 const [candidate, baseline, output = '.perf/report'] = process.argv.slice(2);
 if (!candidate) throw new Error('Provide the candidate production dist directory');
@@ -27,7 +29,10 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function serve(directory, settings = {}) {
   const root = resolve(directory);
   const requests = [];
-  const server = createServer(async (req, res) => {
+  const app = express();
+  if (settings.compressed !== false) app.use(precompressedAssets(root));
+  const server = createServer(app);
+  app.use(async (req, res) => {
     try {
       const path = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
       requests.push(path);
@@ -63,7 +68,7 @@ async function serve(directory, settings = {}) {
 }
 
 const browser = await chromium.launch({ headless: true });
-const report = { methodology: 'Fresh Chromium context, cache disabled, loopback fixture API, uncompressed production bundles over HTTP/1.1; cold timings use 80ms RTT / 10Mbps download / 4x CPU slowdown, three alternating samples per configuration. Not a live-backend or HTTP/2 benchmark.', samples: [], checks: [] };
+const report = { methodology: 'Fresh Chromium context, cache disabled, loopback fixture API, production bundles over HTTP/1.1, original uncompressed serving versus actual production precompressed-asset middleware; cold timings use 80ms RTT / 10Mbps download / 4x CPU slowdown, five alternating samples per configuration, plus an uncompressed candidate control. Not a live-backend or HTTP/2 benchmark.', samples: [], checks: [] };
 async function contextFor(server, options = {}) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 960 }, ...options });
   const page = await context.newPage();
@@ -73,7 +78,7 @@ async function contextFor(server, options = {}) {
   return { context, page, errors };
 }
 async function sample(directory, name, fetchedConfig) {
-  const server = await serve(directory, { fetchedConfig, configDelay: fetchedConfig ? 80 : 0 });
+  const server = await serve(directory, { fetchedConfig, configDelay: fetchedConfig ? 80 : 0, compressed: name === 'candidate' });
   const { context, page, errors } = await contextFor(server);
   try {
     const cdp = await context.newCDPSession(page);
@@ -91,7 +96,7 @@ async function sample(directory, name, fetchedConfig) {
     });
     await page.goto(`${server.origin}/projects`, { waitUntil: 'domcontentloaded' });
     await page.getByRole('link', { name: project.name, exact: true }).waitFor();
-    const measured = await page.evaluate(() => ({ contentReadyMs: window.__contentReady, resources: performance.getEntriesByType('resource').map(r => ({ path: new URL(r.name).pathname, start: r.startTime, end: r.responseEnd, bytes: r.encodedBodySize })) }));
+    const measured = await page.evaluate(() => ({ contentReadyMs: window.__contentReady, resources: performance.getEntriesByType('resource').map(r => ({ path: new URL(r.name).pathname, start: r.startTime, end: r.responseEnd, bytes: r.encodedBodySize, decodedBytes: r.decodedBodySize })) }));
     assert.deepEqual(errors, []);
     await page.screenshot({ path: `${output}/${name}-${fetchedConfig ? 'fetched' : 'embedded'}.png` });
     report.samples.push({ name, config: fetchedConfig ? 'fetched' : 'embedded', ...measured });
@@ -146,6 +151,26 @@ async function behavior(reducedMotion) {
     await page.getByRole('tab', { name: 'All', exact: true }).click();
     await page.getByText('Could not load projects.', { exact: true }).waitFor();
     assert.deepEqual(errors, []);
+    await page.unroute('**/api/projects?*');
+    await page.getByRole('tab', { name: 'Mine', exact: true }).click();
+    await page.getByRole('link', { name: project.name, exact: true }).waitFor();
+    const settings = page.getByRole('button', { name: 'Settings', exact: true });
+    await settings.click();
+    let dialog = page.getByRole('dialog', { name: 'Settings', exact: true });
+    await dialog.waitFor();
+    await dialog.getByRole('tab', { name: 'Display', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await settings.click();
+    dialog = page.getByRole('dialog', { name: 'Settings', exact: true });
+    assert.equal(await dialog.getByRole('tab', { name: 'Display', exact: true }).getAttribute('aria-selected'), 'true');
+    await page.screenshot({ path: `${output}/settings-${reducedMotion}.png` });
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden' });
+    await page.getByRole('button', { name: 'New project', exact: true }).click();
+    await page.getByRole('dialog').waitFor();
+    await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+    assert.deepEqual(errors, []);
+    report.checks.push({ scenario: 'dialogs-and-settings-state', reducedMotion, passed: true });
     report.checks.push({ reducedMotion, hiddenBeforeThreshold: true, visibleWhenSlow: true, stableLayout: true, fastFilterFlashed: flashed, errorsImmediate: true });
   } finally { release(); await context.close(); await server.close(); }
 }
@@ -165,14 +190,29 @@ try {
       report.checks.push({ scenario: settings.invalidConfig ? 'invalid-config-fails-closed' : 'cloud-cold-start', passed: true });
     } finally { await context.close(); await server.close(); }
   }
+  {
+    const server = await serve(candidate);
+    const { context, page, errors } = await contextFor(server);
+    try {
+      for (const route of ['/assistant', '/library', '/account/features', '/table-of-authorities']) {
+        await page.goto(server.origin + route);
+        await page.locator('#main-content').waitFor();
+        await page.waitForTimeout(250);
+        assert.equal(await page.getByRole('heading', { name: 'Something went wrong', exact: true }).count(), 0);
+        assert.deepEqual(errors, []);
+        await page.screenshot({ path: `${output}/route-${route.slice(1).replaceAll('/', '-')}.png` });
+      }
+      report.checks.push({ scenario: 'cold-route-smoke', routes: ['assistant', 'library', 'account/features', 'table-of-authorities'], passed: true });
+    } finally { await context.close(); await server.close(); }
+  }
   for (const fetched of [false, true]) {
-    for (let i = 0; i < 3; i++) {
-      for (const [dir, name] of i % 2 ? [[candidate, 'candidate'], [baseline, 'baseline']] : [[baseline, 'baseline'], [candidate, 'candidate']]) {
+    for (let i = 0; i < 5; i++) {
+      for (const [dir, name] of i % 2 ? [[candidate, 'candidate'], [baseline, 'baseline'], [candidate, 'candidate-identity']] : [[candidate, 'candidate-identity'], [baseline, 'baseline'], [candidate, 'candidate']]) {
         if (dir) await sample(dir, name, fetched);
       }
     }
   }
-  report.medians = Object.fromEntries(['embedded', 'fetched'].map(config => [config, Object.fromEntries(['baseline', 'candidate'].map(name => {
+  report.medians = Object.fromEntries(['embedded', 'fetched'].map(config => [config, Object.fromEntries(['baseline', 'candidate-identity', 'candidate'].map(name => {
     const values = report.samples.filter(s => s.config === config && s.name === name).map(s => s.contentReadyMs).sort((a, b) => a - b);
     return [name, values.length ? values[Math.floor(values.length / 2)] : null];
   }))]));

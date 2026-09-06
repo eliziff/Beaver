@@ -5,6 +5,7 @@ import helmet from "helmet";
 import { api } from "./api";
 import { publicRuntimeConfig, trustedProxyHops } from "./runtimeConfig";
 import { publicOrigin } from "./lib/publicOrigin";
+import { precompressedAssets } from "./lib/precompressedAssets";
 import { wordManifest } from "./lib/wordManifest";
 
 const frontend = path.resolve(__dirname, "../../frontend/dist");
@@ -108,6 +109,7 @@ server.get("/word-manifest.xml", (req, res) => {
   }
 });
 server.get(["/", "/index.html"], sendApp);
+server.use(precompressedAssets(frontend));
 server.use(express.static(frontend, {
   dotfiles: "deny",
   index: false,
