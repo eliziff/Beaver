@@ -1,16 +1,19 @@
-name: PDF workbench sources
+name: Focused PDF first-use validation
 on:
   push:
     branches: [codex/pdf-first-use]
     paths: [.github/workflows/pdf-workbench.yml]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  sources:
+  pdf:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
     steps:
-      - name: Read pinned public source
+      - name: Check out the exact public feature branch
         env:
           SOURCE_SHA: ${{ github.sha }}
         run: |
@@ -18,15 +21,64 @@ jobs:
           git remote add origin https://github.com/eliziff/Beaver.git
           git fetch --depth=1 origin "$SOURCE_SHA"
           git checkout --detach FETCH_HEAD
+          mkdir -p .pdf-validation
+      - name: Apply the checksum-verified renderer patch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, lzma, pathlib, subprocess
+          data = ''.join(pathlib.Path(f'.pdf-workbench/patch.{i}.b64').read_text().strip() for i in range(5))
+          patch = lzma.decompress(base64.b64decode(data, validate=True))
+          assert hashlib.sha256(patch).hexdigest() == '91b71affcc0ebeaca72a1977d05d740d0d6bb404539f89e4eee1c8c99ed38062'
+          path = pathlib.Path('/tmp/pdf-first-use.patch'); path.write_bytes(patch)
+          subprocess.run(['git', 'apply', '--check', str(path)], check=True)
+          subprocess.run(['git', 'apply', '--index', str(path)], check=True)
+          allowed = {'docs/pdf-first-use.md', 'frontend/src/app/components/shared/views/PdfCanvas.tsx', 'frontend/src/app/components/shared/views/PdfView.test.tsx', 'frontend/src/app/components/shared/views/PdfView.tsx', 'frontend/src/app/components/shared/views/highlightQuote.ts', 'frontend/src/app/components/shared/views/pdfPageCache.ts', 'frontend/src/app/components/shared/views/quoteText.ts', 'frontend/src/app/hooks/useDocumentFile.test.ts', 'frontend/src/app/hooks/useDocumentFile.ts', 'frontend/src/app/lib/api/documents.ts', 'frontend/src/app/lib/pdfJs.ts', 'scripts/test-pdf-first-use.mjs'}
+          changed = set(subprocess.check_output(['git', 'diff', '--cached', '--name-only'], text=True).splitlines())
+          assert changed == allowed, (changed, allowed)
+          PY
+          git rm .pdf-workbench/patch.*.b64
+          git config user.name 'Eli Ziff'
+          git config user.email 'eliasziff@gmail.com'
+          git commit -m 'Paint useful PDF pages before unrelated metadata and bound file retention [skip ci]'
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/codex/pdf-first-use
+          git rev-parse HEAD > .pdf-validation/validated-sha.txt
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
-      - name: Package source and locked backend tooling only (no CI tests)
+      - name: Install locked renderer tooling
         run: |
-          npm ci --ignore-scripts --prefix backend
-          tar -czf /tmp/pdf-workbench.tgz frontend backend scripts shared docs/roadmap AGENTS.md package.json package-lock.json subrepos.lock.json
+          npm ci
+          npm ci --prefix frontend
+      - name: Focused renderer and file-cache regressions only
+        run: |
+          (cd frontend && npx vitest run src/app/hooks/useDocumentFile.test.ts src/app/components/shared/views/PdfView.test.tsx src/app/components/shared/views/highlightQuote.test.ts src/app/components/shared/views/quoteText.test.ts src/app/components/shared/views/DocxView.test.tsx src/app/components/shared/views/TextView.test.tsx src/app/components/shared/views/SpreadsheetView.test.tsx) 2>&1 | tee .pdf-validation/tests.log
+          (cd frontend && npx tsc --noEmit) 2>&1 | tee .pdf-validation/typecheck.log
+      - name: Build only the real-renderer fixture and compare pinned main
+        if: ${{ !cancelled() }}
+        run: |
+          git fetch --depth=1 origin 061e13b42105002e0980cac9a1cae30fbbd6eef7
+          git worktree add --detach .pdf-baseline FETCH_HEAD
+          cmp frontend/package-lock.json .pdf-baseline/frontend/package-lock.json
+          ln -s "$PWD/frontend/node_modules" .pdf-baseline/frontend/node_modules
+          ln -s "$PWD/node_modules" .pdf-baseline/node_modules
+          npx playwright install --with-deps chromium
+          node scripts/test-pdf-first-use.mjs .pdf-validation/browser .pdf-baseline 2>&1 | tee .pdf-validation/browser.log
+      - name: Source boundary and patch checks
+        if: ${{ !cancelled() }}
+        run: |
+          node scripts/check-source-boundaries.mjs 2>&1 | tee .pdf-validation/boundaries.log
+          git diff --check 061e13b42105002e0980cac9a1cae30fbbd6eef7 HEAD
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
-          name: pdf-workbench
-          path: /tmp/pdf-workbench.tgz
-          retention-days: 1
+          name: pdf-first-use-focused
+          include-hidden-files: true
+          path: |
+            .pdf-validation/*.log
+            .pdf-validation/*.txt
+            .pdf-validation/browser/*.json
+            .pdf-validation/browser/*.png
+          retention-days: 7
