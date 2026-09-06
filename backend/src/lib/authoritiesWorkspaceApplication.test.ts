@@ -374,7 +374,7 @@ describe("Authorities workspace application", () => {
     });
     expect(runtime.files.create).toHaveBeenCalledWith(scope, "authorities",
       expect.objectContaining({ filename: "Law v Canada.pdf" }),
-      { projectId: "project-1" });
+      { projectId: "project-1", pdfOcrProvider: null });
   });
 
   it("rebuilds every source from text without downloading an available original", async () => {
@@ -1676,7 +1676,7 @@ describe("Authorities workspace application", () => {
       product = await runtime.application.attachBookPdf(scope, product.id,
         { revision: product.revision, slot, file });
       expect(runtime.files.create).toHaveBeenLastCalledWith(scope, "authorities", file,
-        { projectId: "project-1" });
+        { projectId: "project-1", pdfOcrProvider: null });
     }
 
     const draft = product.state as AuthoritiesDraft;

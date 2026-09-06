@@ -1,6 +1,6 @@
 import { getPdfJs } from "@/app/lib/pdfJs";
 import { describe, expect, it, vi } from "vitest";
-import { inspectPdf } from "./inspectPdf";
+import { inspectPdf } from "@/app/lib/inspectPdf";
 
 vi.mock("@/app/lib/pdfJs", () => ({ getPdfJs: vi.fn() }));
 

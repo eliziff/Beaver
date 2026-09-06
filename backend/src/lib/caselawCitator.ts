@@ -5,7 +5,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { courtLevel } from "./courtLevels";
 import { withReadonlySqlite } from "./legalDataPath";
 import { structureNative } from "./structureNative";
-import { a2ajCitationAliasKeysBatch } from "./a2ajLocalBulk";
+import { a2ajCitationAliasGroups, type CitationAliasGroup } from "./a2ajLocalBulk";
 
 /**
  * Read surface for the Stage 1 citator note-up graph built by
@@ -158,15 +158,38 @@ function keysForQuery(database: DatabaseSync, key: string): string[] {
  * key; without the note-up graph, the installed A2AJ citation index supplies
  * the same exact decision identity before falling back to the literal key.
  */
-export function citationAliasKeysBatch(citations: string[]): string[][] {
+export function citationAliasGroups(citations: string[]): CitationAliasGroup[] {
   const keys = structureNative().citationLookupKeys(citations);
-  if (!keys.some(Boolean)) return keys.map(() => []);
-  return (
-    withDatabase((database) =>
-      keys.map((key) => (key ? keysForQuery(database, key) : [])),
-    ) ?? a2ajCitationAliasKeysBatch(citations) ??
-      keys.map((key) => (key ? [key] : []))
-  );
+  if (!keys.some(Boolean)) return keys.map(() => ({ keys: [], forms: [], ambiguous: false }));
+  const own = withDatabase((database) => {
+    const hasForms = (database.prepare("PRAGMA table_info(resolution)").all() as Row[])
+      .some((column) => column.name === "exact_value");
+    const targets = database.prepare("SELECT DISTINCT path, file_row_number FROM resolution WHERE cited_key = ?");
+    const forms = hasForms ? database.prepare(
+      "SELECT DISTINCT exact_value FROM resolution WHERE path = ? AND file_row_number = ?") : null;
+    return keys.map((key) => {
+      if (!key) return { keys: [], forms: [], ambiguous: false };
+      const rows = targets.all(key) as Row[];
+      if (rows.length !== 1) return { keys: [key], forms: [], ambiguous: rows.length > 1 };
+      return { keys: keysForQuery(database, key), ambiguous: false,
+        forms: forms ? (forms.all(rows[0].path as string, rows[0].file_row_number as number) as Row[])
+          .flatMap(({ exact_value }) => typeof exact_value === "string" && exact_value.trim() ? [exact_value] : []) : [] };
+    });
+  });
+  const provider = a2ajCitationAliasGroups(citations);
+  return keys.map((key, index) => {
+    if (!key) return { keys: [], forms: [], ambiguous: false };
+    const groups = [own?.[index], provider?.[index]].filter((group): group is CitationAliasGroup => !!group);
+    // An installed inventory that explicitly reports ambiguity is not overruled
+    // by another index with less coverage. Never expand a guess into a source.
+    if (groups.some(({ ambiguous }) => ambiguous)) return { keys: [key], forms: [], ambiguous: true };
+    return { keys: [...new Set([key, ...groups.flatMap(({ keys }) => keys)])],
+      forms: [...new Set(groups.flatMap(({ forms }) => forms))], ambiguous: false };
+  });
+}
+
+export function citationAliasKeysBatch(citations: string[]): string[][] {
+  return citationAliasGroups(citations).map(({ keys }) => keys);
 }
 /** Batch authority counts for ranked retrieval: one DB handle, no excerpts. */
 export function citationAuthorityMetricsBatch(
