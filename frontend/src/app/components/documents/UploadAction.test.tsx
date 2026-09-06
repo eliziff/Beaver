@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { expect, it, vi } from "vitest";
-import type { Document } from "@/app/components/shared/types";
+import type { Document } from "@/app/lib/api/documents";
 import { DirectoryActions, UploadAction } from "./UploadAction";
 
 it("offers files and folders through one upload action", () => {
@@ -21,7 +21,7 @@ it("keeps one stable action rail and enables selection actions in place", () => 
     const openChat = vi.fn();
     const selection = {
         documents: [{ id: "brief", filename: "Brief.docx" } as Document],
-        onWorkflowDocumentChanged: vi.fn(), onDownload: vi.fn(), onMove: vi.fn(),
+        onDownload: vi.fn(), onMove: vi.fn(),
         onRemove: vi.fn(), removeLabel: "Delete" as const,
     };
     const { rerender } = render(<MemoryRouter><DirectoryActions actions={null}
@@ -31,7 +31,7 @@ it("keeps one stable action rail and enables selection actions in place", () => 
     expect(createFolder).toHaveBeenCalledOnce();
     expect(screen.getByRole("button", { name: "Upload" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Open in new chat" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Workflows" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Workflows" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "More actions" })).toBeDisabled();
 
     rerender(<MemoryRouter><DirectoryActions actions={null} onCreateFolder={createFolder}

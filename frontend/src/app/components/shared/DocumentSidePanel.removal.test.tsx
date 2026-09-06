@@ -2,15 +2,15 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { Document } from "@/app/components/shared/types";
-import type { DocumentVersion } from "@/app/lib/beaverApi";
+import type { Document, DocumentVersion } from "@/app/lib/api/documents";
+
 import { DocumentSidePanel } from "./DocumentSidePanel";
 
 const api = vi.hoisted(() => ({ getResearchFile: vi.fn() }));
 
-vi.mock("@/app/lib/beaverApi", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@/app/lib/beaverApi")>(),
-  getResearchFile: api.getResearchFile,
+vi.mock("@/app/lib/api/researchFiles", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/researchFiles")>(),
+  getResearchFile: api.getResearchFile
 }));
 vi.mock("@/app/components/shared/views/DocumentViewer", () => ({
   DocumentViewer: ({
@@ -249,7 +249,7 @@ describe("DocumentSidePanel document removal", () => {
     }).reverse();
     renderPanel({ versions });
 
-    const list = await screen.findByRole("list", {
+    const list = await screen.findByRole("table", {
       name: "Document versions",
     });
     const previews = within(list).getAllByRole("button", {
@@ -263,13 +263,22 @@ describe("DocumentSidePanel document removal", () => {
     })).toHaveLength(80);
   });
 
-  it("keeps history read-only and restores or compares through explicit actions", async () => {
+  it("keeps the document name editable while previewing history and restores or compares explicitly", async () => {
     const onRestoreVersion = vi.fn(async () => {});
     const onCompareVersions = vi.fn(async () => {});
+    const onRenameDocument = vi.fn(async () => {});
     const versions = [3, 2].map((number) => ({ ...version3,
       id: `version-${number}`, version_number: number, filename: "Brief.docx",
       file_type: "docx", parent_version_id: number === 2 ? "version-1" : "version-2" }));
-    renderPanel({ versions, onRestoreVersion, onCompareVersions, versionId: "version-2" });
+    renderPanel({ versions, onRestoreVersion, onCompareVersions, onRenameDocument, versionId: "version-2" });
+
+    expect(screen.getByText("Brief.pdf")).toBeVisible();
+    expect(screen.getByRole("button", { name: /Preview Version 3:.*Current/u })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Rename document" }));
+    expect(screen.getByRole("textbox", { name: "Document name" })).toHaveValue("Brief.pdf");
+    fireEvent.change(screen.getByRole("textbox", { name: "Document name" }), { target: { value: "Renamed.pdf" } });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save document name" })));
+    expect(onRenameDocument).toHaveBeenCalledWith("document-1", "Renamed.pdf");
 
     expect(screen.queryByRole("button", { name: /Replace current/u })).toBeNull();
     await act(async () => fireEvent.click(
@@ -286,12 +295,23 @@ describe("DocumentSidePanel document removal", () => {
     expect(screen.getByText(/become a new current version/u)).toBeInTheDocument();
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Restore" })));
     expect(onRestoreVersion).toHaveBeenCalledWith("document-1", "version-2");
-    expect(screen.queryByRole("button", { name: "Rename document" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Rename document" })).toBeVisible();
+  });
+
+  it("only offers a checkpoint after the current document has changed", () => {
+    const { rerender } = renderPanel({ versions: [version3] });
+    expect(screen.queryByRole("form", { name: "Save version" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Download Version 3" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Restore Version 3 as a new current version" })).toBeDisabled();
+    rerender(panel({ versions: [{ ...version3, working_revision: 1 }] }));
+    expect(screen.getByRole("form", { name: "Save version" })).toBeVisible();
+    rerender(panel({ versions: [version3] }));
+    expect(screen.queryByRole("form", { name: "Save version" })).toBeNull();
   });
 
   it("creates an explicit version with an optional comment", async () => {
     const user = userEvent.setup(), onCheckpointVersion = vi.fn(async () => {});
-    renderPanel({ versions: [version3], onCheckpointVersion });
+    renderPanel({ versions: [{ ...version3, working_revision: 1 }], onCheckpointVersion });
     const form = await screen.findByRole("form", { name: "Save version" });
     await user.type(within(form).getByRole("textbox", { name: /Version comment/u }),
       "Before filing");
@@ -311,8 +331,9 @@ describe("DocumentSidePanel document removal", () => {
   it("does not offer a broken preview for unsupported versions", () => {
     renderPanel({ versions: [{ ...version3, filename: "Slides.pptx", file_type: "pptx" }] });
     expect(screen.queryByRole("button", { name: /Preview Version 3/u })).toBeNull();
+    expect(screen.getByRole("button", { name: /Select Version 3/u })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Download Version 3" })).toBeEnabled();
     expect(screen.getByText("Preview is not available for this file type.")).toBeInTheDocument();
-    expect(screen.getByText(/Preview unavailable/u)).toBeInTheDocument();
   });
 
   it("reports a failed version action without closing the document", async () => {
@@ -329,7 +350,7 @@ describe("DocumentSidePanel document removal", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Could not download this version.",
     );
-    expect(screen.getByRole("dialog", { name: "Brief.pdf" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: /Brief\.pdf$/u })).toBeInTheDocument();
   });
 
   it("uses stored file type and concise assistant provenance", async () => {
@@ -343,14 +364,14 @@ describe("DocumentSidePanel document removal", () => {
     renderPanel({ versions });
 
     expect(await screen.findByRole("button", {
-      name: "Download comparison: Version 2 to current Version 3",
+      name: "Download comparison: prior Version 2 to current Version 3",
     })).toBeInTheDocument();
-    expect(screen.getByText(/Beaver edit · 2 changes/u)).toBeInTheDocument();
+    expect(screen.getByTitle(/Beaver edit · 2 changes/u)).toBeInTheDocument();
     expect(screen.getByText(/lawyer@example\.test/u)).toBeInTheDocument();
-    expect(screen.getByText(/You/u)).toBeInTheDocument();
+    expect(screen.queryByText("You")).toBeNull();
     expect(screen.queryByText(/local-user/u)).toBeNull();
     expect(screen.getByText("Ready for review")).toBeInTheDocument();
-    expect(screen.getByText("Created")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Date" })).toBeInTheDocument();
   });
 
   it("counts the surviving version rows instead of the version number", async () => {
@@ -399,4 +420,18 @@ describe("DocumentSidePanel document removal", () => {
       ),
     ).toBeInTheDocument();
   });
+});
+
+it("expands a Library preview in place and restores its size without reloading", () => {
+  renderPanel({ versions: [version3], versionId: version3.id });
+  const viewer = screen.getByTestId("word-preview");
+  viewer.scrollTop = 120;
+  fireEvent.click(screen.getByRole("button", { name: "Expand reader" }));
+  expect(screen.getByRole("button", { name: "Restore reader size" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByTestId("word-preview")).toBe(viewer);
+  viewer.scrollTop = 0;
+  fireEvent.keyDown(screen.getByRole("button", { name: "Restore reader size" }), { key: "Escape" });
+  expect(screen.getByRole("button", { name: "Expand reader" })).toHaveAttribute("aria-pressed", "false");
+  expect(viewer.scrollTop).toBe(120);
+  expect(screen.getByTestId("word-preview")).toBe(viewer);
 });

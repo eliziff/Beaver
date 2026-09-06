@@ -1,12 +1,12 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { BookOpen, Building2, ChevronDown, Info, FileCheck2, FilePenLine, Files,
-    FolderSearch, Handshake, ListChecks, MessageSquare, Scale, SearchCheck,
-    Table2, Workflow as WorkflowIcon, type LucideIcon } from "lucide-react";
+    FolderSearch, RefreshCw, Handshake, ListChecks, MessageSquare, Scale, SearchCheck,
+    Table2, Tag, Users, Workflow as WorkflowIcon, type LucideIcon } from "lucide-react";
 import { SearchBar } from "@/app/components/ui/search-bar";
-import { Tabs } from "@/app/components/ui/tabs";
+import { TabList, Tabs } from "@/app/components/ui/tabs";
 import { Modal } from "@/app/components/modals/Modal";
 import { APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
-import type { Workflow, WorkflowVariant } from "../shared/types";
+import type { Workflow, WorkflowVariant } from "@/app/lib/api/workflows";
 import { AUDIENCE_TABS, groupWorkflows, type AudienceFilter } from "./workflowCatalog";
 
 interface Props {
@@ -19,6 +19,7 @@ interface Props {
     contextLabel?: string;
     disabledItem?: (workflow: Workflow, variant?: WorkflowVariant) => boolean;
     workflowAction?: (workflow: Workflow) => ReactNode;
+    searchAction?: ReactNode;
     audienceTabVariant?: "segmented" | "dock";
 }
 type WorkflowInfo = { workflow: Workflow; label: string; variants: WorkflowVariant[] };
@@ -26,20 +27,23 @@ type WorkflowInfo = { workflow: Workflow; label: string; variants: WorkflowVaria
 export function WorkflowPickerContent({ workflows, onSelect, search,
     onSearchChange, audience, onAudienceChange, loading = false, execution,
     loadError = false, onRetryLoad, initialWorkflowId, contextLabel,
-    disabledItem, workflowAction, audienceTabVariant = "segmented" }: Props) {
+    disabledItem, workflowAction, searchAction, audienceTabVariant = "segmented" }: Props) {
     const listRef = useRef<HTMLDivElement>(null);
-    const groups = groupWorkflows(workflows, search, execution);
+    const [launchFilter, setLaunchFilter] = useState<"all" | "assistant" | "tabular" | "other">("all");
+    const selectedExecution = execution ?? (launchFilter === "assistant" || launchFilter === "tabular"
+        ? launchFilter : undefined);
+    const filteredWorkflows = launchFilter === "other"
+        ? workflows.filter(({ launcher }) => launcher.kind !== "instructions")
+        : launchFilter === "assistant"
+            ? workflows.filter(({ launcher }) => launcher.kind === "instructions" || launcher.kind === "quote_check")
+            : workflows;
+    const groups = groupWorkflows(filteredWorkflows, search, selectedExecution);
     const idPrefix = useId();
     const count = groups.reduce((total, { items }) => total + items.length, 0);
     const [expanded, setExpanded] = useState<string | null>(initialWorkflowId ?? null);
     const [info, setInfo] = useState<WorkflowInfo | null>(null);
 
     useEffect(() => setExpanded(initialWorkflowId ?? null), [initialWorkflowId]);
-    const toggle = (id: string, panelId: string, open: boolean) => {
-        setExpanded(open ? id : null);
-        if (open) requestAnimationFrame(() =>
-            document.getElementById(panelId)?.scrollIntoView?.({ block: "nearest" }));
-    };
     useEffect(() => {
         if (loading || !initialWorkflowId) return;
         const frame = requestAnimationFrame(() => {
@@ -54,7 +58,7 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
 
     const row = ({ workflow, variants, label }: (typeof groups)[number]["items"][number]) => {
         const Icon = WORKFLOW_ICONS[workflow.id] ?? WorkflowIcon;
-        const directVariant = workflow.launcher.kind === "instructions" && variants.length === 1
+        const directVariant = (workflow.launcher.kind === "instructions" || selectedExecution && workflow.launcher.kind === "quote_check") && variants.length === 1
             ? variants[0] : undefined;
         const direct = workflow.launcher.kind !== "instructions" || Boolean(directVariant);
         const action = workflowAction?.(workflow);
@@ -65,7 +69,7 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
             const description = result || workflow.metadata.description;
             return <div key={workflow.id}
                 className={`flex min-w-0 items-center @max-[25rem]:flex-col @max-[25rem]:items-stretch @max-[25rem]:pb-2 ${APP_SURFACE_HOVER_CLASS}`}>
-                    <div className="flex min-h-14 min-w-0 flex-1 items-start gap-2.5 px-3 py-2.5 text-left">
+                    <div className="flex min-h-14 min-w-0 flex-1 items-start gap-2.5 px-3 py-2 text-left">
                         <Icon className="mt-0.5 size-4 shrink-0 text-gray-500" aria-hidden="true" />
                         <WorkflowText label={label} description={description} />
                     </div>
@@ -90,11 +94,10 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
                 <button type="button" data-workflow-id={workflow.id}
                     aria-label={`Details for ${label}`}
                     aria-expanded={open} aria-controls={panelId}
-                    onClick={() => toggle(workflow.id, panelId, !open)}
-                    className="flex min-h-14 min-w-0 flex-1 items-start gap-2.5 px-3 py-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-900">
+                    onClick={() => setExpanded(open ? null : workflow.id)}
+                    className="flex min-h-14 min-w-0 flex-1 items-start gap-2.5 px-3 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-900">
                     <Icon className="mt-0.5 size-4 shrink-0 text-gray-500" aria-hidden="true" />
-                    <WorkflowText label={label} description={workflow.metadata.description}
-                        destinations={open ? [] : workflowDestinations(workflow, variants)} />
+                    <WorkflowText label={label} description={workflow.metadata.description} />
                     <ChevronDown className={`mt-0.5 size-4 shrink-0 text-gray-400 ${open ? "rotate-180" : ""}`}
                         aria-hidden="true" />
                 </button>
@@ -108,24 +111,31 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
         </div>;
     };
 
-    return <><div className="@container flex min-h-0 flex-1 flex-col"><Tabs value={audience} onValueChange={(value) =>
+    return <><div className="@container mx-auto flex min-h-0 w-full flex-1 flex-col"><Tabs value={audience} onValueChange={(value) =>
         onAudienceChange(value as AudienceFilter)}
         options={AUDIENCE_TABS.map(({ id, label }) => ({ value: id, label }))}
         ariaLabel="Workflow audience" variant={audienceTabVariant}
-        className={`min-w-0 flex-1 ${audienceTabVariant === "dock" ? "@max-[40rem]:flex-none" : ""}`}>
-        <div className={`flex min-h-0 flex-1 flex-col pt-3 ${audienceTabVariant === "dock" ? "@max-[40rem]:flex-none" : ""}`}>
-            <SearchBar value={search} onValueChange={onSearchChange}
-                placeholder="Search workflows" aria-label="Search workflows" />
+        railClassName="px-0 @max-[30rem]:flex-wrap [&_.tab-list]:flex-initial [&_[role=tab]]:h-8 [&_[role=tab]]:px-2 [&_[role=tab]]:text-xs [&_[data-tabs-actions]]:min-w-0 [&_[data-tabs-actions]]:flex-[1_0_7rem] @max-[30rem]:[&_[data-tabs-actions]]:basis-full"
+        actions={<><SearchBar value={search} onValueChange={onSearchChange}
+            wrapperClassName="h-10 flex-1" placeholder="Search" aria-label="Search workflows" />{searchAction}</>}
+        className={`min-w-0 flex-1 ${audienceTabVariant === "dock" ? "max-[40rem]:flex-none" : ""}`}>
+        <div className={`flex min-h-0 flex-1 flex-col pt-1 ${audienceTabVariant === "dock" ? "max-[40rem]:flex-none" : ""}`}>
+            {!execution && <TabList value={launchFilter} onValueChange={setLaunchFilter}
+                ariaLabel="Workflow launch type" variant="segmented"
+                className="max-w-full self-start rounded-lg bg-gray-200/70 [&_.tab-list]:bg-transparent [&_[role=tab]]:h-7 [&_[role=tab]]:px-3 [&_[role=tab]]:text-xs" options={[
+                    { value: "all", label: "All" }, { value: "assistant", label: "Chat" },
+                    { value: "tabular", label: "Tabular" }, { value: "other", label: "Other" },
+                ]} />}
             {contextLabel && <p className="mt-2 truncate text-xs text-gray-500"
                 title={contextLabel}>Using {contextLabel}</p>}
-            <div ref={listRef} className={`mt-4 min-h-0 flex-1 overflow-y-auto pb-10 ${audienceTabVariant === "dock" ? "@max-[40rem]:overflow-visible" : ""}`}>
+            <div ref={listRef} className={`mt-2 min-h-0 flex-1 overflow-y-auto pb-4 ${audienceTabVariant === "dock" ? "max-[40rem]:overflow-visible" : ""}`}>
                 <p role="status" className="sr-only">{loading
                     ? "Loading workflows" : `${count} workflow choices`}</p>
                 {loading && !workflows.length ? <WorkflowSkeleton />
                     : loadError && !workflows.length ? <LoadError onRetry={onRetryLoad} />
-                    : groups.length ? <div className="space-y-5">{groups.map((group) => {
+                    : groups.length ? <div className="grid items-start gap-3">{groups.map((group) => {
                         const sectionId = `${idPrefix}-workflow-section-${slug(group.label)}`;
-                        return <section key={group.label}
+                        return <section key={group.label} className="@container min-w-0"
                             aria-labelledby={sectionId}>
                             <h2 id={sectionId} title={group.label}
                                 className="mb-1 truncate px-1 text-xs font-semibold text-gray-500">
@@ -144,21 +154,13 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
         onClose={() => setInfo(null)} onSelect={onSelect} disabledItem={disabledItem} /></>;
 }
 
-function WorkflowText({ label, description, destinations = [] }: {
+function WorkflowText({ label, description }: {
     label: string; description?: string | null;
-    destinations?: Array<{ label: string; Icon: LucideIcon }>;
 }) {
     return <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium leading-5 text-gray-900">{label}</span>
         {description && <span className="mt-0.5 block max-w-2xl text-xs leading-5 text-gray-600">
             {description}
-        </span>}
-        {!!destinations.length && <span
-            className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-medium text-gray-500">
-            {destinations.map(({ label: destination, Icon }) => <span key={destination}
-                className="inline-flex items-center gap-1">
-                <Icon className="size-3" aria-hidden="true" />{destination}
-            </span>)}
         </span>}
     </span>;
 }
@@ -167,7 +169,7 @@ function ActionCluster({ label, children, extra }: {
     label: string; children?: ReactNode; extra?: ReactNode;
 }) {
     return <div role="group" aria-label={`${label} actions`}
-        className="flex shrink-0 items-center gap-1 pe-2 @max-[25rem]:self-end">
+        className="flex shrink-0 items-center gap-1 pe-3 @max-[25rem]:self-end">
         {children}{extra}
     </div>;
 }
@@ -195,8 +197,8 @@ function VariantChoices({ workflow, variants, disabledItem, onSelect, onInfo }: 
     for (const variant of variants) choices.set(variant.label,
         [...(choices.get(variant.label) ?? []), variant]);
     return <div className="divide-y divide-gray-200">{[...choices].map(([label, launchers]) =>
-        <div key={label} className="min-w-0 py-2.5 pe-3 ps-10">
-            <div className="flex min-w-0 items-start gap-2 @max-[25rem]:flex-col">
+        <div key={label} className="min-w-0 py-2.5 ps-[2.625rem]">
+            <div className="flex min-w-0 items-center gap-3 @max-[25rem]:flex-col">
                 <div className="min-w-0 flex-1">
                 <span className="block text-sm font-medium text-gray-800">{label}</span>
                 <span className="mt-0.5 block text-xs leading-5 text-gray-600">
@@ -227,9 +229,6 @@ function WorkflowInfoModal({ info, onClose, onSelect, disabledItem }: {
     const workflow = info.workflow;
     const detailed = workflow.launcher.kind === "instructions"
         ? info.variants : [];
-    const directDestination = workflow.launcher.kind === "instructions"
-        ? null : workflowDestination(workflow);
-    const DirectDestinationIcon = directDestination?.[1];
     const metadata = [
         ["Category", workflow.metadata.category],
         ["Jurisdiction", workflow.metadata.jurisdictions
@@ -238,7 +237,8 @@ function WorkflowInfoModal({ info, onClose, onSelect, disabledItem }: {
             ? null : workflow.metadata.language],
         ["Contributors", workflow.metadata.contributors.map(({ name }) => name).join(", ")],
     ].filter((entry): entry is [string, string] => Boolean(entry[1]));
-    return <Modal open onClose={onClose} size="xl" breadcrumbs={[info.label]}
+    return <Modal open onClose={onClose} size="xl" breadcrumbs={[<span className="block whitespace-normal text-xl font-semibold leading-tight">{info.label}</span>]}
+        className="h-fit max-h-[calc(100dvh-2rem)]"
         footerStatus={(detailed.length ? detailed : [undefined]).map((variant) => {
             const [destination, Icon] = workflowDestination(workflow, variant);
             return <ActionButton key={variant?.id ?? workflow.id} Icon={Icon}
@@ -251,22 +251,10 @@ function WorkflowInfoModal({ info, onClose, onSelect, disabledItem }: {
                     else onSelect(workflow);
                 }} />;
         })}>
-        <div className="min-h-full space-y-6 pb-6 text-sm leading-6 text-gray-700">
-            {!detailed.length && workflow.metadata.description && <p className="max-w-2xl text-gray-600">
-                {workflow.metadata.description}
-            </p>}
-            {directDestination && DirectDestinationIcon && <h2
-                className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                <DirectDestinationIcon className="size-4" aria-hidden="true" />
-                Opens in {directDestination[0]}
-            </h2>}
-            {detailed.map((variant) => {
-                const [destination, DestinationIcon] = workflowDestination(workflow, variant);
-                return <section key={variant.id} className="space-y-4" aria-label={destination}>
-                <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                    <DestinationIcon className="size-4" aria-hidden="true" />{destination}
-                </h2>
-                <p>{variant.description || workflow.metadata.description || variant.result}</p>
+        <div className="space-y-5 pb-5 text-sm leading-6 text-gray-600">
+            <p>{detailed[0]?.description || workflow.metadata.description || detailed[0]?.result}</p>
+            {detailed.filter((variant) => variant.columns_config?.length).map((variant) => {
+                return <section key={variant.id} className="space-y-4">
                 {!!variant.columns_config?.length && <div>
                     <h3 className="text-xs font-semibold text-gray-500">Table fields</h3>
                     <div className="mt-2 divide-y divide-gray-200 rounded-lg border border-gray-200">
@@ -286,9 +274,13 @@ function WorkflowInfoModal({ info, onClose, onSelect, disabledItem }: {
                 </div>}
             </section>;})}
             {!!metadata.length && <dl
-                className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 border-t border-gray-200 pt-4 text-xs">
-                {metadata.map(([label, value]) => <div key={label} className="contents">
-                    <dt className="font-medium text-gray-500">{label}</dt>
+                className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-gray-200 pt-4 text-xs">
+                {metadata.map(([label, value]) => <div key={label} className="flex min-w-0 items-center gap-1.5" title={label}>
+                    <dt className="flex items-center font-medium text-gray-500">
+                        {label === "Category" ? <><Tag aria-hidden className="size-3.5" /><span className="sr-only">{label}</span></>
+                            : label === "Contributors" ? <><Users aria-hidden className="size-3.5" /><span className="sr-only">{label}</span></>
+                                : label}
+                    </dt>
                     <dd className="min-w-0 text-gray-700">{value}</dd>
                 </div>)}
             </dl>}
@@ -307,19 +299,12 @@ function LoadError({ onRetry }: { onRetry?: () => void }) {
 }
 
 function workflowDestination(workflow: Workflow, variant?: WorkflowVariant): readonly [string, LucideIcon] {
+    if (workflow.launcher.kind === "fix_supras") return ["Run", RefreshCw];
+    if (workflow.launcher.kind === "quote_check") return ["Open", SearchCheck];
     if (workflow.launcher.kind === "court_records") return ["Court Records", Files];
     if (workflow.launcher.kind === "authorities") return ["Authorities", Scale];
     return variant?.execution === "tabular"
         ? ["Tab", Table2] : ["Chat", MessageSquare];
-}
-
-function workflowDestinations(workflow: Workflow, variants: WorkflowVariant[]) {
-    const destinations = new Map<string, { label: string; Icon: LucideIcon }>();
-    for (const variant of variants) {
-        const [label, Icon] = workflowDestination(workflow, variant);
-        destinations.set(label, { label, Icon });
-    }
-    return [...destinations.values()];
 }
 
 const launchLabel = (variant: WorkflowVariant) => variant.execution === "tabular"
@@ -332,10 +317,11 @@ const WorkflowSkeleton = () => <div aria-hidden="true" className="space-y-2">
 </div>;
 
 const WORKFLOW_ICONS: Record<string, LucideIcon> = {
-    drafting: FilePenLine,
+    drafting: FilePenLine, "fix-supras": RefreshCw,
     "document-review": FileCheck2, "legal-research": SearchCheck,
     "quote-checking": BookOpen, "agreement-work": Handshake,
     "due-diligence": FolderSearch, "transaction-management": ListChecks,
     "corporate-approvals": Building2, "submission-drafting": FilePenLine,
     "evidence-review": Files, "court-records": Scale, authorities: BookOpen,
 };
+

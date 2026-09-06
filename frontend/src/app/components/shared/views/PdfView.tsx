@@ -8,7 +8,7 @@ import {
 } from "react";
 import { Loader2, ZoomIn, ZoomOut } from "lucide-react";
 import { useDocumentFile } from "@/app/hooks/useDocumentFile";
-import type { CitationQuote } from "../types";
+import type { CitationQuote } from "@/app/lib/citations";
 import {
     clearHighlights,
     getPdfJs,
@@ -140,172 +140,181 @@ export function PdfView({
         const pdf = pdfRef.current;
         if (!container || !pdf) return;
         const generation = ++generationRef.current;
-        setPreparing(true);
-        taskRef.current?.cancel();
-        taskRef.current = null;
-        scheduleRef.current = null;
-        container.innerHTML = "";
-        pagesRef.current = [];
-        const lib = await getPdfJs();
-        if (generation !== generationRef.current) return;
-        const panelWidth = container.clientWidth;
-        widthRef.current = panelWidth;
-        // Page metadata is cheap; rasterizing every page is not. Resolve exact
-        // geometry once, including mixed page sizes and rotation, before layout.
-        geometryRef.current ??= (async () => {
-            const pages: import("pdfjs-dist").PDFPageProxy[] = [];
-            for (let start = 1; start <= pdf.numPages; start += 16) {
-                pages.push(...await Promise.all(Array.from(
-                    { length: Math.min(16, pdf.numPages - start + 1) },
-                    (_, index) => pdf.getPage(start + index),
-                )));
-                if (generation !== generationRef.current && pdf !== pdfRef.current) break;
-            }
-            return pages;
-        })();
-        const pdfPages = await geometryRef.current;
-        if (generation !== generationRef.current) return;
-        const scale = Math.max(0.1, (panelWidth - SIDE_PADDING) /
-            pdfPages[0].getViewport({ scale: 1 }).width) * zoomRef.current;
-        const fragment = document.createDocumentFragment();
-        let top = 0;
-        const pages = pdfPages.map((page, index) => {
-            const viewport = page.getViewport({ scale });
-            const wrapper = document.createElement("div");
-            wrapper.className = "shadow-md";
-            Object.assign(wrapper.style, {
-                position: "relative", margin: "0 auto 8px", background: "white",
-                width: `${viewport.width}px`, height: `${viewport.height}px`,
-            });
-            wrapper.dataset.pageNumber = String(index + 1);
-            wrapper.setAttribute("aria-label", `Page ${index + 1}`);
-            fragment.appendChild(wrapper);
-            const entry: RenderedPage = {
-                wrapper, textDivs: [], hasTextLayer: false, top, height: viewport.height,
-            };
-            top += viewport.height + 8;
-            return entry;
-        });
-        container.appendChild(fragment);
-        pagesRef.current = pages;
-        setPreparing(false);
-        const target = list.find(({ page }) => page)?.page ?? scrollToPage;
-        if (target) scrollToHighlight(pages, scrollRef.current, target);
-
-        const rendered = new Map<number, HTMLCanvasElement>();
-        const failed = new Set<number>();
-        let running = false;
-        let active = -1;
-        const range = () => {
-            const element = scrollRef.current;
-            const start = (element?.scrollTop ?? 0) - container.offsetTop;
-            const height = element?.clientHeight || 800;
-            return { start, end: start + height, margin: height };
+        const fail = (cause: unknown) => {
+            if (generation !== generationRef.current) return;
+            console.error("PDF render error", cause);
+            setPreparing(false);
+            setViewerError(PDF_VIEWER_ERROR);
         };
-        const nearby = (index: number, padding = 1) => {
-            const { start, end, margin } = range();
-            return pages[index].top + pages[index].height >= start - margin * padding &&
-                pages[index].top <= end + margin * padding;
-        };
-        const paint = async () => {
-            if (running || generation !== generationRef.current) return;
-            running = true;
-            try {
-                while (generation === generationRef.current) {
-                    const { start, end } = range();
-                    const index = pages.map((_, index) => index)
-                        .filter((index) => nearby(index) && !rendered.has(index) && !failed.has(index))
-                        .sort((a, b) => {
-                            const distance = (index: number) => Math.max(
-                                start - pages[index].top - pages[index].height,
-                                pages[index].top - end, 0,
-                            );
-                            return distance(a) - distance(b);
-                        })[0];
-                    if (index === undefined) break;
-                    active = index;
-                    const page = pdfPages[index];
-                    const viewport = page.getViewport({ scale });
-                    const canvas = document.createElement("canvas");
-                    canvas.width = Math.ceil(viewport.width);
-                    canvas.height = Math.ceil(viewport.height);
-                    Object.assign(canvas.style, { display: "block", width: "100%", height: "100%" });
-                    const context = canvas.getContext("2d");
-                    if (!context) { failed.add(index); continue; }
-                    const task = page.render({ canvasContext: context, viewport });
-                    taskRef.current = task;
-                    try {
-                        await task.promise;
-                        if (generation !== generationRef.current) return;
-                        pages[index].wrapper.prepend(canvas);
-                        rendered.set(index, canvas);
-                    } catch (cause) {
-                        canvas.width = canvas.height = 0;
-                        if ((cause as { name?: string })?.name !== "RenderingCancelledException") {
-                            console.error("PDF render error", cause);
-                            failed.add(index);
-                            const message = document.createElement("p");
-                            message.setAttribute("role", "alert");
-                            message.textContent = `Unable to render page ${index + 1}.`;
-                            pages[index].wrapper.appendChild(message);
-                        }
-                    } finally {
-                        if (taskRef.current === task) taskRef.current = null;
-                        active = -1;
-                    }
+        try {
+            setPreparing(true);
+            taskRef.current?.cancel();
+            taskRef.current = null;
+            scheduleRef.current = null;
+            container.innerHTML = "";
+            pagesRef.current = [];
+            const lib = await getPdfJs();
+            if (generation !== generationRef.current) return;
+            const panelWidth = container.clientWidth;
+            widthRef.current = panelWidth;
+            // Page metadata is cheap; rasterizing every page is not. Resolve exact
+            // geometry once, including mixed page sizes and rotation, before layout.
+            geometryRef.current ??= (async () => {
+                const pages: import("pdfjs-dist").PDFPageProxy[] = [];
+                for (let start = 1; start <= pdf.numPages; start += 16) {
+                    pages.push(...await Promise.all(Array.from(
+                        { length: Math.min(16, pdf.numPages - start + 1) },
+                        (_, index) => pdf.getPage(start + index),
+                    )));
+                    if (generation !== generationRef.current && pdf !== pdfRef.current) break;
                 }
-            } finally { running = false; }
-        };
-        scheduleRef.current = () => {
-            // Keep a second viewport as a back-scroll buffer; release distant
-            // bitmap allocations without changing any page's layout box.
-            for (const [index, canvas] of rendered) {
-                if (nearby(index, 2)) continue;
-                canvas.remove();
-                canvas.width = canvas.height = 0;
-                rendered.delete(index);
-            }
-            if (active >= 0 && !nearby(active)) taskRef.current?.cancel();
-            void paint();
-        };
-        scheduleRef.current();
-
-        // Quote search needs text, never offscreen canvases. Hinted pages are
-        // searched first so a deep citation can become readable immediately.
-        if (list.length) {
-            const order = [...new Set([
-                ...list.flatMap(({ page }) => page && pages[page - 1] ? [page - 1] : []),
-                ...pages.map((_, index) => index),
-            ])];
-            let focused = false;
-            for (const index of order) {
-                if (generation !== generationRef.current) return;
-                const viewport = pdfPages[index].getViewport({ scale });
-                const textLayerElement = document.createElement("div");
-                textLayerElement.className = "pdf-text-layer";
-                Object.assign(textLayerElement.style, {
-                    position: "absolute", left: "0", top: "0",
+                return pages;
+            })();
+            const pdfPages = await geometryRef.current;
+            if (generation !== generationRef.current) return;
+            const scale = Math.max(0.1, (panelWidth - SIDE_PADDING) /
+                pdfPages[0].getViewport({ scale: 1 }).width) * zoomRef.current;
+            const fragment = document.createDocumentFragment();
+            let top = 0;
+            const pages = pdfPages.map((page, index) => {
+                const viewport = page.getViewport({ scale });
+                const wrapper = document.createElement("div");
+                wrapper.className = "shadow-md";
+                Object.assign(wrapper.style, {
+                    position: "relative", margin: "0 auto 8px", background: "white",
                     width: `${viewport.width}px`, height: `${viewport.height}px`,
                 });
-                textLayerElement.style.setProperty("--scale-factor", String(scale));
-                pages[index].wrapper.appendChild(textLayerElement);
-                const textLayer = new lib.TextLayer({
-                    textContentSource: pdfPages[index].streamTextContent(),
-                    container: textLayerElement, viewport,
-                });
-                await textLayer.render();
-                if (generation !== generationRef.current) return;
-                pages[index].textDivs = textLayer.textDivs;
-                pages[index].hasTextLayer = true;
-                let hit = false;
-                for (const entry of list) hit = highlightQuote(textLayer.textDivs, entry.quote) || hit;
-                if (hit && !focused) {
-                    focused = true;
-                    scrollToHighlight(pages, scrollRef.current, index + 1);
-                    scheduleRef.current?.();
+                wrapper.dataset.pageNumber = String(index + 1);
+                wrapper.setAttribute("aria-label", `Page ${index + 1}`);
+                fragment.appendChild(wrapper);
+                const entry: RenderedPage = {
+                    wrapper, textDivs: [], hasTextLayer: false, top, height: viewport.height,
+                };
+                top += viewport.height + 8;
+                return entry;
+            });
+            container.appendChild(fragment);
+            pagesRef.current = pages;
+            setPreparing(false);
+            const target = list.find(({ page }) => page)?.page ?? scrollToPage;
+            if (target) scrollToHighlight(pages, scrollRef.current, target);
+
+            const rendered = new Map<number, HTMLCanvasElement>();
+            const failed = new Set<number>();
+            let running = false;
+            let active = -1;
+            const range = () => {
+                const element = scrollRef.current;
+                const start = (element?.scrollTop ?? 0) - container.offsetTop;
+                const height = element?.clientHeight || 800;
+                return { start, end: start + height, margin: height };
+            };
+            const nearby = (index: number, padding = 1) => {
+                const { start, end, margin } = range();
+                return pages[index].top + pages[index].height >= start - margin * padding &&
+                    pages[index].top <= end + margin * padding;
+            };
+            const paint = async () => {
+                if (running || generation !== generationRef.current) return;
+                running = true;
+                try {
+                    while (generation === generationRef.current) {
+                        const { start, end } = range();
+                        const index = pages.map((_, index) => index)
+                            .filter((index) => nearby(index) && !rendered.has(index) && !failed.has(index))
+                            .sort((a, b) => {
+                                const distance = (index: number) => Math.max(
+                                    start - pages[index].top - pages[index].height,
+                                    pages[index].top - end, 0,
+                                );
+                                return distance(a) - distance(b);
+                            })[0];
+                        if (index === undefined) break;
+                        active = index;
+                        const page = pdfPages[index];
+                        const viewport = page.getViewport({ scale });
+                        const canvas = document.createElement("canvas");
+                        canvas.width = Math.ceil(viewport.width);
+                        canvas.height = Math.ceil(viewport.height);
+                        Object.assign(canvas.style, { display: "block", width: "100%", height: "100%" });
+                        const context = canvas.getContext("2d");
+                        if (!context) { failed.add(index); continue; }
+                        const task = page.render({ canvasContext: context, viewport });
+                        taskRef.current = task;
+                        try {
+                            await task.promise;
+                            if (generation !== generationRef.current) return;
+                            pages[index].wrapper.prepend(canvas);
+                            rendered.set(index, canvas);
+                        } catch (cause) {
+                            canvas.width = canvas.height = 0;
+                            if ((cause as { name?: string })?.name !== "RenderingCancelledException") {
+                                console.error("PDF render error", cause);
+                                failed.add(index);
+                                const message = document.createElement("p");
+                                message.setAttribute("role", "alert");
+                                message.textContent = `Unable to render page ${index + 1}.`;
+                                pages[index].wrapper.appendChild(message);
+                            }
+                        } finally {
+                            if (taskRef.current === task) taskRef.current = null;
+                            active = -1;
+                        }
+                    }
+                } finally { running = false; }
+            };
+            scheduleRef.current = () => {
+                // Keep a second viewport as a back-scroll buffer; release distant
+                // bitmap allocations without changing any page's layout box.
+                for (const [index, canvas] of rendered) {
+                    if (nearby(index, 2)) continue;
+                    canvas.remove();
+                    canvas.width = canvas.height = 0;
+                    rendered.delete(index);
                 }
+                if (active >= 0 && !nearby(active)) taskRef.current?.cancel();
+                void paint().catch(fail);
+            };
+            scheduleRef.current();
+
+            // Quote search needs text, never offscreen canvases. Hinted pages are
+            // searched first so a deep citation can become readable immediately.
+            if (list.length) {
+                const order = [...new Set([
+                    ...list.flatMap(({ page }) => page && pages[page - 1] ? [page - 1] : []),
+                    ...pages.map((_, index) => index),
+                ])];
+                let focused = false;
+                for (const index of order) {
+                    if (generation !== generationRef.current) return;
+                    const viewport = pdfPages[index].getViewport({ scale });
+                    const textLayerElement = document.createElement("div");
+                    textLayerElement.className = "pdf-text-layer";
+                    Object.assign(textLayerElement.style, {
+                        position: "absolute", left: "0", top: "0",
+                        width: `${viewport.width}px`, height: `${viewport.height}px`,
+                    });
+                    textLayerElement.style.setProperty("--scale-factor", String(scale));
+                    pages[index].wrapper.appendChild(textLayerElement);
+                    const textLayer = new lib.TextLayer({
+                        textContentSource: pdfPages[index].streamTextContent(),
+                        container: textLayerElement, viewport,
+                    });
+                    await textLayer.render();
+                    if (generation !== generationRef.current) return;
+                    pages[index].textDivs = textLayer.textDivs;
+                    pages[index].hasTextLayer = true;
+                    let hit = false;
+                    for (const entry of list) hit = highlightQuote(textLayer.textDivs, entry.quote) || hit;
+                    if (hit && !focused) {
+                        focused = true;
+                        scrollToHighlight(pages, scrollRef.current, index + 1);
+                        scheduleRef.current?.();
+                    }
+                }
+                applyHighlights(pages, list);
             }
-        }
+        } catch (cause) { fail(cause); }
     }, []);
 
     useEffect(() => {
@@ -509,7 +518,7 @@ export function PdfView({
             {((!bytes && loading) || (preparing && !error && !viewerError)) && (
                 <div role="status" className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
                     <Loader2 className="h-7 w-7 animate-spin text-gray-400" />
-                    <span className="sr-only">Loading PDF…</span>
+                    <span className="sr-only">Loading PDFâ€¦</span>
                 </div>
             )}
             <div ref={scrollRef} style={{ scrollbarGutter: "stable" }} className="min-h-0 flex-1 overflow-auto px-3 pb-3 pt-5">

@@ -1,13 +1,23 @@
+import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { forwardRef, useEffect, useImperativeHandle,
     useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, CircleStop } from "lucide-react";
 import { invalidateDocumentFile } from "@/app/hooks/useDocumentFile";
-import { safeAssistantUrl, type AssistantSessionState,
-    type AssistantTurnOptions } from "@/app/lib/assistantSession";
-import { WarningPopup } from "@/app/components/popups/WarningPopup";
+import {
+    type AssistantSessionState,
+    type AssistantTurnOptions,
+} from "@/app/lib/assistantSession";
+import { Button } from "@/app/components/ui/button";
 import type { WorkflowDocument } from "../workflows/ContextualWorkflowPicker";
-import type { Citation, Document, EditAnnotation, EditResolveError,
-    EditResolveStart, EditResolved, Message, WorkflowRunEvent } from "../shared/types";
+import type { Citation } from "@/app/lib/citations";
+import type {
+  Document,
+  EditAnnotation,
+  EditResolveError,
+  EditResolveStart,
+  EditResolved,
+} from "@/app/lib/api/documents";
+import type { Message, WorkflowRunEvent } from "@/app/lib/api/chat";
 import { AskInputPopup } from "./AskInputPopup";
 import { AssistantMessage } from "./AssistantMessage";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
@@ -32,9 +42,11 @@ interface Props {
     showContextTools?: boolean;
     onOpenWorkflows?: (initialWorkflowId?: string, documents?: WorkflowDocument[]) => void;
     projectName?: string; projectCmNumber?: string | null;
+    initialDraft?: import("@/app/lib/api/chat").ChatDraft | null;
     initialModel?: string | null; initialReasoningEffort?: string | null;
     editModeLabels?: { manual: string; auto: string };
     sendDisabled?: boolean;
+    searchMessageId?: string | null;
 }
 
 function without<T>(items: Set<T>, item: T) {
@@ -67,8 +79,8 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
         onEditViewClick, onOpenDocument, onEditResolveStart, onEditResolved, onEditError,
         isDocReloading, isEditReloading, resolvedEditStatuses,
         layout = "page", gutterVisible = false, header, dock, showContextTools = true,
-        onOpenWorkflows, projectName, projectCmNumber, initialModel, initialReasoningEffort,
-        editModeLabels, sendDisabled,
+        onOpenWorkflows, projectName, projectCmNumber, initialDraft, initialModel, initialReasoningEffort,
+        editModeLabels, sendDisabled, searchMessageId,
     }, ref) {
     const { messages, rejectedTurn } = session;
     const messagesContainerRef = useRef<HTMLDivElement>(null),
@@ -78,6 +90,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
         [showScrollButton, setShowScrollButton] = useState(false);
     const [editState, setEditState] = useState(() => ({ docIds: new Set<string>(),
         editIds: new Set<string>(), statuses: {} as Record<string, "accepted" | "rejected"> }));
+    const scrolledSearch = useRef<string | null>(null);
     useImperativeHandle(ref, () => ({
         addDoc: (document: Document) => chatInputRef.current?.addDoc(document),
         clearDraft: () => chatInputRef.current?.clearDraft(),
@@ -112,10 +125,22 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
     }, []);
     useLayoutEffect(() => {
         const container = messagesContainerRef.current;
+        const searchKey = searchMessageId ? JSON.stringify([chatId, searchMessageId]) : null;
+        if (searchKey !== scrolledSearch.current && searchMessageId && container) {
+            const target = Array.from(container.querySelectorAll<HTMLElement>("[data-message-id]"))
+                .find((element) => element.dataset.messageId === searchMessageId);
+            if (target) {
+                target
+                    .scrollIntoView({ block: "center", behavior: "auto" });
+                scrolledSearch.current = searchKey;
+                return;
+            }
+        }
+        if (!searchKey) scrolledSearch.current = null;
         const element = latestUserMessageRef.current;
         if (messages.length && container && element)
             container.scrollTo({ top: element.offsetTop - 24, behavior: "auto" });
-    }, [chatId, messages.length]);
+    }, [chatId, messages.length, searchMessageId]);
 
     const handleEditResolveStart = (args: EditResolveStart) => {
         setEditState((state) => ({ ...state,
@@ -153,7 +178,11 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                         style={{ paddingBottom: 116 }}>
                         <div className="space-y-6 md:space-y-8">
                             {messages.map((message, index) => (
-                                <div key={message.id}
+                                <div key={message.id} data-message-id={message.id}
+                                    style={index < lastUserIndex && message.id !== searchMessageId ? {
+                                        contentVisibility: "auto",
+                                        containIntrinsicBlockSize: message.role === "user" ? "auto 80px" : "auto 400px",
+                                    } : undefined}
                                     ref={index === lastUserIndex ? latestUserMessageRef : null}>
                                     {message.role === "user" ? (
                                         <UserMessage content={message.content ?? ""} files={message.files}
@@ -210,7 +239,17 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                                     onDismiss={() => { setHiddenAskInputKey(activeInput.key); cancel(); }} />
                             </div>
                         )}
+                        {rejectedTurn && <div role="status" className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                            <span className="min-w-0 flex-1">{rejectedTurn.detail ?? (rejectedTurn.options?.askInputsResponse
+                                ? "Inputs not sent. Your selections were kept." : "Response interrupted. Your draft is ready to edit.")}</span>
+                            {onRetryRejectedTurn && rejectedTurn.retryable !== false && <Button variant="outline" size="compact" onClick={() => {
+                                if (!rejectedTurn.options?.askInputsResponse) chatInputRef.current?.clearDraft();
+                                onRetryRejectedTurn();
+                            }}>Retry</Button>}
+                            <Button variant="ghost" size="compact" onClick={() => onRejectedTurnRestored?.()}>Dismiss</Button>
+                        </div>}
                         <ChatInput
+                            key={chatId} draftChatId={chatId} initialDraft={initialDraft}
                             ref={chatInputRef} onSubmit={onSubmit}
                             promptHistory={messages.flatMap((message) =>
                                 message.role === "user" && (message.content ?? "").trim()
@@ -235,20 +274,6 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                 </div>
             </div>
             {dock}
-            <WarningPopup open={!!rejectedTurn}
-                title={rejectedTurn?.options?.askInputsResponse
-                    ? "Inputs not sent" : "Response interrupted"}
-                message={rejectedTurn?.detail ?? (rejectedTurn?.options?.askInputsResponse
-                    ? "Your selections were kept. Retry them after reviewing the latest response."
-                    : "Retry the original request, or dismiss this notice to edit the restored draft.")}
-                onClose={() => onRejectedTurnRestored?.()} primaryAction={
-                    onRetryRejectedTurn && rejectedTurn?.retryable !== false ? {
-                    label: "Retry",
-                    onClick: () => {
-                        if (!rejectedTurn?.options?.askInputsResponse) chatInputRef.current?.clearDraft();
-                        onRetryRejectedTurn();
-                    },
-                } : undefined} />
         </div>
     );
 });

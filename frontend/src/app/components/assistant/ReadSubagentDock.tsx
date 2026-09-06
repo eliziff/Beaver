@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown, CircleStop, LoaderCircle } from "lucide-react";
 import type { AssistantReaderRun } from "@/app/lib/assistantSession";
-import type { Citation } from "../shared/types";
+import type { Citation } from "@/app/lib/citations";
 import { ActivityDisclosure, ActivityRow } from "./message/EventBlocks";
 import { CitationPillMarkdown } from "./message/MarkdownContent";
 

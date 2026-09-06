@@ -4,11 +4,37 @@ import {
   createA2AJPassageEvidence,
   createTnaEvidence,
   createPublicJournalPassageEvidence,
+  legalSourceEvidence,
 } from "../legalEvidence";
+import { createLegalEvidenceCitationsFromEntries, createLegalSourceSearchCitations } from "../citations";
 import { presentLegalEvidence } from "../citationPresentation";
 import { structureNative } from "../../structureNative";
 
 describe("legal evidence citation presentation", () => {
+  it("keeps discovered public source identity while preserving exact passage links and receipts", async () => {
+    const text = "The appeal is allowed.";
+    const document = await structureNative().deriveDocumentStructure({
+      kind: "provider_text", input: { provider: "a2aj", citation: "Fixture", source_kind: "cases", text },
+    });
+    for (const provider of ["courtlistener", "tna", "govuk-et", "govinfo", "hansard", "journal"] as const) {
+      const source = { provider, id: "source-1", kind: provider === "journal" || provider === "hansard"
+        ? provider : "case" as const, title: "Example", citation: "Fixture", collection: "fixture",
+        url: "https://example.test/source", ...(provider === "courtlistener" && { part: "7" }) };
+      const receipt = legalSourceEvidence({ source, role: "selected", text, documentArtifact: document,
+        locator: { requested: { kind: "paragraph", value: "12" }, label: "par12" } })!;
+      const original = structuredClone(receipt);
+      const [citation] = createLegalEvidenceCitationsFromEntries([{ receipt, source: document }]);
+      const [discovered] = createLegalSourceSearchCitations([{ ...source,
+        identifier: source.id, source_type: source.kind }]);
+      expect(citation.identifier).toBe(discovered.identifier);
+      expect(citation).toMatchObject({ provider, identifier: source.id,
+        external_url: source.url, url: expect.stringContaining(`${source.url}#:~:text=`),
+        locator_kind: "paragraph", locator: "12", quotes: [{ quote: text }] });
+      expect(receipt).toEqual(original);
+      expect(receipt.source_sha256).toBe(structureNative().documentRevision(document));
+    }
+  });
+
   it("owns authority, McGill locator, and source/passage destinations", async () => {
     const text = "The appeal is allowed.";
     const receipt = createTnaEvidence({

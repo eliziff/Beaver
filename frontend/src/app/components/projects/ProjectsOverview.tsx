@@ -3,16 +3,12 @@ import { useDeferredValue, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { MessageSquarePlus } from "lucide-react";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
-import {
-    listProjects,
-    updateProject,
-    deleteProject,
-} from "@/app/lib/beaverApi";
+import { listProjects, updateProject, deleteProject, type Project } from "@/app/lib/api/projects";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
-import type { Project } from "@/app/components/shared/types";
+
 import { NewProjectModal } from "./NewProjectModal";
 import { ProjectDetailsModal } from "./ProjectDetailsModal";
 import { TableToolbar } from "@/app/components/shared/TableToolbar";

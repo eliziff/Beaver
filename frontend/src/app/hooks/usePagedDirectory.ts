@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
-import type { DirectoryEntry, Page } from "@/app/lib/beaverApi";
-import type { Document } from "@/app/components/shared/types";
+import type { DirectoryEntry, Document } from "@/app/lib/api/documents";
+import type { Page } from "@/app/lib/api/client";
+
 import { usePagedChains } from "./usePagedChains";
 
 const keyFor = (parentId: string | null, q: string) =>

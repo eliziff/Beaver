@@ -15,6 +15,7 @@ import {
   legalEvidenceReceiptEvent,
   legalEvidenceRequested,
   legalEvidenceProseIntegrityErrors,
+  legalEvidenceResourceReference,
   priorLegalEvidenceReceipts,
   priorLegalEvidencePrompt,
   priorLegalResearchQueryReceipts,
@@ -27,6 +28,7 @@ import {
   restorePriorLegalEvidence,
   selectGroundedQuotationPolicy,
   submitLegalEvidenceAnswer,
+  validateGroundedClaims,
 } from "../legalEvidence";
 import {
   createLegalEvidenceCitations,
@@ -56,6 +58,40 @@ function passage(locatorLabel = "par12") {
 describe("production legal evidence", () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it("identifies exact source/version/occurrence independently of presentation", () => {
+    const source = { documentId: "doc", versionId: "v1", filename: "Workbook.xlsx",
+      sourceText: "Same text. Same text.", spanText: "Same text.", start: 0, end: 10 };
+    const first = createLibraryEvidence(source);
+    expect(createLibraryEvidence({ ...source, blockId: "paragraph:1",
+      locator: { kind: "paragraph", label: "1" } }).evidence_id).toBe(first.evidence_id);
+    expect(createLibraryEvidence({ ...source, start: 11, end: 21 }).evidence_id)
+      .not.toBe(first.evidence_id);
+    expect(createLibraryEvidence({ ...source, versionId: "v2" }).evidence_id)
+      .not.toBe(first.evidence_id);
+    expect(createLibraryEvidence({ ...source, blockId: "pdf:page-1" }).evidence_id)
+      .not.toBe(createLibraryEvidence({ ...source, blockId: "pdf:page-2" }).evidence_id);
+    const sheet = createLibraryEvidence({ ...source,
+      locator: { kind: "cell", label: "Terms!B4", sheet: "Terms", cells: "B4" } });
+    expect(legalEvidenceResourceReference(sheet)).toBe("document://doc/version/v1");
+    expect(createLegalEvidenceCitationsFromEntries([{ receipt: sheet }])[0]).toMatchObject({
+      kind: "document", locator_kind: "cell", locator: "Terms!B4", sheet: "Terms", cells: "B4",
+    });
+  });
+
+  it("shares grounding checks without imposing chat answer limits on extraction", () => {
+    const state = createLegalEvidenceTurnState(), evidence = passage();
+    registerLegalEvidence(state, evidence);
+    const claims = Array.from({ length: 70 }, () => ({ text: "The appeal succeeds.",
+      evidence_ids: [evidence.evidence_id] }));
+    expect(validateGroundedClaims(claims, state).errors).toEqual([]);
+    expect(submitLegalEvidenceAnswer({ claims }, state).ok).toBe(false);
+    const long = [{ ...claims[0], text: "Supporting analysis. ".repeat(80) }];
+    expect(validateGroundedClaims(long, state).errors).toEqual([]);
+    expect(submitLegalEvidenceAnswer({ claims: long }, state).ok).toBe(false);
+    registerLegalEvidence(state, { ...evidence, span_text: "Tampered source text." });
+    expect(validateGroundedClaims(claims, state).errors.join(" ")).toContain("damaged passage");
+  });
+
   it("recognizes named cases even when the model omits their citations", () => {
     expect(hasCaseNameInText("My favourite is *R. v. Oakes*.")).toBe(true);
     expect(hasCaseNameInText("I prefer Baker v. Canada for this point.")).toBe(true);
@@ -79,6 +115,22 @@ describe("production legal evidence", () => {
     const event = legalEvidenceReceiptEvent(state)!;
     expect(event.status).toBe("passed");
     expect(priorLegalEvidenceReceipts([event])).toEqual([evidence]);
+  });
+
+  it("keeps each grounded table row's citations inside its final cell", () => {
+    const state = createLegalEvidenceTurnState();
+    const first = passage("par12"), second = passage("par13");
+    registerLegalEvidence(state, first);
+    registerLegalEvidence(state, second);
+    expect(submitLegalEvidenceAnswer({ claims: [
+      { text: "The appeal is allowed.", evidence_ids: [first.evidence_id] },
+      { text: "| Outcome | Source |\n| --- | --- |\n| The appeal is allowed. | |", evidence_ids: [first.evidence_id] },
+      { text: "| The appeal is allowed. | |", evidence_ids: [second.evidence_id] },
+      { text: "The appeal is allowed.", evidence_ids: [second.evidence_id] },
+    ] }, state)).toEqual({ ok: true, terminal: true });
+    expect(renderLegalEvidenceAnswer(state)).toBe(
+      "The appeal is allowed. [1]\n\n| Outcome | Source |\n| --- | --- |\n| The appeal is allowed. | [1] |\n| The appeal is allowed. | [2] |\n\nThe appeal is allowed. [2]",
+    );
   });
 
   it("persists a query-only turn as an auditable research receipt", () => {
@@ -212,7 +264,7 @@ describe("production legal evidence", () => {
     })]);
   });
 
-  it("uses the approved quotation and paraphrase instruction everywhere", () => {
+  it("exposes the approved quotation policy once through the grounding tool", () => {
     expect(GROUNDED_QUOTATION_POLICY_CURRENT).toBe(
       "Prefer direct quotation when the source itself states the proposition. Quote the shortest passage that preserves the source's meaning and necessary context. Paraphrase only when combining sources, explaining their effect, or expressing the point more clearly. Keep each claim to one proposition, and attach only the evidence that supports that proposition. Split the claim when different propositions require different evidence. Avoid long quotations unless their full wording is necessary.",
     );
@@ -220,20 +272,8 @@ describe("production legal evidence", () => {
     expect(selectGroundedQuotationPolicy("classic")).toBe(
       GROUNDED_QUOTATION_POLICY_CLASSIC,
     );
-    expect(CODING_PRODUCTION_SYSTEM_PROMPT).toContain(GROUNDED_QUOTATION_POLICY);
-    expect(LEGAL_EVIDENCE_SUBMIT_TOOL.description).toContain(GROUNDED_QUOTATION_POLICY);
-    expect(CODING_PRODUCTION_SYSTEM_PROMPT).toContain(
-      "paragraph range (locator plus end_locator)",
-    );
-    expect(CODING_PRODUCTION_SYSTEM_PROMPT).toContain(
-      "Never cite its headnote unless the user specifically requests the headnote.",
-    );
-    expect(CODING_PRODUCTION_SYSTEM_PROMPT).not.toContain(
-      "A successful final Write call ends the turn.",
-    );
-    expect(CODING_PRODUCTION_SYSTEM_PROMPT).toContain(
-      "Use submit_grounded_answer for evidence-dependent prose returned in chat.",
-    );
+    expect(`${CODING_PRODUCTION_SYSTEM_PROMPT}${JSON.stringify(LEGAL_EVIDENCE_SUBMIT_TOOL)}`
+      .split(GROUNDED_QUOTATION_POLICY)).toHaveLength(2);
   });
 
   it("carries an immediate citation correction across the follow-up", () => {

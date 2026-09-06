@@ -2,8 +2,11 @@ import { ApplicationError, reject, type ApplicationScope } from "./applicationEr
 import { decodeAuthoritiesDraft } from "./authoritiesDomain";
 import { acceptsWorkProductOutput } from "mike/shared/court-record-work-products.mjs";
 import { COURT_RECORD_PROFILE_BY_ID, decodeCourtRecordDraftState } from "./courtRecordContract";
+import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
+  type DocumentFile, type DocumentRollback, type DocumentStore } from "./documentStore";
+import type { WorkflowFiles } from "./workflowFiles";
 import { decodeWorkProductState, workProductInputs,
-  type WorkProductFailure, type WorkProductKind,
+  type WorkProductBuildReceipt, type WorkProductFailure, type WorkProductKind,
   type WorkProduct, type WorkProductOutputRef, type WorkProductRepository,
   type WorkProductState } from "./workProduct";
 
@@ -156,3 +159,52 @@ export function createWorkProductApplication(repository: WorkProductRepository) 
 }
 
 export type WorkProductApplication = ReturnType<typeof createWorkProductApplication>;
+
+export async function saveWorkProductBuild(
+  { documents, files, workProducts }: { documents: DocumentStore; files: WorkflowFiles;
+    workProducts: Pick<WorkProductApplication, "save"> },
+  scope: ApplicationScope, product: WorkProduct,
+  artifacts: Array<{ role: string; file: DocumentFile; receipt: WorkProductBuildReceipt }>,
+  options: { state?: WorkProductState; signal?: AbortSignal } = {},
+) {
+  const outputs: Record<string, WorkProductOutputRef> = {};
+  const rollback: DocumentRollback[] = [];
+  try {
+    for (const { role, file, receipt } of artifacts) {
+      options.signal?.throwIfAborted();
+      const expectedSha256 = file.expectedSha256 ?? receipt.output.sha256;
+      const output = { ...file, expectedSha256,
+        provenance: { schemaVersion: 1 as const, actor: "work-product" as const,
+          action: "built" as const, receipt } };
+      const existing = product.outputs[role];
+      const version = existing ? await documents.addVersion(scope, existing.documentId, {
+        ...output, expectedCurrentVersionId: existing.versionId,
+        expectedCurrentSha256: existing.sha256,
+      }) : null;
+      if (version) {
+        rollback.push(createdVersionRollback(existing!.documentId, version));
+        if (version.source_sha256 !== expectedSha256)
+          throw new Error("Saved output hash does not match its build");
+        outputs[role] = { documentId: existing!.documentId, versionId: version.id };
+      } else {
+        if (existing && await documents.metadata(scope, existing.documentId))
+          throw new ApplicationError(409, "An output changed while the new build was being saved");
+        const created = await files.create(scope,
+          product.kind === "court-record" ? "court-records" : "authorities", output,
+          { projectId: product.projectId });
+        rollback.push(createdDocumentRollback(created));
+        if (!created.current_version_id || created.source_sha256 !== expectedSha256)
+          throw new Error("Saved output hash does not match its build");
+        outputs[role] = { documentId: created.id, versionId: created.current_version_id };
+      }
+    }
+    options.signal?.throwIfAborted();
+    const saved = await workProducts.save(scope, product.id, { revision: product.revision,
+      outputs, ...(options.state === undefined ? {} : { state: options.state }) });
+    if (saved.kind !== product.kind) throw new ApplicationError(409, "Draft state is invalid");
+    return saved;
+  } catch (error) {
+    return rollbackDocuments(documents, scope, rollback, error,
+      "Build outputs could not be saved or rolled back");
+  }
+}

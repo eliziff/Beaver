@@ -7,7 +7,7 @@ import {
     McpToolList,
     type McpConnectorDraft,
 } from "./NewMcpModal";
-import type { McpConnectorSummary } from "@/app/lib/beaverApi";
+import type { McpConnectorSummary } from "@/app/lib/api/account";
 
 const draft: McpConnectorDraft = {
     name: "Research",

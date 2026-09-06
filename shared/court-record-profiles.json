@@ -60,8 +60,8 @@
   },
   "profiles": [
     {
-      "id":"general-affidavit-exhibits","label":"Affidavit with exhibits","courtId":"general",
-      "documentFamily":"affidavit-with-exhibits","documentLabel":"Affidavit with exhibits","variant":"standard","shortLabel":"Affidavit with exhibits",
+      "id":"general-affidavit-exhibits","label":"Affidavit","courtId":"general",
+      "documentFamily":"affidavit-with-exhibits","documentLabel":"Affidavit","variant":"standard","shortLabel":"Affidavit",
       "family":"affidavit","outputMode":"affidavit-with-exhibits",
       "effectiveFrom":"1970-01-01",
       "cover":{"generated":false,"title":"Case details","colourName":"source","colourHex":"#FFFFFF","fieldKeys":["courtName","courtFileNumber","registryOptional","affidavitNumber","deponentOptional","swornDateOptional","swornPlace"]},
@@ -74,8 +74,8 @@
       "sourceIds":[],"filenamePattern":"Affidavit-{courtFileNumber}.pdf"
     },
     {
-      "id":"ab-kb-affidavit-exhibits","label":"Affidavit with exhibits","courtId":"ab-kb",
-      "documentFamily":"affidavit-with-exhibits","documentLabel":"Affidavit with exhibits","variant":"standard","shortLabel":"Affidavit with exhibits",
+      "id":"ab-kb-affidavit-exhibits","label":"Affidavit","courtId":"ab-kb",
+      "documentFamily":"affidavit-with-exhibits","documentLabel":"Affidavit","variant":"standard","shortLabel":"Affidavit",
       "family":"affidavit","outputMode":"affidavit-with-exhibits","exhibitCertificate":true,
       "effectiveFrom":"2010-11-01","partyStyleIds":["application","action","appeal"],
       "cover":{"generated":false,"title":"Affidavit details","colourName":"source","colourHex":"#FFFFFF","fieldKeys":["courtFileNumber","registryOptional","affidavitNumber","deponent","swornDate","swornPlace"]},
@@ -88,8 +88,8 @@
       "sourceIds":["ab-rules-part-13-14","ab-kb-form-49","ab-affidavit-exhibit-example","ab-kb-digital-guidelines"],"filenamePattern":"Affidavit-{filingParty}-{courtFileNumber}.pdf"
     },
     {
-      "id":"fc-affidavit-exhibits","label":"Affidavit with exhibits","courtId":"fc",
-      "documentFamily":"affidavit-with-exhibits","documentLabel":"Affidavit with exhibits","variant":"standard","shortLabel":"Affidavit with exhibits",
+      "id":"fc-affidavit-exhibits","label":"Affidavit","courtId":"fc",
+      "documentFamily":"affidavit-with-exhibits","documentLabel":"Affidavit","variant":"standard","shortLabel":"Affidavit",
       "family":"affidavit","outputMode":"affidavit-with-exhibits","exhibitCertificate":true,
       "effectiveFrom":"1998-02-05","partyStyleIds":["application","action","appeal"],
       "cover":{"generated":false,"title":"Affidavit details","colourName":"source","colourHex":"#FFFFFF","fieldKeys":["courtFileNumber","registryOptional","affidavitNumber","deponent","swornDate","swornPlace"]},
@@ -102,8 +102,8 @@
       "sourceIds":["fc-rules","fc-practice-guidelines-2025","fc-efiling"],"filenamePattern":"Affidavit-{filingParty}-{courtFileNumber}.pdf"
     },
     {
-      "id":"fca-affidavit-exhibits","label":"Affidavit with exhibits","courtId":"fca",
-      "documentFamily":"affidavit-with-exhibits","documentLabel":"Affidavit with exhibits","variant":"standard","shortLabel":"Affidavit with exhibits",
+      "id":"fca-affidavit-exhibits","label":"Affidavit","courtId":"fca",
+      "documentFamily":"affidavit-with-exhibits","documentLabel":"Affidavit","variant":"standard","shortLabel":"Affidavit",
       "family":"affidavit","outputMode":"affidavit-with-exhibits","exhibitCertificate":true,
       "effectiveFrom":"1998-02-05","partyStyleIds":["application","appeal"],
       "cover":{"generated":false,"title":"Affidavit details","colourName":"source","colourHex":"#FFFFFF","fieldKeys":["courtFileNumber","registryOptional","affidavitNumber","deponent","swornDate","swornPlace"]},

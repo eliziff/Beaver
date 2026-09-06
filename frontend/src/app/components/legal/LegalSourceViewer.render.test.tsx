@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { LegalSourceViewerPayload } from "@/app/lib/beaverApi";
+import type { LegalSourceViewerPayload } from "@/app/lib/api/legalSources";
 import { highlightDocxQuotes } from "@/app/components/shared/views/highlightDocxQuote";
 
 const api = vi.hoisted(() => ({
@@ -13,19 +13,18 @@ const api = vi.hoisted(() => ({
 }));
 const scrollIntoView = vi.fn();
 
-vi.mock("@/app/lib/beaverApi", async (importOriginal) => {
-    const original =
-        await importOriginal<typeof import("@/app/lib/beaverApi")>();
-    return {
-        ...original,
-        getDirectLegalSourceDocument: api.direct,
-        getLegalSourceDocument: api.saved,
-        createResearchFile: api.createResearchFile,
-        getResearchFile: api.researchFile,
-        getResearchItems: api.researchItems,
-        actOnResearchFile: api.actOnResearchFile,
-    };
-});
+vi.mock("@/app/lib/api/legalSources", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/legalSources")>(),
+  getDirectLegalSourceDocument: api.direct,
+  getLegalSourceDocument: api.saved
+}));
+vi.mock("@/app/lib/api/researchFiles", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/researchFiles")>(),
+  createResearchFile: api.createResearchFile,
+  getResearchFile: api.researchFile,
+  getResearchItems: api.researchItems,
+  actOnResearchFile: api.actOnResearchFile
+}));
 vi.mock("react-router-dom", () => ({
     useNavigate: () => vi.fn(),
     Link: ({ children, to, ...props }: React.ComponentProps<"a"> & { to: string }) => (

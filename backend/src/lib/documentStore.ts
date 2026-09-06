@@ -45,14 +45,13 @@ export type DocumentParseState = {
   page_count?: number;
   error?: string;
 };
-export type DocumentRecord = Record<string, unknown> & { id: string; filename?: string | null;
-  current_version_id?: string | null; active_version_number?: number | null;
-  current_working_revision?: number | null;
-  file_type?: string | null; parse_state?: DocumentParseState | null };
-export type CreatedDocumentRecord = DocumentRecord & { filename: string;
+export type DocumentRecord = { id: string; user_id: string; filename: string;
   current_version_id: string; active_version_number: number; file_type: string;
   current_working_revision: number; source_sha256: string;
-  project_id: string | null; folder_id: string | null };
+  project_id: string | null; folder_id: string | null; library_kind: LibraryKind;
+  library_folder_id: string | null; size_bytes: number; page_count: number | null;
+  status: string; created_at: string; updated_at: string; metadata: unknown;
+  notes: string | null; parse_state: DocumentParseState | null };
 export type DocumentVersion = Record<string, unknown> & { id: string; version_number: number;
   working_revision: number;
   created_by: string | null; author_email?: string; comment?: string | null;
@@ -75,6 +74,15 @@ export type DocumentContent = { bytes: Buffer; version: DocumentVersion; filenam
   fileType: string; hasPdfRendition: boolean; pdfProfile?: PdfProfileSelection };
 export type DocumentDownload = { kind: "bytes"; content: DocumentContent }
   | { kind: "redirect"; url: string };
+export type DocumentDownloadOptions = {
+  preferPdf: boolean; disposition: "inline" | "attachment"; evidence?: string;
+};
+export type DocumentSpreadsheet = { version_id: string; sheets: Array<{
+  name: string; cells: Array<{ address: string; value: string; row: number; column: number;
+    rowSpan?: number; columnSpan?: number }>;
+}> };
+export type DocumentEvidenceView = { versionId: string; filename: string;
+  pageNumbers: number[]; pages: Array<{ page_number: number; text: string }> };
 export type AssistantEdit = { changeId: string; delWId?: string; insWId?: string;
   deletedText: string; insertedText: string; contextBefore: string; contextAfter: string;
   reason?: string; diff: EditDiffSegment[] };
@@ -118,13 +126,14 @@ export type DocumentPartContent = { name: string; bytes: Buffer; sha256: string 
 export type DocumentStore = {
   resumeCleanup(): Promise<void>;
   metadata(scope: DocumentScope, id: string, owner?: boolean): Promise<DocumentRecord | null>;
+  metadataMany(scope: DocumentScope, ids: string[], owner?: boolean): Promise<DocumentRecord[]>;
   parseStates(scope: DocumentScope, ids: string[]): Promise<Array<{
     id: string; parse_state: DocumentParseState | null; page_count: number | null;
   }>>;
   create(scope: DocumentScope, input: DocumentFile & { projectId?: string | null;
     libraryKind?: LibraryKind; folderId?: string | null; provenance?: DocumentProvenance;
     parts?: DocumentPartFile[] }):
-    Promise<CreatedDocumentRecord>;
+    Promise<DocumentRecord>;
   deleteDocument(scope: DocumentScope, id: string, owner?: boolean,
     expected?: DocumentHeadExpectation): Promise<boolean>;
   deleteUserDocuments(scope: DocumentScope, input: { projectIds: string[];
@@ -144,8 +153,12 @@ export type DocumentStore = {
     sourceSha256: string; pageCount: number; pdfProfile: PdfProfileSelection }): Promise<boolean>;
   projectionSource(scope: DocumentScope, id: string, versionId: string | null):
     Promise<DocumentProjectionSource | null>;
-  download(scope: DocumentScope, id: string, versionId: string | null, preferPdf: boolean,
-    disposition: "inline" | "attachment"): Promise<DocumentDownload | null>;
+  spreadsheet(scope: DocumentScope, id: string, versionId: string | null):
+    Promise<DocumentSpreadsheet | null>;
+  evidenceView(scope: DocumentScope, id: string, versionId: string, handle: string):
+    Promise<DocumentEvidenceView | null>;
+  download(scope: DocumentScope, id: string, versionId: string | null,
+    options: DocumentDownloadOptions): Promise<DocumentDownload | null>;
   versions(scope: DocumentScope, id: string): Promise<{ current_version_id: string | null;
     versions: DocumentVersion[] } | null>;
   addVersion(scope: DocumentScope, id: string,
@@ -180,7 +193,7 @@ export type DocumentStore = {
     mode: "accept" | "reject"): Promise<ResolveEditResult>;
 };
 
-export const createdDocumentRollback = (created: CreatedDocumentRecord): DocumentRollback => ({
+export const createdDocumentRollback = (created: DocumentRecord): DocumentRollback => ({
   documentId: created.id, expected: { versionId: created.current_version_id,
     workingRevision: created.current_working_revision, projectId: created.project_id,
     folderId: created.folder_id },

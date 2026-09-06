@@ -1,26 +1,23 @@
-import { Router, type Request, type Response } from "express";
+import { Router, type Request } from "express";
 import { pipeline } from "node:stream/promises";
 import { requireAuth } from "../middleware/auth";
 import { ApplicationError, applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
-import {
-  contentTypeForDocumentType,
-  isSpreadsheetDocumentType,
-} from "../lib/documentTypes";
+import { contentTypeForDocumentType } from "../lib/documentTypes";
 import type { DocumentStore } from "../lib/documentStore";
 import type { LibraryStore } from "../lib/libraryStore";
 import { pageRequest, pageResponse } from "../lib/pagination";
 import { downloadHeaders, MAX_OBJECT_SIZE_BYTES,
   normalizeDownloadFilename } from "../lib/storage";
 import { singleFileUpload, uploadedDocument } from "../lib/upload";
-import { documentProjectionService } from "../lib/documentProjectionService";
 import { sha256 } from "../lib/hash";
-import { spreadsheetToLLMStructure } from "../lib/spreadsheet";
 import { z } from "zod";
 import { commitResearchFile, pageResearchItems, readResearchFile,
   researchFileActionSchema, researchSourceKey } from "../lib/researchFile";
 import { researchCaptureRuleSchema, runResearchFileQuery,
   verifyResearchPassage } from "../lib/researchFileQuery";
+import { readResearchMemoCitation } from "../lib/researchMemo";
+import type { AuditStore } from "../lib/audit";
 
 const scope = applicationScope, MAX_ZIP_FILES = 100;
 const researchVersion = z.string().trim().min(1).max(200);
@@ -64,18 +61,6 @@ const html = (value: unknown) => String(value).replace(/[&<>"']/gu, (character) 
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 })[character]!);
 
-async function evidence<T>(load: () => Promise<T>) {
-  try {
-    return await load();
-  } catch { return reject(410, "Evidence is no longer available"); }
-}
-
-const projectionReference = (documentId: string, versionId: string, sourceSha256: string) => ({
-  documentId,
-  versionId,
-  sourceSha256,
-});
-
 const filename = (req: Request, original: string) =>
   typeof req.body?.filename === "string" && req.body.filename.trim()
     ? req.body.filename.trim().slice(0, 200)
@@ -87,26 +72,10 @@ const archiveName = (name: string, index: number) => {
   return `${String(index + 1).padStart(3, "0")}-${safe}`;
 };
 
-async function sendDownload(
-  documents: DocumentStore,
-  req: Request,
-  res: Response,
-  preferPdf: boolean,
-  disposition: "inline" | "attachment",
-) {
-  const download = await documents.download(
-    scope(res), req.params.documentId, versionId(req), preferPdf, disposition,
-  ) ?? reject(404, "Document not found");
-  res.setHeader("Cache-Control", "private, no-store");
-  if (download.kind === "redirect") return void res.redirect(302, download.url);
-  res.set(downloadHeaders(contentTypeForDocumentType(download.content.fileType),
-    download.content.filename, disposition));
-  res.send(download.content.bytes);
-}
-
 export function createDocumentsRouter(
   library: LibraryStore,
   documents: DocumentStore,
+  audit?: AuditStore["record"],
 ) {
   const router = Router();
   router.use(requireAuth);
@@ -156,11 +125,12 @@ export function createDocumentsRouter(
   }));
 
   router.get("/:documentId/research/items", asyncRoute(async (req, res) => {
-    const kind = z.enum(["passages", "queries"]).parse(req.query.kind), sourceId =
+    const kind = z.enum(["passages", "queries", "history"]).parse(req.query.kind), sourceId =
       z.string().uuid().optional().parse(req.query.source_id), file = await readResearchFile(
         documents, scope(res), req.params.documentId) ?? reject(404, "Research file not found");
     if (sourceId && !file.state.sources[sourceId]) reject(404, "Research source not found");
-    const contentRevision = kind === "queries" ? file.state.queries?.sha256 ?? ""
+    const contentRevision = kind === "history" ? file.state.history?.sha256 ?? ""
+      : kind === "queries" ? file.state.queries?.sha256 ?? ""
       : sourceId ? file.state.sources[sourceId]!.passages?.sha256 ?? ""
       : sha256(JSON.stringify(Object.values(file.state.sources).map(({ id, passages }) =>
           [id, passages?.sha256 ?? ""]))),
@@ -175,6 +145,15 @@ export function createDocumentsRouter(
       nextAfter: page.nextOffset === null ? null : [page.nextOffset] }), total: page.total });
   }));
 
+  router.get("/:documentId/research/citation", asyncRoute(async (req, res) => {
+    const sourceId = z.string().uuid().parse(req.query.source_id),
+      evidenceId = z.string().min(1).max(200).optional().parse(req.query.evidence_id),
+      file = await readResearchFile(documents, scope(res), req.params.documentId)
+        ?? reject(404, "Research file not found");
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json(await readResearchMemoCitation(documents, scope(res), file, sourceId, evidenceId));
+  }));
+
   router.post("/:documentId/research/actions", asyncRoute(async (req, res) => {
     const version = researchVersion.parse(req.body?.version_id);
     const revision = workingRevision.parse(req.body?.working_revision);
@@ -183,15 +162,16 @@ export function createDocumentsRouter(
     if (current.versionId !== version || current.workingRevision !== revision)
       researchConflict();
     const requested = researchFileActionSchema.parse(req.body?.action),
-      action = await verifyResearchPassage(current, requested);
-    const file = await commitResearchFile(documents, scope(res), current, action)
+      action = await verifyResearchPassage(current, requested, undefined, { documents, scope: scope(res) });
+    const file = await commitResearchFile(documents, scope(res), current, action, undefined,
+      { audit, executor: "human" })
       ?? researchConflict();
     const sourceId = requested.type === "passage" ? requested.sourceId
       : requested.type === "source" ? Object.values(file.state.sources).find(({ reference }) =>
         researchSourceKey(reference) === researchSourceKey(requested.reference))?.id : undefined,
       receipt = sourceId && action.type === "merge" ? action.evidence?.[0] : undefined;
     res.json({ ...file, ...(sourceId ? { sourceId } : {}),
-      ...(receipt ? { evidenceId: receipt.evidence_id } : {}) });
+      ...(receipt ? { evidenceId: receipt.evidence_id, receipt } : {}) });
   }));
 
   router.post("/:documentId/research/query", asyncRoute(async (req, res) => {
@@ -201,41 +181,15 @@ export function createDocumentsRouter(
       text: input.text, syntax: input.syntax, target: input.target,
       sourceIds: input.sourceIds, labelIds: input.labelIds, unlabelled: input.unlabelled, limit: input.limit,
       rules: input.rules, conflict: input.conflict, after: input.after,
-    });
+    }, { operation: { audit, executor: "human" } });
     res.json({ file: result.file, receipt: result.receipt, coverage: result.coverage });
   }));
 
   router.get("/:documentId/spreadsheet", asyncRoute(async (req, res) => {
-    const file = await documents.read(
-      scope(res), req.params.documentId, versionId(req), false,
-    ) ?? reject(404, "Document not found");
-    if (!isSpreadsheetDocumentType(file.fileType)) {
-      return reject(400, "Document is not a spreadsheet");
-    }
-    if (sha256(file.bytes) !== file.version.source_sha256)
-      throw new Error("Document source bytes no longer match their version");
-    const grid = await spreadsheetToLLMStructure(file.bytes, file.fileType);
-    const sheets = new Map<string, Array<{
-      address: string; value: string; row: number; column: number;
-      rowSpan?: number; columnSpan?: number;
-    }>>();
-    for (const cell of grid.tableCells) {
-      const values = sheets.get(cell.tableName) ?? [];
-      values.push({
-        address: cell.address,
-        value: cell.displayValue,
-        row: cell.row,
-        column: cell.column,
-        ...(cell.rowSpan ? { rowSpan: cell.rowSpan } : {}),
-        ...(cell.columnSpan ? { columnSpan: cell.columnSpan } : {}),
-      });
-      sheets.set(cell.tableName, values);
-    }
+    const grid = await documents.spreadsheet(scope(res), req.params.documentId, versionId(req))
+      ?? reject(404, "Document not found");
     res.setHeader("Cache-Control", "private, no-store");
-    res.json({
-      version_id: file.version.id,
-      sheets: [...sheets].map(([name, cells]) => ({ name, cells })),
-    });
+    res.json(grid);
   }));
 
   router.post(
@@ -281,25 +235,17 @@ export function createDocumentsRouter(
   router.get("/:documentId/evidence-view", asyncRoute(async (req, res) => {
     const handle = evidenceHandle(req) ?? reject(400, "version_id and evidence are required");
     const requested = versionId(req) ?? reject(400, "version_id and evidence are required");
-    const [found, metadata] = await Promise.all([
-      documents.projectionSource(scope(res), req.params.documentId, requested),
-      documents.metadata(scope(res), req.params.documentId),
-    ]);
-    const source = found ?? reject(404, "Document not found");
-    if (source.fileType.toLowerCase() !== "pdf") reject(404, "Document not found");
-    const receipt = await evidence(() => documentProjectionService.rehydratePdfEvidence(
-      handle,
-      projectionReference(req.params.documentId, source.versionId, source.sourceSha256),
-    ));
-    const query = new URLSearchParams({ version_id: source.versionId,
+    const receipt = await documents.evidenceView(scope(res), req.params.documentId, requested, handle)
+      ?? reject(404, "Document not found");
+    const query = new URLSearchParams({ version_id: receipt.versionId,
       evidence: handle, rendition: "pdf" });
-    const page = receipt.link.page_numbers[0];
+    const page = receipt.pageNumbers[0];
     const original = `/api/single-documents/${encodeURIComponent(req.params.documentId)}/file?${query}` +
       (page ? `#page=${page}` : "");
     const pages = receipt.pages.map((item) =>
       `<article id="page=${item.page_number}"><h2>Page ${item.page_number}</h2><p>${html(item.text)}</p></article>`,
     ).join("");
-    const name = html(metadata?.filename || "document.pdf");
+    const name = html(receipt.filename || "document.pdf");
     res.set({ "Content-Type": "text/html; charset=utf-8", "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff", "Content-Security-Policy":
       "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'" });
@@ -313,31 +259,15 @@ export function createDocumentsRouter(
     }
     const handle = evidenceHandle(req);
     if (handle === null) reject(400, "Invalid evidence handle");
-    if (handle) {
-      const file = await documents.read(
-        scope(res), req.params.documentId, versionId(req), rendition === "pdf",
-      ) ?? reject(404, "Document not found");
-      await evidence(() => documentProjectionService.verifyPdfEvidence(
-        file.bytes,
-        handle,
-        projectionReference(
-          req.params.documentId,
-          file.version.id,
-          file.version.source_sha256,
-        ),
-      ));
-      res.setHeader("Cache-Control", "private, no-store");
-      res.set(downloadHeaders(
-        contentTypeForDocumentType(file.fileType),
-        file.filename,
-        rendition === "pdf" ? "inline" : "attachment",
-      ));
-      return void res.send(file.bytes);
-    }
-    await sendDownload(
-      documents, req, res, rendition === "pdf",
-      rendition === "pdf" ? "inline" : "attachment",
-    );
+    const disposition = rendition === "pdf" ? "inline" : "attachment";
+    const download = await documents.download(scope(res), req.params.documentId, versionId(req), {
+      preferPdf: rendition === "pdf", disposition, evidence: handle ?? undefined,
+    }) ?? reject(404, "Document not found");
+    res.setHeader("Cache-Control", "private, no-store");
+    if (download.kind === "redirect") return void res.redirect(302, download.url);
+    res.set(downloadHeaders(contentTypeForDocumentType(download.content.fileType),
+      download.content.filename, disposition));
+    res.send(download.content.bytes);
   }));
 
   router.get("/:documentId/versions", asyncRoute(async (req, res) => {

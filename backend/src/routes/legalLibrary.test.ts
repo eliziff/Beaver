@@ -3,6 +3,7 @@ import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { a2ajLegalSourceProvider } from "../lib/legalSources/a2aj";
 import type { LegalSourceStore } from "../lib/legalSourceStore";
+import { createLegalSourceApplication } from "../lib/legalSourceApplication";
 import { createLegalLibraryRouter } from "./legalLibrary";
 
 vi.mock("../lib/remoteUrlSafety", async (importOriginal) => ({
@@ -16,18 +17,19 @@ vi.mock("../lib/remoteUrlSafety", async (importOriginal) => ({
 const searchLegalSources = vi.hoisted(() => vi.fn());
 const resolveLegalSource = vi.hoisted(() => vi.fn());
 
-vi.mock("../lib/legalSourceRegistry", async (original) => ({
-  ...(await original<typeof import("../lib/legalSourceRegistry")>()),
-  searchLegalSources,
-  resolveLegalSource,
-}));
+vi.mock("../lib/legalSources", async (original) => {
+  const actual = await original<typeof import("../lib/legalSources")>();
+  return { ...actual, createLegalSourceRegistry: (...args: Parameters<typeof actual.createLegalSourceRegistry>) => ({
+    ...actual.createLegalSourceRegistry(...args), search: searchLegalSources, resolve: resolveLegalSource,
+  }) };
+});
 
 const app = express();
 app.use(express.json());
-app.use("/sources", createLegalLibraryRouter({
+app.use("/sources", createLegalLibraryRouter(createLegalSourceApplication({
   list: vi.fn(async () => []), get: vi.fn(async () => null),
   save: vi.fn(), delete: vi.fn(async () => false),
-} as unknown as LegalSourceStore));
+} as unknown as LegalSourceStore)));
 
 const originalAuthMode = process.env.AUTH_MODE;
 

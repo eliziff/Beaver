@@ -1,3 +1,5 @@
+import type { LegalSourceReference } from "./legalSources";
+
 export type ResourceReference =
   | { kind: "document"; documentId: string; versionId: string }
   | { kind: "source"; provider: string; sourceId: string }
@@ -35,6 +37,13 @@ export const resourceReference = {
   project: (id: string) => `project://${segment(id)}`,
   workflow: (id: string) => `workflow://${segment(id)}`,
 };
+
+export const legalSourceResource = (source: LegalSourceReference) =>
+  resourceReference.source(source.provider, source.provider === "a2aj" ? JSON.stringify([
+    source.id, source.kind === "legislation" ? "laws" : "cases",
+    source.collection ?? "", source.language ?? "en",
+  ]) : JSON.stringify([source.id, source.kind, source.family ?? "", source.part ?? "",
+    source.collection === source.provider ? "" : source.collection ?? "", source.language ?? "en"]));
 
 export function parseResourceReference(raw: string): ResourceReference | null {
   try {

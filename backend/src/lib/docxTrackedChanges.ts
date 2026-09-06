@@ -19,6 +19,8 @@ import {
     ATTR_KEY,
     type XNode,
     cloneNode,
+    createBuilder,
+    ensureXmlDeclaration,
     elAttrs,
     elChildren,
     elName,
@@ -1001,7 +1003,6 @@ function resolveInTree(
     };
 
     for (const top of doc) {
-        if (elName(top) !== "w:document") continue;
         const docKids = elChildren(top);
         setChildren(top, rewrite(docKids));
     }
@@ -1012,18 +1013,14 @@ function resolveInTree(
 function unwrapDelText(n: XNode): XNode {
     const name = elName(n);
     if (!name) return n;
-    if (name === "w:r") {
-        const kids = elChildren(n).map(unwrapDelText);
-        setChildren(n, kids);
-        return n;
-    }
-    if (name === "w:delText") {
+    if (name === "w:delText" || name === "w:delInstrText") {
         const attrs = elAttrs(n);
         return {
-            "w:t": elChildren(n),
+            [name === "w:delText" ? "w:t" : "w:instrText"]: elChildren(n),
             ...(Object.keys(attrs).length ? { [ATTR_KEY]: attrs } : {}),
         };
     }
+    setChildren(n, elChildren(n).map(unwrapDelText));
     return n;
 }
 
@@ -1033,18 +1030,17 @@ export async function resolveTrackedChange(
     mode: "accept" | "reject",
 ): Promise<{ bytes: Buffer; found: boolean }> {
     const session = await openDocxSession(bytes);
-    const document = await session.document();
-    const { tree } = document;
+    const parts = await session.revisionParts();
     const ids = new Set(changeIds.map(String));
-    const present = new Set(document.trackedChanges.map(({ w_id }) => w_id));
+    const present = new Set(parts.flatMap(({ changes }) => changes.map(({ w_id }) => w_id)));
     if (!ids.size || [...ids].some((id) => !present.has(id))) {
         return { bytes, found: false };
     }
-
-    const { found } = resolveInTree(tree, changeIds, mode);
-
-    session.writeDocument(tree);
-    return { bytes: await session.save(), found };
+    for (const { path, tree } of parts) {
+        if (resolveInTree(tree, changeIds, mode).found)
+            session.write(path, ensureXmlDeclaration(createBuilder().build(tree)));
+    }
+    return { bytes: await session.save(), found: true };
 }
 
 /** Apply the host-selected policy to newly written revision wrappers. */

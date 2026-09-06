@@ -20,7 +20,7 @@ const isFragment = (value: unknown): value is Fragment =>
   !!value && typeof value === "object" && fragment in value;
 
 export function sql(
-  strings: TemplateStringsArray,
+  strings: readonly string[],
   ...values: Array<SqlValue | Fragment>
 ): Fragment {
   const params: SqlValue[] = [];
@@ -41,6 +41,5 @@ export function sql(
 
 sql.raw = (text: string): Fragment => ({ text, params: [], [fragment]: true });
 sql.join = (values: Array<SqlValue | Fragment>): Fragment => values.length
-  ? values.map((value) => isFragment(value) ? value : sql`${value}`).reduce((left, right) =>
-    sql`${left},${right}`)
+  ? sql(["", ...Array(values.length - 1).fill(","), ""], ...values)
   : sql.raw("NULL");

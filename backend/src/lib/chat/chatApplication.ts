@@ -4,7 +4,6 @@ import type { BeaverTool } from "./toolRegistry";
 import {
   AssistantStreamError,
   runChatTurn,
-  type AssistantEvent,
   type ChatToolContext,
 } from "./turnEngine";
 import { createChatToolRunner } from "./chatToolRunner";
@@ -17,7 +16,6 @@ import type { FeaturePreferences } from "../userPreferences";
 import {
   CLIENT_WORK_PRODUCT_PRESUMPTION,
   CODING_PRODUCTION_SYSTEM_PROMPT,
-  SPREADSHEET_CITATION_PROMPT,
   jurisdictionPreferencePrompt,
   type JurisdictionPreference,
 } from "./prompts";
@@ -38,19 +36,15 @@ import { compactChatContext } from "./contextCompaction";
 import { formatChatMessageContent } from "./messageFormatting";
 import { projectChatTranscript } from "./chatTranscript";
 import { availableDocumentsPrompt } from "./resourceTools";
-import { normalizeAskInputsEvent } from "./askInputs";
 import {
   createLegalEvidenceTurnState,
+  legalEvidenceReceiptEvent,
   priorLegalEvidencePrompt,
   priorLegalEvidenceReceipts,
   priorLegalResearchQueryReceipts,
   registerPriorLegalResearchQueries,
 } from "./legalEvidence";
-import {
-  READ_SUBAGENT_SYSTEM_PROMPT,
-  resumableReadSubagents,
-  type ReadSubagentEvent,
-} from "./readSubagents";
+import { resumableReadSubagents } from "./readSubagents";
 import { tabularChatContext } from "./tabularContext";
 import { safeErrorLog, safeErrorMessage } from "../safeError";
 import {
@@ -60,14 +54,13 @@ import {
   type ChatStore,
   type ChatTurnCommit,
 } from "../chatStore";
-import type { DocumentStore } from "../documentStore";
+import type { DocumentRecord, DocumentStore } from "../documentStore";
 import type { LibraryStore } from "../libraryStore";
 import { projectDocuments, type ProjectStore } from "../projectStore";
 import type { TabularApplication } from "../tabular/application";
+import type { AssistantEvent, AskInputResponseItem, AskInputsEvent, AskInputsResponseRequest,
+  PublicAssistantEvent, ReadSubagentEvent } from "./assistantEvents";
 import type {
-  AskInputResponseItem,
-  AskInputsEvent,
-  AskInputsResponseRequest,
   ChatMessage,
   DocIndex,
   TabularCellStore,
@@ -75,10 +68,11 @@ import type {
 } from "./types";
 import type { EditMode } from "../docxTrackedChanges";
 import { setChatTurnControl } from "../chatTurns";
-import { jsonRecord as asRecord } from "../value";
 import { wordClientTools, type WordClientCall } from "./wordClientTools";
-import { readResearchFile, researchQueryReceipt, researchQuerySources,
-  saveResearchFile } from "../researchFile";
+import { readResearchFile, pageResearchItems } from "../researchFile";
+import { collectChatResearch, resolveChatFindings } from "../researchChat";
+import { resourceReference } from "../resourceReferences";
+import type { AuditStore } from "../audit";
 
 const uuid = z.string().uuid();
 const userMessage = z.string().trim().min(1).max(200_000);
@@ -176,7 +170,7 @@ type AskInputsSubmission = Extract<
 export type AuthContext = ChatScope;
 export type EventSink = {
   claim(chatId: string): boolean;
-  emit(event: unknown): void;
+  emit(event: PublicAssistantEvent): void;
   setControl(control: Parameters<typeof setChatTurnControl>[2]): void;
 };
 
@@ -208,6 +202,7 @@ export type ChatApplicationFeatures = {
       auth: AuthContext;
       chatId: string;
       projectId: string | null;
+      researchFileId?: string | null;
       provider: string;
       model: string;
       reasoningEffort?: string;
@@ -253,7 +248,9 @@ type Dependencies = {
       "discrepancies" | "build" |
       "addReceipts" | "attachLibraryPdf">;
   courtRecords?: Pick<CourtRecordsApplication, "bindOutput" | "updateDraft">;
-  tabular: Pick<TabularApplication, "detail">;
+  tabular: Pick<TabularApplication, "detail"> & Partial<Pick<TabularApplication,
+    "fromFindings" | "create" | "update" | "generate" | "stop" | "answers" | "history" | "change">>;
+  audit?: AuditStore["record"];
   features: ChatApplicationFeatures;
 };
 
@@ -268,20 +265,17 @@ function pendingAskInputs(messages: ChatMessageRecord[]) {
   let ask: AskInputsEvent | null = null;
   let response: AskInputsResponseRequest | null = null;
   let failed = false, mutationCommitted = false;
-  for (const value of assistant.content) {
-    const event = asRecord(value);
-    if (event?.type === "ask_inputs") {
-      const normalized = normalizeAskInputsEvent(event);
-      ask = normalized.items.length ? normalized : null;
+  for (const event of assistant.content) {
+    if (event.type === "ask_inputs") {
+      ask = event.items.length ? event : null;
       response = null; failed = false; mutationCommitted = false;
-    } else if (event?.type === "ask_inputs_response" && ask) {
-      response = { responses: Array.isArray(event.responses)
-        ? event.responses as AskInputResponseItem[] : [] };
+    } else if (event.type === "ask_inputs_response" && ask) {
+      response = { responses: event.responses };
       failed = false; mutationCommitted = false;
-    } else if (response && event?.type === LOCAL_MUTATION_COMMITTED_EVENT) {
+    } else if (response && event.type === LOCAL_MUTATION_COMMITTED_EVENT) {
       mutationCommitted = true;
-    } else if (response && (event?.type === "error" ||
-      (event?.type === "turn_status" && event.status === "cancelled"))) {
+    } else if (response && (event.type === "error" ||
+      (event.type === "turn_status" && event.status === "cancelled"))) {
       failed = true;
     }
   }
@@ -330,9 +324,9 @@ function normalTurnState(messages: ChatMessageRecord[], turnId: string) {
   return {
     user,
     assistant,
-    completed: events.some((event) => asRecord(event)?.type === LOCAL_TURN_COMPLETED_EVENT),
+    completed: events.some((event) => event.type === LOCAL_TURN_COMPLETED_EVENT),
     mutationCommitted: events.some((event) =>
-      asRecord(event)?.type === LOCAL_MUTATION_COMMITTED_EVENT),
+      event.type === LOCAL_MUTATION_COMMITTED_EVENT),
   };
 }
 
@@ -356,40 +350,30 @@ async function loadDocumentContext(
     ? await projectDocuments(deps.projects, auth, projectId)
     : [];
   if (projectId && !records) throw new ChatApplicationError(404, "Project not found");
-  const byId = new Map<string, Record<string, unknown>>();
-  for (const record of records ?? []) if (typeof record.id === "string") {
-    byId.set(record.id, record);
-  }
+  const byId = new Map((records ?? []).map((record) => [record.id, record]));
   const ids = new Set<string>(selectedIds);
   for (const message of messages) {
     for (const file of Array.isArray(message.files)
       ? message.files as { document_id?: unknown }[] : []) {
       if (typeof file.document_id === "string") ids.add(file.document_id);
     }
-    for (const event of Array.isArray(message.content)
-      ? message.content as Record<string, unknown>[] : []) {
-      if (event.type === "document_artifact" &&
-          typeof event.document_id === "string") ids.add(event.document_id);
+    for (const event of Array.isArray(message.content) ? message.content : []) {
+      if (event.type === "document_artifact") ids.add(event.document_id);
     }
   }
-  for (const id of ids) if (!byId.has(id)) {
-    const details = await deps.documents.metadata(auth, id);
-    if (details) byId.set(id, details);
-  }
+  for (const details of await deps.documents.metadataMany(auth, [...ids].filter((id) => !byId.has(id))))
+    byId.set(details.id, details);
   if (selectedIds.some((id) => !byId.has(id))) {
     throw new ChatApplicationError(400, "Selected document is unavailable");
   }
   const docIndex: DocIndex = {};
   let index = 0;
   for (const [id, record] of byId) {
-    const filename = String(record.filename ?? "Untitled document").trim();
     docIndex[`doc-${index++}`] = {
       document_id: id,
-      filename,
-      version_id: typeof record.current_version_id === "string"
-        ? record.current_version_id : null,
-      version_number: typeof record.active_version_number === "number"
-        ? record.active_version_number : null,
+      filename: record.filename.trim(),
+      version_id: record.current_version_id,
+      version_number: record.active_version_number,
     };
   }
   return { records: byId, docIndex, allowed: new Set(byId.keys()) };
@@ -399,11 +383,11 @@ async function loadImages(
   documents: DocumentStore,
   auth: AuthContext,
   messages: ChatMessage[],
-  records: Map<string, Record<string, unknown>>,
+  records: Map<string, DocumentRecord>,
 ) {
   const ids = new Set(messages.flatMap((message) => (message.files ?? [])
     .flatMap((file) =>
-      isImageDocumentType(String(records.get(file.document_id)?.file_type ?? ""))
+      isImageDocumentType(records.get(file.document_id)?.file_type ?? "")
       ? [file.document_id] : [])));
   if (ids.size > MAX_CHAT_IMAGES) {
     throw new ChatApplicationError(400,
@@ -428,6 +412,29 @@ function imageForMessage(message: ChatMessage, images: Map<string, LlmImage>) {
 
 export function createChatApplication(deps: Dependencies) {
   return {
+    async create(auth: AuthContext, input: { projectId: string | null; tabularReviewId: string | null;
+      researchFileId?: string | null }) {
+      const file = input.researchFileId ? await readResearchFile(deps.documents, auth, input.researchFileId) : null;
+      if (input.researchFileId && !file) throw new ChatApplicationError(404, "Research workspace not found");
+      if (file?.document.project_id && input.projectId && file.document.project_id !== input.projectId)
+        throw new ChatApplicationError(400, "Workspace belongs to another project");
+      const chat = await deps.chats.create(auth, { ...input,
+        projectId: input.tabularReviewId ? null : file?.document.project_id ?? input.projectId });
+      if (file) await collectChatResearch(deps.documents, auth, file.document.id, chat.id, [], file);
+      return chat;
+    },
+    async table(auth: AuthContext, input: { chatId: string; researchFileId: string; messageIds?: string[] }) {
+      const resolved = await resolveChatFindings(deps.chats, deps.documents, auth, input);
+      if (!deps.tabular.fromFindings) throw new ChatApplicationError(503, "Tabular review is unavailable");
+      return deps.tabular.fromFindings(auth, resolved);
+    },
+    async researchAnswers(auth: AuthContext, input: { chatId: string; researchFileId: string;
+      sourceIds?: string[]; offset: number; limit: number }) {
+      const result = await resolveChatFindings(deps.chats, deps.documents, auth, { ...input, readOnly: true }),
+        answers = result.findings.filter((finding) => !input.sourceIds || input.sourceIds.includes(finding.sourceId));
+      return { items: answers.slice(input.offset, input.offset + input.limit), total: answers.length,
+        next_offset: input.offset + input.limit < answers.length ? input.offset + input.limit : null };
+    },
     async promoteResearchFile(auth: AuthContext, input: ResearchFilePromotionInput) {
       const [chat, rows, file] = await Promise.all([deps.chats.get(auth, input.chatId),
         deps.chats.transcript(auth, input.chatId),
@@ -439,13 +446,9 @@ export function createChatApplication(deps: Dependencies) {
         throw new ChatApplicationError(409, "This research file is unavailable or changed");
       const events = rows.filter(({ role }) => role === "assistant").flatMap(({ content }) =>
         Array.isArray(content) ? content : []);
-      const evidence = priorLegalEvidenceReceipts(events), searched =
-        priorLegalResearchQueryReceipts(events), sources = researchQuerySources(searched),
-        queries = input.includeQueries ? searched.map(researchQueryReceipt) : [];
-      if (!evidence.length && !queries.length && !sources.length) return file;
-      const saved = await saveResearchFile(deps.documents, auth, file.document.id, file.versionId,
-        file.workingRevision, { type: "merge", evidence, queries, sources });
-      if (!saved) throw new ChatApplicationError(409, "This research file changed. Reload it.");
+      const saved = await collectChatResearch(deps.documents, auth, file.document.id, chat.id, events, file,
+        { audit: deps.audit, executor: "human", chatId: chat.id });
+      await deps.chats.update(auth, chat.id, { researchFileId: file.document.id });
       return saved;
     },
 
@@ -534,7 +537,14 @@ export function createChatApplication(deps: Dependencies) {
         ? input.current_turn.files ?? []
         : input.current_turn.responses.flatMap((response) =>
             response.kind === "documents" ? response.documents : []);
+      const tabularDetail = tabularReviewId ? await deps.tabular.detail(auth, tabularReviewId) : null;
+      if (tabularReviewId && !tabularDetail) throw new ChatApplicationError(404, "Review not found");
+      const researchFileId = chat?.research_file_id ?? tabularDetail?.review.scope_config?.research_file_id,
+        research = researchFileId ? await readResearchFile(deps.documents, auth, researchFileId) : null;
+      if (researchFileId && !research) throw new ChatApplicationError(404, "Research workspace not found");
       const requested = [
+        ...(research ? [research.document.id, ...Object.values(research.state.sources).flatMap(({ reference }) =>
+          reference.kind === "document" ? [reference.id] : [])] : []),
         ...turnFiles.map(({ document_id }) => document_id),
         ...(input.displayed_doc ? [input.displayed_doc.document_id] : []),
       ];
@@ -545,11 +555,6 @@ export function createChatApplication(deps: Dependencies) {
         document_id: file.document_id,
         filename: String(context.records.get(file.document_id)?.filename),
       }));
-      const tabularDetail = tabularReviewId
-        ? await deps.tabular.detail(auth, tabularReviewId) : null;
-      if (tabularReviewId && !tabularDetail) {
-        throw new ChatApplicationError(404, "Review not found");
-      }
       const tabular = tabularDetail ? tabularChatContext(tabularDetail) : undefined;
       const features = await deps.features.load(auth);
       const submittedWorkflow = input.current_turn.kind === "message"
@@ -630,12 +635,9 @@ export function createChatApplication(deps: Dependencies) {
           retry = true;
           assistant = prior.assistant;
           assistantContent = Array.isArray(assistant?.content)
-            ? assistant.content.filter((event) => {
-                const row = asRecord(event);
-                return row?.type === "subagent_run" &&
-                  (row.status === "interrupted" || row.status === "running" || row.status === "error") &&
-                  !!asRecord(row.resume);
-              }) : [];
+            ? assistant.content.filter((event) => event.type === "subagent_run" &&
+                (event.status === "interrupted" || event.status === "running" || event.status === "error") &&
+                event.resume) : [];
           assistantCitations = [];
           commit = {
             expectedVersion: input.expected_version,
@@ -672,9 +674,15 @@ export function createChatApplication(deps: Dependencies) {
         files: canonicalFiles,
         workflow: canonicalWorkflow,
       });
+      const researchEvidence = research ? await pageResearchItems(deps.documents, auth, research, "passages", 0, 100) : null,
+        researchQueries = research ? await pageResearchItems(deps.documents, auth, research, "queries", 0, 50) : null;
       const priorEvents = rows.flatMap((row) => Array.isArray(row.content) ? row.content : []),
-        priorEvidenceReceipts = priorLegalEvidenceReceipts(priorEvents),
-        priorQueries = priorLegalResearchQueryReceipts(priorEvents),
+        priorEvidenceReceipts = [...new Map([...priorLegalEvidenceReceipts(priorEvents),
+          ...(researchEvidence?.items.flatMap((item) => item.kind === "passage" ? [item.value.receipt] : []) ?? [])]
+          .map((receipt) => [receipt.evidence_id, receipt])).values()],
+        priorQueries = [...new Map([...priorLegalResearchQueryReceipts(priorEvents),
+          ...(researchQueries?.items.flatMap((item) => item.kind === "query" ? [item.value] : []) ?? [])]
+          .map((receipt) => [receipt.query_id, receipt])).values()],
         evidenceState = createLegalEvidenceTurnState();
       registerPriorLegalResearchQueries(evidenceState, priorQueries);
       const images = await loadImages(deps.documents, auth, messages, context.records);
@@ -692,26 +700,23 @@ export function createChatApplication(deps: Dependencies) {
             `- ${JSON.stringify(context.records.get(document_id)?.filename)}`),
         ] : []),
       ];
-      const hasSpreadsheet = [...context.records.values()].some((record) =>
-        /\.(?:xlsx|xlsm|xls|csv|ods)$/iu.test(String(record.filename ?? "")));
       const systemPrompt = [
         CODING_PRODUCTION_SYSTEM_PROMPT,
         CLIENT_WORK_PRODUCT_PRESUMPTION,
-        input.subagent_mode === "beaver" ? READ_SUBAGENT_SYSTEM_PROMPT : "",
         jurisdictionPreferencePrompt(input.jurisdiction_preference ?? null),
         features.personalisationPrompt,
         priorLegalEvidencePrompt(priorEvidenceReceipts, priorQueries),
         tabular?.prompt,
+        research ? `CURRENT RESEARCH WORKSPACE: ${resourceReference.document(research.document.id, research.versionId)}\n` +
+          `Read this workspace for its labels, saved sources, passages, searches, memo, and change history. Page through Read for more results.\n` +
+          `Choose useful sets, labels, question columns, or a table arrangement for the user's task. Apply reversible work within the request; propose suggestions and material changes beyond that scope for review.\n` +
+          `Linked tables: ${(research.state.tables ?? []).join(", ") || "none"}. Use update_research_table to create or organize a table and read_table_cells to read its supported answers.` : "",
         focus.length ? `CURRENT MATTER FOCUS:\n${focus.join("\n")}` : "",
         availableDocumentsPrompt(context.docIndex, context.records, requested),
-        hasSpreadsheet ? SPREADSHEET_CITATION_PROMPT : "",
         input.word_context ? [
           `ACTIVE WORD DOCUMENT: ${JSON.stringify(input.word_context.document_name)}`,
           "This live document is available only through read_active_document and " +
-            "apply_word_edits; it is not a Library document. Read the relevant live " +
-            "text before relying on or editing it. In Review mode edits become native " +
-            "Word tracked changes for the user to accept or reject. In Direct mode they " +
-            "are ordinary Word edits. Never claim an edit succeeded unless the tool did.",
+            "apply_word_edits; it is not a Library document.",
         ].join("\n") : "",
       ].filter(Boolean).join("\n\n");
 
@@ -719,7 +724,7 @@ export function createChatApplication(deps: Dependencies) {
         throw new ChatApplicationError(400, "The Word document bridge is unavailable");
       }
 
-      if (!chat) chat = await deps.chats.create(auth, { projectId, tabularReviewId });
+      if (!chat) chat = await deps.chats.create(auth, { projectId, tabularReviewId, researchFileId });
       if (!sink.claim(chat.id)) {
         conflict("chat_turn_in_progress", chat.transcript_version,
           "A response is already running");
@@ -732,6 +737,7 @@ export function createChatApplication(deps: Dependencies) {
       let version = claimed.currentVersion;
       chat = await deps.chats.update(auth, chat.id, {
         model: selectedModel,
+        ...(researchFileId ? { researchFileId } : {}),
         reasoningEffort: input.reasoning_effort ?? null,
       }) ?? chat;
       await execution?.onAccepted?.(chat.id);
@@ -743,18 +749,31 @@ export function createChatApplication(deps: Dependencies) {
         content: assistantContent,
       };
 
-      let persistence: Promise<void> | undefined, pendingContent: unknown[] | undefined,
+      let persistence: Promise<void> | undefined, pendingContent: AssistantEvent[] | undefined,
         chatAvailable = true, nextCheckpoint = 0;
       let localTools!: ReturnType<typeof createChatToolRunner>;
+      const currentWorkspace = async () => {
+        const current = await deps.chats.get(auth, chat!.id), id = current?.research_file_id;
+        return id ? readResearchFile(deps.documents, auth, id) : null;
+      };
       localTools = createChatToolRunner({
         userId: auth.userId,
         userEmail: auth.userEmail,
         model: selectedModel,
         turnId,
+        chatId: chat.id,
+        audit: deps.audit,
+        onResearchWorkspace: async (documentId, state) => {
+          await deps.chats.update(auth, chat!.id, { researchFileId: documentId });
+          const observation = state && legalEvidenceReceiptEvent({ ...state, answer: null, failure: null });
+          return collectChatResearch(deps.documents, auth, documentId, chat!.id,
+            [...priorEvents, ...(observation ? [observation] : [])], undefined,
+            { audit: deps.audit, executor: "assistant", model: selectedModel, chatId: chat!.id, turnId });
+        },
         projectId,
         allowedDocumentIds: context.allowed,
         documentNames: new Map([...context.records].map(([id, record]) => [
-          id, String(record.filename ?? "Untitled document"),
+          id, record.filename,
         ])),
         docIndex: Object.keys(context.docIndex).length ? context.docIndex : undefined,
         documents: deps.documents,
@@ -777,6 +796,17 @@ export function createChatApplication(deps: Dependencies) {
           ? input.work_product.revision : undefined,
         workflows: features.workflows,
         tabular: tabular?.store as TabularCellStore | undefined,
+        researchTables: deps.tabular.create && deps.tabular.update && deps.tabular.generate && deps.tabular.stop &&
+          deps.tabular.answers && deps.tabular.history && deps.tabular.change
+          ? { application: { detail: deps.tabular.detail, create: deps.tabular.create,
+            update: deps.tabular.update, generate: deps.tabular.generate, stop: deps.tabular.stop,
+            answers: deps.tabular.answers, history: deps.tabular.history, change: deps.tabular.change },
+            getWorkspace: currentWorkspace } : undefined,
+        resolveTabular: async (reviewId) => {
+          if (!(await currentWorkspace())?.state.tables?.includes(reviewId)) return null;
+          const detail = await deps.tabular.detail(auth, reviewId);
+          return detail ? tabularChatContext(detail).store : null;
+        },
         editMode: input.edit_mode as EditMode,
         timeZone: input.time_zone,
         entries: [
@@ -806,18 +836,23 @@ export function createChatApplication(deps: Dependencies) {
         contextCheckpoint: message.contextCheckpoint,
       }));
       const assistantId = assistant?.id ?? randomUUID();
-      function queuePersist(events: unknown[], citations: unknown[] = [], force = false) {
+      let researchPersistence = Promise.resolve();
+      const saveResearchObservations = async (events: AssistantEvent[]) => {
+        const current = await deps.chats.get(auth, chat!.id);
+        if (current?.research_file_id) await collectChatResearch(deps.documents, auth, current.research_file_id,
+          current.id, events, undefined, { audit: deps.audit, executor: "assistant",
+            model: selectedModel, chatId: current.id, turnId });
+      };
+      const collectResearch = async () => { await researchPersistence; await saveResearchObservations(assistantContent); };
+      function queuePersist(events: AssistantEvent[], citations: unknown[] = [], force = false) {
         for (const event of events) {
-          const row = asRecord(event);
-          const index = typeof row?.id === "string" && REPLACEABLE_EVENT_TYPES.has(String(row.type))
-            ? assistantContent.findIndex((value) => {
-                const current = asRecord(value);
-                return current?.type === row.type && current?.id === row.id;
-              }) : -1;
-          const previous = index < 0 ? undefined : asRecord(assistantContent[index]);
+          const index = "id" in event && REPLACEABLE_EVENT_TYPES.has(event.type)
+            ? assistantContent.findIndex((current) => current.type === event.type &&
+                "id" in current && current.id === event.id) : -1;
+          const previous = assistantContent[index];
           if (index < 0) assistantContent.push(event); else assistantContent[index] = event;
-          force ||= row?.type === "subagent_run" &&
-            (index < 0 || row.status !== "running" || Boolean(row.resume && !previous?.resume));
+          force ||= event.type === "subagent_run" && (index < 0 || event.status !== "running" ||
+            Boolean(event.resume && !(previous?.type === "subagent_run" && previous.resume)));
         }
         assistantCitations.push(...citations);
         if (!force && performance.now() < nextCheckpoint) return persistence;
@@ -850,6 +885,7 @@ export function createChatApplication(deps: Dependencies) {
           auth,
           chatId: chat.id,
           projectId,
+          researchFileId: research?.document.id,
           provider: responseProvider,
           model: selectedModel,
           reasoningEffort: input.reasoning_effort,
@@ -859,8 +895,12 @@ export function createChatApplication(deps: Dependencies) {
         console.warn("[chat] provider continuation unavailable", safeErrorLog(error));
       }
       let activeContinuationId = execution?.continuationId ?? providerSession?.continuationId;
-      const onSubagentEvent = (event: ReadSubagentEvent) =>
-        void queuePersist([event])?.catch(() => undefined);
+      const onSubagentEvent = (event: ReadSubagentEvent) => {
+        const saved = queuePersist([event]);
+        if (event.status === "completed") void saved?.then(collectResearch).catch((error) =>
+          console.error("[research] subagent results remain in the chat", safeErrorLog(error)));
+        else void saved?.catch(() => undefined);
+      };
       try {
         sink.emit({ type: "chat_id", chatId: chat.id, transcriptVersion: version });
         const result = await runChatTurn({
@@ -868,9 +908,13 @@ export function createChatApplication(deps: Dependencies) {
           systemPrompt,
           messages: modelMessages,
           createTools: localTools.createTools,
+          onResearchObserved: (receipt) => {
+            researchPersistence = researchPersistence.then(() => saveResearchObservations([receipt])).catch((error) =>
+              console.error("[research] observed passages remain in the chat", safeErrorLog(error)));
+          },
           emit: (event) => {
             sink.emit(event);
-            if (asRecord(event)?.type === "tool_activity")
+            if (event.type === "tool_activity")
               void queuePersist([event])?.catch(() => undefined);
           },
           apiKeys: features.apiKeys,
@@ -916,7 +960,7 @@ export function createChatApplication(deps: Dependencies) {
         });
         activeContinuationId = result.continuationId ?? activeContinuationId;
         await persistence;
-        const events: unknown[] = result.events.filter(({ type }) => !TRANSIENT_EVENT_TYPES.has(type));
+        const events = result.events.filter(({ type }) => !TRANSIENT_EVENT_TYPES.has(type));
         if (!result.fullText && !result.events.some(({ type }) => [
           "content", "document_artifact", "workflow_run",
         ].includes(type)) && result.status !== "paused") {
@@ -924,6 +968,7 @@ export function createChatApplication(deps: Dependencies) {
         }
         events.push({ type: LOCAL_TURN_COMPLETED_EVENT, schema_version: 1 });
         await queuePersist(events, result.citations, true);
+        await collectResearch();
         if (!chat.title) {
           const lastUser = [...messages].reverse().find(({ role }) => role === "user");
           if (lastUser?.content) {
@@ -954,6 +999,8 @@ export function createChatApplication(deps: Dependencies) {
           ], [], true)?.catch((persistError) => console.error(
             "[chat] failed to persist model error", safeErrorLog(persistError),
           ));
+          await collectResearch().catch((error) =>
+            console.error("[research] interrupted results remain in the chat", safeErrorLog(error)));
           await providerSession?.save(activeContinuationId, version);
         }
         deps.features.audit?.(auth, {

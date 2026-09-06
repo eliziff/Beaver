@@ -2,20 +2,14 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { ContextualWorkflowLauncher } from "../workflows/ContextualWorkflowPicker";
 import type { WorkflowDocument } from "../workflows/ContextualWorkflowPicker";
-import type {
-  Citation,
-  EditAnnotation,
-  EditResolveHandlers,
-} from "../shared/types";
-import {
-  expandCitationToEntries,
-  getDocumentCitationQuotes,
-  isDocxFilename,
-  isSpreadsheetFilename,
-} from "../shared/types";
+import { type Citation, expandCitationToEntries, getDocumentCitationQuotes } from "@/app/lib/citations";
+import { type EditAnnotation, type EditResolveHandlers, downloadDocument } from "@/app/lib/api/documents";
+
+import { isDocxFilename, isSpreadsheetFilename } from "@/app/lib/documentFilename";
 import { DocumentViewer } from "../shared/views/DocumentViewer";
 import { Button } from "../ui/button";
-import { downloadDocument, getResearchFile } from "../../lib/beaverApi";
+
+import { getResearchFile } from "@/app/lib/api/researchFiles";
 import { downloadBlob } from "../../lib/download";
 import { useEditResolution } from "./EditCard";
 import type { ResearchFile } from "../../lib/researchFiles";
@@ -68,9 +62,7 @@ export function DocPanel({
   onScrollChange?: (scrollTop: number) => void;
   onOpenWorkflows?: (documents: WorkflowDocument[]) => void;
 }) {
-  const [version, setVersion] = useState({ source: versionId, value: versionId });
   const [downloading, setDownloading] = useState(false);
-  const activeVersion = version.source === versionId ? version.value : versionId;
   const documentQuotes = mode.kind === "citation"
     ? getDocumentCitationQuotes(mode.citation)
     : undefined;
@@ -86,7 +78,7 @@ export function DocPanel({
     if (downloading || isReloading) return;
     setDownloading(true);
     try {
-      const result = await downloadDocument(documentId, activeVersion);
+      const result = await downloadDocument(documentId, versionId);
       downloadBlob(result.blob, result.filename ?? filename);
     } finally {
       setDownloading(false);
@@ -106,10 +98,6 @@ export function DocPanel({
           <ContextualWorkflowLauncher
             documents={[{ id: documentId, filename, project_id: projectId }]}
             onOpen={onOpenWorkflows}
-            onDocumentChanged={(result) => setVersion({
-              source: versionId,
-              value: result.version_id,
-            })}
           />
           <Button variant="outline" size="compact" onClick={() => void download()} disabled={downloading || isReloading}>
             {downloading || isReloading
@@ -126,7 +114,7 @@ export function DocPanel({
           kind={isDocxFilename(filename)
             ? "docx"
             : isSpreadsheetFilename(filename) ? "spreadsheet" : "pdf"}
-          versionId={activeVersion}
+          versionId={versionId}
           quotes={mode.kind === "citation"
             ? expandCitationToEntries(mode.citation)
             : undefined}

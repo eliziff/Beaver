@@ -9,7 +9,7 @@ import {
     getSessionModelCatalog,
     preloadModelCatalog,
 } from "@/app/lib/modelCatalog";
-import type { ModelCatalog } from "@/app/lib/beaverApi";
+import type { ModelCatalog } from "@/app/lib/api/account";
 import { Switch } from "@/app/components/ui/switch";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
 

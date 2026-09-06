@@ -1,18 +1,21 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Bot, BookOpenText, Folder, PanelRightClose, PanelRightOpen, X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { ASSISTANT_DOCK_CLASS } from "./assistantDockLayout";
 import { Tabs } from "@/app/components/ui/tabs";
 import { LibrarySkeuoIcon, WorkflowSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
+import { ReaderExpandButton } from "../shared/ReaderExpandButton";
+import { useReaderExpansion } from "../shared/useReaderExpansion";
 
-const compactDock = "(max-width: 1279px)";
 const widthProperty = "--assistant-dock-width";
 
 export type AssistantDockTab = {
     id: string;
     label: string;
+    title?: ReactNode;
     icon?: ReactNode;
     actions?: ReactNode;
+    readerExpansion?: boolean;
     content: ReactNode;
 };
 
@@ -28,7 +31,7 @@ export function AssistantDock({
     showCollapsedButton = true,
     defaultWidth = 520,
     minWidth = 360,
-    maxWidth = "calc(100% - 36rem)",
+    maxWidth = "max(45%, calc(100% - 36rem))",
 }: {
     tabs: AssistantDockTab[];
     activeTabId: string;
@@ -44,31 +47,23 @@ export function AssistantDock({
     maxWidth?: string;
 }) {
     const [width, setWidth] = useState(defaultWidth);
-    const [compact, setCompact] = useState(() => window.matchMedia?.(compactDock).matches ?? false);
     const resizeStart = useRef<{
         x: number; width: number; min: number; max: number; next: number;
     } | null>(null);
     const dock = useRef<HTMLElement>(null);
-    const changeExpanded = useRef(onExpandedChange);
+    const reader = useReaderExpansion(dock, expanded);
     const singleTitleId = useId();
     const active = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
     const workspaceOnly = tabs.length === 1 && active?.label === "Workspace";
+    const canExpandReader = reader.expanded || (active?.readerExpansion ??
+        active?.id === "sources");
     const [visited, setVisited] = useState(() => new Set(expanded && active ? [active.id] : []));
-    changeExpanded.current = onExpandedChange;
 
     useEffect(() => {
         if (expanded && active && !visited.has(active.id)) {
             setVisited((ids) => new Set(ids).add(active.id));
         }
     }, [active, expanded, visited]);
-
-    useEffect(() => {
-        const media = window.matchMedia?.(compactDock);
-        if (!media) return;
-        const update = () => setCompact(media.matches);
-        media.addEventListener?.("change", update);
-        return () => media.removeEventListener?.("change", update);
-    }, []);
 
     function measuredWidths() {
         const panel = dock.current;
@@ -107,54 +102,6 @@ export function AssistantDock({
             finish(false);
         };
     }, []);
-
-    useLayoutEffect(() => {
-        const panel = dock.current;
-        if (!expanded || !compact || !panel) return;
-        const root = document.documentElement;
-        const previousRootGutter = root.style.scrollbarGutter;
-        root.style.scrollbarGutter = "auto";
-        const parent = panel.parentElement;
-        const previousFocus = document.activeElement as HTMLElement | null;
-        const siblings = parent ? [...parent.children].filter((node) => node !== panel) as HTMLElement[] : [];
-        const previousOverflow = parent?.style.overflow ?? "";
-        const previousState = siblings.map((node) => ({
-            node, inert: node.inert, hidden: node.getAttribute("aria-hidden"),
-        }));
-        siblings.forEach((node) => { node.inert = true; node.setAttribute("aria-hidden", "true"); });
-        if (parent) parent.style.overflow = "hidden";
-        const controls = () => [...panel.querySelectorAll<HTMLElement>(
-            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])',
-        )].filter((node) => node.getAttribute("role") !== "separator" && !node.closest('[aria-hidden="true"]'));
-        (panel.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]') ?? controls()[0] ?? panel).focus();
-        const trapFocus = (event: KeyboardEvent) => {
-            if (event.key === "Escape") {
-                const dialog = event.target instanceof Element
-                    ? event.target.closest('dialog, [role="dialog"], [role="alertdialog"]') : null;
-                if (dialog && dialog !== panel) return;
-                event.preventDefault();
-                changeExpanded.current(false);
-                return;
-            }
-            if (event.key !== "Tab") return;
-            const items = controls();
-            const first = items[0], last = items.at(-1);
-            if (!first || !last) return;
-            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-        };
-        panel.addEventListener("keydown", trapFocus);
-        return () => {
-            root.style.scrollbarGutter = previousRootGutter;
-            panel.removeEventListener("keydown", trapFocus);
-            previousState.forEach(({ node, inert, hidden }) => {
-                node.inert = inert;
-                if (hidden === null) node.removeAttribute("aria-hidden"); else node.setAttribute("aria-hidden", hidden);
-            });
-            if (parent) parent.style.overflow = previousOverflow;
-            previousFocus?.focus();
-        };
-    }, [compact, expanded]);
 
     if (!active) return null;
     const expandButton = !expanded && showCollapsedButton ? (
@@ -201,14 +148,11 @@ export function AssistantDock({
     </div>;
     return <>
         {expandButton}
-        {expanded && compact && <div data-assistant-backdrop aria-hidden="true"
-            className="fixed inset-0 z-[99] bg-gray-950/20" />}
         <aside
             ref={dock}
             tabIndex={-1}
             data-assistant-dock
-            role={expanded && compact ? "dialog" : undefined}
-            aria-modal={expanded && compact || undefined}
+            {...reader.dialogProps}
             aria-label={workspaceOnly ? "Workspace" : "Assistant dock"}
             aria-hidden={!expanded}
             inert={!expanded ? true : undefined}
@@ -216,7 +160,8 @@ export function AssistantDock({
                 expanded ? "@container flex min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg" : "hidden",
                 ASSISTANT_DOCK_CLASS,
             )}
-            style={{ [widthProperty]: `${width}px`, "--assistant-dock-max-width": maxWidth } as CSSProperties}
+            style={{ [widthProperty]: `${width}px`, "--assistant-dock-max-width": maxWidth,
+                ...reader.style } as CSSProperties}
         >
             <div
                 role="separator"
@@ -238,13 +183,13 @@ export function AssistantDock({
                     setWidth(Math.max(measured.min, Math.min(measured.max,
                         measured.current + (event.key === "ArrowLeft" ? 24 : -24))));
                 }}
-                className="absolute inset-y-0 start-0 z-20 hidden w-1 cursor-col-resize bg-transparent hover:bg-gray-300 focus-visible:bg-gray-400 focus-visible:outline-none xl:block"
+                className="absolute inset-y-0 start-0 z-20 w-1 cursor-col-resize bg-transparent hover:bg-gray-300 focus-visible:bg-gray-400 focus-visible:outline-none"
             />
             {tabs.length === 1 ? <div className="flex h-full min-h-0 flex-col">
-                <div data-tabs-rail className="flex min-h-12 shrink-0 items-center gap-2 border-b border-gray-200 px-3 pe-12 py-1.5">
+                <div data-tabs-rail className={cn("flex min-h-12 shrink-0 items-center gap-2 border-b border-gray-200 px-3 py-1.5", canExpandReader ? "pe-22" : "pe-12")}>
                     <span id={singleTitleId} className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm font-semibold text-gray-900">
-                        <span className="inline-flex shrink-0">{active.icon ?? dockIcon(active.id)}</span>
-                        <span className="truncate">{active.label}</span>
+                        {active.title ?? <><span className="inline-flex shrink-0">{active.icon ?? dockIcon(active.id)}</span>
+                        <span className="truncate">{active.label}</span></>}
                     </span>
                     {active.actions && <span data-tabs-actions className="flex min-w-0 max-w-[55%] shrink items-center justify-end overflow-hidden">
                         {active.actions}
@@ -262,20 +207,23 @@ export function AssistantDock({
                         <span className="truncate @max-[25rem]:sr-only">{label}</span>
                     </span> }))}
                 ariaLabel="Assistant panels"
-                variant="dock" actions={<span className="flex w-9 justify-end overflow-hidden">
+                variant="dock" actions={active.actions && <span className="flex justify-end">
                     {active.actions}
                 </span>} className="h-full"
-                railClassName="pe-12"
+                railClassName={canExpandReader ? "pe-22" : "pe-12"}
             >
                 {panel}
             </Tabs>}
+            {canExpandReader && <span className="absolute end-12 top-2 z-10">
+                <ReaderExpandButton expanded={reader.expanded} onChange={reader.onChange} />
+            </span>}
             <button
                 type="button"
                 onClick={() => onExpandedChange(false)}
                 className="absolute end-2 top-1.5 z-10 grid size-9 place-items-center rounded-md border border-gray-200 bg-app-surface text-gray-700 hover:bg-app-floating focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
                 aria-label={workspaceOnly
-                    ? compact ? "Close workspace" : "Collapse workspace"
-                    : compact ? "Close assistant" : "Collapse assistant dock"}
+                    ? "Collapse workspace"
+                    : "Collapse assistant dock"}
             >
                 <PanelRightClose className="size-4" aria-hidden="true" />
             </button>

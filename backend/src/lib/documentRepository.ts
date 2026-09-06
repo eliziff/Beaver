@@ -42,6 +42,7 @@ export type DocumentRepository = {
     Promise<"ok" | "project-missing" | "folder-missing">;
   create(scope: DocumentScope, input: CreateDocumentMetadata): Promise<boolean>;
   head(scope: DocumentScope, id: string, owner?: boolean): Promise<DocumentHead | null>;
+  heads(scope: DocumentScope, ids: string[], owner?: boolean): Promise<DocumentHead[]>;
   get(scope: DocumentScope, id: string, owner?: boolean): Promise<DocumentAggregate | null>;
   version(scope: DocumentScope, id: string, versionId: string | null):
     Promise<StoredDocumentVersion | null>;

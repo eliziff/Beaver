@@ -1,6 +1,7 @@
 import {
   legalEvidenceCitationGroups,
   legalEvidenceCitationGroupsFromEntries,
+  legalEvidenceSourceReference,
   type LegalEvidenceTurnState,
   type RegisteredEvidence,
 } from "./legalEvidence";
@@ -65,15 +66,6 @@ function citationsFromGroups(
           locator_separator: presentation.locator.separator,
         }),
       };
-      if (receipt.tabular) {
-        return [{
-          kind: "tabular" as const,
-          ref: group.ref,
-          ...receipt.tabular,
-          quotes,
-          ...display,
-        }];
-      }
       if (receipt.provider === "library") {
         return [{
           kind: "document" as const,
@@ -84,35 +76,20 @@ function citationsFromGroups(
           quotes,
           ...display,
           ...locator,
+          ...(receipt.locator.sheet && { sheet: receipt.locator.sheet }),
+          ...(receipt.locator.cells && { cells: receipt.locator.cells }),
         }];
       }
-      if (receipt.provider === "journal") {
-        const identifier = receipt.stable_source_id.startsWith("journal:")
-          ? receipt.stable_source_id.slice("journal:".length)
-          : receipt.stable_source_id;
-        return [{
-          kind: "public_legal" as const,
-          ref: group.ref,
-          provider: "journal" as const,
-          identifier,
-          title: receipt.name,
-          citation: receipt.citation,
-          url: presentation.passageUrl,
-          external_url: presentation.sourceUrl,
-          source_class: receipt.source_class,
-          quotes,
-          ...display,
-          ...locator,
-        }];
-      }
-      if (["courtlistener", "tna", "govuk-et", "govinfo", "hansard"].includes(
+      if (["journal", "courtlistener", "tna", "govuk-et", "govinfo", "hansard"].includes(
         receipt.provider,
       )) {
         return [{
           kind: "public_legal" as const,
           ref: group.ref,
           provider: receipt.provider,
-          identifier: receipt.stable_source_id,
+          identifier: legalEvidenceSourceReference(receipt)?.id ??
+            (receipt.provider === "journal" ? receipt.stable_source_id.replace(/^journal:/u, "")
+              : receipt.stable_source_id),
           title: receipt.name,
           citation: receipt.citation,
           url: presentation.passageUrl,

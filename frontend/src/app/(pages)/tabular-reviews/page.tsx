@@ -4,11 +4,14 @@ import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
 import { ProjectSectionTabs, useProjectWorkspace } from "@/app/components/projects/ProjectWorkspace";
 import { NewPageAction, PageHeader } from "@/app/components/shared/PageHeader";
 import { TableToolbar } from "@/app/components/shared/TableToolbar";
-import type {
-    ColumnConfig,
-    Project,
-    TabularReview,
-} from "@/app/components/shared/types";
+import {
+  type ColumnConfig,
+  type TabularReview,
+  deleteTabularReview,
+  listTabularReviews,
+  updateTabularReview,
+} from "@/app/lib/api/tabular";
+import type { Project } from "@/app/lib/api/projects";
 import { NewTRModal } from "@/app/components/tabular/NewTRModal";
 import { TabularReviewDetailsModal } from "@/app/components/tabular/TabularReviewDetailsModal";
 import { TabularReviewsTable } from "@/app/components/tabular/TabularReviewsTable";
@@ -17,11 +20,7 @@ import { Button } from "@/app/components/ui/button";
 import { Loader2, Plus } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { usePagedQuery } from "@/app/hooks/usePagedQuery";
-import {
-    deleteTabularReview,
-    listTabularReviews,
-    updateTabularReview,
-} from "@/app/lib/beaverApi";
+
 
 type ReviewScope = "all" | "in-project" | "standalone";
 type ProjectContext = {

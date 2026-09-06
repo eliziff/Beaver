@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ChatTurnInput } from "./chat/chatApplication";
 import type { ChatScope } from "./chatStore";
+import { parsePublicAssistantEvent, type PublicAssistantEvent } from "./chat/assistantEvents";
 import { activeJobForGroup, enqueueJob, enqueueJobCommand, getJob,
   readJobEvents, requestJobCancellation, waitForJobEvent,
   jsonValue, type ApplicationJob } from "./jobQueue";
@@ -16,7 +17,7 @@ export type ChatTurnQueue = {
   activeJob(scope: ChatScope, chatId: string): Promise<ApplicationJob | null>;
   job(scope: ChatScope, jobId: string): Promise<ApplicationJob | null>;
   observe(scope: ChatScope, jobId: string, signal: AbortSignal,
-    emit: (event: unknown) => void): Promise<ApplicationJob>;
+    emit: (event: PublicAssistantEvent) => void): Promise<ApplicationJob>;
   cancel(scope: ChatScope, chatId: string): Promise<boolean>;
   cancelJob(scope: ChatScope, jobId: string): Promise<boolean>;
   clientResult(scope: ChatScope, jobId: string, callId: string,
@@ -43,17 +44,19 @@ export const durableChatTurns: ChatTurnQueue = {
   async job(scope, jobId) { return getJob(jobId, scope.userId); },
   async observe(scope, jobId, signal, emit) {
     let after = 0;
+    let terminal: ApplicationJob | null = null;
     while (!signal.aborted) {
-      for (const row of await readJobEvents(scope.userId, jobId, after)) {
-        after = row.sequence; emit(row.event);
+      const page = await readJobEvents(scope.userId, jobId, after);
+      for (const row of page) {
+        after = row.sequence; emit(parsePublicAssistantEvent(row.event));
       }
-      const current = await getJob(jobId, scope.userId);
-      if (!current) throw new Error("Job unavailable");
-      if (!["queued", "running"].includes(current.status)) {
-        for (const row of await readJobEvents(scope.userId, jobId, after)) emit(row.event);
-        return current;
+      if (terminal && !page.length) return terminal;
+      if (!terminal) {
+        const current = await getJob(jobId, scope.userId);
+        if (!current) throw new Error("Job unavailable");
+        if (!["queued", "running"].includes(current.status)) terminal = current;
+        else await waitForJobEvent(signal);
       }
-      await waitForJobEvent(signal);
     }
     throw new DOMException("Aborted", "AbortError");
   },

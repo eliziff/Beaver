@@ -3,6 +3,7 @@ import { createCourtRecordsApplication } from "../courtRecordsApplication";
 import type { DocumentStore } from "../documentStore";
 import { assistantTools } from "./assistantTools";
 import { COURT_RECORD_TOOL_PROPERTIES } from "./courtRecordSlotTool";
+import { TurnToolRegistry } from "./toolRegistry";
 
 const record = { id: "record-1", kind: "court-record" as const, title: "Record",
   projectId: "matter-1", revision: 7, state: { profileId: "fc-motion-record-moving",
@@ -66,6 +67,9 @@ async function execute(tool: ReturnType<typeof tools>["entries"][number],
 describe("scoped work-product assistant operation", () => {
   it("reads the exact party and slot vocabulary rendered by the builder", async () => {
     const { entries } = tools();
+    const registry = new TurnToolRegistry(entries);
+    expect(registry.visible().map(({ name }) => name)).toContain("update_work_product");
+    expect(registry.specialists()).toContain("manage_work_products");
     const output = await execute(entries.find(({ name }) => name === "update_work_product")!,
       { action: "read" });
     const result = JSON.parse((output.result.content[0] as { text: string }).text);
@@ -255,7 +259,9 @@ describe("scoped work-product assistant operation", () => {
       sourceSha256: affidavitSha, labels: ["A", "B", "C"],
     });
 
-    const assigned = await execute(tool, { action: "update", slot_id: "exhibit",
+    const general = entries.find(({ name }) => name === "manage_work_products")!;
+    const assigned = await execute(general, { action: "update", kind: "court-record",
+      draft_id: current.id, slot_id: "exhibit",
       document_id: "document://exhibit-document/version/exhibit-version",
       exhibit_label: "A" });
     const assignedResult = JSON.parse((assigned.result.content[0] as { text: string }).text);
@@ -263,6 +269,14 @@ describe("scoped work-product assistant operation", () => {
     expect(assignedResult.draft.entries).toContainEqual(expect.objectContaining({
       kindId: "exhibit", exhibitLabel: "A",
     }));
+    const dated = await execute(tool, { action: "update", slot_id: "exhibit",
+      replace_entry_id: assignedResult.entry_id, date: "September 4, 2026" });
+    const datedResult = JSON.parse((dated.result.content[0] as { text: string }).text);
+    expect(datedResult).toMatchObject({ ok: true,
+      work_product: { revision: record.revision + 3 }, draft: {
+        entries: expect.arrayContaining([expect.objectContaining({
+          exhibitLabel: "A", date: "September 4, 2026" })]),
+      } });
   });
 
   it("does not expose mutation operations to reader subagents", () => {

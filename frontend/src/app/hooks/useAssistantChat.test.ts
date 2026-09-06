@@ -21,6 +21,7 @@ function useAssistantChat(options: Parameters<typeof useAssistantSession>[0]) {
 }
 
 const mocks = vi.hoisted(() => ({
+  takePreparedChat: vi.fn(),
   compactChat: vi.fn(),
   getChat: vi.fn(),
   stopChat: vi.fn(),
@@ -29,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   streamChatJob: vi.fn(),
   steerChat: vi.fn(),
   streamChat: vi.fn(),
+  submitChatClientToolResult: vi.fn(),
   loadChats: vi.fn(),
   peekPendingChatMessage: vi.fn(),
   claimPendingChatMessage: vi.fn(),
@@ -41,7 +43,7 @@ vi.mock("react-router-dom", () => ({
   useNavigate: () => vi.fn(),
 }));
 vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
-vi.mock("@/app/lib/beaverApi", () => ({
+vi.mock("@/app/lib/api/chat", () => ({
   compactChat: mocks.compactChat,
   getChat: mocks.getChat,
   stopChat: mocks.stopChat,
@@ -50,10 +52,12 @@ vi.mock("@/app/lib/beaverApi", () => ({
   streamChatJob: mocks.streamChatJob,
   steerChat: mocks.steerChat,
   streamChat: mocks.streamChat,
-  generateChatTitle: mocks.generateChatTitle,
+  submitChatClientToolResult: mocks.submitChatClientToolResult,
+  generateChatTitle: mocks.generateChatTitle
 }));
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
   useChatHistoryContext: () => ({
+    takePreparedChat: mocks.takePreparedChat,
     replaceChatId: vi.fn(),
     loadChats: mocks.loadChats,
     peekPendingChatMessage: mocks.peekPendingChatMessage,
@@ -116,7 +120,74 @@ beforeEach(() => {
   mocks.claimPendingChatMessage.mockReturnValue(null);
 });
 
+it("loads another chat when switching away from an active response", async () => {
+  let resolveActive!: (response: Response) => void;
+  mocks.getChat.mockImplementation(async (id: string) => ({
+    chat: { id, transcript_version: 1, turn_in_progress: id === "active" },
+    messages: [{ id: `${id}-message`, role: "user", content: id }],
+  }));
+  mocks.streamActiveChat.mockImplementation(() => new Promise((resolve) => { resolveActive = resolve; }));
+  const { result, rerender } = renderHook(({ chatId }) => useAssistantChat({ chatId }), {
+    initialProps: { chatId: "active" },
+  });
+  await waitFor(() => expect(result.current.isResponseLoading).toBe(true));
+  rerender({ chatId: "other" });
+  await waitFor(() => expect(result.current.messages[0]?.content).toBe("other"));
+  await act(async () => resolveActive(streamResponse([
+    { type: "chat_id", chatId: "active", transcriptVersion: 1 },
+    { type: "content_final", text: "Late previous response", citations: [] },
+    { type: "transcript_version", transcriptVersion: 2 },
+  ])));
+  expect(result.current.chatId).toBe("other");
+  expect(result.current.messages[0]?.content).toBe("other");
+  expect(result.current.isResponseLoading).toBe(false);
+  expect(mocks.stopChat).not.toHaveBeenCalled();
+});
+
+it("refreshes the workspace binding after the assistant creates one", async () => {
+  mocks.getChat.mockResolvedValueOnce({ chat: { id: "chat-1", transcript_version: 0 }, messages: [] })
+    .mockResolvedValueOnce({ chat: { id: "chat-1", transcript_version: 2, research_file_id: "created-workspace" }, messages: [] });
+  mocks.streamChat.mockResolvedValueOnce(completedTurn());
+  const { result } = renderHook(() => useAssistantChat({ chatId: "chat-1" }));
+  await waitFor(() => expect(result.current.chatLoad.status).toBe("loaded"));
+  await act(async () => { await result.current.handleChat({ role: "user", content: "Organize these files" }); });
+  expect(result.current.chatLoad).toMatchObject({ status: "loaded", chat: { research_file_id: "created-workspace" } });
+});
+
 describe("useAssistantChat local transcript boundary", () => {
+  it.each([false, true])("executes Word tool requests once and returns their result (reattached: %s)", async (reattached) => {
+    let document = "Original";
+    const wordClient = {
+      context: async () => ({ document_name: "Draft.docx" }),
+      execute: async () => ({ text: document += " amended" }),
+    };
+    const call = { type: "client_tool_call", callId: "edit-1", name: "edit_document", input: {} };
+    const response = () => streamResponse([
+      { type: "turn_queued", jobId: "word-job" },
+      { type: "chat_id", chatId: "chat-1", transcriptVersion: 1 },
+      call, call,
+      { type: "content_final", text: "Updated.", citations: [] },
+      { type: "transcript_version", transcriptVersion: 2 },
+    ]);
+    mocks.streamChat.mockImplementation(response);
+    mocks.streamActiveChat.mockImplementation(response);
+    mocks.getChat.mockResolvedValueOnce({
+      chat: { id: "chat-1", transcript_version: 1, turn_in_progress: reattached }, messages: [],
+    }).mockResolvedValue({
+      chat: { id: "chat-1", transcript_version: 2, turn_in_progress: false },
+      messages: [{ id: "answer", role: "assistant", content: "Updated." }],
+    });
+    mocks.submitChatClientToolResult.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useAssistantChat({ chatId: "chat-1", wordClient }));
+    if (!reattached) {
+      await waitFor(() => expect(result.current.chatLoad.status).toBe("loaded"));
+      await act(() => result.current.handleChat({ role: "user", content: "Amend the draft" }));
+    }
+    await waitFor(() => expect(result.current.messages.at(-1)?.content).toBe("Updated."));
+    expect(document).toBe("Original amended");
+    expect(mocks.submitChatClientToolResult).toHaveBeenCalledWith("word-job", "edit-1", { text: document });
+  });
+
   it("replays all active readers before loading the completed transcript", async () => {
     const readers = Array.from({ length: 4 }, (_, index) => ({
       type: "subagent_run", id: `reader-${index}`, task: `Read ${index}`,
@@ -1029,8 +1100,6 @@ describe("useAssistantChat local transcript boundary", () => {
       documentId: "document-1",
       versionId: "version-2",
       versionNumber: 2,
-      downloadUrl:
-        "/single-documents/document-1/file?version_id=version-2",
       editMode: "manual",
       annotations: [expect.objectContaining({
         edit_id: annotation.edit_id,
@@ -1082,8 +1151,6 @@ describe("useAssistantChat local transcript boundary", () => {
       documentId: "document-1",
       versionId: "version-1",
       versionNumber: 1,
-      downloadUrl:
-        "/single-documents/document-1/file?version_id=version-1",
     });
   });
 
@@ -1421,4 +1488,27 @@ describe("useAssistantChat local transcript boundary", () => {
     expect(result.current.messages.at(-1)?.turnStatus).toBe("cancelled");
     expect(result.current.rejectedTurn).toBeNull();
   });
+});
+
+it("renders a prepared conversation immediately with its saved model", () => {
+  const detail = {
+    chat: { id: "prepared", model: "saved-model", transcript_version: 1, turn_in_progress: false },
+    messages: [{ role: "user", content: "Prepared conversation" }],
+  };
+  mocks.takePreparedChat.mockReturnValueOnce({ id: "prepared", detail, result: Promise.resolve(detail) });
+  const { result } = renderHook(() => useAssistantChat({ chatId: "prepared" }));
+  expect(result.current.messages[0]?.content).toBe("Prepared conversation");
+  expect(result.current.chatLoad).toMatchObject({ status: "loaded", chat: { model: "saved-model" } });
+});
+
+it("retries a failed conversation load without leaving the conversation", async () => {
+  mocks.getChat.mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce({
+    chat: { id: "retry", transcript_version: 1, turn_in_progress: false },
+    messages: [{ role: "user", content: "Recovered conversation" }],
+  });
+  const { result } = renderHook(() => useAssistantChat({ chatId: "retry" }));
+  await waitFor(() => expect(result.current.chatLoad.status).toBe("error"));
+  act(() => result.current.retryLoad());
+  await waitFor(() => expect(result.current.messages[0]?.content).toBe("Recovered conversation"));
+  expect(result.current.chatLoad.status).toBe("loaded");
 });

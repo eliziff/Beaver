@@ -1,15 +1,13 @@
-import { useEffect, useState } from "react";
-import { Loader2, RefreshCw } from "lucide-react";
+import { QuoteReviewModal } from "./QuoteReviewModal";
+import { useState } from "react";
+import { Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import {
-    createAuthorities,
-    fixLibraryDocxSupras,
-    inspectDocxWorkflowCapabilities,
-    type DeterministicDocxActionResult,
-} from "@/app/lib/beaverApi";
-import { publishWorkflowRun, workflowOperationLabel } from "../assistant/WorkflowRun";
+import { createAuthorities } from "@/app/lib/api/authorities";
+import type { Document } from "@/app/lib/api/documents";
+import { FIX_SUPRAS, useAssistantDocumentOperation } from "./useAssistantDocumentOperation";
 import { WorkflowSkeuoIcon } from "../shared/AppSidebarSkeuoIcons";
-import type { Document, WorkflowOperationName } from "../shared/types";
+
+import type { Workflow } from "@/app/lib/api/workflows";
 import { Button } from "../ui/button";
 import { Modal } from "../modals/Modal";
 import { WarningPopup } from "../popups/WarningPopup";
@@ -20,17 +18,17 @@ import { workflowPath, type WorkflowSelection } from "./workflowRoutes";
 import { createTabularReviewPath } from "../tabular/tabularReviewRoute";
 
 export type WorkflowDocument = Pick<Document, "id" | "filename"> &
-    Partial<Pick<Document, "file_type" | "library_kind" | "project_id">>;
+    Partial<Pick<Document, "file_type" | "library_kind" | "project_id" | "current_version_id" | "folder_id">>;
 export type AssistantWorkflowSelect = (
     selection: WorkflowSelection,
     documents: WorkflowDocument[],
 ) => void;
 
 type PickerProps = {
+    onRun?: NonNullable<Parameters<typeof useAssistantDocumentOperation>[1]>["onRun"];
     documents?: WorkflowDocument[];
     initialWorkflowId?: string;
     onAssistantSelect?: AssistantWorkflowSelect;
-    onDocumentChanged?: (result: DeterministicDocxActionResult) => Promise<void> | void;
     onLaunched?: () => void;
     className?: string;
 };
@@ -45,31 +43,15 @@ const sharedProjectId = (documents: WorkflowDocument[]) => documents[0]?.project
     ? documents[0].project_id : undefined;
 
 export function ContextualWorkflowPicker({ documents = [], initialWorkflowId,
-    onAssistantSelect, onDocumentChanged, onLaunched, className }: PickerProps) {
+    onAssistantSelect, onRun, onLaunched, className }: PickerProps) {
     const state = useWorkflowPickerState(initialWorkflowId);
     const navigate = useNavigate();
+    const [quoteCheck, setQuoteCheck] = useState<Workflow | null>(null);
     const [launching, setLaunching] = useState<"table" | "product" | "supras" | null>(null);
     const [launchError, setLaunchError] = useState<string | null>(null);
-    const [inspection, setInspection] = useState<{
-        documentId: string; supras?: boolean; error?: boolean;
-    } | null>(null);
-    const [inspectionAttempt, setInspectionAttempt] = useState(0);
+    const supras = useAssistantDocumentOperation(FIX_SUPRAS, { onRun, onLaunched });
     const docx = documents.length === 1 && documentType(documents[0]) === "docx" &&
         documents[0].library_kind !== "template" ? documents[0] : null;
-    const docxId = docx?.id;
-
-    useEffect(() => {
-        if (!docxId) { setInspection(null); return; }
-        let active = true;
-        setInspection(null);
-        void inspectDocxWorkflowCapabilities(docxId)
-            .then(({ supra_references }) => {
-                if (active) setInspection({ documentId: docxId,
-                    supras: supra_references === true });
-            })
-            .catch(() => { if (active) setInspection({ documentId: docxId, error: true }); });
-        return () => { active = false; };
-    }, [docxId, inspectionAttempt]);
 
     const contextLabel = documents.length === 1 ? documents[0].filename
         : documents.length ? `${documents.length} documents` : undefined;
@@ -101,6 +83,8 @@ export function ContextualWorkflowPicker({ documents = [], initialWorkflowId,
 
     async function openProduct(workflow: (typeof state.workflows)[number]) {
         if (launching) return;
+        if (workflow.launcher.kind === "quote_check") { setQuoteCheck(workflow); return; }
+        if (workflow.launcher.kind === "fix_supras") { supras.launch(docx); return; }
         if (workflow.launcher.kind === "court_records" && documents.length) {
             if (documents.some((document) => document.library_kind === "template" ||
                 !/^(pdf|docx)$/u.test(documentType(document)))) {
@@ -135,50 +119,6 @@ export function ContextualWorkflowPicker({ documents = [], initialWorkflowId,
         } finally { setLaunching(null); }
     }
 
-    async function fixSupras() {
-        if (!docx || launching) return;
-        const tool: Extract<WorkflowOperationName, "fix_docx_supras"> = "fix_docx_supras";
-        const id = `drafting:${docx.id}`;
-        setLaunching("supras"); setLaunchError(null);
-        publishWorkflowRun({ type: "workflow_run", id, tool, status: "running",
-            stage: workflowOperationLabel(tool) });
-        try {
-            const result = await fixLibraryDocxSupras(docx.id);
-            publishWorkflowRun({
-                type: "workflow_run", id, tool, status: result.ok ? "complete" : "error",
-                stage: workflowOperationLabel(tool),
-                counts: [["Found", result.detected], ["Fixed", result.converted],
-                    ["Already linked", result.already_linked],
-                    ["Needs review", result.review_required]].flatMap(([label, value]) =>
-                    typeof value === "number" ? [{ label: String(label), value }] : []),
-                outputs: result.filename ? [{ name: result.filename }] : undefined,
-            });
-            await onDocumentChanged?.(result);
-            onLaunched?.();
-        } catch (error) {
-            const message = error instanceof Error ? error.message : "Unable to fix supra references.";
-            publishWorkflowRun({ type: "workflow_run", id, tool, status: "error",
-                stage: workflowOperationLabel(tool), error: message });
-            setLaunchError(`${message} Try again.`);
-        } finally { setLaunching(null); }
-    }
-
-    const draftingAction = (workflowId: string) => {
-        if (workflowId !== "drafting" || !docx || inspection?.documentId !== docx.id) return null;
-        if (inspection.error) return <button type="button"
-            onClick={() => setInspectionAttempt((attempt) => attempt + 1)}
-            className="mt-1 min-h-9 shrink-0 rounded-md border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
-            Retry document check
-        </button>;
-        if (!inspection.supras) return null;
-        return <button type="button" disabled={!!launching} onClick={() => void fixSupras()}
-            className="mt-1 flex min-h-9 shrink-0 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45">
-            {launching === "supras" ? <Loader2 className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />
-                : <RefreshCw className="size-3.5" aria-hidden="true" />}
-            Fix supras
-        </button>;
-    };
-
     return <div className={cn("flex h-full min-h-0 flex-col", className)}>
         {launchError && <p role="alert"
             className="mb-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">
@@ -193,18 +133,20 @@ export function ContextualWorkflowPicker({ documents = [], initialWorkflowId,
             audience={state.audience} onAudienceChange={state.setAudience}
             loading={state.loading} loadError={state.loadError}
             onRetryLoad={state.retryLoad} initialWorkflowId={initialWorkflowId}
-            contextLabel={contextLabel} disabledItem={(_, variant) => !!launching ||
+            contextLabel={contextLabel} disabledItem={(_, variant) => !!launching || supras.launching ||
                 variant?.execution === "assistant" && !onAssistantSelect}
-            workflowAction={(workflow) => draftingAction(workflow.id)} />
+            />
+        {supras.picker}
+        {quoteCheck && <QuoteReviewModal workflow={quoteCheck} documents={documents}
+            onClose={() => setQuoteCheck(null)} onAssistantSelect={onAssistantSelect ? (selection) => void choose(selection) : undefined} />}
     </div>;
 }
 
 export function ContextualWorkflowLauncher<T extends WorkflowDocument>({ documents = [], onAssistantSelect,
-    onDocumentChanged, onOpen, className, labelClassName = "hidden sm:inline",
+    onOpen, className, labelClassName = "hidden sm:inline",
     disabled = false, showDisabled = false, resolveDocuments }: {
             documents?: T[];
             onAssistantSelect?: (selection: WorkflowSelection, documents: T[]) => void;
-            onDocumentChanged?: PickerProps["onDocumentChanged"];
             onOpen?: (documents: T[]) => void;
             className?: string; labelClassName?: string; disabled?: boolean;
             showDisabled?: boolean;
@@ -213,15 +155,13 @@ export function ContextualWorkflowLauncher<T extends WorkflowDocument>({ documen
     const [resolved, setResolved] = useState<T[]>([]);
     const [resolving, setResolving] = useState(false);
     const [resolveError, setResolveError] = useState("");
-    const available = !!documents?.length || !!resolveDocuments;
-    if (!available && !showDisabled) return null;
     return <>
         <Button variant="outline" size="compact" className={cn("h-8", className)}
-            disabled={disabled || resolving || !available}
+            disabled={disabled || resolving}
             aria-label="Workflows" onClick={async (event) => {
                 event.stopPropagation();
                 setResolveError("");
-                if (documents.length) {
+                if (documents.length || !resolveDocuments) {
                     if (onOpen) onOpen(documents);
                     else { setResolved(documents); setOpen(true); }
                     return;
@@ -229,9 +169,6 @@ export function ContextualWorkflowLauncher<T extends WorkflowDocument>({ documen
                 setResolving(true);
                 try {
                     const selected = await resolveDocuments?.() ?? [];
-                    if (!selected.length) {
-                        setResolveError("There are no documents in this location."); return;
-                    }
                     if (onOpen) onOpen(selected);
                     else { setResolved(selected); setOpen(true); }
                 } catch {
@@ -248,7 +185,6 @@ export function ContextualWorkflowLauncher<T extends WorkflowDocument>({ documen
                 onAssistantSelect={onAssistantSelect
                     ? (selection, selected) => onAssistantSelect(selection, selected as T[])
                     : undefined}
-                onDocumentChanged={onDocumentChanged}
                 onLaunched={() => setOpen(false)} className="pb-4" />
         </Modal>}
         <WarningPopup open={!!resolveError} onClose={() => setResolveError("")}

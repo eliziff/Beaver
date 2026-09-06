@@ -4,7 +4,6 @@ import path from "node:path";
 
 const dist = path.resolve(process.argv[2] ?? path.join(import.meta.dirname, "../dist"));
 const forbidden = [
-    [/beaverApi-/u, "the Beaver API bundle"],
     [/\/(?:auth|chat|projects)(?:[/?"'`])/u, "an auth, chat, or project route"],
     [/mfa_verification_required/u, "the MFA classifier"],
 ];

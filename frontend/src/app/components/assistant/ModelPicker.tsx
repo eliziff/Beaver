@@ -1,15 +1,16 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
+import { TabList } from "@/app/components/ui/tabs";
 import { isModelAvailable } from "@/app/lib/modelAvailability";
-import type { ApiKeyState } from "@/app/lib/beaverApi";
+import type { ApiKeyState } from "@/app/lib/api/account";
 import { cn } from "@/app/lib/utils";
 export interface ModelOption {
     id: string;
     label: string;
     group:
         | "Anthropic"
-        | "Anthropic subscription"
+        | "Claude Code"
         | "Google"
         | "OpenAI"
         | "DeepSeek"
@@ -27,7 +28,7 @@ export function ModelPicker({
     disabled = false,
     className,
     detail,
-    onDetailClick,
+    effortControls,
     onOpen,
 }: {
     value: string;
@@ -37,12 +38,16 @@ export function ModelPicker({
     disabled?: boolean;
     className?: string;
     detail?: string;
-    onDetailClick?: () => void;
+    effortControls?: ReactNode;
     onOpen?: () => void;
 }) {
     const [open, setOpen] = useState(false);
+    const [provider, setProvider] = useState<ModelOption["group"] | undefined>();
     const selected = models.find((model) => model.id === value);
     const label = selected?.label ?? value;
+    const compactLabel = detail
+        ? label.replace(/^GPT[- ]\d+(?:\.\d+)*[- ]+(?=[A-Za-z])/, "").replace(/ · .+$/, "")
+        : label;
     const displayLabel = detail ? `${label} ${detail}` : label;
     const available = (model?: ModelOption) =>
         model?.available !== false &&
@@ -51,6 +56,8 @@ export function ModelPicker({
             ? isModelAvailable(model.id, apiKeys)
             : model.group === "Codex" || model.group === "Desktop");
     const availableModels = models.filter(available);
+    const providers = [...new Set(availableModels.map((model) => model.group))];
+    const activeProvider = provider && providers.includes(provider) ? provider : providers[0];
     const selectedAvailable = available(selected);
     return (
         <span
@@ -70,6 +77,7 @@ export function ModelPicker({
                 disabled={disabled}
                 onClick={() => {
                     onOpen?.();
+                    setProvider(selected?.group);
                     setOpen(true);
                 }}
                 title={
@@ -78,34 +86,29 @@ export function ModelPicker({
                         : "Selected model is unavailable"
                 }
                 aria-label={`Model: ${displayLabel}`}
-                className="flex min-w-0 flex-1 items-center gap-2 rounded-l-md px-2 text-left focus-visible:outline-none disabled:cursor-default disabled:opacity-50"
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left focus-visible:outline-none disabled:cursor-default disabled:opacity-50"
             >
-                <span className="min-w-0 flex-1 truncate">{label}</span>
+                <span className="min-w-0 flex-1 truncate">{compactLabel}</span>
+                {detail && <span className="shrink-0 whitespace-nowrap text-gray-500">· <span>{detail}</span></span>}
                 <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0" />
             </button>
-            {detail && onDetailClick && (
-                <button
-                    type="button"
-                    onClick={onDetailClick}
-                    className="flex shrink-0 items-center gap-1 rounded-r-md border-l border-gray-300 px-2 capitalize focus-visible:outline-none"
-                    aria-label={`Reasoning effort: ${detail}`}
-                    title={`Reasoning effort: ${detail}`}
-                >
-                    {detail}
-                    <ChevronDown aria-hidden="true" className="h-4 w-4" />
-                </button>
-            )}
             </div>
             <SearchableChoiceModal
                 open={open}
                 onClose={() => setOpen(false)}
-                title="Models"
+                title={detail ? "Model and effort" : "Models"}
+                size="2xl"
+                className="h-[min(36rem,calc(100dvh-2rem))]"
+                sidePanel={effortControls}
+                controls={<TabList value={activeProvider ?? "Codex"} onValueChange={setProvider}
+                    options={providers.map((group) => ({ value: group, label: group }))}
+                    ariaLabel="Model providers" variant="dock" className="mb-4 px-0" />}
+                closeOnSelect={!effortControls}
                 searchLabel="Search models"
                 value={value}
-                options={availableModels.map((model) => ({
+                options={availableModels.filter((model) => model.group === activeProvider).map((model) => ({
                     value: model.id,
                     label: model.label,
-                    group: model.group,
                     keywords: model.id,
                 }))}
                 onChange={(model) => {

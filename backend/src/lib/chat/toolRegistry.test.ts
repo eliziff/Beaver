@@ -6,6 +6,7 @@ import {
   MAX_MODEL_TOOL_RESULT_CHARS,
   TurnToolRegistry,
   toolText,
+  type BeaverOutcome,
   type BeaverTool,
 } from "./toolRegistry";
 
@@ -48,11 +49,11 @@ describe("TurnToolRegistry", () => {
       [call("1", "read", { count: "3" })],
       { order: [] },
     );
-    expect(batch.outcomes[0].result.isError).toBe(true);
-    expect(payload(batch.results[0].content).error).toBe("invalid_arguments");
+    expect(batch[0].status).toBe("error");
+    expect(payload(batch[0].content).error).toBe("invalid_arguments");
   });
 
-  it("loads only exact specialist names with a three-tool turn cap", async () => {
+  it("loads exact specialist names across rounds and keeps every capability reachable", async () => {
     const registry = new TurnToolRegistry([
       tool("resident"),
       tool("one", { specialist: true }),
@@ -66,23 +67,30 @@ describe("TurnToolRegistry", () => {
     ]);
     expect(payload((await registry.run(
       [call("0", "one")], { order: [] },
-    )).results[0].content).error).toBe("tool_not_loaded");
-    const invalid = await registry.run([
-      call("bad", LOAD_TOOLS_NAME, { names: ["one", 0] }),
-    ], { order: [] });
-    expect(payload(invalid.results[0].content).error).toBe("invalid_arguments");
+    ))[0].content).error).toBe("tool_not_loaded");
+    for (const names of [["one", 0], ["one", "missing"]]) {
+      const invalid = await registry.run([
+        call("bad", LOAD_TOOLS_NAME, { names }),
+      ], { order: [] });
+      expect(payload(invalid[0].content).error).toBe("invalid_arguments");
+    }
     expect(payload((await registry.run(
       [call("still-unloaded", "one")], { order: [] },
-    )).results[0].content).error).toBe("tool_not_loaded");
+    ))[0].content).error).toBe("tool_not_loaded");
     const loaded = await registry.run([
       call("1", LOAD_TOOLS_NAME, { names: ["one", "two", "three"] }),
       call("2", "one"),
     ], { order: [] });
-    expect(payload(loaded.results[0].content).loaded).toEqual(["one", "two", "three"]);
-    expect(payload(loaded.results[1].content).ok).toBe(true);
-    expect(payload((await registry.run([
+    expect(payload(loaded[0].content).loaded).toEqual(["one", "two", "three"]);
+    expect(payload(loaded[1].content).ok).toBe(true);
+    const final = await registry.run([
       call("3", LOAD_TOOLS_NAME, { names: ["four"] }),
-    ], { order: [] })).results[0].content).ok).toBe(false);
+      call("4", "four"),
+    ], { order: [] });
+    expect(payload(final[1].content).ok).toBe(true);
+    expect(registry.visible().map(({ name }) => name)).toEqual([
+      "resident", "one", "two", "three", "four",
+    ]);
   });
 
   it("runs parallel by default while preserving source result order", async () => {
@@ -107,7 +115,7 @@ describe("TurnToolRegistry", () => {
       call("fast-id", "fast"),
     ], { order: [] });
     expect(finish).toEqual(["fast", "slow"]);
-    expect(batch.results.map(({ tool_use_id }) => tool_use_id)).toEqual([
+    expect(batch.map(({ tool_use_id }) => tool_use_id)).toEqual([
       "slow-id",
       "fast-id",
     ]);
@@ -131,8 +139,43 @@ describe("TurnToolRegistry", () => {
     await Promise.resolve();
     expect(active).toBe(4);
     release();
-    expect((await running).results).toHaveLength(5);
+    expect((await running)).toHaveLength(5);
     expect(peak).toBe(4);
+  });
+
+  it.each(["parallel", "serial"])("settles started %s work and retains mutations after result delivery fails", async (mode) => {
+    let release!: () => void, deliveryFailed!: () => void, settled = false;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const failureObserved = new Promise<void>((resolve) => { deliveryFailed = resolve; });
+    const context = { order: [] as string[] }, failure = new Error("Event delivery failed");
+    const registry = new TurnToolRegistry([
+      tool("change", { sequential: mode === "serial", async execute(input, context) {
+        context.order.push(`started ${input.count}`);
+        if (input.count !== 0) await gate;
+        context.order.push(`saved ${input.count}`);
+        return { result: toolText("saved"), mutated: true };
+      } }),
+      tool("ask", { sequential: true, async execute() {
+        return { result: toolText("waiting"), pause: { type: "ask_inputs",
+          items: [{ id: "x", kind: "documents", document_types: [] }] } };
+      } }),
+    ]);
+    const running = registry.run(Array.from({ length: 5 }, (_, index) =>
+      call(String(index), "change", { count: index })), context, undefined, (call) => {
+      if (call.id === "0") { deliveryFailed(); throw failure; }
+    }).catch((error: unknown) => { settled = true; return error; });
+    try {
+      await failureObserved;
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(settled).toBe(mode === "serial");
+      expect(context.order.filter((value) => value.startsWith("started")))
+        .toEqual((mode === "serial" ? [0] : [0, 1, 2, 3]).map((index) => `started ${index}`));
+    } finally { release(); }
+    expect(await running).toBe(failure);
+    expect(context.order.filter((value) => value.startsWith("saved")))
+      .toEqual((mode === "serial" ? [0] : [0, 1, 2, 3]).map((index) => `saved ${index}`));
+    const [ask] = await registry.run([call("ask", "ask")], context);
+    expect(payload(ask.content).error).toBe("ask_inputs_after_mutation");
   });
 
   it("serializes a mixed batch and enforces pause-before-mutation", async () => {
@@ -153,22 +196,24 @@ describe("TurnToolRegistry", () => {
         };
       },
     });
+    const outcomes: BeaverOutcome[] = [];
     const before = await new TurnToolRegistry([changed, ask]).run([
       call("a", "ask"),
       call("b", "change"),
-    ], { order: [] });
-    expect(before.pause?.items).toHaveLength(1);
-    expect(payload(before.results[1].content).error).toBe("waiting_for_user");
+    ], { order: [] }, undefined, (_call, outcome) => outcomes.push(outcome));
+    expect(outcomes[0].pause?.items).toHaveLength(1);
+    expect(payload(before[1].content).error).toBe("waiting_for_user");
 
     const context = { order: [] as string[] };
     const registry = new TurnToolRegistry([changed, ask]);
+    outcomes.length = 0;
     const after = await registry.run([
       call("a", "change"),
       call("b", "ask"),
-    ], context);
+    ], context, undefined, (_call, outcome) => outcomes.push(outcome));
     expect(context.order).toEqual(["change", "ask"]);
-    expect(after.pause).toBeUndefined();
-    expect(payload(after.results[1].content).error).toBe("ask_inputs_after_mutation");
+    expect(outcomes.every(({ pause }) => !pause)).toBe(true);
+    expect(payload(after[1].content).error).toBe("ask_inputs_after_mutation");
   });
 
   it("bounds thrown and malformed results and validates structured output", async () => {
@@ -204,10 +249,10 @@ describe("TurnToolRegistry", () => {
       call("2", "malformed"),
       call("3", "output"),
     ], { order: [] });
-    expect(batch.outcomes.every(({ result }) => result.isError)).toBe(true);
-    expect(batch.results[0].content.length).toBeLessThan(2_200);
-    expect(batch.results[0].content).not.toContain("xxx");
-    expect(payload(batch.results[0].content).detail).toBe("Tool execution failed");
+    expect(batch.every(({ status }) => status === "error")).toBe(true);
+    expect(batch[0].content.length).toBeLessThan(2_200);
+    expect(batch[0].content).not.toContain("xxx");
+    expect(payload(batch[0].content).detail).toBe("Tool execution failed");
     expect(logged).toHaveBeenCalled();
     logged.mockRestore();
   });
@@ -244,28 +289,25 @@ describe("TurnToolRegistry", () => {
         },
       }),
     ]);
+    const outcomes: BeaverOutcome[] = [];
     const batch = await registry.run([
       call("1", "structured"),
       call("2", "large"),
-    ], { order: [] });
-    expect(payload(batch.results[0].content)).toEqual({
+    ], { order: [] }, undefined, (_call, outcome) => outcomes.push(outcome));
+    expect(payload(batch[0].content)).toEqual({
       ok: true,
       nested: { label: "source" },
       quoted_text: "The document itself says https://public.example/",
     });
-    expect(payload(batch.outcomes[0].result.content[0].type === "text"
-      ? batch.outcomes[0].result.content[0].text : "")).toHaveProperty(
+    expect(payload(outcomes[0].result.content[0].type === "text"
+      ? outcomes[0].result.content[0].text : "")).toHaveProperty(
       "source_url",
       "https://secret.example/source",
     );
-    expect(batch.results[0].evidenceRefs).toEqual([expect.objectContaining({
-      handle: evidence.evidence_id,
-      text: evidence.span_text,
-      exactSha256: evidence.exact_span_sha256,
-    })]);
-    expect(batch.results[1].content).toHaveLength(MAX_MODEL_TOOL_RESULT_CHARS);
-    expect(batch.results[1].content).toContain("tool result truncated");
-    expect(batch.results[1].status).toBe("truncated");
+    expect(outcomes[0].evidence).toEqual([evidence]);
+    expect(batch[1].content).toHaveLength(MAX_MODEL_TOOL_RESULT_CHARS);
+    expect(batch[1].content).toContain("tool result truncated");
+    expect(batch[1].status).toBe("truncated");
   });
 
   it("passes the shared AbortSignal to executors", async () => {
@@ -286,6 +328,6 @@ describe("TurnToolRegistry", () => {
     controller.abort(new Error("cancelled"));
     const batch = await running;
     expect(seen).toHaveBeenCalledWith(controller.signal);
-    expect(batch.outcomes[0].result.isError).toBe(true);
+    expect(batch[0].status).toBe("error");
   });
 });

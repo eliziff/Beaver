@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { listWorkflows } from "@/app/lib/beaverApi";
+import { listWorkflows, type WorkflowVariant } from "@/app/lib/api/workflows";
 import { Modal } from "../modals/Modal";
-import type { WorkflowVariant } from "../shared/types";
+
 import { WorkflowPickerContent } from "./WorkflowPickerContent";
 import type { AudienceFilter } from "./workflowCatalog";
 import type { WorkflowSelection } from "./workflowRoutes";
@@ -15,10 +15,10 @@ interface Props {
     disabledWorkflow?: (selection: WorkflowSelection) => boolean;
 }
 
-export function useWorkflowPickerState(initialWorkflowId?: string) {
+export function useWorkflowPickerState(initialWorkflowId?: string, initialAudience: AudienceFilter = "general") {
     const { profile } = useUserProfile();
     const [workflows, setWorkflows] = useState([] as WorkflowSelection["workflow"][]);
-    const [audience, setAudience] = useState<AudienceFilter>(initialWorkflowId ? "all" : "general");
+    const [audience, setAudience] = useState<AudienceFilter>(initialWorkflowId ? "all" : initialAudience);
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState(false);
@@ -46,7 +46,7 @@ export function WorkflowPickerModal({ open, ...props }: Props) {
 
 function OpenWorkflowPickerModal({ onClose, onSelect, execution, breadcrumbs,
     selecting = false, closeOnSelect = true, initialWorkflowId, disabledWorkflow }: Omit<Props, "open">) {
-    const state = useWorkflowPickerState(initialWorkflowId);
+    const state = useWorkflowPickerState(initialWorkflowId, execution === "tabular" ? "all" : "general");
     async function choose(selection: WorkflowSelection) {
         if (selecting || disabledWorkflow?.(selection)) return;
         if (closeOnSelect) onClose();
@@ -54,7 +54,7 @@ function OpenWorkflowPickerModal({ onClose, onSelect, execution, breadcrumbs,
     }
     return <Modal open onClose={onClose} size="xl" breadcrumbs={breadcrumbs}>
         <WorkflowPickerContent workflows={state.workflows.filter(({ launcher }) =>
-            launcher.kind === "instructions")}
+            (launcher.kind === "instructions" || launcher.kind === "quote_check"))}
             onSelect={(workflow, variant) => { if (variant) void choose({ workflow, variant }); }}
             search={state.search} onSearchChange={state.setSearch}
             audience={state.audience} onAudienceChange={state.setAudience}

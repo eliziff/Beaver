@@ -6,8 +6,9 @@ import { AssistantSidePanel, type AssistantSidePanelTab } from "./AssistantSideP
 const file = { document: { id: "research-1", filename: "Appeal.research.md" } } as ResearchFile;
 const api = vi.hoisted(() => ({ getResearchFile: vi.fn() }));
 
-vi.mock("@/app/lib/beaverApi", async (original) => ({
-    ...(await original<typeof import("@/app/lib/beaverApi")>()), ...api,
+vi.mock("@/app/lib/api/researchFiles", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/researchFiles")>(),
+  getResearchFile: api.getResearchFile
 }));
 
 vi.mock("@/app/components/legal/LegalSourceViewer", () => ({

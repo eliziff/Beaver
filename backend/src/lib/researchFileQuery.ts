@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import type { ResearchOperationContext } from "./researchProvenance";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
-import { createLegalEvidenceTurnState, legalSourceEvidence, registerLegalResearchQueries,
+import { createLegalEvidenceTurnState, createLibraryEvidence, legalSourceEvidence, registerLegalResearchQueries,
+  type LegalEvidenceSpan,
   type LegalEvidenceReceipt, type LegalResearchQueryReceipt } from "./chat/legalEvidence";
 import type { DocumentStore } from "./documentStore";
-import { readLegalSourcePassage } from "./legalSourceRegistry";
+import { legalSourceOperations } from "./legalSourceApplication";
 import { commitResearchFile, readResearchFile, visitResearchEvidenceParts,
   researchLabelPath, researchSourceKey, readResearchQueries,
   type PublicResearchFileAction,
@@ -13,6 +15,8 @@ import { commitResearchFile, readResearchFile, visitResearchEvidenceParts,
 import { structureNative } from "./structureNative";
 import { escapeRegExp } from "./text";
 import { sha256 } from "./hash";
+import { documentProjectionService } from "./documentProjectionService";
+import { researchSelectionLabels } from "./researchSelection";
 
 export const researchCaptureRuleSchema = z.object({ phrase: z.string().trim().min(1).max(500),
   direction: z.enum(["before", "after"]), unit: z.enum(["sentence", "line", "paragraph", "chars"]),
@@ -22,7 +26,7 @@ export type ResearchFileQueryInput = { versionId: string; workingRevision: numbe
   syntax: "literal" | "terms"; target: "sources" | "passages";
   sourceIds?: string[]; labelIds?: string[]; unlabelled?: boolean; limit?: number; after?: string; rules?: ResearchCaptureRule[];
   conflict?: "prompt" | "first" | "longer" | "shorter" | "append" };
-type ResearchPassageReader = typeof readLegalSourcePassage;
+type ResearchPassageReader = typeof legalSourceOperations.readPassage;
 const clean = (value: string) => value.normalize("NFC").replace(/\s+/gu, " ").trim();
 const exactQuote = (text: string, quote: string) => new RegExp(quote.split(" ").map((part) =>
   escapeRegExp(part)).join("\\s+"), "u").exec(text);
@@ -60,10 +64,30 @@ const adjacent = (text: string, at: number, phraseLength: number, rule: Research
 };
 
 export async function verifyResearchPassage(file: ResearchFile, action: PublicResearchFileAction,
-  reader: ResearchPassageReader = readLegalSourcePassage): Promise<ResearchFileAction> {
+  reader: ResearchPassageReader = legalSourceOperations.readPassage,
+  context?: { documents: DocumentStore; scope: ApplicationScope }): Promise<ResearchFileAction> {
   if (action.type !== "passage") return action;
   const source = file.state.sources[action.sourceId]?.reference;
   if (!source) throw new ApplicationError(400, "Research source not found");
+  if (source.kind === "document") {
+    const projection = context && await context.documents.projectionSource(context.scope, source.id, source.versionId);
+    if (!projection) throw new ApplicationError(404, "Document version not found");
+    const document = await documentProjectionService.read(projection), native = structureNative(),
+      text = native.documentText(document), blocks = native.documentAnchors(document).filter((block) =>
+        block.kind === action.locator.kind && (block.label === action.locator.value ||
+          !!action.locator.endValue && Number(block.label) >= Number(action.locator.value) &&
+          Number(block.label) <= Number(action.locator.endValue)));
+    if (!blocks.length) throw new ApplicationError(409, "The canonical document passage is unavailable");
+    const from = Math.min(...blocks.map(({ start }) => start)), end = Math.max(...blocks.map(({ end }) => end)),
+      match = exactQuote(text.slice(from, end), clean(action.quote));
+    if (!match) throw new ApplicationError(400, "The quote is not contained in the canonical passage");
+    return { type: "merge", evidence: [createLibraryEvidence({ documentId: source.id,
+      versionId: source.versionId, filename: source.title ?? source.id,
+      sourceSha256: native.documentRevision(document), start: from + match.index,
+      end: from + match.index + match[0].length, spanText: match[0],
+      locator: { kind: action.locator.kind, label: action.locator.endValue
+        ? `${action.locator.value}-${action.locator.endValue}` : action.locator.value } })] };
+  }
   const read = await reader({ source, locator: action.locator, contextBlocks: 0 });
   const selected = read.status === "found" ? read.values.filter(({ role }) => role === "selected") : [];
   if (!selected.length) throw new ApplicationError(409, "The canonical source passage is unavailable");
@@ -80,16 +104,6 @@ export async function verifyResearchPassage(file: ResearchFile, action: PublicRe
   return { type: "merge", evidence: [evidence] };
 }
 
-const selectedLabels = (state: ResearchFileState, ids: string[]) => {
-  const selected = new Set(ids), children = new Map<string, string[]>();
-  if (ids.some((id) => !state.labels[id])) throw new ApplicationError(400, "Label not found");
-  Object.values(state.labels).forEach((label) => { if (label.parentId) {
-    const values = children.get(label.parentId);
-    if (values) values.push(label.id); else children.set(label.parentId, [label.id]);
-  } });
-  for (const id of selected) children.get(id)?.forEach((child) => selected.add(child));
-  return selected;
-};
 const labelled = (ids: string[], selected: Set<string>) =>
   ids.some((id) => selected.has(id));
 const inScope = (ids: string[], labels: Set<string>, unlabelled = false, alternate: string[] = []) =>
@@ -137,6 +151,7 @@ const resolveCaptures = (values: Capture[], conflict: ResearchFileQueryInput["co
 export async function runResearchFileQuery(documents: DocumentStore, scope: ApplicationScope,
   documentId: string, input: ResearchFileQueryInput, options: {
     signal?: AbortSignal; actor?: { model?: string; callId?: string };
+    operation?: ResearchOperationContext;
     assistant?: { turnVersionId?: string; turnId?: string };
     priorQueries?: Iterable<LegalResearchQueryReceipt>;
     reader?: ResearchPassageReader } = {}) {
@@ -162,9 +177,9 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
   if (needles.length > 100) throw new ApplicationError(400, "Query has too many terms");
   const matches = (text: string) => { const value = text.toLowerCase();
     return needles.every((term) => value.includes(term)); };
-  const labels = selectedLabels(state, input.labelIds ?? []),
+  const labels = researchSelectionLabels(state, input.labelIds ?? []),
     limit = Math.max(1, Math.min(5_000, input.limit ?? 500));
-  const requested = input.sourceIds?.length ? [...new Set(input.sourceIds)] : Object.keys(state.sources);
+  const requested = input.sourceIds ? [...new Set(input.sourceIds)] : Object.keys(state.sources);
   if ((input.sourceIds?.length ?? 0) > 10_000 ||
       requested.some((id) => !state.sources[id]))
     throw new ApplicationError(400, "Invalid source selection");
@@ -251,11 +266,23 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
   const native = input.target === "sources" && searchable.length ? structureNative() : null;
   const scan = async (source: ResearchFileState["sources"][string]) => {
     try {
-      const read = await (options.reader ?? readLegalSourcePassage)({
-        source: source.reference, signal: options.signal });
-      if (read.status !== "found") return { sourceId: source.id, failure: read.status, found: [] };
-      const passages = read.values.filter(({ role }) => role === "document");
-      if (!passages.length && read.values[0]) passages.push(read.values[0]);
+      const reference = source.reference, passages: Array<{ documentArtifact: Parameters<ReturnType<typeof structureNative>["documentText"]>[0];
+        evidence: (span: LegalEvidenceSpan) => LegalEvidenceReceipt | undefined }> = [];
+      if (reference.kind === "document") {
+        const projection = await documents.projectionSource(scope, reference.id, reference.versionId);
+        if (!projection) throw new ApplicationError(404, "Document version not found");
+        const documentArtifact = await documentProjectionService.read(projection, { signal: options.signal });
+        passages.push({ documentArtifact, evidence: (span) => createLibraryEvidence({
+          documentId: reference.id, versionId: reference.versionId, filename: reference.title ?? reference.id,
+          sourceSha256: native!.documentRevision(documentArtifact), start: span.start, end: span.end,
+          spanText: span.text, blockId: span.blockId, locator: span.locator }) });
+      } else {
+        const read = await (options.reader ?? legalSourceOperations.readPassage)({ source: reference, signal: options.signal });
+        if (read.status !== "found") return { sourceId: source.id, failure: read.status, found: [] };
+        const selected = read.values.filter(({ role }) => role === "document");
+        for (const passage of selected.length ? selected : read.values.slice(0, 1))
+          passages.push({ documentArtifact: passage.documentArtifact, evidence: (span) => legalSourceEvidence(passage, span) });
+      }
       if (!passages.length) return { sourceId: source.id, failure: "not_found", found: [] };
       const adapter = native!, sourceSha256s = passages.map(({ documentArtifact }) =>
         adapter.documentRevision(documentArtifact)), found: Array<{
@@ -287,7 +314,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
               if (pageFull || foundEvidence.size === limit) { resultLimited = true; continue; }
               const length = span.end - span.start;
               const value = text.slice(span.start, span.end), block = adapter.smallestContainingDocumentBlock(
-                passage.documentArtifact, span.start, span.end), receipt = legalSourceEvidence(passage,
+                passage.documentArtifact, span.start, span.end), receipt = passage.evidence(
                   { ...span, text: value,
                 ...(block && pinpoint.has(block.kind) ? {
                   blockId: `${block.kind}:${block.label}:${span.start}:${span.end}`,
@@ -313,7 +340,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
             if (!allowed.has(block.kind)) continue;
             const span = text.slice(block.start, block.end);
             if (matches(clean(span))) {
-              const receipt = legalSourceEvidence(passage, { text: span, start: block.start, end: block.end,
+              const receipt = passage.evidence({ text: span, start: block.start, end: block.end,
                 ...(block.kind === "document" ? {} : {
                   blockId: `${block.kind}:${block.label}:${block.start}:${block.end}`,
                   locator: { kind: block.kind as LegalEvidenceReceipt["locator"]["kind"],
@@ -381,11 +408,9 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
     labelPaths: Object.fromEntries([...new Set([...(input.labelIds ?? []), ...rules.flatMap(
       ({ slot }) => slot === "Unclassified" ? [] : [slot])])].flatMap((id) => {
       const path = researchLabelPath(state, id); return path ? [[id, path]] : []; })) };
-  const checkpointed = !!options.assistant && !!rules.length;
-  const updated = !options.assistant || rules.length
-    ? await commitResearchFile(documents, scope, file,
-      { type: "merge", evidence, queries: [receipt], labels: labelsByEvidence }, options.assistant)
-    : file;
+  const checkpointed = !!options.assistant;
+  const updated = await commitResearchFile(documents, scope, file,
+      { type: "merge", evidence, queries: [receipt], labels: labelsByEvidence }, options.assistant, options.operation);
   if (!updated) throw new ApplicationError(409, "This research file changed. Reload it.",
     { code: "revision_conflict" });
   return { file: updated, receipt, evidence, checkpointed, coverage };

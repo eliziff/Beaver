@@ -17,14 +17,11 @@ const agreementMarkdown = `# Parties and termination
 This Agreement is between {{party_a}} and {{party_b}}.
 
 {{termination_clause}}`;
-const agreementFields = [
-  { id: "party_a", value: "Acme & <North>" },
-  { id: "party_b", value: "[Second party]" },
-  {
-    id: "termination_clause",
-    value: "Either party may terminate on 30 days' notice.",
-  },
-];
+const agreementFields = {
+  party_a: "Acme & <North>",
+  party_b: "[Second party]",
+  termination_clause: "Either party may terminate on 30 days' notice.",
+};
 
 async function documentXml(bytes: Buffer) {
   const JSZip = (await import("jszip")).default;
@@ -89,7 +86,7 @@ describe("agreement DOCX drafting", () => {
     const rendered = await renderMarkdownDocx(
       "Lease",
       "Tenant: **{{ Tenant Name }}**.",
-      [{ id: " Tenant Name ", value: "Alex" }],
+      { " Tenant Name ": "Alex" },
     );
     if ("error" in rendered) throw new Error(rendered.error);
 
@@ -102,7 +99,7 @@ describe("agreement DOCX drafting", () => {
     const rendered = await renderMarkdownDocx(
       "Lease",
       "The premises are {{property_address}}. Notices concern {{property_address}}.",
-      [{ id: "property_address", value: "101 Main Street" }],
+      { property_address: "101 Main Street" },
     );
     if ("error" in rendered) throw new Error(rendered.error);
 
@@ -136,15 +133,20 @@ describe("agreement DOCX drafting", () => {
   });
 
   it("reports every bad field in one recoverable error", async () => {
-    const error = await renderMarkdownDocx("Lease", "{{a}}", [
-      { id: "a", value: "ok" },
-      { id: "", value: "x" },
-      { id: "a", value: "dup" },
-      { id: "b", value: 7 },
-    ]).then(() => "", (reason: Error) => reason.message);
-    expect(error).toContain("fields[1].id");
+    const error = await renderMarkdownDocx("Lease", "{{a}}", {
+      a: "ok", "": "x", " A ": "dup", b: 7,
+    }).then(() => "", (reason: Error) => reason.message);
+    expect(error).toContain("identifier beginning with a letter");
     expect(error).toContain('"a" is duplicated');
     expect(error).toContain('"b" value');
+  });
+
+  it("rejects array field bindings and excessive field data", async () => {
+    for (const fields of [[], { a: "x".repeat(20_001) },
+      Object.fromEntries(Array.from({ length: 101 }, (_, i) => [`field_${i}`, "value"])),
+      Object.fromEntries(Array.from({ length: 11 }, (_, i) => [`field_${i}`, "x".repeat(20_000)]))]) {
+      await expect(renderMarkdownDocx("Lease", "{{a}}", fields)).rejects.toThrow("DOCX fields");
+    }
   });
 
 });

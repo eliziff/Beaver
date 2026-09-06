@@ -33,7 +33,7 @@ function presentLegalEvidenceLocator(
   return {
     separator: kind === "section" ? ", " : " at ",
     label: value,
-    text: kind === "page"
+    text: kind === "page" || kind === "sheet" || kind === "cell"
       ? value
       : `${kind === "paragraph" ? plural ? "paras" : "para" : kind === "section" ? pluralProvision ? "ss" : "s" : plural ? "nn" : "n"} ${value}`,
   };
@@ -68,7 +68,7 @@ export function presentLegalEvidence(
           receipt.citation,
           range[1],
           range[2],
-          document ? [document] : [],
+          document,
         )
     : null;
   const a2ajLocator = ["paragraph", "page", "section"].includes(
@@ -84,7 +84,6 @@ export function presentLegalEvidence(
           a2ajLocator,
           receipt.span_text,
           quotes,
-          source,
         )
       : null
     : null;

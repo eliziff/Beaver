@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { expect, it, vi } from "vitest";
-import type { Document } from "../shared/types";
+import type { Document } from "@/app/lib/api/documents";
 import type { WorkflowSelection } from "../workflows/workflowRoutes";
 import { assistantWorkflowLaunch } from "../workflows/workflowRoutes";
 import { LibraryCollectionPage } from "./LibraryWorkspace";
@@ -35,10 +35,10 @@ vi.mock("../../hooks/usePagedDirectory", () => ({
         loadingParents: new Set(), ensureParent: vi.fn(), loadMore: vi.fn(),
     }),
 }));
-vi.mock("../../lib/beaverApi", () => ({
-    directoryResource: () => ({ list: vi.fn() }),
-    getDocumentParseStates: vi.fn(),
-    retryLibraryPdfParse: vi.fn(),
+vi.mock("@/app/lib/api/documents", () => ({
+  directoryResource: () => ({ list: vi.fn() }),
+  getDocumentParseStates: vi.fn(),
+  retryLibraryPdfParse: vi.fn()
 }));
 
 function Location() {

@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { TurnToolRegistry, toolText } from "../chat/toolRegistry";
 
 const transport = vi.hoisted(() => {
   const listeners = new Set<(event: { method: string; params: Record<string, unknown> }) => void>();
@@ -81,6 +84,40 @@ describe("Codex app-server adapter", () => {
     });
     const turn = transport.request.mock.calls.find(([method]) => method === "turn/start")?.[1];
     expect(turn.input).toEqual([{ type: "text", text: "Reply.", text_elements: [] }]);
+  });
+
+  it("exposes specialists only after loading through the native MCP connection", async () => {
+    const registry = new TurnToolRegistry([{ name: "inspect", specialist: true,
+      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      async execute() { return { result: toolText("inspected") }; },
+    }]);
+    let bridgeUrl = "";
+    transport.request.mockImplementation(async (method: string, params) => {
+      if (method === "thread/start") {
+        bridgeUrl = params.config.mcp_servers.mike_runtime.url;
+        return { thread: { id: threadId } };
+      }
+      if (method === "turn/start") {
+        const client = new Client({ name: "codex-test", version: "1" });
+        await client.connect(new StreamableHTTPClientTransport(new URL(bridgeUrl), {
+          requestInit: { headers: { Authorization: "Bearer test-token" } },
+        }));
+        try {
+          expect((await client.listTools()).tools.map(({ name }) => name)).toEqual(["load_tools"]);
+          await client.callTool({ name: "load_tools", arguments: { names: ["inspect"] } });
+          expect((await client.listTools()).tools.map(({ name }) => name)).toEqual(["inspect"]);
+          expect((await client.callTool({ name: "inspect", arguments: {} })).content)
+            .toEqual([{ type: "text", text: "inspected" }]);
+        } finally { await client.close(); }
+        setTimeout(() => complete(), 0);
+        return { turn: { id: turnId } };
+      }
+      return {};
+    });
+    await streamCodex({ model: "codex:gpt-5.6-luna", systemPrompt: "", messages: [],
+      tools: registry.visible(), staticTools: registry.all(),
+      resolveTools: () => registry.visible(), runTools: calls => registry.run(calls, {}),
+    });
   });
 
   it("passes a structured-output schema to the native turn", async () => {

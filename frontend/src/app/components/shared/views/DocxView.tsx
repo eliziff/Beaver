@@ -1,4 +1,5 @@
-import { useEffect, useEffectEvent, useRef } from "react";import { Loader2 } from "lucide-react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import {
     parseAsync,
     renderDocument,
@@ -14,7 +15,7 @@ import {
     tagDocxMarkers,
     type DocxNoteModel,
 } from "./docxNotes";
-import type { CitationQuote } from "../types";
+import type { CitationQuote } from "@/app/lib/citations";
 interface Props {
     documentId: string;
     versionId?: string | null;
@@ -161,6 +162,8 @@ export function DocxView({
     const pageElementsRef = useRef<HTMLElement[]>([]);
     const lastScrollTopRef = useRef(0);
     const renderKeyRef = useRef(0);
+    const [renderedBytes, setRenderedBytes] = useState<ArrayBuffer | null>(null);
+    const [renderFailure, setRenderFailure] = useState<ArrayBuffer | null>(null);
     const current = useEffectEvent(() => ({
         highlightEdit,
         initialScrollTop,
@@ -176,6 +179,8 @@ export function DocxView({
         true,
     );
     const bytes = result?.buffer ?? null;
+    const viewError = error || (bytes && renderFailure === bytes ? "Failed to render document." : null);
+    const preparing = !viewError && (loading || !bytes || renderedBytes !== bytes);
     const applyQuoteHighlights = (
         containerEl: HTMLElement,
         scrollEl: HTMLElement,
@@ -245,11 +250,16 @@ export function DocxView({
                 const rendered = finalizeDocxDom(containerEl);
                 pageElementsRef.current = rendered.pages;
                 quietBrokenDocxImages(rendered.images);
+                await Promise.all([
+                    document.fonts?.ready,
+                    ...rendered.images.map((image) => image.decode?.().catch(() => undefined)),
+                ]);
+                if (cancelled) return;
                 applyDocxScale();
                 if (cancelled) return;
                 requestAnimationFrame(() => {
                     if (
-                        !scrollRef.current ||
+                        cancelled || !scrollRef.current ||
                         thisRender !== renderKeyRef.current
                     )
                         return;
@@ -283,10 +293,12 @@ export function DocxView({
                     } else {
                         scrollRef.current.scrollTop = lastScrollTopRef.current;
                     }
+                    setRenderedBytes(bytes);
                     ready?.();
                 });
             } catch (e) {
                 console.error("docx-preview render failed", e);
+                if (!cancelled) setRenderFailure(bytes);
             }
         })();
         return () => {
@@ -346,20 +358,23 @@ export function DocxView({
             <div
                 ref={scrollRef}
                 className="docx-view-scroll min-h-0 min-w-0 flex-1 overflow-auto px-5 pt-5 pb-3"
+                style={{ scrollbarGutter: "stable" }}
+                aria-busy={preparing}
                 data-document-id={documentId}
                 data-version-id={versionId ?? ""}
             >
-                {loading && !bytes && (
-                    <div className="flex h-full items-center justify-center">
+                {preparing && (
+                    <div className="absolute inset-0 flex items-center justify-center" role="status" aria-label="Loading document">
                         <Loader2 className="h-7 w-7 animate-spin text-gray-400" />
                     </div>
                 )}
-                {error && (
+                {viewError && (
                     <div className="flex h-full items-center justify-center">
-                        <p className="text-sm text-red-700">{error}</p>
+                        <p className="text-sm text-red-700">{viewError}</p>
                     </div>
                 )}
-                <div ref={containerRef} className="docx-view-container" />
+                <div ref={containerRef} className="docx-view-container"
+                    style={{ visibility: preparing || viewError ? "hidden" : "visible" }} />
             </div>
         </div>
     );

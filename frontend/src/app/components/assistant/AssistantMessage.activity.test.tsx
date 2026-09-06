@@ -9,6 +9,7 @@ import {
     type AssistantMessageState,
 } from "@/app/lib/assistantSession";
 import { AssistantMessage as CanonicalAssistantMessage } from "./AssistantMessage";
+import * as downloads from "@/app/lib/download";
 
 function canonicalMessage(events: unknown[], error?: string) {
     const state = assistantSessionReducer(createAssistantSessionState(), {
@@ -71,6 +72,36 @@ const editEvent = (
 });
 
 describe("AssistantMessage activity", () => {
+    it("downloads the artifact's exact version and uses the resolved version after an edit", async () => {
+        const downloaded = vi.spyOn(downloads, "downloadBlob").mockImplementation(() => {});
+        const requests: string[] = [];
+        vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+            requests.push(url);
+            return url.endsWith("/edits/accept")
+                ? Response.json({ status: "accepted", version_id: "version/3",
+                    download_url: "/api/single-documents/doc-1/file?version_id=version%2F3" })
+                : new Response("document bytes");
+        }));
+        try {
+            render(<AssistantMessage events={[{ ...editEvent("manual"),
+                download_url: "/api/single-documents/doc-1/file?version_id=version-2" }]} />);
+            await userEvent.click(screen.getByRole("button", { name: "Download Draft.docx" }));
+            await userEvent.click(screen.getByRole("button", { name: "Accept" }));
+            await userEvent.click(screen.getByRole("button", { name: "Download Draft.docx" }));
+
+            expect(requests).toEqual([
+                "/api/single-documents/doc-1/file?version_id=version-2",
+                "/api/single-documents/doc-1/edits/accept",
+                "/api/single-documents/doc-1/file?version_id=version%2F3",
+            ]);
+            expect(downloaded).toHaveBeenCalledTimes(2);
+            expect(downloaded.mock.calls[1][1]).toBe("Draft.docx");
+        } finally {
+            downloaded.mockRestore();
+            vi.unstubAllGlobals();
+        }
+    });
+
     it("keeps every tracked change emitted for one document version", () => {
         render(
             <AssistantMessage
@@ -220,12 +251,12 @@ describe("AssistantMessage activity", () => {
         }]} onCitationClick={onCitationClick} />);
 
         await userEvent.click(screen.getByRole("button", {
-            name: "Example v. Example, 2020 BCSC 1 at para 12",
+            name: "Example v. Example, 2020 BCSC 1",
         }));
         expect(onCitationClick).toHaveBeenCalledOnce();
     });
 
-    it("shows searched case names and one journal page range as canonical chips", () => {
+    it("hides raw search results and shows read passages as canonical chips", () => {
         render(<AssistantMessage events={[
             {
                 type: "tool_activity", id: "search-1", tool: "search_sources",
@@ -249,11 +280,10 @@ describe("AssistantMessage activity", () => {
             },
         ]} />);
 
-        const caseChip = screen.getByText("Example v. Example").closest("span, button, a");
-        expect(caseChip?.querySelector("em") ?? screen.getByText("Example v. Example").closest("em"))
-            .not.toBeNull();
+        expect(screen.queryByText("Example v. Example")).not.toBeInTheDocument();
+        expect(screen.getByText("Searching case law for “Example”")).toBeVisible();
         expect(screen.getByText(/Gordon F\. Henderson/u)).toHaveTextContent(
-            "Gordon F. Henderson, “Problems Involved in the Assignment of Patents and Patent Rights” (1966) 1:1 Ottawa L Rev 36 at 60–63",
+            "Gordon F. Henderson, “Problems Involved in the Assignment of Patents and Patent Rights” (1966) 1:1 Ottawa L Rev 36",
         );
         expect(screen.getAllByText(/Gordon F\. Henderson/u)).toHaveLength(1);
     });

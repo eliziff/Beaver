@@ -90,16 +90,6 @@ export type McpConnectorSummary = {
   updatedAt: string;
 };
 
-export type McpToolEvent = {
-  type: "mcp_tool_call";
-  connector_id: string;
-  connector_name: string;
-  tool_name: string;
-  openai_tool_name: string;
-  status: "ok" | "error";
-  error?: string;
-};
-
 export const CLIENT_INFO = { name: "beaver", version: "1.0.0" };
 export const MCP_REQUEST_TIMEOUT_MS = 30_000;
 export const MAX_MCP_RESPONSE_BYTES = 1024 * 1024;

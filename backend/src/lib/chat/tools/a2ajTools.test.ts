@@ -8,6 +8,15 @@ import {
 import { createLibraryEvidence } from "../legalEvidence";
 
 describe("legal-source assistant activity", () => {
+  it("decodes a complete source reference before shortening display text", () => {
+    const file_path = `source://a2aj/${encodeURIComponent(JSON.stringify([
+      "[1986] 1 SCR 103", "cases", "SCC", "en",
+    ]))}`;
+    expect(assistantToolActivityLabel("Read", { file_path, offset: 1, limit: 120 }))
+      .toBe("Reading lines 1–120 of [1986] 1 SCR 103");
+    expect(assistantToolActivityLabel("Read", { file_path, offset: 1, limit: 120 }, "R. v. Oakes"))
+      .toBe("Reading lines 1–120 of R. v. Oakes");
+  });
   it("hides inventory reads and describes unified source operations", () => {
     expect(assistantToolActivityLabel("Glob", { pattern: "*" })).toBeNull();
     expect(

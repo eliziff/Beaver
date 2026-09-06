@@ -1,4 +1,4 @@
-import type { DraftingStyleSettings } from "./beaverApi";
+import type { DraftingStyleSettings } from "@/app/lib/api/account";
 
 export const DEFAULT_DRAFTING_STYLE: DraftingStyleSettings = {
     version: 1,

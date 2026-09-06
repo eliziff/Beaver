@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { Project, TabularReview } from "@/app/components/shared/types";
+import type { Project } from "@/app/lib/api/projects";
+import type { TabularReview } from "@/app/lib/api/tabular";
 import { TabularReviewsTable } from "./TabularReviewsTable";
 
 vi.mock("react-router-dom", () => ({

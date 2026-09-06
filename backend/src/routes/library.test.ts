@@ -21,6 +21,7 @@ function fixture() {
     updateFolder: vi.fn().mockResolvedValue({ id: "f1", parent_folder_id: null }),
     deleteFolder: vi.fn().mockResolvedValue(true),
     document: vi.fn().mockResolvedValue({ id: "d1", filename: "lease.docx" }),
+    reprocessPdf: vi.fn().mockResolvedValue({ id: "job-1", status: "queued" }),
     moveDocument: vi.fn().mockResolvedValue({ id: "d1", filename: "lease.docx" }),
     updateDocument: vi.fn().mockResolvedValue({ id: "d1", filename: "Lease.docx" }),
   } satisfies LibraryStore;

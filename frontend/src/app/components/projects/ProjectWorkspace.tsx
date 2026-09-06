@@ -12,10 +12,14 @@ import {
   deleteProject,
   getProject,
   getProjectPeople,
-  listProjectChats,
   updateProject,
-} from "@/app/lib/beaverApi";
-import type { Chat, ColumnConfig, Document, Project } from "../shared/types";
+  type Project,
+} from "@/app/lib/api/projects";
+import { listProjectChats, type Chat } from "@/app/lib/api/chat";
+
+import type { ColumnConfig } from "@/app/lib/api/tabular";
+import type { Document } from "@/app/lib/api/documents";
+
 import { stageNewChatDocuments } from "../assistant/assistantLaunch";
 import type { AssistantWorkflowLaunch } from "../workflows/workflowRoutes";
 import { PeopleModal } from "../modals/PeopleModal";

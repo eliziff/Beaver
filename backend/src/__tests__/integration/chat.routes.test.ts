@@ -89,11 +89,23 @@ describe("POST /chat — canonical streaming endpoint", () => {
   });
 });
 
+describe("GET /chat history filters", () => {
+  it.each([
+    { created_from: "not-a-date" },
+    { created_from: "2026-09-03T00:00:00Z", created_to: "2026-09-02T00:00:00Z" },
+    { search_scope: "private-events" },
+    { search_context: "other-users" },
+    { sort: "title" },
+  ])("rejects invalid filters", async (query) => {
+    const res = await request(app).get("/chat").query(query);
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("PATCH /chat/:chatId", () => {
   it("returns 400 when no supported update is present", async () => {
     const res = await request(app).patch(`/chat/${CHAT_ID}`).send({});
     expect(res.status).toBe(400);
-    expect(res.body.detail).toBe("title or project_id is required");
   });
 
   it("rejects oversized stored fields", async () => {

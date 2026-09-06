@@ -1,9 +1,10 @@
 import {
-    citationPinpoint,
-    displayCitationQuote,
-    formatCitationPage,
-} from "../../shared/types";
-import type { Citation } from "../../shared/types";
+  citationPinpoint,
+  displayCitationQuote,
+  formatCitationPage,
+  type Citation,
+} from "@/app/lib/citations";
+
 function caseName(annotation: Citation): string | null {
     if (annotation.kind === "a2aj" && annotation.source_class === "case")
         return annotation.name?.trim() || null;
@@ -24,28 +25,30 @@ function shortCaseName(value: string): string {
         ? right || left
         : left;
 }
-function citationSourceLabel(annotation: Citation): string {
-    if (annotation.authority?.trim()) return annotation.authority.trim();
+function citationSourceLabel(annotation: Citation, sourceOnly = false): string {
+    const authority = annotation.authority?.trim();
+    if (!sourceOnly && authority) return authority;
     if (annotation.kind === "a2aj") {
         const name = annotation.name?.trim();
         const citation = annotation.citation?.trim();
         if (name && citation && name.toLowerCase() !== citation.toLowerCase())
             return `${name}, ${citation}`;
-        return name || citation || "A2AJ source";
+        return name || citation || authority || "A2AJ source";
     }
     if (annotation.kind === "public_legal") {
         const title = annotation.title?.trim();
         const citation = annotation.citation?.trim();
         if (title && citation && title.toLowerCase() !== citation.toLowerCase())
             return `${title}, ${citation}`;
-        return title || citation || annotation.identifier;
+        return title || citation || authority || annotation.identifier;
     }
     if (annotation.kind === "tabular")
         return `${annotation.col_name} · ${annotation.doc_name}`;
     return annotation.filename;
 }
-function citationPillLabel(annotation: Citation): string {
-    const source = citationSourceLabel(annotation);
+function citationPillLabel(annotation: Citation, sourceOnly = false): string {
+    const source = citationSourceLabel(annotation, sourceOnly);
+    if (sourceOnly) return source;
     const pinpoint = citationPinpoint(annotation);
     if (annotation.display_form === "pinpoint" && pinpoint) return pinpoint;
     if (annotation.display_form === "supra") {
@@ -63,11 +66,11 @@ function citationPillLabel(annotation: Citation): string {
     return `${source}${separator}${pinpoint}`;
 }
 
-export function citationPillParts(annotation: Citation): {
+export function citationPillParts(annotation: Citation, sourceOnly = false): {
     styleOfCause: string | null;
     rest: string;
 } {
-    const label = citationPillLabel(annotation);
+    const label = citationPillLabel(annotation, sourceOnly);
     const style = caseName(annotation);
     if (!style || annotation.display_form === "pinpoint")
         return { styleOfCause: null, rest: label };

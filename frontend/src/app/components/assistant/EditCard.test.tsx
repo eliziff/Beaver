@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { EditAnnotation } from "../shared/types";
+import type { EditAnnotation } from "@/app/lib/api/documents";
 
 const mocks = vi.hoisted(() => ({ resolveDocumentEdits: vi.fn() }));
-vi.mock("@/app/lib/beaverApi", () => ({
-    resolveDocumentEdits: mocks.resolveDocumentEdits,
+vi.mock("@/app/lib/api/documents", () => ({
+  resolveDocumentEdits: mocks.resolveDocumentEdits
 }));
 
 import { resolveEdit } from "./EditCard";

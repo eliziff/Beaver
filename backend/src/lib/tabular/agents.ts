@@ -4,6 +4,7 @@ import { activeJobForGroup, enqueueJob, jsonValue, PermanentJobError,
   requestGroupCancellation, type JobHandler } from "../jobQueue";
 import { jsonRecord, trimmedText } from "../value";
 import type { TabularApplication } from "./application";
+import { parseResourceReference } from "../resourceReferences";
 
 export const TABULAR_AGENT_JOB = "tabular.agent";
 const group = (reviewId: string) => `tabular:${reviewId}`;
@@ -12,7 +13,7 @@ export type TabularAgents = {
   active(reviewId: string, ownerId: string): Promise<boolean>;
   enqueue(scope: ApplicationScope, input: {
     reviewId: string; ownerId: string;
-    assignments: { documentId: string; columnIndex?: number }[];
+    assignments: { documentId: string; columnIndex?: number; sourceDocumentId?: string | null }[];
     model: string; reasoningEffort?: string;
   }): Promise<{ id: string; created: boolean }[]>;
   cancel(reviewId: string, ownerId: string): Promise<boolean>;
@@ -24,13 +25,14 @@ export const durableTabularAgents: TabularAgents = {
   },
   async enqueue(scope, input) {
     const requestId = randomUUID();
-    return Promise.all(input.assignments.map(async ({ documentId, columnIndex }) => {
+    return Promise.all(input.assignments.map(async ({ documentId, columnIndex, sourceDocumentId }) => {
       const queued = await enqueueJob({
         kind: TABULAR_AGENT_JOB,
         dedupeKey: `${input.reviewId}:${documentId}`,
         groupKey: group(input.reviewId),
         userId: input.ownerId,
-        documentId,
+        documentId: sourceDocumentId === undefined
+          ? parseResourceReference(documentId)?.kind === "source" ? null : documentId : sourceDocumentId,
         payload: jsonValue({
           request_id: requestId,
           actor_user_id: scope.userId,
@@ -75,7 +77,7 @@ export function tabularAgentJobHandler(application: TabularApplication): JobHand
         ...(trimmedText(payload?.actor_user_email)
           ? { userEmail: trimmedText(payload?.actor_user_email) }
           : {}),
-      }, { reviewId, documentId, model, reasoningEffort, columnIndex }, context.signal);
+      }, { reviewId, documentId, model, reasoningEffort, columnIndex, jobId: job.id }, context.signal);
       return { review_id: reviewId, document_id: documentId };
     } catch (error) {
       if (error instanceof ApplicationError) {

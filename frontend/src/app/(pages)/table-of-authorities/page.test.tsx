@@ -26,9 +26,35 @@ const api = vi.hoisted(() => ({
 const assistant = vi.hoisted(() => ({ options: [] as Record<string, unknown>[],
   handleChat: vi.fn() }));
 
-vi.mock("@/app/lib/beaverApi", () => ({
-  ...api,
-  directoryResource: api.directoryResource,
+vi.mock("@/app/lib/api/authorities", () => ({
+  actOnAuthorities: api.actOnAuthorities,
+  attachAuthorityPdf: api.attachAuthorityPdf,
+  buildAuthorities: api.buildAuthorities,
+  attachAuthoritiesBookPdf: api.attachAuthoritiesBookPdf,
+  attachAuthoritiesLibraryPdf: api.attachAuthoritiesLibraryPdf,
+  createAuthorities: api.createAuthorities,
+  prepareAuthoritiesSources: api.prepareAuthoritiesSources,
+  refreshAuthorities: api.refreshAuthorities,
+  replaceAuthoritiesSource: api.replaceAuthoritiesSource,
+  refreshAuthoritiesInput: api.refreshAuthoritiesInput,
+  reviewAuthorities: api.reviewAuthorities,
+  resolveAuthoritiesDiscrepancy: api.resolveAuthoritiesDiscrepancy,
+  uploadAuthoritiesDocument: api.uploadAuthoritiesDocument
+}));
+vi.mock("@/app/lib/api/workProducts", () => ({
+  createWorkProduct: api.createWorkProduct,
+  deleteWorkProduct: api.deleteWorkProduct,
+  duplicateWorkProduct: api.duplicateWorkProduct,
+  getWorkProduct: api.getWorkProduct,
+  getWorkProductResolution: api.getWorkProductResolution,
+  listWorkProductMetadata: api.listWorkProductMetadata,
+  listWorkProducts: api.listWorkProducts,
+  updateWorkProduct: api.updateWorkProduct
+}));
+vi.mock("@/app/lib/api/documents", () => ({
+  downloadDocument: api.downloadDocument,
+  getDocumentParseStates: api.getDocumentParseStates,
+  directoryResource: api.directoryResource
 }));
 vi.mock("@/app/contexts/UserProfileContext", () => ({
   useUserProfile: () => ({ profile: null }),
@@ -159,7 +185,7 @@ describe("Authorities UI contracts", () => {
       route={workspaceRoute()} /></MemoryRouter>);
 
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      "Automatic", "Manual", "Drafts", "Settings",
+      "Automatic", "Manual", "Drafts",
     ]);
     expect(await screen.findByRole("heading", { name: "Import and review" })).toBeVisible();
     expect(document.querySelector("iframe")).toBeNull();
@@ -318,11 +344,15 @@ describe("Authorities UI contracts", () => {
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute()} /></MemoryRouter>);
 
-    await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
-    const sources = screen.getByLabelText("Source handling");
-    expect(sources).toHaveValue("render");
-    expect(within(sources).getAllByRole("option").map(({ textContent }) => textContent))
-      .toEqual(["Automatic sources", "Use available original PDFs and manually add the PDFs myself for the rest", "Rebuild all sources from text (where available)"]);
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.getByRole("radio", { name: /Rebuild all sources from text/ })).toBeChecked();
+    await userEvent.click(screen.getByRole("radio", { name: /Automatic sources/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    await userEvent.upload(screen.getByLabelText("Add file"), new File(["PK"], "Factum.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }));
+    expect(within(screen.getByRole("dialog", { name: "Import options" }))
+      .getByRole("radio", { name: /Automatic sources/ })).toBeChecked();
   });
 
   it("normalizes Federal passage marking and omits the invalid no-marks choice", async () => {
@@ -332,11 +362,9 @@ describe("Authorities UI contracts", () => {
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute()} /></MemoryRouter>);
 
-    await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
-    const marking = screen.getByLabelText("Passage marking");
-    expect(marking).toHaveValue("margin");
-    expect(within(marking).queryByRole("option", { name: "No passage marks" }))
-      .not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.getByRole("radio", { name: /Right-margin marker and exact quote/ })).toBeChecked();
+    expect(screen.queryByRole("radio", { name: /No passage marks/ })).not.toBeInTheDocument();
   });
 
   it("creates a manual book in manual order and rejects a table-only court default", async () => {
@@ -476,10 +504,10 @@ describe("Authorities UI contracts", () => {
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
     await waitFor(() => expect(api.getWorkProduct).toHaveBeenCalledWith("draft-1"));
-    await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Drafts" }));
 
     load.resolve(documentDraft());
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Settings" }))
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Drafts" }))
       .toHaveAttribute("aria-selected", "true"));
     expect(screen.getByRole("heading", { name: "Authorities" })).toBeVisible();
   });
@@ -500,7 +528,7 @@ describe("Authorities UI contracts", () => {
     expect(screen.getByRole("heading", { name: "Draft A" })).toBeVisible();
   });
 
-  it("keeps Drafts and Settings in the global Authorities context", async () => {
+  it("opens settings over the selected workspace section", async () => {
     api.getWorkProduct.mockResolvedValue(documentDraft());
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
@@ -509,7 +537,7 @@ describe("Authorities UI contracts", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Drafts" }));
     expect(screen.getByRole("heading", { name: "Authorities" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Requested draft" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.getByRole("heading", { name: "Authorities" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Requested draft" })).not.toBeInTheDocument();
   });
@@ -551,7 +579,7 @@ describe("Authorities UI contracts", () => {
     render(<MemoryRouter><AuthoritiesWorkspace
       host={{ ...beaverAuthoritiesHost, outputFolder }} route={workspaceRoute()} /></MemoryRouter>);
 
-    await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(await screen.findByText("Court outputs")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Choose folder" }));
     expect(await screen.findByText("Appeal outputs")).toBeVisible();
@@ -1331,19 +1359,20 @@ describe("Authorities UI contracts", () => {
   it("selects courts across jurisdictions directly in one chooser and keeps book-only choices valid", async () => {
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute()} jurisdictionOrder={["ca-ab"]} /></MemoryRouter>);
-    await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
     await userEvent.click(screen.getByRole("button", { name: "Court: No court preset" }));
     let chooser = screen.getByRole("dialog", { name: "Choose court" });
     const choices = within(within(chooser).getByRole("group", { name: "Choose court" })).getAllByRole("button");
     expect(choices[0]).toHaveTextContent("Alberta");
     expect(within(chooser).getByRole("button", { name: "Court of Appeal of Alberta" })).toBeVisible();
     await userEvent.click(within(chooser).getByRole("button", { name: "Federal Court", exact: true }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Choose court" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Court: Federal Court", exact: true }));
     chooser = screen.getByRole("dialog", { name: "Choose court" });
     await userEvent.click(within(chooser).getByRole("button", { name: "Court of Appeal of Alberta" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Choose court" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Court: Court of Appeal of Alberta" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
     await userEvent.click(screen.getByRole("tab", { name: "Manual" }));
     await userEvent.click(screen.getByRole("button", { name: /Court:/ }));
     chooser = screen.getByRole("dialog", { name: "Choose court" });

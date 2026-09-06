@@ -385,6 +385,30 @@ describe("account-free matter routes", () => {
     expect(mocks.supabaseCalls).toBe(0);
   });
 
+  it("accepts the quotation review assistant variant from the unified workflow", async () => {
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      mocks.modelInputs.push({ systemPrompt: params.systemPrompt, messages: params.messages });
+      await params.runTools?.([{ id: "choose-document", name: "ask_inputs",
+        input: { items: [{ id: "document", kind: "documents", document_types: ["Document to review"] }] } }]);
+      return { fullText: "" };
+    });
+    const api = await loadApi();
+    const chat = await request(api).post("/chat/create").send({});
+    const turn = await request(api).post("/chat").send({
+      chat_id: chat.body.id, expected_version: 0,
+      current_turn: { kind: "message", content: "Review quotations and source support.",
+        workflow: { id: "quote-checking", variant_id: "builtin-quote-checking-general" } },
+    });
+    expect(turn.status).toBe(200);
+    expect(turn.text).not.toContain('"accepted":false');
+    expect(turn.text).toContain('"type":"ask_inputs"');
+    expect(mocks.modelInputs.at(-1)?.messages.at(-1)?.content).toContain(
+      "(id: quote-checking; variant: builtin-quote-checking-general)");
+    const transcript = await request(api).get(`/chat/${chat.body.id}`);
+    expect(transcript.body.messages.find((message: { role: string }) => message.role === "user").workflow)
+      .toMatchObject({ id: "quote-checking", variant_id: "builtin-quote-checking-general" });
+  });
+
   it("uses explicit chat documents without changing matter membership", async () => {
     let api = await loadApi();
     const matter = await request(api)

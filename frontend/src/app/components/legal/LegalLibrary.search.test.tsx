@@ -11,9 +11,16 @@ const api = vi.hoisted(() => ({
     searchLegalSources: vi.fn(),
 }));
 
-vi.mock("@/app/lib/beaverApi", async (original) => ({
-    ...(await original<typeof import("@/app/lib/beaverApi")>()),
-    ...api,
+vi.mock("@/app/lib/api/researchFiles", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/researchFiles")>(),
+  actOnResearchFile: api.actOnResearchFile,
+  createResearchFile: api.createResearchFile,
+  getResearchFile: api.getResearchFile
+}));
+vi.mock("@/app/lib/api/legalSources", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/legalSources")>(),
+  getLegalSourceCoverage: api.getLegalSourceCoverage,
+  searchLegalSources: api.searchLegalSources
 }));
 vi.mock("./ResearchFileBar", () => ({ ResearchFileBar: ({ onChange, onReadSource }: { onChange: (file: unknown) => void; onReadSource: (source: any) => void }) =>
     <><button onClick={() => onChange({ document: { id: "chosen", filename: "Chosen.research.md" }, versionId: "v1", workingRevision: 0,
@@ -88,6 +95,17 @@ describe("LegalLibraryPage search", () => {
         </MemoryRouter>);
         expect(await screen.findByRole("alert")).toBeVisible();
         expect(screen.getByRole("alert")).toHaveTextContent("Workspace unavailable");
+    });
+
+    it("discovers the workspace bound by the assistant without clearing a typed search", async () => {
+        api.getResearchFile.mockResolvedValue(linked);
+        const { rerender } = render(<MemoryRouter><LegalLibraryPage embedded /></MemoryRouter>);
+        fireEvent.change(screen.getByPlaceholderText("Search cases, legislation, journals, and Hansard"),
+            { target: { value: "contract notice" } });
+        rerender(<MemoryRouter><LegalLibraryPage embedded researchFileId="linked-file" /></MemoryRouter>);
+        await waitFor(() => expect(api.getResearchFile).toHaveBeenCalledWith("linked-file"));
+        expect(screen.getByRole("region", { name: "Research collection" })).toBeVisible();
+        expect(screen.getByPlaceholderText("Search cases, legislation, journals, and Hansard")).toHaveValue("contract notice");
     });
 
     it("refreshes the selected Workspace without resetting its search", async () => {

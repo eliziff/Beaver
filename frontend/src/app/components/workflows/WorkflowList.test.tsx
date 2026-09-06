@@ -1,14 +1,21 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
-import type { Workflow } from "../shared/types";
+import type { Workflow } from "@/app/lib/api/workflows";
 import { WorkflowList } from "./WorkflowList";
 
 const mocks = vi.hoisted(() => ({ listWorkflows: vi.fn() }));
-vi.mock("@/app/lib/beaverApi", () => ({
-    listWorkflows: mocks.listWorkflows,
-    createTabularReview: vi.fn(),
-    deleteWorkflow: vi.fn(), createWorkflow: vi.fn(), updateWorkflow: vi.fn(),
+vi.mock("@/app/contexts/ChatHistoryContext", () => ({
+    useChatHistoryContext: () => ({ saveChat: vi.fn(), stagePendingChatMessage: vi.fn() }),
+}));
+vi.mock("@/app/lib/api/workflows", () => ({
+  listWorkflows: mocks.listWorkflows,
+  deleteWorkflow: vi.fn(),
+  createWorkflow: vi.fn(),
+  updateWorkflow: vi.fn()
+}));
+vi.mock("@/app/lib/api/tabular", () => ({
+  createTabularReview: vi.fn()
 }));
 vi.mock("@/app/contexts/UserProfileContext", () => ({
     useUserProfile: () => ({ profile: { features: { authorities: true } } }),
@@ -55,7 +62,8 @@ it("filters one catalogue and opens a singleton workspace in one click", async (
     expect(screen.getByText("Agreement findings")).toBeVisible();
     expect(mocks.listWorkflows).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("tab", { name: "All" }));
+    fireEvent.click(within(screen.getByRole("tablist", { name: "Workflow audience" }))
+        .getByRole("tab", { name: "All" }));
     await waitFor(() => expect(view.container.querySelectorAll(
         '[data-workflow-id="court-records"]')).toHaveLength(1));
     fireEvent.click(view.container.querySelector('button[data-workflow-id="court-records"]')!);

@@ -93,6 +93,8 @@ export function KeyboardShortcuts() {
             className="!h-auto"
         >
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 pb-5 pt-2 text-sm">
+                <dt><kbd>Ctrl / ⌘ K</kbd></dt>
+                <dd>Search history</dd>
                 <dt><kbd>/</kbd></dt>
                 <dd>Search this page</dd>
                 <dt><kbd>Alt N</kbd></dt>

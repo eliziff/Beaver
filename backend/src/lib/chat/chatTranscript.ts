@@ -1,34 +1,16 @@
 import type { ChatMessageRecord } from "../chatStore";
 import type { Provider, ProviderContextCheckpoint } from "../llm/types";
-import type { AskInputItem, ChatMessage } from "./types";
+import type { ChatMessage } from "./types";
+import { publicAssistantEvent, type AssistantEvent, type AskInputItem,
+  type AskInputResponseItem, type PublicTranscriptEvent } from "./assistantEvents";
 import { jsonRecord as record, trimmedText as text } from "../value";
 
-const PUBLIC_EVENTS = new Set([
-  "ask_inputs", "ask_inputs_response", "workflow_run", "compaction",
-  "content", "document_artifact", "error", "steering", "subagent_run",
-  "tool_activity", "turn_status",
-]);
-export function publicAssistantEvent(value: unknown): unknown | null {
-  const event = record(value);
-  if (!event || !PUBLIC_EVENTS.has(String(event.type ?? ""))) return null;
-  if (event.type !== "subagent_run") return value;
-  return {
-    type: "subagent_run", id: event.id, task: event.task, status: event.status,
-    ...(record(event.activity) && { activity: event.activity }),
-    ...(Array.isArray(event.activities) && { activities: event.activities }),
-    ...(typeof event.output === "string" && { output: event.output }),
-    ...(typeof event.publicError === "string" && { error: event.publicError }),
-    ...(Array.isArray(event.citations) && { citations: event.citations }),
-  };
-}
-
-export function visibleChatMessages<
-  T extends Pick<ChatMessageRecord, "role" | "content"> &
-    Partial<Pick<ChatMessageRecord, "turn_id">>,
->(messages: T[]): T[] {
-  return messages.flatMap((message) => {
-    if (message.role !== "assistant" || !Array.isArray(message.content)) return [message];
-    const complete = message.content.some((value) => record(value)?.type === "local_turn_completed");
+export type VisibleChatMessage = Omit<ChatMessageRecord, "content"> & {
+  content: string | PublicTranscriptEvent[]; turn_complete?: boolean };
+export function visibleChatMessages(messages: ChatMessageRecord[]): VisibleChatMessage[] {
+  return messages.flatMap<VisibleChatMessage>((message) => {
+    if (typeof message.content === "string") return [{ ...message, content: message.content }];
+    const complete = message.content.some((value) => value.type === "local_turn_completed");
     const content = message.content.flatMap((value) => {
       const visible = publicAssistantEvent(value);
       return visible === null ? [] : [visible];
@@ -38,7 +20,7 @@ export function visibleChatMessages<
       ...(message.turn_id && { turn_complete: complete }),
       content,
     }];
-  }) as T[];
+  });
 }
 
 const files = (value: unknown): ChatMessage["files"] => {
@@ -55,36 +37,28 @@ const workflow = (value: unknown): ChatMessage["workflow"] => {
   return id && title ? { id, ...(variantId && { variant_id: variantId }), title } : undefined;
 };
 
-function responseText(value: unknown, requested: ReadonlyMap<string, AskInputItem>) {
-  const lines = Array.isArray(value) ? value.flatMap((item) => {
-    const row = record(item), id = text(row?.id);
-    if (!row || !id) return [];
+function responseText(responses: AskInputResponseItem[], requested: ReadonlyMap<string, AskInputItem>) {
+  const lines = responses.map((row) => {
+    const id = row.id;
     const request = requested.get(id);
     if (row.kind === "choice") {
-      if (!text(row.answer)) return [`- ${id}: skipped`];
+      if (!text(row.answer)) return `- ${id}: skipped`;
       const question = request?.kind === "choice" ? request.question : id;
-      return [`- ${question}: ${text(row.answer)}`];
+      return `- ${question}: ${text(row.answer)}`;
     }
-    if (row.kind !== "documents") return [];
     const label = request?.kind === "documents" && request.document_types.length
       ? request.document_types.join(", ") : id;
-    const selected = files(row.documents)?.map(({ filename }) => filename) ?? [];
-    if (!selected.length) return [`- ${id}: skipped`];
-    return [`- Documents requested for ${label}: ${selected.join(", ") || "none"}`];
-  }) : [];
+    const selected = row.documents.map(({ filename }) => filename);
+    return selected.length ? `- Documents requested for ${label}: ${selected.join(", ")}` : `- ${id}: skipped`;
+  });
   return lines.length ? `[User responses to requested inputs]\n${lines.join("\n")}` : null;
 }
 
-const responseFiles = (value: unknown) => files(Array.isArray(value)
-  ? value.flatMap((item) => {
-      const row = record(item);
-      return Array.isArray(row?.documents) ? row.documents : [];
-    })
-  : []);
+const responseFiles = (responses: AskInputResponseItem[]) =>
+  files(responses.flatMap((row) => row.kind === "documents" ? row.documents : []));
 
-function projectAssistant(content: unknown): ChatMessage[] {
+function projectAssistant(content: ChatMessageRecord["content"]): ChatMessage[] {
   if (typeof content === "string") return content ? [{ role: "assistant", content }] : [];
-  if (!Array.isArray(content)) return [];
   const messages: ChatMessage[] = [];
   let pending = "";
   let requested = new Map<string, AskInputItem>();
@@ -92,26 +66,17 @@ function projectAssistant(content: unknown): ChatMessage[] {
     if (pending) messages.push({ role: "assistant", content: pending });
     pending = "";
   };
-  for (const value of content) {
-    const event = record(value);
-    if (!event) continue;
-    if (event.type === "content" && typeof event.text === "string") {
+  for (const event of content) {
+    if (event.type === "content") {
       if (event.text !== "Cancelled by user.") pending += event.text;
-    } else if (event.type === "document_artifact" &&
-        typeof event.filename === "string" &&
-        typeof event.document_id === "string" &&
-        typeof event.version_id === "string") {
+    } else if (event.type === "document_artifact") {
       pending += `${pending ? "\n\n" : ""}[Created document: ${JSON.stringify(
         event.filename,
       )}; resource: document://${event.document_id}/version/${event.version_id}]`;
     } else if (event.type === "error") {
       pending += `${pending ? "\n\n" : ""}[The previous assistant response ended before completion.]`;
-    } else if (event.type === "ask_inputs" && Array.isArray(event.items)) {
-      requested = new Map(event.items.flatMap((item) => {
-        const row = record(item);
-        return typeof row?.id === "string" && row.id
-          ? [[row.id, row as AskInputItem] as const] : [];
-      }));
+    } else if (event.type === "ask_inputs") {
+      requested = new Map(event.items.map((item) => [item.id, item]));
     } else if (event.type === "ask_inputs_response") {
       const content = responseText(event.responses, requested);
       if (content) {
@@ -145,12 +110,12 @@ function latestCheckpoint(messages: TranscriptMessage[], provider?: Provider): C
   let latest: Checkpoint | null = null;
   messages.forEach((message, row) => {
     if (message.role !== "assistant" || !Array.isArray(message.content)) return;
-    message.content.forEach((value, event) => {
-      const item = record(value), kind = item?.provider;
-      if (item?.type !== "context_checkpoint" || item.schema_version !== 1 ||
-          (provider && (kind === "claude" || kind === "openai") && kind !== provider)) return;
+    message.content.forEach((item, event) => {
+      if (item.type !== "context_checkpoint") return;
+      const kind = item.provider;
+      if (provider && (kind === "claude" || kind === "openai") && kind !== provider) return;
       const summary = text(item.summary) || undefined;
-      const payload = record(item.payload);
+      const payload = item.payload;
       const native = kind === "claude" && summary && payload?.type === "compaction"
         ? { provider: "claude" as const, content: summary, block: payload }
         : kind === "openai" && payload?.type === "compaction"
@@ -176,7 +141,7 @@ export function projectChatTranscript(
     ...(checkpoint.native && { contextCheckpoint: checkpoint.native }),
   }];
   if (checkpoint.keepCurrent) result.push(...projectAssistant(
-    (messages[checkpoint.row].content as unknown[]).slice(checkpoint.event + 1),
+    (messages[checkpoint.row].content as AssistantEvent[]).slice(checkpoint.event + 1),
   ));
   return [...result, ...messages.slice(checkpoint.row + 1).flatMap(project)];
 }

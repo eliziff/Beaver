@@ -2,11 +2,13 @@ import { useState } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
-import type { Workflow } from "../shared/types";
+import type { Workflow } from "@/app/lib/api/workflows";
 import { WorkflowPickerModal } from "./WorkflowPickerModal";
 
 const listWorkflows = vi.hoisted(() => vi.fn());
-vi.mock("@/app/lib/beaverApi", () => ({ listWorkflows }));
+vi.mock("@/app/lib/api/workflows", () => ({
+  listWorkflows
+}));
 vi.mock("@/app/contexts/UserProfileContext", () => ({
     useUserProfile: () => ({ profile: { features: { authorities: true } } }),
 }));
@@ -41,6 +43,20 @@ it("offers only workflows that can launch in the requested execution surface", a
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({
         workflow: drafting, variant: expect.objectContaining({ id: "draft" }),
     }));
+});
+
+it("offers solicitor-only reviews immediately in a tabular picker", async () => {
+    const review = workflow("Agreement review", { kind: "instructions", variants: [{
+        id: "review", label: "Review agreements", result: "Review table",
+        execution: "tabular", skill_md: null, columns_config: [],
+    }] });
+    review.metadata.audiences = ["solicitor"];
+    listWorkflows.mockResolvedValue([review]);
+    const onSelect = vi.fn();
+    render(<WorkflowPickerModal open onClose={vi.fn()} onSelect={onSelect}
+        execution="tabular" breadcrumbs={["Choose workflow"]} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Start Tabular Review: Agreement review" }));
+    expect(onSelect).toHaveBeenCalledWith({ workflow: review, variant: review.launcher.kind === "instructions" ? review.launcher.variants[0] : undefined });
 });
 
 it("closes before handing off to the next picker", async () => {

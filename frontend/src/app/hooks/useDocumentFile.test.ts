@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 
 const { apiFetch } = vi.hoisted(() => ({ apiFetch: vi.fn() }));
-vi.mock("../lib/apiTransport", () => ({ apiFetch }));
+vi.mock("@/app/lib/api/client", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/client")>(), apiFetch,
+}));
 
 import { clearDocumentFileCache, useDocumentFile } from "./useDocumentFile";
 

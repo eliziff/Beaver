@@ -3,15 +3,11 @@ import { Modal } from "@/app/components/modals/Modal";
 import { ModalSegmentedToggle } from "@/app/components/modals/ModalSegmentedToggle";
 import { ProjectChoiceList } from "@/app/components/projects/ProjectChoiceList";
 import { FolderBrowser } from "@/app/components/shared/FolderBrowser";
-import type { Folder } from "@/app/components/shared/types";
+import { type Folder, directoryResource, getLibraryFolder, getProjectFolder } from "@/app/lib/api/documents";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import {
-    directoryResource,
-    getLibraryFolder,
-    getProject,
-    getProjectFolder,
-    type WorkflowFileTarget,
-} from "@/app/lib/beaverApi";
+
+import { getProject } from "@/app/lib/api/projects";
+import type { WorkflowFileTarget } from "@/app/lib/api/account";
 
 type Workflow = "court-records" | "authorities";
 const workflows: Array<{ id: Workflow; label: string; defaultFolder: string }> = [

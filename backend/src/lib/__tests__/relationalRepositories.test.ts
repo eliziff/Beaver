@@ -24,6 +24,27 @@ afterEach(async () => {
 describe("SQLite relational repository contract", () => {
   relationalRepositoryContract();
 
+  it("rolls back table question and answer writes when their ledger cannot commit", async () => {
+    const { tabularRepository: tables } = await import("../relationalTabularRepository"),
+      { relationalDatabase, sql } = await import("../relationalDatabase"),
+      { researchSourceResource } = await import("../researchFile"),
+      reference = { provider: "tna", kind: "case" as const, id: "ewca/civ/2024/1" },
+      resource = researchSourceResource(reference), created = await tables.create(owner, { projectId: null,
+        documentIds: [resource], columns: [{ index: 0, name: "Issue", prompt: "Identify the issue" }],
+        scopeConfig: { subjects: [{ sourceId: "case", resource, reference }] } });
+    if (created.status !== "committed") throw new Error("Table fixture failed");
+    const id = created.value.id, before = await tables.detail(owner, id), database = await relationalDatabase();
+    await database.query(sql.raw("CREATE TRIGGER reject_table_history BEFORE INSERT ON tabular_changes BEGIN SELECT RAISE(ABORT, 'ledger unavailable'); END"));
+    await expect(tables.update(owner, id, created.value.updated_at, {
+      columns: [{ index: 0, name: "Holding", prompt: "Identify the holding" }],
+    })).rejects.toThrow("ledger unavailable");
+    expect(await tables.detail(owner, id)).toEqual(before);
+    await expect(tables.setCell(owner, { reviewId: id, documentId: resource, columnIndex: 0,
+      expected: { status: "pending", content: null }, status: "generating", content: null,
+    })).rejects.toThrow("ledger unavailable");
+    expect(await tables.detail(owner, id)).toEqual(before);
+  });
+
   it("stores assistant history as ordered rows instead of rewriting one JSON blob", async () => {
     const { chatRepository } = await import("../relationalChatRepository");
     const { relationalDatabase, sql } = await import("../relationalDatabase");
@@ -32,14 +53,14 @@ describe("SQLite relational repository contract", () => {
     await repository.commit(chat.id, { kind: "turn", turn: {
       expectedVersion: 0,
       assistantMessage: { id: assistantId, content: [
-        { type: "tool_activity", id: "read-1", status: "running" },
+        { type: "tool_activity", id: "read-1", tool: "Read", label: "Reading", status: "running" },
       ], citations: [{ kind: "url", url: "https://example.test/one" }] },
     } });
     await repository.commit(chat.id, { kind: "turn", turn: {
       expectedVersion: 1,
       assistantMessage: { id: assistantId, content: [
-        { type: "tool_activity", id: "read-1", status: "completed" },
-        { type: "content_final", text: "Done" },
+        { type: "tool_activity", id: "read-1", tool: "Read", label: "Reading", status: "completed" },
+        { type: "content", text: "Done" },
       ], citations: [{ kind: "url", url: "https://example.test/one" }] },
     } });
     await repository.commit(chat.id, { kind: "append", messageId: assistantId,
@@ -55,7 +76,7 @@ describe("SQLite relational repository contract", () => {
     await expect(repository.read(chat.id, true)).resolves.toMatchObject({
       messages: [{ content: [
         { type: "tool_activity", id: "read-1", status: "completed" },
-        { type: "content_final", text: "Done" },
+        { type: "content", text: "Done" },
         { type: "compaction", status: "completed" },
       ], citations: [{ kind: "url", url: "https://example.test/one" }] }],
     });

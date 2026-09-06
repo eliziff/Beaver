@@ -4,16 +4,15 @@ import {
   useState,
   type DragEvent,
 } from "react";
-import { BookOpenCheck, BookOpenText, Files, History, PanelLeft, Settings, Trash2 } from "lucide-react";
+import { BookOpenCheck, BookOpenText, ChevronRight, Files, History, PanelLeft, Settings, SlidersHorizontal, SquarePen, Trash2 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { updateChatProject } from "@/app/lib/beaverApi";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";
 import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
 import {
   ChatSkeuoIcon,
-  LibrarySkeuoIcon,
   TabularReviewSkeuoIcon,
+  LibrarySkeuoIcon,
   WorkflowSkeuoIcon,
 } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
@@ -22,20 +21,23 @@ import {
   APP_SURFACE_ACTIVE_CLASS,
   APP_SURFACE_HOVER_CLASS,
 } from "@/app/components/ui/liquid-surface";
-import type { Chat } from "@/app/components/shared/types";
+import type { Chat } from "@/app/lib/api/chat";
 import { RecyclingBinModal } from "@/app/components/assistant/RecyclingBinModal";
 import { AppSettingsModal } from "@/app/components/settings/AppSettingsModal";
 import { SelectAssistantProjectModal } from "@/app/components/assistant/SelectAssistantProjectModal";
+import { SearchBar } from "@/app/components/ui/search-bar";
+import { chatSearchPath, useChatSearch } from "@/app/components/assistant/chatSearch";
+import { AdvancedHistorySearch } from "@/app/components/assistant/AdvancedHistorySearch";
+import { ChatSearchResult } from "@/app/components/assistant/ChatSearchResult";
+import { TabList } from "@/app/components/ui/tabs";
+import { SidebarReviewHistory } from "@/app/components/tabular/SidebarReviewHistory";
 const NAV_ITEMS = [
-  { href: "/assistant", label: "Assistant", icon: ChatSkeuoIcon },
   { href: "/projects", label: "Projects", icon: FolderSvgIcon },
   { href: "/library", label: "Library", icon: LibrarySkeuoIcon },
   { href: "/sources", label: "Sources", icon: BookOpenText },
   { href: "/workflows", label: "Workflows", icon: WorkflowSkeuoIcon },
   { href: "/court-records", label: "Court Records", icon: Files },
   { href: "/table-of-authorities", label: "Authorities", icon: BookOpenCheck },
-  { href: "/tabular-reviews", label: "Tabular Review", icon: TabularReviewSkeuoIcon },
-  { href: "/history", label: "History", icon: History },
 ];
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -50,6 +52,13 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const [recyclingOpen, setRecyclingOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [historySearch, setHistorySearch] = useState("");
+  const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
+  const [historyTab, setHistoryTab] = useState("assistant");
+  const [historyCollapsed, setHistoryCollapsed] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const focusSearchOnOpen = useRef(false);
+  const lastAssistantPath = useRef<string | null>(null);
   const [chatProjectTarget, setChatProjectTarget] = useState<Chat | null>(null);
   const [selectedChatIds, setSelectedChatIds] = useState<Set<string>>(
     () => new Set(),
@@ -62,10 +71,17 @@ export function AppSidebar({
   const selectionAnchorRef = useRef<string | null>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const { chats, hasMoreChats, loadMoreChats, loadChats, deleteChat } =
+  const { chats, loadChats, deleteChat, moveChat, hasMoreChats, loadMoreChats } =
     useChatHistoryContext();
+  const search = historySearch.trim();
+  const searchedChats = useChatSearch({ search }, !!search && historyTab === "assistant");
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  useEffect(() => {
+    if (pathname.startsWith("/tabular-reviews")) setHistoryTab("reviews");
+    else if (pathname.startsWith("/assistant")) setHistoryTab("assistant");
+  }, [pathname]);
+  if (pathname.startsWith("/assistant/chat/")) lastAssistantPath.current = pathname;
   useEffect(() => {
     if (!mobileOpen) return;
     const opener =
@@ -73,7 +89,10 @@ export function AppSidebar({
         ? document.activeElement
         : null;
     const sidebar = sidebarRef.current;
-    const frame = requestAnimationFrame(() => closeButtonRef.current?.focus());
+    const frame = requestAnimationFrame(() => {
+      (focusSearchOnOpen.current ? searchRef : closeButtonRef).current?.focus();
+      focusSearchOnOpen.current = false;
+    });
     return () => {
       cancelAnimationFrame(frame);
       if (
@@ -84,12 +103,25 @@ export function AppSidebar({
       }
     };
   }, [mobileOpen]);
+  useEffect(() => {
+    function focusHistory(event: KeyboardEvent) {
+      if (event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "k" || event.altKey || event.shiftKey || document.querySelector("dialog[open]")) return;
+      event.preventDefault();
+      setHistoryCollapsed(false);
+      if (!searchRef.current?.getClientRects().length) {
+        focusSearchOnOpen.current = true;
+        onToggle();
+      } else searchRef.current.focus();
+    }
+    document.addEventListener("keydown", focusHistory);
+    return () => document.removeEventListener("keydown", focusHistory);
+  }, [onToggle]);
   const routeChatId = pathname.startsWith("/assistant/chat/")
     ? pathname.split("/").pop() ?? null
     : (pathname.match(/^\/projects\/[^/]+\/assistant\/chat\/([^/]+)/)?.[1] ??
       null);
   const assistantChats =
-    chats?.filter(
+    (search ? searchedChats.items : chats)?.filter(
       (chat) => !chat.project_id && !movingChatIds.has(chat.id),
     ) ?? chats;
   const selectionActionChatId =
@@ -147,6 +179,7 @@ export function AppSidebar({
     try {
       await Promise.all(uniqueIds.map((id) => deleteChat(id)));
       if (routeChatId && uniqueIds.includes(routeChatId)) {
+        lastAssistantPath.current = null;
         navigate("/assistant", { replace: true });
       }
     } finally {
@@ -175,18 +208,8 @@ export function AppSidebar({
     setMovingChatIds((current) => new Set(current).add(chat.id));
     setChatProjectTarget(null);
     try {
-      const updated = await updateChatProject(chat.id, projectId);
-      if (routeChatId === chat.id) {
-        window.dispatchEvent(
-          new CustomEvent("beaver:chat-project-moved", {
-            detail: {
-              chatId: chat.id,
-              projectId: updated.project_id,
-            },
-          }),
-        );
-      }
-      await loadChats().catch(() => {});
+      await moveChat(chat.id, projectId);
+      if (lastAssistantPath.current === `/assistant/chat/${chat.id}`) lastAssistantPath.current = null;
     } finally {
       setMovingChatIds((current) => {
         const next = new Set(current);
@@ -195,6 +218,16 @@ export function AppSidebar({
       });
     }
   }
+  const closeNavigation = mobileOpen ? onToggle : undefined;
+  const navLinks = (items: typeof NAV_ITEMS) => items.map(({ href, label, icon: Icon }) => {
+    const active = pathname === href || pathname.startsWith(`${href}/`);
+    return <Link key={href} to={href} onClick={closeNavigation}
+      aria-current={active ? "page" : undefined}
+      className={cn("flex min-h-8 shrink-0 items-center gap-2 rounded-md px-2 py-1 text-sm font-medium [@media(max-height:500px)]:min-h-7 [@media(max-height:500px)]:py-0",
+        active ? APP_SURFACE_ACTIVE_CLASS : APP_SURFACE_HOVER_CLASS)}>
+      <Icon aria-hidden="true" className="h-4 w-4 shrink-0" />{label}
+    </Link>;
+  });
   return (
     <>
       {mobileOpen && (
@@ -210,7 +243,7 @@ export function AppSidebar({
         aria-modal={mobileOpen ? true : undefined}
         aria-label={mobileOpen ? "Navigation" : undefined}
         onKeyDown={(event) => {
-          if (!mobileOpen) return;
+          if (!mobileOpen || (event.target as HTMLElement).closest('[role="menu"]')) return;
           if (event.key === "Escape") {
             event.preventDefault();
             onToggle();
@@ -242,7 +275,7 @@ export function AppSidebar({
           "flex flex-col absolute lg:relative z-[99] overscroll-contain [contain:paint]",
         )}
       >
-        <div className="flex items-center justify-between px-2.5 py-3">
+        <div className="flex shrink-0 items-center justify-between px-2.5 py-2">
           <div className="px-2">
             <Link
               to="/assistant"
@@ -250,7 +283,7 @@ export function AppSidebar({
               onClick={mobileOpen ? onToggle : undefined}
             >
               <BeaverIcon size={22} />
-              <span className="text-2xl font-light font-serif">Beaver</span>
+              <span className="text-2xl font-medium font-serif">Beaver</span>
             </Link>
           </div>
           <button
@@ -268,49 +301,29 @@ export function AppSidebar({
             <PanelLeft className="h-4 w-4" />
           </button>
         </div>
-        <nav aria-label="Primary" className="shrink-0 pb-2">
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-            const isActive =
-              pathname === href || pathname.startsWith(`${href}/`);
-            return (
-              <div key={href} className="px-2.5 py-0.5">
-                <Link
-                  to={href}
-                  onClick={mobileOpen ? onToggle : undefined}
-                  title={label}
-                  aria-current={isActive ? "page" : undefined}
-                  className={cn(
-                    "flex h-9 w-full items-center gap-3 rounded-md px-2.5 py-2 text-left",
-                    isActive
-                      ? `${APP_SURFACE_ACTIVE_CLASS} text-gray-900`
-                      : `text-gray-700 ${APP_SURFACE_HOVER_CLASS}`,
-                  )}
-                >
-                  <Icon
-                    className={`h-4 w-4 flex-shrink-0 ${
-                      isActive ? "text-gray-900" : "text-black"
-                    }`}
-                  />
-                  <span className="text-sm font-medium">{label}</span>
-                </Link>
-              </div>
-            );
-          })}
-        </nav>
-        {pathname.startsWith("/assistant") && (
-          <section
-            aria-label="Assistant history"
-            className="flex min-h-0 flex-1 flex-col pb-2"
-          >
-            <h2 className="mb-1 px-5 text-xs font-semibold text-gray-500">
-              History
-            </h2>
-            <div
+        <div className="flex min-h-0 flex-1 flex-col px-2.5">
+          <nav aria-label="Primary" className="flex min-h-0 flex-col">
+            <SearchBar ref={searchRef} size="sm" aria-label="Search history" aria-keyshortcuts="Control+k Meta+k" placeholder="Search history" value={historySearch} wrapperClassName="my-1 shrink-0"
+              action={<button type="button" aria-label="Advanced search" title="Advanced search" aria-haspopup="dialog" onClick={() => { setAdvancedSearchOpen(true); closeNavigation?.(); }} className="grid size-6 shrink-0 place-items-center rounded text-gray-500 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-900"><SlidersHorizontal aria-hidden="true" className="size-3.5" /></button>}
+              onValueChange={(value) => { setHistorySearch(value); setHistoryCollapsed(false); }}
+              onKeyDown={(event) => { if (event.key === "Escape" && historySearch) { event.stopPropagation(); setHistorySearch(""); } }} />
+            <TabList value={historyTab} onValueChange={setHistoryTab} ariaLabel="Workspace history" variant="subtab"
+              className="mb-1 [&_[role=tab]:hover]:bg-transparent [&_[aria-selected=false]:hover]:text-gray-500 [&_[aria-selected=true]:hover]:text-gray-900 [&_[aria-selected=true]]:border-red-600 [&_[aria-selected=true]]:font-semibold"
+              options={[{ value: "assistant", label: <span className="flex items-center justify-center gap-1"><ChatSkeuoIcon className="size-5 shrink-0" />Assistant</span> }, { value: "reviews", label: <span className="flex items-center justify-center gap-1"><TabularReviewSkeuoIcon className="size-5 shrink-0" />Tabular review</span> }]} />
+            <div className="relative">
+              <button type="button" aria-label={historyCollapsed ? "Expand history" : "Collapse history"} aria-expanded={!historyCollapsed} onClick={() => setHistoryCollapsed(!historyCollapsed)} className="absolute right-0 top-0.5 z-10 grid size-7 place-items-center rounded text-gray-500 hover:bg-gray-100"><ChevronRight className={cn("size-3.5", !historyCollapsed && "rotate-90")} /></button>
+            <div hidden={historyTab !== "reviews"}>
+              <SidebarReviewHistory collapsed={historyCollapsed} search={search} onNavigate={() => closeNavigation?.()} />
+            </div>
+            <div hidden={historyTab !== "assistant"}>
+          <section id="assistant-conversations" aria-label="Assistant conversations" className="mb-2 flex min-h-0 flex-col [@media(max-height:500px)]:mb-0">
+            <Link to="/assistant" onClick={() => { setHistorySearch(""); closeNavigation?.(); }} aria-label="New chat" className="mr-8 flex h-8 shrink-0 items-center gap-2 rounded-md px-2 text-xs font-medium text-gray-800 hover:bg-gray-100"><SquarePen className="size-3.5" />New chat</Link>
+            {!historyCollapsed && <div
               id="assistant-history"
-              className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="h-[clamp(2rem,calc(100dvh-33rem),10rem)] overflow-y-auto overscroll-contain ps-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               {!assistantChats ? (
-                <div className="space-y-1.5 px-2.5">
+                <div className="space-y-0">
                   {[45, 65].map((width, index) => (
                     <div
                       key={index}
@@ -325,23 +338,24 @@ export function AppSidebar({
                   ))}
                 </div>
               ) : assistantChats.length === 0 ? (
-                <div className="px-5 py-2 text-xs text-gray-500">
-                  No chats yet
+                <div className="px-2 py-2 text-xs text-gray-500">
+                  {search ? searchedChats.loading ? "Searching…" : searchedChats.error ? "Could not search history" : "0 results" : "No chats yet"}
                 </div>
               ) : (
                 <>
-                  <div className="space-y-1.5 px-2.5">
-                    {assistantChats.map((chat) => (
+                  <div className="space-y-0">
+                    {assistantChats.map((chat) => search ? <ChatSearchResult key={chat.id} chat={chat} query={search} compact isActive={routeChatId === chat.id} onNavigate={closeNavigation} /> : (
                       <SidebarChatItem
                         key={chat.id}
                         chat={chat}
+                        showIcon={false}
                         isActive={routeChatId === chat.id}
                         isSelected={selectedChatIds.has(chat.id)}
                         selectedCount={selectedChatIds.size}
                         isSelectionActionOwner={
                           selectionActionChatId === chat.id
                         }
-                        to={`/assistant/chat/${chat.id}`}
+                        to={chatSearchPath(chat)}
                         onNavigate={mobileOpen ? onToggle : undefined}
                         onClearSelection={() => {
                           setSelectedChatIds(new Set());
@@ -361,33 +375,19 @@ export function AppSidebar({
                       />
                     ))}
                   </div>
-                  {hasMoreChats && (
-                    <div className="px-2.5 pt-1">
-                      <button
-                        type="button"
-                        onClick={loadMoreChats}
-                        className={cn(
-                          "flex h-8 w-full items-center justify-start rounded-md px-3 text-left text-xs font-medium text-gray-500 hover:text-gray-700",
-                          APP_SURFACE_HOVER_CLASS,
-                        )}
-                      >
-                        Load more
-                      </button>
-                    </div>
-                  )}
                 </>
               )}
-            </div>
-            <div className="shrink-0 px-2.5 pt-1">
+              {(search ? searchedChats.hasMore : hasMoreChats) && <button type="button" disabled={!!search && searchedChats.loading} onClick={() => search ? void searchedChats.loadMore() : loadMoreChats()} className="h-8 w-full rounded-md px-2 text-left text-xs text-gray-500 hover:bg-gray-100">Load more</button>}
+            </div>}
+          </section></div></div>
+
+            <div className="mb-2 shrink-0 border-b border-gray-200 pb-2">
               <button
                 type="button"
                 disabled={recyclingBusy}
                 onClick={() => {
-                  if (selectedChatIds.size) {
-                    void recycleChats([...selectedChatIds]);
-                  } else {
-                    setRecyclingOpen(true);
-                  }
+                  if (selectedChatIds.size) void recycleChats([...selectedChatIds]);
+                  else setRecyclingOpen(true);
                   if (mobileOpen) onToggle();
                 }}
                 onDragEnter={(event) => {
@@ -418,13 +418,13 @@ export function AppSidebar({
                     : "Recycling bin"
                 }
                 className={cn(
-                  "flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-left text-sm font-medium text-gray-700 disabled:opacity-50",
+                  "flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-xs text-gray-500 hover:text-gray-900 disabled:opacity-50",
                   recyclingDragOver
                     ? "bg-red-100 text-red-800"
                     : APP_SURFACE_HOVER_CLASS,
                 )}
               >
-                <Trash2 className="h-4 w-4 shrink-0" />
+                <Trash2 className="size-3.5 shrink-0" />
                 Recycling bin
                 <span
                   aria-hidden="true"
@@ -439,9 +439,12 @@ export function AppSidebar({
                   : ""}
               </span>
             </div>
-          </section>
-        )}
-        <div className="mt-auto border-t border-gray-300 p-1">
+
+            <div className="space-y-1">{navLinks(NAV_ITEMS)}</div>
+          </nav>
+        </div>
+        <div className="shrink-0 border-t border-gray-300 p-1">
+          <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => {
@@ -449,15 +452,21 @@ export function AppSidebar({
               if (mobileOpen) onToggle();
             }}
             className={cn(
-              "flex h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium text-gray-700",
+              "flex h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-3 text-sm font-medium text-gray-700",
               APP_SURFACE_HOVER_CLASS,
             )}
           >
             <Settings className="h-4 w-4 shrink-0" />
             Settings
           </button>
+          <Link to="/history" onClick={closeNavigation} aria-label="Activity log" title="Activity log" className="flex h-10 w-10 items-center justify-center rounded-md hover:bg-gray-200/60">
+            <History aria-hidden="true" className="h-4 w-4" />
+          </Link>
+          </div>
         </div>
       </aside>
+        {advancedSearchOpen && <AdvancedHistorySearch initialQuery={historySearch} initialContext={historyTab === "reviews" ? "reviews" : "assistant"}
+          onClose={() => setAdvancedSearchOpen(false)} />}
         {chatProjectTarget && (
           <SelectAssistantProjectModal
             open
@@ -484,3 +493,4 @@ export function AppSidebar({
     </>
   );
 }
+

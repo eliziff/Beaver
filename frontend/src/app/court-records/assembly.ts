@@ -10,7 +10,7 @@ import {
   type PDFRef,
 } from "pdf-lib";
 import { drawCourtCover, drawCourtExhibitCertificate, drawFederalForm344 } from "./courtForms";
-import { acceptedSourceFormats, DOCX_MIME, sourceFormat } from "./formats";
+import { acceptedSourceFormats, DOCX_MIME, needsPdfRendition, sourceFormat } from "./formats";
 import { indexChunks } from "./layout";
 import { outputFilename, sortedEntries, validateCourtRecord } from "./validation";
 import { courtProfileForCover } from "./profiles";
@@ -1212,8 +1212,8 @@ function automaticSteps(profile: CourtProfile, entries: RecordEntry[], volumes: 
 }
 
 function preservesWord(profile: CourtProfile, entry: RecordEntry) {
-  const formats = profile.documentKinds.find(({ id }) => id === entry.kindId)?.acceptedFormats;
-  return sourceFormat(entry.file) === "docx" && formats?.length === 1 && formats[0] === "docx";
+  return sourceFormat(entry.file) === "docx" &&
+    !needsPdfRendition(profile.documentKinds.find(({ id }) => id === entry.kindId));
 }
 
 async function pdfArtifact(filename: string, bytes: Uint8Array, pageCount: number) {

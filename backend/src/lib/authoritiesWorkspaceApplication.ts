@@ -46,8 +46,8 @@ import {
 import { downloadProviderOriginalPdf } from "./providerPdfLibraryBridge";
 import { structureNative, type NativeCitationOccurrence } from "./structureNative";
 import type { ResolvedWorkProductInput, WorkProduct, WorkProductInput,
-  WorkProductOutputRef, WorkProductState } from "./workProduct";
-import type { WorkProductApplication } from "./workProductApplication";
+  WorkProductState } from "./workProduct";
+import { saveWorkProductBuild, type WorkProductApplication } from "./workProductApplication";
 import type { WorkflowFiles } from "./workflowFiles";
 
 type AuthoritiesProduct = Extract<WorkProduct, { kind: "authorities" }>;
@@ -321,6 +321,10 @@ export async function resolveAuthoritiesSources(
     if (originals && (pdfUrl || sourceUrl)) try {
       original = await sources.download({ provider: "a2aj",
         identity: stableA2AJSourceId(source), sourceUrl, pdfUrl,
+        source: { provider: "a2aj", id: source.citation, kind: authority.kind as "case" | "legislation",
+          citation: source.citation, alternateCitation: source.alternateCitation,
+          title: source.name, date: source.date, collection: source.dataset,
+          language: source.language, url: source.url },
         filename: pdfFilename(source.name ?? source.citation), title: source.name,
         version: source.date }, signal) ?? undefined;
       if (original && sha256(original.bytes) !== original.sourceSha256) {
@@ -710,10 +714,7 @@ export function createAuthoritiesWorkspaceApplication(
       throw new ApplicationError(409, "This source is not a Library document");
     }
     const version = await documents.metadata(scope, binding.documentId);
-    if (!version || typeof version.current_version_id !== "string" ||
-        typeof version.filename !== "string" ||
-        typeof version.file_type !== "string" ||
-        typeof version.source_sha256 !== "string") throw new ApplicationError(409,
+    if (!version) throw new ApplicationError(409,
       "This Library file is no longer available. Add it again.");
     const fileType = version.file_type.toLowerCase();
     if (expected === "pdf" ? fileType !== "pdf" : !["pdf", "docx"].includes(fileType)) {
@@ -1117,9 +1118,7 @@ export function createAuthoritiesWorkspaceApplication(
       const { draft } = await edit(scope, id, input.revision);
       const version = await documents.metadata(scope, input.documentId);
       if (!version || version.current_version_id !== input.versionId ||
-          version.file_type?.toLowerCase() !== "pdf" ||
-          typeof version.filename !== "string" ||
-          typeof version.source_sha256 !== "string") {
+          version.file_type.toLowerCase() !== "pdf") {
         throw new ApplicationError(409, "Select the current PDF version from Library");
       }
       const binding = { kind: "document" as const, documentId: input.documentId,
@@ -1144,52 +1143,18 @@ export function createAuthoritiesWorkspaceApplication(
         throw new ApplicationError(409,
           error instanceof Error ? error.message : "Authorities could not be built");
       }
-      const refs: Record<string, WorkProductOutputRef> = {};
-      const rollback: DocumentRollback[] = [];
-      try {
-        for (const artifact of Object.values(built.artifacts).filter(
-          (item): item is NonNullable<typeof item> => Boolean(item))) {
-          signal?.throwIfAborted();
-          const file = { filename: artifact.filename,
+      const artifacts = Object.values(built.artifacts).filter(
+        (item): item is NonNullable<typeof item> => Boolean(item)).map((artifact) => ({
+          role: artifact.role,
+          file: { filename: artifact.filename,
             fileType: artifact.mimeType === "application/pdf" ? "pdf" : "docx",
-            bytes: artifact.bytes,
-            provenance: { schemaVersion: 1 as const, actor: "work-product" as const,
-              action: "built" as const, receipt: artifact.receipt } };
-          const existing = product.outputs[artifact.role];
-          const version = existing
-            ? await documents.addVersion(scope, existing.documentId, {
-              ...file, expectedCurrentVersionId: existing.versionId,
-              expectedCurrentSha256: existing.sha256,
-            }) : null;
-          if (version) {
-            rollback.push(createdVersionRollback(existing!.documentId, version));
-            if (version.source_sha256 !== artifact.sha256) {
-              throw new Error("Saved Authorities output hash does not match its build");
-            }
-            refs[artifact.role] = { documentId: existing!.documentId, versionId: version.id };
-          } else {
-            if (existing && await documents.metadata(scope, existing.documentId)) {
-              throw new ApplicationError(409,
-                "An Authorities output changed while the new build was being saved");
-            }
-            const created = await files.create(scope, "authorities", file,
-              { projectId: product.projectId });
-            rollback.push(createdDocumentRollback(created));
-            if (created.source_sha256 !== artifact.sha256) {
-              throw new Error("Saved Authorities output hash does not match its build");
-            }
-            refs[artifact.role] = { documentId: created.id,
-              versionId: created.current_version_id };
-          }
-        }
-        signal?.throwIfAborted();
-        const saved = await workProducts.save(scope, id, { revision, outputs: refs,
-          ...(draft === storedDraft ? {} : { state: draft }) });
-        if (saved.kind !== "authorities") throw new ApplicationError(409,
-          "Authorities draft state is invalid");
-        return { product: saved, receipt: built.receipt };
-      } catch (error) { return rollbackDocuments(documents, scope, rollback, error,
-        "Authorities output could not be saved or rolled back"); }
+            bytes: artifact.bytes, expectedSha256: artifact.sha256 },
+          receipt: artifact.receipt,
+        }));
+      const saved = await saveWorkProductBuild({ documents, files, workProducts }, scope,
+        product, artifacts, { signal, ...(draft === storedDraft ? {} : { state: draft }) });
+      if (saved.kind !== "authorities") throw new ApplicationError(409, "Authorities draft state is invalid");
+      return { product: saved, receipt: built.receipt };
     },
   });
 }

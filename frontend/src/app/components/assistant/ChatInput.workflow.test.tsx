@@ -1,8 +1,8 @@
 import { Profiler, useRef } from "react";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Document } from "../shared/types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Document } from "@/app/lib/api/documents";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { CHAT_DOCUMENT_DRAG_TYPE } from "../documents/documentTree";
 import { updateAssistantPreferences } from "./assistantPreferences";
@@ -117,6 +117,82 @@ function WorkflowHarness({ onSubmit }: { onSubmit: ReturnType<typeof vi.fn> }) {
 }
 
 beforeEach(() => window.localStorage.clear());
+afterEach(() => vi.unstubAllGlobals());
+
+it("opens the loaded draft immediately and keeps it cleared after sending", () => {
+    const fetch = vi.fn(async () => Response.json({}));
+    vi.stubGlobal("fetch", fetch);
+    const onSubmit = vi.fn();
+    const draft = { role: "user" as const, content: "Ready to continue", documents: [selectedDocument] };
+    const view = render(<ChatInput draftChatId="loaded-draft-send" initialDraft={draft}
+        onSubmit={onSubmit} onCancel={vi.fn()} isLoading={false} />);
+    expect(screen.getByRole("textbox")).toHaveValue(draft.content);
+    expect(screen.getByText(selectedDocument.filename)).toBeVisible();
+    expect(fetch).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ content: draft.content }));
+    view.unmount();
+    render(<ChatInput draftChatId="loaded-draft-send" initialDraft={draft}
+        onSubmit={onSubmit} onCancel={vi.fn()} isLoading={false} />);
+    expect(screen.getByRole("textbox")).toHaveValue("");
+});
+
+it("restores the page's loaded draft before exposing the ready composer", () => {
+    const props = { draftChatId: "late-page-draft", onSubmit: vi.fn(), onCancel: vi.fn(), isLoading: false };
+    const view = render(<ChatInput {...props} initialDraft={null} />);
+    view.rerender(<ChatInput {...props} initialDraft={{ role: "user", content: "Loaded with the conversation" }} />);
+    expect(screen.getByRole("textbox")).toHaveValue("Loaded with the conversation");
+});
+
+it("does not duplicate a saved interrupted request when restoring it again", async () => {
+    const draft = { role: "user" as const, content: "A request to recover", turnId: "interrupted-turn" };
+    const props = { draftChatId: "interrupted-saved-draft", initialDraft: draft,
+        onSubmit: vi.fn(), onCancel: vi.fn(), isLoading: false };
+    const view = render(<ChatInput {...props} restoreDraft={draft} />);
+    await act(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+    expect(screen.getByRole("textbox")).toHaveValue(draft.content);
+    view.rerender(<ChatInput {...props} restoreDraft={{ ...draft }} />);
+    await act(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+    expect(screen.getByRole("textbox")).toHaveValue(draft.content);
+});
+
+it("opens and reopens a saved draft without writing it, then saves actual edits", async () => {
+    const writes: unknown[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+        if (init.method === "PATCH") {
+            writes.push(JSON.parse(String(init.body)).draft);
+            return Response.json({});
+        }
+        return Response.json({ chat: { id: "draft-read-only", draft: {
+            role: "user", content: "Unsent question", documents: [selectedDocument],
+            workflow: { id: "drafting", title: "Drafting" }, model: "gpt-5.2", reasoningEffort: "high",
+        } }, messages: [] });
+    }));
+    const input = <ChatInput draftChatId="draft-read-only" onSubmit={vi.fn()} onCancel={vi.fn()} isLoading={false} />;
+    const view = render(input);
+    await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue("Unsent question"));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 350)));
+    expect(writes).toEqual([]);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Edited question" } });
+    await waitFor(() => expect(writes).toEqual([expect.objectContaining({ content: "Edited question" })]));
+    view.unmount();
+    render(input);
+    await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue("Edited question"));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 350)));
+    expect(writes).toHaveLength(1);
+});
+
+it("keeps a failed draft in the composer and retries inline without a dialog", async () => {
+    const save = vi.fn().mockRejectedValueOnce(new Error("Offline")).mockResolvedValue(undefined);
+    render(<ChatInput onDraftChange={save} onSubmit={vi.fn()} onCancel={vi.fn()} isLoading={false} />);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Keep this question" } });
+    const retry = await screen.findByRole("button", { name: "Retry saving" });
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByRole("textbox")).toHaveValue("Keep this question");
+    fireEvent.click(retry);
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Retry saving" })).toBeNull());
+    expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ content: "Keep this question" }));
+});
 
 describe("ChatInput workflow document selection", () => {
     it("opens the shared workflow dock with the current context", async () => {
@@ -239,6 +315,14 @@ describe("ChatInput workflow document selection", () => {
         expect(onDraftRestored).toHaveBeenCalledOnce();
         await userEvent.click(screen.getByRole("button", { name: "Stop response" }));
         expect(onCancel).toHaveBeenCalledOnce();
+    });
+    it("preserves the latest unsent text when navigation unmounts the composer", async () => {
+        const save = vi.fn().mockResolvedValue(undefined), submit = vi.fn();
+        const { unmount } = render(<ChatInput onSubmit={submit} onCancel={() => {}} isLoading={false} onDraftChange={save} />);
+        await userEvent.type(screen.getByRole("textbox", { name: "Message" }), "An unfinished question");
+        unmount();
+        expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ content: "An unfinished question" }));
+        expect(submit).not.toHaveBeenCalled();
     });
 
     it("replaces send with stop while a response is live", async () => {

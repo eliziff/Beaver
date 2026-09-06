@@ -178,6 +178,7 @@ create table if not exists library_legal_sources (
 create table if not exists tabular_reviews (
   id text primary key, user_id uuid not null, project_id text references projects(id) on delete cascade,
   title text, columns_config jsonb not null default '[]', document_ids jsonb not null default '[]',
+  scope_config jsonb not null default '{"subjects":[]}',
   workflow_id text, shared_with jsonb not null default '[]',
   created_at text not null, updated_at text not null
 );
@@ -192,14 +193,27 @@ create table if not exists tabular_cells (
   unique(review_id,document_id,column_index),
   check(status in ('pending','generating','done','error'))
 );
+create table if not exists tabular_changes (
+  id text primary key, review_id text not null references tabular_reviews(id) on delete cascade,
+  change_key text, record jsonb not null, status text not null, created_at text not null,
+  check(status in ('pending','applied','rejected')),
+  unique(review_id,change_key)
+);
 
 create table if not exists chats (
   id text primary key, user_id uuid not null, project_id text references projects(id) on delete cascade,
   tabular_review_id text references tabular_reviews(id) on delete cascade, title text,
+  research_file_id text references documents(id) on delete set null,
   model text, reasoning_effort text,
   created_at text not null, updated_at text not null, deleted_at text,
   transcript_version integer not null default 0,
   check(project_id is null or tabular_review_id is null)
+);
+create table if not exists chat_drafts (
+  chat_id text not null references chats(id) on delete cascade,
+  user_id uuid not null,
+  content jsonb not null,
+  primary key(chat_id,user_id)
 );
 create table if not exists chat_messages (
   id text primary key, chat_id text not null references chats(id) on delete cascade,
@@ -313,6 +327,7 @@ create index if not exists document_edits_scope on document_edits(document_id,ve
 create index if not exists tabular_reviews_page on tabular_reviews(user_id,created_at desc,id desc);
 create index if not exists tabular_members_email on tabular_review_members(email,review_id);
 create index if not exists tabular_cells_review on tabular_cells(review_id,document_id,column_index);
+create index if not exists tabular_changes_review on tabular_changes(review_id,created_at desc,id desc);
 create index if not exists chats_page on chats(user_id,deleted_at,updated_at desc,id);
 create index if not exists chat_messages_page on chat_messages(chat_id,created_at,id);
 create index if not exists application_jobs_claim on
@@ -411,7 +426,7 @@ revoke execute on function public.sync_shared_members() from public,anon,authent
 -- The service role remains available to account/audit/export administration.
 revoke all on table projects,project_members,project_subfolders,library_folders,documents,
   document_versions,document_version_parts,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
-  tabular_review_members,tabular_cells,chats,chat_messages,chat_message_events,
+  tabular_review_members,tabular_cells,tabular_changes,chats,chat_drafts,chat_messages,chat_message_events,
   provider_sessions,application_jobs,
   application_job_events,application_job_commands,workflows,work_products,
   workflow_shares,workflow_open_source_submissions,audit_events,user_preferences
@@ -421,7 +436,7 @@ revoke all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oau
   from public,anon,authenticated;
 grant all on table projects,project_members,project_subfolders,library_folders,documents,
   document_versions,document_version_parts,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
-  tabular_review_members,tabular_cells,chats,chat_messages,chat_message_events,
+  tabular_review_members,tabular_cells,tabular_changes,chats,chat_drafts,chat_messages,chat_message_events,
   provider_sessions,application_jobs,
   application_job_events,application_job_commands,workflows,work_products,
   workflow_shares,workflow_open_source_submissions,audit_events,user_preferences
@@ -450,6 +465,8 @@ alter table library_legal_sources enable row level security;
 alter table tabular_reviews enable row level security;
 alter table tabular_review_members enable row level security;
 alter table tabular_cells enable row level security;
+alter table tabular_changes enable row level security;
+alter table chat_drafts enable row level security;
 alter table chats enable row level security;
 alter table chat_messages enable row level security;
 alter table chat_message_events enable row level security;

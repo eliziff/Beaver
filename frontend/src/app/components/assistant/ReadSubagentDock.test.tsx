@@ -37,14 +37,17 @@ const runningPanel = {
     activities: completedPanel.activities.map((activity) => ({
         ...activity,
         status: "running" as const,
+        citations: activity.citations.map((citation) => ({
+            ...citation, ref: 0, locator: null, pinpoint: null, quotes: [],
+        })),
     })),
 };
 
-it("opens agent citations externally in a new tab", async () => {
+it("keeps the delegated source chip unchanged and opens its exact source after completion", () => {
     const onCitationClick = vi.fn();
-    render(
+    const { rerender } = render(
         <ReadSubagentDock
-            panels={[completedPanel]}
+            panels={[runningPanel]}
             onCitationClick={onCitationClick}
             embedded
         />,
@@ -54,24 +57,13 @@ it("opens agent citations externally in a new tab", async () => {
         name: "Activity — Reading Example v. Example, 2020 BCSC 1",
     })).toBeVisible();
     const citation = screen.getByRole("link", {
-        name: "Example v. Example, 2020 BCSC 1 at para 12",
+        name: "Example v. Example, 2020 BCSC 1",
     });
+    expect(screen.getByRole("listitem")).toHaveAttribute("aria-busy", "true");
+    rerender(<ReadSubagentDock panels={[completedPanel]} onCitationClick={onCitationClick} embedded />);
+    expect(screen.getByRole("link", { name: "Example v. Example, 2020 BCSC 1" })).toBe(citation);
+    expect(screen.getByRole("listitem")).toHaveAttribute("aria-busy", "false");
     expect(citation).toHaveAttribute("href", "https://www.canlii.org/example#par12");
     expect(citation).toHaveAttribute("target", "_blank");
     expect(onCitationClick).not.toHaveBeenCalled();
-});
-
-it("shows live reading activity", async () => {
-    render(
-        <ReadSubagentDock
-            panels={[runningPanel]}
-            onCitationClick={vi.fn()}
-            embedded
-        />,
-    );
-
-    expect(screen.getByRole("button", {
-        name: "Activity — Reading Example v. Example, 2020 BCSC 1",
-    })).toBeVisible();
-    expect(screen.getByText("Reading Example v. Example, 2020 BCSC 1...")).toBeVisible();
 });

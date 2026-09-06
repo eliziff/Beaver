@@ -1,4 +1,4 @@
-import { getDocumentParseStates } from "./beaverApi";
+import { getDocumentParseStates } from "@/app/lib/api/documents";
 
 export async function waitForPdfPreparation(
   documentId: string,

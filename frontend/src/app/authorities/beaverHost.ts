@@ -1,12 +1,29 @@
 import {
-  actOnAuthorities, attachAuthoritiesBookPdf, attachAuthoritiesLibraryPdf, attachAuthorityPdf, buildAuthorities, createAuthorities,
-  createWorkProduct, deleteWorkProduct, directoryResource, downloadDocument,
-  duplicateWorkProduct, getWorkProduct, getWorkProductResolution,
-  listWorkProductMetadata, listWorkProducts, refreshAuthorities,
-  prepareAuthoritiesSources, refreshAuthoritiesInput, replaceAuthoritiesSource, reviewAuthorities,
+  actOnAuthorities,
+  attachAuthoritiesBookPdf,
+  attachAuthoritiesLibraryPdf,
+  attachAuthorityPdf,
+  buildAuthorities,
+  createAuthorities,
+  refreshAuthorities,
+  prepareAuthoritiesSources,
+  refreshAuthoritiesInput,
+  replaceAuthoritiesSource,
+  reviewAuthorities,
   resolveAuthoritiesDiscrepancy,
-  updateWorkProduct, uploadAuthoritiesDocument,
-} from "@/app/lib/beaverApi";
+  uploadAuthoritiesDocument,
+} from "@/app/lib/api/authorities";
+import {
+  createWorkProduct,
+  deleteWorkProduct,
+  duplicateWorkProduct,
+  getWorkProduct,
+  getWorkProductResolution,
+  listWorkProductMetadata,
+  listWorkProducts,
+  updateWorkProduct,
+} from "@/app/lib/api/workProducts";
+import { directoryResource, downloadDocument } from "@/app/lib/api/documents";
 import { waitForPdfPreparation } from "@/app/lib/pdfPreparation";
 import type { WorkProductStore } from "@/app/lib/workProducts";
 import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";

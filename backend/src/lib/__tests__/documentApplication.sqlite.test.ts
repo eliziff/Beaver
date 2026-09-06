@@ -1,10 +1,10 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { sha256 } from "../hash";
+import { canonicalJsonSha256, sha256 } from "../hash";
 import { MAX_OBJECT_SIZE_BYTES } from "../storage";
-import type { WorkProductBuildReceipt } from "../workProduct";
+import type { WorkProduct, WorkProductBuildReceipt } from "../workProduct";
 import { zipDocumentBytes } from "./support/documentBytes";
 
 let root: string | null = null;
@@ -31,15 +31,15 @@ async function localStores() {
 }
 
 const buildReceipt = (
-  revision: number, filename: string, bytes: Buffer,
+  product: WorkProduct, filename: string, bytes: Buffer, role = "book",
 ): WorkProductBuildReceipt => ({
-  schemaVersion: "beaver.work-product-build.v2", builtAt: `2026-08-30T00:00:0${revision}.000Z`,
-  workProduct: { id: "authorities-1", kind: "authorities", revision }, inputs: [],
-  settings: { profileId: null, outputMode: "book", stateSha256: "a".repeat(64),
+  schemaVersion: "beaver.work-product-build.v2", builtAt: "2026-08-30T00:00:00.000Z",
+  workProduct: { id: product.id, kind: product.kind, revision: product.revision }, inputs: [],
+  settings: { profileId: null, outputMode: "book", stateSha256: canonicalJsonSha256(product.state),
     settingsSha256: "b".repeat(64), sourceReceiptIds: [],
     audit: { effective: null, valuesJson: "{}" } },
-  steps: ["Combined attached authority PDFs"], output: { role: "book", filename,
-    mimeType: "text/plain", pageCount: null, sha256: sha256(bytes) },
+  steps: ["Rendered"], output: { role, filename,
+    mimeType: "text/plain; charset=utf-8", pageCount: null, sha256: sha256(bytes) },
 });
 
 afterEach(async () => {
@@ -52,6 +52,77 @@ afterEach(async () => {
 });
 
 describe("SQLite and filesystem document adapters", () => {
+  it("saves quote workbooks beside the input with their complete receipt", async () => {
+    root = await mkdtemp(path.join(os.tmpdir(), "beaver-quote-workbook-"));
+    process.env.MIKE_LOCAL_DATA_DIR = root;
+    process.env.AUTH_MODE = "local";
+    const { documents, library, projects } = await localStores();
+    const { saveQuoteCheckWorkbook } = await import("../quoteCheckWorkbook");
+    const scope = { userId: "quote-owner" };
+    const folder = (await library.createFolder({ ...scope, kind: "file" }, "Research", null))!;
+    const project = await projects.create(scope, { name: "Matter", cmNumber: null,
+      practice: null, sharedWith: [] });
+    const result = { mode: "mechanical", total: 0, citationUnits: [], counts: {}, quotes: [] };
+    for (const placement of [{ folderId: folder.id }, { projectId: project.id }]) {
+      const input = await documents.create(scope, { filename: "Draft.txt", fileType: "txt",
+        bytes: Buffer.from("No quotations"), ...placement });
+      const report = await saveQuoteCheckWorkbook(documents, scope, input.id, result, undefined, input.current_version_id);
+      expect(report).toMatchObject({ file_type: "xlsx", project_id: input.project_id, folder_id: input.folder_id });
+      expect((await documents.read(scope, report.id, null, false))?.bytes.subarray(0, 2).toString()).toBe("PK");
+      const parts = await documents.readParts(scope, report.id, null, ["quote-check-receipt.json"]);
+      expect(JSON.parse(parts![0].bytes.toString())).toEqual({ inputDocumentId: input.id,
+        inputVersionId: input.current_version_id, result });
+    }
+  });
+
+  it("pages Library search and directories without repeating or exposing documents", async () => {
+    root = await mkdtemp(path.join(os.tmpdir(), "beaver-directory-store-"));
+    process.env.MIKE_LOCAL_DATA_DIR = root;
+    process.env.AUTH_MODE = "local";
+    const { documents, library, projects } = await localStores();
+    const scope = { userId: "directory-owner" }, libraryScope = { ...scope, kind: "file" as const };
+    const folder = (await library.createFolder(libraryScope, "Evidence", null))!;
+    const project = await projects.create(scope, { name: "Matter", cmNumber: null,
+      practice: null, sharedWith: [] });
+    const ids: string[] = [];
+    for (let index = 0; index < 7; index++) ids.push((await documents.create(scope, {
+      filename: "Agreement.txt", fileType: "txt", bytes: Buffer.from(`Notice ${index}`),
+      folderId: index % 2 ? folder.id : null,
+    })).id);
+    const hidden = await documents.create({ userId: "another-owner" }, {
+      filename: "Agreement.txt", fileType: "txt", bytes: Buffer.from("private") });
+    const matterFile = await documents.create(scope, { filename: "Agreement.txt",
+      fileType: "txt", bytes: Buffer.from("project notice"), projectId: project.id });
+    const requested = [ids[3], hidden.id, ids[0], "missing", ids[3], matterFile.id];
+    expect(await documents.metadataMany(scope, requested)).toEqual(await Promise.all(
+      [ids[3], ids[0], matterFile.id].map((id) => documents.metadata(scope, id))));
+    for (const options of [{ q: "Agreement" }, { q: "", documentsOnly: true }]) {
+      const found: string[] = [];
+      let after: [number, string, string] | null = null;
+      for (let pageNumber = 0; pageNumber < 4; pageNumber++) {
+        const page = await library.page(libraryScope, { ...options,
+          parentFolderId: null, limit: 2, after });
+        for (const item of page.items) {
+          expect(item.kind).toBe("document");
+          if (item.kind === "document") {
+            found.push(item.document.id);
+          }
+        }
+        after = page.nextAfter;
+        if (!after) break;
+      }
+      expect(after).toBeNull();
+      expect(found).toEqual([...ids].sort());
+    }
+    const directory = await library.page(libraryScope, { q: "", parentFolderId: null,
+      limit: 2, after: null });
+    expect(directory.items[0]).toMatchObject({ kind: "folder", folder: { id: folder.id } });
+    expect((await projects.directory(scope, project.id, { q: "", parentFolderId: null,
+      limit: 2, after: null })).items).toEqual([
+      { kind: "document", document: await documents.metadata(scope, matterFile.id) },
+    ]);
+  });
+
   it("versions, moves, validates, and cleans named CAS parts", async () => {
     root = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
     process.env.MIKE_LOCAL_DATA_DIR = root;
@@ -87,7 +158,8 @@ describe("SQLite and filesystem document adapters", () => {
       .toEqual({ status: "missing" });
     await objects.put(part.storage_path, queries, "application/octet-stream",
       { expectedSha256: part.sha256 });
-    const checkpoint = await documents.checkpointVersion(scope, created.id, firstId, 0);
+    await documents.renameVersion(scope, created.id, firstId, "Reviewed research.md", 0);
+    const checkpoint = await documents.checkpointVersion(scope, created.id, firstId, 1);
     expect(checkpoint.status).toBe("created");
     if (checkpoint.status !== "created") return;
     const secondId = checkpoint.version.id;
@@ -235,6 +307,15 @@ describe("SQLite and filesystem document adapters", () => {
     await projects.attachDocument(scope, project.id, moving.id);
     const projectKeys = await paths(moving.id);
     expect(projectKeys.every((key) => key.startsWith(`projects/${project.id}/blobs/`))).toBe(true);
+    const other = await projects.create(scope, {
+      name: "Other matter", cmNumber: null, practice: null, sharedWith: [],
+    });
+    const copy = await projects.attachDocument(scope, other.id, moving.id);
+    expect(copy.created).toBe(true);
+    expect(copy.document).toMatchObject({ project_id: other.id, filename: "notes.md" });
+    expect(copy.document.id).not.toBe(moving.id);
+    expect((await documents.read(scope, copy.document.id, null, false))?.bytes.toString()).toBe("revised");
+    expect((await documents.metadata(scope, moving.id))?.project_id).toBe(project.id);
     expect((await database.query<{ storage_path: string }>(sql`SELECT storage_path
       FROM object_cleanup WHERE storage_path IN(${sql.join(libraryKeys)})`)).rows
       .map(({ storage_path }) => storage_path).sort()).toEqual([...libraryKeys].sort());
@@ -307,36 +388,67 @@ describe("SQLite and filesystem document adapters", () => {
       ] });
   });
 
-  it("keeps exact work-product receipts on stable output document versions", async () => {
-    root = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
+  it.each(["court-record", "authorities"] as const)(
+    "persists and rolls back exact %s output versions through the shared build operation", async (kind) => {
+    root = await mkdtemp(path.join(os.tmpdir(), "beaver-build-save-"));
     process.env.MIKE_LOCAL_DATA_DIR = root;
     process.env.AUTH_MODE = "local";
-    const first = await localStores(), scope = { userId: "local-user" };
-    const v1 = Buffer.from("book-v1"), receipt1 = buildReceipt(1, "Book.txt", v1);
-    const created = await first.workflowFiles.create(scope, "authorities", {
-      filename: "Book.txt", fileType: "txt", bytes: v1,
-      provenance: { schemaVersion: 1, actor: "work-product", action: "built",
-        receipt: receipt1 },
-    });
-    const v2 = Buffer.from("book-v2"), receipt2 = buildReceipt(2, "Book.txt", v2);
-    await first.documents.addVersion(scope, created.id, {
-      filename: "Book.txt", fileType: "txt", bytes: v2,
-      provenance: { schemaVersion: 1, actor: "work-product", action: "built",
-        receipt: receipt2 },
-    });
+    const store = await localStores(), scope = { userId: "build-owner" };
+    const [{ createWorkProductApplication, saveWorkProductBuild }, { workProductRepository },
+      { createAuthoritiesDraft }, { relationalDatabase, sql }] = await Promise.all([
+      import("../workProductApplication"), import("../relationalWorkProductRepository"),
+      import("../authoritiesDomain"), import("../relationalDatabase"),
+    ]);
+    const workProducts = createWorkProductApplication(workProductRepository);
+    const projectId = kind === "court-record" ? (await store.projects.create(scope, {
+      name: "Matter", cmNumber: null, practice: null, sharedWith: [],
+    })).id : null;
+    const product = await workProducts.create(scope, { kind, title: "Build", projectId,
+      state: kind === "authorities" ? createAuthoritiesDraft({ kind: "manual" })
+        : { profileId: "fc-motion-record-moving", cover: {}, entries: [], bindings: {} } });
+    const deps = { documents: store.documents, files: store.workflowFiles, workProducts };
+    const role = kind === "court-record" ? "record" : "book";
+    let sourceNumber = 0;
+    const artifact = async (product: WorkProduct, bytes: Buffer, outputRole = role) => {
+      const filename = `${outputRole}.txt`, source = path.join(root!, `${++sourceNumber}.txt`);
+      if (kind === "court-record") await writeFile(source, bytes);
+      return { role: outputRole, file: { filename, fileType: "txt",
+        ...(kind === "court-record" ? { path: source, sizeBytes: bytes.length } : { bytes }) },
+        receipt: buildReceipt(product, filename, bytes, outputRole) };
+    };
+    const v1 = Buffer.from("first build"), firstArtifact = await artifact(product, v1);
+    const first = await saveWorkProductBuild(deps, scope, product, [firstArtifact]);
+    const v2 = Buffer.from("second build"), secondArtifact = await artifact(first, v2);
+    const second = await saveWorkProductBuild(deps, scope, first, [secondArtifact]);
+    const output = second.outputs[role], firstOutput = first.outputs[role];
+    expect(output.documentId).toBe(firstOutput.documentId);
+    expect(output.versionId).not.toBe(firstOutput.versionId);
+    expect(await store.documents.metadata(scope, output.documentId)).toMatchObject({ project_id: projectId });
+    expect((await store.documents.read(scope, output.documentId, firstOutput.versionId, false))?.bytes).toEqual(v1);
+
+    await workProducts.save(scope, second.id, { revision: second.revision, title: "Changed during build" });
+    await expect(saveWorkProductBuild(deps, scope, second, [
+      await artifact(second, Buffer.from("stale rebuild")),
+      await artifact(second, Buffer.from("new index"), "index"),
+    ])).rejects.toMatchObject({ status: 409 });
+    expect((await store.documents.versions(scope, output.documentId))?.versions.map(({ id }) => id))
+      .toEqual([output.versionId, firstOutput.versionId]);
+    expect((await workProducts.get(scope, second.id)).outputs).toEqual(second.outputs);
+    expect((await (await relationalDatabase()).query<{ id: string }>(sql`
+      SELECT id FROM documents WHERE user_id=${scope.userId}`)).rows).toEqual([{ id: output.documentId }]);
 
     await (await import("../relationalDatabase")).closeRelationalDatabase();
     vi.resetModules();
     const reopened = await localStores();
-    const versions = await reopened.documents.versions(scope, created.id);
+    const versions = await reopened.documents.versions(scope, output.documentId);
     expect(versions?.versions.map((version) => version.provenance)).toEqual([
       { schema_version: 1, actor: "work-product", action: "built",
-        receipt: { workProduct: { kind: "authorities" } } },
+        receipt: { workProduct: { kind } } },
       { schema_version: 1, actor: "work-product", action: "built",
-        receipt: { workProduct: { kind: "authorities" } } },
+        receipt: { workProduct: { kind } } },
     ]);
-    expect((await reopened.documents.projectionSource(
-      scope, created.id, null))?.provenance).toMatchObject({ receipt: receipt2 });
-    expect((await reopened.documents.read(scope, created.id, null, false))?.bytes).toEqual(v2);
+    expect((await reopened.documents.projectionSource(scope, output.documentId, null))?.provenance)
+      .toMatchObject({ receipt: secondArtifact.receipt });
+    expect((await reopened.documents.read(scope, output.documentId, null, false))?.bytes).toEqual(v2);
   });
 });

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -25,6 +25,8 @@ vi.mock("../documentProjectionService", () => ({
 const attachment = {
   provider: "govinfo",
   identity: "USCOURTS-cod-1_22-cv-00930",
+  source: { provider: "govinfo", id: "USCOURTS-cod-1_22-cv-00930", kind: "case" as const,
+    citation: "1:22-cv-00930", title: "Example v. Respondent", collection: "USCOURTS" },
   structureSource: "flat_text" as const,
   url: "https://api.govinfo.gov/packages/USCOURTS-cod-1_22-cv-00930/pdf",
   filename: "decision.pdf",
@@ -147,7 +149,8 @@ describe("provider PDF projection bridge", () => {
       pdfResponse(Buffer.from("%PDF-1.4 credential test"))));
     const bridge = await import("../providerPdfLibraryBridge");
     await startProviderWorker(bridge);
-    const input = { ...attachment, url: `${attachment.url}?api_key=input-secret` };
+    const input = { ...attachment, url: `${attachment.url}?api_key=input-secret`,
+      source: { ...attachment.source, url: `${attachment.url}?api_key=reference-secret` } };
     await bridge.queueProviderPdfAttachment(input, "local-user");
     await waitForDownloaded(bridge, input);
 
@@ -156,7 +159,11 @@ describe("provider PDF projection bridge", () => {
     );
     const stored = await Promise.all((await readdir(records)).map((name) =>
       readFile(path.join(records, name), "utf8")));
-    expect(stored.join("\n")).not.toMatch(/input-secret|server-secret/u);
+    expect(stored.join("\n")).not.toMatch(/input-secret|server-secret|reference-secret/u);
+    expect(() => bridge.providerPdfRequestReference({ ...attachment,
+      source: undefined as never })).toThrow("legal reference is invalid");
+    expect(() => bridge.providerPdfRequestReference({ ...attachment,
+      source: { ...attachment.source, provider: "a2aj" } })).toThrow("legal reference is invalid");
     expect(() => bridge.providerPdfRequestReference({
       ...attachment,
       provider: "bad/provider",
@@ -173,14 +180,17 @@ describe("provider PDF projection bridge", () => {
   });
 
   it("does not follow an allowed provider redirect into CanLII", async () => {
-    const fetchMock = vi.fn(async () => new Response(null, { status: 302,
+    const fetchMock = vi.fn(async (_input: Parameters<typeof fetch>[0]) => new Response(null, { status: 302,
       headers: { Location: "https://www.canlii.ca./redirected.pdf" } }));
     vi.stubGlobal("fetch", fetchMock);
     const bridge = await import("../providerPdfLibraryBridge");
 
-    await expect(bridge.downloadProviderPdfAttachment(attachment))
-      .rejects.toThrow("blocked host");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await startProviderWorker(bridge);
+    await bridge.queueProviderPdfAttachment(attachment, "local-user");
+    await vi.waitFor(async () => expect(
+      await bridge.readProviderPdfAttachmentState(attachment, "local-user"),
+    ).toMatchObject({ download_status: "failed" }));
+    expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).hostname)).toEqual(["api.govinfo.gov"]);
   });
 
   it("finds a valid publisher PDF through ranked pages without requesting CanLII", async () => {
@@ -209,6 +219,8 @@ describe("provider PDF projection bridge", () => {
 
     await expect(bridge.downloadProviderOriginalPdf({
       provider: "a2aj", identity: "a2aj:en:test:2001 scc 1", sourceUrl: source,
+      source: { provider: "a2aj", id: "2001 SCC 1", kind: "case",
+        citation: "2001 SCC 1", collection: "test", language: "en" },
       filename: "Decision.pdf", title: "Decision",
     })).resolves.toEqual({ bytes, sourceSha256: digest(bytes),
       url: "https://publisher.example/official.pdf" });
@@ -250,6 +262,7 @@ describe("provider PDF projection bridge", () => {
       state.source_reference!, "local-user", { locatorKind: "page", locator: "1" },
     )).resolves.toMatchObject({
       availability: "ready",
+      params: { source: attachment.source },
       lookup: { status: "found", evidence: { handle } },
     });
     expect(mocks.lookupPdf).toHaveBeenCalledWith(
@@ -265,5 +278,12 @@ describe("provider PDF projection bridge", () => {
       },
     );
     expect(await mocks.lookupPdf.mock.calls[0]![0]()).toEqual(bytes);
+    const records = path.join(temporaryDirectory!, "projections", "v1", "source-pdf");
+    const filename = path.join(records, (await readdir(records))[0]);
+    const persisted = JSON.parse(await readFile(filename, "utf8"));
+    delete persisted.source;
+    await writeFile(filename, JSON.stringify(persisted));
+    await expect(bridge.lookupProviderPdfReference(state.source_reference!, "local-user",
+      { locatorKind: "page", locator: "1" })).resolves.toMatchObject({ availability: "error" });
   });
 });

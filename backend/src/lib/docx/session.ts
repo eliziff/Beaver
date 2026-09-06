@@ -491,7 +491,7 @@ class DocxSessionImpl {
     if (!body) throw new Error(`w:body missing from ${label}`);
     const index = indexDocxBody(body);
     if (index.truncated) throw new Error("DOCX markup nests beyond the read limit");
-    const revisions = trackedChanges(tree);
+    const revisions = await this.revisions();
     return {
       tree,
       ...index,
@@ -500,9 +500,20 @@ class DocxSessionImpl {
     };
   }
 
+  async revisionParts() {
+    const parts = [];
+    for (const path of this.paths.filter((path) =>
+      /^word\/(?:document|footnotes|endnotes|comments|header\d*|footer\d*)\.xml$/u.test(path))) {
+      const tree = await this.readXml(path);
+      if (tree) parts.push({ path, tree, ...trackedChanges(tree) });
+    }
+    return parts;
+  }
+
   async revisions(): Promise<ReturnType<typeof trackedChanges>> {
-    const tree = await this.readXml("word/document.xml");
-    return tree ? trackedChanges(tree) : { changes: [], maximum: 0 };
+    const parts = await this.revisionParts();
+    return { changes: parts.flatMap(({ changes }) => changes),
+      maximum: Math.max(0, ...parts.map(({ maximum }) => maximum)) };
   }
 
   write(path: string, content: string | Buffer) {

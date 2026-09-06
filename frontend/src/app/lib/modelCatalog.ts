@@ -1,7 +1,4 @@
-import {
-    getModelCatalog,
-    type ModelCatalog,
-} from "@/app/lib/beaverApi";
+import { getModelCatalog, type ModelCatalog } from "@/app/lib/api/account";
 const STORAGE_KEY = "beaver.modelCatalog.v1";
 const REFRESH_MS = 30_000;
 let catalog: ModelCatalog | null = null;

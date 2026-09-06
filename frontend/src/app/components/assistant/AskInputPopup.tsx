@@ -1,11 +1,8 @@
 import { useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
-import type {
-    AskInputsEvent,
-    AskInputsResponseEvent,
-    Document,
-} from "../shared/types";
+import type { AskInputsEvent, AskInputsResponseEvent } from "@/app/lib/api/chat";
+import type { Document } from "@/app/lib/api/documents";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
 
 type AskEvent = AskInputsEvent;

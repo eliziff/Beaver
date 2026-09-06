@@ -1,5 +1,5 @@
 import { SETTINGS_MODELS, type ModelOption } from "../components/assistant/ModelToggle";
-import type { ApiKeyState } from "@/app/lib/beaverApi";
+import type { ApiKeyState } from "@/app/lib/api/account";
 export type ModelProvider =
     | "claude"
     | "gemini"
@@ -52,7 +52,7 @@ export function providerLabel(provider: ModelProvider): string {
     if (provider === "openrouter") return "OpenRouter";
     if (provider === "opencode-go") return "OpenCode Go";
     if (provider === "meta") return "Meta";
-    if (provider === "claude-p") return "Anthropic subscription";
+    if (provider === "claude-p") return "Claude Code";
     if (provider === "codex") return "Codex";
     if (provider === "ollama") return "Desktop";
     return "Google (Gemini)";
@@ -60,7 +60,7 @@ export function providerLabel(provider: ModelProvider): string {
 function modelGroupToProvider(
     group: ModelOption["group"],
 ): ModelProvider {
-    if (group === "Anthropic subscription") return "claude-p";
+    if (group === "Claude Code") return "claude-p";
     if (group === "Anthropic") return "claude";
     if (group === "OpenAI") return "openai";
     if (group === "DeepSeek") return "deepseek";

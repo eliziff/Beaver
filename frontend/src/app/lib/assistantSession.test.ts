@@ -1,12 +1,11 @@
+import { ASSISTANT_LIMITS, parseAssistantCitations, parseAssistantProtocolEvent } from "./assistantProtocol";
+import { safeAssistantUrl } from "./safeAssistantUrl";
 import { describe, expect, it } from "vitest";
-import type { Message } from "@/app/components/shared/types";
+import backendEvents from "../../../../shared/test-fixtures/assistant-events.json";
+import type { Message } from "@/app/lib/api/chat";
 import {
-  ASSISTANT_LIMITS,
   assistantSessionReducer,
   createAssistantSessionState,
-  parseAssistantCitations,
-  parseAssistantProtocolEvent,
-  safeAssistantUrl,
   type AssistantMessageState,
   type AssistantSessionState,
   type AssistantTranscriptMessage,
@@ -71,6 +70,12 @@ const supportedEvents: [string, Record<string, unknown>][] = [
 ];
 
 describe("assistant protocol validation", () => {
+  it("accepts the public events replayed by the backend job transport", () => {
+    for (const event of backendEvents) {
+      expect(parseAssistantProtocolEvent(JSON.parse(JSON.stringify(event))).ok,
+        event.type).toBe(true);
+    }
+  });
   it.each(supportedEvents)("accepts the supported %s event", (_name, event) => {
     expect(parseAssistantProtocolEvent(event).ok).toBe(true);
   });

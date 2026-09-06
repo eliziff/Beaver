@@ -1,22 +1,45 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { MessageSquare, MessageSquareX, Play, Plus, Square, Upload, Users } from "lucide-react";
 import {
-    clearTabularCells, deleteTabularReview, getProject, getTabularReview,
-    getTabularReviewPeople, regenerateTabularCell,
-    directoryResource, exportTabularReview, stopTabularGeneration,
-    startTabularGeneration, updateTabularReview,
-    uploadDocuments, uploadStandaloneDocument,
-} from "@/app/lib/beaverApi";
-import { BeaverApiError } from "@/app/lib/apiTransport";
+  clearTabularCells,
+  deleteTabularReview,
+  getTabularReview,
+  getTabularReviewPeople,
+  regenerateTabularCell,
+  exportTabularReview,
+  ensureTabularWorkspace,
+  stopTabularGeneration,
+  startTabularGeneration,
+  updateTabularReview,
+  type ColumnConfig,
+  type TabularCell,
+  type TabularReview,
+  type TabularDocument,
+} from "@/app/lib/api/tabular";
+import { getProject, type Project } from "@/app/lib/api/projects";
+import {
+  directoryResource,
+  uploadDocuments,
+  uploadStandaloneDocument,
+  type Document,
+} from "@/app/lib/api/documents";
+import { BeaverApiError } from "@/app/lib/api/client";
 import { downloadBlob } from "@/app/lib/download";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useSidebar } from "@/app/contexts/SidebarContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useSelectedModel, useSelectedReasoningEffort } from "@/app/hooks/useSelectedModel";
 import { getModelProvider, isModelAvailable, type ModelProvider } from "@/app/lib/modelAvailability";
-import type { ColumnConfig, Document, Project, TabularCell, TabularReview } from "../shared/types";
+
+
+
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
+import { ResearchViews } from "../shared/ResearchViews";
+import { ResearchSelectionLabels } from "../shared/ResearchSelectionLabels";
+import { ResearchChanges } from "../legal/ResearchChanges";
+import { getResearchFile } from "@/app/lib/api/researchFiles";
+import { researchSourceKey } from "@/app/lib/researchFiles";
 import { PageHeader, type PageHeaderAction, type PageHeaderBreadcrumb } from "../shared/PageHeader";
 import { TableToolbar } from "../shared/TableToolbar";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
@@ -29,7 +52,7 @@ import { Button } from "../ui/button";
 import { WorkflowPickerModal } from "../workflows/WorkflowPickerModal";
 import type { WorkflowSelection } from "../workflows/workflowRoutes";
 import { AddColumnModal } from "./AddColumnModal";
-import type { ParsedCitation } from "./citation-utils";
+import type { Citation } from "@/app/lib/citations";
 import { TabularReviewDetailsModal } from "./TabularReviewDetailsModal";
 import { TRChatPanel } from "./TRChatPanel";
 import { TRSidePanel } from "./TRSidePanel";
@@ -37,7 +60,7 @@ import { TRTable } from "./TRTable";
 
 interface Props { reviewId: string; projectId?: string }
 type Modal = "documents" | "details" | "people" | null;
-type CellView = { cellId: string; citation?: ParsedCitation & { citationRef: number } };
+type CellView = { cellId: string; citation?: Citation };
 const cellKey = (documentId: string, columnIndex: number) =>
     `${documentId}:${columnIndex}`;
 const pendingCell = (
@@ -52,7 +75,8 @@ const pendingCell = (
 
 export function TRView({ reviewId, projectId }: Props) {
     const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
+    const location = useLocation();
+    const [searchParams, setSearchParams] = useSearchParams();
     const { user } = useAuth();
     const { setSidebarOpen } = useSidebar();
     const { profile } = useUserProfile();
@@ -61,13 +85,14 @@ export function TRView({ reviewId, projectId }: Props) {
     const [review, setReview] = useState<TabularReview | null>(null);
     const [projects, setProjects] = useState<Project[]>([]);
     const [cells, setCells] = useState<TabularCell[]>([]);
-    const [documents, setDocuments] = useState<Document[]>([]);
+    const [documents, setDocuments] = useState<TabularDocument[]>([]);
     const initialChat = searchParams.get("chat");
     const [ui, setUiState] = useState(() => ({
         loading: true,
         generating: false,
         columnModal: undefined as ColumnConfig | null | undefined,
         modal: null as Modal,
+        historyOpen: false,
         workflowStatus: null as "open" | "applying" | null,
         deleteStatus: null as "open" | "deleting" | null,
         ownerAction: null as string | null,
@@ -82,6 +107,9 @@ export function TRView({ reviewId, projectId }: Props) {
     }));
     const setUi = useCallback((patch: Partial<typeof ui>) =>
         setUiState((current) => ({ ...current, ...patch })), []);
+    useEffect(() => {
+        setUi({ chatId: initialChat === "new" ? null : initialChat ?? undefined });
+    }, [initialChat, setUi]);
     const {
         loading, generating, columnModal, modal, workflowStatus, deleteStatus,
         ownerAction, cellView, selectedIds, search, dragOver, uploading, chatId,
@@ -92,43 +120,69 @@ export function TRView({ reviewId, projectId }: Props) {
     const chatOpen = chatId !== undefined;
     const expandedCell = cells.find(({ id }) => id === cellView?.cellId);
     const expandedCitation = cellView?.citation;
+    const refreshReview = useCallback(async () => {
+        const data = await getTabularReview(reviewId);
+        setReview(data.review); setCells(data.cells); setDocuments(data.documents);
+        setUi({ generating: data.review.is_running === true });
+    }, [reviewId, setUi]);
 
     useEffect(() => {
-        getTabularReview(reviewId)
-            .then(async (data) => {
-                const linkedProjectId = projectId ?? data.review.project_id;
-                const loadedProjects = linkedProjectId
-                    ? await getProject(linkedProjectId)
-                        .then((loaded) => [loaded]).catch(() => [])
-                    : [];
-                setReview(data.review);
-                setCells(data.cells);
-                setDocuments(data.documents);
-                setProjects(loadedProjects);
-                setUi({ generating: data.review.is_running === true });
-            })
-            .finally(() => setUi({ loading: false }));
+        let active = true;
+        setUi({ loading: true });
+        void getTabularReview(reviewId).then((data) => {
+            if (!active) return;
+            setReview(data.review);
+            setCells(data.cells);
+            setDocuments(data.documents);
+            setUi({ loading: false, generating: data.review.is_running === true });
+            const linkedProjectId = projectId ?? data.review.project_id;
+            if (linkedProjectId) void getProject(linkedProjectId).then((loaded) => {
+                if (active) setProjects([loaded]);
+            }).catch(() => undefined);
+            else setProjects([]);
+        }).catch(() => { if (active) setUi({ loading: false }); });
+        return () => { active = false; };
     }, [projectId, reviewId, setUi]);
 
     useEffect(() => {
         if (!generating) return;
-        const refresh = () => void getTabularReview(reviewId).then((data) => {
-            setReview(data.review);
-            setCells(data.cells);
-            if (!data.review.is_running) setUi({ generating: false });
-        }).catch(() => undefined);
-        const timer = window.setInterval(refresh, 2_000);
-        return () => window.clearInterval(timer);
+        let active = true;
+        let timer: number;
+        const refresh = async () => {
+            try {
+                const data = await getTabularReview(reviewId);
+                if (!active) return;
+                setReview((current) => ({ ...data.review,
+                    columns_config: JSON.stringify(current?.columns_config) === JSON.stringify(data.review.columns_config)
+                        ? current!.columns_config : data.review.columns_config,
+                }));
+                setCells((current) => {
+                    const previous = new Map(current.map((cell) => [cell.id, cell]));
+                    return data.cells.map((cell) => {
+                        const old = previous.get(cell.id);
+                        return JSON.stringify(old) === JSON.stringify(cell) ? old! : cell;
+                    });
+                });
+                if (!data.review.is_running) return setUi({ generating: false });
+            } catch { /* Keep the existing results while a refresh is unavailable. */ }
+            if (active) timer = window.setTimeout(refresh, 2_000);
+        };
+        timer = window.setTimeout(refresh, 2_000);
+        return () => { active = false; window.clearTimeout(timer); };
     }, [generating, reviewId, setUi]);
+
+    const expandCell = useCallback(({ id }: TabularCell) => setUi({ cellView: { cellId: id } }), [setUi]);
+    const openCitation = useCallback((cell: TabularCell, citation: Citation) => setUi({ cellView: {
+            cellId: cell.id, citation,
+        } }), [setUi]);
 
     function setChatId(next: string | null | undefined) {
         setUi({ chatId: next });
-        const params = new URLSearchParams(window.location.search);
+        const params = new URLSearchParams(searchParams);
         if (next === undefined) params.delete("chat");
         else params.set("chat", next ?? "new");
-        const query = params.toString();
-        window.history.replaceState(null, "",
-            `${window.location.pathname}${query ? `?${query}` : ""}`);
+        if (next !== chatId) { params.delete("message"); params.delete("highlight"); }
+        setSearchParams(params, { replace: true });
     }
     function setColumns(next: ColumnConfig[]) {
         setReview((current) =>
@@ -423,6 +477,7 @@ export function TRView({ reviewId, projectId }: Props) {
             : { label: reviewTitle },
     ];
     const menuItems = [
+        { label: "History", onSelect: () => setUi({ historyOpen: true }) },
         { label: "Edit details",
             onSelect: () => ownerOnly(
                 "edit tabular review details",
@@ -451,6 +506,10 @@ export function TRView({ reviewId, projectId }: Props) {
         },
     ];
     const headerActions: PageHeaderAction[] = [
+        { type: "custom", render: <ResearchViews workspace={async () => {
+            const { research_file_id } = await ensureTabularWorkspace(reviewId);
+            navigate(`/sources?research_file=${encodeURIComponent(research_file_id)}`);
+        }} chat={() => { if (!chatOpen) { setSidebarOpen(false); setChatId(null); } }} /> },
         { type: "search", value: search,
             onChange: (value) => setUi({ search: value }),
             placeholder: "Search documents\u2026",
@@ -484,7 +543,7 @@ export function TRView({ reviewId, projectId }: Props) {
                 if (!chatOpen) setSidebarOpen(false);
                 setChatId(chatOpen ? undefined : null);
             },
-            disabled: loading || !hasTable,
+            disabled: loading,
             title: chatOpen ? "Close chat" : "Open chat",
             icon: chatOpen
                 ? <MessageSquareX className="h-4 w-4" />
@@ -497,6 +556,8 @@ export function TRView({ reviewId, projectId }: Props) {
         <div className="flex h-full overflow-hidden">
             <div className="flex flex-1 flex-col overflow-hidden">
                 <PageHeader shrink breadcrumbs={breadcrumbs} actions={headerActions} />
+                {review && <ResearchChanges review={review} documents={documents} onChanged={refreshReview}
+                    historyOpen={ui.historyOpen} onCloseHistory={() => setUi({ historyOpen: false })} />}
                 <div className="flex flex-1 overflow-hidden">
                     <div className={`flex flex-1 flex-col overflow-hidden ${
                         chatOpen ? "max-md:hidden" : ""
@@ -536,6 +597,15 @@ export function TRView({ reviewId, projectId }: Props) {
                                         Add Columns
                                     </Button>
                                 )}
+                                {selected && <ResearchSelectionLabels prepare={async () => {
+                                    const { research_file_id } = await ensureTabularWorkspace(reviewId);
+                                    const file = await getResearchFile(research_file_id);
+                                    const selected = new Set(selectedIds), resources = new Set(documents
+                                        .filter(({ id }) => selected.has(id)).map(({ resource }) => resource));
+                                    return { file, selection: { target: "sources", sourceIds: Object.values(file.state.sources)
+                                        .filter(({ reference }) => resources.has(researchSourceKey(reference)) ||
+                                            reference.kind === "document" && selected.has(reference.id)).map(({ id }) => id) } };
+                                }} />}
                             </div>
                         } />
                         <div
@@ -573,21 +643,8 @@ export function TRView({ reviewId, projectId }: Props) {
                                 dragOverFiles={dragOver}
                                 onSelectionChange={(selectedIds) =>
                                     setUi({ selectedIds })}
-                                onExpand={({ id }) => setUi({
-                                    cellView: { cellId: id },
-                                })}
-                                onCitationClick={(
-                                    cell, page, quote, citationRef, sheet,
-                                    citationCell,
-                                ) => setUi({
-                                    cellView: {
-                                        cellId: cell.id,
-                                        citation: {
-                                            quote, page, sheet,
-                                            cell: citationCell, citationRef,
-                                        },
-                                    },
-                                })}
+                                onExpand={expandCell}
+                                onCitationClick={openCitation}
                                 onEditColumn={(columnModal) =>
                                     setUi({ columnModal })}
                             />
@@ -596,6 +653,10 @@ export function TRView({ reviewId, projectId }: Props) {
                     {chatOpen && (
                         <TRChatPanel
                             reviewId={reviewId} chatId={chatId ?? null}
+                            initialMessage={typeof location.state?.tableIntent === "string" ? location.state.tableIntent : undefined}
+                            onInitialMessageSent={() => navigate(`${location.pathname}${location.search}`, { replace: true, state: null })}
+                            onUpdated={() => void refreshReview().catch(() => undefined)}
+                            searchMessageId={searchParams.get("message")}
                             onCitationClick={(colIdx, rowIdx) => {
                                 setUi({
                                     search: "",
@@ -618,11 +679,7 @@ export function TRView({ reviewId, projectId }: Props) {
                     onRegenerate={generating ? undefined : () => regenerateCell(
                         expandedCell.document_id, expandedCell.column_index)}
                     displayDocument={expandedCitation !== undefined}
-                    citationQuote={expandedCitation?.quote}
-                    citationPage={expandedCitation?.page}
-                    citationSheet={expandedCitation?.sheet}
-                    citationCell={expandedCitation?.cell}
-                    citationRef={expandedCitation?.citationRef}
+                    citation={expandedCitation}
                 />
             )}
             <AddColumnModal

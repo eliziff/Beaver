@@ -1,7 +1,8 @@
 import { sha256 } from "./hash";
 import { decodeJson as decode, encodeJson, sql, type RelationalDatabase } from "./relational";
+import type { LegalSourceReference } from "./legalSources";
 
-export type LegalSourcePdfRendition = { provider: "a2aj"; identity: string;
+export type LegalSourcePdfRendition = { provider: "a2aj"; identity: string; source: LegalSourceReference;
   url: string; canonicalUrl: string; title?: string | null; version?: string | null;
   requestReference: string };
 export type LegalSourcePointer = { id: string; userId: string;

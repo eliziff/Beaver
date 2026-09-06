@@ -1,4 +1,4 @@
-import type { Workflow, WorkflowAudience, WorkflowVariant } from "../shared/types";
+import type { Workflow, WorkflowAudience, WorkflowVariant } from "@/app/lib/api/workflows";
 
 export type AudienceFilter = WorkflowAudience | "all";
 export const AUDIENCE_TABS: { id: AudienceFilter; label: string }[] = [
@@ -32,10 +32,11 @@ function item(workflow: Workflow, query: string,
     const label = workflow.metadata.title;
     const workflowText = [label, workflow.metadata.description,
         workflow.metadata.category].filter(Boolean).join(" ").toLowerCase();
-    if (workflow.launcher.kind !== "instructions") {
+    if (workflow.launcher.kind !== "instructions" && !(execution === "assistant" && workflow.launcher.kind === "quote_check")) {
         return execution === "tabular" || query && !workflowText.includes(query)
             ? null : { workflow, variants: [], label };
     }
+    if (!("variants" in workflow.launcher)) return null;
     let variants = workflow.launcher.variants.filter((variant) =>
         !execution || variant.execution === execution);
     if (query) {

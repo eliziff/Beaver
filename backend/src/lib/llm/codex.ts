@@ -213,6 +213,7 @@ async function runCodexTurn(
   if (params.tools?.length && params.runTools) {
     bridge = await startMcpToolBridge({
       tools: params.staticTools ?? params.tools,
+      resolveTools: params.resolveTools,
       runTools: params.runTools,
       callbacks,
       onActivity: () => noteToolActivity(),

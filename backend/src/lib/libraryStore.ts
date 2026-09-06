@@ -1,16 +1,16 @@
-import type { DocumentRecord, DocumentStore } from "./documentStore";
+import type { DocumentRecord, DocumentStore, LegalPdfOcrProvider } from "./documentStore";
 import { normalizeDocumentFilename, type LibraryKind } from "./normalize";
 import { validateFolderMove } from "./folderApplication";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { deterministicUuid } from "./hash";
+import { enqueuePdfReprocess } from "./pdfJobs";
 
 export type LibraryScope = ApplicationScope & { kind: LibraryKind };
-type LibraryDocument = DocumentRecord;
 export type LibraryFolder = Record<string, unknown> & { id: string; name: string;
   parent_folder_id: string | null };
-type LibraryPageItem =
+export type LibraryPageItem =
   | { kind: "folder"; folder: LibraryFolder }
-  | { kind: "document"; document: LibraryDocument };
+  | { kind: "document"; document: DocumentRecord };
 type LibraryPageOptions = { q: string; parentFolderId: string | null; limit: number;
   after: [number, string, string] | null; documentsOnly?: boolean };
 type LibraryPage = { items: LibraryPageItem[]; nextAfter: [number, string, string] | null };
@@ -33,10 +33,12 @@ export type LibraryStore = Pick<LibraryRepository, "folder" | "createFolder" |
   "updateFolder" | "deleteFolder"> & {
   ensureRootFolder(scope: LibraryScope, name: string, key: string): Promise<LibraryFolder>;
   page(scope: LibraryScope, options: LibraryPageOptions): Promise<LibraryPage>;
-  document(scope: LibraryScope, id: string): Promise<LibraryDocument | null>;
-  moveDocument(scope: LibraryScope, id: string, folderId: string | null): Promise<LibraryDocument | null>;
+  document(scope: LibraryScope, id: string): Promise<DocumentRecord | null>;
+  reprocessPdf(scope: LibraryScope, id: string, input: { versionId: string | null;
+    ocrProvider?: LegalPdfOcrProvider; layout?: boolean | null }): Promise<{ id: string; status: string }>;
+  moveDocument(scope: LibraryScope, id: string, folderId: string | null): Promise<DocumentRecord | null>;
   updateDocument(scope: LibraryScope, id: string, update: { filename: unknown;
-    metadata?: unknown; notes?: string | null }): Promise<LibraryDocument | null>;
+    metadata?: unknown; notes?: string | null }): Promise<DocumentRecord | null>;
 };
 
 const isLibraryDocument = (scope: LibraryScope, document: DocumentRecord | null) =>
@@ -57,12 +59,13 @@ export function createLibraryStore(
     folder: (scope, id) => repository.folder(scope, id),
     async page(scope, options) {
       const page = await repository.page(scope, options);
-      const items = await Promise.all(page.items.map(async (item) => item.kind === "folder"
-        ? item : { kind: "document" as const,
-          document: await documents.metadata(scope, item.id) }));
-      return { ...page, items: items.flatMap((item) =>
-        item.kind === "document" && !isLibraryDocument(scope, item.document)
-          ? [] : [item as LibraryPageItem]) };
+      const found = new Map((await documents.metadataMany(scope, page.items.flatMap((item) =>
+        item.kind === "document" ? [item.id] : []))).map((document) => [document.id, document]));
+      return { ...page, items: page.items.flatMap((item): LibraryPageItem[] => {
+        if (item.kind === "folder") return [item];
+        const document = isLibraryDocument(scope, found.get(item.id) ?? null);
+        return document ? [{ kind: "document", document }] : [];
+      }) };
     },
     async createFolder(scope, name, parentId) {
       if (parentId) await folder(scope, parentId, "Parent folder not found");
@@ -85,12 +88,36 @@ export function createLibraryStore(
       return repository.deleteFolder(scope, id);
     },
     document,
+    async reprocessPdf(scope, id, { versionId, ocrProvider, layout }) {
+      const current = await documents.metadata(scope, id);
+      if (!current || current.library_kind !== scope.kind)
+        throw new ApplicationError(404, "Document not found");
+      const source = await documents.projectionSource(scope, id, versionId);
+      if (!source) throw new ApplicationError(404, "Version not found");
+      if (source.fileType !== "pdf") throw new ApplicationError(409, "Version is not a PDF");
+      try {
+        const job = await enqueuePdfReprocess({ userId: scope.userId, documentId: id,
+          versionId: source.versionId, sourceSha256: source.sourceSha256,
+          ...(ocrProvider ? { ocrProvider } : {}), ...(layout !== undefined ? { layout } : {}) });
+        return { id: job.id, status: job.status };
+      } catch (error) {
+        if (layout !== undefined) throw new ApplicationError(503,
+          "PDF layout analysis could not start. Check the local runtime and model files.");
+        if (!ocrProvider) throw error;
+        const message = error instanceof Error ? error.message : "";
+        throw new ApplicationError(503, ocrProvider === "tesseract" && message.startsWith("Tesseract was not found")
+          ? "Tesseract was not found. Install it or configure its executable."
+          : ocrProvider === "tesseract"
+            ? "OCR could not start. Check the local Tesseract installation and retry."
+            : "OCR could not start. Check the local Kraken-lite runtime and retry.");
+      }
+    },
     async moveDocument(scope, id, folderId) {
       const current = await document(scope, id);
       if (!current) return null;
       const moved = await documents.relocate(scope, id, {
         expectedProjectId: null,
-        expectedFolderId: typeof current.folder_id === "string" ? current.folder_id : null,
+        expectedFolderId: current.folder_id,
         projectId: null, folderId, owner: true,
       });
       if (moved.status === "conflict") throw new ApplicationError(
@@ -99,13 +126,11 @@ export function createLibraryStore(
     },
     async updateDocument(scope, id, update) {
       const current = await document(scope, id);
-      if (!current?.current_version_id) return null;
-      const currentName = typeof current.filename === "string" && current.filename.trim()
-        ? current.filename : "Untitled document";
-      const filename = normalizeDocumentFilename(update.filename, currentName);
+      if (!current) return null;
+      const filename = normalizeDocumentFilename(update.filename, current.filename);
       if (!filename) throw new ApplicationError(400, "filename is required");
       const renamed = await documents.renameVersion(scope, id, current.current_version_id,
-        filename, Number(current.current_working_revision));
+        filename, current.current_working_revision);
       if (!renamed) return null;
       if (update.metadata === undefined && update.notes === undefined) return isLibraryDocument(
         scope, { ...current, filename, current_working_revision: renamed.working_revision });

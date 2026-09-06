@@ -9,7 +9,7 @@ import { Modal } from "@/app/components/modals/Modal";
 import { CheckboxInput } from "@/app/components/ui/checkbox";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { AssistantDock, type AssistantDockTab } from "./AssistantDock";
-import type { LibraryKind } from "@/app/lib/beaverApi";
+import type { LibraryKind, Document } from "@/app/lib/api/documents";
 import { createTabularReviewPath } from "../tabular/tabularReviewRoute";
 import type { DirectoryTab } from "../shared/FileDirectory";
 import { workflowDocumentTab, workflowMessage, type AssistantWorkflowLaunch,
@@ -19,7 +19,9 @@ import {
     type QuickActionId,
     useAssistantPreferences,
 } from "./assistantPreferences";
-import type { ColumnConfig, Document, Message } from "../shared/types";
+import type { ColumnConfig } from "@/app/lib/api/tabular";
+
+import type { Message } from "@/app/lib/api/chat";
 import { NewTRModal } from "../tabular/NewTRModal";
 import { SelectAssistantProjectModal } from "./SelectAssistantProjectModal";
 import { NewProjectModal } from "../projects/NewProjectModal";
@@ -67,10 +69,12 @@ export function InitialView({
     onSubmit,
     initialDocuments = [],
     initialWorkflow,
+    onDraftChange,
 }: {
     onSubmit: (message: Message) => void;
     initialDocuments?: Document[];
     initialWorkflow?: AssistantWorkflowLaunch;
+    onDraftChange?: (draft: import("@/app/lib/api/chat").ChatDraft | null) => Promise<unknown>;
 }) {
     const { user } = useAuth();
     const { profile } = useUserProfile();
@@ -173,7 +177,7 @@ export function InitialView({
                 setWorkflowDocuments(documents);
                 openDock("workflows");
             }}
-            onWorkflowSelect={startWorkflow} />
+            onWorkflowSelect={startWorkflow} onRun={onSubmit} />
     );
     const dockTabs: AssistantDockTab[] = [
         { id: "library", label: "Library", content: dockPanel("library") },
@@ -200,6 +204,7 @@ export function InitialView({
             </div>
             <div className="w-full justify-self-center">
                 <ChatInput
+                    onDraftChange={onDraftChange}
                     ref={chatInputRef}
                     onSubmit={onSubmit}
                     onCancel={() => {}}

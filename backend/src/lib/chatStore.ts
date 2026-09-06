@@ -1,15 +1,17 @@
-import { visibleChatMessages } from "./chat/chatTranscript";
+import { visibleChatMessages, type VisibleChatMessage } from "./chat/chatTranscript";
+import type { AssistantEvent } from "./chat/assistantEvents";
 import { abortChatTurnForDeletion } from "./chatTurns";
 
 export type ChatScope = { userId: string; userEmail?: string };
 export type ChatRecord = Record<string, unknown> & {
   id: string; user_id: string; project_id: string | null;
-  tabular_review_id: string | null; title: string | null;
+  tabular_review_id: string | null; research_file_id?: string | null; title: string | null;
   model: string | null; reasoning_effort: string | null;
-  transcript_version: number; };
+  transcript_version: number;
+  search_hit?: { message_id: string | null; snippet: string }; };
 export type ChatMessageRecord = Record<string, unknown> & {
   id: string; chat_id: string; turn_id?: string; role: "user" | "assistant";
-  content: unknown; files?: unknown; workflow?: unknown; citations?: unknown;
+  content: string | AssistantEvent[]; files?: unknown; workflow?: unknown; citations?: unknown;
 };
 
 export type ChatCommitResult = { status: "missing" }
@@ -18,17 +20,22 @@ export type ChatCommitResult = { status: "missing" }
 
 export type ChatTurnCommit = { expectedVersion: number;
   userMessage?: { id: string; turnId?: string; content: string; files?: unknown; workflow?: unknown };
-  assistantMessage?: { id: string; turnId?: string; content: unknown[]; citations?: unknown[] } };
+  assistantMessage?: { id: string; turnId?: string; content: AssistantEvent[]; citations?: unknown[] } };
 
 export class ChatStoreError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
 }
 
-export type ChatListOptions = { projectId?: string; tabularReviewId?: string; limit?: number };
-export type ChatCreateInput = { projectId: string | null; tabularReviewId: string | null };
+export type ChatListOptions = { projectId?: string; tabularReviewId?: string; limit?: number; offset?: number;
+  search?: string; searchScope?: "all" | "titles" | "transcripts";
+  searchContext?: "assistant" | "reviews" | "all";
+  createdFrom?: string; createdTo?: string; sort?: "newest" | "oldest" };
+export type ChatCreateInput = { projectId: string | null; tabularReviewId: string | null; researchFileId?: string | null };
 export type ChatUpdateInput = {
+  draft?: Record<string, unknown> | null;
   title?: string;
   projectId?: string | null;
+  researchFileId?: string | null;
   model?: string | null;
   reasoningEffort?: string | null;
 };
@@ -36,9 +43,10 @@ export type ChatDetail = { chat: ChatRecord; messages: ChatMessageRecord[] };
 export type ChatStore = {
   list(scope: ChatScope, options: ChatListOptions): Promise<ChatRecord[]>; deleted(scope: ChatScope): Promise<ChatRecord[]>;
   create(scope: ChatScope, input: ChatCreateInput): Promise<ChatRecord>; get(scope: ChatScope, id: string): Promise<ChatRecord | null>;
-  detail(scope: ChatScope, id: string): Promise<ChatDetail | null>; transcript(scope: ChatScope, id: string): Promise<ChatMessageRecord[] | null>;
+  detail(scope: ChatScope, id: string): Promise<{ chat: ChatRecord; messages: VisibleChatMessage[] } | null>;
+  transcript(scope: ChatScope, id: string): Promise<ChatMessageRecord[] | null>;
   commitTurn(scope: ChatScope, id: string, commit: ChatTurnCommit): Promise<ChatCommitResult>;
-  appendAssistantEvent(scope: ChatScope, id: string, messageId: string, event: Record<string, unknown>): Promise<ChatCommitResult>;
+  appendAssistantEvent(scope: ChatScope, id: string, messageId: string, event: AssistantEvent): Promise<ChatCommitResult>;
   update(scope: ChatScope, id: string, input: ChatUpdateInput): Promise<ChatRecord | null>;
   trash(scope: ChatScope, id: string): Promise<boolean>; restore(scope: ChatScope, id: string): Promise<boolean>;
   remove(scope: ChatScope, id: string): Promise<boolean>; deleteAll(scope: ChatScope): Promise<number>;
@@ -46,7 +54,7 @@ export type ChatStore = {
 };
 
 export type ChatMutation = { kind: "turn"; turn: ChatTurnCommit }
-  | { kind: "append"; messageId: string; event: Record<string, unknown> };
+  | { kind: "append"; messageId: string; event: AssistantEvent };
 
 export type ChatRepository = {
   list(options: ChatListOptions): Promise<ChatRecord[]>; deleted(): Promise<ChatRecord[]>;
@@ -62,18 +70,21 @@ export type ChatRepository = {
 export type CreateChatRepository = (scope: ChatScope) => ChatRepository;
 type GenerateChatTitle = (scope: ChatScope, message: string) => Promise<string>;
 export type ChatContexts = { project(scope: ChatScope, id: string): Promise<boolean>;
-  review(scope: ChatScope, id: string): Promise<boolean> };
+  review(scope: ChatScope, id: string): Promise<boolean>;
+  research?(scope: ChatScope, id: string): Promise<boolean> };
 
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const missing = (detail: string) => new ChatStoreError(404, detail);
 
 async function requireContext(contexts: ChatContexts, scope: ChatScope, input: {
-  projectId?: string | null; tabularReviewId?: string | null;
+  projectId?: string | null; tabularReviewId?: string | null; researchFileId?: string | null;
 }) {
   if (input.projectId && !await contexts.project(scope, input.projectId))
     throw missing("Project not found");
   if (input.tabularReviewId && !await contexts.review(scope, input.tabularReviewId))
     throw missing("Review not found");
+  if (input.researchFileId && !await contexts.research?.(scope, input.researchFileId))
+    throw missing("Research workspace not found");
 }
 
 const retentionCutoff = () => new Date(Date.now() - RETENTION_MS).toISOString();
@@ -117,7 +128,7 @@ export function createChatStore(repositoryFor: CreateChatRepository,
       return repositoryFor(scope).commit(chatId, { kind: "append", messageId, event }); },
     async update(scope, chatId, input) {
       const repository = repositoryFor(scope);
-      await requireContext(contexts, scope, { projectId: input.projectId });
+      await requireContext(contexts, scope, input);
       return repository.update(chatId, input);
     },
     async trash(scope, chatId) {
@@ -156,9 +167,8 @@ export function patchChatEditEvents(messages: ChatMessageRecord[], statuses:
   versions: Iterable<readonly [string, number | null]>) {
   const statusById = new Map(statuses);
   const versionById = new Map(versions);
-  const patch = (row: Record<string, unknown>) => {
-    const versionId = typeof row.version_id === "string" ? row.version_id : null;
-    const editId = typeof row.edit_id === "string" ? row.edit_id : null;
+  const patch = <T extends { version_id: string; edit_id?: string }>(row: T) => {
+    const versionId = row.version_id, editId = row.edit_id;
     return { ...row,
       ...(versionId && versionById.has(versionId)
         ? { version_number: versionById.get(versionId) ?? null } : {}),
@@ -168,11 +178,8 @@ export function patchChatEditEvents(messages: ChatMessageRecord[], statuses:
     ...message,
     content: Array.isArray(message.content)
       ? message.content.map((event) => {
-          const row = event as Record<string, unknown>;
-          if (row.type !== "document_artifact" || row.action !== "edited") return event;
-          return { ...patch(row), annotations: Array.isArray(row.annotations)
-            ? row.annotations.map((annotation) =>
-                patch(annotation as Record<string, unknown>)) : row.annotations };
+          if (event.type !== "document_artifact" || event.action !== "edited") return event;
+          return { ...patch(event), annotations: event.annotations?.map(patch) };
         })
       : message.content,
   }));

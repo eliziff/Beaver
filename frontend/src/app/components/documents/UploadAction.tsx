@@ -2,7 +2,7 @@ import { useState } from "react";
 import { FolderPlus, Loader2, MessageSquarePlus, Upload } from "lucide-react";
 import { ActionMenu } from "@/app/components/ui/action-menu";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
-import type { Document } from "@/app/components/shared/types";
+import type { Document } from "@/app/lib/api/documents";
 import { Button } from "@/app/components/ui/button";
 import { ContextualWorkflowLauncher } from "@/app/components/workflows/ContextualWorkflowPicker";
 import type { WorkflowSelection } from "@/app/components/workflows/workflowRoutes";
@@ -11,7 +11,6 @@ import { WarningPopup } from "@/app/components/popups/WarningPopup";
 export type UploadActions = { files: () => void; folder: () => void };
 export type DocumentSelectionActions = {
     documents: Document[];
-    onWorkflowDocumentChanged: () => Promise<void>;
     onDownload: () => Promise<void>;
     onMove: () => void;
     onRemove: () => Promise<void>;
@@ -92,7 +91,6 @@ export function DirectoryActions({ actions, onCreateFolder, selection,
             resolveDocuments={resolveDocuments}
             onOpen={onOpenWorkflows}
             onAssistantSelect={onAssistantWorkflowSelect}
-            onDocumentChanged={selection?.onWorkflowDocumentChanged}
             className="directory-action-button" labelClassName={labelClass}
             disabled={busy} showDisabled />
         <MoreActionsMenu label="More actions" items={[

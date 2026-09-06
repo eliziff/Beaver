@@ -34,7 +34,8 @@ test("accepts the shared local Authorities workspace", () => assert.doesNotThrow
   assertStandaloneFrontendModules(frontend)));
 for (const input of ["/repo/frontend/src/app/authorities/beaverHost.ts",
   "/repo/frontend/src/app/components/assistant/WorkProductAssistant.tsx",
-  "/repo/frontend/src/app/lib/beaverApi.ts",
+  "/repo/frontend/src/app/lib/api/documents.ts",
+  "/repo/frontend/src/app/lib/api/auth.ts",
   "/repo/frontend/node_modules/@supabase/supabase-js/dist/index.js"]) {
   test(`rejects frontend ${input}`, () => assert.throws(() =>
     assertStandaloneFrontendModules([...frontend, input]), /frontend contains/u));

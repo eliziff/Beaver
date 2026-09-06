@@ -15,9 +15,9 @@ vi.mock("react-router-dom", () => ({
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     useChatHistoryContext: () => ({ saveChat: mocks.saveChat }),
 }));
-vi.mock("@/app/lib/beaverApi", () => ({
-    getProject: vi.fn().mockResolvedValue({ id: "project-1", name: "Matter One" }),
-    listProjects: vi.fn().mockResolvedValue({
+vi.mock("@/app/lib/api/projects", () => ({
+  getProject: vi.fn().mockResolvedValue({ id: "project-1", name: "Matter One" }),
+  listProjects: vi.fn().mockResolvedValue({
         items: [
             {
                 id: "project-1",
@@ -30,7 +30,7 @@ vi.mock("@/app/lib/beaverApi", () => ({
                 document_count: 0,
             },
         ], next_cursor: null,
-    }),
+    })
 }));
 
 beforeEach(() => {

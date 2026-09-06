@@ -3,12 +3,11 @@ import { describe, expect, it } from "vitest";
 import type { ChatMessageRecord } from "../chatStore";
 import {
   projectChatTranscript,
-  visibleChatMessages,
 } from "./chatTranscript";
 
 function message(
   role: "user" | "assistant",
-  content: unknown,
+  content: ChatMessageRecord["content"],
   extra: Partial<ChatMessageRecord> = {},
 ): ChatMessageRecord {
   return {
@@ -35,7 +34,7 @@ describe("projectChatTranscript", () => {
         }),
         message("assistant", [
           { type: "content", text: "Answer" },
-          { type: "local_pdf_evidence_handles", handles: ["hidden"] },
+          { type: "local_mutation_committed", schema_version: 1 },
         ]),
       ]),
     ).toEqual([
@@ -166,47 +165,7 @@ describe("projectChatTranscript", () => {
 });
 
 describe("visibleChatMessages", () => {
-  it("exposes durable turn identity and completion without internal events", () => {
-    const turnId = randomUUID();
-
-    const visible = visibleChatMessages([
-      message("user", "Question", { turn_id: turnId }),
-      message("assistant", [
-        { type: "content", text: "Answer" },
-        { type: "reasoning", text: "private reasoning" },
-        { type: "future_private_receipt", secret: "private" },
-        { type: "legal_evidence_receipt", status: "passed", evidence: [] },
-        { type: "mcp_tool_call", connector_name: "Private connector" },
-        {
-          type: "subagent_run", id: "reader-1", agent: "scout", task: "Read",
-          model: "private-model", effort: "high", status: "completed",
-          grounding: { type: "legal_evidence_receipt" },
-          resume: { continuation_id: "private-continuation" },
-          error: "private failure detail",
-          publicError: "Grounding verification failed; this reading agent can be resumed.",
-        },
-        { type: "local_turn_completed", schema_version: 1 },
-      ], { turn_id: turnId }),
-    ]);
-    expect(visible).toMatchObject([
-      { role: "user", turn_id: turnId },
-      {
-        role: "assistant",
-        turn_id: turnId,
-        turn_complete: true,
-      },
-    ]);
-    expect(visible[1].content).toEqual([
-      { type: "content", text: "Answer" },
-      {
-        type: "subagent_run", id: "reader-1", task: "Read",
-        status: "completed",
-        error: "Grounding verification failed; this reading agent can be resumed.",
-      },
-    ]);
-  });
-
-  it("keeps created documents without replaying internal evidence receipts", () => {
+  it("keeps created documents without replaying private checkpoint payloads", () => {
     const projected = projectChatTranscript([message("assistant", [
       { type: "content", text: "The memo is ready." },
       {
@@ -214,11 +173,11 @@ describe("visibleChatMessages", () => {
         filename: "Memo.docx",
         document_id: "document-1",
         version_id: "version-1",
+        action: "created", version_number: 1, download_url: "/documents/document-1/download",
       },
       {
-        type: "legal_evidence_receipt",
-        status: "passed",
-        evidence: [{ evidence_id: "e_hidden", span_text: "hidden passage" }],
+        type: "context_checkpoint", schema_version: 1, keep_current: false,
+        payload: { evidence_id: "e_hidden", span_text: "hidden passage" },
       },
     ])]);
 

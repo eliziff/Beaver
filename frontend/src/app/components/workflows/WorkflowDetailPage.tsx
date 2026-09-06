@@ -1,15 +1,25 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Users } from "lucide-react";
-import { deleteWorkflow, deleteWorkflowShare, getWorkflow,
-    listWorkflowShares, lookupUserByEmail, shareWorkflow, updateWorkflow,
-    type ProjectPeople } from "@/app/lib/beaverApi";
-import { apiBlobRequest } from "@/app/lib/apiTransport";
+import {
+  deleteWorkflow,
+  deleteWorkflowShare,
+  getWorkflow,
+  listWorkflowShares,
+  shareWorkflow,
+  updateWorkflow,
+  exportWorkflow,
+  type Workflow,
+  type WorkflowVariant,
+} from "@/app/lib/api/workflows";
+import { lookupUserByEmail } from "@/app/lib/api/account";
+import type { ProjectPeople } from "@/app/lib/api/projects";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { isLocalMode } from "@/app/lib/authMode";
 import { downloadBlob } from "@/app/lib/download";
-import type { ColumnConfig, Workflow, WorkflowVariant } from "../shared/types";
+import type { ColumnConfig } from "@/app/lib/api/tabular";
+
 import { AddColumnModal } from "../tabular/AddColumnModal";
 import { PeopleModal } from "../modals/PeopleModal";
 import { ConfirmPopup } from "../popups/ConfirmPopup";
@@ -86,7 +96,7 @@ export function WorkflowDetailPage({ id }: { id: string }) {
     }
     if (workflow === null) return <div className="grid h-full place-items-center text-sm text-gray-500">Workflow not found.</div>;
     const menuItems: MoreActionsMenuItem[] = workflow ? [{ label: "Download workflow",
-        onSelect: () => void apiBlobRequest(`/workflows/${encodeURIComponent(id)}/export`)
+        onSelect: () => void exportWorkflow(id)
             .then(({ blob, filename }) => downloadBlob(blob, filename ?? "workflow.zip")) },
         ...(!readOnly ? [{ label: "Edit details", onSelect: () => setModal("details") },
             { label: "Delete", onSelect: () => setModal("delete") }] : []),

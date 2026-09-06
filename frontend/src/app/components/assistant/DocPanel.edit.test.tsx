@@ -7,7 +7,8 @@ import {
     waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DocumentCitation, EditAnnotation } from "../shared/types";
+import type { DocumentCitation } from "@/app/lib/citations";
+import type { EditAnnotation } from "@/app/lib/api/documents";
 
 const mocks = vi.hoisted(() => ({
     docxView: vi.fn(),

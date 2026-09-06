@@ -1,3 +1,6 @@
+import { readLegalSourceResource, readLibraryResearchWindow, readResearchWorkspace, restoreResearchEvidence,
+  oneHopLegalScope, sourceActivityCitations } from "../researchReader";
+import { researchMemoCitation } from "../researchMemo";
 import { randomUUID } from "node:crypto";
 import { sha256 } from "../hash";
 import { SYSTEM_ASSISTANT_WORKFLOWS } from "../systemWorkflows";
@@ -7,15 +10,9 @@ import {
   resourceReference,
 } from "../resourceReferences";
 import {
-  type A2AJCompiledDocument,
-} from "../legalSources/a2aj";
-import {
-  readLegalSourcePassage,
-  type LegalSourcePassage,
   type LegalSourceReference,
-} from "../legalSourceRegistry";
-import type { RemoteLegalSourceDocument } from "../legalSources/remoteProvider";
-import { fixDocumentSupras } from "../docxDeterministicCleanup";
+} from "../legalSources";
+import { fixDocxSupras } from "../docxDeterministicCleanup";
 import { createDocxAuthorityLedger,
   resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
 import {
@@ -30,14 +27,15 @@ import {
   insertTrackedBlocks,
   type EditMode,
 } from "../docxTrackedChanges";
-import type { LibraryStore } from "../libraryStore";
-import type { ProjectStore } from "../projectStore";
+import type { LibraryPageItem, LibraryStore } from "../libraryStore";
+import type { ProjectDirectoryItem, ProjectStore } from "../projectStore";
 import type {
   AssistantEdit,
   StoredAssistantEdit,
   DocumentContent,
   DocumentProvenance,
   DocumentProjectionSource,
+  DocumentRecord,
   DocumentScope,
   DocumentStore,
 } from "../documentStore";
@@ -48,7 +46,6 @@ import {
 import {
   structureNative,
   type NativeDocument,
-  type NativeDocumentBlock,
 } from "../structureNative";
 import { pdfLifecyclePhase } from "../pdfLifecycleDiagnostics";
 import {
@@ -62,27 +59,20 @@ import type {
 import {
   assistantReadEvidenceActivityLabel,
   assistantToolActivityLabel,
-  type A2AJReferenceDirection,
 } from "./tools/a2ajTools";
 import {
-  createA2AJPassageEvidence,
-  createGovInfoEvidence,
-  createGovUkEmploymentTribunalEvidence,
-  createTnaEvidence,
+  createDirectSourceEvidence,
   createLibraryEvidence,
   legalEvidenceSourceReference,
   legalEvidenceProseIntegrityErrors,
-  legalSourceEvidence,
   modelEvidencePassage,
   modelEvidencePreview,
+  modelResearchQuery,
   modelResearchQueryPreview,
   readPriorLegalEvidence,
   registerLegalEvidence,
-  restorePriorLegalEvidence,
   type LegalEvidenceReceipt,
-  type LegalEvidenceSpan,
   type LegalEvidenceTurnState,
-  type RegisteredEvidence,
 } from "./legalEvidence";
 import { CITATOR_TOOL, executeCitatorTool } from "./tools/citatorTools";
 import {
@@ -94,14 +84,12 @@ import {
   searchSources,
 } from "./tools/sourceSearchTools";
 import { createLegalSourceSearchCitations } from "./citations";
-import { queueProviderPdfRenditions } from "../providerPdfLibraryBridge";
 import {
   applyTextOpsToDocx,
   type TextOpRequest,
 } from "../docxTextOps";
 import {
   buildPptxPresentation,
-  findTextMatches,
   presentationFromMarkdown,
   renderMarkdownDocx,
   renderXlsxWorkbook,
@@ -113,42 +101,42 @@ import {
   ADVANCED_DOCX_EDIT_TOOL,
   WRITE_TOOL,
 } from "./tools/toolSchemas";
-import {
-  courtlistenerPdfRendition,
-} from "./courtlistenerToolRunner";
 import { jsonRecord as objectRecord, trimmedText as trimmed } from "../value";
 import { RESOURCE_TOOLS, globPattern as globRegExp } from "./resourceTools";
+import { checkQuotes, decodeQuoteLinks } from "../quoteCheck";
+import { createAuthoritiesImporter } from "../authoritiesImport";
+import { saveQuoteCheckWorkbook } from "../quoteCheckWorkbook";
 import {
-  supraFixEvent,
   workProductEvent, workProductResult,
 } from "./localWorkflowRun";
 import {
   MAX_MODEL_TOOL_RESULT_CHARS,
   toolText,
-  withoutUrls,
   type BeaverToolPolicy,
   type BeaverOutcome,
   type BeaverTool,
 } from "./toolRegistry";
 import { tabularTool } from "./tabularCells";
 import type { DocIndex, TabularCellStore, WorkflowStore } from "./types";
-import type { ReadSubagentAssignment } from "./readSubagents";
-import type { AssistantEvent } from "./turnEngine";
+import type { AuditStore } from "../audit";
+import type { AssistantEvent, ReadSubagentAssignment } from "./assistantEvents";
 import { safeErrorMessage } from "../safeError";
 import type { AuthoritiesUserAction,
   AuthoritiesWorkspaceApplication } from "../authoritiesWorkspaceApplication";
-import { AUTHORITIES_BOOK_ROLES, authoritiesProfileIds,
+import { AUTHORITIES_SETTINGS_CHOICES, decodeAuthoritiesUserAction } from
+  "../authoritiesActionContract";
+import { authoritiesProfileIds,
   decodeAuthoritiesDraft } from "../authoritiesDomain";
 import type { CourtRecordsApplication } from "../courtRecordsApplication";
 import { COURT_RECORD_PROFILE_BY_ID } from "../courtRecordContract";
 import type { FeaturePreferences } from "../userPreferences";
 import type { WorkProductApplication } from "../workProductApplication";
 import { WORK_PRODUCT_KINDS, type WorkProductKind } from "../workProduct";
-import { createResearchFileState, pageResearchItems, readResearchEvidenceParts,
-  readResearchFile, researchFileActionSchema,
+import { createResearchFileState, readResearchEvidenceParts,
+  readResearchFile, researchFileActionSchema, researchReferenceFromEvidence,
   researchFileMarkdown, researchQueryReceipt, researchQuerySources,
   researchSourceFromResource, researchSourceKey, researchSourceResource, saveResearchFile,
-  type ResearchEvidence, type ResearchFileAction, type ResearchQueryReceipt } from "../researchFile";
+  type ResearchEvidence, type ResearchFile, type ResearchFileAction, type ResearchQueryReceipt } from "../researchFile";
 import { researchCaptureRuleSchema, runResearchFileQuery } from "../researchFileQuery";
 import { COURT_RECORD_TOOL_PROPERTIES, courtRecordResult,
   courtRecordSlotTool } from "./courtRecordSlotTool";
@@ -158,6 +146,26 @@ const DOCUMENT_ID_PROPERTY = {
   pattern: DOCUMENT_RESOURCE_PATTERN,
   description: "Version-pinned document resource returned by this tool or Glob. Reuse the latest returned resource after every write.",
 };
+export function modelQuoteCheckReport(report: Awaited<ReturnType<typeof checkQuotes>>, offset: number) {
+  return { mode: report.mode, total: report.total, counts: report.counts,
+    next_offset: offset + 10 < report.total ? offset + 10 : null,
+    citationUnits: report.citationUnits.filter((unit) => report.quotes.some((quote) =>
+      quote.unitId === unit.unitId || quote.candidates.some((candidate) => candidate.unitId === unit.unitId)))
+      .map(({ unitId, status, reasons, parts }) => ({ unitId, status,
+        ...(reasons.length ? { reasons } : {}),
+        parts: parts.map(({ start, end, text, fields }) => ({ start, end, text,
+          fields: Object.fromEntries(Object.entries(fields).filter(([, value]) =>
+            Array.isArray(value) ? value.length : value !== "")) })) })),
+    quotes: report.quotes.map((quote) => ({ ...quote,
+      context: quote.context.slice(0, 4000), receipt: quote.receipt && {
+        resource: researchSourceResource(quote.receipt.source),
+        citation: quote.receipt.source.citation, title: quote.receipt.source.title,
+        alternateCitation: quote.receipt.source.alternateCitation, date: quote.receipt.source.date,
+        locator: quote.receipt.locator, text: quote.receipt.text.slice(0, 8000),
+        ...(quote.receipt.text.length > 8000 ? { text_truncated: true } : {}),
+        errors: quote.receipt.errors, comparison: quote.receipt.comparison,
+      } })) };
+}
 const objectSchema = (
   properties: Record<string, object>,
   required: string[] = [],
@@ -204,19 +212,21 @@ const documentOperationTool = (research = true): Tool & BeaverToolPolicy => ({
       "Read an existing research file before changing it. " +
       "{type:'save'} with top-level evidence_ids/query_ids saves verified evidence and returns " +
       "saved:[{evidence_id,source_id}] for annotation; " +
-      "plain type:'query' returns query_id without saving; persist it with a following " +
-      "type:'save' and top-level query_ids:[query_id] (rule queries save automatically; search_sources never saves a workspace query); " +
+      "Workspace queries save automatically; use save for search_sources query_ids. " +
       "{type:'query',text,syntax:'literal'|'terms',target:'sources'|'passages',sourceIds?,labelIds?,unlabelled?,limit?,after?}; follow coverage.next_after with the same query until null; limit is 25 unless rules capture results into the file; " +
       "query may instead use rules:[{phrase,direction:'before'|'after',unit:'sentence'|'line'|'paragraph'|'chars',chars?,slot}] where slot is a returned highlight label_id, and conflict; rules also support after; incomplete coverage is never exhaustive; " +
-      "{type:'label',name,parentId?,color?:'#RRGGBB',order?,scope:'source'|'highlight'} creates a label: omit id, " +
+      "{type:'label',name,definition?,parentId?,color?:'#RRGGBB',order?,scope:'source'|'highlight'} creates a label: omit id, " +
       "then use returned label_id for child parentId and later labelIds; supply id only to edit; " +
       "{type:'source',reference:{provider,id,kind,...},labelIds?,badge?,note?} for a current search result returns source_id; " +
       "{type:'annotate',kind:'source',id,labelIds?,badge?,note?} or " +
       "{type:'annotate',kind:'evidence',id,sourceId,labelIds?,note?}; " +
+      "{type:'label-selection',target:'sources'|'passages',sourceIds?,evidenceIds?,labelIds?,unlabelled?,assign:[labelId],mode:'add'|'remove'|'replace'} labels a selected group; " +
       "{type:'remove',kind:'label'|'source',id} or {type:'remove',kind:'evidence',id,sourceId}; " +
+      "{type:'batch',title,actions:[label/annotate/label-selection/remove-label actions],propose?:boolean} groups an organization change. Apply reversible changes within the user's request; use propose:true for suggestions or changes needing the user's decision. " +
+      "{type:'undo',changeId} reverses a recorded change while preserving unrelated work. Read the workspace history for change IDs; pending proposals are reviewed by the user. " +
       "{type:'note',markdown}; or " +
-      "{type:'memo',title,markdown} with optional top-level evidence_ids creates a linked " +
-      "ordinary Markdown file with verified source links; use [@evidence_id] for inline citations; " +
+      "{type:'memo',title,markdown,mode?:'replace'|'append'} writes the workspace memo with " +
+      "verified source links from top-level evidence_ids; use [@evidence_id] for inline citations; " +
       "IDs are opaque: annotate only returned label_id/source_id or matches[].evidence_id." } } : {}),
   }, ["action"]),
 });
@@ -243,37 +253,28 @@ const AUTHORITIES_ACTION = objectSchema({
     "set-output-mode", "set-document-output", "set-cover", "clear-book-part",
     "remove-book-supplement",
   ] },
-  occurrence_id: { type: "string", minLength: 1,
+  occurrenceId: { type: "string", minLength: 1,
     description: "Citation occurrence; omit in a bound view to use the focused citation." },
-  authority_id: { type: "string",
-    description: "Existing authority ID used by relink-occurrence." },
-  authority_kind: { type: "string", enum: ["case", "legislation", "commentary", "other"] },
+  authorityId: { type: "string" },
+  kind: { type: "string", enum: ["case", "legislation", "commentary", "other"] },
   citation: { type: "string", minLength: 1, maxLength: 1_000 },
   name: { type: ["string", "null"], maxLength: 1_000 },
-  target_authority_id: { type: "string", minLength: 1 },
   start: { type: "integer", minimum: 0,
     description: "Absolute UTF-16 start in the unit; omit to use the selected range." },
   end: { type: "integer", minimum: 0,
     description: "Absolute UTF-16 end in the unit; omit to use the selected range." },
   cursor: { type: "integer", minimum: 0,
     description: "Absolute UTF-16 split position; omit to use the selection start." },
-  reference_kind: { type: "string", enum: ["supra", "ibid", "none"] },
+  reference: { ...objectSchema({
+    kind: { type: "string", enum: ["supra", "ibid"] },
+    targetAuthorityId: { type: "string", minLength: 1 },
+  }, ["kind", "targetAuthorityId"]), type: ["object", "null"] },
   excluded: { type: "boolean" },
-  display_name: { type: "string", maxLength: 1_000 },
-  profile_id: { type: "string", enum: authoritiesProfileIds },
-  settings: objectSchema({
-    source_mode: { type: "string", enum: ["automatic", "manual-originals", "render"] },
-    tab_style: { type: "string", enum: ["numeric", "alpha"] },
-    table_order: { type: "string", enum: ["first-reference", "alphabetical"] },
-    table_delivery: { type: "string", enum: ["native-marks", "native-append", "linked-append"] },
-    table_location: { type: "string", enum: ["pages", "pinpoints", "combined"] },
-    passage_marking: { type: "string", enum: ["none", "margin", "paragraph", "text", "sidelined"] },
-    scanned_pdf_policy: { type: "string", enum: ["page-margin", "cited-pages", "full"] },
-    missing_source_policy: { type: "string", enum: ["placeholder", "omit"] },
-    filing_medium: { type: "string", enum: ["electronic", "paper"] },
-    book_role: { type: "string", enum: AUTHORITIES_BOOK_ROLES },
-  }),
-  output_mode: { type: "string", enum: ["table", "book", "both"] },
+  displayName: { type: ["string", "null"], maxLength: 1_000 },
+  profileId: { type: "string", enum: authoritiesProfileIds },
+  settings: objectSchema(Object.fromEntries(Object.entries(AUTHORITIES_SETTINGS_CHOICES)
+    .map(([key, values]) => [key, { type: "string", enum: values }]))),
+  outputMode: { type: "string", enum: ["table", "book", "both"] },
   enabled: { type: "boolean" },
   cover: objectSchema({
     courtFileNumber: { type: "string", maxLength: 100 },
@@ -286,78 +287,59 @@ const AUTHORITIES_ACTION = objectSchema({
     title: { type: "string", maxLength: 500 },
   }, ["courtFileNumber", "partyGroups", "applicationUnder", "title"]),
   slot: { type: "string", enum: ["cover", "index"] },
-  supplement_id: { type: "string", minLength: 1, maxLength: 200 },
+  id: { type: "string", minLength: 1, maxLength: 200 },
 }, ["type"]);
-const workProductTool = (authoritiesEnabled: boolean, bound = false): Tool & BeaverToolPolicy => ({
-  name: "update_work_product",
+const workProductTool = (authoritiesEnabled: boolean, bound = false,
+  name = "update_work_product"): Tool & BeaverToolPolicy => ({
+  name,
   specialist: !bound,
   sequential: true,
   activity: (input) => WORK_PRODUCT_ACTIVITY[String(input.action)] ?? "Updating draft",
-  description: "Create, choose, read, review, or update a Court Record or Authorities draft using " +
-    "the workspace's fields and Library bindings. Read without draft_id to list drafts. Authorities " +
-    "reads return a summary; supply unit_id or occurrence_id for bounded text and absolute UTF-16 " +
-    "ranges. In a bound Authorities view, reads and citation actions default to the focused citation; " +
-    "a selected range also supplies omitted start/end or cursor values. merge-occurrence merges with " +
-    "the previous citation, remove-occurrence means Not a citation, and relink-occurrence connects an " +
-    "existing authority_id. Update with one authorities_action, grounded evidence list, authority_id plus a " +
-    "version-pinned PDF and source_language, or book_slot plus a version-pinned PDF. A supplemental book PDF " +
-    "gets a stable supplement_id; pass that ID to replace or remove it.",
+  description: (bound ? "Read, review, update, refresh, or build the active Authorities draft. "
+    : "Create, read, select, or update Court Record and Authorities drafts. Read without draft_id to list drafts. ") +
+    "Use unit_id or occurrence_id for text. Bound reads and citation " +
+    "actions default to the focused citation and selection. merge-occurrence joins the previous " +
+    "citation; remove-occurrence marks non-citation text. Update with authorities_action, " +
+    "evidence_ids, authority_id + document_id + source_language, or book_slot + document_id. " +
+    "Reuse supplement_id to replace a supplemental PDF or authorities_action.id to remove it.",
   annotations: { readOnlyHint: false },
   inputSchema: objectSchema({
-    action: { type: "string", enum: ["create", "read", "review", "select", "update", "refresh", "build"] },
-    kind: { type: "string", enum: ["court-record",
-      ...(authoritiesEnabled ? ["authorities"] : [])] },
-    draft_id: { type: "string", minLength: 1 },
-    title: { type: "string", minLength: 1, maxLength: 300 },
-    ...COURT_RECORD_TOOL_PROPERTIES,
-    document_id: DOCUMENT_ID_PROPERTY,
-    unit_id: { type: "string", minLength: 1 },
-    occurrence_id: { type: "string", minLength: 1 },
-    text_offset: { type: "integer", minimum: 0 },
-    text_limit: { type: "integer", minimum: 1, maximum: 20_000 },
-    occurrence_offset: { type: "integer", minimum: 0 },
-    occurrence_limit: { type: "integer", minimum: 1, maximum: 25 },
-    authority_offset: { type: "integer", minimum: 0 },
-    authority_limit: { type: "integer", minimum: 1, maximum: 50 },
-    input_role: { type: "string", minLength: 1 },
-    authority_id: { type: "string", minLength: 1,
-      description: "Authority ID returned by reading an Authorities draft." },
-    source_language: { type: "string", enum: ["en", "fr", "bilingual"],
-      description: "Official language of a PDF attached to an authority." },
-    book_slot: { type: "string", enum: ["cover", "index", "supplemental"] },
-    supplement_id: { type: "string", minLength: 1, maxLength: 200 },
-    authorities_action: AUTHORITIES_ACTION,
-    evidence_ids: { type: "array", minItems: 1, uniqueItems: true,
-      items: { type: "string", minLength: 1 } },
-  }, ["action", "kind"]),
+    action: { type: "string", enum: bound ? ["read", "review", "update", "refresh", "build"]
+      : ["create", "read", "review", "select", "update", "refresh", "build"] },
+    ...(!bound && {
+      kind: { type: "string", enum: ["court-record",
+        ...(authoritiesEnabled ? ["authorities"] : [])] },
+      draft_id: { type: "string", minLength: 1 },
+      title: { type: "string", minLength: 1, maxLength: 300 },
+      ...COURT_RECORD_TOOL_PROPERTIES,
+    }),
+    ...(authoritiesEnabled && {
+      document_id: DOCUMENT_ID_PROPERTY,
+      unit_id: { type: "string", minLength: 1 },
+      occurrence_id: { type: "string", minLength: 1 },
+      text_offset: { type: "integer", minimum: 0 },
+      text_limit: { type: "integer", minimum: 1, maximum: 20_000 },
+      occurrence_offset: { type: "integer", minimum: 0 },
+      occurrence_limit: { type: "integer", minimum: 1, maximum: 25 },
+      authority_offset: { type: "integer", minimum: 0 },
+      authority_limit: { type: "integer", minimum: 1, maximum: 50 },
+      input_role: { type: "string", minLength: 1 },
+      authority_id: { type: "string", minLength: 1,
+        description: "Authority ID returned by reading an Authorities draft." },
+      source_language: { type: "string", enum: ["en", "fr", "bilingual"],
+        description: "Official language of a PDF attached to an authority." },
+      book_slot: { type: "string", enum: ["cover", "index", "supplemental"] },
+      supplement_id: { type: "string", minLength: 1, maxLength: 200 },
+      authorities_action: AUTHORITIES_ACTION,
+      evidence_ids: { type: "array", minItems: 1, uniqueItems: true,
+        items: { type: "string", minLength: 1 } },
+    }),
+  }, bound ? ["action"] : ["action", "kind"]),
 });
 
-function oneHopLegalScope(
-  document: NativeDocument,
-  block: NativeDocumentBlock,
-  direction: "inbound" | "outbound" | "both",
-  includeUnits = false,
-) {
-  const follow = direction === "inbound"
-    ? "in"
-    : direction === "outbound" ? "out" : "both";
-  return structureNative().graphScope(
-    document, block.label, follow, 1, true, includeUnits);
-}
-
-
-
-
-
-
-type AssistantDocument = Record<string, unknown> & {
-  id: string; filename: string; current_version_id: string; file_type: string;
-  page_count?: number | null;
-};
-
-const documentsFromPage = (items: Record<string, unknown>[]) =>
+const documentsFromPage = (items: (LibraryPageItem | ProjectDirectoryItem)[]) =>
   items.flatMap((item) => item.kind === "document"
-    ? [item.document as AssistantDocument] : []);
+    ? [item.document] : []);
 
 async function scopedDocuments(
   scope: DocumentScope,
@@ -365,7 +347,7 @@ async function scopedDocuments(
   projects: ProjectStore,
   limit = 200,
   matterId?: string | null,
-) : Promise<AssistantDocument[]> {
+) : Promise<DocumentRecord[]> {
   if (matterId) {
     return documentsFromPage((await projects.directory(
       scope,
@@ -373,13 +355,13 @@ async function scopedDocuments(
       { q: "", parentFolderId: null, limit, after: null },
     )).items);
   }
-  const documents: AssistantDocument[] = [];
+  const documents: DocumentRecord[] = [];
   let after: [number, string, string] | null = null;
   do {
     const page = await library.page({ ...scope, kind: "file" }, {
       q: "", parentFolderId: null, limit, after, documentsOnly: true,
     });
-    documents.push(...documentsFromPage(page.items as Record<string, unknown>[]));
+    documents.push(...documentsFromPage(page.items));
     after = page.nextAfter;
   } while (after);
   return documents;
@@ -479,6 +461,8 @@ const editAnnotations = (
   ins_w_id: edit.insWId,
   deleted_text: edit.deletedText.slice(0, 500),
   inserted_text: edit.insertedText,
+  context_before: edit.contextBefore,
+  context_after: edit.contextAfter,
   reason: edit.reason,
   diff: edit.diff,
   status: edit.status,
@@ -510,7 +494,6 @@ async function saveDocxEdits(params: {
   turnEditState?: AssistantEditTurnState;
   turnId?: string;
   editMode: EditMode;
-  extra?: Record<string, unknown>;
 }) {
   const committed = await commitAssistantTurnVersion({
     documents: params.documents,
@@ -527,38 +510,20 @@ async function saveDocxEdits(params: {
   });
   if (!committed) return fail("The active document version changed.");
   const { version, trackedEdits } = committed;
-  const lintDocument = await documentProjectionService.read({
-    documentId: params.documentId,
-    versionId: version.id,
-    fileType: "docx",
-    sourceSha256: version.source_sha256,
-    readBytes: () => params.bytes,
-  }).catch(() => null);
-  const lint = lintDocument ? structureNative().docxStructureLint(lintDocument) : null;
-  return documentResult({
-    ok: true,
-    action: "revised",
+  return artifactResult({
+    type: "document_artifact",
+    action: "edited",
     edit_mode: params.editMode,
     document_id: params.documentId,
     version_id: version.id,
     version_number: version.version_number,
-    filename: version.filename,
-    change_count: trackedEdits.length,
-    resource: resourceReference.document(params.documentId, version.id),
+    filename: version.filename ?? params.source.filename,
     download_url:
       `/api/single-documents/${encodeURIComponent(params.documentId)}/file` +
       `?version_id=${encodeURIComponent(version.id)}`,
     annotations: editAnnotations(
       params.documentId, version.id, version.version_number, trackedEdits,
     ),
-    structural_lint: lint
-      ? {
-          finding_count: lint.findings.length,
-          findings: lint.findings.slice(0, 8),
-          notes: lint.notes,
-        }
-      : undefined,
-    ...params.extra,
   });
 }
 
@@ -567,22 +532,8 @@ const GREP_LINE_CAP = 2_000;
 type CodingOutputLine = {
   rendered: string;
   lineNumber?: number;
-  span?: [number, number];
-  evidenceText?: string;
-  handoffCandidate?: boolean;
-  source?: {
-    documentId: string;
-    versionId: string;
-    filename?: string;
-    locator?: string;
-    locatorKind?: "paragraph" | "page" | "section" | "footnote";
-    sourceText?: string;
-    sourceSha256?: string;
-  };
+  evidence?: Parameters<typeof createLibraryEvidence>[0];
 };
-
-const sourceLineStarts = (text: string) =>
-  [0, ...Array.from(text.matchAll(/\n/gu), ({ index }) => index + 1)];
 
 function takeCodingOutputLines(
   lines: CodingOutputLine[],
@@ -712,13 +663,7 @@ async function readNonDocumentResource(
     const evidence = providerPdfLegalEvidence(resolved);
     return {
       ...result({
-        ...compactProviderPdfLookup(resolved),
-        ...(evidence.length
-          ? {
-              passages: evidence.map(modelEvidencePassage),
-              evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
-            }
-          : {}),
+        ...compactProviderPdfLookup(resolved, evidence),
         resource: requested,
       }),
       ...(evidence.length ? { evidence } : {}),
@@ -729,371 +674,6 @@ async function readNonDocumentResource(
           /^(?:Provider PDF|Invalid PDF evidence|PDF evidence)/u.test(error.message)
         ? error.message
         : "Provider PDF lookup is unavailable",
-    );
-  }
-}
-
-type EvidenceSource = Omit<RegisteredEvidence, "receipt">;
-function legalEvidenceSource(passage: LegalSourcePassage): EvidenceSource {
-  const source = passage.documentArtifact;
-  if (passage.source.provider !== "a2aj") return { source };
-  const native = objectRecord(passage.native);
-  return typeof native?.citation === "string"
-    ? { document: native as unknown as A2AJCompiledDocument }
-    : { source };
-}
-
-function cleanSearchEvidenceSpan(
-  passage: LegalSourcePassage,
-  hit: { at: number; excerpt: string },
-): LegalEvidenceSpan {
-  const matchEnd = hit.at + hit.excerpt.length;
-  const source = passage.documentArtifact;
-  if (passage.role === "document" || !passage.blockArtifact) {
-    const block = structureNative()
-      .smallestContainingDocumentBlock(source, hit.at, matchEnd);
-    if (block) return {
-      text: block.text,
-      start: block.start,
-      end: block.end,
-      blockId: `${block.kind}:${block.label}:${block.start}:${block.end}`,
-      ...(["paragraph", "page", "section", "footnote"].includes(block.kind)
-        ? { locator: { kind: block.kind as "paragraph" | "page" | "section" | "footnote", label: block.label } }
-        : {}),
-    };
-  }
-
-  const text = passage.text;
-  let start = text.lastIndexOf("\n", Math.max(0, hit.at - 1)) + 1;
-  const nextLine = text.indexOf("\n", matchEnd);
-  let end = nextLine < 0 ? text.length : nextLine;
-  while (start < end && /\s/u.test(text[start])) start += 1;
-  while (end > start && /\s/u.test(text[end - 1])) end -= 1;
-  return { text: text.slice(start, end), start, end };
-}
-
-function sourceReference(
-  provider: string,
-  sourceId: string,
-): LegalSourceReference | null {
-  return researchSourceFromResource(resourceReference.source(provider, sourceId));
-}
-
-async function readLegalSourceResource(
-  call: NormalizedToolCall,
-  args: Record<string, unknown>,
-  options: {
-    userId: string;
-    signal?: AbortSignal;
-    reader?: ReadSubagentAssignment;
-  },
-): Promise<BeaverOutcome | null> {
-  if (call.name !== "Read") return null;
-  const resource = parseResourceReference(trimmed(args.file_path));
-  if (resource?.kind !== "source" || resource.provider === "pdf") return null;
-  const locator = trimmed(args.locator);
-  const locatorKind = trimmed(args.locator_kind);
-  const endLocator = trimmed(args.end_locator);
-  if (Boolean(locator) !== Boolean(locatorKind))
-    return fail("locator_kind and locator are required together.");
-  if (locator && !["paragraph", "section", "page", "footnote"].includes(locatorKind))
-    return fail("Unsupported legal-source locator kind.");
-  const source = sourceReference(resource.provider, resource.sourceId);
-  if (!source) return fail(`Invalid ${resource.provider} resource.`);
-  const sourceRegion = source.provider === "courtlistener" || source.provider === "govinfo"
-    ? "US" : source.provider === "tna" || source.provider === "govuk-et" ? "UK" : "CA";
-  if (options.reader && sourceRegion !== options.reader.jurisdiction)
-    return fail(`This source is outside the reader's ${options.reader.jurisdiction} boundary.`);
-  if (options.reader?.collections?.length && source.collection &&
-      !options.reader.collections.some((value) => value.toLowerCase() ===
-        source.collection!.toLowerCase()))
-    return fail("This source is outside the reader's collection boundary.");
-  const references = (args.references ?? "none") as
-    "none" | "inbound" | "outbound" | "both";
-  if (references !== "none") {
-    if (source.provider !== "a2aj" || source.kind !== "legislation" ||
-        locatorKind !== "section")
-      return fail("references is available only for A2AJ statutory sections.");
-  }
-  try {
-    const read = await readLegalSourcePassage({
-      source,
-      ...(locator
-        ? {
-            locator: {
-              kind: locatorKind as "paragraph" | "section" | "page" | "footnote",
-              value: locator,
-              ...(endLocator ? { endValue: endLocator } : {}),
-            },
-            contextBlocks: Math.min(
-              2,
-              Math.max(0, Math.trunc(Number(args.context_blocks) || 0)),
-            ),
-          }
-        : {}),
-      signal: options.signal,
-    });
-    if (read.status !== "found") {
-      return fail(
-        read.status === "unsupported"
-          ? "Legal source provider is unavailable."
-          : "The requested legal source passage was not found.",
-      );
-    }
-
-    const registered = read.values.map((passage) => ({
-      passage,
-      receipt: legalSourceEvidence(passage),
-      source: legalEvidenceSource(passage),
-    }));
-    const evidenceSources = new Map<string, EvidenceSource>();
-    for (const { receipt, source } of registered) {
-      if (receipt) evidenceSources.set(receipt.evidence_id, source);
-    }
-    const remoteSources = new Map<string, RemoteLegalSourceDocument>();
-    const courtCases = new Map<string, Record<string, unknown>>();
-    for (const { passage } of registered) {
-      const native = objectRecord(passage.native);
-      if (native && ["tna", "govuk-et", "govinfo"].includes(
-        passage.source.provider,
-      )) {
-        const document = native as RemoteLegalSourceDocument;
-        remoteSources.set(`${document.provider}:${document.identity}`, document);
-      }
-      const courtCase = objectRecord(native?.case);
-      if (courtCase && passage.source.provider === "courtlistener")
-        courtCases.set(passage.source.id, courtCase);
-    }
-    const pdfRenditions = (await Promise.all([
-      ...[...remoteSources.values()].map((document) =>
-        queueProviderPdfRenditions(document, options.userId)),
-      ...[...courtCases.values()].map((courtCase) =>
-        courtlistenerPdfRendition(courtCase, options.userId)),
-    ])).flatMap((value) => Array.isArray(value) ? value : value ? [value] : []);
-
-    const pattern = trimmed(args.pattern);
-    if (pattern) {
-      const maxResults = Math.min(50, Math.max(1, Math.trunc(Number(args.max_results) || 20)));
-      const contextChars = Math.min(2_000, Math.max(40,
-        Math.trunc(Number(args.context_chars) || 160)));
-      let total = 0;
-      const hits = registered.flatMap(({ passage }) => {
-        const found = findTextMatches({
-          text: passage.text,
-          query: pattern,
-          maxResults: Math.max(0, maxResults - total),
-          contextChars,
-          startIndex: total,
-        });
-        total += found.totalMatches;
-        return found.hits.map((hit) => {
-          const receipt = passage.locator.requested
-            ? legalSourceEvidence(passage)
-            : legalSourceEvidence(
-                passage,
-                cleanSearchEvidenceSpan(passage, hit),
-              );
-          if (receipt) {
-            evidenceSources.set(receipt.evidence_id, legalEvidenceSource(passage));
-          }
-          return {
-            ...hit,
-            locator: passage.locator.label,
-            ...(receipt && { evidence_id: receipt.evidence_id, receipt }),
-            ...(passage.source.part && {
-              resource: resourceReference.source(
-                passage.source.provider === "courtlistener" ? "courtlistener-opinion" : passage.source.provider,
-                passage.source.provider === "courtlistener"
-                  ? JSON.stringify([passage.source.id, Number(passage.source.part)])
-                  : passage.source.id,
-              ),
-            }),
-          };
-        });
-      });
-      const evidence = [...new Map(hits.flatMap(({ receipt }) =>
-        receipt ? [[receipt.evidence_id, receipt] as const] : [],
-      )).values()];
-      const visibleHits = hits.map(({ receipt: _receipt, ...hit }) => hit);
-      return {
-        ...result({
-          ok: true,
-          source: "Legal source",
-          provider: source.provider,
-          identifier: source.id,
-          resource: trimmed(args.file_path),
-          query: pattern,
-          total_matches: total,
-          returned: hits.length,
-          truncated: total > hits.length,
-          hits: visibleHits,
-          ...(evidence.length ? {
-            passages: evidence.map(modelEvidencePassage),
-            evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
-          } : {}),
-          ...(pdfRenditions.length ? { pdf_renditions: pdfRenditions } : {}),
-        }),
-        ...(evidence.length ? { evidence } : {}),
-        ...(evidenceSources.size ? { evidenceSources } : {}),
-        queryReceipts: [{
-          call_id: call.id,
-          tool: "Read",
-          executed_at: new Date().toISOString(),
-          executor_version: "legal-source-pattern-v1",
-          input: {
-            resource: trimmed(args.file_path),
-            pattern,
-            ...(locator ? { locator_kind: locatorKind, locator } : {}),
-            ...(endLocator ? { end_locator: endLocator } : {}),
-            context_blocks: locator
-              ? Math.min(2, Math.max(0, Math.trunc(Number(args.context_blocks) || 0)))
-              : 0,
-            max_results: maxResults,
-            context_chars: contextChars,
-          },
-          results: evidence.map(({ evidence_id }, rank) => ({
-            rank: rank + 1,
-            evidence_id,
-          })),
-        }],
-      };
-    }
-
-    let referenceNeighborhood: Record<string, unknown> | undefined;
-    const relatedEvidence: LegalEvidenceReceipt[] = [];
-    if (references !== "none") {
-      const selected = registered.find(({ passage }) =>
-        passage.role === "selected" && passage.blockArtifact);
-      const artifact = selected?.passage.documentArtifact;
-      const block = selected?.passage.blockArtifact;
-      const metadata = selected && objectRecord(selected.passage.native);
-      if (artifact && block && metadata && typeof metadata.citation === "string" &&
-          typeof metadata.dataset === "string" &&
-          (metadata.language === "en" || metadata.language === "fr")) {
-        const scope = oneHopLegalScope(
-          artifact,
-          block,
-          references as Exclude<A2AJReferenceDirection, "none">,
-          true,
-        );
-        const candidates = scope?.nodes ?? [];
-        const sections: Array<{ label: string; text: string; evidence_ids: string[] }> = [];
-        const omitted: string[] = [];
-        const sourceSha256 = structureNative().documentRevision(artifact);
-        let chars = 0;
-        for (const [index, related] of candidates.entries()) {
-          if (sections.length === 50 || chars + related.text.length > 32_000) {
-            omitted.push(...candidates.slice(index).map(({ label }) => label));
-            break;
-          }
-          chars += related.text.length;
-          const receipts = (related.units ?? [related]).filter((unit): unit is NativeDocumentBlock & {
-            kind: "paragraph" | "page" | "section" | "footnote";
-          } =>
-            unit.kind === "paragraph" || unit.kind === "page" ||
-            unit.kind === "section" || unit.kind === "footnote"
-          ).map((unit) => createA2AJPassageEvidence({
-            citation: metadata.citation as string,
-            name: typeof metadata.name === "string" ? metadata.name : null,
-            dataset: metadata.dataset as string,
-            language: metadata.language as "en" | "fr",
-            sourceSha256,
-            spanText: unit.text,
-            start: unit.start,
-            end: unit.end,
-            externalUrl: typeof metadata.url === "string" ? metadata.url : null,
-            sourceClass: "legislation",
-            blockId: `${unit.kind}:${unit.label}:${unit.start}:${unit.end}`,
-            locator: { kind: unit.kind, label: unit.label },
-          }));
-          relatedEvidence.push(...receipts);
-          receipts.forEach((receipt) => evidenceSources.set(receipt.evidence_id, {
-            document: metadata as unknown as A2AJCompiledDocument,
-          }));
-          sections.push({ label: related.label, text: related.text,
-            evidence_ids: receipts.map(({ evidence_id }) => evidence_id) });
-        }
-        referenceNeighborhood = {
-          direction: references,
-          depth: 1,
-          returned: sections.length,
-          truncated: omitted.length > 0,
-          limit_reason: omitted.length
-            ? sections.length === 50 ? "sections" : "characters"
-            : null,
-          omitted: [...new Set(omitted)],
-          failures: scope ? [] : ["reference graph source unavailable"],
-          sections,
-        };
-      }
-    }
-
-    const evidences = [...new Map(
-      [...registered.map(({ receipt }) => receipt), ...relatedEvidence].flatMap((receipt) =>
-        receipt ? [[receipt.evidence_id, receipt] as const] : [],
-      ),
-    ).values()];
-    const passages = registered.slice(0, read.values.length).map(
-      ({ passage, receipt }) => ({
-        role: passage.role,
-        kind: passage.locator.requested?.kind ?? "document",
-        locator: passage.locator.label,
-        text: passage.text,
-        text_sha256: sha256(passage.text),
-        ...(receipt ? { evidence_id: receipt.evidence_id } : {}),
-        ...(passage.source.provider === "courtlistener" && passage.source.part
-          ? {
-              resource: resourceReference.source(
-                "courtlistener-opinion",
-                JSON.stringify([passage.source.id, Number(passage.source.part)]),
-              ),
-            }
-          : {}),
-      }),
-    );
-    const payload = {
-      ok: true,
-      source: "Legal source",
-      provider: source.provider,
-      identifier: source.id,
-      title: read.values[0].source.title,
-      citation: read.values[0].source.citation,
-      resource: trimmed(args.file_path),
-      requested: locator
-        ? {
-            kind: locatorKind,
-            locator,
-            ...(endLocator ? { end_locator: endLocator } : {}),
-          }
-        : null,
-      passage_count: passages.length,
-      passages,
-      evidence_ids: passages.flatMap(({ evidence_id }) =>
-        evidence_id ? [evidence_id] : [],
-      ),
-      ...(passages.some(({ role, evidence_id }) =>
-          role === "document" && !evidence_id
-        )
-        ? {
-            next_required_action:
-              "This document read is navigation text, not citable evidence. Re-read the needed native locator before relying on it.",
-          }
-        : {}),
-      ...(pdfRenditions.length ? { pdf_renditions: pdfRenditions } : {}),
-      ...(referenceNeighborhood
-        ? { reference_neighborhood: referenceNeighborhood }
-        : {}),
-    };
-    return {
-      ...result(payload),
-      evidence: evidences,
-      ...(evidenceSources.size ? { evidenceSources } : {}),
-    };
-  } catch (error) {
-    return fail(
-      error instanceof Error
-        ? error.message
-        : "Legal source read failed.",
     );
   }
 }
@@ -1115,13 +695,13 @@ async function runCodingShapeCall(
   docIndex?: DocIndex,
   progress?: (label: string) => void,
   signal?: AbortSignal,
-): Promise<BeaverOutcome> {
+): Promise<AssistantOutcome> {
   servedDraftingCache ??= new Map();
   const direct = await readNonDocumentResource(call, args, workflows, scope.userId);
   if (direct) return direct;
   const indexed = new Map(Object.values(docIndex ?? {}).map((item) =>
     [item.document_id, item]));
-  let listedFiles: AssistantDocument[] | undefined;
+  let listedFiles: DocumentRecord[] | undefined;
   const files = async () => {
     if (!listedFiles) {
       listedFiles = await scopedDocuments(scope, library, projects, 200, matterId);
@@ -1129,7 +709,7 @@ async function runCodingShapeCall(
     }
     return listedFiles;
   };
-  const codingPath = (document: AssistantDocument, versionId = document.current_version_id) =>
+  const codingPath = (document: DocumentRecord, versionId = document.current_version_id) =>
     resourceReference.document(document.id, versionId);
   const resolvePath = async (raw: string) => {
     const reference = parseResourceReference(raw.trim());
@@ -1140,19 +720,9 @@ async function runCodingShapeCall(
     const exactIndex = indexed.get(reference.documentId)?.version_id === reference.versionId;
     if (!record || (!exactIndex && (matterId
       ? record.project_id !== matterId
-      : record.project_id !== null || record.library_kind !== "file")) ||
-      typeof record.filename !== "string" ||
-      typeof record.current_version_id !== "string" ||
-      typeof record.file_type !== "string") return null;
-    const document: AssistantDocument = {
-      ...record,
-      id: record.id,
-      filename: record.filename,
-      current_version_id: record.current_version_id,
-      file_type: record.file_type,
-    };
-    documentNames.set(document.id, document.filename);
-    return document;
+      : record.project_id !== null || record.library_kind !== "file"))) return null;
+    documentNames.set(record.id, record.filename);
+    return record;
   };
   const referencedVersion = (raw: string) => {
     const reference = parseResourceReference(raw.trim());
@@ -1272,12 +842,13 @@ async function runCodingShapeCall(
         Number.isSafeInteger(meta.page_count)
         ? Number(meta.page_count)
         : null;
+      let nativePdf: NativeDocument | undefined;
       if (locatorKind === "page" && !trimmed(args.end_locator) && /^[1-9]\d*$/u.test(locator)) {
         if (physicalPageCount === null) {
           try {
-            const document = await documentProjectionService.read(source, { signal });
+            nativePdf = await documentProjectionService.read(source, { signal });
             physicalPageCount = structureNative()
-              .pdfDocumentSummary(document).projectionPageCount;
+              .pdfDocumentSummary(nativePdf).projectionPageCount;
           } catch {
             return fail(
               `${meta.filename} is not a valid readable PDF. Retrying will not help.`,
@@ -1311,44 +882,39 @@ async function runCodingShapeCall(
             !trimmed(args.end_locator) && /^[1-9]\d*$/u.test(locator)
             ? Number(locator)
             : null;
-          let selectedPages: number[] | undefined;
-          if (exactPage) {
-            const contextBlocks = Math.max(0, Math.min(2,
-              Math.trunc(Number(args.context_blocks) || 0)));
-            selectedPages = Array.from(
-              {
-                length: Math.min(physicalPageCount ?? exactPage + contextBlocks,
-                  exactPage + contextBlocks) - Math.max(1, exactPage - contextBlocks) + 1,
-              },
-              (_, index) => Math.max(1, exactPage - contextBlocks) + index,
-            );
-          }
           lookup = await documentProjectionService.lookupPdf(source.readBytes, locatorInput, {
             documentId: meta.id,
             versionId: source.versionId,
             sourceSha256: source.sourceSha256,
             pdfProfile: source.pdfProfile,
-            pages: selectedPages,
             signal,
             progress: () => progress?.(
               `Reading ${exactPage ? `page ${exactPage} of ` : ""}${meta.filename}`,
             ),
           });
         }
-        const evidence = pdfLegalEvidence(
+        if (lookup.status === "found") nativePdf ??= await documentProjectionService.read(source, { signal });
+        if (handle && lookup.status === "found") {
+          const request = lookup.requested, canonical = structureNative().queryPdfDocument(nativePdf!,
+            request.locator_kind, request.locator, request.end_locator ?? undefined,
+            request.context_blocks, request.page ?? undefined, request.occurrence ?? undefined);
+          if (canonical.status !== "found" || canonical.payload_sha256 !== lookup.payload_sha256)
+            throw new Error("PDF evidence no longer matches the authoritative source artifacts");
+        }
+        const evidence = nativePdf ? pdfLegalEvidence(
           meta.id,
           source.versionId,
           meta.filename,
           lookup,
-        );
+          nativePdf,
+        ) : [];
         return {
           ...result({
-            ...compactPdfLookup(meta.filename, lookup),
-            passages: evidence.map(modelEvidencePassage),
-            evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
+            ...compactPdfLookup(meta.filename, lookup, evidence),
             resource: codingPath(meta, source.versionId),
           }),
           evidence,
+          evidenceSources: new Map(evidence.map(({ evidence_id }) => [evidence_id, { source: nativePdf! }])),
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : "";
@@ -1386,70 +952,37 @@ async function runCodingShapeCall(
     const nativeDocument = document.document;
     const limit = (args.limit as number | undefined) ?? 2_000;
     const startChar = (args.start_char as number | undefined) ?? 0;
+    if (!sectionArg) return readLibraryResearchWindow({ documentId: meta.id,
+      versionId: document.versionId, filename: meta.filename, document: nativeDocument,
+      offset: args.offset as number | undefined, start_char: startChar, limit });
     const sourceSha256 = structureNative().documentRevision(nativeDocument);
     const source = (
       locator?: string,
-      locatorKind?: NonNullable<CodingOutputLine["source"]>["locatorKind"],
+      kind?: NonNullable<Parameters<typeof createLibraryEvidence>[0]["locator"]>["kind"],
     ) => ({
       documentId: meta.id,
       versionId: document.versionId,
       filename: meta.filename,
       sourceSha256,
-      ...(locator && locatorKind ? { locator, locatorKind } : {}),
+      ...(locator && kind ? { locator: { label: locator, kind } } : {}),
     });
     const windowLines = (
       rows: ReturnType<ReturnType<typeof structureNative>["readDocumentTextWindow"]>["rows"],
-      rowSource: CodingOutputLine["source"],
+      rowSource: ReturnType<typeof source>,
     ): CodingOutputLine[] => rows.map((row) => ({
       rendered: `${String(row.lineNumber).padStart(6, " ")}\t` +
         `${row.truncatedStart ? "…" : ""}${row.text}${row.truncatedEnd ? "…" : ""}`,
       lineNumber: row.lineNumber,
-      evidenceText: row.text,
-      span: row.span,
-      source: rowSource,
+      evidence: { ...rowSource, start: row.span[0], end: row.span[1], spanText: row.text },
     }));
-    if (!sectionArg) {
-      const offset = (args.offset as number | undefined) ?? 1;
-      const window = structureNative().readDocumentTextWindow(
-        nativeDocument,
-        offset,
-        startChar,
-        limit,
-      );
-      if (window.status === "invalid_line") return fail(
-        offset > (window.totalLines ?? 0)
-          ? `(offset ${offset} is past the end of the file; total lines: ${window.totalLines})`
-          : "(empty file)",
-      );
-      if (window.status === "invalid_character") return fail(
-        `(start_char ${startChar} is past the end of line ${offset}; ` +
-          `line chars: ${window.lineLength ?? 0})`,
-      );
-      if (window.status === "split_character") return fail(
-        `(start_char ${startChar} splits a Unicode character on line ${offset})`,
-      );
-      const lines = windowLines(window.rows, source());
-      const continuation = window.nextOffset === null
-        ? ""
-        : `\n\n[TRUNCATED: continue with Read(file_path=${JSON.stringify(requested)}, ` +
-          `offset=${window.nextOffset}, limit=${limit}, ` +
-          `start_char=${window.nextStartChar ?? 0}).]`;
-      return codingTextResult(
-        call,
-        lines.map(({ rendered }) => rendered).join("\n") + continuation,
-        lines,
-      );
-    }
     const finish = (
       candidates: CodingOutputLine[],
       suffix?: (kept: CodingOutputLine[], truncated: boolean) => string,
     ) => {
       const { kept, truncated } = takeCodingOutputLines(candidates);
-      return codingTextResult(
-        call,
-        kept.map(({ rendered }) => rendered).join("\n") +
-          (suffix?.(kept, truncated) ?? ""),
+      return readTextResult(
         kept,
+        suffix?.(kept, truncated),
       );
     };
     if (sectionArg) {
@@ -1599,10 +1132,6 @@ async function runCodingShapeCall(
         turnEditState,
         turnId,
         editMode,
-        extra: {
-          ops: applied.reports,
-          ...(applied.editErrors.length ? { edit_errors: applied.editErrors } : {}),
-        },
       });
     }
     const applied = await applyTrackedEdits(file.bytes, [{
@@ -1650,7 +1179,7 @@ async function runCodingShapeCall(
     return fail(`regex parse error: ${safeErrorMessage(error, "invalid pattern")}`);
   }
   const pathArg = trimmed(args.path);
-  let targets: AssistantDocument[];
+  let targets: DocumentRecord[];
   let targetVersionId: string | undefined;
   if (pathArg) {
     const match = await resolvePath(pathArg);
@@ -1697,7 +1226,8 @@ async function runCodingShapeCall(
     if (!document) continue;
     const resource = codingPath(meta, document.versionId);
     const lines = document.text.split(/\r?\n/u);
-    const starts = sourceLineStarts(document.text);
+    const starts = grepSection
+      ? [0, ...Array.from(document.text.matchAll(/\n/gu), ({ index }) => index + 1)] : [];
     let scopeSpan: TextRange | null = null;
     if (grepSection) {
       if (!nativeDocument) continue;
@@ -1752,15 +1282,6 @@ async function runCodingShapeCall(
       sink.push({
         rendered: `${prefix}${sliceStart ? "…" : ""}${shown}${
           sliceStart + shown.length < line.length ? "…" : ""}`,
-        span: [starts[index] + sliceStart, starts[index] + sliceStart + shown.length],
-        handoffCandidate: isMatch || matchedLines.has(index - 1) ||
-          matchedLines.has(index + 1),
-        source: {
-          documentId: meta.id,
-          versionId: document.versionId,
-          filename: meta.filename,
-          sourceText: document.text,
-        },
       });
       previous = index;
     }
@@ -1778,14 +1299,12 @@ async function runCodingShapeCall(
   const limited = rows.slice(0, headLimit);
   const { kept, truncated: sizeTruncated } = takeCodingOutputLines(limited);
   const body = kept.map((line) => line.rendered).join("\n");
-  return codingTextResult(
-    call,
+  return result(
     truncated || rows.length > headLimit || sizeTruncated
       ? mode === "content"
         ? `${body}\n(Results truncated: ${headLimit} lines split evenly across ${fileBuckets.length} matching file${fileBuckets.length === 1 ? "" : "s"}. Narrow the pattern, scope with path=, or raise head_limit.)`
         : `${body}\n(Results truncated, showing first ${headLimit} lines. Narrow the pattern or pass head_limit.)`
       : body,
-    kept,
   );
 }
 
@@ -1818,8 +1337,12 @@ async function loadNativeDocument(
 
 const result = (content: unknown): BeaverOutcome => ({ result: toolText(content, objectRecord(content)?.ok === false) });
 
-function documentResult(content: Record<string, unknown>): BeaverOutcome {
-  const base = result(content);
+type DocumentArtifact = Extract<AssistantEvent, { type: "document_artifact" }>;
+type AssistantOutcome = BeaverOutcome |
+  (Omit<BeaverOutcome, "result"> & { artifact: DocumentArtifact });
+const artifactResult = (artifact: DocumentArtifact): AssistantOutcome => ({ mutated: true, artifact });
+
+function documentResult(content: Record<string, unknown>): AssistantOutcome {
   const action = content.action;
   if (
     content.ok !== true ||
@@ -1828,8 +1351,8 @@ function documentResult(content: Record<string, unknown>): BeaverOutcome {
     typeof content.document_id !== "string" ||
     typeof content.version_id !== "string" ||
     typeof content.download_url !== "string"
-  ) return base;
-  const event: Extract<AssistantEvent, { type: "document_artifact" }> = {
+  ) return result(content);
+  return artifactResult({
     type: "document_artifact",
     action: action === "created" ? "created" : "edited",
     filename: content.filename,
@@ -1842,15 +1365,10 @@ function documentResult(content: Record<string, unknown>): BeaverOutcome {
     ...(action === "revised" && {
       edit_mode: content.edit_mode === "auto" ? "auto" : "manual",
       annotations: Array.isArray(content.annotations)
-        ? content.annotations as Extract<AssistantEvent, { type: "document_artifact" }>["annotations"]
+        ? content.annotations as DocumentArtifact["annotations"]
         : [],
     }),
-  };
-  return {
-    ...base,
-    mutated: true,
-    events: [...(base.events ?? []), event],
-  };
+  });
 }
 
 const mutationResult = (content: Record<string, unknown>) => ({
@@ -1863,61 +1381,24 @@ const compactEvidence = (receipt: LegalEvidenceReceipt) => ({
     ? `${receipt.span_text.slice(0, 2_000)}…` : receipt.span_text,
 });
 
-const withEvent = (output: BeaverOutcome, event: AssistantEvent | null | undefined): BeaverOutcome => event
+const withEvent = (output: AssistantOutcome, event: AssistantEvent | null | undefined): AssistantOutcome => event
   ? { ...output, events: [...(output.events ?? []), event] }
   : output;
 
-function codingTextResult(
-  call: NormalizedToolCall,
-  content: string,
+function readTextResult(
   lines: CodingOutputLine[],
+  suffix = "",
 ): BeaverOutcome {
-  const sourceLines =
-    call.name === "Grep"
-      ? lines.filter((line) => line.handoffCandidate === true)
-      : lines;
   const receipts = new Map<string, LegalEvidenceReceipt>();
-  const segments = sourceLines.flatMap((line) => {
-    if (!line.span || !line.source) return [];
-    const { sourceText, sourceSha256, ...source } = line.source;
-    const [start, end] = line.span;
-    const spanText = line.evidenceText ?? sourceText?.slice(start, end);
-    if (call.name === "Read" && spanText && (sourceText || sourceSha256)) {
-      const receipt = createLibraryEvidence({
-        documentId: source.documentId,
-        versionId: source.versionId,
-        filename: source.filename ?? source.documentId,
-        sourceText,
-        sourceSha256,
-        spanText,
-        start,
-        end,
-        locator: source.locator && source.locatorKind
-          ? { kind: source.locatorKind, label: source.locator }
-          : undefined,
-      });
-      receipts.set(receipt.evidence_id, receipt);
-    }
-    return [{
-      ...source,
-      start: line.span[0],
-      end: line.span[1],
-      kind: call.name === "Grep" ? "candidate" as const : "evidence" as const,
-    }];
-  });
+  const content = lines.map(({ rendered, evidence }) => {
+    if (!evidence?.spanText) return rendered;
+    const receipt = createLibraryEvidence(evidence);
+    receipts.set(receipt.evidence_id, receipt);
+    return `${receipt.evidence_id} ${rendered}`;
+  }).join("\n") + suffix;
   const evidence = [...receipts.values()];
-  const rendered = result(
-    evidence.length
-      ? `${content}\n\nCitation evidence_ids: ${evidence.map(({ evidence_id }) => evidence_id).join(", ")}`
-      : content,
-  );
   return {
-    ...rendered,
-    metadata: {
-      ...rendered.metadata,
-      evidenceSpans: sourceLines.flatMap((line) => line.span ? [line.span] : []),
-      evidenceSegments: segments,
-    },
+    ...result(content),
     ...(evidence.length ? { evidence } : {}),
   };
 }
@@ -1938,7 +1419,7 @@ type PdfLookupResult =
   | Awaited<ReturnType<typeof documentProjectionService.rehydratePdfEvidence>>;
 const MAX_COMPACT_PDF_MATCHES = 20;
 
-function compactPdfLookup(filename: string, lookup: PdfLookupResult) {
+function compactPdfLookup(filename: string, lookup: PdfLookupResult, evidence: LegalEvidenceReceipt[]) {
   if (lookup.status !== "found") {
     const matches = lookup.matches.slice(0, MAX_COMPACT_PDF_MATCHES);
     return {
@@ -1953,53 +1434,29 @@ function compactPdfLookup(filename: string, lookup: PdfLookupResult) {
       ...("error" in lookup ? { error: lookup.error } : {}),
     };
   }
-  const confidence = lookup.units
-    .map((unit) => unit.confidence)
-    .filter((value): value is number => typeof value === "number");
-  const compactUnit = (unit: (typeof lookup.units)[number]) => ({
-    kind: unit.kind,
-    locator: unit.locator,
-    text: unit.text,
-    ...(unit.page_numbers.length ? { pages: unit.page_numbers } : {}),
-    ...(unit.confidence !== null && unit.confidence < 1
-      ? { confidence: unit.confidence }
-      : {}),
-    ...(unit.proposition ? { proposition: unit.proposition } : {}),
-    ...(unit.note
-      ? {
-          note: {
-            label: unit.note.label,
-            ...(unit.note.warnings.length
-              ? { warnings: unit.note.warnings }
-              : {}),
-          },
-        }
-      : {}),
-  });
+  const selected = new Set(lookup.units.map(({ kind, id }) => `${kind}:${id}`)),
+    units = [...new Map([...lookup.before, ...lookup.after, ...lookup.units]
+      .map((unit) => [`${unit.kind}:${unit.id}`, unit])).values()];
   return {
-    ok: true,
-    filename,
-    status: lookup.status,
-    exact: true,
+    ok: true, title: filename,
     handle: lookup.evidence.handle,
-    version_id: lookup.source.version_id,
-    units: lookup.units.map(compactUnit),
-    ...(lookup.before.length || lookup.after.length
-      ? {
-          context: {
-            before: lookup.before.map(compactUnit),
-            after: lookup.after.map(compactUnit),
-          },
-        }
-      : {}),
-    confidence: confidence.length ? Math.min(...confidence) : null,
-    link: {
-      ...(lookup.evidence.page_text_sha256 &&
-      lookup.evidence.page_numbers?.length
-        ? { href: lookup.link.href }
-        : {}),
-      page_numbers: lookup.link.page_numbers,
-    },
+    passages: units.map((unit) => {
+      const receipt = evidence.find((value) => value.block_id === `node:${unit.id}` ||
+        value.stable_source_id.endsWith(`:${unit.kind}:${unit.id}`)),
+        text = receipt?.span_text ?? unit.text,
+        proposition = Object.fromEntries(Object.entries(unit.proposition ?? {}).filter(([key, value]) =>
+          !["sentence", "passage_since_prior_note"].includes(key) ||
+          typeof value !== "string" || value.trim() && !text.includes(value.trim()) &&
+          (key !== "passage_since_prior_note" || value.trim() !== unit.proposition?.sentence?.trim())));
+      return { ...(receipt ? { evidence_id: receipt.evidence_id } : {}),
+        kind: unit.kind, locator: unit.locator, text,
+        ...(unit.page_numbers.length ? { pages: unit.page_numbers } : {}),
+        ...(unit.confidence !== null && unit.confidence < 1 ? { confidence: unit.confidence } : {}),
+        ...(Object.keys(proposition).length ? { proposition } : {}),
+        ...(unit.note ? { note: { label: unit.note.label,
+          ...(unit.note.warnings.length ? { warnings: unit.note.warnings } : {}) } } : {}),
+        ...(!selected.has(`${unit.kind}:${unit.id}`) ? { role: "context" } : {}) };
+    }),
   };
 }
 
@@ -2008,29 +1465,15 @@ type ReadyProviderPdfLookup = Extract<
   { availability: "ready" }
 >;
 
-function compactProviderPdfLookup(resolved: ReadyProviderPdfLookup) {
+function compactProviderPdfLookup(resolved: ReadyProviderPdfLookup, evidence: LegalEvidenceReceipt[]) {
   const filename =
-    resolved.params.title ||
+    resolved.params.source?.title || resolved.params.title ||
     resolved.params.filename ||
     resolved.params.identity;
-  const compact = compactPdfLookup(filename, resolved.lookup);
-  if (resolved.lookup.status !== "found") {
-    return {
-      ...compact,
-      reference_id: resolved.state.reference_id,
-      request_reference: resolved.state.request_reference,
-      source_reference: resolved.state.source_reference,
-    };
-  }
-  const pageNumbers = resolved.lookup.link.page_numbers;
-  const sourceUrl = new URL(resolved.params.url);
-  if (pageNumbers[0]) sourceUrl.hash = `page=${pageNumbers[0]}`;
+  const source = resolved.params.source;
   return {
-    ...compact,
-    reference_id: resolved.state.reference_id,
-    request_reference: resolved.state.request_reference,
-    source_reference: resolved.state.source_reference,
-    link: { href: sourceUrl.toString(), page_numbers: pageNumbers },
+    ...compactPdfLookup(filename, resolved.lookup, evidence), citation: source?.citation,
+    ...(source?.date ? { date: source.date } : {}),
   };
 }
 
@@ -2087,10 +1530,16 @@ function providerPdfLegalEvidence(
     !resolved.state.source_reference ||
     !resolved.state.source_sha256
   ) return [];
-  const provider = resolved.state.provider;
-  const jurisdiction = provider === "govinfo" ? "US" : "UK";
-  const sourceClass = provider === "govinfo" ? "legislation" : "case";
-  const title = resolved.params.title || resolved.params.filename || resolved.params.identity;
+  const source = resolved.params.source;
+  const provider = source?.provider;
+  if (provider !== resolved.state.provider ||
+      (provider !== "a2aj" && provider !== "courtlistener" && provider !== "tna" &&
+        provider !== "govuk-et" && provider !== "govinfo"))
+    throw new Error("Provider PDF legal source identity is unavailable");
+  const jurisdiction = provider === "a2aj" ? "CA"
+    : provider === "courtlistener" || provider === "govinfo" ? "US" : "UK";
+  const sourceClass = source.kind === "case" || source.kind === "legislation"
+    ? source.kind : "commentary";
   const seen = new Set<string>();
   return [...resolved.lookup.before, ...resolved.lookup.units, ...resolved.lookup.after]
     .flatMap((unit) => {
@@ -2110,21 +1559,18 @@ function providerPdfLegalEvidence(
       const page = [...new Set(unit.page_numbers)].sort((a, b) => a - b)[0];
       const url = new URL(resolved.params.url);
       if (page) url.hash = `page=${page}`;
-      const createEvidence = provider === "tna"
-        ? createTnaEvidence
-        : provider === "govuk-et"
-          ? createGovUkEmploymentTribunalEvidence
-          : createGovInfoEvidence;
-      return [createEvidence({
+      return [createDirectSourceEvidence(provider, {
         jurisdiction,
         sourceClass,
         stableSourceId: `${resolved.state.source_reference}:${key}`,
+        sourceReference: source,
         sourceSha256: resolved.state.source_sha256 ?? undefined,
         spanText,
-        citation: title,
-        name: title,
-        dataset: provider,
-        version: resolved.params.version ?? undefined,
+        citation: source.citation ?? source.id,
+        name: source.title,
+        dataset: source.collection ?? provider,
+        language: source.language,
+        version: source.date ?? resolved.params.version,
         externalUrl: url.toString(),
         locatorKind: page ? "page" : "section",
         locatorLabel: page ? `page=${page}` : unit.locator,
@@ -2137,27 +1583,26 @@ function pdfLegalEvidence(
   versionId: string,
   filename: string,
   lookup: PdfLookupResult,
+  document: NativeDocument,
 ): LegalEvidenceReceipt[] {
   if (lookup.status !== "found") return [];
-  return [...lookup.before, ...lookup.units, ...lookup.after].flatMap((unit) => {
+  const native = structureNative(), text = native.documentText(document),
+    sourceSha256 = native.documentRevision(document), units = [...new Map(
+      [...lookup.before, ...lookup.units, ...lookup.after].map((unit) => [unit.id, unit])).values()],
+    spans = native.pdfLookupUnitSpans(document, units.map(({ id }) => id));
+  return units.flatMap((unit) => {
     if (!unit.text.trim()) return [];
-    const locatorKind = unit.kind === "page"
-      ? "page"
-      : unit.kind === "footnote"
-        ? "footnote"
-        : unit.kind === "paragraph"
-          ? "paragraph"
-          : "section";
+    const span = spans[unit.id];
+    if (!span || span.end <= span.start) throw new Error("PDF passage has no canonical document span");
     return [createLibraryEvidence({
       documentId,
       versionId,
       filename,
-      sourceText: unit.text,
-      spanText: unit.text,
-      start: 0,
-      end: unit.text.length,
-      blockId: `pdf:${unit.id}`,
-      locator: { kind: locatorKind, label: unit.locator },
+      sourceSha256,
+      spanText: text.slice(span.start, span.end),
+      ...span,
+      blockId: `node:${unit.id}`,
+      locator: { kind: unit.kind, label: unit.locator },
     })];
   });
 }
@@ -2237,27 +1682,18 @@ async function runAdvancedDocxEdit(params: {
           }),
         )
       : await applyTextOpsToDocx(file.bytes, resolvedRequests);
-    const reports = applied.reports.map(({ op, replacements, notes }) => ({
-      op,
-      replacements,
-      unchanged_sites: notes,
-    }));
-    if (!applied.replacementCount) {
+    if (!applied.replacementCount || !applied.edits.length) {
       return result({
-        ok: true,
-        action: "no_changes",
-        document_id: params.documentId,
-        version_id: file.version.id,
-        change_count: 0,
-        ops: reports,
-      });
-    }
-    if (!applied.edits.length) {
-      return result({
-        ok: false,
-        error: "No revision was saved",
-        ops: reports,
-        ...(applied.editErrors.length ? { edit_errors: applied.editErrors } : {}),
+        ...(!applied.replacementCount ? {
+          ok: true, action: "no_changes", document_id: params.documentId,
+          version_id: file.version.id, change_count: 0,
+        } : {
+          ok: false, error: "No revision was saved",
+          ...(applied.editErrors.length ? { edit_errors: applied.editErrors } : {}),
+        }),
+        ops: applied.reports.map(({ op, replacements, notes }) => ({
+          op, replacements, unchanged_sites: notes,
+        })),
       });
     }
     return saveDocxEdits({
@@ -2270,43 +1706,10 @@ async function runAdvancedDocxEdit(params: {
       turnEditState: params.turnEditState,
       turnId: params.turnId,
       editMode: params.editMode,
-      extra: {
-        ops: reports,
-        ...(applied.editErrors.length ? { edit_errors: applied.editErrors } : {}),
-      },
     });
   } catch (error) {
     return fail(safeErrorMessage(error, "Deterministic text operations failed"));
   }
-}
-
-async function saveWorkflowDocx(
-  documents: DocumentStore,
-  scope: DocumentScope,
-  documentId: string,
-  turnEditState: AssistantEditTurnState | undefined,
-  turnId: string | undefined,
-  input: { sourceVersionId: string; sourceWorkingRevision: number;
-    filename: string; bytes: Buffer },
-) {
-  const committed = await commitAssistantTurnVersion({
-    documents,
-    scope,
-    documentId,
-    ...input,
-    trackedEdits: [],
-    turnEditState,
-    turnId,
-  });
-  if (!committed) throw new Error("The active version changed");
-  return {
-    id: committed.version.id,
-    filename: committed.version.filename ?? input.filename,
-    version_number: committed.version.version_number ?? undefined,
-    file_type: committed.version.file_type ?? undefined,
-    source_sha256: committed.version.source_sha256 ?? undefined,
-    parentVersionId: committed.parentVersionId,
-  };
 }
 
 async function runDocxWorkflow(
@@ -2317,14 +1720,18 @@ async function runDocxWorkflow(
   versionId?: string,
   turnEditState?: AssistantEditTurnState,
   turnId?: string,
-): Promise<Record<string, unknown>> {
-  if (action === "fix_supras") return fixDocumentSupras(
-    documents, scope.userId, documentId, {
-      saveVersion: (input) => saveWorkflowDocx(
-        documents, scope, documentId, turnEditState, turnId, input),
-    },
-  );
+  editMode: EditMode = "manual",
+): Promise<AssistantOutcome> {
   const file = await activeDocx(documents, scope, documentId, versionId);
+  if (action === "fix_supras") {
+    const cleanup = await fixDocxSupras(file.bytes);
+    if (!cleanup.changes.length) return result({ ok: true, action: "no_changes",
+      document_id: documentId, version_id: file.version.id,
+      ...cleanup, bytes: undefined, changes: undefined });
+    return saveDocxEdits({ documents, scope, documentId, source: file,
+      bytes: cleanup.bytes, edits: assistantEdits(cleanup.changes),
+      turnEditState, turnId, editMode });
+  }
   const document = await documentProjectionService.read({
     documentId,
     versionId: file.version.id,
@@ -2333,13 +1740,13 @@ async function runDocxWorkflow(
     pdfProfile: file.pdfProfile,
     readBytes: () => file.bytes,
   });
-  return {
+  return result({
     ok: true,
     document_id: documentId,
     version_id: file.version.id,
     filename: file.filename,
     ...structureNative().docxStructureLint(document),
-  };
+  });
 }
 
 type ServedDrafting = {
@@ -2373,6 +1780,9 @@ type AssistantToolsDependencies = {
   workProducts: Pick<WorkProductApplication, "create" | "get" | "list" | "resolve">;
   model?: string;
   turnId?: string;
+  chatId?: string;
+  audit?: AuditStore["record"];
+  onResearchWorkspace?: (documentId: string, evidence?: LegalEvidenceTurnState) => Promise<ResearchFile | null>;
   authorities: Pick<AuthoritiesWorkspaceApplication,
     "importDraft" | "act" | "refresh" | "refreshInput" | "prepareSources" |
       "discrepancies" | "build" |
@@ -2396,6 +1806,7 @@ type AssistantToolsDependencies = {
   scope: "main" | "reader";
   readerAssignment?: ReadSubagentAssignment;
   tabular?: TabularCellStore;
+  resolveTabular?: (reviewId: string) => Promise<TabularCellStore | null>;
   documentNames?: ReadonlyMap<string, string>;
   docIndex?: DocIndex;
   resolveArtifact(value: string): string | undefined;
@@ -2408,7 +1819,7 @@ type AssistantToolRun = (
   input: Record<string, unknown>,
   signal: AbortSignal,
   progress?: (label: string) => void,
-) => Promise<BeaverOutcome>;
+) => Promise<AssistantOutcome>;
 
 export function assistantTools<Context extends {
   updateActivity?: (id: string, label: string) => void;
@@ -2429,6 +1840,9 @@ export function assistantTools<Context extends {
     workProducts,
     model = "assistant",
     turnId,
+    chatId,
+    audit,
+    onResearchWorkspace,
     authorities,
     authoritiesId,
     authoritiesRevision,
@@ -2442,6 +1856,7 @@ export function assistantTools<Context extends {
     scope: turnScope,
     readerAssignment,
     tabular,
+    resolveTabular,
     documentNames,
     docIndex,
     resolveArtifact,
@@ -2458,6 +1873,11 @@ export function assistantTools<Context extends {
     ]),
   );
   const knownDocumentNames = new Map(documentNames);
+  const knownSources = new Map<string, LegalSourceReference>();
+  for (const { receipt } of legalEvidenceState?.evidence.values() ?? []) {
+    const source = legalEvidenceSourceReference(receipt);
+    if (source) knownSources.set(researchSourceResource(source), source);
+  }
   const persistGenerated = async (
     filename: string,
     bytes: Buffer,
@@ -2477,15 +1897,19 @@ export function assistantTools<Context extends {
     turnEditState?.set(document.id, { versionId: document.current_version_id,
       workingRevision: 0, parentVersionId: document.current_version_id,
       turnVersionId: document.current_version_id });
-    return documentResult({
-      ok: true,
+    if (filename.endsWith(".research.md") && onResearchWorkspace) {
+      onMutationCommitted();
+      const saved = await onResearchWorkspace(document.id, legalEvidenceState);
+      if (saved) turnEditState?.set(document.id, { versionId: saved.versionId, workingRevision: saved.workingRevision,
+        parentVersionId: saved.versionId, turnVersionId: saved.versionId });
+    }
+    return artifactResult({
+      type: "document_artifact",
       action: "created",
       document_id: document.id,
       version_id: document.current_version_id,
       version_number: document.active_version_number,
       filename: document.filename,
-      file_type: document.file_type,
-      resource: resourceReference.document(document.id, document.current_version_id),
       download_url: `/api/single-documents/${encodeURIComponent(document.id)}/file?version_id=${encodeURIComponent(document.current_version_id)}`,
     });
   };
@@ -2508,7 +1932,7 @@ export function assistantTools<Context extends {
       if (/^q_/u.test(requested)) {
         const query = legalEvidenceState.queries.get(requested);
         const offset = Math.max(0, Number(args.offset ?? 1) - 1), limit = Math.min(50, Number(args.limit ?? 20));
-        return query ? result({ ...query, results: query.results.slice(offset, offset + limit),
+        return query ? result({ ...modelResearchQuery(query), results: query.results.slice(offset, offset + limit),
           total: query.results.length, next_offset: offset + limit < query.results.length
             ? offset + limit + 1 : null }) : fail("Search receipt not found");
       }
@@ -2517,6 +1941,7 @@ export function assistantTools<Context extends {
       userId,
       signal,
       reader: readerAssignment,
+      knownSources,
     });
     if (sourceRead) return sourceRead;
     const reference = call.name === "Read"
@@ -2529,149 +1954,7 @@ export function assistantTools<Context extends {
           versionId: saved.versionId, workingRevision: saved.workingRevision,
           parentVersionId: saved.versionId,
         });
-        const noteChars = 6000, noteCount = Math.ceil(saved.state.note.length / noteChars),
-          labels = Object.values(saved.state.labels).sort((a, b) => a.order - b.order),
-          sources = Object.values(saved.state.sources),
-          searches = Array<ResearchQueryReceipt>(saved.state.queries?.count ?? 0),
-          passages = Array<ResearchEvidence>(
-            sources.reduce((sum, source) => sum + (source.passages?.count ?? 0), 0)),
-          inlineChars = 30_000, sectionChunk = 6000,
-          searchValue = ({ query_id, call_id, executed_at, model, executor_version, tool, input,
-            results, sourceIds, matchedSourceIds, evidenceIds, failures, slots, sourceFingerprints, sourceReferences,
-            labelPaths }: ResearchQueryReceipt, index: number) => ({ kind: "search", search_index: index + 1,
-            query_id, call_id, executed_at, model, executor_version, tool, input, results,
-            ...(tool === "search_sources" ? { result_source_ids: sourceIds }
-              : { attempted_source_ids: sourceIds }), source_fingerprints: sourceFingerprints ?? {},
-            source_references: sourceReferences ?? {}, label_paths: labelPaths ?? {},
-            matched_source_ids: matchedSourceIds, evidence_ids: evidenceIds, slots, failures,
-            sources: sourceIds.length || results.length,
-            matches: evidenceIds.length || results.length, truncated: false }),
-          sourceValue = (source: typeof sources[number], index: number) => ({ kind: "source",
-            source_index: index + 1, sourceId: source.id, resource: researchSourceResource(source.reference),
-            reference: source.reference, labelIds: source.labelIds, badge: source.badge,
-            ...(source.badgeColor ? { badgeColor: source.badgeColor } : {}), note: source.note }),
-          passageValue = ({ receipt, sourceId, labelIds, note }: typeof passages[number], index: number) =>
-            ({ kind: "passage", passage_index: index + 1, sourceId, evidence_id: receipt.evidence_id,
-              citation: receipt.citation, locator: receipt.locator, exact_passage: receipt.span_text,
-              labelIds, note }),
-          total = noteCount + labels.length + sources.length + searches.length + passages.length,
-          offset = Math.max(0, Math.trunc(Number(args.offset) || 1) - 1),
-          limit = Math.max(1, Math.min(20, Math.trunc(Number(args.limit) || 20))),
-          page: Record<string, unknown>[] = [];
-        const section = /^(search|source|passage):(\d+)$/u.exec(trimmed(args.section));
-        if (args.section && !section) return fail("Research section not found");
-        if (section) {
-          const index = Number(section[2]) - 1;
-          if (section[1] === "search") { const page = await pageResearchItems(
-            documents, scope, saved, "queries", index, 1); searches[index] = page.items[0]?.value as ResearchQueryReceipt; }
-          if (section[1] === "passage") { const page = await pageResearchItems(
-            documents, scope, saved, "passages", index, 1); passages[index] = page.items[0]?.value as typeof passages[number]; }
-          const search = section[1] === "search" ? searches[index] : null,
-            source = section[1] === "source" ? sources[index] : null,
-            passage = section[1] === "passage" ? passages[index] : null;
-          if (!search && !source && !passage) return fail("Research section not found");
-          if (search) { legalEvidenceState?.queries.set(search.query_id, search);
-            legalEvidenceState?.priorQueryIds.add(search.query_id); }
-          const restored = passage ? await restorePriorLegalEvidence([passage.receipt], signal, true) : [],
-            verified = restored.some(({ receipt }) => receipt.evidence_id === passage?.receipt.evidence_id),
-            raw: Record<string, unknown> = search ? searchValue(search, index) : source ? sourceValue(source, index)
-              : passageValue(passage!, index),
-            value = passage && !verified ? (({ exact_passage: _passage, ...summary }) =>
-              ({ ...summary, kind: "unavailable_passage" }))(raw) : raw,
-            json = JSON.stringify(withoutUrls(value)), total = Math.ceil(json.length / sectionChunk),
-            offset = Math.max(0, Math.trunc(Number(args.offset) || 1) - 1),
-            count = Math.min(3, limit, Math.max(0, total - offset)), items = Array.from(
-              { length: count }, (_, index) => ({ kind: "search_continuation", section: section[0],
-                field: "receipt", encoding: "json", offset: (offset + index) * sectionChunk + 1,
-                json: json.slice((offset + index) * sectionChunk, (offset + index + 1) * sectionChunk) }));
-          const outcome = result({ document_id: saved.document.id, filename: saved.document.filename,
-            resource: resourceReference.document(saved.document.id, saved.versionId), section: section[0],
-            offset: offset + 1, total, next_offset: offset + count < total ? offset + count + 1 : null,
-            items });
-          return { ...outcome, evidence: restored.map(({ receipt }) => receipt),
-            evidenceSources: new Map(restored.map(({ receipt, ...value }) => [receipt.evidence_id, value])) };
-        }
-        const searchStart = noteCount + labels.length + sources.length,
-          passageStart = searchStart + searches.length, end = offset + limit,
-          loadPage = async (kind: "queries" | "passages", start: number,
-            target: Array<ResearchQueryReceipt | typeof passages[number]>) => {
-            const from = Math.max(0, offset - start), count = Math.max(0,
-              Math.min(target.length, end - start) - from);
-            if (!count) return;
-            const page = await pageResearchItems(documents, scope, saved, kind, from, count);
-            page.items.forEach(({ index, value }) => { target[index] = value; });
-          };
-        await Promise.all([loadPage("queries", searchStart, searches),
-          loadPage("passages", passageStart, passages)]);
-        let skip = offset;
-        const takeGenerated = (count: number, format: (index: number) => Record<string, unknown>) => {
-          if (page.length === limit) return;
-          if (skip >= count) { skip -= count; return; }
-          const end = Math.min(count, skip + limit - page.length);
-          for (let index = skip; index < end; index += 1) page.push(format(index));
-          skip = 0;
-        }, take = <T,>(values: T[],
-          format: (value: T, index: number) => Record<string, unknown>) =>
-        takeGenerated(values.length, (index) => format(values[index], index));
-        takeGenerated(noteCount, (index) => ({ kind: "note",
-          markdown: saved.state.note.slice(index * noteChars, (index + 1) * noteChars) }));
-        take(labels, (label) => ({ kind: "label", ...label }));
-        take(sources, (source, index) => { const value = sourceValue(source, index);
-          if (JSON.stringify(value).length <= inlineChars) return value;
-          const name = source.reference.title || source.reference.citation || source.reference.id;
-          return { kind: "source", source_index: index + 1, sourceId: source.id,
-            section: `source:${index + 1}`, ...(name.length <= 500 ? { name } : {}),
-            labels: source.labelIds.length, note_chars: source.note.length,
-            continued: true, truncated: true }; });
-        take(searches, (query, index) => { const value = searchValue(query, index);
-          if (JSON.stringify(value).length <= inlineChars) return value;
-          const text = String(query.input.pattern ?? query.input.query ?? "");
-          return { kind: "search", search_index: index + 1, section: `search:${index + 1}`,
-            tool: query.tool, ...(query.query_id.length <= 200 ? { query_id: query.query_id } : {}),
-            ...(query.call_id.length <= 200 ? { call_id: query.call_id } : {}),
-            ...(query.model.length <= 200 ? { model: query.model } : {}),
-            ...(text.length <= 500 ? { text } : { text_chars: text.length }),
-            sources: query.sourceIds.length || query.results.length,
-            matches: query.evidenceIds.length || query.results.length,
-            continued: true, truncated: true }; });
-        take(passages, (passage, index) => { const value = passageValue(passage, index);
-          if (JSON.stringify(value).length <= inlineChars) return value;
-          const { receipt, sourceId, labelIds, note } = passage;
-          return { kind: "passage", passage_index: index + 1, sourceId,
-            section: `passage:${index + 1}`,
-            ...(receipt.evidence_id.length <= 200 ? { evidence_id: receipt.evidence_id } : {}),
-            ...(receipt.citation.length <= 500 ? { citation: receipt.citation } : {}),
-            labels: labelIds.length, note_chars: note.length,
-            passage_chars: receipt.span_text?.length ?? 0, continued: true, truncated: true }; });
-        while (page.length > 1 && JSON.stringify(page).length > 40_000) page.pop();
-        const selected = page.flatMap((item) => item.kind === "passage"
-          ? [passages[Number(item.passage_index) - 1]?.receipt].filter(
-              (value): value is LegalEvidenceReceipt => !!value) : []);
-        const restored = await restorePriorLegalEvidence(selected, signal, true),
-          verified = new Set(restored.map(({ receipt }) => receipt.evidence_id)),
-          safePage = page.map((item) => { if (item.kind !== "passage" ||
-            verified.has(String(item.evidence_id))) return item;
-          const { exact_passage: _passage, ...summary } = item;
-          return { ...summary, kind: "unavailable_passage" }; }),
-          evidence = restored.map(({ receipt }) => receipt), evidenceSources = new Map(restored.map(
-            ({ receipt, ...source }) => [receipt.evidence_id, source]));
-        safePage.forEach((item) => { if (item.kind === "search") {
-          const query = searches[Number(item.search_index) - 1];
-          if (query) { legalEvidenceState?.queries.set(query.query_id, query);
-            legalEvidenceState?.priorQueryIds.add(query.query_id); }
-        } });
-        const categories = { notes: { count: noteCount, start: 1 },
-          labels: { count: labels.length, start: noteCount + 1 },
-          sources: { count: sources.length, start: noteCount + labels.length + 1 },
-          searches: { count: searches.length, start: noteCount + labels.length + sources.length + 1 },
-          passages: { count: passages.length,
-            start: noteCount + labels.length + sources.length + searches.length + 1 } };
-        return { ...result({ document_id: saved.document.id, filename: saved.document.filename,
-          resource: resourceReference.document(saved.document.id, saved.versionId),
-          offset: offset + 1, total, categories,
-          next_offset: offset + page.length < total ? offset + page.length + 1 : null,
-          items: safePage }),
-          evidence, evidenceSources };
+        return readResearchWorkspace(documents, scope, saved, args, signal, legalEvidenceState);
       }
     }
     const output = await runCodingShapeCall(
@@ -2700,7 +1983,7 @@ export function assistantTools<Context extends {
       input: Record<string, unknown>,
       documentId: string,
       signal: AbortSignal,
-    ) => Promise<BeaverOutcome>,
+    ) => Promise<AssistantOutcome>,
   ): AssistantToolRun => async (call, input, signal) => {
     const resolved = resolveDocumentArgument(input);
     if (resolved.error) return fail(resolved.error);
@@ -2776,9 +2059,9 @@ export function assistantTools<Context extends {
           generation: {
             rendererVersion: "beaver.docx-markdown.v2",
             markdownSha256: sha256(markdown),
-            fieldValuesSha256: sha256(JSON.stringify(args.fields ?? [])),
+            fieldValuesSha256: sha256(JSON.stringify(args.fields ?? {})),
             sourceRegistrySha256: sha256(
-              JSON.stringify(args.citations ?? []),
+              JSON.stringify(args.citations ?? {}),
             ),
             evidenceBindings: evidence.bindings,
             ...(authorityLedger ? { authorityLedger } : {}),
@@ -2817,14 +2100,10 @@ export function assistantTools<Context extends {
   );
 
   const runWorkflow = documentTool(
-    async (call, args, documentId) => {
+    async (_call, args, documentId) => {
       const action = args.action as "fix_supras" | "lint_structure";
-      const workflowEvent = action === "fix_supras" ? supraFixEvent : null;
-      const respond = (output: Record<string, unknown>) => withEvent(
-        documentResult(output), workflowEvent?.(output, call.id),
-      );
       try {
-        const output = await runDocxWorkflow(
+        return await runDocxWorkflow(
           action,
           documents,
           scope,
@@ -2832,14 +2111,14 @@ export function assistantTools<Context extends {
           trimmed(args.version_id) || undefined,
           turnEditState,
           turnId,
+          editMode,
         );
-        return respond(output);
       } catch (error) {
         const fallback = action === "fix_supras"
           ? "DOCX supra cleanup failed"
           : "DOCX structural lint failed";
         const message = safeErrorMessage(error, fallback);
-        return respond({ ok: false, error: message });
+        return fail(message);
       }
     },
   );
@@ -2911,13 +2190,28 @@ export function assistantTools<Context extends {
       : input, signal);
     const resources = Array.isArray(searched.results)
       ? searched.results.flatMap((value) => {
-          const resource = objectRecord(value)?.resource;
+          const entry = objectRecord(value);
+          const resource = entry?.resource;
+          const source = typeof resource === "string" ? researchSourceFromResource(resource) : null;
+          if (source) {
+            knownSources.set(researchSourceResource(source), { ...source,
+              title: trimmed(entry?.title) || null, citation: trimmed(entry?.citation) || source.citation,
+              url: trimmed(entry?.url) || null });
+          }
           return typeof resource === "string" && resource.startsWith("source://")
             ? [resource] : [];
         }).map((resource, rank) => ({ rank: rank + 1, resource }))
       : [];
+    const { query: _query, ...modelSearch } = searched;
     return {
-      ...result(searched),
+      ...result({ ...modelSearch, ...(Array.isArray(searched.results) ? {
+        results: searched.results.map((value) => {
+          const { provider: _provider, identifier: _identifier, passage_start: _start,
+            passage_end: _end, ...hit } = objectRecord(value) ?? {};
+          return Object.fromEntries(Object.entries(hit).filter(([, value]) =>
+            value !== null && value !== undefined && value !== ""));
+        }),
+      } : {}) }),
       activityCitations: createLegalSourceSearchCitations(searched.results),
       queryReceipts: [{
         call_id: call.id,
@@ -2945,12 +2239,14 @@ export function assistantTools<Context extends {
   const updateResearch = documentTool(async (call, input, documentId, signal) => {
     const command = objectRecord(input.research_action);
     if (!command) return fail("research requires research_action");
+    const operation = { audit, executor: "assistant" as const, model, turnId,
+      callId: call.id, chatId, reviewId: tabular?.review_id };
     const edit = turnEditState?.get(documentId), versionId = edit?.versionId ?? trimmed(input.version_id);
     if (!edit) return fail("Read the research file before changing it");
     if (command.type === "memo") {
       const title = trimmed(command.title), markdown = typeof command.markdown === "string"
         ? command.markdown.trim() : "", research = await readResearchFile(documents, scope, documentId);
-      if (!title || title.length > 200 || !markdown || markdown.length > 1_000_000)
+      if (!title || title.length > 200 || !markdown || markdown.length > 250_000)
         return fail("memo requires a title and Markdown content");
       if (!research || research.versionId !== versionId ||
           research.workingRevision !== edit.workingRevision) return fail("Version conflict");
@@ -2959,7 +2255,7 @@ export function assistantTools<Context extends {
         sourceByKey = new Map(Object.values(research.state.sources).map((source) =>
           [researchSourceKey(source.reference), source])), sourceIds = [...new Set(ids.flatMap((id) => {
           const receipt = legalEvidenceState?.evidence.get(id)?.receipt,
-            reference = receipt && legalEvidenceSourceReference(receipt);
+            reference = receipt && researchReferenceFromEvidence(receipt);
           return reference ? [sourceByKey.get(researchSourceKey(reference))?.id].filter(
             (value): value is string => !!value) : []; }))],
         savedEvidence = new Map<string, ResearchEvidence>();
@@ -2972,49 +2268,25 @@ export function assistantTools<Context extends {
           const saved = legalEvidenceState?.evidence.has(id) ? savedEvidence.get(id) : undefined,
             receipt = saved?.receipt, source = saved && research.state.sources[saved.sourceId];
           if (!receipt || !source) return null;
-          const reference = source.reference, internal = reference.provider === "a2aj" ||
-            reference.provider === "journal", href = internal ? `/sources/view?${new URLSearchParams({
-              provider: reference.provider, citation: reference.citation ?? reference.id,
-              source_id: reference.id, doc_type: reference.kind === "legislation" ? "laws"
-                : reference.kind === "journal" ? "articles" : "cases",
-              language: reference.language ?? "en", ...(reference.collection
-                ? { dataset: reference.collection } : {}), research_file: research.document.id,
-              research_source: source.id, locator: receipt.locator.label,
-            })}` : reference.url ?? receipt.external_url;
-          const label = `${receipt.citation}${receipt.locator.kind === "document"
-            ? "" : ` · ${receipt.locator.label}`}`.replace(/[\r\n]+/gu, " ").replace(/([\\\[\]])/gu, "\\$1");
-          return href ? `- [${label}](<${href}>)` : `- ${label}`;
+          return researchMemoCitation(research, source, receipt).markdown;
         });
       if (citations.some((citation) => citation === null)) return fail("Unknown or unsaved evidence ID");
-      const links = new Map(ids.map((id, index) => [id, citations[index]!.slice(2)]));
+      const links = new Map(ids.map((id, index) => [id, citations[index]!]));
       if ([...markdown.matchAll(/\[@([^\]\n]+)\]/gu)].some((match) => !links.has(match[1])))
         return fail("Use saved evidence IDs in inline citations: [@evidence_id]");
       const body = markdown.replace(/^#\s+[^\r\n]*(?:\r?\n)+/u, "")
-        .replace(/\[@([^\]\n]+)\]/gu, (_marker, id: string) => links.get(id)!), filename =
-        safeGeneratedFilename(title, "md"), linked =
-        resourceReference.document(research.document.id, research.versionId),
-        researchHref = `/sources?research_file=${encodeURIComponent(research.document.id)}`;
-      const document = await documents.create(scope, { filename, fileType: "md",
-        bytes: Buffer.from(`# ${title.replace(/[\r\n#]/gu, " ")}\n\n` +
-          `[Research file](${researchHref})\n\n${body}${citations.length
-            ? `\n\n## Sources\n\n${citations.join("\n")}` : ""}\n`),
-        projectId: typeof research.document.project_id === "string"
-          ? research.document.project_id : null,
-        folderId: typeof research.document.folder_id === "string"
-          ? research.document.folder_id : typeof research.document.library_folder_id === "string"
-            ? research.document.library_folder_id : null,
-        libraryKind: research.document.library_kind === "template" ? "template" : "file",
-        provenance: { schemaVersion: 1, actor: "assistant", action: "created", turnId } });
-      allowedDocumentIds?.add(document.id);
-      turnEditState?.set(document.id, { versionId: document.current_version_id,
-        workingRevision: 0, parentVersionId: document.current_version_id,
-        turnVersionId: document.current_version_id });
-      return documentResult({ ok: true, action: "created", document_id: document.id,
-        version_id: document.current_version_id, version_number: document.active_version_number,
-        filename: document.filename, file_type: document.file_type,
-        resource: resourceReference.document(document.id, document.current_version_id),
-        download_url: `/api/single-documents/${encodeURIComponent(document.id)}/file?version_id=${encodeURIComponent(document.current_version_id)}`,
-        research: linked });
+        .replace(/\[@([^\]\n]+)\]/gu, (_marker, id: string) => links.get(id)!);
+      const memo = `${command.mode === "append" && research.state.note ? `${research.state.note}\n\n` : ""}` +
+        `## ${title.replace(/[\r\n#]/gu, " ")}\n\n${body}`;
+      const next = await saveResearchFile(documents, scope, documentId, versionId, edit.workingRevision,
+        { type: "note", markdown: memo, expectedMarkdown: research.state.note },
+        { turnVersionId: edit.turnVersionId, turnId }, operation);
+      if (!next) return fail("Version conflict");
+      turnEditState?.set(documentId, { versionId: next.versionId, workingRevision: next.workingRevision,
+        parentVersionId: edit.parentVersionId, turnVersionId: next.versionId });
+      return mutationResult({ ok: true, action: "updated", document_id: next.document.id,
+        version_id: next.versionId, filename: next.document.filename,
+        resource: resourceReference.document(next.document.id, next.versionId) });
     }
     let next, queryId: string | undefined, performed: ResearchFileAction | undefined,
       matched: LegalEvidenceReceipt[] = [], queryReceipt: ResearchQueryReceipt | undefined,
@@ -3038,11 +2310,11 @@ export function assistantTools<Context extends {
         unlabelled: command.unlabelled === true || undefined,
         rules, conflict: command.conflict === "prompt" || command.conflict === "longer" ||
           command.conflict === "shorter" || command.conflict === "append" ? command.conflict : "first" },
-          { signal, actor: { model, callId: call.id }, priorQueries: legalEvidenceState?.queries.values(),
+          { signal, operation, actor: { model, callId: call.id }, priorQueries: legalEvidenceState?.queries.values(),
             assistant: { turnVersionId: edit.turnVersionId, turnId } });
       next = queried.file; queryId = queried.receipt.query_id; matched = queried.evidence;
-      if (command.target === "passages") matched = (await restorePriorLegalEvidence(
-        matched, signal, true)).map(({ receipt }) => receipt);
+      if (command.target === "passages") matched = (await restoreResearchEvidence(
+        documents, scope, matched, signal)).map(({ receipt }) => receipt);
       queryReceipt = queried.receipt; checkpointed = queried.checkpointed; coverage = queried.coverage;
     } else {
       let action: ResearchFileAction;
@@ -3086,7 +2358,7 @@ export function assistantTools<Context extends {
       performed = action;
       next = await saveResearchFile(documents, scope, documentId, versionId,
         edit.workingRevision, action,
-        { turnVersionId: edit.turnVersionId, turnId });
+        { turnVersionId: edit.turnVersionId, turnId }, operation);
       if (!next) return fail("Version conflict");
       checkpointed = next.versionId !== versionId ||
         next.workingRevision !== edit.workingRevision;
@@ -3100,13 +2372,14 @@ export function assistantTools<Context extends {
       ? sourceByKey.get(researchSourceKey(performed.reference))?.id : undefined;
     const saved = savedEvidenceIds.flatMap((evidence_id) => {
       const receipt = legalEvidenceState?.evidence.get(evidence_id)?.receipt,
-        reference = receipt && legalEvidenceSourceReference(receipt),
+        reference = receipt && researchReferenceFromEvidence(receipt),
         source = reference && sourceByKey.get(researchSourceKey(reference));
       return source ? [{ evidence_id, source_id: source.id }] : [];
     });
     const content = { ok: true, document_id: next.document.id,
       version_id: next.versionId, filename: next.document.filename,
       resource: resourceReference.document(next.document.id, next.versionId),
+      proposals: next.state.proposals ?? [], history: next.state.history,
       ...(performed?.type === "label" ? { label_id: performed.id } : {}),
       ...(sourceId ? { source_id: sourceId } : {}), ...(saved.length ? { saved } : {}),
       ...(queryId ? { query_id: queryId, match_count: matched.length, coverage,
@@ -3161,11 +2434,8 @@ export function assistantTools<Context extends {
     return { drafts, has_more: products.length === 50 };
   };
   const targetWorkProduct = async (input: Record<string, unknown>) => {
-    const id = trimmed(input.draft_id) || authoritiesId;
-    if (!id) throw new Error("No Authorities draft is active");
-    if (authoritiesId && id !== authoritiesId) {
-      throw new Error("This assistant is bound to a different Authorities draft");
-    }
+    const id = trimmed(input.draft_id);
+    if (!id) throw new Error("Select an Authorities draft_id");
     const product = await workProducts.get(scope, id);
     if (product.kind !== "authorities" || product.projectId !== workProductProjectId) {
       throw new Error("Draft is outside this chat's work-product scope");
@@ -3181,8 +2451,24 @@ export function assistantTools<Context extends {
   const authoritiesPayload = (product: Awaited<ReturnType<typeof authorities.importDraft>>,
     input: Record<string, unknown> = {}, values: Record<string, unknown> = {}) => {
     const draft = decodeAuthoritiesDraft(product.state);
-    const outputRoles = Object.keys(product.outputs ?? {});
     if (!draft) return workProductPayload(product, values);
+    const focus = product.id === authoritiesId ? workProductFocus : undefined;
+    const requestedUnitId = trimmed(input.unit_id), requestedOccurrenceId = trimmed(input.occurrence_id);
+    const targeted = Boolean(requestedUnitId || requestedOccurrenceId);
+    const occurrenceId = requestedOccurrenceId || (!requestedUnitId ? focus?.itemId : "") || "";
+    if (occurrenceId && requestedUnitId) throw new Error(
+      "Read either one unit_id or one occurrence_id");
+    const occurrence = occurrenceId ? draft.occurrences[occurrenceId] : null;
+    if (occurrenceId && !occurrence) throw new Error(`Unknown occurrence: ${occurrenceId}`);
+    const unitId = requestedUnitId || occurrence?.unitId || "";
+    const unit = unitId ? draft.units.find(({ id }) => id === unitId) : null;
+    if (unitId && !unit) throw new Error(`Unknown unit: ${unitId}`);
+    const authorityIds = targeted ? [...new Set((occurrence ? [occurrence.id] : unit!.occurrenceIds)
+      .flatMap((id) => {
+        const item = draft.occurrences[id];
+        return item ? [item.authorityId, item.reference?.targetAuthorityId]
+          .filter((id): id is string => Boolean(id)) : [];
+      }))] : draft.authorityOrder;
     const authorityOffset = Math.max(0, Math.trunc(Number(input.authority_offset) || 0));
     const authorityLimit = Math.max(1, Math.min(50,
       Math.trunc(Number(input.authority_limit) || 25)));
@@ -3210,7 +2496,7 @@ export function assistantTools<Context extends {
       kind: draft.import.kind, filename: clip(draft.import.filename, 300),
       file_type: draft.import.fileType, binding_role: draft.import.bindingRole,
     } : { kind: draft.import.kind };
-    const summary: Record<string, unknown> = {
+    const summary: Record<string, unknown> = { ...(!targeted && {
       source,
       output_mode: draft.outputMode,
       cover: draft.cover,
@@ -3231,15 +2517,12 @@ export function assistantTools<Context extends {
       insert_into_document: draft.insertIntoDocument,
       counts: { units: draft.units.length, occurrences: Object.keys(draft.occurrences).length,
         authorities: draft.authorityOrder.length },
-      authorities: draft.authorityOrder.slice(authorityOffset, authorityOffset + authorityLimit)
+      }),
+      authorities: authorityIds.slice(authorityOffset, authorityOffset + authorityLimit)
         .map(authority).filter(Boolean),
       authority_page: { offset: authorityOffset, limit: authorityLimit,
-        has_more: authorityOffset + authorityLimit < draft.authorityOrder.length },
+        has_more: authorityOffset + authorityLimit < authorityIds.length },
     };
-    const requestedUnitId = trimmed(input.unit_id), occurrenceId = trimmed(input.occurrence_id) ||
-      (!requestedUnitId ? workProductFocus?.itemId : "") || "";
-    if (occurrenceId && requestedUnitId) throw new Error(
-      "Read either one unit_id or one occurrence_id");
     if (!occurrenceId && !requestedUnitId) {
       const ids = draft.units.flatMap(({ occurrenceIds }) => occurrenceIds);
       summary.occurrence_index = ids.slice(occurrenceOffset,
@@ -3252,11 +2535,6 @@ export function assistantTools<Context extends {
       summary.occurrence_page = { offset: occurrenceOffset, limit: occurrenceLimit,
         has_more: occurrenceOffset + occurrenceLimit < ids.length };
     }
-    const occurrence = occurrenceId ? draft.occurrences[occurrenceId] : null;
-    if (occurrenceId && !occurrence) throw new Error(`Unknown occurrence: ${occurrenceId}`);
-    const unitId = requestedUnitId || occurrence?.unitId || "";
-    const unit = unitId ? draft.units.find(({ id }) => id === unitId) : null;
-    if (unitId && !unit) throw new Error(`Unknown unit: ${unitId}`);
     if (unit) {
       const requestedOffset = input.text_offset === undefined ? null : Number(input.text_offset);
       const textOffset = Math.min(unit.text.length, Math.max(0, Math.trunc(requestedOffset ??
@@ -3284,10 +2562,11 @@ export function assistantTools<Context extends {
         authority_id: occurrence.authorityId, authority_span: span(occurrence.authoritySpan),
         core_span: span(occurrence.coreSpan), pinpoint_span: span(occurrence.pinpointSpan),
         reference: occurrence.reference, pinpoints: occurrence.pinpoints };
-      if (occurrence.id === workProductFocus?.itemId) summary.focus = {
-        occurrence_id: occurrence.id, selection: workProductFocus.selection ?? null };
+      if (occurrence.id === focus?.itemId) summary.focus = {
+        occurrence_id: occurrence.id, selection: focus.selection ?? null };
     }
-    return workProductPayload(product, { draft: summary, output_roles: outputRoles, ...values });
+    return workProductPayload(product, { draft: summary,
+      ...(!targeted && { output_roles: Object.keys(product.outputs ?? {}) }), ...values });
   };
   const authoritiesMutationPayload = (
     product: Awaited<ReturnType<typeof authorities.importDraft>>,
@@ -3341,156 +2620,27 @@ export function assistantTools<Context extends {
     if (!document) throw new Error("Select one version-pinned Library PDF");
     const version = await documents.metadata(scope, document.documentId);
     if (!version || version.current_version_id !== document.versionId ||
-        version.file_type?.toLowerCase() !== "pdf" ||
-        typeof version.filename !== "string" ||
-        typeof version.source_sha256 !== "string") {
+        version.file_type.toLowerCase() !== "pdf") {
       throw new Error("Select the current PDF version from Library");
     }
     return { ...document, version: { filename: version.filename,
       source_sha256: version.source_sha256 } };
   };
-  const authoritiesAction = (value: unknown): AuthoritiesUserAction | null => {
+  const authoritiesAction = (value: unknown, productId: string): AuthoritiesUserAction | null => {
     const action = objectRecord(value);
     if (!action) return null;
-    const type = trimmed(action.type),
-      occurrenceId = trimmed(action.occurrence_id) || workProductFocus?.itemId || "",
-      authorityId = trimmed(action.authority_id), supplementId = trimmed(action.supplement_id);
-    const focusedSelection = occurrenceId === workProductFocus?.itemId
-      ? workProductFocus.selection : undefined;
-    const occurrence = () => {
-      if (!occurrenceId) throw new Error(`${type} requires occurrence_id`);
-      return occurrenceId;
-    };
-    const authority = () => {
-      if (!authorityId) throw new Error(`${type} requires authority_id`);
-      return authorityId;
-    };
-    const integer = (key: "start" | "end" | "cursor") => {
-      const number = action[key] ?? focusedSelection?.[
-        key === "cursor" ? "start" : key];
-      if (!Number.isSafeInteger(number) || Number(number) < 0) {
-        throw new Error(`${type} requires a non-negative integer ${key}`);
-      }
-      return Number(number);
-    };
-    switch (type) {
-      case "add-authority": {
-        const kind = trimmed(action.authority_kind), citation = trimmed(action.citation);
-        if (!["case", "legislation", "commentary", "other"].includes(kind) || !citation) {
-          throw new Error("add-authority requires authority_kind and citation");
-        }
-        return { type, kind: kind as "case" | "legislation" | "commentary" | "other",
-          citation, name: action.name === null ? null : trimmed(action.name) || null };
-      }
-      case "remove-authority":
-        return { type, authorityId: authority() };
-      case "set-authority-span":
-      case "set-pinpoint-span":
-        return { type, occurrenceId: occurrence(), start: integer("start"),
-          end: integer("end") };
-      case "split-occurrence":
-        return { type, occurrenceId: occurrence(), cursor: integer("cursor") };
-      case "merge-occurrence":
-      case "remove-occurrence":
-        return { type, occurrenceId: occurrence() };
-      case "relink-occurrence":
-        return { type, occurrenceId: occurrence(), authorityId: authority() };
-      case "set-reference": {
-        const kind = action.reference_kind;
-        if (kind !== "supra" && kind !== "ibid" && kind !== "none") {
-          throw new Error("set-reference requires reference_kind");
-        }
-        const targetAuthorityId = trimmed(action.target_authority_id);
-        if (kind !== "none" && !targetAuthorityId) {
-          throw new Error("set-reference requires target_authority_id");
-        }
-        return { type, occurrenceId: occurrence(), reference: kind === "none" ? null
-          : { kind, targetAuthorityId } };
-      }
-      case "exclude-authority":
-        if (typeof action.excluded !== "boolean") {
-          throw new Error("exclude-authority requires excluded");
-        }
-        return { type, authorityId: authority(), excluded: action.excluded };
-      case "rename-authority":
-        if (typeof action.display_name !== "string") {
-          throw new Error("rename-authority requires display_name");
-        }
-        return { type, authorityId: authority(), displayName: trimmed(action.display_name) || null };
-      case "clear-authority-source":
-        return { type, authorityId: authority() };
-      case "set-profile": {
-        const profileId = trimmed(action.profile_id);
-        if (!authoritiesProfileIds.includes(profileId as typeof authoritiesProfileIds[number])) {
-          throw new Error("set-profile requires profile_id");
-        }
-        return { type, profileId } as AuthoritiesUserAction;
-      }
-      case "set-settings": {
-        const input = objectRecord(action.settings);
-        if (!input) throw new Error("set-settings requires settings");
-        const keys = {
-          source_mode: ["sourceMode", ["automatic", "manual-originals", "render"]],
-          tab_style: ["tabStyle", ["numeric", "alpha"]],
-          table_order: ["tableOrder", ["first-reference", "alphabetical"]],
-          table_delivery: ["tableDelivery", ["native-marks", "native-append", "linked-append"]],
-          table_location: ["tableLocation", ["pages", "pinpoints", "combined"]],
-          passage_marking: ["passageMarking", ["none", "margin", "paragraph", "text", "sidelined"]],
-          scanned_pdf_policy: ["scannedPdfPolicy", ["page-margin", "cited-pages", "full"]],
-          missing_source_policy: ["missingSourcePolicy", ["placeholder", "omit"]],
-          filing_medium: ["filingMedium", ["electronic", "paper"]],
-          book_role: ["bookRole", AUTHORITIES_BOOK_ROLES],
-        } as const;
-        const settings: Record<string, string> = {};
-        for (const [inputKey, [outputKey, allowed]] of Object.entries(keys)) {
-          const selected = input[inputKey];
-          if (selected === undefined) continue;
-          if (typeof selected !== "string" || !(allowed as readonly string[]).includes(selected)) {
-            throw new Error(`Invalid Authorities setting: ${inputKey}`);
-          }
-          settings[outputKey] = selected;
-        }
-        if (!Object.keys(settings).length) throw new Error("set-settings requires settings");
-        return { type, settings } as AuthoritiesUserAction;
-      }
-      case "set-output-mode":
-        if (!["table", "book", "both"].includes(String(action.output_mode))) {
-          throw new Error("set-output-mode requires output_mode");
-        }
-        return { type, outputMode: action.output_mode as "table" | "book" | "both" };
-      case "set-document-output":
-        if (typeof action.enabled !== "boolean") {
-          throw new Error("set-document-output requires enabled");
-        }
-        return { type, enabled: action.enabled };
-      case "set-cover": {
-        const cover = objectRecord(action.cover), rawGroups = cover?.partyGroups,
-          partyGroups = Array.isArray(rawGroups) ? rawGroups.flatMap((raw) => {
-            const group = objectRecord(raw);
-            return group && typeof group.role === "string" && Array.isArray(group.parties) &&
-              group.parties.every((party) => typeof party === "string")
-              ? [{ role: group.role, parties: group.parties as string[] }] : [];
-          }) : [];
-        if (!cover || typeof cover.courtFileNumber !== "string" ||
-            typeof cover.applicationUnder !== "string" || typeof cover.title !== "string" ||
-            !Array.isArray(rawGroups) || partyGroups.length !== rawGroups.length) {
-          throw new Error("set-cover requires cover details");
-        }
-        return { type, cover: { courtFileNumber: cover.courtFileNumber, partyGroups,
-          applicationUnder: cover.applicationUnder, title: cover.title } };
-      }
-      case "clear-book-part":
-        if (action.slot !== "cover" && action.slot !== "index") {
-          throw new Error("clear-book-part requires slot");
-        }
-        return { type, slot: action.slot };
-      case "remove-book-supplement":
-        if (!supplementId) throw new Error("remove-book-supplement requires supplement_id");
-        return { type, id: supplementId };
-      default:
-        throw new Error("Select a supported Authorities action");
-    }
+    const focus = productId === authoritiesId ? workProductFocus : undefined;
+    const occurrenceId = trimmed(action.occurrenceId) || focus?.itemId,
+      selection = occurrenceId === focus?.itemId ? focus?.selection : undefined;
+    return decodeAuthoritiesUserAction({ ...action, occurrenceId,
+      start: action.start ?? selection?.start, end: action.end ?? selection?.end,
+      cursor: action.cursor ?? selection?.start });
   };
+  const activeCourtTool = courtRecord && courtRecords ? courtRecordSlotTool<Context>({
+    scope, target: courtRecord, projectId: workProductProjectId,
+    allowedDocumentIds, library, workProducts, courtRecords, resolveArtifact,
+    onMutationCommitted: () => {},
+  }) : null;
   const updateWorkProduct: AssistantToolRun = async (call, input, signal) => {
     const kind = input.kind as WorkProductKind;
     const respond = (raw: Record<string, unknown>, mutated = false) => {
@@ -3513,15 +2663,13 @@ export function assistantTools<Context extends {
     }
     try {
       const requestedId = trimmed(input.draft_id);
-      if (!authoritiesId && !requestedId &&
+      if (!requestedId &&
           (input.action === "read" || input.action === "select")) {
         return respond({ ok: true, ...(await workProductChoices(kind)),
           requested_action: "choose" });
       }
       if (input.action === "create") {
         if (trimmed(input.draft_id)) throw new Error("create does not accept draft_id");
-        if (authoritiesId) throw new Error(
-          "This assistant is already bound to an Authorities draft");
         if (kind === "court-record") {
           const profileId = trimmed(input.profile_id);
           if (!COURT_RECORD_PROFILE_BY_ID.has(profileId)) {
@@ -3544,13 +2692,17 @@ export function assistantTools<Context extends {
         return respond(workProductPayload(product, { requested_action: "open" }), true);
       }
       if (kind === "court-record") {
-        if (authoritiesId && input.action === "select") throw new Error(
-          "This assistant is bound to an Authorities draft");
         const id = trimmed(input.draft_id);
         if (!id) throw new Error("Select a Court Record draft_id");
         const product = await workProducts.get(scope, id);
         if (product.kind !== "court-record" || product.projectId !== workProductProjectId) {
           throw new Error("Draft is outside this chat's work-product scope");
+        }
+        if (activeCourtTool && id === courtRecord?.id && input.action !== "select") {
+          if (input.action !== "read" && input.action !== "update") {
+            throw new Error("Open the Court Record to refresh or build it");
+          }
+          return activeCourtTool.execute(input, {} as Context, signal, call);
         }
         if (input.action === "read" || input.action === "select") {
           return respond(courtRecordResult(product, input.action === "select"
@@ -3617,7 +2769,7 @@ export function assistantTools<Context extends {
       const authorityId = trimmed(input.authority_id);
       const bookSlot = trimmed(input.book_slot);
       const supplementId = trimmed(input.supplement_id);
-      const action = authoritiesAction(input.authorities_action);
+      const action = authoritiesAction(input.authorities_action, target.product.id);
       const receipts = input.evidence_ids !== undefined;
       const attachment = Boolean(trimmed(input.document_id) || authorityId || bookSlot || supplementId);
       if ([Boolean(action), attachment, receipts].filter(Boolean).length !== 1) {
@@ -3683,14 +2835,12 @@ export function assistantTools<Context extends {
     const args = resolved ? { ...input, file_path: resolved } : input;
     return coding({ ...call, input: args }, args, signal, progress);
   };
-  const isDocumentToolEvent = (
-    event: AssistantEvent,
-  ): event is Extract<AssistantEvent, { type: "document_artifact" }> =>
-    event.type === "document_artifact";
   const documentName = (value: unknown) => {
     const raw = trimmed(value);
     const resolved = resolveArtifact(raw) ?? raw;
     const reference = parseResourceReference(resolved);
+    const source = reference?.kind === "source" ? researchSourceFromResource(resolved) : null;
+    if (source) return knownSources.get(researchSourceResource(source))?.title ?? undefined;
     return knownDocumentNames.get(reference?.kind === "document"
       ? reference.documentId : resolved);
   };
@@ -3700,18 +2850,19 @@ export function assistantTools<Context extends {
       if (toolName === "Edit" && name) return `${verb} ${name}`;
       return assistantToolActivityLabel(toolName, input, name) ?? null;
     };
-  const present = (output: BeaverOutcome): BeaverOutcome => {
-    const { events: rawEvents = [], ...rest } = output;
+  const present = (output: AssistantOutcome): BeaverOutcome => {
     if (output.mutated) onMutationCommitted();
-    const documentEvent = rawEvents.find(isDocumentToolEvent);
-    const artifact = documentEvent &&
-      artifactFor(documentEvent.document_id, documentEvent.version_id);
+    let rendered: BeaverOutcome;
+    if ("artifact" in output) {
+      const { artifact, ...rest } = output;
+      rendered = { ...rest, result: toolText({ ok: true,
+        artifact: artifactFor(artifact.document_id, artifact.version_id),
+        filename: artifact.filename }), events: [artifact, ...(rest.events ?? [])] };
+    } else rendered = output;
+    const { events = [], ...rest } = rendered;
     return {
       ...rest,
-      result: artifact
-        ? toolText({ ok: true, artifact, filename: documentEvent.filename })
-        : output.result,
-      ...(turnScope === "main" && rawEvents.length ? { events: rawEvents } : {}),
+      ...(turnScope === "main" && events.length ? { events } : {}),
     };
   };
   const definition = (
@@ -3751,6 +2902,46 @@ export function assistantTools<Context extends {
   const [glob, grep, read, edit] = RESOURCE_TOOLS;
 
   const tools: BeaverTool<Context>[] = [
+    definition({ name: "quote_check", specialist: true, sequential: true, description: "Mechanically compare document quotations with cited sources. Returns quote IDs, citation candidates and source passages; follow next_offset. Resolve ambiguous attribution with links. Read surrounding sources to assess proposition support and misconstruction. For a requested workbook, set export_workbook; optional per-quote analysis appears in a separate AI column. The complete workbook is saved beside the input.",
+      inputSchema: { type: "object", additionalProperties: false,
+        properties: { document_id: { type: "string" },
+          offset: { type: "integer", minimum: 0 },
+          export_workbook: { type: "boolean" },
+          analysis: { type: "array", maxItems: 500, items: { type: "object", additionalProperties: false,
+            properties: { quoteId: { type: "string" }, text: { type: "string", maxLength: 20000 } },
+            required: ["quoteId", "text"] } },
+          links: { type: "array", maxItems: 500, items: { type: "object", additionalProperties: false,
+            properties: { quoteId: { type: "string" }, occurrenceId: { type: "string" } },
+            required: ["quoteId", "occurrenceId"] } } }, required: ["document_id"] } },
+      async (_call, input, signal, progress) => {
+        const document = await authorizedDocument(input);
+        if (!document) throw new Error("Select a version-pinned Library document.");
+        const source = await documents.projectionSource(scope, document.documentId, document.versionId);
+        if (!source) throw new Error("Document version not found.");
+        const draft = await createAuthoritiesImporter(documents).draft(scope, {
+          kind: "document", documentId: document.documentId,
+          version: { versionId: document.versionId, sha256: source.sourceSha256 } });
+        const offset = Number(input.offset ?? 0);
+        if (!Number.isSafeInteger(offset) || offset < 0) throw new Error("offset must be a non-negative integer");
+        const report = await checkQuotes(draft, decodeQuoteLinks(input.links), signal,
+          (done, total) => progress?.(`Checking quotation ${done} of ${total}`), undefined,
+          input.export_workbook === true ? undefined : { offset, limit: 10 });
+        if (input.export_workbook === true) {
+          if (input.analysis !== undefined && (!Array.isArray(input.analysis) || input.analysis.length > 500 ||
+            input.analysis.some((item) => !item || typeof item.quoteId !== "string" ||
+              typeof item.text !== "string" || item.text.length > 20000))) throw new Error("Invalid per-quote analysis.");
+          const analysis = input.analysis === undefined ? undefined : Object.fromEntries(
+            (input.analysis as Array<{ quoteId: string; text: string }>).map(({ quoteId, text }) => [quoteId, text]));
+          const workbook = await saveQuoteCheckWorkbook(documents, scope, document.documentId,
+            report, analysis, document.versionId);
+          allowedDocumentIds?.add(workbook.id);
+          return artifactResult({ type: "document_artifact", action: "created", document_id: workbook.id,
+            version_id: workbook.current_version_id, version_number: workbook.active_version_number,
+            filename: workbook.filename,
+            download_url: `/api/single-documents/${encodeURIComponent(workbook.id)}/file?version_id=${encodeURIComponent(workbook.current_version_id)}` });
+        }
+        return result(modelQuoteCheckReport(report, offset));
+      }),
     definition(glob, codingWithArtifacts, { reader: ["CA", "US", "UK"], activity: () => null }),
     definition(grep, codingWithArtifacts, {
       reader: ["CA", "US", "UK"],
@@ -3759,6 +2950,20 @@ export function assistantTools<Context extends {
     definition(read, codingWithArtifacts, {
       reader: ["CA", "US", "UK"],
       activity: documentActivity("Reading", "Read", "file_path"),
+      activityCitations: (input) => {
+        const raw = trimmed(input.file_path), resource = resolveArtifact(raw) ?? raw;
+        const reference = parseResourceReference(resource);
+        const source = researchSourceFromResource(resource);
+        if (source) {
+          const known = knownSources.get(researchSourceResource(source));
+          return known ? sourceActivityCitations([known]) : [];
+        }
+        const filename = documentName(resource);
+        return reference?.kind === "document" && filename ? [{
+          kind: "document", ref: 1, document_id: reference.documentId,
+          version_id: reference.versionId, filename, quotes: [],
+        }] : [];
+      },
     }),
     definition(edit, codingWithArtifacts, {
       sequential: true,
@@ -3766,13 +2971,15 @@ export function assistantTools<Context extends {
     }),
     definition(WRITE_TOOL, write),
     definition(SEARCH_SOURCES_TOOL, sourceSearch),
-    definition(CITATOR_TOOL, runCitator),
-    ...(turnScope !== "main" ? [] : courtRecord && courtRecords
-      ? [courtRecordSlotTool({ scope, target: courtRecord, projectId: workProductProjectId,
-          allowedDocumentIds, library, workProducts, courtRecords, resolveArtifact,
-          onMutationCommitted })]
-      : [definition(workProductTool(productFeatures?.authorities !== false,
-          Boolean(authoritiesId)), updateWorkProduct)]),
+    definition(CITATOR_TOOL, runCitator, { specialist: true }),
+    ...(turnScope !== "main" ? [] : [
+      ...(activeCourtTool ? [definition(activeCourtTool, (call, input, signal) =>
+        activeCourtTool.execute(input, {} as Context, signal, call), { specialist: false })]
+        : authoritiesId ? [definition(workProductTool(true, true), (call, input, signal) =>
+          updateWorkProduct(call, { ...input, kind: "authorities", draft_id: authoritiesId }, signal))] : []),
+      definition(workProductTool(productFeatures?.authorities !== false, false,
+        activeCourtTool || authoritiesId ? "manage_work_products" : "update_work_product"), updateWorkProduct),
+    ]),
     definition(documentOperationTool(includeResearchTools), documentOperation),
     definition(LINT_DOCUMENT_TOOL, (call, input, signal) =>
       runWorkflow(call, { ...input, action: "lint_structure" }, signal)),
@@ -3780,8 +2987,8 @@ export function assistantTools<Context extends {
     definition(COMPARE_VERSIONS_TOOL, compare),
   ];
 
-  if (tabular && legalEvidenceState) {
-    tools.splice(5, 0, tabularTool(tabular, legalEvidenceState));
+  if ((tabular || resolveTabular) && legalEvidenceState) {
+    tools.splice(5, 0, tabularTool(tabular, legalEvidenceState, resolveTabular));
   }
   return tools;
 }

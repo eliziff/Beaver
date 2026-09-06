@@ -2,13 +2,12 @@ import {
   Check,
   ChevronDown,
   FilePlus2,
-  FileText,
-  FolderSearch,
   Loader2,
   ScanText,
   Trash2,
 } from "lucide-react";
 import { Fragment } from "react";
+import { CourtRecordStepHeading, RequiredBadge } from "./CourtRecordStepHeading";
 import { Button, buttonClassName } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { cn, formatBytes } from "@/app/lib/utils";
@@ -36,6 +35,7 @@ type Props = {
   onRelink?: (id: string) => void;
   kindIds?: string[];
   heading?: string;
+  step?: number;
   showUnassigned?: boolean;
 };
 
@@ -62,23 +62,40 @@ export function CourtRecordDocuments(props: Props) {
     ["Required documents", shown.filter((kind) => kind.requirement === "required")],
     ["Other documents", shown.filter((kind) => kind.requirement !== "required")],
   ] as const;
+  const single = shown.length === 1 && !exhibitPool ? shown[0] : undefined;
+  const singleFilled = single && props.entries.some((entry) => entry.kindId === single.id);
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm" aria-labelledby={headingId}>
-      <h2 id={headingId} className="text-base font-semibold leading-6 text-gray-950">{props.heading ?? "2. Add documents"}</h2>
+    <section className="rounded-lg border border-gray-200 bg-white p-4" aria-labelledby={headingId}
+      data-kind-id={single?.id} data-requirement={single?.requirement}
+      onDragOver={(event) => {
+        if (single && !single.descriptionOnly && event.dataTransfer.types.includes("Files")) event.preventDefault();
+      }}
+      onDrop={(event) => {
+        if (single && !single.descriptionOnly && event.dataTransfer.files.length) {
+          event.preventDefault(); props.onFiles(single.id, [...event.dataTransfer.files]);
+        }
+      }}>
+      <div className={cn("flex gap-3", single && !singleFilled
+        ? "flex-col items-start" : "flex-wrap items-center justify-between")}>
+        <CourtRecordStepHeading id={headingId} step={props.step} required={single?.requirement === "required" && !singleFilled && !single.generated}>
+          {single ? singleFilled ? single.label : `Add the ${single.label.toLowerCase()}` : props.heading ?? "Documents"}
+        </CourtRecordStepHeading>
+        {exhibitPool && <ExhibitActions {...props} kind={exhibitPool} />}
+        {single && !single.descriptionOnly && <DocumentActions {...props} kind={single} />}
+      </div>
 
-      <div className="mt-3 space-y-4">
+      {(!single || singleFilled || notes.length > 0 || files.length > 0) && <div className="mt-3 space-y-4">
         {!!notes.length && <PendingNotes notes={notes} {...props} />}
         {!!files.length && <PendingFiles pending={files} {...props} />}
         {groups.map(([label, kinds], index) => <Fragment key={label}>
           {!!kinds.length && <section aria-label={label}>
-            <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</h3>
             <div className="space-y-1.5">
-              {kinds.map((kind) => <DocumentSlot key={kind.id} kind={kind} {...props} />)}
+              {kinds.map((kind) => <DocumentSlot key={kind.id} kind={kind} {...props} hideLabel={!!single} />)}
             </div>
           </section>}
           {index === 0 && exhibitPool && <ExhibitPool kind={exhibitPool} {...props} />}
         </Fragment>)}
-      </div>
+      </div>}
     </section>
   );
 }
@@ -122,14 +139,14 @@ function PendingFiles(props: Props & { pending: RecordEntry[] }) {
   </section>;
 }
 
-function DocumentSlot({ profile, kind, entries, busyEntryId, entryFindings, onFiles, onDescription, onPick, onLibrary, sourceLabel, onEntry, onRemove, onAssign, onAssignKind, onOcr, onRelink }: Props & { kind: DocumentKind }) {
+function DocumentSlot({ profile, kind, hideLabel, entries, busyEntryId, entryFindings, onFiles, onDescription, onPick, onLibrary, sourceLabel, onEntry, onRemove, onAssign, onAssignKind, onOcr, onRelink }: Props & { kind: DocumentKind; hideLabel?: boolean }) {
   const matching = entries.filter((entry) => entry.kindId === kind.id);
   if (kind.descriptionOnly) {
     const first = matching[0];
-    return <div data-kind-id={kind.id} data-requirement={kind.requirement}
-      className="rounded-lg border border-gray-200 bg-white px-3 py-2.5">
+    return <div data-kind-id={hideLabel ? undefined : kind.id} data-requirement={kind.requirement}
+      className="py-2.5">
       <label className="block text-sm font-medium text-gray-900">
-        {kind.label}
+        <span className={hideLabel ? "sr-only" : undefined}>{kind.label}</span>
         <Input id={first ? `entry-${first.id}-title` : undefined} value={first?.title ?? ""}
           aria-label={`${kind.label} 1`}
           onChange={(event) => {
@@ -161,44 +178,30 @@ function DocumentSlot({ profile, kind, entries, busyEntryId, entryFindings, onFi
   const canAdd = kind.repeatable || matching.length === 0;
   const canReplace = !kind.repeatable && matching.length === 1;
   const canDrop = canAdd || canReplace;
-  const fileLabel = kind.generated
-    ? canReplace ? "Replace signed PDF" : "Add signed PDF"
-    : canReplace ? "Replace file" : "Add file";
   return (
     <div
-      data-kind-id={kind.id}
+      data-kind-id={hideLabel ? undefined : kind.id}
       data-requirement={kind.requirement}
-      className={cn(
-        "rounded-lg border bg-white",
-        kind.requirement === "required" && !matching.length ? "border-gray-300" : "border-gray-200",
-      )}
+      className={hideLabel ? undefined : "py-2"}
       onDragOver={(event) => {
         if (canDrop && event.dataTransfer.types.includes("Files")) event.preventDefault();
       }}
       onDrop={(event) => {
-        if (!canDrop) return;
+        if (!canDrop || hideLabel) return;
         event.preventDefault();
         onFiles(kind.id, [...event.dataTransfer.files]);
       }}
     >
-      <div className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h4 className="text-sm font-medium leading-5 text-gray-900">{kind.label}</h4>
-        </div>
-        {(canAdd || canReplace) && (
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <><AddFileControls kind={kind} onFiles={onFiles} onPick={onPick}
-              onLibrary={onLibrary} sourceLabel={sourceLabel}
-              label={fileLabel} />
-              {canAdd && kind.allowUnavailableNote && <Button type="button" variant="outline"
-                className="h-9 border-gray-500/80 px-3" onClick={() => onDescription(kind.id)}>
-                <FilePlus2 /> Add note
-              </Button>}</>
-          </div>
-        )}
-      </div>
+      {!hideLabel && <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="min-w-0 text-sm font-medium leading-5 text-gray-900">{kind.label}
+          {kind.requirement === "required" && !kind.generated && !matching.length &&
+            <span className="ms-2 inline-flex"><RequiredBadge /></span>}
+        </h3>
+        <DocumentActions kind={kind} entries={entries} onFiles={onFiles} onPick={onPick}
+          onLibrary={onLibrary} sourceLabel={sourceLabel} onDescription={onDescription} />
+      </div>}
       {!!matching.length && (
-        <div className="space-y-2 border-t border-gray-100 bg-gray-50/50 p-2.5">
+        <div className={cn("divide-y divide-gray-100", !hideLabel && "mt-3")}>
           {matching.map((entry) => (
             <EntryRow
               key={entry.id}
@@ -222,6 +225,33 @@ function DocumentSlot({ profile, kind, entries, busyEntryId, entryFindings, onFi
   );
 }
 
+function DocumentActions({ kind, entries, onDescription, ...sources }:
+  Pick<Props, "entries" | "onFiles" | "onPick" | "onLibrary" | "sourceLabel" | "onDescription"> & { kind: DocumentKind }) {
+  const count = entries.filter((entry) => entry.kindId === kind.id).length;
+  const canAdd = kind.repeatable || count === 0;
+  const canReplace = !kind.repeatable && count === 1;
+  if (!canAdd && !canReplace) return null;
+  return <div className="flex min-w-0 max-w-full flex-wrap gap-2">
+    <AddFileControls {...sources} kind={kind} label={kind.generated
+      ? canReplace ? "Replace signed PDF" : "Add signed PDF"
+      : canReplace ? "Replace file" : "Add file"} />
+    {canAdd && kind.allowUnavailableNote && <Button type="button" variant="outline"
+      className="h-9 border-gray-500/80 px-3" onClick={() => onDescription(kind.id)}>
+      <FilePlus2 /> Add note
+    </Button>}
+  </div>;
+}
+
+function ExhibitActions(props: Props & { kind: DocumentKind }) {
+  const slots = sourceExhibitSlots(props.entries);
+  return <div className="flex flex-wrap gap-2">
+    {slots && slots.labels.length < 702 && props.onAddExhibit && <Button type="button"
+      variant="outline" className="h-9 border-gray-500/80 px-3"
+      onClick={props.onAddExhibit}><FilePlus2 /> Add exhibit</Button>}
+    <AddFileControls {...props} label="Add files" />
+  </div>;
+}
+
 function ExhibitPool(props: Props & { kind: DocumentKind }) {
   const { kind, entries, onFiles, onAssign } = props;
   const exhibits = entries.filter((entry) => entry.kindId === kind.id);
@@ -235,61 +265,48 @@ function ExhibitPool(props: Props & { kind: DocumentKind }) {
     if (label && labels.includes(label) && !assigned.has(label)) assigned.set(label, entry);
     else pool.push(entry);
   }
-  return <section data-kind-id="exhibit" className="rounded-xl border border-gray-200 bg-white">
-    <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-3">
-      <h3 className="text-sm font-medium text-gray-900">Exhibits</h3>
-      <div className="flex flex-wrap gap-2">
-        {slots && labels.length < 702 && props.onAddExhibit && <Button type="button"
-          variant="outline" className="h-9 border-gray-500/80 px-3"
-          onClick={props.onAddExhibit}><FilePlus2 /> Add exhibit</Button>}
-        <AddFileControls {...props} />
-      </div>
-    </div>
-    {!!labels.length && <div className="grid gap-2 border-t border-gray-100 bg-gray-50/50 p-2.5">
+  return <section data-kind-id="exhibit" aria-label="Exhibits">
+    {!!labels.length && <div className="divide-y divide-gray-200">
       {labels.map((label) => {
         const entry = assigned.get(label);
         return <section key={label} aria-label={`Exhibit ${label} slot`}
-          className="min-w-0 rounded-lg border border-gray-200 bg-white p-2"
+          className="min-w-0 py-4 first:pt-0"
           onDragOver={(event) => event.preventDefault()}
           onDrop={(event) => { const id = event.dataTransfer.getData("text/x-court-record-entry");
             if (id) { event.preventDefault(); event.stopPropagation(); onAssign(id, label); }
             else if (event.dataTransfer.files.length) {
               event.preventDefault(); onFiles(kind.id, [...event.dataTransfer.files], label);
             } }}>
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1 pb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-sm font-semibold text-gray-950">Exhibit {label}</h4>
-            <AddFileControls {...props} targetLabel={label}
-              label={entry ? "Replace file" : "Add file"} />
+            <div className="flex flex-wrap gap-2">
+              <AddFileControls {...props} targetLabel={label}
+                label={entry ? "Replace file" : "Add file"} />
+            </div>
           </div>
-          {entry ? <EntryRow {...props} entry={entry} busy={props.busyEntryId === entry.id}
+          {entry && <EntryRow {...props} entry={entry} busy={props.busyEntryId === entry.id}
             findings={props.entryFindings.get(entry.id) ?? []} dateRequired={false}
             descriptionLabel="Contents description" assignmentLabel={label}
-            dragEnabled /> :
-            <p className="rounded-md border border-dashed border-gray-300 px-3 py-4 text-center text-sm text-gray-500">
-              Drop a file here, or assign one from unassigned files.
-            </p>}
+            dragEnabled />}
           <AffidavitWording statements={mentions[label]} />
         </section>;
       })}
     </div>}
-    <div className="border-t border-gray-100 p-2.5"
+    <div className={cn("mt-3", pool.length ? "py-2" : "rounded-lg border border-dashed border-gray-300 px-3 py-4")}
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => {
         const id = event.dataTransfer.getData("text/x-court-record-entry");
         if (id) { event.preventDefault(); onAssign(id); }
         else if (event.dataTransfer.files.length) onFiles(kind.id, [...event.dataTransfer.files]);
       }}>
-      <h4 className="px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+      <h4 className="text-sm font-medium text-gray-500">
         Unassigned files
       </h4>
-      {pool.length ? <div className="grid gap-2">{pool.map((entry) =>
+      {!!pool.length && <div className="divide-y divide-gray-100">{pool.map((entry) =>
         <EntryRow key={entry.id} {...props} entry={entry}
           busy={props.busyEntryId === entry.id} findings={props.entryFindings.get(entry.id) ?? []}
           dateRequired={false} descriptionLabel="Contents description"
-          assignmentLabels={labels} dragEnabled />)}</div> :
-        <p className="rounded-md border border-dashed border-gray-300 px-3 py-4 text-center text-sm text-gray-500">
-          Drop several exhibit files here or use Add file.
-        </p>}
+          assignmentLabels={labels} dragEnabled />)}</div>}
     </div>
   </section>;
 }
@@ -299,17 +316,17 @@ function AffidavitWording({ statements = [] }: { statements?: string[] }) {
   if (!distinct.length) return null;
   const preview = <span className="min-w-0">
     <span className="block whitespace-nowrap font-semibold text-gray-900 sm:inline">Affidavit said:</span>
-    <span className="mt-0.5 line-clamp-2 sm:ms-1 sm:mt-0 sm:inline" title={distinct[0]}>
+    <span className="mt-0.5 line-clamp-2 group-open:line-clamp-none sm:ms-1 sm:mt-0 sm:inline" title={distinct[0]}>
       {distinct[0]}
     </span>
   </span>;
-  return <details className="group mx-1 mt-2 min-w-0 border-t border-gray-100 pt-1">
+  return <details className="group mt-2 min-w-0">
     <summary className="grid min-h-6 min-w-0 cursor-pointer list-none grid-cols-[minmax(0,1fr)_0.75rem] items-center gap-1.5 rounded-sm text-xs text-gray-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-950 [&::-webkit-details-marker]:hidden">
       {preview}<ChevronDown className="size-3.5 group-open:rotate-180" aria-hidden="true" />
     </summary>
-    <ul className="max-h-32 list-disc space-y-1 overflow-y-auto py-1.5 ps-4 text-xs leading-5 text-gray-600 sm:ms-[5.55rem]">
-      {distinct.map((statement) => <li key={statement}>{statement}</li>)}
-    </ul>
+    {distinct.length > 1 && <ul className="max-h-32 list-disc space-y-1 overflow-y-auto py-1.5 ps-4 text-xs leading-5 text-gray-600">
+      {distinct.slice(1).map((statement) => <li key={statement}>{statement}</li>)}
+    </ul>}
   </details>;
 }
 
@@ -325,12 +342,12 @@ function AddFileControls({ kind, onFiles, onPick, onLibrary, sourceLabel = "Libr
     targetLabel ? callback(kind.id, targetLabel) : callback(kind.id);
   return <>
     {onLibrary && <Button type="button" variant="outline" className="h-9 border-gray-500/80 px-3"
-      onClick={() => withTarget(onLibrary)}><FolderSearch /> {sourceLabel}</Button>}
+      onClick={() => withTarget(onLibrary)}>{sourceLabel}</Button>}
     {onPick ? <Button id={id} type="button" variant={variant} className="h-9 px-3"
-      onClick={() => withTarget(onPick)}><FilePlus2 /> {label}</Button> :
+      onClick={() => withTarget(onPick)}>{label}</Button> :
       <label className={buttonClassName({ variant,
         className: "h-9 cursor-pointer px-3 focus-within:ring-3 focus-within:ring-ring/50" })}>
-        <FilePlus2 className="h-4 w-4" aria-hidden="true" /> {label}
+        {label}
         <input id={id} className="sr-only" type="file" accept={sourceAccept(kind)} multiple={multiple}
           aria-required={(kind.requirement === "required" && !kind.generated) || undefined}
           onChange={(event) => {
@@ -370,9 +387,7 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
     (entry.textlessPageCount ?? 0) > 0 && !entry.nonTextPagesConfirmed;
   return (
     <article
-      className={cn("min-w-0", assignmentLabel
-        ? "p-1"
-        : "rounded-lg border border-gray-200 bg-white p-3")}
+      className="min-w-0 py-3"
       data-entry-id={entry.id}
       aria-busy={busy}
       draggable={dragEnabled}
@@ -385,15 +400,14 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
       }}
     >
       <div className="flex min-w-0 flex-wrap items-start gap-x-3 gap-y-3 sm:flex-nowrap sm:gap-y-0">
-        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-700"><FileText className="h-4 w-4" /></span>
-        <div className="order-last w-full min-w-0 sm:order-none sm:w-auto sm:flex-1">
+        <div className="min-w-0 flex-1">
           <label className="block text-xs font-medium text-gray-600">
             {descriptionLabel}
             <Input id={`entry-${entry.id}-title`} value={entry.title}
               required={entry.descriptionOnly || undefined}
               aria-invalid={titleMissing || undefined}
               onChange={(event) => onEntry(entry.id, { title: event.target.value })}
-              className={cn("mt-1 h-9 border-gray-500/80 font-medium md:text-base",
+              className={cn("mt-1 h-9 font-normal",
                 titleMissing && "border-red-500")} />
           </label>
           {!entry.descriptionOnly && <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
@@ -408,7 +422,7 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
           <Trash2 />
         </Button>
       </div>
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+      <div className="mt-3 flex flex-col gap-2 empty:hidden sm:flex-row sm:items-end">
         {assignmentKinds && (assignmentKinds.length === 1
           ? <Button type="button" variant="outline" className="h-9 border-gray-500/80"
               onClick={() => onAssignKind(entry.id, assignmentKinds[0].id)}>

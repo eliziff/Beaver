@@ -23,7 +23,8 @@ export const providerSessionFeatures: Partial<ChatApplicationFeatures> = {
         transport: "app-server-v2", model: input.model,
         reasoning_effort: input.reasoningEffort?.trim() || "max",
         service_tier: "default",
-        scope: { user_id: input.auth.userId, project_id: input.projectId },
+        scope: { user_id: input.auth.userId, project_id: input.projectId,
+          research_file_id: input.researchFileId ?? null },
         auth: { command: process.env.CODEX_COMMAND?.trim() || "codex",
           codex_home: beaverCodexHome(), api_key_sha256: process.env.CODEX_API_KEY
             ? providerSessionCompatibilityKey(process.env.CODEX_API_KEY) : null } });

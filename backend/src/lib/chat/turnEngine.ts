@@ -13,11 +13,11 @@ import {
 } from "../llm";
 import { isAbortError, throwIfAborted } from "../llm/abort";
 import { safeErrorMessage } from "../safeError";
-import type { McpToolEvent } from "../mcp/types";
-import type { LocalWorkflowRunEvent } from "./localWorkflowRun";
 import { assistantToolActivityLabel } from "./tools/a2ajTools";
 import { ASK_INPUTS_TOOL } from "./tools/toolSchemas";
-import type { AskInputsEvent, EditAnnotation, ToolActivity } from "./types";
+import { publicAssistantEvent, type AssistantEvent, type AskInputsEvent,
+  type PublicAssistantEvent, type ReadSubagentAssignment, type ReadSubagentCheckpoint,
+  type ReadSubagentEvent, type ToolActivity, type LegalEvidenceReceiptEvent } from "./assistantEvents";
 import {
   TurnToolRegistry,
   toolText,
@@ -50,7 +50,6 @@ import {
   restorePriorLegalEvidence,
   submitLegalEvidenceAnswer,
   type PriorLegalEvidence,
-  type LegalEvidenceReceiptEvent,
   type LegalEvidenceTurnState,
 } from "./legalEvidence";
 import {
@@ -66,9 +65,6 @@ import {
   readSubagentInstruction,
   readSubagentResumePrompt,
   runReadSubagentRound,
-  type ReadSubagentAssignment,
-  type ReadSubagentCheckpoint,
-  type ReadSubagentEvent,
 } from "./readSubagents";
 import {
   SOURCE_SEARCH_SYSTEM_PROMPT,
@@ -79,44 +75,6 @@ import {
   estimateContextTokens,
   modelContextWindow,
 } from "../llm/contextWindow";
-import { publicAssistantEvent } from "./chatTranscript";
-
-export type AssistantEvent =
-  | { type: "reasoning"; text: string }
-  | ({ type: "tool_activity" } & ToolActivity)
-  | AskInputsEvent
-  | {
-      type: "document_artifact";
-      action: "created" | "edited";
-      filename: string;
-      download_url: string;
-      document_id: string;
-      version_id: string;
-      version_number: number | null;
-      edit_mode?: "manual" | "auto";
-      annotations?: EditAnnotation[];
-    }
-  | McpToolEvent
-  | LegalEvidenceReceiptEvent
-  | ReadSubagentEvent
-  | LocalWorkflowRunEvent
-  | { type: "content"; text: string }
-  | { type: "steering"; id: string; text: string }
-  | {
-      type: "context_usage";
-      used_tokens: number;
-      window_tokens: number;
-    }
-  | { type: "compaction"; status: "running" | "completed" | "failed" }
-  | {
-      type: "context_checkpoint";
-      schema_version: 1;
-      summary?: string;
-      keep_current: boolean;
-      provider?: "claude" | "openai";
-      payload?: Record<string, unknown>;
-    }
-  | { type: "error"; message: string };
 
 export class AssistantStreamError extends Error {
   constructor(
@@ -147,7 +105,7 @@ export type ChatTurnResult = {
   status: "complete" | "paused";
   fullText: string;
   events: AssistantEvent[];
-  citations: unknown[];
+  citations: Record<string, unknown>[];
   continuationId?: string;
   evidence: LegalEvidenceTurnState;
 };
@@ -170,7 +128,7 @@ export async function runChatTurn(options: {
     evidence: LegalEvidenceTurnState,
     scope: "main" | ReadSubagentAssignment,
   ) => BeaverTool<ChatToolContext>[];
-  emit: (event: unknown) => void;
+  emit: (event: PublicAssistantEvent) => void;
   apiKeys?: UserApiKeys;
   reasoningEffort?: string;
   compactThreshold?: number;
@@ -190,10 +148,12 @@ export async function runChatTurn(options: {
   onProviderControl?: (control: ProviderTurnControl | null) => void;
   canRetryProviderSession?: () => boolean;
   separateContentBlocks?: boolean;
+  submissionTool?: string;
   prepareMessages?: (
     onCompaction: (status: "running" | "completed" | "failed") => void,
   ) => Promise<LlmMessage[]>;
   onSubagentEvent?: (event: ReadSubagentEvent) => void;
+  onResearchObserved?: (event: LegalEvidenceReceiptEvent) => void;
   onActivity?: () => void;
 }) {
   const {
@@ -205,6 +165,7 @@ export async function runChatTurn(options: {
   const events: AssistantEvent[] = [];
   const toolActivities = new Map<string, ToolActivity>();
   const evidence = options.evidenceState ?? createLegalEvidenceTurnState();
+  const submissionTool = options.submissionTool ?? LEGAL_EVIDENCE_TOOL_NAME;
   registerPriorLegalEvidence(evidence, options.priorEvidence ?? []);
   const addEvent = (event: AssistantEvent) => events.push(event);
   const replaceLastEvent = (
@@ -346,6 +307,12 @@ export async function runChatTurn(options: {
       content: JSON.stringify({ ok: false, error: capability.reason }),
     };
     const childEvidence = createLegalEvidenceTurnState("citation_structure");
+    const inheritReads = (grounding: LegalEvidenceReceiptEvent) => {
+      for (const receipt of grounding.evidence) registerLegalEvidence(evidence, receipt,
+        childEvidence.evidence.get(receipt.evidence_id));
+      for (const query of grounding.queries) registerLegalResearchQueries(evidence, [query], query.model);
+      options.onResearchObserved?.(grounding);
+    };
     let continuationId = resume?.continuation_id;
     const id = resume?.id ?? call.id;
     const activities = new Map(
@@ -404,9 +371,8 @@ export async function runChatTurn(options: {
         evidenceState: childEvidence,
         priorEvidence: resume?.evidence,
         emit(event) {
-          if (!event || typeof event !== "object" || Array.isArray(event)) return;
-          const { type, ...activity } = event as ToolActivity & { type?: string };
-          if (type === "tool_activity") {
+          if (event.type === "tool_activity") {
+            const { type: _type, ...activity } = event;
             activities.set(activity.id, activity);
             running(activity);
           }
@@ -430,11 +396,7 @@ export async function runChatTurn(options: {
       if (!grounding || grounding.status !== "passed") {
         throw new Error("Reader returned no grounded answer.");
       }
-      const used = new Set(grounding.claims.flatMap((claim) => claim.evidence_ids));
-      for (const evidenceId of used) {
-        const registered = child.evidence.evidence.get(evidenceId);
-        if (registered) registerLegalEvidence(evidence, registered.receipt, registered);
-      }
+      inheritReads(grounding);
       if (resume) resumableReaders.delete(resume.id);
       publish({
         ...base,
@@ -455,6 +417,8 @@ export async function runChatTurn(options: {
         }),
       };
     } catch (error) {
+      const observed = legalEvidenceReceiptEvent({ ...childEvidence, answer: null, attempted: false, failure: null });
+      if (observed) inheritReads(observed);
       const interrupted = Boolean(signal?.aborted) || isAbortError(error);
       const status = interrupted ? "interrupted" as const : "error" as const;
       const saved = checkpoint();
@@ -507,12 +471,11 @@ export async function runChatTurn(options: {
   }));
   const registry = new TurnToolRegistry([
     askTool,
-    evidenceTool(evidence),
+    ...(submissionTool === LEGAL_EVIDENCE_TOOL_NAME ? [evidenceTool(evidence)] : []),
     ...mainTools,
     ...readerTools,
   ]);
-  const systemPrompt = [options.systemPrompt, registry.specialistPrompt()]
-    .filter(Boolean).join("\n\n");
+  const systemPrompt = options.systemPrompt;
   const resolveTools = () => registry.visible();
   const runTools = async (
     calls: NormalizedToolCall[],
@@ -521,7 +484,38 @@ export async function runChatTurn(options: {
     throwIfAborted(signal);
     const previousActivity = context.onActivity;
     context.onActivity = onActivity;
-    const batch = await registry.run(calls, context, providerSignal)
+    const results = await registry.run(calls, context, providerSignal, (call, outcome) => {
+      const observed = options.onResearchObserved ? createLegalEvidenceTurnState() : null;
+      const entries = outcome.evidence?.flatMap((receipt) => {
+        registerLegalEvidence(evidence, receipt, outcome.evidenceSources?.get(receipt.evidence_id));
+        if (observed) registerLegalEvidence(observed, receipt);
+        return receipt.span_text ? [evidence.evidence.get(receipt.evidence_id)!] : [];
+      }) ?? [];
+      registerLegalResearchQueries(evidence, outcome.queryReceipts ?? [], options.model);
+      if (observed) {
+        registerLegalResearchQueries(observed, outcome.queryReceipts ?? [], options.model);
+        const receipt = legalEvidenceReceiptEvent(observed);
+        if (receipt) options.onResearchObserved?.(receipt);
+      }
+      for (const event of outcome.events ?? []) {
+        addEvent(event);
+        const visible = publicAssistantEvent(event);
+        if (visible) emit(visible);
+      }
+      if (outcome.pause) paused = outcome.pause;
+      const activity = toolActivities.get(call.id);
+      if (activity?.status === "running") {
+        const citations = activity.citations?.length ? activity.citations
+          : outcome.activityCitations?.length ? outcome.activityCitations
+          : createLegalEvidenceCitationsFromEntries(entries);
+        emitToolActivity({
+          ...activity,
+          status: (outcome.metadata?.status ?? (outcome.result.isError ? "error" : "ok")) === "error"
+            ? "error" : "completed",
+          ...(citations.length && { citations }),
+        });
+      }
+    })
       .catch((error) => {
         settleToolActivities(
           providerSignal.aborted ? "interrupted" : "error",
@@ -530,14 +524,6 @@ export async function runChatTurn(options: {
         throw error;
       })
       .finally(() => { context.onActivity = previousActivity; });
-    batch.evidence.forEach((receipt) => registerLegalEvidence(evidence, receipt));
-    registerLegalResearchQueries(evidence, batch.queryReceipts, options.model);
-    for (const event of batch.events) {
-      addEvent(event);
-      const visible = publicAssistantEvent(event);
-      if (visible) emit(visible);
-    }
-    if (batch.pause) paused = batch.pause;
     if (paused) {
       text = "";
       boundary = false;
@@ -550,26 +536,7 @@ export async function runChatTurn(options: {
       text = grounded;
       boundary = false;
     }
-    for (const [resultIndex, result] of batch.results.entries()) {
-      const activity = toolActivities.get(result.tool_use_id);
-      if (activity?.status === "running") {
-        const outcome = batch.outcomes[resultIndex];
-        const entries = outcome.evidence?.flatMap((receipt) => {
-          const registered = evidence.evidence.get(receipt.evidence_id);
-          return receipt.span_text ? [registered ?? { receipt }] : [];
-        }) ?? [];
-        const citations = [
-          ...createLegalEvidenceCitationsFromEntries(entries),
-          ...(outcome.activityCitations ?? []),
-        ].map((citation, index) => ({ ...citation, ref: index + 1 }));
-        emitToolActivity({
-          ...activity,
-          status: result.status === "error" ? "error" : "completed",
-          ...(citations.length && { citations }),
-        });
-      }
-    }
-    return batch.results;
+    return results;
   };
   const callbacks = {
     onActivity() {
@@ -621,12 +588,14 @@ export async function runChatTurn(options: {
       ) return;
       const label = defaultLabel ??
         assistantToolActivityLabel(call.name, call.input) ?? call.name;
+      const citations = registry.activityCitations(call);
       boundary = Boolean(text);
       emitToolActivity({
         id: call.id,
         tool: call.name,
         status: "running",
         label,
+        ...(citations.length && { citations }),
       });
     },
     onContextUsage(usage: {
@@ -805,7 +774,7 @@ export async function runChatTurn(options: {
       boundary = false;
       providerResult = await provider(providerResult?.continuationId, {
         draft: rejected,
-        findings: GROUNDED_LEGAL_REPAIR_INSTRUCTION,
+        findings: GROUNDED_LEGAL_REPAIR_INSTRUCTION.replace(LEGAL_EVIDENCE_TOOL_NAME, submissionTool),
       });
       if (renderLegalEvidenceAnswer(evidence) === null) text = UNVERIFIED_LEGAL_ANSWER;
     }
@@ -820,7 +789,7 @@ export async function runChatTurn(options: {
         boundary = false;
         providerResult = await provider(providerResult?.continuationId, {
           draft: rejected,
-          findings: `The answer did not pass Beaver's grounding gate: ${failure} Continue the same request and finish with submit_grounded_answer. Reuse the evidence_ids already registered in this turn; do not call Read again for them. Retrieve only genuinely missing authority passages. Every case, legislation, journal, or Hansard source named in the answer requires a supporting evidence_id. Do not narrate this correction.`,
+          findings: `Grounding error: ${failure} Revise the answer with available evidence_ids and finish with ${submissionTool}. Retrieve only missing passages.`,
         });
         finalized = finalizeLegalEvidence(evidence, text);
       }
@@ -840,6 +809,8 @@ export async function runChatTurn(options: {
     if (!paused) {
       settleToolActivities(isAbortError(error) ? "interrupted" : "error");
       partialEvents();
+      const observed = legalEvidenceReceiptEvent({ ...evidence, answer: null, attempted: false, failure: null });
+      if (observed) addEvent(observed);
       if (isAbortError(error)) throw new AssistantStreamAbortError(text, events);
       const message = safeErrorMessage(error, "Stream error");
       addEvent({ type: "error", message });

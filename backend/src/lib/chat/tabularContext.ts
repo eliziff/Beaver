@@ -20,20 +20,12 @@ export function tabularChatContext(detail: Detail) {
     ),
     documents: detail.review.document_ids.flatMap((id) => {
       const document = documentsById.get(id);
-      return document
-        ? [{
-            id,
-            filename:
-              typeof document.filename === "string" && document.filename.trim()
-                ? document.filename.trim()
-                : "Untitled document",
-          }]
-        : [];
+      return document ? [{ id, filename: document.filename.trim() }] : [];
     }),
     cells: new Map(
       detail.cells.map((cell) => [
         `${cell.column_index}:${cell.document_id}`,
-        cell.content,
+        { content: cell.content, status: cell.status },
       ]),
     ),
   };
@@ -45,9 +37,8 @@ export function tabularChatContext(detail: Detail) {
     .join("\n");
   return {
     store,
-    prompt: `TABULAR REVIEW CONTEXT
-You are working in the tabular review "${detail.review.title || "Untitled Review"}".
-Use read_table_cells before relying on cell content.
+    prompt: `TABULAR REVIEW CONTEXT: ${detail.review.id}
+"${detail.review.title || "Untitled Review"}"
 
 DOCUMENTS (rows):
 ${rows || "- (none)"}
@@ -55,6 +46,6 @@ ${rows || "- (none)"}
 COLUMNS (fields):
 ${columns || "- (none)"}
 
-When cell content supports the answer, finish with submit_grounded_answer using the evidence_id values returned by read_table_cells. Do not write citation markers or citation metadata yourself.`,
+Read this review with update_research_table to inspect its selected research and arrangement before organizing it. Keep completed no-match results distinct from incomplete or failed extraction.`,
   };
 }

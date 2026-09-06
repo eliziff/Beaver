@@ -1,12 +1,8 @@
 import { useRef, useState } from "react";
 import { Check, Copy, Minimize2 } from "lucide-react";
-import {
-    type WorkflowRunEvent,
-    type Citation,
-    type EditAnnotation,
-    type EditResolveHandlers,
-    type EditResolved,
-} from "../shared/types";
+import type { WorkflowRunEvent } from "@/app/lib/api/chat";
+import type { Citation } from "@/app/lib/citations";
+import type { EditAnnotation, EditResolveHandlers, EditResolved } from "@/app/lib/api/documents";
 import type {
     AssistantArtifact,
     AssistantMessageState,
@@ -65,10 +61,10 @@ export function AssistantMessage({
 }: Props) {
     const contentDivRef = useRef<HTMLDivElement | null>(null);
     const [isCopied, setIsCopied] = useState(false);
-    const [resolvedOverrides, setResolvedOverrides] = useState<Record<string, string>>({});
+    const [resolvedVersions, setResolvedVersions] = useState<Record<string, string>>({});
     const handleEditResolved = (args: EditResolved) => {
-        if (args.downloadUrl) {
-            setResolvedOverrides((current) => ({ ...current, [args.documentId]: args.downloadUrl! }));
+        if (args.versionId) {
+            setResolvedVersions((current) => ({ ...current, [args.documentId]: args.versionId! }));
         }
         onEditResolved?.(args);
     };
@@ -208,11 +204,13 @@ export function AssistantMessage({
     const documentCount = new Set(edits.map(({ annotation }) => annotation.document_id)).size;
     const automaticEdits = edits.length > 0 && edits.every(({ editMode }) => editMode === "auto");
     const downloadBlock = (artifact: AssistantArtifact) => {
-        const onOpen = onOpenDocument && artifact.documentId
+        const versionId = artifact.type === "edited"
+            ? resolvedVersions[artifact.documentId] ?? artifact.versionId : artifact.versionId;
+        const onOpen = onOpenDocument
             ? () => onOpenDocument({
-                  documentId: artifact.documentId!,
+                  documentId: artifact.documentId,
                   filename: artifact.filename,
-                  versionId: artifact.versionId ?? null,
+                  versionId,
                   versionNumber: artifact.versionNumber ?? null,
               })
             : artifact.type === "edited" && onEditViewClick && artifact.annotations[0]
@@ -222,14 +220,11 @@ export function AssistantMessage({
             <DocDownloadBlock
                 key={artifact.id}
                 filename={artifact.filename}
-                download_url={
-                    artifact.type === "edited" && artifact.documentId
-                        ? resolvedOverrides[artifact.documentId] ?? artifact.downloadUrl
-                        : artifact.downloadUrl
-                }
+                documentId={artifact.documentId}
+                versionId={versionId}
                 versionNumber={artifact.versionNumber ?? null}
                 onOpen={onOpen}
-                isReloading={artifact.type === "edited" && artifact.documentId ? isDocReloading?.(artifact.documentId) ?? false : false}
+                isReloading={artifact.type === "edited" ? isDocReloading?.(artifact.documentId) ?? false : false}
             />
         );
     };

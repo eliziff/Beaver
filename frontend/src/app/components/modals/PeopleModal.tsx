@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";import { Loader2, Trash2, User } from "lucide-react";
-import type { ProjectPeople } from "@/app/lib/beaverApi";
+import type { ProjectPeople } from "@/app/lib/api/projects";
 import { AddUserInput } from "../shared/AddUserInput";
 import { Modal } from "./Modal";
 interface SharedResource {

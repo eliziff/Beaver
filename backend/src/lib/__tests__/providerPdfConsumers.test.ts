@@ -4,7 +4,6 @@ const queueProviderPdfAttachment = vi.hoisted(() => vi.fn());
 const lookupProviderPdfReference = vi.hoisted(() => vi.fn());
 const rehydrateProviderPdfReference = vi.hoisted(() => vi.fn());
 const hasNativeOpinionStructure = vi.hoisted(() => vi.fn());
-
 vi.mock("../providerPdfLibraryBridge", () => ({
   lookupProviderPdfReference,
   queueProviderPdfAttachment,
@@ -32,7 +31,9 @@ vi.mock("../remoteUrlSafety", async (importOriginal) => ({
 }));
 
 import { runLocalAssistantTools } from "./support/localAssistantTools";
-import { courtlistenerPdfRendition } from "../chat/courtlistenerToolRunner";
+import { legalSourceOperations } from "../legalSourceApplication";
+import { courtlistenerLegalSourceProvider } from "../legalSources/courtlistener";
+import type { LegalSourcePassage, LegalSourceReference } from "../legalSources";
 import { resourceReference } from "../resourceReferences";
 
 const fallback = {
@@ -53,15 +54,57 @@ beforeEach(() => {
 });
 
 describe("provider PDF consumers", () => {
-  it("returns queued/ready exact states with direct provider evidence", async () => {
-    const requestReference = `mike-provider-pdf:v1:govinfo:${"1".repeat(64)}`;
+  it("keeps source passages when one shared optional PDF fails", async () => {
+    const source = { provider: "courtlistener", id: "42", kind: "case" as const };
+    const native = { case: { clusterId: 42, opinions: [{ id: 8 }],
+      pdfUrl: "https://storage.courtlistener.com/pdf/42.pdf" } };
+    const passages = ["First passage", "Second passage"].map((text) => ({
+      source, native, text, role: "selected", locator: { label: "1" },
+    } as LegalSourcePassage));
+    const reader = vi.spyOn(courtlistenerLegalSourceProvider, "readPassage")
+      .mockResolvedValue(passages);
+    try {
+      const ready = await legalSourceOperations.readWithRenditions({ source }, "local-user");
+      expect(ready).toMatchObject({ status: "found", values: passages,
+        pdfRenditions: [{ ...fallback, resource: resourceReference.source("pdf", "reference-1") }] });
+      expect(queueProviderPdfAttachment.mock.calls[0][0].source).toEqual(source);
+      hasNativeOpinionStructure.mockReturnValue(true);
+      expect(await legalSourceOperations.readWithRenditions({ source }, "local-user"))
+        .toEqual({ status: "found", values: passages, pdfRenditions: [] });
+      native.case.opinions.push({ id: 10 });
+      hasNativeOpinionStructure.mockImplementation((opinion) => opinion.id === 8);
+      expect(await legalSourceOperations.readWithRenditions({ source }, "local-user"))
+        .toEqual(ready);
+      queueProviderPdfAttachment.mockRejectedValue(new Error("PDF unavailable"));
+      const failed = await legalSourceOperations.readWithRenditions({ source }, "local-user");
+      expect(failed).toEqual({ status: "found", values: passages, pdfRenditions: [] });
+    } finally { reader.mockRestore(); }
+  });
+
+  it.each<{ source: LegalSourceReference; jurisdiction: string }>([
+    { source: { provider: "courtlistener", id: "42", part: "8", kind: "case",
+      citation: "410 U.S. 113", title: "CourtListener decision", collection: "scotus" }, jurisdiction: "US" },
+    { source: { provider: "a2aj", id: "2026 SCC 1", kind: "case", citation: "2026 SCC 1",
+      title: "Canadian decision", collection: "SCC", language: "en" }, jurisdiction: "CA" },
+    { source: { provider: "a2aj", id: "LRC 1985, c C-46", kind: "legislation",
+      citation: "LRC 1985, c C-46", title: "Code criminel", collection: "STATUTES-FED", language: "fr" }, jurisdiction: "CA" },
+    { source: { provider: "govinfo", id: "USCOURTS-example", kind: "case",
+      citation: "1:22-cv-00930", title: "Federal decision", collection: "USCOURTS" }, jurisdiction: "US" },
+    { source: { provider: "govinfo", id: "CFR-2025-title1", kind: "legislation",
+      citation: "1 CFR 1.1", title: "Federal regulation", collection: "CFR", date: "2025-01-01" }, jurisdiction: "US" },
+    { source: { provider: "tna", id: "uksc/2026/1", kind: "case",
+      citation: "[2026] UKSC 1", title: "UK decision", collection: "uksc" }, jurisdiction: "UK" },
+    { source: { provider: "govuk-et", id: "tribunal-decision", kind: "case",
+      citation: "1234/2026", title: "Tribunal decision", collection: "employment-tribunal" }, jurisdiction: "UK" },
+  ])("preserves $source.provider $source.kind identity through PDF lookup and rehydration", async ({ source, jurisdiction }) => {
+    const requestReference = `mike-provider-pdf:v1:${source.provider}:${"1".repeat(64)}`;
     const sourceReference = `${requestReference}:${"2".repeat(64)}`;
     const handle = `mike-evidence:v1:${"3".repeat(64)}`;
     const ready = {
       availability: "ready",
       state: {
-        provider: "govinfo",
-        identity: "USCOURTS-example",
+        provider: source.provider,
+        identity: source.id,
         request_reference: requestReference,
         reference_id: sourceReference,
         source_reference: sourceReference,
@@ -72,11 +115,12 @@ describe("provider PDF consumers", () => {
         checked_at: "2026-07-27T00:00:00.000Z",
       },
       params: {
-        provider: "govinfo",
-        identity: "USCOURTS-example",
+        provider: source.provider,
+        identity: source.id,
+        source,
         structureSource: "flat_text",
         url: "https://www.govinfo.gov/content/pkg/example/pdf/example.pdf",
-        title: "Example decision",
+        title: "Attachment title must not replace the source citation",
       },
       lookup: {
         status: "found",
@@ -97,7 +141,10 @@ describe("provider PDF consumers", () => {
               "Unique first context. The exact governing rule applies here. " +
               "Unique first conclusion.",
             page_numbers: [3],
+            proposition: { sentence: "The supporting proposition refers to this note.",
+              passage_since_prior_note: "The supporting proposition refers to this note." },
             confidence: 0.99,
+            note: { label: "1", warnings: ["Footnote marker is uncertain."] },
             confidence_basis: "native",
             provenance: "parser",
           },
@@ -154,29 +201,35 @@ describe("provider PDF consumers", () => {
     const payload = JSON.parse(resolved.content);
     expect(payload).toMatchObject({
       ok: true,
-      reference_id: sourceReference,
-      request_reference: requestReference,
+      title: source.title,
+      citation: source.citation,
       handle,
     });
     expect(resolved.evidence).toEqual([
       expect.objectContaining({
-        provider: "govinfo",
-        jurisdiction: "US",
-        source_class: "legislation",
-        dataset: "govinfo",
-        span_text: expect.stringContaining("exact governing rule"),
+        provider: source.provider,
+        jurisdiction,
+        source_class: source.kind,
+        citation: source.citation,
+        name: source.title,
+        dataset: source.collection,
+        language: source.language ?? "en",
+        version: source.date ?? null,
+        source_reference: { id: source.id, ...(source.part ? { part: source.part } : {}) },
+        source_sha256: "2".repeat(64),
+        stable_source_id: `${sourceReference}:page:page-3`,
+        span_text: "Unique first context. The exact governing rule applies here. " +
+          "Unique first conclusion.\n\nThe supporting proposition refers to this note.",
         external_url:
           "https://www.govinfo.gov/content/pkg/example/pdf/example.pdf#page=3",
         locator: { kind: "page", label: "page=3" },
       }),
     ]);
-    expect(payload.evidence_ids).toEqual([
-      (resolved.evidence?.[0] as { evidence_id: string }).evidence_id,
-    ]);
     expect(payload.passages).toEqual([expect.objectContaining({
       evidence_id: (resolved.evidence?.[0] as { evidence_id: string }).evidence_id,
-      locator: { kind: "page", label: "page=3" },
-      exact_passage: expect.stringContaining("exact governing rule"),
+      kind: "page", locator: "[page 3]", pages: [3], confidence: 0.99,
+      note: { label: "1", warnings: ["Footnote marker is uncertain."] },
+      text: resolved.evidence![0].span_text,
     })]);
 
     const [rehydrated] = await runLocalAssistantTools(
@@ -192,43 +245,9 @@ describe("provider PDF consumers", () => {
         },
       ],
     );
-    expect(JSON.parse(rehydrated.content).reference_id).toBe(sourceReference);
-  });
-
-  it("imports a CourtListener cluster PDF only when opinion structure is flat", async () => {
-    const opinion = { id: 8, text: "Opinion text" };
-    const cached = {
-      clusterId: 42,
-      caseName: "Example v. State",
-      citations: ["1 F.4th 2"],
-      url: "https://www.courtlistener.com/opinion/42/example/",
-      pdfUrl: "https://storage.courtlistener.com/pdf/42.pdf",
-      dateFiled: "2026-01-01",
-      opinions: [opinion],
-    };
-
-    const flatResult = await courtlistenerPdfRendition(cached, "local-user");
-
-    expect(queueProviderPdfAttachment).toHaveBeenCalledOnce();
-    expect(flatResult).toEqual({
-      ...fallback,
-      resource: resourceReference.source("pdf", "reference-1"),
-    });
-
-    queueProviderPdfAttachment.mockClear();
-    hasNativeOpinionStructure.mockReturnValue(true);
-    await courtlistenerPdfRendition(cached, "local-user");
-    expect(queueProviderPdfAttachment).not.toHaveBeenCalled();
-
-    hasNativeOpinionStructure.mockImplementation(
-      (candidate) => (candidate as { id?: number }).id === 8,
-    );
-    const mixed = {
-      ...cached,
-      opinions: [opinion, { id: 10, text: "Flat sibling opinion" }],
-    };
-    await courtlistenerPdfRendition(mixed, "local-user");
-    expect(queueProviderPdfAttachment).toHaveBeenCalledOnce();
+    expect(JSON.parse(rehydrated.content)).toEqual({ ...payload,
+      resource: resourceReference.source("pdf", sourceReference) });
+    expect(rehydrated.evidence).toEqual(resolved.evidence);
   });
 
   it("keeps A2AJ links server-side without queuing PDF work", async () => {
@@ -296,16 +315,15 @@ describe("provider PDF consumers", () => {
     }]);
     expect(JSON.parse(found.content)).toMatchObject({
       ok: true,
-      query: "substantive judicial language",
       total_matches: 6,
-      evidence_ids: expect.arrayContaining([expect.stringMatching(/^e_/u)]),
+      passages: expect.arrayContaining([expect.objectContaining({ evidence_id: expect.stringMatching(/^e_/u) })]),
       hits: expect.arrayContaining([expect.objectContaining({
         evidence_id: expect.stringMatching(/^e_/u),
       })]),
     });
-    expect(found.evidenceRefs?.[0]).toMatchObject({
-      handle: expect.stringMatching(/^e_/u),
-      kind: "evidence",
+    expect(found.evidence?.[0]).toMatchObject({
+      evidence_id: expect.stringMatching(/^e_/u),
+      span_text: expect.stringContaining("substantive judicial language"),
     });
   });
 });

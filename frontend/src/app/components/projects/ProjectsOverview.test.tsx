@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";
 
-import type { Project } from "@/app/components/shared/types";
+import type { Project } from "@/app/lib/api/projects";
 import { ProjectsOverview } from "./ProjectsOverview";
 
 const { deleteProject, listProjects, push, saveChat } = vi.hoisted(() => ({
@@ -45,10 +45,10 @@ vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     useChatHistoryContext: () => ({ saveChat }),
 }));
 
-vi.mock("@/app/lib/beaverApi", () => ({
-    listProjects,
-    updateProject: vi.fn(),
-    deleteProject,
+vi.mock("@/app/lib/api/projects", () => ({
+  listProjects,
+  updateProject: vi.fn(),
+  deleteProject
 }));
 
 vi.mock("./NewProjectModal", () => ({

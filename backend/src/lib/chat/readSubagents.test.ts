@@ -8,8 +8,8 @@ import {
   readSubagentAssignment,
   resumableReadSubagents,
   runReadSubagentRound,
-  type ReadSubagentCheckpoint,
 } from "./readSubagents";
+import type { ReadSubagentCheckpoint } from "./assistantEvents";
 import type { NormalizedToolCall, NormalizedToolResult } from "../llm";
 
 const assignment = (

@@ -2,10 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { AddColumnModal } from "./AddColumnModal";
 import { PROMPT_PRESETS } from "./columnPresets";
-import { generateTabularColumnPrompt } from "@/app/lib/beaverApi";
+import { generateTabularColumnPrompt } from "@/app/lib/api/tabular";
 
-vi.mock("@/app/lib/beaverApi", () => ({
-    generateTabularColumnPrompt: vi.fn(),
+vi.mock("@/app/lib/api/tabular", () => ({
+  generateTabularColumnPrompt: vi.fn()
 }));
 
 it("applies a searched preset and keeps Escape inside the preset picker", () => {
@@ -131,7 +131,7 @@ it("edits tag options and auto-generates a prompt", async () => {
         key: "Enter",
     });
     fireEvent.click(
-        screen.getByRole("button", { name: "Auto-Generate Prompt" }),
+        screen.getByRole("button", { name: "Regenerate prompt" }),
     );
     await waitFor(() =>
         expect(screen.getByLabelText("Prompt")).toHaveValue("Generated prompt"),
@@ -151,4 +151,16 @@ it("edits tag options and auto-generates a prompt", async () => {
             tags: ["Existing", "New"],
         }),
     );
+});
+
+it("keeps a custom prompt when renaming a column or clearing its preset", async () => {
+    const onSave = vi.fn();
+    render(<AddColumnModal open existingCount={1} onClose={vi.fn()} onAdd={vi.fn()} onSave={onSave}
+        editingColumn={{ index: 0, name: "Custom", prompt: "Keep my instructions", format: "text" }} />);
+    fireEvent.change(screen.getByLabelText("Column title"), { target: { value: "Assignment" } });
+    expect(screen.getByLabelText("Prompt")).toHaveValue("Keep my instructions");
+    fireEvent.click(screen.getByRole("button", { name: "Choose column preset" }));
+    fireEvent.click(screen.getByRole("button", { name: "None", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ name: "Assignment", prompt: "Keep my instructions" })));
 });

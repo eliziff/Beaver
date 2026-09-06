@@ -17,6 +17,8 @@ type ProjectDirectoryPage = ProjectPage<
   { kind: "folder"; folder: ProjectFolder } | { kind: "document"; id: string },
   [number, string, string]
 >;
+export type ProjectDirectoryItem = { kind: "folder"; folder: ProjectFolder }
+  | { kind: "document"; document: DocumentRecord };
 type ProjectInput = { name: string; cmNumber: string | null; practice: string | null;
   sharedWith: string[]; metadata?: Record<string, unknown>; notes?: string | null };
 type ProjectUpdate = Partial<ProjectInput>;
@@ -44,7 +46,7 @@ export type ProjectRepository = {
 export type ProjectStore = {
   page: ProjectRepository["page"];
   create: ProjectRepository["create"];
-  directory(scope: ProjectScope, projectId: string, options: ProjectDirectoryOptions): Promise<ProjectPage<Record<string, unknown>, [number, string, string]>>;
+  directory(scope: ProjectScope, projectId: string, options: ProjectDirectoryOptions): Promise<ProjectPage<ProjectDirectoryItem, [number, string, string]>>;
   get(scope: ProjectScope, id: string): Promise<ProjectRecord | null>;
   people: ProjectRepository["people"];
   update: ProjectRepository["update"];
@@ -52,9 +54,9 @@ export type ProjectStore = {
   deleteAll(scope: ProjectScope): Promise<number>;
   detachDocument(scope: ProjectScope, projectId: string, id: string): Promise<boolean>;
   attachDocument(scope: ProjectScope, projectId: string, id: string):
-    Promise<{ document: ProjectRecord; created: boolean }>;
+    Promise<{ document: DocumentRecord; created: boolean }>;
   renameDocument(scope: ProjectScope, projectId: string, id: string,
-    filename: unknown): Promise<ProjectRecord>;
+    filename: unknown): Promise<DocumentRecord>;
   getFolder: ProjectRepository["folder"];
   createFolder: ProjectRepository["createFolder"];
   ensureRootFolder(scope: ProjectScope, projectId: string, name: string,
@@ -62,7 +64,7 @@ export type ProjectStore = {
   updateFolder: ProjectRepository["updateFolder"];
   deleteFolder(scope: ProjectScope, projectId: string, id: string): Promise<void>;
   moveDocument(scope: ProjectScope, projectId: string, id: string,
-    folderId: string | null): Promise<ProjectRecord>;
+    folderId: string | null): Promise<DocumentRecord>;
 };
 
 export async function projectDocuments(projects: ProjectStore, scope: ApplicationScope,
@@ -77,11 +79,9 @@ export async function projectDocuments(projects: ProjectStore, scope: Applicatio
         q: "", parentFolderId: parent.id, limit: 100, after,
       });
       for (const row of page.items) {
-        const folder = row.folder as ProjectFolder | undefined,
-          document = row.document as DocumentRecord | undefined;
-        if (row.kind === "folder" && folder?.id) queue.push({ id: folder.id,
-          path: [parent.path, String(folder.name ?? "").trim()].filter(Boolean).join(" / ") });
-        else if (row.kind === "document" && document) documents.push({ ...document,
+        if (row.kind === "folder") queue.push({ id: row.folder.id,
+          path: [parent.path, row.folder.name.trim()].filter(Boolean).join(" / ") });
+        else documents.push({ ...row.document,
           ...(parent.path ? { folder_path: parent.path } : {}) });
       }
       after = page.nextAfter;
@@ -121,11 +121,13 @@ export function createProjectStore(
     async directory(scope, projectId, options) {
       await project(scope, projectId);
       const page = await repository.directory(scope, projectId, options);
-      const items = await Promise.all(page.items.map(async (item) => item.kind === "folder"
-        ? item : { kind: "document" as const,
-          document: await documents.metadata(scope, item.id) }));
-      return { ...page, items: items.flatMap((item) => item.kind === "document" &&
-        item.document?.project_id !== projectId ? [] : [item as Record<string, unknown>]) };
+      const found = new Map((await documents.metadataMany(scope, page.items.flatMap((item) =>
+        item.kind === "document" ? [item.id] : []))).map((document) => [document.id, document]));
+      return { ...page, items: page.items.flatMap((item): ProjectDirectoryItem[] => {
+        if (item.kind === "folder") return [item];
+        const document = found.get(item.id);
+        return document?.project_id === projectId ? [{ kind: "document", document }] : [];
+      }) };
     },
     get: (scope, projectId) => repository.project(scope, projectId, false),
     people: (scope, projectId) => repository.people(scope, projectId),
@@ -151,7 +153,7 @@ export function createProjectStore(
       if (document?.project_id !== projectId) return false;
       return (await documents.relocate(scope, documentId, {
         expectedProjectId: projectId,
-        expectedFolderId: typeof document.folder_id === "string" ? document.folder_id : null,
+        expectedFolderId: document.folder_id,
         projectId: null, folderId: null, owner: true,
       })).status === "moved";
     },
@@ -163,7 +165,7 @@ export function createProjectStore(
       if (source.project_id === null) {
         const assigned = await documents.relocate(scope, documentId, {
           expectedProjectId: null,
-          expectedFolderId: typeof source.folder_id === "string" ? source.folder_id : null,
+          expectedFolderId: source.folder_id,
           projectId, folderId: null, owner: true,
         });
         if (assigned.status === "conflict") throw new ApplicationError(
@@ -184,13 +186,10 @@ export function createProjectStore(
     async renameDocument(scope, projectId, documentId, requested) {
       const current = await documents.metadata(scope, documentId);
       if (!current || current.project_id !== projectId) throw missing("Document not found");
-      const currentName = typeof current.filename === "string" && current.filename.trim()
-        ? current.filename : "Untitled document";
-      const filename = normalizeDocumentFilename(requested, currentName);
+      const filename = normalizeDocumentFilename(requested, current.filename);
       if (!filename) throw new ApplicationError(400, "filename is required");
-      const versionId = current.current_version_id;
-      const renamed = versionId && await documents.renameVersion(
-        scope, documentId, versionId, filename, Number(current.current_working_revision),
+      const renamed = await documents.renameVersion(
+        scope, documentId, current.current_version_id, filename, current.current_working_revision,
       );
       if (!renamed) throw missing("Document not found");
       return { ...current, filename, current_working_revision: renamed.working_revision };
@@ -230,7 +229,7 @@ export function createProjectStore(
       if (!document || document.project_id !== projectId) throw missing("Document not found");
       const moved = await documents.relocate(scope, documentId, {
         expectedProjectId: projectId,
-        expectedFolderId: typeof document.folder_id === "string" ? document.folder_id : null,
+        expectedFolderId: document.folder_id,
         projectId, folderId, owner: false,
       });
       if (moved.status === "conflict") throw new ApplicationError(

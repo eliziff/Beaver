@@ -332,6 +332,21 @@ export function editorialQuote(authoredQuote: string, sourceQuote: string) {
   return joinTokens(output);
 }
 
+/** Mechanical match locations and the same correction/diff used by Authorities review. */
+export function quoteTextComparison(authored: string, source: string) {
+  const plan = structureNative().textFragmentPlanStandalone(source, [authored], false, false, false);
+  const matches = plan.sourceSafeComplete ? plan.sourceWordIntervals.map(({ start, end }) =>
+    ({ start, end, text: source.slice(start, end) })) : [];
+  const candidate = matches.length ? source.slice(Math.min(...matches.map(({ start }) => start)),
+    Math.max(...matches.map(({ end }) => end))) : verbatimRepair(authored, source);
+  const before = tokens(authored), after = tokens(candidate ?? "");
+  return { matches, candidate, candidateOnly: !matches.length,
+    editorial: candidate ? editorialQuote(authored, candidate) : null,
+    changes: candidate ? opcodes(before.map(equivalent), after.map(equivalent))
+      .filter(([kind]) => kind !== "equal").map(([kind, a0, a1, b0, b1]) => ({ kind,
+        authored: joinTokens(before.slice(a0, a1)), source: joinTokens(after.slice(b0, b1)) })) : [] };
+}
+
 export function authoritiesDiscrepancyCorrection(
   draft: ReviewDraft, finding: AuthoritiesDiscrepancy, action: AuthoritiesDiscrepancyAction,
 ): AuthoritiesDiscrepancyCorrection | null {
@@ -350,7 +365,7 @@ export function authoritiesDiscrepancyCorrection(
   return null;
 }
 
-function sourceLocator(pinpoint: AuthorityOccurrence["pinpoints"][number]): {
+export function sourceLocator(pinpoint: AuthorityOccurrence["pinpoints"][number]): {
   kind: "paragraph" | "section" | "page"; value: string; endValue?: string;
 } | null {
   const prefixes = pinpoint.kind === "paragraph" ? /^(?:at\s+)?(?:paras?|¶+)\.?\s*/iu

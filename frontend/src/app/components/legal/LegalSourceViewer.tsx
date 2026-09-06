@@ -1,3 +1,5 @@
+import { ReaderExpandButton } from "../shared/ReaderExpandButton";
+import { useReaderExpansion } from "../shared/useReaderExpansion";
 import {
   useCallback,
   useEffect,
@@ -16,12 +18,11 @@ import {
 import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 import {
   getDirectLegalSourceDocument,
-  getResearchFile,
-  getResearchItems,
   getLegalSourceDocument,
   type LegalDocumentType,
   type LegalSourceViewerPayload,
-} from "@/app/lib/beaverApi";
+} from "@/app/lib/api/legalSources";
+import { getResearchFile, getResearchItems } from "@/app/lib/api/researchFiles";
 import { researchSourceKey } from "@/app/lib/researchFiles";
 import type {
   ResearchFile,
@@ -34,6 +35,7 @@ import { errorMessage, formatLongDate } from "@/app/lib/utils";
 import { ResearchLabelEditor, ResearchLabelPicker,
   type ResearchLabelTarget } from "./ResearchLabelPicker";
 import { useResearchFileMutations, type ResearchFileMutations } from "./useResearchFileMutations";
+import { RESEARCH_PASSAGE_REFERENCE_DRAG } from "./researchMemo";
 
 type Anchor = LegalSourceViewerPayload["slices"][number]["anchors"][number];
 type Metadata = LegalSourceViewerPayload["metadata"];
@@ -285,6 +287,8 @@ export function LegalSourceViewer({
   const [researchBusy, setResearchBusy] = useState(false), [researchError, setResearchError] = useState("");
   const researchLoading = controlledResearchFile === undefined && !!researchFileId && !loadedResearchFile && !researchError;
   const [labelTarget, setLabelTarget] = useState<ResearchLabelTarget | null>(null);
+  const readerRoot = useRef<HTMLDivElement>(null);
+  const readerExpansion = useReaderExpansion(readerRoot);
   const root = useRef<HTMLDivElement>(null), highlightMatches = useRef<Array<HTMLElement | null>>([]);
   const researchChange = useRef(onResearchFileChange);
   const sourcePreparation = useRef<Promise<{ file: ResearchFile; itemId: string }> | null>(null);
@@ -493,7 +497,9 @@ export function LegalSourceViewer({
   });
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-white">
+    <div ref={readerRoot} data-reader-view {...readerExpansion.dialogProps}
+      aria-label={readerExpansion.expanded ? "Expanded source reader" : undefined}
+      style={readerExpansion.style} className="flex h-full min-h-0 flex-col bg-white">
       <header className={`shrink-0 border-b border-gray-200 bg-white ${
         compact ? "px-4 py-3" : "px-5 py-4 sm:px-8"
       }`}>
@@ -515,6 +521,7 @@ export function LegalSourceViewer({
               className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-gray-900 px-2.5 text-xs font-medium text-white hover:bg-gray-700">
               Workspace <PanelsTopLeft className="size-3.5" aria-hidden="true" />
             </button>}
+            <ReaderExpandButton expanded={readerExpansion.expanded} onChange={readerExpansion.onChange} />
             {!!actions.length && <nav aria-label="Source links" className="flex shrink-0 items-center gap-2">
               {actions.map(({ kind, label, href }) => (
                 <a key={`${kind}:${href}`} href={href} target="_blank"
@@ -576,6 +583,11 @@ export function LegalSourceViewer({
         </button>}
       </nav>}
       <div ref={root} onPointerUp={readPassageSelection} onKeyUp={readPassageSelection}
+        onDragStart={(event) => {
+          const passage = legalPassageTargetFromSelection(event.currentTarget, window.getSelection());
+          if (passage) event.dataTransfer.setData(RESEARCH_PASSAGE_REFERENCE_DRAG,
+            JSON.stringify({ reference: sourceReference, ...passage }));
+        }}
         onClick={(event) => { openSavedHighlight(event.target); }}
         onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") &&
           openSavedHighlight(event.target)) event.preventDefault(); }}
