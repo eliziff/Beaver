@@ -221,7 +221,7 @@ const documentOperationTool = (research = true): Tool & BeaverToolPolicy => ({
       "saved:[{evidence_id,source_id}] for annotation; " +
       "Workspace queries save automatically; use save for search_sources query_ids. " +
       "{type:'query',text,syntax:'literal'|'terms',target:'sources'|'passages',sourceIds?,labelIds?,evidenceIds?,members?,unlabelled?,limit?,after?}; members are {sourceId,evidenceIds?}, refined by other filters. Follow coverage.next_after with the same query until null; limit is 25 unless rules capture results into the file; " +
-      "query may instead use rules:[{phrase,direction:'before'|'after',unit:'sentence'|'line'|'paragraph'|'chars',chars?,slot}] where slot is a returned highlight label_id, and conflict; rules also support after; incomplete coverage is never exhaustive; " +
+      "query may instead use rules:[{phrase,direction:'before'|'after'|'around',unit:'sentence'|'line'|'paragraph'|'chars',chars?,slot}] where slot is a returned highlight label_id, and conflict; rules also support after; incomplete coverage is never exhaustive; " +
       "{type:'label',name,definition?,parentId?,color?:'#RRGGBB',order?,scope:'source'|'highlight'} creates a label: omit id, " +
       "then use returned label_id for child parentId and later labelIds; supply id only to edit; " +
       "{type:'source',reference:{provider,id,kind,...},labelIds?,badge?,note?} for a current search result returns source_id; " +

@@ -379,6 +379,26 @@ describe("Research v2 parts", () => {
     expect((await run({ members: [{ sourceId: byId.c.id }] }, context)).evidence).toEqual([]);
   });
 
+  it("keeps the phrase inside its unit when a rule captures around it", async () => {
+    const f = fixture(), text = "Outside line\nAlpha needle Beta\nneedle Gamma. Delta needle Epsilon. Trailing",
+      selected = createLibraryEvidence({ documentId: "selected", versionId: "v1", filename: "Notes.txt",
+        sourceSha256: "a".repeat(64), start: 0, end: text.length, spanText: text }),
+      documents = { ...f.documents, projectionSource: async () => ({ sourceSha256: "a".repeat(64),
+        document: { text, blocks: [{ kind: "paragraph", label: "1", start: 0, end: text.length }] } }) };
+    let saved = await act(f, { type: "merge", evidence: [selected] });
+    const sourceId = Object.keys(saved.state.sources)[0];
+    const capture = async (unit: "line" | "sentence") => {
+      const result = await runResearchFileQuery(documents as never, { userId: "user-1" }, "doc-1", {
+        versionId: saved.versionId, workingRevision: saved.workingRevision, syntax: "literal", target: "passages",
+        members: [{ sourceId, evidenceIds: [selected.evidence_id] }], conflict: "append",
+        rules: [{ phrase: "needle", direction: "around", unit, slot: "Unclassified" }] });
+      saved = result.file;
+      return result.evidence.map(({ span_text }) => span_text);
+    };
+    expect(await capture("line")).toEqual(["Alpha needle Beta", "needle Gamma. Delta needle Epsilon. Trailing"]);
+    expect(await capture("sentence")).toEqual(["Outside line\nAlpha needle Beta\nneedle Gamma.", "Delta needle Epsilon."]);
+  });
+
   it("captures and continues inside exact native passage bounds with original offsets", async () => {
     const f = fixture(), text = "İ outside needle Carol\nneedle Alice\nneedle Bob TRAILING OUTSIDE",
       start = text.indexOf("needle Alice"), end = text.indexOf(" TRAILING"), selected = createLibraryEvidence({

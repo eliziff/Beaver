@@ -48,15 +48,23 @@ pagination or downloading.
 
 ## Sources workspace
 
-- Labels, Search, and Memo are the three workspace tabs. Labels groups the
-  nested label organizer and filtered source list; Search keeps results alongside
-  its controls, with capture rules and history collapsed initially.
-- Source and passage actions use compact buttons. Cite opens the memo; the memo
-  and its autosave remain mounted across tab changes.
+- Labels, Search, and Memo are the three workspace tabs. Labels shows the
+  nested label organizer (labels and passage categories together) above one
+  source list; selecting a label or category scopes that list, and one options
+  menu holds sort and facet filters. Search runs against the same list: a query
+  with an optional passage extent (match, sentence or paragraph, around, before
+  or after the phrase) returns matches inline, matched passages can be selected
+  and saved under a category, and earlier searches stay collapsed with Run again
+  and View matches. Capture rules remain a model-facing query capability.
+- Source and passage actions use compact controls that appear on hover. Cite
+  opens the memo; the memo and its autosave remain mounted across tab changes.
 - Open as connects Chat, Workspace and the existing Tabular Review. Views reuse
   original supporting evidence and refer to canonical answers and label assignments.
-  An existing arrangement opens directly. When an arrangement is needed, the
-  existing table assistant receives a visible, cancellable organization request.
+  An existing arrangement opens directly. Organizing across forms goes through one
+  composer on the workspace and the table: the request is the user's own words or
+  the visible default, it runs as a visible turn in the bound chat, and it lands
+  either as an undoable change (with an inline Undo strip) or, when the user
+  chooses Propose, as a proposal for review. No hidden prompt is sent.
 - Organization follows the task: arbitrary nested or overlapping labels, passage
   sets, question columns, and combinations remain first-class. The human or model
   chooses rows, columns and grouping; chat turns never dictate table columns.

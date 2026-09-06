@@ -21,7 +21,7 @@ import { resolveResearchSelection, researchSelectionSchema, researchSelectionLab
 import type { ResearchReadContext } from "./researchReader";
 
 export const researchCaptureRuleSchema = z.object({ phrase: z.string().trim().min(1).max(500),
-  direction: z.enum(["before", "after"]), unit: z.enum(["sentence", "line", "paragraph", "chars"]),
+  direction: z.enum(["before", "after", "around"]), unit: z.enum(["sentence", "line", "paragraph", "chars"]),
   chars: z.number().int().min(1).max(50_000).optional(), slot: z.string().trim().min(1).max(200) }).strict();
 export type ResearchCaptureRule = z.infer<typeof researchCaptureRuleSchema>;
 export type ResearchFileQueryInput = ResearchSelection & { versionId: string; workingRevision: number; text?: string;
@@ -40,27 +40,30 @@ const next = (pattern: RegExp, text: string, at: number) => {
   pattern.lastIndex = at; return pattern.exec(text);
 };
 const adjacent = (text: string, at: number, phraseLength: number, rule: ResearchCaptureRule) => {
-  let start = rule.direction === "after" ? at + phraseLength : 0,
-    end = rule.direction === "before" ? at : text.length;
-  const chars = rule.chars ?? 100;
-  if (rule.unit === "chars") {
-    if (rule.direction === "before") start = Math.max(0, end - chars); else end = start + chars;
-  } else if (rule.unit === "line") {
-    if (rule.direction === "before") start = text.lastIndexOf("\n", end - 1) + 1;
-    else { const found = text.indexOf("\n", start); end = found < 0 ? start + chars : found; }
-  } else if (rule.unit === "paragraph") {
-    if (rule.direction === "before") {
+  const chars = rule.chars ?? 100, { unit, direction } = rule;
+  const backward = (end: number) => {
+    if (unit === "chars") return Math.max(0, end - chars);
+    if (unit === "line") return text.lastIndexOf("\n", end - 1) + 1;
+    if (unit === "paragraph") {
       const found = Math.max(text.lastIndexOf("\n\n", end - 1), text.lastIndexOf("\r\n\r\n", end - 1));
-      start = found < 0 ? Math.max(0, end - chars) : found + (text.startsWith("\r\n", found) ? 4 : 2);
-    } else { const found = next(paragraphBreak, text, start); end = found ? found.index : start + chars; }
-  } else if (rule.direction === "before") {
-    start = Math.max(text.lastIndexOf(".", end - 1), text.lastIndexOf("?", end - 1),
+      return found < 0 ? Math.max(0, end - chars) : found + (text.startsWith("\r\n", found) ? 4 : 2);
+    }
+    const found = Math.max(text.lastIndexOf(".", end - 1), text.lastIndexOf("?", end - 1),
       text.lastIndexOf("!", end - 1)) + 1;
-    if (!start) start = Math.max(0, end - chars);
-  } else { const found = next(sentenceEnd, text, start); end = found ? found.index + 1 : start + chars; }
+    return found || Math.max(0, end - chars);
+  };
+  const forward = (start: number) => {
+    if (unit === "chars") return start + chars;
+    if (unit === "line") { const found = text.indexOf("\n", start); return found < 0 ? start + chars : found; }
+    if (unit === "paragraph") { const found = next(paragraphBreak, text, start); return found ? found.index : start + chars; }
+    const found = next(sentenceEnd, text, start); return found ? found.index + 1 : start + chars;
+  };
+  // "before" and "after" capture the text beside the phrase; "around" keeps the phrase inside its unit.
+  let start = direction === "after" ? at + phraseLength : backward(at),
+    end = direction === "before" ? at : forward(at + phraseLength);
   end = Math.min(text.length, end); while (start < end && /\s/u.test(text[start])) start++;
   while (end > start && /\s/u.test(text[end - 1])) end--;
-  if (rule.direction === "after") while (start < end && /[,;:]/u.test(text[start])) start++;
+  if (direction === "after") while (start < end && /[,;:]/u.test(text[start])) start++;
   return start < end ? { start, end, text: text.slice(start, end) } : null;
 };
 

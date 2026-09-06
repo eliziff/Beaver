@@ -52,7 +52,7 @@ export type ResearchSelection = { target: "sources" | "passages"; sourceIds?: st
   members?: { sourceId: string; evidenceIds?: string[] }[] };
 export type ResearchQueryInput = ResearchSelection & { text?: string; after?: string; syntax: "literal" | "terms";
   limit?: number;
-  rules?: Array<{ phrase: string; direction: "before" | "after";
+  rules?: Array<{ phrase: string; direction: "before" | "after" | "around";
     unit: "sentence" | "line" | "paragraph" | "chars"; chars?: number;
     slot: string }>; conflict?: "prompt" | "first" | "longer" | "shorter" | "append" };
 export type ResearchAction =
