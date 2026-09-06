@@ -13,7 +13,7 @@ export type TabularColumn = { index: number; name: string; prompt: string;
   format?: string; tags?: string[] };
 export type TabularCellContent = GroundedResult & {
   summary: string; flag?: GroundedAnswerFlag; reasoning?: string;
-  evidence: LegalEvidenceReceipt[]; outcome: "answered" | "not_found";
+  evidence: LegalEvidenceReceipt[]; query_ids?: string[]; outcome: "answered" | "not_found";
   coverage: "complete" | "partial"; resource: string;
   origin?: { chatId: string; messageId: string };
 };

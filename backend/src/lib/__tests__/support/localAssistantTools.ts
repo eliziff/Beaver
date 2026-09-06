@@ -31,7 +31,8 @@ export const localAssistantToolRegistry = (
     userId,
     documents: localDocuments,
     sources: createSourceWorkspaceApplication(options.documents ?? localDocuments, {
-      chats: {} as never, tables: {} as never, tabular: async () => { throw new Error("No table view in this fixture"); },
+      chats: {} as never, tables: {} as never, projects: {} as never, library: {} as never,
+      preferences: {} as never, tabular: async () => { throw new Error("No table view in this fixture"); },
     }),
     library: localLibraryStore,
     projects: localProjects,
