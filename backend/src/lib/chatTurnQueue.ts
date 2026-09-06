@@ -57,7 +57,7 @@ export const durableChatTurns: ChatTurnQueue = {
         if (terminal && !page.length) return terminal;
         // Drain replay immediately, including events committed just before the
         // terminal status. Never sleep between full event pages.
-        if (page.length === 500) continue;
+        if (terminal || page.length === 500) continue;
         if (!terminal) {
           const current = await getJob(jobId, scope.userId);
           if (!current) throw new Error("Job unavailable");

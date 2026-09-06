@@ -58,15 +58,16 @@ export class LocalDatabase implements RelationalDatabase {
           nested(transaction),
         close: async () => undefined,
       };
+      let result: T;
       try {
-        const result = await run(transaction);
+        result = await run(transaction);
         this.database.exec("COMMIT");
-        hints.flush();
-        return result;
       } catch (error) {
         this.database.exec("ROLLBACK");
         throw error;
       }
+      hints.flush();
+      return result;
     });
   }
 
@@ -135,9 +136,13 @@ const cloudDatabase = (client: PostgresClient, notifications: JobNotifications,
   },
   async transaction<T>(run: (database: RelationalDatabase) => Promise<T>) {
     const hints = committedNotifications(notifications);
-    const result = await client.begin((transaction) =>
-      run(cloudDatabase(transaction as unknown as PostgresClient,
-        hints.notifications, async () => undefined))) as T;
+    const result = await client.begin((transaction) => {
+      const tx = cloudDatabase(transaction as unknown as PostgresClient,
+        hints.notifications, async () => undefined);
+      // Match SQLite's nested-transaction contract: join the outer transaction.
+      tx.transaction = async (nested) => nested(tx);
+      return run(tx);
+    }) as T;
     hints.flush();
     return result;
   },
