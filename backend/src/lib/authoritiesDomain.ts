@@ -163,6 +163,8 @@ export type AuthoritiesBookParts = {
 
 export type AuthorityTextSpan = { start: number; end: number; text: string };
 
+import { decodeAnnotationSet, type PdfAnnotationSets, type PdfAnnotationSet } from "mike/shared/pdf-annotations.mjs";
+
 export type AuthorityHighlightExclusion = { kind: string; label: string };
 
 export type AuthorityIdentity = {
@@ -178,6 +180,7 @@ export type AuthorityIdentity = {
   excluded: boolean;
   source: AuthoritySourceDecision;
   highlightExclusions?: AuthorityHighlightExclusion[];
+  annotations?: PdfAnnotationSets;
   scanOnly?: true;
   userAdded?: true;
 };
@@ -239,6 +242,7 @@ export type AuthoritiesFreshReview = Pick<AuthoritiesDraft,
   { cover?: AuthoritiesCover };
 
 export type AuthoritiesAction =
+  | { type: "set-annotations"; entries: Array<{ authorityId: string; bindingRole: string; annotations: PdfAnnotationSet }> }
   | { type: "ingest-ledger"; ledger: AuthorityCitationLedger }
   | { type: "add-seed"; seed: AuthoritySeed }
   | { type: "add-authority"; authority: AuthorityIdentity }
@@ -468,7 +472,7 @@ const seed = (value: unknown) => {
 const authority = (value: unknown) => {
   const item = object(value), keys = ["id", "key", "kind", "citation", "name", "displayName",
     "evidenceIds", "locators", "sourceIdentity", "excluded", "source"];
-  return !!item && exactKeys(item, keys, ["highlightExclusions", "scanOnly", "userAdded"]) &&
+  return !!item && exactKeys(item, keys, ["highlightExclusions", "annotations", "scanOnly", "userAdded"]) &&
     (item.scanOnly === undefined || item.scanOnly === true) &&
     (item.userAdded === undefined || item.userAdded === true) &&
     !(item.scanOnly && item.userAdded) &&
@@ -956,6 +960,7 @@ function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
     remap.set(old.id, authority.id);
     authority.displayName = old.displayName;
     authority.excluded = old.excluded;
+    if (old.annotations) authority.annotations = structuredClone(old.annotations);
     if (old.highlightExclusions?.length) {
       authority.highlightExclusions = structuredClone(old.highlightExclusions);
     }
@@ -1092,6 +1097,23 @@ export function reduceAuthoritiesDraft(
     case "exclude-authority":
       requireRecord(draft.authorities, action.authorityId, "authority").excluded = action.excluded;
       break;
+    case "set-annotations": {
+      if (!Array.isArray(action.entries) || !action.entries.length || action.entries.length > 2_000)
+        throw new AuthoritiesDomainError("Annotation sources are invalid.");
+      const seen = new Set<string>();
+      for (const entry of action.entries) {
+        const authority = requireRecord(draft.authorities, entry.authorityId, "authority");
+        const source = attachedAuthoritySources(authority.source).find(item => item.bindingRole === entry.bindingRole);
+        const key = `${entry.authorityId}\0${entry.bindingRole}`;
+        if (!source || seen.has(key)) throw new AuthoritiesDomainError("Annotation source is no longer attached.");
+        seen.add(key);
+        const annotations = decodeAnnotationSet(entry.annotations);
+        if (annotations.sourceSha256 !== source.sourceSha256)
+          throw new AuthoritiesDomainError("This PDF changed. Reopen it before saving highlights.");
+        authority.annotations = { ...authority.annotations, [source.bindingRole]: annotations };
+      }
+      break;
+    }
     case "set-highlight-exclusion": {
       const authority = requireRecord(draft.authorities, action.authorityId, "authority");
       const kind = action.locator.kind.trim(), label = action.locator.label.trim();
@@ -1401,6 +1423,16 @@ export function validateAuthoritiesDraft(draft: AuthoritiesDraft): string[] {
         new Set(authority.highlightExclusions.map(({ kind, label }) =>
           `${kind}\0${label}`)).size !== authority.highlightExclusions.length)) {
       errors.push(`Invalid highlight exclusions for authority: ${id}`);
+    }
+    if (authority.annotations !== undefined) {
+      try {
+        const values = object(authority.annotations);
+        if (!values || Object.keys(values).length > 100) throw new Error();
+        for (const [role, value] of Object.entries(values)) {
+          if (!role.trim() || role.length > 300) throw new Error();
+          decodeAnnotationSet(value);
+        }
+      } catch { errors.push(`Invalid annotations for authority: ${id}`); }
     }
     keys.add(authority.key);
     if (!sourceDecision(authority.source)) {

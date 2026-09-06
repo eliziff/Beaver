@@ -11,6 +11,7 @@ import type { AuthoritiesAction, AuthoritiesDraft, AttachedAuthoritySource,
   AuthoritySourceLanguage } from "./types";
 import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
 import { authoritiesProfile } from "./profiles";
+import { prepareAnnotations } from "./annotationPreparation";
 
 async function resolveExact(input: WorkProductInput) {
   const result = await resolveStandaloneFile(input, true);
@@ -126,6 +127,7 @@ async function buildInputs(product: AuthoritiesProduct, progress?: (message: str
 }
 
 export const standaloneAuthoritiesHost: AuthoritiesHost = {
+  prepareAnnotations,
   mode: "standalone",
   drafts: standaloneWorkProducts,
   async create({ source, title, settings }) {

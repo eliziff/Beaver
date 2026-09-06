@@ -28,6 +28,7 @@ import { directoryResource, downloadDocument } from "@/app/lib/api/documents";
 import { waitForPdfPreparation } from "@/app/lib/pdfPreparation";
 import type { WorkProductStore } from "@/app/lib/workProducts";
 import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
+import { prepareAnnotations } from "./annotationPreparation";
 
 const drafts: WorkProductStore = {
   list: listWorkProducts, get: getWorkProduct, create: createWorkProduct,
@@ -56,6 +57,7 @@ async function prepareSourcePdfs(draft: Parameters<AuthoritiesHost["build"]>[0],
 }
 
 export const beaverAuthoritiesHost: AuthoritiesHost = {
+  prepareAnnotations,
   mode: "beaver",
   drafts,
   async create({ source, title, projectId, settings }) {
