@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
     getProject: vi.fn(),
     listProjects: vi.fn(),
     startGeneration: vi.fn(),
+    regenerateCell: vi.fn(),
     uploadDocument: vi.fn(),
 }));
 function fixture(status: TabularCell["status"]) {
@@ -52,7 +53,7 @@ vi.mock("@/app/lib/api/tabular", () => ({
   deleteTabularReview: vi.fn(),
   getTabularReview: mocks.getTabularReview,
   getTabularReviewPeople: vi.fn(),
-  regenerateTabularCell: vi.fn(),
+  regenerateTabularCell: mocks.regenerateCell,
   startTabularGeneration: mocks.startGeneration,
   stopTabularGeneration: vi.fn(),
   updateTabularReview: vi.fn()
@@ -103,28 +104,39 @@ vi.mock("../shared/PageHeader", () => ({
         </>
     ),
 }));
-vi.mock("../shared/TableToolbar", () => ({
-    TableToolbar: ({ actions }: { actions: React.ReactNode }) => actions,
-}));
 vi.mock("./TRTable", () => ({
     TRTable: ({
         loading,
         cells,
+        columns,
+        documents,
+        selectedDocIds,
         onExpand,
+        onSelectionChange,
+        onRerunColumn,
     }: {
         loading: boolean;
         cells: TabularCell[];
+        columns: { index: number }[];
+        documents: Document[];
+        selectedDocIds: string[];
         onExpand: (cell: TabularCell) => void;
+        onSelectionChange: (ids: string[]) => void;
+        onRerunColumn: (column: { index: number }) => void;
     }) => (
-        <button
-            data-testid="table"
-            data-loading={loading}
-            data-status={cells[0]?.status}
-            data-content={JSON.stringify(cells[0]?.content)}
-            onClick={() => onExpand(cells[0])}
-        >
-            Open cell
-        </button>
+        <>
+            <button
+                data-testid="table"
+                data-loading={loading}
+                data-status={cells[0]?.status}
+                data-content={JSON.stringify(cells[0]?.content)}
+                onClick={() => onExpand(cells[0])}
+            >
+                Open cell
+            </button>
+            <button onClick={() => onSelectionChange(selectedDocIds.length ? [] : documents.map(({ id }) => id))}>Toggle rows</button>
+            <button onClick={() => onRerunColumn(columns[0])}>Rerun first column</button>
+        </>
     ),
 }));
 vi.mock("./TRSidePanel", () => ({
@@ -180,6 +192,44 @@ it("projects queued agents into the table", async () => {
     expect(mocks.startGeneration).toHaveBeenCalledWith("review-1", {
         model: "gpt-5", reasoningEffort: "medium",
     });
+    expect(screen.getByRole("progressbar", { name: "Run progress" })).toHaveAttribute("aria-valuemax", "1");
+});
+
+it("shows row actions only while rows are selected", async () => {
+    mocks.getTabularReview.mockResolvedValue(fixture("done").data);
+    render(<TRView reviewId="review-1" />);
+    await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
+    expect(screen.queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle rows" }));
+    expect(screen.getByText("1 selected")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Remove" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Clear results" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle rows" }));
+    expect(screen.queryByText("1 selected")).not.toBeInTheDocument();
+});
+
+it("reruns a column one row at a time as the review goes idle", async () => {
+    const first = fixture("done");
+    const second = { id: "document-2", filename: "deed.pdf" } as Document;
+    const data = { ...first.data, documents: [first.document, second],
+        cells: [first.cell, { ...first.cell, id: "cell-2", document_id: second.id }] };
+    mocks.getTabularReview.mockResolvedValue(data);
+    mocks.regenerateCell.mockResolvedValue({ job_id: "job-1", queued: true });
+    render(<TRView reviewId="review-1" />);
+    await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Rerun first column" }));
+    await waitFor(() => expect(mocks.regenerateCell).toHaveBeenCalledTimes(1));
+    expect(mocks.regenerateCell).toHaveBeenCalledWith("review-1", first.document.id, 0, { model: "gpt-5", reasoningEffort: "medium" });
+    expect(screen.getByRole("progressbar", { name: "Run progress" })).toHaveAttribute("aria-valuemax", "2");
+    expect(screen.getByRole("button", { name: "Stop" })).toBeVisible();
+
+    mocks.getTabularReview.mockResolvedValue({ ...data, review: { ...data.review, is_running: false } });
+    await waitFor(() => expect(mocks.regenerateCell).toHaveBeenCalledTimes(2), { timeout: 4_000 });
+    expect(mocks.regenerateCell).toHaveBeenLastCalledWith("review-1", second.id, 0, { model: "gpt-5", reasoningEffort: "medium" });
 });
 
 it("shows review results without waiting for project metadata", async () => {

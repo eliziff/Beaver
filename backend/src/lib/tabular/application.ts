@@ -95,7 +95,8 @@ export const tabularDtos = {
     required_error: "document_ids is required",
     invalid_type_error: "document_ids is required",
   }).min(1, "document_ids is required").max(500)
-    .transform((value) => [...new Set(value)]) }).strict(),
+    .transform((value) => [...new Set(value)]),
+    column_index: z.number().int().nonnegative().optional() }).strict(),
   regenerate: z.object({ document_id: z.string({
     required_error: "document_id and column_index are required",
     invalid_type_error: "document_id and column_index are required",
@@ -538,6 +539,7 @@ export function createTabularApplication(
         return fail(404, "Document not found");
       const selected = new Set(input.document_ids);
       for (const cell of detail.cells) if (selected.has(cell.document_id) &&
+        (input.column_index === undefined || cell.column_index === input.column_index) &&
         !mappedCell(detail.review.scope_config, cell.document_id, cell.column_index) &&
         (cell.status !== "pending" || cell.content !== null))
         await cellWrite(scope, cell, "pending", null, detail.review.updated_at, { executor: "human", title: "Clear table answer" });
