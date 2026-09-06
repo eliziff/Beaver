@@ -10,6 +10,16 @@ const mocks = vi.hoisted(() => ({
     uploadDocument: vi.fn(),
     getWorkflow: vi.fn(),
     listWorkflows: vi.fn().mockResolvedValue([]),
+    design: vi.fn(),
+    getResearchFile: vi.fn(),
+    openWorkspaceTable: vi.fn(),
+}));
+vi.mock("@/app/lib/api/tabular", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/tabular")>(), designTabularReview: mocks.design,
+}));
+vi.mock("@/app/lib/api/researchFiles", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/researchFiles")>(),
+  getResearchFile: mocks.getResearchFile, openWorkspaceTable: mocks.openWorkspaceTable,
 }));
 vi.mock("@/app/lib/api/workflows", () => ({
   getWorkflow: mocks.getWorkflow,
@@ -51,11 +61,12 @@ it("creates a project review with the selected project documents", async () => {
         <NewTRModal
             open
             onClose={vi.fn()}
-            onAdd={onAdd}
+            onAdd={onAdd} onOpen={vi.fn()}
             projects={[project]}
         />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Create custom" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set columns manually" }));
     fireEvent.change(screen.getByLabelText("Review name"), {
         target: { value: "Lease review" },
     });
@@ -83,11 +94,12 @@ it("uses a default name when the review name is blank", async () => {
         <NewTRModal
             open
             onClose={vi.fn()}
-            onAdd={onAdd}
+            onAdd={onAdd} onOpen={vi.fn()}
         />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Create custom" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set columns manually" }));
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
     expect(onAdd).toHaveBeenCalledWith(
@@ -111,7 +123,7 @@ it("offers solicitor review workflows immediately and passes their configuration
     } as Workflow;
     mocks.listWorkflows.mockResolvedValueOnce([workflow]);
     const onAdd = vi.fn();
-    render(<NewTRModal open onClose={vi.fn()} onAdd={onAdd} />);
+    render(<NewTRModal open onClose={vi.fn()} onAdd={onAdd} onOpen={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Start Tabular Review: Contract review" }));
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
@@ -124,8 +136,9 @@ it("offers solicitor review workflows immediately and passes their configuration
 
 it("creates a customized review using the shared column editor", async () => {
     const onAdd = vi.fn();
-    render(<NewTRModal open onClose={vi.fn()} onAdd={onAdd} />);
+    render(<NewTRModal open onClose={vi.fn()} onAdd={onAdd} onOpen={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Create custom" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set columns manually" }));
     fireEvent.click(screen.getByRole("button", { name: "Add column" }));
     fireEvent.change(screen.getByLabelText("Column title"), { target: { value: "Clause" } });
     fireEvent.change(screen.getByLabelText("Prompt"), { target: { value: "Extract the clause." } });
@@ -138,8 +151,9 @@ it("creates a customized review using the shared column editor", async () => {
 it("keeps entered details when creation fails", async () => {
     mocks.listWorkflows.mockResolvedValueOnce([]);
     const onAdd = vi.fn().mockRejectedValue(new Error("offline"));
-    render(<NewTRModal open onClose={vi.fn()} onAdd={onAdd} />);
+    render(<NewTRModal open onClose={vi.fn()} onAdd={onAdd} onOpen={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Create custom" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set columns manually" }));
     fireEvent.change(screen.getByLabelText("Review name"), {
         target: { value: "Lease review" },
     });
@@ -154,8 +168,9 @@ it("creates from an exact research passage scope while retaining custom extracti
     const research = { researchFileId: "research-1", selection: {
         sourceIds: ["source-1"], evidenceIds: ["original-passage"], target: "passages" as const,
     } };
-    render(<NewTRModal open onClose={vi.fn()} onAdd={onAdd} research={research} />);
+    render(<NewTRModal open onClose={vi.fn()} onAdd={onAdd} onOpen={vi.fn()} research={research} />);
     fireEvent.click(screen.getByRole("button", { name: "Create custom" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set columns manually" }));
     expect(screen.queryByRole("region", { name: "Documents" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Add column" }));
     fireEvent.change(screen.getByLabelText("Column title"), { target: { value: "Hearing" } });
@@ -176,8 +191,9 @@ it("creates a review from a library folder without a project", async () => {
         next_cursor: null,
     }));
     const onAdd = vi.fn();
-    render(<NewTRModal open onClose={vi.fn()} onAdd={onAdd} />);
+    render(<NewTRModal open onClose={vi.fn()} onAdd={onAdd} onOpen={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Create custom" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set columns manually" }));
     fireEvent.click(await screen.findByRole("button", { name: "Contracts" }));
     fireEvent.click(await screen.findByRole("checkbox", { name: "Select terms.pdf" }));
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
@@ -186,8 +202,9 @@ it("creates a review from a library folder without a project", async () => {
 
 it("keeps incomplete columns editable in the same dialog", async () => {
     const onAdd = vi.fn();
-    render(<NewTRModal open onClose={vi.fn()} onAdd={onAdd} />);
+    render(<NewTRModal open onClose={vi.fn()} onAdd={onAdd} onOpen={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Create custom" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set columns manually" }));
     fireEvent.click(screen.getByRole("button", { name: "Add column" }));
     fireEvent.change(screen.getByLabelText("Column title"), { target: { value: "Custom field" } });
     fireEvent.click(screen.getByRole("button", { name: "Custom field" }));
@@ -203,14 +220,60 @@ it("keeps incomplete columns editable in the same dialog", async () => {
 
 it("preserves custom columns when returning from the workflow choices", async () => {
     const onAdd = vi.fn();
-    render(<NewTRModal open onClose={vi.fn()} onAdd={onAdd} />);
+    render(<NewTRModal open onClose={vi.fn()} onAdd={onAdd} onOpen={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Create custom" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set columns manually" }));
     fireEvent.click(screen.getByRole("button", { name: "Add column" }));
     fireEvent.change(screen.getByLabelText("Column title"), { target: { value: "My column" } });
     fireEvent.change(screen.getByLabelText("Prompt"), { target: { value: "My instructions" } });
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    fireEvent.click(screen.getByRole("button", { name: "Create custom" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set columns manually" }));
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
     await waitFor(() => expect(onAdd).toHaveBeenCalledWith("Untitled review", undefined, undefined,
         [expect.objectContaining({ name: "My column", prompt: "My instructions" })], undefined));
+});
+
+it("fills the form from a proposed design and revises it", async () => {
+    const first = { index: 0, name: "Deadline", prompt: "Find the delivery deadline", format: "text" as const };
+    mocks.design.mockResolvedValueOnce({ title: "Delivery review", columns_config: [first] })
+        .mockResolvedValueOnce({ title: "Delivery review", columns_config: [first,
+            { index: 1, name: "Penalty", prompt: "Find the penalty", format: "text" as const }] });
+    const onAdd = vi.fn();
+    render(<NewTRModal open onClose={vi.fn()} onAdd={onAdd} onOpen={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Create custom" }));
+    fireEvent.click(screen.getByRole("button", { name: "Chat assist" }));
+    fireEvent.change(screen.getByLabelText("Describe the review"), { target: { value: "Compare delivery terms" } });
+    fireEvent.click(screen.getByRole("button", { name: "Propose design" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Review name")).toHaveValue("Delivery review"));
+    expect(screen.getByRole("button", { name: "Deadline" })).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Describe the review"), { target: { value: "add a penalty column" } });
+    fireEvent.click(screen.getByRole("button", { name: "Propose design" }));
+    expect(await screen.findByRole("button", { name: "Penalty" })).toBeVisible();
+    expect(mocks.design).toHaveBeenLastCalledWith({ request: "add a penalty column",
+        title: "Delivery review", current: [first] });
+
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith("Delivery review", undefined, undefined,
+        [expect.objectContaining({ name: "Deadline" }), expect.objectContaining({ name: "Penalty" })], undefined));
+});
+
+it("imports a research set as passage rows and opens the created review", async () => {
+    const set = { id: "set-1", filename: "Appeal.research.md", file_type: "md", project_id: null } as Document;
+    mocks.listDirectory.mockResolvedValue({ items: [{ kind: "document", document: set }], next_cursor: null });
+    mocks.getResearchFile.mockResolvedValue({ document: set, versionId: "v1", workingRevision: 0, state: {
+        labels: { pen: { id: "pen", name: "Key", parentId: null, color: "#eab308", order: 0, scope: "highlight" } },
+        sources: {}, queries: null, note: "" } });
+    mocks.openWorkspaceTable.mockResolvedValue({ id: "review-9", project_id: null });
+    const onOpen = vi.fn();
+    render(<NewTRModal open onClose={vi.fn()} onAdd={vi.fn()} onOpen={onOpen} />);
+    fireEvent.click(screen.getByRole("button", { name: "Create custom" }));
+    fireEvent.click(screen.getByRole("button", { name: "Import a Research set" }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Select Appeal" }));
+    expect(await screen.findByLabelText("Pen")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Passages" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(onOpen).toHaveBeenCalledWith("/tabular-reviews/review-9"));
+    expect(mocks.openWorkspaceTable).toHaveBeenCalledWith("set-1", { rows: "passages" });
 });

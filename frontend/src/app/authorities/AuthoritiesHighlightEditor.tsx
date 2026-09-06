@@ -44,7 +44,7 @@ export function AuthoritiesHighlights({ product, tabs, host, busy, onSaved }: {
   </section>;
 }
 
-export function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, onClose, onSaved }: {
+function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, onClose, onSaved }: {
   product: AuthoritiesProduct; choices: Choice[]; host: AuthoritiesHost;
   onClose(): void; onSaved(product: AuthoritiesProduct): void;
 }) {

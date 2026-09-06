@@ -15,10 +15,6 @@ export function authorityCitationForms(item: AuthorityIdentity, occurrences: Aut
     authorityId === item.id && kind !== "reference").map(({ citation }) => citation)]
     .map((citation) => citation.trim()).filter(Boolean))];
 }
-export function pdfCount(items: AuthorityIdentity[]) {
-  return items.reduce((count, { source }) => count +
-    (source.kind === "attached" ? source.sources.length : 0), 0);
-}
 export function requiresBilingualSources(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
   return !!authoritiesProfile(state.settings.profileId).requirements?.bilingualEnactments &&
     item.kind === "legislation" && /\b(?:R\.?S\.?C\.?|S\.?C\.?|C\.?R\.?C\.?|SOR|SI|DORS|TR)\b/iu.test(item.citation);
@@ -46,7 +42,7 @@ export function mustAttachPdf(state: AuthoritiesProduct["state"], item: Authorit
   if (state.outputMode === "table") return requiresUnlinkedTablePdf(state, item);
   return !!authoritiesProfile(state.settings.profileId).requirements?.completeBookSources;
 }
-export function requiresUnlinkedTablePdf(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
+function requiresUnlinkedTablePdf(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
   const sourceUrl = item.source.kind === "attached"
     ? item.source.sources.find(({ sourceUrl }) => sourceUrl)?.sourceUrl
     : item.source.kind === "pending-canlii" ? item.source.pageUrl
