@@ -15,7 +15,7 @@ export function FlagDot({ flag, className }: { flag: AnswerFlag; className?: str
   return <span role="img" aria-label={FLAGS[flag].meaning} title={FLAGS[flag].meaning}
     className={cn("inline-block size-2 shrink-0 rounded-full", FLAGS[flag].dot, className)} />;
 }
-export const PartialCoverageTag = ({ className }: { className?: string }) =>
+const PartialCoverageTag = ({ className }: { className?: string }) =>
   <span role="status" className={cn("inline-flex rounded bg-amber-50 px-1.5 text-xs leading-5 text-amber-800", className)}>Partial coverage</span>;
 
 export function GroundedAnswerContent({ answer, column, onCitation }: {
