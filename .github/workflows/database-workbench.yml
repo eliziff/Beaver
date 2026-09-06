@@ -1,0 +1,26 @@
+name: Database workbench sources
+on:
+  push:
+    branches: [codex/database-event-efficiency]
+    paths: [.github/workflows/database-workbench.yml]
+permissions:
+  contents: read
+jobs:
+  sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Package exact public backend sources (no CI battery)
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          git init .
+          git remote add origin https://github.com/eliziff/Beaver.git
+          git fetch --depth=1 origin "$SOURCE_SHA"
+          git checkout --detach FETCH_HEAD
+          tar -czf /tmp/database-source.tgz backend/src backend/schema.sql backend/package.json backend/package-lock.json backend/tsconfig.json backend/vitest.config.mts scripts shared docs/roadmap AGENTS.md package.json package-lock.json subrepos.lock.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: database-source
+          path: /tmp/database-source.tgz
+          retention-days: 1
