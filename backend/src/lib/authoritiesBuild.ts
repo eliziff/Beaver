@@ -961,7 +961,8 @@ async function bookArtifact(
               draft.settings.scannedPdfPolicy === "cited-pages" && cited.has(index))
             addOcrText(page, regular, source.ocrTextByPage?.[index]);
           if (draft.settings.passageMarking !== "none") addPassageMarks(pdf, page, index,
-            draft.settings.passageMarking, cited.has(index), source.passageGeometry);
+            draft.settings.passageMarking, cited.has(index), source.passageGeometry,
+            highlightExclusionKeys(source.authority));
           if (source.databaseReference) addDatabaseReference(pdf, page, bold,
             source.databaseReference.url, source.databaseReference.host);
         });
@@ -1166,20 +1167,60 @@ function addDatabaseReference(pdf: PdfModule, page: PdfPage, font: PdfFont,
   addExternalLink(pdf, page, [x - 5, y - 3, x - 5 + width, y + 15], url);
 }
 
-function addPageMargin(pdf: PdfModule, page: PdfPage, black = false) {
-  const { x, y, width, height } = page.getCropBox();
-  const inset = 8, end = 18, angle = ((page.getRotation().angle % 360) + 360) % 360;
-  const [start, finish] = angle === 90
-    ? [{ x: x + end, y: y + height - inset }, { x: x + width - end, y: y + height - inset }]
-    : angle === 180
-      ? [{ x: x + inset, y: y + end }, { x: x + inset, y: y + height - end }]
-      : angle === 270
-        ? [{ x: x + end, y: y + inset }, { x: x + width - end, y: y + inset }]
-        : [{ x: x + width - inset, y: y + end },
-          { x: x + width - inset, y: y + height - end }];
-  page.drawLine({ start, end: finish, thickness: 2.5,
-    color: black ? pdf.rgb(.08, .08, .08) : pdf.rgb(.75, .08, .08), opacity: .9 });
+function addHighlightAnnot(pdf: PdfModule, page: PdfPage,
+  boxes: Array<{ x: number; y: number; width: number; height: number }>, contents: string) {
+  const valid = boxes.filter(({ width, height }) => width > 0 && height > 0);
+  if (!valid.length) return;
+  const quads = valid.flatMap(({ x, y, width, height }) =>
+    [x, y + height, x + width, y + height, x, y, x + width, y]);
+  const xs = valid.flatMap(({ x, width }) => [x, x + width]);
+  const ys = valid.flatMap(({ y, height }) => [y, y + height]);
+  const annotation = page.doc.context.obj({ Type: "Annot", Subtype: "Highlight",
+    Rect: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)],
+    QuadPoints: quads, C: [1, 0.92, 0.6], CA: 0.45, Border: [0, 0, 0],
+    T: pdf.PDFHexString.fromText("Beaver"),
+    Contents: pdf.PDFHexString.fromText(contents.slice(0, 500)),
+    F: 4 });
+  page.node.addAnnot(page.doc.context.register(annotation));
 }
+
+function addSquareAnnot(pdf: PdfModule, page: PdfPage,
+  box: { x: number; y: number; width: number; height: number },
+  rgb: [number, number, number], opacity: number, contents: string) {
+  if (box.width <= 0 || box.height <= 0) return;
+  const annotation = page.doc.context.obj({ Type: "Annot", Subtype: "Square",
+    Rect: [box.x, box.y, box.x + box.width, box.y + box.height],
+    C: [...rgb], IC: [...rgb], CA: opacity, Border: [0, 0, 0],
+    T: pdf.PDFHexString.fromText("Beaver"),
+    Contents: pdf.PDFHexString.fromText(contents.slice(0, 500)),
+    F: 4 });
+  page.node.addAnnot(page.doc.context.register(annotation));
+}
+
+function addPageMarginAnnot(pdf: PdfModule, page: PdfPage, black = false,
+  contents = "Cited page") {
+  const { x, y, width, height } = page.getCropBox();
+  const inset = 8, end = 18, half = 1.25;
+  const angle = ((page.getRotation().angle % 360) + 360) % 360;
+  const box = angle === 90
+    ? { x: x + end, y: y + height - inset - half, width: width - (2 * end), height: half * 2 }
+    : angle === 180
+      ? { x: x + inset - half, y: y + end, width: half * 2, height: height - (2 * end) }
+      : angle === 270
+        ? { x: x + end, y: y + inset - half, width: width - (2 * end), height: half * 2 }
+        : { x: x + width - inset - half, y: y + end, width: half * 2, height: height - (2 * end) };
+  addSquareAnnot(pdf, page, box, black ? [0.08, 0.08, 0.08] : [0.75, 0.08, 0.08], 0.9, contents);
+}
+
+function highlightExclusionKeys(
+  authority: Pick<AuthorityIdentity, "highlightExclusions"> | null | undefined,
+) {
+  return new Set((authority?.highlightExclusions ?? [])
+    .map(({ kind, label }) => `${kind.trim()}\0${label.trim()}`));
+}
+
+const passageLabel = (locatorKind: string, locator: string) =>
+  `${locatorKind === "paragraph" ? "para" : locatorKind === "section" ? "s" : "p"} ${locator}`;
 
 type MarkRect = [number, number, number, number];
 
@@ -1208,31 +1249,60 @@ function uniqueRects(rects: MarkRect[]) {
 
 function addPassageMarks(pdf: PdfModule, page: PdfPage, pageIndex: number,
   style: AuthoritiesSettings["passageMarking"], cited: boolean,
-  geometry?: NativePdfPassageGeometry) {
-  const number = pageIndex + 1, targets = geometry?.targets ?? [];
-  const pages = targets.flatMap((target) => target.pages.filter((item) =>
-    item.pageNumber === number && item.source === "native"));
-  const dimensions = pages[0];
-  const passages = uniqueRects(pages.flatMap(({ passageRects }) => passageRects));
-  const quotes = uniqueRects(targets.flatMap(({ quotes: items }) => items.flatMap((quote) =>
-    quote.status === "found" && quote.pageNumber === number ? quote.rects : [])));
-  if ((style === "margin" || style === "sidelined") && !passages.length &&
+  geometry?: NativePdfPassageGeometry, exclusions: ReadonlySet<string> = new Set()) {
+  const number = pageIndex + 1;
+  const hadTargets = (geometry?.targets.length ?? 0) > 0;
+  const targets = (geometry?.targets ?? []).filter(({ locatorKind, locator }) =>
+    !exclusions.has(`${locatorKind.trim()}\0${locator.trim()}`));
+  if (hadTargets && !targets.length) return;
+  const withPassages = targets.flatMap((target) => target.pages
+    .filter((item) => item.pageNumber === number && item.source === "native")
+    .map((item) => ({ target, item })));
+  const hasPassages = withPassages.some(({ item }) => item.passageRects.length > 0);
+  if ((style === "margin" || style === "sidelined") && !hasPassages &&
       (cited || targets.some((target) => target.pages.some((item) => item.pageNumber === number)))) {
-    addPageMargin(pdf, page, style === "sidelined");
+    addPageMarginAnnot(pdf, page, style === "sidelined");
   }
-  if (!dimensions) return;
-  const paint = (rect: MarkRect, color: ReturnType<PdfModule["rgb"]>, opacity: number) => {
-    const box = pageRect(page, rect, dimensions.width, dimensions.height);
-    if (box.width > 0 && box.height > 0) page.drawRectangle({ ...box, color, opacity });
-  };
-  if (style === "margin" || style === "sidelined") for (const rect of passages) {
-    const x = Math.min(dimensions.width - 4, rect[2] + 5);
-    paint([x, rect[1], x + 2, rect[3]], style === "sidelined"
-      ? pdf.rgb(.08, .08, .08) : pdf.rgb(.75, .08, .08), .9);
+  const barRgb: [number, number, number] = style === "sidelined"
+    ? [0.08, 0.08, 0.08] : [0.75, 0.08, 0.08];
+  for (const { target, item } of withPassages) {
+    const label = passageLabel(target.locatorKind, target.locator);
+    const contents = `Cited passage — ${label}`;
+    const rects = uniqueRects(item.passageRects);
+    if (style === "margin" || style === "sidelined") for (const rect of rects) {
+      const x = Math.min(item.width - 4, rect[2] + 5);
+      addSquareAnnot(pdf, page,
+        pageRect(page, [x, rect[1], x + 2, rect[3]], item.width, item.height),
+        barRgb, 0.9, contents);
+    }
+    if (style === "paragraph") {
+      addHighlightAnnot(pdf, page, rects.map((rect) =>
+        pageRect(page, rect, item.width, item.height)), contents);
+    }
   }
-  if (style === "paragraph") passages.forEach((rect) => paint(rect, pdf.rgb(.85, .08, .08), .16));
   if (style === "text" || style === "margin") {
-    quotes.forEach((rect) => paint(rect, pdf.rgb(.85, .08, .08), .18));
+    const byTarget = new Map<string, { target: (typeof targets)[number];
+      texts: string[]; rects: MarkRect[]; dimensions: { width: number; height: number } }>();
+    for (const target of targets) for (const quote of target.quotes) {
+      if (quote.status !== "found" || quote.pageNumber !== number || !quote.rects.length) continue;
+      const dimensions = target.pages.find((item) => item.pageNumber === number &&
+        item.source === "native") ?? target.pages[0];
+      if (!dimensions) continue;
+      const seen = byTarget.get(target.id) ?? { target, texts: [], rects: [],
+        dimensions: { width: dimensions.width, height: dimensions.height } };
+      if (quote.text.trim() && !seen.texts.includes(quote.text.trim())) {
+        seen.texts.push(quote.text.trim());
+      }
+      seen.rects.push(...quote.rects);
+      byTarget.set(target.id, seen);
+    }
+    for (const { target, texts, rects, dimensions } of byTarget.values()) {
+      const label = passageLabel(target.locatorKind, target.locator);
+      addHighlightAnnot(pdf, page, uniqueRects(rects).map((rect) =>
+        pageRect(page, rect, dimensions.width, dimensions.height)),
+      texts.length === 1 ? `Cited quote — ${texts[0]}`.slice(0, 500)
+        : `Cited quotes — ${label}`);
+    }
   }
 }
 

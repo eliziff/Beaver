@@ -66,6 +66,7 @@ export type AuthorityIdentity = {
   sourceIdentity: AuthoritySourceIdentity | null;
   excluded: boolean;
   source: AuthoritySource;
+  highlightExclusions?: Array<{ kind: string; label: string }>;
   userAdded?: true;
 };
 
@@ -160,7 +161,9 @@ export type AuthoritiesAction =
   | { type: "set-profile"; profileId: AuthoritiesProfileId }
   | { type: "set-settings"; settings: Partial<AuthoritiesBuildSettings> }
   | { type: "set-output-mode"; outputMode: AuthoritiesOutputMode }
-  | { type: "set-document-output"; enabled: boolean };
+  | { type: "set-document-output"; enabled: boolean }
+  | { type: "set-highlight-exclusion"; authorityId: string;
+      locator: { kind: string; label: string }; excluded: boolean };
 
 export type AuthoritiesBuildReceipt = {
   schemaVersion: "beaver.authorities-build.v1";

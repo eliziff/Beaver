@@ -45,6 +45,21 @@ const pageHasRgb = (content: string, wanted: readonly number[]) =>
   [...content.matchAll(/([\d.]+) ([\d.]+) ([\d.]+) (?:rg|RG)/gu)].some((match) =>
     wanted.every((value, index) => Math.abs(Number(match[index + 1]) - value) < .000_01));
 
+function pageAnnots(document: PDFDocument, pageIndex: number) {
+  const annots = document.getPage(pageIndex).node.lookupMaybe(PDFName.of("Annots"), PDFArray);
+  if (!annots) return [];
+  return annots.asArray().map((ref) => document.context.lookup(ref, PDFDict));
+}
+
+const annotSubtypes = (document: PDFDocument, pageIndex: number) =>
+  pageAnnots(document, pageIndex).map((annot) => String(annot.lookup(PDFName.of("Subtype"))));
+
+const annotContents = (document: PDFDocument, pageIndex: number) =>
+  pageAnnots(document, pageIndex).map((annot) => {
+    const contents = annot.lookupMaybe(PDFName.of("Contents"), PDFHexString);
+    return contents?.decodeText() ?? "";
+  });
+
 function generatedTextLayout(content: string) {
   return {
     fonts: [...content.matchAll(/\/([^\s]+)\s+[\d.]+\s+Tf/gu)].map((match) => match[1]),
@@ -234,7 +249,9 @@ describe("Authorities output builder", () => {
     const result = await buildAuthorities({ draft: state, title: "Page pinpoint",
       workProduct: { id: "page-pinpoint", revision: 1 }, sources: { item: { bytes: pdf } } });
     const source = await PDFDocument.load(pdf), book = await PDFDocument.load(result.artifacts.book!.bytes);
-    expect(pageContent(book, book.getPage(2))).not.toBe(pageContent(source, source.getPage(0)));
+    expect(pageHasRgb(pageContent(book, book.getPage(2)), [.75, .08, .08])).toBe(false);
+    expect(annotSubtypes(book, 2)).toEqual(["/Square"]);
+    expect(annotContents(book, 2)).toEqual(["Cited page"]);
   });
 
   it("renders each passage-marking style from exact PDF geometry", async () => {
@@ -257,23 +274,29 @@ describe("Authorities output builder", () => {
         quotes: [{ text: "exact words", status: "found" as const, pageNumber: 1,
           rects: [[70, 65, 170, 78] as [number, number, number, number]] }] }],
     };
-    const rectangles = async (style: AuthoritiesDraft["settings"]["passageMarking"]) => {
+    const marks = async (style: AuthoritiesDraft["settings"]["passageMarking"]) => {
       const marked = structuredClone(state); marked.settings.passageMarking = style;
       const built = await buildAuthorities({ draft: marked, title: style,
         workProduct: { id: style, revision: 1 },
         sources: { item: { bytes: pdf, passageGeometry } } });
       const book = await PDFDocument.load(built.artifacts.book!.bytes);
-      return pageContent(book, book.getPage(2)).match(/\nh\nf(?:\n|$)/gu)?.length ?? 0;
+      return annotSubtypes(book, 2).sort();
     };
-    expect(await rectangles("none")).toBe(0);
-    expect(await rectangles("sidelined")).toBe(1);
-    expect(await rectangles("paragraph")).toBe(1);
-    expect(await rectangles("text")).toBe(1);
-    expect(await rectangles("margin")).toBe(2);
+    expect(await marks("none")).toEqual([]);
+    expect(await marks("sidelined")).toEqual(["/Square"]);
+    expect(await marks("paragraph")).toEqual(["/Highlight"]);
+    expect(await marks("text")).toEqual(["/Highlight"]);
+    expect(await marks("margin")).toEqual(["/Highlight", "/Square"]);
     const marked = structuredClone(state); marked.settings.passageMarking = "margin";
     const markedBook = await PDFDocument.load((await buildAuthorities({ draft: marked,
       title: "Marked", workProduct: { id: "marked", revision: 1 },
       sources: { item: { bytes: pdf, passageGeometry } } })).artifacts.book!.bytes);
+    expect(annotSubtypes(markedBook, 2).sort()).toEqual(["/Highlight", "/Square"]);
+    const highlight = pageAnnots(markedBook, 2).find((annot) =>
+      String(annot.lookup(PDFName.of("Subtype"))) === "/Highlight")!;
+    expect(highlight.lookup(PDFName.of("QuadPoints"), PDFArray).size()).toBe(8);
+    expect(highlight.lookup(PDFName.of("Contents"), PDFHexString).decodeText())
+      .toContain("exact words");
     const outline = markedBook.catalog.lookup(PDFName.of("Outlines"), PDFDict)
       .lookup(PDFName.of("First"), PDFDict).lookup(PDFName.of("Next"), PDFDict)
       .lookup(PDFName.of("Next"), PDFDict).lookup(PDFName.of("First"), PDFDict)
@@ -281,6 +304,90 @@ describe("Authorities output builder", () => {
     expect(outline.lookup(PDFName.of("Title"), PDFHexString).decodeText()).toBe("para 1");
     expect(String(outline.lookup(PDFName.of("Dest"), PDFArray).get(0)))
       .toBe(String(markedBook.getPage(2).ref));
+  });
+
+  it("omits highlights the user excluded in the review step", async () => {
+    const pdf = await sourcePdf("Passage", [[400, 500]]);
+    const state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
+    state.authorities.item = attached("item", "case", "2024 SCC 1", "R v Test", "item", pdf);
+    state.authorities.item.locators = [{ kind: "paragraph", label: "1" }];
+    state.authorityOrder = ["item"];
+    state.bindings.item = { kind: "local-file", handleId: "item", lastSeen: {
+      name: "item.pdf", size: pdf.length, modified: 1, sha256: sha256(pdf),
+    } };
+    state.settings.passageMarking = "paragraph";
+    const passageGeometry = {
+      schemaVersion: "legalpdf.passage-geometry.v1" as const,
+      sourceSha256: sha256(pdf), parserVersion: "test",
+      coordinateSpace: "visible_crop_box" as const, coordinateOrigin: "top_left" as const,
+      rotationApplied: true as const, targets: [{ id: "passage:1", status: "found" as const,
+        locatorKind: "paragraph" as const, locator: "1",
+        pages: [{ pageNumber: 1, width: 400, height: 500, source: "native" as const,
+          passageRects: [[40, 40, 300, 110] as [number, number, number, number]] }],
+        quotes: [] }],
+    };
+    const excluded = reduceAuthoritiesDraft(state, { type: "set-highlight-exclusion",
+      authorityId: "item", locator: { kind: "paragraph", label: "1" }, excluded: true });
+    expect(excluded.authorities.item.highlightExclusions).toEqual([{ kind: "paragraph", label: "1" }]);
+    const built = await buildAuthorities({ draft: excluded, title: "Excluded",
+      workProduct: { id: "excluded", revision: 1 },
+      sources: { item: { bytes: pdf, passageGeometry } } });
+    expect(annotSubtypes(await PDFDocument.load(built.artifacts.book!.bytes), 2)).toEqual([]);
+    const restored = reduceAuthoritiesDraft(excluded, { type: "set-highlight-exclusion",
+      authorityId: "item", locator: { kind: "paragraph", label: "1" }, excluded: false });
+    expect(restored.authorities.item.highlightExclusions).toBeUndefined();
+  });
+
+  it("keeps the cited-page margin for page locators whose geometry has no rects", async () => {
+    const pdf = await sourcePdf("Passage", [[400, 500]]);
+    const state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
+    state.authorities.item = attached("item", "case", "2024 SCC 1", "R v Test", "item", pdf);
+    state.authorities.item.locators = [{ kind: "page", label: "1" }];
+    state.authorityOrder = ["item"];
+    state.bindings.item = { kind: "local-file", handleId: "item", lastSeen: {
+      name: "item.pdf", size: pdf.length, modified: 1, sha256: sha256(pdf),
+    } };
+    const passageGeometry = {
+      schemaVersion: "legalpdf.passage-geometry.v1" as const,
+      sourceSha256: sha256(pdf), parserVersion: "test",
+      coordinateSpace: "visible_crop_box" as const, coordinateOrigin: "top_left" as const,
+      rotationApplied: true as const, targets: [{ id: "passage:1", status: "found" as const,
+        locatorKind: "page" as const, locator: "1",
+        pages: [{ pageNumber: 1, width: 400, height: 500, source: "native" as const,
+          passageRects: [] }], quotes: [] }],
+    };
+    const built = await buildAuthorities({ draft: state, title: "Page geometry",
+      workProduct: { id: "page-geometry", revision: 1 },
+      sources: { item: { bytes: pdf, passageGeometry } } });
+    const book = await PDFDocument.load(built.artifacts.book!.bytes);
+    expect(annotSubtypes(book, 2)).toEqual(["/Square"]);
+  });
+
+  it("draws no marks at all once every passage is excluded", async () => {
+    const pdf = await sourcePdf("Passage", [[400, 500]]);
+    const state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
+    state.authorities.item = attached("item", "case", "2024 SCC 1", "R v Test", "item", pdf);
+    state.authorities.item.locators = [{ kind: "paragraph", label: "1" }];
+    state.authorityOrder = ["item"];
+    state.bindings.item = { kind: "local-file", handleId: "item", lastSeen: {
+      name: "item.pdf", size: pdf.length, modified: 1, sha256: sha256(pdf),
+    } };
+    const passageGeometry = {
+      schemaVersion: "legalpdf.passage-geometry.v1" as const,
+      sourceSha256: sha256(pdf), parserVersion: "test",
+      coordinateSpace: "visible_crop_box" as const, coordinateOrigin: "top_left" as const,
+      rotationApplied: true as const, targets: [{ id: "passage:1", status: "found" as const,
+        locatorKind: "paragraph" as const, locator: "1",
+        pages: [{ pageNumber: 1, width: 400, height: 500, source: "native" as const,
+          passageRects: [[40, 40, 300, 110] as [number, number, number, number]] }],
+        quotes: [] }],
+    };
+    const excluded = reduceAuthoritiesDraft(state, { type: "set-highlight-exclusion",
+      authorityId: "item", locator: { kind: "paragraph", label: "1" }, excluded: true });
+    const built = await buildAuthorities({ draft: excluded, title: "Excluded margin",
+      workProduct: { id: "excluded-margin", revision: 1 },
+      sources: { item: { bytes: pdf, passageGeometry } } });
+    expect(annotSubtypes(await PDFDocument.load(built.artifacts.book!.bytes), 2)).toEqual([]);
   });
 
   it("marks a bracketed cited paragraph when bilingual geometry is ambiguous", async () => {
@@ -302,7 +409,8 @@ describe("Authorities output builder", () => {
         bytes: pdf, pageTextByPage: ["Reporter header [29] The cited paragraph."],
         passageGeometry } } });
     const book = await PDFDocument.load(built.artifacts.book!.bytes);
-    expect(pageHasRgb(pageContent(book, book.getPage(2)), [.75, .08, .08])).toBe(true);
+    expect(annotSubtypes(book, 2)).toEqual(["/Square"]);
+    expect(annotContents(book, 2)).toEqual(["Cited page"]);
   });
 
   it("stops before emitting artifacts when the build is cancelled", async () => {
@@ -898,7 +1006,8 @@ describe("Authorities output builder", () => {
         .map((ref) => book.context.lookup(ref, PDFDict)).find((item) => item.has(PDFName.of("A")))!
         .lookup(PDFName.of("A"), PDFDict).lookup(PDFName.of("URI"), PDFHexString).decodeText();
       expect(databaseLink).toBe(sourceUrl);
-      expect(pageHasRgb(pageContent(book, book.getPage(5)), [.75, .08, .08])).toBe(true);
+      expect(annotSubtypes(book, 5)).toEqual(["/Square", "/Link"]);
+      expect(annotContents(book, 5)[0]).toBe("Cited passage — para 10");
       const authorityOutline = book.catalog.lookup(PDFName.of("Outlines"), PDFDict)
         .lookup(PDFName.of("First"), PDFDict).lookup(PDFName.of("Next"), PDFDict)
         .lookup(PDFName.of("Next"), PDFDict).lookup(PDFName.of("First"), PDFDict);

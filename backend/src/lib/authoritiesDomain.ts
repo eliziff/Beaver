@@ -158,6 +158,8 @@ export type AuthoritiesBookParts = {
 
 export type AuthorityTextSpan = { start: number; end: number; text: string };
 
+export type AuthorityHighlightExclusion = { kind: string; label: string };
+
 export type AuthorityIdentity = {
   id: string;
   key: string;
@@ -170,6 +172,7 @@ export type AuthorityIdentity = {
   sourceIdentity: AuthoritySourceIdentity | null;
   excluded: boolean;
   source: AuthoritySourceDecision;
+  highlightExclusions?: AuthorityHighlightExclusion[];
   scanOnly?: true;
   userAdded?: true;
 };
@@ -235,6 +238,8 @@ export type AuthoritiesAction =
   | { type: "add-authority"; authority: AuthorityIdentity }
   | { type: "remove-authority"; authorityId: string }
   | { type: "exclude-authority"; authorityId: string; excluded: boolean }
+  | { type: "set-highlight-exclusion"; authorityId: string;
+      locator: { kind: string; label: string }; excluded: boolean }
   | { type: "edit-authority"; authorityId: string; kind: AuthorityKind;
       citation: string; name: string | null }
   | { type: "rename-authority"; authorityId: string; displayName: string | null }
@@ -450,13 +455,14 @@ const seed = (value: unknown) => {
 const authority = (value: unknown) => {
   const item = object(value), keys = ["id", "key", "kind", "citation", "name", "displayName",
     "evidenceIds", "locators", "sourceIdentity", "excluded", "source"];
-  return !!item && exactKeys(item, keys, ["scanOnly", "userAdded"]) &&
+  return !!item && exactKeys(item, keys, ["highlightExclusions", "scanOnly", "userAdded"]) &&
     (item.scanOnly === undefined || item.scanOnly === true) &&
     (item.userAdded === undefined || item.userAdded === true) &&
     !(item.scanOnly && item.userAdded) &&
     text(item.id) && text(item.key) && authorityKind(item.kind) &&
     text(item.citation) && nullableText(item.name) && nullableText(item.displayName) &&
     strings(item.evidenceIds) && list(item.locators, locator) &&
+    (item.highlightExclusions === undefined || list(item.highlightExclusions, locator, 500)) &&
     (item.sourceIdentity === null || sourceIdentity(item.sourceIdentity)) &&
     typeof item.excluded === "boolean" && sourceDecision(item.source);
 };
@@ -933,6 +939,9 @@ function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
     remap.set(old.id, authority.id);
     authority.displayName = old.displayName;
     authority.excluded = old.excluded;
+    if (old.highlightExclusions?.length) {
+      authority.highlightExclusions = structuredClone(old.highlightExclusions);
+    }
     if (old.userAdded) authority.userAdded = true;
     if (!old.scanOnly) delete authority.scanOnly;
     const changedIdentity = Boolean(authority.sourceIdentity) &&
@@ -1052,6 +1061,22 @@ export function reduceAuthoritiesDraft(
     case "exclude-authority":
       requireRecord(draft.authorities, action.authorityId, "authority").excluded = action.excluded;
       break;
+    case "set-highlight-exclusion": {
+      const authority = requireRecord(draft.authorities, action.authorityId, "authority");
+      const kind = action.locator.kind.trim(), label = action.locator.label.trim();
+      if (!kind || !label || kind.length > 200 || label.length > 500) {
+        throw new AuthoritiesDomainError("Invalid highlight passage.");
+      }
+      const key = `${kind}\0${label}`;
+      const current = authority.highlightExclusions ?? [];
+      const filtered = current.filter((item) => `${item.kind}\0${item.label}` !== key);
+      if (action.excluded) filtered.push({ kind, label });
+      if (filtered.length) authority.highlightExclusions = filtered
+        .sort((left, right) => left.kind.localeCompare(right.kind) ||
+          left.label.localeCompare(right.label));
+      else delete authority.highlightExclusions;
+      break;
+    }
     case "edit-authority": {
       const authority = requireRecord(draft.authorities, action.authorityId, "authority");
       if (draft.import.kind !== "manual" && !authority.userAdded) {
@@ -1333,6 +1358,14 @@ export function validateAuthoritiesDraft(draft: AuthoritiesDraft): string[] {
         new Set(authority.locators.map(({ kind, label }) => `${kind}\0${label}`)).size !==
           authority.locators.length) {
       errors.push(`Invalid evidence receipts for authority: ${id}`);
+    }
+    if (authority.highlightExclusions !== undefined && (!Array.isArray(
+        authority.highlightExclusions) || authority.highlightExclusions.length > 500 ||
+        authority.highlightExclusions.some((item) => !item || !item.kind?.trim() ||
+          !item.label?.trim()) ||
+        new Set(authority.highlightExclusions.map(({ kind, label }) =>
+          `${kind}\0${label}`)).size !== authority.highlightExclusions.length)) {
+      errors.push(`Invalid highlight exclusions for authority: ${id}`);
     }
     keys.add(authority.key);
     if (!sourceDecision(authority.source)) {
