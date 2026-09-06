@@ -1,3 +1,4 @@
+import { projectsCollection } from "@/app/lib/collectionKeys";
 import { useEffect, useMemo, useState } from "react";
 import { Check } from "lucide-react";
 import { type Project, getProject, listProjects } from "@/app/lib/api/projects";
@@ -26,6 +27,7 @@ export function ProjectChoiceList({
         (cursor, signal) => listProjects({ q: search, cursor }, signal),
         [search],
         projects === undefined,
+        projectsCollection({ q: search }),
     );
     useEffect(() => {
         if (!value || projects?.some((project) => project.id === value) ||

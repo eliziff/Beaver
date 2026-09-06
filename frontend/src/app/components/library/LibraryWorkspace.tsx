@@ -1,3 +1,4 @@
+import { directoryCollection } from "@/app/lib/collectionKeys";
 import {
     createContext,
     useCallback,
@@ -114,6 +115,7 @@ function LibraryCollection({
             resource.list({ parent_id: parentId, q, cursor }, signal),
         search,
         [resource, search],
+        active, directoryCollection({ library: kind }, search),
     );
     const { reload, replaceDocumentParseStates } = directory;
     const operations = useMemo(
