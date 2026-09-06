@@ -4,7 +4,7 @@ on:
     branches: [codex/authorities-visual-highlight-editor]
     paths: [.github/workflows/annotation-editor-diagnostics.yml]
 permissions:
-  contents: write
+  contents: read
 jobs:
   workspace:
     runs-on: ubuntu-latest
@@ -21,45 +21,16 @@ jobs:
         run: |
           git clone --depth 1 --no-checkout --branch codex/authorities-visual-highlight-editor https://github.com/eliziff/Beaver.git source-repo
           cd source-repo
-          git read-tree HEAD
           git archive HEAD | tar -x
-      - name: Apply checksum-verified feature patch
-        run: |
-          python3 - <<'PY'
-          import base64, hashlib, lzma, pathlib, subprocess
-          files = sorted(pathlib.Path('.github').glob('annotation-editor-patch.[123]'))
-          if files:
-              assert len(files) == 3
-              patch = lzma.decompress(base64.b64decode(''.join(p.read_text().strip() for p in files), validate=True))
-              assert hashlib.sha256(patch).hexdigest() == '1ac0db01a982e72977d94572888580d42afb25cb509a52221ebe81b473d2f046'
-              subprocess.run(['git','apply','--check','--cached'], input=patch, check=True)
-              subprocess.run(['git','apply','--cached'], input=patch, check=True)
-              paths = subprocess.check_output(['git','diff','--cached','--name-only','-z'])
-              subprocess.run(['git','checkout-index','-f','-z','--stdin'], input=paths, check=True)
-              subprocess.run(['git','rm','--',*[str(p) for p in files]], check=True)
-          PY
-          git diff --cached --check
-          git diff --cached --stat
-      - name: Commit implementation to feature branch only
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if ! git diff --cached --quiet; then
-            test "$(git branch --show-current)" = codex/authorities-visual-highlight-editor
-            git config user.name 'ChatGPT'
-            git config user.email 'noreply@openai.com'
-            git commit -m 'Replace authorities highlight checklist with a persistent visual PDF editor'
-            git -c http.extraHeader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push origin HEAD:refs/heads/codex/authorities-visual-highlight-editor
-          fi
       - name: Install exact test dependencies without lifecycle scripts
         run: |
           npm ci --prefix frontend --ignore-scripts
           npm ci --prefix backend --ignore-scripts
           python3 -m pip install playwright pymupdf
-      - name: Typecheck both applications
+      - name: Typecheck frontend and compile backend
         run: |
           node frontend/node_modules/typescript/bin/tsc --noEmit -p frontend
-          node backend/node_modules/typescript/bin/tsc --noEmit -p backend
+          node backend/node_modules/typescript/bin/tsc -p backend
       - name: Focused backend and viewer regression tests
         run: |
           (cd backend && node node_modules/vitest/vitest.mjs run src/lib/authoritiesAnnotations.test.ts src/lib/authoritiesBuild.test.ts src/lib/authoritiesDomain.test.ts src/lib/authorityPdfText.test.ts --maxWorkers=2)
@@ -67,6 +38,7 @@ jobs:
           node scripts/check-source-boundaries.mjs
           node --test frontend/scripts/transport-boundary.test.mjs
       - name: Real browser editing and independent PDF round trip
+        if: ${{ !cancelled() }}
         run: |
           mkdir -p /tmp/annotation-results
           node backend/node_modules/tsx/dist/cli.mjs backend/scripts/authorities-highlight-browser-runtime.ts > /tmp/annotation-results/runtime.log 2>&1 &
