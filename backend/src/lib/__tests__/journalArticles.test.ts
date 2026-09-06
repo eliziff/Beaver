@@ -16,8 +16,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { journalLegalSourceProvider as journal } from "../legalSources/journal";
 import { runLocalAssistantTools } from "./support/localAssistantTools";
 import { buildLegalSourcePinpointUrl } from "../legalSourceLinks";
-import { readLegalSourcePassage } from "../legalSourceRegistry";
+import { legalSourceOperations } from "../legalSourceApplication";
 import { resourceReference } from "../resourceReferences";
+import { researchSourceFromResource } from "../researchFile";
 import { structureNative } from "../structureNative";
 
 let directory = "";
@@ -386,9 +387,9 @@ describe("local journal articles", () => {
       ],
     );
     const modelSearchPayload = JSON.parse(searchResult.content);
-    expect(modelSearchPayload.results[0]).toMatchObject({
-      provider: "journal",
-      identifier: "7",
+      expect(researchSourceFromResource(modelSearchPayload.results[0].resource)).toMatchObject({
+        provider: "journal",
+        id: "7",
     });
     expect(modelSearchPayload.results[0]).not.toHaveProperty("url");
     expect(modelSearchPayload.results[0]).not.toHaveProperty("articleId");
@@ -413,12 +414,11 @@ describe("local journal articles", () => {
     );
 
     const modelPayload = JSON.parse(toolResult.content);
-    expect(modelPayload.evidence_ids).toHaveLength(1);
-    expect(modelPayload.evidence_ids[0]).toMatch(/^e_/u);
-    expect(modelPayload.passages[0]).toMatchObject({
-      role: "selected",
-      evidence_id: modelPayload.evidence_ids[0],
-    });
+      expect(modelPayload.passages).toHaveLength(1);
+      expect(modelPayload.passages[0].evidence_id).toMatch(/^e_/u);
+      expect(toolResult.evidence?.[0]).toMatchObject({
+        evidence_id: modelPayload.passages[0].evidence_id,
+      });
     expect(modelPayload).not.toHaveProperty("hit_id");
     expect(modelPayload).not.toHaveProperty("url");
 

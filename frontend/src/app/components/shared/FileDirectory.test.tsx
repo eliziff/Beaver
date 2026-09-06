@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { Document } from "./types";
+import type { Document } from "@/app/lib/api/documents";
 import { FileDirectory } from "./FileDirectory";
+import { useState } from "react";
 
 const document: Document = {
     id: "inside",
@@ -20,12 +21,44 @@ const document: Document = {
 
 const listDirectory = vi.hoisted(() => vi.fn());
 const listProjects = vi.hoisted(() => vi.fn());
-vi.mock("@/app/lib/beaverApi", () => ({
-    directoryResource: () => ({ list: listDirectory }),
-    listProjects,
+vi.mock("@/app/lib/api/documents", () => ({
+  directoryResource: () => ({ list: listDirectory })
+}));
+vi.mock("@/app/lib/api/projects", () => ({
+  listProjects
 }));
 
 describe("FileDirectory folders", () => {
+    it("creates beside a folder's files and preserves the name for a failed-create retry", async () => {
+        listDirectory.mockImplementation(async ({ parent_id }) => ({
+            items: parent_id ? [{ kind: "document", document }] : [{ kind: "folder", folder: {
+                id: "folder", name: "Research", parent_folder_id: null,
+            } }], next_cursor: null,
+        }));
+        const created = { ...document, id: "created", filename: "Appeal.research.md", file_type: "md" };
+        const onCreate = vi.fn().mockRejectedValueOnce(new Error("Connection interrupted"))
+            .mockResolvedValue(created);
+        function Directory() {
+            const [naming, setNaming] = useState(false), [selected, setSelected] = useState<Document[]>([]);
+            return <><button onClick={() => setNaming(true)}>New workspace</button>
+                <FileDirectory selectedDocuments={selected} onChange={setSelected} showTabs multiple={false}
+                    newDocument={naming ? { label: "Workspace name", filename: "Workspace.research.md",
+                        onCreate, onCancel: () => setNaming(false) } : undefined} /></>;
+        }
+        render(<Directory />);
+        fireEvent.click(await screen.findByRole("button", { name: "Research" }));
+        await screen.findByLabelText("Select Inside.pdf");
+        fireEvent.click(screen.getByRole("button", { name: "New workspace" }));
+        const name = screen.getByRole("textbox", { name: "Workspace name" });
+        fireEvent.change(name, { target: { value: "Appeal" } });
+        fireEvent.keyDown(name, { key: "Enter" });
+        expect(await screen.findByRole("alert")).toHaveTextContent("Connection interrupted");
+        expect(name).toHaveValue("Appeal");
+        fireEvent.keyDown(name, { key: "Enter" });
+        expect(await screen.findByLabelText("Select Appeal")).toBeChecked();
+        expect(onCreate).toHaveBeenLastCalledWith("Appeal", { library: "files" }, "folder");
+        expect(screen.getByLabelText("Select Inside.pdf")).toBeVisible();
+    });
     it("starts collapsed, expands explicitly, and reveals search results", async () => {
         const folder = {
             id: "folder", user_id: "user", library_kind: "file",

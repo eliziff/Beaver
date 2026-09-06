@@ -17,14 +17,14 @@ const modeFiles = allow(
   ["backend/src/lib", "localMode relationalDatabase"],
   ["backend/src", "middleware/auth"],
   ["frontend/src/app", "(pages)/account/layout (pages)/layout (pages)/projects/[id]/assistant/chat/[chatId]/page components/documents/DocumentAutomation components/projects/ProjectDocumentsView components/projects/ProjectWorkspace components/settings/ApiKeySettings components/settings/AppSettingsModal components/shared/AppSidebar components/workflows/WorkflowDetailPage contexts/AuthContext contexts/UserProfileContext", "tsx"],
-  ["frontend/src/app/lib", "authMode beaverApi"], ["frontend/src", "main", "tsx"],
+  ["frontend/src/app/lib", "authMode"], ["frontend/src", "main", "tsx"],
 );
 const adapterFiles = allow(
   ["backend/src", "runtime middleware/auth routes/auth"],
   ["backend/src/lib", "access audit authSession filesystemObjectStorage jobQueue pdfJobs providerSessionStore relationalChatRepository relationalDatabase relationalDocumentRepository relationalLibraryRepository relationalProjectRepository relationalRepositorySupport relationalTabularRepository relationalUserPreferencesRepository relationalWorkflowRepository relationalWorkProductRepository storage supabase supabaseUserAccount userApiKeys userDataCleanup userDataExport userLookup"],
   ["backend/src/lib/mcp", "oauth servers types"],
   ["frontend/src/app", "(pages)/account/security/page components/account/AuthPage components/popups/MfaVerificationPopup contexts/AuthContext", "tsx"],
-  ["frontend/src/app/lib", "beaverApi supabase"],
+  ["frontend/src/app/lib", "supabase"],
 );
 
 function deploymentAdapter(specifier) {
@@ -37,7 +37,7 @@ function deploymentAdapter(specifier) {
 }
 
 assert.equal(deploymentAdapter("@aws-sdk/client-s3"), true);
-assert.equal(deploymentAdapter("@/app/lib/beaverApi"), false);
+assert.equal(deploymentAdapter("@/app/lib/api/documents"), false);
 
 const files = execFileSync("git", [
   "ls-files", "--cached", "--others", "--exclude-standard", "--",

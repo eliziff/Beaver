@@ -10,6 +10,7 @@ import { createLibraryStore } from "./lib/libraryStore";
 import { isLocalRuntime } from "./lib/localMode";
 import { createProjectStore } from "./lib/projectStore";
 import { createTabularApplication } from "./lib/tabular/application";
+import { resolveChatFindings } from "./lib/researchChat";
 import { durableTabularAgents, tabularAgentJobHandler,
   TABULAR_AGENT_JOB } from "./lib/tabular/agents";
 import { publicOrigin } from "./lib/publicOrigin";
@@ -89,10 +90,9 @@ const cancelChatTurn = async (scope: ChatScope, chatId: string) =>
 const chats: Lazy<ChatStore> = lazy(async () => {
   const contexts = {
     project: async (scope: ChatScope, id: string) => !!await (await projects()).get(scope, id),
-    review: async (scope: ChatScope, id: string) => {
-      try { await (await tabular()).detail(scope, id); return true; }
-      catch (error) { if ((error as { status?: number }).status === 404) return false; throw error; }
-    },
+    research: async (scope: ChatScope, id: string) => !!await (await import("./lib/researchFile"))
+      .readResearchFile(await documents(), scope, id),
+    review: async (scope: ChatScope, id: string) => !!await (await persistence()).tabular.detail(scope, id),
   };
   return createChatStore((await persistence()).chats,
     async (scope, message) => generateChatTitle(
@@ -150,6 +150,9 @@ const tabular: Lazy<ReturnType<typeof createTabularApplication>> = lazy(async ()
   createTabularApplication(
   (await persistence()).tabular, await documents(), await projects(),
   { agents: durableTabularAgents,
+    resolveAnswers: async (scope, researchFileId, chatId) => (await resolveChatFindings(
+      await chats(), await documents(), scope, { researchFileId, chatId, readOnly: true })).findings,
+    audit: (...events) => audit().then((store) => store.record(...events)),
     settings: (userId) => user().then((value) => value.modelSettings(userId)) }));
 const authoritiesWorkspace = lazy(async () =>
   (await import("./lib/authoritiesWorkspaceApplication"))
@@ -178,8 +181,12 @@ const chatCourtRecords: Pick<CourtRecordsApplication,
   async bindOutput(...args) { return (await courtRecords()).bindOutput(...args); },
   async updateDraft(...args) { return (await courtRecords()).updateDraft(...args); },
 });
-const legalSources = lazy(async () => (await import("./lib/legalSourceStore"))
-  .createLegalSourceStore(await (await import("./lib/relationalDatabase")).relationalDatabase()));
+const legalSources = lazy(async () => {
+  const [{ createLegalSourceApplication }, { createLegalSourceStore }, { relationalDatabase }] =
+    await Promise.all([import("./lib/legalSourceApplication"), import("./lib/legalSourceStore"),
+      import("./lib/relationalDatabase")]);
+  return createLegalSourceApplication(createLegalSourceStore(await relationalDatabase()));
+});
 const audit = lazy(async () => (await import("./lib/audit"))
   .createAuditStore(await (await import("./lib/relationalDatabase")).relationalDatabase()));
 async function startWorkers() {
@@ -226,6 +233,7 @@ const chat = lazy(async () => {
   return createChatApplication({ chats: chatStore, documents: documentStore,
     library: libraryStore, projects: projectStore, workProducts: workProductApplication,
     tabular: tabularStore,
+    audit: (...events) => audit().then((store) => store.record(...events)),
     authorities: chatAuthorities, courtRecords: chatCourtRecords,
     features: { ...ports.features, audit(auth, input) {
       background(audit().then((store) => store.recordChatTurn({ userId: auth.userId,

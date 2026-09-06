@@ -1,6 +1,6 @@
 import { Users } from "lucide-react";
 import { PageHeader } from "@/app/components/shared/PageHeader";
-import type { Project } from "@/app/components/shared/types";
+import type { Project } from "@/app/lib/api/projects";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 
 export type ProjectWorkspaceSection = "documents" | "assistant" | "reviews";

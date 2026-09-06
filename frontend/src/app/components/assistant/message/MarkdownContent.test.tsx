@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { CitationPillMarkdown, GfmMarkdown, MarkdownContent } from "./MarkdownContent";
-import type { Citation } from "../../shared/types";
+import type { Citation } from "@/app/lib/citations";
 import { preprocessCitations } from "./citationUtils";
 
 function renderMarkdown(text: string, inlineCitationTargets: Citation[] = []) {
@@ -13,6 +13,40 @@ function renderMarkdown(text: string, inlineCitationTargets: Citation[] = []) {
         />,
     );
 }
+
+describe("MarkdownContent tables", () => {
+    it.each([false, true])("renders Markdown tables (streaming: %s)", (isStreaming) => {
+        render(<MarkdownContent
+            text={"| Item | Count |\n| --- | ---: |\n| **Files** | 2 |"}
+            inlineCitationTargets={[]}
+            isStreaming={isStreaming}
+        />);
+        expect(screen.getByRole("columnheader", { name: "Count" })).toBeInTheDocument();
+        expect(screen.getByRole("cell", { name: "Files" }).querySelector("strong")).toHaveTextContent("Files");
+        expect(screen.getByRole("cell", { name: "2" })).toHaveStyle({ textAlign: "right" });
+    });
+
+    it("preserves ASCII table spacing in a code block", () => {
+        const ascii = "+------+-------+\n| Item | Count |\n+------+-------+\n| Files|     2 |\n+------+-------+\n";
+        const { container } = renderMarkdown("```text\n" + ascii + "```");
+        expect(container.querySelector("pre code")?.textContent).toBe(ascii);
+    });
+
+    it.each([false, true])("renders a verified source chip inside a table cell (streaming: %s)", (isStreaming) => {
+        const citation: Citation = {
+            kind: "a2aj", ref: 1, source_class: "case", citation: "2024 SCC 1",
+            name: "Example v Example", dataset: "SCC", url: "https://example.test/case",
+            pinpoint: "para 12", quotes: [{ quote: "The appeal is allowed." }],
+        };
+        const targets: Citation[] = [];
+        const text = preprocessCitations("| Outcome | Source |\n| --- | --- |\n| The appeal is allowed. | [1] |", new Map([[1, citation]]), targets);
+        render(<MarkdownContent text={text} inlineCitationTargets={targets} isStreaming={isStreaming} />);
+        const chip = screen.getByRole("link", { name: /Example v Example/ });
+        expect(chip.closest("td")).toBeInTheDocument();
+        expect(chip).toHaveAttribute("href", citation.url);
+        expect(chip).toHaveTextContent("para 12");
+    });
+});
 
 describe("MarkdownContent links", () => {
     it("does not make ungrounded subagent URLs clickable", () => {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -53,11 +53,14 @@ describe("KeyboardShortcuts", () => {
         expect(
             screen.getByRole("dialog", { name: "Keyboard shortcuts" }),
         ).toBeVisible();
+        // jsdom's showModal stub does not perform native dialog focusing.
+        within(screen.getByRole("dialog", { name: "Keyboard shortcuts" }))
+            .getByRole("button", { name: "Close" }).focus();
         await user.keyboard("{Escape}");
         expect(
             screen.queryByRole("dialog", { name: "Keyboard shortcuts" }),
         ).not.toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Idle" })).toHaveFocus();
+        await waitFor(() => expect(screen.getByRole("button", { name: "Idle" })).toHaveFocus());
     });
 
     it("closes only the topmost modal and restores nested focus", async () => {
@@ -72,7 +75,7 @@ describe("KeyboardShortcuts", () => {
         await user.click(secondOpener);
 
         screen.getByRole("textbox", { name: "Second value" }).focus();
-        fireEvent.keyDown(document, { key: "Escape" });
+        await user.keyboard("{Escape}");
 
         expect(
             screen.queryByRole("dialog", { name: "Second" }),
@@ -84,7 +87,7 @@ describe("KeyboardShortcuts", () => {
         expect(
             screen.queryByRole("dialog", { name: "First" }),
         ).not.toBeInTheDocument();
-        expect(opener).toHaveFocus();
+        await waitFor(() => expect(opener).toHaveFocus());
     });
 });
 

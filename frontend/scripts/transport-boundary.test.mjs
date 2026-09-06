@@ -6,7 +6,7 @@ import ts from "typescript";
 
 const root = path.resolve(import.meta.dirname, "../src");
 const allowed = {
-    fetch: "app/lib/apiTransport.ts",
+    fetch: "app/lib/api/client.ts",
     getReader: "app/lib/sse.ts",
 };
 

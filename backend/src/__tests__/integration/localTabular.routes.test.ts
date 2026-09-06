@@ -1,5 +1,6 @@
 import os from "node:os";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import request from "supertest";
 import * as XLSX from "xlsx";
@@ -76,6 +77,17 @@ async function waitForReview(
   throw new Error(`Timed out waiting for tabular agents: ${JSON.stringify(latest)}`);
 }
 
+async function submitFixture(params: Parameters<typeof import("../../lib/llm").streamChatWithTools>[0]) {
+  const evidenceId = /e_[A-Za-z0-9_-]{18}/u.exec(JSON.stringify(params.messages))?.[0];
+  if (!evidenceId) throw new Error("Extraction did not receive original evidence");
+  await params.runTools([{
+    id: "result", name: "submit_extraction", input: { column_index: 0,
+      value: "Alberta", flag: "green", outcome: "answered",
+      claims: [{ text: "The governing law is Alberta.", evidence_ids: [evidenceId] }] },
+  }]);
+  return { fullText: "" };
+}
+
 beforeEach(async () => {
   dataHome = await mkdtemp(path.join(os.tmpdir(), "beaver-tabular-routes-"));
   vi.stubEnv("AUTH_MODE", "local");
@@ -89,28 +101,85 @@ beforeEach(async () => {
   vi.stubEnv("GEMINI_API_KEY", "test-key");
   mocks.supabaseCalls = 0;
   mocks.streamChatWithTools.mockReset();
-  mocks.streamChatWithTools.mockImplementation(async (params) => {
-    params.callbacks?.onContentDelta?.(
-      `${JSON.stringify({
-        column_index: 0,
-        summary: "Alberta",
-        flag: "green",
-        reasoning: "Fixture result",
-      })}\n`,
-    );
-    return { fullText: "" };
-  });
+  mocks.streamChatWithTools.mockImplementation(submitFixture);
+
 });
 
 afterEach(async () => {
   await closeStores?.();
   closeStores = null;
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
   vi.resetModules();
   await rm(dataHome, { recursive: true, force: true });
 });
 
 describe("account-free tabular reviews", () => {
+  it("extracts a public research source through durable jobs and imports its grounded findings without another model run", async () => {
+    const api = await loadApi(), { runtime } = await import("../../runtime"),
+      { structureNative } = await import("../../lib/structureNative"),
+      { legalSourceOperations } = await import("../../lib/legalSourceApplication"),
+      research = await import("../../lib/researchFile"), documents = await runtime.documents(),
+      app = await runtime.tabular(), scope = { userId: "00000000-0000-0000-0000-000000000001" },
+      reference = { provider: "tna", id: "ewca/civ/2024/1", kind: "case" as const,
+        title: "Example", citation: "[2024] EWCA Civ 1" },
+      resource = research.researchSourceResource(reference),
+      artifact = await structureNative().deriveDocumentStructure({ kind: "instrument", id: reference.id,
+        text: "[1] The governing law is Alberta.", reconstruct_lineation: false });
+    vi.spyOn(legalSourceOperations, "readWithRenditions").mockResolvedValue({ status: "found",
+      values: [{ source: reference, locator: { requested: null, label: "document" }, role: "document",
+        text: structureNative().documentText(artifact), documentArtifact: artifact }], pdfRenditions: [] });
+    const created = await documents.create(scope, { filename: "Sources.research.md", fileType: "md",
+      bytes: Buffer.from(research.researchFileMarkdown("Sources", research.createResearchFileState())) });
+    let file = (await research.readResearchFile(documents, scope, created.id))!;
+    file = (await research.commitResearchFile(documents, scope, file, { type: "source", reference }))!;
+    const sourceId = Object.keys(file.state.sources)[0];
+    const table = await request(api).post("/tabular-review").send({ research_file_id: created.id,
+      research_selection: { sourceIds: [sourceId], target: "sources" },
+      columns_config: [{ index: 0, name: "Law", prompt: "Find the governing law" }] });
+    expect(table.status).toBe(201);
+    expect(table.body.document_ids).toEqual([resource]);
+    expect((await request(api).post(`/tabular-review/${table.body.id}/generate`)).status).toBe(202);
+    const completed = await waitForReview(api, table.body.id, (detail) =>
+      !detail.review.is_running && detail.cells[0]?.status === "done");
+    expect(completed.cells[0].content).toMatchObject({ summary: "Alberta", resource,
+      evidence: [expect.objectContaining({ provider: "tna", source_reference: { id: reference.id } })] });
+    const extraction = completed.cells[0].content, calls = mocks.streamChatWithTools.mock.calls.length;
+    const chats = await runtime.chats(),
+      { createLegalEvidenceTurnState, registerLegalEvidence, legalEvidenceReceiptEvent } = await import("../../lib/chat/legalEvidence"),
+      { resolveChatFindings } = await import("../../lib/researchChat"), state = createLegalEvidenceTurnState(),
+      chat = await chats.create(scope, { projectId: null, tabularReviewId: null, researchFileId: created.id }),
+      answerMessageId = randomUUID();
+    for (const receipt of extraction.evidence) registerLegalEvidence(state, receipt);
+    state.answer = extraction.claims;
+    await chats.commitTurn(scope, chat.id, { expectedVersion: 0,
+      userMessage: { id: randomUUID(), content: "What law applies?" },
+      assistantMessage: { id: answerMessageId, content: [legalEvidenceReceiptEvent(state)!] } });
+    const selected = await resolveChatFindings(chats, documents, scope, {
+      researchFileId: created.id, chatId: chat.id, messageIds: [answerMessageId] }),
+      finding = selected.findings[0], imported = await app.fromFindings(scope, selected);
+    expect(imported.needs_arrangement).toBe(true);
+    expect(imported.id).not.toBe(table.body.id);
+    expect((await app.detail(scope, imported.id)).cells).toEqual([]);
+    const arrangement = { rows: [{ id: "governing-law", title: "Governing law", sourceId }],
+      cells: [{ rowId: "governing-law", columnIndex: 0, items: [{ kind: "answer" as const,
+        chatId: chat.id, answerId: finding.question.id, resource }] }] };
+    await app.update(scope, imported.id, { expected_version: imported.updated_at,
+      columns_config: [{ index: 0, name: "Finding", prompt: "What law applies?" }], arrangement });
+    const detail = await app.detail(scope, imported.id);
+    expect(detail.cells[0].content).toMatchObject({ claims: extraction.claims, evidence: extraction.evidence,
+      summary: extraction.claims.map(({ text }: { text: string }) => text).join("\n\n") });
+    expect(detail.review.scope_config).toMatchObject({ arrangement,
+      findings: { chatId: chat.id, answerIds: [`${answerMessageId}:answer:0`], sourceIds: [sourceId] } });
+    const { tabularRepository } = await import("../../lib/relationalTabularRepository");
+    expect((await tabularRepository.detail(scope, imported.id))?.cells[0])
+      .toMatchObject({ status: "pending", content: null });
+    expect(await app.fromFindings(scope, await resolveChatFindings(chats, documents, scope, {
+      researchFileId: created.id, chatId: chat.id, messageIds: [answerMessageId], readOnly: true,
+    }))).toMatchObject({ id: imported.id, needs_arrangement: false });
+    expect(mocks.streamChatWithTools.mock.calls.length).toBe(calls);
+  });
+
   it("filters and paginates standalone reviews without duplicates", async () => {
     const api = await loadApi();
     const created = await Promise.all(["Needle lease", "Employment", "Supply"].map(
@@ -152,7 +221,7 @@ describe("account-free tabular reviews", () => {
 
     const uploaded = await request(api)
       .post("/library/files/documents")
-      .attach("file", spreadsheetBytes("fixture"), "lease.xlsx");
+      .attach("file", spreadsheetBytes("Governing law: Alberta"), "lease.xlsx");
     expect(uploaded.status).toBe(201);
     expect(
       (
@@ -251,6 +320,12 @@ describe("account-free tabular reviews", () => {
     await waitForReview(api, created.body.id, (detail) =>
       detail.review.is_running === false && detail.cells[0]?.status === "done");
 
+    const workspace = await request(api).post(`/tabular-review/${created.body.id}/workspace`);
+    expect(workspace.status).toBe(200);
+    expect(workspace.body.research_file_id).toEqual(expect.any(String));
+    const reopenedWorkspace = await request(api).post(`/tabular-review/${created.body.id}/workspace`);
+    expect(reopenedWorkspace.body).toEqual(workspace.body);
+
     await closeStores?.();
     closeStores = null;
     api = await loadApi();
@@ -265,9 +340,28 @@ describe("account-free tabular reviews", () => {
       content: {
         summary: "Alberta",
         flag: "green",
-        reasoning: "Fixture result",
+        reasoning: "The governing law is Alberta.",
       },
     });
+
+    expect(persisted.body.review.scope_config.research_file_id).toBe(workspace.body.research_file_id);
+    expect(persisted.body.cells[0].content.evidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({ provider: "library", stable_source_id: uploaded.body.id,
+        version: uploaded.body.current_version_id }),
+    ]));
+    const { tabularRepository } = await import("../../lib/relationalTabularRepository");
+    const cellScope = { userId: persisted.body.review.user_id }, original = persisted.body.cells[0];
+    const writing = await tabularRepository.setCell(cellScope, { reviewId: created.body.id,
+      documentId: uploaded.body.id, columnIndex: 0, expected: original, status: "generating", content: null });
+    if (writing.status !== "committed") throw new Error("Cell fixture unavailable");
+    const cleared = await tabularRepository.setCell(cellScope, { reviewId: created.body.id,
+      documentId: uploaded.body.id, columnIndex: 0, expected: writing.value, status: "pending", content: null });
+    if (cleared.status !== "committed") throw new Error("Cell fixture unavailable");
+    await tabularRepository.setCell(cellScope, { reviewId: created.body.id,
+      documentId: uploaded.body.id, columnIndex: 0, expected: cleared.value, status: "generating", content: null });
+    const stale = await tabularRepository.setCell(cellScope, { reviewId: created.body.id,
+      documentId: uploaded.body.id, columnIndex: 0, expected: writing.value, status: "done", content: original.content });
+    expect(stale.status).toBe("conflict");
 
     const projectAfterRestart = await request(api).get(
       `/projects/${project.body.id}`,
@@ -291,11 +385,7 @@ describe("account-free tabular reviews", () => {
 
     mocks.streamChatWithTools.mockImplementation(async (params) => {
       await new Promise((resolve) => setTimeout(resolve, 25));
-      params.callbacks?.onContentDelta?.(`${JSON.stringify({
-        column_index: 0, summary: "Alberta", flag: "green",
-        reasoning: "Fixture result",
-      })}\n`);
-      return { fullText: "" };
+      return submitFixture(params);
     });
     const cellRace = await Promise.all([
       request(api).post(`/tabular-review/${created.body.id}/regenerate-cell`)

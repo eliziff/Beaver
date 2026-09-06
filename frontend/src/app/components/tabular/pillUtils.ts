@@ -1,4 +1,4 @@
-import type { ColumnConfig } from "../shared/types";
+import type { ColumnConfig } from "@/app/lib/api/tabular";
 export const TAG_COLORS = [
     "bg-red-50 text-red-700",    "bg-violet-100 text-violet-700",
     "bg-pink-100 text-pink-700",

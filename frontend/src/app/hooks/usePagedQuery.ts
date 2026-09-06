@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import type { Page } from "@/app/lib/beaverApi";
+import type { Page } from "@/app/lib/api/client";
 import { usePagedChains } from "./usePagedChains";
 
 export function usePagedQuery<T>(
@@ -15,6 +15,7 @@ export function usePagedQuery<T>(
     enabled,
   );
   const chain = chains[key];
+  const reload = useCallback(() => fetchPage(key, null, false), [fetchPage]);
   const setItems = useCallback((update: T[] | ((current: T[]) => T[])) => {
     setChains((current) => ({ ...current, [key]: {
       ...(current[key] ?? { nextCursor: null, loading: false, error: null }),
@@ -29,7 +30,7 @@ export function usePagedQuery<T>(
     error: chain?.error ?? null,
     hasMore: chain?.nextCursor != null,
     loadMore: () => chain?.nextCursor && fetchPage(key, chain.nextCursor, true),
-    reload: () => fetchPage(key, null, false),
+    reload,
     setItems,
   };
 }

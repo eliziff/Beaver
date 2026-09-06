@@ -12,9 +12,7 @@ import {
 } from "../lib/normalize";
 import { pageRequest, pageResponse } from "../lib/pagination";
 import { singleFileUpload, uploadedDocument } from "../lib/upload";
-import { enqueuePdfReprocess } from "../lib/pdfJobs";
 import {
-  fixDocumentSupras,
   inspectDocxWorkflowCapabilities,
 } from "../lib/docxDeterministicCleanup";
 
@@ -39,24 +37,6 @@ function libraryRoute(handler: Handler) {
 }
 
 const versionId = (value: unknown) => typeof value === "string" ? value : null;
-
-function docxAction(
-  router: Router,
-  documents: DocumentStore,
-  path: string,
-  label: string,
-  action: (documents: DocumentStore, userId: string, documentId: string) => Promise<unknown>,
-) {
-  router.post(path, libraryRoute(async (req, res, scope) => {
-    if (scope.kind !== "file") reject(400, `${label} applies to Library files`);
-    try {
-      res.json(await action(documents, scope.userId, req.params.documentId));
-    } catch (error) {
-      const missing = error instanceof Error && error.message === "Document not found";
-      reject(missing ? 404 : 400, missing ? "Document not found" : `${label} failed`);
-    }
-  }));
-}
 
 export function createLibraryRouter(store: LibraryStore, documents: DocumentStore) {
   const router = Router();
@@ -182,8 +162,6 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
     }),
   );
 
-  docxAction(router, documents, "/:kind/documents/:documentId/actions/fix-supras",
-    "Supra cleanup", fixDocumentSupras);
   router.get("/:kind/documents/:documentId/workflow-capabilities", libraryRoute(async (req, res, scope) => {
     if (scope.kind !== "file") reject(400, "Document workflows apply to Library files");
     try {
@@ -194,18 +172,8 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
     }
   }));
 
-  const pdf = async (scope: LibraryScope, documentId: string, requested: unknown) => {
-    const document = await documents.metadata(scope, documentId);
-    if (!document || document.library_kind !== scope.kind) reject(404, "Document not found");
-    const file = await documents.read(scope, documentId, versionId(requested), false)
-      ?? reject(404, "Version not found");
-    if (file.fileType !== "pdf") reject(409, "Version is not a PDF");
-    return file;
-  };
-
   router.post("/:kind/documents/:documentId/actions/retry-pdf-parse",
     libraryRoute(async (req, res, scope) => {
-      const file = await pdf(scope, req.params.documentId, req.body?.version_id);
       const ocr = req.body?.ocr_provider;
       if (ocr !== undefined && ocr !== "tesseract" && ocr !== "kraken-lite")
         reject(400, "ocr_provider must be kraken-lite or tesseract");
@@ -215,25 +183,9 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
       const layout: boolean | null | undefined = layoutProvider === "none" ? null
         : layoutProvider === "local" ? true
         : undefined;
-      try {
-        const job = await enqueuePdfReprocess({
-          userId: scope.userId,
-          documentId: req.params.documentId, versionId: file.version.id,
-          sourceSha256: file.version.source_sha256,
-          ...(ocr ? { ocrProvider: ocr } : {}),
-          ...(layoutProvider ? { layout } : {}),
-        });
-        res.status(202).json({ id: job.id, status: job.status });
-      } catch (error) {
-        if (layoutProvider) reject(503, "PDF layout analysis could not start. Check the local runtime and model files.");
-        if (!ocr) throw error;
-        const message = error instanceof Error ? error.message : "";
-        reject(503, ocr === "tesseract" && message.startsWith("Tesseract was not found")
-          ? "Tesseract was not found. Install it or configure its executable."
-          : ocr === "tesseract"
-            ? "OCR could not start. Check the local Tesseract installation and retry."
-            : "OCR could not start. Check the local Kraken-lite runtime and retry.");
-      }
+      res.status(202).json(await store.reprocessPdf(scope, req.params.documentId, {
+        versionId: versionId(req.body?.version_id), ocrProvider: ocr, layout,
+      }));
     }));
 
   return router;

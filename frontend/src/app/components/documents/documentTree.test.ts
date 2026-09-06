@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Document, Folder } from "@/app/components/shared/types";
+import type { Document, Folder } from "@/app/lib/api/documents";
 import {
     buildDocumentTree,
     descendantFolderIds,

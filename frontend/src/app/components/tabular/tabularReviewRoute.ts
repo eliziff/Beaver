@@ -1,4 +1,4 @@
-import { createTabularReview } from "@/app/lib/beaverApi";
+import { createTabularReview } from "@/app/lib/api/tabular";
 
 export async function createTabularReviewPath(
     payload: Parameters<typeof createTabularReview>[0],

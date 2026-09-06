@@ -1,4 +1,5 @@
-import { parseAssistantProtocolEvent, type ProtocolEvent } from "./assistantSession";
+import { parseAssistantProtocolEvent } from "./assistantProtocol";
+import { type ProtocolEvent } from "./assistantSession";
 import { readSseData } from "./sse";
 
 export const ASSISTANT_STREAM_LIMITS = {

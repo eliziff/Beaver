@@ -13,6 +13,12 @@ reading-order experiment. Statements below about repository shape, ownership,
 or build order describe the historical proposal and are superseded by the
 current plan; they are retained only where they explain an evidence contract.
 
+Policy correction, 2026-09-05: the profile-preserving refactor contract in
+[Shared document structure](../roadmap/document-structure.md) supersedes all
+earlier prescriptions here for genre-independent resolution or universal
+document-type-free rules. Historical measurements remain evidence, not authority
+to remove primary profiles or treat quotations as constituent documents.
+
 ## Current evidence
 
 The diagnostic run over 748 PDFs and 24,707 pages established two useful
@@ -148,21 +154,23 @@ Many legal structures overlap legitimately:
 | Proven furniture or folio with content role | Conflict |
 | Proven table cell with document-level promotion | Conflict |
 
-Resolution applies to a marker level in a local run, not to an entire
-document or even necessarily an entire range. A section may contain a running
-paragraph spine and nested list levels without contradiction.
+Resolution applies to a marker level within its owning document and primary
+profile. A section may contain a running paragraph spine and nested lists;
+quoted numbering remains subordinate to the enclosing document's structure.
 
-### 6. Resolve locally, never by document genre
+### 6. Preserve primary profiles and structural ownership
 
-Do not branch on filename, corpus label, jurisdiction, or document type. A
-factum may contain quoted legislation, a schedule, a list, a transcript
-excerpt, and ordinary numbered submissions. Each uninterrupted local flow is
-resolved from its own evidence.
+Use the primary document profile to govern interpretation. Local sequence and
+layout evidence refine roles within that policy; they do not make quoted
+legislation, lists, or transcript excerpts peer documents or primary sections.
+Corpus filenames are not semantic evidence, but legitimate document-type and
+source policies must remain explicit rather than being prohibited.
 
-Local scopes begin and end at proven structural resets such as headings,
-columns, note regions, tables, forms, appendices, schedules, opinion changes,
-and material geometry changes. Page boundaries do not end a run when flow and
-sequence continue across them.
+Distinguish a local numbering/quotation scope from a constituent-document
+boundary. Compound records require separately validated bounded documents and
+package navigation. Headings, page breaks, columns, or restarts alone cannot
+establish that boundary. Follow the staged plan and separate quotation/compound
+acceptance cases in the active roadmap before changing these semantics.
 
 ### 7. Treat restarts as scoped evidence
 
@@ -242,10 +250,11 @@ ambiguity. False precision is worse than an honest missing locator.
 
 ### 14. Every new rule must describe an invariant
 
-No rule may mention a corpus filename, publisher, template, or one-off
-document type. It must explain a reusable legal/document invariant and win on
-held-out source families. A unique exception is acceptable only when it fixes
-a logically impossible assignment, not merely a disliked corpus output.
+Rules must explain a reusable legal/document invariant or an explicit,
+validated profile/source contract and pass held-out cases within their intended
+scope. Do not special-case corpus filenames to obtain desired scores. Legitimate
+document-type policy is not an architectural defect; unexplained corpus fitting
+is. Intentional corrections require independent expected-output evidence.
 
 ### 15. Scan once and retain compact receipts
 

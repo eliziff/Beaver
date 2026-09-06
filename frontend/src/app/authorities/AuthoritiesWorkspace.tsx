@@ -3,12 +3,13 @@ import { BookOpen, ChevronRight, Download, Eye, FilePlus2, FolderSearch,
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
-import { ChoiceModalButton } from "@/app/components/modals/JurisdictionModal";
+import { ChoiceModalButton } from "@/app/components/modals/ChoiceModalButton";
 import { ModalSelect, SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
 import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { OutputFolderSetting } from "@/app/components/shared/OutputFolderSetting";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
-import type { Document } from "@/app/components/shared/types";
+import type { Document } from "@/app/lib/api/documents";
+import type { LibraryDocumentPickerProps } from "@/app/components/shared/LibraryDocumentPicker";
 import { Button, buttonClassName } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { TabList } from "@/app/components/ui/tabs";
@@ -30,7 +31,7 @@ import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesProduct,
 import { deriveAuthorityProcedure, tabLabel } from "../../../../shared/authorities-order.mjs";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
-type WorkspaceTab = "automatic" | "manual" | "drafts" | "settings";
+type WorkspaceTab = "automatic" | "manual" | "drafts";
 type StartPreferences = Pick<AuthoritiesBuildSettings, "sourceMode" | "passageMarking"> & {
   profileId: AuthoritiesProfileId;
 };
@@ -41,7 +42,7 @@ type PendingImport = {
 };
 const TABS: ReadonlyArray<{ value: WorkspaceTab; label: string }> = [
   { value: "automatic", label: "Automatic" }, { value: "manual", label: "Manual" },
-  { value: "drafts", label: "Drafts" }, { value: "settings", label: "Settings" },
+  { value: "drafts", label: "Drafts" },
 ];
 const WORKSPACE_FRAME = "mx-auto w-full max-w-[50rem] px-4 sm:px-6 md:mx-auto";
 const SOURCE_LANGUAGE_OPTIONS = [
@@ -57,9 +58,8 @@ const DEFAULTS: StartPreferences = {
 const bookPreferences = (value: StartPreferences) =>
   authoritiesProfile(value.profileId).locked?.outputMode === "table"
     ? withProfile(value, GENERAL_PROFILE.id) : value;
-type LibraryPicker = ComponentType<{ open: boolean; title: string; formatLabel: string;
-  query: string; results: Document[]; busy: boolean; onQuery: (value: string) => void;
-  sourceLabel?: string; onSelect: (document: Document) => void; onClose: () => void }>;
+type LibraryPicker = ComponentType<LibraryDocumentPickerProps>;
+
 type LibraryTarget = { kind: "import" } | { kind: "manual" } |
   { kind: "authority"; authorityId: string } |
   Extract<AuthoritiesLibraryPdfTarget, { kind: "book" }>;
@@ -99,8 +99,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const [tab, setTab] = useState<WorkspaceTab>("automatic");
   const tabRef = useRef(tab);
   tabRef.current = tab;
-  const globalTab = tab === "drafts" || tab === "settings";
+  const globalTab = tab === "drafts";
   const [preferences, setPreferences] = useState(loadPreferences);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [manualTitle, setManualTitle] = useState("Book of Authorities");
   const [drafts, setDrafts] = useState<WorkProductMetadata[]>([]);
   const [draftsLoading, setDraftsLoading] = useState(true);
@@ -118,8 +119,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const [pendingAttachment, setPendingAttachment] = useState<{
     authorityId: string; selected: PdfChoice;
   }>();
-  const [query, setQuery] = useState(""), [results, setResults] = useState<Document[]>([]);
-  const [searching, setSearching] = useState(false), [linkingId, setLinkingId] = useState("");
+  const [linkingId, setLinkingId] = useState("");
   const [focusRequest, setFocusRequest] = useState(0);
   const [downloadDirectory, setDownloadDirectory] = useState<DownloadDirectory | null>(null);
   const [capturingId, setCapturingId] = useState("");
@@ -131,7 +131,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const [sourceIntervention, setSourceIntervention] = useState("");
   const [review, setReview] = useState<{ id: string; key: string;
     items: AuthoritiesDiscrepancy[]; error: string }>();
-  const searchRequest = useRef<AbortController | null>(null), draftRef = useRef(draft);
+  const draftRef = useRef(draft);
   const buildRequest = useRef<AbortController | null>(null);
   const captureRequest = useRef<AbortController | null>(null);
   const reviewRequest = useRef<AbortController | null>(null);
@@ -218,7 +218,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       if (next.kind !== "authorities") throw new Error("This is not an Authorities draft.");
       if (request !== routeRequest.current) return;
       remember(next);
-      display(next, tabRef.current === "drafts" || tabRef.current === "settings");
+      display(next, tabRef.current === "drafts");
     }).catch((caught) => {
       if (request === routeRequest.current) setError(errorText(caught));
     }).finally(() => {
@@ -233,7 +233,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   useEffect(() => localStorage.setItem("beaver.authorities.preferences", JSON.stringify(preferences)),
     [preferences]);
   useEffect(() => () => {
-    searchRequest.current?.abort(); buildRequest.current?.abort(); captureRequest.current?.abort();
+    buildRequest.current?.abort(); captureRequest.current?.abort();
     reviewRequest.current?.abort();
   }, []);
   const draftId = draft?.id;
@@ -472,7 +472,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   }
 
   function openLibrary(target: LibraryTarget) {
-    setLibraryTarget(target); search("", target.kind === "import" ? "source" : "pdf");
+    setLibraryTarget(target);
   }
 
   function chooseLibrary(document: Document) {
@@ -638,6 +638,11 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     sourceLabel, onAttach: (id: string, file?: File) => attach(id, file && { file }),
     onRelink: relinkSource };
 
+  const settingsAction = <Button type="button" variant="outline" aria-label="Settings"
+    className="h-9 w-9 shrink-0 border-gray-400 px-0 sm:w-auto sm:px-4"
+    disabled={busy || locked} onClick={() => setSettingsOpen(true)}>
+    <Settings2 /><span className="hidden sm:inline">Settings</span></Button>;
+
   return <div className={cn("authorities-workspace bg-app-background [scrollbar-gutter:stable]",
     host.mode === "standalone" ? "min-h-dvh" : "min-h-full lg:h-full lg:min-h-0 lg:overflow-y-auto")}>
     {draft && !globalTab ? <WorkspaceHeader className={host.mode === "standalone" ? WORKSPACE_FRAME : undefined} current={draft}
@@ -645,9 +650,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         onBack={() => newDraft(false)} onRename={rename} onDuplicate={duplicate}
         onDelete={removeDraft} headerActions={<><Button type="button" variant="outline"
           className="h-9 border-gray-400" disabled={busy || locked} onClick={() => newDraft()}>
-          <Plus /> New</Button>{headerActions}</>} />
+          <Plus /> New</Button>{settingsAction}{headerActions}</>} />
         : <WorkspaceHeader className={host.mode === "standalone" ? WORKSPACE_FRAME : undefined} title="Authorities"
-          headerActions={headerActions} />}
+          headerActions={<>{settingsAction}{headerActions}</>} />}
     <div inert={locked} aria-busy={locked || undefined}>
           <main className={cn(WORKSPACE_FRAME, "min-h-80 py-4")}>
         <TabList value={tab} onValueChange={changeTab} options={TABS}
@@ -664,10 +669,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
               () => host.drafts.get<AuthoritiesProduct["state"]>(id), (next) => {
                 remember(next); open(next);
               }, "", "Opening draft")} />
-          : tab === "settings"
-            ? <StartSettings value={preferences} onChange={setPreferences} busy={busy}
-                jurisdictionOrder={jurisdictionOrder}
-                outputFolder={host.outputFolder} />
             : !draft
               ? tab === "manual"
                 ? <ManualStart title={manualTitle} busy={busy} onTitle={setManualTitle}
@@ -729,13 +730,26 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         </div>
       </main>
       {LibraryPicker && <LibraryPicker open={!!libraryTarget}
+        key={`${draft?.id}:${draft?.projectId ?? projectId}:${libraryTarget?.kind}`}
         title={libraryTitle(libraryTarget, sourceLabel)}
         formatLabel={libraryTarget?.kind === "import" ? "PDF or Word" : "PDF"}
         sourceLabel={sourceLabel}
-        query={query} results={results} busy={searching} onQuery={search}
-        onSelect={chooseLibrary} onClose={() => {
-          searchRequest.current?.abort(); setLibraryTarget(undefined);
-        }} />}
+        search={(query, signal) => host.searchLibrary?.(query, {
+          projectId: draft?.projectId ?? projectId,
+          formats: libraryTarget?.kind === "import" ? ["pdf", "docx"] : ["pdf"],
+        }, signal) ?? Promise.resolve([])}
+        onError={(caught) => setError(errorText(caught))}
+        onSelect={chooseLibrary} onClose={() => setLibraryTarget(undefined)} />}
+      <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} size="xl"
+        breadcrumbs={["Settings"]} className="h-fit max-h-[calc(100dvh-2rem)]"
+        primaryAction={{ label: "Done", onClick: () => setSettingsOpen(false) }}>
+        <p className="mb-4 text-sm text-gray-600">Defaults for new authorities drafts.</p>
+        <AuthoritiesSetupFields value={preferences} onChange={setPreferences}
+          busy={busy} jurisdictionOrder={jurisdictionOrder} />
+        {host.outputFolder && <div className="mt-5 border-t border-gray-200 pt-4">
+          <OutputFolderSetting port={host.outputFolder} busy={busy} />
+        </div>}
+      </Modal>
       <ImportSetup pending={pendingImport} busy={busy} status={error}
         jurisdictionOrder={jurisdictionOrder}
         onChange={(next) => setPendingImport((current) => current
@@ -760,20 +774,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     </div>
   </div>;
 
-  function search(value: string, format = libraryTarget?.kind === "import" ? "source" : "pdf") {
-    searchRequest.current?.abort();
-    const request = new AbortController(); searchRequest.current = request;
-    setQuery(value); setSearching(true);
-    void host.searchLibrary?.(value, { projectId: draftRef.current?.projectId ?? projectId,
-      formats: format === "pdf" ? ["pdf"] : ["pdf", "docx"] },
-      request.signal)
-      .then((items) => { if (!request.signal.aborted) setResults(items); })
-      .catch((caught) => {
-        if ((caught as { name?: string })?.name !== "AbortError") setError(errorText(caught));
-      }).finally(() => {
-        if (searchRequest.current === request) { searchRequest.current = null; setSearching(false); }
-      });
-  }
 }
 
 function Loading() {
@@ -808,22 +808,15 @@ function ImportSetup({ pending, busy, status, jurisdictionOrder, onChange, onClo
 }) {
   const value = pending?.preferences ?? DEFAULTS;
   return <Modal open={!!pending} onClose={onClose} size="xl" breadcrumbs={["Import options"]}
-    className="h-auto max-h-[calc(100dvh-2rem)]"
+    className="h-fit max-h-[calc(100dvh-2rem)]"
     footerStatus={status && <span className="text-sm text-red-800" role="status">{status}</span>}
     cancelAction={{ label: "Cancel", disabled: busy, onClick: onClose }}
     primaryAction={{ label: busy ? "Finding citations" : "Import and review", disabled: busy,
       icon: busy ? <Loader2 className="motion-safe:animate-spin" /> : undefined,
       onClick: onImport }}>
     <p className="mb-4 truncate text-sm text-gray-600" title={pending?.title}>{pending?.title}</p>
-    <AuthoritiesCourtField value={value.profileId} disabled={busy}
-      preferredKeys={jurisdictionOrder}
-      onChange={(profileId) => onChange(withProfile(value, profileId))} />
-    <OptionCards legend="Source handling" value={value.sourceMode} options={SOURCE_OPTIONS} disabled={busy}
-      className="mt-5"
-      onChange={(sourceMode) => onChange({ ...value, sourceMode })} />
-    <OptionCards className="mt-5" legend="Passage marking" value={value.passageMarking}
-      options={passageOptions(value.profileId)} columns disabled={busy}
-      onChange={(passageMarking) => onChange({ ...value, passageMarking })} />
+    <AuthoritiesSetupFields value={value} onChange={onChange} busy={busy}
+      jurisdictionOrder={jurisdictionOrder} />
     <div className="h-5" />
   </Modal>;
 }
@@ -861,7 +854,7 @@ function DraftsPanel({ drafts, loading, busy, onOpen }: { drafts: WorkProductMet
   const pages = Math.max(1, Math.ceil(drafts.length / 8));
   const [requestedPage, setPage] = useState(1), page = Math.min(requestedPage, pages);
   return <section className="overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
-    <div className="flex min-h-16 items-center gap-3 border-b border-gray-200 px-4 py-3">
+    <div className="flex items-center gap-3 border-b border-gray-200 p-4 sm:p-5">
       <History className="h-5 w-5 shrink-0 text-red-700" /><div className="min-w-0"><h2 className="font-semibold text-gray-950">Saved drafts</h2>
       <p className="text-sm text-gray-600">Reopen, edit, and build again.</p></div></div>
     <div className="h-[28rem] overflow-y-auto">
@@ -908,30 +901,21 @@ function AuthoritiesCourtField({ value, disabled, preferredKeys, onChange, class
   </div>;
 }
 
-function StartSettings({ value, onChange, busy, jurisdictionOrder, outputFolder }: {
+function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder }: {
   value: StartPreferences; onChange: (value: StartPreferences) => void; busy: boolean;
   jurisdictionOrder: string[];
-  outputFolder?: import("@/app/components/shared/OutputFolderSetting").OutputFolderPort;
 }) {
-  return <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm sm:p-5">
-    <div className="flex items-center gap-3"><Settings2 className="h-5 w-5 shrink-0 text-red-700" />
-      <div className="min-w-0"><h2 className="font-semibold text-gray-950">New drafts</h2>
-        <p className="text-sm text-gray-600">Defaults used when you import a document.</p></div></div>
-    <div className="mt-5 grid gap-4 sm:grid-cols-2">
-      <AuthoritiesCourtField value={value.profileId} disabled={busy}
-        preferredKeys={jurisdictionOrder}
-        onChange={(profileId) => onChange(withProfile(value, profileId))} />
-      <SelectField label="Source handling" value={value.sourceMode}
-        onChange={(sourceMode) => onChange({ ...value, sourceMode })}
-        options={SOURCE_OPTIONS} />
-      <SelectField label="Passage marking" value={value.passageMarking}
-        onChange={(passageMarking) => onChange({ ...value, passageMarking })}
-        options={passageOptions(value.profileId)} />
-    </div>
-    {outputFolder && <div className="mt-5 border-t border-gray-200 pt-4">
-      <OutputFolderSetting port={outputFolder} busy={busy} />
-    </div>}
-  </section>;
+  return <>
+    <AuthoritiesCourtField value={value.profileId} disabled={busy}
+      preferredKeys={jurisdictionOrder}
+      onChange={(profileId) => onChange(withProfile(value, profileId))} />
+    <OptionCards legend="Source handling" value={value.sourceMode} options={SOURCE_OPTIONS} disabled={busy}
+      className="mt-5"
+      onChange={(sourceMode) => onChange({ ...value, sourceMode })} />
+    <OptionCards className="mt-5" legend="Passage marking" value={value.passageMarking}
+      options={passageOptions(value.profileId)} columns disabled={busy}
+      onChange={(passageMarking) => onChange({ ...value, passageMarking })} />
+  </>;
 }
 
 function ManualDraft({ state, authorities, tabs, busy, sourceIssues,

@@ -8,8 +8,8 @@ import {
   type ApiKeyProvider,
   type ApiKeyState,
   type UserProfile as ApiProfile,
-} from "@/app/lib/beaverApi";
-import { isMfaRequiredError } from "@/app/lib/authApi";
+} from "@/app/lib/api/account";
+import { isMfaRequiredError } from "@/app/lib/api/auth";
 
 type Profile = Omit<ApiProfile, "apiKeyStatus"> & { apiKeys: ApiKeyState };
 type ProfilePatch = Parameters<typeof updateUserProfile>[0];

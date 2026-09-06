@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check } from "lucide-react";
-import type { Project } from "../shared/types";
+import { type Project, getProject, listProjects } from "@/app/lib/api/projects";
 import { FolderSvgIcon } from "../shared/FolderSvgIcon";
 import { SearchBar } from "../ui/search-bar";
 import { CollectionState } from "../shared/CollectionState";
-import { getProject, listProjects } from "@/app/lib/beaverApi";
+
 import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 interface Props {
     projects?: Project[];

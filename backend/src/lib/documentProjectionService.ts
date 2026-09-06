@@ -399,10 +399,8 @@ function projectionFor(key: string, load: () => Promise<NativeDocument>) {
 async function compileReadProjection(
   input: DocumentProjectionSource,
   source: Awaited<ReturnType<typeof boundedSource>>,
-  signal?: AbortSignal,
 ): Promise<NativeDocument> {
   const { bytes, fileType } = source;
-  signal?.throwIfAborted();
   if (fileType === "docx") {
     const document = await structureNative().deriveDocxDocument(
       bytes,
@@ -431,7 +429,6 @@ async function compileReadProjection(
       versionId: input.versionId,
       bytes: pdf,
       sourceSha256,
-      signal,
     });
   }
   if (text === null) {
@@ -462,29 +459,15 @@ async function read(input: DocumentProjectionSource, options: { signal?: AbortSi
     sourceSha256: input.sourceSha256,
     ...(input.pdfProfile ? { cacheKey: input.pdfProfile.cacheKey } : {}),
   };
-  const cached = existingProjection(projectionKey(reference));
-  if (cached) return cached.then((result) => {
-    options.signal?.throwIfAborted(); return result;
-  });
-  if (input.fileType.trim().toLowerCase() === "pdf") {
-    return pdfDocumentForSource(input.readBytes, reference, {
-      pdfProfile: input.pdfProfile,
-      signal: options.signal,
-    });
-  }
-  const source = await boundedSource(input);
-  const key = projectionKey({
-    documentId: input.documentId,
-    versionId: input.versionId,
-    sourceSha256: source.sourceSha256,
-  });
-  const pending = projectionFor(key, () =>
-    compileReadProjection(input, source, options.signal).then((document) => {
+  // Share source verification as well as compilation. Cancellation belongs to
+  // each reader; abandoning one read must not invalidate another reader's work.
+  const result = input.fileType.trim().toLowerCase() === "pdf"
+    ? await pdfDocumentForSource(input.readBytes, reference, { pdfProfile: input.pdfProfile })
+    : await projectionFor(projectionKey(reference), async () => {
+      const document = await compileReadProjection(input, await boundedSource(input));
       assertProjectionOutput(document);
-      options.signal?.throwIfAborted();
       return document;
-    }));
-  const result = await pending;
+    });
   options.signal?.throwIfAborted();
   return result;
 }

@@ -116,6 +116,8 @@ describe("ResearchLabelPicker", () => {
     const nested = { ...file, state: { ...file.state, labels: { ...labels,
       child: { ...label("child", 0), parentId: "a" },
       leaf: { ...label("leaf", 0), parentId: "child" },
+      detail: { ...label("detail", 0), parentId: "leaf" },
+      nested: { ...label("nested", 0), parentId: "detail" },
     } } }, act = vi.fn().mockResolvedValue(nested);
     render(<ResearchLabelEditor target={{ file: nested, kind: "source", itemId: "source-1",
       labelIds: [], title: "Source" }} mutations={lane(act)} onClose={vi.fn()} />);
@@ -123,14 +125,16 @@ describe("ResearchLabelPicker", () => {
     fireEvent.click(screen.getByRole("button", { name: "A" }));
     fireEvent.click(screen.getByRole("button", { name: "CHILD" }));
     fireEvent.click(screen.getByRole("button", { name: "LEAF" }));
-    await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ labelIds: ["leaf"] })));
+    fireEvent.click(screen.getByRole("button", { name: "DETAIL" }));
+    fireEvent.click(screen.getByRole("button", { name: "NESTED" }));
+    await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ labelIds: ["nested"] })));
     fireEvent.click(screen.getByRole("button", { name: "Add label assignment" }));
     expect(screen.queryByRole("button", { name: "LEAF" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "B" }));
-    await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ labelIds: ["leaf", "b"] })));
+    await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ labelIds: ["nested", "b"] })));
     fireEvent.keyDown(screen.getByRole("button", { name: "Additional label 1: B" }), { key: "ArrowLeft", altKey: true });
-    await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ labelIds: ["b", "leaf"] })));
+    await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ labelIds: ["b", "nested"] })));
     fireEvent.click(screen.getByRole("button", { name: "None" }));
-    await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ labelIds: ["leaf"] })));
+    await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ labelIds: ["nested"] })));
   });
 });

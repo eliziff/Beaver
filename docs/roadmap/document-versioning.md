@@ -13,7 +13,8 @@ revision → immutable checkpoint → linear restorable history, local and cloud
   Restore is a new descendant of the former head with historical content, never
   rewind/history mutation. Old reads stay explicit/read-only.
 - Activity/search/read/labels belong in existing receipts, not versions. Research
-  files and optional linked Markdown memos obey the ordinary lifecycle.
+  files, including their optional Markdown memo and owned evidence/query parts,
+  obey the ordinary lifecycle as one document.
 - Library details show newest-first actor/time/provenance/comment; Preview/Restore/
   Compare only where supported. No branches/staging/checkout/minor-version jargon
   or second Workspace history panel.

@@ -1,7 +1,6 @@
 import type { ProviderAdapter, ProviderEvent, ProviderStep } from "./providerLoop";
 import { runtimeConstructor } from "./runtimeSdk";
 import type { LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
-import { isJsonRecord } from "../value";
 
 type Part = Record<string, unknown>;
 type Content = { role: "user" | "model"; parts: Part[] };
@@ -19,56 +18,12 @@ type GeminiConstructor = new (options: {
 }) => GeminiClient;
 const gemini = runtimeConstructor<GeminiConstructor>("@google/genai", "GoogleGenAI");
 
-const allowedSchemaKeys = new Set([
-  "type", "description", "enum", "format", "items", "nullable", "properties", "required",
-]);
-
-function schema(value: unknown, root = value, refs = new Set<string>()): Record<string, unknown> {
-  if (!isJsonRecord(value)) return { type: "object", properties: {} };
-  const source = value as Record<string, unknown>;
-  if (typeof source.$ref === "string") {
-    if (!source.$ref.startsWith("#/") || refs.has(source.$ref)) {
-      throw new Error(`Unsupported Gemini schema reference: ${source.$ref}`);
-    }
-    let resolved: unknown = root;
-    for (const key of source.$ref.slice(2).split("/").map((part) => part.replace(/~1/g, "/").replace(/~0/g, "~"))) {
-      resolved = isJsonRecord(resolved) ? resolved[key] : null;
-    }
-    if (!resolved) throw new Error(`Unresolved Gemini schema reference: ${source.$ref}`);
-    return schema(resolved, root, new Set([...refs, source.$ref]));
-  }
-  const out = Object.fromEntries(Object.entries(source).filter(([key]) => allowedSchemaKeys.has(key)));
-  const rawType = Array.isArray(out.type)
-    ? out.type.find((item) => item !== "null") : out.type;
-  const type = rawType === "integer" ? "number" :
-    ["object", "array", "string", "number", "boolean"].includes(String(rawType)) ? rawType : "object";
-  out.type = type;
-  if (type === "object") {
-    const properties = source.properties && typeof source.properties === "object" && !Array.isArray(source.properties)
-      ? source.properties as Record<string, unknown> : {};
-    out.properties = Object.fromEntries(Object.entries(properties).map(([key, child]) => [key, schema(child, root, refs)]));
-    if (Array.isArray(source.required)) {
-      out.required = source.required.filter((key) => typeof key === "string" && key in (out.properties as object));
-    } else delete out.required;
-  } else {
-    delete out.properties;
-    delete out.required;
-    if (type === "array") out.items = schema(source.items, root, refs);
-    else delete out.items;
-  }
-  return out;
-}
-
 function declarations(tools: Tool[]) {
-  return tools.map((tool) => {
-    const parameters = schema(tool.inputSchema);
-    const hasProperties = Object.keys(parameters.properties as object ?? {}).length > 0;
-    return {
-      name: tool.name,
-      description: tool.description ?? "",
-      ...(hasProperties ? { parameters } : {}),
-    };
-  });
+  return tools.map((tool) => ({
+    name: tool.name,
+    description: tool.description ?? "",
+    parametersJsonSchema: tool.inputSchema,
+  }));
 }
 
 function contents(messages: LlmMessage[]): Content[] {

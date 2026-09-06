@@ -4,10 +4,11 @@ import { readFile } from "node:fs/promises";
 import { docxToPdf } from "./convert";
 import type { DocumentAggregate, DocumentRepository,
   StoredDocumentPart, StoredDocumentVersion, StoredPartChanges } from "./documentRepository";
-import { contentTypeForDocumentType, shouldConvertToPdf,
+import { contentTypeForDocumentType, isSpreadsheetDocumentType, shouldConvertToPdf,
   validateDocumentFile } from "./documentTypes";
 import type { DocumentFile, DocumentPartFile, DocumentPartsChange, DocumentProvenance,
-  DocumentScope, DocumentStore, DocumentVersion, StoredAssistantEdit } from "./documentStore";
+  DocumentRecord, DocumentScope, DocumentSpreadsheet, DocumentStore, DocumentVersion,
+  StoredAssistantEdit } from "./documentStore";
 import { ApplicationError } from "./applicationError";
 import { extractTrackedChangeIds, resolveTrackedChange } from "./docxTrackedChanges";
 import { compareDocxVersions } from "./docxCompareVersions";
@@ -19,6 +20,16 @@ import { documentBlobDigest, documentBlobKey, MAX_OBJECT_SIZE_BYTES, normalizeDo
   SIGNED_GET_TTL_SECONDS, type ObjectStorage } from "./storage";
 import { assertBoundedZip, loadZip } from "./zip";
 import { pdfLifecyclePhase } from "./pdfLifecycleDiagnostics";
+import { documentProjectionService } from "./documentProjectionService";
+import { spreadsheetToLLMStructure } from "./spreadsheet";
+
+const projectionReference = (documentId: string, version: StoredDocumentVersion) => ({
+  documentId, versionId: version.id, sourceSha256: version.sourceSha256,
+});
+async function availableEvidence<T>(load: () => Promise<T>) {
+  try { return await load(); }
+  catch { throw new ApplicationError(410, "Evidence is no longer available"); }
+}
 
 const safeFilename = (value: string) => {
   if (!value.trim()) throw new ApplicationError(400, "filename is required");
@@ -120,7 +131,7 @@ const responseVersion = (version: StoredDocumentVersion): DocumentVersion => ({
       change_count: version.provenance.changeCount } : undefined,
 });
 
-const responseDocument = (aggregate: Pick<DocumentAggregate, "document" | "versions">) => {
+const responseDocument = (aggregate: Pick<DocumentAggregate, "document" | "versions">): DocumentRecord => {
   const version = activeVersion(aggregate);
   if (!version) throw new Error("Document has no active version");
   const document = aggregate.document;
@@ -425,6 +436,15 @@ export function createDocumentApplication(repository: DocumentRepository,
       return aggregate ? responseDocument(aggregate) : null;
     },
 
+    async metadataMany(scope, documentIds, owner = false) {
+      const ids = [...new Set(documentIds)], found = new Map<string, ReturnType<typeof responseDocument>>();
+      for (let start = 0; start < ids.length; start += 200) {
+        for (const head of await repository.heads(scope, ids.slice(start, start + 200), owner))
+          found.set(head.document.id, responseDocument(head));
+      }
+      return ids.flatMap((id) => found.get(id) ?? []);
+    },
+
     async parseStates(scope, ids) {
       return (await repository.parseStates(scope, ids)).map(({ id, parseState }) =>
         ({ id, parse_state: parseState, page_count: parseState?.page_count ?? null }));
@@ -587,10 +607,40 @@ export function createDocumentApplication(repository: DocumentRepository,
       };
     },
 
-    async download(scope, documentId, versionId, preferPdf, disposition) {
+    async spreadsheet(scope, documentId, versionId) {
+      const version = await repository.version(scope, documentId, versionId);
+      if (!version) return null;
+      if (!isSpreadsheetDocumentType(version.fileType))
+        throw new ApplicationError(400, "Document is not a spreadsheet");
+      const bytes = await checkedBytes(version);
+      if (!bytes) return null;
+      const grid = await spreadsheetToLLMStructure(bytes, version.fileType);
+      const sheets = new Map<string, DocumentSpreadsheet["sheets"][number]["cells"]>();
+      for (const cell of grid.tableCells) {
+        const values = sheets.get(cell.tableName) ?? [];
+        values.push({ address: cell.address, value: cell.displayValue,
+          row: cell.row, column: cell.column,
+          ...(cell.rowSpan ? { rowSpan: cell.rowSpan } : {}),
+          ...(cell.columnSpan ? { columnSpan: cell.columnSpan } : {}) });
+        sheets.set(cell.tableName, values);
+      }
+      return { version_id: version.id,
+        sheets: [...sheets].map(([name, cells]) => ({ name, cells })) };
+    },
+
+    async evidenceView(scope, documentId, versionId, handle) {
+      const version = await repository.version(scope, documentId, versionId);
+      if (!version || version.fileType.toLowerCase() !== "pdf") return null;
+      const receipt = await availableEvidence(() => documentProjectionService.rehydratePdfEvidence(
+        handle, projectionReference(documentId, version)));
+      return { versionId: version.id, filename: version.filename,
+        pageNumbers: receipt.link.page_numbers, pages: receipt.pages };
+    },
+
+    async download(scope, documentId, versionId, { preferPdf, disposition, evidence }) {
       const selected = await select(scope, documentId, versionId, preferPdf);
       if (!selected) return null;
-      if (objects.signedGet && selected.key === selected.version.blobKey) {
+      if (!evidence && objects.signedGet && selected.key === selected.version.blobKey) {
         if (documentBlobDigest(selected.key) !== selected.version.sourceSha256)
           throw new Error("Stored document failed its integrity check");
         const url = await objects.signedGet(selected.key, {
@@ -605,6 +655,8 @@ export function createDocumentApplication(repository: DocumentRepository,
       }
       const loaded = await loadVersion(
         selected.version, selected.key, selected.fileType, selected.filename);
+      if (loaded && evidence) await availableEvidence(() => documentProjectionService.verifyPdfEvidence(
+        loaded.bytes, evidence, projectionReference(documentId, selected.version)));
       return loaded ? { kind: "bytes", content: loaded } : null;
     },
 
@@ -752,6 +804,8 @@ export function createDocumentApplication(repository: DocumentRepository,
       if (!history || !await blobsAvailable(current,
         (history.parts ?? []).filter(({ versionId }) => versionId === current.id)))
         return { status: "missing" as const };
+      if (current.workingRevision === 0)
+        throw new ApplicationError(409, "There are no changes to save as a new version");
       const version: StoredDocumentVersion = { ...current, id: randomUUID(),
         parentVersionId: current.id, versionNumber: current.versionNumber + 1,
         workingRevision: 0, source: "snapshot", createdBy: scope.userId,

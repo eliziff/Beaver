@@ -25,12 +25,14 @@ vi.mock("@/app/contexts/AuthContext", () => ({
         refreshSession: mocks.refreshSession,
     }),
 }));
-vi.mock("@/app/lib/authApi", () => ({
+vi.mock("@/app/lib/api/auth", () => ({
     login: (...args: unknown[]) => mocks.signIn(...args),
     signup: (...args: unknown[]) => mocks.signUp(...args),
     googleSignIn: vi.fn(),
 }));
-vi.mock("@/app/lib/beaverApi", () => ({ updateUserProfile: vi.fn() }));
+vi.mock("@/app/lib/api/account", () => ({
+  updateUserProfile: vi.fn()
+}));
 
 describe("account forms", () => {
     beforeEach(() => {

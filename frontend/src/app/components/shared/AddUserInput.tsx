@@ -1,10 +1,7 @@
 import { useId, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { Loader2, UserPlus } from "lucide-react";
-import {
-    lookupUserByEmail,
-    type UserLookupResult,
-} from "@/app/lib/beaverApi";
+import { lookupUserByEmail, type UserLookupResult } from "@/app/lib/api/account";
 import { Button } from "@/app/components/ui/button";
 import { cn } from "@/app/lib/utils";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

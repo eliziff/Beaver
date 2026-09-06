@@ -1,5 +1,5 @@
 import { indexPageCount } from "./layout";
-import { acceptedSourceFormats, sourceFormat } from "./formats";
+import { acceptedSourceFormats, needsPdfRendition, sourceFormat } from "./formats";
 import { formatBytes } from "@/app/lib/utils";
 import { contactGroups, coverPartyGroups, exhibitIndex, filingParties, filingPartyNames,
   hasMatchingExhibitCertificate, partyNames, rule70MaximumPages } from "./types";
@@ -323,7 +323,7 @@ export function validateCourtRecord({
       ));
     }
     const preparedPdf = format === "pdf" || !!entry.pdfRendition;
-    if (profile.outputMode !== "separate-files" && !preparedPdf) {
+    if (!preparedPdf && (profile.outputMode !== "separate-files" || needsPdfRendition(documentKind))) {
       blockers.push(finding(
         `rendition-${entry.id}`,
         "blocker",

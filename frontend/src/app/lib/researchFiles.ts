@@ -1,20 +1,20 @@
-import type { Document } from "@/app/components/shared/types";
+import type { Document } from "@/app/lib/api/documents";
+import type { GroundedEvidence } from "@/app/lib/groundedAnswers";
 
 export type ResearchLabel = { id: string; name: string; parentId: string | null;
-  color: string | null; order: number; scope: "source" | "highlight" };
-export type ResearchSourceReference = { provider: string; family?: string; id: string;
-  part?: string; kind: "case" | "legislation" | "journal" | "hansard";
+  color: string | null; order: number; scope: "source" | "highlight";
+  definition?: string };
+export type ResearchSourceReference = { id: string;
   title?: string | null; citation?: string | null; alternateCitation?: string | null;
   date?: string | null; collection?: string | null; language?: "en" | "fr";
-  url?: string | null };
+  url?: string | null } & ({ provider: "library"; kind: "document"; versionId: string;
+    family?: never; part?: never } | { provider: string; family?: string; part?: string;
+    kind: "case" | "legislation" | "journal" | "hansard"; versionId?: never });
 export type ResearchSource = { id: string; reference: ResearchSourceReference;
   labelIds: string[]; badge: string; badgeColor?: string; note: string;
   passages: (ResearchPartReference & { labelCounts: Record<string, number>;
     unlabelledCount: number }) | null };
-export type ResearchEvidenceReceipt = { evidence_id: string; provider: string;
-  stable_source_id: string; source_sha256: string; span_sha256: string;
-  block_id: string; span_text: string | null; citation: string; name: string | null;
-  external_url: string | null; locator: { kind: string; label: string } };
+export type ResearchEvidenceReceipt = GroundedEvidence;
 export type ResearchEvidence = { receipt: ResearchEvidenceReceipt; sourceId: string;
   labelIds: string[]; note: string };
 export type ResearchQueryReceipt = { query_id: string; call_id: string;
@@ -28,17 +28,27 @@ export type ResearchQueryReceipt = { query_id: string; call_id: string;
   sourceReferences?: Record<string, ResearchSourceReference>;
   labelPaths?: Record<string, string> };
 export type ResearchPartReference = { count: number; sha256: string };
+export type ResearchChange = { id: string; title: string; createdAt: string;
+  executor: "human" | "assistant"; model?: string; status: "pending" | "applied" | "rejected"; undoOf?: string;
+  counts: { labels: number; sources: number; passages: number; tables?: number; results?: number };
+  changes: { target: "label" | "source" | "passage" | "workspace" | "table" | "result"; id: string; sourceId?: string;
+    field: string; before: unknown; after: unknown }[] };
+export type ResearchProposal = Pick<ResearchChange, "id" | "title" | "createdAt" | "executor" | "model" | "counts">;
 export type ResearchFileState = { schemaVersion: "beaver.research.v2";
   labels: Record<string, ResearchLabel>; sources: Record<string, ResearchSource>;
-  queries: ResearchPartReference | null; note: string };
+  queries: ResearchPartReference | null; note: string; tables?: string[]; chats?: string[];
+  proposals?: ResearchProposal[]; history?: ResearchPartReference };
 export type ResearchFile = { document: Document; versionId: string;
   workingRevision: number; state: ResearchFileState };
 export type ResearchQueryCoverage = { complete: boolean; next_after: string | null;
   attempted_sources: number; selected_sources: number };
 export type ResearchQueryResult = { file: ResearchFile; receipt: ResearchQueryReceipt; coverage: ResearchQueryCoverage };
 export type ResearchPageItem = { kind: "passage"; index: number; value: ResearchEvidence }
-  | { kind: "query"; index: number; value: ResearchQueryReceipt };
-export type ResearchActionResult = ResearchFile & { sourceId?: string; evidenceId?: string };
+  | { kind: "query"; index: number; value: ResearchQueryReceipt }
+  | { kind: "change"; index: number; value: ResearchChange };
+export type ResearchActionResult = ResearchFile & { sourceId?: string; evidenceId?: string; receipt?: ResearchEvidenceReceipt };
+export type ResearchSelection = { target: "sources" | "passages"; sourceIds?: string[];
+  evidenceIds?: string[]; labelIds?: string[]; unlabelled?: boolean };
 export type ResearchQueryInput = { text?: string; after?: string; syntax: "literal" | "terms";
   target: "sources" | "passages"; sourceIds?: string[]; labelIds?: string[];
   unlabelled?: boolean; limit?: number;
@@ -58,7 +68,9 @@ export type ResearchAction =
       labelIds?: string[]; note?: string }
   | { type: "passage"; sourceId: string; locator: { kind: "paragraph" | "section" | "page" | "footnote";
       value: string; endValue?: string }; quote: string }
-  | { type: "note"; markdown: string };
+  | ({ type: "label-selection"; assign: string[]; mode: "add" | "remove" | "replace" } & ResearchSelection)
+  | { type: "accept" | "reject" | "undo"; changeId: string }
+  | { type: "note"; markdown: string; expectedMarkdown?: string };
 
 export const newResearchState = (): ResearchFileState => ({ schemaVersion: "beaver.research.v2",
   labels: {}, sources: {}, queries: null, note: "" });
@@ -67,10 +79,12 @@ export const researchMarkdown = (title: string, state = newResearchState()) =>
   `<!-- beaver-research:v2\n${JSON.stringify(state)}\n-->\n`;
 export const isResearchDocument = (document: Document) =>
   document.file_type === "md" && document.filename.toLowerCase().endsWith(".research.md");
-export const researchSourceKey = (value: ResearchSourceReference) => JSON.stringify([
-  value.provider, value.family ?? null, value.id, value.part ?? null, value.kind,
-  value.collection === value.provider ? null : value.collection ?? null, value.language ?? "en",
-]);
+export const researchSourceKey = (value: ResearchSourceReference) => value.kind === "document"
+  ? `document://${encodeURIComponent(value.id)}/version/${encodeURIComponent(value.versionId)}`
+  : `source://${encodeURIComponent(value.provider)}/${encodeURIComponent(JSON.stringify(value.provider === "a2aj"
+      ? [value.id, value.kind === "legislation" ? "laws" : "cases", value.collection ?? "", value.language ?? "en"]
+      : [value.id, value.kind, value.family ?? "", value.part ?? "",
+        value.collection === value.provider ? "" : value.collection ?? "", value.language ?? "en"]))}`;
 export function researchLabelPath(labels: Record<string, ResearchLabel>, id: string) {
   const path: ResearchLabel[] = [], seen = new Set<string>();
   let label: ResearchLabel | undefined = labels[id];
@@ -84,7 +98,7 @@ export const legalSourceViewerHref = (reference: ResearchSourceReference, resear
   fileId: string; sourceId: string }) => `/sources/view?${new URLSearchParams({
     provider: reference.provider, citation: reference.citation ?? reference.id,
     source_id: reference.id, doc_type: reference.kind === "legislation" ? "laws"
-      : reference.kind === "journal" ? "articles" : "cases",
+      : reference.kind === "journal" ? "articles" : reference.kind === "hansard" ? "hansard" : "cases",
     language: reference.language ?? "en", ...(reference.collection ? {
       dataset: reference.collection } : {}), ...(research ? {
       research_file: research.fileId, research_source: research.sourceId } : {}),

@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
-import type { Workflow, WorkflowVariant } from "../shared/types";
+import type { Workflow, WorkflowVariant } from "@/app/lib/api/workflows";
 import {
     ContextualWorkflowLauncher,
     ContextualWorkflowPicker,
@@ -11,20 +11,29 @@ import {
 const mocks = vi.hoisted(() => ({
     createAuthorities: vi.fn(),
     createTabularReview: vi.fn(),
-    fixSupras: vi.fn(),
+    saveChat: vi.fn(),
+    stageNewChatDocuments: vi.fn(),
+    stagePendingChatMessage: vi.fn(),
     inspect: vi.fn(),
     navigate: vi.fn(),
+    list: vi.fn(),
 }));
 
+vi.mock("../assistant/assistantLaunch", () => ({ stageNewChatDocuments: mocks.stageNewChatDocuments }));
+vi.mock("@/app/contexts/ChatHistoryContext", () => ({ useChatHistoryContext: () => mocks }));
 vi.mock("react-router-dom", () => ({ useNavigate: () => mocks.navigate }));
-vi.mock("@/app/lib/beaverApi", () => ({
-    createAuthorities: mocks.createAuthorities,
-    createTabularReview: mocks.createTabularReview,
-    fixLibraryDocxSupras: mocks.fixSupras,
-    inspectDocxWorkflowCapabilities: mocks.inspect,
+vi.mock("@/app/lib/api/documents", () => ({
+  directoryResource: () => ({ list: mocks.list }),
+  inspectDocxWorkflowCapabilities: mocks.inspect
+}));
+vi.mock("@/app/lib/api/authorities", () => ({
+  createAuthorities: mocks.createAuthorities
+}));
+vi.mock("@/app/lib/api/tabular", () => ({
+  createTabularReview: mocks.createTabularReview
 }));
 vi.mock("./WorkflowPickerModal", () => ({
-    useWorkflowPickerState: () => ({ workflows: [drafting, authorities, courtRecords], search: "",
+    useWorkflowPickerState: () => ({ workflows: [drafting, authorities, courtRecords, supras], search: "",
         setSearch: vi.fn(), audience: "general", setAudience: vi.fn(), loading: false,
         loadError: false, retryLoad: vi.fn() }),
 }));
@@ -69,6 +78,7 @@ const authorities: Workflow = { ...drafting, id: "authorities",
 const courtRecords: Workflow = { ...drafting, id: "court-records",
     metadata: { ...drafting.metadata, title: "Court Records" },
     launcher: { kind: "court_records" } };
+const supras: Workflow = { ...drafting, id: "fix-supras", metadata: { ...drafting.metadata, title: "Fix supras" }, launcher: { kind: "fix_supras" } };
 const document = (id: string, filename = `${id}.docx`): WorkflowDocument => ({
     id, filename, file_type: filename.split(".").pop(), project_id: "project-1",
 });
@@ -76,6 +86,8 @@ const document = (id: string, filename = `${id}.docx`): WorkflowDocument => ({
 beforeEach(() => {
     vi.clearAllMocks();
     mocks.inspect.mockResolvedValue({ supra_references: false });
+    mocks.saveChat.mockResolvedValue("new-chat");
+    mocks.list.mockResolvedValue({ items: [], next_cursor: null });
 });
 
 it("binds a sole source to the latest Authorities draft", async () => {
@@ -132,25 +144,27 @@ it("uses every selected document for tables and assistant work", async () => {
     );
 });
 
-it("opens one modal directly and keeps the applicable DOCX operation", async () => {
-    const onDocumentChanged = vi.fn();
-    mocks.inspect.mockResolvedValue({ supra_references: true });
-    mocks.fixSupras.mockResolvedValue({ ok: true, document_id: "lease",
-        version_id: "version-2", filename: "Lease - supras fixed.docx",
-        detected: 3, converted: 2, already_linked: 1, review_required: 0 });
-    render(<ContextualWorkflowLauncher documents={[document("lease", "Lease.docx")]}
-        onDocumentChanged={onDocumentChanged} />);
-
+it("opens the selected Word document in a new chat with a tracked-change request", async () => {
+    render(<ContextualWorkflowLauncher documents={[document("lease", "Lease.docx")]} />);
     await userEvent.click(screen.getByRole("button", { name: "Workflows" }));
-    expect(screen.getByRole("dialog", { name: "Workflows" })).toBeVisible();
-    expect(screen.queryByRole("menu")).toBeNull();
-    await userEvent.click(await screen.findByRole("button", { name: "Fix supras" }));
-
-    await waitFor(() => expect(mocks.fixSupras).toHaveBeenCalledWith("lease"));
-    expect(onDocumentChanged).toHaveBeenCalledWith(
-        expect.objectContaining({ version_id: "version-2" }),
-    );
+    await userEvent.click(await screen.findByRole("button", { name: "Open Fix supras" }));
+    await waitFor(() => expect(mocks.stagePendingChatMessage).toHaveBeenCalledWith("new-chat",
+        expect.objectContaining({ editMode: "manual", files: [{ document_id: "lease", filename: "Lease.docx" }] })));
+    expect(mocks.stageNewChatDocuments).toHaveBeenCalledWith([document("lease", "Lease.docx")]);
+    expect(mocks.navigate).toHaveBeenCalledWith("/projects/project-1/assistant/chat/new-chat");
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Workflows" })).toBeNull());
+});
+
+it("runs in the originating chat without creating another chat", async () => {
+    const onRun = vi.fn();
+    const source = document("lease");
+    render(<ContextualWorkflowPicker documents={[source]} onRun={onRun} />);
+    await userEvent.click(screen.getByRole("button", { name: "Open Fix supras" }));
+    expect(onRun).toHaveBeenCalledWith(expect.objectContaining({
+        editMode: "manual", files: [{ document_id: source.id, filename: source.filename }],
+    }), source);
+    expect(mocks.saveChat).not.toHaveBeenCalled();
+    expect(mocks.navigate).not.toHaveBeenCalled();
 });
 
 it("hands an in-app document to an existing workflow dock", async () => {
@@ -162,4 +176,14 @@ it("hands an in-app document to an existing workflow dock", async () => {
 
     expect(onOpen).toHaveBeenCalledWith(documents);
     expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+it("keeps Fix supras discoverable without attachments and selects a Word document at launch", async () => {
+    mocks.list.mockResolvedValue({ items: [{ kind: "document", document: document("selected") }] });
+    render(<ContextualWorkflowPicker />);
+    await userEvent.click(screen.getByRole("button", { name: "Open Fix supras" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Select selected.docx" }));
+    await userEvent.click(screen.getByRole("button", { name: "Fix supras", exact: true }));
+    await waitFor(() => expect(mocks.stagePendingChatMessage).toHaveBeenCalledWith("new-chat",
+        expect.objectContaining({ files: [{ document_id: "selected", filename: "selected.docx" }] })));
 });

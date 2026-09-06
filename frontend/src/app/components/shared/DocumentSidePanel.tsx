@@ -1,6 +1,9 @@
 import {
+    lazy,
+    Suspense,
     useEffect,
     useEffectEvent,
+    useLayoutEffect,
     useRef,
     useState,
     type ChangeEvent,
@@ -9,8 +12,8 @@ import {
 import {
     AlertCircle,
     Check,
+    ChevronDown,
     Download,
-    Eye,
     FileDiff,
     Loader2,
     Pencil,
@@ -24,22 +27,22 @@ import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { ContextualWorkflowLauncher } from "@/app/components/workflows/ContextualWorkflowPicker";
 import type { WorkflowSelection } from "@/app/components/workflows/workflowRoutes";
-import { FileTypeIcon } from "@/app/components/shared/FileTypeIcon";
 import { Button } from "@/app/components/ui/button";
-import type { Document } from "@/app/components/shared/types";
+import type { Document, DocumentVersion } from "@/app/lib/api/documents";
 import {
-    isDocxFilename,
-    isSpreadsheetFilename,
-} from "@/app/components/shared/types";
+  isDocxFilename,
+  isSpreadsheetFilename,
+  filenameExtensionChangeWarning,
+  hasFilenameExtensionChange,
+} from "@/app/lib/documentFilename";
 import { DocumentViewer } from "@/app/components/shared/views/DocumentViewer";
-import type { DocumentVersion } from "@/app/lib/beaverApi";
+import { ReaderExpandButton } from "./ReaderExpandButton";
+import { preserveReaderScroll } from "./useReaderExpansion";
+
 import { formatBytes } from "@/app/lib/utils";
 import { SUPPORTED_DOCUMENT_ACCEPT } from "@/app/lib/documentUploadValidation";
-import {
-    filenameExtensionChangeWarning,
-    hasFilenameExtensionChange,
-} from "@/app/lib/documentFilename";
-import { getResearchFile } from "@/app/lib/beaverApi";
+
+import { getResearchFile } from "@/app/lib/api/researchFiles";
 import { ResearchLabelCircle } from "@/app/components/legal/ResearchLabelCircle";
 import {
     isResearchDocument,
@@ -95,6 +98,7 @@ const PLAIN_TEXT_VIEW_EXTENSIONS = new Set([
     "log",
 ]);
 
+const ResearchMemoEditor = lazy(() => import("@/app/components/legal/ResearchMemoEditor"));
 function ResearchFilePreview({ documentId }: { documentId: string }) {
     const [file, setFile] = useState<ResearchFile | null>();
     const [sourcePage, setSourcePage] = useState(0);
@@ -130,8 +134,11 @@ function ResearchFilePreview({ documentId }: { documentId: string }) {
     return <div className="h-full overflow-auto rounded-lg bg-gray-50 px-4 py-4 text-sm">
         <p aria-label="Workspace contents" className="mb-5 text-sm text-gray-600">{savedSourceIds.length} {savedSourceIds.length === 1 ? "source" : "sources"} · {passageCount} {passageCount === 1 ? "highlight" : "highlights"} · {allLabels.length} {allLabels.length === 1 ? "label" : "labels"} · {searches} {searches === 1 ? "search" : "searches"}</p>
         {previewText(note).trim() && <section className="mb-6">
-            <h2 className="mb-2 text-base font-semibold text-gray-950">Note</h2>
-            <p className="whitespace-pre-wrap leading-6 text-gray-700">{previewText(note)}</p>
+            <h2 className="mb-2 text-base font-semibold text-gray-950">Memo</h2>
+            <Suspense fallback={<p className="whitespace-pre-wrap leading-6 text-gray-700">{previewText(note)}</p>}>
+                <ResearchMemoEditor file={file} readOnly value={previewText(note)}
+                    onOpenCitation={(href) => { window.open(href, "_blank", "noopener,noreferrer"); }} />
+            </Suspense>
         </section>}
         <section className="mb-6">
             <h2 className="mb-2 text-base font-semibold text-gray-950">Labels</h2>
@@ -204,6 +211,17 @@ export function DocumentSidePanel({
     const [visibleVersionCount, setVisibleVersionCount] =
         useState(VERSION_PAGE);
     const [editingName, setEditingName] = useState(false);
+    const [expandedReader, setExpandedReader] = useState(false);
+    const [narrowDetailsOpen, setNarrowDetailsOpen] = useState(false);
+    const readerBody = useRef<HTMLDivElement>(null);
+    const restoreReaderScroll = useRef<(() => void) | null>(null);
+    function changeReaderSize(next: boolean) {
+        if (next) restoreReaderScroll.current = preserveReaderScroll(readerBody.current);
+        setExpandedReader(next);
+    }
+    useLayoutEffect(() => {
+        if (!expandedReader) { restoreReaderScroll.current?.(); restoreReaderScroll.current = null; }
+    }, [expandedReader]);
     const [nameDraft, setNameDraft] = useState("");
     const [savingName, setSavingName] = useState(false);
     const [extensionWarningOpen, setExtensionWarningOpen] = useState(false);
@@ -237,6 +255,9 @@ export function DocumentSidePanel({
     useEffect(() => {
         setEditingName(false);
         setNameDraft("");
+    }, [docId]);
+
+    useEffect(() => {
         setRestoreTarget(null);
     }, [versionId, currentVersionId]);
 
@@ -260,9 +281,8 @@ export function DocumentSidePanel({
         null;
     const selectedId = selected?.id ?? versionId ?? currentId;
     const filename = selected?.filename.trim() || activeDoc.filename;
-    const displayFilename = filename.replace(/\.research\.md$/iu, "");
+    const displayFilename = activeDoc.filename.replace(/\.research\.md$/iu, "");
     const type = fileType(selected, activeDoc.file_type);
-    const size = selected?.size_bytes ?? activeDoc.size_bytes;
     const extension = filename.split(".").pop()?.toLowerCase() ?? "";
     const isDocx =
         isDocxFilename(filename) || type === "docx" || type === "doc";
@@ -272,8 +292,8 @@ export function DocumentSidePanel({
     const revision = selectedId && selectedId === currentId
         ? `${selectedId}:${selected?.working_revision ?? activeDoc.current_working_revision ?? 0}`
         : selected ? `${selected.id}:${selected.working_revision}` : activeDoc.updated_at;
-    const pages = selected?.page_count ??
-        (selectedId === currentId ? activeDoc.page_count : null);
+    const canCheckpoint = (current?.working_revision ?? activeDoc.current_working_revision ?? 0) > 0;
+    const selectedComparison = selected ? comparison(selected) : null;
     const activeVersionCount = versions.length;
     const showResearchPreview =
         isResearchDocument(activeDoc) && selectedId === currentId;
@@ -281,15 +301,14 @@ export function DocumentSidePanel({
         PLAIN_TEXT_VIEW_EXTENSIONS.has(extension) || PLAIN_TEXT_VIEW_EXTENSIONS.has(type);
 
     async function saveName() {
-        if (!selectedId || selectedId !== currentId) return;
         const entered = nameDraft.trim();
         if (!entered) return;
         const next = isResearchDocument(activeDoc)
             ? `${entered.replace(/\.research\.md$/iu, "")}.research.md` : entered;
-        if (hasFilenameExtensionChange(filename, next)) {
+        if (hasFilenameExtensionChange(activeDoc.filename, next)) {
             return setExtensionWarningOpen(true);
         }
-        if (next === filename) return setEditingName(false);
+        if (next === activeDoc.filename) return setEditingName(false);
         setSavingName(true);
         setActionError(null);
         try {
@@ -319,6 +338,7 @@ export function DocumentSidePanel({
 
     async function checkpoint(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        if (!canCheckpoint || checkpointing) return;
         const form = event.currentTarget;
         const comment = String(new FormData(form).get("comment") ?? "").trim();
         setCheckpointing(true);
@@ -437,16 +457,17 @@ export function DocumentSidePanel({
         <Modal
             open
             onClose={onClose}
+            onEscape={() => expandedReader ? changeReaderSize(false) : onClose()}
             size="2xl"
-            className="!h-[calc(100dvh-1.5rem)] !max-w-[960px]"
+            className={expandedReader
+                ? "!h-[100dvh] !w-[100vw] !max-h-none !max-w-none !m-0 !rounded-none"
+                : "!max-w-[960px]"}
             breadcrumbs={[
                 <span key="document" className="flex h-8 min-w-0 items-center gap-2 text-sm font-medium leading-5 text-gray-900">
-                <FileTypeIcon
-                    fileType={type || filename}
-                    filename={filename}
-                    className="h-4 w-4 shrink-0"
-                />
-                {editingName ? (
+                <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium uppercase text-gray-600">{activeDoc.file_type || type || "File"}</span>{" "}
+                <span className="relative block min-w-0 flex-1">
+                    <span className={`block truncate ${editingName ? "invisible" : ""}`}>{displayFilename}</span>
+                {editingName && (
                     <input
                         autoFocus
                         value={nameDraft}
@@ -459,18 +480,16 @@ export function DocumentSidePanel({
                                 setEditingName(false);
                             }
                         }}
-                        className="h-8 min-w-0 max-w-80 border-0 border-b border-gray-400 bg-transparent p-0 text-sm font-medium leading-5 text-gray-900 outline-none [field-sizing:content] focus-visible:border-gray-900"
+                        className="absolute inset-0 h-full w-full min-w-0 rounded-none border-0 bg-transparent p-0 text-sm font-medium leading-5 text-gray-900 outline-none focus-visible:ring-1 focus-visible:ring-gray-400"
                         aria-label="Document name"
                     />
-                ) : (
-                    <span className="min-w-0 truncate">
-                        {displayFilename}
-                    </span>
                 )}
+                </span>
                 </span>,
             ]}
             headerAction={
                 <div className="flex shrink-0 items-center gap-1.5">
+                <ReaderExpandButton expanded={expandedReader} onChange={changeReaderSize} />
                 {editingName ? (
                     <button
                         type="button"
@@ -486,7 +505,7 @@ export function DocumentSidePanel({
                             <Check className="mx-auto h-4 w-4" />
                         )}
                     </button>
-                ) : selectedId === currentId ? (
+                ) : (
                     <button
                         type="button"
                         aria-label="Rename document"
@@ -499,7 +518,7 @@ export function DocumentSidePanel({
                     >
                         <Pencil className="mx-auto h-4 w-4" />
                     </button>
-                ) : null}
+                )}
                 <ContextualWorkflowLauncher
                     documents={[activeDoc]}
                     onOpen={onOpenWorkflows ? () => {
@@ -509,10 +528,6 @@ export function DocumentSidePanel({
                     onAssistantSelect={onAssistantWorkflowSelect
                         ? (selection) => onAssistantWorkflowSelect(selection, [activeDoc])
                         : undefined}
-                    onDocumentChanged={async (result) => {
-                        await onLoadVersions(activeDoc.id, true);
-                        onSelectVersion(result.version_id);
-                    }}
                 />
                 {showResearchPreview && (
                     <a
@@ -525,9 +540,9 @@ export function DocumentSidePanel({
                 </div>
             }
         >
-            <div className="-mx-5 flex min-h-0 flex-1 flex-col overflow-hidden">
-            <main className="grid min-h-0 flex-1 md:grid-cols-[minmax(0,1fr)_20rem]">
-                <section className="flex min-h-0 min-w-0 flex-col overflow-hidden p-3">
+            <div ref={readerBody} className="@container -mx-5 flex min-h-0 flex-1 flex-col overflow-hidden">
+            <main className="flex min-h-0 flex-1 flex-col @min-[42rem]:grid @min-[42rem]:grid-cols-[minmax(0,1fr)_22rem]">
+                <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3">
                     {showResearchPreview ? <ResearchFilePreview
                         key={`${activeDoc.id}:${revision ?? ""}`} documentId={activeDoc.id} /> : previewable ? <DocumentViewer
                         key={`${activeDoc.id}:${
@@ -551,47 +566,54 @@ export function DocumentSidePanel({
                         revision={revision}
                     /> : <p className="m-auto text-sm text-gray-500">Preview is not available for this file type.</p>}
                 </section>
-                <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden border-t border-gray-200 p-4 md:border-l md:border-t-0">
-                    <div className="mb-3 grid gap-1 text-xs">
-                        <Info label="Type" value={type || "—"} />
-                        <Info label="Size" value={formatBytes(size) ?? "—"} />
-                        <Info
-                            label="Created"
-                            value={formatDate(
-                                selected?.created_at ?? activeDoc.created_at,
-                            )}
-                        />
-                        {pages != null && (
-                            <Info
-                                label="Pages"
-                                value={String(pages)}
-                            />
-                        )}
+                <aside className="flex max-h-[45%] min-h-0 min-w-0 shrink-0 flex-col border-t border-gray-200 @min-[42rem]:max-h-none @min-[42rem]:border-l @min-[42rem]:border-t-0">
+                    <div className="flex min-h-8 shrink-0 items-center gap-2 px-3 py-2">
+                    <button type="button" aria-expanded={narrowDetailsOpen} aria-controls="document-details"
+                        onClick={() => setNarrowDetailsOpen((open) => !open)}
+                        className="flex min-h-9 shrink-0 items-center gap-2 text-xs font-medium text-gray-700 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 @min-[42rem]:hidden">
+                        Details <ChevronDown aria-hidden className={`size-3.5 ${narrowDetailsOpen ? "rotate-180" : ""}`} />
+                    </button>
+                        <h2 className="hidden text-xs font-medium text-gray-700 @min-[42rem]:block">Details</h2>
+                        <div className="ml-auto flex items-center gap-1">
+                            <Button variant="ghost" size="icon-sm" disabled={!selected}
+                                aria-label={`Download ${versionTitle(selected)}`} title="Download selected version"
+                                onClick={() => { if (selected) void downloadVersion(selected); }}>
+                                <Download aria-hidden />
+                            </Button>
+                            <Button variant="ghost" size="icon-sm"
+                                disabled={!selected || selectedId === currentId || !!restoringId}
+                                aria-label={`Restore ${versionTitle(selected)} as a new current version`} title="Restore selected version"
+                                onClick={() => setRestoreTarget(selected)}>
+                                {restoringId ? <Loader2 aria-hidden className="animate-spin" /> : <RotateCcw aria-hidden />}
+                            </Button>
+                            {comparisonCurrent && <Button variant="ghost" size="icon-sm"
+                                disabled={!selectedComparison || !!comparingId || !!restoringId}
+                                aria-label={selectedComparison?.label ?? "Download comparison"} title="Download comparison with current version"
+                                onClick={() => { if (selected && selectedComparison) void compareVersions(selected.id,
+                                    selectedComparison.baselineId, selectedComparison.comparedId); }}>
+                                {comparingId ? <Loader2 aria-hidden className="animate-spin" /> : <FileDiff aria-hidden />}
+                            </Button>}
+                        </div>
                     </div>
-                    <div className="mb-2 flex min-h-8 items-center gap-2">
-                        <h2 className="text-sm font-semibold">
-                            Versions{" "}
-                            <span className="font-normal text-gray-500">
-                                {versions.length}
-                            </span>
-                        </h2>
-                    </div>
-                    <ul
-                        aria-label="Document versions"
-                        className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden rounded border border-gray-300"
-                    >
+                    <div id="document-details" className={`${narrowDetailsOpen ? "flex" : "hidden"} min-h-0 flex-1 flex-col overflow-y-auto px-3 pb-3 @min-[42rem]:flex`}>
+                    <div className="min-w-0 flex-1 pb-2">
+                    <table aria-label="Document versions" className="w-full text-left text-xs">
+                        <thead className="sticky top-0 bg-white text-gray-500"><tr>
+                            {['Version', 'Date', 'By', 'Size', 'Pages'].map((label) => <th key={label} scope="col" className="border-b border-gray-200 px-1 py-1 font-medium last:text-right">{label}</th>)}
+                        </tr></thead>
+                        <tbody>
                         {versionsLoading && !versions.length ? (
-                            <li><VersionLoading /></li>
+                            <tr><td colSpan={5}><VersionLoading /></td></tr>
                         ) : versionsError ? (
-                            <li role="alert" className="p-3 text-xs text-red-700">
+                            <tr><td colSpan={5} role="alert" className="py-3 text-xs text-red-700">
                                 Could not load version history. <button type="button"
                                     onClick={() => void onLoadVersions(activeDoc.id, true)}
                                     className="font-semibold underline">Retry</button>
-                            </li>
+                            </td></tr>
                         ) : !ordered.length ? (
-                            <li className="p-3 text-xs text-gray-500">
+                            <tr><td colSpan={5} className="py-3 text-xs text-gray-500">
                                 No version history.
-                            </li>
+                            </td></tr>
                         ) : (
                             <>
                                 {visible.map((version) => (
@@ -600,23 +622,14 @@ export function DocumentSidePanel({
                                         version={version}
                                         selected={version.id === selectedId}
                                         current={version.id === currentId}
-                                        restoring={restoringId === version.id}
-                                        comparing={comparingId === version.id}
-                                        onSelect={canPreviewVersion(version) ? () => {
+                                        onSelect={() => {
                                             setActionError(null);
                                             onSelectVersion(version.id);
-                                        } : undefined}
-                                        onDownload={() => void downloadVersion(version)}
-                                        onRestore={version.id === currentId ? undefined
-                                            : () => setRestoreTarget(version)}
-                                        comparison={comparison(version)}
-                                        onCompare={(baselineId, comparedId) =>
-                                            void compareVersions(version.id,
-                                                baselineId, comparedId)}
+                                        }}
                                     />
                                 ))}
                                 {visible.length < ordered.length && (
-                                    <li>
+                                    <tr><td colSpan={5}>
                                         <button
                                             type="button"
                                             className="w-full border-t border-gray-200 py-2 text-xs font-medium hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gray-900"
@@ -629,13 +642,15 @@ export function DocumentSidePanel({
                                         >
                                             Show more
                                         </button>
-                                    </li>
+                                    </td></tr>
                                 )}
                             </>
                         )}
-                    </ul>
-                    <form aria-label="Save version" onSubmit={checkpoint}
-                        className="grid shrink-0 gap-2 pt-2">
+                        </tbody>
+                    </table>
+                    </div>
+                    {canCheckpoint && <form aria-label="Save version" onSubmit={checkpoint}
+                        className="flex shrink-0 gap-2 pt-2">
                         <label htmlFor="version-comment" className="sr-only">Version comment (optional)</label>
                         <input id="version-comment" name="comment" maxLength={1000}
                             placeholder="Comment (optional)"
@@ -647,7 +662,7 @@ export function DocumentSidePanel({
                                 : <Save aria-hidden />}
                             Save version
                         </Button>
-                    </form>
+                    </form>}
                     {actionError && (
                         <p role="alert" className="flex items-center gap-2 py-2 text-xs text-red-700">
                             <AlertCircle aria-hidden className="h-3.5 w-3.5 shrink-0" />
@@ -677,6 +692,7 @@ export function DocumentSidePanel({
                             Upload new version
                         </Button>
                     </div>
+                    </div>
                 </aside>
             </main>
             <input
@@ -689,7 +705,7 @@ export function DocumentSidePanel({
             <WarningPopup
                 open={extensionWarningOpen}
                 onClose={() => setExtensionWarningOpen(false)}
-                message={filenameExtensionChangeWarning(filename)}
+                message={filenameExtensionChangeWarning(activeDoc.filename)}
             />
             <ConfirmPopup
                 open={!!restoreTarget}
@@ -734,15 +750,6 @@ export function DocumentSidePanel({
     );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
-    return (
-        <div className="grid grid-cols-[5rem_minmax(0,1fr)] gap-2">
-            <span className="text-gray-500">{label}</span>
-            <span className="truncate text-gray-800">{value}</span>
-        </div>
-    );
-}
-
 function VersionLoading() {
     return (
         <div className="space-y-1 p-2">
@@ -756,127 +763,34 @@ function VersionLoading() {
     );
 }
 
-function VersionRow({
-    version,
-    selected,
-    current,
-    restoring,
-    comparing,
-    onSelect,
-    onDownload,
-    onRestore,
-    comparison,
-    onCompare,
-}: {
+function VersionRow({ version, selected, current, onSelect }: {
     version: DocumentVersion;
     selected: boolean;
     current: boolean;
-    restoring: boolean;
-    comparing: boolean;
-    onSelect?: () => void;
-    onDownload: () => void;
-    onRestore?: () => void;
-    comparison: {
-        baselineId: string;
-        comparedId: string;
-        label: string;
-    } | null;
-    onCompare: (baselineId: string, comparedId: string) => void;
+    onSelect: () => void;
 }) {
-    const title = versionTitle(version);
-    const name = versionFilename(version);
-    const downloadLabel = `Download ${title}`;
-    const restoreLabel = `Restore ${title} as a new current version`;
-    const actor = version.author_email || (version.created_by ? "You" : "");
-    const summary = <>
-        <span className="flex min-w-0 items-center gap-1.5">
-            <FileTypeIcon fileType={name} className="h-3 w-3 shrink-0" />
-            <span className="min-w-0 flex-1 truncate text-sm font-medium">{name}</span>
-            <span className="flex shrink-0 items-center gap-1 text-xs text-gray-500">
-                {selected && <Eye aria-hidden className="h-3 w-3" />}{title}
-            </span>
-        </span>
-        <span className="block min-w-0 truncate text-xs text-gray-500">
-            {formatDate(version.created_at)} · {versionOrigin(version)}
-            {actor ? ` · ${actor}` : ""}
-            {current ? " · Current" : ""}{!onSelect ? " · Preview unavailable" : ""}
-        </span>
-        {version.comment?.trim() && <span className="mt-0.5 block line-clamp-2 text-xs text-gray-700">
-            {version.comment}
-        </span>}
+    const title = versionTitle(version), name = versionFilename(version);
+    const provenance = version.provenance?.actor === "assistant"
+        ? `Beaver edit${version.provenance.change_count ? ` · ${version.provenance.change_count} changes` : ""}` : "";
+    const actor = version.author_email || (version.provenance?.actor === "assistant" ? "Beaver" : "—");
+    return <>
+        <tr onClick={onSelect} className={`cursor-pointer border-b border-gray-200 align-top hover:bg-gray-50 ${selected ? "bg-gray-100" : ""}`}>
+            <td className="px-1 py-1"><button type="button" aria-current={selected ? "true" : undefined}
+                aria-label={`${canPreviewVersion(version) ? "Preview" : "Select"} ${title}: ${name}${current ? ", Current" : ""}`} title={[name, provenance].filter(Boolean).join(" — ")}
+                className="inline-flex flex-wrap items-center gap-1 text-left font-medium tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-gray-900">
+                v{version.version_number}
+                {current && <Check aria-hidden className="size-3.5 shrink-0" />}
+            </button></td>
+            <td className="px-1 py-1 text-gray-600"><time dateTime={version.created_at} title={formatDate(version.created_at)}>
+                {new Date(version.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
+            </time></td>
+            <td className="max-w-24 break-words px-1 py-1 text-gray-600 [overflow-wrap:anywhere]" title={actor}>{actor}</td>
+            <td className="px-1 py-1 tabular-nums text-gray-600">{formatBytes(version.size_bytes) ?? "—"}</td>
+            <td className="px-1 py-1 text-right tabular-nums text-gray-600">{version.page_count ?? "—"}</td>
+        </tr>
+        {version.comment?.trim() && <tr className={selected ? "bg-gray-100" : ""}><td colSpan={5}
+            className="whitespace-pre-wrap break-words px-1 pb-2 text-gray-600 [overflow-wrap:anywhere]">{version.comment}</td></tr>}
     </>;
-
-    return (
-        <li
-            className={`group grid min-h-14 grid-cols-[minmax(0,1fr)_auto] border-b border-gray-200 ${
-                selected
-                    ? "border-l-2 border-l-gray-950 bg-gray-100"
-                    : "border-l-2 border-l-transparent"
-            }`}
-        >
-            {onSelect ? <button type="button" aria-current={selected ? "true" : undefined}
-                aria-label={`Preview ${title}: ${name}`} onClick={onSelect}
-                className="min-w-0 px-3 py-2 text-left outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gray-900">
-                {summary}
-            </button> : <div className="min-w-0 px-3 py-2 text-left">{summary}</div>}
-            <div className="flex h-full items-end pb-1 pr-1">
-                        {comparison && <button
-                            type="button"
-                            aria-label={comparison.label}
-                            title={comparison.label}
-                            disabled={comparing || restoring}
-                            onClick={() => onCompare(
-                                comparison.baselineId,
-                                comparison.comparedId,
-                            )}
-                            className="h-8 w-8 rounded hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
-                        >
-                            {comparing ? <Loader2 aria-hidden className="mx-auto h-3.5 w-3.5 animate-spin" />
-                                : <FileDiff aria-hidden className="mx-auto h-3.5 w-3.5" />}
-                        </button>}
-                        <button
-                            type="button"
-                            aria-label={downloadLabel}
-                            title={downloadLabel}
-                            onClick={onDownload}
-                            className="h-8 w-8 rounded hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
-                        >
-                            <Download aria-hidden className="mx-auto h-3.5 w-3.5" />
-                        </button>
-                        {onRestore && <button
-                            type="button"
-                            aria-label={restoreLabel}
-                            title={restoreLabel}
-                            disabled={restoring || comparing}
-                            onClick={onRestore}
-                            className="h-8 w-8 rounded hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 disabled:opacity-40"
-                        >
-                            {restoring ? (
-                                <Loader2 aria-hidden className="mx-auto h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                                <RotateCcw aria-hidden className="mx-auto h-3.5 w-3.5" />
-                            )}
-                        </button>}
-            </div>
-        </li>
-    );
-}
-
-function versionOrigin(version: DocumentVersion) {
-    if (version.source === "restore") return "Restored";
-    if (version.source === "snapshot") return "Created";
-    if (version.provenance?.actor === "assistant") {
-        const changes = version.provenance.change_count;
-        return changes
-            ? `Beaver edit · ${changes} ${changes === 1 ? "change" : "changes"}`
-            : "Beaver edit";
-    }
-    if (version.provenance?.actor === "work-product") {
-        const kind = version.provenance.receipt?.workProduct?.kind;
-        return kind === "authorities" ? "Authorities build"
-            : kind === "court-record" ? "Court record build" : "Generated build";
-    }
-    return version.source === "generated" ? "Generated" : "Uploaded";
 }
 
 function versionTitle(version: DocumentVersion | null) {

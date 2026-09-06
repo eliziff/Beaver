@@ -25,12 +25,14 @@ export function ActionMenu({
     children,
     className,
     triggerClassName,
+    onOpen,
 }: {
     label: string;
     items: ActionMenuItem[];
     children: ReactNode;
     className?: string;
     triggerClassName?: string;
+    onOpen?: () => void;
 }) {
     const [open, setOpen] = useState(false);
     const triggerRef = useRef<HTMLButtonElement>(null);
@@ -73,8 +75,12 @@ export function ActionMenu({
     }, [open]);
 
     useEffect(() => {
+        if (open && !menuRef.current?.contains(document.activeElement))
+            menuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true });
+    }, [open, items.filter((item) => !item.disabled).length]);
+
+    useEffect(() => {
         if (!open) return;
-        menuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true });
         const dismiss = (event: PointerEvent) => {
             if (!menuRef.current?.contains(event.target as Node) &&
                 !triggerRef.current?.contains(event.target as Node)) close();
@@ -124,7 +130,7 @@ export function ActionMenu({
                 aria-haspopup="menu"
                 aria-expanded={open}
                 aria-controls={open ? menuId : undefined}
-                disabled={items.every((item) => item.disabled)}
+                disabled={!onOpen && items.every((item) => item.disabled)}
                 className={cn(
                     "inline-flex shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-500 disabled:cursor-default",
                     triggerClassName,
@@ -132,7 +138,7 @@ export function ActionMenu({
                 onClick={(event) => {
                     event.stopPropagation();
                     if (open) close(true);
-                    else setOpen(true);
+                    else { onOpen?.(); setOpen(true); }
                 }}
             >
                 {children}

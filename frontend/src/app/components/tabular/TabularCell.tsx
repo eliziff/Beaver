@@ -1,21 +1,16 @@
 import { memo } from "react";
 import { AlertCircle } from "lucide-react";
-import type { ColumnConfig, TabularCell as TCell } from "../shared/types";
+import type { ColumnConfig, TabularCell as TCell } from "@/app/lib/api/tabular";
+import type { Citation } from "@/app/lib/citations";
+import { groundedAnswerMarkdown } from "@/app/lib/groundedAnswers";
 import { SkeletonLine } from "../shared/TablePrimitive";
-import { parseTabularMarkdown, TabularMarkdown } from "./TabularMarkdown";
+import { TabularMarkdown } from "./TabularMarkdown";
 
 interface Props {
     cell: TCell;
     column?: ColumnConfig;
     onExpand: (cell: TCell) => void;
-    onCitationClick: (
-        cell: TCell,
-        page: number | undefined,
-        quote: string,
-        citationRef: number,
-        sheet?: string,
-        citationCell?: string,
-    ) => void;
+    onCitationClick: (cell: TCell, citation: Citation) => void;
 }
 
 const FLAG_STYLES = {
@@ -47,38 +42,29 @@ export const TabularCell = memo(function TabularCell({
     }
     if (!cell.content?.summary) return <div className="h-8" />;
 
-    const parsed = parseTabularMarkdown(cell.content.summary);
+    const { citations } = groundedAnswerMarkdown(cell.content);
     const firstLine =
-        parsed.processed.split("\n").find((line) => line.trim()) ??
-        parsed.processed;
+        cell.content.summary.split("\n").find((line) => line.trim()) ?? cell.content.summary;
     return (
         <div
             className="group relative flex h-8 cursor-pointer items-center px-2 text-xs leading-relaxed text-gray-800 hover:bg-gray-50"
-            onClick={() => onExpand(cell)}
         >
+            <button type="button" className="absolute inset-0 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-700"
+                aria-label={`Open ${column?.name ?? "cell"} result`} onClick={() => onExpand(cell)} />
             {cell.content.flag && (
                 <span
                     className={`absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full ${FLAG_STYLES[cell.content.flag]}`}
                     title={cell.content.flag}
                 />
             )}
-            <div className="line-clamp-1 w-full min-w-0">
+            <div className="pointer-events-none relative line-clamp-1 w-full min-w-0 [&_button]:pointer-events-auto [&_a]:pointer-events-auto">
                 <TabularMarkdown
-                    parsed={{
-                        ...parsed,
-                        processed: firstLine.replace(/^[-*•]\s+/, ""),
-                    }}
+                    text={firstLine.replace(/^[-*•]\s+/, "") + (column?.format && ["yes_no", "tag", "currency"].includes(column.format)
+                        ? "" : citations.map(({ ref }) => ` [${ref}]`).join(""))}
+                    value={cell.content.value}
+                    citations={citations}
                     column={column}
-                    onCitationClick={(citation, reference) =>
-                        onCitationClick(
-                            cell,
-                            citation.page,
-                            citation.quote,
-                            reference,
-                            citation.sheet,
-                            citation.cell,
-                        )
-                    }
+                    onCitationClick={(citation) => onCitationClick(cell, citation)}
                     inline
                 />
             </div>

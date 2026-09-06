@@ -5,14 +5,15 @@ import {
   directoryResource,
   uploadDocumentsSettled,
   uploadStandaloneDocument,
-} from "@/app/lib/beaverApi";
+  type Document,
+} from "@/app/lib/api/documents";
 import {
   SUPPORTED_DOCUMENT_ACCEPT,
   formatUnsupportedDocumentWarning,
   partitionSupportedDocumentFiles,
 } from "@/app/lib/documentUploadValidation";
 import { FileDirectory, type DirectoryTab } from "../shared/FileDirectory";
-import type { Document } from "../shared/types";
+
 import { UploadAction } from "../documents/UploadAction";
 import { Modal } from "./Modal";
 
@@ -26,6 +27,10 @@ interface Props {
   documents?: Document[];
   showTabs?: boolean;
   accept?: string;
+  documentFilter?: (document: Document) => boolean;
+  multiple?: boolean;
+  tabs?: [DirectoryTab, string][];
+  busy?: boolean;
   initialSelectedDocuments?: Document[];
   externalUploadedDocuments?: Document[];
   primaryLabel?: string;
@@ -55,6 +60,10 @@ export function AddDocumentsModal({
   documents,
   showTabs = true,
   accept = SUPPORTED_DOCUMENT_ACCEPT,
+  documentFilter,
+  multiple = true,
+  tabs,
+  busy: operationBusy = false,
   initialSelectedDocuments,
   externalUploadedDocuments,
   primaryLabel = "Confirm",
@@ -68,7 +77,14 @@ export function AddDocumentsModal({
   const [pendingNames, setPendingNames] = useState<string[]>([]);
   const [warning, setWarning] = useState<string | null>(null);
   const [hasOpened, setHasOpened] = useState(open);
-  const busy = pendingNames.length > 0;
+  const busy = operationBusy || pendingNames.length > 0;
+  const eligible = (document: Document) => (!documentFilter || documentFilter(document)) &&
+    (accept === SUPPORTED_DOCUMENT_ACCEPT || accept.split(",").some((extension) =>
+      document.filename.toLowerCase().endsWith(extension.trim().toLowerCase())));
+  const selectable = (documents: Document[]) => {
+    const matches = documents.filter(eligible);
+    return multiple ? matches : matches.slice(-1);
+  };
 
   useEffect(() => {
     if (open) setHasOpened(true);
@@ -76,7 +92,7 @@ export function AddDocumentsModal({
       wasOpen.current = false;
       return;
     }
-    setSelected((current) => merge(wasOpen.current ? current : undefined, initialSelectedDocuments));
+    setSelected((current) => selectable(merge(wasOpen.current ? current : undefined, initialSelectedDocuments)));
     setPendingNames([]);
     setWarning(null);
     if (!keepMounted) setUploaded([]);
@@ -86,12 +102,13 @@ export function AddDocumentsModal({
   useEffect(() => {
     if (!externalUploadedDocuments?.length) return;
     setUploaded((current) => merge(current, externalUploadedDocuments));
-    if (open) setSelected((current) => merge(current, externalUploadedDocuments));
+    if (open) setSelected((current) => selectable(merge(current, externalUploadedDocuments)));
   }, [externalUploadedDocuments, open]);
 
   if (!open && (!keepMounted || !hasOpened)) return null;
 
   async function confirm() {
+    if (busy || !selected.length || selected.some((document) => !eligible(document))) return;
     if (!projectId) {
       const projects = new Set(selected.flatMap((document) => document.project_id ? [document.project_id] : []));
       await onSelect(selected, projects.size === 1 ? [...projects][0] : undefined);
@@ -122,7 +139,13 @@ export function AddDocumentsModal({
   }
 
   async function upload(files: File[], folder = false) {
-    const { supported, unsupported } = partitionSupportedDocumentFiles(files);
+    const allowed = files.filter((file) => accept === SUPPORTED_DOCUMENT_ACCEPT ||
+      accept.split(",").some((extension) => file.name.toLowerCase().endsWith(extension.trim().toLowerCase())));
+    if (allowed.length !== files.length) {
+      setWarning(`Choose ${accept} files.`);
+      return;
+    }
+    const { supported, unsupported } = partitionSupportedDocumentFiles(multiple ? allowed : allowed.slice(0, 1));
     const unsupportedMessage = formatUnsupportedDocumentWarning(unsupported);
     setWarning(unsupportedMessage);
     if (!supported.length) return;
@@ -143,7 +166,7 @@ export function AddDocumentsModal({
       failed = supported.filter((_, index) => results[index].status === "rejected");
     }
     setUploaded((current) => merge(added, current));
-    setSelected((current) => merge(current, added));
+    setSelected((current) => selectable(merge(current, added)));
     setPendingNames([]);
     setWarning([unsupportedMessage, failed.length ? failure("upload", failed) : null].filter(Boolean).join(" ") || null);
     if (projectId && added.length) {
@@ -179,7 +202,7 @@ export function AddDocumentsModal({
         type="file"
         aria-label="Upload files"
         accept={accept}
-        multiple
+        multiple={multiple}
         className="hidden"
         onChange={(event) => void upload([...event.currentTarget.files ?? []])}
       />
@@ -206,6 +229,9 @@ export function AddDocumentsModal({
           showTabs={showTabs}
           initialTab={initialTab}
           excludeProjectId={projectId}
+          documentFilter={eligible}
+          multiple={multiple}
+          tabs={tabs}
         />
       </div>
     </Modal>

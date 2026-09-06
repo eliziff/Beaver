@@ -3,7 +3,8 @@ import { FieldGroup, FormField } from "../modals/ModalFieldLabel";
 import { Switch } from "../ui/switch";
 import { ModalTextInput } from "../modals/ModalTextInput";
 import { ProjectChoiceList } from "../projects/ProjectChoiceList";
-import type { Project, TabularReview } from "../shared/types";
+import type { Project } from "@/app/lib/api/projects";
+import type { TabularReview } from "@/app/lib/api/tabular";
 interface TabularReviewDetailsModalProps {
     open: boolean;
     review: TabularReview | null;

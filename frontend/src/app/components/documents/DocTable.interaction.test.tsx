@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Profiler, useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { Document } from "@/app/components/shared/types";
+import type { Document } from "@/app/lib/api/documents";
 import {
     DocTable,
     type DocTableFolder,
@@ -17,10 +17,10 @@ vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
 const { listVersions, uploadVersion } = vi.hoisted(() => ({
     listVersions: vi.fn(), uploadVersion: vi.fn(),
 }));
-vi.mock("@/app/lib/beaverApi", async (importOriginal) => ({
-    ...await importOriginal<typeof import("@/app/lib/beaverApi")>(),
-    listDocumentVersions: listVersions,
-    uploadDocumentVersion: uploadVersion,
+vi.mock("@/app/lib/api/documents", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/documents")>(),
+  listDocumentVersions: listVersions,
+  uploadDocumentVersion: uploadVersion
 }));
 
 const sidePanelRender = vi.hoisted(() => vi.fn());
@@ -563,7 +563,7 @@ describe("DocTable Library interactions", () => {
             />,
         );
 
-        expect(screen.getByRole("button", { name: "Workflows" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Workflows" })).toBeEnabled();
         expect(screen.getByText("Name")).toBeVisible();
         expect(
             within(rowFor("Brief.pdf")).queryByRole("button", {

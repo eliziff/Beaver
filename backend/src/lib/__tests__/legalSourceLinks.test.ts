@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { A2AJCompiledDocument } from "../legalSources/a2aj";
 import {
   buildA2AJDocumentPinpointUrl,
+  buildA2AJParagraphRangeUrl,
   buildLegalSourcePinpoint,
   buildLegalSourcePinpointUrl,
   preferredPublisherPdfTarget,
@@ -44,6 +45,29 @@ async function nativeDocument(
 async function nativeSource(text: string) {
   return (await nativeDocument(text)).native;
 }
+
+it("preserves exact paragraph-range links and rejects unrelated source identities", async () => {
+  const text = [
+    "[1] This introductory paragraph explains the dispute between the parties and the surrounding contractual facts.",
+    "[2] Acceptance requires an objective manifestation of assent to the proposed bargain in its full context.",
+    "[3] The judge examined correspondence exchanged before execution and the testimony of both principal negotiators.",
+    "[4] The appeal succeeds because the lower court overlooked evidence necessary to interpret the agreement.",
+    "[5] Costs follow the ordinary rule after consideration of the parties' respective written submissions.",
+    "[6] These reasons dispose of every ground advanced in support of the appeal and cross-appeal.",
+  ].join("\n");
+  const document = { ...await nativeDocument(text), alternateCitation: "[2099] 1 SCR 100" };
+  const revision = structureNative().documentRevision(document.native);
+  const expected = "https://www.canlii.org/en/ca/scc/doc/2099/2099scc1/2099scc1.html#par2:~:text=Acceptance%20requires%20an%20objective%20manifestation%20of%20assent%20to%20the%20proposed%20bargain%20in,succeeds%20because%20the%20lower%20court%20overlooked%20evidence%20necessary%20to%20interpret%20the%20agreement";
+  expect([
+    buildA2AJParagraphRangeUrl(" 2099  scc 1 ", "2", "4", document),
+    buildA2AJParagraphRangeUrl("[2099] 1 scr 100", "2", "4", document),
+    buildA2AJParagraphRangeUrl("2099 SCC 2", "2", "4", document),
+    buildA2AJParagraphRangeUrl("2099 SCC 1", "2", "4"),
+    buildA2AJParagraphRangeUrl("2099 SCC 1", "2", "4", { ...document, url: null }),
+    buildA2AJParagraphRangeUrl("2099 SCC 1", "8", "10", document),
+  ]).toEqual([expected, expected, null, null, null, null]);
+  expect(structureNative().documentRevision(document.native)).toBe(revision);
+});
 
 function textDirectives(url: string) {
   return (url.split(":~:", 2)[1] ?? "")

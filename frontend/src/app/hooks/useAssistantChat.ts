@@ -1,3 +1,4 @@
+import { ASSISTANT_GENERIC_ERROR } from "@/app/lib/assistantProtocol";
 import { useCallback, useEffect, useEffectEvent, useReducer, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -11,12 +12,14 @@ import {
   streamChat,
   streamChatJob,
   submitChatClientToolResult,
-} from "@/app/lib/beaverApi";
+  type Chat,
+  type ChatDetail,
+  type Message,
+} from "@/app/lib/api/chat";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import type { Chat, Message } from "@/app/components/shared/types";
+
 import {
-  ASSISTANT_GENERIC_ERROR,
   assistantSessionReducer,
   createAssistantSessionState,
   type AssistantTurnOptions,
@@ -52,6 +55,14 @@ export type AssistantChatLoad =
   | { status: "loading"; chatId: string }
   | { status: "loaded"; chatId?: string; chat: Chat | null }
   | { status: "error"; chatId: string; error: unknown };
+
+type TurnTransport = {
+  runId: string;
+  controller: AbortController;
+  chatId?: string;
+  jobId?: string;
+  rejected: boolean;
+};
 
 const CHAT_COMMAND_HELP = [
   "**Commands**",
@@ -92,7 +103,13 @@ export function useAssistantChat({
     setChatTurnInProgress,
     loadChats,
     renameChat,
+    takePreparedChat,
   } = useChatHistoryContext();
+  const [preparedChat] = useState(() => initialChatId ? takePreparedChat?.(initialChatId) : null);
+  const preparedChatRef = useRef(preparedChat);
+  const [loadAttempt, retryLoad] = useReducer((attempt: number) => attempt + 1, 0);
+  const takePreparedChatRef = useRef(takePreparedChat);
+  takePreparedChatRef.current = takePreparedChat;
   const pendingMessageRef = useRef<Message | null>(null);
   const [state, dispatch] = useReducer(
     assistantSessionReducer,
@@ -105,87 +122,119 @@ export function useAssistantChat({
       const initial = createAssistantSessionState({ chatId: initialChatId });
       return pending
         ? assistantSessionReducer(initial, { type: "new_chat", chatId: initialChatId, message: pending })
-        : initial;
+        : preparedChat?.detail ? assistantSessionReducer(initial, {
+            type: "transcript_loaded", chatId: initialChatId!,
+            messages: preparedChat.detail.messages,
+            transcriptVersion: preparedChat.detail.chat.transcript_version ?? 0,
+            active: preparedChat.detail.chat.turn_in_progress === true,
+          }) : initial;
     },
   );
   const [chatLoad, setChatLoad] = useState<AssistantChatLoad>(() =>
-    initialChatId && !pendingMessageRef.current
+    preparedChat?.detail
+      ? { status: "loaded", chatId: initialChatId, chat: preparedChat.detail.chat }
+      : initialChatId && !pendingMessageRef.current
       ? { status: "loading", chatId: initialChatId }
       : { status: "loaded", chatId: initialChatId, chat: null });
   const stateRef = useRef(state);
   stateRef.current = state;
   const loadGenerationRef = useRef(0);
-  const pollGenerationRef = useRef(0);
-  const activeStreamRef = useRef<AbortController | null>(null);
-  const transportRef = useRef<{ runId: string; controller: AbortController } | null>(null);
+  const transportRef = useRef<TurnTransport | null>(null);
   const clientToolResultsRef = useRef(new Map<string, Promise<unknown>>());
+  const streamCallbacks = useRef({ wordClient, onChatIdChange, setChatTurnInProgress });
+  streamCallbacks.current = { wordClient, onChatIdChange, setChatTurnInProgress };
 
   useEffect(() => () => {
-    pollGenerationRef.current += 1;
-    activeStreamRef.current?.abort();
     transportRef.current?.controller.abort();
   }, []);
 
-  const pollForCompletedTurn = useCallback((
-    targetChatId: string,
-    baselineVersion: number,
-  ) => {
-    const generation = ++pollGenerationRef.current;
-    void (async () => {
-      let seenVersion = baselineVersion;
-      const controller = new AbortController();
-      activeStreamRef.current?.abort();
-      activeStreamRef.current = controller;
-      try {
-        const response = await streamActiveChat(targetChatId, controller.signal);
-        if (response.ok && response.body && generation === pollGenerationRef.current) {
-          const runId = `durable:${targetChatId}`;
-          dispatch({ type: "live_replay_started", chatId: targetChatId, runId });
-          const streamed = await readAssistantEventStream({
-            body: response.body,
-            signal: controller.signal,
-            expectedChatId: targetChatId,
-            onEvent: (event, eventChatId) => dispatch({
-              type: "protocol", runId, chatId: eventChatId, event,
-            }),
-          });
-          if (streamed.sawDone && streamed.sawTranscriptVersion) {
-            const latest = await getChat(targetChatId);
-            const version = latest.chat.transcript_version ?? seenVersion;
-            dispatch({ type: "transcript_loaded", chatId: targetChatId,
-              messages: latest.messages, transcriptVersion: version,
-              active: latest.chat.turn_in_progress === true,
-              preserveRejected: true });
-            if (!latest.chat.turn_in_progress) {
-              setChatTurnInProgress?.(targetChatId, false);
-              if (!tabularReviewId) void loadChats();
-              return;
-            }
-            seenVersion = version;
+  const startTransport = useCallback((runId: string, chatId?: string) => {
+    transportRef.current?.controller.abort();
+    const transport: TurnTransport = { runId, chatId, controller: new AbortController(), rejected: false };
+    transportRef.current = transport;
+    return transport;
+  }, []);
+
+  const loadTranscript = useCallback((chatId: string, latest: ChatDetail, preserveRejected = false,
+    fallbackVersion = stateRef.current.transcriptVersion) => {
+    const version = latest.chat.transcript_version ?? fallbackVersion;
+    setChatLoad({ status: "loaded", chatId, chat: latest.chat });
+    dispatch({ type: "transcript_loaded", chatId, messages: latest.messages,
+      transcriptVersion: version, active: latest.chat.turn_in_progress === true, preserveRejected });
+    return version;
+  }, []);
+
+  const consume = useCallback(async (response: Response, transport: TurnTransport, replay = false) => {
+    const { controller: { signal }, runId } = transport;
+    signal.throwIfAborted();
+    if (!response.ok || !response.body) throw new Error("missing response");
+    const resetReplay = (chatId: string) => {
+      if (!replay) return;
+      dispatch({ type: "live_replay_started", chatId, runId });
+      replay = false;
+    };
+    if (transport.chatId) resetReplay(transport.chatId);
+    const result = await readAssistantEventStream({
+      body: response.body, signal, expectedChatId: transport.chatId,
+      onEvent: (event, eventChatId) => {
+        signal.throwIfAborted();
+        const { wordClient, onChatIdChange, setChatTurnInProgress } = streamCallbacks.current;
+        if (event.type === "turn_queued") transport.jobId = event.jobId;
+        if (event.type === "client_tool_call" && transport.jobId && wordClient) {
+          let result = clientToolResultsRef.current.get(event.callId);
+          if (!result) {
+            result = wordClient.execute(event).catch((error) => ({ error: error instanceof Error
+              ? error.message.slice(0, 500) : "The Word tool failed." }));
+            clientToolResultsRef.current.set(event.callId, result);
+          }
+          const jobId = transport.jobId;
+          void result.then((value) => submitChatClientToolResult(jobId, event.callId, value))
+            .catch(() => undefined);
+        }
+        if (event.type === "chat_id") {
+          resetReplay(event.chatId);
+          if (event.chatId !== transport.chatId) {
+            transport.chatId = event.chatId;
+            onChatIdChange?.(event.chatId);
+            setChatTurnInProgress?.(event.chatId, true);
           }
         }
+        if (event.type === "error" && event.accepted === false) transport.rejected = true;
+        dispatch({ type: "protocol", runId, chatId: eventChatId, event });
+      },
+    });
+    signal.throwIfAborted();
+    return result;
+  }, []);
+
+  const observeTurn = useCallback((
+    targetChatId: string,
+    baselineVersion: number,
+    after?: Promise<unknown>,
+  ) => {
+    const transport = startTransport(`durable:${targetChatId}`, targetChatId);
+    const { signal } = transport.controller;
+    void (async () => {
+      let seenVersion = baselineVersion;
+      let refreshAll = false;
+      try {
+        await after;
+        signal.throwIfAborted();
+        const response = await streamActiveChat(targetChatId, signal);
+        const streamed = await consume(response, transport, true);
+        refreshAll = streamed.sawDone && streamed.sawTranscriptVersion;
       } catch {
         // Fall back to canonical transcript polling while the service reconnects.
-      } finally {
-        if (activeStreamRef.current === controller) activeStreamRef.current = null;
       }
-      while (generation === pollGenerationRef.current) {
+      while (!signal.aborted) {
         try {
-          const latest = await getChat(targetChatId, seenVersion);
+          const latest = refreshAll ? await getChat(targetChatId) : await getChat(targetChatId, seenVersion);
+          signal.throwIfAborted();
           if (latest) {
             const version = latest.chat.transcript_version ?? seenVersion;
-            if (version > seenVersion || latest.chat.turn_in_progress === false) {
-              seenVersion = version;
-              dispatch({
-                type: "transcript_loaded",
-                chatId: targetChatId,
-                messages: latest.messages,
-                transcriptVersion: version,
-                active: latest.chat.turn_in_progress === true,
-                preserveRejected: true,
-              });
-            }
-            if (latest.chat.turn_in_progress === false) {
+            if (refreshAll || version > seenVersion || latest.chat.turn_in_progress === false)
+              seenVersion = loadTranscript(targetChatId, latest, true);
+            if (!latest.chat.turn_in_progress) {
               setChatTurnInProgress?.(targetChatId, false);
               if (!tabularReviewId) void loadChats();
               return;
@@ -194,55 +243,58 @@ export function useAssistantChat({
         } catch {
           // Keep the last usable transcript while the local service reconnects.
         }
+        refreshAll = false;
         await new Promise<void>((resolve) => setTimeout(resolve, 1_000));
       }
-    })();
-  }, [loadChats, setChatTurnInProgress, tabularReviewId]);
+    })().finally(() => { if (transportRef.current === transport) transportRef.current = null; });
+  }, [consume, loadChats, loadTranscript, setChatTurnInProgress, startTransport, tabularReviewId]);
 
   useEffect(() => {
     const generation = ++loadGenerationRef.current;
     const current = stateRef.current;
+    const preparation = preparedChatRef.current;
+    preparedChatRef.current = null;
     if (!initialChatId) {
-      pollGenerationRef.current += 1;
-      activeStreamRef.current?.abort();
       transportRef.current?.controller.abort();
       if (current.chatId || current.messages.length) dispatch({ type: "new_chat" });
       setChatLoad({ status: "loaded", chat: null });
       return;
     }
-    if (pendingMessageRef.current || current.run || (current.chatId === initialChatId && current.messages.length)) {
-      setChatLoad({ status: "loaded", chatId: initialChatId, chat: null });
+    if (preparation?.id === initialChatId && preparation.detail) {
+      if (preparation.detail.chat.turn_in_progress) observeTurn(initialChatId,
+        preparation.detail.chat.transcript_version ?? 0);
       return;
     }
-    pollGenerationRef.current += 1;
-    activeStreamRef.current?.abort();
+    if (pendingMessageRef.current || (current.chatId === initialChatId && (current.run || current.messages.length))) {
+      setChatLoad((previous) => previous.status === "loaded" && previous.chatId === initialChatId
+        ? previous : { status: "loaded", chatId: initialChatId, chat: null });
+      return;
+    }
     transportRef.current?.controller.abort();
     setChatLoad({ status: "loading", chatId: initialChatId });
-    void getChat(initialChatId).then((latest) => {
+    void ((preparation?.id === initialChatId ? preparation : takePreparedChatRef.current?.(initialChatId))?.result ?? getChat(initialChatId)).then((latest) => {
       if (generation !== loadGenerationRef.current) return;
-      const version = latest.chat.transcript_version ?? 0;
-      dispatch({ type: "transcript_loaded", chatId: initialChatId, messages: latest.messages, transcriptVersion: version, active: latest.chat.turn_in_progress === true });
-      setChatLoad({ status: "loaded", chatId: initialChatId, chat: latest.chat });
-      if (latest.chat.turn_in_progress) pollForCompletedTurn(initialChatId, version);
+      const version = loadTranscript(initialChatId, latest, false, 0);
+      if (latest.chat.turn_in_progress) observeTurn(initialChatId, version);
     }).catch((error) => {
       if (generation === loadGenerationRef.current) setChatLoad({ status: "error", chatId: initialChatId, error });
     });
     return () => { if (loadGenerationRef.current === generation) loadGenerationRef.current += 1; };
-  }, [initialChatId, pollForCompletedTurn]);
+  }, [initialChatId, observeTurn, loadAttempt, loadTranscript]);
 
   const cancel = () => {
     const current = stateRef.current;
     const runId = current.run?.id;
     if (!runId) return;
-    if (current.chatId) void stopChat(current.chatId).catch(() => undefined);
-    else if (current.run?.jobId) void stopChatJob(current.run.jobId).catch(() => undefined);
-    pollGenerationRef.current += 1;
-    activeStreamRef.current?.abort();
+    const stopping = current.chatId ? stopChat(current.chatId) : current.run?.jobId
+      ? stopChatJob(current.run.jobId) : Promise.resolve();
     if (transportRef.current?.runId === runId) {
       transportRef.current.controller.abort();
     }
     dispatch({ type: "run_interrupted", runId, status: "cancelled" });
     if (current.chatId) setChatTurnInProgress?.(current.chatId, false);
+    if (current.chatId) observeTurn(current.chatId, current.transcriptVersion, stopping.catch(() => undefined));
+    else void stopping.catch(() => undefined);
   };
 
   const handleChat = async (
@@ -291,54 +343,20 @@ export function useAssistantChat({
       : options;
     const shouldGenerateTitle = !options?.askInputsResponse && current.messages.length === 0;
     const runId = crypto.randomUUID();
-    pollGenerationRef.current += 1;
-    activeStreamRef.current?.abort();
+    const transport = startTransport(runId, current.chatId);
+    const { controller } = transport;
     dispatch({ type: "run_started", runId, chatId: current.chatId, message, options: turnOptions });
     if (current.chatId) setChatTurnInProgress?.(current.chatId, true);
-    const controller = new AbortController();
-    transportRef.current = { runId, controller };
-    let streamedChatId: string | undefined;
-    let queuedJobId: string | undefined;
     let durablyQueued = false;
-    let serverRejected = false;
-    let replaying = false;
-    const consume = async (response: Response) => {
-      if (!response.body) throw new Error("missing response");
-      return readAssistantEventStream({
-        body: response.body,
-        signal: controller.signal,
-        expectedChatId: current.chatId,
-        onEvent: (event, eventChatId) => {
-          if (event.type === "turn_queued") queuedJobId = event.jobId;
-          if (event.type === "client_tool_call" && queuedJobId && wordClient) {
-            let result = clientToolResultsRef.current.get(event.callId);
-            if (!result) {
-              result = wordClient.execute(event).catch((error) => ({
-                error: error instanceof Error
-                  ? error.message.slice(0, 500) : "The Word tool failed.",
-              }));
-              clientToolResultsRef.current.set(event.callId, result);
-            }
-            void result.then((value) => submitChatClientToolResult(
-              queuedJobId!, event.callId, value,
-            )).catch(() => undefined);
-          }
-          if (event.type === "chat_id" && event.chatId !== current.chatId) {
-            if (replaying) {
-              replaying = false;
-              dispatch({ type: "live_replay_started", chatId: event.chatId, runId });
-            }
-            streamedChatId = event.chatId;
-            onChatIdChange?.(event.chatId);
-            setChatTurnInProgress?.(event.chatId, true);
-          }
-          if (event.type === "error" && event.accepted === false) serverRejected = true;
-          dispatch({ type: "protocol", runId, chatId: eventChatId, event });
-        },
-      });
-    };
-    const complete = async (finalChatId?: string) => {
+    const complete = async (finalChatId = transport.chatId) => {
+      controller.signal.throwIfAborted();
       dispatch({ type: "run_finished", runId });
+      if (finalChatId) {
+        try { const latest = await getChat(finalChatId); controller.signal.throwIfAborted();
+          setChatLoad({ status: "loaded", chatId: finalChatId, chat: latest.chat });
+        } catch { /* Keep usable chat metadata while a completed response reconnects. */ }
+        controller.signal.throwIfAborted();
+      }
       if (finalChatId) setChatTurnInProgress?.(finalChatId, false);
       if (finalChatId && finalChatId !== current.chatId) {
         if (current.chatId) replaceChatId(current.chatId, finalChatId,
@@ -360,7 +378,7 @@ export function useAssistantChat({
           })
           .catch(() => undefined);
       }
-      return streamedChatId ?? null;
+      return finalChatId ?? null;
     };
     try {
       const model = message.model ?? profile?.lastSelectedChatModel ?? DEFAULT_MODEL_ID;
@@ -412,14 +430,16 @@ export function useAssistantChat({
           } }) },
         signal: controller.signal,
       });
+      controller.signal.throwIfAborted();
       if (!response.ok) {
         if (response.status === 409 && current.chatId) {
           const conflict = await response.json().catch(() => null) as Record<string, unknown> | null;
           const latest = await getChat(current.chatId);
+          controller.signal.throwIfAborted();
           const version = typeof conflict?.current_version === "number" && Number.isSafeInteger(conflict.current_version)
             ? conflict.current_version
             : latest.chat.transcript_version ?? current.transcriptVersion;
-          dispatch({ type: "transcript_loaded", chatId: current.chatId, messages: latest.messages, transcriptVersion: latest.chat.transcript_version ?? version, active: latest.chat.turn_in_progress === true });
+          loadTranscript(current.chatId, latest, false, version);
           if (conflict?.code === "chat_turn_already_completed") return null;
           const retryBlocked = conflict?.code === "chat_retry_blocked_after_mutation";
           const inProgress = conflict?.code === "chat_turn_in_progress";
@@ -436,18 +456,17 @@ export function useAssistantChat({
                   : "This conversation changed in another window. Review the latest messages; your draft has been restored.",
             },
           });
-          if (inProgress) pollForCompletedTurn(current.chatId, version);
+          if (inProgress) observeTurn(current.chatId, version);
           return null;
         }
         throw new Error("request failed");
       }
       durablyQueued = true;
-      const result = await consume(response);
-      streamedChatId = result.chatId;
+      const result = await consume(response, transport);
       if (!result.sawDone || !result.sawTranscriptVersion) {
         throw new Error("truncated response");
       }
-      if (serverRejected) {
+      if (transport.rejected) {
         const rejectedChatId = result.chatId ?? current.chatId;
         dispatch({
           type: "run_failed",
@@ -457,55 +476,40 @@ export function useAssistantChat({
         });
         if (rejectedChatId) {
           const latest = await getChat(rejectedChatId).catch(() => null);
-          if (latest) dispatch({
-            type: "transcript_loaded",
-            chatId: rejectedChatId,
-            messages: latest.messages,
-            transcriptVersion: latest.chat.transcript_version ?? current.transcriptVersion,
-            active: latest.chat.turn_in_progress === true,
-            preserveRejected: true,
-          });
+          controller.signal.throwIfAborted();
+          if (latest) loadTranscript(rejectedChatId, latest, true);
         }
         return null;
       }
-      const finalChatId = result.chatId ?? current.chatId;
-      return complete(finalChatId);
+      return complete();
     } catch (error) {
-      const targetChatId = streamedChatId ?? current.chatId;
-      if (controller.signal.aborted) {
-        dispatch({ type: "run_interrupted", runId, status: "cancelled" });
-        if (targetChatId) pollForCompletedTurn(
-          targetChatId,
-          stateRef.current.transcriptVersion,
-        );
-        return null;
-      }
-      if (durablyQueued && queuedJobId && !targetChatId) {
+      let targetChatId = transport.chatId;
+      if (controller.signal.aborted) return null;
+      if (durablyQueued && transport.jobId && !targetChatId) {
         try {
-          replaying = true;
-          const response = await streamChatJob(queuedJobId, controller.signal);
+          const response = await streamChatJob(transport.jobId, controller.signal);
           if (response.ok) {
-            const result = await consume(response);
-            streamedChatId = result.chatId;
+            const result = await consume(response, transport, true);
             if (result.sawDone && result.sawTranscriptVersion) {
-              if (serverRejected) dispatch({ type: "run_failed", runId,
+              if (transport.rejected) dispatch({ type: "run_failed", runId,
                 removeOptimistic: true,
                 rejected: { message: userMessage(message), options: turnOptions } });
-              else return complete(result.chatId);
+              else return complete();
               return null;
             }
           }
         } catch {
           // The durable job remains available for an explicit retry.
         }
+        targetChatId = transport.chatId;
       }
       if (targetChatId) {
         try {
           const latest = await getChat(targetChatId);
-          const version = latest.chat.transcript_version ?? stateRef.current.transcriptVersion;
-          dispatch({ type: "transcript_loaded", chatId: targetChatId, messages: latest.messages, transcriptVersion: version, active: latest.chat.turn_in_progress === true });
+          controller.signal.throwIfAborted();
+          const version = loadTranscript(targetChatId, latest);
           if (latest.chat.turn_in_progress) {
-            pollForCompletedTurn(targetChatId, version);
+            observeTurn(targetChatId, version);
             return null;
           }
           if (durablyQueued) return null;
@@ -513,6 +517,7 @@ export function useAssistantChat({
           // Fall through to the bounded transport failure.
         }
       }
+      if (controller.signal.aborted) return null;
       const failure = error instanceof AssistantProtocolError ? ASSISTANT_GENERIC_ERROR
         : /^(?:failed to fetch|fetch failed|network request failed|networkerror)/iu
           .test(error instanceof Error ? error.message : "")
@@ -530,7 +535,7 @@ export function useAssistantChat({
       if (targetChatId) setChatTurnInProgress?.(targetChatId, false);
       return null;
     } finally {
-      if (transportRef.current?.runId === runId) transportRef.current = null;
+      if (transportRef.current === transport) transportRef.current = null;
     }
   };
 
@@ -549,6 +554,7 @@ export function useAssistantChat({
     state,
     chatLoad,
     actions: {
+      retryLoad,
       handleChat,
       clearRejectedTurn: () => dispatch({ type: "turn_rejected", rejected: null }),
       retryRejectedTurn: async () => {

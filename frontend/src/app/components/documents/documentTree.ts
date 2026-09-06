@@ -1,4 +1,4 @@
-import type { Document, Folder, LibraryFolder } from "@/app/components/shared/types";
+import type { Document, Folder, LibraryFolder } from "@/app/lib/api/documents";
 
 type DocumentTreeFolder = Folder | LibraryFolder;
 type DocumentTreeRow = { kind: "document"; document: Document; parentId: string | null; depth: number }

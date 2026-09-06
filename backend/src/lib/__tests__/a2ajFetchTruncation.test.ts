@@ -12,7 +12,7 @@ vi.mock("../remoteUrlSafety", async (importOriginal) => ({
 }));
 
 import { a2ajLegalSourceProvider } from "../legalSources/a2aj";
-import { readLegalSourcePassage } from "../legalSourceRegistry";
+import { legalSourceOperations } from "../legalSourceApplication";
 import { structureNative, type NativeDocument } from "../structureNative";
 
 beforeEach(() => {
@@ -53,7 +53,7 @@ function stubA2AJText(text: string, citation: string) {
 async function readDocument(text: string) {
   const citation = `RSC 1985, c C-${text.length}`;
   stubA2AJText(text, citation);
-  return readLegalSourcePassage({
+  return legalSourceOperations.readPassage({
     source: {
       provider: "a2aj",
       id: citation,
@@ -98,7 +98,7 @@ describe("unified A2AJ document reads", () => {
         }],
       }),
     }));
-    const read = await readLegalSourcePassage({
+    const read = await legalSourceOperations.readPassage({
       source: {
         provider: "a2aj",
         id: "2099 SCC 9",

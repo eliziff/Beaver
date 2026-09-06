@@ -1,10 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-    getProject,
-    updateChatProject,
-} from "@/app/lib/beaverApi";
-import { BeaverApiError } from "@/app/lib/apiTransport";
+import { getProject } from "@/app/lib/api/projects";
+import { BeaverApiError } from "@/app/lib/api/client";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useAssistantChat } from "./useAssistantChat";
 
@@ -20,29 +17,29 @@ export function useAssistantChatRoute({
     projectId?: string;
 }) {
     const navigate = useNavigate();
-    const { chats } = useChatHistoryContext();
+    const { chats, onProjectMove, moveChat } = useChatHistoryContext();
     const [movedProject, setMovedProject] =
         useState<ProjectLocation | null>(null);
     const assistant = useAssistantChat({ chatId, projectId: projectId ?? movedProject?.id ?? undefined });
     const responseLoading = assistant.state.run !== null;
     const pendingProjectRouteRef = useRef<string | null | undefined>(undefined);
-    const finishProjectMove = useCallback((nextProjectId: string | null, defer = true) => {
+    const handleProjectMove = useEffectEvent((movedChatId: string, nextProjectId: string | null) => {
+            if (movedChatId !== chatId) return;
             if (!projectId) {
                 setMovedProject({ id: nextProjectId, name: null });
                 if (nextProjectId) {
                     void getProject(nextProjectId)
-                        .then(({ name }) => setMovedProject({ id: nextProjectId, name }))
+                        .then(({ name }) => setMovedProject((current) =>
+                            current?.id === nextProjectId ? { id: nextProjectId, name } : current))
                         .catch(() => {});
                 }
             }
-            if (defer && responseLoading) {
+            if (responseLoading) {
                 pendingProjectRouteRef.current = nextProjectId;
             } else {
                 navigate(chatPath(chatId, nextProjectId), { replace: true });
             }
-        },
-        [chatId, navigate, projectId, responseLoading],
-    );
+        });
     useEffect(() => {
         let cancelled = false;
         const load = assistant.chatLoad;
@@ -63,18 +60,7 @@ export function useAssistantChatRoute({
         pendingProjectRouteRef.current = undefined;
         navigate(chatPath(chatId, nextProjectId), { replace: true });
     }, [assistant.state.run, chatId, navigate]);
-    useEffect(() => {
-        if (projectId) return;
-        const onProjectMoved = (event: Event) => {
-            const { detail } = event as CustomEvent<{ chatId?: string; projectId?: string | null }>;
-            if (detail?.chatId === chatId) {
-                finishProjectMove(detail.projectId ?? null);
-            }
-        };
-        window.addEventListener("beaver:chat-project-moved", onProjectMoved);
-        return () =>
-            window.removeEventListener("beaver:chat-project-moved", onProjectMoved);
-    }, [chatId, finishProjectMove, projectId]);
+    useEffect(() => onProjectMove((id, nextProjectId) => handleProjectMove(id, nextProjectId)), [onProjectMove]);
 
     const historyTitle = chats?.find(({ id }) => id === chatId)?.title;
     const loadedChat = assistant.chatLoad.status === "loaded" ? assistant.chatLoad.chat : null;
@@ -88,9 +74,6 @@ export function useAssistantChatRoute({
         chatProjectId: projectId ??
             (movedProject ? movedProject.id : loadedChat?.project_id) ?? null,
         chatProjectName: projectId ? null : movedProject?.name ?? null,
-        changeProject: async (nextProjectId: string | null) => {
-            const updated = await updateChatProject(chatId, nextProjectId);
-            finishProjectMove(updated.project_id);
-        },
+        changeProject: (nextProjectId: string | null) => moveChat(chatId, nextProjectId),
     };
 }

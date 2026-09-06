@@ -1,4 +1,5 @@
-import type { Message, Workflow, WorkflowVariant } from "../shared/types";
+import type { Message } from "@/app/lib/api/chat";
+import type { Workflow, WorkflowVariant } from "@/app/lib/api/workflows";
 
 export type WorkflowSelection = { workflow: Workflow; variant: WorkflowVariant };
 
@@ -6,12 +7,14 @@ export function workflowPath(workflow: Workflow) {
     switch (workflow.launcher.kind) {
         case "authorities": return "/table-of-authorities";
         case "court_records": return "/court-records";
+        case "quote_check": return "/workflows?workflow=quote-checking";
+        case "fix_supras": return "/workflows?workflow=fix-supras";
         case "instructions": return `/workflows/${workflow.id}`;
     }
 }
 
 export const workflowVariants = (workflow: Workflow, execution?: WorkflowVariant["execution"]) =>
-    workflow.launcher.kind === "instructions"
+    (workflow.launcher.kind === "instructions" || workflow.launcher.kind === "quote_check")
     ? workflow.launcher.variants.filter((variant) => !execution || variant.execution === execution)
     : [];
 

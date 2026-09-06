@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Document } from "../shared/types";
+import type { Document } from "@/app/lib/api/documents";
 import { AddDocumentsModal } from "./AddDocumentsModal";
 
 const api = vi.hoisted(() => ({
@@ -12,14 +12,19 @@ const api = vi.hoisted(() => ({
     uploadStandaloneDocument: vi.fn(),
 }));
 
-vi.mock("@/app/lib/beaverApi", async (importOriginal) => ({
-    ...await importOriginal(),
-    ...api,
-    directoryResource: () => ({
+vi.mock("@/app/lib/api/documents", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/documents")>(),
+  addDocumentToProject: api.addDocumentToProject,
+  uploadStandaloneDocument: api.uploadStandaloneDocument,
+  directoryResource: () => ({
         list: api.listDirectory,
         uploadDocument: api.uploadDocument,
         uploadDirectory: api.uploadDirectory,
-    }),
+    })
+}));
+vi.mock("@/app/lib/api/projects", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/projects")>(),
+  listProjects: api.listProjects
 }));
 
 function makeDocument(
@@ -292,4 +297,21 @@ describe("AddDocumentsModal project mode", () => {
             .toHaveAttribute("aria-selected", "true");
         await screen.findByText("No files available");
     });
+});
+
+it("filters existing documents and uploaded files to the requested extension", async () => {
+    const select = vi.fn();
+    render(<AddDocumentsModal open onClose={vi.fn()} onSelect={select}
+        breadcrumb={["Choose document"]} accept=".docx" multiple={false}
+        documents={[makeDocument("word", "Draft.DOCX"), makeDocument("pdf", "Source.pdf")]} />);
+    expect(await screen.findByRole("radio", { name: "Select Draft.DOCX" })).toBeVisible();
+    expect(screen.queryByRole("radio", { name: "Select Source.pdf" })).toBeNull();
+    fireEvent.change(screen.getByLabelText("Upload files"), {
+        target: { files: [new File(["pdf"], "Source.pdf", { type: "application/pdf" })] },
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Choose .docx files.");
+    expect(api.uploadStandaloneDocument).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("radio", { name: "Select Draft.DOCX" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm", exact: true }));
+    await waitFor(() => expect(select).toHaveBeenCalledWith([expect.objectContaining({ id: "word" })], "project-1"));
 });

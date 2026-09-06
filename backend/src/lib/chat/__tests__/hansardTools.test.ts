@@ -6,9 +6,8 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
-  readLegalSourcePassage,
-  searchLegalSources,
-} from "../../legalSourceRegistry";
+  legalSourceOperations,
+} from "../../legalSourceApplication";
 
 const fixture = JSON.parse(
   readFileSync(
@@ -42,7 +41,7 @@ describe("Hansard legal-source adapter", () => {
       "beaver-hansard-missing",
       "nope.sqlite",
     );
-    const reply = await searchLegalSources({
+    const reply = await legalSourceOperations.search({
       text: "budget",
       kinds: ["hansard"],
       providers: ["hansard"],
@@ -74,7 +73,7 @@ describe("Hansard legal-source adapter", () => {
     expect(imported.status, imported.stderr).toBe(0);
     process.env.MIKE_A2AJ_HANSARD_DB = database;
 
-    const search = await searchLegalSources({
+    const search = await legalSourceOperations.search({
       text: "speaker",
       kinds: ["hansard"],
       providers: ["hansard"],
@@ -84,13 +83,13 @@ describe("Hansard legal-source adapter", () => {
     const first = search.results[0];
     expect(first.id).toBeTruthy();
 
-    const fetched = await readLegalSourcePassage({ source: first });
+    const fetched = await legalSourceOperations.readPassage({ source: first });
     expect(fetched.status).toBe("found");
     if (fetched.status === "found") {
       expect(fetched.values[0].source.id).toBe(first.id);
       expect(fetched.values[0].text.length).toBeGreaterThan(0);
     }
-    expect(await readLegalSourcePassage({
+    expect(await legalSourceOperations.readPassage({
       source: { provider: "hansard", id: "no-such-id", kind: "hansard" },
     })).toMatchObject({ status: "not_found" });
   });

@@ -11,7 +11,7 @@ import {
 import { renderMarkdownDocx } from "../chat/tools/documentOps";
 
 async function draft(markdown: string): Promise<Buffer> {
-  const rendered = await renderMarkdownDocx("Memo", markdown, []);
+  const rendered = await renderMarkdownDocx("Memo", markdown);
   if ("error" in rendered) throw new Error(rendered.error);
   return rendered.bytes;
 }

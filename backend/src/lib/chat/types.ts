@@ -1,5 +1,5 @@
 import type { LlmImage, LlmMessage } from "../llm/types";
-import type { EditDiffSegment } from "../docxTrackedChanges";
+import type { TabularCell } from "../tabularStore";
 
 export type WorkflowStore = Map<string, {
   workflow_id: string;
@@ -23,10 +23,7 @@ export type TabularCellStore = {
   columns: { index: number; name: string }[];
   documents: { id: string; filename: string }[];
   /** key: `${colIndex}:${docId}` */
-  cells: Map<
-    string,
-    { summary: string; flag?: string; reasoning?: string } | null
-  >;
+  cells: Map<string, Pick<TabularCell, "content" | "status">>;
 };
 
 export type ChatMessage = {
@@ -38,66 +35,4 @@ export type ChatMessage = {
   images?: LlmImage[];
   /** Internal provider continuation metadata; never accepted from the browser. */
   contextCheckpoint?: LlmMessage["contextCheckpoint"];
-};
-
-export type ToolActivity = {
-  id: string;
-  tool: string;
-  label: string;
-  status: "running" | "completed" | "error" | "interrupted";
-  citations?: Record<string, unknown>[];
-};
-
-export type AskInputOption = {
-  value: string;
-};
-
-export type AskInputItem =
-  | {
-      id: string;
-      kind: "choice";
-      question: string;
-      options: AskInputOption[];
-    }
-  | {
-      id: string;
-      kind: "documents";
-      document_types: string[];
-    };
-
-export type AskInputsEvent = {
-  type: "ask_inputs";
-  items: AskInputItem[];
-};
-
-export type AskInputResponseItem =
-  | {
-      id: string;
-      kind: "choice";
-      answer?: string;
-    }
-  | {
-      id: string;
-      kind: "documents";
-      documents: { document_id: string; filename: string }[];
-    };
-
-export type AskInputsResponseRequest = {
-  responses: AskInputResponseItem[];
-};
-
-export type EditAnnotation = {
-  edit_id: string;
-  document_id: string;
-  version_id: string;
-  version_number?: number | null;
-  del_w_id?: string;
-  ins_w_id?: string;
-  deleted_text: string;
-  inserted_text: string;
-  context_before: string;
-  context_after: string;
-  reason?: string;
-  diff: EditDiffSegment[];
-  status: "pending" | "accepted" | "rejected";
 };

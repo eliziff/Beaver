@@ -8,7 +8,7 @@ import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import { useMfaAction } from "@/app/components/account/useMfaAction";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
-import { deleteAccount } from "@/app/lib/beaverApi";
+import { deleteAccount } from "@/app/lib/api/account";
 import {
     accountGlassDangerOutlineButtonClassName,
     accountGlassInputClassName,

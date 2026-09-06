@@ -122,7 +122,10 @@ or committed downloads without licence.
 
 ## Court Records interaction
 
-- Preserve recognizable affidavit 1–2–3 document-first flow. Compact Drafts:
+- Records led by a nonrepeatable required source start with that input alone;
+  reveal case details, remaining inputs and output only after it is added. Use
+  compact numbered step markers, one label per task and inline required status.
+  Keep style-of-cause fields visible, including populated fields. Compact Drafts:
   New/Open/Duplicate/Rename/Delete, exact links, meaningful autosave, no redundant
   Saved badges/toasts/dashboard. Restore all fields/parties/order/descriptions/
   bindings/nesting; healthy inputs silent, changed/missing inline.
@@ -136,6 +139,8 @@ or committed downloads without licence.
   position separate from case roles. Correct filing-side/counsel placement; preserve
   exact two-party geometry, extend deterministically. Group court/file, parties,
   filing identity, hearing and counsel/service by aligned meaning, not giant grids.
+  Keep required AP-5 contacts visible with their party; place filing and other-party
+  contact fields together rather than sorting unrelated fields by required status.
 - Explicit Save filing details stores stable lawyer/organization/address/phone/fax/
   email through existing preferences, prefills empty fields only, no unwanted copying.
 - Compact labelled text dates with example/tolerant deterministic normalization;
@@ -145,10 +150,13 @@ or committed downloads without licence.
   Separate Document date only where profile requires it—FC/FCA Rules309/310 initial
   cases, other profiles decided from sources. Only verified typed/form dates
   prefill; no filesystem timestamp/model guess. Arbitrary descriptions may contain dates.
-- All ordinary slots visible in filing order; only truly mandatory say Required.
+- After initial source intake, show ordinary slots in filing order; only truly
+  mandatory inputs say Required, beside their label.
   Permanent Add another document. Add file accepts PDF/DOCX in every user slot.
   Nonrepeatable replacement confirms, not duplicates. Combined DOCX uses existing
   conversion host; editable proposed-order/separate exceptions remain DOCX.
+  Editable Word slots do not require a PDF conversion service to prepare, reopen,
+  or import their source; preserve original bytes through both host adapters.
 - Selection validates type/size/security/encryption, inspects pages/text/title/
   bookmarks and invokes existing OCR as needed. Success silent; locked file gets
   one actionable inline error. Existing progress/cancel, no OCR engine/settings
@@ -159,6 +167,9 @@ or committed downloads without licence.
   initial view and deterministic separate court filenames/types. Assembly never
   rewrites source DOCX; native ToA/authority-field updates use ordinary Word
   operations/new versions.
+- Once built, offer downloads and saving without repeating the build action.
+  Multi-PDF outputs allow selecting the previewed file; show complete filenames.
+  A supplied signed Form 344 removes the generated-certificate signature prompt.
 
 ## Authorities reference parity and CanLII
 

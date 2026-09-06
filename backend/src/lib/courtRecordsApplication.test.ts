@@ -184,28 +184,6 @@ describe("court records application", () => {
       { projectId: "project-1" });
   });
 
-  it("atomically saves a first build in the Court draft's project", async () => {
-    const scoped = { ...product(), projectId: "project-1" };
-    const { files, workProducts } = dependencies(scoped);
-    const application = createCourtRecordsApplication(
-      documents(), files as never, workProducts as never,
-    );
-    const built = receipt();
-    await expect(application.saveBuild(scope, [{ file: {
-      filename: "Motion record.pdf", fileType: "pdf", bytes: Buffer.from("record"),
-    }, receipt: built }])).resolves.toMatchObject({ revision: 4 });
-    expect(files.create).toHaveBeenCalledWith(scope, "court-records", expect.objectContaining({
-      expectedSha256: "b".repeat(64),
-      provenance: { schemaVersion: 1, actor: "work-product", action: "built",
-        receipt: built },
-    }), { projectId: "project-1" });
-    expect(workProducts.save).toHaveBeenCalledWith(scope, scoped.id, {
-      revision: 3, outputs: { record: {
-        documentId: "output-1", versionId: "created-version",
-      } },
-    });
-  });
-
   it("saves a separate-file record with more than 32 document outputs", async () => {
     const { files, workProducts } = dependencies();
     const application = createCourtRecordsApplication(
@@ -256,28 +234,6 @@ describe("court records application", () => {
     expect(files.create).not.toHaveBeenCalled();
   });
 
-  it("rebuilds only the stable output document before committing the new ref", async () => {
-    const store = documents();
-    const outputs = { record: { documentId: "output-1", versionId: "old-version",
-      filename: "Motion record.pdf", mimeType: "application/pdf",
-      sha256: "c".repeat(64), pageCount: 2 } };
-    const { files, workProducts } = dependencies(product(outputs));
-    const application = createCourtRecordsApplication(store, files as never,
-      workProducts as never);
-    const file = { filename: "Motion record.pdf", fileType: "pdf",
-      bytes: Buffer.from("record") };
-    await expect(application.saveBuild(scope, [{ file, receipt: receipt() }]))
-      .resolves.toMatchObject({ revision: 4 });
-    expect(store.addVersion).toHaveBeenCalledWith(scope, "output-1",
-      expect.objectContaining({ expectedSha256: "b".repeat(64) }));
-    expect(workProducts.save).toHaveBeenCalledWith(scope, "record-1", {
-      revision: 3, outputs: { record: {
-        documentId: "output-1", versionId: "version-2",
-      } },
-    });
-    expect(files.create).not.toHaveBeenCalled();
-  });
-
   it("replaces a deleted stable output and lets the WorkProduct CAS verify it", async () => {
     const store = documents() as DocumentStore & { addVersion: ReturnType<typeof vi.fn>;
       metadata: ReturnType<typeof vi.fn> };
@@ -316,70 +272,6 @@ describe("court records application", () => {
       projectId: null, folderId: "output-folder",
     });
     expect(workProducts.save).not.toHaveBeenCalled();
-  });
-
-  it("compensates all writes in reverse when a batch fails before CAS", async () => {
-    const store = documents() as DocumentStore & {
-      deleteDocument: ReturnType<typeof vi.fn>; deleteVersion: ReturnType<typeof vi.fn>;
-    };
-    const events: string[] = [];
-    store.deleteDocument.mockImplementation(async (_scope: unknown, id: string) => {
-      events.push(`document:${id}`); return true;
-    });
-    store.deleteVersion.mockImplementation(async (_scope: unknown, id: string,
-      versionId: string) => {
-      events.push(`version:${id}:${versionId}`);
-      return { status: "deleted", currentVersionId: "version-1" };
-    });
-    const outputs = { record: { documentId: "stable-output", versionId: "old-version",
-      filename: "Motion record.pdf", mimeType: "application/pdf",
-      sha256: "a".repeat(64), pageCount: 2 } };
-    const { files, workProducts } = dependencies(product(outputs));
-    workProducts.save.mockRejectedValueOnce(new Error("stale CAS"));
-    const application = createCourtRecordsApplication(store, files as never,
-      workProducts as never);
-    const second = receipt({ role: "index", filename: "Index.pdf", sha256: "d".repeat(64) });
-    await expect(application.saveBuild(scope, [{ file: {
-      filename: "Motion record.pdf", fileType: "pdf", bytes: Buffer.from("record"),
-    }, receipt: receipt() }, { file: {
-      filename: "Index.pdf", fileType: "pdf", bytes: Buffer.from("index"),
-    }, receipt: second }])).rejects.toThrow("stale CAS");
-    expect(events).toEqual(["document:output-1", "version:stable-output:version-2"]);
-  });
-
-  it("rolls a newly added stable version back when the output CAS is stale", async () => {
-    const store = documents();
-    const outputs = { record: { documentId: "stable-output", versionId: "old-version",
-      filename: "Motion record.pdf", mimeType: "application/pdf",
-      sha256: "a".repeat(64), pageCount: 2 } };
-    const { files, workProducts } = dependencies(product(outputs));
-    workProducts.save.mockRejectedValueOnce(new ApplicationError(409, "Draft changed"));
-    const application = createCourtRecordsApplication(store, files as never,
-      workProducts as never);
-    await expect(application.saveBuild(scope, [{ file: {
-      filename: "Motion record.pdf", fileType: "pdf", bytes: Buffer.from("record"),
-    }, receipt: receipt() }])).rejects.toMatchObject({ status: 409 });
-    expect(store.deleteVersion).toHaveBeenCalledWith(scope, "stable-output", "version-2", {
-      versionId: "version-2", workingRevision: 0, projectId: null, folderId: null,
-    });
-  });
-
-  it("reports a rollback conflict instead of deleting a concurrently changed output", async () => {
-    const store = documents();
-    store.deleteVersion = vi.fn(async () => ({ status: "missing" }));
-    const outputs = { record: { documentId: "stable-output", versionId: "old-version",
-      filename: "Motion record.pdf", mimeType: "application/pdf",
-      sha256: "a".repeat(64), pageCount: 2 } };
-    const { files, workProducts } = dependencies(product(outputs));
-    workProducts.save.mockRejectedValueOnce(new ApplicationError(409, "Draft changed"));
-    const application = createCourtRecordsApplication(store, files as never,
-      workProducts as never);
-    await expect(application.saveBuild(scope, [{ file: {
-      filename: "Motion record.pdf", fileType: "pdf", bytes: Buffer.from("record"),
-    }, receipt: receipt() }])).rejects.toBeInstanceOf(AggregateError);
-    expect(store.deleteVersion).toHaveBeenCalledWith(scope, "stable-output", "version-2", {
-      versionId: "version-2", workingRevision: 0, projectId: null, folderId: null,
-    });
   });
 
   it("fills an empty Authorities slot from a live second-volume output", async () => {

@@ -55,7 +55,7 @@ Beaver will have:
   formatting operations;
 - one `compare_versions` tool that is in-memory by default and persists a
   redline only when `save_redline: true` was requested by the user;
-- ten resident Beaver schemas rather than twelve; and
+- a small resident catalogue with specialists loaded only when needed; and
 - at least 2,000 fewer authored production lines.
 
 The implementation is not complete if it adds a new layer around the existing
@@ -153,7 +153,7 @@ The registry:
 1. rejects empty, reserved, or duplicate names at construction;
 2. compiles every input and declared output schema once with the SDK validator;
 3. validates every call literally before domain code runs, without coercion;
-4. loads specialists only by exact name, with the existing limit of three;
+4. loads specialists only by exact registered name, without a cumulative cap;
 5. executes a batch in parallel unless any selected call is sequential;
 6. returns results in assistant call order;
 7. passes one `AbortSignal` to every executor;
@@ -178,12 +178,60 @@ Dynamic `sequential` exists only for a real current need:
 | `Edit` | Make exact version-pinned DOCX edits with tracked changes. |
 | `Write` | Create DOCX, XLSX, or PPTX from Beaver semantic markup. |
 | `search_sources` | Discover candidates in installed legal corpora. |
-| `note_up` | Read later judicial discussion and journal analysis. |
 | `submit_grounded_answer` | Finish a research answer from evidence IDs. |
-| `load_tools` | Load up to three exact specialist names. |
+| `load_tools` | Load the specialist tools needed for the task by exact name. |
 
-`delegate_read` and `resume_read` are specialists. User-enabled MCP tools are
+`note_up`, `quote_check`, `delegate_read` and `resume_read` are specialists.
+The Codex MCP bridge exposes the current catalogue and sends tool-list changes
+after loading, matching the other providers' dynamic tool discovery.
+User-enabled MCP tools are
 reported separately and remain directly available when the user enabled them.
+
+In a bound Authorities or Court Record view, `update_work_product` has only
+the applicable fields and uses the current draft identity. The deferred
+`manage_work_products` tool supplies general workspace operations through the
+same handlers and scope checks. Targeted Authorities unit/occurrence reads
+return the requested detail and relevant authority; an unqualified read
+retains the full overview.
+
+An unqualified legal `Read` returns bounded native passages with exact evidence
+IDs and follow-up inputs. Successful reads present source identity once and
+each exact passage once; verification hashes and full receipts stay in the
+runtime. Whole native blocks retain the same evidence identity as explicit
+locator reads. Partial spans preserve exact offsets, and continuation must
+advance without splitting Unicode characters or losing text. Where the native
+source does not identify a judgment boundary, the result states that limitation.
+
+`submit_grounded_answer` accepts ordered claims with separate `text` and
+`evidence_ids` fields. The runtime validates passage integrity and support
+boundaries, then renders citation chips. The model writes each answer segment
+once; it need not repeat source metadata already supplied by the chips unless
+the analysis needs it.
+
+Saved-query reads keep the query, timestamp, scope, results and continuation;
+execution trace metadata and verification fingerprints remain in the host.
+Table reads list row and column identities once, retain each cell's complete
+answer, and share compact evidence passages by ID. Full receipts remain
+available to verification and citation rendering. Quote-check reads likewise
+retain attribution candidates, comparisons, source passages and errors while
+keeping parser internals and hashes in the full report and workbook.
+Both note-up decision lanes return canonical source resources with the graph's
+language, so their passages can be followed with `Read`.
+
+The September 2026 prompt-surface audit measured the unbound main prompt at
+1,157 characters (from 1,894), reader prompt at 409 (from 1,291), and resident
+tool JSON at 12,147 (from 15,360). The existing character-based context estimate
+fell from 5,772 to 4,454; these are not billed token counts or latency results.
+Seven workflow prompts shed 6,580 repeated characters while retaining their
+distinct requirements. Recorded native locator and search-result payloads
+fell 15.7% and 23.1% with receipt identity preserved; bounded first reads were
+81.0% smaller, with the remaining content available through continuation.
+A 100-cell table metadata fixture fell from 16,720 to 6,769 characters.
+
+The audit covered system and dynamic context, workflows, resident and deferred
+tool schemas, reader outputs, saved research, tables, work products, Word
+client tools, and quote/note-up results. Keep distinct domain requirements and
+the canonical claim objects; avoid new output grammars for small wire savings.
 
 ### `Write`, not three generators
 
@@ -203,6 +251,12 @@ DOCX-only options remain optional top-level fields and fail clearly when used
 with another extension. The XLSX/PPTX markup parsers should be small adapters
 into the existing `renderXlsxWorkbook` and `buildPptxPresentation` functions;
 the renderers are not rewritten.
+
+`fields` is a map of field IDs to values; `citations` is a map of citation IDs
+to arrays of exact evidence IDs. Repeated controls share one value, and one
+citation may bind several supporting passages. Array-shaped bindings are not
+accepted. Provider adapters preserve these canonical map schemas; Gemini uses
+the SDK's `parametersJsonSchema` field directly.
 
 `Edit` remains separate, matching Pi and Oh My Pi's useful read/write/edit
 division. Its resident schema covers the common exact-text replacement case.
@@ -402,7 +456,7 @@ fallback dispatchers, or transition registries.
 - `save_redline: true` creates exactly one canonical artifact outcome.
 - Legal read/research outputs retain exact locators, evidence IDs, hashes, and
   bounded continuation.
-- Resident and Codex-static counts/bytes are reported honestly.
+- Resident and loaded catalogue counts/bytes are reported honestly.
 - Authored production is at least 2,000 lines smaller.
 - Account-free local mode and cloud/Supabase composition both pass.
 

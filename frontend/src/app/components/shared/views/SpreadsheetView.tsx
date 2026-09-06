@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
-import {
-    getSpreadsheetProjection,
-    type SpreadsheetProjection,
-} from "@/app/lib/beaverApi";
+import { getSpreadsheetProjection, type SpreadsheetProjection } from "@/app/lib/api/documents";
 import { TabList } from "@/app/components/ui/tabs";
 
 const COLUMN_HEADER = 28;

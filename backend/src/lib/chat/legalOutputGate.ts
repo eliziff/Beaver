@@ -5,7 +5,7 @@ export function hasModelAuthoredLegalSourceUrl(text: string) {
 }
 
 export const GROUNDED_LEGAL_REPAIR_INSTRUCTION =
-  "The draft used a model-authored legal-source URL without a verified evidence receipt. Discard it. Retrieve responsive case law, legislation, or journal passages with the supplied source tools, then call submit_grounded_answer using their evidence_ids. Do not write or repeat any URL; the host constructs inline citation pills.";
+  "The draft contains an unsupported source link. Revise it with supporting evidence_ids and finish with submit_grounded_answer. Reuse available evidence; retrieve only missing passages.";
 
 export const UNVERIFIED_LEGAL_ANSWER =
   "I could not produce a verified answer from the available legal sources.";

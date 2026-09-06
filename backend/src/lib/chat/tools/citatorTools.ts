@@ -7,6 +7,7 @@ import {
 } from "../../caselawCitator";
 import type { Tool } from "../../llm";
 import { safeErrorLog } from "../../safeError";
+import { legalSourceResource } from "../../resourceReferences";
 import type { BeaverToolPolicy } from "../toolRegistry";
 import {
   attestedPassageReceipt,
@@ -17,10 +18,11 @@ import {
 const NOTE_UP_TOOL_NAME = "note_up";
 
 const NOTE_UP_DESCRIPTION =
-  "Trace how a Canadian decision is cited and discussed. Returns citing decisions, explanatory passages from later decisions, and relevant law-journal analysis with source citations and locators. Supports cited-paragraph and court filters. Does not assign treatment labels.";
+  "Trace citations and discussion of a Canadian decision in later decisions and law journals. Returns attributed passages and locators without treatment labels. Read returned resources for context.";
 
 export const CITATOR_TOOL: Tool & BeaverToolPolicy = {
   name: NOTE_UP_TOOL_NAME,
+  specialist: true,
   research: true,
   reader: ["CA"],
   annotations: { readOnlyHint: true },
@@ -36,30 +38,30 @@ export const CITATOR_TOOL: Tool & BeaverToolPolicy = {
           type: "integer",
           minimum: 1,
           description:
-            "Optional paragraph number on the cited side. Applies to both judicial discussion and journal analysis.",
+            "Target paragraph in the cited decision; filters judicial and journal passages.",
         },
         size: {
           type: "integer",
           minimum: 1,
           maximum: 24,
-          description: "Maximum results in each source-role lane; default 10.",
+          description: "Maximum per lane; defaults to 10 citing decisions and 8 analysis passages.",
         },
         court_scope: {
           type: "string",
           enum: ["all", "scc", "appellate", "trial", "tribunal"],
           description:
-            "Judicial sources to include. Does not suppress journal analysis. Defaults to all.",
+            "Filters judicial sources; default all. Journals remain included.",
         },
         court_code: {
           type: "string",
           description:
-            "Optional exact corpus court code, such as ONCA. Use only with court_scope all.",
+            "Exact court code, e.g. ONCA; requires court_scope all.",
         },
         sort: {
           type: "string",
           enum: ["newest", "most_discussed"],
           description:
-            "Ordering within the citing-decisions lane. Other lanes retain their own source-appropriate ordering.",
+            "Citing-decision order; other lanes keep their own ranking.",
         },
       },
       required: ["citation"],
@@ -85,13 +87,12 @@ const mapPassage = (
   page: passage.pageLabel,
   passage: passage.text,
   evidence_id: evidence.evidence_id,
-  read: passage.sourceKind === "commentary"
-    ? {
-        tool: "public_legal_source_fetch",
-        provider: "journal",
-        identifier: passage.sourceArticleId ?? passage.citingCitation,
-      }
-    : { tool: "a2aj_fetch", citation: passage.citingCitation },
+  ...(passage.sourceKind === "commentary" && passage.sourceArticleId
+    ? { resource: legalSourceResource({ provider: "journal", kind: "journal",
+        id: passage.sourceArticleId, language: passage.language ?? "en" }) }
+    : passage.sourceKind === "case" && passage.citingCitation
+      ? { resource: legalSourceResource({ provider: "a2aj", kind: "case",
+          id: passage.citingCitation, language: passage.language ?? "en" }) } : {}),
 });
 
 export function executeCitatorTool(
@@ -163,6 +164,8 @@ export function executeCitatorTool(
         citing_decisions_total: citations.total,
         citing_decisions: citations.entries.map((entry, index) => ({
           citation: entry.citation,
+          ...(entry.citation ? { resource: legalSourceResource({ provider: "a2aj", kind: "case",
+            id: entry.citation, language: entry.language ?? "en" }) } : {}),
           name: entry.name,
           court: entry.court,
           date: entry.date,

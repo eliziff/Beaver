@@ -71,14 +71,14 @@ export const projectRepository: ProjectRepository = {
         lower(filename) sort_name,NULL name,NULL parent_folder_id,NULL created_at,NULL updated_at
       FROM documents WHERE project_id=${projectId}
         AND ${searchFilter(sql`lower(filename)`, options.q)}`
-      : sql`SELECT * FROM (SELECT 'folder' kind,id,0 bucket,lower(name) sort_name,
+      : sql`SELECT 'folder' kind,id,0 bucket,lower(name) sort_name,
           name,parent_folder_id,created_at,updated_at FROM project_subfolders
         WHERE project_id=${projectId} AND COALESCE(parent_folder_id,'')=${options.parentFolderId ?? ""}
         UNION ALL SELECT 'document',id,1,lower(filename),NULL,NULL,NULL,NULL FROM documents
-        WHERE project_id=${projectId} AND COALESCE(folder_id,'')=${options.parentFolderId ?? ""}) d
-        WHERE 1=1 ${seek}`;
-    const result = await rows(sql`${directory} ORDER BY bucket,sort_name,id
-      LIMIT ${options.limit + 1}`), page = result.slice(0, options.limit), last = page.at(-1);
+        WHERE project_id=${projectId} AND COALESCE(folder_id,'')=${options.parentFolderId ?? ""}`;
+    const result = await rows(sql`SELECT * FROM (${directory}) d WHERE 1=1 ${seek}
+      ORDER BY bucket,sort_name,id LIMIT ${options.limit + 1}`),
+      page = result.slice(0, options.limit), last = page.at(-1);
     return { items: page.map((row) => row.kind === "folder"
       ? { kind: "folder" as const, folder: projectFolder({ ...row, project_id: projectId }) }
       : { kind: "document" as const, id: String(row.id) }),

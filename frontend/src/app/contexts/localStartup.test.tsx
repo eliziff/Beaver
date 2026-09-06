@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
     getAuthSession: vi.fn(),
     getUserProfile: vi.fn(),
     saveApiKey: vi.fn(),
-    clearApiCaches: vi.fn(),
+    clearLegalSourceRequests: vi.fn(),
     clearDocumentFileCache: vi.fn(),
     pathname: "/assistant",
 }));
@@ -14,19 +14,21 @@ vi.mock("react-router-dom", () => ({
     useLocation: () => ({ pathname: mocks.pathname }),
 }));
 
-vi.mock("@/app/lib/authApi", () => ({
+vi.mock("@/app/lib/api/auth", () => ({
     getAuthSession: mocks.getAuthSession,
     isMfaRequiredError: vi.fn(() => false),
     logout: vi.fn(),
     updateAuthEmail: vi.fn(),
 }));
 
-vi.mock("@/app/lib/beaverApi", () => ({
-    clearApiCaches: mocks.clearApiCaches,
-    getUserProfile: mocks.getUserProfile,
-    saveApiKey: mocks.saveApiKey,
-    updateUserMfaOnLogin: vi.fn(),
-    updateUserProfile: vi.fn(),
+vi.mock("@/app/lib/api/legalSources", () => ({
+  clearLegalSourceRequests: mocks.clearLegalSourceRequests
+}));
+vi.mock("@/app/lib/api/account", () => ({
+  getUserProfile: mocks.getUserProfile,
+  saveApiKey: mocks.saveApiKey,
+  updateUserMfaOnLogin: vi.fn(),
+  updateUserProfile: vi.fn()
 }));
 
 const apiKeyStatus = (openai: { configured: boolean; source: "user" | "env" | null } = {
@@ -190,7 +192,7 @@ describe("local startup", () => {
         ).toBeInTheDocument();
         await waitFor(() => expect(mocks.getUserProfile).toHaveBeenCalledOnce());
         expect(mocks.getAuthSession).toHaveBeenCalledOnce();
-        expect(mocks.clearApiCaches).toHaveBeenCalledOnce();
+        expect(mocks.clearLegalSourceRequests).toHaveBeenCalledOnce();
         expect(mocks.clearDocumentFileCache).toHaveBeenCalledOnce();
         expect(sessionStorage.getItem("beaver:new-chat-documents")).toBeNull();
         view.unmount();

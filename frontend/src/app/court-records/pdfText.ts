@@ -1,5 +1,5 @@
 import type { PDFDocument, PDFFont, PDFPage, PDFPageDrawTextOptions } from "pdf-lib";
-import { fetchBytes } from "@/app/lib/apiTransport";
+import { fetchBytes } from "@/app/lib/api/client";
 
 type CourtTextOptions = PDFPageDrawTextOptions & {
   font: PDFFont;

@@ -74,12 +74,12 @@ export const RESOURCE_TOOLS = [
   ),
   tool(
     "Read",
-    "Read a document, evidence_id or query_id. List prior receipts with file_path evidence or queries. Use drafting for semantic DOCX Markdown or redline for editorial markup.",
+    "Read a document, legal source, saved evidence_id or query_id. Reuse passages and evidence_ids; request independent reads together. Follow returned next inputs for more text. List prior receipts with file_path evidence or queries. Use drafting for semantic DOCX Markdown or redline for editorial markup.",
     {
       file_path: {
         type: "string",
         pattern: READABLE_RESOURCE_PATTERN,
-        description: resource,
+        description: "Resource from Glob or search_sources, or a saved evidence_id or query_id.",
       },
       mode: { type: "string", enum: ["text", "drafting", "redline"] },
       offset: { type: "integer", minimum: 1, maximum: 100_000_000, description: "Starting line or item." },
@@ -98,13 +98,13 @@ export const RESOURCE_TOOLS = [
       locator_kind: {
         type: "string",
         enum: [...RESOURCE_LOCATOR_KINDS],
-        description: "Kind of exact locator. Use page with a physical PDF page number.",
+        description: "Use paragraph or section for legal text. Use page only for a known physical PDF page or an existing reporter-page label.",
       },
       locator: {
         type: "string",
         description: "Exact locator value; required with locator_kind (for example, 5 for PDF page 5).",
       },
-      end_locator: { type: "string", description: "Optional inclusive range end." },
+      end_locator: { type: "string", description: "Inclusive range end; read adjacent paragraphs or sections together." },
       context_blocks: { type: "integer", minimum: 0, maximum: 2 },
       page: { type: "integer", minimum: 1 },
       occurrence: { type: "integer", minimum: 1 },

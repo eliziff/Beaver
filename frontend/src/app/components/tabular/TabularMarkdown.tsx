@@ -1,44 +1,36 @@
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import type { ColumnConfig } from "../shared/types";
-import { preprocessCitations, type ParsedCitation } from "./citation-utils";
+import type { ColumnConfig } from "@/app/lib/api/tabular";
+import type { Citation } from "@/app/lib/citations";
+import { preprocessCitations } from "../assistant/message/citationUtils";
+import { CitationPill, GfmMarkdown } from "../assistant/message/MarkdownContent";
 import { getPillClass } from "./pillUtils";
-
-type ParsedTabularMarkdown = {
-    processed: string;
-    citations: ParsedCitation[];
-    pills: string[];
-};
-
-export function parseTabularMarkdown(text: string): ParsedTabularMarkdown {
-    const { processed: cited, citations } = preprocessCitations(text);
-    const pills: string[] = [];
-    const processed = cited
-        .replace(/\[\[([^\]]+)\]\]/g, (_, content) => {
-            pills.push(content);
-            return `\`§p${pills.length - 1}§\`\u200B`;
-        })
-        .replace(/§(\d+)§/g, "`§c$1§`\u200B");
-    return { processed, citations, pills };
-}
+import type { GroundedAnswer } from "@/app/lib/groundedAnswers";
 
 export function TabularMarkdown({
-    parsed,
+    text,
+    citations = [],
+    value,
     column,
     onCitationClick,
-    citationOffset = 0,
     inline = false,
 }: {
-    parsed: ParsedTabularMarkdown;
+    text: string;
+    citations?: Citation[];
+    value?: GroundedAnswer["value"];
     column?: ColumnConfig;
-    onCitationClick: (citation: ParsedCitation, citationRef: number) => void;
-    citationOffset?: number;
+    onCitationClick: (citation: Citation) => void;
     inline?: boolean;
 }) {
-    if (!parsed.processed) return null;
+    if (!text) return null;
+    if (column?.format && ["yes_no", "tag", "currency"].includes(column.format)) return <>
+        {(Array.isArray(value) ? value : [text]).map((label, index) => <span key={index}
+            className={`mr-1 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-none ${getPillClass(label, column)}`}>{label}</span>)}
+        {citations.map((citation) => <CitationPill key={citation.ref} citation={citation} onClick={onCitationClick}
+            className="mx-0.5 !text-[10px] !leading-4" />)}
+    </>;
+    const targets: Citation[] = [];
+    const processed = preprocessCitations(text, new Map(citations.map((citation) => [citation.ref, citation])), targets);
     return (
-        <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
+        <GfmMarkdown
             components={{
                 p: ({ node: _node, ...props }) =>
                     inline ? (
@@ -66,46 +58,13 @@ export function TabularMarkdown({
                 ),
                 code: ({ node: _node, children, ...props }) => {
                     const token = String(children);
-                    const citationIndex = token.match(/^§c(\d+)§$/)?.[1];
+                    const citationIndex = token.match(/^§(\d+)§$/)?.[1];
                     if (citationIndex !== undefined) {
                         const index = Number(citationIndex);
-                        const citation = parsed.citations[index];
+                        const citation = targets[index];
                         if (citation) {
-                            const reference = citationOffset + index + 1;
-                            const location = citation.sheet
-                                ? `${citation.sheet}!${citation.cell ?? ""}`
-                                : `Page ${citation.page ?? 1}`;
-                            return (
-                                <button
-                                    type="button"
-                                    data-page={citation.page}
-                                    data-sheet={citation.sheet}
-                                    data-cell={citation.cell}
-                                    data-quote={citation.quote}
-                                    aria-label={`Open citation ${reference}: ${location}`}
-                                    title={`${location}: "${citation.quote}"`}
-                                    onClick={(event) => {
-                                        event.stopPropagation();
-                                        onCitationClick(citation, reference);
-                                    }}
-                                    className="mx-0.5 inline-flex h-3.5 w-3.5 cursor-pointer items-center justify-center rounded-full bg-gray-200 align-super text-[9px] font-medium text-gray-700 hover:bg-gray-300"
-                                >
-                                    {reference}
-                                </button>
-                            );
-                        }
-                    }
-                    const pillIndex = token.match(/^§p(\d+)§$/)?.[1];
-                    if (pillIndex !== undefined) {
-                        const content = parsed.pills[Number(pillIndex)];
-                        if (content !== undefined) {
-                            return (
-                                <span
-                                    className={`inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-none ${getPillClass(content, column)}`}
-                                >
-                                    {content}
-                                </span>
-                            );
+                            return <CitationPill citation={citation} onClick={onCitationClick}
+                                className="mx-0.5 !text-[10px] !leading-4" />;
                         }
                     }
                     return (
@@ -119,7 +78,7 @@ export function TabularMarkdown({
                 },
             }}
         >
-            {parsed.processed}
-        </ReactMarkdown>
+            {processed}
+        </GfmMarkdown>
     );
 }

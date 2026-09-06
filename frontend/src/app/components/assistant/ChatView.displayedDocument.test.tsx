@@ -2,7 +2,9 @@ import React from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { Document, Message } from "../shared/types";
+import { MemoryRouter } from "react-router-dom";
+import type { Document } from "@/app/lib/api/documents";
+import type { Message } from "@/app/lib/api/chat";
 import { ChatView, type ChatViewHandle } from "./ChatView";
 import { createAssistantSessionState } from "@/app/lib/assistantSession";
 
@@ -34,8 +36,9 @@ vi.mock("./AssistantSidePanel", () => {
 });
 vi.mock("../workflows/ContextualWorkflowPicker", () => ({
     ContextualWorkflowLauncher: () => null,
-    ContextualWorkflowPicker: ({ onAssistantSelect, initialWorkflowId, documents = [] }: {
+    ContextualWorkflowPicker: ({ onAssistantSelect, onRun, initialWorkflowId, documents = [] }: {
         onAssistantSelect: (selection: unknown, documents: Document[]) => void;
+        onRun?: (message: Message, document: Document) => void;
         initialWorkflowId?: string;
         documents?: Document[];
     }) => {
@@ -44,6 +47,9 @@ vi.mock("../workflows/ContextualWorkflowPicker", () => ({
             <output aria-label="Opened workflow">{initialWorkflowId ?? "none"}</output>
             <output aria-label="Workflow documents">{documents.map(({ filename }) =>
                 filename).join(", ") || "none"}</output>
+            <button type="button" onClick={() => onRun?.({ role: "user", content: "Fix supras",
+                files: documents.map(({ id, filename }) => ({ document_id: id, filename })),
+                editMode: "manual" }, documents[0])}>Run document operation</button>
             <button type="button" onClick={() => onAssistantSelect({ workflow: {
                 id: "drafting", metadata: { title: "Drafting" },
             }, variant: { id: "builtin-proofread", label: "Proofread",
@@ -246,6 +252,17 @@ describe("ChatView displayed document context", () => {
         expect(screen.getByRole("button", { name: "Collapse assistant dock" })).toBeVisible();
     });
 
+    it("opens the selected document and runs the operation in the current chat", async () => {
+        const user = userEvent.setup();
+        const handleChat = vi.fn(() => new Promise<string | null>(() => {}));
+        render(<ChatView session={session()} handleChat={handleChat} cancel={vi.fn()} />);
+        await user.click(screen.getByRole("button", { name: "Browse workflows with Lease" }));
+        await user.click(screen.getByRole("button", { name: "Run document operation" }));
+        expect(handleChat).toHaveBeenCalledWith(expect.objectContaining({ editMode: "manual",
+            files: [expect.objectContaining({ filename: "Lease.docx" })] }));
+        expect(screen.getByRole("tab", { name: "Sources" })).toHaveAttribute("aria-selected", "true");
+    });
+
     it("opens a newly requested workflow in the existing dock", async () => {
         const user = userEvent.setup();
         render(<ChatView session={session()} handleChat={vi.fn()} cancel={vi.fn()} />);
@@ -305,13 +322,13 @@ describe("ChatView displayed document context", () => {
         expect(screen.getByRole("tab", { name: "Sources" }))
             .toHaveAttribute("aria-selected", "true");
         expect(screen.getByRole("button", { name: "Workflows" })).toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: "Save sources" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Open as" })).not.toBeInTheDocument();
     });
 
-    it("offers Save sources only when an ordinary chat has legal evidence", () => {
+    it("offers research views only when an ordinary chat has legal evidence", () => {
         const props = { chatId: "chat-1", handleChat: vi.fn(), cancel: vi.fn() };
-        const { rerender } = render(<ChatView {...props} session={session()} />);
-        expect(screen.queryByRole("button", { name: "Save sources" })).not.toBeInTheDocument();
+        const { rerender } = render(<ChatView {...props} session={session()} />, { wrapper: MemoryRouter });
+        expect(screen.queryByRole("button", { name: "Open as" })).not.toBeInTheDocument();
 
         const withLegalEvidence = createAssistantSessionState({ messages: [{
             id: "assistant-1", role: "assistant", turn_complete: true,
@@ -321,11 +338,11 @@ describe("ChatView displayed document context", () => {
                 }] }],
         }] });
         rerender(<ChatView {...props} session={withLegalEvidence} />);
-        expect(screen.getByRole("button", { name: "Save sources" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Open as" })).toBeInTheDocument();
 
         rerender(<ChatView {...props} session={withLegalEvidence}
             features={{ researchSave: false }} />);
-        expect(screen.queryByRole("button", { name: "Save sources" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Open as" })).not.toBeInTheDocument();
     });
 
     it("signals either open Workspace once a completed assistant turn settles", async () => {

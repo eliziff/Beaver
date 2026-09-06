@@ -12,30 +12,19 @@ shape. Do not split cohesive code merely for size.
    the completed example: routes retain HTTP/MFA/OAuth/cookies/downloads; backend
    profile defaults are authoritative even after request failure. Optional cloud
    administration may report unsupported. No umbrella ports/container/runtime.
-2. Extend document application/Library/projection owners for exact typed presenters,
-   spreadsheet reads, evidence verification/rehydration, archives/download targets,
-   supra repair and queued PDF reprocessing. Routes keep multipart, ETags/ranges,
+2. Extend document application/Library/projection owners for archive policy and
+   supra repair. Exact document presenters, spreadsheet reads, evidence
+   verification/rehydration, download targets and queued PDF reprocessing now use
+   those owners; directory and tabular consumers share batched document metadata.
+   Routes keep multipart, ETags/ranges,
    streaming, escaping and headers—not ownership/compiler/job policy. Preserve
    projectStore unless duplicated policy requires change. See [storage](document-versioning.md).
-3. One Legal Source application over registry/store/projection/PDF bridge owns
-   coverage/search/resolve/save, viewer shaping, PDF status and delete; legalLibrary
-   routes retain HTTP, not provider/native-structure calls.
-4. One public backend assistant event union spans engine/sink, persistence,
-   transcript/store, queue/worker and SSE. Keep provider events distinct, validate
-   durable-job JSON at entry. Retain bounded assistantStream; separate raw protocol
-   schemas/limits/parser from normalized assistantSession reducer. Backend JSON
-   fixtures must parse in frontend. No shared Zod runtime (v3/v4) or contract package.
-   Then unify enqueue/worker preflight and inject route operations; retain one
-   assistant hook/reducer/history context and provider adapters.
-5. Extract only transport/error/JSON/blob/multipart/stream/pagination helpers to
-   `api/client.ts`, reused by auth. Move entire endpoint families plus browser DTOs
-   to chat/documents/tabular/workflows/account/projects/legalSources and justified
-   smaller domains. Update all imports, delete beaverApi and displaced shared/types
-   declarations. No barrels, compatibility exports or frontend persistence records.
-   Keep citation presentation separate. Replace raw EventBlocks/WorkflowDetailPage
-   URLs with named operations and hidden project-moved window events with explicit
-   callbacks/context. Preserve directoryResource, usePagedDirectory/useDocumentFile,
-   one router/Word adapter and callback-driven presentation.
+3. Unify enqueue/worker preflight and inject route operations. Retain the typed
+   backend event owner, bounded assistantStream, separate assistantProtocol
+   boundary, normalized assistantSession reducer and shared JSON contract fixtures.
+   Keep provider events distinct and validate durable-job JSON at entry. No shared
+   Zod runtime (v3/v4) or contract package; retain one assistant hook/reducer/history
+   context and provider adapters.
 
 ## Workflows and features
 

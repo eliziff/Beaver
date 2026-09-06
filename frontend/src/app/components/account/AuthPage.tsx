@@ -4,11 +4,7 @@ import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { SiteLogo } from "@/app/components/site-logo";
 import { useAuth } from "@/app/contexts/AuthContext";
-import {
-    googleSignIn,
-    login,
-    signup as createAccount,
-} from "@/app/lib/authApi";
+import { googleSignIn, login, signup as createAccount } from "@/app/lib/api/auth";
 
 const card = "rounded-2xl border border-gray-200 bg-white p-8 shadow-sm";
 const input =

@@ -1,12 +1,16 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
-import { BeaverApiError } from "@/app/lib/apiTransport";
+import { BeaverApiError } from "@/app/lib/api/client";
 import type { ResearchFile } from "@/app/lib/researchFiles";
 import { useResearchFileMutations } from "./useResearchFileMutations";
 
 const api = vi.hoisted(() => ({ actOnResearchFile: vi.fn(), getResearchFile: vi.fn(),
   runResearchFileQuery: vi.fn() }));
-vi.mock("@/app/lib/beaverApi", () => api);
+vi.mock("@/app/lib/api/researchFiles", () => ({
+  actOnResearchFile: api.actOnResearchFile,
+  getResearchFile: api.getResearchFile,
+  runResearchFileQuery: api.runResearchFileQuery
+}));
 const file = (id: string, workingRevision = 0) => ({ document: { id }, versionId: `v-${id}`,
   workingRevision, state: { labels: {}, sources: {}, queries: null, note: "",
     schemaVersion: "beaver.research.v2" } } as ResearchFile);
@@ -46,4 +50,38 @@ it("does not retry non-revision conflicts", async () => {
     .toThrow("Canonical passage unavailable");
   expect(api.getResearchFile).not.toHaveBeenCalled();
   expect(api.actOnResearchFile).toHaveBeenCalledTimes(1);
+});
+
+it("recognizes a memo saved before its response was lost and saves subsequent edits", async () => {
+  let stored = file("one"), connected = false;
+  api.actOnResearchFile.mockImplementation(async (_id, _version, revision, action) => {
+    if (revision !== stored.workingRevision || action.expectedMarkdown !== stored.state.note)
+      throw new BeaverApiError({ status: 409, code: "memo_conflict", message: "Memo conflict" });
+    stored = { ...stored, workingRevision: revision + 1, state: { ...stored.state, note: action.markdown } };
+    if (!connected) { connected = true; throw new TypeError("Failed to fetch"); }
+    return stored;
+  });
+  api.getResearchFile.mockImplementation(async () => stored);
+  const changed = vi.fn(), { result } = renderHook(() => useResearchFileMutations(file("one"), changed));
+  await act(async () => { await result.current.act({ type: "note", markdown: "Analysis", expectedMarkdown: "" }); });
+  expect(stored.workingRevision).toBe(1);
+  expect(changed).toHaveBeenLastCalledWith(stored);
+  await act(async () => { await result.current.act({ type: "note", markdown: "Further analysis", expectedMarkdown: "Analysis" }); });
+  expect(stored.state.note).toBe("Further analysis");
+  expect(stored.workingRevision).toBe(2);
+});
+
+it("does not overwrite another writer's memo when reconnecting", async () => {
+  const stored = { ...file("one", 1), state: { ...file("one").state, note: "Other analysis" } };
+  api.actOnResearchFile.mockRejectedValueOnce(new TypeError("Failed to fetch"))
+    .mockImplementation(async (_id, _version, _revision, action) => {
+      if (action.expectedMarkdown !== stored.state.note)
+        throw new BeaverApiError({ status: 409, code: "memo_conflict", message: "Memo conflict" });
+      stored.state.note = action.markdown;
+      return stored;
+    });
+  api.getResearchFile.mockResolvedValue(stored);
+  const { result } = renderHook(() => useResearchFileMutations(file("one"), vi.fn()));
+  await expect(result.current.act({ type: "note", markdown: "My draft", expectedMarkdown: "" })).rejects.toThrow("Memo conflict");
+  expect(stored.state.note).toBe("Other analysis");
 });

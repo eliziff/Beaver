@@ -5,11 +5,13 @@ import {
     waitFor,
 } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
-import type { Document, TabularCell, TabularReview } from "../shared/types";
+import type { Document } from "@/app/lib/api/documents";
+import type { TabularCell, TabularReview } from "@/app/lib/api/tabular";
 import { TRView } from "./TabularReviewView";
 
 const mocks = vi.hoisted(() => ({
     getTabularReview: vi.fn(),
+    getProject: vi.fn(),
     listProjects: vi.fn(),
     startGeneration: vi.fn(),
     uploadDocument: vi.fn(),
@@ -42,21 +44,26 @@ function fixture(status: TabularCell["status"]) {
 
 vi.mock("react-router-dom", () => ({
     useNavigate: () => vi.fn(),
+    useLocation: () => ({ pathname: "/tabular-reviews/review-1", search: "", state: null }),
     useSearchParams: () => [new URLSearchParams(), vi.fn()],
 }));
-vi.mock("@/app/lib/beaverApi", () => ({
-    clearTabularCells: vi.fn(),
-    deleteTabularReview: vi.fn(),
-    directoryResource: () => ({ uploadDocument: mocks.uploadDocument }),
-    getProject: vi.fn(),
-    getTabularReview: mocks.getTabularReview,
-    getTabularReviewPeople: vi.fn(),
-    listProjects: mocks.listProjects,
-    regenerateTabularCell: vi.fn(),
-    startTabularGeneration: mocks.startGeneration,
-    stopTabularGeneration: vi.fn(),
-    updateTabularReview: vi.fn(),
-    uploadStandaloneDocument: vi.fn(),
+vi.mock("@/app/lib/api/tabular", () => ({
+  clearTabularCells: vi.fn(),
+  deleteTabularReview: vi.fn(),
+  getTabularReview: mocks.getTabularReview,
+  getTabularReviewPeople: vi.fn(),
+  regenerateTabularCell: vi.fn(),
+  startTabularGeneration: mocks.startGeneration,
+  stopTabularGeneration: vi.fn(),
+  updateTabularReview: vi.fn()
+}));
+vi.mock("@/app/lib/api/documents", () => ({
+  directoryResource: () => ({ uploadDocument: mocks.uploadDocument }),
+  uploadStandaloneDocument: vi.fn()
+}));
+vi.mock("@/app/lib/api/projects", () => ({
+  getProject: mocks.getProject,
+  listProjects: mocks.listProjects
 }));
 vi.mock("@/app/contexts/AuthContext", () => ({
     useAuth: () => ({ user: null }),
@@ -173,4 +180,12 @@ it("projects queued agents into the table", async () => {
     expect(mocks.startGeneration).toHaveBeenCalledWith("review-1", {
         model: "gpt-5", reasoningEffort: "medium",
     });
+});
+
+it("shows review results without waiting for project metadata", async () => {
+    mocks.getProject.mockReturnValue(new Promise(() => {}));
+    mocks.getTabularReview.mockResolvedValue(fixture("done").data);
+    render(<TRView reviewId="review-1" projectId="project-1" />);
+    await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
+    expect(screen.getByTestId("table")).toHaveAttribute("data-status", "done");
 });

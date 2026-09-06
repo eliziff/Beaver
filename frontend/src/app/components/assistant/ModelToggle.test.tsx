@@ -1,9 +1,12 @@
+import { useState } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
-import { getModelCatalog } from "@/app/lib/beaverApi";
+import { getModelCatalog } from "@/app/lib/api/account";
 import { ModelEffortToggle } from "./ModelToggle";
 
-vi.mock("@/app/lib/beaverApi", () => ({ getModelCatalog: vi.fn() }));
+vi.mock("@/app/lib/api/account", () => ({
+  getModelCatalog: vi.fn()
+}));
 const getCatalog = vi.mocked(getModelCatalog);
 
 beforeEach(() => {
@@ -31,7 +34,7 @@ it("does not start model discovery until the user opens the model selector", asy
   );
 
   const modelButton = screen.getByRole("button", { name: /^Model:/ });
-  expect(modelButton).toHaveTextContent("GPT 5.6 Terra");
+  expect(modelButton).toHaveTextContent("Terra");
   expect(getCatalog).not.toHaveBeenCalled();
 
   fireEvent.click(modelButton);
@@ -50,7 +53,7 @@ it("shows a persisted Sol effort before lazy model discovery", () => {
     />,
   );
 
-  expect(screen.getByRole("button", { name: "Reasoning effort: max" }))
+  expect(screen.getByRole("button", { name: /^Model:.*max/ }))
     .toHaveTextContent("max");
   expect(getCatalog).not.toHaveBeenCalled();
 });
@@ -64,7 +67,38 @@ it("shows the Sol default effort before lazy model discovery", () => {
     />,
   );
 
-  expect(screen.getByRole("button", { name: "Reasoning effort: low" }))
+  expect(screen.getByRole("button", { name: /^Model:.*low/ }))
     .toHaveTextContent("low");
   expect(getCatalog).not.toHaveBeenCalled();
+});
+
+it("spells xHigh in the model picker", () => {
+  render(
+    <ModelEffortToggle
+      model="muse-spark-1.2"
+      effort="xhigh"
+      onModelChange={vi.fn()}
+      onEffortChange={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByRole("button", { name: /^Model:.*xHigh/ }))
+    .toHaveTextContent("xHigh");
+});
+
+it("changes model and supported effort without leaving the picker", async () => {
+  function Picker() {
+    const [model, setModel] = useState("codex:gpt-5.6-sol");
+    const [effort, setEffort] = useState("max");
+    return <ModelEffortToggle model={model} effort={effort}
+      onModelChange={setModel} onEffortChange={setEffort} />;
+  }
+  render(<Picker />);
+  fireEvent.click(screen.getByRole("button", { name: /^Model:/ }));
+  fireEvent.click(await screen.findByRole("button", { name: "GPT-5.6 Terra" }));
+  expect(screen.getByRole("dialog")).toBeVisible();
+  const effort = screen.getByRole("radio", { name: "low" });
+  fireEvent.click(effort);
+  expect(effort).toBeChecked();
+  expect(screen.getByRole("dialog")).toBeVisible();
 });

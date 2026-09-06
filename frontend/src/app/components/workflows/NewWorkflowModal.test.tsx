@@ -1,14 +1,14 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
-import type { Workflow } from "../shared/types";
+import type { Workflow } from "@/app/lib/api/workflows";
 import { NewWorkflowModal } from "./NewWorkflowModal";
 
 const { createWorkflow, updateWorkflow } = vi.hoisted(() => ({
     createWorkflow: vi.fn(), updateWorkflow: vi.fn(),
 }));
-vi.mock("@/app/lib/beaverApi", () => ({
-    createWorkflow,
-    updateWorkflow,
+vi.mock("@/app/lib/api/workflows", () => ({
+  createWorkflow,
+  updateWorkflow
 }));
 
 beforeEach(() => vi.clearAllMocks());
@@ -20,6 +20,8 @@ it("creates a usable written workflow from visible instructions", async () => {
     render(<NewWorkflowModal open onClose={vi.fn()} onCreated={onCreated} />);
 
     expect(screen.getByRole("button", { name: "Assistant" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("textbox", { name: "Language" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Jurisdictions" })).toBeVisible();
     fireEvent.change(screen.getByLabelText("Workflow name"), {
         target: { value: "Matter summary" },
     });

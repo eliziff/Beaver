@@ -7,7 +7,7 @@ import {
 } from "@testing-library/react";
 import { type Dispatch, type SetStateAction, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { Document } from "@/app/components/shared/types";
+import type { Document } from "@/app/lib/api/documents";
 import {
   DocTable,
   type DocTableFolder,

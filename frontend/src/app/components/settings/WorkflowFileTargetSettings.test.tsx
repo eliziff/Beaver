@@ -11,10 +11,14 @@ vi.mock("@/app/contexts/UserProfileContext", () => ({
         updateProfile: mocks.update,
     }),
 }));
-vi.mock("@/app/lib/beaverApi", () => ({
-    directoryResource: (scope: unknown) => { mocks.directory(scope); return { list: mocks.list, createFolder: mocks.create }; },
-    listProjects: mocks.projects,
-    getLibraryFolder: vi.fn(), getProject: vi.fn(), getProjectFolder: vi.fn(),
+vi.mock("@/app/lib/api/documents", () => ({
+  directoryResource: (scope: unknown) => { mocks.directory(scope); return { list: mocks.list, createFolder: mocks.create }; },
+  getLibraryFolder: vi.fn(),
+  getProjectFolder: vi.fn()
+}));
+vi.mock("@/app/lib/api/projects", () => ({
+  listProjects: mocks.projects,
+  getProject: vi.fn()
 }));
 
 describe("workflow file locations", () => {

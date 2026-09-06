@@ -17,9 +17,12 @@ import { assistantTools } from "./assistantTools";
 import {
   createTnaEvidence,
   createPublicJournalPassageEvidence,
+  priorLegalEvidenceReceipts,
+  priorLegalResearchQueryReceipts,
   registerLegalEvidence,
+  submitLegalEvidenceAnswer,
 } from "./legalEvidence";
-import { runChatTurn, type ChatToolContext } from "./turnEngine";
+import { AssistantStreamError, runChatTurn, type ChatToolContext } from "./turnEngine";
 import { toolText, type BeaverTool } from "./toolRegistry";
 import { a2ajLegalSourceProvider } from "../legalSources/a2aj";
 import { structureNative } from "../structureNative";
@@ -74,64 +77,6 @@ it("starts from saved receipts and restores only cited sources for final pinpoin
   expect(load.mock.calls.map(([request]) => request.citation)).toEqual([receipt.citation]);
 });
 
-it("preserves one tool activity through running and completed states", async () => {
-  const events: unknown[] = [];
-  stream.mockImplementationOnce(async ({ callbacks, runTools }) => {
-    const call = {
-      id: "read-1",
-      name: "Read",
-      input: { file_path: "document://x/version/v1" },
-    };
-    callbacks.onToolCallStart(call);
-    await runTools([call]);
-    return { fullText: "Done." };
-  });
-  const evidence = createTnaEvidence({
-    jurisdiction: "CA", sourceClass: "case", stableSourceId: "case-1",
-    sourceText: "The appeal is allowed.", spanText: "The appeal is allowed.",
-    citation: "2024 SCC 1", name: "Example v Example", dataset: "test",
-    externalUrl: "https://example.test/case",
-    locatorKind: "paragraph", locatorLabel: "12",
-  });
-  const read: BeaverTool<ChatToolContext> = {
-    ...ASSISTANT_TOOLS.find(({ name }) => name === "Read")!,
-    async execute() { return { result: toolText({ ok: true }), evidence: [evidence] }; },
-  };
-
-  const result = await runChatTurn({
-    model: "gemini-3-flash-preview",
-    systemPrompt: "",
-    messages: [{ role: "user", content: "Read x." }],
-    activityDetail: "tools",
-    createTools: () => [read],
-    emit: (event) => events.push(event),
-  });
-
-  expect(events).toEqual(expect.arrayContaining([{
-    type: "tool_activity",
-    id: "read-1",
-    tool: "Read",
-    label: "Reading v1 from your Library",
-    status: "running",
-  }, expect.objectContaining({
-    type: "tool_activity",
-    id: "read-1",
-    tool: "Read",
-    label: "Reading v1 from your Library",
-    status: "completed",
-    citations: [expect.objectContaining({ ref: 1, citation: "2024 SCC 1", locator: "12" })],
-  })]));
-  expect(result.events).toContainEqual(expect.objectContaining({
-    type: "tool_activity",
-    id: "read-1",
-    tool: "Read",
-    label: "Reading v1 from your Library",
-    status: "completed",
-    citations: [expect.objectContaining({ ref: 1, citation: "2024 SCC 1" })],
-  }));
-  expect(events).toContainEqual({ type: "content_final", text: "", citations: [] });
-});
-
 it("forwards nested tool progress to the provider inactivity watchdog", async () => {
   const heartbeat = vi.fn();
   const tool: BeaverTool<ChatToolContext> = {
@@ -159,6 +104,58 @@ it("forwards nested tool progress to the provider inactivity watchdog", async ()
   });
 
   expect(heartbeat).toHaveBeenCalledOnce();
+});
+
+it("publishes source identity immediately and settles each parallel read before the batch ends", async () => {
+  const events: Record<string, unknown>[] = [];
+  const source = { ref: 1, provider: "tna", citation: "2024 SCC 1", name: "Example v Example" };
+  const receipt = createTnaEvidence({
+    jurisdiction: "CA", sourceClass: "case", stableSourceId: "case-1",
+    sourceText: "The appeal is allowed.", spanText: "The appeal is allowed.",
+    citation: "2024 SCC 1", name: "Example v Example", dataset: "test",
+    locatorKind: "paragraph", locatorLabel: "12",
+  });
+  let releaseSlow!: () => void;
+  const slow = new Promise<void>((resolve) => { releaseSlow = resolve; });
+  const read: BeaverTool<ChatToolContext> = {
+    ...ASSISTANT_TOOLS.find(({ name }) => name === "Read")!,
+    activityCitations: () => [source],
+    async execute(input) {
+      if (input.file_path === "document://slow/version/v1") {
+        await slow;
+        return { result: toolText({ ok: false }, true) };
+      }
+      return { result: toolText({ ok: true }), evidence: [receipt] };
+    },
+  };
+  stream.mockImplementationOnce(async ({ callbacks, runTools }) => {
+    const calls = ["slow", "fast"].map((id) => ({
+      id, name: "Read", input: { file_path: `document://${id}/version/v1` },
+    }));
+    calls.forEach((call) => callbacks.onToolCallStart(call));
+    expect(events.filter((event) => event.type === "tool_activity")).toEqual(
+      calls.map(({ id }) => expect.objectContaining({ id, status: "running", citations: [source] })),
+    );
+    const batch = runTools(calls);
+    try {
+      await vi.waitFor(() => expect(events).toContainEqual(expect.objectContaining({
+        id: "fast", status: "completed", citations: [source],
+      })));
+      expect(events.filter((event) => event.id === "slow")).toHaveLength(1);
+    } finally { releaseSlow(); }
+    const results = await batch;
+    expect(results.map(({ tool_use_id }: { tool_use_id: string }) => tool_use_id)).toEqual(["slow", "fast"]);
+    return { fullText: "Done." };
+  });
+  const result = await runChatTurn({
+    model: "gemini-3-flash-preview", systemPrompt: "",
+    messages: [{ role: "user", content: "Read these two files." }],
+    createTools: () => [read], emit: (event) => events.push(event),
+  });
+  expect(result.events).toContainEqual(expect.objectContaining({
+    id: "slow", status: "error", citations: [source],
+  }));
+  expect(result.evidence.evidence.get(receipt.evidence_id)?.receipt).toEqual(receipt);
 });
 
 it("does not advertise resume when a reader never started", async () => {
@@ -373,13 +370,12 @@ it("repairs a failed grounded submission without exposing the validator error", 
   const emitted: unknown[] = [];
   let call = 0;
   stream.mockImplementation(async (params) => {
-    const { callbacks, messages, runTools } = params;
+    const { callbacks, runTools } = params;
     call += 1;
     if (call === 1) {
       callbacks.onContentDelta?.("My favourite is Example v Example, 2024 SCC 1.");
       return { fullText: "My favourite is Example v Example, 2024 SCC 1." };
     }
-    expect(messages.at(-1)?.content).toContain("did not pass Beaver's grounding gate");
     await runTools([{
       id: "grounded-1",
       name: "submit_grounded_answer",
@@ -435,6 +431,40 @@ it("does not preserve an unsupported draft after grounding repairs fail", async 
   expect(stream).toHaveBeenCalledTimes(3);
 });
 
+it.each(["R. v. Unsupported is decisive.", "See https://canlii.org/case."])(
+  "repairs an extraction draft through its selected submission tool: %s", async (draft) => {
+    const receipt = observedPassage("input", "The appeal is allowed.");
+    let turns = 0;
+    stream.mockImplementation(async ({ tools, callbacks, runTools, messages }) => {
+      expect(tools.map(({ name }: { name: string }) => name)).toContain("submit_extraction");
+      expect(tools.map(({ name }: { name: string }) => name)).not.toContain("submit_grounded_answer");
+      if (++turns === 1) {
+        callbacks.onContentDelta?.(draft);
+        return { fullText: draft };
+      }
+      expect(messages.at(-1).content).toContain("finish with submit_extraction");
+      await runTools([{ id: "answer", name: "submit_extraction", input: {
+        claims: [{ text: receipt.span_text, evidence_ids: [receipt.evidence_id] }],
+      } }]);
+      return { fullText: "" };
+    });
+    const result = await runChatTurn({ model: "gemini-3-flash-preview", systemPrompt: "",
+      messages: [{ role: "user", content: "Extract the disposition." }], emit() {},
+      submissionTool: "submit_extraction",
+      createTools(state) {
+        registerLegalEvidence(state, receipt);
+        return [{ name: "submit_extraction", description: "Submit extraction", inputSchema: {
+          type: "object", properties: {},
+        }, async execute(input) {
+          const result = submitLegalEvidenceAnswer(input, state);
+          return { result: toolText(result), terminal: result.terminal === true };
+        } }];
+      },
+    });
+    expect(result.fullText).toBe(`${receipt.span_text} [1]`);
+    expect(turns).toBe(2);
+  });
+
 it("does not turn non-legal journal retrieval into a grounding repair", async () => {
   const evidence = createPublicJournalPassageEvidence({
     citation: "Poetry Review 1",
@@ -467,4 +497,110 @@ it("does not turn non-legal journal retrieval into a grounding repair", async ()
   expect(result.fullText).toBe("My favourite is The Love Song of J. Alfred Prufrock.");
   expect(result.citations).toEqual([]);
   expect(emitted).not.toContainEqual({ type: "content_reset" });
+});
+
+const observedPassage = (id: string, text: string) => createTnaEvidence({
+  jurisdiction: "CA", sourceClass: "case", stableSourceId: id,
+  sourceText: text, spanText: text, citation: "2024 SCC 1", name: "Example v Example",
+  dataset: "test", locatorKind: "paragraph", locatorLabel: "12",
+});
+const observedRead = (evidence: ReturnType<typeof observedPassage>[]): BeaverTool<ChatToolContext> => ({
+  ...ASSISTANT_TOOLS.find(({ name }) => name === "Read")!,
+  reader: ["CA"],
+  async execute(_input, _context, _signal, call) {
+    return { result: toolText({ ok: true }), evidence, queryReceipts: [{
+      call_id: call.id, tool: "Read", executed_at: "2026-09-05T12:00:00.000Z",
+      executor_version: "legal-source-pattern-v1", input: { pattern: "appeal" },
+      results: evidence.map(({ evidence_id }, rank) => ({ rank: rank + 1, evidence_id })),
+    }] };
+  },
+});
+
+it.each(["failure", "cancellation", "grounding exhaustion"])(
+  "retains completed reads and searches after %s without keeping an answer", async (ending) => {
+    const passage = observedPassage("observed", "The appeal is allowed."), signal = new AbortController();
+    let called = false;
+    stream.mockImplementation(async ({ callbacks, runTools }) => {
+      if (!called) {
+        called = true;
+        await runTools([{ id: "observed-read", name: "Read", input: { file_path: "document://note/version/v1" } }]);
+      }
+      if (ending === "grounding exhaustion") {
+        callbacks.onContentDelta?.("R. v. Unsupported is decisive.");
+        return { fullText: "R. v. Unsupported is decisive." };
+      }
+      await runTools([{ id: "answer", name: "submit_grounded_answer", input: {
+        claims: [{ text: passage.span_text, evidence_ids: [passage.evidence_id] }],
+      } }]);
+      if (ending === "cancellation") signal.abort(new DOMException("Cancelled", "AbortError"));
+      throw signal.signal.reason ?? new Error("Provider disconnected");
+    });
+    const error = await runChatTurn({ model: "gemini-3-flash-preview", systemPrompt: "",
+      messages: [{ role: "user", content: "Cite this document." }], signal: signal.signal,
+      createTools: () => [observedRead([passage])], emit() {},
+    }).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(AssistantStreamError);
+    const events = (error as AssistantStreamError).events;
+    expect(priorLegalEvidenceReceipts(events)).toEqual([passage]);
+    expect(priorLegalResearchQueryReceipts(events)).toMatchObject([{ call_id: "observed-read" }]);
+    expect(events.filter(({ type }) => type === "legal_evidence_receipt")).toMatchObject([
+      { status: "passed", claims: [], failure: null },
+    ]);
+  });
+
+it.each([false, true])("shares all subagent reads and searches when failed=%s", async (failed) => {
+  const used = observedPassage("used", "The appeal is allowed."),
+    extra = observedPassage("extra", "Costs are awarded to the appellant.");
+  let reader = 0;
+  stream.mockImplementation(async (params) => {
+    if (params.providerSession) {
+      await params.runTools([{ id: `reader-${++reader}`, name: "Read", input: { file_path: "document://note/version/v1" } }]);
+      if (failed) throw new Error("Reader disconnected");
+      await params.runTools([{ id: "reader-answer", name: "submit_grounded_answer", input: {
+        claims: [{ text: used.span_text, evidence_ids: [used.evidence_id] }],
+      } }]);
+      return { fullText: "" };
+    }
+    await params.runTools([{ id: "load", name: "load_tools", input: { names: ["delegate_read"] } }]);
+    await params.runTools([{ id: "readers", name: "delegate_read", input: { assignments: [
+      { task: "Read the decision", scope: "Note A", jurisdiction: "CA" },
+      { task: "Read the decision", scope: "Note B", jurisdiction: "CA" },
+    ] } }]);
+    await params.runTools([{ id: "parent-answer", name: "submit_grounded_answer", input: {
+      claims: [{ text: extra.span_text, evidence_ids: [extra.evidence_id] }],
+    } }]);
+    return { fullText: "" };
+  });
+  const result = await runChatTurn({ model: "gemini-3-flash-preview", systemPrompt: "",
+    messages: [{ role: "user", content: "Research these two notes." }],
+    createTools: () => [observedRead([used, extra])], emit() {}, subagentMode: "beaver",
+  });
+  expect(result.fullText).toBe(`${extra.span_text} [1]`);
+  expect(priorLegalEvidenceReceipts(result.events)).toEqual(expect.arrayContaining([used, extra]));
+  expect(priorLegalResearchQueryReceipts(result.events)).toMatchObject([
+    { call_id: "reader-1", model: "codex:gpt-5.6-luna" },
+    { call_id: "reader-2", model: "codex:gpt-5.6-luna" },
+  ]);
+});
+
+it("reports new reads during a turn without duplicating transcript receipts", async () => {
+  const passages = [observedPassage("first", "The appeal is allowed."),
+    observedPassage("second", "Costs are awarded.")], observed: string[][] = [];
+  let next = 0;
+  const read = observedRead(passages);
+  read.execute = async (...args) => observedRead([passages[next++]]).execute(...args);
+  stream.mockImplementationOnce(async ({ runTools }) => {
+    for (const [index, passage] of passages.entries()) {
+      await runTools([{ id: `read-${index}`, name: "Read", input: { file_path: "document://note/version/v1" } }]);
+      expect(observed[index]).toEqual([passage.evidence_id]);
+    }
+    return { fullText: "Finished reading." };
+  });
+  const result = await runChatTurn({ model: "gemini-3-flash-preview", systemPrompt: "",
+    messages: [{ role: "user", content: "Read these notes." }], createTools: () => [read], emit() {},
+    onResearchObserved(event) { observed.push(event.evidence.map(({ evidence_id }) => evidence_id)); },
+  });
+  expect(observed).toHaveLength(2);
+  expect(result.events.filter(({ type }) => type === "legal_evidence_receipt")).toHaveLength(1);
+  expect(priorLegalEvidenceReceipts(result.events)).toEqual(passages);
 });

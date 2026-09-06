@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { type Dispatch, type SetStateAction } from "react";
-import type { Project, TabularReview } from "@/app/components/shared/types";
+import type { Project } from "@/app/lib/api/projects";
+import type { TabularReview } from "@/app/lib/api/tabular";
 import { RowActions } from "@/app/components/shared/RowActions";
 import { TabularReviewSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import {

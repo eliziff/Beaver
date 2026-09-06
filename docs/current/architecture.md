@@ -41,7 +41,7 @@ SQLite/files     Postgres/S3      Rust/Python/Codex
 | Tabular reviews | `backend/src/lib/tabular/application.ts` | `relationalTabularRepository.ts`, ordinary jobs and agents |
 | Workflows | `backend/src/lib/workflowRepository.ts` until the application operation in the active boundary plan lands | `relationalWorkflowRepository.ts` |
 | Account and user preferences | `backend/src/lib/userApplication.ts`, `backend/src/lib/userPreferences.ts` | `relationalUserPreferencesRepository.ts`, environment credentials, optional `supabaseUserAccount.ts` |
-| Legal sources | provider registry and `backend/src/lib/legalSourceStore.ts` | provider adapters, `OpenLegalData`, and the document projection service |
+| Legal sources | `backend/src/lib/legalSourceApplication.ts` | `legalSourceStore.ts`, provider registry/adapters, `OpenLegalData`, and the document projection service |
 | Authorities | `backend/src/lib/authoritiesWorkspaceApplication.ts` | work-product and document persistence plus shared native legal-structure/PDF operations |
 
 `backend/src/routes/tabular.ts` is the reference route shape: an injected
@@ -74,6 +74,9 @@ route/application cleanup is tracked in the
   `%LOCALAPPDATA%\OpenLegalProducts\LegalData`. SQLite is the runtime format;
   analytical formats and readers are import-time tools only.
 - Immutable source bytes and document versions are authoritative.
+- `documentApplication.ts` presents one exact `DocumentRecord` contract through
+  Library, project directories, research files, tabular reviews and assistant
+  context. Arbitrary document metadata remains untrusted.
 - `documentProjectionService.ts` is the only cross-format document-read host
   boundary. Format work remains in `legal-pdf-parser`, opaque Rust
   `NativeDocument` handles, raw-preserving DOCX sessions, and spreadsheet grids.
@@ -91,13 +94,32 @@ route/application cleanup is tracked in the
 
 - `backend/src/lib/chat/turnEngine.ts` is the one provider-neutral turn engine.
 - `backend/src/lib/chat/toolRegistry.ts` owns executable tools and lazy exact-name
-  loading. A schema without a handler is not a capability.
+  loading, including the live Codex MCP catalogue. A schema without a handler is
+  not a capability. Tool definitions own operation instructions; system prompts
+  own task, source-selection and jurisdiction policy.
 - Chat, subagents, and tabular review are different presentations of ordinary
   agent work, not separate model runtimes.
-- Provider wire events remain private to provider adapters. Public assistant
-  events cross one validated SSE boundary and feed one frontend reducer.
+- `backend/src/lib/chat/assistantEvents.ts` owns stored and public assistant
+  event schemas and types across the engine, tools, store, job worker and SSE.
+  The repository decodes saved events; job observation validates public JSON and
+  drains every page after completion. Transcript projection retains private
+  legal receipts/checkpoints for continuation and exposes an explicit public view.
+  Provider wire events remain private to provider adapters.
+- `frontend/src/app/lib/assistantProtocol.ts` validates and normalizes public
+  events and citations, including nested bounds and safe links.
+  `assistantSession.ts` owns normalized session state and transcript replay.
 - Long work uses the existing durable job queue, cancellation, progress, and
   partial-result behavior.
+
+## Browser API ownership
+
+`frontend/src/app/lib/api/` owns domain endpoints and their browser DTOs.
+`client.ts` supplies HTTP, errors, JSON, multipart, blobs, streams and page queries,
+including authentication requests. Citation presentation stays in `lib/citations.ts`.
+Document readers and artifact downloads use the document client and exact version
+identities. Workflow exports and quotation checks use named workflow operations.
+`ChatHistoryContext` owns chat project moves, updates the list, invalidates prefetched
+locations and notifies active routes through typed callbacks; running turns defer navigation.
 
 ## Standalone and embedded capabilities
 
@@ -105,6 +127,20 @@ Authorities and the Affidavit and Exhibit Builder each have one maintained
 capability core and browser UI. A standalone shell supplies local files and
 downloads; Beaver supplies Library versions, persisted outputs, and receipts.
 Neither product gets a second engine, UI, store, worker, or local/cloud branch.
+
+`saveWorkProductBuild` owns durable build publication for both products: exact
+version writes, workflow destinations, output-reference commits and guarded
+rollback. Product operations validate their inputs and receipts before publication.
+
+`LibraryDocumentPicker` owns file-search state and cancellation for Authorities,
+and Court Records. Hosts supply search results; closing the picker
+discards pending responses. Search progress is separate from import progress.
+Court Records searches use the open draft's project context; each data request
+still passes through the authorized application endpoint.
+Fix supras uses the shared AddDocumentsModal with a DOCX filter and launches an
+ordinary assistant turn in the originating chat, or a new chat. Its native Word
+fields use the same tracked-change persistence and accept/reject controls as
+other assistant edits, including changes in footnotes and endnotes.
 
 ## Dependency rules
 

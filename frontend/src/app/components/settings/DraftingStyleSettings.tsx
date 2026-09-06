@@ -3,11 +3,11 @@
 import { useState } from "react";
 
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import {
-    type DraftingCitationPlacement,
-    type DraftingDocumentType,
-    type DraftingStyleSettings as DraftingSettings,
-} from "@/app/lib/beaverApi";
+import type {
+  DraftingCitationPlacement,
+  DraftingDocumentType,
+  DraftingStyleSettings as DraftingSettings,
+} from "@/app/lib/api/account";
 import { DEFAULT_DRAFTING_STYLE } from "@/app/lib/draftingStyle";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
 

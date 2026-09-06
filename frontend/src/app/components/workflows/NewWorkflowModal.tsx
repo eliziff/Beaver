@@ -1,7 +1,12 @@
 import { useRef, useState } from "react";
-import { ChevronDown, MessageSquare, Table2, Upload } from "lucide-react";
-import { createWorkflow, updateWorkflow } from "@/app/lib/beaverApi";
-import type { Workflow, WorkflowAudience } from "../shared/types";
+import { MessageSquare, Table2, Upload } from "lucide-react";
+import {
+  createWorkflow,
+  updateWorkflow,
+  type Workflow,
+  type WorkflowAudience,
+} from "@/app/lib/api/workflows";
+
 import { Modal } from "../modals/Modal";
 import { FieldGroup, FormField } from "../modals/ModalFieldLabel";
 import { ModalSegmentedToggle } from "../modals/ModalSegmentedToggle";
@@ -137,13 +142,7 @@ function OpenNewWorkflowModal({ onClose, onCreated, editWorkflow, onUpdated }: O
                         </div>
                     </FieldGroup>
                 </div>
-                <details className="group rounded-lg bg-gray-50 px-3">
-                    <summary className="flex min-h-11 cursor-pointer list-none items-center text-sm font-medium text-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
-                        <span className="flex-1">Language and jurisdiction</span>
-                        <ChevronDown aria-hidden="true"
-                            className="h-4 w-4 text-gray-400 motion-safe:transition-transform group-open:rotate-180" />
-                    </summary>
-                    <div className="grid gap-5 pb-3 sm:grid-cols-2">
+                <div className="grid gap-5 sm:grid-cols-2">
                         <FormField label="Language" htmlFor="workflow-language">
                             <ModalTextInput name="language"
                                 defaultValue={editWorkflow?.metadata.language ?? "English"} />
@@ -152,8 +151,7 @@ function OpenNewWorkflowModal({ onClose, onCreated, editWorkflow, onUpdated }: O
                             <ModalTextInput name="jurisdictions"
                                 defaultValue={editWorkflow?.metadata.jurisdictions?.join(", ") ?? "General"} />
                         </FormField>
-                    </div>
-                </details>
+                </div>
                 {error && <p id="workflow-form-error" role="alert" className="text-sm text-red-700">{error}</p>}
             </form>
         </Modal>;

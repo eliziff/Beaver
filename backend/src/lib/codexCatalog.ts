@@ -14,6 +14,9 @@ export type CodexModelCatalog = {
 
 let cached: CodexModelCatalog | null = null;
 let pending: Promise<CodexModelCatalog> | null = null;
+const INTERNAL_CODEX_MODELS = new Set([
+  "codex-auto-review", "gpt-auto-review", "gpt-reserve",
+]);
 
 export function normalizeCodexCatalog(value: unknown): CodexModelCatalog {
   const rawModels = Array.isArray(value) ? value : [];
@@ -27,7 +30,7 @@ export function normalizeCodexCatalog(value: unknown): CodexModelCatalog {
       typeof row.model === "string"
         ? row.model.trim().replace(/^codex:/i, "").toLowerCase()
         : "";
-    if (!slug || slugIndexes.has(slug)) continue;
+    if (!slug || INTERNAL_CODEX_MODELS.has(slug) || slugIndexes.has(slug)) continue;
     const levels = Array.isArray(row.supportedReasoningEfforts)
       ? row.supportedReasoningEfforts
           .map((level) => {

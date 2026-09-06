@@ -36,6 +36,7 @@ export type NoteUpEntry = {
   name: string | null;
   court: string | null;
   date: string | null;
+  language?: "en" | "fr";
   url: string | null;
   /** citing decision paragraph number of the first occurrence, when known */
   paragraph: number | null;
@@ -249,7 +250,7 @@ export function noteUpCitations(args: {
     const groups = (database
       .prepare(
         `SELECT case_doc.citation, case_doc.name, case_doc.court, case_doc.date,
-                case_doc.url, case_doc.id AS case_id,
+                case_doc.url, case_doc.language, case_doc.id AS case_id,
                 COUNT(*) AS occurrences,
                 COUNT(DISTINCT edge.paragraph) AS distinct_paragraphs,
                 MIN(edge.text_offset) AS first_offset
@@ -291,6 +292,7 @@ export function noteUpCitations(args: {
         name: (group.name as string | null) ?? null,
         court: (group.court as string | null) ?? null,
         date: (group.date as string | null) ?? null,
+        language: group.language === "fr" ? "fr" as const : "en" as const,
         url: (group.url as string | null) ?? null,
         paragraph: first.paragraph === null ? null : Number(first.paragraph),
         occurrences: Number(group.occurrences),
@@ -355,6 +357,7 @@ export type StandsForCandidate = {
   /** courtLevels level of the citing court; null when unmapped */
   citingLevel: number | null;
   citingDate: string | null;
+  language?: "en" | "fr";
   paragraph: number | null;
   pageLabel: string | null;
   /** sha256 of `text`, for rendering receipts */
@@ -516,7 +519,7 @@ export function noteUpAnalysis(args: {
     const groups = database
       .prepare(
         `SELECT case_doc.citation, case_doc.name, case_doc.court, case_doc.date,
-                case_doc.id AS case_id, case_doc.url,
+                case_doc.id AS case_id, case_doc.url, case_doc.language,
                 COUNT(*) AS occurrences, MIN(edge.text_offset) AS first_offset,
                 edge.paragraph AS first_paragraph, edge.excerpt AS first_excerpt
          FROM edge
@@ -559,6 +562,7 @@ export function noteUpAnalysis(args: {
         citingCourt: (group.court as string | null) ?? null,
         citingLevel: courtLevel(group.court as string | null)?.level ?? null,
         citingDate: (group.date as string | null) ?? null,
+        language: group.language === "fr" ? "fr" : "en",
         paragraph:
           group.first_paragraph === null ? null : Number(group.first_paragraph),
         pageLabel: null,

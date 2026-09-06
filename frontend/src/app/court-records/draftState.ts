@@ -1,5 +1,5 @@
 import { fileSnapshot, type WorkProduct } from "@/app/lib/workProducts";
-import type { Document } from "@/app/components/shared/types";
+import type { Document } from "@/app/lib/api/documents";
 import { needsOcr, type CourtRecordsHost, type PreparationProgress } from "./host";
 import { COURT_PROFILE_BY_ID } from "./profiles";
 import { propagatingSourceFields, sourceExhibitSlots } from "./types";

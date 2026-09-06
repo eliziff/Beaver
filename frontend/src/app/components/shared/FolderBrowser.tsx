@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, FolderPlus } from "lucide-react";
 import { FolderSvgIcon } from "./FolderSvgIcon";
-import type { Folder } from "./types";
-import type { DirectoryList } from "@/app/lib/beaverApi";
+import type { Folder, DirectoryList } from "@/app/lib/api/documents";
+
 import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 
 export type FolderList = DirectoryList;

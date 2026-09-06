@@ -1,31 +1,8 @@
 import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/auth";
-import { ApplicationError, reject } from "../lib/applicationError";
+import { reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
-import {
-  a2ajLegalSourceProvider,
-  type A2AJViewerPayload,
-} from "../lib/legalSources/a2aj";
-import { journalLegalSourceProvider } from "../lib/legalSources/journal";
-import {
-  resolveLegalSource,
-  searchLegalSources,
-} from "../lib/legalSourceRegistry";
-import type {
-  LegalSourceKind,
-  LegalSourceSearchHit,
-} from "../lib/legalSources";
-import {
-  type LegalSourcePdfRendition,
-  type LegalSourceStore,
-} from "../lib/legalSourceStore";
-import {
-  providerPdfRequestReference,
-  queueProviderPdfAttachment,
-  readProviderPdfAttachmentState,
-  type ProviderPdfAttachment,
-} from "../lib/providerPdfLibraryBridge";
-import { structureNative, type NativeDocument } from "../lib/structureNative";
+import type { LegalSourceApplication } from "../lib/legalSourceApplication";
 import { searchFts5 } from "../lib/searchQuery";
 
 function text(value: unknown, name: string, maximum = 500) {
@@ -64,14 +41,6 @@ function language(value: unknown) {
   return reject(400, "language must be en or fr");
 }
 
-async function providerCall<T>(message: string, operation: () => T): Promise<Awaited<T>> {
-  try {
-    return await operation() as Awaited<T>;
-  } catch {
-    throw new ApplicationError(502, message);
-  }
-}
-
 function userId(res: Response) {
   return String(res.locals.userId);
 }
@@ -85,137 +54,35 @@ function notModified(req: Request, etag: string) {
     .some((value) => value === "*" || value === etag);
 }
 
-function a2ajPdfRenditionRequest(
-  payload: A2AJViewerPayload,
-  native: NativeDocument,
-): ProviderPdfAttachment | null {
-  if (
-    structureNative().documentHasOrigin(native, "native") ||
-    !payload.metadata.pdfUrl ||
-    !payload.metadata.url
-  ) {
-    return null;
-  }
-  return {
-    provider: "a2aj",
-    identity: `${payload.reference.dataset || ""}:${payload.reference.citation}`,
-    url: payload.metadata.pdfUrl,
-    canonicalUrl: payload.metadata.url,
-    title: payload.metadata.title,
-  };
+function sendViewer(req: Request, res: Response,
+  resolved: Awaited<ReturnType<LegalSourceApplication["viewer"]>>, started: number) {
+  res.set({ "Server-Timing": `legal-source;dur=${(performance.now() - started).toFixed(1)}`,
+    "Cache-Control": "private, max-age=0, must-revalidate", ETag: resolved.etag, Vary: "Authorization" });
+  if (notModified(req, resolved.etag)) res.status(304).end();
+  else res.json(resolved.payload);
 }
 
-async function sendViewer(
-  req: Request,
-  res: Response,
-  pointer: {
-    citation: string;
-    provider?: "a2aj" | "journal";
-    docType: "cases" | "laws" | "articles" | "auto";
-    language: "en" | "fr";
-    dataset?: string | null;
-    sourceId?: string | null;
-    pdfRendition?: LegalSourcePdfRendition;
-  },
-) {
-  const started = performance.now();
-  const request = pointer.provider === "journal" || pointer.docType === "articles"
-    ? journalLegalSourceProvider.viewer(pointer.sourceId ?? pointer.citation)
-    : a2ajLegalSourceProvider.viewer({
-        citation: pointer.citation,
-        docType: pointer.docType,
-        language: pointer.language,
-        dataset: pointer.dataset ?? undefined,
-      });
-  const resolved = await providerCall("Legal source provider unavailable", () => request);
-  res.set("Server-Timing", `legal-source;dur=${(performance.now() - started).toFixed(1)}`);
-  if (!resolved) {
-    res.status(404).json({ detail: "Legal source not found" });
-    return;
-  }
-  res.set({
-    "Cache-Control": "private, max-age=0, must-revalidate",
-    ETag: resolved.etag,
-    Vary: "Authorization",
-  });
-  const pdfRenditionRequest = pointer.pdfRendition
-    ? pointer.pdfRendition
-    : resolved.payload.provider === "a2aj"
-      ? a2ajPdfRenditionRequest(resolved.payload, resolved.native)
-      : null;
-  if (pdfRenditionRequest) {
-    void queueProviderPdfAttachment(pdfRenditionRequest, userId(res)).catch(() => undefined);
-  }
-  if (notModified(req, resolved.etag)) {
-    res.status(304).end();
-    return;
-  }
-  res.json(resolved.payload);
-}
-
-export function createLegalLibraryRouter(store: LegalSourceStore) {
+export function createLegalLibraryRouter(application: LegalSourceApplication) {
 const router = Router();
 router.use(requireAuth);
-
 router.get("/", asyncRoute(async (_req, res) => {
-  res.json({ references: await store.list(userId(res)) });
+  res.json({ references: await application.list(userId(res)) });
 }));
 router.get("/coverage", asyncRoute(async (_req, res) => {
-  const results = await Promise.allSettled([
-    a2ajLegalSourceProvider.coverage("cases"),
-    a2ajLegalSourceProvider.coverage("laws"),
-  ]);
+  const coverage = await application.coverage();
   res.set("Cache-Control", "private, max-age=3600");
-  res.json({ coverage: results.flatMap((result) =>
-    result.status === "fulfilled" ? result.value : []) });
+  res.json({ coverage });
 }));
-
-const searchType = {
-  cases: { kind: "case", provider: "a2aj" },
-  laws: { kind: "legislation", provider: "a2aj" },
-  articles: { kind: "journal", provider: "journal" },
-  hansard: { kind: "hansard", provider: "hansard" },
-} as const;
-
-function searchResult(result: LegalSourceSearchHit) {
-  const hansard = result.kind === "hansard";
-  const doc_type = {
-    case: "cases",
-    legislation: "laws",
-    journal: "articles",
-    hansard: "hansard",
-  }[result.kind];
-  return {
-    provider: result.provider,
-    doc_type,
-    source_id: result.id,
-    language: result.language ?? "en",
-    dataset: result.collection ?? (hansard ? "Hansard" : ""),
-    citation: hansard
-      ? [result.date, result.speaker].filter(Boolean).join(" — ") || result.id
-      : result.citation ?? result.id,
-    alternateCitation: result.alternateCitation ?? null,
-    name: result.title ?? (hansard ? result.speaker : null) ?? null,
-    date: result.date ?? null,
-    url: result.url ?? null,
-    snippet: result.snippet ?? null,
-  };
-}
 
 router.get("/search", asyncRoute(async (req, res) => {
   const selected = req.query.doc_type === "hansard"
     ? "hansard"
     : docType(req.query.doc_type);
-  const wanted = Number.parseInt(String(req.query.size ?? "12"), 10);
-  const limit = Number.isFinite(wanted)
-    ? Math.min(Math.max(wanted, 1), selected === "hansard" ? 20 : 25)
-    : selected === "hansard" ? 10 : 12;
-  const type = searchType[selected];
-  const query = {
+  const query: Parameters<LegalSourceApplication["searchLibrary"]>[0] = {
+    docType: selected,
+    size: Number.parseInt(String(req.query.size ?? "12"), 10),
     text: searchFts5(text(req.query.query, "query")),
     syntax: "fts5" as const,
-    kinds: [type.kind],
-    providers: [type.provider],
     searchType: req.query.search_type === "name" ? "name" as const : "full_text" as const,
     language: language(req.query.language),
     collection: optionalText(req.query.dataset),
@@ -227,142 +94,37 @@ router.get("/search", asyncRoute(async (req, res) => {
     sort: req.query.sort_results === "newest_first"
       ? "newest" as const
       : req.query.sort_results === "oldest_first" ? "oldest" as const : "relevance" as const,
-    limit,
-    perProviderLimit: limit,
   };
-  const { results } = await providerCall("Legal source search unavailable", () =>
-    searchLegalSources(query));
-  res.json({ results: results.map(searchResult) });
+  res.json({ results: await application.searchLibrary(query) });
 }));
-
 router.post("/", asyncRoute(async (req, res) => {
-  const requestedDocType = docType(req.body?.doc_type);
-  const expectedProvider = requestedDocType === "articles" ? "journal" : "a2aj";
-  const sourceKind: LegalSourceKind = requestedDocType === "articles"
-    ? "journal"
-    : requestedDocType === "laws" ? "legislation" : "case";
-  const resolveInput = {
-    text: text(
-      requestedDocType === "articles"
-        ? req.body?.source_id ?? req.body?.citation
-        : req.body?.citation,
-      requestedDocType === "articles" ? "source_id" : "citation",
-    ),
-    kind: sourceKind,
-    language: language(req.body?.language),
-    collection: optionalText(req.body?.dataset),
-  };
-  const matched = await providerCall("Legal source provider unavailable", () =>
-    resolveLegalSource(resolveInput));
-  if (matched.status !== "found" || matched.value.provider !== expectedProvider) {
-    res.status(404).json({ detail: "Legal source not found" });
-    return;
-  }
-  const source = matched.value;
-  if (requestedDocType === "articles") {
-    res.status(201).json(await store.save({
-      userId: userId(res),
-      provider: "journal",
-      docType: "articles",
-      citation: source.citation ?? source.id,
-      language: source.language ?? "en",
-      dataset: source.collection ?? null,
-      sourceId: source.id,
-    }));
-    return;
-  }
-  const resolved = await providerCall("Legal source provider unavailable", () =>
-    a2ajLegalSourceProvider.viewer({
-      citation: source.citation ?? source.id,
-      docType: requestedDocType,
-      language: source.language ?? "en",
-      dataset: source.collection ?? undefined,
-    }));
-  if (!resolved) {
-    res.status(404).json({ detail: "Legal source not found" });
-    return;
-  }
-  const reference = resolved.payload.reference;
-  const pdfRenditionRequest = a2ajPdfRenditionRequest(resolved.payload, resolved.native);
-  let pdfRenditionPointer: LegalSourcePdfRendition | undefined;
-  if (pdfRenditionRequest) {
-    try {
-      pdfRenditionPointer = {
-        provider: "a2aj",
-        identity: pdfRenditionRequest.identity,
-        url: pdfRenditionRequest.url,
-        canonicalUrl: pdfRenditionRequest.canonicalUrl!,
-        title: pdfRenditionRequest.title,
-        version: pdfRenditionRequest.version,
-        requestReference: providerPdfRequestReference(pdfRenditionRequest),
-      };
-    } catch {
-      // A bad optional attachment must not prevent saving valid provider text.
-    }
-  }
-  const saved = await store.save({
-    userId: userId(res),
-    provider: "a2aj",
-    docType: reference.docType,
-    citation: reference.citation,
-    language: reference.language,
-    dataset: reference.dataset,
-    pdfRendition: pdfRenditionPointer,
-  });
-  if (pdfRenditionPointer) {
-    void queueProviderPdfAttachment(pdfRenditionPointer, userId(res)).catch(() => undefined);
-  }
-  res.status(201).json(saved);
+  const selected = docType(req.body?.doc_type);
+  const citation = text(selected === "articles" ? req.body?.source_id ?? req.body?.citation
+    : req.body?.citation, selected === "articles" ? "source_id" : "citation");
+  res.status(201).json(await application.save(userId(res), { docType: selected, citation,
+    language: language(req.body?.language), dataset: optionalText(req.body?.dataset) }));
 }));
-
 router.get("/document", asyncRoute(async (req, res) => {
-  await sendViewer(req, res, {
+  const started = performance.now();
+  sendViewer(req, res, await application.viewer(userId(res), {
     citation: text(req.query.citation, "citation"),
     provider: req.query.provider === "journal" ? "journal" : "a2aj",
     docType: docType(req.query.doc_type, true),
     language: language(req.query.language),
     dataset: optionalText(req.query.dataset),
     sourceId: optionalText(req.query.source_id),
-  });
+  }), started);
 }));
 
 router.get("/:referenceId/pdf-status", asyncRoute(async (req, res) => {
-  const pointer = await store.get(
-    userId(res),
-    req.params.referenceId,
-  );
-  const pdfRendition = pointer?.pdfRendition;
-  if (!pdfRendition) {
-    res.status(404).json({ detail: "Provider PDF rendition not found" });
-    return;
-  }
-  res.json(
-    await providerCall("Provider PDF status unavailable", () =>
-      readProviderPdfAttachmentState(pdfRendition, userId(res))),
-  );
+  res.json(await application.pdfStatus(userId(res), req.params.referenceId));
 }));
-
 router.get("/:referenceId/document", asyncRoute(async (req, res) => {
-  const pointer = await store.get(
-    userId(res),
-    req.params.referenceId,
-  );
-  if (!pointer) {
-    res.status(404).json({ detail: "Library reference not found" });
-    return;
-  }
-  await sendViewer(req, res, pointer);
+  const started = performance.now();
+  sendViewer(req, res, await application.savedViewer(userId(res), req.params.referenceId), started);
 }));
-
 router.delete("/:referenceId", asyncRoute(async (req, res) => {
-  const deleted = await store.delete(
-    userId(res),
-    req.params.referenceId,
-  );
-  if (!deleted) {
-    res.status(404).json({ detail: "Library reference not found" });
-    return;
-  }
+  await application.delete(userId(res), req.params.referenceId);
   res.status(204).end();
 }));
 return router;

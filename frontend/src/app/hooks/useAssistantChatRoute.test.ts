@@ -12,7 +12,9 @@ const mocks = vi.hoisted(() => ({
     },
     replace: vi.fn(),
     getProject: vi.fn(),
-    updateChatProject: vi.fn(),
+    moveChat: vi.fn(),
+    projectMove: null as ((id: string, projectId: string | null) => void) | null,
+    onProjectMove: vi.fn(),
     useAssistantChat: vi.fn(),
     messages: [] as { role: string; content: string }[],
     loading: false,
@@ -23,13 +25,13 @@ const mocks = vi.hoisted(() => ({
 vi.mock("react-router-dom", () => ({
     useNavigate: () => mocks.replace,
 }));
-vi.mock("@/app/lib/beaverApi", () => ({
-    getProject: mocks.getProject,
-    updateChatProject: mocks.updateChatProject,
+vi.mock("@/app/lib/api/projects", () => ({
+  getProject: mocks.getProject
 }));
-vi.mock("@/app/lib/apiTransport", () => ({ BeaverApiError: mocks.BeaverApiError }));
+vi.mock("@/app/lib/api/client", () => ({ BeaverApiError: mocks.BeaverApiError }));
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
-    useChatHistoryContext: () => ({ chats: mocks.chats }),
+    useChatHistoryContext: () => ({ chats: mocks.chats,
+        onProjectMove: mocks.onProjectMove, moveChat: mocks.moveChat }),
 }));
 vi.mock("./useAssistantChat", () => ({
     useAssistantChat: mocks.useAssistantChat,
@@ -41,6 +43,11 @@ beforeEach(() => {
     mocks.loading = false;
     mocks.chatLoad = { status: "loading", chatId: "chat-1" };
     mocks.chats = [];
+    mocks.projectMove = null;
+    mocks.onProjectMove.mockImplementation((listener) => {
+        mocks.projectMove = listener;
+        return () => { mocks.projectMove = null; };
+    });
     mocks.getProject.mockResolvedValue({ id: "project-1", name: "Project" });
     mocks.useAssistantChat.mockImplementation(() => ({
         state: {
@@ -145,7 +152,9 @@ it("keeps a pending turn and defers project routing until it finishes", async ()
     mocks.messages = [{ role: "user", content: "Pending request" }];
     mocks.loading = true;
     mocks.chatLoad = { status: "loaded", chatId: "chat-1", chat: null };
-    mocks.updateChatProject.mockResolvedValue({ project_id: "project-2" });
+    mocks.moveChat.mockImplementation(async (chatId, projectId) => {
+        mocks.projectMove?.(chatId, projectId);
+    });
     const { result, rerender } = renderHook(() =>
         useAssistantChatRoute({ chatId: "chat-1" }),
     );
@@ -153,6 +162,7 @@ it("keeps a pending turn and defers project routing until it finishes", async ()
     await act(async () => {
         await result.current.changeProject("project-2");
     });
+    rerender();
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(mocks.useAssistantChat).toHaveBeenLastCalledWith({
         chatId: "chat-1",

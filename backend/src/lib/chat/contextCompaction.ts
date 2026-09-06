@@ -7,20 +7,14 @@ import {
 import { streamChatWithTools, type LlmMessage, type UserApiKeys } from "../llm";
 import { providerForModel } from "../llm/models";
 import type { Provider } from "../llm/types";
-import { isJsonRecord } from "../value";
 import { formatChatMessageContent } from "./messageFormatting";
 import { projectChatTranscript } from "./chatTranscript";
+import type { ContextCheckpointEvent } from "./assistantEvents";
 
 const RECENT_TAIL_TOKENS = 20_000;
 const CHECKPOINT_PROMPT = `Write a concise continuation checkpoint for an AI legal-work assistant.
 Preserve the user's instructions and decisions, unfinished work, material conclusions, exact document names and identifiers, citations, changes already made, and the next concrete steps. Do not invent facts or reproduce long source passages. Return only the checkpoint.`;
 
-export type ContextCheckpointEvent = {
-  type: "context_checkpoint";
-  schema_version: 1;
-  summary: string;
-  keep_current: boolean;
-};
 
 function llmMessages(rows: ChatMessageRecord[], provider?: Provider): LlmMessage[] {
   return projectChatTranscript(rows, provider).map((message) => ({
@@ -39,7 +33,7 @@ export function planContextCheckpoint(
   for (let index = rows.length - 1; index >= 0; index -= 1) {
     const message = rows[index];
     if (message.role === "assistant" && Array.isArray(message.content) &&
-        message.content.some((value) => isJsonRecord(value) && value.type === "context_checkpoint")) {
+        message.content.some((value) => value.type === "context_checkpoint")) {
       prior = index;
       break;
     }

@@ -41,7 +41,7 @@ export type InstructionVariant = {
 export type WorkflowLauncher =
   | { kind: "instructions"; variants: InstructionVariant[] }
   | { kind: "authorities" }
-  | { kind: "court_records" };
+  | { kind: "court_records" } | { kind: "fix_supras" } | { kind: "quote_check"; variants: InstructionVariant[] };
 export type SystemWorkflow = {
   id: string;
   user_id: null;
@@ -63,7 +63,7 @@ export type SystemWorkflow = {
 export const SYSTEM_WORKFLOWS = manifest as unknown as SystemWorkflow[];
 export const SYSTEM_WORKFLOW_IDS = new Set(SYSTEM_WORKFLOWS.map(({ id }) => id));
 export const SYSTEM_ASSISTANT_WORKFLOWS = SYSTEM_WORKFLOWS.flatMap((workflow) =>
-  workflow.launcher.kind === "instructions"
+  (workflow.launcher.kind === "instructions" || workflow.launcher.kind === "quote_check")
     ? workflow.launcher.variants.flatMap((variant) =>
       variant.execution === "assistant" && variant.skill_md
         ? [{ id: workflow.id, variant_id: variant.id,

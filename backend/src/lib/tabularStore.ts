@@ -1,15 +1,39 @@
 import type { ApplicationScope } from "./applicationError";
+import type { GroundedAnswer, GroundedAnswerFlag } from "./groundedAnswer";
+import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
+import type { ResearchSourceReference } from "./researchFile";
+import { parseResourceReference } from "./resourceReferences";
+import type { ResearchChange, ResearchChangeSummary } from "./researchHistory";
+import type { ResearchArrangement } from "./tabular/researchArrangement";
 
 export type TabularScope = ApplicationScope;
 
 export type TabularColumn = { index: number; name: string; prompt: string;
   format?: string; tags?: string[] };
-export type TabularCellContent = { summary: string; flag?: string; reasoning?: string };
+export type TabularCellContent = GroundedAnswer & {
+  summary: string; flag?: GroundedAnswerFlag; reasoning?: string;
+  evidence: LegalEvidenceReceipt[]; outcome: "answered" | "not_found";
+  coverage: "complete" | "partial"; resource: string;
+  origin?: { chatId: string; messageId: string };
+};
+export type TabularSubject = { rowId?: string; sourceId: string; resource: string;
+  reference: ResearchSourceReference; evidence?: LegalEvidenceReceipt[]; sourceSha256?: string;
+  sourceSha256s?: string[] };
+export type TabularSelection = { research_file_id?: string; versionId?: string;
+  workingRevision?: number; subjects: TabularSubject[]; arrangement?: ResearchArrangement;
+  findings?: { chatId: string; answerIds: string[]; sourceIds: string[] } };
+export const tabularSubjectId = (subject: Pick<TabularSubject, "resource" | "rowId">) => {
+  if (subject.rowId) return subject.rowId;
+  const reference = parseResourceReference(subject.resource);
+  return reference?.kind === "document" ? reference.documentId : subject.resource;
+};
 
 export type TabularReview = Record<string, unknown> & {
   id: string; user_id: string; project_id: string | null; title: string | null;
   columns_config: TabularColumn[]; document_ids: string[]; workflow_id: string | null;
   shared_with: string[]; is_owner: boolean; updated_at: string;
+  scope_config?: TabularSelection;
+  proposals?: ResearchChangeSummary[]; history_count?: number;
 };
 
 export type TabularCell = Record<string, unknown> & {
@@ -21,10 +45,12 @@ export type TabularCell = Record<string, unknown> & {
 export type WriteResult<T> = { status: "committed"; value: T }
   | { status: "conflict"; value: T }
   | { status: "missing" };
+export type TabularOperation = { executor: "human" | "assistant"; model?: string;
+  title?: string; changeKey?: string; propose?: boolean };
 
 export type ReviewInput = { title?: string | null; projectId?: string | null;
   columns?: TabularColumn[]; documentIds?: string[]; workflowId?: string | null;
-  sharedWith?: string[] };
+  sharedWith?: string[]; scopeConfig?: TabularSelection; operation?: TabularOperation };
 
 export type TabularRepository = {
   page(scope: TabularScope, options: {
@@ -46,9 +72,16 @@ export type TabularRepository = {
   delete(scope: TabularScope, reviewId: string, expectedVersion: string):
     Promise<WriteResult<null>>;
   deleteAll(scope: TabularScope): Promise<number>;
+  history(scope: TabularScope, reviewId: string, input: { offset: number; limit: number }): Promise<{
+    items: ResearchChange[]; total: number; next_offset: number | null;
+  } | null>;
+  change(scope: TabularScope, reviewId: string, changeId: string,
+    action: "accept" | "reject" | "undo", expectedVersion: string, operation?: TabularOperation): Promise<WriteResult<TabularReview>>;
   setCell(scope: TabularScope, input: {
     reviewId: string; documentId: string; columnIndex: number;
-    expected: Pick<TabularCell, "status" | "content">;
+    expected: Pick<TabularCell, "status" | "content"> & { updated_at?: string };
+    expectedReviewVersion?: string;
+    operation?: TabularOperation;
     content: TabularCellContent | null; status: TabularCell["status"];
   }): Promise<WriteResult<TabularCell>>;
   recordGeneration(scope: TabularScope, input: { reviewId: string; title: string | null;

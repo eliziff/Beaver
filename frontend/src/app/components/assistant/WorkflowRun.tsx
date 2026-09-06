@@ -1,25 +1,18 @@
-import { useEffect, useState } from "react";
-import { ArrowUpRight, X } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
-import type { WorkflowRunEvent, WorkflowOperationName } from "@/app/components/shared/types";
+import type { WorkflowRunEvent, WorkflowOperationName } from "@/app/lib/api/chat";
 import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 
 const LABELS: Record<WorkflowOperationName, string> = {
   create_table_of_authorities: "Create table/book of authorities",
   update_work_product: "Update legal work product",
-  fix_docx_supras: "Fix supra references",
 };
-const LOCAL_WORKFLOW_EVENT = "beaver:workflow-run";
 
-export const workflowOperationLabel = (tool: WorkflowOperationName) => LABELS[tool];
+const workflowOperationLabel = (tool: WorkflowOperationName) => LABELS[tool];
 const workflowRunLabel = (run: WorkflowRunEvent) => run.work_product
   ? run.work_product.kind === "court-record" ? "Court Records" : "Authorities"
   : workflowOperationLabel(run.tool);
 export const workflowRunKey = (run: WorkflowRunEvent) => run.job_id ? `toa:${run.job_id}` : run.id;
-export function publishWorkflowRun(run: WorkflowRunEvent) {
-  window.dispatchEvent(new CustomEvent(LOCAL_WORKFLOW_EVENT, { detail: run }));
-}
-
 export function WorkflowRunButton({ run, onOpen }: {
   run: WorkflowRunEvent;
   onOpen: (run: WorkflowRunEvent) => void;
@@ -98,31 +91,3 @@ export function WorkflowRunPanel({ run }: { run: WorkflowRunEvent }) {
   );
 }
 
-export function AssistantWorkflowActivity() {
-  const [run, setRun] = useState<WorkflowRunEvent | null>(null);
-  const [expanded, setExpanded] = useState(false);
-  useEffect(() => {
-    const update = (event: Event) => {
-      const next = (event as CustomEvent<WorkflowRunEvent>).detail;
-      if (next?.type !== "workflow_run") return;
-      if (next.status === "running") setExpanded(false);
-      setRun((current) => current && workflowRunKey(current) === workflowRunKey(next)
-        ? { ...current, ...next }
-        : next);
-    };
-    window.addEventListener(LOCAL_WORKFLOW_EVENT, update);
-    return () => window.removeEventListener(LOCAL_WORKFLOW_EVENT, update);
-  }, []);
-  if (!run) return null;
-  return (
-    <aside aria-label="Assistant activity" aria-live="polite" className="fixed bottom-4 right-4 z-[190] w-[min(22rem,calc(100vw-2rem))] rounded border bg-white shadow-md">
-      <header className="flex h-10 items-center border-b px-3 text-xs font-medium">
-        <span className="flex-1">Assistant activity</span>
-        <button type="button" onClick={() => setRun(null)} aria-label="Dismiss workflow activity" className="flex size-8 items-center justify-center rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"><X aria-hidden="true" className="size-4" /></button>
-      </header>
-      {expanded
-        ? <WorkflowRunPanel run={run} />
-        : <div className="p-2"><WorkflowRunButton run={run} onOpen={() => setExpanded(true)} /></div>}
-    </aside>
-  );
-}

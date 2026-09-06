@@ -2,10 +2,10 @@ import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DocumentStore } from "../lib/documentStore";
-import type { LibraryStore } from "../lib/libraryStore";
+import { createLibraryStore, type LibraryRepository } from "../lib/libraryStore";
 
 const mocks = vi.hoisted(() => ({
-  readDocument: vi.fn(),
+  projectionSource: vi.fn(),
   documentMetadata: vi.fn(),
   enqueuePdfReprocess: vi.fn(),
 }));
@@ -23,20 +23,20 @@ api.use((_req, res, next) => {
   res.locals.userId = "local-user";
   next();
 });
-api.use("/library", createLibraryRouter({} as LibraryStore, {
-  read: mocks.readDocument,
+const documents = {
+  projectionSource: mocks.projectionSource,
   metadata: mocks.documentMetadata,
-} as unknown as DocumentStore));
+} as unknown as DocumentStore;
+api.use("/library", createLibraryRouter(createLibraryStore({} as LibraryRepository, documents), documents));
 
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.AUTH_MODE = "local";
-  mocks.documentMetadata.mockResolvedValue({ library_kind: "file" });
-  mocks.readDocument.mockResolvedValue({
-    bytes: Buffer.from("%PDF"),
+  mocks.documentMetadata.mockResolvedValue({ project_id: null, library_kind: "file" });
+  mocks.projectionSource.mockResolvedValue({
     fileType: "pdf",
-    document: { library_kind: "file" },
-    version: { id: "version-1", source_sha256: "a".repeat(64) },
+    versionId: "version-1", sourceSha256: "a".repeat(64),
+    readBytes: () => { throw new Error("Queuing preparation must not read the PDF"); },
   });
   mocks.enqueuePdfReprocess.mockResolvedValue({ id: "job-1", status: "queued" });
 });
@@ -71,6 +71,21 @@ describe("local Library PDF routes", () => {
     expect((await retry({ ocr_provider: "remote" })).status).toBe(400);
     expect((await retry({ layout_provider: "mllm" })).status).toBe(400);
     expect(mocks.enqueuePdfReprocess).not.toHaveBeenCalled();
+  });
+
+  it("rejects another Library, unavailable versions, and non-PDF sources", async () => {
+    mocks.documentMetadata.mockResolvedValueOnce({ project_id: null, library_kind: "template" });
+    expect((await retry()).status).toBe(404);
+    mocks.projectionSource.mockResolvedValueOnce(null);
+    expect((await retry()).status).toBe(404);
+    mocks.projectionSource.mockResolvedValueOnce({ fileType: "docx" });
+    expect((await retry()).status).toBe(409);
+    expect(mocks.enqueuePdfReprocess).not.toHaveBeenCalled();
+  });
+
+  it("also queues an accessible project PDF through the shared retry endpoint", async () => {
+    mocks.documentMetadata.mockResolvedValueOnce({ project_id: "shared-matter", library_kind: "file" });
+    expect((await retry()).status).toBe(202);
   });
 
   it("returns a safe actionable local-runtime error", async () => {

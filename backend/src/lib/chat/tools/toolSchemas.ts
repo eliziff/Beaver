@@ -65,30 +65,21 @@ export const WRITE_TOOL: Tool & BeaverToolPolicy = {
     },
     landscape: { type: "boolean", description: "DOCX only." },
     fields: {
-      type: "array",
-      maxItems: 100,
+      type: "object",
+      maxProperties: 100,
       description:
-        "DOCX initial values for {{field_id}} markers. Every occurrence of one id shares the same Word value.",
-      items: object({
-        id: { type: "string" },
-        value: { type: "string" },
-      }, ["id", "value"]),
+        "Use DOCX {{field_id}} controls for missing particulars in forms and agreements. Supply values as {field_id: value}; repeated ids share one Word value.",
+      additionalProperties: { type: "string" },
     },
     citations: {
-      type: "array",
-      maxItems: 100,
+      type: "object",
+      maxProperties: 100,
       description:
-        "DOCX evidence bindings for [@id] markers; use the narrowest visible evidence blocks supporting that unit.",
-      items: object({
-        id: { type: "string" },
-        evidence_ids: {
-          type: "array",
-          minItems: 1,
-          maxItems: 16,
-          uniqueItems: true,
-          items: { type: "string" },
-        },
-      }, ["id", "evidence_ids"]),
+        "DOCX [@id] bindings as {id: [evidence_id, ...]}; use the narrowest supporting passages.",
+      additionalProperties: {
+        type: "array", minItems: 1, maxItems: 16, uniqueItems: true,
+        items: { type: "string" },
+      },
     },
     citation_style: {
       type: "string",

@@ -15,7 +15,7 @@ vi.mock("../../lib/supabase", async (importOriginal) => ({
 }));
 
 const canonicalIds = [
-  "drafting", "document-review", "legal-research", "quote-checking",
+  "drafting", "fix-supras", "document-review", "legal-research", "quote-checking",
   "agreement-work", "due-diligence",
   "transaction-management", "corporate-approvals", "submission-drafting",
   "evidence-review", "court-records", "authorities",
@@ -59,7 +59,7 @@ afterEach(async () => {
 }, 30_000);
 
 describe("account-free workflow catalogue", () => {
-  it("lists 12 canonical workflows while preserving each concrete recipe as a variant", async () => {
+  it("lists canonical workflows while preserving each concrete recipe as a variant", async () => {
     const api = await loadApi();
     const [all, general, solicitor, litigator, search] = await Promise.all([
       request(api).get("/workflows?audience=all"),
@@ -71,9 +71,9 @@ describe("account-free workflow catalogue", () => {
 
     expect(all.status).toBe(200);
     expect(all.body.map(({ id }: { id: string }) => id)).toEqual(canonicalIds);
-    expect(general.body).toHaveLength(4);
-    expect(solicitor.body).toHaveLength(8);
-    expect(litigator.body).toHaveLength(8);
+    expect(general.body).toHaveLength(5);
+    expect(solicitor.body).toHaveLength(9);
+    expect(litigator.body).toHaveLength(9);
     expect(search.body.map(({ id }: { id: string }) => id)).toEqual(["agreement-work"]);
     const variants = all.body.flatMap(({ launcher }: {
       launcher: { variants?: { id: string; result: string; description: string }[] };

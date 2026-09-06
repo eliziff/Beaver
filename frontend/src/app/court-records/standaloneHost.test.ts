@@ -38,7 +38,7 @@ vi.mock("@/app/lib/standaloneWorkProducts", () => ({
   clearStandaloneOutputFolder: mocks.clearOutputFolder,
   writeStandaloneArtifactsToOutputFolder: mocks.writeOutputs,
 }));
-vi.mock("@/app/lib/apiTransport", () => ({
+vi.mock("@/app/lib/api/client", () => ({
   apiRequest: mocks.apiRequest,
   apiBlobRequest: mocks.apiBlobRequest,
 }));
@@ -104,6 +104,18 @@ beforeEach(() => {
 });
 
 describe("standalone Court outputs", () => {
+  it("prepares an editable order even when PDF conversion is unavailable", async () => {
+    mocks.apiBlobRequest.mockRejectedValueOnce(new Error("Conversion unavailable"));
+    const file = new File(["editable order"], "order.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+    const destination = COURT_PROFILE_BY_ID.get("ab-kb-chambers-justice-applicant-set")!
+      .documentKinds.find(({ id }) => id === "proposed-order")!;
+    const prepared = await standaloneCourtRecordsHost.prepareDeviceFile(file, undefined, { destination });
+    expect(prepared.file).toBe(file);
+    expect(prepared.binding).toMatchObject({ kind: "local-file", lastSeen: { name: "order.docx" } });
+    mocks.apiBlobRequest.mockReset();
+  });
   it("shares the standalone output-folder preference", async () => {
     await expect(standaloneCourtRecordsHost.outputFolder!.get()).resolves.toBe("Court outputs");
     await expect(standaloneCourtRecordsHost.outputFolder!.choose()).resolves.toBe("Filed records");
@@ -174,7 +186,7 @@ describe("standalone Court outputs", () => {
       output: child.outputs.record, bytes: new Uint8Array([1, 2]), receipt: {} });
 
     const choices = await standaloneCourtRecordsHost.searchDraftOutputs!(
-      "appeal", destination, "record");
+      "appeal", destination, { ...product("record"), kind: "court-record" });
     expect(choices).toMatchObject([{ workProductId: "child", role: "record",
       workProductTitle: "Appeal authorities", output: { versionId: "version-1" } }]);
 

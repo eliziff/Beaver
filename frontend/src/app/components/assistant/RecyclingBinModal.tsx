@@ -2,12 +2,8 @@ import { useEffect, useState } from "react";
 import { RotateCcw, Trash2 } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import { ChatDeleteWarning } from "./ChatDeleteWarning";
-import {
-    listDeletedChats,
-    permanentlyDeleteChat,
-    restoreChat,
-} from "@/app/lib/beaverApi";
-import type { Chat } from "@/app/components/shared/types";
+import { listDeletedChats, permanentlyDeleteChat, restoreChat, type Chat } from "@/app/lib/api/chat";
+
 import { CollectionState } from "@/app/components/shared/CollectionState";
 const RETENTION_DAYS = 30;
 function daysRemaining(chat: Chat) {

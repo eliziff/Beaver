@@ -8,7 +8,11 @@ const mocks = vi.hoisted(() => ({
     permanentlyDeleteChat: vi.fn(),
 }));
 
-vi.mock("@/app/lib/beaverApi", () => mocks);
+vi.mock("@/app/lib/api/chat", () => ({
+  listDeletedChats: mocks.listDeletedChats,
+  restoreChat: mocks.restoreChat,
+  permanentlyDeleteChat: mocks.permanentlyDeleteChat
+}));
 
 const deletedChat = {
     id: "chat-1",

@@ -1,27 +1,42 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
-import { ChevronDown, ChevronRight, Ellipsis, FolderKanban, FolderPlus, GripVertical,
-  Pencil, Plus, Search, Tags, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Ellipsis, FilePlus2, FolderKanban, FolderPlus, GripVertical,
+  Pencil, Plus, Trash2, X } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import { NewProjectModal } from "@/app/components/projects/NewProjectModal";
-import { ProjectChoiceList } from "@/app/components/projects/ProjectChoiceList";
 import { FileDirectory, type DirectoryLocation } from "@/app/components/shared/FileDirectory";
-import { FolderBrowser } from "@/app/components/shared/FolderBrowser";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
-import type { Document, Folder } from "@/app/components/shared/types";
+import { ResearchSelectionLabels } from "@/app/components/shared/ResearchSelectionLabels";
+import { type Document, directoryResource } from "@/app/lib/api/documents";
 import { ActionMenu } from "@/app/components/ui/action-menu";
-import { createResearchFile, directoryResource, getResearchFile, getResearchItems } from "@/app/lib/beaverApi";
+import { Tabs } from "@/app/components/ui/tabs";
+import { Button, buttonClassName } from "@/app/components/ui/button";
+import {
+  createResearchFile,
+  getResearchCitation,
+  getResearchFile,
+  getResearchItems,
+} from "@/app/lib/api/researchFiles";
+
 import { usePagedChains } from "@/app/hooks/usePagedChains";
-import { isResearchDocument, legalSourceViewerHref, researchLabelPath,
-  type ResearchAction, type ResearchFile, type ResearchLabel, type ResearchQueryInput,
-  type ResearchPageItem, type ResearchSource, type ResearchQueryCoverage } from "@/app/lib/researchFiles";
+import { isResearchDocument, legalSourceViewerHref, researchLabelPath, researchSourceKey,
+  type ResearchAction, type ResearchEvidence, type ResearchFile, type ResearchLabel, type ResearchQueryInput,
+  type ResearchPageItem, type ResearchSource, type ResearchQueryCoverage, type ResearchSelection } from "@/app/lib/researchFiles";
+import { evidenceCitation } from "@/app/lib/groundedAnswers";
+import type { Citation } from "@/app/lib/citations";
 import { errorMessage } from "@/app/lib/utils";
 import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { ResearchLabelCircle, researchLabelColor } from "./ResearchLabelCircle";
 import { RESEARCH_SOURCE_DRAG, RESEARCH_SOURCE_REFERENCE_DRAG, ResearchLabelPicker } from "./ResearchLabelPicker";
 import { useResearchFileMutations, type ResearchFileMutations } from "./useResearchFileMutations";
+import { RESEARCH_PASSAGE_DRAG, memoCitation as parseMemoCitation } from "./researchMemo";
+import { ResearchSourceAnswers, ResearchWorkspaceViews, useResearchAnswers } from "./ResearchWorkspaceViews";
+import { ResearchCitationViewer } from "./ResearchCitationViewer";
+import { ResearchChanges } from "./ResearchChanges";
+
+const ResearchMemoPane = lazy(() => import("./ResearchMemoPane"));
 
 const RECIPE = "beaver.research.recipe.v1", COLLAPSED = "beaver.research.collapsed.v1";
 const UNSORTED = "__unsorted__", UNCLASSIFIED = "Unclassified", PAGE_SIZE = 50;
@@ -86,24 +101,19 @@ export function ResearchFileBar(props: Props) {
 }
 function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, sourceDropNonce, onReadSource, selectedSourceId }: Props) {
   const localMutations = useResearchFileMutations(file, onChange), commit = mutations ?? localMutations;
-  const root = useRef<HTMLDivElement>(null), [wide, setWide] = useState(false);
-  const [sourceDragging, setSourceDragging] = useState(false);
-  const [labelsChoice, setLabelsOpen] = useState<boolean | null>(null), labelsOpen = labelsChoice ?? wide;
-  useLayoutEffect(() => { const node = root.current; if (!node) return;
-    const breakpoint = 44 * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
-    setWide(node.getBoundingClientRect().width >= breakpoint);
-    const observer = new ResizeObserver(([entry]) => setWide(entry.contentRect.width >= breakpoint));
-    observer.observe(node); return () => observer.disconnect(); }, []);
-  const [labelScope, setLabelScope] = useState<Scope>("source"),
-    [searchOpen, setSearchOpen] = useState(false);
+  const answers = useResearchAnswers(file);
+  const [reading, setReading] = useState<{ citation: Citation; reference?: ResearchSource["reference"] } | null>(null);
+  const [tab, setTab] = useState<"labels" | "search" | "memo">("labels");
+  const labelsOpen = tab === "labels", searchOpen = tab === "search", noteOpen = tab === "memo";
+  const [labelScope, setLabelScope] = useState<Scope>("source");
   const [open, setOpen] = useState(false), [selectedDocuments, setSelectedDocuments] = useState<Document[]>([]);
-  const [createOpen, setCreateOpen] = useState(false), [renameOpen, setRenameOpen] = useState(false),
-    [noteOpen, setNoteOpen] = useState(false), [noteDraft, setNoteDraft] = useState(file?.state.note ?? "");
+  const [createOpen, setCreateOpen] = useState(false), [renameOpen, setRenameOpen] = useState(false);
+  const [changesOpen, setChangesOpen] = useState(false);
+  const [memoCitation, setMemoCitation] = useState<{ href: string; sequence: number }>();
   const [folderOpen, setFolderOpen] = useState(false), [projectOpen, setProjectOpen] = useState(false),
     [directoryKey, setDirectoryKey] = useState(0), [folderError, setFolderError] = useState(""),
     [openLocation, setOpenLocation] = useState<DirectoryLocation>(() => projectId ?? file?.document.project_id
-      ? { projectId: projectId ?? file!.document.project_id! } : { library: "files" }),
-    [createFolder, setCreateFolder] = useState<Folder | null>(null);
+      ? { projectId: projectId ?? file!.document.project_id! } : { library: "files" });
   const [sourceSelected, setSourceSelected] = useState<Set<string> | null>(null),
     [highlightSelected, setHighlightSelected] = useState<Set<string> | null>(null), [highlightFilter, setHighlightFilter] = useState(false),
     [activeLabel, setActiveLabel] = useState<string | null>(null),
@@ -122,18 +132,12 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
   const [searchResult, setSearchResult] = useState<{ input: ResearchQueryInput; coverage: ResearchQueryCoverage } | null>(null);
   const [busy, setBusy] = useState(false), [status, setStatus] = useState("");
   const [removing, setRemoving] = useState<{ kind: "label" | "source" | "evidence"; id: string; name: string; sourceId?: string } | null>(null);
-  const labelDrag = useRef<string | null>(null), handledDrop = useRef(0), returnToPicker = useRef(false),
-    labelsButton = useRef<HTMLButtonElement>(null), searchButton = useRef<HTMLButtonElement>(null);
-  const closeLabels = () => { setLabelsOpen(false); labelsButton.current?.focus({ preventScroll: true }); };
-  const closeSearch = () => { setSearchOpen(false); searchButton.current?.focus({ preventScroll: true }); };
-  const revealLabels = useCallback(() => { setLabelsOpen(true); setLabelScope("source"); setSearchOpen(false); }, []);
+  const labelDrag = useRef<string | null>(null), handledDrop = useRef(0), returnToPicker = useRef(false);
+  const revealLabels = useCallback(() => { setTab("labels"); setLabelScope("source"); }, []);
   const toggleQuery = (id: string) => setOpenQueries((values) => { const next = new Set(values);
     if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const directory = useMemo(() => directoryResource(file?.document.project_id
     ? { projectId: file.document.project_id } : { library: "files" }), [file?.document.project_id]);
-  const createProjectId = "projectId" in openLocation ? openLocation.projectId : null;
-  const createDirectory = useMemo(() => directoryResource(createProjectId
-    ? { projectId: createProjectId } : { library: "files" }), [createProjectId]);
   const labels = useMemo(() => file?.state.labels ?? {}, [file?.state.labels]);
   const allSources = useMemo(() => Object.values(file?.state.sources ?? {}), [file?.state.sources]);
   const passageRevisions = useMemo(() => Object.fromEntries(allSources.map(({ id, passages }) =>
@@ -179,6 +183,10 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
     [scopedSources, listSearch, kindFilter, yearFilter, collectionFilter, sort]);
   const list = useMemo(() => filteredSources.filter((source) => matches === null || matches.sources.has(source.id)),
     [filteredSources, matches]);
+  const viewTarget = searchOpen ? target : labelScope === "highlight" ? "passages" : "sources";
+  const viewSelection: ResearchSelection = { target: viewTarget, sourceIds: list.map(({ id }) => id),
+    ...(viewTarget === "passages" && highlightLabelIds ? { labelIds: [...highlightLabelIds].filter((id) => id !== UNSORTED),
+      unlabelled: highlightLabelIds.has(UNSORTED) } : {}), ...(matches && viewTarget === "passages" ? { evidenceIds: [...matches.evidence] } : {}) };
   const labelCounts = useMemo(() => { const counts: Record<string, number> = {};
     const visit = (items: typeof allSources, scope: Scope) => items.forEach(({ labelIds }) => {
       const applied = new Set<string>(); labelIds.forEach((id) => researchLabelPath(labels, id).forEach((label) => {
@@ -192,10 +200,9 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
   useEffect(() => { if (file) localStorage.setItem(`${COLLAPSED}:${file.document.id}`,
     JSON.stringify([...collapsed])); }, [collapsed, file]);
   useEffect(() => { if (sourceDropNonce && handledDrop.current !== sourceDropNonce) {
-    handledDrop.current = sourceDropNonce; revealLabels(); } }, [revealLabels, sourceDropNonce]);
+    handledDrop.current = sourceDropNonce; if (!noteOpen) revealLabels(); } }, [revealLabels, sourceDropNonce, noteOpen]);
   useEffect(() => { localStorage.setItem(`${RECIPE}:${file?.document.id ?? "empty"}`, JSON.stringify(recipe)); }, [file?.document.id, recipe]);
   useEffect(() => { if (open) setSelectedDocuments(file ? [file.document] : []); }, [open, file]);
-  useEffect(() => { if (!noteOpen) setNoteDraft(file?.state.note ?? ""); }, [file?.state.note, noteOpen]);
   useEffect(() => setPage(0), [listSearch, kindFilter, yearFilter, collectionFilter, sourceSelected, highlightSelected]);
   useEffect(() => setPage((current) => Math.min(current,
     Math.max(0, Math.ceil(list.length / PAGE_SIZE) - 1))), [list.length]);
@@ -210,13 +217,6 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
     try { onChange(await task()); setOpen(false); }
     catch (reason) { setStatus(errorMessage(reason, "Could not open research")); }
     finally { setBusy(false); }
-  }
-  function create(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const value = String(new FormData(event.currentTarget).get("title") ?? "").trim();
-    if (value) void choose(async () => { const next = await createResearchFile({ title: value,
-      projectId: "projectId" in openLocation ? openLocation.projectId : undefined,
-      ...(createFolder ? { folderId: createFolder.id } : {}) });
-      returnToPicker.current = false; setCreateOpen(false); return next; });
   }
   async function rename(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!file) return; const title = String(new FormData(event.currentTarget).get("title") ?? "").trim();
@@ -236,11 +236,11 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
     finally { setBusy(false); }
   }
   async function addLabel(scope: Scope) {
-    if (!file) { setCreateOpen(true); return; }
+    if (!file) { newWorkspace(); return; }
     setBusy(true); setStatus("");
     try { const id = crypto.randomUUID();
       const selected = scope === "source" ? sourceSelected : highlightSelected, selectedId = selected?.size === 1 ? [...selected][0] : "";
-      const parentId = labels[selectedId]?.scope === scope && researchLabelPath(labels, selectedId).length < 3 ? selectedId : null;
+      const parentId = labels[selectedId]?.scope === scope ? selectedId : null;
       if (parentId) setCollapsed((current) => { const next = new Set(current); next.delete(parentId); return next; });
       await commit.act({ type: "label", id, name: scope === "source" ? "New label" : "New category", parentId, scope,
         color: scope === "source" ? "#3498db" : "#eab308" }); setActiveLabel(id); }
@@ -256,9 +256,7 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
     const label = labels[id], parent = parentId ? labels[parentId] : null;
     if (!label || id === parentId || parentId && (!parent || parent.scope !== label.scope ||
       researchLabelPath(labels, parentId).some((item) => item.id === id))) return false;
-    const height = (node: string): number => { let value = 1;
-      for (const child of children.get(node) ?? []) value = Math.max(value, 1 + height(child.id)); return value; };
-    return (parentId ? researchLabelPath(labels, parentId).length : 0) + height(id) <= 3;
+    return true;
   }
   async function reparent(id: string, parentId: string | null, order?: number) {
     const label = labels[id]; if (!label || !canReparent(id, parentId)) return;
@@ -277,7 +275,7 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
   }
   function showMatches(evidenceIds: string[], sourceIds: string[]) {
     setSearchResult(null);
-    setMatches({ evidence: new Set(evidenceIds), sources: new Set(sourceIds) }); setSearchOpen(false); setLabelsOpen(false); setPage(0);
+    setMatches({ evidence: new Set(evidenceIds), sources: new Set(sourceIds) }); setTab("search"); setPage(0);
   }
   async function query(input: ResearchQueryInput, continuing = false) {
     if (!file) return;
@@ -312,6 +310,8 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
     event.preventDefault(); if (plain.trim()) void query({ text: plain.trim(), syntax, target });
   }
   function sourceHref(source: ResearchSource, locator?: string) {
+    if (source.reference.kind === "document") return `/library?${new URLSearchParams({ document_id: source.reference.id,
+      version_id: source.reference.versionId, ...(locator ? { locator } : {}) })}`;
     if (source.reference.provider !== "a2aj" && source.reference.provider !== "journal")
       return safeAssistantUrl(source.reference.url, { relative: false });
     const href = legalSourceViewerHref(source.reference,
@@ -319,12 +319,37 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
     return locator ? `${href}&locator=${encodeURIComponent(locator)}` : href;
   }
   function sourceLink(source: ResearchSource, text: string, locator?: string, title = false) {
-    const href = sourceHref(source, locator), className = `rounded text-left text-sm hover:text-brand ${title ? "font-semibold leading-5" : "font-medium underline underline-offset-2"}`;
-    return onReadSource && (source.reference.provider === "a2aj" || source.reference.provider === "journal")
+    const href = sourceHref(source, locator), className = title
+      ? "rounded text-left text-sm font-semibold leading-5 hover:text-brand focus-visible:outline focus-visible:outline-2"
+      : buttonClassName({ variant: "outline", size: "compact", className: locator
+        ? "h-auto min-h-8 min-w-0 max-w-full shrink whitespace-normal [overflow-wrap:anywhere]" : undefined });
+    return source.reference.kind === "document" || onReadSource && (source.reference.provider === "a2aj" || source.reference.provider === "journal")
       ? <button type="button" aria-current={title && selectedSourceId === source.id ? "true" : undefined}
-      className={className} onClick={() => onReadSource(source, locator)}>{text}</button>
+      className={className} onClick={() => void readSource(source, locator)}>{text}</button>
       : !href ? <span>{text}</span> : href.startsWith("/")
       ? <Link to={href} className={className}>{text}</Link> : <a href={href} className={className}>{text}</a>;
+  }
+  async function readSource(source: ResearchSource, locator?: string, evidenceId?: string) {
+    if (source.reference.kind !== "document") { onReadSource?.(source, locator); return; }
+    let items = passagePages.chains[source.id]?.items ?? [], receipt = items.find((item) => item.kind === "passage" &&
+      (evidenceId ? item.value.receipt.evidence_id === evidenceId : item.value.receipt.locator.label === locator));
+    try {
+      if (evidenceId && !receipt && file) { let cursor: string | null = null;
+        do { const page = await getResearchItems(file.document.id, { kind: "passages", sourceId: source.id, cursor, limit: 200 });
+          items = page.items; receipt = items.find((item) => item.kind === "passage" && item.value.receipt.evidence_id === evidenceId); cursor = page.next_cursor;
+        } while (!receipt && cursor);
+        if (!receipt) throw new Error("The original saved passage is unavailable");
+      }
+      const citation = receipt?.kind === "passage" ? evidenceCitation(receipt.value.receipt, 1) : null;
+      setReading({ reference: source.reference, citation: citation ?? { kind: "document", ref: 1,
+        document_id: source.reference.id, version_id: source.reference.versionId, filename: sourceName(source), quotes: [] } });
+    } catch (reason) { setStatus(errorMessage(reason, "Could not open saved passage")); }
+  }
+  function openAnswerCitation(citation: Citation) {
+    const source = allSources.find(({ reference }) => citation.kind === "document" ? reference.kind === "document" && reference.id === citation.document_id
+      : citation.kind === "public_legal" ? reference.provider === citation.provider && reference.id === citation.identifier
+        : citation.kind === "a2aj" && reference.provider === "a2aj" && reference.citation === citation.citation);
+    setReading({ citation, reference: source?.reference });
   }
   const editRule = (patch: Partial<Rule>) => setRecipe((current) => ({ ...current,
     rules: current.rules.map((rule, index) => index === ruleEditor ? { ...rule, ...patch } : rule) }));
@@ -414,14 +439,18 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
 
   function labelPanel(scope: Scope) { const selection = scope === "source" ? sourceSelected : highlightSelected,
     setSelection = scope === "source" ? setSourceSelected : setHighlightSelected;
-    return <><div className="mb-1 flex items-center gap-1">
-      <button type="button" aria-pressed={selection === null} onClick={() => setSelection(null)} className={`rounded px-2 py-1 text-sm font-semibold ${selection === null ? "bg-gray-200" : "hover:bg-gray-100"}`}>View all</button>
-      <button type="button" aria-pressed={selection?.size === 0} onClick={() => setSelection(new Set())} className={`rounded px-2 py-1 text-sm font-semibold text-gray-500 ${selection?.size === 0 ? "bg-gray-200" : "hover:bg-gray-100"}`}>View none</button>
-    </div>
+    return <><div className="mb-1 flex items-center gap-1.5">
       <input type="search" autoComplete="off" value={labelSearch[scope]} onChange={(event) => setLabelSearch((value) => ({ ...value, [scope]: event.target.value }))}
         aria-label={scope === "source" ? "Search labels" : "Search highlight categories"}
         placeholder={scope === "source" ? "Search labels" : "Search categories"}
-        className="mb-1 h-8 w-full min-w-0 rounded-md border border-gray-300 px-2 text-sm" />
+        className="h-8 min-w-0 flex-1 rounded-md border border-gray-300 px-2 text-sm" />
+      <ActionMenu label="Label selection" items={[
+        { label: "View all", checked: selection === null, onSelect: () => setSelection(null) },
+        { label: "View none", checked: selection?.size === 0, onSelect: () => setSelection(new Set()) },
+      ]} triggerClassName={buttonClassName({ variant: "outline", size: "compact" })}>
+        {selection === null ? "All" : selection.size === 0 ? "None" : `${selection.size} selected`}<ChevronDown className="size-3" />
+      </ActionMenu>
+    </div>
     {scope === "highlight" && <label className="mb-1 flex items-center gap-1 rounded bg-gray-50 px-1.5 py-1 text-[13px] leading-4 text-gray-600">
       <input type="checkbox" checked={highlightFilter} onChange={(event) => setHighlightFilter(event.target.checked)} />
       Filter sources by these passages
@@ -451,13 +480,13 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
       {labelDrop?.id === `root:${scope}` ? "Move to top level" : `+ Add ${scope === "source" ? "label" : "category"}`}
     </button></>; }
   const listPanel = () => <>
-    <div className="mb-3 flex items-center gap-2">
+    <div className="mb-2 flex items-center gap-1.5">
       <input type="search" autoComplete="off" value={listSearch} onChange={(event) => setListSearch(event.target.value)} aria-label="Search list"
-        placeholder="Filter sources" className="h-9 min-w-0 flex-1 rounded-md border border-gray-300 px-2 text-sm" />
-      <ChoiceMenu className="w-32 shrink-0" label="Sort sources" value={sort} onChange={setSort} options={[
+        placeholder="Filter sources" className="h-8 min-w-0 flex-1 rounded-md border border-gray-300 px-2 text-sm" />
+      <ChoiceMenu className="w-28 shrink-0" label="Sort sources" value={sort} onChange={setSort} options={[
         { value: "saved", label: "Saved order" }, { value: "az", label: "A–Z" }, { value: "date", label: "Date" }]} />
     </div>
-    <details className="mb-3"><summary className="cursor-pointer text-sm font-medium text-gray-600">Filters{kindFilter.size + yearFilter.size + collectionFilter.size > 0 ? ` (${kindFilter.size + yearFilter.size + collectionFilter.size})` : ""}</summary>
+    <details className="mb-2"><summary className={`${buttonClassName({ variant: "outline", size: "compact" })} w-fit cursor-pointer`}>Filters{kindFilter.size + yearFilter.size + collectionFilter.size > 0 ? ` (${kindFilter.size + yearFilter.size + collectionFilter.size})` : ""}</summary>
     <div className="mt-2 grid grid-cols-3 gap-2 text-sm text-gray-600">
       <ActionMenu label="Filter source type" items={filterItems([...new Set(allSources.map(({ reference }) => reference.kind))], kindFilter, setKindFilter)
         .map((item) => ({ ...item, label: item.label.replace(/^./u, (letter) => letter.toUpperCase()) }))}
@@ -468,49 +497,55 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
         triggerClassName={`h-8 w-full min-w-0 items-center justify-between gap-1 overflow-hidden whitespace-nowrap rounded-md border border-gray-300 bg-white px-2 text-sm ${collectionFilter.size ? "font-semibold text-gray-900" : ""}`}><span className="truncate">Collection{collectionFilter.size ? ` (${collectionFilter.size})` : ""}</span><ChevronDown className="size-3 shrink-0" /></ActionMenu>
     </div></details>
     <div className="mt-1 min-h-0">
-    <div className="mb-1 flex items-center text-sm"><span role="status" className="tabular-nums text-gray-600">{list.length} {list.length === 1 ? "source" : "sources"}</span></div>
+    <div className="mb-1 flex items-center justify-between text-sm"><span role="status" className="tabular-nums text-gray-600">{list.length} {list.length === 1 ? "source" : "sources"}</span>
+      {!!list.length && file && <ResearchSelectionLabels prepare={() => ({ file, selection: viewSelection })} mutations={commit} />}</div>
+    {answers.error && <p role="alert" className="text-sm text-red-700">{answers.error}</p>}
     {list.length ? <ol>{list.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((source) => {
       const sourcePage = passagePages.chains[source.id], evidence = (sourcePage?.items.flatMap((item) =>
         item.kind === "passage" ? [item.value] : []) ?? []);
       return <li key={source.id} className={`border-b border-gray-200 last:border-0 ${selectedSourceId === source.id ? "bg-gray-100" : ""}`}><details open={openedSources.has(source.id)} className="group rounded hover:bg-gray-50" onToggle={(event) => {
         const isOpen = event.currentTarget.open; setOpenedSources((current) => { const next = new Set(current);
-        if (isOpen) next.add(source.id); else next.delete(source.id); return next; }); }}><summary className="flex list-none items-start gap-2 px-1 py-3 text-sm" onClick={(event) => {
+        if (isOpen) next.add(source.id); else next.delete(source.id); return next; }); }}><summary className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] list-none items-start gap-1.5 py-2 text-sm @xs:flex" onClick={(event) => {
           if (!(event.target as Element).closest("button,a")) event.preventDefault(); }}>
         <button type="button" aria-label={`Passages in ${sourceName(source)}`} aria-expanded={openedSources.has(source.id)}
           onClick={(event) => { event.preventDefault(); setOpenedSources((current) => { const next = new Set(current);
             if (next.has(source.id)) next.delete(source.id); else next.add(source.id); return next; }); }}
-          className="grid size-5 shrink-0 place-items-center rounded hover:bg-gray-200"><ChevronRight aria-hidden="true" className="size-3 text-gray-500 group-open:rotate-90" /></button>
+          className="grid size-6 shrink-0 place-items-center rounded hover:bg-gray-200"><ChevronRight aria-hidden="true" className="size-3 text-gray-500 group-open:rotate-90" /></button>
         <ResearchLabelPicker file={file} kind="source" itemId={source.id} labelIds={source.labelIds}
           badge={source.badge} badgeColor={source.badgeColor} note={source.note} title={sourceName(source)} size="sm"
-          onError={setStatus} onSourceDrag={() => requestAnimationFrame(revealLabels)} mutations={commit} />
-        <span className="min-w-0 flex-1"><span className="block break-words">{sourceLink(source, sourceName(source), undefined, true)}</span>
+          onError={setStatus} onSourceDrag={() => { if (!noteOpen) requestAnimationFrame(revealLabels); }} mutations={commit} />
+        <span className="col-start-2 col-end-4 row-start-2 min-w-0 flex-1 [overflow-wrap:anywhere]"><span className="block">{sourceLink(source, sourceName(source), undefined, true)}</span>
           {source.reference.citation && source.reference.citation !== sourceName(source) && <span className="mt-0.5 block text-sm text-gray-600">{source.reference.citation}</span>}
           {source.note && <span className="mt-0.5 line-clamp-1 whitespace-pre-wrap font-normal text-gray-600 group-open:line-clamp-none">{source.note}</span>}</span>
-        <span className="shrink-0 text-sm tabular-nums text-gray-500" title="Saved passages">{source.passages?.count ?? 0}</span>
+        <Button variant="outline" size="compact" className="col-start-3 row-start-1" aria-label={`Cite ${sourceName(source)}`}
+          onClick={(event) => { event.preventDefault(); void cite(source); }}>Cite</Button>
       </summary>{openedSources.has(source.id) && <div className="space-y-3 ps-6 pe-2 pb-3 text-sm leading-5">
         <div className="flex items-center justify-between text-gray-500"><span>{source.passages?.count ?? 0} passages</span>
           {sourceHref(source) && sourceLink(source, "Open source")}</div>
         {sourcePage?.loading && !sourcePage.items.length && <p role="status" className="text-xs text-gray-500">Loading passages…</p>}
-        {!!sourcePage?.error && <button type="button" onClick={() => void passagePages.fetchPage(source.id, null, false)}
-          className="text-sm font-medium text-red-700">Retry passages</button>}
-        {evidence.map((item) => <div key={item.receipt.evidence_id} className="border-s-2 border-gray-200 ps-2">
-          <div className="flex items-center gap-1"><ResearchLabelPicker file={file} kind="evidence" itemId={item.receipt.evidence_id} sourceId={source.id}
+        {!!sourcePage?.error && <Button variant="outline" size="compact" onClick={() => void passagePages.fetchPage(source.id, null, false)}>Retry passages</Button>}
+        {evidence.map((item) => <div key={item.receipt.evidence_id} draggable
+          onDragStart={(event) => { event.dataTransfer.setData(RESEARCH_PASSAGE_DRAG, JSON.stringify(item)); }}
+          className="border-s-2 border-gray-200 ps-2">
+          <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-1"><ResearchLabelPicker file={file} kind="evidence" itemId={item.receipt.evidence_id} sourceId={source.id}
             labelIds={item.labelIds} note={item.note} title={item.receipt.locator.label} size="sm"
             onError={setStatus} mutations={commit} />
             {sourceLink(source, item.receipt.locator.label, item.receipt.locator.label)}
             <button type="button" aria-label={`Delete ${item.receipt.locator.label}`} onClick={() => setRemoving({ kind: "evidence", id: item.receipt.evidence_id, sourceId: source.id, name: item.receipt.locator.label })}
               className="ms-auto grid size-6 place-items-center rounded text-gray-400 hover:bg-gray-200 hover:text-red-700"><Trash2 className="size-3" /></button></div>
-          <p className="line-clamp-3 text-gray-600">{item.receipt.span_text}</p>{item.note && <p className="mt-0.5 text-gray-700">{item.note}</p>}
+          <p className="line-clamp-3 text-gray-600 [overflow-wrap:anywhere]">{item.receipt.span_text}</p>{item.note && <p className="mt-0.5 text-gray-700 [overflow-wrap:anywhere]">{item.note}</p>}
+          <Button variant="outline" size="compact" onClick={() => void cite(source, item)} className="mt-1">Cite passage</Button>
         </div>)}
         {sourcePage?.nextCursor && <button type="button" aria-label={`Show more passages from ${sourceName(source)}`}
           disabled={sourcePage.loading} onClick={() => void passagePages.fetchPage(source.id, sourcePage.nextCursor, true)}
-          className="w-full rounded py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 disabled:opacity-40">Show more passages</button>}
+          className={buttonClassName({ variant: "outline", size: "compact", className: "w-full" })}>Show more passages</button>}
+        <ResearchSourceAnswers findings={answers.findings.filter((finding) => finding.source === researchSourceKey(source.reference))} onCitation={openAnswerCitation} />
         <button type="button" onClick={() => setRemoving({ kind: "source", id: source.id, name: sourceName(source) })}
-          className="text-xs text-gray-400 hover:text-red-700">Remove source</button>
+          className={buttonClassName({ variant: "outline", size: "compact" })}>Remove source</button>
       </div>}</details></li>;
     })}</ol> : <p className="p-2 text-xs text-gray-500">No sources in this view.</p>}
-    {list.length > PAGE_SIZE && <div className="mt-2 flex items-center justify-center gap-2 text-xs"><button type="button" disabled={!page} onClick={() => setPage(page - 1)}>Previous</button>
-      <span>Page {page + 1} of {Math.ceil(list.length / PAGE_SIZE)}</span><button type="button" disabled={(page + 1) * PAGE_SIZE >= list.length} onClick={() => setPage(page + 1)}>Next</button></div>}
+    {list.length > PAGE_SIZE && <div className="mt-2 flex items-center justify-center gap-2 text-xs"><Button variant="outline" size="compact" disabled={!page} onClick={() => setPage(page - 1)}>Previous</Button>
+      <span>Page {page + 1} of {Math.ceil(list.length / PAGE_SIZE)}</span><Button variant="outline" size="compact" disabled={(page + 1) * PAGE_SIZE >= list.length} onClick={() => setPage(page + 1)}>Next</Button></div>}
     </div></>;
   const queryChain = queryPages.chains.queries,
     historyQueries = queryChain?.items.flatMap((item) => item.kind === "query" ? [item.value] : []) ?? [];
@@ -524,11 +559,16 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
         options={[{ value: "sources", label: "Source text" }, { value: "passages", label: "Saved passages" }]} />
       <button disabled={busy} className="col-span-2 h-8 rounded-md bg-gray-900 px-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-40">Find passages</button>
     </form>
-    <div className="mb-2 mt-1.5 flex gap-1.5">
+    <details className="group/rules mb-2 rounded-md border border-gray-200">
+      <summary className="flex h-8 cursor-pointer list-none items-center gap-1.5 bg-gray-50 px-2 text-xs font-medium text-gray-800">
+        <ChevronRight className="size-3.5 group-open/rules:rotate-90" aria-hidden="true" />Capture rules
+        {!!recipe.rules.length && <span className="ms-auto tabular-nums text-gray-500">{recipe.rules.length}</span>}
+      </summary>
+    <div className="p-2"><div className="mb-2 flex gap-1.5">
       <button type="button" onClick={() => { setRuleEditor(recipe.rules.length); setRecipe((current) => ({ ...current,
         rules: [...current.rules, { phrase: "", direction: "after", unit: "sentence", slot: UNCLASSIFIED }] })); }}
         className="inline-flex h-8 flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-md border border-gray-300 bg-white px-1.5 text-[13px] font-medium text-gray-700 hover:bg-gray-50"><Plus className="size-3.5" />Add rule</button>
-      <button type="button" disabled={busy} onClick={runQuery}
+      <button type="button" disabled={busy || !recipe.rules.length} onClick={runQuery}
         className="h-8 flex-1 whitespace-nowrap rounded-md bg-brand px-1.5 text-[13px] font-medium text-white hover:bg-brand-dark disabled:opacity-40">Run rules</button>
     </div>
     <div className="space-y-1">{recipe.rules.map((rule, index) => <div key={index}
@@ -539,10 +579,11 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
         rules: current.rules.filter((_, item) => item !== index) }))} aria-label={`Remove rule ${index + 1}`}
         className="grid size-6 place-items-center rounded text-gray-400 hover:bg-gray-200 hover:text-red-700"><X className="size-3" /></button>
     </div>)}</div>
-    <label className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-xs text-gray-600">When rules overlap
+    {!!recipe.rules.length && <label className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-xs text-gray-600">When rules overlap
       <ChoiceMenu label="Conflict policy" value={recipe.conflict} onChange={(value) => setRecipe((current) => ({ ...current, conflict: value as typeof current.conflict }))}
         options={[{ value: "prompt", label: "Keep for review" }, { value: "first", label: "First rule wins" }, { value: "longer", label: "Longer passage" }, { value: "shorter", label: "Shorter passage" }, { value: "append", label: "Keep both" }]} />
-    </label>
+    </label>}
+    </div></details>
     {!!queryCount && <details open={historyOpen}
       className="group/history mt-2 overflow-hidden rounded-md border border-gray-200 text-xs text-gray-600">
       <summary onClick={(event) => { event.preventDefault(); setHistoryOpen((open) => !open); }} className="flex h-8 cursor-pointer list-none items-center gap-1.5 bg-gray-50 px-2 font-medium text-gray-800">
@@ -592,13 +633,17 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
   </> : <p className="p-2 text-xs text-gray-500">Open or create a workspace to search saved sources.</p>;
   const selection = labelScope === "source" ? sourceSelected : highlightSelected,
     selectedLabel = selection?.size === 1 ? [...selection][0] : null;
-  const filterCount = (sourceSelected?.size ?? 0) + (highlightFilter ? highlightSelected?.size ?? 0 : 0);
 
-  const newWorkspace = () => setCreateOpen(true);
-  const closeCreate = () => { setCreateOpen(false); if (returnToPicker.current) { returnToPicker.current = false; setOpen(true); } };
+  const newWorkspace = () => { setOpen(true); setCreateOpen(true); setSelectedDocuments([]); };
+  const closePicker = () => { setOpen(false); setCreateOpen(false); };
   const newFolder = () => { setFolderError(""); setFolderOpen(true); };
   const closeFolder = () => { setFolderOpen(false); if (returnToPicker.current) { returnToPicker.current = false; setOpen(true); } };
-  const closeNote = () => { if (file && noteDraft !== file.state.note) void act({ type: "note", markdown: noteDraft }); setNoteOpen(false); };
+  const cite = async (source: ResearchSource, passage?: ResearchEvidence) => {
+    if (!file) return;
+    try { const { href } = await getResearchCitation(file.document.id, source.id, passage?.receipt.evidence_id);
+      setMemoCitation((current) => ({ href, sequence: (current?.sequence ?? 0) + 1 })); setTab("memo");
+    } catch (reason) { setStatus(errorMessage(reason, "Could not add citation")); }
+  };
   const removalMessage = (() => { if (!removing) return "";
     if (removing.kind === "source") { const count = file?.state.sources[removing.id]?.passages?.count ?? 0;
       return `Remove “${removing.name}” and ${count} saved passage${count === 1 ? "" : "s"} from this workspace?`; }
@@ -614,63 +659,45 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
     <span className="min-w-0 truncate text-base font-semibold text-gray-900" title={fileTitle(file)}>{fileTitle(file)}</span>
     <ActionMenu label="Workspace options" className="shrink-0" items={[
     { label: "Rename", onSelect: () => setRenameOpen(true) },
-    { label: "Workspace note", onSelect: () => setNoteOpen(true) },
+    { label: "History", onSelect: () => setChangesOpen(true) },
     { label: "Open another", onSelect: () => setOpen(true) },
     { label: "New workspace", onSelect: () => { returnToPicker.current = false; newWorkspace(); } },
   ]} triggerClassName="grid size-8 place-items-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
     <Ellipsis className="size-4" aria-hidden="true" />
-  </ActionMenu></div> : <span className="text-base font-semibold text-gray-900">Workspaces</span>;
-  return <div ref={root} className="@container relative flex h-full min-h-0 flex-col overflow-hidden"
-    onDragStart={(event) => { if (event.dataTransfer.types.includes(RESEARCH_SOURCE_DRAG)) setSourceDragging(true); }}
-    onDragEnd={() => setSourceDragging(false)} onKeyDown={(event) => {
-    const overlay = (event.target as Element).closest("dialog,[role='dialog'],[role='alertdialog'],[role='menu']");
-    if (overlay && !overlay.contains(event.currentTarget)) return;
-    if (event.key === "Escape" && !event.defaultPrevented && (labelsOpen || searchOpen)) {
-      event.preventDefault(); event.stopPropagation(); if (labelsOpen) closeLabels(); else closeSearch(); }
-  }}>
+  </ActionMenu><ResearchWorkspaceViews file={file} selection={viewSelection} onChange={onChange} /></div> : <span className="text-base font-semibold text-gray-900">Workspaces</span>;
+  return <div className="@container relative flex h-full min-h-0 flex-col overflow-hidden">
     {rail === undefined ? <div className="flex h-10 shrink-0 items-center pb-2">{selector}</div>
       : rail ? createPortal(selector, rail) : null}
     {status && <span role="status" className="pointer-events-none absolute bottom-2 left-1/2 z-30 max-w-[calc(100%-1rem)] -translate-x-1/2 truncate rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-700 shadow-lg">{status}</span>}
-    {!file ? <div className="rounded-xl border border-gray-200 bg-white/70 p-4">
-      <div className="flex items-start gap-3"><FolderKanban className="mt-0.5 size-6 shrink-0 text-brand" aria-hidden="true" />
-        <div className="min-w-0"><h2 className="text-base font-semibold text-gray-900">Workspace</h2>
-        <p className="mt-0.5 text-sm leading-5 text-gray-600">Keep sources, passages, labels, searches, and notes together.</p>
-        <div className="mt-3 flex gap-2">
+    {file && <ResearchChanges file={file} mutations={commit} historyOpen={changesOpen} onCloseHistory={() => setChangesOpen(false)} />}
+    {!file ? <div className="py-4">
+        <p className="text-sm leading-5 text-gray-600">Keep sources, passages, labels, searches, and notes together.</p>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => setOpen(true)} className="h-9 rounded-md bg-gray-900 px-3 text-sm font-medium text-white hover:bg-gray-700">Open</button>
-          <button type="button" onClick={() => { returnToPicker.current = false; newWorkspace(); }} className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 hover:bg-gray-50">New workspace</button>
-        </div></div>
-      </div>
-    </div> : <>
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-gray-200 pb-3">
-        <button ref={labelsButton} type="button" aria-expanded={labelsOpen} onClick={() => { setLabelsOpen(!labelsOpen); setSearchOpen(false); }}
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium hover:bg-gray-50">
-          <Tags className="size-4" aria-hidden="true" />Labels{filterCount > 0 ? ` (${filterCount})` : ""}
-        </button>
-        <button ref={searchButton} type="button" onClick={() => { setSearchOpen(true); setLabelsOpen(false); }}
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium hover:bg-gray-50">
-          <Search className="size-4" aria-hidden="true" />Search Saved sources
-        </button>
-      </div>
-      <div className="relative flex min-h-0 flex-1 gap-4 pt-3">
+          <button type="button" onClick={() => { returnToPicker.current = false; newWorkspace(); }} className="ms-auto h-9 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 hover:bg-gray-50">New workspace</button>
+        </div>
+    </div> : <Tabs value={tab} onValueChange={setTab} ariaLabel="Workspace views" variant="subtab"
+      className="min-h-0 flex-1" options={[
+        { value: "labels", label: "Labels" },
+        { value: "search", label: "Search" }, { value: "memo", label: "Memo" }]}>
+      <div className={`relative min-h-0 flex-1 overflow-y-auto pt-2 ${noteOpen ? "hidden" : "block"}`}>
         {labelsOpen && <aside aria-label="Label organizer"
-          className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-y-auto bg-app-surface py-3 @[44rem]:static @[44rem]:w-64 @[44rem]:shrink-0 @[44rem]:border-e @[44rem]:border-gray-200 @[44rem]:pe-3">
-          <div className="mb-3 flex items-center gap-2">
-            <h2 className="flex-1 text-base font-semibold">Labels</h2>
-            <button type="button" disabled={busy || !selectedLabel || !labels[selectedLabel]}
-              onClick={() => selectedLabel && setRemoving({ kind: "label", id: selectedLabel, name: labels[selectedLabel].name })}
-              aria-label={labelScope === "source" ? "Delete selected label" : "Delete selected highlight category"}
-              className="grid size-8 place-items-center rounded hover:bg-gray-100 disabled:opacity-30"><Trash2 className="size-4" /></button>
-            <button type="button" aria-label="Close labels" onClick={closeLabels}
-              className="grid size-8 place-items-center rounded hover:bg-gray-100"><X className="size-4" /></button>
-          </div>
-          <div role="group" aria-label="Label scope" className="mb-3 grid grid-cols-2 gap-1 rounded-md bg-gray-100 p-1">
+          className="mb-3 border-b border-gray-200 pb-3">
+          <div className="mb-2 flex items-center gap-1.5">
+          <div role="group" aria-label="Label scope" className="grid flex-1 grid-cols-2 gap-1 rounded-md bg-gray-100 p-0.5">
             {(["source", "highlight"] as const).map((scope) => <button key={scope} type="button" aria-pressed={labelScope === scope}
               onClick={() => setLabelScope(scope)} className={`h-8 rounded text-sm font-medium ${labelScope === scope ? "bg-white shadow-sm" : "text-gray-600"}`}>
               {scope === "source" ? "Sources" : "Passages"}</button>)}
+          </div><Button variant="outline" size="icon-sm" disabled={busy || !selectedLabel || !labels[selectedLabel]}
+            onClick={() => selectedLabel && setRemoving({ kind: "label", id: selectedLabel, name: labels[selectedLabel].name })}
+            aria-label={labelScope === "source" ? "Delete selected label" : "Delete selected highlight category"}><Trash2 aria-hidden="true" /></Button>
           </div>
           {labelPanel(labelScope)}
         </aside>}
-        <section aria-label="Saved sources" className={`min-w-0 flex-1 overflow-y-auto ${searchOpen ? "hidden" : labelsOpen && !sourceDragging ? "invisible @[44rem]:visible" : ""}`}>
+        {searchOpen && <section aria-label="Search Saved sources" className="mb-3 min-w-0">
+          {searchPanel()}
+        </section>}
+        <section aria-label="Saved sources" className="min-w-0">
           {matches && <div className="mb-3 flex items-center justify-between gap-2 text-sm"><span>Search matches</span>
             <button type="button" onClick={() => { setMatches(null); setSearchResult(null); }} className="rounded border border-gray-300 px-2 py-1 hover:bg-gray-50">Clear search matches</button></div>}
           {searchResult && <div className="mb-3 space-y-2 text-sm text-gray-600">
@@ -681,15 +708,18 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
           </div>}
           {listPanel()}
         </section>
-        {searchOpen && <section aria-label="Search Saved sources" className="min-w-0 flex-1 overflow-y-auto">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold">Search Saved sources</h2>
-            <button type="button" onClick={closeSearch} className="shrink-0 rounded-md border border-gray-300 px-2 py-1.5 text-sm font-medium hover:bg-gray-50">Back to sources</button>
-          </div>
-          {searchPanel()}
-        </section>}
       </div>
-    </>}
+    <div className={`${noteOpen ? "flex" : "hidden"} min-h-0 flex-1 flex-col`}><Suspense fallback={<p role="status" className="py-3 text-sm text-gray-500">Opening memo…</p>}>
+      <ResearchMemoPane file={file} mutations={commit} citation={memoCitation}
+        onOpenCitation={(href) => {
+          const params = new URLSearchParams(href.slice(href.indexOf("?") + 1)), source = file.state.sources[params.get("research_source") ?? ""];
+          if (source && (source.reference.kind === "document" || onReadSource)) void readSource(source, params.get("locator") ?? undefined, params.get("evidence_id") ?? undefined);
+          else if (href.startsWith("/library?")) { const citation = parseMemoCitation(href); if (citation) setReading({ citation }); }
+          else window.open(href, "_blank", "noopener,noreferrer");
+        }} />
+    </Suspense></div>
+    </Tabs>}
+    {reading && <ResearchCitationViewer {...reading} onClose={() => setReading(null)} />}
     <Modal open={ruleEditor !== null} onClose={closeRule} size="sm" className="!h-fit max-h-[calc(100dvh-2rem)] [&_.modal-scroll-body]:flex-none"
       breadcrumbs={["Search Saved sources", "Capture rule"]}
       cancelAction={{ label: "Done", onClick: closeRule }}
@@ -719,45 +749,31 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
         </label>}
       </div>}
     </Modal>
-    <Modal open={open} onClose={() => setOpen(false)} size="lg" className="!h-[min(30rem,calc(100dvh-2rem))]" breadcrumbs={["Library", "Workspaces"]}
-      cancelAction={{ label: "Close", onClick: () => setOpen(false) }} primaryAction={{ label: busy ? "Opening..." : "Open",
+    <Modal open={open} onClose={closePicker} size="lg" className="!h-[min(30rem,calc(100dvh-2rem))]" breadcrumbs={["Workspaces"]}
+      footerStatus={status && <span role="alert" className="text-sm text-red-700">{status}</span>}
+      cancelAction={{ label: "Close", onClick: closePicker }} primaryAction={{ label: busy ? "Opening..." : "Open",
         onClick: () => { const document = selectedDocuments.find(isResearchDocument); if (document) void choose(() => getResearchFile(document.id)); },
-        disabled: busy || !selectedDocuments.some(isResearchDocument) }}>
+        disabled: busy || createOpen || !selectedDocuments.some(isResearchDocument) }}>
       <div className="flex h-full min-h-0 flex-col gap-2">
       <div className="flex flex-wrap items-center gap-1.5">
-        <button type="button" onClick={() => { returnToPicker.current = true; setOpen(false); newWorkspace(); }}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-gray-900 px-2.5 text-sm font-medium text-white hover:bg-gray-700"><Plus className="size-3.5" />New workspace</button>
         <button type="button" disabled={!projectId && "projectId" in openLocation && !openLocation.projectId}
           onClick={() => { returnToPicker.current = true; setOpen(false); newFolder(); }}
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"><FolderPlus className="size-3.5" />New folder</button>
         <button type="button" onClick={() => { returnToPicker.current = true; setOpen(false); setProjectOpen(true); }}
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"><FolderKanban className="size-3.5" />New project</button>
+        <button type="button" disabled={createOpen || (!projectId && "projectId" in openLocation && !openLocation.projectId)} onClick={newWorkspace}
+          className="ms-auto inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"><FilePlus2 aria-hidden className="size-3.5" />New workspace</button>
       </div>
-      <FileDirectory key={directoryKey} selectedDocuments={selectedDocuments} onChange={(items) => setSelectedDocuments(items.slice(-1))}
-        showTabs={!projectId} projectId={projectId} initialTab={projectId ? "projects" : "files"}
+      <FileDirectory key={directoryKey} selectedDocuments={selectedDocuments} onChange={setSelectedDocuments}
+        showTabs={!projectId} projectId={projectId} initialLocation={openLocation}
         tabs={[["files", "Library"], ["projects", "Projects"]]} noun="workspaces" multiple={false}
-        documentFilter={isResearchDocument} onLocationChange={setOpenLocation} />
+        documentFilter={isResearchDocument} onLocationChange={setOpenLocation}
+        newDocument={createOpen ? { label: "Workspace name", filename: "Workspace.research.md",
+          onCreate: async (title, location, folderId) => (await createResearchFile({ title,
+            projectId: "projectId" in location ? location.projectId : undefined,
+            ...(folderId ? { folderId } : {}) })).document,
+          onCancel: () => setCreateOpen(false) } : undefined} />
       </div>
-    </Modal>
-    <Modal open={createOpen} onClose={closeCreate} size="sm" breadcrumbs={["Workspaces", "New workspace"]}
-      className="!h-fit [&_.modal-scroll-body]:flex-none" cancelAction={{ label: "Cancel", onClick: closeCreate }}
-      primaryAction={{ label: busy ? "Creating..." : "Create workspace", type: "submit", form: "research-create",
-        disabled: busy || ("projectId" in openLocation && !openLocation.projectId) }}>
-      <form id="research-create" onSubmit={create} className="space-y-3 pb-5">
-        <label className="grid gap-1 text-xs font-medium text-gray-700">Workspace name
-          <input required autoFocus name="title" placeholder="e.g. Duty of care" className="h-9 rounded-md border border-gray-300 px-2 text-sm font-normal text-gray-900" />
-        </label>
-        <div role="group" aria-label="Workspace location" className="grid grid-cols-2 rounded-md bg-gray-100 p-1 text-sm font-medium">
-          {(["Library", "Project"] as const).map((label) => { const selected = label === "Project" ? "projectId" in openLocation : "library" in openLocation;
-            return <button key={label} type="button" aria-pressed={selected} onClick={() => { setCreateFolder(null); setOpenLocation(label === "Project"
-              ? { projectId: null } : { library: "files" }); }} className={`h-8 rounded ${selected ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"}`}>{label}</button>; })}
-        </div>
-        {"projectId" in openLocation && !openLocation.projectId ? <ProjectChoiceList value={null}
-          onChange={(selectedProject) => setOpenLocation({ projectId: selectedProject })} />
-          : <div className="h-40"><FolderBrowser key={createProjectId ?? "library"} list={createDirectory.list} createFolder={createDirectory.createFolder}
-            rootLabel={createProjectId ? "Project" : "Library"} hideRoot={!createProjectId} onSelect={setCreateFolder}
-            onBack={createProjectId ? () => { setCreateFolder(null); setOpenLocation({ projectId: null }); } : undefined} /></div>}
-      </form>
     </Modal>
     <Modal open={renameOpen} onClose={() => setRenameOpen(false)} size="sm" className="!h-fit [&_.modal-scroll-body]:flex-none"
       breadcrumbs={["Workspace", "Rename"]} cancelAction={{ label: "Cancel", onClick: () => setRenameOpen(false) }}
@@ -767,11 +783,6 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
           <input required autoFocus name="title" defaultValue={file ? fileTitle(file) : ""} className="h-9 rounded-md border border-gray-300 px-2 text-sm font-normal text-gray-900" />
         </label>
       </form>
-    </Modal>
-    <Modal open={noteOpen} onClose={closeNote} size="sm" className="!h-fit [&_.modal-scroll-body]:flex-none"
-      breadcrumbs={["Workspace", "Note"]} cancelAction={{ label: "Done", onClick: closeNote }}>
-      <textarea autoFocus value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} aria-label="Workspace note"
-        placeholder="Notes about this workspace" className="mb-5 min-h-40 w-full resize-y rounded-md border border-gray-300 p-2 text-sm leading-5" />
     </Modal>
     <Modal open={folderOpen} onClose={closeFolder} size="sm" className="!h-fit [&_.modal-scroll-body]:flex-none"
       breadcrumbs={["projectId" in openLocation ? "Projects" : "Library", "New folder"]}
@@ -786,7 +797,8 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
       </form>
     </Modal>
     <NewProjectModal open={projectOpen} onClose={() => { setProjectOpen(false); if (returnToPicker.current) {
-      returnToPicker.current = false; setOpen(true); } }} onCreated={() => {
+      returnToPicker.current = false; setOpen(true); } }} onCreated={(project) => {
+      setOpenLocation({ projectId: project.id });
       setDirectoryKey((value) => value + 1); setProjectOpen(false); setOpen(true); returnToPicker.current = false; }} />
     <ConfirmPopup open={!!removing} title={removing?.kind === "label" ? "Delete label?" : removing?.kind === "source" ? "Remove source?" : "Delete passage?"}
       message={removalMessage} confirmLabel={removing?.kind === "source" ? "Remove" : "Delete"}

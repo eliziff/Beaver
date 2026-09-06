@@ -1,5 +1,8 @@
 .overflow-y-auto,
 .overflow-auto,
+[class*="\:overflow-y-auto"],
+[class*="\:overflow-auto"],
+textarea,
 .modal-scroll-body {
     scrollbar-gutter: stable;
 }
@@ -157,7 +160,7 @@
     .court-record-layout {
         grid-template-columns: minmax(0, 1fr) 19rem;
     }
-    .court-record-build-panel {
+    .court-record-layout > .court-record-build-panel {
         align-self: start;
         position: sticky;
         top: 1rem;
@@ -168,7 +171,7 @@
 }
 .chat-input-model {
     flex: none;
-    width: 13rem;
+    width: max-content;
     max-width: calc(100% - 2.25rem);
 }
 @container (max-width: 560px) {

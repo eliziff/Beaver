@@ -1,12 +1,13 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { ApiKeyState } from "@/app/lib/beaverApi";
+import type { ApiKeyState } from "@/app/lib/api/account";
 import { ModelPicker, type ModelOption } from "./ModelPicker";
 
 const models: ModelOption[] = [
     { id: "codex:gpt-5.6-terra", label: "GPT-5.6 Terra", group: "Codex" },
     { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", group: "Anthropic" },
+    { id: "claude-p:claude-sonnet-4-6", label: "Claude Sonnet 4.6", group: "Claude Code" },
     { id: "gemini-3.5-flash", label: "Gemini 3.5 Flash", group: "Google" },
     { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro", group: "DeepSeek" },
     { id: "meta/muse-spark-1.1", label: "Muse Spark 1.1", group: "Meta" },
@@ -39,7 +40,11 @@ describe("ModelPicker", () => {
         expect(
             within(options).getByRole("button", { name: "GPT-5.6 Terra" }),
         ).toHaveAttribute("aria-pressed", "true");
+        await userEvent.click(screen.getByRole("tab", { name: "Anthropic" }));
         within(options).getByRole("button", { name: "Claude Sonnet 4.6" });
+        await userEvent.click(screen.getByRole("tab", { name: "Claude Code" }));
+        within(options).getByRole("button", { name: "Claude Sonnet 4.6" });
+        expect(within(options).queryByRole("button", { name: "GPT-5.6 Terra" })).toBeNull();
         expect(within(options).queryByText(/Gemini|DeepSeek|Muse/u)).toBeNull();
         expect(options).not.toHaveTextContent("API key missing");
     });

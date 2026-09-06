@@ -3,17 +3,40 @@ import { z } from "zod";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { DocumentRecord, DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
-import { parseResourceReference, resourceReference } from "./resourceReferences";
-import { legalEvidenceSourceReference, type LegalEvidenceReceipt,
+import { parseResourceReference, resourceReference, legalSourceResource } from "./resourceReferences";
+import { legalEvidenceSourceReference, legalEvidenceResourceReference, type LegalEvidenceReceipt,
   storedLegalEvidenceReceipt, storedLegalResearchQueryReceipt,
   type LegalResearchQueryReceipt } from "./chat/legalEvidence";
-import type { LegalSourceReference } from "./legalSources";
+import { legalSourceReferenceSchema, type LegalSourceReference } from "./legalSources";
 import { jsonRecord as record } from "./value";
+import { recordResearchOperation, researchEvidenceSnapshot,
+  type ResearchOperationContext } from "./researchProvenance";
+import { resolveResearchSelection } from "./researchSelection";
+import { RESEARCH_HISTORY_PART, readResearchHistory, researchChangeCounts, researchChangeSummary,
+  researchChangeSummarySchema, researchStateChanges, assertResearchChangeBase,
+  type ResearchChange, type ResearchChangeField, type ResearchChangeSummary } from "./researchHistory";
+export { readResearchHistory } from "./researchHistory";
 
 export type ResearchLabel = { id: string; name: string; parentId: string | null;
-  color: string | null; order: number; scope: "source" | "highlight" };
+  color: string | null; order: number; scope: "source" | "highlight";
+  definition?: string };
 export type ResearchPartReference = { count: number; sha256: string };
-export type ResearchSource = { id: string; reference: LegalSourceReference;
+export type ResearchSourceReference = LegalSourceReference | {
+  provider: "library"; kind: "document"; id: string; versionId: string;
+  title?: string | null; citation?: string | null; date?: string | null;
+  alternateCitation?: string | null;
+  collection?: string | null; language?: "en" | "fr"; url?: string | null;
+  family?: never; part?: never;
+};
+const source = z.union([legalSourceReferenceSchema, z.object({
+  provider: z.literal("library"), kind: z.literal("document"), id: z.string().min(1).max(200),
+  versionId: z.string().min(1).max(200), title: z.string().max(2_000).nullable().optional(),
+  citation: z.string().max(2_000).nullable().optional(), date: z.string().max(200).nullable().optional(),
+  alternateCitation: z.string().max(2_000).nullable().optional(),
+  collection: z.string().max(200).nullable().optional(), language: z.enum(["en", "fr"]).optional(),
+  url: z.string().max(4_000).nullable().optional(),
+}).strict()]);
+export type ResearchSource = { id: string; reference: ResearchSourceReference;
   labelIds: string[]; badge: string; badgeColor?: string; note: string;
   passages: (ResearchPartReference & { labelCounts: Record<string, number>;
     unlabelledCount: number }) | null };
@@ -22,7 +45,7 @@ export type ResearchEvidence = { receipt: LegalEvidenceReceipt; sourceId: string
 export type ResearchQueryReceipt = LegalResearchQueryReceipt & { sourceIds: string[];
   matchedSourceIds: string[]; evidenceIds: string[]; failures: Array<{ sourceId: string; code: string }>;
   slots: Record<string, string[]>; sourceFingerprints?: Record<string, string[]>;
-  sourceReferences?: Record<string, LegalSourceReference>;
+  sourceReferences?: Record<string, ResearchSourceReference>;
   labelPaths?: Record<string, string> };
 export const researchQueryReceipt = (receipt: LegalResearchQueryReceipt): ResearchQueryReceipt => ({
   sourceIds: [], matchedSourceIds: [], evidenceIds: receipt.results.flatMap((item) =>
@@ -30,27 +53,23 @@ export const researchQueryReceipt = (receipt: LegalResearchQueryReceipt): Resear
 });
 export type ResearchFileState = { schemaVersion: "beaver.research.v2";
   labels: Record<string, ResearchLabel>; sources: Record<string, ResearchSource>;
-  queries: ResearchPartReference | null; note: string };
-export type ResearchFile = { document: DocumentRecord & { filename: string };
+  queries: ResearchPartReference | null; note: string; tables?: string[]; chats?: string[];
+  history?: ResearchPartReference; proposals?: ResearchChangeSummary[] };
+export type ResearchFile = { document: DocumentRecord;
   versionId: string; workingRevision: number; state: ResearchFileState };
 export type ResearchPageItem = { kind: "passage"; index: number; value: ResearchEvidence }
-  | { kind: "query"; index: number; value: ResearchQueryReceipt };
+  | { kind: "query"; index: number; value: ResearchQueryReceipt }
+  | { kind: "change"; index: number; value: ResearchChange };
 
 const uuid = z.string().uuid(), text = (max: number) => z.string().trim().min(1).max(max);
 const ids = z.array(uuid).max(10_000).transform((values) => [...new Set(values)]);
-const source = z.object({ provider: text(100), family: text(1_000).optional(), id: text(500),
-  part: text(1_000).optional(), kind: z.enum(["case", "legislation", "journal", "hansard"]),
-  title: text(1_000).nullable().optional(), citation: text(1_000).nullable().optional(),
-  alternateCitation: text(1_000).nullable().optional(), date: text(1_000).nullable().optional(),
-  collection: text(1_000).nullable().optional(), language: z.enum(["en", "fr"]).optional(),
-  url: z.string().url().max(4_000).nullable().optional() }).strict();
 const locator = z.object({ kind: z.enum(["paragraph", "section", "page", "footnote"]),
   value: text(500), endValue: text(500).optional() }).strict();
-export const researchFileActionSchema = z.discriminatedUnion("type", [
+const researchMutationSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("label"), id: uuid.optional(), name: text(200),
     parentId: uuid.nullable().optional(), color: z.string().regex(/^#[a-f0-9]{6}$/iu)
       .nullable().optional(), order: z.number().min(-1_000_000).max(1_000_000).optional(),
-    scope: z.enum(["source", "highlight"]).optional() }).strict(),
+    scope: z.enum(["source", "highlight"]).optional(), definition: z.string().trim().max(10_000).optional() }).strict(),
   z.object({ type: z.literal("remove"), kind: z.enum(["label", "source", "evidence"]),
     id: text(200), sourceId: uuid.optional() }).strict(),
   z.object({ type: z.literal("source"), reference: source, labelIds: ids.optional(),
@@ -62,7 +81,11 @@ export const researchFileActionSchema = z.discriminatedUnion("type", [
     note: z.string().max(50_000).optional() }).strict(),
   z.object({ type: z.literal("passage"), sourceId: uuid, locator,
     quote: text(50_000) }).strict(),
-  z.object({ type: z.literal("note"), markdown: z.string().max(250_000) }).strict(),
+  z.object({ type: z.literal("label-selection"), target: z.enum(["sources", "passages"]),
+    sourceIds: ids.optional(), evidenceIds: z.array(text(200)).max(100_000).optional(),
+    labelIds: ids.optional(), unlabelled: z.boolean().optional(), assign: ids,
+    mode: z.enum(["add", "remove", "replace"]) }).strict(),
+  z.object({ type: z.literal("note"), markdown: z.string().max(250_000), expectedMarkdown: z.string().max(250_000).optional() }).strict(),
 ]).superRefine((action, context) => {
   if (action.type === "annotate" && action.kind === "evidence" &&
       (action.badge !== undefined || action.badgeColor !== undefined))
@@ -71,18 +94,25 @@ export const researchFileActionSchema = z.discriminatedUnion("type", [
       action.kind === "evidence" && !action.sourceId)
     context.addIssue({ code: "custom", message: "Evidence changes require sourceId" });
 });
+export const researchFileActionSchema = z.union([researchMutationSchema,
+  z.object({ type: z.literal("batch"), title: text(200), propose: z.boolean().optional(),
+    actions: z.array(researchMutationSchema.refine((action) =>
+      action.type === "label" || action.type === "annotate" || action.type === "label-selection" ||
+      action.type === "remove" && action.kind === "label", "Batch changes organize labels and assignments"))
+      .min(1).max(100) }).strict(),
+  z.object({ type: z.enum(["accept", "reject", "undo"]), changeId: uuid }).strict(),
+]);
 export type PublicResearchFileAction = z.infer<typeof researchFileActionSchema>;
 export type ResearchFileAction = PublicResearchFileAction | { type: "merge";
   evidence?: LegalEvidenceReceipt[]; queries?: ResearchQueryReceipt[];
-  sources?: LegalSourceReference[]; labels?: Record<string, string[]> };
+  sources?: ResearchSourceReference[]; labels?: Record<string, string[]>; tables?: string[]; chats?: string[] };
 
 const SOURCE_PART = (id: string) => `source.${id}.json`, QUERIES_PART = "queries.json";
-export const researchSourceKey = (value: LegalSourceReference) => JSON.stringify(
-  [value.provider, value.family ?? null, value.id, value.part ?? null, value.kind,
-    value.collection === value.provider ? null : value.collection ?? null, value.language ?? "en"]);
-export const researchLabelPath = (state: ResearchFileState, id: string) => { const names: string[] = [];
-  for (let next: ResearchLabel | undefined = state.labels[id]; next && names.length < 3;
-    next = next.parentId ? state.labels[next.parentId] : undefined) names.unshift(next.name);
+export const researchSourceKey = (value: ResearchSourceReference) => value.kind === "document"
+  ? resourceReference.document(value.id, value.versionId) : legalSourceResource(value);
+export const researchLabelPath = (state: ResearchFileState, id: string) => { const names: string[] = [], seen = new Set<string>();
+  for (let next: ResearchLabel | undefined = state.labels[id]; next && !seen.has(next.id);
+    next = next.parentId ? state.labels[next.parentId] : undefined) { names.unshift(next.name); seen.add(next.id); }
   return names.join(" / "); };
 const queryLabelIds = (query: ResearchQueryReceipt) => new Set([
   ...(Array.isArray(query.input.label_ids) ? query.input.label_ids : []),
@@ -92,12 +122,13 @@ const queryLabelIds = (query: ResearchQueryReceipt) => new Set([
 ].filter((id): id is string => typeof id === "string"));
 const sourceTuple = (value: string) => { try { const parsed: unknown = JSON.parse(value);
   return Array.isArray(parsed) ? parsed : null; } catch { return null; } };
-export const researchSourceResource = (source: LegalSourceReference) =>
-  resourceReference.source(source.provider, source.provider === "a2aj" ? JSON.stringify([
-    source.id, source.kind === "legislation" ? "laws" : "cases",
-    source.collection ?? "", source.language ?? "en",
-  ]) : JSON.stringify([source.id, source.kind, source.family ?? "", source.part ?? "",
-    source.collection ?? "", source.language ?? "en"]));
+export const researchSourceResource = researchSourceKey;
+export function researchReferenceFromEvidence(receipt: LegalEvidenceReceipt): ResearchSourceReference | null {
+  const resource = legalEvidenceResourceReference(receipt), parsed = resource && parseResourceReference(resource);
+  return parsed && parsed.kind === "document" ? { provider: "library", kind: "document",
+    id: parsed.documentId, versionId: parsed.versionId, title: receipt.name ?? receipt.citation }
+    : legalEvidenceSourceReference(receipt);
+}
 export const researchSourceFromResource = (value: string): LegalSourceReference | null => {
   const resource = parseResourceReference(value); if (resource?.kind !== "source") return null;
   const { provider, sourceId } = resource, tuple = sourceTuple(sourceId), kind = tuple?.[1];
@@ -148,7 +179,7 @@ const checkedLabels = (state: ResearchFileState, values: string[], scope?: Resea
     throw new Error("Label not found in this scope.");
   return [...new Set(values)];
 };
-const addSource = (state: ResearchFileState, reference: LegalSourceReference,
+const addSource = (state: ResearchFileState, reference: ResearchSourceReference,
   index?: Map<string, ResearchSource>) => {
   const parsed = source.safeParse(reference); if (!parsed.success) throw new Error("Invalid research source.");
   const key = researchSourceKey(parsed.data), found = index?.get(key) ?? (!index
@@ -167,6 +198,10 @@ function decodeResearchFileState(value: unknown): ResearchFileState | null {
   const state = record(value), labels = record(state?.labels), sources = record(state?.sources);
   if (state?.schemaVersion !== "beaver.research.v2" || !labels || !sources ||
       !(state.queries === null || validPart(state.queries, 10_000)) ||
+      (state.tables !== undefined && !validIds(state.tables)) ||
+      (state.chats !== undefined && !validIds(state.chats)) ||
+      (state.history !== undefined && !validPart(state.history, 10_000)) ||
+      (state.proposals !== undefined && !researchChangeSummarySchema.array().max(100).safeParse(state.proposals).success) ||
       typeof state.note !== "string" || state.note.length > 250_000 ||
       Object.keys(labels).length > 10_000 || Object.keys(sources).length > 10_000) return null;
   const validLabels = (value: unknown) => validIds(value) &&
@@ -177,20 +212,24 @@ function decodeResearchFileState(value: unknown): ResearchFileState | null {
         typeof item.parentId === "string" && uuid.safeParse(item.parentId).success) ||
       !(item.color === null || typeof item.color === "string" && /^#[a-f0-9]{6}$/iu.test(item.color)) ||
       !Number.isInteger(item.order) || Number(item.order) < 0 || Number(item.order) > 1_000_000 ||
+      (item.definition !== undefined && (typeof item.definition !== "string" || item.definition.length > 10_000)) ||
       (item.scope !== "source" && item.scope !== "highlight"); })) return null;
   if (Object.values(labels).some((value) => { const parent = record(value)?.parentId;
     return typeof parent === "string" && (!labels[parent] ||
       record(labels[parent])?.scope !== record(value)?.scope); })) return null;
+  const visitedLabels = new Set<string>();
   for (const id of Object.keys(labels)) { const seen = new Set<string>(); let next: string | null = id;
-    while (next) { if (seen.has(next) || seen.size === 3) return null; seen.add(next);
-      next = record(labels[next])?.parentId as string | null; } }
+    while (next && !visitedLabels.has(next)) { if (seen.has(next)) return null; seen.add(next);
+      next = record(labels[next])?.parentId as string | null; }
+    seen.forEach((labelId) => visitedLabels.add(labelId)); }
   if (Object.entries(sources).some(([id, value]) => { const item = record(value); return !item ||
       item.id !== id || !uuid.safeParse(id).success || !source.safeParse(item.reference).success ||
       !validLabels(item.labelIds) || (item.labelIds as string[]).some((labelId) =>
         record(labels[labelId])?.scope !== "source") || typeof item.badge !== "string" ||
       item.badge.length > 19 || !(item.badgeColor === undefined || typeof item.badgeColor === "string" &&
         /^#[a-f0-9]{6}$/iu.test(item.badgeColor)) || typeof item.note !== "string" ||
-      item.note.length > 50_000 || !(item.passages === null || validPassages(item.passages, labels));
+      item.note.length > 50_000 ||
+      !(item.passages === null || validPassages(item.passages, labels));
     })) return null;
   if (Object.values(sources).reduce<number>((sum, value) =>
     sum + Number(record(record(value)?.passages)?.count ?? 0), 0) > 100_000) return null;
@@ -343,9 +382,13 @@ export async function readResearchQueries(documents: DocumentStore, scope: Appli
 }
 
 export async function pageResearchItems(documents: DocumentStore, scope: ApplicationScope,
-  file: ResearchFile, kind: "passages" | "queries", offset = 0, limit = 50,
+  file: ResearchFile, kind: "passages" | "queries" | "history", offset = 0, limit = 50,
   sourceIds?: string[]) {
   offset = Math.max(0, Math.trunc(offset)); limit = Math.max(1, Math.min(200, Math.trunc(limit)));
+  if (kind === "history") { const values = (await readResearchHistory(documents, scope, file)).reverse(), total = values.length;
+    return { items: values.slice(offset, offset + limit).map((value, index): ResearchPageItem =>
+      ({ kind: "change", index: offset + index, value })), total,
+      nextOffset: offset + limit < total ? offset + limit : null }; }
   if (kind === "queries") { const total = file.state.queries?.count ?? 0,
     values = offset < total ? (await readResearchQueries(documents, scope, file)).reverse() : [];
     return { items: values.slice(offset, offset + limit).map((value, index): ResearchPageItem =>
@@ -381,19 +424,15 @@ const applyLabel = (state: ResearchFileState, action: Extract<PublicResearchFile
   if (previous && previous.scope !== scope) throw new Error("A label's scope cannot change.");
   if (parentId && get(state.labels, parentId, "Parent label").scope !== scope)
     throw new Error("Parent labels must share a scope.");
-  let depth = 1;
+  const ancestors = new Set<string>();
   for (let parent = parentId; parent; parent = state.labels[parent]?.parentId) {
-    if (parent === id) throw new Error("A label cannot contain itself.");
-    if (++depth > 3) throw new Error("Labels can be nested three levels deep.");
+    if (parent === id || ancestors.has(parent)) throw new Error("A label cannot contain itself.");
+    ancestors.add(parent);
   }
-  let height = 1;
-  if (previous) for (const label of Object.values(state.labels)) { let parent = label.parentId, level = 1;
-    while (parent && parent !== id && level < 3) { parent = state.labels[parent]?.parentId; level++; }
-    if (parent === id) height = Math.max(height, level + 1); }
-  if (depth + height > 4) throw new Error("Labels can be nested three levels deep.");
   const siblings = Object.values(state.labels).filter((label) => label.parentId === parentId &&
     label.scope === scope && label.id !== id);
   state.labels[id] = { id, name: action.name, parentId, scope,
+    definition: action.definition ?? previous?.definition ?? "",
     color: action.color === undefined ? previous?.color ?? null : action.color,
     order: action.order ?? previous?.order ?? Math.max(-1, ...siblings.map(({ order }) => order)) + 1 };
   const normalize = (parent: string | null) => Object.values(state.labels)
@@ -406,19 +445,26 @@ const applyLabel = (state: ResearchFileState, action: Extract<PublicResearchFile
 
 export async function saveResearchFile(documents: DocumentStore, scope: ApplicationScope,
   documentId: string, expectedVersionId: string, expectedWorkingRevision: number,
-  action: ResearchFileAction, assistant?: { turnVersionId?: string; turnId?: string }) {
+  action: ResearchFileAction, assistant?: { turnVersionId?: string; turnId?: string },
+  context?: ResearchOperationContext) {
   const current = await readResearchFile(documents, scope, documentId);
   return !current || current.versionId !== expectedVersionId ||
     current.workingRevision !== expectedWorkingRevision ? null
-    : commitResearchFile(documents, scope, current, action, assistant);
+    : commitResearchFile(documents, scope, current, action, assistant, context);
 }
 
 export async function commitResearchFile(documents: DocumentStore, scope: ApplicationScope,
   current: ResearchFile, raw: ResearchFileAction,
-  assistant?: { turnVersionId?: string; turnId?: string }): Promise<ResearchFile | null> {
-  const state: ResearchFileState = { ...current.state }, action = raw.type === "merge"
-    ? raw : researchFileActionSchema.parse(raw), loaded = new Map<string, Record<string, ResearchEvidence>>(),
+  assistant?: { turnVersionId?: string; turnId?: string },
+  context?: ResearchOperationContext): Promise<ResearchFile | null> {
+  let state: ResearchFileState = { ...current.state };
+  const request = raw.type === "merge" ? raw : researchFileActionSchema.parse(raw),
+    executor = context?.executor ?? (assistant ? "assistant" : "human"),
+    actions = request.type === "batch" ? request.actions :
+      request.type === "accept" || request.type === "reject" || request.type === "undo" ? [] : [request],
+    loaded = new Map<string, Record<string, ResearchEvidence>>(), originalEvidence: Record<string, ResearchEvidence> = {},
     puts: Array<{ name: string; bytes: Buffer; expectedSha256: string }> = [], removes: string[] = [];
+  const evidenceBefore: Record<string, ReturnType<typeof researchEvidenceSnapshot>> = {};
   const ownLabels = () => state.labels === current.state.labels
     ? state.labels = structuredClone(state.labels) : state.labels;
   const ownSources = () => state.sources === current.state.sources
@@ -427,10 +473,10 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     if (item === current.state.sources[id]) sources[id] = { ...item, labelIds: [...item.labelIds] };
     return sources[id]; };
   let passageDelta = 0;
-  if (action.type === "merge" && ((action.sources?.length ?? 0) > 10_000 ||
-      (action.evidence?.length ?? 0) > 100_000 || (action.queries?.length ?? 0) > 10_000 ||
-      action.sources?.some((value) => !source.safeParse(value).success) ||
-      action.evidence?.some((value) => !storedLegalEvidenceReceipt(value))))
+  if (request.type === "merge" && ((request.sources?.length ?? 0) > 10_000 ||
+      (request.evidence?.length ?? 0) > 100_000 || (request.queries?.length ?? 0) > 10_000 ||
+      request.sources?.some((value) => !source.safeParse(value).success) ||
+      request.evidence?.some((value) => !storedLegalEvidenceReceipt(value))))
     throw new ApplicationError(400, "Research file limits exceeded");
   let queries: Record<string, ResearchQueryReceipt> | undefined;
   const loadQueries = async () => queries ??= Object.fromEntries((await readResearchQueries(
@@ -440,34 +486,76 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     for (let at = 0; at < unique.length; at += 100) { const batch = unique.slice(at, at + 100),
       existing = batch.filter((id) => current.state.sources[id]), parts =
         await readResearchEvidenceParts(documents, scope, current, existing);
-      batch.forEach((id) => loaded.set(id, parts.get(id) ?? {})); }
+      batch.forEach((id) => { const evidence = parts.get(id) ?? {}; loaded.set(id, evidence);
+        Object.values(evidence).forEach((item) => { originalEvidence[item.receipt.evidence_id] = structuredClone(item); });
+        if (context) Object.values(evidence).forEach((item) =>
+          evidenceBefore[item.receipt.evidence_id] = researchEvidenceSnapshot(item)); }); }
+  };
+  const clearPart = (name: string) => {
+    for (let index = puts.length - 1; index >= 0; index--) if (puts[index].name === name) puts.splice(index, 1);
+    for (let index = removes.length - 1; index >= 0; index--) if (removes[index] === name) removes.splice(index, 1);
   };
   const writeSource = (sourceId: string) => { const evidence = loaded.get(sourceId)!, item =
     ownSource(sourceId), previous = item.passages?.count ?? 0,
     count = Object.keys(evidence).length, name = SOURCE_PART(sourceId);
+    clearPart(name);
     passageDelta += count - previous;
     if (count > 100_000) throw new ApplicationError(400, "Research file limits exceeded");
     if (!count) { if (item.passages) removes.push(name); item.passages = null; return; }
     const bytes = encodeSourcePart(sourceId, evidence), digest = sha256(bytes);
+    if (!decodeSourcePart(bytes, sourceId)) throw new ApplicationError(400, "Invalid saved passage");
     item.passages = { count, sha256: digest, ...passageFacets(state, evidence) };
     if (current.state.sources[sourceId]?.passages?.sha256 !== digest)
       puts.push({ name, bytes, expectedSha256: digest });
   };
   const writeQueries = () => { if (!queries) return; const count = Object.keys(queries).length;
+    clearPart(QUERIES_PART);
     if (count > 10_000) throw new ApplicationError(400, "Research file limits exceeded");
     if (!count) { if (state.queries) removes.push(QUERIES_PART); state.queries = null; return; }
     const bytes = encodeQueriesPart(queries), digest = sha256(bytes); state.queries = { count, sha256: digest };
     if (current.state.queries?.sha256 !== digest)
       puts.push({ name: QUERIES_PART, bytes, expectedSha256: digest });
   };
+  for (const action of actions) {
   if (action.type === "label") { ownLabels(); applyLabel(state, action); }
-  else if (action.type === "note") state.note = action.markdown;
-  else if (action.type === "source") { ownSources(); const item = ownSource(
+  else if (action.type === "note") {
+    if (action.expectedMarkdown !== undefined && action.expectedMarkdown !== state.note && action.markdown !== state.note)
+      throw new ApplicationError(409, "The memo changed elsewhere. Your draft has been kept; reload the saved memo before editing it again.", { code: "memo_conflict" });
+    state.note = action.markdown;
+  }
+  else if (action.type === "source") {
+    if (action.reference.kind === "document" && !await documents.projectionSource(scope,
+      action.reference.id, action.reference.versionId)) throw new ApplicationError(404, "Document version not found");
+    ownSources(); const item = ownSource(
     addSource(state, action.reference).id);
     if (action.labelIds) item.labelIds = checkedLabels(state, action.labelIds, "source");
     if (action.badge !== undefined) item.badge = action.badge;
     if (action.badgeColor !== undefined) item.badgeColor = action.badgeColor;
     if (action.note !== undefined) item.note = action.note;
+  } else if (action.type === "label-selection") {
+    const selectionDocuments = { ...documents, readParts: async (...args: Parameters<DocumentStore["readParts"]>) => {
+      const staged = new Map([...loaded].map(([id, values]) => { const bytes = encodeSourcePart(id, values);
+        return [SOURCE_PART(id), { name: SOURCE_PART(id), bytes, sha256: sha256(bytes) }] as const; })),
+        saved = await documents.readParts(args[0], args[1], args[2], args[3].filter((name) => !staged.has(name)));
+      return [...(saved ?? []), ...args[3].flatMap((name) => staged.get(name) ?? [])];
+    } };
+    const selection = await resolveResearchSelection(selectionDocuments, scope,
+      { ...action, researchFileId: current.document.id }, { ...current, state }), assigned =
+      checkedLabels(state, action.assign, action.target === "sources" ? "source" : "highlight"),
+      update = (existing: string[]) => action.mode === "replace" ? assigned
+        : action.mode === "remove" ? existing.filter((id) => !assigned.includes(id))
+          : [...new Set([...existing, ...assigned])];
+    if (action.target === "sources") for (const subject of selection.subjects)
+      ownSource(subject.sourceId).labelIds = update(state.sources[subject.sourceId].labelIds);
+    else {
+      await loadSources(selection.subjects.map(({ sourceId }) => sourceId));
+      for (const subject of selection.subjects) {
+        for (const receipt of subject.evidence ?? []) {
+          const item = loaded.get(subject.sourceId)![receipt.evidence_id]; item.labelIds = update(item.labelIds);
+        }
+        writeSource(subject.sourceId);
+      }
+    }
   } else if (action.type === "annotate" && action.kind === "source") {
     const item = ownSource(action.id);
     if (action.labelIds) item.labelIds = checkedLabels(state, action.labelIds, "source");
@@ -483,9 +571,10 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     writeSource(sourceId);
   } else if (action.type === "remove" && action.kind === "source") {
     const removed = get(state.sources, action.id, "Source"), ledger = await loadQueries();
+    await loadSources([action.id]); loaded.set(action.id, {});
     Object.values(ledger).forEach((query) => { if (query.sourceIds.includes(action.id))
       (query.sourceReferences ??= {})[action.id] = structuredClone(removed.reference); });
-    if (removed.passages) { removes.push(SOURCE_PART(action.id)); passageDelta -= removed.passages.count; }
+    if (removed.passages) { clearPart(SOURCE_PART(action.id)); removes.push(SOURCE_PART(action.id)); passageDelta -= removed.passages.count; }
     delete ownSources()[action.id]; writeQueries();
   } else if (action.type === "remove" && action.kind === "label") {
     ownLabels(); get(state.labels, action.id, "Label"); const children = new Map<string, string[]>(),
@@ -513,13 +602,14 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
       [researchSourceKey(item.reference), item]));
     action.sources?.forEach((reference) => addSource(state, reference, sourceByKey));
     const evidence = (action.evidence ?? []).map((receipt) => { const reference =
-      legalEvidenceSourceReference(receipt); if (!reference) return null;
+      researchReferenceFromEvidence(receipt); if (!reference) return null;
       const source = ownSource(addSource(state, reference, sourceByKey).id);
       source.reference = { ...source.reference,
         title: source.reference.title ?? reference.title,
         citation: source.reference.citation ?? reference.citation,
-        alternateCitation: source.reference.alternateCitation ?? reference.alternateCitation,
         date: source.reference.date ?? reference.date, url: source.reference.url ?? reference.url };
+      if (source.reference.kind !== "document" && reference.kind !== "document")
+        source.reference.alternateCitation ??= reference.alternateCitation;
       sourceByKey.set(researchSourceKey(reference), source); return { receipt, source }; }).filter(
         (value): value is { receipt: LegalEvidenceReceipt; source: ResearchSource } => !!value);
     if (Object.keys(state.sources).length > 10_000)
@@ -565,14 +655,119 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
         ledger[query.query_id] = value;
       }); writeQueries(); }
   }
+  if (action.type === "merge") {
+    if (action.tables?.length) state.tables = [...new Set([...(state.tables ?? []), ...action.tables])];
+    if (action.chats?.length) state.chats = [...new Set([...(state.chats ?? []), ...action.chats])];
+  }
+  }
+  const allEvidence = () => Object.fromEntries([...loaded.values()].flatMap((values) => Object.entries(values)));
+  let history: ResearchChange[] | undefined;
+  const loadHistory = async () => history ??= await readResearchHistory(documents, scope, current);
+  const readField = (change: ResearchChangeField): unknown => {
+    const item = change.target === "label" ? state.labels[change.id] : change.target === "source"
+      ? state.sources[change.id] : change.target === "passage" ? loaded.get(change.sourceId ?? "")?.[change.id] : null;
+    if (change.target === "workspace") {
+      if (change.field === "note") return state.note;
+      const [field, ...rest] = change.field.split(".");
+      if (field === "tables" || field === "chats") return (state[field] ?? []).includes(rest.join("."));
+    }
+    if (change.field === "$") return item ?? null;
+    if (change.field.startsWith("labelIds.")) return !!item && "labelIds" in item && item.labelIds.includes(change.field.slice(9));
+    return item ? (item as Record<string, unknown>)[change.field] ?? null : null;
+  };
+  const applyField = (change: ResearchChangeField, value: unknown) => {
+    const field = change.field;
+    if ((change.target === "label" || change.target === "source") && !uuid.safeParse(change.id).success ||
+        change.target === "passage" && (!change.id.startsWith("e_") || !uuid.safeParse(change.sourceId).success))
+      throw new ApplicationError(400, "Invalid research change target");
+    if (change.target === "workspace") {
+      if (field === "note" && typeof value === "string") { state.note = value; return; }
+      const [key, ...rest] = field.split(".");
+      if ((key === "tables" || key === "chats") && typeof value === "boolean") {
+        const id = rest.join("."); state[key] = value ? [...new Set([...(state[key] ?? []), id])]
+          : (state[key] ?? []).filter((item) => item !== id); return;
+      }
+    }
+    const values = change.target === "label" ? ownLabels() : change.target === "source" ? ownSources()
+      : change.target === "passage" ? loaded.get(change.sourceId ?? "") : null;
+    if (!values) throw new ApplicationError(409, "The affected item is unavailable");
+    if (field === "$") {
+      if (value === null) delete values[change.id];
+      else values[change.id] = structuredClone(value) as never;
+      return;
+    }
+    const item = change.target === "source" ? ownSource(change.id) : values[change.id];
+    if (!item) throw new ApplicationError(409, "The affected item is unavailable");
+    if (field.startsWith("labelIds.") && "labelIds" in item && typeof value === "boolean") {
+      const id = field.slice(9);
+      if (value && state.labels[id]?.scope !== (change.target === "source" ? "source" : "highlight"))
+        throw new ApplicationError(409, "An affected label is unavailable");
+      item.labelIds = value ? [...new Set([...item.labelIds, id])] : item.labelIds.filter((label) => label !== id);
+    } else if ((change.target === "label" ? ["name", "definition", "parentId", "color", "order", "scope"]
+      : change.target === "source" ? ["note", "badge", "badgeColor"] : ["note"]).includes(field)) {
+      if (value === null && ["definition", "badgeColor"].includes(field)) delete (item as Record<string, unknown>)[field];
+      else (item as Record<string, unknown>)[field] = structuredClone(value);
+    } else throw new ApplicationError(400, "Invalid research change field");
+  };
+  let changes: ResearchChangeField[], selected: ResearchChange | undefined;
+  if (request.type === "accept" || request.type === "reject" || request.type === "undo") {
+    selected = (await loadHistory()).find(({ id }) => id === request.changeId);
+    if (!selected || selected.status !== (request.type === "undo" ? "applied" : "pending"))
+      throw new ApplicationError(409, "This change is no longer available");
+    if (request.type !== "undo" && executor !== "human") throw new ApplicationError(403, "Review this proposal in the workspace");
+    if (request.type === "reject") {
+      selected.status = "rejected"; selected.resolvedBy = scope.userId; selected.resolvedAt = new Date().toISOString();
+      changes = [];
+    } else {
+      await loadSources(selected.changes.flatMap((change) => change.target === "passage" && change.sourceId
+        ? [change.sourceId] : change.target === "source" && change.field === "$" ? [change.id] : []));
+      assertResearchChangeBase(selected.changes, readField, request.type === "undo");
+      for (const change of selected.changes) applyField(change, request.type === "undo" ? change.before : change.after);
+      for (const sourceId of loaded.keys()) {
+        if (state.sources[sourceId]) writeSource(sourceId); else removes.push(SOURCE_PART(sourceId));
+      }
+      changes = request.type === "undo" ? selected.changes.map((change) =>
+        ({ ...change, before: change.after, after: change.before }))
+        : researchStateChanges(current.state, state, originalEvidence, allEvidence());
+      if (request.type === "accept") { selected.status = "applied"; selected.changes = changes;
+        selected.counts = researchChangeCounts(changes); selected.resolvedBy = scope.userId; selected.resolvedAt = new Date().toISOString(); }
+    }
+  } else changes = researchStateChanges(current.state, state, originalEvidence, allEvidence());
+  if (changes.length && request.type !== "accept") {
+    const pending = request.type === "batch" && request.propose === true,
+      title = request.type === "batch" ? request.title : request.type === "undo" ? `Undo: ${selected!.title}`
+        : request.type === "label" ? `Label: ${request.name}` : request.type === "label-selection" ? "Update classifications"
+        : request.type === "note" ? "Update memo" : request.type === "merge" ? "Collect research" : "Update research";
+    (await loadHistory()).push({ id: randomUUID(), title: title.slice(0, 200), createdAt: new Date().toISOString(),
+      executor, userId: scope.userId, ...(context?.model && { model: context.model }), status: pending ? "pending" : "applied",
+      ...(request.type === "undo" && { undoOf: request.changeId }), changes, counts: researchChangeCounts(changes) });
+    if (pending) { state = { ...current.state }; puts.length = 0; removes.length = 0; }
+  }
+  if (history) {
+    if (history.length > 10_000) throw new ApplicationError(400, "Research history limit reached");
+    state.proposals = history.filter(({ status }) => status === "pending").map(researchChangeSummary);
+    const bytes = Buffer.from(JSON.stringify(history)), digest = sha256(bytes);
+    state.history = { count: history.length, sha256: digest };
+    puts.push({ name: RESEARCH_HISTORY_PART, bytes, expectedSha256: digest });
+  }
   if (Object.keys(state.labels).length > 10_000 || Object.keys(state.sources).length > 10_000 ||
       passageDelta > 0 && Object.values(current.state.sources).reduce((sum, item) =>
         sum + (item.passages?.count ?? 0), passageDelta) > 100_000)
     throw new ApplicationError(400, "Research file limits exceeded");
+  if (!decodeResearchFileState(state)) throw new ApplicationError(409, "This change conflicts with the current research structure");
   const filename = current.document.filename, bytes = Buffer.from(researchFileMarkdown(
     filename.replace(/\.research\.md$/iu, ""), state)), remove = [...new Set(removes)];
-  if (!puts.length && !remove.length && sha256(bytes) === current.document.source_sha256) return current;
-  const parts = { put: puts, remove }, committed = assistant
+  const auditOperation = async (updated: ResearchFile) => {
+    if (context) await recordResearchOperation(context, scope, current, updated, request, evidenceBefore,
+      request.type === "batch" && request.propose ? evidenceBefore :
+        Object.fromEntries([...loaded.values()].flatMap((values) => Object.values(values).map((item) =>
+          [item.receipt.evidence_id, researchEvidenceSnapshot(item)]))));
+  };
+  if (!puts.length && !remove.length && sha256(bytes) === current.document.source_sha256) {
+    await auditOperation(current); return current;
+  }
+  const uniquePuts = [...new Map(puts.map((part) => [part.name, part])).values()],
+    parts = { put: uniquePuts, remove: remove.filter((name) => !uniquePuts.some((part) => part.name === name)) }, committed = assistant
       ? await documents.commitAssistantVersion(scope, current.document.id, {
         sourceVersionId: current.versionId, expectedWorkingRevision: current.workingRevision,
         turnVersionId: assistant.turnVersionId, turnId: assistant.turnId, filename,
@@ -582,10 +777,12 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     version = committed.status === "committed" || committed.status === "replaced"
       ? committed.version : null;
   if (!version) return null;
-  return { document: { ...current.document, current_version_id: version.id,
+  const updated: ResearchFile = { document: { ...current.document, current_version_id: version.id,
       current_working_revision: version.working_revision,
       active_version_number: version.version_number, filename: version.filename,
       file_type: version.file_type, size_bytes: version.size_bytes,
       source_sha256: version.source_sha256 }, versionId: version.id,
     workingRevision: version.working_revision, state };
+  await auditOperation(updated);
+  return updated;
 }
