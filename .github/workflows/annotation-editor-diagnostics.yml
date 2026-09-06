@@ -10,14 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Snapshot tracked application sources for isolated verification
-        run: git archive --format=tar HEAD frontend backend shared package.json package-lock.json scripts docs AGENTS.md subrepos.lock.json | gzip > annotation-editor-source.tar.gz
+      - name: Fetch public source without initializing unrelated submodules
+        run: |
+          git clone --depth 1 --no-checkout --branch codex/authorities-visual-highlight-editor https://github.com/eliziff/Beaver.git source-repo
+          python3 - <<'PY'
+          import subprocess, pathlib
+          root = pathlib.Path('source-repo')
+          available = subprocess.check_output(['git','ls-tree','--name-only','HEAD'], cwd=root, text=True).splitlines()
+          wanted = ['frontend','backend','shared','scripts','docs','AGENTS.md','package.json','package-lock.json','subrepos.lock.json']
+          with open('annotation-editor-source.tar','wb') as out:
+              subprocess.run(['git','archive','--format=tar','HEAD',*[p for p in wanted if p in available]], cwd=root, stdout=out, check=True)
+          PY
+          gzip annotation-editor-source.tar
+          tar -xzf annotation-editor-source.tar.gz
       - uses: actions/upload-artifact@v4
         with:
           name: annotation-editor-source
