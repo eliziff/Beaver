@@ -1104,6 +1104,33 @@ describe("Authorities UI contracts", () => {
     expect(within(rows[2].parentElement!).getByText("Excluded")).toBeVisible();
   });
 
+  it.each(["manual", "document"] as const)("retains slot formats when moving an authority in %s mode", async (mode) => {
+    const saved = add(mode === "manual" ? draft() : documentDraft(),
+      authority("alpha", "Alpha", { kind: "unresolved" }),
+      authority("beta", "Beta", { kind: "unresolved" }),
+      authority("gamma", "Gamma", { kind: "unresolved" }));
+    saved.state.outputMode = "book"; saved.state.stage = "sources";
+    Object.assign(saved.state.settings, { tabStyle: "roman", tabStart: 4,
+      tabPrefix: "Record ", tabLabels: ["Front", "", "End"] });
+    const moved = structuredClone(saved); moved.revision += 1;
+    moved.state.authorityOrder = ["beta", "alpha", "gamma"];
+    api.getWorkProduct.mockResolvedValue(saved);
+    api.actOnAuthorities.mockResolvedValue(moved);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+    const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("details")!;
+    const checkSlots = (names: string[]) => {
+      const cards = within(sources).getAllByRole("article");
+      cards.forEach((card, i) => {
+        expect(within(card).getByRole("heading")).toHaveTextContent(names[i]);
+        expect(within(card.parentElement!).getByText(["Front", "Record V", "End"][i])).toBeVisible();
+      });
+    };
+    checkSlots(["Alpha", "Beta", "Gamma"]);
+    await userEvent.click(within(sources).getByRole("button", { name: "Move Alpha down", exact: true }));
+    await waitFor(() => checkSlots(["Beta", "Alpha", "Gamma"]));
+  });
+
   it("renames a manual draft and derives its procedural tabs", async () => {
     let current = add(draft(),
       authority("alpha", "Alpha", attachedSource("authority:alpha", "alpha.pdf")),
