@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import type { CollectionSpec } from "@/app/lib/collections";
 import type { Page } from "@/app/lib/api/client";
 import { usePagedChains } from "./usePagedChains";
 
@@ -6,6 +7,7 @@ export function usePagedQuery<T>(
   load: (cursor: string | null, signal: AbortSignal) => Promise<Page<T>>,
   dependencies: readonly unknown[],
   enabled = true,
+  collection?: CollectionSpec,
 ) {
   const key = "query";
   const { chains, setChains, fetchPage } = usePagedChains(
@@ -13,9 +15,11 @@ export function usePagedQuery<T>(
     dependencies,
     key,
     enabled,
+    undefined,
+    collection,
   );
   const chain = chains[key];
-  const reload = useCallback(() => fetchPage(key, null, false), [fetchPage]);
+  const reload = useCallback(() => fetchPage(key, null, false, true), [fetchPage]);
   const setItems = useCallback((update: T[] | ((current: T[]) => T[])) => {
     setChains((current) => ({ ...current, [key]: {
       ...(current[key] ?? { nextCursor: null, loading: false, error: null }),
@@ -26,10 +30,12 @@ export function usePagedQuery<T>(
 
   return {
     items: chain?.items ?? [],
-    loading: chain?.loading ?? enabled,
+    loading: chain ? chain.loading && !chain.refreshing : enabled,
     error: chain?.error ?? null,
+    refreshing: !!chain?.loading && !!chain?.loaded,
+    loaded: !!chain?.loaded,
     hasMore: chain?.nextCursor != null,
-    loadMore: () => chain?.nextCursor && fetchPage(key, chain.nextCursor, true),
+    loadMore: () => chain?.nextCursor && !chain.loading && fetchPage(key, chain.nextCursor, true),
     reload,
     setItems,
   };
