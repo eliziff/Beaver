@@ -193,10 +193,11 @@ const legalSources = lazy(async () => {
 const audit = lazy(async () => (await import("./lib/audit"))
   .createAuditStore(await (await import("./lib/relationalDatabase")).relationalDatabase()));
 async function startWorkers() {
-  const [{ startJobWorker, recoverLocalJobs }, { pdfJobHandlers },
+  const [{ recoverLocalJobs }, { startJobLanes }, { pdfJobHandlers },
     { providerPdfJobHandlers }, { chatTurnJobHandler, CHAT_TURN_JOB },
     documentStore, chatStore, chatApplication, tabularApplication] = await Promise.all([
     import("./lib/jobQueue"),
+    import("./lib/jobWorkerLanes"),
     import("./lib/pdfJobs"),
     import("./lib/providerPdfLibraryBridge"),
     import("./lib/chatTurnWorker"),
@@ -205,15 +206,15 @@ async function startWorkers() {
     chat(),
     tabular(),
   ]);
-  const handlers = {
-    ...pdfJobHandlers(documentStore),
-    ...providerPdfJobHandlers(),
-    [CHAT_TURN_JOB]: chatTurnJobHandler(chatApplication, chatStore),
-    [TABULAR_AGENT_JOB]: tabularAgentJobHandler(tabularApplication),
-  };
   await recoverLocalJobs();
-  const workers = Array.from({ length: preparationWorkers }, () => startJobWorker(handlers));
-  return { stop: () => Promise.all(workers.map((worker) => worker.stop())) };
+  return startJobLanes([
+    { concurrency: local ? 2 : 4,
+      handlers: { [CHAT_TURN_JOB]: chatTurnJobHandler(chatApplication, chatStore) } },
+    { concurrency: preparationWorkers,
+      handlers: { ...pdfJobHandlers(documentStore), ...providerPdfJobHandlers() } },
+    { concurrency: local ? 1 : 2,
+      handlers: { [TABULAR_AGENT_JOB]: tabularAgentJobHandler(tabularApplication) } },
+  ]);
 }
 async function connectorTools(userId: string): Promise<BeaverTool<ChatToolContext>[]> {
   if (!capabilities.connectors) return [];

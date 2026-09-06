@@ -7,6 +7,7 @@ import {
   createAuthorities,
   refreshAuthorities,
   prepareAuthoritiesSources,
+  prepareAuthoritiesHighlights,
   refreshAuthoritiesInput,
   replaceAuthoritiesSource,
   reviewAuthorities,
@@ -27,6 +28,7 @@ import { directoryResource, downloadDocument } from "@/app/lib/api/documents";
 import { waitForPdfPreparation } from "@/app/lib/pdfPreparation";
 import type { WorkProductStore } from "@/app/lib/workProducts";
 import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
+import { prepareAnnotations } from "./annotationPreparation";
 
 const drafts: WorkProductStore = {
   list: listWorkProducts, get: getWorkProduct, create: createWorkProduct,
@@ -34,7 +36,28 @@ const drafts: WorkProductStore = {
   update: updateWorkProduct, duplicate: duplicateWorkProduct, remove: deleteWorkProduct,
 };
 
+async function prepareSourcePdfs(draft: Parameters<AuthoritiesHost["build"]>[0],
+  progress?: (message: string) => void, signal?: AbortSignal) {
+    if (draft.state.outputMode !== "table") {
+      const sources = new Map(draft.state.authorityOrder.flatMap((authorityId) => {
+        const authority = draft.state.authorities[authorityId];
+        if (!authority || authority.excluded || authority.source.kind !== "attached") return [];
+        return authority.source.sources.flatMap((source) => {
+          const binding = draft.state.bindings[source.bindingRole];
+          return binding?.kind === "document"
+            ? [[binding.documentId, source.filename] as const] : [];
+        });
+      }));
+      await Promise.all([...sources].map(async ([documentId, filename]) => {
+        progress?.(`Preparing ${filename}`);
+        await waitForPdfPreparation(documentId,
+          (status) => progress?.(`${filename}: ${status}`), signal);
+      }));
+    }
+}
+
 export const beaverAuthoritiesHost: AuthoritiesHost = {
+  prepareAnnotations,
   mode: "beaver",
   drafts,
   async create({ source, title, projectId, settings }) {
@@ -71,23 +94,13 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
     if (!resolved || resolved.kind === "local-file") throw new Error("This source is unavailable.");
     return downloadDocument(resolved.documentId, resolved.versionId).then(({ blob }) => blob);
   },
+  async prepareHighlights(draft, progress, signal) {
+    await prepareSourcePdfs(draft, progress, signal);
+    progress?.("Preparing highlight review");
+    await prepareAuthoritiesHighlights(draft.id, draft.revision, signal);
+  },
   async build(draft, progress, signal) {
-    if (draft.state.outputMode !== "table") {
-      const sources = new Map(draft.state.authorityOrder.flatMap((authorityId) => {
-        const authority = draft.state.authorities[authorityId];
-        if (!authority || authority.excluded || authority.source.kind !== "attached") return [];
-        return authority.source.sources.flatMap((source) => {
-          const binding = draft.state.bindings[source.bindingRole];
-          return binding?.kind === "document"
-            ? [[binding.documentId, source.filename] as const] : [];
-        });
-      }));
-      await Promise.all([...sources].map(async ([documentId, filename]) => {
-        progress?.(`Preparing ${filename}`);
-        await waitForPdfPreparation(documentId,
-          (status) => progress?.(`${filename}: ${status}`), signal);
-      }));
-    }
+    await prepareSourcePdfs(draft, progress, signal);
     progress?.("Building outputs");
     return buildAuthorities(draft.id, draft.revision, signal);
   },

@@ -10,7 +10,7 @@ const PILL_FORMATS = new Set(["yes_no", "tag", "currency"]);
 const ISO_DATE = /^(\d{4}-\d{2}-\d{2})(?:T.*)?$/u;
 const DATE_ONLY = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" });
 const DATE_TIME = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
-export function displayDate(value: GroundedAnswer["value"], text: string): string {
+function displayDate(value: GroundedAnswer["value"], text: string): string {
     const raw = typeof value === "string" ? value : text;
     const match = ISO_DATE.exec(raw.trim());
     if (!match) return text;
