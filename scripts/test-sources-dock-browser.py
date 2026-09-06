@@ -24,9 +24,6 @@ def visible(driver, by: str, value: str, timeout=30):
 
 
 def click_text(driver, text: str, root=None):
-    if text in ("View all", "View none") and root is not None:
-        click_text(driver, "Label selection", root)
-        root = visible(driver, By.CSS_SELECTOR, "[role='menu'][aria-label='Label selection']")
     for _attempt in range(3):
         try:
             xpath = f".//button[normalize-space()='{text}' or normalize-space(text()[last()])='{text}' or @aria-label='{text}']"
@@ -47,9 +44,7 @@ def panel(driver, name: str):
     if name in ("Labels", "Highlights"):
         if not any(node.is_displayed() for node in driver.find_elements(By.CSS_SELECTOR, "[aria-label='Label organizer']")):
             visible(driver, By.XPATH, "//*[@role='tab' and normalize-space()='Labels']").click()
-        root = visible(driver, By.CSS_SELECTOR, "[aria-label='Label organizer']")
-        click_text(driver, "Sources" if name == "Labels" else "Passages", root)
-        return root
+        return visible(driver, By.CSS_SELECTOR, "[aria-label='Label organizer']")
     if name == "Search Saved sources":
         if not any(node.is_displayed() for node in driver.find_elements(By.CSS_SELECTOR, "section[aria-label='Search Saved sources']")):
             visible(driver, By.XPATH, "//*[@role='tab' and normalize-space()='Search']").click()
@@ -63,7 +58,7 @@ def panel(driver, name: str):
 def history_count(driver):
     try:
         summary = panel(driver, "Search Saved sources").find_element(
-            By.XPATH, ".//summary[contains(normalize-space(),'Search history')]")
+            By.XPATH, ".//summary[contains(normalize-space(),'Searches')]")
         return int(summary.find_element(By.XPATH, "./span[last()]").text)
     except StaleElementReferenceException:
         return None
@@ -457,9 +452,9 @@ return {border:s.borderColor,shadow:s.boxShadow};""", search)
             labels = panel(driver, "Labels")
             print("Research pilot: label hierarchy, drag-and-drop and colours", flush=True)
             create_label(driver, labels, "Procedural fairness", "+ Add label")
-            click_text(driver, "View all", labels)
+            click_text(driver, "All sources", labels)
             create_label(driver, labels, "Remedies", "+ Add label")
-            click_text(driver, "View all", labels)
+            click_text(driver, "All sources", labels)
             create_label(driver, labels, "Questions", "+ Add label")
             highlights = panel(driver, "Highlights")
             create_label(driver, highlights, "Key passage", "+ Add category")
@@ -471,7 +466,7 @@ return {border:s.borderColor,shadow:s.boxShadow};""", search)
             rename.send_keys(Keys.CONTROL, "a"); rename.send_keys("Duty of fairness", Keys.ENTER)
             visible(driver, By.CSS_SELECTOR, "button[aria-label^='Duty of fairness,']").click()
             create_label(driver, labels, "Hearing rights", "+ Add label")
-            click_text(driver, "View all", labels)
+            click_text(driver, "All sources", labels)
 
             labels_state = research(driver, research_id)["labels"]
             ids = {item["name"]: key for key, item in labels_state.items()}
@@ -550,7 +545,7 @@ target.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,data
                 WebDriverWait(driver, 20).until(lambda _page, key=ids[label_name], value=color:
                     research(driver, research_id)["labels"][key]["color"] == value)
                 assert_static(stable, geometry(driver))
-            click_text(driver, "View all", labels)
+            click_text(driver, "All sources", labels)
             driver.save_screenshot(str(output / "10-label-tree.png"))
 
             # Assign an unsaved result, then work with the collection's saved source.
@@ -650,27 +645,14 @@ effect:e.dataTransfer.dropEffect});},true);""")
             research_panels = workspace.find_element(By.CSS_SELECTOR, "section[aria-label='Saved sources']")
             assert driver.execute_script("return arguments[0].scrollWidth<=arguments[0].clientWidth+1", research_panels)
             list_panel = panel(driver, "List")
-            list_panel.find_element(By.XPATH, ".//summary[starts-with(normalize-space(),'Filters')]").click()
-            filters = [list_panel.find_element(By.CSS_SELECTOR, f"button[aria-label='{name}']") for name in
-                       ("Filter source type", "Filter collection", "Filter year")]
-            filter_boxes = [box(driver, node) for node in filters]
-            assert abs(filter_boxes[0]["top"] - filter_boxes[2]["top"]) <= 1
-            assert abs(filter_boxes[1]["top"] - filter_boxes[0]["top"]) <= 1
-            assert all(driver.execute_script("const s=getComputedStyle(arguments[0]);return s.whiteSpace==='nowrap'&&arguments[0].scrollHeight<=arguments[0].clientHeight+1", node)
-                       for node in filters)
-            for index, trigger in enumerate(filters):
-                label = trigger.get_attribute("aria-label")
-                trigger.click()
-                menu = visible(driver, By.CSS_SELECTOR, f"[role='menu'][aria-label='{label}']")
-                box(driver, menu); front(driver, menu)
-                if not index:
-                    driver.save_screenshot(str(output / "13-narrow-list-menu.png"))
-                next(node for node in menu.find_elements(By.TAG_NAME, "button") if node.is_displayed()).click()
-            list_panel.find_element(By.CSS_SELECTOR, "button[aria-label='Sort sources']").click()
-            sort_menu = visible(driver, By.CSS_SELECTOR, "[role='menu'][aria-label='Sort sources']")
-            box(driver, sort_menu); front(driver, sort_menu)
-            driver.save_screenshot(str(output / "13-narrow-sort-menu.png"))
-            next(node for node in sort_menu.find_elements(By.TAG_NAME, "button") if "A" in node.text and "Z" in node.text).click()
+            search_box = list_panel.find_element(By.CSS_SELECTOR, "input[aria-label='Search list']")
+            options = list_panel.find_element(By.CSS_SELECTOR, "button[aria-label='List options']")
+            assert abs(box(driver, search_box)["top"] - box(driver, options)["top"]) <= 1, "List controls wrapped"
+            options.click()
+            menu = visible(driver, By.CSS_SELECTOR, "[role='menu'][aria-label='List options']")
+            box(driver, menu); front(driver, menu)
+            driver.save_screenshot(str(output / "13-narrow-list-menu.png"))
+            next(node for node in menu.find_elements(By.TAG_NAME, "button") if "A" in node.text and "Z" in node.text).click()
             driver.save_screenshot(str(output / "14-narrow-workspace.png"))
             driver.set_window_size(1440, 900)
             WebDriverWait(driver, 10).until(lambda _page: workspace.rect["width"] >= 300)
@@ -688,6 +670,20 @@ effect:e.dataTransfer.dropEffect});},true);""")
             WebDriverWait(driver, 90).until(lambda page: history_count(page) == 1)
             search_saved = panel(driver, "Search Saved sources")
 
+            # Matched passages can be selected in place and saved under a passage category.
+            saved_sources = visible(driver, By.CSS_SELECTOR, "section[aria-label='Saved sources']")
+            first_match = WebDriverWait(driver, 30).until(lambda _page: next((node for node in saved_sources.find_elements(
+                By.CSS_SELECTOR, "input[aria-label^='Select ']") if node.is_displayed()), None))
+            first_match.click()
+            click_text(driver, "Save selected passages", saved_sources)
+            save_menu = visible(driver, By.CSS_SELECTOR, "[role='menu'][aria-label='Save selected passages']")
+            box(driver, save_menu); front(driver, save_menu)
+            driver.save_screenshot(str(output / "15-save-matches.png"))
+            click_text(driver, "Save as Key passage", save_menu)
+            key_passage = next(key for key, item in research(driver, research_id)["labels"].items() if item["name"] == "Key passage")
+            WebDriverWait(driver, 30).until(lambda _page: any((source.get("passages") or {}).get("labelCounts", {}).get(key_passage)
+                for source in research(driver, research_id)["sources"].values()))
+
             search_saved.find_element(By.CSS_SELECTOR, "button[aria-label='Search target']").click()
             target_menu = visible(driver, By.CSS_SELECTOR, "[role='menu'][aria-label='Search target']")
             box(driver, target_menu); front(driver, target_menu)
@@ -697,32 +693,17 @@ effect:e.dataTransfer.dropEffect});},true);""")
             search_saved = panel(driver, "Search Saved sources")
             search_saved.find_element(By.CSS_SELECTOR, "button[aria-label='Search target']").click()
             click_text(driver, "Source text", visible(driver, By.CSS_SELECTOR, "[role='menu'][aria-label='Search target']"))
-            search_saved.find_element(By.XPATH, ".//summary[normalize-space()='Capture rules']").click()
-            click_text(driver, "Add rule", search_saved)
-            rule_modal = visible(driver, By.CSS_SELECTOR, "dialog[open]")
-            box(driver, rule_modal); front(driver, rule_modal)
-            phrase = rule_modal.find_element(By.XPATH,
-                ".//label[starts-with(normalize-space(.),'Phrase to find')]/input")
-            phrase.click(); phrase.send_keys("court")
-            for label, choice in (("Direction", "Before phrase"), ("Unit", "Paragraph")):
-                rule_modal.find_element(By.CSS_SELECTOR, f"button[aria-label='{label}']").click()
-                menu = visible(driver, By.CSS_SELECTOR, f"[role='menu'][aria-label='{label}']")
-                box(driver, menu); front(driver, menu); click_text(driver, choice, menu)
-            driver.save_screenshot(str(output / "15-capture-rule.png"))
-            click_text(driver, "Run rules", rule_modal)
+            search_saved.find_element(By.CSS_SELECTOR, "button[aria-label='Passage extent']").click()
+            extent_menu = visible(driver, By.CSS_SELECTOR, "[role='menu'][aria-label='Passage extent']")
+            box(driver, extent_menu); front(driver, extent_menu)
+            driver.save_screenshot(str(output / "15-passage-extent.png"))
+            click_text(driver, "Paragraph before", extent_menu)
+            phrase = search_saved.find_element(By.CSS_SELECTOR, "input[aria-label='Search saved source text']")
+            phrase.send_keys(Keys.CONTROL, "a"); phrase.send_keys("court")
+            click_text(driver, "Find passages", search_saved)
             WebDriverWait(driver, 90).until(lambda page: history_count(page) == 3)
             search_saved = panel(driver, "Search Saved sources")
-            search_saved.find_element(By.CSS_SELECTOR, "button[aria-label='Conflict policy']").click()
-            conflict_menu = visible(driver, By.CSS_SELECTOR, "[role='menu'][aria-label='Conflict policy']")
-            box(driver, conflict_menu); front(driver, conflict_menu)
-            driver.save_screenshot(str(output / "15-conflict-menu.png"))
-            click_text(driver, "Keep both", conflict_menu)
-            WebDriverWait(driver, 10).until(lambda _page: "Keep both" in panel(driver, "Search Saved sources")
-                .find_element(By.CSS_SELECTOR, "button[aria-label='Conflict policy']").text)
-            click_text(driver, "Run rules", search_saved)
-            WebDriverWait(driver, 90).until(lambda page: history_count(page) == 4)
-            search_saved = panel(driver, "Search Saved sources")
-            history = search_saved.find_element(By.XPATH, ".//details[summary[contains(normalize-space(),'Search history')]]")
+            history = search_saved.find_element(By.XPATH, ".//details[summary[contains(normalize-space(),'Searches')]]")
             assert not history.get_attribute("open")
             history.find_element(By.TAG_NAME, "summary").click()
             queries = WebDriverWait(driver, 10).until(lambda _page: history.find_elements(By.TAG_NAME, "details"))
@@ -730,8 +711,9 @@ effect:e.dataTransfer.dropEffect});},true);""")
                 if "court" in node.find_element(By.TAG_NAME, "summary").text.lower())
             capture.find_element(By.TAG_NAME, "summary").click()
             WebDriverWait(driver, 10).until(lambda _page:
-                capture.find_elements(By.XPATH, ".//button[normalize-space()='Use these rules']"))
-            click_text(driver, "Use these rules", capture)
+                capture.find_elements(By.XPATH, ".//button[normalize-space()='Run again']"))
+            click_text(driver, "Run again", capture)
+            WebDriverWait(driver, 90).until(lambda page: history_count(page) == 4)
             driver.save_screenshot(str(output / "16-search-receipts.png"))
 
             # A direct journal search renders its title once, not again as metadata.
