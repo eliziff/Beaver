@@ -1,0 +1,33 @@
+name: Collection validation
+on:
+  push:
+    branches: [codex/collection-reuse]
+    paths: [.github/workflows/collection-validation.yml]
+permissions:
+  contents: read
+jobs:
+  tooling:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out public pinned sources without orphan submodules
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          git init .
+          git remote add origin https://github.com/eliziff/Beaver.git
+          git fetch --depth=1 origin "$SOURCE_SHA"
+          git checkout --detach FETCH_HEAD
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Install locked validation dependencies
+        run: |
+          npm ci
+          npm ci --prefix frontend
+          tar -czf /tmp/collection-tools.tgz frontend/node_modules node_modules
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: collection-tools
+          path: /tmp/collection-tools.tgz
+          retention-days: 1
