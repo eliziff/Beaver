@@ -139,53 +139,54 @@ const HEADING_CLASSES = {
   5: "mb-2 mt-6 text-sm font-semibold uppercase leading-snug tracking-[0.08em] text-gray-800 first:mt-0",
 } as const;
 
+const LEGAL_MARKDOWN_COMPONENTS = {
+  h1: ({ children }: { children?: React.ReactNode }) => <h2 className={HEADING_CLASSES[2]}>{children}</h2>,
+  h2: ({ children }: { children?: React.ReactNode }) => <h2 className={HEADING_CLASSES[2]}>{children}</h2>,
+  h3: ({ children }: { children?: React.ReactNode }) => <h3 className={HEADING_CLASSES[3]}>{children}</h3>,
+  h4: ({ children }: { children?: React.ReactNode }) => <h4 className={HEADING_CLASSES[4]}>{children}</h4>,
+  h5: ({ children }: { children?: React.ReactNode }) => <h5 className={HEADING_CLASSES[5]}>{children}</h5>,
+  h6: ({ children }: { children?: React.ReactNode }) => <h5 className={HEADING_CLASSES[5]}>{children}</h5>,
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p className="mb-4 whitespace-pre-wrap [hyphens:none] [overflow-wrap:normal] [word-break:normal]">
+      {children}
+    </p>
+  ),
+  ul: ({ children }: { children?: React.ReactNode }) => <ul className="mb-4 list-disc space-y-1 pl-6">{children}</ul>,
+  ol: ({ children, start }: { children?: React.ReactNode; start?: number }) => <ol start={start} className="mb-4 list-decimal space-y-1 pl-6">{children}</ol>,
+  li: ({ children }: { children?: React.ReactNode }) => <li className="pl-1.5">{children}</li>,
+  blockquote: ({ children }: { children?: React.ReactNode }) => (
+    <blockquote className="mb-5 ml-1 border-l-4 border-gray-300 py-0.5 pl-5 text-gray-700">
+      {children}
+    </blockquote>
+  ),
+  code: ({ children }: { children?: React.ReactNode }) => (
+    <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-[0.88em]">
+      {children}
+    </code>
+  ),
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
+    const link = href?.startsWith("#")
+      ? href
+      : safeAssistantUrl(href, { relative: false });
+    if (!link) return <>{children}</>;
+    const external = !link.startsWith("#");
+    return (
+      <a
+        href={link}
+        target={external ? "_blank" : undefined}
+        rel={external ? "noopener noreferrer" : undefined}
+        className="text-brand underline decoration-brand/35 underline-offset-2 hover:decoration-brand"
+      >
+        {children}
+      </a>
+    );
+  },
+};
 function LegalMarkdown({ children }: { children: string }) {
   return (
     <GfmMarkdown
       skipHtml
-      components={{
-        h1: ({ children }) => <h2 className={HEADING_CLASSES[2]}>{children}</h2>,
-        h2: ({ children }) => <h2 className={HEADING_CLASSES[2]}>{children}</h2>,
-        h3: ({ children }) => <h3 className={HEADING_CLASSES[3]}>{children}</h3>,
-        h4: ({ children }) => <h4 className={HEADING_CLASSES[4]}>{children}</h4>,
-        h5: ({ children }) => <h5 className={HEADING_CLASSES[5]}>{children}</h5>,
-        h6: ({ children }) => <h5 className={HEADING_CLASSES[5]}>{children}</h5>,
-        p: ({ children }) => (
-          <p className="mb-4 whitespace-pre-wrap [hyphens:none] [overflow-wrap:normal] [word-break:normal]">
-            {children}
-          </p>
-        ),
-        ul: ({ children }) => <ul className="mb-4 list-disc space-y-1 pl-6">{children}</ul>,
-        ol: ({ children, start }) => <ol start={start} className="mb-4 list-decimal space-y-1 pl-6">{children}</ol>,
-        li: ({ children }) => <li className="pl-1.5">{children}</li>,
-        blockquote: ({ children }) => (
-          <blockquote className="mb-5 ml-1 border-l-4 border-gray-300 py-0.5 pl-5 text-gray-700">
-            {children}
-          </blockquote>
-        ),
-        code: ({ children }) => (
-          <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-[0.88em]">
-            {children}
-          </code>
-        ),
-        a: ({ href, children }) => {
-          const link = href?.startsWith("#")
-            ? href
-            : safeAssistantUrl(href, { relative: false });
-          if (!link) return <>{children}</>;
-          const external = !link.startsWith("#");
-          return (
-            <a
-              href={link}
-              target={external ? "_blank" : undefined}
-              rel={external ? "noopener noreferrer" : undefined}
-              className="text-brand underline decoration-brand/35 underline-offset-2 hover:decoration-brand"
-            >
-              {children}
-            </a>
-          );
-        },
-      }}
+      components={LEGAL_MARKDOWN_COMPONENTS}
     >
       {children}
     </GfmMarkdown>
