@@ -1,3 +1,5 @@
+import type { JobNotifications } from "./jobNotifications";
+
 export type SqlValue = string | number | Uint8Array | null;
 export type SqlStatement = { text: string; params: SqlValue[] };
 export type QueryResult<T> = { rows: T[]; changes: number };
@@ -5,6 +7,8 @@ export type RelationalDatabase = {
   readonly engine: "sqlite" | "postgres";
   query<T extends Record<string, unknown>>(statement: SqlStatement): Promise<QueryResult<T>>;
   transaction<T>(run: (database: RelationalDatabase) => Promise<T>): Promise<T>;
+  // Publish is deferred until the outer transaction commits; rollback discards hints.
+  notifications?: JobNotifications;
   close(): Promise<void>;
 };
 

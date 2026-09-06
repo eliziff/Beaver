@@ -4,6 +4,8 @@ import { DatabaseSync, type StatementResultingChanges } from "node:sqlite";
 import postgres, { type Sql as PostgresClient } from "postgres";
 import { mikeLocalDataHome } from "./legalDataPath";
 import { isLocalRuntime } from "./localMode";
+import { createJobNotifications, createJobNotificationSender, localJobNotifications,
+  type JobNotifications } from "./jobNotifications";
 import { type QueryResult, type RelationalDatabase, type SqlStatement,
   type SqlValue } from "./relational";
 export { sql, type QueryResult, type RelationalDatabase, type SqlStatement,
@@ -16,6 +18,7 @@ const bind = (params: SqlValue[]) => Object.fromEntries(
 export class LocalDatabase implements RelationalDatabase {
   readonly engine = "sqlite" as const;
   private queue = Promise.resolve();
+  readonly notifications = localJobNotifications();
 
   constructor(private readonly database: DatabaseSync) {}
 
@@ -45,7 +48,9 @@ export class LocalDatabase implements RelationalDatabase {
   transaction<T>(run: (database: RelationalDatabase) => Promise<T>) {
     return this.locked(async () => {
       this.database.exec("BEGIN IMMEDIATE");
+      const hints = committedNotifications(this.notifications);
       const transaction: RelationalDatabase = {
+        notifications: hints.notifications,
         engine: "sqlite",
         query: async <R extends Record<string, unknown>>(statement: SqlStatement) =>
           this.execute<R>(statement),
@@ -56,6 +61,7 @@ export class LocalDatabase implements RelationalDatabase {
       try {
         const result = await run(transaction);
         this.database.exec("COMMIT");
+        hints.flush();
         return result;
       } catch (error) {
         this.database.exec("ROLLBACK");
@@ -65,21 +71,77 @@ export class LocalDatabase implements RelationalDatabase {
   }
 
   async close() {
+    this.notifications.close();
     await this.locked(() => this.database.close());
   }
 }
 
-const cloudDatabase = (client: PostgresClient): RelationalDatabase => ({
-  engine: "postgres",
+// A publish inside any nested transaction becomes visible only after the outer
+// commit succeeds. Transport failures never turn a committed mutation into an error.
+function committedNotifications(target: JobNotifications) {
+  const topics = new Set<string>();
+  return {
+    notifications: { subscribe: target.subscribe, publish: (topic: string) => { topics.add(topic); } },
+    flush: () => topics.forEach((topic) => target.publish(topic)),
+  };
+}
+
+function postgresNotifications(client: PostgresClient, listener: PostgresClient) {
+  let listening = false, closed = false, warned = false;
+  let retry: NodeJS.Timeout | undefined;
+  const unavailable = () => {
+    if (!warned && !closed) console.warn("[jobs] notification connection unavailable; using durable fallback reads");
+    warned = true;
+  };
+  const outgoing = createJobNotificationSender((message, done) => {
+    void client.notify("beaver_jobs", JSON.stringify(message)).then(() => done(), () => {
+      unavailable(); done();
+    });
+  });
+  const bus = createJobNotifications(outgoing.send);
+  const listen = () => {
+    if (listening || closed) return;
+    listening = true;
+    void listener.listen("beaver_jobs", (payload) => {
+      if (payload.length > 8_000) return;
+      try { bus.receiveMessage(JSON.parse(payload)); } catch { /* Ignore malformed hints. */ }
+    }, () => { warned = false; bus.receive(null); }).catch(() => {
+      listening = false;
+      if (closed) return;
+      unavailable();
+      retry = setTimeout(listen, 5_000); retry.unref();
+    });
+  };
+  return {
+    publish: bus.publish,
+    subscribe(topics: readonly string[], wake: () => void) {
+      const unsubscribe = bus.subscribe(topics, wake);
+      listen(); // onlisten also wakes on reconnection, closing the initial LISTEN race.
+      return unsubscribe;
+    },
+    async close() {
+      closed = true; if (retry) clearTimeout(retry); outgoing.close();
+      if (listener !== client) await listener.end({ timeout: 1 });
+    },
+  };
+}
+
+const cloudDatabase = (client: PostgresClient, notifications: JobNotifications,
+  closeNotifications: () => Promise<void>): RelationalDatabase => ({
+  engine: "postgres", notifications,
   async query<T extends Record<string, unknown>>(statement: SqlStatement) {
     const result = await client.unsafe<T[]>(statement.text, statement.params);
     return { rows: [...result], changes: result.count };
   },
   async transaction<T>(run: (database: RelationalDatabase) => Promise<T>) {
-    return await client.begin((transaction) =>
-      run(cloudDatabase(transaction as unknown as PostgresClient))) as T;
+    const hints = committedNotifications(notifications);
+    const result = await client.begin((transaction) =>
+      run(cloudDatabase(transaction as unknown as PostgresClient,
+        hints.notifications, async () => undefined))) as T;
+    hints.flush();
+    return result;
   },
-  close: () => client.end({ timeout: 5 }),
+  close: async () => { await closeNotifications(); await client.end({ timeout: 5 }); },
 });
 
 const processState = globalThis as typeof globalThis & {
@@ -117,9 +179,7 @@ export function localDatabaseSync() {
   return localState.native ??= openLocalDatabase();
 }
 
-function remoteDatabase() {
-  const connection = process.env.DATABASE_URL?.trim();
-  if (!connection) throw new Error("DATABASE_URL is required in cloud mode");
+function postgresClient(connection: string) {
   const url = new URL(connection);
   if (!/^postgres(?:ql)?:$/u.test(url.protocol)) {
     throw new Error("DATABASE_URL must use the PostgreSQL protocol");
@@ -129,7 +189,7 @@ function remoteDatabase() {
   if (insecure && !loopback) {
     throw new Error("PostgreSQL TLS can be disabled only for a loopback database");
   }
-  return cloudDatabase(postgres(connection, {
+  return postgres(connection, {
     connection: {
       idle_in_transaction_session_timeout: 30_000,
       statement_timeout: 60_000,
@@ -137,7 +197,19 @@ function remoteDatabase() {
     max: Math.max(1, Math.min(Number(process.env.DATABASE_POOL_SIZE) || 10, 20)),
     prepare: false,
     ssl: insecure ? false : "verify-full",
-  }));
+  });
+}
+
+function remoteDatabase() {
+  const connection = process.env.DATABASE_URL?.trim();
+  if (!connection) throw new Error("DATABASE_URL is required in cloud mode");
+  // LISTEN needs a direct/session connection, not a transaction-pool endpoint.
+  // Publishers still use the ordinary database pool; both URLs must name the same database.
+  const listenConnection = process.env.DATABASE_LISTEN_URL?.trim();
+  const client = postgresClient(connection);
+  const listener = listenConnection ? postgresClient(listenConnection) : client;
+  const notifications = postgresNotifications(client, listener);
+  return cloudDatabase(client, notifications, notifications.close);
 }
 
 let active: Promise<RelationalDatabase> | undefined;
