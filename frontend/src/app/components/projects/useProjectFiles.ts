@@ -1,3 +1,4 @@
+import { directoryCollection } from "@/app/lib/collectionKeys";
 import { useMemo } from "react";
 import {
   directoryResource,
@@ -19,7 +20,7 @@ export function useProjectFiles(query: string) {
         (parentId, q, cursor, signal) => resource.list({
             parent_id: parentId, q, cursor,
         }, signal),
-        query, [resource, query], project !== null,
+        query, [resource, query], project !== null, directoryCollection({ projectId }, query),
     );
     const { reload: reloadDirectory, replaceDocumentParseStates } = directory;
     const folders = directory.folders as Folder[];
