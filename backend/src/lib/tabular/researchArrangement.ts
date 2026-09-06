@@ -12,6 +12,7 @@ const item = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("label"), labelId: id, sourceId: id, evidenceId: id.optional(),
     display: z.enum(["name", "path"]).optional() }).strict(),
   z.object({ kind: z.literal("passage"), sourceId: id, evidenceId: id }).strict(),
+  z.object({ kind: z.literal("note"), sourceId: id, evidenceId: id.optional() }).strict(),
   ...researchFindingReferenceSchema.options,
 ]);
 export const researchArrangementSchema = z.object({
@@ -32,11 +33,11 @@ export const researchArrangementToolSchema = {
     cells: { type: "array", items: { type: "object", required: ["rowId", "columnIndex", "items"],
       additionalProperties: false, properties: { rowId: string, columnIndex: { type: "integer" },
         items: { type: "array", items: { type: "object", required: ["kind"], additionalProperties: false,
-          properties: { kind: { type: "string", enum: ["label", "passage", "answer", "cell"] }, labelId: string,
+          properties: { kind: { type: "string", enum: ["label", "passage", "note", "answer", "cell"] }, labelId: string,
             sourceId: string, evidenceId: string, chatId: string, answerId: string, resource: string,
             display: { type: "string", enum: ["name", "path"] }, reviewId: string, rowId: string,
             columnIndex: { type: "integer" } },
-          description: "label: labelId,sourceId,evidenceId?,display? (name by default); passage: sourceId,evidenceId; answer: chatId,answerId,resource; cell: reviewId,rowId,columnIndex" } } } } },
+          description: "label: labelId,sourceId,evidenceId?,display? (name by default); passage: sourceId,evidenceId; note: sourceId,evidenceId? (the saved note on that source or passage); answer: chatId,answerId,resource; cell: reviewId,rowId,columnIndex" } } } } },
   },
 };
 
@@ -108,6 +109,9 @@ export async function resolveResearchArrangement(input: {
               .some((id) => descendants!.has(id)))
             missing("A referenced label assignment has changed; revise this arrangement");
           values.push(reference.display === "path" ? researchLabelPath(file.state, reference.labelId) : label.name);
+        } else if (reference.kind === "note") {
+          values.push((evidence ?? file.state.sources[reference.sourceId]).note);
+          continue;
         } else values.push(evidence!.receipt.span_text ?? "");
         if (evidence) {
           receipts.set(evidence.receipt.evidence_id, evidence.receipt);

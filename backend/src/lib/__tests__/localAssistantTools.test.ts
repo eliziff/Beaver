@@ -240,6 +240,7 @@ describe("local assistant tools", () => {
       userId: "local-user",
       documents: localDocuments,
       sources: createSourceWorkspaceApplication(localDocuments, { chats: {} as never, tables: {} as never,
+        projects: {} as never, library: {} as never, preferences: {} as never,
         tabular: async () => { throw new Error("No table view in this fixture"); } }),
       library: localLibraryStore,
       projects: localProjects,
