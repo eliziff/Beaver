@@ -1,3 +1,4 @@
+import "./loading.css";
 import {
     type ComponentProps,
     type HTMLAttributes,
@@ -21,7 +22,7 @@ type DivProps = HTMLAttributes<HTMLDivElement>;
 export function SkeletonLine({ className }: { className?: string }) {
     return (
         <div
-            className={cn("h-3 rounded bg-gray-200", className)}
+            className={cn("beaver-loading-indicator h-3 rounded bg-gray-200", className)}
         />
     );
 }
@@ -333,7 +334,7 @@ export function TableLoadingRows({
     selection?: boolean;
 }) {
     return (
-        <TableBody>
+        <TableBody className="beaver-loading-indicator" aria-busy="true">
             {Array.from({ length: count }, (_, index) => (
                 <TableRow key={index} interactive={false} className={rowClassName}>
                     <TableStickyCell widthClassName={primaryWidthClassName} className={primaryClassName}>

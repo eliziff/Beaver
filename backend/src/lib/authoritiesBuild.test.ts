@@ -525,7 +525,7 @@ describe("Authorities output builder", () => {
           documentId: "law-document",
           version: { versionId: "law-v3", sha256: sha256(legislationPdf) } }] }),
       ]) });
-    expect(result.receipt.authorities.map(({ id }) => id)).toEqual(["grant", "fca", "article"]);
+    expect(result.receipt.authorities.map(({ id }) => id)).toEqual(["article", "fca", "grant"]);
     for (const role of ["table", "book"] as const) {
       expect(result.receipt.outputs[role]?.sha256).toBe(result.artifacts[role]?.sha256);
     }
@@ -552,12 +552,12 @@ describe("Authorities output builder", () => {
     const book = await PDFDocument.load(result.artifacts.book!.bytes);
     expect(book.getPageCount()).toBe(5);
     expect(book.getTitle()).toBe("Book of Authorities");
-    expect(book.getPage(2).getSize()).toEqual({ width: 400, height: 500 });
-    expect(pageContent(book, book.getPage(2)).toUpperCase()).toContain(
+    expect(book.getPage(4).getSize()).toEqual({ width: 400, height: 500 });
+    expect(pageContent(book, book.getPage(4)).toUpperCase()).toContain(
       Buffer.from("Recognized scanned decision", "latin1").toString("hex").toUpperCase(),
     );
     expect(book.getPage(3).getSize()).toEqual({ width: 500, height: 600 });
-    expect(book.getPage(4).getSize()).toEqual({ width: 500, height: 600 });
+    expect(book.getPage(2).getSize()).toEqual({ width: 500, height: 600 });
     expect(book.getPage(1).node.lookup(PDFName.of("Annots"), PDFArray).size()).toBe(2);
     const outlines = book.catalog.lookup(PDFName.of("Outlines"), PDFDict);
     expect(outlines.lookup(PDFName.of("Count"), PDFNumber).asNumber()).toBeGreaterThan(4);
@@ -569,7 +569,7 @@ describe("Authorities output builder", () => {
     citedOnly.sources["source:grant"].pageTextByPage = ["[12] Recognized cited passage"];
     citedOnly.sources["source:grant"].ocrTextByPage = ["[12] Recognized cited passage"];
     const citedBook = await PDFDocument.load((await buildAuthorities(citedOnly)).artifacts.book!.bytes);
-    expect(pageContent(citedBook, citedBook.getPage(2)).toUpperCase()).toContain(
+    expect(pageContent(citedBook, citedBook.getPage(4)).toUpperCase()).toContain(
       Buffer.from("[12] Recognized cited passage", "latin1").toString("hex").toUpperCase(),
     );
     const originalScan = structuredClone(citedOnly);
@@ -578,7 +578,7 @@ describe("Authorities output builder", () => {
     const originalBook = await PDFDocument.load(
       (await buildAuthorities(originalScan)).artifacts.book!.bytes,
     );
-    expect(pageContent(originalBook, originalBook.getPage(2)).toUpperCase()).not.toContain(
+    expect(pageContent(originalBook, originalBook.getPage(4)).toUpperCase()).not.toContain(
       Buffer.from("[12] Recognized cited passage", "latin1").toString("hex").toUpperCase(),
     );
     const noMarks = structuredClone(originalScan);
@@ -586,10 +586,10 @@ describe("Authorities output builder", () => {
     const unmarkedBook = await PDFDocument.load(
       (await buildAuthorities(noMarks)).artifacts.book!.bytes,
     );
-    const unmarked = pageContent(unmarkedBook, unmarkedBook.getPage(2));
+    const unmarked = pageContent(unmarkedBook, unmarkedBook.getPage(4));
     const originalSource = await PDFDocument.load(casePdf);
     expect(unmarked).toBe(pageContent(originalSource, originalSource.getPage(0)));
-    expect(unmarked).not.toBe(pageContent(originalBook, originalBook.getPage(2)));
+    expect(unmarked).not.toBe(pageContent(originalBook, originalBook.getPage(4)));
 
     const rebuilt = await buildAuthorities(input);
     expect(rebuilt.artifacts.book?.sha256).toBe(result.artifacts.book?.sha256);
@@ -709,7 +709,7 @@ describe("Authorities output builder", () => {
       .lookup(PDFName.of("First"), PDFDict).lookup(PDFName.of("Next"), PDFDict)
       .lookup(PDFName.of("Next"), PDFDict).lookup(PDFName.of("Next"), PDFDict);
     expect(omittedDocuments.lookup(PDFName.of("First"), PDFDict)
-      .lookup(PDFName.of("Title"), PDFHexString).decodeText()).toContain("Tab 2");
+      .lookup(PDFName.of("Title"), PDFHexString).decodeText()).toContain("Tab 3");
 
     const tableState = structuredClone(state); tableState.outputMode = "table";
     const table = await buildAuthorities({ draft: tableState, title: "Table only",
@@ -770,9 +770,33 @@ describe("Authorities output builder", () => {
     expect(omitBook.getPage(1).node.lookup(PDFName.of("Annots"), PDFArray).size()).toBe(2);
     expect(omitBook.getPage(3).getSize()).toEqual({ width: 400, height: 500 });
     expect(omitResult.receipt.authorities.find(({ id }) => id === "fca")?.tab)
-      .toBe("Not reproduced");
+      .toBe("Tab 2");
     expect(omitResult.receipt.authorities.find(({ id }) => id === "article")?.tab).toBe("Tab 1");
-    expect(omitResult.receipt.authorities.find(({ id }) => id === "grant")?.tab).toBe("Tab 2");
+    expect(omitResult.receipt.authorities.find(({ id }) => id === "grant")?.tab).toBe("Tab 3");
+  });
+
+  it("exports an explicit incomplete draft with a real stub, fixed labels, and source guards", async () => {
+    const casePdf = await sourcePdf("Grant", [[400, 500]]);
+    const lawPdf = await sourcePdf("Act", [[500, 600]]);
+    let state = reduceAuthoritiesDraft(draft(casePdf, lawPdf),
+      { type: "set-profile", profileId: "ab-court-of-kings-bench" });
+    state.outputMode = "book";
+    state.authorities.fca.source = { kind: "unresolved" }; delete state.bindings["source:fca"];
+    state = reduceAuthoritiesDraft(state, { type: "set-settings", settings: {
+      allowIncomplete: true, missingSourcePolicy: "omit", tabLabels: ["Schedule A", "Schedule B"],
+    } });
+    const input = { draft: state, title: "Working draft", workProduct: { id: "draft", revision: 1 },
+      sources: { "source:grant": { bytes: casePdf } } };
+    const result = await buildAuthorities(input), book = await PDFDocument.load(result.artifacts.book!.bytes);
+    expect(result.artifacts.book!.filename).toContain("draft-incomplete");
+    expect(book.getTitle()).toContain("DRAFT");
+    expect(book.getPageCount()).toBe(4);
+    expect(result.receipt.authorities.filter(({ excluded }) => !excluded).map(({ tab }) => tab))
+      .toEqual(["Schedule A", "Schedule B"]);
+    expect(pageContent(book, book.getPage(2)).toUpperCase()).toContain(pdfTextHex("Source PDF unavailable"));
+    expect(pageContent(book, book.getPage(0)).toUpperCase()).toContain(pdfTextHex("NOT FOR FILING"));
+    await expect(buildAuthorities({ ...input, sources: { "source:grant": { bytes: lawPdf } } }))
+      .rejects.toThrow(/changed|exact current input/iu);
   });
 
   it("enforces current Alberta source delivery instead of emitting court placeholders", async () => {

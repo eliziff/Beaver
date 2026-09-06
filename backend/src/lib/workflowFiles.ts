@@ -65,9 +65,10 @@ export function createWorkflowFiles(
     target,
     async create(scope: ApplicationScope, workflow: FileWorkflow,
       file: DocumentFile & { provenance?: DocumentProvenance },
-      context: { projectId?: string | null } = {}) {
+      context: { projectId?: string | null; pdfOcrProvider?: import("./documentStore").LegalPdfOcrProvider | null } = {}) {
       const destination = await target(scope, workflow, context);
       return documents.create(scope, { ...file, folderId: destination.folderId,
+        ...(context.pdfOcrProvider !== undefined ? { pdfOcrProvider: context.pdfOcrProvider } : {}),
         ...(destination.kind === "project"
           ? { projectId: destination.projectId }
           : { libraryKind: "file" as const }) });

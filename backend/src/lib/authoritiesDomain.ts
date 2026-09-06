@@ -14,7 +14,12 @@ export const AUTHORITIES_BOOK_ROLES = ["applicant", "respondent", "joint", "appe
 export type AuthoritiesBookRole = (typeof AUTHORITIES_BOOK_ROLES)[number];
 export type AuthoritiesBuildSettings = {
   sourceMode: AuthoritiesSourceMode;
-  tabStyle: "numeric" | "alpha";
+  tabStyle: "numeric" | "alpha" | "lower-alpha" | "roman" | "lower-roman";
+  tabStart?: number;
+  tabPrefix?: string;
+  tabLabels?: string[];
+  /** Explicit draft export only; never a representation of filing completeness. */
+  allowIncomplete?: boolean;
   tableOrder: "first-reference" | "alphabetical";
   tableDelivery: "native-marks" | "native-append" | "linked-append";
   tableLocation: "pages" | "pinpoints" | "combined";
@@ -158,6 +163,8 @@ export type AuthoritiesBookParts = {
 
 export type AuthorityTextSpan = { start: number; end: number; text: string };
 
+import { decodeAnnotationSet, type PdfAnnotationSets, type PdfAnnotationSet } from "mike/shared/pdf-annotations.mjs";
+
 export type AuthorityHighlightExclusion = { kind: string; label: string };
 
 export type AuthorityIdentity = {
@@ -173,6 +180,7 @@ export type AuthorityIdentity = {
   excluded: boolean;
   source: AuthoritySourceDecision;
   highlightExclusions?: AuthorityHighlightExclusion[];
+  annotations?: PdfAnnotationSets;
   scanOnly?: true;
   userAdded?: true;
 };
@@ -225,6 +233,7 @@ export type AuthoritiesDraft = WorkProductState & {
   occurrences: Record<string, AuthorityOccurrence>;
   authorities: Record<string, AuthorityIdentity>;
   authorityOrder: string[];
+  stage?: "citations" | "sources" | "highlights" | "build";
   discrepancyDecisions: Record<string, AuthoritiesDiscrepancyAction>;
 };
 
@@ -233,9 +242,12 @@ export type AuthoritiesFreshReview = Pick<AuthoritiesDraft,
   { cover?: AuthoritiesCover };
 
 export type AuthoritiesAction =
+  | { type: "set-annotations"; entries: Array<{ authorityId: string; bindingRole: string; annotations: PdfAnnotationSet }> }
   | { type: "ingest-ledger"; ledger: AuthorityCitationLedger }
   | { type: "add-seed"; seed: AuthoritySeed }
   | { type: "add-authority"; authority: AuthorityIdentity }
+  | { type: "move-authority"; authorityId: string; toIndex: number }
+  | { type: "set-stage"; stage: "citations" | "sources" | "highlights" | "build" }
   | { type: "remove-authority"; authorityId: string }
   | { type: "exclude-authority"; authorityId: string; excluded: boolean }
   | { type: "set-highlight-exclusion"; authorityId: string;
@@ -286,6 +298,7 @@ export function createAuthoritiesDraft(
 ): AuthoritiesDraft {
   const profile = authoritiesProfile("general");
   const draft: AuthoritiesDraft = { schemaVersion: "beaver.authorities-draft.v1",
+    stage: source.kind === "manual" ? "sources" : "citations",
     import: source, bindings: structuredClone(bindings), outputMode,
     settings: { profileId: "general", ...structuredClone(profile.defaults.settings) },
     cover: { courtFileNumber: "", partyGroups: [], applicationUnder: "", title: "" },
@@ -337,7 +350,7 @@ const buildSettings = (value: unknown) => {
   const keys = ["sourceMode", "tabStyle", "tableOrder", "tableDelivery", "tableLocation",
     "passageMarking", "scannedPdfPolicy", "missingSourcePolicy"];
   const item = object(value);
-  if (!item || !exactKeys(item, ["profileId", ...keys], ["filingMedium", "bookRole"])) {
+  if (!item || !exactKeys(item, ["profileId", ...keys], ["filingMedium", "bookRole", "tabStart", "tabPrefix", "tabLabels", "allowIncomplete"])) {
     return false;
   }
   const profile = typeof item.profileId === "string"
@@ -352,7 +365,11 @@ const buildSettings = (value: unknown) => {
     : !Object.hasOwn(item, "bookRole");
   return !!profile && context && roleContext &&
     oneOf(item.sourceMode, ["automatic", "manual-originals", "render"]) &&
-    oneOf(item.tabStyle, ["numeric", "alpha"]) &&
+    oneOf(item.tabStyle, ["numeric", "alpha", "lower-alpha", "roman", "lower-roman"]) &&
+    (item.tabStart === undefined || integer(item.tabStart) && Number(item.tabStart) >= 1 && Number(item.tabStart) <= 10_000) &&
+    (item.tabPrefix === undefined || typeof item.tabPrefix === "string" && item.tabPrefix.length <= 80 && !/[\u0000-\u001f\u007f]/u.test(item.tabPrefix)) &&
+    (item.tabLabels === undefined || list(item.tabLabels, (label) => typeof label === "string" && label.length <= 100 && !/[\u0000-\u001f\u007f]/u.test(label), 10_000)) &&
+    (item.allowIncomplete === undefined || typeof item.allowIncomplete === "boolean") &&
     oneOf(item.tableOrder, ["first-reference", "alphabetical"]) &&
     oneOf(item.tableDelivery, ["native-marks", "native-append", "linked-append"]) &&
     oneOf(item.tableLocation, ["pages", "pinpoints", "combined"]) &&
@@ -455,7 +472,7 @@ const seed = (value: unknown) => {
 const authority = (value: unknown) => {
   const item = object(value), keys = ["id", "key", "kind", "citation", "name", "displayName",
     "evidenceIds", "locators", "sourceIdentity", "excluded", "source"];
-  return !!item && exactKeys(item, keys, ["highlightExclusions", "scanOnly", "userAdded"]) &&
+  return !!item && exactKeys(item, keys, ["highlightExclusions", "annotations", "scanOnly", "userAdded"]) &&
     (item.scanOnly === undefined || item.scanOnly === true) &&
     (item.userAdded === undefined || item.userAdded === true) &&
     !(item.scanOnly && item.userAdded) &&
@@ -547,15 +564,17 @@ export function decodeAuthoritiesDraft(value: unknown): AuthoritiesDraft | null 
       key !== "discrepancyDecisions"), earlier = keys.filter((key) =>
       key !== "settings" && key !== "bookParts"), oldest = earlier.filter((key) =>
       key !== "discrepancyDecisions");
-    const upgraded = candidate && exactKeys(candidate, withoutDecisions)
+    const upgraded = candidate && exactKeys(candidate, withoutDecisions, ["stage"])
       ? { ...candidate, discrepancyDecisions: {} }
-      : candidate && (exactKeys(candidate, earlier) || exactKeys(candidate, oldest)) ? { ...candidate,
+      : candidate && (exactKeys(candidate, earlier, ["stage"]) || exactKeys(candidate, oldest, ["stage"])) ? { ...candidate,
         settings: { profileId: "general",
           ...structuredClone(authoritiesProfile("general").defaults.settings) },
         bookParts: { cover: null, index: null, supplements: [] },
         discrepancyDecisions: candidate.discrepancyDecisions ?? {},
       } : value;
-    const stored = closed(upgraded, keys);
+    const upgradedRecord = object(upgraded);
+    const stored = upgradedRecord && exactKeys(upgradedRecord, keys, ["stage"])
+      ? upgradedRecord : null;
     const unitText = new Map(Array.isArray(stored?.units) ? stored.units.flatMap((unit) => {
       const item = object(unit);
       return typeof item?.id === "string" && typeof item.text === "string"
@@ -572,6 +591,7 @@ export function decodeAuthoritiesDraft(value: unknown): AuthoritiesDraft | null 
     if (!normalized || normalized.schemaVersion !== "beaver.authorities-draft.v1" ||
         !importedDocument(normalized.import) || !decodeWorkProductBindings(normalized.bindings) ||
         !oneOf(normalized.outputMode, ["table", "book", "both"]) ||
+        (normalized.stage !== undefined && !oneOf(normalized.stage, ["citations", "sources", "highlights", "build"])) ||
         !buildSettings(normalized.settings) || !authoritiesCover(normalized.cover) ||
         !bookParts(normalized.bookParts) ||
         typeof normalized.insertIntoDocument !== "boolean" ||
@@ -675,6 +695,7 @@ export function authorityCitationForms(draft: AuthoritiesDraft, authorityId: str
     const occurrence = draft.occurrences[occurrenceId];
     if (occurrence?.authorityId === authorityId && occurrence.kind !== "reference") {
       forms.add(occurrence.citation);
+      if (occurrence.authoritySpan.text.trim()) forms.add(occurrence.authoritySpan.text.trim());
     }
   }
   return [...forms];
@@ -939,6 +960,7 @@ function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
     remap.set(old.id, authority.id);
     authority.displayName = old.displayName;
     authority.excluded = old.excluded;
+    if (old.annotations) authority.annotations = structuredClone(old.annotations);
     if (old.highlightExclusions?.length) {
       authority.highlightExclusions = structuredClone(old.highlightExclusions);
     }
@@ -1046,6 +1068,20 @@ export function reduceAuthoritiesDraft(
       draft.authorityOrder.push(action.authority.id);
       break;
     }
+    case "set-stage":
+      if (!["citations", "sources", "highlights", "build"].includes(action.stage))
+        throw new AuthoritiesDomainError("Unknown Authorities stage.");
+      draft.stage = action.stage;
+      break;
+    case "move-authority": {
+      const from = draft.authorityOrder.indexOf(action.authorityId);
+      if (from < 0 || !Number.isSafeInteger(action.toIndex) || action.toIndex < 0 ||
+          action.toIndex >= draft.authorityOrder.length)
+        throw new AuthoritiesDomainError("Choose an existing authority slot.");
+      draft.authorityOrder.splice(from, 1);
+      draft.authorityOrder.splice(action.toIndex, 0, action.authorityId);
+      break;
+    }
     case "remove-authority":
       if (Object.values(draft.occurrences).some(({ authorityId }) => authorityId === action.authorityId)) {
         throw new AuthoritiesDomainError("Relink occurrences before removing their authority.");
@@ -1061,6 +1097,23 @@ export function reduceAuthoritiesDraft(
     case "exclude-authority":
       requireRecord(draft.authorities, action.authorityId, "authority").excluded = action.excluded;
       break;
+    case "set-annotations": {
+      if (!Array.isArray(action.entries) || !action.entries.length || action.entries.length > 2_000)
+        throw new AuthoritiesDomainError("Annotation sources are invalid.");
+      const seen = new Set<string>();
+      for (const entry of action.entries) {
+        const authority = requireRecord(draft.authorities, entry.authorityId, "authority");
+        const source = attachedAuthoritySources(authority.source).find(item => item.bindingRole === entry.bindingRole);
+        const key = `${entry.authorityId}\0${entry.bindingRole}`;
+        if (!source || seen.has(key)) throw new AuthoritiesDomainError("Annotation source is no longer attached.");
+        seen.add(key);
+        const annotations = decodeAnnotationSet(entry.annotations);
+        if (annotations.sourceSha256 !== source.sourceSha256)
+          throw new AuthoritiesDomainError("This PDF changed. Reopen it before saving highlights.");
+        authority.annotations = { ...authority.annotations, [source.bindingRole]: annotations };
+      }
+      break;
+    }
     case "set-highlight-exclusion": {
       const authority = requireRecord(draft.authorities, action.authorityId, "authority");
       const kind = action.locator.kind.trim(), label = action.locator.label.trim();
@@ -1287,6 +1340,10 @@ export function reduceAuthoritiesDraft(
       break;
     case "refresh": refresh(draft, action.review); break;
   }
+  if (["attach-source", "clear-authority-source", "add-authority", "remove-authority",
+    "edit-authority", "begin-canlii-handoff"].includes(action.type) && draft.stage !== "citations")
+    draft.stage = "sources";
+  if (action.type === "refresh") draft.stage = draft.import.kind === "manual" ? "sources" : "citations";
   const errors = validateAuthoritiesDraft(draft);
   if (errors.length) throw new AuthoritiesDomainError(errors[0]);
   return draft;
@@ -1366,6 +1423,16 @@ export function validateAuthoritiesDraft(draft: AuthoritiesDraft): string[] {
         new Set(authority.highlightExclusions.map(({ kind, label }) =>
           `${kind}\0${label}`)).size !== authority.highlightExclusions.length)) {
       errors.push(`Invalid highlight exclusions for authority: ${id}`);
+    }
+    if (authority.annotations !== undefined) {
+      try {
+        const values = object(authority.annotations);
+        if (!values || Object.keys(values).length > 100) throw new Error();
+        for (const [role, value] of Object.entries(values)) {
+          if (!role.trim() || role.length > 300) throw new Error();
+          decodeAnnotationSet(value);
+        }
+      } catch { errors.push(`Invalid annotations for authority: ${id}`); }
     }
     keys.add(authority.key);
     if (!sourceDecision(authority.source)) {

@@ -117,7 +117,7 @@ describe("authorities import application", () => {
       .map((citation) => structureNative().citationLookupKey(citation)));
   });
 
-  it("leaves singleton cases and non-case alias groups alone", async () => {
+  it("coalesces reporter-only case aliases and leaves singleton cases alone", async () => {
     const reporters = ["[2020] 1 SCR 1", "[2020] 2 SCR 2"], singleton = "2024 ABCA 1";
     await useAliasGraph([[reporters[0], "reporters"], [reporters[1], "reporters"],
       [singleton, "singleton"], ["[2024] 1 Alta LR 1", "singleton"]]);
@@ -125,10 +125,22 @@ describe("authorities import application", () => {
       fileType: "docx", bytes: Buffer.from("brief"), modified: 1 },
     { read: vi.fn() as never }, scanNative([...reporters, singleton]));
 
-    expect(state.authorityOrder).toEqual([...reporters, singleton]
+    expect(state.authorityOrder).toEqual([reporters[0], singleton]
       .map((citation) => structureNative().citationLookupKey(citation)));
     expect(state.authorityOrder.map((id) => state.authorities[id].kind))
-      .toEqual(["other", "other", "case"]);
+      .toEqual(["case", "case"]);
+  });
+
+  it("does not coalesce legislation through the case alias inventory", async () => {
+    const citations = ["42 U.S.C. § 1983", "42 U.S.C. § 1985"];
+    await useAliasGraph(citations.map((citation) => [citation, "not-a-case"]));
+    const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx",
+      fileType: "docx", bytes: Buffer.from("brief"), modified: 1 },
+    { read: vi.fn() as never }, scanNative(citations));
+    expect(state.authorityOrder).toEqual(citations
+      .map((citation) => structureNative().citationLookupKey(citation)));
+    expect(state.authorityOrder.map((id) => state.authorities[id].kind))
+      .toEqual(["legislation", "legislation"]);
   });
 
   it("keeps standalone manual-source imports unresolved until source preparation", async () => {
