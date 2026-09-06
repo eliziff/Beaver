@@ -76,10 +76,9 @@ const file: ResearchFile = {
 };
 
 const render = (ui: ReactElement) => renderView(ui, { wrapper: MemoryRouter });
-const openLabels = (passages = false) => {
+const openLabels = () => {
   if (!screen.queryByRole("complementary", { name: "Label organizer" }))
     fireEvent.click(screen.getByRole("tab", { name: "Labels" }));
-  if (passages) fireEvent.click(screen.getByRole("button", { name: "Passages", exact: true }));
 };
 const openSearch = () => fireEvent.click(screen.getByRole("tab", { name: "Search" }));
 const renderWorkspace = async () => {
@@ -166,7 +165,7 @@ describe("ResearchFileBar", () => {
     openBaker();
     const passage = await screen.findByText("Key passage");
     openSearch();
-    fireEvent.click(screen.getByText("Search history", { selector: "summary" }));
+    fireEvent.click(screen.getByText("Searches", { selector: "summary" }));
     await waitFor(() => expect(api.getResearchItems).toHaveBeenCalledTimes(2));
     const source = screen.getByText("Baker v Canada").closest("details")!;
     const panel = source.closest("section")!;
@@ -213,9 +212,8 @@ describe("ResearchFileBar", () => {
     expect(screen.queryByRole("textbox", { name: "Search saved source text" })).not.toBeInTheDocument();
     openLabels();
     expect(screen.getByRole("button", { name: "Fairness, 1 sources" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Finding, 0 directly labelled passages" })).not.toBeInTheDocument();
-    openLabels(true);
     expect(screen.getByRole("button", { name: "Finding, 0 directly labelled passages" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "All sources" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("tab", { name: "Labels" }));
     expect(screen.getByRole("region", { name: "Saved sources" })).toBeVisible();
     expect(screen.getByRole("tab", { name: "Labels" })).toHaveAttribute("aria-selected", "true");
@@ -336,14 +334,13 @@ describe("ResearchFileBar", () => {
   it("reports exact source-label impact without guessing unloaded passage counts", async () => {
     await renderWorkspace();
     openLabels();
-    fireEvent.click(screen.getByRole("button", { name: "Fairness, 1 sources" }));
-    fireEvent.click(screen.getByRole("button", { name: "Delete selected label" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit Fairness" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete Fairness" }));
     let dialog = screen.getByRole("alertdialog", { name: "Delete label?" });
     expect(dialog).toHaveTextContent("1 saved source will lose this label");
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
-    openLabels(true);
-    fireEvent.click(screen.getByRole("button", { name: "Holding, 1 directly labelled passages" }));
-    fireEvent.click(screen.getByRole("button", { name: "Delete selected highlight category" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit Holding" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete Holding" }));
     dialog = screen.getByRole("alertdialog", { name: "Delete label?" });
     expect(dialog).toHaveTextContent("Saved passages using these categories will lose them.");
     expect(dialog).not.toHaveTextContent(/\d+ saved item/u);
@@ -364,10 +361,9 @@ describe("ResearchFileBar", () => {
 
   it("counts and filters a second-page highlight without loading passage bodies", async () => {
     await renderWorkspace();
-    openLabels(true);
+    openLabels();
     fireEvent.click(screen.getByRole("button", { name: "Holding, 1 directly labelled passages" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Filter sources by these passages" }));
-    fireEvent.click(screen.getByRole("tab", { name: "Labels" }));
+    expect(screen.getByRole("button", { name: "All sources" })).toHaveAttribute("aria-pressed", "false");
     const list = screen.getByRole("region", { name: "Saved sources" });
     expect(within(list).getByText("Baker v Canada")).toBeVisible();
     expect(within(list).queryByText("Appeal case")).not.toBeInTheDocument();
@@ -378,7 +374,7 @@ describe("ResearchFileBar", () => {
     const current = { ...file, state: { ...file.state, sources: { ...file.state.sources,
       baker: { ...file.state.sources.baker, passages: { ...file.state.sources.baker.passages!,
         count: 1, unlabelledCount: 0, labelCounts: { finding: 1, holding: 1 } } } } } };
-    render(<ResearchFileBar file={current} onChange={vi.fn()} />); openLabels(true);
+    render(<ResearchFileBar file={current} onChange={vi.fn()} />); openLabels();
     expect(screen.getByRole("button", { name: "Finding, 1 directly labelled passages" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Holding, 1 directly labelled passages" })).toBeVisible();
     expect(api.getResearchItems).not.toHaveBeenCalled();
@@ -398,7 +394,7 @@ describe("ResearchFileBar", () => {
     expect(api.runResearchFileQuery).toHaveBeenLastCalledWith("file-1", expect.objectContaining({ sourceIds: ["baker", "appeal"] }));
   });
 
-  it("runs plain search and an immediately persisted capture rule without a save step", async () => {
+  it("runs plain search and a passage-extent capture without a rule editor", async () => {
     await renderWorkspace();
     openSearch();
     const failures = [{ sourceId: "baker", code: "result_limit" }, { sourceId: "appeal", code: "unavailable" }];
@@ -412,37 +408,56 @@ describe("ResearchFileBar", () => {
         versionId: "version-1", workingRevision: 0 })));
     expect(screen.getByText("1 matches · limit reached · 1 source failure", { selector: "span" })).toBeVisible();
     openSearch();
-    expect(screen.getByText("Search history", { selector: "summary" }).closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByText("Searches", { selector: "summary" }).closest("details")).not.toHaveAttribute("open");
 
-    fireEvent.click(screen.getByText("Capture rules", { selector: "summary" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add rule" }));
-    const dialog = screen.getByRole("dialog", { name: "Capture rule" });
-    fireEvent.change(within(dialog).getByRole("textbox", { name: "Phrase to find" }),
-      { target: { value: "natural justice" } });
-    expect(within(dialog).queryByRole("button", { name: /save rule/i })).not.toBeInTheDocument();
-    await waitFor(() => expect(JSON.parse(localStorage.getItem("beaver.research.recipe.v1:file-1")!).rules[0].phrase)
-      .toBe("natural justice"));
-    fireEvent.click(within(dialog).getByRole("button", { name: "Run rules" }));
+    fireEvent.click(screen.getByRole("button", { name: "Passage extent" }));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Sentence after" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Search saved source text" }), { target: { value: "natural justice" } });
+    fireEvent.click(screen.getByRole("button", { name: "Find passages" }));
     await waitFor(() => expect(api.runResearchFileQuery).toHaveBeenCalledTimes(2));
     expect(api.runResearchFileQuery).toHaveBeenLastCalledWith("file-1", expect.objectContaining({
-      rules: [expect.objectContaining({ phrase: "natural justice" })],
+      syntax: "literal", target: "sources", conflict: "append",
+      rules: [{ phrase: "natural justice", direction: "after", unit: "sentence", slot: "Unclassified" }],
     }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("selects matched passages and saves them under a passage category", async () => {
+    await renderWorkspace(); openSearch();
+    fireEvent.change(screen.getByRole("textbox", { name: "Search saved source text" }), { target: { value: "duty" } });
+    fireEvent.click(screen.getByRole("button", { name: "Find passages" }));
+    const box = await screen.findByRole("checkbox", { name: "Select para 5" });
+    fireEvent.click(box);
+    fireEvent.click(screen.getByRole("button", { name: "Save selected passages" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Save as Holding" }));
+    await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", 0,
+      { type: "label-selection", target: "passages", sourceIds: ["baker"], evidenceIds: ["e_1"], assign: ["holding"], mode: "add" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all matches" }));
+    expect(screen.getByRole("button", { name: "Save selected passages" })).toHaveTextContent("Save 1 as");
+  });
+
+  it("filters and sorts the list from one options menu", async () => {
+    await renderWorkspace();
+    fireEvent.click(screen.getByRole("button", { name: "List options" }));
+    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "Year: 2020" }));
+    const list = screen.getByRole("region", { name: "Saved sources" });
+    await waitFor(() => expect(within(list).queryByText("Baker v Canada")).not.toBeInTheDocument());
+    expect(within(list).getByText("Appeal case")).toBeVisible();
   });
 
   it("loads receipt history only when opened and returns to sources for its matches", async () => {
     await renderWorkspace();
     expect(api.getResearchItems.mock.calls.some(([, input]) => input.kind === "queries")).toBe(false);
     openSearch();
-    fireEvent.click(screen.getByText("Search history", { selector: "summary" }));
+    fireEvent.click(screen.getByText("Searches", { selector: "summary" }));
     const query = await screen.findByText("duty", { selector: "span" });
     expect(api.getResearchItems.mock.calls.some(([, input]) => input.kind === "queries")).toBe(true);
     fireEvent.click(query);
     expect(screen.getByLabelText("Sources searched")).toHaveTextContent("Baker v Canada");
     expect(screen.getByText("Technical details").closest("details")).not.toHaveAttribute("open");
-    fireEvent.click(screen.getByRole("button", { name: "Use these rules" }));
-    await waitFor(() => expect(JSON.parse(localStorage.getItem("beaver.research.recipe.v1:file-1")!)).toMatchObject({
-      rules: [expect.objectContaining({ phrase: "duty" })], conflict: "append",
-    }));
+    fireEvent.click(screen.getByRole("button", { name: "Run again" }));
+    await waitFor(() => expect(api.runResearchFileQuery).toHaveBeenCalledWith("file-1", expect.objectContaining({
+      rules: [expect.objectContaining({ phrase: "duty" })], conflict: "append" })));
     fireEvent.click(screen.getByRole("button", { name: "View matches" }));
     const list = screen.getByRole("region", { name: "Saved sources" });
     expect(await within(list).findByText("Baker v Canada")).toBeVisible();
@@ -458,7 +473,7 @@ describe("ResearchFileBar", () => {
       : { items: [{ kind: "passage", index: input.cursor ? 50 : 0,
           value: input.cursor ? evidence : unrelated }], next_cursor: input.cursor ? null : "page-2" });
     await renderWorkspace(); openSearch();
-    fireEvent.click(screen.getByText("Search history", { selector: "summary" }));
+    fireEvent.click(screen.getByText("Searches", { selector: "summary" }));
     fireEvent.click(await screen.findByText("duty", { selector: "span" }));
     fireEvent.click(screen.getByRole("button", { name: "View matches" }));
     openBaker();

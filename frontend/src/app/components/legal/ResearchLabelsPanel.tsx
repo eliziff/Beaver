@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type SetStateAction } from "react";
 import { ChevronDown, ChevronRight, GripVertical, Pencil } from "lucide-react";
 import { FolderSvgIcon } from "../shared/FolderSvgIcon";
-import { ActionMenu } from "../ui/action-menu";
-import { buttonClassName } from "../ui/button";
+import { Button } from "../ui/button";
 import { researchLabelPath, type ResearchAction, type ResearchLabel } from "@/app/lib/researchFiles";
 import { errorMessage } from "@/app/lib/utils";
 import { ResearchLabelCircle, researchLabelColor } from "./ResearchLabelCircle";
@@ -10,17 +9,26 @@ import { RESEARCH_SOURCE_DRAG, RESEARCH_SOURCE_REFERENCE_DRAG } from "./Research
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 
 type Scope = ResearchLabel["scope"];
+export type LabelSelection = Set<string> | null;
 type LabelDrop = { id: string; mode: "before" | "inside" | "after" };
-const COLLAPSED = "beaver.research.collapsed.v1", UNSORTED = "__unsorted__";
+export const UNSORTED = "__unsorted__";
+const COLLAPSED = "beaver.research.collapsed.v1";
 const LABEL_DRAG = "application/x-beaver-research-label";
 const readCollapsed = (id?: string) => { try { const value = id
   ? JSON.parse(localStorage.getItem(`${COLLAPSED}:${id}`) ?? "null") : null;
   return new Set<string>(Array.isArray(value) ? value.filter((item) => typeof item === "string") : []);
   } catch { return new Set<string>(); } };
+/** Click selects one label, shift-click toggles it, and clicking the only selected label clears the scope. */
+const toggleLabelSelection = (current: LabelSelection, id: string, extend: boolean): LabelSelection => {
+  if (!extend) return current?.size === 1 && current.has(id) ? null : new Set([id]);
+  const next = new Set(current ?? []); if (next.has(id)) next.delete(id); else next.add(id);
+  return next.size ? next : null;
+};
 
-export function ResearchLabelsPanel({ scope, selected, onSelectionChange, highlightFilter, setHighlightFilter, onError }: {
-  scope: Scope; selected: Set<string> | null; onSelectionChange: Dispatch<SetStateAction<Set<string> | null>>;
-  highlightFilter: boolean; setHighlightFilter: (value: boolean) => void;
+export function ResearchLabelsPanel({ selected, onSelect, onDelete, onError }: {
+  selected: Record<Scope, LabelSelection>;
+  onSelect: (scope: Scope, update: SetStateAction<LabelSelection>) => void;
+  onDelete: (label: ResearchLabel) => void;
   onError: (message: string) => void;
 }) {
   const { file, mutations: commit } = useSourcesWorkspace();
@@ -31,48 +39,43 @@ export function ResearchLabelsPanel({ scope, selected, onSelectionChange, highli
     map.forEach((values) => values.sort((a, b) => a.order - b.order)); return map; }, [labels]);
   const [busy, setBusy] = useState(false), [activeLabel, setActiveLabel] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(() => readCollapsed(file?.document.id));
-  const [labelSearch, setLabelSearch] = useState<Record<Scope, string>>({ source: "", highlight: "" });
   const [labelDrop, setLabelDrop] = useState<LabelDrop | null>(null), labelDrag = useRef<string | null>(null);
-  const setStatus = onError;
   async function act(action: ResearchAction) {
     if (!file) return null;
     try { return await commit.act(action); }
     catch (reason) { onError(errorMessage(reason, "Could not update labels")); return null; }
   }
   const labelCounts = useMemo(() => { const counts: Record<string, number> = {};
-    const visit = (items: typeof allSources, scope: Scope) => items.forEach(({ labelIds }) => {
-      const applied = new Set<string>(); labelIds.forEach((id) => researchLabelPath(labels, id).forEach((label) => {
-        if (label.scope === scope) applied.add(label.id); })); applied.forEach((id) => { counts[id] = (counts[id] ?? 0) + 1; }); });
-    visit(allSources, "source"); allSources.forEach(({ passages }) => Object.entries(passages?.labelCounts ?? {})
+    allSources.forEach(({ labelIds }) => { const applied = new Set<string>();
+      labelIds.forEach((id) => researchLabelPath(labels, id).forEach((label) => { if (label.scope === "source") applied.add(label.id); }));
+      applied.forEach((id) => { counts[id] = (counts[id] ?? 0) + 1; }); });
+    allSources.forEach(({ passages }) => Object.entries(passages?.labelCounts ?? {})
       .forEach(([id, count]) => { if (labels[id]?.scope === "highlight") counts[id] = (counts[id] ?? 0) + count; }));
     return counts;
   }, [labels, allSources]);
-  const unlabelledCount = allSources.reduce((sum, source) => sum +
-    (source.passages?.unlabelledCount ?? 0), 0);
+  const unlabelledCount = allSources.reduce((sum, source) => sum + (source.passages?.unlabelledCount ?? 0), 0);
   useEffect(() => { if (file) localStorage.setItem(`${COLLAPSED}:${file.document.id}`,
     JSON.stringify([...collapsed])); }, [collapsed, file]);
   async function addLabel(scope: Scope) {
     if (!file) return;
-    setBusy(true); setStatus("");
-    try { const id = crypto.randomUUID();
-      const selectedId = selected?.size === 1 ? [...selected][0] : "";
+    setBusy(true);
+    try { const id = crypto.randomUUID(), current = selected[scope];
+      const selectedId = current?.size === 1 ? [...current][0] : "";
       const parentId = labels[selectedId]?.scope === scope ? selectedId : null;
-      if (parentId) setCollapsed((current) => { const next = new Set(current); next.delete(parentId); return next; });
+      if (parentId) setCollapsed((values) => { const next = new Set(values); next.delete(parentId); return next; });
       await commit.act({ type: "label", id, name: scope === "source" ? "New label" : "New category", parentId, scope,
         color: scope === "source" ? "#3498db" : "#eab308" }); setActiveLabel(id); }
-    catch (reason) { setStatus(errorMessage(reason, "Could not add label")); }
+    catch (reason) { onError(errorMessage(reason, "Could not add label")); }
     finally { setBusy(false); }
   }
   async function editLabel(event: FormEvent<HTMLFormElement>, id: string) {
-    event.preventDefault(); const label = labels[id], data = new FormData(event.currentTarget), name = String(data.get("name") ?? "").trim();
-    if (label && name && await act({ type: "label", ...label, name,
-      color: String(data.get("color") ?? researchLabelColor(label)) })) setActiveLabel(null);
+    event.preventDefault(); const label = labels[id], name = String(new FormData(event.currentTarget).get("name") ?? "").trim();
+    if (label && name && await act({ type: "label", ...label, name })) setActiveLabel(null);
   }
   function canReparent(id: string, parentId: string | null) {
     const label = labels[id], parent = parentId ? labels[parentId] : null;
-    if (!label || id === parentId || parentId && (!parent || parent.scope !== label.scope ||
-      researchLabelPath(labels, parentId).some((item) => item.id === id))) return false;
-    return true;
+    return !!label && id !== parentId && !(parentId && (!parent || parent.scope !== label.scope ||
+      researchLabelPath(labels, parentId).some((item) => item.id === id)));
   }
   async function reparent(id: string, parentId: string | null, order?: number) {
     const label = labels[id]; if (!label || !canReparent(id, parentId)) return;
@@ -89,13 +92,11 @@ export function ResearchLabelsPanel({ scope, selected, onSelectionChange, highli
     else return false;
     return true;
   }
-  function matchesLabel(id: string, search: string): boolean { return !search || labels[id].name.toLowerCase().includes(search.toLowerCase()) ||
-    (children.get(id) ?? []).some(({ id: child }) => matchesLabel(child, search)); }
+  const rowClass = (active: boolean) => `flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm ${active ? "bg-gray-200" : "hover:bg-gray-50"}`;
   function labelTree(scope: Scope, parentId: string | null, depth = 0): ReactNode {
-    const search = labelSearch[scope], selection = selected;
-    return (children.get(parentId) ?? []).filter((label) => label.scope === scope && matchesLabel(label.id, search)).map((label) => {
-      const hasChildren = !!children.get(label.id)?.length, open = !collapsed.has(label.id) || !!search,
-        count = labelCounts[label.id] ?? 0;
+    const selection = selected[scope];
+    return (children.get(parentId) ?? []).filter((label) => label.scope === scope).map((label) => {
+      const hasChildren = !!children.get(label.id)?.length, open = !collapsed.has(label.id), count = labelCounts[label.id] ?? 0;
       return <div key={label.id}>
         <div data-tree-drop-folder={label.id} draggable tabIndex={0} onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return;
@@ -129,7 +130,7 @@ export function ResearchLabelsPanel({ scope, selected, onSelectionChange, highli
             ? labelDrop.mode === "inside" ? "bg-blue-50 ring-1 ring-inset ring-blue-300"
               : labelDrop.mode === "before" ? "before:absolute before:inset-x-1 before:top-0 before:h-0.5 before:rounded before:bg-brand"
                 : "after:absolute after:inset-x-1 after:bottom-0 after:h-0.5 after:rounded after:bg-brand"
-            : selection?.has(label.id) ? "bg-gray-100" : "hover:bg-gray-50"}`}
+            : selection?.has(label.id) ? "bg-gray-200" : "hover:bg-gray-50"}`}
           style={{ paddingInlineStart: 8 + depth * 16 }}>
           <GripVertical aria-hidden="true" className="size-3 shrink-0 cursor-grab text-gray-300 group-hover:text-gray-500" />
           <button type="button" disabled={!hasChildren} aria-label={`${open ? "Collapse" : "Expand"} ${label.name}`}
@@ -146,12 +147,12 @@ export function ResearchLabelsPanel({ scope, selected, onSelectionChange, highli
           </label>
           {activeLabel === label.id ? <form onSubmit={(event) => void editLabel(event, label.id)} className="flex min-w-0 flex-1 items-center gap-1">
             <input required autoFocus name="name" aria-label="Label name" defaultValue={label.name}
-              onBlur={(event) => event.currentTarget.form?.requestSubmit()}
+              onBlur={(event) => { if (!event.relatedTarget || !event.currentTarget.form?.contains(event.relatedTarget as Node)) event.currentTarget.form?.requestSubmit(); }}
               onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); setActiveLabel(null); } }}
               className="h-7 min-w-0 flex-1 rounded border border-gray-300 px-1.5 text-sm" />
-          </form> : <><button type="button" onClick={(event) => { const set = onSelectionChange;
-            set((current) => { if (!event.shiftKey) return new Set([label.id]); const next = new Set(current ?? []);
-              if (next.has(label.id)) next.delete(label.id); else next.add(label.id); return next; }); }}
+            <Button type="button" variant="outline" size="compact" aria-label={`Delete ${label.name}`}
+              onMouseDown={(event) => event.preventDefault()} onClick={() => { setActiveLabel(null); onDelete(label); }}>Delete</Button>
+          </form> : <><button type="button" onClick={(event) => onSelect(scope, (current) => toggleLabelSelection(current, label.id, event.shiftKey))}
             aria-pressed={selection?.has(label.id) ?? false}
             aria-label={`${label.name}, ${count} ${scope === "source" ? "sources" : "directly labelled passages"}`}
             title={scope === "highlight" ? `${count} directly labelled passages; selecting includes nested labels` : undefined}
@@ -163,48 +164,45 @@ export function ResearchLabelsPanel({ scope, selected, onSelectionChange, highli
       </div>;
     });
   }
-
-  function labelPanel(scope: Scope) { const selection = selected, setSelection = onSelectionChange;
-    return <><div className="mb-1 flex items-center gap-1.5">
-      <input type="search" autoComplete="off" value={labelSearch[scope]} onChange={(event) => setLabelSearch((value) => ({ ...value, [scope]: event.target.value }))}
-        aria-label={scope === "source" ? "Search labels" : "Search highlight categories"}
-        placeholder={scope === "source" ? "Search labels" : "Search categories"}
-        className="h-8 min-w-0 flex-1 rounded-md border border-gray-300 px-2 text-sm" />
-      <ActionMenu label="Label selection" items={[
-        { label: "View all", checked: selection === null, onSelect: () => setSelection(null) },
-        { label: "View none", checked: selection?.size === 0, onSelect: () => setSelection(new Set()) },
-      ]} triggerClassName={buttonClassName({ variant: "outline", size: "compact" })}>
-        {selection === null ? "All" : selection.size === 0 ? "None" : `${selection.size} selected`}<ChevronDown className="size-3" />
-      </ActionMenu>
-    </div>
-    {scope === "highlight" && <label className="mb-1 flex items-center gap-1 rounded bg-gray-50 px-1.5 py-1 text-[13px] leading-4 text-gray-600">
-      <input type="checkbox" checked={highlightFilter} onChange={(event) => setHighlightFilter(event.target.checked)} />
-      Filter sources by these passages
-    </label>}
-    <div>{labelTree(scope, null)}</div>
-    {scope === "highlight" && unlabelledCount > 0 && <button type="button"
-      aria-pressed={selection?.has(UNSORTED) ?? false}
-      onClick={() => setSelection(new Set([UNSORTED]))}
-      className={`mt-1 flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm ${selection?.has(UNSORTED) ? "bg-gray-200" : "hover:bg-gray-50"}`}>
-      <ResearchLabelCircle labels={labels} labelIds={[]} size="sm" />Unclassified
-      <span className="ms-auto tabular-nums text-gray-400">{unlabelledCount}</span>
-    </button>}
-    {scope === "source" && <button type="button" aria-pressed={selection?.has(UNSORTED) ?? false} onClick={() => setSelection(new Set([UNSORTED]))}
-      className={`mt-1 flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm font-medium text-gray-500 ${selection?.has(UNSORTED) ? "bg-gray-200" : "hover:bg-gray-50"}`}>
-      <ResearchLabelCircle labels={labels} labelIds={[]} size="sm" />Unsorted
-    </button>}
-    <button type="button" data-tree-drop-root={scope} disabled={busy} onClick={() => void addLabel(scope)}
-      onDragOver={(event) => { const dragged = labels[labelDrag.current ?? ""];
-        if (dragged?.scope !== scope || !canReparent(dragged.id, null)) return setLabelDrop(null);
-        event.preventDefault(); setLabelDrop({ id: `root:${scope}`, mode: "inside" }); }}
-      onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setLabelDrop(null); }}
-      onDrop={(event) => { event.preventDefault(); setLabelDrop(null); labelDrag.current = null;
-        const id = event.dataTransfer.getData(LABEL_DRAG);
-        if (labels[id]?.scope === scope) void reparent(id, null, children.get(null)?.filter((label) => label.scope === scope).length ?? 0); }}
-      className={`mt-1 flex h-9 w-full items-center rounded-md border border-dashed px-2 text-left text-sm text-gray-500 hover:text-gray-800 ${labelDrop?.id === `root:${scope}`
-        ? "border-brand bg-blue-50 ring-1 ring-inset ring-blue-300" : "border-gray-300 hover:border-gray-500"}`}>
-      {labelDrop?.id === `root:${scope}` ? "Move to top level" : `+ Add ${scope === "source" ? "label" : "category"}`}
-    </button></>; }
-
-  return labelPanel(scope);
+  function group(scope: Scope, title: string) {
+    const selection = selected[scope], unsorted = scope === "source" ? "Unsorted" : "Unclassified",
+      unsortedCount = scope === "source" ? allSources.filter(({ labelIds }) => !labelIds.length).length : unlabelledCount,
+      total = Object.values(labels).filter((label) => label.scope === scope).length;
+    return <details open className="group/labels mt-1">
+      <summary className="flex h-8 cursor-pointer list-none items-center gap-1.5 px-2 text-xs font-medium text-gray-500">
+        <ChevronRight className="size-3.5 group-open/labels:rotate-90" aria-hidden="true" />{title}
+        <span className="ms-auto tabular-nums">{total}</span>
+      </summary>
+      {labelTree(scope, null)}
+      {(scope === "source" || unsortedCount > 0) && <button type="button" aria-pressed={selection?.has(UNSORTED) ?? false}
+        aria-label={`${unsorted}, ${unsortedCount} ${scope === "source" ? "sources" : "passages"}`}
+        onClick={(event) => onSelect(scope, (current) => toggleLabelSelection(current, UNSORTED, event.shiftKey))}
+        className={`${rowClass(selection?.has(UNSORTED) ?? false)} font-medium text-gray-500`}>
+        <ResearchLabelCircle labels={labels} labelIds={[]} size="sm" />{unsorted}
+        <span className="ms-auto tabular-nums text-gray-400">{unsortedCount}</span>
+      </button>}
+      <button type="button" data-tree-drop-root={scope} disabled={busy} onClick={() => void addLabel(scope)}
+        onDragOver={(event) => { const dragged = labels[labelDrag.current ?? ""];
+          if (dragged?.scope !== scope || !canReparent(dragged.id, null)) return setLabelDrop(null);
+          event.preventDefault(); setLabelDrop({ id: `root:${scope}`, mode: "inside" }); }}
+        onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setLabelDrop(null); }}
+        onDrop={(event) => { event.preventDefault(); setLabelDrop(null); labelDrag.current = null;
+          const id = event.dataTransfer.getData(LABEL_DRAG);
+          if (labels[id]?.scope === scope) void reparent(id, null, children.get(null)?.filter((label) => label.scope === scope).length ?? 0); }}
+        className={`mt-1 flex h-8 w-full items-center rounded-md border border-dashed px-2 text-left text-sm text-gray-500 hover:text-gray-800 ${labelDrop?.id === `root:${scope}`
+          ? "border-brand bg-blue-50 ring-1 ring-inset ring-blue-300" : "border-gray-300 hover:border-gray-500"}`}>
+        {labelDrop?.id === `root:${scope}` ? "Move to top level" : `+ Add ${scope === "source" ? "label" : "category"}`}
+      </button>
+    </details>;
+  }
+  const all = selected.source === null && selected.highlight === null;
+  return <aside aria-label="Label organizer" className="mb-3 border-b border-gray-200 pb-3">
+    <button type="button" aria-label="All sources" aria-pressed={all} onClick={() => { onSelect("source", null); onSelect("highlight", null); }}
+      className={`${rowClass(all)} font-medium`}>
+      <ResearchLabelCircle labels={labels} labelIds={[]} size="sm" />All sources
+      <span className="ms-auto tabular-nums text-gray-500">{allSources.length}</span>
+    </button>
+    {group("source", "Labels")}
+    {group("highlight", "Passage categories")}
+  </aside>;
 }
