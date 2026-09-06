@@ -1,21 +1,19 @@
 import "@/app/globals.css";
 import { initializeRuntimeConfig } from "@/app/lib/runtimeConfig";
 import { createRoot } from "react-dom/client";
+import { Router } from "@/app/router";
 
 const container = document.getElementById("root");
 if (!container) throw new Error("Missing Beaver application root");
 const root = createRoot(container);
 
 try {
-    // The route definitions are configuration-independent. Fetch them while
-    // configuration is in flight, but do not evaluate auth-dependent modules
-    // or render the router until configuration has been accepted.
-    const config = initializeRuntimeConfig();
-    const [{ Router }, gate] = await Promise.all([
-        import("@/app/router"),
-        config.then(({ mode }) => mode === "cloud"
-            ? import("@/app/components/shared/MfaLoginGate") : null),
-    ]);
+    // Route definitions are configuration-independent, so Vite can preload
+    // their static dependencies from HTML instead of discovering them after
+    // the entry module executes. Runtime-dependent routes still wait here.
+    const config = await initializeRuntimeConfig();
+    const gate = config.mode === "cloud"
+        ? await import("@/app/components/shared/MfaLoginGate") : null;
     root.render(<Router LoginGate={gate?.MfaLoginGate} />);
 } catch (error) {
     console.error("Beaver startup failed:", error);
