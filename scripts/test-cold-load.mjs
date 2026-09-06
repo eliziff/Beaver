@@ -44,7 +44,7 @@ async function serve(directory, settings = {}) {
           await pause(settings.configDelay ?? 0);
           body = settings.invalidConfig ? { invalid: true } : config;
         } else if (path === '/api/projects') body = { items: [project], next_cursor: null };
-        else if (path === '/api/chat') body = [];
+        else if (['/api/chat', '/api/workflows', '/api/work-products'].includes(path)) body = [];
         else if (path === '/api/user/profile') body = profile;
         else if (path === '/api/auth/session') body = { user };
         else if (path === '/api/auth/mfa/assurance') body = { currentLevel: 'aal1', nextLevel: 'aal1' };
