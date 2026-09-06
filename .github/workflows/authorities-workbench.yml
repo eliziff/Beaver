@@ -19,14 +19,16 @@ jobs:
           for module in legal-structure legal-pdf-parser; do
             url=$(git config -f .gitmodules submodule.$module.url)
             sha=$(git ls-tree HEAD "$module" | awk '{print $3}')
-            if [ "$module" = legal-structure ]; then sha=aa99418f67003e13e994fe38913226c1ff8ccea7; fi
+            if [ "$module" = legal-structure ]; then sha=50aa7645624706f9f3cbfd7b2d73d5f3f3a9ffcb; fi
             git init "$module"
             git -C "$module" remote add origin "$url"
             git -C "$module" fetch --depth=1 origin "$sha"
             git -C "$module" checkout --detach FETCH_HEAD
           done
-      - name: Test native quotation semantics
-        run: cargo test --locked --manifest-path legal-structure/Cargo.toml --features quote-verification --lib
+      - name: Test native citation and quotation semantics
+        run: |
+          cargo test --locked --manifest-path legal-structure/Cargo.toml --features citator,quote-verification --lib > /tmp/test.log 2>&1 || { tail -90 /tmp/test.log; exit 1; }
+          tail -5 /tmp/test.log
       - name: Build native citation, quotation and PDF engine
         run: cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
       - name: Package pinned native engine and reference sources
