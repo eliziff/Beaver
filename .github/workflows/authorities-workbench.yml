@@ -19,18 +19,24 @@ jobs:
           for module in legal-structure legal-pdf-parser; do
             url=$(git config -f .gitmodules submodule.$module.url)
             sha=$(git ls-tree HEAD "$module" | awk '{print $3}')
+            if [ "$module" = legal-structure ]; then sha=aa99418f67003e13e994fe38913226c1ff8ccea7; fi
             git init "$module"
             git -C "$module" remote add origin "$url"
             git -C "$module" fetch --depth=1 origin "$sha"
             git -C "$module" checkout --detach FETCH_HEAD
           done
-      - name: Build native citation and quotation engine
-        run: cargo build --locked --release --no-default-features --manifest-path native/legal-structure-node/Cargo.toml
-      - name: Package pinned native engine and its reference sources
+      - name: Test native quotation semantics
+        run: cargo test --locked --manifest-path legal-structure/Cargo.toml --features quote-verification --lib
+      - name: Build native citation, quotation and PDF engine
+        run: cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
+      - name: Package pinned native engine and reference sources
         run: |
-          tar --exclude=.git -czf authorities-native.tar.gz native/legal-structure-node/target/release/liblegal_structure_node.so legal-structure
+          tar --exclude=.git --exclude=target -czf authorities-native-source.tar.gz legal-structure legal-pdf-parser
+          tar -czf authorities-native.tar.gz native/legal-structure-node/target/release/liblegal_structure_node.so
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: authorities-native
-          path: authorities-native.tar.gz
+          path: |
+            authorities-native.tar.gz
+            authorities-native-source.tar.gz
           retention-days: 1
