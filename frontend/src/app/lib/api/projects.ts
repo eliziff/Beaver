@@ -24,6 +24,7 @@ export interface Project {
   created_at: string;
   documents?: Document[];
   folders?: Folder[];
+  metadata?: { labelsResearchFileId?: string | null };
 }
 export const listProjects = (options: PageQuery & {
   scope?: "all" | "mine" | "shared-with-me";

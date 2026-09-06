@@ -11,6 +11,7 @@ import {
   stopTabularGeneration,
   startTabularGeneration,
   updateTabularReview,
+  proposeColumnLabels,
   type ColumnConfig,
   type TabularCell,
   type TabularReview,
@@ -39,8 +40,8 @@ import { ResearchSelectionLabels } from "../shared/ResearchSelectionLabels";
 import { ResearchChanges } from "../legal/ResearchChanges";
 import { SourcesWorkspace, useSourcesWorkspace } from "../legal/SourcesWorkspace";
 import type { ResearchSelection } from "@/app/lib/researchFiles";
-import { assistantIntent } from "../assistant/assistantIntent";
-import { OrganizeComposer } from "../legal/OrganizeComposer";
+import { AssistantDock } from "../assistant/AssistantDock";
+import { ResearchWorkspaceHost } from "../legal/ResearchWorkspaceHost";
 import { PageHeader, type PageHeaderAction, type PageHeaderBreadcrumb } from "../shared/PageHeader";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
 import { PeopleModal } from "../modals/PeopleModal";
@@ -107,21 +108,21 @@ function TRViewContent({ reviewId, projectId }: Props) {
         chatId: initialChat === "new" ? null : initialChat ?? undefined,
         highlightedCell: null as { colIdx: number; rowIdx: number } | null,
         missingProvider: null as ModelProvider | null,
-        organizeOpen: null as boolean | null,
+        dockTab: (initialChat === null ? null : "chat") as "chat" | "sources" | null,
         columnRun: null as { columnIndex: number; total: number; queue: string[] } | null,
     }));
     const setUi = useCallback((patch: Partial<typeof ui>) =>
         setUiState((current) => ({ ...current, ...patch })), []);
     useEffect(() => {
-        setUi({ chatId: initialChat === "new" ? null : initialChat ?? undefined });
+        setUi({ chatId: initialChat === "new" ? null : initialChat ?? undefined,
+            ...(initialChat === null ? {} : { dockTab: "chat" as const }) });
     }, [initialChat, setUi]);
     const {
         loading, generating, columnModal, modal, workflowStatus, deleteStatus,
         ownerAction, cellView, selectedIds, search, dragOver, uploading, chatId,
-        highlightedCell, missingProvider, columnRun,
+        highlightedCell, missingProvider, columnRun, dockTab,
     } = ui;
     const columns = review?.columns_config ?? [];
-    const organizeOpen = ui.organizeOpen ?? (!loading && !!documents.length && !columns.length);
     const workspaceId = review?.scope_config?.research_file_id;
     useEffect(() => { if (workspaceId) void workspace.open(workspaceId).catch(() => undefined); }, [workspaceId, workspace.open]);
     const project = projectId ? projects.find(({ id }) => id === projectId) ?? null : null;
@@ -488,15 +489,33 @@ function TRViewContent({ reviewId, projectId }: Props) {
     useEffect(() => {
         if (chatOpen && review && !workspaceId) prepareChatWorkspace();
     }, [chatOpen, !!review, workspaceId]);
-    async function openChat(request?: string) {
+    async function openChat() {
         await prepareRows();
         setSidebarOpen(false);
-        if (request) {
-            const params = new URLSearchParams(searchParams);
-            params.set("chat", chatId ?? "new");
-            setUi({ organizeOpen: false });
-            navigate(`${location.pathname}?${params}`, { replace: true, state: { assistantIntent: assistantIntent(request) } });
-        } else if (!chatOpen) setChatId(null);
+        setUi({ dockTab: "chat" });
+        if (!chatOpen) setChatId(null);
+    }
+    async function openSources() {
+        await prepareRows();
+        setUi({ dockTab: "sources" });
+    }
+    function closeDock() {
+        setUi({ dockTab: null });
+        setChatId(undefined);
+    }
+    async function labelsFromColumn({ index }: ColumnConfig) {
+        const { file } = await prepareRows();
+        workspace.accept(await proposeColumnLabels(file.document.id, reviewId, index));
+        setUi({ dockTab: "sources" });
+    }
+    const rowMembers = rowSelection(documents).members ?? [];
+    const workspaceSources = Object.values(workspace.file?.state.sources ?? {})
+        .filter(({ id }) => !rowMembers.some((member) => member.sourceId === id))
+        .map(({ id, reference }) => ({ id, title: reference.title ?? reference.citation ?? id }));
+    async function addSources(sourceIds: string[]) {
+        await updateTabularReview(reviewId, { research_selection: { target: "sources",
+            members: [...rowMembers, ...sourceIds.map((sourceId) => ({ sourceId }))] } });
+        await refreshReview();
     }
     const hasTable = !!columns.length && !!documents.length;
     const reviewTitle = review?.title || "Untitled Review";
@@ -589,23 +608,18 @@ function TRViewContent({ reviewId, projectId }: Props) {
                 {generating ? "Stop" : "Run"}
             </span>,
         },
-        { type: "custom", render: <ResearchViews workspace={async () => {
-            const { file, selection } = await prepareRows();
-            navigate(`/sources?research_file=${encodeURIComponent(file.document.id)}`, { state: { researchSelection: selection } });
-        }} chat={() => openChat()} /> },
-        !loading && !!documents.length && { type: "custom", render: <Button variant="outline" size="compact" className="h-9 px-3 text-sm"
-            aria-expanded={organizeOpen} onClick={() => setUi({ organizeOpen: !organizeOpen })}>Organize</Button> },
+        { type: "custom", render: <ResearchViews workspace={() => openSources()} chat={() => openChat()} /> },
         { type: "custom",
             render: <MoreActionsMenu items={menuItems} />,
         },
         {
             onClick: () => {
-                if (chatOpen) setChatId(undefined);
+                if (dockTab === "chat") closeDock();
                 else void openChat();
             },
             disabled: loading,
-            title: chatOpen ? "Close chat" : "Open chat",
-            icon: chatOpen
+            title: dockTab === "chat" ? "Close chat" : "Open chat",
+            icon: dockTab === "chat"
                 ? <MessageSquareX className="h-4 w-4" />
                 : <MessageSquare className="h-4 w-4" />,
             label: <span className="hidden sm:inline">Chat</span>,
@@ -620,7 +634,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
                     historyOpen={ui.historyOpen} onCloseHistory={() => setUi({ historyOpen: false })} />}
                 <div className="flex flex-1 overflow-hidden">
                     <div className={`flex flex-1 flex-col overflow-hidden ${
-                        chatOpen ? "max-md:hidden" : ""
+                        dockTab ? "max-md:hidden" : ""
                     }`}>
                         {!loading && (selected || generating) && <div className="mx-4 mb-2 flex min-h-8 flex-wrap items-center gap-2 md:mx-6">
                             {selected && <>
@@ -641,9 +655,6 @@ function TRViewContent({ reviewId, projectId }: Props) {
                                 {progress.done}/{progress.total}
                             </div>}
                         </div>}
-                        {organizeOpen && <div className="px-4 pt-2"><OrganizeComposer target="table" onRun={(request) => openChat(request)}
-                            onClose={() => setUi({ organizeOpen: false })}
-                            facts={workspace.file ? undefined : `${documents.length} document${documents.length === 1 ? "" : "s"}`} /></div>}
                         <div
                             className="relative flex flex-1 overflow-hidden"
                             onDragOver={(event) => {
@@ -689,29 +700,34 @@ function TRViewContent({ reviewId, projectId }: Props) {
                                 onDeleteColumn={({ index }) => void deleteColumn(index)}
                                 onAddColumns={() => setUi({ columnModal: null })}
                                 onAddDocuments={() => setUi({ modal: "documents" })}
+                                onColumnLabels={(column) => void labelsFromColumn(column)}
                             />
                         </div>
                     </div>
-                    {chatOpen && (
-                        <TRChatPanel
-                            reviewId={reviewId} chatId={chatId ?? null}
-                            workspaceReady={!!workspaceId && workspace.file?.document.id === workspaceId && JSON.stringify(workspace.selection) === selectedScopeKey}
-                            initialIntent={location.state?.assistantIntent}
-                            onIntentSent={() => navigate(`${location.pathname}${location.search}`, { replace: true, state: null })}
-                            onUpdated={() => void Promise.all([refreshReview(), workspace.refresh()]).catch(() => undefined)}
-                            searchMessageId={searchParams.get("message")}
-                            onCitationClick={(colIdx, rowIdx) => {
-                                setUi({
-                                    search: "",
-                                    highlightedCell: { colIdx, rowIdx },
-                                });
-                                setTimeout(() =>
-                                    setUi({ highlightedCell: null }), 3000);
-                            }}
-                            onClose={() => setChatId(undefined)}
-                            onChatIdChange={setChatId}
-                        />
-                    )}
+                    {dockTab && <AssistantDock expanded showCollapsedButton={false}
+                        defaultWidth={400} minWidth={320} maxWidth="40%"
+                        activeTabId={dockTab} onActivateTab={(id) => {
+                            setUi({ dockTab: id as "chat" | "sources" });
+                            if (id === "chat" && !chatOpen) void openChat();
+                        }}
+                        onExpandedChange={(open) => { if (!open) closeDock(); }}
+                        tabs={[
+                            { id: "chat", label: "Chat", icon: <MessageSquare aria-hidden className="size-4" />, content: chatOpen && <TRChatPanel
+                                reviewId={reviewId} chatId={chatId ?? null}
+                                workspaceReady={!!workspaceId && workspace.file?.document.id === workspaceId && JSON.stringify(workspace.selection) === selectedScopeKey}
+                                initialIntent={location.state?.assistantIntent}
+                                onIntentSent={() => navigate(`${location.pathname}${location.search}`, { replace: true, state: null })}
+                                onUpdated={() => void Promise.all([refreshReview(), workspace.refresh()]).catch(() => undefined)}
+                                searchMessageId={searchParams.get("message")}
+                                onCitationClick={(colIdx, rowIdx) => {
+                                    setUi({ search: "", highlightedCell: { colIdx, rowIdx } });
+                                    setTimeout(() => setUi({ highlightedCell: null }), 3000);
+                                }}
+                                onChatIdChange={setChatId}
+                            /> },
+                            { id: "sources", label: "Sources", content: <ResearchWorkspaceHost embedded open
+                                projectId={projectId} onOpenChange={() => undefined} /> },
+                        ]} />}
                 </div>
             </div>
             {expandedCell && expandedDocument && expandedColumn && (
@@ -748,6 +764,8 @@ function TRViewContent({ reviewId, projectId }: Props) {
                 accept={projectId
                     ? ".pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.ppt"
                     : undefined}
+                sources={workspaceSources}
+                onAddSources={addSources}
             />
             <TabularReviewDetailsModal
                 open={modal === "details"} review={review} projects={projects}
