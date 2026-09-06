@@ -22,6 +22,16 @@ classes, database column names, or a particular provider SDK.
 
 ## Growing resources
 
+Assistant conversations live beneath Assistant in the sidebar, with a separate
+new-conversation action and a searchable, paged conversation browser. Projects,
+Library, and Sources remain primary destinations; Workflows, Court Records,
+Authorities, and Tabular Review stay visible under Tools. The sidebar never
+scrolls; its recent-conversation list scrolls internally, showing up to five rows with no visible scrollbar
+within the available height, and All
+conversations provides the complete searchable list. Activity log and Recycling bin
+are available from the bottom utility menu. Project conversations retain their
+project navigation and context.
+
 Projects, workflows, tabular reviews, Library directories, and project
 directories provide:
 
@@ -35,6 +45,36 @@ directories provide:
 
 System workflows remain a small pinned catalogue and do not need runtime
 pagination or downloading.
+
+## Sources workspace
+
+- Labels, Search, and Memo are the three workspace tabs. Labels groups the
+  nested label organizer and filtered source list; Search keeps results alongside
+  its controls, with capture rules and history collapsed initially.
+- Source and passage actions use compact buttons. Cite opens the memo; the memo
+  and its autosave remain mounted across tab changes.
+- Open as connects Chat, Workspace and the existing Tabular Review. Views reuse
+  original supporting evidence and refer to canonical answers and label assignments.
+  An existing arrangement opens directly. When an arrangement is needed, the
+  existing table assistant receives a visible, cancellable organization request.
+- Organization follows the task: arbitrary nested or overlapping labels, passage
+  sets, question columns, and combinations remain first-class. The human or model
+  chooses rows, columns and grouping; chat turns never dictate table columns.
+  Separate supported branches of one source can occupy separate rows.
+- Source and passage selections are resolved before bulk labelling or extraction.
+  Human highlights, assistant reads and extracted supports use the same receipt
+  identity; actor and model provenance remain separate audit metadata.
+- Bound chats collect completed and interrupted research into their workspace.
+  Workspace and table results remain available through the existing scoped
+  application operations, in both local and cloud modes.
+- Human and assistant edits have the same reversible change history. Undo checks
+  affected values and reverses one change without overwriting unrelated later work.
+  The assistant applies reversible work within the request. Suggestions and changes
+  needing a user decision are proposals; pending changes stay out of active scopes.
+- Interrupted memo saves retain the draft, reconcile the saved text before
+  retrying, and never overwrite another writer's changes. Automatic retries are
+  bounded; Retry save remains available. Replacing a conflicting draft with the
+  saved memo requires an explicit discard.
 
 ## Documents and versions
 
@@ -65,10 +105,21 @@ scope.
   provider-neutral turn engine and executable tool registry.
 - Advertised tools have handlers. Unavailable tools are omitted; unknown tools
   return bounded errors.
+- Specialists load by exact registered name without a cumulative capability cap.
+- A successful legal Read supplies exact passages and usable continuation;
+  model-facing compaction preserves native source, opinion and evidence identity.
+- Grounded answer segments are written once with their supporting evidence
+  IDs. The runtime validates and renders them through the common claim and
+  citation contracts.
+  Bound workspace tools infer their current draft; general workspace operations
+  remain available through `manage_work_products` with the same scope checks.
 - The backend reconstructs authoritative history and state from durable records
   rather than trusting a browser-supplied transcript.
 - Turn submission uses optimistic transcript versions. Conflicts do not create
   duplicate turns.
+- Opening a saved chat draft is read-only and preserves history order. Draft
+  changes autosave; failures retain the text with an inline retry. Older history
+  refreshes cannot replace newer results.
 - Provider/tool work is cancellable, preserves usable partial events, and
   records one terminal outcome.
 - Tool calls and results remain exactly paired. Document mutations are

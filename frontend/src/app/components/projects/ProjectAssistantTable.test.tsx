@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
-import type { Chat } from "@/app/components/shared/types";
+import type { Chat } from "@/app/lib/api/chat";
 import { ProjectAssistantTable } from "./ProjectAssistantTable";
 
 const chats: Chat[] = ["First chat", "Second chat"].map((title, index) => ({

@@ -1,3 +1,4 @@
+import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { createElement, useState, type ReactNode } from "react";
 import {
     BadgeCheck,
@@ -15,16 +16,16 @@ import {
     Wrench,
 } from "lucide-react";
 import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
-import { apiBlobRequest } from "@/app/lib/apiTransport";
+import { downloadDocument } from "@/app/lib/api/documents";
 import { downloadBlob } from "@/app/lib/download";
 import { RESPONSE_GLASS_SURFACE, withoutMarkdownNode } from "./messageStyles";
+import { citationSourceKey, omitBroadCitationDuplicates } from "./citationUtils";
 import {
     CitationPill,
     CitationPillMarkdown,
     GfmMarkdown,
 } from "./MarkdownContent";
 import {
-    safeAssistantUrl,
     type AssistantActivity,
 } from "@/app/lib/assistantSession";
 
@@ -134,9 +135,12 @@ export function ActivityRow({
     const markdown = lines.length && normalize(lines[0]) === normalize(activity.label)
         ? lines.slice(1).join("\n").trim()
         : inlineMarkdown;
-    const citations = activity.citations ?? [];
-    const hasContent = Boolean(markdown || citations.length);
-    const label = `${activity.label}${busy && !activity.markdown ? "..." : ""}`;
+    const citations = activity.tool === "search_sources" || activity.tool === "Grep"
+        ? [] : omitBroadCitationDuplicates(activity.citations ?? []);
+    const compactRead = activity.tool === "Read" && !markdown && citations.length > 0;
+    const label = compactRead
+        ? { running: "Read", completed: "Read", error: "Failed", interrupted: "Stopped" }[activity.status]
+        : `${activity.label}${busy && !activity.markdown ? "..." : ""}`;
     const labelNode = onClick ? (
         <button
             type="button"
@@ -151,13 +155,14 @@ export function ActivityRow({
     return (
         <div
             role="listitem"
+            aria-busy={busy}
             className="flex min-w-0 items-start gap-2 font-serif text-sm text-gray-600"
         >
             <span className={`mt-0.5 grid size-4 shrink-0 place-items-center ${
                 failed ? "text-red-600" : "text-gray-500"
             }`}>
                 {busy ? (
-                    <Loader2 size={14} strokeWidth={1.75} className="animate-spin" aria-hidden="true" />
+                    <Loader2 size={14} strokeWidth={1.75} className="motion-safe:animate-spin" aria-hidden="true" />
                 ) : (
                     createElement(activityIcon(activity.tool), {
                         size: 14, strokeWidth: 1.75, "aria-hidden": true,
@@ -165,48 +170,41 @@ export function ActivityRow({
                 )}
             </span>
             <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
-                {hasContent ? (
-                    <>
-                        <div className="mb-1">{labelNode}</div>
-                        {markdown && <div className="prose prose-sm max-w-none [&>*]:my-1 [&>*]:text-sm [&>*]:text-gray-600 [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-sm [&_h4]:text-sm">
-                            {citations.length ? (
-                                <CitationPillMarkdown
-                                    text={markdown}
-                                    citations={citations}
-                                    onCitationClick={onCitationClick}
+                <div title={compactRead ? activity.label : undefined}>
+                    {labelNode}{" "}
+                    {!markdown && citations.length > 0 && (
+                        <span className={compactRead ? "inline" : "mt-1 flex flex-wrap gap-1.5"}>
+                            {citations.map((citation, index) => (
+                                <CitationPill
+                                    key={`${citationSourceKey(citation)}:${index}`}
+                                    citation={citation}
+                                    onClick={onCitationClick}
+                                    className={compactRead ? "me-1.5" : undefined}
                                     truncateStyleOfCause
+                                    sourceOnly={compactRead}
                                 />
-                            ) : (
-                                <GfmMarkdown
-                                    components={{
-                                        code: (props) => (
-                                            <code
-                                                className="font-serif text-gray-700"
-                                                {...withoutMarkdownNode(props)}
-                                            />
-                                        ),
-                                    }}
-                                >
-                                    {markdown}
-                                </GfmMarkdown>
-                            )}
-                        </div>}
-                        {!markdown && citations.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5" aria-label="Sources">
-                                {citations.map((citation) => (
-                                    <CitationPill
-                                        key={`${citation.kind}:${citation.ref}`}
-                                        citation={citation}
-                                        onClick={onCitationClick}
-                                        truncateStyleOfCause
-                                    />
-                                ))}
-                            </div>
-                        )}
-                    </>
-                ) : (
-                    labelNode
-                )}
+                            ))}
+                        </span>
+                    )}
+                </div>
+                {markdown && <div className="prose prose-sm mt-1 max-w-none [&>*]:my-1 [&>*]:text-sm [&>*]:text-gray-600 [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-sm [&_h4]:text-sm">
+                    {citations.length ? (
+                        <CitationPillMarkdown
+                            text={markdown}
+                            citations={citations}
+                            onCitationClick={onCitationClick}
+                            truncateStyleOfCause
+                        />
+                    ) : (
+                        <GfmMarkdown
+                            components={{
+                                code: (props) => <code className="font-serif text-gray-700" {...withoutMarkdownNode(props)} />,
+                            }}
+                        >
+                            {markdown}
+                        </GfmMarkdown>
+                    )}
+                </div>}
                 {activity.detail && (
                     <p
                         className={`mt-0.5 text-xs ${
@@ -255,13 +253,15 @@ export function ActivityRow({
 
 export function DocDownloadBlock({
     filename,
-    download_url,
+    documentId,
+    versionId,
     onOpen,
     isReloading = false,
     versionNumber,
 }: {
     filename: string;
-    download_url: string;
+    documentId: string;
+    versionId: string;
     onOpen?: () => void;
     isReloading?: boolean;
     versionNumber?: number | null;
@@ -272,16 +272,14 @@ export function DocDownloadBlock({
     const basename = extMatch
         ? filename.slice(0, -extMatch[0].length)
         : filename;
-    const candidateHref = safeAssistantUrl(download_url);
-    const href = candidateHref?.startsWith("/") ? candidateHref : null;
     const spinning = busy || isReloading;
     const handleDownload = async (event?: React.SyntheticEvent) => {
         event?.stopPropagation();
         event?.preventDefault();
-        if (spinning || !href) return;
+        if (spinning) return;
         setBusy(true);
         try {
-            const { blob } = await apiBlobRequest(href);
+            const { blob } = await downloadDocument(documentId, versionId);
             downloadBlob(blob, filename);
         } finally {
             setBusy(false);

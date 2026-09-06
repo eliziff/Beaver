@@ -7,8 +7,9 @@ The detailed operation inventory remains [deterministic Word actions](../decisio
 ## Product vocabulary and workflow catalogue
 
 Workflows is the single catalogue of coherent legal jobs, not implementation
-types or individual stages. Drafting includes revision/proofreading/citation/
-supra repair; Quote Checking combines exact quotation and optional support review;
+types or individual stages. Drafting includes revision/proofreading/citation;
+Fix supras is an independently discoverable document workflow. Review quotations
+has one Open action; its modal offers mechanical verification or AI-assisted support review.
 Legal Research includes search/read/note-up/treatment/evidence/memos. Written/
 tabular outputs are variants, not duplicate workflows.
 
@@ -33,7 +34,7 @@ choices; no custom category trees or contextual aliases. Old subject recipes
 remain choices inside the appropriate workflow. Delete Automation/Actions,
 General Transactions, duplicate assistant/tabular entries and split system fetch.
 One collection returns user/system definitions. Closed launchers: instructions
-with assistant/tabular variants, authorities, court_records; existing execution
+with assistant/tabular variants, authorities, court_records, fix_supras and quote_check; existing execution
 owners, not a universal engine.
 
 Keep direct Authorities/Court Records/Tabular entries and focused workspaces.
@@ -43,6 +44,20 @@ their compact workspace control with direct links, not another recent-work list.
 Static feature preferences gate all real launch/tool/application paths without
 deleting prior results. Standalone/Beaver share one UI/core through thin local-file/
 Library adapters; [work products](legal-work-products.md) owns their detailed contract.
+
+Document workflows remain visible before a qualifying input is selected. Launch
+uses existing Library/project document selection. Mechanical quotation checking
+uses ALR's lossless splitting rules, citation resolution and exact comparison
+receipts without model inference. Its default durable output is an Excel workbook
+beside the input document, preserving its project and folder. Ambiguous links,
+unavailable sources and mismatches stay explicit in the report.
+
+AI-assisted checking can establish citation links, inspect mechanical receipts
+and read sources to assess propositions and the argument. It defaults to a prose
+critique in chat, then offers a durable report or proposed edits. Requested Excel
+reports keep the mechanical findings and add a separate model-authored explanation
+column; other requested formats use existing document operations. Applying edits
+remains a user-requested operation.
 
 ## Word operations and exact targets
 

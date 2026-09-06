@@ -4,17 +4,18 @@ import {
     ExternalLink,
     Loader2,
     PanelsTopLeft,
+    PanelRightClose,
     Search,
 } from "lucide-react";
 import { PageHeader } from "@/app/components/shared/PageHeader";
+import { getResearchFile } from "@/app/lib/api/researchFiles";
 import {
-    getResearchFile,
-    getLegalSourceCoverage,
-    searchLegalSources,
-    type LegalSearchDocumentType,
-    type LegalSourceCoverage,
-    type LegalSourceSearchResult,
-} from "@/app/lib/beaverApi";
+  getLegalSourceCoverage,
+  searchLegalSources,
+  type LegalSearchDocumentType,
+  type LegalSourceCoverage,
+  type LegalSourceSearchResult,
+} from "@/app/lib/api/legalSources";
 import { legalSourceViewerHref, researchSourceKey, type ResearchFile, type ResearchSource,
     type ResearchSourceReference } from "@/app/lib/researchFiles";
 import {
@@ -79,14 +80,15 @@ function SearchSnippet({ children }: { children: string }) {
 }
 
 export function LegalLibraryPage({ embedded = false, projectId, onResearchFileChange,
-    onOpenSource, researchRefreshKey }: {
+    onOpenSource, researchRefreshKey, researchFileId }: {
     embedded?: boolean; projectId?: string;
     onResearchFileChange?: (file: ResearchFile | null) => void;
     researchRefreshKey?: string | null;
+    researchFileId?: string | null;
     onOpenSource?: (tab: LegalSourceTab) => void;
 }) {
     const [params] = useSearchParams();
-    const requestedResearchFileId = embedded ? null : params.get("research_file");
+    const requestedResearchFileId = researchFileId ?? (embedded ? null : params.get("research_file"));
     const [results, setResults] = useState<LegalSourceSearchResult[]>([]);
     const [searched, setSearched] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
@@ -118,6 +120,7 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
     }, []);
     useEffect(() => {
         if (!requestedResearchFileId) return;
+        setResearchOpen(true);
         let current = true;
         void getResearchFile(requestedResearchFileId).then((file) => {
             if (current) publishResearchFile(file);
@@ -140,7 +143,6 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
         : file && Object.values(file.state.sources).find(({ reference }) =>
             researchSourceKey(reference) === researchSourceKey(researchReference(result)));
     const needResearchFile = () => setResearchOpen(true);
-    const findSources = () => { setResearchOpen(false); setReadingSource(null); };
     function readSavedSource(source: ResearchSource, locator?: string) {
         const ref = source.reference, tab: LegalSourceTab = { kind: "legal",
             id: `legal:${ref.provider}:${ref.id}`, provider: ref.provider === "journal" ? "journal" : "a2aj",
@@ -151,7 +153,6 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
         if (embedded && onOpenSource) onOpenSource(tab);
         else {
             setReadingSource(tab);
-            if (window.matchMedia?.("(max-width: 1279px)").matches) setResearchOpen(false);
         }
     }
     async function saveResult(result: LegalSourceSearchResult, file = researchFile) {
@@ -248,7 +249,7 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                 ...(readingSource ? [{ label: "Source" }] : [])]}
                 actions={readingSource ? [{ label: "Workspace", title: "Open research workspace",
                     icon: <PanelsTopLeft className="size-4" />, onClick: () => setResearchOpen(true) }]
-                    : researchOpen ? [{ label: "Find sources", icon: <Search className="size-4" />, onClick: findSources }] : undefined} />}
+                    : undefined} />}
             {embedded && researchOpen && <div className="flex min-w-0 items-center gap-2 border-b border-gray-200 p-3">
                 <span ref={setResearchRail} className="block min-w-0 flex-1" />
                 {researchFile && <Link to={`/sources?research_file=${encodeURIComponent(researchFile.document.id)}`}
@@ -256,7 +257,10 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                     className="grid size-9 shrink-0 place-items-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-50">
                     <ExternalLink className="size-4" aria-hidden="true" />
                 </Link>}
-                <Button variant="outline" onClick={findSources}>Find sources</Button>
+                <Button variant="outline" size="icon-sm" className="size-9" aria-label="Close workspace" title="Close workspace"
+                    onClick={() => { setResearchOpen(false); setReadingSource(null); }}>
+                    <PanelRightClose aria-hidden className="size-4" />
+                </Button>
             </div>}
             {readingSource && <section aria-label="Source reader" className="min-h-0 min-w-0 flex-1">
                 <LegalSourceViewer key={`${readingSource.id}:${readingSource.initialLocator ?? ""}`} {...readingSource}
@@ -277,7 +281,7 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                             docType: value, jurisdiction: "", sourceKind: "", dataset: "" })}
                             options={SOURCE_TABS.map(([value, label]) => ({ value, label }))}
                             ariaLabel="Source category"
-                            className="mb-3 [&_.tab-list]:flex-wrap" />
+                            className="mb-3" />
                         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 @min-[42rem]:grid-cols-[minmax(0,1fr)_auto_auto]">
                             <SearchBar name="query" required value={searchQuery}
                                 onValueChange={setSearchQuery} booleanSearch

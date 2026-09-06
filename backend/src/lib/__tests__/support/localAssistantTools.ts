@@ -3,9 +3,11 @@ import {
   localLibraryStore, localDocuments, localProjects,
 } from "./localDocumentFixtures";
 import { assistantTools } from "../../chat/assistantTools";
+import { createArtifactRegistry } from "../../chat/chatToolRunner";
 import {
   LOAD_TOOLS_NAME,
   TurnToolRegistry,
+  type BeaverOutcome,
 } from "../../chat/toolRegistry";
 
 type ToolOptions = Parameters<typeof assistantTools>[0];
@@ -32,8 +34,7 @@ export const localAssistantToolRegistry = (
     workProducts: {} as never,
     authorities: {} as never,
     scope: "main",
-    resolveArtifact: () => undefined,
-    artifactFor: () => "",
+    ...createArtifactRegistry(),
     onMutationCommitted: () => undefined,
     ...options,
   }));
@@ -53,9 +54,11 @@ export const runLocalAssistantTools = async (
       input: { names: [...new Set(specialists)] },
     }], {});
   }
-  const batch = await registry.run(calls, {});
-  return batch.results.map((result, index) => {
-    const outcome = batch.outcomes[index];
+  const outcomes = new Map<string, BeaverOutcome>();
+  const results = await registry.run(calls, {}, undefined,
+    (call, outcome) => { outcomes.set(call.id, outcome); });
+  return results.map((result) => {
+    const outcome = outcomes.get(result.tool_use_id)!;
     return {
       ...result,
       ...(outcome.mutated && { mutated: true }),

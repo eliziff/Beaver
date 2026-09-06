@@ -31,6 +31,7 @@ export function chatTurnJobHandler(
     const turn = request(job);
     if (!turn) throw new PermanentJobError("ChatTurnRequestUnavailable");
     const events = await createJobEventWriter(job.id);
+    const emit: EventSink["emit"] = events.append;
     const current = turn.chatId ? await chats.get(turn.scope, turn.chatId) : null;
     if (turn.chatId && !current) throw new PermanentJobError("ChatUnavailable");
     const controller = new AbortController();
@@ -71,7 +72,7 @@ export function chatTurnJobHandler(
         signal.addEventListener("abort", onAbort, { once: true });
         if (signal.aborted) onAbort();
       });
-      events.append({ type: "client_tool_call", callId, name, input });
+      emit({ type: "client_tool_call", callId, name, input });
       try {
         await events.flush();
         return await waiting;
@@ -113,7 +114,7 @@ export function chatTurnJobHandler(
         claimedChatId = chatId;
         return true;
       },
-      emit: events.append,
+      emit,
       setControl: (control) => claimedChatId &&
         setChatTurnControl(claimedChatId, controller, control),
     };

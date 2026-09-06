@@ -1,19 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { DocPanel, type DocPanelMode } from "./DocPanel";
-import type {
-    WorkflowRunEvent,
-    Citation,
-    EditAnnotation,
-    EditResolveHandlers,
-} from "../shared/types";
+import type { WorkflowRunEvent } from "@/app/lib/api/chat";
+import type { Citation } from "@/app/lib/citations";
+import type { EditAnnotation, EditResolveHandlers } from "@/app/lib/api/documents";
 import {
     LegalSourceViewer,
     type LegalSourceTab,
 } from "@/app/components/legal/LegalSourceViewer";
 import { ResearchWorkspaceHost } from "@/app/components/legal/ResearchWorkspaceHost";
 import type { ResearchFile } from "@/app/lib/researchFiles";
-import { getResearchFile } from "@/app/lib/beaverApi";
+import { getResearchFile } from "@/app/lib/api/researchFiles";
 import { useResearchFileMutations } from "@/app/components/legal/useResearchFileMutations";
 import { cn } from "@/app/lib/utils";
 import { LIQUID_PANEL_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
@@ -67,15 +64,21 @@ interface Props {
     onOpenWorkflows?: (documents: WorkflowDocument[]) => void;
     onResearchFileChange?: (file: ResearchFile | null) => void;
     researchRefreshKey?: string | null;
+    researchFileId?: string | null;
     embedded?: boolean;
 }
-function LegalResearchPanel({ tab, projectId, active, onResearchFileChange, researchRefreshKey }: { tab: LegalSourceTab;
+function LegalResearchPanel({ tab, projectId, active, onResearchFileChange, researchRefreshKey, researchFileId }: { tab: LegalSourceTab;
     projectId?: string; active: boolean;
-    onResearchFileChange?: (file: ResearchFile | null) => void; researchRefreshKey?: string | null }) {
+    onResearchFileChange?: (file: ResearchFile | null) => void; researchRefreshKey?: string | null; researchFileId?: string | null }) {
   const [file, setFile] = useState<ResearchFile | null | undefined>();
   const [open, setOpen] = useState(false), [sourceDropNonce, setSourceDropNonce] = useState(0);
   const refreshedAfter = useRef(researchRefreshKey);
   const mutations = useResearchFileMutations(file ?? null, setFile);
+    useEffect(() => {
+        if (!researchFileId) return;
+        let live = true; void getResearchFile(researchFileId).then((next) => { if (live) { setFile(next); setOpen(true); } }).catch(() => undefined);
+        return () => { live = false; };
+    }, [researchFileId]);
     useEffect(() => { if (active) onResearchFileChange?.(file ?? null); },
         [active, file, onResearchFileChange]);
     useEffect(() => {
@@ -113,6 +116,7 @@ export function AssistantSidePanel({
     onOpenWorkflows,
     onResearchFileChange,
     researchRefreshKey,
+    researchFileId,
     embedded = false,
 }: Props) {
     const active = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
@@ -166,7 +170,7 @@ export function AssistantSidePanel({
                         if (tab.kind === "legal") {
                             return <LegalResearchPanel tab={tab} projectId={projectId} active={isActive}
                                 onResearchFileChange={onResearchFileChange}
-                                researchRefreshKey={researchRefreshKey} />;
+                                researchFileId={researchFileId} researchRefreshKey={researchRefreshKey} />;
                         }
                         const mode: DocPanelMode =
                             tab.kind === "citation"

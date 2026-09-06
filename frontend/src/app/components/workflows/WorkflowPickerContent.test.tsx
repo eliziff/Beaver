@@ -1,8 +1,15 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
-import type { Workflow, WorkflowVariant } from "../shared/types";
+import type { Workflow, WorkflowVariant } from "@/app/lib/api/workflows";
 import { WorkflowPickerContent } from "./WorkflowPickerContent";
+import { useWorkflowPickerState } from "./WorkflowPickerModal";
+
+const listWorkflows = vi.hoisted(() => vi.fn());
+vi.mock("@/app/lib/api/workflows", () => ({ listWorkflows }));
+vi.mock("@/app/contexts/UserProfileContext", () => ({
+    useUserProfile: () => ({ profile: null }),
+}));
 
 const variant = (id = "check", label = "Check against source",
     result: string | null = null, execution: WorkflowVariant["execution"] = "assistant",
@@ -20,6 +27,38 @@ const workflow = (id: string, description: string,
 });
 const props = { search: "", audience: "general" as const,
     onSearchChange: vi.fn(), onAudienceChange: vi.fn() };
+
+it("keeps audience and launch filters independent", async () => {
+    const solicitor = workflow("leases", "Extract lease terms.", {
+        kind: "instructions", variants: [variant("leases", "Lease terms", null, "tabular")],
+    });
+    solicitor.metadata.audiences = ["solicitor"];
+    const litigator = workflow("evidence", "Review evidence.", {
+        kind: "instructions", variants: [variant("evidence", "Evidence", null, "tabular")],
+    });
+    litigator.metadata.audiences = ["litigator"];
+    listWorkflows.mockResolvedValue([solicitor, litigator]);
+    function Harness() {
+        const state = useWorkflowPickerState();
+        return <WorkflowPickerContent workflows={state.workflows} onSelect={vi.fn()}
+            search={state.search} onSearchChange={state.setSearch}
+            audience={state.audience} onAudienceChange={state.setAudience} loading={state.loading} />;
+    }
+    render(<Harness />);
+    await screen.findByText("No workflows are available.");
+    await userEvent.click(within(screen.getByRole("tablist", { name: "Workflow launch type" }))
+        .getByRole("tab", { name: "Tabular" }));
+    expect(within(screen.getByRole("tablist", { name: "Workflow audience" }))
+        .getByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("button", { name: "Start Tabular Review: leases" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start Tabular Review: evidence" })).toBeNull();
+    await userEvent.click(within(screen.getByRole("tablist", { name: "Workflow audience" }))
+        .getByRole("tab", { name: "Solicitor" }));
+    expect(screen.getByRole("button", { name: "Start Tabular Review: leases" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Start Tabular Review: evidence" })).toBeNull();
+    expect(within(screen.getByRole("tablist", { name: "Workflow launch type" }))
+        .getByRole("tab", { name: "Tabular" })).toHaveAttribute("aria-selected", "true");
+});
 
 it("opens exact workflow details without exposing model instructions", async () => {
     const onSelect = vi.fn();
@@ -50,7 +89,6 @@ it("opens exact workflow details without exposing model instructions", async () 
     const dialog = screen.getByRole("dialog", { name: "Check against source" });
     expect(await within(dialog).findByText(
         "Verify quoted text and proposition support against the source.")).toBeVisible();
-    expect(within(dialog).getByRole("heading", { name: "Chat" })).toBeVisible();
     expect(within(dialog).getByText("Alberta")).toBeVisible();
     expect(within(dialog).getByText("Open Legal Products")).toBeVisible();
     expect(within(dialog).queryByText("SYSTEM_PROMPT_MUST_NOT_RENDER")).toBeNull();
@@ -114,8 +152,6 @@ it("groups the same variant label once while preserving Chat and Tab", async () 
     await userEvent.click(info);
     const dialog = screen.getByRole("dialog", { name: "Commercial lease" });
     expect(await within(dialog).findByText(fullDescription)).toBeVisible();
-    expect(within(dialog).getByRole("heading", { name: "Chat" })).toBeVisible();
-    expect(within(dialog).getByRole("heading", { name: "Tab" })).toBeVisible();
     expect(within(dialog).getByText("Termination right")).toBeVisible();
     expect(within(dialog).getByText(/Landlord.*Tenant/u)).toBeVisible();
     expect(within(dialog).queryByText("MODEL_COLUMN_PROMPT_MUST_NOT_RENDER")).toBeNull();
@@ -136,8 +172,7 @@ it.each([
     expect(info).toHaveTextContent("Info");
     expect(screen.getByRole("button", { name: `Open: ${title}` })).toHaveTextContent("Open");
     await userEvent.click(info);
-    expect(within(screen.getByRole("dialog", { name: title }))
-        .getByRole("heading", { name: `Opens in ${destination}` })).toBeVisible();
+    expect(within(screen.getByRole("dialog", { name: title })).getByText(description)).toBeVisible();
 });
 
 it("names a direct tabular destination as an action", () => {
@@ -183,4 +218,30 @@ it("offers a retry when the catalogue cannot load", async () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Workflows could not be loaded.");
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(retry).toHaveBeenCalledOnce();
+});
+
+it("filters launch types and preserves the selected variant when launching", async () => {
+    const chatVariant = variant("chat", "Review agreement");
+    const tableVariant = variant("table", "Review agreement", null, "tabular");
+    const mixed = workflow("review", "Review agreements", {
+        kind: "instructions", variants: [chatVariant, tableVariant],
+    });
+    const other = workflow("authorities", "Build authorities", { kind: "authorities" });
+    const onSelect = vi.fn();
+    render(<WorkflowPickerContent {...props} workflows={[mixed, other]} onSelect={onSelect} />);
+    const filter = screen.getByRole("tablist", { name: "Workflow launch type" });
+    await userEvent.click(within(filter).getByRole("tab", { name: "Chat" }));
+    expect(screen.queryByRole("button", { name: "Open: authorities" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Open chat: review" }));
+    expect(onSelect).toHaveBeenLastCalledWith(mixed, chatVariant);
+    await userEvent.click(within(filter).getByRole("tab", { name: "Tabular" }));
+    expect(screen.queryByRole("button", { name: "Open chat: review" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Start Tabular Review: review" }));
+    expect(onSelect).toHaveBeenLastCalledWith(mixed, tableVariant);
+    await userEvent.click(within(filter).getByRole("tab", { name: "Other" }));
+    expect(screen.queryByRole("button", { name: "Start Tabular Review: review" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Open: authorities" }));
+    expect(onSelect).toHaveBeenLastCalledWith(other);
+    await userEvent.click(within(filter).getByRole("tab", { name: "All" }));
+    expect(screen.getByRole("button", { name: "Details for review" })).toBeVisible();
 });

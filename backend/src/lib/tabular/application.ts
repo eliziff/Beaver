@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { documentProjectionService } from "../documentProjectionService";
+import { randomUUID } from "node:crypto";
 import { runChatTurn } from "../chat/turnEngine";
+import { throwIfAborted } from "../llm/abort";
 import type { DocumentStore } from "../documentStore";
 import type { ProjectStore } from "../projectStore";
-import { throwIfAborted } from "../llm/abort";
 import { providerForModel, type Provider, type UserApiKeys } from "../llm";
 import { pageRequest, pageResponse } from "../pagination";
 import type { UserModelSettings } from "../userApplication";
@@ -13,13 +13,24 @@ import {
   type TabularColumn,
   type TabularScope,
   type TabularRepository,
+  type TabularSelection,
+  type TabularOperation,
+  type TabularReview,
+  tabularSubjectId,
   type WriteResult,
 } from "../tabularStore";
 import { ApplicationError, reject as fail } from "../applicationError";
+import { parseResourceReference, resourceReference } from "../resourceReferences";
+import { resolveResearchSelection } from "../researchSelection";
+import { commitResearchFile, createResearchFileState, readResearchFile,
+  researchFileMarkdown } from "../researchFile";
+import { extractTabularAnswers, tabularFormatDescription } from "./extraction";
 import type { TabularAgents } from "./agents";
+import type { resolveChatFindings } from "../researchChat";
+import type { AuditStore } from "../audit";
+import type { ResearchOperationContext } from "../researchProvenance";
+import { researchArrangementSchema, resolveResearchArrangement, type ResearchArrangement } from "./researchArrangement";
 
-const MAX_FILE_BYTES = 25 * 1024 * 1024;
-const MAX_DOCUMENT_CHARS = 120_000;
 const MAX_MODEL_CHARS = 1_000_000;
 const id = z.string().trim().min(1).max(200);
 const projectId = z.string({
@@ -42,13 +53,23 @@ const columns = z.array(column).max(100).superRefine((value, context) => {
   });
 });
 const ids = z.array(id).max(500).transform((value) => [...new Set(value)]);
+const rowId = z.string().trim().min(1).max(4_000);
+const rowIds = z.array(rowId).max(500).transform((value) => [...new Set(value)]);
 const modelOptions = {
   model: z.string().trim().min(1).max(200).optional(),
   reasoning_effort: z.string().trim().min(1).max(32).optional(),
 };
+const researchSelection = z.object({ sourceIds: ids.optional(), labelIds: ids.optional(),
+  evidenceIds: ids.optional(), target: z.enum(["sources", "passages"]),
+  unlabelled: z.boolean().optional() }).strict();
+const researchInput = { research_file_id: id.optional(), research_selection: researchSelection.optional(),
+  arrangement: researchArrangementSchema.nullable().optional() };
 
 export const tabularDtos = {
   id,
+  history: z.object({ offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
+    limit: z.coerce.number().int().min(1).max(100).default(50) }).strict(),
+  change: z.object({ id, action: z.enum(["accept", "reject", "undo"]), expected_version: z.string().min(1).max(100) }).strict(),
   list: z.object({
     q: z.string().trim().max(500).optional(), project_id: id.optional(),
     scope: z.enum(["all", "in-project", "standalone"]).optional(),
@@ -56,12 +77,12 @@ export const tabularDtos = {
     cursor: z.string().max(2_048).optional(),
   }).strict(),
   create: z.object({
-    title: z.string().trim().max(300).optional(), document_ids: ids,
+    title: z.string().trim().max(300).optional(), document_ids: rowIds.optional(), ...researchInput,
     columns_config: columns, workflow_id: id.optional(), project_id: projectId.optional(),
   }).strict(),
   update: z.object({
     title: z.string().trim().max(300).nullable().optional(),
-    document_ids: ids.optional(), columns_config: columns.optional(),
+    document_ids: rowIds.optional(), columns_config: columns.optional(), ...researchInput,
     workflow_id: id.nullable().optional(),
     project_id: projectId.nullable().optional(),
     shared_with: z.array(z.string().trim().toLowerCase().email().max(320)).max(100)
@@ -74,7 +95,7 @@ export const tabularDtos = {
     documentName: z.string().trim().max(500).default(""),
     tags: z.array(z.string().trim().min(1).max(200)).max(100).default([]),
   }).strict(),
-  clear: z.object({ document_ids: z.array(id, {
+  clear: z.object({ document_ids: z.array(rowId, {
     required_error: "document_ids is required",
     invalid_type_error: "document_ids is required",
   }).min(1, "document_ids is required").max(500)
@@ -82,7 +103,7 @@ export const tabularDtos = {
   regenerate: z.object({ document_id: z.string({
     required_error: "document_id and column_index are required",
     invalid_type_error: "document_id and column_index are required",
-  }).trim().min(1, "document_id and column_index are required").max(200),
+  }).trim().min(1, "document_id and column_index are required").max(4_000),
     column_index: z.number({
       required_error: "document_id and column_index are required",
       invalid_type_error: "document_id and column_index are required",
@@ -94,7 +115,10 @@ export const tabularDtos = {
 type Dependencies = {
   agents?: TabularAgents;
   runTurn?: typeof runChatTurn;
+  audit?: AuditStore["record"];
   settings: (userId: string) => Promise<UserModelSettings>;
+  resolveAnswers?: (scope: TabularScope, researchFileId: string, chatId: string) =>
+    Promise<Awaited<ReturnType<typeof resolveChatFindings>>["findings"]>;
 };
 
 const value = <T>(result: WriteResult<T>, noun: string) => {
@@ -114,35 +138,12 @@ const modelKey = (model: string, apiKeys: UserApiKeys) => {
     `${providerLabel(provider)} API key is required to use ${model}. Add an API key or select a different tabular review model.`,
     { code: "missing_api_key", provider, model });
 };
-const suffix = (format?: string, tags?: string[]) => ({
-  bulleted_list: ' Use a markdown bulleted list only in "summary".',
-  number: ' Use one number only in "summary".',
-  percentage: ' Use one percentage only in "summary".',
-  monetary_amount: ' Use one monetary value, including its currency, in "summary".',
-  currency: ' Use only currency codes wrapped like [[USD]] in "summary".',
-  yes_no: ' Use only [[Yes]] or [[No]] in "summary".',
-  date: ' Use DD Month YYYY in "summary".',
-  tag: tags?.length ? ` Use exactly one of ${tags.map((tag) => `[[${tag}]]`).join(", ")} in "summary".` : "",
-})[format ?? ""] ?? "";
-const cleanResult = (raw: Record<string, unknown>): TabularCellContent => ({
-  summary: String(raw.summary ?? raw.value ?? "").trim().slice(0, 8_000) || "Not addressed",
-  flag: ["green", "grey", "yellow", "red"].includes(String(raw.flag))
-    ? String(raw.flag) : "grey",
-  reasoning: String(raw.reasoning ?? "").slice(0, 16_000),
-});
 const json = (raw: string) => JSON.parse(raw.replace(/^```(?:json)?\s*/iu, "")
   .replace(/\s*```$/u, "").trim()) as Record<string, unknown>;
-const citationMetadata = /\[\[((?:[^\[\]]|\[[^\]]*\])+)\]\]/gu;
 function exportCell(cell: TabularCell | undefined) {
   if (!cell || cell.status === "pending" || cell.status === "generating") return "";
   if (cell.status === "error") return "Error";
-  return (cell.content?.summary ?? "")
-    .replace(citationMetadata, (_marker, metadata: string) =>
-      /^(?:page:\d+|sheet:).*?\|\|(?:quote:)?/iu.test(metadata)
-        ? ""
-        : metadata)
-    .replace(/[ \t]+/gu, " ")
-    .trim();
+  return cell.content?.summary ?? "";
 }
 
 export function createTabularApplication(
@@ -159,137 +160,183 @@ export function createTabularApplication(
     if (await running(review)) throw new ApplicationError(
       409, "Stop the running review first.", { code: "review_running" });
   };
-  const placement = async (scope: TabularScope, ids: string[], projectId: string | null) => {
+  const enqueue = async (scope: TabularScope, review: TabularReview,
+    input: z.infer<typeof tabularDtos.generate>, assignments: { documentId: string; columnIndex?: number }[]) => {
+    if (!dependencies.agents) return fail(503, "Tabular agents are unavailable");
+    const user = await settings(scope.userId), model = input.model ?? user.tabular_model;
+    modelKey(model, user.api_keys);
+    const jobs = await dependencies.agents.enqueue(scope, { reviewId: review.id, ownerId: review.user_id,
+      assignments: assignments.map((assignment) => {
+        const subject = review.scope_config?.subjects.find((subject) => tabularSubjectId(subject) === assignment.documentId);
+        return { ...assignment, sourceDocumentId: subject ? subject.reference.kind === "document" ? subject.reference.id : null
+          : parseResourceReference(assignment.documentId)?.kind === "source" ? null : assignment.documentId };
+      }), model, reasoningEffort: input.reasoning_effort });
+    if (jobs.length && !jobs.some(({ created }) => created)) throw new ApplicationError(
+      409, "This tabular review is already running.", { code: "review_running" });
+    return { jobs, model };
+  };
+  const placement = async (scope: TabularScope, ids: string[], projectId: string | null,
+    previous?: TabularSelection): Promise<TabularSelection> => {
     if (projectId && !await projects.get(scope, projectId)) fail(404, "Project not found");
-    const unique = [...new Set(ids)], values = await Promise.all(
-      unique.map((id) => documents.metadata(scope, id)));
-    if (values.some((value) => !value || projectId && value.project_id !== projectId))
+    const unique = [...new Set(ids)], byId = new Map(previous?.subjects.map((subject) => [tabularSubjectId(subject), subject])),
+      documentIds = [...new Set(unique.flatMap((id) => {
+        const subject = byId.get(id);
+        return subject ? subject.reference.kind === "document" ? [subject.reference.id] : []
+          : parseResourceReference(id)?.kind !== "source" ? [id] : [];
+      }))];
+    const values = await documents.metadataMany(scope, documentIds);
+    if (values.length !== documentIds.length || values.some((value) => projectId && value.project_id !== projectId))
       fail(404, "Document not found");
-    return unique;
+    if (previous?.research_file_id && !(await documents.metadataMany(scope, [previous.research_file_id])).length)
+      fail(404, "Research set not found");
+    return { ...previous, subjects: unique.map((id) => {
+      const existing = byId.get(id);
+      if (existing) return existing;
+      const document = values.find((value) => value.id === id);
+      if (!document) return fail(404, "Source not found");
+      return { sourceId: id, resource: resourceReference.document(id, document.current_version_id), sourceSha256: document.source_sha256,
+        reference: { provider: "library", kind: "document", id, versionId: document.current_version_id,
+          title: document.filename } };
+    }) };
+  };
+  const selection = async (scope: TabularScope, input: { document_ids?: string[];
+    research_file_id?: string; research_selection?: z.infer<typeof researchSelection>;
+    arrangement?: ResearchArrangement | null },
+    projectId: string | null, previous?: TabularSelection, columns: TabularColumn[] = []) => {
+    const fileId = input.research_file_id ?? previous?.research_file_id,
+      arrangement = input.arrangement === undefined ? previous?.arrangement : input.arrangement;
+    if ((input.research_selection || arrangement) && !fileId) fail(400, "Research set is required");
+    if (arrangement && fileId) {
+      const file = await readResearchFile(documents, scope, fileId);
+      if (!file) return fail(404, "Research set not found");
+      const resolved = await resolveResearchArrangement({ documents, scope, file, arrangement, columns,
+        storedCells: [], strict: true, resolveAnswers: dependencies.resolveAnswers
+          ? (chatId) => dependencies.resolveAnswers!(scope, fileId, chatId) : undefined });
+      return placement(scope, arrangement.rows.map(({ id }) => id), projectId, {
+        research_file_id: fileId, versionId: file.versionId, workingRevision: file.workingRevision,
+        subjects: resolved.subjects, arrangement,
+        ...(previous?.research_file_id === fileId && previous.findings ? { findings: previous.findings } : {}) });
+    }
+    if (fileId && (input.research_file_id || input.research_selection || input.arrangement === null)) {
+      const resolved = await resolveResearchSelection(documents, scope, {
+        researchFileId: fileId, target: "sources", ...input.research_selection });
+      return placement(scope, resolved.subjects.map(tabularSubjectId), projectId,
+        { ...resolved, research_file_id: fileId,
+          ...(previous?.research_file_id === fileId && previous.findings ? { findings: previous.findings } : {}) });
+    }
+    return placement(scope, input.document_ids ?? [], projectId, previous);
+  };
+  const subjectDocuments = async (scope: TabularScope, review: { document_ids: string[];
+    project_id: string | null; scope_config?: TabularSelection }) => {
+    const config = await placement(scope, review.document_ids, review.project_id, review.scope_config);
+    const metadata = await documents.metadataMany(scope, [...new Set(config.subjects.flatMap(({ reference }) =>
+      reference.kind === "document" ? [reference.id] : []))]);
+    const file = config.arrangement && config.research_file_id
+      ? await readResearchFile(documents, scope, config.research_file_id) : null;
+    return config.subjects.map((subject) => ({
+      ...metadata.find((document) => document.id === subject.reference.id),
+      id: tabularSubjectId(subject), filename: config.arrangement?.rows.find(({ id }) => id === subject.rowId)?.title
+        ?? subject.reference.title ?? subject.sourceId,
+      ...(config.arrangement ? { group: (config.arrangement.rows.find(({ id }) => id === subject.rowId)?.group ?? [])
+        .map((id) => file?.state.labels[id]?.name ?? "Removed label") } : {}),
+      resource: subject.resource, reference: subject.reference,
+    }));
+  };
+  const resolvedDetail = async (scope: TabularScope, reviewId: string) => {
+    const detail = await store.detail(scope, reviewId);
+    if (!detail) return fail(404, "Review not found");
+    const config = detail.review.scope_config;
+    if (!config?.arrangement || !config.research_file_id) return detail;
+    const file = await readResearchFile(documents, scope, config.research_file_id);
+    if (!file) return fail(404, "Research set not found");
+    const resolved = await resolveResearchArrangement({ documents, scope, file, arrangement: config.arrangement,
+      columns: detail.review.columns_config, storedCells: detail.cells,
+      resolveAnswers: dependencies.resolveAnswers
+        ? (chatId) => dependencies.resolveAnswers!(scope, file.document.id, chatId) : undefined });
+    return { ...detail, cells: resolved.cells };
+  };
+  const mappedCell = (config: TabularSelection | undefined, rowId: string, columnIndex: number) =>
+    config?.arrangement?.cells.some((cell) => cell.rowId === rowId && cell.columnIndex === columnIndex) ?? false;
+  const mergeWorkspace = async (scope: TabularScope, reviewId: string,
+    selection: TabularSelection, evidence: TabularCellContent["evidence"],
+    operation: Omit<ResearchOperationContext, "audit"> = { executor: "human" }) => {
+    if (!selection.research_file_id) return;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const current = await readResearchFile(documents, scope, selection.research_file_id);
+      if (!current) return fail(404, "Research set not found");
+      if (await commitResearchFile(documents, scope, current, { type: "merge",
+        sources: selection.subjects.map(({ reference }) => reference), evidence,
+        tables: [reviewId] }, undefined, dependencies.audit
+          ? { audit: dependencies.audit, ...operation, reviewId } : undefined)) return;
+    }
+    fail(409, "Research set changed; retry the extraction");
   };
 
   async function modelText(input: { model: string; system: string; user: string;
-    apiKeys: UserApiKeys; reasoningEffort?: string; signal?: AbortSignal;
-    onDelta?: (delta: string) => void }) {
-    const limit = new AbortController(), signal = input.signal
-      ? AbortSignal.any([input.signal, limit.signal]) : limit.signal;
-    let streamed = "", overflow = false;
-    try {
-      const result = await turn({ model: input.model, systemPrompt: input.system,
-        messages: [{ role: "user", content: input.user }], createTools: () => [],
-        emit(event) {
-          const item = event as { type?: unknown; text?: unknown };
-          if (item.type !== "content_delta" || typeof item.text !== "string") return;
-          streamed += item.text;
-          if (streamed.length > MAX_MODEL_CHARS) { overflow = true; limit.abort(); return; }
-          input.onDelta?.(item.text);
-        }, apiKeys: input.apiKeys, reasoningEffort: input.reasoningEffort,
-        signal, subagentMode: "none", separateContentBlocks: false,
-      });
-      if (overflow || result.fullText.length > MAX_MODEL_CHARS)
-        return fail(502, "Model output exceeded the tabular extraction limit");
-      return result.fullText || streamed;
-    } catch (error) {
-      if (overflow) return fail(502, "Model output exceeded the tabular extraction limit");
-      throw error;
-    }
+    apiKeys: UserApiKeys; reasoningEffort?: string; signal?: AbortSignal }) {
+    const result = await turn({ model: input.model, systemPrompt: input.system,
+      messages: [{ role: "user", content: input.user }], createTools: () => [],
+      emit() {}, apiKeys: input.apiKeys, reasoningEffort: input.reasoningEffort,
+      signal: input.signal, subagentMode: "none", separateContentBlocks: false,
+    });
+    if (result.fullText.length > MAX_MODEL_CHARS)
+      return fail(502, "Model output exceeded the tabular extraction limit");
+    return result.fullText;
   }
 
-  async function document(scope: TabularScope, documentId: string, signal?: AbortSignal) {
-    throwIfAborted(signal);
-    const content = await documents.read(scope, documentId, null, false);
-    if (!content) return fail(404, "Document not found");
-    if (content.bytes.byteLength > MAX_FILE_BYTES)
-      return fail(413, "Document exceeds the 25 MB tabular extraction limit");
-    const source = {
-      documentId,
-      versionId: content.version.id,
-      fileType: content.fileType,
-      sourceSha256: content.version.source_sha256,
-      pdfProfile: content.pdfProfile,
-      readBytes: () => content.bytes,
-    };
-    const markdown = await documentProjectionService.text(source, {
-      limit: MAX_DOCUMENT_CHARS, signal,
-    });
-    throwIfAborted(signal);
-    return { id: documentId, filename: content.filename.slice(0, 500), markdown };
-  }
 
   const cellWrite = async (scope: TabularScope, cell: TabularCell,
-    status: TabularCell["status"], content: TabularCellContent | null) => value(
+    status: TabularCell["status"], content: TabularCellContent | null, expectedReviewVersion?: string,
+    operation?: TabularOperation) => value(
       await store.setCell(scope, { reviewId: cell.review_id, documentId: cell.document_id,
-        columnIndex: cell.column_index, expected: { status: cell.status, content: cell.content },
-        status, content }), "Cell");
+        columnIndex: cell.column_index, expected: { status: cell.status, content: cell.content,
+          ...(typeof cell.updated_at === "string" ? { updated_at: cell.updated_at } : {}) },
+        status, content, expectedReviewVersion, operation }), "Cell");
 
-  async function extract(input: { model: string; apiKeys: UserApiKeys;
-    reasoningEffort?: string; document: Awaited<ReturnType<typeof document>>;
-    columns: TabularColumn[]; signal?: AbortSignal;
-    accept(index: number, result: TabularCellContent): Promise<void> }) {
-    const description = input.columns.map((column) =>
-      `Column ${column.index} — "${column.name}": ${column.prompt}${suffix(column.format, column.tags)} If not found, state "Not Found".`).join("\n");
-    const system = `You are a legal document analyst. Return one minified JSON object per line:
-{"column_index":number,"summary":string,"flag":"green"|"grey"|"yellow"|"red","reasoning":string}
-Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerpt <=25 words]]. Output JSON lines only.`;
-    let buffer = "", sawDelta = false, pending = Promise.resolve();
-    const received = new Set<number>();
-    const processLine = async (line: string) => {
-      if (!line.trim() || line.trim().startsWith("```")) return;
-      let parsed: Record<string, unknown>;
-      try { parsed = JSON.parse(line.trim()) as Record<string, unknown>; } catch { return; }
-      const index = parsed.column_index;
-      if (typeof index !== "number" || received.has(index) ||
-        !input.columns.some((column) => column.index === index)) return;
-      received.add(index);
-      await input.accept(index, cleanResult(parsed));
-    };
-    const delta = (value: string) => {
-      sawDelta = true; buffer += value;
-      let newline = buffer.indexOf("\n");
-      while (newline >= 0) {
-        const line = buffer.slice(0, newline); buffer = buffer.slice(newline + 1);
-        pending = pending.then(() => processLine(line)); newline = buffer.indexOf("\n");
-      }
-    };
-    const raw = await modelText({ model: input.model, system,
-      user: `Document: ${input.document.filename}\n\n${input.document.markdown}\n\n---\nColumns:\n${description}`,
-      apiKeys: input.apiKeys, reasoningEffort: input.reasoningEffort,
-      signal: input.signal, onDelta: delta });
-    if (!sawDelta) buffer = raw;
-    if (buffer.trim()) pending = pending.then(() => processLine(buffer));
-    await pending;
-    return received;
-  }
 
   async function generateDocument(scope: TabularScope,
-    item: Awaited<ReturnType<typeof document>>, config: TabularColumn[],
+    item: TabularSelection["subjects"][number] & { id: string }, config: TabularColumn[],
     cells: Map<string, TabularCell>, model: string, apiKeys: UserApiKeys,
-    reasoningEffort: string | undefined, signal?: AbortSignal, force = false) {
+    reasoningEffort: string | undefined, signal?: AbortSignal, force = false,
+    reviewVersion?: string, selection?: TabularSelection, jobId?: string) {
     const pending = config.filter((column) => {
+      if (mappedCell(selection, item.id, column.index)) return false;
       const existing = cells.get(`${item.id}:${column.index}`);
       return force || existing?.status !== "done" || !existing.content;
     });
     if (!pending.length) return;
+    const generationId = jobId ?? randomUUID(), operation = (cell: TabularCell): TabularOperation => ({
+      executor: "assistant", model, title: "Generate table answer", changeKey: `${generationId}:${cell.id}` });
     for (const column of pending) {
       const key = `${item.id}:${column.index}`, current = cells.get(key);
       if (!current) return fail(404, "Cell not found");
-      const changed = await cellWrite(scope, current, "generating", null);
+      const changed = await cellWrite(scope, current, "generating", null, reviewVersion, operation(current));
       cells.set(key, changed);
     }
     let received: Set<number>;
     try {
-      received = await extract({ model, apiKeys, reasoningEffort, document: item,
+      received = await extractTabularAnswers({ model, apiKeys, reasoningEffort, subject: item,
+        documents, scope, runTurn: turn,
         columns: pending, signal, accept: async (index, result) => {
           const key = `${item.id}:${index}`, current = cells.get(key)!;
-          const changed = await cellWrite(scope, current, "done", result);
+          if (selection) await mergeWorkspace(scope, current.review_id, selection, result.evidence,
+            { executor: "assistant", model, jobId });
+          throwIfAborted(signal);
+          const changed = await cellWrite(scope, current, "done", result, reviewVersion, operation(current));
           cells.set(key, changed);
+          await dependencies.audit?.({ userId: scope.userId, userEmail: scope.userEmail,
+            action: "tabular.cell", surface: "tabular", reviewId: current.review_id, model,
+            detail: { initiator_user_id: scope.userId, executor: "assistant", job_id: jobId,
+              column_index: index, resource: result.resource, question_revision: reviewVersion,
+              evidence_ids: result.evidence.map(({ evidence_id }) => evidence_id),
+              outcome: result.outcome, coverage: result.coverage } }).catch(() => undefined);
         } });
     } catch (error) {
       for (const column of pending) {
         const key = `${item.id}:${column.index}`, current = cells.get(key)!;
         if (current.status !== "generating") continue;
         const changed = await cellWrite(
-          scope, current, signal?.aborted ? "pending" : "error", null,
+          scope, current, signal?.aborted ? "pending" : "error", null, reviewVersion, operation(current),
         )
           .catch(() => null);
         if (changed) cells.set(key, changed);
@@ -298,14 +345,14 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
     }
     for (const column of pending) if (!received.has(column.index)) {
       const key = `${item.id}:${column.index}`, current = cells.get(key)!;
-      const changed = await cellWrite(scope, current, "error", null);
+      const changed = await cellWrite(scope, current, "error", null, reviewVersion, operation(current));
       cells.set(key, changed);
     }
   }
 
   async function runAgent(scope: TabularScope, input: {
     reviewId: string; documentId: string; model?: string;
-    reasoningEffort?: string; columnIndex?: number;
+    reasoningEffort?: string; columnIndex?: number; jobId?: string;
   }, signal?: AbortSignal) {
     const detail = await store.detail(scope, input.reviewId);
     if (!detail) return fail(404, "Review not found");
@@ -321,9 +368,12 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
     modelKey(model, user.api_keys);
     const cells = new Map(detail.cells.map((cell) =>
       [`${cell.document_id}:${cell.column_index}`, cell]));
-    await generateDocument(scope, await document(scope, input.documentId, signal),
+    const frozen = await placement(scope, [input.documentId],
+      detail.review.project_id, detail.review.scope_config);
+    const subject = frozen.subjects.find((value) => tabularSubjectId(value) === input.documentId)!;
+    await generateDocument(scope, { ...subject, id: input.documentId },
       config, cells, model, user.api_keys, input.reasoningEffort, signal,
-      input.columnIndex !== undefined);
+      input.columnIndex !== undefined, detail.review.updated_at, frozen, input.jobId);
     return input.columnIndex === undefined
       ? null
       : cells.get(`${input.documentId}:${input.columnIndex}`)?.content ?? null;
@@ -331,6 +381,32 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
 
   return {
     runAgent,
+    async fromFindings(scope: TabularScope, resolved: Awaited<ReturnType<typeof resolveChatFindings>>) {
+      const { file, findings } = resolved;
+      if (!findings.length) return fail(400, "No grounded findings selected");
+      const chosen = { chatId: findings[0].origin.chatId,
+        answerIds: [...new Set(findings.map(({ question }) => question.id))].sort(),
+        sourceIds: [...new Set(findings.map(({ sourceId }) => sourceId))].sort() };
+      for (const tableId of file.state.tables ?? []) {
+        const existing = await store.detail(scope, tableId);
+        if (existing?.review.scope_config?.research_file_id === file.document.id &&
+            JSON.stringify(existing.review.scope_config.findings) === JSON.stringify(chosen))
+          return { ...existing.review, needs_arrangement: !existing.review.scope_config.arrangement };
+      }
+      const subjects = [...new Map(findings.map(({ sourceId, resource }) => [resource, {
+        sourceId, resource, reference: file.state.sources[sourceId].reference,
+      }])).values()];
+      if (subjects.length > 500) return fail(400, "Select at most 500 sources");
+      const scopeConfig = await placement(scope, subjects.map(tabularSubjectId), file.document.project_id,
+        { research_file_id: file.document.id, versionId: file.versionId,
+          workingRevision: file.workingRevision, subjects, findings: chosen });
+      const review = value(await store.create(scope, { projectId: file.document.project_id,
+        title: file.document.filename.replace(/\.research\.md$/iu, ""), columns: [],
+        documentIds: subjects.map(tabularSubjectId), scopeConfig }), "Review");
+      try { await mergeWorkspace(scope, review.id, scopeConfig, []); }
+      catch (error) { await store.delete(scope, review.id, review.updated_at).catch(() => undefined); throw error; }
+      return { ...review, needs_arrangement: true };
+    },
     async list(scope: TabularScope, input: z.infer<typeof tabularDtos.list>) {
       const q = input.q?.toLocaleLowerCase() ?? "", projectId = input.project_id ?? null;
       if (projectId && !await projects.get(scope, projectId)) fail(404, "Project not found");
@@ -345,30 +421,52 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
       }));
       return pageResponse("tabular-review", filters, { ...page, items });
     },
-    async create(scope: TabularScope, input: z.infer<typeof tabularDtos.create>) {
+    async create(scope: TabularScope, input: z.infer<typeof tabularDtos.create>,
+      operation?: TabularOperation) {
       const projectId = input.project_id ?? null;
-      return value(await store.create(scope, { title: input.title,
-        projectId, documentIds: await placement(scope, input.document_ids, projectId),
-        columns: input.columns_config, workflowId: input.workflow_id }), "Review");
+      const scopeConfig = await selection(scope, input, projectId, undefined, input.columns_config);
+      const review = value(await store.create(scope, { title: input.title,
+        projectId, documentIds: scopeConfig.subjects.map(tabularSubjectId), scopeConfig,
+        columns: input.columns_config, workflowId: input.workflow_id, operation }), "Review");
+      try { await mergeWorkspace(scope, review.id, scopeConfig, [], operation); }
+      catch (error) { await store.delete(scope, review.id, review.updated_at).catch(() => undefined); throw error; }
+      return review;
     },
     async detail(scope: TabularScope, reviewId: string) {
-      const detail = await store.detail(scope, reviewId);
-      if (!detail) return fail(404, "Review not found");
-      const loaded = await Promise.all(detail.review.document_ids.map((id) =>
-        documents.metadata(scope, id)));
+      const detail = await resolvedDetail(scope, reviewId);
       return { ...detail, review: { ...detail.review,
         is_running: await running(detail.review) },
-      documents: loaded.flatMap((document) => document ? [document] : []) };
+      documents: await subjectDocuments(scope, detail.review) };
     },
-    async export(scope: TabularScope, reviewId: string) {
+    async workspace(scope: TabularScope, reviewId: string) {
       const detail = await store.detail(scope, reviewId);
       if (!detail) return fail(404, "Review not found");
+      let config = await placement(scope, detail.review.document_ids,
+        detail.review.project_id, detail.review.scope_config);
+      if (!config.research_file_id) {
+        await assertIdle(detail.review);
+        const title = detail.review.title?.trim() || "Tabular Review";
+        const document = await documents.create(scope, { filename: `${title}.research.md`, fileType: "md",
+          projectId: detail.review.project_id, libraryKind: "file",
+          bytes: Buffer.from(researchFileMarkdown(title, createResearchFileState())) });
+        config = { ...config, research_file_id: document.id };
+        const changed = await store.update(scope, reviewId, detail.review.updated_at, { scopeConfig: config });
+        if (changed.status !== "committed") {
+          await documents.deleteDocument(scope, document.id, true);
+          value(changed, "Review");
+        }
+      }
+      await mergeWorkspace(scope, reviewId, config, detail.cells.flatMap((cell) =>
+        cell.status === "done" ? cell.content?.evidence ?? [] : []));
+      return { research_file_id: config.research_file_id! };
+    },
+    async export(scope: TabularScope, reviewId: string) {
+      const detail = await resolvedDetail(scope, reviewId);
       const columns = [...detail.review.columns_config].sort((a, b) => a.index - b.index);
       const cells = new Map(detail.cells.map((cell) =>
         [`${cell.document_id}:${cell.column_index}`, cell]));
-      const documentsById = new Map((await Promise.all(
-        detail.review.document_ids.map((documentId) => documents.metadata(scope, documentId)),
-      )).flatMap((document) => document ? [[document.id, document] as const] : []));
+      const documentsById = new Map((await subjectDocuments(scope, detail.review))
+        .map((document) => [document.id, document]));
       const rows = [
         ["Document", ...columns.map(({ name }) => name)],
         ...detail.review.document_ids.map((documentId) => [
@@ -392,13 +490,14 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
       return await store.people(scope, reviewId) ?? fail(404, "Review not found");
     },
     async update(scope: TabularScope, reviewId: string,
-      input: z.infer<typeof tabularDtos.update>) {
+      input: z.infer<typeof tabularDtos.update>, operation?: TabularOperation) {
       if (input.shared_with?.includes(scope.userEmail?.trim().toLowerCase() ?? ""))
         return fail(400, "You cannot share a tabular review with yourself.");
       const current = await store.detail(scope, reviewId);
       if (!current) return fail(404, "Review not found");
       await assertIdle(current.review);
-      if (!current.review.is_owner && input.columns_config !== undefined)
+      if (!current.review.is_owner && (input.columns_config !== undefined || input.research_file_id !== undefined ||
+          input.arrangement !== undefined))
         return fail(403, "Only the review owner can change columns");
       if (!current.review.is_owner && input.shared_with !== undefined)
         return fail(403, "Only the review owner can change sharing");
@@ -410,18 +509,43 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
       }
       const nextProject = input.project_id === undefined
         ? current.review.project_id : input.project_id;
-      const nextDocuments = input.document_ids === undefined && input.project_id === undefined
-        ? undefined : await placement(scope,
-          input.document_ids ?? current.review.document_ids, nextProject);
+      const nextSelection = input.document_ids === undefined && input.project_id === undefined &&
+        input.research_file_id === undefined && input.research_selection === undefined && input.arrangement === undefined &&
+        !(input.columns_config && current.review.scope_config?.arrangement) ? undefined : await selection(scope,
+          { ...input, document_ids: input.document_ids ?? current.review.document_ids },
+          nextProject, current.review.scope_config, input.columns_config ?? current.review.columns_config);
       return value(await store.update(scope, reviewId,
         input.expected_version ?? current.review.updated_at, {
           ...(input.title !== undefined ? { title: input.title } : {}),
           ...(input.project_id !== undefined ? { projectId: input.project_id } : {}),
           ...(input.columns_config !== undefined ? { columns: input.columns_config } : {}),
           ...(input.workflow_id !== undefined ? { workflowId: input.workflow_id } : {}),
-          ...(nextDocuments ? { documentIds: nextDocuments } : {}),
+          ...(nextSelection ? { documentIds: nextSelection.subjects.map(tabularSubjectId), scopeConfig: nextSelection } : {}),
           ...(input.shared_with !== undefined ? { sharedWith: input.shared_with } : {}),
+          operation,
         }), "Review");
+    },
+    async history(scope: TabularScope, reviewId: string, input: z.infer<typeof tabularDtos.history>) {
+      return await store.history(scope, reviewId, input) ?? fail(404, "Review not found");
+    },
+    async change(scope: TabularScope, reviewId: string, input: z.infer<typeof tabularDtos.change>,
+      operation?: TabularOperation) {
+      const current = await store.detail(scope, reviewId);
+      if (!current) return fail(404, "Review not found");
+      await assertIdle(current.review);
+      return value(await store.change(scope, reviewId, input.id, input.action, input.expected_version, operation), "Review");
+    },
+    async answers(scope: TabularScope, researchFileId: string, input: {
+      chat_id: string; offset: number; limit: number; answer_id?: string; resource?: string }) {
+      const file = await readResearchFile(documents, scope, researchFileId);
+      if (!file?.state.chats?.includes(input.chat_id)) return fail(404, "Chat is outside the current workspace");
+      if (!dependencies.resolveAnswers) return fail(503, "Saved chat answers are unavailable");
+      const findings = (await dependencies.resolveAnswers(scope, researchFileId, input.chat_id))
+        .filter((finding) => (!input.answer_id || finding.question.id === input.answer_id) &&
+          (!input.resource || finding.resource === input.resource));
+      if (input.answer_id && !findings.length) return fail(404, "Saved answer not found");
+      return { items: findings.slice(input.offset, input.offset + input.limit), total: findings.length,
+        next_offset: input.offset + input.limit < findings.length ? input.offset + input.limit : null };
     },
     async remove(scope: TabularScope, reviewId: string) {
       const current = await store.detail(scope, reviewId);
@@ -440,20 +564,16 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
         return fail(404, "Document not found");
       const selected = new Set(input.document_ids);
       for (const cell of detail.cells) if (selected.has(cell.document_id) &&
+        !mappedCell(detail.review.scope_config, cell.document_id, cell.column_index) &&
         (cell.status !== "pending" || cell.content !== null))
-        await cellWrite(scope, cell, "pending", null);
+        await cellWrite(scope, cell, "pending", null, detail.review.updated_at, { executor: "human", title: "Clear table answer" });
     },
     async prompt(scope: TabularScope, input: z.infer<typeof tabularDtos.prompt>,
       signal?: AbortSignal) {
       const config = await settings(scope.userId);
-      const descriptions: Record<string, string> = { text: "free-form text",
-        bulleted_list: "a bulleted list", number: "a single number",
-        percentage: "a percentage", monetary_amount: "a monetary amount",
-        currency: "a currency code", yes_no: "Yes or No", date: "a date",
-        tag: input.tags.length ? `one of: ${input.tags.join(", ")}` : "a tag" };
       const raw = await modelText({ model: config.title_model, apiKeys: config.api_keys,
         system: 'Write legal-review extraction prompts. Return only {"prompt":string}. Do not include response-format instructions.',
-        user: `Column title: ${input.title}\nDocument: ${input.documentName || "unspecified"}\nExpected response: ${descriptions[input.format] ?? "free-form text"}`,
+        user: `Column title: ${input.title}\nDocument: ${input.documentName || "unspecified"}\nExpected response: ${tabularFormatDescription(input)}`,
         signal });
       try {
         const prompt = String(json(raw).prompt ?? "").trim().slice(0, 20_000);
@@ -470,16 +590,10 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
         return fail(404, "Document not found");
       if (!detail.review.columns_config.some(({ index }) => index === input.column_index))
         return fail(400, "Column not found");
-      if (!dependencies.agents) return fail(503, "Tabular agents are unavailable");
-      const user = await settings(scope.userId), model = input.model ?? user.tabular_model;
-      modelKey(model, user.api_keys);
-      const [job] = await dependencies.agents.enqueue(scope, {
-        reviewId, ownerId: detail.review.user_id,
-        assignments: [{ documentId: input.document_id, columnIndex: input.column_index }],
-        model, reasoningEffort: input.reasoning_effort,
-      });
-      if (!job.created) throw new ApplicationError(
-        409, "This tabular review is already running.", { code: "review_running" });
+      if (mappedCell(detail.review.scope_config, input.document_id, input.column_index))
+        return fail(400, "This cell references existing research; edit its arrangement to change it");
+      const { jobs: [job] } = await enqueue(scope, detail.review, input,
+        [{ documentId: input.document_id, columnIndex: input.column_index }]);
       return { job_id: job.id, queued: true };
     },
     async generate(scope: TabularScope, reviewId: string,
@@ -489,19 +603,11 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
       await assertIdle(detail.review);
       if (!detail.review.columns_config.length) return fail(400, "No columns configured");
       if (!detail.review.document_ids.length) return fail(400, "No documents configured");
-      if (!dependencies.agents) return fail(503, "Tabular agents are unavailable");
-      const user = await settings(scope.userId), model = input.model ?? user.tabular_model;
-      modelKey(model, user.api_keys);
       const pending = new Set(detail.cells.filter((cell) =>
-        cell.status !== "done" || !cell.content).map((cell) => cell.document_id));
-      const jobs = await dependencies.agents.enqueue(scope, {
-        reviewId, ownerId: detail.review.user_id,
-        assignments: detail.review.document_ids.filter((id) => pending.has(id))
-          .map((documentId) => ({ documentId })),
-        model, reasoningEffort: input.reasoning_effort,
-      });
-      if (jobs.length && !jobs.some(({ created }) => created)) throw new ApplicationError(
-        409, "This tabular review is already running.", { code: "review_running" });
+        !mappedCell(detail.review.scope_config, cell.document_id, cell.column_index) &&
+        (cell.status !== "done" || !cell.content)).map((cell) => cell.document_id));
+      const { jobs, model } = await enqueue(scope, detail.review, input,
+        detail.review.document_ids.filter((id) => pending.has(id)).map((documentId) => ({ documentId })));
       if (jobs.some(({ created }) => created)) await store.recordGeneration(scope, {
         reviewId, title: detail.review.title, projectId: detail.review.project_id,
         model, failed: false,

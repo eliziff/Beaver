@@ -255,6 +255,7 @@ type StructureAddon = {
   queryPdfDocument(document: NativeDocument, locatorKind: string, locator: string,
     endLocator?: string, contextBlocks?: number, page?: number,
     occurrence?: number): PdfStructureLookup;
+  pdfLookupUnitSpans(document: NativeDocument, ids: string[]): Record<string, { start: number; end: number }>;
 };
 
 declare const nativeDocument: unique symbol;

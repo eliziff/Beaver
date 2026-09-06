@@ -1,11 +1,8 @@
 import { getCodexModelCatalog, type CodexModelCatalog } from "../codexCatalog";
 import type { NormalizedToolCall, NormalizedToolResult, Tool } from "../llm";
-import type {
-  LegalEvidenceReceipt,
-  LegalEvidenceReceiptEvent,
-} from "./legalEvidence";
 import { jsonRecord as record } from "../value";
-import type { ToolActivity } from "./types";
+import type { AssistantEvent, ReadSubagentAssignment, ReadSubagentCheckpoint,
+  ReadSubagentEvent } from "./assistantEvents";
 
 export const READ_SUBAGENT_TOOL_NAME = "delegate_read";
 export const RESUME_SUBAGENT_TOOL_NAME = "resume_read";
@@ -14,39 +11,6 @@ const DEFAULT_EFFORT = "high";
 const REGIONS = ["CA", "US", "UK"] as const;
 
 export type ReadSubagentRegion = typeof REGIONS[number];
-export type ReadSubagentAssignment = {
-  task: string;
-  scope: string;
-  jurisdiction: ReadSubagentRegion;
-  collections?: string[];
-  source_types?: string[];
-};
-export type ReadSubagentCheckpoint = {
-  id: string;
-  continuation_id: string;
-  model: string;
-  effort: string;
-  assignment: ReadSubagentAssignment;
-  evidence: LegalEvidenceReceipt[];
-  activities?: ToolActivity[];
-};
-export type ReadSubagentEvent = {
-  type: "subagent_run";
-  id: string;
-  agent: "scout" | "native";
-  task: string;
-  model: string;
-  effort: string;
-  status: "running" | "completed" | "error" | "cancelled" | "interrupted";
-  output?: string;
-  error?: string;
-  publicError?: string;
-  activity?: ToolActivity;
-  activities?: ToolActivity[];
-  citations?: Record<string, unknown>[];
-  grounding?: LegalEvidenceReceiptEvent;
-  resume?: ReadSubagentCheckpoint;
-};
 export type ReadSubagentCapability = {
   available: boolean;
   serverEnabled: boolean;
@@ -87,14 +51,13 @@ const assignmentSchema = {
 export const READ_SUBAGENT_TOOL: Tool = {
   name: READ_SUBAGENT_TOOL_NAME,
   description:
-    "Dispatch one round of two to four independent read-only research assignments. Use distinct scopes and review every result before answering; keep small lookups in the main turn.",
+    "Delegate independent legal research assignments with distinct scopes. Compare each reader's findings and exact evidence before answering. Assess misses as research gaps, not proof of absence; keep small lookups in the main turn.",
   inputSchema: {
     type: "object",
     properties: {
       assignments: {
         type: "array", minItems: 2, maxItems: 4,
         items: assignmentSchema,
-        description: "Two to four non-overlapping reading assignments.",
       },
     },
     required: ["assignments"],
@@ -118,58 +81,25 @@ export const RESUME_SUBAGENT_TOOL: Tool = {
   },
 };
 
-export const READ_SUBAGENT_SYSTEM_PROMPT =
-  "Use direct research tools for ordinary work. Delegate only when two to four genuinely independent reading lanes will help. Keep every lane within the jurisdictions selected for this request, wait for all siblings, and skeptically compare their exact evidence against the question. Resume interrupted or failed readers instead of replacing them. A reader miss is not proof of absence; refine concrete gaps, but never force a result. Reuse returned evidence IDs in the final grounded answer.";
-
 const strings = (value: unknown) => Array.isArray(value)
   ? value.filter((item): item is string => typeof item === "string") : [];
 const region = (value: unknown): ReadSubagentRegion =>
   value === "US" || value === "UK" ? value : "CA";
 
-function checkpoint(value: unknown): ReadSubagentCheckpoint | null {
-  const row = record(value), input = record(row?.assignment);
-  if (!row || !input || typeof row.id !== "string" ||
-      typeof row.continuation_id !== "string" ||
-      typeof row.model !== "string" || typeof row.effort !== "string" ||
-      typeof input.task !== "string" || typeof input.scope !== "string" ||
-      !REGIONS.includes(input.jurisdiction as ReadSubagentRegion)) return null;
-  return {
-    id: row.id,
-    continuation_id: row.continuation_id,
-    model: row.model,
-    effort: row.effort,
-    assignment: {
-      task: input.task,
-      scope: input.scope,
-      jurisdiction: input.jurisdiction as ReadSubagentRegion,
-      ...(Array.isArray(input.collections) && { collections: strings(input.collections) }),
-      ...(Array.isArray(input.source_types) && { source_types: strings(input.source_types) }),
-    },
-    evidence: Array.isArray(row.evidence)
-      ? row.evidence as LegalEvidenceReceipt[] : [],
-    ...(Array.isArray(row.activities)
-      ? { activities: row.activities as ToolActivity[] }
-      : {}),
-  };
-}
-
-export function resumableReadSubagents(events: readonly unknown[]) {
-  const latest = new Map<string, Record<string, unknown>>();
-  for (const value of events) {
-    const event = record(value);
-    if (event?.type === "subagent_run" && typeof event.id === "string") {
+export function resumableReadSubagents(events: readonly AssistantEvent[]) {
+  const latest = new Map<string, ReadSubagentEvent>();
+  for (const event of events) {
+    if (event.type === "subagent_run") {
       latest.set(event.id, event);
     }
   }
   const resumable = new Map<string, ReadSubagentCheckpoint>();
   for (const [id, event] of latest) {
-    if (!["error", "interrupted", "running"].includes(String(event.status))) continue;
-    const parsed = checkpoint(event.resume);
+    if (!["error", "interrupted", "running"].includes(event.status)) continue;
+    const parsed = event.resume;
     if (parsed && parsed.id === id) resumable.set(id, {
       ...parsed,
-      ...(Array.isArray(event.activities)
-        ? { activities: event.activities as ToolActivity[] }
-        : {}),
+      ...(event.activities && { activities: event.activities }),
     });
   }
   return resumable;
@@ -394,7 +324,6 @@ export function readSubagentActivityLabel(input: Record<string, unknown>) {
 
 export const readSubagentInstruction = (assignment: ReadSubagentAssignment) => [
   "Read only what the assignment requests. Preserve legally material qualifications and contrary text. Do not broaden the task or recommend next steps.",
-  "Use only the supplied retrieval tools and finish with submit_grounded_answer. Every claim requires exact evidence_ids returned by those tools.",
   `Jurisdiction boundary: ${assignment.jurisdiction}.`,
   assignment.collections?.length
     ? `Collection boundary: ${assignment.collections.join(", ")}.` : "",

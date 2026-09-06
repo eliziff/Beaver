@@ -8,7 +8,6 @@ import {
 } from "../chat/legalEvidence";
 import { createDocxAuthorityLedger,
   resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
-import { WRITE_TOOL } from "../chat/tools/toolSchemas";
 
 function receipt(
   evidenceId: string,
@@ -39,29 +38,14 @@ function receipt(
 }
 
 describe("DOCX evidence citations", () => {
-  it("keeps the model-facing citation contract to short evidence ids", () => {
-    const schema = WRITE_TOOL.inputSchema as {
-      properties: Record<string, {
-        items?: { properties?: Record<string, unknown> };
-      }>;
-    };
-
-    expect(schema.properties).toHaveProperty("citations");
-    expect(schema.properties).not.toHaveProperty("sources");
-    expect(Object.keys(
-      schema.properties.citations.items?.properties ?? {},
-    )).toEqual(["id", "evidence_ids"]);
-  });
-
   it("projects short evidence ids into one authority with narrow pinpoints", () => {
     const state = createLegalEvidenceTurnState();
     registerLegalEvidence(state, receipt("e_paragraph_5", "par5"));
     registerLegalEvidence(state, receipt("e_paragraph_9", "par9"));
 
-    const resolved = resolveDocxEvidenceCitations(state, [{
-      id: "rule",
-      evidence_ids: ["e_paragraph_5", "e_paragraph_9"],
-    }]);
+    const resolved = resolveDocxEvidenceCitations(state, {
+      rule: ["e_paragraph_5", "e_paragraph_9"],
+    });
 
     expect(resolved.citations.rule.sources).toHaveLength(1);
     expect(resolved.citations.rule.sources[0]).toMatchObject({
@@ -92,24 +76,27 @@ describe("DOCX evidence citations", () => {
       locator: { kind: "document", label: "document" },
     }));
 
-    expect(() => resolveDocxEvidenceCitations(state, [{
-      id: "missing",
-      evidence_ids: ["e_not_registered"],
-    }])).toThrow("unknown evidence_id");
-    expect(() => resolveDocxEvidenceCitations(state, [{
-      id: "broad",
-      evidence_ids: ["e_whole_document"],
-    }])).toThrow("requires exact passage evidence");
+    expect(() => resolveDocxEvidenceCitations(state, {
+      missing: ["e_not_registered"],
+    })).toThrow("unknown evidence_id");
+    expect(() => resolveDocxEvidenceCitations(state, {
+      broad: ["e_whole_document"],
+    })).toThrow("requires exact passage evidence");
   });
 
-  it("rejects model-authored citation prose and old-shape handles", () => {
+  it("rejects malformed citation maps, duplicate ids and excessive evidence", () => {
     const state = createLegalEvidenceTurnState();
-    expect(() => resolveDocxEvidenceCitations(state, [{
-      id: "forged",
-      evidence_ids: ["e_paragraph_5"],
-      citation: "Model-authored text",
-      handles: ["mike-evidence:v1:forged"],
-    }])).toThrow("unsupported fields");
+    for (const citations of [[], [{ id: "rule", evidence_ids: ["e_paragraph_5"] }],
+      { rule: { citation: "Model-authored text", evidence_ids: ["e_paragraph_5"] } },
+      { rule: ["mike-evidence:v1:forged"] }, { rule: [] },
+      { rule: ["e_paragraph_5", "e_paragraph_5"] },
+      { rule: ["e_paragraph_5"], " rule ": ["e_paragraph_9"] },
+      Object.fromEntries(Array.from({ length: 101 }, (_, i) => [`rule_${i}`, ["e_paragraph_5"]])),
+      { rule: Array.from({ length: 17 }, (_, i) => `e_paragraph_${i}`) },
+      Object.fromEntries(Array.from({ length: 17 }, (_, i) => [`rule_${i}`,
+        Array.from({ length: 16 }, (_, j) => `e_paragraph_${j}`)]))]) {
+      expect(() => resolveDocxEvidenceCitations(state, citations)).toThrow("DOCX citation");
+    }
   });
 
   it("records exact rendered citation markers without reparsing them later", async () => {
@@ -117,9 +104,7 @@ describe("DOCX evidence citations", () => {
     registerLegalEvidence(state, receipt("e_paragraph_5", "par5", {
       source_sha256: "a".repeat(64),
     }));
-    const resolved = resolveDocxEvidenceCitations(state, [{
-      id: "rule", evidence_ids: ["e_paragraph_5"],
-    }]);
+    const resolved = resolveDocxEvidenceCitations(state, { rule: ["e_paragraph_5"] });
     const unit = { key: "body:0", kind: "body" as const, ordinal: 0,
       footnote_id: null, page_numbers: [], footnote_refs: [],
       text: "The rule applies. Example v State, 2026 SCC 1 at para 5." };
@@ -144,9 +129,7 @@ describe("DOCX evidence citations", () => {
     registerLegalEvidence(state, receipt("e_paragraph_5", "par5", {
       source_sha256: "a".repeat(64),
     }));
-    const resolved = resolveDocxEvidenceCitations(state, [{
-      id: "rule", evidence_ids: ["e_paragraph_5"],
-    }]);
+    const resolved = resolveDocxEvidenceCitations(state, { rule: ["e_paragraph_5"] });
     const citation = "Example v State, 2026 SCC 1 at para 5";
     expect(await createDocxAuthorityLedger(state, "Text.[@rule]", Buffer.from("docx"),
       resolved, "inline", {

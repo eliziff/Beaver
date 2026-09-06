@@ -32,7 +32,7 @@ CHROMEDRIVER = next(iter(sorted(Path.home().parent.glob(
     r"*/.cache/selenium/chromedriver/win64/*/chromedriver.exe"
 ), reverse=True)), None)
 CHOICES = {
-    "ab-kb-affidavit-exhibits": ("Alberta", "Trial", "Affidavit with exhibits"),
+    "ab-kb-affidavit-exhibits": ("Alberta", "Trial", "Affidavit"),
     "fc-motion-record-moving": ("Federal courts", "Trial", "Motion record"),
     "fca-motion-record-moving": ("Federal courts", "Appeal", "Motion record"),
     "ab-ca-appeal-record": ("Alberta", "Appeal", "Appeal record"),
@@ -329,7 +329,7 @@ def assistant_contract(driver: webdriver.Chrome, output: Path) -> dict[str, obje
     composer = dock.find_element(By.TAG_NAME, "textarea")
     assert composer.is_displayed() and (composer.get_attribute("aria-label") or
                                         composer.get_attribute("placeholder"))
-    assert driver.find_element(By.CSS_SELECTOR, "[data-court-record-chooser]")
+    assert driver.find_element(By.CSS_SELECTOR, "#court-record-workspace")
     viewports: dict[str, object] = {}
     for label, width, height, dpr in (("1440", 1440, 1000, 1),
                                       ("320", 320, 800, 1),
@@ -409,8 +409,8 @@ def choose_new_profile(
             driver, dialog, chooser_output, "document")
     dialog.find_element(By.XPATH, f".//button[normalize-space()='{document}']").click()
     direct = wait.until(lambda item: (
-        any(node.get_attribute("data-selected-profile") == profile_id
-            for node in item.find_elements(By.CSS_SELECTOR, "[data-court-record-chooser]"))
+        (not item.find_elements(By.CSS_SELECTOR, "dialog[open]") and
+         bool(item.find_elements(By.CSS_SELECTOR, "button[aria-label='Back from court record']")))
         or next(iter(item.find_elements(By.CSS_SELECTOR, "dialog[open]")), False)
     ))
     if direct is True:
@@ -420,9 +420,8 @@ def choose_new_profile(
     if chooser_output:
         proof["format_viewports"] = chooser_contract(driver, dialog, chooser_output, "format")
     dialog.find_element(By.XPATH, FORMATS[profile_id]).click()
-    wait.until(lambda item: item.find_element(
-        By.CSS_SELECTOR, "[data-court-record-chooser]"
-    ).get_attribute("data-selected-profile") == profile_id)
+    wait.until(lambda item: not item.find_elements(By.CSS_SELECTOR, "dialog[open]") and
+        item.find_elements(By.CSS_SELECTOR, "button[aria-label='Back from court record']"))
     return proof
 
 
@@ -469,7 +468,7 @@ def reset_workspace(
         set_viewport(driver, 320, 800)
         draft_narrow = header_geometry(driver)
         assert abs(blank_narrow["rail"]["height"] - draft_narrow["rail"]["height"]) <= 1
-        assert draft_narrow["title"]["width"] >= 88, draft_narrow
+        assert driver.execute_script("const title=document.querySelector('[data-workspace-header] h1');return title.scrollWidth<=title.clientWidth+1"), draft_narrow
         restore_viewport(driver)
         chooser_proof["header"]["blank_320"] = blank_narrow
         chooser_proof["header"]["draft_320"] = draft_narrow
@@ -494,7 +493,7 @@ def select_filing_party(driver: webdriver.Chrome, name: str) -> None:
 
 
 def enter(element, value: str) -> None:
-    element.clear()
+    element.send_keys(Keys.CONTROL, "a")
     element.send_keys(value)
 
 
@@ -521,19 +520,15 @@ def toggle_disclosure(driver: webdriver.Chrome, details) -> None:
 def upload(driver: webdriver.Chrome, kind_id: str, path: Path) -> None:
     selector = f"[data-kind-id='{kind_id}']"
     before = len(driver.find_elements(By.CSS_SELECTOR, f"{selector} [data-entry-id]"))
-    inputs = driver.find_elements(By.CSS_SELECTOR, f"{selector} input[type=file]")
-    dynamic = not inputs
-    if inputs:
-        picker = inputs[0]
-    else:
-        driver.find_element(
-            By.XPATH,
-            f"//*[@data-kind-id='{kind_id}']//button[normalize-space()='Add file' or "
-            "normalize-space()='Replace file']",
-        ).click()
+    control = driver.find_element(By.ID, f"court-record-{kind_id}-file")
+    dynamic = control.tag_name != "input"
+    if dynamic:
+        control.click()
         picker = WebDriverWait(driver, 5).until(lambda item: item.find_element(
             By.CSS_SELECTOR, "input[data-chromedriver-file-picker]"
         ))
+    else:
+        picker = control
     picker.send_keys(str(path.resolve()))
 
     def prepared(item: webdriver.Chrome) -> bool:
@@ -849,7 +844,7 @@ def reopen_saved_contract(
         lambda item: item.find_element(By.CSS_SELECTOR, "dialog[open]")
     )
     assert driver.save_screenshot(str(output / "saved-record-picker.png"))
-    dialog.find_element(By.CSS_SELECTOR, "[role='group'] button").click()
+    dialog.find_element(By.XPATH, ".//button[time]").click()
     WebDriverWait(driver, 30).until(lambda item: item.find_element(
         By.CSS_SELECTOR, "[data-court-record-chooser]"
     ).get_attribute("data-selected-profile") == profile_id)
@@ -868,8 +863,8 @@ def reopen_saved_contract(
             "header": {"blank": blank, "reopened": header_geometry(driver)}}
 
 
-def save_and_nest_contract(
-    driver: webdriver.Chrome, output_file: Path, output: Path
+def save_and_filter_contract(
+    driver: webdriver.Chrome, output_file: Path, output: Path, notice_file: Path
 ) -> dict[str, object]:
     mode = "standalone" if urlsplit(driver.current_url).path.endswith(
         "court-records.html"
@@ -888,6 +883,8 @@ def save_and_nest_contract(
         By.XPATH, "//button[normalize-space()='New court record']"
     ))
     choose_new_profile(driver, "fc-motion-record-moving")
+    upload(driver, "notice-motion", notice_file)
+    select_filing_party(driver, "North Prairie Ltd.")
 
     for key, value in {"courtFileNumber": "T-982-19", "counselName": "Jordan Lee",
                        "counselAddress": "100 Legal Avenue\nCalgary, Alberta",
@@ -900,22 +897,10 @@ def save_and_nest_contract(
     dialog = WebDriverWait(driver, 20).until(
         lambda item: item.find_element(By.CSS_SELECTOR, "dialog[open]")
     )
-    choice = WebDriverWait(driver, 20).until(lambda _item: next((button for button in
-        dialog.find_elements(By.TAG_NAME, "button") if output_file.name in button.text), False))
-    detail = choice.text
-    assert "From " in detail, detail
-    assert driver.save_screenshot(str(output / "nested-saved-output-picker.png"))
-    choice.click()
-    WebDriverWait(driver, 30).until(
-        lambda item: item.find_elements(By.CSS_SELECTOR, f"span[title='{output_file.name}']")
-    )
-    WebDriverWait(driver, 10).until(lambda item: item.find_element(
-        By.CSS_SELECTOR, "[data-party-group='Applicant'] input"
-    ).get_attribute("value") == "NORTH PRAIRIE LTD.")
-    assert driver.find_element(
-        By.CSS_SELECTOR, "[data-party-group='Respondent'] input"
-    ).get_attribute("value") == "RIVERSTONE INC."
-    select_filing_party(driver, "North Prairie Ltd.")
+    WebDriverWait(driver, 20).until(lambda _item: "No matching files." in dialog.text)
+    assert output_file.name not in dialog.text
+    assert driver.save_screenshot(str(output / "incompatible-output-excluded.png"))
+    dialog.send_keys(Keys.ESCAPE)
     application_under = field(driver, "applicationUnder")
     reveal(driver, application_under)
     enter(application_under, "Federal Courts Act, section 18.1")
@@ -925,10 +910,10 @@ def save_and_nest_contract(
     missing_focus = WebDriverWait(driver, 5).until(lambda item:
         item.switch_to.active_element.get_attribute("id")
         if item.switch_to.active_element.get_attribute("id") ==
-        "court-record-notice-motion-file" else False)
-    assert driver.save_screenshot(str(output / "nested-output-and-validation-focus.png"))
+        "court-record-written-representations-file" else False)
     return {"available": True, "mode": mode, "output": output_file.name,
-            "picker_detail": detail, "missing_document_focus": missing_focus}
+            "incompatible_output_excluded": True, "missing_document_focus": missing_focus}
+
 
 
 def inspect_affidavit(path: Path, output: Path) -> dict[str, object]:
@@ -1066,16 +1051,16 @@ def check_affidavit(
     body = driver.find_element(By.TAG_NAME, "body").text
     for unwanted in ("Effective ", "Preparation details", "Official sources", "Joins an affidavit"):
         assert unwanted not in body, unwanted
-    for heading in ("1. Add the affidavit", "2. Case details", "3. Add exhibits or another document"):
-        assert driver.find_elements(By.XPATH, f"//h2[normalize-space()='{heading}']"), heading
-    for field_id in ("courtFileNumber", "registry", "affidavitNumber", "deponent", "swornDate", "swornPlace"):
-        assert not field(driver, field_id).get_attribute("value"), field_id
-
-    Select(driver.find_element(By.ID, "court-record-party-style")).select_by_visible_text("Action")
-    reveal(driver, field(driver, "registry"))
-    enter(field(driver, "registry"), "Edmonton")
-    enter(driver.find_element(By.CSS_SELECTOR, "[data-party-group='Plaintiff'] input"), "Existing Plaintiff")
+    assert len(driver.find_elements(By.CSS_SELECTOR, '#court-record-workspace [data-kind-id]')) == 1
+    assert not driver.find_elements(By.CSS_SELECTOR, '.court-record-build-panel')
+    assert not driver.find_elements(By.ID, 'cover-courtFileNumber')
+    driver.save_screenshot(str(output / 'affidavit-initial.png'))
     upload(driver, "affidavit", fixtures["affidavit"])
+    WebDriverWait(driver, 20).until(lambda item: field(item, "deponent").get_attribute("value"))
+    assert driver.find_element(By.ID, "court-record-party-style").is_displayed()
+    enter(field(driver, "registry"), "Edmonton")
+    driver.find_element(By.XPATH, "//button[normalize-space()='Add plaintiff']").click()
+    enter(driver.find_elements(By.CSS_SELECTOR, "[data-party-group='Plaintiff'] input")[-1], "Existing Plaintiff")
     expected = {
         "courtFileNumber": "2401-12345", "registry": "Edmonton", "affidavitNumber": "2",
         "deponent": "Alexandra Smith", "swornDate": "AUGUST 29, 2026", "swornPlace": "CALGARY",
@@ -1087,7 +1072,7 @@ def check_affidavit(
         By.CSS_SELECTOR, "[data-party-group='Plaintiff'] input")]
     defendants = [item.get_attribute("value") for item in driver.find_elements(
         By.CSS_SELECTOR, "[data-party-group='Defendant'] input")]
-    assert plaintiffs == ["Existing Plaintiff", "NORTH PRAIRIE LTD."], plaintiffs
+    assert plaintiffs == ["NORTH PRAIRIE LTD.", "Existing Plaintiff"], plaintiffs
     assert defendants == ["RIVERSTONE INC."], defendants
     select_filing_party(driver, "Existing Plaintiff")
     for label in ("A", "B"):
@@ -1168,11 +1153,11 @@ def check_federal(
     )
     pdf = next(path for path in downloads.values() if path.suffix.lower() == ".pdf")
     inspected = inspect_federal(pdf, output)
-    nested = save_and_nest_contract(driver, pdf, output)
+    nested = save_and_filter_contract(driver, pdf, output, fixtures["notice"])
     return {"profile": "fc-motion-record-moving", "reset_and_profile_ms": profile_ms,
             "navigation": navigation,
             "generic_drag_controls": 0, "viewports": viewports,
-            "build_busy": busy, "nested_saved_output": nested, "output": inspected}
+            "build_busy": busy, "saved_output_filter": nested, "output": inspected}
 
 
 def check_federal_appeal(
@@ -1181,7 +1166,6 @@ def check_federal_appeal(
     profile_ms, navigation, chooser = reset_workspace(
         driver, url, "fca-motion-record-moving"
     )
-    Select(driver.find_element(By.ID, "court-record-party-style")).select_by_visible_text("Application")
     upload(driver, "notice-motion", fixtures["notice"])
     WebDriverWait(driver, 10).until(
         lambda item: field(item, "courtFileNumber").get_attribute("value") == "T-982-19"
@@ -1254,12 +1238,6 @@ def check_appeal_record(
         assert control.get_dom_attribute("required") is not None
         reveal(driver, control)
         enter(control, value)
-    toggle_disclosure(driver, driver.find_element(
-        By.CSS_SELECTOR, "section[aria-labelledby='filing-heading'] > details"
-    ))
-    toggle_disclosure(driver, driver.find_element(
-        By.CSS_SELECTOR, "details[data-contact-finding-id]"
-    ))
     upload(driver, "part-3-transcript", fixtures["appeal_transcript_prior"])
     for kind_id, fixture in (
         ("part-1-pleading", "appeal_pleading"),
@@ -1465,7 +1443,11 @@ def main() -> int:
                     case_output = output / profile_id
                     case_output.mkdir(exist_ok=True)
                     proofs[profile_id] = reset_workspace(driver, url, profile_id, case_output)[2]
-                    driver.find_element(By.CSS_SELECTOR, "button[aria-label^='Court:']").click()
+                    courts = driver.find_elements(By.CSS_SELECTOR, "button[aria-label^='Change format:']")
+                    if not courts:
+                        assert len(driver.find_elements(By.CSS_SELECTOR, '#court-record-workspace [data-kind-id]')) == 1
+                        continue
+                    courts[0].click()
                     dialog = driver.find_element(By.CSS_SELECTOR, "dialog[open]")
                     Select(dialog.find_element(By.CSS_SELECTOR, "select[aria-label='Jurisdiction']")).select_by_visible_text("No court preset")
                     assert driver.find_elements(By.CSS_SELECTOR, "dialog[open]") == [dialog]

@@ -7,11 +7,9 @@ import { COURT_RECORD_PROFILE_BY_ID, decodeCourtRecordDraftState,
   decodeCourtRecordPartyContact, type CourtRecordPartyContact,
   type CourtRecordPartyStyleContract, type CourtRecordProfileContract } from "./courtRecordContract";
 import { documentProjectionService } from "./documentProjectionService";
-import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
-  type DocumentFile, type DocumentRollback, type DocumentStore } from "./documentStore";
-import { decodeWorkProductBuildReceipt, type WorkProductInput,
-  type WorkProductOutputRef } from "./workProduct";
-import type { WorkProductApplication } from "./workProductApplication";
+import type { DocumentFile, DocumentStore } from "./documentStore";
+import { decodeWorkProductBuildReceipt, type WorkProductInput } from "./workProduct";
+import { saveWorkProductBuild, type WorkProductApplication } from "./workProductApplication";
 import type { WorkflowFiles } from "./workflowFiles";
 import { canonicalJson, canonicalJsonSha256, sha256 } from "./hash";
 import { sourceExhibitLabels } from "mike/shared/court-record-exhibits.mjs";
@@ -79,48 +77,9 @@ export function createCourtRecordsApplication(
           })) {
         throw new ApplicationError(409, "The built files do not match the current court record");
       }
-      const refs: Record<string, WorkProductOutputRef> = {};
-      const rollback: DocumentRollback[] = [];
-      try {
-        for (let index = 0; index < artifacts.length; index += 1) {
-          const { file } = artifacts[index], receipt = receipts[index]!;
-          const output = { ...file, expectedSha256: receipt.output.sha256,
-            provenance: { schemaVersion: 1 as const, actor: "work-product" as const,
-              action: "built" as const, receipt } };
-          const existing = product.outputs[receipt.output.role];
-          const version = existing
-            ? await documents.addVersion(scope, existing.documentId, {
-              ...output, expectedCurrentVersionId: existing.versionId,
-              expectedCurrentSha256: existing.sha256,
-            }) : null;
-          if (version) {
-            rollback.push(createdVersionRollback(existing.documentId, version));
-            if (version.source_sha256 !== receipt.output.sha256) {
-              throw new Error("The saved Court Record output hash does not match its build");
-            }
-            refs[receipt.output.role] = { documentId: existing.documentId,
-              versionId: version.id };
-          } else {
-            if (existing && await documents.metadata(scope, existing.documentId)) {
-              throw new ApplicationError(409,
-                "A Court Record output changed while the new build was being saved");
-            }
-            const created = await files.create(scope, "court-records", output,
-              { projectId: product.projectId });
-            rollback.push(createdDocumentRollback(created));
-            if (!created.current_version_id ||
-                created.source_sha256 !== receipt.output.sha256) {
-              throw new Error("The saved Court Record output hash does not match its build");
-            }
-            refs[receipt.output.role] = { documentId: created.id,
-              versionId: created.current_version_id };
-          }
-        }
-        return await workProducts.save(scope, product.id, {
-          revision: product.revision, outputs: refs,
-        });
-      } catch (error) { return rollbackDocuments(documents, scope, rollback, error,
-        "Court Record outputs could not be saved or rolled back"); }
+      return saveWorkProductBuild({ documents, files, workProducts }, scope, product,
+        artifacts.map(({ file }, index) => ({ role: receipts[index]!.output.role,
+          file, receipt: receipts[index]! })));
     },
     async bindOutput(scope: ApplicationScope, input: {
       courtRecordId: string; revision: number; kindId: string;
@@ -285,17 +244,14 @@ export function createCourtRecordsApplication(
             slot.label, { name: "description-only", size: 0, modified: 0 }, values, true);
         } else if (patch.document) {
           const version = await documents.metadata(scope, patch.document.documentId);
-          const format = version?.file_type?.toLowerCase();
+          const format = version?.file_type.toLowerCase();
           if (!version || version.current_version_id !== patch.document.versionId ||
-              typeof version.filename !== "string" ||
-              typeof version.size_bytes !== "number" ||
-              typeof version.source_sha256 !== "string" ||
               (format !== "pdf" && format !== "docx") ||
               !(slot.acceptedFormats ?? ["pdf", "docx"]).includes(format)) {
             throw new ApplicationError(409, "The selected Library version cannot fill this slot");
           }
           const lastSeen = { name: version.filename, size: version.size_bytes,
-            modified: Date.parse(String(version.updated_at ?? "")) || 0,
+            modified: Date.parse(version.updated_at) || 0,
             sha256: version.source_sha256 };
           entryId = upsertEntry(entries, slot.id, patch.replaceEntryId, !!slot.repeatable,
             slot.repeatable ? withoutExtension(version.filename) : slot.label,

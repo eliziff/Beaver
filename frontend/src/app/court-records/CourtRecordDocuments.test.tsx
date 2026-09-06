@@ -74,7 +74,7 @@ describe("Court Record documents", () => {
     expect(onAssign).toHaveBeenCalledWith("pool", "B");
     fireEvent.click(screen.getByRole("button", { name: "Add exhibit" }));
     expect(onAddExhibit).toHaveBeenCalledOnce();
-    fireEvent.change(screen.getAllByLabelText("Add file")[0], {
+    fireEvent.change(screen.getByLabelText("Add files"), {
       target: { files: [new File(["a"], "a.pdf"), new File(["b"], "b.pdf")] },
     });
     expect(onFiles).toHaveBeenCalledWith("exhibit", expect.any(Array));
@@ -176,12 +176,11 @@ describe("Court Record documents", () => {
 
     const requiredGroup = screen.getByRole("region", { name: "Required documents" });
     const otherGroup = screen.getByRole("region", { name: "Other documents" });
-    expect(within(requiredGroup).getByText("Notice of application")).toBeVisible();
-    expect(within(requiredGroup).getByText("Memorandum of fact and law")).toBeVisible();
+    expect(within(requiredGroup).getByRole("heading", { name: /Notice of application/ })).toBeVisible();
+    expect(within(requiredGroup).getByRole("heading", { name: /Memorandum of fact and law/ })).toBeVisible();
     expect(within(otherGroup).getByText("Supporting affidavit and exhibits")).toBeVisible();
     expect(requiredGroup.compareDocumentPosition(otherGroup) & Node.DOCUMENT_POSITION_FOLLOWING)
       .toBeTruthy();
-    expect(screen.queryByText("Required")).toBeNull();
   });
 
   it("asks for the Rule 70 count only when excluded sections can affect the limit", () => {
@@ -222,7 +221,7 @@ describe("Court Record documents", () => {
 
     const requiredGroup = screen.getByRole("region", { name: "Required documents" });
     const exhibitSlot = screen.getByRole("region", { name: "Exhibit A slot" });
-    expect(within(requiredGroup).getByText("Affidavit")).toBeVisible();
+    expect(within(requiredGroup).getByRole("heading", { name: "Affidavit" })).toBeVisible();
     expect(requiredGroup.compareDocumentPosition(exhibitSlot) & Node.DOCUMENT_POSITION_FOLLOWING)
       .toBeTruthy();
   });

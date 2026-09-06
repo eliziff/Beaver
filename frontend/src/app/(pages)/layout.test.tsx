@@ -33,7 +33,6 @@ vi.mock("@/app/components/shared/KeyboardShortcuts", () => ({
     KeyboardShortcuts: () => null,
 }));
 vi.mock("@/app/components/assistant/WorkflowRun", () => ({
-    AssistantWorkflowActivity: () => null,
 }));
 
 const children: RouteObject[] = [

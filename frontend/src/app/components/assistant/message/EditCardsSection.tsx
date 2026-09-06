@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
-import type { EditAnnotation, EditResolveHandlers } from "../../shared/types";
+import type { EditAnnotation, EditResolveHandlers } from "@/app/lib/api/documents";
 import { resolveEdits } from "../EditCard";
 
 type PendingEdit = { annotation: EditAnnotation; filename: string };

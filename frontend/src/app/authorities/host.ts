@@ -1,4 +1,4 @@
-import type { Document } from "@/app/components/shared/types";
+import type { Document } from "@/app/lib/api/documents";
 import type { WorkProductInput, WorkProductStore } from "@/app/lib/workProducts";
 import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesBuildSettings,
   AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction, AuthoritiesOutputMode, AuthoritiesProduct,

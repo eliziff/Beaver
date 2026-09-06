@@ -1,6 +1,6 @@
 import { CircleStop, LoaderCircle } from "lucide-react";
 import { Tabs } from "@/app/components/ui/tabs";
-import type { Citation } from "../shared/types";
+import type { Citation } from "@/app/lib/citations";
 import { ReadSubagentDock, type ReadSubagentPanel } from "./ReadSubagentDock";
 
 export type ReadSubagentGroup = { id: string; label: string; panels: ReadSubagentPanel[] };

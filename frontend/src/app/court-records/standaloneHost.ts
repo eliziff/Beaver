@@ -18,8 +18,8 @@ import {
   standaloneWorkProducts,
   writeStandaloneArtifactsToOutputFolder,
 } from "@/app/lib/standaloneWorkProducts";
-import { apiBlobRequest, apiRequest } from "@/app/lib/apiTransport";
-import { acceptedSourceFormats, sourceFormat } from "./formats";
+import { apiBlobRequest, apiRequest } from "@/app/lib/api/client";
+import { acceptedSourceFormats, needsPdfRendition, sourceFormat } from "./formats";
 import { prepareDeviceFile, prepareDocxRendition } from "./prepareDeviceFile";
 import { sourceDocumentFields } from "./sourceFields";
 import type { CourtRecordDraft, DocumentKind } from "./types";
@@ -27,8 +27,8 @@ import { acceptsWorkProductOutput } from "../../../../shared/court-record-work-p
 
 type PdfPreparation = { page_count: number; ocr_pages: number[];
   pages: Array<{ page_number: number; text: string }> };
-async function prepareStandaloneFile(file: File, progress?: PreparationProgress) {
-  if (sourceFormat(file) !== "docx") return prepareDeviceFile(file, progress);
+async function prepareStandaloneFile(file: File, progress?: PreparationProgress, destination?: DocumentKind) {
+  if (sourceFormat(file) !== "docx" || !needsPdfRendition(destination)) return prepareDeviceFile(file, progress);
   progress?.(`Preparing ${file.name}`);
   const body = new FormData(); body.append("file", file);
   const { blob } = await apiBlobRequest("/court-records/docx-rendition", {
@@ -48,7 +48,7 @@ async function prepareOutput(workProductId: string, role: string, progress?: Pre
     throw new Error(`Rebuild ${saved.product.title} before adding its output.`);
   }
   const file = new File([saved.bytes], saved.output.filename, { type: saved.output.mimeType });
-  return { ...await prepareStandaloneFile(file, progress),
+  return { ...await prepareStandaloneFile(file, progress, destination),
     origin: { kind: "library" as const, documentId: saved.output.documentId,
       versionId: saved.output.versionId, sourceSha256: saved.output.sha256 },
     binding: { kind: "work-product-output" as const, workProductId, role },
@@ -66,8 +66,8 @@ export const standaloneCourtRecordsHost: CourtRecordsHost = {
     const current = await getStandaloneFilingContact();
     await setStandaloneFilingContact(mergeFilingContact(current, cover));
   },
-  async prepareDeviceFile(file, progress) {
-    return { ...await prepareStandaloneFile(file, progress),
+  async prepareDeviceFile(file, progress, context) {
+    return { ...await prepareStandaloneFile(file, progress, context?.destination),
       binding: await bindStandaloneFile(file) };
   },
   async runOcr(entry, progress) {
@@ -92,16 +92,15 @@ export const standaloneCourtRecordsHost: CourtRecordsHost = {
       sourceFields: sourceDocumentFields(prepared.pages.map((page) => page.text)) };
   },
   pickDeviceFiles: canRetainLocalFiles() ? pickRetainedFiles : undefined,
-  async searchDraftOutputs(query, destination, excludeId) {
-    const current = excludeId ? await standaloneWorkProducts.get(excludeId) : null;
+  async searchDraftOutputs(query, destination, draft) {
     const formats = acceptedSourceFormats(destination);
     const needle = query.trim().toLowerCase();
-    return (await listStandaloneOutputs(excludeId)).flatMap(({ product, role, output }) => {
+    return (await listStandaloneOutputs(draft.id)).flatMap(({ product, role, output }) => {
       const format = sourceFormat({ name: output.filename, type: output.mimeType });
       const matches = !needle || `${product.title} ${role} ${output.filename}`
         .toLowerCase().includes(needle);
       const choice = draftOutputChoice(product, role, output);
-      return (!current || product.projectId === current.projectId) &&
+      return product.projectId === draft.projectId &&
         format && formats.includes(format) && matches &&
         acceptsWorkProductOutput(destination, choice) ? [choice] : [];
     });

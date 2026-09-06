@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import publicEvents from "../../../../shared/test-fixtures/assistant-events.json";
 
 let directory = "";
 beforeEach(async () => {
@@ -22,18 +23,43 @@ it("durably replays a busy turn event stream in exact order", async () => {
     kind: "chat.turn", dedupeKey: "events", userId: "owner", payload: {},
   });
   const writer = await transport.createJobEventWriter(job.id);
-  for (let index = 0; index < 500; index += 1) {
-    writer.append({ type: "tool_activity", id: `read-${index}`, index });
-  }
+  const expected = [...publicEvents, ...Array.from({ length: 1100 }, (_, index) => ({
+    type: "tool_activity", id: `read-${index}`, tool: "Read",
+    label: `Read ${index}`, status: "completed",
+  }))];
+  for (const event of expected) writer.append(event);
   await writer.flush();
+  await queue.requestJobCancellation(job.id, "owner");
   const events = await transport.readJobEvents("owner", job.id, 0);
   expect(events).toHaveLength(500);
   expect(events.map(({ sequence }) => sequence)).toEqual(
-    Array.from({ length: 500 }, (_, index) => index + 1),
+    Array.from({ length: events.length }, (_, index) => index + 1),
   );
-  expect(events.at(-1)?.event).toMatchObject({ id: "read-499", index: 499 });
+  const { durableChatTurns } = await import("../chatTurnQueue");
+  const replayed: unknown[] = [];
+  await durableChatTurns.observe({ userId: "owner" }, job.id,
+    new AbortController().signal, (event) => replayed.push(event));
+  expect(replayed).toEqual(expected);
   await expect(transport.readJobEvents("other", job.id, 0))
     .resolves.toEqual([]);
+});
+
+it.each([
+  { type: "content_final", text: "Missing citations" },
+  { type: "subagent_run", id: "reader", task: "Read", status: "completed", resume: { continuation_id: "secret" } },
+  { type: "context_checkpoint", schema_version: 1, keep_current: true, summary: "private" },
+])("rejects malformed or private events before replay: $type", async (event) => {
+  const { enqueueJob, createJobEventWriter, requestJobCancellation } = await import("../jobQueue");
+  const { durableChatTurns } = await import("../chatTurnQueue");
+  const job = await enqueueJob({ kind: "chat.turn", dedupeKey: "invalid", userId: "owner", payload: {} });
+  const writer = await createJobEventWriter(job.id);
+  writer.append(event);
+  await writer.flush();
+  await requestJobCancellation(job.id, "owner");
+  const replayed: unknown[] = [];
+  await expect(durableChatTurns.observe({ userId: "owner" }, job.id,
+    new AbortController().signal, (item) => replayed.push(item))).rejects.toThrow();
+  expect(replayed).toEqual([]);
 });
 
 it("reattaches a retried send to the job identified by its turn id", async () => {

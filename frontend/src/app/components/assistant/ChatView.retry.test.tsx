@@ -22,13 +22,15 @@ vi.mock("react-router-dom", () => ({
     useNavigate: () => vi.fn(),
 }));
 vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
-vi.mock("@/app/lib/beaverApi", () => ({
-    getChat: mocks.getChat,
-    streamChat: mocks.streamChat,
-    streamChatJob: mocks.streamChatJob,
-    streamActiveChat: vi.fn().mockRejectedValue(new Error("observer unavailable")),
-    generateChatTitle: mocks.generateChatTitle,
-    listWorkflows: vi.fn().mockResolvedValue([]),
+vi.mock("@/app/lib/api/chat", () => ({
+  getChat: mocks.getChat,
+  streamChat: mocks.streamChat,
+  streamChatJob: mocks.streamChatJob,
+  streamActiveChat: vi.fn().mockRejectedValue(new Error("observer unavailable")),
+  generateChatTitle: mocks.generateChatTitle
+}));
+vi.mock("@/app/lib/api/workflows", () => ({
+  listWorkflows: vi.fn().mockResolvedValue([])
 }));
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     useChatHistoryContext: () => ({
@@ -168,11 +170,8 @@ describe("ChatView rejected normal turn", () => {
 
         render(<Harness />);
         await user.click(screen.getByRole("button", { name: "Start" }));
-        expect(
-            (await screen.findByText("Response interrupted")).closest(
-                '[role="alertdialog"]',
-            ),
-        ).toHaveClass("border-red-200", "bg-red-50");
+        expect(await screen.findByText("Response interrupted. Your draft is ready to edit.")).toBeVisible();
+        expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
         expect(screen.getByTestId("restored-draft")).toHaveTextContent(
             "Create it once",
         );
@@ -214,16 +213,16 @@ describe("ChatView rejected normal turn", () => {
         expect(screen.getByTestId("assistant-streaming")).toHaveTextContent("false");
     });
 
-    it("keeps all four reading-agent tabs after terminal transcript reconciliation", async () => {
+    it("keeps prior reading rounds and the selected agent after transcript reconciliation", async () => {
         const session = (status: "running" | "completed") =>
             createAssistantSessionState({ chatId: "chat-1", messages: [
                 { id: "user-1", role: "user", content: "Research it" },
                 {
                     id: "assistant-1",
                     role: "assistant",
-                    content: Array.from({ length: 4 }, (_, index) => ({
+                    content: Array.from({ length: 12 }, (_, index) => ({
                         type: "subagent_run",
-                        id: `reader:${index + 1}`,
+                        id: `round-${Math.floor(index / 4)}:${index % 4 + 1}`,
                         task: `Assignment ${index + 1}`,
                         status,
                         activities: [],
@@ -237,11 +236,21 @@ describe("ChatView rejected normal turn", () => {
         for (let index = 1; index <= 4; index += 1) {
             expect(await screen.findByRole("tab", { name: new RegExp(`Agent ${index}`) })).toBeVisible();
         }
+        await userEvent.click(screen.getByRole("tab", { name: /Agent 1/u }));
+        expect(screen.getByText("Assignment 1")).toBeVisible();
 
         rerender(<ChatView {...props} session={session("completed")} />);
+        expect(screen.getByRole("tab", { name: /Agent 1/u })).toHaveAttribute("aria-selected", "true");
+        expect(screen.getByText("Assignment 1")).toBeVisible();
         for (let index = 1; index <= 4; index += 1) {
             expect(screen.getByRole("tab", { name: new RegExp(`Agent ${index}`) })).toBeVisible();
         }
+        await userEvent.click(screen.getByRole("button", { name: "Collapse assistant dock" }));
+        rerender(<ChatView {...props} session={createAssistantSessionState({ chatId: "chat-1" })} />);
+        rerender(<ChatView {...props} session={session("completed")} />);
+        expect(screen.getByRole("button", { name: "Expand assistant dock" })).toBeVisible();
+        await userEvent.click(screen.getByRole("button", { name: "Expand assistant dock" }));
+        expect(screen.getByRole("tab", { name: /Agent 1/u })).toHaveAttribute("aria-selected", "true");
     });
 
     it("announces response progress and only reports successful completion", async () => {

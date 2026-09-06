@@ -19,8 +19,9 @@ import { asyncRoute } from "../lib/asyncRoute";
 import { sha256 } from "../lib/hash";
 import { multipleFileUpload, singleFileUpload } from "../lib/upload";
 import { requireAuth } from "../middleware/auth";
+import { checkQuotes, decodeQuoteLinks } from "../lib/quoteCheck";
 import { decodeAuthoritiesDiscrepancyAction, decodeAuthoritiesInitialSettings,
-  decodeAuthoritiesUserAction } from "./authorities";
+  decodeAuthoritiesUserAction } from "../lib/authoritiesActionContract";
 
 const MAX_BUILD_INPUT_BYTES = 512 * 1024 * 1024;
 
@@ -122,6 +123,23 @@ export function createAuthoritiesRuntimeRouter(
   reviewDiscrepancies: typeof reviewAuthoritiesDiscrepancies = reviewAuthoritiesDiscrepancies,
 ) {
   const router = Router(); router.use(authenticate);
+  router.post("/quote-check", asyncRoute(async (req, res) => {
+    const state = draft(req.body?.draft), links = decodeQuoteLinks(req.body?.links);
+    if (!req.accepts("text/event-stream") || req.get("accept") !== "text/event-stream") {
+      res.json(await checkQuotes(state, links)); return;
+    }
+    const abort = new AbortController();
+    res.on("close", () => abort.abort());
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache"); res.flushHeaders();
+    try {
+      const report = await checkQuotes(state, links, abort.signal, (completed, total, quote) =>
+        res.write(`data: ${JSON.stringify({ quote, completed, total })}\n\n`));
+      res.write(`data: ${JSON.stringify({ done: true, counts: report.counts })}\n\n`);
+    } catch {
+      if (!abort.signal.aborted) res.write(`data: ${JSON.stringify({ error: "Checking stopped. Completed receipts are available to download." })}\n\n`);
+    } finally { res.end(); }
+  }));
   router.post("/create", asyncRoute(async (req, res) => {
     await sendDraft(res, applyAuthoritiesInitialSettings(
       createAuthoritiesDraft({ kind: "manual" }), initialSettings(req.body?.settings),

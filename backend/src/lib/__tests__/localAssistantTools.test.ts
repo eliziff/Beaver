@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "docx";
 import * as XLSX from "xlsx";
+import JSZip from "jszip";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { zipDocumentBytes } from "./support/documentBytes";
 import { resourceReference } from "../resourceReferences";
@@ -115,7 +116,7 @@ async function expectReadRecipesAccepted(
   );
   expect(reads).toHaveLength(rows.length);
   for (const read of reads) {
-    expect(read.evidenceSpans?.length, read.content).toBeGreaterThan(0);
+    expect(read.evidence?.length, read.content).toBeGreaterThan(0);
   }
 }
 
@@ -188,6 +189,7 @@ describe("local assistant tools", () => {
     expect(JSON.parse(second.content)).toMatchObject({ next_offset: 5,
       items: queries.slice(2, 4).map(({ query_id }) => ({ query_id })) });
     expect(JSON.parse(query.content)).toMatchObject({ query_id: queries[0].query_id,
+      executed_at: queries[0].executed_at, tool: queries[0].tool, input: queries[0].input,
       results: queries[0].results.slice(0, 2), total: 3, next_offset: 3 });
   });
 
@@ -369,7 +371,7 @@ describe("local assistant tools", () => {
 
     expect(JSON.parse(created.content), created.content).toMatchObject({
       ok: true,
-      action: "created",
+      artifact: "draft-1",
       filename: "Requested memo.docx",
     });
     expect(created).toMatchObject({
@@ -377,9 +379,62 @@ describe("local assistant tools", () => {
       events: [{ type: "document_artifact", action: "created", filename: "Requested memo.docx" }],
     });
     expect(created.terminal).toBeUndefined();
-    expect([workbook, presentation].map(({ content }) =>
-      JSON.parse(content).file_type)).toEqual(["xlsx", "pptx"]);
+    const savedTypes = await Promise.all([workbook, presentation].map(async (output) => {
+      const event = output.events!.find((event) => event.type === "document_artifact")!;
+      return (await store.localDocuments.read({ userId: "local-user" },
+        event.document_id, event.version_id, false))?.fileType;
+    }));
+    expect(savedTypes).toEqual(["xlsx", "pptx"]);
   }, 10_000);
+
+  it("writes field and grouped citation maps into one durable DOCX", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-write-maps-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const { createTnaEvidence, createLegalEvidenceTurnState, registerLegalEvidence } =
+      await import("../chat/legalEvidence");
+    const state = createLegalEvidenceTurnState();
+    const receipts = [5, 9].map((paragraph) => createTnaEvidence({
+      jurisdiction: "CA", sourceClass: "case", stableSourceId: "example-case",
+      sourceText: "The appeal is allowed. The order is varied.",
+      spanText: paragraph === 5 ? "The appeal is allowed." : "The order is varied.",
+      citation: "2026 SCC 1", name: "Example v State", dataset: "fixture",
+      externalUrl: "https://example.test/case", locatorKind: "paragraph",
+      locatorLabel: `par${paragraph}`,
+    }));
+    receipts.forEach((receipt) => registerLegalEvidence(state, receipt));
+    const { runLocalAssistantTools } = await import("./support/localAssistantTools");
+    const input = { filename: "Map memo.docx", citation_style: "footnotes",
+      content: "# Positions\n\n{{party}} relies on the result.[@rule]\n\n{{party}} requests relief.[@rule]",
+      fields: { party: "Acme" }, citations: { rule: receipts.map((receipt) => receipt.evidence_id) } };
+    const results = await runLocalAssistantTools("local-user", [
+      { id: "bad-fields", name: "Write", input: { ...input, fields: [{ id: "party", value: "Acme" }] } },
+      { id: "bad-citations", name: "Write", input: { ...input, citations: [{ id: "rule", evidence_ids: input.citations.rule }] } },
+      { id: "bad-field-value", name: "Write", input: { ...input, fields: { party: 7 } } },
+      { id: "bad-citation-value", name: "Write", input: { ...input, citations: { rule: input.citations.rule[0] } } },
+      { id: "maps", name: "Write", input },
+    ], { legalEvidence: state });
+    for (const invalid of results.slice(0, -1)) {
+      expect(JSON.parse(invalid.content).error).toBe("invalid_arguments");
+      expect(invalid.mutated).not.toBe(true);
+    }
+    const created = results.at(-1)!;
+    expect(created.mutated, created.content).toBe(true);
+    const event = created.events!.find((event) => event.type === "document_artifact")!;
+    const { localDocuments } = await import("./support/localDocumentFixtures");
+    const saved = await localDocuments.read({ userId: "local-user" }, event.document_id,
+      event.version_id, false);
+    const { default: JSZip } = await import("jszip"), zip = await JSZip.loadAsync(saved!.bytes);
+    const xml = await zip.file("word/document.xml")!.async("text");
+    expect(xml.match(/<w:tag w:val="party"\/>/gu)).toHaveLength(2);
+    expect(xml.match(/w:xpath="\/b:fields\/b:field\[@name=&apos;party&apos;\]"/gu)).toHaveLength(2);
+    expect(await zip.file("customXml/item1.xml")!.async("text"))
+      .toContain('<b:field name="party">Acme</b:field>');
+    const footnotes = await zip.file("word/footnotes.xml")!.async("text");
+    for (const text of ["Example v State", "2026 SCC 1", "para 5", "para 9", "Ibid"])
+      expect(footnotes).toContain(text);
+    expect(footnotes).not.toContain("[@rule]");
+    expect([...state.documentEvidenceIds]).toEqual(input.citations.rule);
+  });
 
   it("rejects unmarked evidence copying before Write persists a DOCX", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-grounded-write-"));
@@ -411,7 +466,7 @@ describe("local assistant tools", () => {
       input: {
         filename: "Standing memo.docx",
         content: `# Standing\n\n${passage} [@standing]`,
-        citations: [{ id: "standing", evidence_ids: [evidence.evidence_id] }],
+        citations: { standing: [evidence.evidence_id] },
       },
     }], { legalEvidence: state });
 
@@ -463,18 +518,59 @@ describe("local assistant tools", () => {
       { allowedDocumentIds: new Set([document.id]) },
     );
 
-    const payload = JSON.parse(response.content);
-    expect(payload).toMatchObject({
-      ok: true,
-      action: "revised",
-      document_id: document.id,
-      version_number: 2,
-    });
+    expect(JSON.parse(response.content)).toEqual({ ok: true, artifact: "draft-1",
+      filename: "draft.docx" });
     expect(response).toMatchObject({
       mutated: true,
-      events: [{ type: "document_artifact", action: "edited", document_id: document.id }],
+      events: [{ type: "document_artifact", action: "edited", document_id: document.id,
+        version_number: 2, annotations: [{ deleted_text: "Original", inserted_text: "Revised" }] }],
     });
-    expect(payload.annotations[0]).not.toHaveProperty("reason");
+    const event = response.events!.find((event) => event.type === "document_artifact")!;
+    expect(event.annotations![0].reason).toBeUndefined();
+    const { parsePublicAssistantEvent } = await import("../chat/assistantEvents");
+    expect(parsePublicAssistantEvent(event)).toEqual(event);
+    const saved = await store.localDocuments.read({ userId: "local-user" },
+      document.id, event.version_id, false);
+    const { extractDocxBodyText } = await import("../docxTrackedChanges");
+    expect(await extractDocxBodyText(saved!.bytes)).toContain("Revised provision.");
+    const resource = resourceReference.document(document.id, event.version_id);
+    const [unchanged, lint] = await runLocalAssistantTools("local-user", [{
+      id: "unchanged", name: "edit_docx_advanced", input: { file_path: resource,
+        ops: [{ op: "replace_text", scope: { kind: "whole_document" },
+          find: "Absent", replace: "Replacement" }] },
+    }, { id: "lint", name: "lint_document", input: { document_id: resource } }]);
+    expect(JSON.parse(unchanged.content)).toMatchObject({ ok: true, action: "no_changes",
+      ops: [{ op: "replace_text", replacements: 0 }] });
+    expect(JSON.parse(lint.content)).toMatchObject({ ok: true,
+      version_id: event.version_id, findings: expect.any(Array) });
+    expect((await store.listLocalVersions("local-user", document.id))?.versions).toHaveLength(2);
+  });
+
+  it("saves supra fields as ordinary assistant edits that can be rejected", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-supras-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const zip = new JSZip();
+    const namespace = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+    zip.file("word/document.xml", `<w:document ${namespace}><w:body><w:p><w:r><w:footnoteReference w:id="1"/></w:r></w:p></w:body></w:document>`);
+    zip.file("word/footnotes.xml", `<w:footnotes ${namespace}><w:footnote w:id="1"><w:p><w:r><w:t>Smith, supra note 1.</w:t></w:r></w:p></w:footnote></w:footnotes>`);
+    const store = await import("./support/localDocumentFixtures");
+    const document = await store.createLocalDocument({ userId: "local-user", kind: "file",
+      filename: "Brief.docx", bytes: await zip.generateAsync({ type: "nodebuffer" }) });
+    const { runLocalAssistantTools } = await import("./support/localAssistantTools");
+    const [response] = await runLocalAssistantTools("local-user", [{ id: "fix-supras",
+      name: "document_operation", input: { action: "fix_supras",
+        document_id: resourceReference.document(document.id, document.current_version_id) } }]);
+    const artifact = response.events?.find((event) => event.type === "document_artifact");
+    expect(artifact).toMatchObject({ action: "edited", edit_mode: "manual", filename: "Brief.docx",
+      annotations: [{ status: "pending", del_w_id: expect.any(String), ins_w_id: expect.any(String) }] });
+    expect(response.events).toHaveLength(1);
+    const resolved = await store.localDocuments.resolveEdits({ userId: "local-user" }, document.id,
+      artifact!.annotations!.map(({ edit_id }) => edit_id), "reject");
+    expect(resolved.status).toBe("resolved");
+    const saved = await store.localDocuments.read({ userId: "local-user" }, document.id, null, false);
+    const notes = await (await JSZip.loadAsync(saved!.bytes)).file("word/footnotes.xml")!.async("string");
+    expect(notes).not.toContain("NOTEREF");
+    expect(notes).toContain("Smith, supra note 1.");
   });
 
   it("source-qualifies multi-document coding reads by canonical resource", async () => {
@@ -519,20 +615,27 @@ describe("local assistant tools", () => {
       ],
     );
 
-    expect(new Set(grep.evidenceSegments?.map((item) => item.documentId))).toEqual(
-      new Set([first.id, second.id]),
-    );
-    expect(firstRead.evidenceSegments?.[0]).toMatchObject({
-      documentId: first.id,
-      versionId: first.current_version_id,
+    expect(grep.content).toContain(resourceReference.document(first.id, first.current_version_id));
+    expect(grep.content).toContain(resourceReference.document(second.id, second.current_version_id));
+    expect(firstRead.evidence?.[0]).toMatchObject({
+      stable_source_id: first.id,
+      version: first.current_version_id,
+      span_text: "shared needle in first",
     });
-    expect(secondRead.evidenceSegments?.[0]).toMatchObject({
-      documentId: second.id,
-      versionId: second.current_version_id,
+    expect(secondRead.evidence?.[0]).toMatchObject({
+      stable_source_id: second.id,
+      version: second.current_version_id,
+      span_text: "shared needle in second",
     });
+    for (const read of [firstRead, secondRead]) {
+      for (const receipt of read.evidence ?? []) {
+        expect(read.content.split("\n").find((line) => line.includes(receipt.evidence_id)))
+          .toContain(receipt.span_text);
+      }
+    }
   });
 
-  it("keeps broad Grep display context out of the drafting handoff", async () => {
+  it("returns broad Grep context as navigation without citation receipts", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-grep-focus-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
@@ -556,15 +659,11 @@ describe("local assistant tools", () => {
         },
       },
     ]);
-    const carried = grep.evidenceSegments?.map((segment) =>
-      text.slice(segment.start, segment.end),
-    );
-
     const resource =
       `document://${document.id}/version/${document.current_version_id}`;
     expect(grep.content).toContain(`${resource}-1-zero`);
     expect(grep.content).toContain(`${resource}-7-six`);
-    expect(carried).toEqual(["two", "NEEDLE", "four"]);
+    expect(grep.evidence).toBeUndefined();
   });
 
   it("addresses spreadsheet cells through the same bounded Read contract", async () => {
@@ -602,6 +701,21 @@ describe("local assistant tools", () => {
     ]);
     expect(read.content).toContain("Unique spreadsheet value");
     expect(read.content).not.toContain("Matter");
+    const [whole] = await tools.runLocalAssistantTools("local-user", [{
+      id: "read-xlsx", name: "Read", input: {
+        file_path: resourceReference.document(document.id, document.current_version_id),
+      },
+    }]);
+    expect(whole.evidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({ span_text: "Smith",
+        locator: expect.objectContaining({ sheet: "Ledger", cells: "A2" }) }),
+      expect.objectContaining({ span_text: "Unique spreadsheet value",
+        locator: expect.objectContaining({ sheet: "Ledger", cells: "B2" }) }),
+    ]));
+    for (const receipt of whole.evidence ?? []) {
+      expect(whole.content.split("\n").find((line) => line.includes(receipt.evidence_id)))
+        .toContain(receipt.span_text);
+    }
   });
 
   it("keeps generic Grep output independent of ambiguous legal structure", async () => {
@@ -685,16 +799,13 @@ describe("local assistant tools", () => {
     });
     expect((await store.listLocalVersions("local-user", document.id))?.versions)
       .toHaveLength(1);
-    const revised = JSON.parse((await editAll("Term", "Clause")).content);
-    expect(revised).toMatchObject({
-      ok: true,
-      action: "revised",
-      change_count: 1,
-    });
+    const revised = await editAll("Term", "Clause");
+    const event = revised.events!.find((event) => event.type === "document_artifact")!;
+    expect(event.annotations).toHaveLength(1);
     const [read] = await tools.runLocalAssistantTools("local-user", [{
       id: "read-revised",
       name: "Read",
-      input: { file_path: revised.resource },
+      input: { file_path: resourceReference.document(event.document_id, event.version_id) },
     }]);
     expect(read.content).toContain("Clause term TERM.");
   });
@@ -752,7 +863,8 @@ describe("local assistant tools", () => {
           id: "edit-beta",
           name: "Edit",
           input: {
-            file_path: JSON.parse(firstEdit.content).resource,
+            file_path: resourceReference.document(intended.id,
+              firstEdit.events!.find((event) => event.type === "document_artifact")!.version_id),
             old_string: "Beta",
             new_string: "Delta",
           },
@@ -761,16 +873,16 @@ describe("local assistant tools", () => {
       );
     const edits = [firstEdit, secondEdit];
     expect(edits.every((edit) =>
-      JSON.parse(edit.content).action === "revised")).toBe(true);
+      edit.events?.some((event) => event.type === "document_artifact" && event.action === "edited"))).toBe(true);
     const history = await store.listLocalVersions("local-user", intended.id);
     expect(history?.versions).toHaveLength(2);
     expect((await store.listLocalVersions("local-user", other.id))?.versions)
       .toHaveLength(1);
-    const revised = JSON.parse(edits.at(-1)!.content);
+    const revised = secondEdit.events!.find((event) => event.type === "document_artifact")!;
     const [read] = await tools.runLocalAssistantTools("local-user", [{
       id: "read-edited-duplicate",
       name: "Read",
-      input: { file_path: revised.resource },
+      input: { file_path: resourceReference.document(revised.document_id, revised.version_id) },
     }]);
     expect(read.content).toContain("Gamma Delta.");
   }, 45_000);
@@ -863,9 +975,13 @@ describe("local assistant tools", () => {
     const readCall = {
       id: "read-library", name: "Read", input: { file_path: resource },
     };
-    const listed = (await registry.run([glob], {})).results[0];
+    const [listed] = await registry.run([glob], {});
     expect(registry.activity(readCall)).toBe("Reading library-opinion.txt");
-    const read = (await registry.run([readCall], {})).results[0];
+    expect(registry.activityCitations(readCall)).toEqual([{
+      kind: "document", ref: 1, document_id: document.id,
+      version_id: document.current_version_id, filename: document.filename, quotes: [],
+    }]);
+    const [read] = await registry.run([readCall], {});
 
     expect(listed.content).toContain(`${resource}\tfilename=library-opinion.txt`);
     expect(read.content).toContain("Library evidence survives an empty chat focus.");
@@ -935,14 +1051,14 @@ describe("local assistant tools", () => {
       resource: resourceReference.source("a2aj",
         JSON.stringify(["2026 SCC 1", "cases", "scc", "en"])) }] });
     expect(JSON.parse(search.content)).toMatchObject({ total: 3, items: [{ kind: "search",
-      query_id: "q_saved", call_id: "call-saved", model: "saved-model",
-      executor_version: "legal-source-pattern-v1", input: query.input, results: query.results,
+      query_id: "q_saved", executed_at: query.executed_at, input: query.input, results: query.results,
       attempted_source_ids: [sourceId], evidence_ids: [receipt.evidence_id],
-      source_fingerprints: { [sourceId]: ["a".repeat(64)] },
       source_references: { [sourceId]: expect.objectContaining({ id: "2026 SCC 1" }) },
       label_paths: { [removedLabelId]: "Issues / Holding" },
       slots: { [receipt.evidence_id]: [removedLabelId] },
       failures: [{ sourceId, code: "not_found" }] }] });
+    expect(evidence.queries.get("q_saved")).toMatchObject({ call_id: "call-saved",
+      sourceFingerprints: query.sourceFingerprints });
     const payload = JSON.parse(response.content);
     expect(payload).toMatchObject({ total: 3, items: [{ kind: "unavailable_passage",
       evidence_id: receipt.evidence_id }] });
@@ -959,14 +1075,15 @@ describe("local assistant tools", () => {
     const [created] = await tools.runLocalAssistantTools("local-user", [{ id: "create-research",
       name: "document_operation", input: { action: "research",
         research_action: { type: "create", title: "Notice cases" } } }], { edits });
-    const output = JSON.parse(created.content);
+    const output = created.events!.find((event) => event.type === "document_artifact")!;
+    const resource = resourceReference.document(output.document_id, output.version_id);
     const [read] = await tools.runLocalAssistantTools("local-user", [{ id: "read-research",
-      name: "Read", input: { file_path: output.resource } }], {
+      name: "Read", input: { file_path: resource } }], {
       documentNames: new Map([[output.document_id, output.filename]]) });
     expect(JSON.parse(read.content)).toMatchObject({ filename: "Notice cases.research.md",
-      resource: output.resource, total: 0, items: [] });
+      resource, total: 0, items: [] });
     const [root] = await tools.runLocalAssistantTools("local-user", [{ id: "root-label",
-      name: "document_operation", input: { action: "research", document_id: output.resource,
+      name: "document_operation", input: { action: "research", document_id: resource,
         research_action: { type: "label", name: "Fairness", scope: "source" } } }], { edits });
     const rootOutput = JSON.parse(root.content);
     expect(rootOutput.label_id).toMatch(/^[0-9a-f-]{36}$/u);
@@ -1208,7 +1325,7 @@ describe("local assistant tools", () => {
       search = searches.find(({ query_id }) => query_id === query.query_id)!,
       restoredDiscovery = searches.find(({ query_id }) => query_id === discovery.query_id)!;
     expect(search).toMatchObject({ kind: "search", truncated: false,
-      query_id: query.query_id, call_id: query.call_id, model: query.model });
+      query_id: query.query_id, executed_at: query.executed_at });
     expect(search.input).toEqual(query.input);
     expect(search.results).toEqual(savedQuery.results);
     expect(search.attempted_source_ids).toEqual(savedQuery.sourceIds);
@@ -1216,7 +1333,8 @@ describe("local assistant tools", () => {
     expect(search.evidence_ids).toEqual(savedQuery.evidenceIds);
     expect(search.failures).toEqual(savedQuery.failures);
     expect(search.slots).toEqual(savedQuery.slots);
-    expect(search.source_fingerprints).toEqual(savedQuery.sourceFingerprints);
+    expect(evidence.queries.get(query.query_id)).toMatchObject({
+      sourceFingerprints: savedQuery.sourceFingerprints, call_id: query.call_id, model: query.model });
     const { url: _url, ...safeReference } = fullReference;
     const savedDetailedSourceId = Object.entries(savedQuery.sourceReferences ?? {})
       .find(([, reference]) => reference.id === fullReference.id)![0];
@@ -1304,7 +1422,7 @@ describe("local assistant tools", () => {
         labelIds: [highlightLabel], note: "Controls." })]);
   });
 
-  it("creates a thin Markdown memo linked to its research file", async () => {
+  it("writes the cited memo inside its research file", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-memo-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
@@ -1335,13 +1453,13 @@ describe("local assistant tools", () => {
       legalEvidence: evidence });
     const output = JSON.parse(created.content), file = await store.localDocuments.read(
       { userId: "local-user" }, output.document_id, null, false);
-    expect(output).toMatchObject({ ok: true, action: "created", filename: "Case memo.md",
-      research: exact });
+    expect(output).toMatchObject({ ok: true, action: "updated", filename: research.filename,
+      document_id: research.id });
     const markdown = file?.bytes.toString() ?? "";
-    expect(markdown.match(/^# Case memo$/gmu)).toHaveLength(1);
-    expect(markdown).toContain(`[Research file](/sources?research_file=${research.id})`);
+    expect(markdown.match(/^## Case memo$/gmu)).toHaveLength(1);
+    expect(markdown).toContain(`research_file=${research.id}`);
     expect(markdown).toContain("## Analysis");
-    expect(markdown).toContain("[2026 SCC 1 · par7](</sources/view?");
+    expect(markdown).toContain("[Example, 2026 SCC 1 at para 7](</sources/view?");
     expect(markdown).not.toContain("document://");
     expect(markdown).not.toContain("[@");
     expect(JSON.parse(rejected.content)).toEqual({ ok: false,
@@ -1386,14 +1504,13 @@ describe("local assistant tools", () => {
       documentNames, edits, legalEvidence });
     const output = JSON.parse(queried.content);
     expect(output).toMatchObject({ ok: true, match_count: 25,
-      counts: { searches: 0 } });
+      counts: { searches: 1 } });
     expect(output.matches_truncated).toBeUndefined();
     expect(output.matches).toHaveLength(25);
     expect(queried.evidence).toHaveLength(25);
     expect(queried.queryReceipts).toEqual([expect.objectContaining({ call_id: "query",
       input: expect.objectContaining({ unlabelled: true }) })]);
-    expect(queried.mutated).toBeUndefined();
-    expect((await store.listLocalVersions("local-user", research.id))?.versions).toHaveLength(1);
+    expect(queried.mutated).toBe(true);
     const queryId = queried.queryReceipts![0].query_id;
     legalEvidence.queries.set(queryId, queried.queryReceipts![0]);
     const [saved] =
@@ -1445,6 +1562,66 @@ describe("local assistant tools", () => {
       ok: false,
       error: "Page 5 does not exist in test.pdf; the PDF has 1 page.",
     });
+  });
+
+  it("shares exact PDF receipt identity across structural Read, highlights, and selected extraction", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-evidence-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const { PDFDocument, StandardFonts } = await import("pdf-lib"), pdf = await PDFDocument.create(),
+      font = await pdf.embedFont(StandardFonts.Helvetica), firstPage = "The first page gives background context.",
+      footnoteText = "Supporting authority appears in the original footnote.";
+    for (const text of [firstPage, "The second page states the governing rule."])
+      pdf.addPage([612, 792]).drawText(text, { x: 50, y: 650, size: 14, font });
+    pdf.getPage(0).drawText("1", { x: 50 + font.widthOfTextAtSize(firstPage, 14), y: 654, size: 8, font });
+    pdf.getPage(0).drawLine({ start: { x: 50, y: 120 }, end: { x: 210, y: 120 }, thickness: 0.5 });
+    pdf.getPage(0).drawText(`1 ${footnoteText}`, { x: 50, y: 105, size: 9, font });
+    const store = await import("./support/localDocumentFixtures"), scope = { userId: "local-user" },
+      document = await store.createLocalDocument({ userId: scope.userId, kind: "file",
+        filename: "Canonical.pdf", bytes: Buffer.from(await pdf.save()) }),
+      resource = resourceReference.document(document.id, document.current_version_id),
+      tools = await import("./support/localAssistantTools"),
+      { documentProjectionService } = await import("../documentProjectionService"),
+      source = (await store.localDocuments.projectionSource(scope, document.id, document.current_version_id))!;
+    const partial = await documentProjectionService.lookupPdf(source.readBytes,
+      { locatorKind: "paragraph", locator: "1" }, { ...source, pages: [2] });
+    expect(partial.status).toBe("found");
+    const [exact] = await tools.runLocalAssistantTools(scope.userId, [{ id: "page-2", name: "Read",
+        input: { file_path: resource, locator_kind: "page", locator: "2" } }]),
+      receipt = exact.evidence?.[0];
+    expect(receipt, exact.content).toBeDefined();
+    expect(receipt!.span!.start).toBeGreaterThan(0);
+    expect(receipt!.span_text).toBe("The second page states the governing rule.");
+    const [rehydrated, plain, paragraph, footnote, preparedHandle] = await tools.runLocalAssistantTools(scope.userId, [
+      { id: "handle", name: "Read", input: { file_path: resource, handle: JSON.parse(exact.content).handle } },
+      { id: "plain", name: "Read", input: { file_path: resource } },
+      { id: "paragraph", name: "Read", input: { file_path: resource, locator_kind: "paragraph", locator: "2" } },
+      { id: "footnote", name: "Read", input: { file_path: resource, locator_kind: "footnote", locator: "1" } },
+      { id: "partial-handle", name: "Read", input: { file_path: resource,
+        handle: partial.status === "found" ? partial.evidence.handle : "" } },
+    ]);
+    expect(rehydrated.evidence).toEqual(exact.evidence);
+    expect(plain.evidence!.map(({ evidence_id }) => evidence_id)).toContain(receipt!.evidence_id);
+    expect(paragraph.evidence![0].evidence_id).toBe(receipt!.evidence_id);
+    expect(footnote.evidence![0].span_text).toBe(footnoteText);
+    expect(plain.evidence!.map(({ evidence_id }) => evidence_id)).toContain(footnote.evidence![0].evidence_id);
+    expect(JSON.parse(footnote.content).passages[0]).toMatchObject({ note: { label: "1" },
+      proposition: { sentence: firstPage } });
+    expect(preparedHandle.evidence![0].source_sha256).toBe(receipt!.source_sha256);
+    expect(plain.evidence!.map(({ evidence_id }) => evidence_id)).toContain(preparedHandle.evidence![0].evidence_id);
+    const { readResearchResource, restoreResearchEvidence } = await import("../researchReader"),
+      selected = await readResearchResource(store.localDocuments, scope, { resource, evidence: [receipt!] });
+    expect(selected.evidence).toEqual([receipt]);
+    expect(JSON.stringify(selected.result)).not.toContain("background context");
+    expect((await restoreResearchEvidence(store.localDocuments, scope, [receipt!, ...footnote.evidence!]))
+      .map(({ receipt }) => receipt)).toEqual([receipt, ...footnote.evidence!]);
+    const { file } = await seedResearch(store, "PDF workspace.research.md", [{ type: "source", reference: {
+      provider: "library", kind: "document", id: document.id,
+      versionId: document.current_version_id!, title: document.filename } }]),
+      { verifyResearchPassage } = await import("../researchFileQuery"),
+      highlight = await verifyResearchPassage(file, { type: "passage", sourceId: Object.keys(file.state.sources)[0],
+        locator: { kind: "page", value: "page2" }, quote: receipt!.span_text! }, undefined,
+      { documents: store.localDocuments, scope });
+    expect(highlight.type === "merge" && highlight.evidence?.[0].evidence_id).toBe(receipt!.evidence_id);
   });
 
   it("reads system workflow instructions in account-free mode", async () => {
@@ -1628,24 +1805,30 @@ describe("local assistant tools", () => {
     const tools = await import("./support/localAssistantTools");
     const responses = await tools.runLocalAssistantTools("local-user", [
       { id: "read-authorities", name: "update_work_product",
-        input: { action: "read", kind: "authorities", occurrence_limit: 1 } },
+        input: { action: "read", occurrence_limit: 1 } },
       { id: "page-occurrences", name: "update_work_product",
-        input: { action: "read", kind: "authorities", occurrence_offset: 1,
+        input: { action: "read", occurrence_offset: 1,
           occurrence_limit: 1 } },
       { id: "read-occurrence", name: "update_work_product", input: { action: "read",
-        kind: "authorities", occurrence_id: "occurrence-1" } },
+        occurrence_id: "occurrence-1" } },
+      { id: "read-unit", name: "update_work_product", input: { action: "read",
+        unit_id: "body:0", text_limit: 10 } },
+      { id: "continue-unit", name: "update_work_product", input: { action: "read",
+        unit_id: "body:0", text_offset: 10 } },
+      { id: "read-reference", name: "update_work_product", input: { action: "read",
+        occurrence_id: "occurrence-2" } },
       { id: "edit-authorities", name: "update_work_product", input: { action: "update",
-        kind: "authorities", authorities_action: { type: "set-authority-span",
-          occurrence_id: "occurrence-1", start: 4, end: 27 } } },
+        authorities_action: { type: "set-authority-span",
+          occurrenceId: "occurrence-1", start: 4, end: 27 } } },
       { id: "remove-occurrence", name: "update_work_product", input: { action: "update",
-        kind: "authorities", authorities_action: { type: "remove-occurrence",
-          occurrence_id: "occurrence-2" } } },
+        authorities_action: { type: "remove-occurrence",
+          occurrenceId: "occurrence-2" } } },
       { id: "refresh-authorities", name: "update_work_product", input: {
-        action: "refresh", kind: "authorities", input_role: "source" } },
+        action: "refresh", input_role: "source" } },
       { id: "build-authorities", name: "update_work_product",
-        input: { action: "build", kind: "authorities" } },
+        input: { action: "build" } },
       { id: "wrong-authorities", name: "update_work_product",
-        input: { action: "read", kind: "authorities", draft_id: "another-draft" } },
+        input: { action: "read", draft_id: "another-draft" } },
     ], { authoritiesId: current.id, authoritiesRevision: current.revision,
       authorities: { act, refreshInput, prepareSources, build } as never,
       workProducts: { get: vi.fn(async () => current), resolve: vi.fn(async () => ({
@@ -1682,6 +1865,25 @@ describe("local assistant tools", () => {
       id: "body:0", text, text_offset: 0 }, occurrence: { id: "occurrence-1",
       authority_span: { start: 4, end: 27 }, pinpoint_span: { start: 31, end: 37 } } } });
     expect(responses[2].content).not.toContain("reviewed");
+    const detail = JSON.parse(responses[2].content);
+    expect(detail).toMatchObject({ freshness: "unbuilt", input_issues: [],
+      work_product: { id: current.id, revision: 7 }, draft: {
+        authorities: [expect.objectContaining({ id: "jordan" })],
+        authority_page: { has_more: false } } });
+    for (const field of ["cover", "settings", "book_parts", "counts", "occurrence_index"]) {
+      expect(detail.draft).not.toHaveProperty(field);
+    }
+    expect(detail).not.toHaveProperty("output_roles");
+    const first = JSON.parse(responses[3].content).draft.unit;
+    const next = JSON.parse(responses[4].content).draft.unit;
+    expect(first).toMatchObject({ text_offset: 0, text_end: 10, text_length: text.length,
+      has_more: true, occurrences: [{ id: "occurrence-1", start: 4, end: 37 }] });
+    expect(next).toMatchObject({ text_offset: 10, text_end: text.length, has_more: false });
+    expect(first.text + next.text).toBe(text);
+    expect(JSON.parse(responses[5].content).draft).toMatchObject({
+      authorities: [expect.objectContaining({ id: "jordan" })],
+      occurrence: { reference: { kind: "ibid", targetAuthorityId: "jordan" } },
+    });
     expect(act).toHaveBeenCalledWith({ userId: "local-user" }, current.id, 7,
       { type: "set-authority-span", occurrenceId: "occurrence-1", start: 4, end: 27 });
     expect(act).toHaveBeenCalledWith({ userId: "local-user" }, current.id, 8,
@@ -1697,8 +1899,8 @@ describe("local assistant tools", () => {
       id: `work-product:${current.id}`,
       work_product: { id: current.id, kind: "authorities", revision: 11 },
     })]);
-    expect(JSON.parse(responses.at(-1)!.content)).toEqual({ ok: false,
-      error: "This assistant is bound to a different Authorities draft" });
+    expect(JSON.parse(responses.at(-1)!.content)).toMatchObject({ ok: false,
+      error: "invalid_arguments" });
   });
 
   it("uses the bound Authorities focus without loading or repeating citation coordinates", async () => {
@@ -1730,19 +1932,27 @@ describe("local assistant tools", () => {
     const registry = tools.localAssistantToolRegistry("local-user", options);
     expect(registry.visible().map(({ name }) => name)).toContain("update_work_product");
     expect(registry.specialists()).not.toContain("update_work_product");
+    expect(registry.specialists()).toContain("manage_work_products");
 
     const responses = await tools.runLocalAssistantTools("local-user", [
       { id: "read-focus", name: "update_work_product",
-        input: { action: "read", kind: "authorities" } },
+        input: { action: "read" } },
       { id: "span-focus", name: "update_work_product", input: { action: "update",
-        kind: "authorities", authorities_action: { type: "set-authority-span" } } },
+        authorities_action: { type: "set-authority-span" } } },
+      { id: "split-focus", name: "update_work_product", input: { action: "update",
+        authorities_action: { type: "split-occurrence" } } },
       { id: "merge-focus", name: "update_work_product", input: { action: "update",
-        kind: "authorities", authorities_action: { type: "merge-occurrence" } } },
+        authorities_action: { type: "merge-occurrence" } } },
       { id: "remove-focus", name: "update_work_product", input: { action: "update",
-        kind: "authorities", authorities_action: { type: "remove-occurrence" } } },
+        authorities_action: { type: "remove-occurrence" } } },
       { id: "relink-focus", name: "update_work_product", input: { action: "update",
-        kind: "authorities", authorities_action: { type: "relink-occurrence",
-          authority_id: "example" } } },
+        authorities_action: { type: "relink-occurrence",
+          authorityId: "example" } } },
+      { id: "reference-focus", name: "update_work_product", input: { action: "update",
+        authorities_action: { type: "set-reference",
+          reference: { kind: "ibid", targetAuthorityId: "example" } } } },
+      { id: "clear-reference", name: "update_work_product", input: { action: "update",
+        authorities_action: { type: "set-reference", reference: null } } },
     ], options);
 
     expect(JSON.parse(responses[0].content)).toMatchObject({ draft: {
@@ -1751,62 +1961,87 @@ describe("local assistant tools", () => {
     } });
     expect(act.mock.calls.map((call) => call[3])).toEqual([
       { type: "set-authority-span", occurrenceId, start: 3, end: 16 },
+      { type: "split-occurrence", occurrenceId, cursor: 3 },
       { type: "merge-occurrence", occurrenceId },
       { type: "remove-occurrence", occurrenceId },
       { type: "relink-occurrence", occurrenceId, authorityId: "example" },
+      { type: "set-reference", occurrenceId,
+        reference: { kind: "ibid", targetAuthorityId: "example" } },
+      { type: "set-reference", occurrenceId, reference: null },
     ]);
   });
 
-  it("routes authority edits and Library cover binding through their application seams", async () => {
+  it("applies canonical authority actions and binds a Library cover", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
     const pdf = await store.createLocalDocument({ userId: "local-user", kind: "file",
       filename: "appendix.pdf", bytes: Buffer.from("%PDF-1.7\n%%EOF") });
     const { createAuthoritiesDraft } = await import("../authoritiesDomain");
-    const draft = createAuthoritiesDraft({ kind: "manual" });
-    const current = { id: "draft-1", kind: "authorities" as const, title: "Authorities",
+    const { applyAuthoritiesUserAction } = await import("../authoritiesWorkspaceApplication");
+    const draft = applyAuthoritiesUserAction(createAuthoritiesDraft({ kind: "manual" }),
+      { type: "add-authority", kind: "case", citation: "2016 SCC 27" });
+    const unusedId = draft.authorityOrder[0];
+    let current = { id: "draft-1", kind: "authorities" as const, title: "Authorities",
       projectId: null, revision: 2, state: draft, outputs: {}, createdAt: "now", updatedAt: "now" };
-    const act = vi.fn(async (_scope, _id, revision) => ({ ...current, revision: revision + 1 }));
+    const act = async (_scope: unknown, _id: string, revision: number,
+      action: Parameters<typeof applyAuthoritiesUserAction>[1]) => {
+      current = { ...current, revision: revision + 1,
+        state: applyAuthoritiesUserAction(current.state, action) };
+      return current;
+    };
     const attachLibraryPdf = vi.fn(async (_scope, _id, input) =>
       ({ ...current, revision: input.revision + 1 }));
     const tools = await import("./support/localAssistantTools");
     const resource = resourceReference.document(pdf.id, pdf.current_version_id);
     const actions = [
-      { type: "add-authority", authority_kind: "case", citation: "2026 SCC 1", name: "R v A" },
-      { type: "remove-authority", authority_id: "unused" },
-      { type: "clear-authority-source", authority_id: "unused" },
+      { type: "set-profile", profileId: "federal-court" },
+      { type: "add-authority", kind: "case", citation: "2026 SCC 1", name: "R v A" },
+      { type: "clear-authority-source", authorityId: unusedId },
+      { type: "remove-authority", authorityId: unusedId },
       { type: "clear-book-part", slot: "cover" },
       { type: "set-cover", cover: { courtFileNumber: "T-42-26", partyGroups: [
         { role: "Applicant", parties: ["Ada North"] },
         { role: "Respondent", parties: ["Boreal Ltd."] },
       ], applicationUnder: "Federal Courts Act, section 18.1", title: "Book of Authorities" } },
-      { type: "set-settings", settings: { book_role: "moving-party" } },
+      { type: "set-settings", settings: { bookRole: "moving-party" } },
     ];
     const responses = await tools.runLocalAssistantTools("local-user", [
       ...actions.map((authorities_action, index) => ({ id: `action-${index}`,
-        name: "update_work_product", input: { action: "update", kind: "authorities",
-          authorities_action } })),
+        name: "update_work_product", input: { action: "update", authorities_action } })),
       { id: "cover", name: "update_work_product", input: { action: "update",
-        kind: "authorities", book_slot: "cover", document_id: resource } },
+        book_slot: "cover", document_id: resource } },
     ], { authoritiesId: current.id, authoritiesRevision: current.revision,
       authorities: { act, attachLibraryPdf } as never,
       workProducts: { get: vi.fn(async () => current) } as never });
 
-    expect(act.mock.calls.slice(0, 6).map((call) => call[3])).toEqual([
-      { type: "add-authority", kind: "case", citation: "2026 SCC 1", name: "R v A" },
-      { type: "remove-authority", authorityId: "unused" },
-      { type: "clear-authority-source", authorityId: "unused" },
-      { type: "clear-book-part", slot: "cover" },
-      actions[4],
-      { type: "set-settings", settings: { bookRole: "moving-party" } },
+    expect(responses.map((response) => JSON.parse(response.content)))
+      .toEqual(Array.from({ length: actions.length + 1 }, () => expect.objectContaining({ ok: true })));
+    expect(Object.values(current.state.authorities)).toEqual([
+      expect.objectContaining({ kind: "case", citation: "2026 SCC 1", name: "R v A" }),
     ]);
+    expect(current.state.cover).toEqual(actions[5].cover);
+    expect(current.state.settings.profileId).toBe("federal-court");
+    expect(current.state.settings.bookRole).toBe("moving-party");
     expect(attachLibraryPdf).toHaveBeenCalledWith(expect.objectContaining({ userId: "local-user" }), current.id, {
-      revision: 8, documentId: pdf.id, versionId: pdf.current_version_id,
+      revision: 9, documentId: pdf.id, versionId: pdf.current_version_id,
       target: { kind: "book", slot: "cover" },
     });
     expect(JSON.parse(responses.at(-1)!.content)).toMatchObject({ ok: true,
       change: { type: "attach-book-pdf", book_slot: "cover" } });
+    const before = structuredClone(current);
+    const rejected = await tools.runLocalAssistantTools("local-user", [
+      { id: "old-field", name: "update_work_product", input: { action: "update",
+        authorities_action: { type: "remove-authority",
+          authority_id: current.state.authorityOrder[0] } } },
+      { id: "unadvertised", name: "update_work_product", input: { action: "update",
+        authorities_action: { type: "begin-canlii-handoff",
+          authorityId: current.state.authorityOrder[0] } } },
+    ], { authoritiesId: current.id, authoritiesRevision: current.revision,
+      authorities: { act } as never, workProducts: { get: async () => current } as never });
+    expect(rejected.map((response) => JSON.parse(response.content).error))
+      .toEqual(["invalid_arguments", "invalid_arguments"]);
+    expect(current).toEqual(before);
   });
 
   it("inspects, attaches, replaces, and removes a supplemental book PDF", async () => {
@@ -1842,7 +2077,7 @@ describe("local assistant tools", () => {
     const tools = await import("./support/localAssistantTools");
     const [attached] = await tools.runLocalAssistantTools("local-user", [{
       id: "attach-supplement", name: "update_work_product", input: {
-        action: "update", kind: "authorities", book_slot: "supplemental",
+        action: "update", book_slot: "supplemental",
         document_id: resourceReference.document(first.id, first.current_version_id),
       },
     }], { authoritiesId: current.id, authoritiesRevision: current.revision,
@@ -1852,15 +2087,15 @@ describe("local assistant tools", () => {
 
     const [inspected, replaced, removed] = await tools.runLocalAssistantTools("local-user", [
       { id: "read-supplement", name: "update_work_product",
-        input: { action: "read", kind: "authorities" } },
+        input: { action: "read" } },
       { id: "replace-supplement", name: "update_work_product", input: {
-        action: "update", kind: "authorities", book_slot: "supplemental",
+        action: "update", book_slot: "supplemental",
         supplement_id: supplementId,
         document_id: resourceReference.document(second.id, second.current_version_id),
       } },
       { id: "remove-supplement", name: "update_work_product", input: {
-        action: "update", kind: "authorities", authorities_action: {
-          type: "remove-book-supplement", supplement_id: supplementId,
+        action: "update", authorities_action: {
+          type: "remove-book-supplement", id: supplementId,
         },
       } },
     ], { authoritiesId: current.id, authoritiesRevision: current.revision,
@@ -1913,9 +2148,9 @@ describe("local assistant tools", () => {
     const tools = await import("./support/localAssistantTools");
     const [review, refreshed] = await tools.runLocalAssistantTools("local-user", [
       { id: "review", name: "update_work_product", input: { action: "review",
-        kind: "authorities" } },
+        } },
       { id: "refresh", name: "update_work_product", input: { action: "refresh",
-        kind: "authorities", input_role: "source" } },
+        input_role: "source" } },
     ], { authoritiesId: current.id, authoritiesRevision: current.revision,
       authorities: { discrepancies, refreshInput } as never,
       workProducts: { get: vi.fn(async () => current), resolve } as never });
@@ -1932,7 +2167,7 @@ describe("local assistant tools", () => {
     expect(refreshed.mutated).toBe(true);
   });
 
-  it("lists scoped drafts when unbound and will not replace a bound draft", async () => {
+  it("lists scoped drafts and rejects general operations on the active draft tool", async () => {
     const choice = { id: "choice", kind: "authorities" as const, title: "Motion authorities",
       projectId: null, revision: 4, createdAt: "yesterday", updatedAt: "today" };
     const tools = await import("./support/localAssistantTools");
@@ -1951,10 +2186,55 @@ describe("local assistant tools", () => {
         kind: "authorities", draft_id: "other" } },
     ], { authoritiesId: "bound", authoritiesRevision: 1,
       workProducts: { get: vi.fn() } as never });
-    expect(JSON.parse(create.content)).toEqual({ ok: false,
-      error: "This assistant is already bound to an Authorities draft" });
-    expect(JSON.parse(select.content)).toEqual({ ok: false,
-      error: "This assistant is bound to a different Authorities draft" });
+    expect(JSON.parse(create.content)).toMatchObject({ ok: false, error: "invalid_arguments" });
+    expect(JSON.parse(select.content)).toMatchObject({ ok: false, error: "invalid_arguments" });
+  });
+
+  it("manages other workspaces without inheriting the active Authorities focus or crossing projects", async () => {
+    const { createAuthoritiesDraft } = await import("../authoritiesDomain");
+    const { applyAuthoritiesUserAction } = await import("../authoritiesWorkspaceApplication");
+    let other = { id: "other", kind: "authorities" as const, title: "Other authorities",
+      projectId: null, revision: 1, state: createAuthoritiesDraft({ kind: "manual" }),
+      outputs: {}, createdAt: "now", updatedAt: "now" };
+    const act = vi.fn(async (_scope, _id, revision, action) => {
+      other = { ...other, revision: revision + 1,
+        state: applyAuthoritiesUserAction(other.state, action) };
+      return other;
+    });
+    const tools = await import("./support/localAssistantTools");
+    const responses = await tools.runLocalAssistantTools("local-user", [
+      { id: "list", name: "manage_work_products", input: { action: "read", kind: "authorities" } },
+      { id: "read-other", name: "manage_work_products", input: {
+        action: "read", kind: "authorities", draft_id: other.id } },
+      { id: "edit-other", name: "manage_work_products", input: {
+        action: "update", kind: "authorities", draft_id: other.id,
+        authorities_action: { type: "add-authority", kind: "case", citation: "2024 ABKB 1" } } },
+      { id: "no-focus", name: "manage_work_products", input: {
+        action: "update", kind: "authorities", draft_id: other.id,
+        authorities_action: { type: "remove-occurrence" } } },
+      { id: "select-other", name: "manage_work_products", input: {
+        action: "select", kind: "authorities", draft_id: other.id } },
+      { id: "out-of-scope", name: "manage_work_products", input: {
+        action: "read", kind: "authorities", draft_id: "foreign" } },
+    ], { authoritiesId: "active", authoritiesRevision: 7,
+      workProductFocus: { itemId: "active-occurrence", selection: { start: 3, end: 16 } },
+      authorities: { act } as never, workProducts: {
+        get: async (_scope, id) => id === "foreign" ? { ...other, projectId: "another-project" } : other,
+        list: async () => [other, { ...other, id: "foreign", projectId: "another-project" }],
+        resolve: async () => ({ product: other, freshness: "unbuilt", inputs: {}, dependencies: [] }),
+      } as never });
+    expect(JSON.parse(responses[0].content).drafts).toEqual([
+      expect.objectContaining({ id: other.id })]);
+    expect(JSON.parse(responses[1].content)).toMatchObject({ ok: true,
+      draft: { occurrence_index: [], counts: { authorities: 0 } } });
+    expect(JSON.parse(responses[1].content).draft).not.toHaveProperty("focus");
+    expect(Object.values(other.state.authorities)).toEqual([
+      expect.objectContaining({ kind: "case", citation: "2024 ABKB 1" })]);
+    expect(JSON.parse(responses[3].content).ok).toBe(false);
+    expect(JSON.parse(responses[4].content)).toMatchObject({ ok: true,
+      work_product: { id: other.id, revision: 2 }, requested_action: "open" });
+    expect(JSON.parse(responses[5].content)).toMatchObject({ ok: false,
+      error: "Draft is outside this chat's work-product scope" });
   });
 
   it("creates a Court Record when no work product is active", async () => {
@@ -2082,7 +2362,7 @@ describe("local assistant tools", () => {
     const [updated] = await tools.runLocalAssistantTools("local-user", [{
       id: "update-grounded-authorities",
       name: "update_work_product",
-      input: { action: "update", kind: "authorities",
+      input: { action: "update",
         evidence_ids: receipts.map(({ evidence_id }) => evidence_id) },
     }], {
       legalEvidence: state, authorities, documents: { read } as never,
@@ -2285,11 +2565,10 @@ describe("local assistant tools", () => {
       .toContain("#:~:text=");
   });
 
-  it("does not mint document-wide evidence for an unlocated A2AJ Read", async () => {
-    const text = [
-      "[1] First native decision paragraph with enough text to be addressable.",
-      "[2] Second native decision paragraph with enough text to be addressable.",
-    ].join("\n");
+  it.each(["search", "direct"])("resolves %s source identity and keeps it stable without widening evidence", async (entry) => {
+    const text = Array.from({ length: 6 }, (_, index) =>
+      `[${index + 1}] Decision paragraph ${index + 1} contains enough substantive judicial language to establish a reliable sequence.`
+    ).join("\n");
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -2299,6 +2578,7 @@ describe("local assistant tools", () => {
           results: [{
             dataset: "SCC",
             citation_en: "2099 SCC 2",
+            name_en: "Example v. Respondent",
             source_url_en: "https://example.test/case-2",
             unofficial_text_en: text,
           }],
@@ -2306,7 +2586,17 @@ describe("local assistant tools", () => {
       }),
     );
     const tools = await import("./support/localAssistantTools");
-    const [response] = await tools.runLocalAssistantTools("local-user", [{
+    const { legalSourceOperations } = await import("../legalSourceApplication");
+    const { createLegalEvidenceTurnState } = await import("../chat/legalEvidence");
+    const state = createLegalEvidenceTurnState();
+    const registry = tools.localAssistantToolRegistry("local-user", { legalEvidence: state });
+    vi.spyOn(legalSourceOperations, "search").mockResolvedValue({ results: [{
+      provider: "a2aj", id: "2099 SCC 2", kind: "case", collection: "SCC", language: "en",
+      title: "Example v. Respondent", citation: "2099 SCC 2", url: "https://example.test/case-2",
+    }], unavailable: [] });
+    if (entry === "search") await registry.run([{ id: "search", name: "search_sources",
+      input: { query: "Example v. Respondent", source_types: ["case"] } }], {});
+    const call = {
       id: "call-document",
       name: "Read",
       input: {
@@ -2315,11 +2605,36 @@ describe("local assistant tools", () => {
           JSON.stringify(["2099 SCC 2", "cases", "SCC"]),
         ),
       },
-    }]);
-    const payload = JSON.parse(response.content);
+    };
+    const identity = [{ kind: "a2aj", ref: 1, name: "Example v. Respondent",
+      citation: "2099 SCC 2", dataset: "SCC", source_class: "case", quotes: [],
+      url: "https://example.test/case-2", external_url: "https://example.test/case-2" }];
+    const onResult: NonNullable<Parameters<typeof registry.run>[3]> = (_call, outcome) => {
+      expect(outcome.activityCitations).toEqual(identity);
+    };
+    expect(registry.activityCitations(call)).toEqual(entry === "search" ? identity : []);
+    expect(fetch).not.toHaveBeenCalled();
+    const [overview] = await registry.run([call], {}, undefined, onResult);
+    expect(registry.activityCitations(call)).toEqual(identity);
+    const payload = JSON.parse(overview.content);
     expect(payload.ok).toBe(true);
-    expect(payload.evidence_ids).toEqual([]);
-    expect(payload.passages[0]).not.toHaveProperty("evidence_id");
-    expect(payload.next_required_action).toContain("native locator");
+    expect(payload.passages).toHaveLength(6);
+    expect(payload.passages.map(({ text }: { text: string }) => text)).toEqual(text.split("\n"));
+    expect(state.evidence.size).toBe(6);
+    await registry.run([{ ...call, id: "no-match",
+      input: { ...call.input, pattern: "absent phrase" } }], {}, undefined, onResult);
+    expect(state.evidence.size).toBe(6);
+    const pinpoint = { ...call, id: "pinpoint", input: { ...call.input,
+      locator_kind: "paragraph", locator: "2" } };
+    expect(registry.activityCitations(pinpoint)).toEqual(identity);
+    const [located] = await registry.run([pinpoint], {}, undefined, onResult);
+    expect(located.status, located.content).not.toBe("error");
+    expect(JSON.parse(located.content).passages[0].evidence_id).toBe(payload.passages[1].evidence_id);
+    expect(state.evidence.size).toBe(6);
+    expect(state.evidence.get(payload.passages[1].evidence_id)?.receipt).toMatchObject({
+      locator: { kind: "paragraph", label: "par2" }, span_text: text.split("\n")[1],
+    });
+    expect(tools.localAssistantToolRegistry("local-user", { legalEvidence: state })
+      .activityCitations(pinpoint)).toEqual(identity);
   });
 });

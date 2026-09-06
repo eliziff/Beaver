@@ -13,6 +13,10 @@ export function acceptedSourceFormats(kind: DocumentKind): CourtSourceFormat[] {
   return kind.acceptedFormats ?? ["pdf", "docx"];
 }
 
+export function needsPdfRendition(kind?: DocumentKind): boolean {
+  return !(kind?.acceptedFormats?.length === 1 && kind.acceptedFormats[0] === "docx");
+}
+
 export function sourceAccept(kind: DocumentKind) {
   return acceptedSourceFormats(kind).flatMap((format) => format === "pdf"
     ? ["application/pdf", ".pdf"]

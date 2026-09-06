@@ -1,8 +1,9 @@
+import { QuoteReviewModal } from "./QuoteReviewModal";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { deleteWorkflow } from "@/app/lib/beaverApi";
+import { deleteWorkflow, type Workflow } from "@/app/lib/api/workflows";
 import { createTabularReviewPath } from "../tabular/tabularReviewRoute";
-import type { Workflow } from "../shared/types";
+
 import { PageHeader } from "../shared/PageHeader";
 import { RowActions } from "../shared/RowActions";
 import { ConfirmPopup } from "../popups/ConfirmPopup";
@@ -12,8 +13,12 @@ import { assistantWorkflowLaunch, workflowPath, type WorkflowSelection } from ".
 import { WarningPopup } from "../popups/WarningPopup";
 import { useWorkflowPickerState } from "./WorkflowPickerModal";
 
+import { FIX_SUPRAS, useAssistantDocumentOperation } from "./useAssistantDocumentOperation";
+
 export function WorkflowList() {
     const navigate = useNavigate();
+    const [quoteCheck, setQuoteCheck] = useState<Workflow | null>(null);
+    const supras = useAssistantDocumentOperation(FIX_SUPRAS);
     const [params] = useSearchParams();
     const initialWorkflowId = params.get("workflow") ?? undefined;
     const picker = useWorkflowPickerState(initialWorkflowId);
@@ -24,6 +29,8 @@ export function WorkflowList() {
     const [launchError, setLaunchError] = useState<string | null>(null);
     const [deleting, setDeleting] = useState<{ workflow: Workflow; loading: boolean } | null>(null);
     async function choose(workflow: Workflow, variant?: WorkflowSelection["variant"]) {
+        if (!variant && workflow.launcher.kind === "quote_check") { setQuoteCheck(workflow); return; }
+        if (workflow.launcher.kind === "fix_supras") { supras.launch(); return; }
         if (!variant) return navigate(workflowPath(workflow));
         const selection = { workflow, variant };
         if (variant.execution === "assistant") {
@@ -56,7 +63,7 @@ export function WorkflowList() {
         <PageHeader shrink loading={loading} actions={[
             { type: "new", onClick: () => setCreating(true), title: "New workflow" },
         ]}><h1 className="font-serif text-2xl font-medium text-gray-900">Workflows</h1></PageHeader>
-        <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-4 pb-6 pt-2 max-[40rem]:flex-none md:px-6">
+        <div className="mx-auto flex min-h-0 w-full max-w-xl flex-1 flex-col px-4 pb-6 pt-2 max-[40rem]:flex-none md:px-6">
             <WorkflowPickerContent workflows={workflows} onSelect={choose}
                 search={search} onSearchChange={setSearch}
                 audience={audience} onAudienceChange={setAudience}
@@ -70,6 +77,9 @@ export function WorkflowList() {
                     onDelete={() => setDeleting({ workflow, loading: false })}
                     deleteLabel="Delete workflow" />} />
         </div>
+        {supras.picker}
+        {quoteCheck && <QuoteReviewModal workflow={quoteCheck} onClose={() => setQuoteCheck(null)}
+            onAssistantSelect={({ workflow, variant }) => void choose(workflow, variant)} />}
         <NewWorkflowModal open={creating} onClose={() => setCreating(false)}
             onCreated={(workflow) => {
                 setCreating(false); setWorkflows((items) => [workflow, ...items]);

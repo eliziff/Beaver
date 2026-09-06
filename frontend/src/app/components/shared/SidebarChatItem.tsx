@@ -11,7 +11,7 @@ import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
 import { ChatDeleteWarning } from "@/app/components/assistant/ChatDeleteWarning";
-import type { Chat } from "@/app/components/shared/types";
+import type { Chat } from "@/app/lib/api/chat";
 import { ChatSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
 import { cn } from "@/app/lib/utils";
@@ -20,6 +20,7 @@ import {
     APP_SURFACE_HOVER_CLASS,
 } from "@/app/components/ui/liquid-surface";
 interface Props {
+    showIcon?: boolean;
     chat: Chat;
     isActive: boolean;
     isSelected?: boolean;
@@ -37,6 +38,7 @@ interface Props {
     onDeleteSelection?: () => Promise<void>;
 }
 export function SidebarChatItem({
+    showIcon = true,
     chat,
     isActive,
     isSelected = false,
@@ -51,7 +53,13 @@ export function SidebarChatItem({
     onMoveToProject,
     onDeleteSelection,
 }: Props) {
-    const { renameChat, deleteChat } = useChatHistoryContext();
+    const { renameChat, deleteChat, prepareChat } = useChatHistoryContext();
+    function prepareNavigation() {
+        prepareChat?.(chat.id);
+        if (to.startsWith("/assistant/chat/")) {
+            void import("@/app/(pages)/assistant/chat/[id]/page").catch(() => {});
+        }
+    }
     const { user } = useAuth();
     const [isRenaming, setIsRenaming] = useState(false);
     const [editTitle, setEditTitle] = useState(chat.title ?? "");
@@ -60,6 +68,7 @@ export function SidebarChatItem({
     const [isDeleting, setIsDeleting] = useState(false);
     const editInputRef = useRef<HTMLInputElement>(null);
     const isChatOwner = !!user?.id && chat.user_id === user.id;
+    const actionsWidth = onMoveToProject ? "w-[72px]" : "w-12";
     useEffect(() => {
         if (isRenaming) editInputRef.current?.focus();
     }, [isRenaming]);
@@ -119,15 +128,17 @@ export function SidebarChatItem({
                 </div>
             ) : (
                 <>
-                    <span className="ml-2.5 grid h-3.5 w-3.5 shrink-0 place-items-center">
+                    {(showIcon || chat.turn_in_progress) && <span className="ml-2.5 grid h-3.5 w-3.5 shrink-0 place-items-center">
                         {chat.turn_in_progress ? (
                             <ThinkingSpinner size={14} />
                         ) : (
                             <ChatSkeuoIcon className="h-3.5 w-3.5" />
                         )}
-                    </span>
+                    </span>}
                     <Link
                         to={to}
+                        onPointerEnter={prepareNavigation}
+                        onFocus={prepareNavigation}
                         onClick={(event) => {
                             if (
                                 isChatOwner &&
@@ -173,14 +184,17 @@ export function SidebarChatItem({
                         {chat.title ?? "Untitled chat"}
                     </Link>
                     <div
-                        className={`flex shrink-0 items-center ${onMoveToProject ? "w-[72px]" : "w-12"} ${
+                        inert={!!selectedCount && !isSelectionActionOwner}
+                        className={`flex shrink-0 items-center overflow-hidden ${
                             selectedCount
                                 ? isSelectionActionOwner
-                                    ? "opacity-100"
-                                    : "pointer-events-none opacity-0"
+                                    ? actionsWidth
+                                    : "w-0"
                                 : isActive
-                                ? "opacity-100"
-                                : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
+                                ? actionsWidth
+                                : onMoveToProject
+                                  ? "w-0 group-hover:w-[72px] group-focus-within:w-[72px]"
+                                  : "w-0 group-hover:w-12 group-focus-within:w-12"
                         }`}
                     >
                         {onMoveToProject && (

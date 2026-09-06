@@ -6,11 +6,22 @@ import { ChatApplicationError, chatTurnInputSchema, researchFilePromotionBodySch
   type ChatApplication } from "../lib/chat/chatApplication";
 import { beginChatTurn, finishChatTurn } from "../lib/chatTurns";
 import type { ChatTurnQueue } from "../lib/chatTurnQueue";
+import type { PublicAssistantEvent } from "../lib/chat/assistantEvents";
 import { CODEX_THREAD_ID } from "../lib/llm/codex";
 import { requestAbortController, startSse, writeSse } from "../lib/httpStreaming";
 import { safeErrorLog } from "../lib/safeError";
 import { jsonRecord } from "../lib/value";
 import { ApplicationError } from "../lib/applicationError";
+import { z } from "zod";
+
+const historyQuery = z.object({
+  search_scope: z.enum(["all", "titles", "transcripts"]).default("all"),
+  search_context: z.enum(["assistant", "reviews", "all"]).default("assistant"),
+  created_from: z.string().datetime({ offset: true }).transform((value) => new Date(value).toISOString()).optional(),
+  created_to: z.string().datetime({ offset: true }).transform((value) => new Date(value).toISOString()).optional(),
+  sort: z.enum(["newest", "oldest"]).default("newest"),
+}).refine((value) => !value.created_from || !value.created_to || value.created_from < value.created_to,
+  "Created through must be after Created from");
 
 const text = (value: unknown, max = 20_000) => {
   const parsed = typeof value === "string" ? value.trim() : "";
@@ -75,31 +86,31 @@ export function createChatRouter(
     initialChatId?: string,
   ) => {
     const controller = requestAbortController(req, res);
+    const emit = (event: PublicAssistantEvent) => writeSse(res, event);
     let accepted = false, versionSent = false, chatId = initialChatId;
     startSse(res);
-    writeSse(res, { type: "turn_queued", jobId });
+    emit({ type: "turn_queued", jobId });
     try {
       const completed = await turns.observe(scope, jobId, controller.signal, (event) => {
-        const row = jsonRecord(event);
-        if (row?.type === "chat_id" && typeof row.chatId === "string") {
+        if (event.type === "chat_id") {
           accepted = true;
-          chatId = row.chatId;
+          chatId = event.chatId;
         }
-        if (row?.type === "transcript_version") versionSent = true;
-        writeSse(res, event);
+        if (event.type === "transcript_version") versionSent = true;
+        emit(event);
       });
-      if (completed.status === "failed") writeSse(res, {
+      if (completed.status === "failed") emit({
         type: "error",
         message: "The assistant response stopped unexpectedly. You can retry this turn.",
         retryable: true,
         accepted,
       });
-      if (completed.status === "cancelled") writeSse(res,
+      if (completed.status === "cancelled") emit(
         { type: "turn_status", status: "cancelled" });
       const result = jsonRecord(completed.result);
       if (typeof result?.chat_id === "string") chatId = result.chat_id;
       const current = chatId ? await chats.get(scope, chatId) : null;
-      if (!versionSent) writeSse(res, {
+      if (!versionSent) emit({
         type: "transcript_version",
         transcriptVersion: current?.transcript_version ?? 0,
       });
@@ -114,11 +125,19 @@ export function createChatRouter(
   };
 
   router.get("/", route(async (req, res, scope) => {
+    const query = historyQuery.safeParse(req.query);
+    if (!query.success) throw new ChatApplicationError(400, "Invalid history filters");
     const tabularReviewId = text(req.query.tabular_review_id, 200) || undefined;
     const limit = Number.parseInt(String(req.query.limit ?? ""), 10);
+    const offset = Number.parseInt(String(req.query.offset ?? ""), 10);
     res.json(await chats.list(scope, {
       ...(tabularReviewId ? { tabularReviewId } : {}),
       limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : 20,
+      offset: Number.isFinite(offset) ? Math.max(offset, 0) : 0,
+      search: text(req.query.search, 200) || undefined,
+      searchScope: query.data.search_scope, createdFrom: query.data.created_from,
+      searchContext: query.data.search_context,
+      createdTo: query.data.created_to, sort: query.data.sort,
     }));
   }));
 
@@ -129,12 +148,15 @@ export function createChatRouter(
   router.post("/create", route(async (req, res, scope) => {
     const project = optionalId(req.body?.project_id, "project_id");
     const review = optionalId(req.body?.tabular_review_id, "tabular_review_id");
+    const research = optionalId(req.body?.research_file_id, "research_file_id");
     if (project.value && review.value) throw new ChatApplicationError(400,
       "A chat cannot belong to both a project and a tabular review");
-    const chat = await chats.create(scope, {
+    const chat = await (research.value ? application.create(scope, {
+      projectId: project.value, tabularReviewId: review.value, researchFileId: research.value,
+    }) : chats.create(scope, {
       projectId: project.value,
       tabularReviewId: review.value,
-    });
+    }));
     res.json({ id: chat.id });
   }));
 
@@ -160,6 +182,22 @@ export function createChatRouter(
       return void res.status(404).json({ detail: "Chat not found" });
     }
     res.json({ stopped: await turns.cancel(scope, req.params.chatId) });
+  }));
+
+  router.post("/:chatId/table", route(async (req, res, scope) => {
+    const input = z.object({ research_file_id: z.string().uuid(),
+      message_ids: z.array(z.string().uuid()).min(1).max(50).optional() }).strict().parse(req.body);
+    const review = await application.table(scope, { chatId: req.params.chatId,
+      researchFileId: input.research_file_id, messageIds: input.message_ids });
+    res.json({ id: review.id, needs_arrangement: review.needs_arrangement });
+  }));
+  router.get("/:chatId/research-answers", route(async (req, res, scope) => {
+    const input = z.object({ research_file_id: z.string().uuid(), source_ids: z.string().optional(),
+      offset: z.coerce.number().int().nonnegative().default(0), limit: z.coerce.number().int().min(1).max(200).default(50),
+    }).parse(req.query);
+    res.json(await application.researchAnswers(scope, { chatId: req.params.chatId,
+      researchFileId: input.research_file_id, offset: input.offset, limit: input.limit,
+      sourceIds: input.source_ids?.split(",") }));
   }));
 
   router.post("/jobs/:jobId/stop", route(async (req, res, scope) => {
@@ -253,8 +291,12 @@ export function createChatRouter(
     const body = jsonRecord(req.body) ?? {};
     const titleProvided = Object.hasOwn(body, "title");
     const projectProvided = Object.hasOwn(body, "project_id");
-    if (!titleProvided && !projectProvided) return void res.status(400).json({
-      detail: "title or project_id is required",
+    const draftProvided = Object.hasOwn(body, "draft");
+    const draft = body.draft === null ? null : jsonRecord(body.draft);
+    if (draftProvided && body.draft !== null && (!draft || typeof draft.content !== "string"))
+      return void res.status(400).json({ detail: "Draft content is required" });
+    if (!titleProvided && !projectProvided && !draftProvided) return void res.status(400).json({
+      detail: "title, project_id or draft is required",
     });
     const title = titleProvided ? text(body.title, 200) : undefined;
     if (titleProvided && !title) return void res.status(400).json({
@@ -265,6 +307,7 @@ export function createChatRouter(
     const chat = await chats.update(scope, req.params.chatId, {
       ...(title ? { title } : {}),
       ...(projectProvided ? { projectId: project!.value } : {}),
+      ...(draftProvided ? { draft } : {}),
     });
     if (!chat) return void res.status(404).json({ detail: "Chat not found" });
     res.json({ id: chat.id, title: chat.title, project_id: chat.project_id });

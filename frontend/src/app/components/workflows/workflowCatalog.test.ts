@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import type { Workflow } from "../shared/types";
+import type { Workflow } from "@/app/lib/api/workflows";
 import { groupWorkflows, WORKFLOW_CATEGORIES } from "./workflowCatalog";
 import { workflowDocumentTab, workflowPath, workflowVariants } from "./workflowRoutes";
 

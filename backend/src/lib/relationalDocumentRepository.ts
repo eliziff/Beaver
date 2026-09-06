@@ -247,9 +247,10 @@ async function lockRelocationRoots(db: RelationalDatabase, scope: ApplicationSco
     AND ${projectAccess(scope)} ORDER BY p.id FOR SHARE OF p`, db)).length === ids.length;
 }
 
-async function head(db: RelationalDatabase, scope: ApplicationScope, documentId: string,
-  owner = false, lock = false): Promise<DocumentHead | null> {
-  const row = await one(sql`SELECT d.*,v.page_count pdf_page_count,v.pdf_profile,
+async function heads(db: RelationalDatabase, scope: ApplicationScope, documentIds: string[],
+  owner = false, lock = false): Promise<DocumentHead[]> {
+  if (!documentIds.length) return [];
+  const found = await rows(sql`SELECT d.*,v.page_count pdf_page_count,v.pdf_profile,
     v.id head_id,v.document_id head_document_id,v.parent_version_id head_parent_version_id,
     v.version_number head_version_number,v.working_revision head_working_revision,
     v.source head_source,v.created_by head_created_by,v.author_email head_author_email,
@@ -265,10 +266,12 @@ async function head(db: RelationalDatabase, scope: ApplicationScope, documentId:
       WHERE q.document_id=d.id AND q.document_version_id=d.current_version_id
         AND q.kind IN('pdf.prepare','pdf.reprocess')
       ORDER BY q.updated_at DESC,q.id DESC LIMIT 1)
-    WHERE d.id=${documentId} AND ${documentAccess(scope, owner)}
+    WHERE d.id IN(${sql.join(documentIds)}) AND ${documentAccess(scope, owner)}
     ${lock && db.engine === "postgres" ? sql.raw("FOR UPDATE OF d") : sql.raw("")}`, db);
-  return row ? { document: storedDocument(row), versions: [storedVersion(row, "head_")] } : null;
+  return found.map((row) => ({ document: storedDocument(row), versions: [storedVersion(row, "head_")] }));
 }
+const head = async (db: RelationalDatabase, scope: ApplicationScope, documentId: string,
+  owner = false, lock = false) => (await heads(db, scope, [documentId], owner, lock))[0] ?? null;
 
 export const documentRepository: DocumentRepository = {
   async authorizeCreate(scope, input) {
@@ -306,6 +309,9 @@ export const documentRepository: DocumentRepository = {
   },
   async head(scope, documentId, owner = false) {
     return head(await relationalDatabase(), scope, documentId, owner);
+  },
+  async heads(scope, documentIds, owner = false) {
+    return heads(await relationalDatabase(), scope, documentIds, owner);
   },
   async history(scope, documentId, includeParts = false) {
     const db = await relationalDatabase();

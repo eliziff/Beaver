@@ -5,7 +5,9 @@ import { SpreadsheetView } from "./SpreadsheetView";
 const { getSpreadsheetProjection } = vi.hoisted(() => ({
   getSpreadsheetProjection: vi.fn(),
 }));
-vi.mock("@/app/lib/beaverApi", () => ({ getSpreadsheetProjection }));
+vi.mock("@/app/lib/api/documents", () => ({
+  getSpreadsheetProjection
+}));
 
 describe("SpreadsheetView", () => {
   it("renders projected cells and focuses cited evidence", async () => {

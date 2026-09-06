@@ -59,7 +59,7 @@ export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHand
     const { documentId, documentVersionId } = job;
     if (!documentId || !documentVersionId) throw new Error("InvalidPdfJob");
     pdfLifecycleMark("queue.claimed", documentId);
-    const input = documentPayload(job);
+    const input = job.kind === "pdf.reprocess" ? reprocessPayload(job) : documentPayload(job);
     const content = await pdfLifecyclePhase("worker.source_read", documentId, () =>
       documents.read(
         { userId: job.userId }, documentId, documentVersionId, false,
@@ -72,7 +72,7 @@ export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHand
       documentId,
       versionId: documentVersionId,
       bytes: content.bytes,
-      sourceSha256: input.sourceSha256,
+      ...input,
       signal: context.signal,
       progress: (value: PdfPreparationProgress) => context.progress(value),
     });
@@ -87,38 +87,7 @@ export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHand
       pagesNeedingOcr: summary.pagesNeedingOcr,
       ocrRoutedPages: summary.ocrRoutedPages };
   };
-  const reprocess: JobHandler = async (job, context) => {
-    if (!job.documentId || !job.documentVersionId) throw new Error("InvalidPdfJob");
-    const input = reprocessPayload(job);
-    const content = await documents.read(
-      { userId: job.userId }, job.documentId, job.documentVersionId, false,
-    );
-    if (!content || content.fileType !== "pdf" ||
-        content.version.source_sha256 !== input.sourceSha256) {
-      return { skipped: "source-unavailable" } as Record<string, string>;
-    }
-    const summary = await preparePdf({
-      documentId: job.documentId,
-      versionId: job.documentVersionId,
-      bytes: content.bytes,
-      sourceSha256: input.sourceSha256,
-      ocrProvider: input.ocrProvider,
-      layout: input.layout,
-      signal: context.signal,
-      progress: (value: PdfPreparationProgress) => context.progress(value),
-    });
-    if (!await documents.recordPdfPreparation({ userId: job.userId }, job.documentId, {
-      versionId: job.documentVersionId,
-      sourceSha256: summary.sourceSha256,
-      pageCount: summary.pageCount,
-      pdfProfile: { cacheKey: summary.cacheKey, profile: summary.profile,
-        status: summary.status },
-    })) return { skipped: "source-unavailable" };
-    return { status: summary.status, pageCount: summary.pageCount,
-      pagesNeedingOcr: summary.pagesNeedingOcr,
-      ocrRoutedPages: summary.ocrRoutedPages };
-  };
-  return { "pdf.prepare": run, "pdf.reprocess": reprocess };
+  return { "pdf.prepare": run, "pdf.reprocess": run };
 }
 
 export function enqueuePdfPreparation(input: {

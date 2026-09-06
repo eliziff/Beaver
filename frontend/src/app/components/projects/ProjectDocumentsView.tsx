@@ -10,8 +10,8 @@ import { projectBreadcrumbLabel } from "./ProjectPageParts";
 import { ProjectSectionTabs, useProjectWorkspace } from "./ProjectWorkspace";
 import { useProjectFiles } from "./useProjectFiles";
 import { assistantWorkflowLaunch, type WorkflowSelection } from "../workflows/workflowRoutes";
-import type { Document } from "../shared/types";
-import { listDirectoryDocuments } from "@/app/lib/beaverApi";
+import { type Document, listDirectoryDocuments } from "@/app/lib/api/documents";
+
 export function ProjectDocumentsView() {
     const {
         projectId,

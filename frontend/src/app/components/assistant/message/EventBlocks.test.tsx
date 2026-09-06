@@ -1,8 +1,61 @@
 import { render, screen } from "@testing-library/react";
-import { expect, it } from "vitest";
-import type { Citation } from "../../shared/types";
+import { expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
+import type { Citation } from "@/app/lib/citations";
 
 import { ActivityRow } from "./EventBlocks";
+
+it("keeps the read chip unchanged while preserving a completed read's exact source action", async () => {
+    const broad: Citation = {
+        kind: "a2aj", source_class: "case", ref: 1,
+        name: "Bhasin v. Hrynew", citation: "2014 SCC 71", dataset: "SCC",
+        url: null, quotes: [],
+    };
+    const passage: Citation = {
+        ...broad, ref: 2, locator_kind: "paragraph", locator: "17, 112",
+        pinpoint: "paras 17, 112", display_form: "pinpoint", authority: "Bhasin, supra",
+    };
+    const onCitationClick = vi.fn();
+    const activity = {
+        id: "read-bhasin", tool: "Read",
+        label: "Reading Bhasin v. Hrynew",
+    };
+    const { container, rerender } = render(<ActivityRow activity={{
+        ...activity, status: "running", citations: [broad],
+    }} onCitationClick={onCitationClick} />);
+
+    const chip = screen.getByRole("button", { name: "Bhasin v. Hrynew, 2014 SCC 71" });
+    expect(screen.getByRole("listitem")).toHaveTextContent(/^Read Bhasin v\. Hrynew, 2014 SCC 71$/u);
+    expect(screen.getByRole("listitem")).toHaveAttribute("aria-busy", "true");
+    chip.focus();
+    rerender(<ActivityRow activity={{
+        ...activity, status: "completed", citations: [broad, passage],
+    }} onCitationClick={onCitationClick} />);
+
+    expect(screen.getByRole("button", { name: /Bhasin/u })).toBe(chip);
+    expect(chip).toHaveFocus();
+    expect(screen.getByRole("listitem")).toHaveTextContent(/^Read Bhasin v\. Hrynew, 2014 SCC 71$/u);
+    expect(screen.getByRole("listitem")).toHaveAttribute("aria-busy", "false");
+    expect(container.querySelectorAll("[data-citation-ref]")).toHaveLength(1);
+    await userEvent.click(chip);
+    expect(onCitationClick).toHaveBeenCalledWith(passage);
+
+    rerender(<ActivityRow activity={{
+        ...activity, status: "error", citations: [broad], detail: "Source unavailable",
+    }} onCitationClick={onCitationClick} />);
+    expect(screen.getByRole("button", { name: /Bhasin/u })).toBe(chip);
+    expect(screen.getByText("Failed")).toBeVisible();
+    expect(screen.getByText("Source unavailable")).toBeVisible();
+});
+
+it("keeps failed read context and errors visible", () => {
+    render(<ActivityRow activity={{
+        id: "failed-read", tool: "Read", status: "error",
+        label: "Reading R. v. Jordan", detail: "Source unavailable",
+    }} />);
+    expect(screen.getByText("Reading R. v. Jordan")).toBeVisible();
+    expect(screen.getByText("Source unavailable")).toBeVisible();
+});
 
 it("does not repeat an activity label copied into its detail markdown", () => {
     render(

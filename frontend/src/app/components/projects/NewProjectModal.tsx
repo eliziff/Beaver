@@ -1,7 +1,13 @@
 import { useRef, useState } from "react";
 import { User, X } from "lucide-react";
-import { addDocumentToProject, createProject, directoryResource, uploadDocumentsSettled,
-    type UserLookupResult } from "@/app/lib/beaverApi";
+import {
+  addDocumentToProject,
+  directoryResource,
+  uploadDocumentsSettled,
+  type Document,
+} from "@/app/lib/api/documents";
+import { createProject, type Project } from "@/app/lib/api/projects";
+import type { UserLookupResult } from "@/app/lib/api/account";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { formatUnsupportedDocumentWarning, partitionSupportedDocumentFiles,
     SUPPORTED_DOCUMENT_ACCEPT } from "@/app/lib/documentUploadValidation";
@@ -11,7 +17,8 @@ import { FieldGroup, FormField } from "../modals/ModalFieldLabel";
 import { ModalTextInput } from "../modals/ModalTextInput";
 import { AddUserInput } from "../shared/AddUserInput";
 import { FileDirectory } from "../shared/FileDirectory";
-import type { Document, Project } from "../shared/types";
+
+
 import { Button } from "../ui/button";
 import { ProjectPracticeField } from "./ProjectPracticeField";
 
@@ -105,7 +112,10 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
             ? `${email} already has access.` : null;
     }
     const loading = status === "loading";
-    return <Modal open onClose={onClose} size="2xl"
+    return <Modal open onClose={onClose} size={step === "details" ? "md" : "lg"}
+        className={step === "details"
+            ? "!h-fit max-h-[calc(100dvh-2rem)] [&>.modal-scroll-body]:flex-initial"
+            : "!h-[min(28rem,calc(100dvh-2rem))]"}
         breadcrumbs={["Projects", "New project"]}
         headerAction={step === "documents" ? <UploadAction busy={loading} actions={{
             files: () => fileInput.current?.click(),
@@ -120,7 +130,7 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
         <input ref={folderInput} type="file" multiple className="hidden" onChange={addFiles}
             accept={SUPPORTED_DOCUMENT_ACCEPT} {...{ webkitdirectory: "", directory: "" }} />
         <form id={formId} onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-            <div hidden={step !== "details"} className="max-w-lg space-y-6">
+            <div hidden={step !== "details"} className="space-y-4 pb-4">
                 <FormField label="Project name" htmlFor="new-project-name">
                     <ModalTextInput name="name" placeholder="Add project name" required autoFocus />
                 </FormField>

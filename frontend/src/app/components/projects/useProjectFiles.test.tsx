@@ -10,10 +10,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock("./ProjectWorkspace", () => ({
     useProjectWorkspace: () => ({ projectId: "project-1", project: mocks.project }),
 }));
-vi.mock("@/app/lib/beaverApi", () => ({
-    directoryResource: () => ({ list: mocks.list }),
-    getDocumentParseStates: vi.fn(),
-    removeProjectDocument: vi.fn(),
+vi.mock("@/app/lib/api/documents", () => ({
+  directoryResource: () => ({ list: mocks.list }),
+  getDocumentParseStates: vi.fn(),
+  removeProjectDocument: vi.fn()
 }));
 
 it("loads project files while metadata is pending but not after a missing result", async () => {

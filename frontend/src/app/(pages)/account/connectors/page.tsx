@@ -8,17 +8,17 @@ import {
 } from "@/app/components/account/NewMcpModal";
 import { useMfaAction } from "@/app/components/account/useMfaAction";
 import {
-    createMcpConnector,
-    deleteMcpConnector,
-    getMcpConnector,
-    listMcpConnectors,
-    refreshMcpConnectorTools,
-    setMcpToolEnabled,
-    startMcpConnectorOAuth,
-    type McpConnectorSummary,
-    updateMcpConnector,
-} from "@/app/lib/beaverApi";
-import { BeaverApiError } from "@/app/lib/apiTransport";
+  createMcpConnector,
+  deleteMcpConnector,
+  getMcpConnector,
+  listMcpConnectors,
+  refreshMcpConnectorTools,
+  setMcpToolEnabled,
+  startMcpConnectorOAuth,
+  type McpConnectorSummary,
+  updateMcpConnector,
+} from "@/app/lib/api/account";
+import { BeaverApiError } from "@/app/lib/api/client";
 import { accountGlassPrimaryButtonClassName } from "../accountStyles";
 import { AccountSection } from "../AccountSection";
 import { Switch } from "@/app/components/ui/switch";

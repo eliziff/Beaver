@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { AlignLeft, List, Hash, DollarSign, ToggleLeft, Calendar, Tag, Percent, Banknote } from "lucide-react";
-import type { ColumnFormat } from "../shared/types";
+import type { ColumnFormat } from "@/app/lib/api/tabular";
 export const FORMAT_OPTIONS: Array<{ value: ColumnFormat; label: string; icon: LucideIcon; iconClassName: string }> = [
     { value: "text",            label: "Free Text",       icon: AlignLeft,  iconClassName: "text-sky-500"     },
     { value: "bulleted_list",   label: "Bulleted list",   icon: List,       iconClassName: "text-indigo-500"  },

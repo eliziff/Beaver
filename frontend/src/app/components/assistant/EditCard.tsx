@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { resolveDocumentEdits } from "@/app/lib/beaverApi";
+import { resolveDocumentEdits, type EditAnnotation, type EditResolveHandlers } from "@/app/lib/api/documents";
 import { Button } from "@/app/components/ui/button";
-import type { EditAnnotation, EditResolveHandlers } from "../shared/types";
+
 
 type EditVerb = "accept" | "reject";
 
@@ -99,7 +99,6 @@ export async function resolveEdits(
             editId: edit.edit_id, documentId,
             status,
             versionId: result.version_id,
-            downloadUrl: result.download_url,
         }));
         return status;
     } catch (error) {

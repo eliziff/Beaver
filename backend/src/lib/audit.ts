@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { ApplicationScope } from "./applicationError";
-import type { AssistantEvent } from "./chat/turnEngine";
+import type { AssistantEvent } from "./chat/assistantEvents";
 import { encodeJson, sql, type RelationalDatabase } from "./relational";
 import { safeErrorLog } from "./safeError";
 import { searchFilter } from "./searchQuery";

@@ -1,12 +1,29 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
-import { createChat, deleteChat, listChats, renameChat } from "@/app/lib/beaverApi";
-import type { Chat, Message } from "@/app/components/shared/types";
+import {
+  createChat,
+  deleteChat,
+  getChat,
+  listChats,
+  renameChat,
+  updateChatProject,
+  type ChatDetail,
+  type Chat,
+  type Message,
+} from "@/app/lib/api/chat";
+
 import { useAuth } from "./AuthContext";
+
+type PreparedChat = { id: string; at: number; result: Promise<ChatDetail>; detail: ChatDetail | null };
+type ProjectMoveListener = (chatId: string, projectId: string | null) => void;
 
 type Context = {
   chats: Chat[] | null;
+  onProjectMove: (listener: ProjectMoveListener) => () => void;
+  moveChat: (id: string, projectId: string | null) => Promise<void>;
   hasMoreChats: boolean;
+  prepareChat: (id: string) => void;
+  takePreparedChat: (id: string) => PreparedChat | null;
   loadChats: () => Promise<void>;
   loadMoreChats: () => void;
   saveChat: (projectId?: string) => Promise<string | null>;
@@ -28,9 +45,18 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
   const [chats, setChats] = useState<Chat[] | null>(null);
   const [limit, setLimit] = useState(INITIAL_LIMIT);
   const [hasMoreChats, setHasMore] = useState(false);
+  const prepared = useRef<PreparedChat | null>(null);
+  useEffect(() => { prepared.current = null; }, [user]);
+  const projectMoveListeners = useRef(new Set<ProjectMoveListener>());
+  const onProjectMove = useCallback((listener: ProjectMoveListener) => {
+    projectMoveListeners.current.add(listener);
+    return () => { projectMoveListeners.current.delete(listener); };
+  }, []);
   const pending = useRef<{ id: string; message: Message } | null>(null);
+  const listRequest = useRef(0);
 
   const loadChats = useCallback(async () => {
+    const request = ++listRequest.current;
     if (!user) {
       setChats([]);
       setHasMore(false);
@@ -38,7 +64,9 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
     }
     try {
       const rows = await listChats({ limit: limit + 1 });
-      setChats(rows.slice(0, limit));
+      if (request !== listRequest.current) return;
+      const next = rows.slice(0, limit);
+      setChats((current) => JSON.stringify(current) === JSON.stringify(next) ? current : next);
       setHasMore(rows.length > limit);
     } catch {
       // Retain the last usable list on a transient refresh failure.
@@ -50,7 +78,7 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
       setChats([]);
       setLimit(INITIAL_LIMIT);
       setHasMore(false);
-    } else if (pathname === "/assistant" || pathname.startsWith("/assistant/")) {
+    } else {
       void loadChats();
     }
   }, [loadChats, pathname, user]);
@@ -79,9 +107,30 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
   const setChatTurnInProgress = useCallback((id: string, active: boolean) => setChats((current) =>
     current?.map((chat) => chat.id === id ? { ...chat, turn_in_progress: active } : chat) ?? null), []);
 
-  const value: Context = {
+  const value = useMemo<Context>(() => ({
     chats,
+    onProjectMove,
+    moveChat: async (id, projectId) => {
+      const updated = await updateChatProject(id, projectId);
+      setChats((current) => current?.map((chat) => chat.id === id
+        ? { ...chat, project_id: updated.project_id } : chat) ?? null);
+      if (prepared.current?.id === id) prepared.current = null;
+      for (const listener of projectMoveListeners.current) listener(id, updated.project_id);
+    },
     hasMoreChats,
+    prepareChat: (id) => {
+      if (prepared.current?.id === id && Date.now() - prepared.current.at < 5_000) return;
+      const result = getChat(id);
+      const entry: PreparedChat = { id, at: Date.now(), result, detail: null };
+      prepared.current = entry;
+      void result.then((detail) => { entry.detail = detail; })
+        .catch(() => { if (prepared.current === entry) prepared.current = null; });
+    },
+    takePreparedChat: (id) => {
+      const entry = prepared.current;
+      prepared.current = null;
+      return entry?.id === id && Date.now() - entry.at < 5_000 ? { ...entry } : null;
+    },
     loadChats,
     loadMoreChats: () => setLimit((current) => current + 10),
     saveChat,
@@ -104,7 +153,7 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
       return [...unique.values()];
     }),
     setChatTurnInProgress,
-  };
+  }), [chats, onProjectMove, hasMoreChats, loadChats, saveChat, claimPendingChatMessage, setChatTurnInProgress]);
   return <ChatHistoryContext.Provider value={value}>{children}</ChatHistoryContext.Provider>;
 }
 

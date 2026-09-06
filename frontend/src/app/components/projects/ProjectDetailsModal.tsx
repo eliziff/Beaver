@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";import { Users } from "lucide-react"
 import { Modal } from "@/app/components/modals/Modal";
 import { FormField } from "@/app/components/modals/ModalFieldLabel";
 import { ModalTextInput } from "@/app/components/modals/ModalTextInput";
-import type { Project } from "@/app/components/shared/types";
+import type { Project } from "@/app/lib/api/projects";
 import { ProjectPracticeField } from "./ProjectPracticeField";
 interface ProjectDetailsModalProps {
     open: boolean;

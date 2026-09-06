@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { WorkflowRunButton, WorkflowRunPanel } from "./WorkflowRun";
-import type { WorkflowRunEvent } from "../shared/types";
+import type { WorkflowRunEvent } from "@/app/lib/api/chat";
 
 describe("WorkflowRunPanel", () => {
   it.each([

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Info, Loader2 } from "lucide-react";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import type { ApiKeyState } from "@/app/lib/beaverApi";
+import type { ApiKeyState } from "@/app/lib/api/account";
 import {
     MODELS,
     ModelToggle,

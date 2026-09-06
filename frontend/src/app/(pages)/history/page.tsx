@@ -20,7 +20,7 @@ import {
   getAuditHistory,
   type AuditEvent,
   type AuditHistoryQuery,
-} from "@/app/lib/beaverApi";
+} from "@/app/lib/api/account";
 
 const ACTIONS = [
   ["", "All actions"],
@@ -94,7 +94,7 @@ export default function HistoryPage() {
           onClick: download,
         }]}
       >
-        <h1 className="font-serif text-2xl font-medium text-gray-900">History</h1>
+        <h1 className="font-serif text-2xl font-medium text-gray-900">Activity log</h1>
       </PageHeader>
 
       <form

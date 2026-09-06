@@ -1,29 +1,35 @@
-import type { Document } from "@/app/components/shared/types";
 import {
-  buildAuthorities,
-  createWorkProduct,
-  deleteWorkProduct,
+  type Document,
   directoryResource,
   downloadDocument,
   downloadDocumentPdf,
-  duplicateWorkProduct,
   getDocument,
-  getCourtRecordPreparation,
-  getUserProfile,
+  listDocumentVersions,
+  retryLibraryPdfParse,
+} from "@/app/lib/api/documents";
+import {
+  buildAuthorities,
+  prepareAuthoritiesSources,
+  refreshAuthoritiesInput,
+} from "@/app/lib/api/authorities";
+import {
+  createWorkProduct,
+  deleteWorkProduct,
+  duplicateWorkProduct,
   getWorkProduct,
   getWorkProductResolution,
   listWorkProductMetadata,
-  listDocumentVersions,
   listWorkProducts,
-  prepareAuthoritiesSources,
-  retryLibraryPdfParse,
-  refreshAuthoritiesInput,
-  saveCourtRecordBuild,
-  updateUserProfile,
   updateWorkProduct,
+} from "@/app/lib/api/workProducts";
+
+import {
+  getCourtRecordPreparation,
+  saveCourtRecordBuild,
   uploadCourtRecordDocument,
-} from "@/app/lib/beaverApi";
-import { BeaverApiError } from "@/app/lib/apiTransport";
+} from "@/app/lib/api/courtRecords";
+import { getUserProfile, updateUserProfile } from "@/app/lib/api/account";
+import { BeaverApiError } from "@/app/lib/api/client";
 import { waitForPdfPreparation } from "@/app/lib/pdfPreparation";
 import type { ResolvedWorkProductInput, WorkProduct, WorkProductBuildReceipt,
   WorkProductInput, WorkProductResolution,
@@ -33,7 +39,7 @@ import type { BuildArtifact, BuildReceiptSource, CourtRecordDraft, CourtRecordRe
 import { draftOutputChoice, filingContactCover, mergeFilingContact } from "./host";
 import type { CourtRecordsHost, DraftOutputChoice, PreparedFile,
   PreparationProgress } from "./host";
-import { acceptedSourceFormats, DOCX_MIME, sourceFormat } from "./formats";
+import { acceptedSourceFormats, DOCX_MIME, needsPdfRendition, sourceFormat } from "./formats";
 import { prepareDeviceFile, prepareDocxRendition } from "./prepareDeviceFile";
 import { sourceDocumentFields } from "./sourceFields";
 import { COURT_PROFILE_BY_ID } from "./profiles";
@@ -110,7 +116,7 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
   async prepareDeviceFile(file, progress, context) {
     let prepared: PreparedFile;
     let uploaded: Document;
-    if (sourceFormat(file) === "docx") {
+    if (sourceFormat(file) === "docx" && needsPdfRendition(context?.destination)) {
       progress?.(`Adding ${file.name}`);
       uploaded = await uploadCourtRecordDocument(file, context?.workProductId);
       const rendition = await downloadDocumentPdf(uploaded.id, uploaded.current_version_id);
@@ -130,28 +136,26 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
     prepared.binding = { kind: "document", documentId: uploaded.id, version: "latest" };
     return prepared;
   },
-  async searchLibrary(query, formats, context) {
-    const product = context?.workProductId
-      ? await getWorkProduct(context.workProductId) : null;
-    const library = directoryResource(product?.projectId
-      ? { projectId: product.projectId } : { library: "files" });
-    const page = await library.list({ q: query.trim(), limit: 24 });
+  async searchLibrary(query, formats, draft, signal) {
+    const library = directoryResource(draft.projectId
+      ? { projectId: draft.projectId } : { library: "files" });
+    const page = await library.list({ q: query.trim(), limit: 24 }, signal);
     return page.items.flatMap((entry) => entry.kind === "document" ? [entry.document] : [])
       .filter((document) => {
         const format = document.file_type?.toLowerCase();
         return format === "pdf" || format === "docx" ? formats.includes(format) : false;
       });
   },
-  async importLibraryDocument(document, progress) {
-    return prepareLibraryDocument(document, document.current_version_id, progress);
+  async importLibraryDocument(document, progress, destination) {
+    return prepareLibraryDocument(document, document.current_version_id, progress, destination);
   },
-  async searchDraftOutputs(query, destination, excludeId) {
+  async searchDraftOutputs(query, destination, draft, signal) {
     const formats = acceptedSourceFormats(destination);
-    const projectId = excludeId ? (await getWorkProduct(excludeId)).projectId : null;
+    const projectId = draft.projectId;
     const products = (await Promise.all([
-      listWorkProductMetadata("authorities", projectId ?? undefined),
-      listWorkProductMetadata("court-record", projectId ?? undefined),
-    ])).flat().filter((product) => product.id !== excludeId &&
+      listWorkProductMetadata("authorities", projectId ?? undefined, signal),
+      listWorkProductMetadata("court-record", projectId ?? undefined, signal),
+    ])).flat().filter((product) => product.id !== draft.id &&
       product.projectId === projectId);
     const needle = query.trim().toLowerCase();
     return products.flatMap((product) => Object.entries(product.outputs ?? {})
@@ -193,7 +197,7 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
       if (input.kind !== "document") return { status: "missing", reason: "unavailable" };
       const document = await getDocument(input.documentId);
       const versionId = input.version === "latest" ? document.current_version_id : input.version.versionId;
-      const prepared = await prepareLibraryDocument(document, versionId, progress);
+      const prepared = await prepareLibraryDocument(document, versionId, progress, destination);
       if (input.version !== "latest" && (prepared.origin?.versionId !== input.version.versionId ||
           prepared.origin.sourceSha256 !== input.version.sha256)) {
         return { status: "missing", reason: "unavailable" };
@@ -263,7 +267,7 @@ async function prepareDraftOutput(choice: DraftOutputChoice, destination: Docume
     throw new Error("This saved output cannot be added to this document slot.");
   }
   const document = await getDocument(choice.output.documentId);
-  const prepared = await prepareLibraryDocument(document, choice.output.versionId, progress);
+  const prepared = await prepareLibraryDocument(document, choice.output.versionId, progress, destination);
   if (prepared.origin?.versionId !== choice.output.versionId ||
       prepared.origin.sourceSha256 !== choice.output.sha256) {
     throw new Error("The selected draft output changed while it was opening.");
@@ -367,12 +371,13 @@ async function prepareLibraryDocument(
   document: Document,
   versionId?: string | null,
   progress?: PreparationProgress,
+  destination?: DocumentKind,
 ) {
   progress?.(`Loading ${document.filename}`);
   const format = document.file_type?.toLowerCase() === "docx" ? "docx" : "pdf";
   const [downloaded, rendition, exactVersion] = await Promise.all([
     downloadDocument(document.id, versionId),
-    format === "docx" ? downloadDocumentPdf(document.id, versionId) : undefined,
+    format === "docx" && needsPdfRendition(destination) ? downloadDocumentPdf(document.id, versionId) : undefined,
     versionId && versionId !== document.current_version_id
       ? listDocumentVersions(document.id).then(({ versions }) =>
         versions.find(({ id }) => id === versionId)) : undefined,

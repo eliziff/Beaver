@@ -26,25 +26,37 @@ const mocks = vi.hoisted(() => ({
   deleteDocument: vi.fn(),
 }));
 
-vi.mock("@/app/lib/beaverApi", async (original) => ({
-  ...await original<typeof import("@/app/lib/beaverApi")>(),
+vi.mock("@/app/lib/api/workProducts", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/workProducts")>(),
   getWorkProduct: mocks.getWorkProduct,
   getWorkProductResolution: mocks.getWorkProductResolution,
+  listWorkProducts: mocks.listWorkProducts,
+  listWorkProductMetadata: mocks.listWorkProductMetadata
+}));
+vi.mock("@/app/lib/api/authorities", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/authorities")>(),
   refreshAuthoritiesInput: mocks.refreshAuthoritiesInput,
   prepareAuthoritiesSources: mocks.prepareAuthoritiesSources,
-  buildAuthorities: mocks.buildAuthorities,
-  listWorkProducts: mocks.listWorkProducts,
-  listWorkProductMetadata: mocks.listWorkProductMetadata,
+  buildAuthorities: mocks.buildAuthorities
+}));
+vi.mock("@/app/lib/api/documents", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/documents")>(),
   directoryResource: mocks.directoryResource,
   getDocument: mocks.getDocument,
   downloadDocument: mocks.downloadDocument,
-  getUserProfile: mocks.getUserProfile,
-  updateUserProfile: mocks.updateUserProfile,
   getDocumentParseStates: mocks.getDocumentParseStates,
+  deleteDocument: mocks.deleteDocument
+}));
+vi.mock("@/app/lib/api/account", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/account")>(),
+  getUserProfile: mocks.getUserProfile,
+  updateUserProfile: mocks.updateUserProfile
+}));
+vi.mock("@/app/lib/api/courtRecords", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/courtRecords")>(),
   getCourtRecordPreparation: mocks.getCourtRecordPreparation,
   uploadCourtRecordDocument: mocks.uploadCourtRecordDocument,
-  saveCourtRecordBuild: mocks.saveCourtRecordBuild,
-  deleteDocument: mocks.deleteDocument,
+  saveCourtRecordBuild: mocks.saveCourtRecordBuild
 }));
 vi.mock("./prepareDeviceFile", () => ({
   prepareDeviceFile: mocks.prepareDeviceFile,
@@ -52,7 +64,7 @@ vi.mock("./prepareDeviceFile", () => ({
 }));
 
 import type { WorkProduct, WorkProductOutput } from "@/app/lib/workProducts";
-import { BeaverApiError } from "@/app/lib/apiTransport";
+import { BeaverApiError } from "@/app/lib/api/client";
 import { beaverCourtRecordsHost, courtRecordOutputReceipts } from "./beaverHost";
 import { restoreCourtRecordDraft } from "./draftState";
 import { COURT_PROFILE_BY_ID } from "./profiles";
@@ -65,6 +77,9 @@ const binding = { kind: "work-product-output" as const,
   workProductId: "authorities-1", role: "book" };
 const kind = (profileId: string, kindId: string) =>
   COURT_PROFILE_BY_ID.get(profileId)!.documentKinds.find(({ id }) => id === kindId)!;
+const sourceContext = (projectId: string | null = null) => ({
+  id: "record-1", kind: "court-record" as const, revision: 1, projectId,
+});
 const authoritiesSlot = kind("ab-kb-chambers-justice-applicant-set", "authorities");
 const affidavitSlot = kind("ab-kb-chambers-justice-applicant-set", "affidavit");
 const federalEvidenceSlot = kind("fc-motion-record-moving", "moving-evidence");
@@ -195,7 +210,7 @@ describe("nested Court Record inputs", () => {
   });
 
   it("lists named outputs and resolves the child draft's latest built version", async () => {
-    const choices = await beaverCourtRecordsHost.searchDraftOutputs!("appeal", authoritiesSlot);
+    const choices = await beaverCourtRecordsHost.searchDraftOutputs!("appeal", authoritiesSlot, sourceContext());
     expect(choices).toMatchObject([{ workProductId: "authorities-1", role: "book",
       kind: "authorities", workProductTitle: "Appeal authorities",
       output: { versionId: "version-1" } }]);
@@ -221,7 +236,7 @@ describe("nested Court Record inputs", () => {
   });
 
   it("offers and resolves only outputs accepted by the destination filing slot", async () => {
-    await expect(beaverCourtRecordsHost.searchDraftOutputs!("", affidavitSlot))
+    await expect(beaverCourtRecordsHost.searchDraftOutputs!("", affidavitSlot, sourceContext()))
       .resolves.toEqual([]);
     await expect(beaverCourtRecordsHost.resolveInput(binding, undefined, affidavitSlot))
       .resolves.toEqual({ status: "missing", reason: "unavailable" });
@@ -230,7 +245,7 @@ describe("nested Court Record inputs", () => {
     const wrongCourt = affidavitProduct("affidavit-fca", "fca-affidavit-exhibits");
     mocks.listWorkProductMetadata.mockImplementation(async (productKind: string) =>
       productKind === "court-record" ? [accepted, wrongCourt] : [mocks.product]);
-    await expect(beaverCourtRecordsHost.searchDraftOutputs!("", federalEvidenceSlot))
+    await expect(beaverCourtRecordsHost.searchDraftOutputs!("", federalEvidenceSlot, sourceContext()))
       .resolves.toMatchObject([{ workProductId: accepted.id, kind: "court-record",
         profileId: "fc-affidavit-exhibits", role: "record" }]);
 
@@ -288,28 +303,21 @@ describe("nested Court Record inputs", () => {
     const sameMatter = { ...product(output("version-1", hash("a"))),
       projectId: "project-1" };
     const otherMatter = { ...sameMatter, id: "authorities-2", projectId: "project-2" };
-    mocks.getWorkProduct.mockResolvedValueOnce({ ...sameMatter, id: "record-1",
-      kind: "court-record", outputs: {} });
     mocks.listWorkProductMetadata.mockImplementation(async (kind: string) =>
       kind === "authorities" ? [sameMatter, otherMatter] : []);
 
-    await expect(beaverCourtRecordsHost.searchDraftOutputs!("", authoritiesSlot, "record-1"))
+    await expect(beaverCourtRecordsHost.searchDraftOutputs!("", authoritiesSlot, sourceContext("project-1")))
       .resolves.toMatchObject([{ workProductId: "authorities-1" }]);
-    expect(mocks.listWorkProductMetadata).toHaveBeenCalledWith("authorities", "project-1");
-    expect(mocks.listWorkProductMetadata).toHaveBeenCalledWith("court-record", "project-1");
   });
 
   it("does not offer matter outputs to a Library-level Court Draft", async () => {
     const libraryDraft = product(output("version-1", hash("a")));
     const matterDraft = { ...libraryDraft, id: "authorities-2", projectId: "project-2" };
-    mocks.getWorkProduct.mockResolvedValueOnce({ ...libraryDraft, id: "record-1",
-      kind: "court-record", outputs: {} });
     mocks.listWorkProductMetadata.mockImplementation(async (kind: string) =>
       kind === "authorities" ? [libraryDraft, matterDraft] : []);
 
-    await expect(beaverCourtRecordsHost.searchDraftOutputs!("", authoritiesSlot, "record-1"))
+    await expect(beaverCourtRecordsHost.searchDraftOutputs!("", authoritiesSlot, sourceContext()))
       .resolves.toMatchObject([{ workProductId: "authorities-1" }]);
-    expect(mocks.listWorkProductMetadata).toHaveBeenCalledWith("authorities", undefined);
   });
 
   it("coalesces parallel reads of the same child draft", async () => {
@@ -321,22 +329,16 @@ describe("nested Court Record inputs", () => {
     expect(mocks.getWorkProductResolution).toHaveBeenCalledTimes(1);
   });
 
-  it("searches the active Draft project instead of the top-level Library", async () => {
-    mocks.product = { ...product(), id: "record-1", kind: "court-record",
-      projectId: "project-1" };
-    mocks.directoryList.mockResolvedValue({ items: [{ kind: "document", document: {
-      id: "source-1", filename: "Motion.pdf", file_type: "pdf",
-    } }], next_cursor: null });
-    await expect(beaverCourtRecordsHost.searchLibrary!("motion", ["pdf"], {
-      workProductId: "record-1",
-    })).resolves.toMatchObject([{ id: "source-1" }]);
-    expect(mocks.directoryResource).toHaveBeenCalledWith({ projectId: "project-1" });
-
-    mocks.product = { ...mocks.product as WorkProduct, projectId: null };
-    await beaverCourtRecordsHost.searchLibrary!("", ["pdf"], {
-      workProductId: "record-1",
-    });
-    expect(mocks.directoryResource).toHaveBeenLastCalledWith({ library: "files" });
+  it("searches the open draft's project or Library without reloading the draft", async () => {
+    mocks.getWorkProduct.mockRejectedValue(new Error("Draft reload must not be needed"));
+    mocks.directoryResource.mockImplementation((scope) => ({ list: async () => ({
+      items: [{ kind: "document", document: { id: scope.projectId ?? "library",
+        filename: "Motion.pdf", file_type: "pdf" } }], next_cursor: null,
+    }) }));
+    await expect(beaverCourtRecordsHost.searchLibrary!("motion", ["pdf"], sourceContext("project-1")))
+      .resolves.toMatchObject([{ id: "project-1" }]);
+    await expect(beaverCourtRecordsHost.searchLibrary!("", ["pdf"], sourceContext()))
+      .resolves.toMatchObject([{ id: "library" }]);
   });
 
   it("retains and flags the slot when the child output disappears", async () => {

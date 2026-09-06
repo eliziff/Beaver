@@ -33,8 +33,8 @@ Word review continues under document capabilities.
 
 | Priority | Work | Acceptance boundary |
 | --- | --- | --- |
-| 1 | [Application boundaries](application-boundaries.md), including [storage](document-versioning.md) | Account cut complete; finish document/source ownership, typed assistant events, domain API clients and process edges. Same local/cloud operations, fewer change sites. |
-| 2 | [Shared structure](document-structure.md) | Literal ports, direct consumers, separate corpus gates and exact shipped engine identities; no parallel semantics or ingestion/query regression. |
+| 1 | [Application boundaries](application-boundaries.md), including [storage](document-versioning.md) | Account and domain API cuts complete; finish document/source ownership, typed assistant events and process edges. Same local/cloud operations, fewer change sites. |
+| 2 | [Shared structure](document-structure.md) | Preserve primary profiles and quoted-content ownership; gate compound-document boundaries separately. Literal ports, direct consumers, separate corpus gates and exact shipped engine identities; no parallel semantics or ingestion/query regression. |
 | 3 | [Document capabilities](document-capabilities.md) | Word baseline and safe handles before breadth; Library/Office.js parity, citation linking, deterministic quotation checks, then optional support review. |
 | 4 | [Legal work products](legal-work-products.md) | Complete artifact/live proof for durable Court Records/Authorities, every AB/FC/FCA profile, reference parity and receipt-based composition. |
 | 5 | [Saved research](research-sets.md) | Source reader on the left, workspace in the right dock; preserve label/passage/rule depth, thin persistence, exhaustive human/model reuse and live dock proof. |

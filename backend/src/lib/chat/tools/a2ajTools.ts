@@ -57,7 +57,7 @@ export function assistantToolActivityLabel(
     return query ? `Searching ${scope} for “${query}”` : `Searching ${scope}`;
   }
   if (name === "Read") {
-    const file = activityText(args.file_path, 80);
+    const file = typeof args.file_path === "string" ? args.file_path.trim() : "";
     if (!file || file.startsWith(".mike/")) return null;
     const resource = parseResourceReference(file);
     let title = sourceName;
@@ -70,7 +70,7 @@ export function assistantToolActivityLabel(
       }
       title ??= SOURCE_LABELS[resource.provider] ?? resource.provider;
     } else {
-      title ??= file.replace(/^.*[\\/]/u, "");
+      title ??= activityText(file.replace(/^.*[\\/]/u, ""), 80);
     }
     const pattern = activityText(args.pattern, 80);
     if (pattern) return `Searching ${title} for “${pattern}”`;

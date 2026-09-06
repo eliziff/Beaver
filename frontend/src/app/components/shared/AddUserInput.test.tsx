@@ -2,7 +2,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AddUserInput } from "./AddUserInput";
 
-vi.mock("@/app/lib/beaverApi", () => ({ lookupUserByEmail: vi.fn() }));
+vi.mock("@/app/lib/api/account", () => ({
+  lookupUserByEmail: vi.fn()
+}));
 
 describe("AddUserInput", () => {
     it("associates and announces an invalid email", () => {

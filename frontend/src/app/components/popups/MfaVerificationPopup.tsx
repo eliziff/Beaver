@@ -3,12 +3,7 @@ import {
     useState,
 } from "react";
 import { Loader2 } from "lucide-react";
-import {
-    challengeAndVerifyMfa,
-    getMfaAssurance,
-    listMfaFactors,
-    type MfaFactor,
-} from "@/app/lib/authApi";
+import { challengeAndVerifyMfa, getMfaAssurance, listMfaFactors, type MfaFactor } from "@/app/lib/api/auth";
 import { Modal } from "../modals/Modal";
 import { ModalSelect } from "../modals/ModalSelect";
 export async function needsMfaVerification() {

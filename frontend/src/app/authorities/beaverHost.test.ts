@@ -12,10 +12,36 @@ const api = vi.hoisted(() => ({
   replaceAuthoritiesSource: vi.fn(), reviewAuthorities: vi.fn(),
   resolveAuthoritiesDiscrepancy: vi.fn(), uploadAuthoritiesDocument: vi.fn(),
 }));
-vi.mock("@/app/lib/beaverApi", () => ({ ...api,
-  listWorkProducts: api.listAuthorities, getWorkProduct: api.getAuthorities,
+vi.mock("@/app/lib/api/authorities", () => ({
+  actOnAuthorities: api.actOnAuthorities,
+  attachAuthorityPdf: api.attachAuthorityPdf,
+  buildAuthorities: api.buildAuthorities,
+  attachAuthoritiesBookPdf: api.attachAuthoritiesBookPdf,
+  attachAuthoritiesLibraryPdf: api.attachAuthoritiesLibraryPdf,
+  createAuthorities: api.createAuthorities,
+  refreshAuthorities: api.refreshAuthorities,
+  prepareAuthoritiesSources: api.prepareAuthoritiesSources,
+  refreshAuthoritiesInput: api.refreshAuthoritiesInput,
+  replaceAuthoritiesSource: api.replaceAuthoritiesSource,
+  reviewAuthorities: api.reviewAuthorities,
+  resolveAuthoritiesDiscrepancy: api.resolveAuthoritiesDiscrepancy,
+  uploadAuthoritiesDocument: api.uploadAuthoritiesDocument
+}));
+vi.mock("@/app/lib/api/workProducts", () => ({
+  createWorkProduct: api.createWorkProduct,
+  deleteWorkProduct: api.deleteWorkProduct,
+  duplicateWorkProduct: api.duplicateWorkProduct,
+  getWorkProductResolution: api.getWorkProductResolution,
   listWorkProductMetadata: api.listAuthorities,
-  directoryResource: () => ({ list: vi.fn() }) }));
+  updateWorkProduct: api.updateWorkProduct,
+  listWorkProducts: api.listAuthorities,
+  getWorkProduct: api.getAuthorities
+}));
+vi.mock("@/app/lib/api/documents", () => ({
+  getDocumentParseStates: api.getDocumentParseStates,
+  downloadDocument: api.downloadDocument,
+  directoryResource: () => ({ list: vi.fn() })
+}));
 
 import { beaverAuthoritiesHost } from "./beaverHost";
 

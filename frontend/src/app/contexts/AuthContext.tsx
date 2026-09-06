@@ -9,13 +9,8 @@ import {
     type ReactNode,
 } from "react";
 import { isLocalMode } from "@/app/lib/authMode";
-import { clearApiCaches } from "@/app/lib/beaverApi";
-import {
-    getAuthSession,
-    logout,
-    updateAuthEmail,
-    type AuthUser as User,
-} from "@/app/lib/authApi";
+import { clearLegalSourceRequests } from "@/app/lib/api/legalSources";
+import { getAuthSession, logout, updateAuthEmail, type AuthUser as User } from "@/app/lib/api/auth";
 import { clearDocumentFileCache } from "@/app/hooks/useDocumentFile";
 import { clearStagedChatDocuments } from "@/app/components/assistant/assistantLaunch";
 interface AuthContextType {
@@ -41,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const cachedUserId = useRef(user?.id ?? null);
     const setAuthenticatedUser = useCallback((next: User | null) => {
         if (cachedUserId.current !== next?.id) {
-            clearApiCaches();
+            clearLegalSourceRequests();
             clearDocumentFileCache();
             clearStagedChatDocuments();
             cachedUserId.current = next?.id ?? null;

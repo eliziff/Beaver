@@ -76,12 +76,25 @@ function Format-PortOwners([int]$Port) {
     }) -join ', ')
 }
 
+function ConvertFrom-LifecycleJson([string]$Json) {
+    $state = $Json | ConvertFrom-Json
+    # JSON timestamps can become DateTime objects; string casts lose subsecond precision.
+    foreach ($record in $state.processes) {
+        foreach ($name in @('rootStartedAt', 'listenerStartedAt')) {
+            if ($record.$name -is [DateTime]) {
+                $record.$name = $record.$name.ToUniversalTime().ToString('o')
+            }
+        }
+    }
+    return $state
+}
+
 function Read-State {
     if (-not (Test-Path -LiteralPath $StateFile -PathType Leaf)) {
         return $null
     }
     try {
-        return Get-Content -LiteralPath $StateFile -Raw | ConvertFrom-Json
+        return ConvertFrom-LifecycleJson (Get-Content -LiteralPath $StateFile -Raw)
     }
     catch {
         throw "Lifecycle state is unreadable: $StateFile. $($_.Exception.Message)"
@@ -609,6 +622,11 @@ function Invoke-Smoke {
         if (-not $python) {
             throw 'Assistant dock smoke requires Python and ChromeDriver.'
         }
+        & $python.Source (Join-Path $Repo 'scripts\test-document-row-browser.py') `
+            '--url' 'http://127.0.0.1:3000/library'
+        if ($LASTEXITCODE -ne 0) {
+            throw "Document row browser smoke failed with exit code $LASTEXITCODE."
+        }
         & $python.Source (Join-Path $Repo 'scripts\test-sources-dock-browser.py') `
             '--url' 'http://127.0.0.1:3000/'
         if ($LASTEXITCODE -ne 0) {
@@ -661,6 +679,7 @@ function Invoke-SelfTest {
                 listenerStartedAt = Get-ProcessStamp $PID
             })
         }
+        $ownedState = ConvertFrom-LifecycleJson ($ownedState | ConvertTo-Json -Depth 5)
         if (-not (Test-LauncherOwnedListener $ownedState 'self-test' $port)) {
             throw 'Launcher-owned listener check rejected a matching process.'
         }

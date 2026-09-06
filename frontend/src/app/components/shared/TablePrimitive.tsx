@@ -25,7 +25,7 @@ export function SkeletonLine({ className }: { className?: string }) {
         />
     );
 }
-export function TableSelectionPlaceholder() {
+function TableSelectionPlaceholder() {
     return (
         <span
             aria-hidden="true"

@@ -1,4 +1,4 @@
-import { citationPinpoint, type Citation } from "../../shared/types";
+import { citationPinpoint, type Citation } from "@/app/lib/citations";
 
 export function citationSourceKey(annotation: Citation): string {
     if (annotation.kind === "a2aj") {

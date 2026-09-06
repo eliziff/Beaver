@@ -1,3 +1,4 @@
+import { legalSourceOperations } from "../legalSourceApplication";
 import crypto from "node:crypto";
 
 import {
@@ -13,23 +14,25 @@ import {
   hasCanadianDecisionLink,
 } from "../legalSourceLinks";
 import {
-  readLegalSourcePassage,
   type LegalSourcePassage,
   type LegalSourceReference,
-} from "../legalSourceRegistry";
+} from "../legalSources";
 import { type Tool } from "../llm";
 import { normalizeWhitespace } from "../text";
 import { jsonRecord as object } from "../value";
 import { collapseProvisionLabels } from "../provisionLabels";
+import type { LegalEvidenceReceiptEvent } from "./assistantEvents";
+import type { GroundedClaim } from "../groundedAnswer";
+import { legalSourceResource, resourceReference } from "../resourceReferences";
 
 export const LEGAL_EVIDENCE_TOOL_NAME = "submit_grounded_answer";
 export type LegalEvidenceMode = "citation_structure";
 export type LegalSourceClass = "case" | "legislation" | "commentary";
 
-export const GROUNDED_ANSWER_CONTRACT =
-  "Whenever a claim depends on retrieved evidence, attach the exact evidence_id returned for the passage that supports it and finish with submit_grounded_answer. A tool call by itself does not require grounding; ground the claims that rely on its results. Put evidence only in evidence_ids. Do not write citation markers, URLs, source links, or pinpoints yourself.";
-export const GROUNDED_CLAIM_GRANULARITY =
-  "Keep each claim as narrow as the answer reasonably allows. Ordinarily, use one independently verifiable proposition per claim and attach only the smallest responsive passage. Never rely on a broad page, paragraph range, or section when a shorter passage or native pinpoint fully supports the proposition. End a claim when its evidence changes; do not combine sentences supported by different passages.";
+const GROUNDED_ANSWER_CONTRACT =
+  "Finish evidence-dependent answers with this tool. Bind each claim to supporting passage evidence_ids. Citation chips supply source names, citations, pinpoints and links; include those details in prose only when needed for the analysis or requested by the user.";
+const GROUNDED_CLAIM_GRANULARITY =
+  "Use the smallest passage that supports the claim, with a native pinpoint when available. End a claim when its supporting evidence changes.";
 export const GROUNDED_QUOTATION_POLICY_CURRENT =
   "Prefer direct quotation when the source itself states the proposition. Quote the shortest passage that preserves the source's meaning and necessary context. Paraphrase only when combining sources, explaining their effect, or expressing the point more clearly. Keep each claim to one proposition, and attach only the evidence that supports that proposition. Split the claim when different propositions require different evidence. Avoid long quotations unless their full wording is necessary.";
 export const GROUNDED_QUOTATION_POLICY_CLASSIC =
@@ -42,7 +45,7 @@ export function selectGroundedQuotationPolicy(flag?: string) {
 export const GROUNDED_QUOTATION_POLICY = selectGroundedQuotationPolicy(
   process.env.BEAVER_GROUNDED_QUOTATION_POLICY,
 );
-export const GROUNDED_SUMMARY_POLICY =
+const GROUNDED_SUMMARY_POLICY =
   "A summary may group one to three closely connected sentences when they perform the same function and are supported by the same narrow evidence—for example, one fact cluster, issue, holding, reasoning step, or disposition. Start a new claim when the function or supporting evidence changes.";
 
 export type LegalEvidenceReceipt = {
@@ -56,6 +59,7 @@ export type LegalEvidenceReceipt = {
   source_sha256: string;
   scope: "document" | "passage";
   block_id: string;
+  span?: { start: number; end: number };
   exact_span_sha256?: string;
   span_sha256: string;
   span_text: string | null;
@@ -67,8 +71,10 @@ export type LegalEvidenceReceipt = {
   version: string | null;
   external_url: string | null;
   locator: {
-    kind: "document" | "paragraph" | "page" | "section" | "footnote";
+    kind: "document" | "paragraph" | "page" | "section" | "footnote" | "sheet" | "cell";
     label: string;
+    sheet?: string;
+    cells?: string;
   };
   resolver_version:
     | "a2aj-inline-v1"
@@ -80,15 +86,7 @@ export type LegalEvidenceReceipt = {
     | "citator-analysis-v1"
     | "citator-noteup-v1"
     | "public-journal-v1"
-    | "library-read-v1"
-    | "tabular-cell-v1";
-  tabular?: {
-    review_id: string;
-    col_index: number;
-    row_index: number;
-    col_name: string;
-    doc_name: string;
-  };
+    | "library-read-v1";
 };
 
 export function legalEvidenceSourceReference(receipt: LegalEvidenceReceipt): LegalSourceReference | null {
@@ -104,6 +102,13 @@ export function legalEvidenceSourceReference(receipt: LegalEvidenceReceipt): Leg
     collection: receipt.dataset, language: receipt.language, url: receipt.external_url } : null;
 }
 
+export function legalEvidenceResourceReference(receipt: LegalEvidenceReceipt): string | null {
+  if (receipt.provider === "library") return receipt.version
+    ? resourceReference.document(receipt.stable_source_id, receipt.version) : null;
+  const source = legalEvidenceSourceReference(receipt);
+  return source ? legalSourceResource(source) : null;
+}
+
 export type RegisteredEvidence = {
   receipt: LegalEvidenceReceipt;
   document?: A2AJCompiledDocument;
@@ -112,10 +117,7 @@ export type RegisteredEvidence = {
 
 export type PriorLegalEvidence = LegalEvidenceReceipt | RegisteredEvidence;
 
-export type GroundedLegalClaim = {
-  text: string;
-  evidence_ids: string[];
-};
+export type GroundedLegalClaim = GroundedClaim;
 
 export type LegalResearchQueryReceipt = {
   query_id: string;
@@ -203,10 +205,13 @@ function withEvidenceId(
     receipt.provider,
     receipt.stable_source_id,
     receipt.source_sha256,
+    receipt.version,
     receipt.scope,
-    receipt.block_id,
+    receipt.span ? [receipt.span.start, receipt.span.end] : receipt.block_id,
+    receipt.block_id.startsWith("pdf:") ? receipt.block_id : null,
+    receipt.locator.sheet ?? null,
+    receipt.locator.cells ?? null,
     receipt.exact_span_sha256 ?? receipt.span_sha256,
-    receipt.resolver_version,
   ]);
   return {
     evidence_id: `e_${crypto.createHash("sha256").update(identity).digest("base64url").slice(0, 18)}`,
@@ -260,6 +265,7 @@ export function createA2AJPassageEvidence(args: {
     sourceText: args.sourceText,
     sourceSha256: args.sourceSha256,
     block_id: args.blockId ?? `chars:${args.start}-${args.end}`,
+    span: { start: args.start, end: args.end },
     spanText: args.spanText,
     citation: args.citation,
     name: args.name,
@@ -272,7 +278,7 @@ export function createA2AJPassageEvidence(args: {
   });
 }
 
-type DirectSourceProvider = "courtlistener" | "tna" | "govuk-et" | "govinfo" | "hansard";
+type DirectSourceProvider = "a2aj" | "courtlistener" | "tna" | "govuk-et" | "govinfo" | "hansard";
 type DirectSourceEvidenceArgs = {
   jurisdiction: string;
   sourceClass: LegalSourceClass;
@@ -289,9 +295,10 @@ type DirectSourceEvidenceArgs = {
   externalUrl?: string | null;
   locatorKind?: LegalEvidenceReceipt["locator"]["kind"];
   locatorLabel: string;
+  span?: { start: number; end: number };
 };
 
-function createDirectSourceEvidence(
+export function createDirectSourceEvidence(
   provider: DirectSourceProvider,
   args: DirectSourceEvidenceArgs,
 ): LegalEvidenceReceipt {
@@ -312,6 +319,7 @@ function createDirectSourceEvidence(
     sourceText: args.sourceText,
     sourceSha256: args.sourceSha256,
     block_id: `${args.locatorKind ?? "section"}:${args.locatorLabel}`,
+    ...(args.span && { span: args.span }),
     spanText: args.spanText,
     citation: args.citation,
     name: args.name ?? null,
@@ -320,7 +328,7 @@ function createDirectSourceEvidence(
     version: args.version ?? null,
     external_url: args.externalUrl ?? null,
     locator: { kind: args.locatorKind ?? "section", label: args.locatorLabel },
-    resolver_version: `${provider}-span-v1`,
+    resolver_version: provider === "a2aj" ? "a2aj-inline-v1" : `${provider}-span-v1`,
   });
 }
 
@@ -328,9 +336,9 @@ const createCourtlistenerEvidence = (args: DirectSourceEvidenceArgs) =>
   createDirectSourceEvidence("courtlistener", args);
 export const createTnaEvidence = (args: DirectSourceEvidenceArgs) =>
   createDirectSourceEvidence("tna", args);
-export const createGovUkEmploymentTribunalEvidence = (args: DirectSourceEvidenceArgs) =>
+const createGovUkEmploymentTribunalEvidence = (args: DirectSourceEvidenceArgs) =>
   createDirectSourceEvidence("govuk-et", args);
-export const createGovInfoEvidence = (args: DirectSourceEvidenceArgs) =>
+const createGovInfoEvidence = (args: DirectSourceEvidenceArgs) =>
   createDirectSourceEvidence("govinfo", args);
 const createHansardEvidence = (args: DirectSourceEvidenceArgs) =>
   createDirectSourceEvidence("hansard", args);
@@ -345,10 +353,7 @@ export function createLibraryEvidence(args: {
   start: number;
   end: number;
   blockId?: string;
-  locator?: {
-    kind: "paragraph" | "page" | "section" | "footnote";
-    label: string;
-  };
+  locator?: LegalEvidenceReceipt["locator"];
 }): LegalEvidenceReceipt {
   return passageEvidence({
     provider: "library",
@@ -358,6 +363,7 @@ export function createLibraryEvidence(args: {
     sourceText: args.sourceText,
     sourceSha256: args.sourceSha256,
     block_id: args.blockId ?? `chars:${args.start}-${args.end}`,
+    span: { start: args.start, end: args.end },
     spanText: args.spanText,
     citation: args.filename,
     name: args.filename,
@@ -367,41 +373,6 @@ export function createLibraryEvidence(args: {
     external_url: null,
     locator: args.locator ?? { kind: "document", label: "document" },
     resolver_version: "library-read-v1",
-  });
-}
-
-export function createTabularEvidence(args: {
-  reviewId: string;
-  documentId: string;
-  documentName: string;
-  columnId: number;
-  columnName: string;
-  columnIndex: number;
-  rowIndex: number;
-  text: string;
-}): LegalEvidenceReceipt {
-  return passageEvidence({
-    provider: "library",
-    jurisdiction: "matter",
-    source_class: "commentary",
-    stable_source_id: `tabular:${args.reviewId}:${args.documentId}:${args.columnId}`,
-    sourceText: args.text,
-    block_id: `cell:${args.rowIndex}:${args.columnIndex}`,
-    citation: `${args.columnName} · ${args.documentName}`,
-    name: args.documentName,
-    dataset: "tabular-review",
-    language: "en",
-    version: null,
-    external_url: null,
-    locator: { kind: "document", label: "cell" },
-    resolver_version: "tabular-cell-v1",
-    tabular: {
-      review_id: args.reviewId,
-      col_index: args.columnIndex,
-      row_index: args.rowIndex,
-      col_name: args.columnName,
-      doc_name: args.documentName,
-    },
   });
 }
 
@@ -419,6 +390,7 @@ export function attestedPassageReceipt(args: {
     journalName?: string | null;
     sourceArticleId: string | null;
     citingUrl?: string | null;
+    language?: "en" | "fr";
   };
 }): LegalEvidenceReceipt {
   const journal = args.passage.sourceKind === "commentary";
@@ -442,7 +414,7 @@ export function attestedPassageReceipt(args: {
     target_citation: args.citedCitation,
     name: args.passage.citingName ?? args.passage.journalName ?? null,
     dataset: journal ? "journal-commentary" : "citator",
-    language: "en",
+    language: args.passage.language ?? "en",
     version: args.passage.citingDate,
     external_url: args.passage.citingUrl ?? null,
     locator,
@@ -457,6 +429,7 @@ export function citatorNoteUpReceipt(args: {
     name: string | null;
     court: string | null;
     date: string | null;
+    language?: "en" | "fr";
     url: string | null;
     paragraph: number | null;
     excerpt: string;
@@ -473,7 +446,7 @@ export function citatorNoteUpReceipt(args: {
     citation: args.entry.citation ?? args.citedCitation,
     name: args.entry.name,
     dataset: "citator",
-    language: "en",
+    language: args.entry.language ?? "en",
     version: args.entry.date,
     external_url: args.entry.url,
     locator: {
@@ -497,6 +470,7 @@ function createJournalEvidence(args: {
   language?: "en" | "fr";
   locatorKind: LegalEvidenceReceipt["locator"]["kind"];
   locatorLabel: string;
+  span?: { start: number; end: number };
 }): LegalEvidenceReceipt {
   return passageEvidence({
     provider: "journal",
@@ -507,6 +481,7 @@ function createJournalEvidence(args: {
     sourceText: args.text,
     sourceSha256: args.sourceSha256,
     block_id: `article:${args.articleId}:${args.locatorKind}:${args.locatorLabel}`,
+    ...(args.span && { span: args.span }),
     citation: args.citation,
     name: args.name,
     dataset: args.collection ?? "journal",
@@ -531,15 +506,17 @@ export type LegalEvidenceSpan = { text: string; start: number; end: number;
 
 export function legalSourceEvidence(passage: LegalSourcePassage,
   span?: LegalEvidenceSpan): LegalEvidenceReceipt | undefined {
+  const block = passage.blockArtifact;
+  span ??= block ? { text: block.text, start: block.start, end: block.end,
+    blockId: `${block.kind}:${block.label}:${block.start}:${block.end}`,
+    ...(["paragraph", "page", "section", "footnote"].includes(block.kind)
+      ? { locator: { kind: block.kind as LegalEvidenceReceipt["locator"]["kind"],
+        label: block.label } } : {}) } : undefined;
   if (passage.source.provider === "a2aj") {
-    const native = object(passage.native), block = passage.blockArtifact;
+    const native = object(passage.native);
     if (typeof native?.citation === "string" && typeof native.dataset === "string" &&
         (native.language === "en" || native.language === "fr")) {
-      const selected = span ?? (block ? { text: block.text, start: block.start, end: block.end,
-        blockId: `${block.kind}:${block.label}:${block.start}:${block.end}`,
-        ...(["paragraph", "page", "section", "footnote"].includes(block.kind)
-          ? { locator: { kind: block.kind as LegalEvidenceReceipt["locator"]["kind"],
-            label: block.label } } : {}) } : null);
+      const selected = span;
       return selected ? createA2AJPassageEvidence({ citation: native.citation,
         name: typeof native.name === "string" ? native.name : null, dataset: native.dataset,
         language: native.language,
@@ -556,6 +533,7 @@ export function legalSourceEvidence(passage: LegalSourcePassage,
     citation: passage.source.citation ?? passage.source.id, name: passage.source.title ?? null,
     date: passage.source.date ?? null, url: passage.source.url ?? null,
     text: span?.text ?? passage.text,
+    ...(span && { span: { start: span.start, end: span.end } }),
     sourceSha256: structureNative().documentRevision(passage.documentArtifact),
     articleId: passage.source.id, family: passage.source.family,
     collection: passage.source.collection,
@@ -576,6 +554,7 @@ export function legalSourceEvidence(passage: LegalSourcePassage,
     stableSourceId: [passage.source.id, passage.source.part ?? ""].join(":"),
     sourceReference: passage.source,
     sourceSha256: structureNative().documentRevision(passage.documentArtifact),
+    ...(span && { span: { start: span.start, end: span.end } }),
     spanText: span?.text ?? passage.text, citation: passage.source.citation ?? passage.source.id,
     name: passage.source.title, dataset: passage.source.collection ?? passage.source.provider,
     language: passage.source.language, version: passage.source.date, externalUrl: passage.source.url,
@@ -725,7 +704,7 @@ export async function restorePriorLegalEvidence(
   const restoreSource = (receipt: LegalEvidenceReceipt) => {
     const providerSource = legalEvidenceSourceReference(receipt);
     if (receipt.provider !== "a2aj" && !providerSource) {
-      return Promise.resolve(null);
+      return sources.get(sourceKey(receipt)) ?? Promise.resolve(null);
     }
     const key = sourceKey(receipt);
     let pending = sources.get(key);
@@ -747,7 +726,7 @@ export async function restorePriorLegalEvidence(
               : null;
           }
           if (!providerSource) return null;
-          const read = await readLegalSourcePassage({
+          const read = await legalSourceOperations.readPassage({
             source: providerSource,
             signal,
           });
@@ -772,8 +751,11 @@ export async function restorePriorLegalEvidence(
     if (verifySpans) {
       const span = receipt.span_text, native = restored?.document?.native ?? restored?.source;
       const normalized = span && normalizeWhitespace(span);
-      if (!span || !native || receipt.exact_span_sha256 && sha256(span) !== receipt.exact_span_sha256 ||
+      if (!span || !native || structureNative().documentRevision(native) !== receipt.source_sha256 ||
+          receipt.exact_span_sha256 && sha256(span) !== receipt.exact_span_sha256 ||
           sha256(normalized!) !== receipt.span_sha256 ||
+          receipt.span && !receipt.block_id.startsWith("pdf:") &&
+            structureNative().documentText(native).slice(receipt.span.start, receipt.span.end) !== span ||
           !normalizeWhitespace(structureNative().documentText(native)).includes(normalized!)) return null;
     }
     return { receipt, ...(restored ?? {}) };
@@ -849,9 +831,11 @@ function stripCitationHandleMarkers(text: string): string {
   return text.replace(/\s*\[@[^\][\n]{1,80}\]/gu, "");
 }
 
-function parseClaims(value: unknown, state: LegalEvidenceTurnState) {
-  if (!Array.isArray(value) || value.length < 1 || value.length > 64)
-    return { claims: null, errors: ["claims must contain 1 to 64 items"] };
+export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnState,
+  limits: { maxClaims?: number; maxTextLength?: number } = {}) {
+  if (!Array.isArray(value) || !value.length || value.length > (limits.maxClaims ?? Infinity))
+    return { claims: null, errors: [limits.maxClaims
+      ? `claims must contain 1 to ${limits.maxClaims} items` : "claims must contain at least one item"] };
   const claims: GroundedLegalClaim[] = [];
   const errors: string[] = [];
   value.forEach((value, index) => {
@@ -865,7 +849,8 @@ function parseClaims(value: unknown, state: LegalEvidenceTurnState) {
       : [];
     if (!row || Object.keys(row).some((key) => !["text", "evidence_ids"].includes(key)))
       errors.push(`claims[${index}] has unknown fields`);
-    if (!text || text.length > 1_200) errors.push(`claims[${index}].text is invalid`);
+    if (!text || text.length > (limits.maxTextLength ?? Infinity))
+      errors.push(`claims[${index}].text is invalid`);
     if (!ids.length || ids.length > 4 || ids.length !== (Array.isArray(rawIds) ? rawIds.length : 0) || new Set(ids).size !== ids.length)
       errors.push(`claims[${index}].evidence_ids must contain 1 to 4 unique handles`);
     if (ids.length > 1 && /\p{Ll}{4,}[.!?]["')\]]*\s+\p{Lu}/u.test(text))
@@ -875,9 +860,13 @@ function parseClaims(value: unknown, state: LegalEvidenceTurnState) {
       if (!receipt) errors.push(`claims[${index}] has unknown evidence_id: ${id}`);
       else if (receipt.scope !== "passage") errors.push(`claims[${index}] requires passage evidence for ${id}`);
       else if (!receipt.span_text) errors.push(`claims[${index}] requires exact passage text for ${id}`);
+      else if (!readPriorLegalEvidence(state, id)) errors.push(`claims[${index}] has damaged passage evidence: ${id}`);
     }
     claims.push({ text, evidence_ids: ids });
   });
+  if (!errors.length) for (const [index, claim] of claims.entries())
+    errors.push(...legalEvidenceProseIntegrityErrors(claim.text, claim.evidence_ids, state)
+      .map((error) => `claims[${index}] ${error}`));
   return { claims, errors };
 }
 
@@ -907,13 +896,9 @@ export function submitLegalEvidenceAnswer(
   state.attempted = true;
   if (Object.keys(args).some((key) => key !== "claims"))
     return { ok: false, errors: ["answer has unknown fields"] };
-  const { claims, errors } = parseClaims(args.claims, state);
+  const { claims, errors } = validateGroundedClaims(args.claims, state,
+    { maxClaims: 64, maxTextLength: 1_200 });
   if (!claims || errors.length) return { ok: false, errors: errors.slice(0, 12) };
-  const integrityErrors = claims.flatMap((claim, index) =>
-    legalEvidenceProseIntegrityErrors(claim.text, claim.evidence_ids, state)
-      .map((error) => `claims[${index}] ${error}`),
-  );
-  if (integrityErrors.length) return { ok: false, errors: integrityErrors.slice(0, 12) };
   state.answer = claims;
   state.failure = null;
   return { ok: true, terminal: true };
@@ -926,14 +911,14 @@ const claimSchema = {
     text: {
       type: "string",
       maxLength: 1_200,
-      description: `${GROUNDED_QUOTATION_POLICY} ${GROUNDED_CLAIM_GRANULARITY} ${GROUNDED_SUMMARY_POLICY}`,
+      description: "Answer segment in Markdown. For tables, use one claim per data row with leading and trailing pipes; include the header and separator in the first claim. Choose substantive columns; citation chips identify the sources in the final cell.",
     },
     evidence_ids: {
       type: "array",
       minItems: 1,
       maxItems: 4,
       items: { type: "string" },
-      description: "The smallest returned passage or passages that support this proposition. Prefer one evidence_id and one native pinpoint. Use several only when their narrow passages jointly support this same proposition; never use a broad span when a shorter passage fully supports it.",
+      description: "Returned passage IDs supporting this claim. Prefer one; use several when they jointly support the proposition.",
     },
   },
   required: ["text", "evidence_ids"],
@@ -992,11 +977,22 @@ export function renderLegalEvidenceAnswer(state: LegalEvidenceTurnState): string
   for (const group of legalEvidenceCitationGroups(state))
     for (const entry of group.members)
       refs.set(entry.receipt.evidence_id, group.ref);
-  return state.answer.map((claim) => {
+  return state.answer.map((claim, index) => {
     const markers = [...new Set(claim.evidence_ids.flatMap((id) =>
       refs.has(id) ? [`[${refs.get(id)}]`] : []))];
-    return `${claim.text}${markers.length ? ` ${markers.join("")}` : ""}`;
-  }).join("\n\n");
+    const table = claim.text.startsWith("|") && claim.text.endsWith("|");
+    const citations = markers.join("");
+    const text = table
+      ? `${claim.text.slice(0, -1).trimEnd()} ${citations} |`
+      : `${claim.text}${citations ? ` ${citations}` : ""}`;
+    const separator = index === 0 ? "" : table && state.answer![index - 1].text.endsWith("|") ? "\n" : "\n\n";
+    return separator + text;
+  }).join("");
+}
+
+export function modelResearchQuery({ call_id: _call, model: _model, executor_version: _executor,
+  sourceFingerprints: _fingerprints, ...query }: LegalResearchQueryReceipt & { sourceFingerprints?: unknown }) {
+  return query;
 }
 
 type CitationEntry = RegisteredEvidence & { ref: number };
@@ -1009,10 +1005,6 @@ export type LegalEvidenceCitationGroup = {
 function citationSourceKey({ receipt }: RegisteredEvidence) {
   if (receipt.provider === "library") {
     return [receipt.provider, receipt.stable_source_id, receipt.version].join("\u0000");
-  }
-  if (receipt.tabular) {
-    return ["tabular", receipt.tabular.review_id, receipt.tabular.col_index,
-      receipt.tabular.row_index].join("\u0000");
   }
   return [receipt.provider, receipt.citation, receipt.name, receipt.dataset,
     receipt.source_class].join("\u0000");
@@ -1072,29 +1064,6 @@ export function legalEvidenceCitationEntries(
   return entries;
 }
 
-export type LegalEvidenceReceiptEvent = {
-  type: "legal_evidence_receipt";
-  schema_version: 7;
-  mode: LegalEvidenceMode | null;
-  status: "passed" | "failed";
-  verification: {
-    reference: "verified";
-    answerability: "not_run";
-    holistic: "not_run";
-    semantic: "not_run";
-    coverage: "not_run";
-    authority: "not_run";
-  };
-  claims: Array<GroundedLegalClaim & {
-    text_sha256: string;
-    context_status: "not_run";
-    evidence_status: "not_run";
-  }>;
-  evidence: LegalEvidenceReceipt[];
-  queries: LegalResearchQueryReceipt[];
-  bounces: [];
-  failure: string | null;
-};
 
 export function legalEvidenceReceiptEvent(
   state: LegalEvidenceTurnState,

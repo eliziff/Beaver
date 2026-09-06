@@ -4,7 +4,7 @@ import {
   relinkStandaloneFile, resolveStandaloneFile, retainStandaloneFile, saveStandaloneArtifacts,
   standaloneWorkProducts, writeStandaloneArtifactsToOutputFolder,
 } from "@/app/lib/standaloneWorkProducts";
-import { apiResponse } from "@/app/lib/apiTransport";
+import { apiResponse } from "@/app/lib/api/client";
 import type { WorkProductInput } from "@/app/lib/workProducts";
 import type { AuthoritiesAction, AuthoritiesDraft, AttachedAuthoritySource,
   AuthoritySourceLanguage } from "./types";

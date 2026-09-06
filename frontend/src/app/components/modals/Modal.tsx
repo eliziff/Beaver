@@ -15,10 +15,12 @@ type ModalAction = Omit<
 interface ModalProps {
     open: boolean;
     onClose: () => void;
+    onEscape?: () => void;
     children: ReactNode;
     role?: "dialog" | "alertdialog";
     breadcrumbs?: ReactNode[];
     headerAction?: ReactNode;
+    headerStart?: ReactNode;
     size?: ModalSize;
     className?: string;
     footerStatus?: ReactNode;
@@ -37,10 +39,12 @@ const sizeClassName: Record<ModalSize, string> = {
 export function Modal({
     open,
     onClose,
+    onEscape = onClose,
     children,
     role,
     breadcrumbs,
     headerAction,
+    headerStart,
     size = "lg",
     className,
     footerStatus,
@@ -50,6 +54,7 @@ export function Modal({
     keepMounted = false,
 }: ModalProps) {
     const dialogRef = useRef<HTMLDialogElement>(null);
+    const pointerStartedOnBackdrop = useRef(false);
     const openerRef = useRef<HTMLElement | null>(null);
     const wasOpenRef = useRef(false);
     if (open && !wasOpenRef.current) {
@@ -94,15 +99,19 @@ export function Modal({
             data-shortcut-close
             onCancel={(event) => {
                 event.preventDefault();
-                onClose();
+                onEscape();
             }}
             onKeyDown={(event) => {
                 if (event.defaultPrevented || event.key !== "Escape") return;
                 event.preventDefault();
-                onClose();
+                onEscape();
+            }}
+            onPointerDownCapture={(event) => {
+                pointerStartedOnBackdrop.current = event.target === event.currentTarget;
             }}
             onClick={(event) => {
-                if (event.target === event.currentTarget) onClose();
+                if (pointerStartedOnBackdrop.current && event.target === event.currentTarget) onClose();
+                pointerStartedOnBackdrop.current = false;
             }}
             className={cn(
                 "m-auto h-[min(600px,calc(100dvh-2rem))] w-[calc(100%-2rem)] flex-col overflow-hidden rounded-lg p-0 backdrop:bg-gray-950/20",
@@ -114,8 +123,9 @@ export function Modal({
         >
                 {hasHeader && (
                     <div className="flex shrink-0 items-center justify-between gap-3 p-4 pl-5">
+                        {headerStart}
                         <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
-                            <div className="flex min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden text-sm leading-5 text-gray-400">
+                            <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-hidden text-sm leading-5 text-gray-400">
                                 {breadcrumbs?.map((segment, index) => (
                                     <span
                                         key={index}
@@ -123,7 +133,7 @@ export function Modal({
                                             "min-w-0 items-center gap-1.5",
                                             index < breadcrumbCount - 1
                                                 ? "hidden sm:flex" : "flex",
-                                            index === 0 && breadcrumbCount === 1 && "shrink-0",
+                                            index === breadcrumbCount - 1 && "flex-1",
                                         )}
                                     >
                                         {index > 0 && <span className="hidden sm:inline">›</span>}
@@ -134,9 +144,9 @@ export function Modal({
                                                     : undefined
                                             }
                                             className={cn(
-                                                "truncate",
+                                                "min-w-0 flex-1 truncate",
                                                 index === breadcrumbCount - 1 &&
-                                                    "font-medium text-gray-900",
+                                                    "text-lg font-semibold leading-6 text-gray-900",
                                             )}
                                         >
                                             {segment}
@@ -157,7 +167,7 @@ export function Modal({
                         </Button>
                     </div>
                 )}
-                <div className="modal-scroll-body flex min-h-0 flex-1 flex-col overflow-y-auto px-5 [scrollbar-gutter:stable]">
+                <div className="modal-scroll-body flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-1 [scrollbar-gutter:stable]">
                     {children}
                 </div>
                 {hasFooter && (

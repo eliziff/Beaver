@@ -5,7 +5,7 @@ import { Input } from "@/app/components/ui/input";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useMfaAction } from "@/app/components/account/useMfaAction";
 import { isLocalMode } from "@/app/lib/authMode";
-import type { ApiKeyProvider, ApiKeyState } from "@/app/lib/beaverApi";
+import type { ApiKeyProvider, ApiKeyState } from "@/app/lib/api/account";
 import {
     accountGlassIconButtonClassName,
     accountGlassInputClassName,

@@ -1,13 +1,25 @@
 import { type Dispatch, type DragEvent, type ReactNode, type SetStateAction,
     useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
-import { AlertCircle, ChevronDown, ChevronRight, Eye, Loader2 }
+import { AlertCircle, TriangleAlert, ChevronDown, ChevronRight, Eye, Loader2 }
     from "lucide-react";
-import { checkpointDocumentVersion, compareDocumentVersions, deleteDocument, downloadDocumentsZip,
-    downloadDocument, listDirectoryDocuments, listDocumentVersions, restoreDocumentVersion, uploadDocumentVersion,
-    type DocumentVersion } from "@/app/lib/beaverApi";
+import {
+  checkpointDocumentVersion,
+  compareDocumentVersions,
+  deleteDocument,
+  downloadDocumentsZip,
+  downloadDocument,
+  listDirectoryDocuments,
+  listDocumentVersions,
+  restoreDocumentVersion,
+  uploadDocumentVersion,
+  type DocumentVersion,
+  type Document,
+  type Folder as ProjectFolder,
+  type LibraryFolder,
+} from "@/app/lib/api/documents";
 import { downloadBlob } from "@/app/lib/download";
-import type { Document, Folder as ProjectFolder, LibraryFolder }
-    from "@/app/components/shared/types";
+
+import { InlineNameInput } from "@/app/components/shared/InlineNameInput";
 import { RowActions } from "@/app/components/shared/RowActions";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { FolderBrowser, type FolderList } from "@/app/components/shared/FolderBrowser";
@@ -15,8 +27,7 @@ import { FileTypeIcon } from "@/app/components/shared/FileTypeIcon";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
-import { filenameExtensionChangeWarning, hasFilenameExtensionChange }
-    from "@/app/lib/documentFilename";
+import { filenameExtensionChangeWarning, hasFilenameExtensionChange } from "@/app/lib/documentFilename";
 import { formatUnsupportedDocumentWarning, partitionSupportedDocumentFiles,
     SUPPORTED_DOCUMENT_ACCEPT } from "@/app/lib/documentUploadValidation";
 import { DOC_NAME_COL_W, treeNameCellStyle }
@@ -75,27 +86,6 @@ function prewarmDocumentView(doc: Document) {
         void getPdfJs().catch(() => undefined);
     }
 }
-type InlineNameInputProps = {
-    kind: "document" | "folder" | "new-folder";
-    value?: string; onCommit: (value: string) => void; onCancel: () => void;
-};
-function InlineNameInput({ kind, value, onCommit, onCancel }: InlineNameInputProps) {
-    const blockRow = kind !== "new-folder";
-    return <input autoFocus defaultValue={value}
-        className={kind === "folder"
-            ? "flex-1 min-w-0 text-sm text-gray-800 bg-transparent outline-none"
-            : "min-w-0 flex-1 text-sm text-gray-800 bg-transparent outline-none border-b border-gray-300"}
-        placeholder={kind === "new-folder" ? "Folder name" : undefined}
-        onClick={blockRow ? (event) => event.stopPropagation() : undefined}
-        onDragStart={blockRow ? (event) => {
-            event.preventDefault(); event.stopPropagation();
-        } : undefined}
-        onKeyDown={(event) => {
-            if (event.key === "Enter") onCommit(event.currentTarget.value);
-            if (event.key === "Escape") onCancel();
-        }}
-        onBlur={(event) => onCommit(event.currentTarget.value)} />;
-}
 /**
  * Structural-parse lifecycle chip beside the filename. Nothing for docs
  * without a parse lane (non-PDF, cloud) or a clean ready parse; flat text
@@ -122,8 +112,10 @@ function ParseStateChip({ doc, onRetry }: { doc: Document; onRetry?: () => void 
             title={state.phase === "ocr"
                 ? "OCR completed, but some document structure may be uncertain"
                 : "Parsed with reduced structure; flat text remains available"}
-            className="ml-2 inline-flex shrink-0 items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
-            {label}</span>;
+            aria-label={label}
+            className="ml-2 hidden shrink-0 items-center gap-1 rounded-full bg-amber-50 p-1 text-xs text-amber-700 @min-[14rem]/document-name:inline-flex @min-[28rem]/document-name:px-2">
+            <TriangleAlert aria-hidden="true" className="size-3.5" />
+            <span className="hidden @min-[28rem]/document-name:inline">{label}</span></span>;
     }
     if (state.status === "failed" || state.status === "cancelled") {
         const label = state.status === "cancelled" ? "Processing cancelled" : "Parse failed";
@@ -833,7 +825,7 @@ export function DocTable({
     }) {
         return (
             <div key={key} className={DOCUMENT_ROW_CLASS}>
-                <div className={`${DOC_NAME_COL_W} py-2 pl-4 pr-2`}
+                <div className={`${DOC_NAME_COL_W} @container/document-name py-2 pl-4 pr-2`}
                     style={treeNameCellStyle(depth)}>
                     <div className="flex items-center">
                         <Loader2 className="mr-4 h-2.5 w-2.5 animate-spin text-gray-400 shrink-0" />
@@ -938,7 +930,7 @@ export function DocTable({
                     if (row.kind === "more") return (
                         <div key={`more-${row.parentId ?? "root"}`}
                             className={DOCUMENT_ROW_CLASS}>
-                            <div className={`${DOC_NAME_COL_W} py-2 pl-4 pr-2`}
+                            <div className={`${DOC_NAME_COL_W} @container/document-name py-2 pl-4 pr-2`}
                                 style={treeNameCellStyle(row.depth)}>
                                 <Button variant="outline" size="compact"
                                     disabled={loadingParents.has(row.parentId)}
@@ -954,7 +946,7 @@ export function DocTable({
                             key={`new-folder-${row.parentId ?? "root"}`}
                             data-tree-drop-folder={row.parentId ?? ""}
                             className={DOCUMENT_ROW_CLASS}>
-                            <div className={`${DOC_NAME_COL_W} py-2 pl-4 pr-2`}
+                            <div className={`${DOC_NAME_COL_W} @container/document-name py-2 pl-4 pr-2`}
                                 style={treeNameCellStyle(row.depth)}>
                                 <div className="flex items-center">
                                     <span className="mr-4 flex h-2.5 w-2.5 shrink-0 items-center justify-center">
@@ -990,7 +982,7 @@ export function DocTable({
                                 draggable={!isRenaming}
                                 onDragStart={(event) => handleFolderDragStart(event, folder.id)}
                                 className={`${DOCUMENT_ROW_CLASS} ${isRenaming ? "" : "select-none"} ${isDragOver ? "bg-red-50 ring-1 ring-inset ring-red-200" : `bg-app-surface ${APP_SURFACE_HOVER_CLASS}`}`}>
-                                <div className={`${DOC_NAME_COL_W} py-2 pl-4 pr-2`}
+                                <div className={`${DOC_NAME_COL_W} @container/document-name py-2 pl-4 pr-2`}
                                     style={treeNameCellStyle(row.depth)}>
                                     {isRenaming ? <div className="flex items-center">
                                         {folderPrefix}<InlineNameInput kind="folder"
@@ -1063,7 +1055,7 @@ export function DocTable({
                             role={selectionFirst ? "row" : undefined}
                             aria-selected={selectionFirst ? isSelected : undefined}
                             className={`${DOCUMENT_ROW_CLASS} cursor-pointer ${selectionFirst ? "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600" : ""} ${isVersionDragOver ? "bg-red-50 ring-1 ring-inset ring-red-200" : isSelected ? APP_SURFACE_ACTIVE_CLASS : `bg-app-surface ${APP_SURFACE_HOVER_CLASS}`}`}>
-                            <div className={`${DOC_NAME_COL_W} py-2 pl-4 pr-2`}
+                            <div className={`${DOC_NAME_COL_W} @container/document-name py-2 pl-4 pr-2`}
                                 style={treeNameCellStyle(row.depth)}>
                                 <div className="flex items-center">
                                     {isProcessing || isUploadingVersion ? (
@@ -1113,9 +1105,9 @@ export function DocTable({
                                             }}
                                             onPointerEnter={prewarm}
                                             onFocus={prewarm}
-                                            className="ml-2 h-8 min-w-14 shrink-0 px-3 disabled:invisible max-[30rem]:min-w-8 max-[30rem]:px-0">
-                                            <Eye className="hidden max-[30rem]:block" aria-hidden="true" />
-                                            <span className="max-[30rem]:sr-only">View</span>
+                                            className="ml-2 h-8 min-w-14 shrink-0 px-3 disabled:invisible @max-[16rem]/document-name:min-w-8 @max-[16rem]/document-name:px-0">
+                                            <Eye className="hidden @max-[16rem]/document-name:block" aria-hidden="true" />
+                                            <span className="@max-[16rem]/document-name:sr-only">View</span>
                                         </Button>
                                     )}
                                 </div>
@@ -1196,10 +1188,6 @@ export function DocTable({
             documents: selectedDocIds
                 .map((id) => docsById.get(id))
                 .filter((document): document is Document => !!document),
-            onWorkflowDocumentChanged: async () => {
-                if (selectedDocIds.length === 1)
-                    await selectionHandlers.current.refreshDocumentVersionState(selectedDocIds[0]);
-            },
             onDownload: () => selectionHandlers.current.handleDownloadSelectedDocs(),
             onMove: () => set("pendingMove", { documentIds: selectedDocIds }),
             onRemove: () => selectionHandlers.current.requestDeleteSelectedDocs(),
@@ -1306,7 +1294,6 @@ export function DocTable({
                     onAssistantSelect={onAssistantWorkflowSelect
                         ? (selection, selected) => onAssistantWorkflowSelect(selection, selected as Document[])
                         : undefined}
-                    onDocumentChanged={() => refreshCollection()}
                     onLaunched={() => set("folderWorkflowDocuments", null)}
                     className="pb-4" />
             </Modal>

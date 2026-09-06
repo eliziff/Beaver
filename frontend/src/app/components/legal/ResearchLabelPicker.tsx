@@ -46,7 +46,7 @@ export function ResearchLabelPicker({ file, kind, itemId, sourceId, labelIds, no
         badge, badgeColor, note, title, prepare, anchor }); }}
       aria-label={`Label ${title}${labelNames.length ? `: ${labelNames.join(", ")}` : ""}`}
       title={[...labelNames, badge?.trim()].filter(Boolean).join(" · ") || "Add labels and note"}
-      className="inline-flex min-h-6 shrink-0 items-center justify-center gap-1 rounded-md text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:opacity-40">
+      className="inline-flex min-h-6 min-w-0 max-w-full shrink-0 items-center justify-self-start justify-center gap-1 rounded-md text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:opacity-40">
       <ResearchLabelCircle labels={file?.state.labels ?? {}} labelIds={previewLabelIds} size={size ?? (kind === "source" ? "md" : "sm")} />
       {visibleBadge && <span className="max-w-24 truncate rounded px-1.5 py-0.5 text-xs leading-4 text-white"
         style={{ backgroundColor: badgeColor ?? "#666666" }}>
@@ -89,8 +89,7 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
     Object.values(labels).filter((label) => label.scope === scope).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
       .forEach((label) => { const values = map.get(label.parentId) ?? []; values.push(label); map.set(label.parentId, values); });
     return map; }, [labels, scope]);
-  const roots = tree.get(null) ?? [], level1 = path[0] ? tree.get(path[0].id) ?? [] : [],
-    level2 = path[1] ? tree.get(path[1].id) ?? [] : [];
+  const roots = tree.get(null) ?? [];
   const multipleRoots = roots.length > 1;
   const visible = (items: ResearchLabel[]): ResearchLabel[] => !search ? items : items.filter((label) =>
     label.name.toLowerCase().includes(search.toLowerCase()) || visible(tree.get(label.id) ?? []).length);
@@ -242,14 +241,12 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
         {visible(roots).map(({ id }) => <Dot key={id} file={file} id={id}
           active={path[0]?.id === id} onClick={() => choose(id)} />)}
       </div>
-      {!!level1.length && <div className="ms-3 flex min-w-0 flex-wrap gap-1 border-s-2 border-gray-100 ps-2">
-        {visible(level1).map(({ id }) => <Dot key={id} file={file} id={id}
-          active={path[1]?.id === id} onClick={() => choose(id)} />)}
-      </div>}
-      {!!level2.length && <div className="ms-6 flex min-w-0 flex-wrap gap-1 border-s-2 border-gray-100 ps-2">
-        {visible(level2).map(({ id }) => <Dot key={id} file={file} id={id}
-          active={path[2]?.id === id} onClick={() => choose(id)} />)}
-      </div>}
+      {path.map((parent, index) => { const children = visible(tree.get(parent.id) ?? []);
+        return !!children.length && <div key={parent.id} style={{ marginInlineStart: (index + 1) * 12 }}
+          className="flex min-w-0 flex-wrap gap-1 border-s-2 border-gray-100 ps-2">
+          {children.map(({ id }) => <Dot key={id} file={file} id={id}
+            active={path[index + 1]?.id === id} onClick={() => choose(id)} />)}
+        </div>; })}
     </div>}
     {target.kind === "source" && <div className="mt-2 grid gap-1 text-sm font-medium text-gray-700">
       <label htmlFor="research-badge">Badge</label>

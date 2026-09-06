@@ -45,7 +45,7 @@ describe("CourtRecordSetup parties", () => {
     const user = userEvent.setup();
     render(<Setup />);
 
-    expect(screen.getByText("Add parties").closest("details")).toHaveAttribute("open");
+    expect(screen.getByRole("combobox", { name: /Style of cause/ })).toBeVisible();
     expect(screen.queryByLabelText(/Application under/u)).not.toBeInTheDocument();
     const required = screen.getByRole("textbox", { name: "Court file number" });
     const optional = screen.getByRole("textbox", { name: "Fax" });
@@ -78,7 +78,7 @@ describe("CourtRecordSetup parties", () => {
     expect(screen.queryByText(/First party|Second party/u)).not.toBeInTheDocument();
   });
 
-  it("keeps a complete style of cause compact until the user opens it", async () => {
+  it("keeps completed party fields visible for review", async () => {
     const user = userEvent.setup();
     render(<CourtRecordSetup
       profile={COURT_PROFILE_BY_ID.get("fc-motion-record-moving")!}
@@ -89,11 +89,7 @@ describe("CourtRecordSetup parties", () => {
       missingFields={new Set()} heading="Case details" onCover={() => undefined}
     />);
 
-    const details = screen.getByText("Applicant: Ada North · Respondent: River South")
-      .closest("details")!;
-    expect(details).not.toHaveAttribute("open");
-    await user.click(details.querySelector("summary")!);
-    expect(details).toHaveAttribute("open");
+    expect(screen.getByRole("textbox", { name: "Applicant 1" })).toHaveValue("Ada North");
     expect(screen.getByRole("region", { name: /^Applicant/u })).toBeVisible();
   });
 
@@ -113,14 +109,12 @@ describe("CourtRecordSetup parties", () => {
   it("keeps separate AP-5 contacts on each non-filing party", async () => {
     const user = userEvent.setup();
     render(<Ap5Setup />);
-    await user.click(screen.getByText(/Appellant: Ada North/u).closest("summary")!);
-    const respondent = screen.getByText("Contact for River South").closest("details")!;
-    const intervener = screen.getByText("Contact for Justice Centre").closest("details")!;
-    await user.click(within(respondent).getByText("Contact for River South"));
+    const respondent = screen.getByText("Contact for River South").closest("fieldset")!;
+    const intervener = screen.getByText("Contact for Justice Centre").closest("fieldset")!;
+    expect(within(respondent).getByRole("textbox", { name: "Lawyer or filing person for River South" })).toBeVisible();
     await user.type(within(respondent).getByRole("textbox", {
       name: "Lawyer or filing person for River South",
     }), "R. Counsel");
-    await user.click(within(intervener).getByText("Contact for Justice Centre"));
     await user.type(within(intervener).getByRole("textbox", {
       name: "Lawyer or filing person for Justice Centre",
     }), "I. Counsel");
@@ -133,7 +127,7 @@ describe("CourtRecordSetup parties", () => {
 
   it("marks only the AP-5 contact details needed to reach another party", () => {
     render(<Ap5Setup missingFields={new Set(["partyContacts"])} />);
-    const details = screen.getByText(/Contact for River South/u).closest("details")!;
+    const details = screen.getByText(/Contact for River South/u).closest("fieldset")!;
     expect(details).toHaveAttribute("data-contact-finding-id", "contact-respondent");
     expect(details.querySelector('[aria-label="Lawyer or filing person for River South"]'))
       .toHaveAttribute("required");
@@ -154,11 +148,11 @@ it("keeps jurisdiction and court levels in one dialog and skips singleton format
   render(<Chooser />);
 
   expect(screen.queryByRole("button", { name: /^Format:/u })).toBeNull();
-  await user.click(screen.getByRole("button", { name: "Document: Affidavit with exhibits" }));
+  await user.click(screen.getByRole("button", { name: /^Change format:/u }));
   expect(screen.getByRole("dialog", { name: "Choose document" })).toBeVisible();
   await user.click(within(screen.getByRole("dialog", { name: "Choose document" }))
     .getByRole("button", { name: "Close" }));
-  await user.click(screen.getByRole("button", { name: "Court: No court preset" }));
+  await user.click(screen.getByRole("button", { name: /^Change format:/u }));
   const dialog = screen.getByRole("dialog", { name: "Choose document" }), jurisdictions = within(dialog);
   expect(jurisdictions.getByRole("option", { name: "Alberta" })).toBeInTheDocument();
   expect(jurisdictions.getByRole("option", { name: "No court preset" })).toBeInTheDocument();
@@ -171,7 +165,7 @@ it("keeps jurisdiction and court levels in one dialog and skips singleton format
   await user.click(documents.getByRole("tab", { name: "Appeal" }));
   expect(screen.getByRole("dialog", { name: "Choose document" })).toBe(dialog);
   await user.click(documents.getByRole("button", { name: "Informal motion letter" }));
-  expect(screen.getByRole("button", { name: "Court: Federal Court of Appeal" })).toBeVisible();
+  expect(screen.getByRole("button", { name: /^Change format:/u })).toBeVisible();
   expect(screen.getByText("fca-informal-motion-letter")).toBeInTheDocument();
   expect(screen.queryByRole("dialog", { name: /format/u })).toBeNull();
   expect(screen.queryByRole("button", { name: /^Format:/u })).toBeNull();
@@ -188,7 +182,7 @@ it("keeps the format chooser open and distinguishes reply formats", async () => 
   }
   render(<Chooser />);
 
-  await user.click(screen.getByRole("button", { name: "Court: No court preset" }));
+  await user.click(screen.getByRole("button", { name: /^Change format:/u }));
   const dialog = screen.getByRole("dialog", { name: "Choose document" });
   await user.selectOptions(screen.getByRole("combobox", { name: "Jurisdiction" }), "ca");
   await user.click(within(screen.getByRole("dialog", { name: "Choose document" }))
@@ -208,11 +202,11 @@ it("discards an abandoned court choice before opening the current format", async
     onProfile={() => undefined}
   />);
 
-  await user.click(screen.getByRole("button", { name: "Court: Federal Court" }));
+  await user.click(screen.getByRole("button", { name: /^Change format:/u }));
   await user.selectOptions(screen.getByRole("combobox", { name: "Jurisdiction" }), "ab");
   const documents = screen.getByRole("dialog", { name: "Choose document" });
   await user.click(within(documents).getByRole("button", { name: "Close" }));
-  await user.click(screen.getByRole("button", { name: "Format: Motion record — moving" }));
+  await user.click(screen.getByRole("button", { name: /^Change format:/u }));
   expect(screen.getByRole("combobox", { name: "Jurisdiction" })).toHaveValue("ca");
   expect(screen.getByRole("group", { name: "Motion record format" })).toBeVisible();
 });
@@ -222,11 +216,11 @@ it("selects the singleton document without an extra format step", async () => {
   render(<CourtRecordChooser profile={COURT_PROFILE_BY_ID.get("fc-motion-record-moving")!}
     onProfile={onProfile} />);
 
-  await user.click(screen.getByRole("button", { name: "Court: Federal Court" }));
+  await user.click(screen.getByRole("button", { name: /^Change format:/u }));
   const dialog = screen.getByRole("dialog", { name: "Choose document" });
   await user.selectOptions(screen.getByRole("combobox", { name: "Jurisdiction" }), "general");
   expect(screen.getByRole("dialog", { name: "Choose document" })).toBe(dialog);
-  await user.click(within(dialog).getByRole("button", { name: "Affidavit with exhibits" }));
+  await user.click(within(dialog).getByRole("button", { name: "Affidavit" }));
   expect(onProfile).toHaveBeenCalledWith("general-affidavit-exhibits");
   expect(screen.queryByRole("dialog")).toBeNull();
 });

@@ -1,4 +1,5 @@
 import {
+    act,
     cleanup,
     fireEvent,
     render,
@@ -116,6 +117,25 @@ describe("DocxView", () => {
         cleanup();
         vi.clearAllMocks();
         vi.unstubAllGlobals();
+    });
+
+    it("reveals pages only after rendering and initial scroll restoration", async () => {
+        let finish!: () => void;
+        mocks.renderDocument.mockImplementationOnce(async (_doc, container: HTMLElement) => {
+            container.innerHTML = '<section class="docx" style="width:612pt">Document text</section>';
+            await new Promise<void>((resolve) => { finish = resolve; });
+        });
+        const onReady = vi.fn();
+        const { container } = render(<DocxView documentId="doc-1" initialScrollTop={120} onReady={onReady} />);
+        await waitFor(() => expect(screen.getByText("Document text")).toBeInTheDocument());
+        expect(screen.getByText("Document text")).not.toBeVisible();
+        expect(screen.getByRole("status", { name: "Loading document" })).toBeVisible();
+        expect(onReady).not.toHaveBeenCalled();
+        await act(async () => finish());
+        await waitFor(() => expect(screen.getByText("Document text")).toBeVisible());
+        expect(container.querySelector(".docx-view-scroll")?.scrollTop).toBe(120);
+        expect(screen.queryByRole("status")).not.toBeInTheDocument();
+        expect(onReady).toHaveBeenCalledOnce();
     });
 
     it("renders saved Word page breaks without inventing page numbers", async () => {

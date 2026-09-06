@@ -1,3 +1,4 @@
+import { ChatLoadingState } from "@/app/components/assistant/ChatLoadingState";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { ChatView, type ChatViewHandle } from "@/app/components/assistant/ChatView";
@@ -19,7 +20,7 @@ import { useAuth } from "@/app/contexts/AuthContext";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useAssistantChatRoute } from "@/app/hooks/useAssistantChatRoute";
-import { deleteChat } from "@/app/lib/beaverApi";
+import { deleteChat } from "@/app/lib/api/chat";
 import type { AssistantWorkflowLaunch } from "@/app/components/workflows/workflowRoutes";
 
 export default function ProjectAssistantChatPage() {
@@ -30,6 +31,7 @@ export default function ProjectAssistantChatPage() {
 function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId: string }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const search = new URLSearchParams(location.search);
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const workspace = useProjectWorkspace();
@@ -219,9 +221,12 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
             if (document) chat.current?.attachDocument(document);
           }}
         >
+          <div inert={route.chatLoaded ? undefined : true} className="h-full">
           <ChatView
             ref={chat}
             chatId={chatId}
+            researchFileId={route.chatLoad.status === "loaded" ? route.chatLoad.chat?.research_file_id : undefined}
+            searchMessageId={search.get("message")}
             session={route.state}
             handleChat={route.actions.handleChat}
             cancel={route.actions.cancel}
@@ -231,6 +236,7 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
             projectName={workspace.project?.name}
             projectCmNumber={workspace.project?.cm_number}
             initialModel={route.chatModel}
+            initialDraft={route.chatLoad.status === "loaded" ? route.chatLoad.chat?.draft ?? null : null}
             initialReasoningEffort={route.chatReasoningEffort}
             initialDocuments={initialDocuments}
             initialWorkflow={initialWorkflow}
@@ -240,8 +246,9 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
             projectFileActions={<UploadAction actions={uploadActions}
               busy={uploading} compact />}
           />
+          </div>
           {!route.chatLoaded ? (
-            <p role="status" className="absolute inset-0 z-40 grid place-items-center bg-white text-sm text-gray-500">Loading conversation…</p>
+            <ChatLoadingState load={route.chatLoad} onRetry={route.actions.retryLoad} />
           ) : !messages.length ? (
             <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-3 pb-24">
               <BeaverIcon size={28} /><h1 className="font-serif text-3xl font-light">Hi, {username}</h1>

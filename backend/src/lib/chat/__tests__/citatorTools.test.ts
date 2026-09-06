@@ -3,13 +3,19 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 
 import { executeCitatorTool } from "../tools/citatorTools";
+import { researchSourceFromResource } from "../../researchFile";
+import { readLegalSourceResource } from "../../researchReader";
+import { legalSourceOperations } from "../../legalSourceApplication";
+import { nativeDocumentPassages } from "../../legalSources/nativeDocumentPassages";
+import { structureNative } from "../../structureNative";
 
 let temporaryDirectory: string | null = null;
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   delete process.env.MIKE_CITATOR_DB;
   delete process.env.MIKE_JOURNAL_COMMENTARY_DB;
   if (temporaryDirectory) await rm(temporaryDirectory, { recursive: true, force: true });
@@ -62,6 +68,9 @@ it("returns judicial and journal analysis as separate attributed lanes", { timeo
   ], { encoding: "utf8" });
   expect(built.status, built.stderr).toBe(0);
   process.env.MIKE_CITATOR_DB = database;
+  const graph = new DatabaseSync(database);
+  graph.exec("UPDATE case_doc SET language = 'fr' WHERE citation = '2022 ONCA 400'");
+  graph.close();
 
   const commentaryDb = path.join(temporaryDirectory, "journal.sqlite");
   const commentary = new DatabaseSync(commentaryDb);
@@ -120,12 +129,14 @@ it("returns judicial and journal analysis as separate attributed lanes", { timeo
     evidence_id: expect.stringMatching(/^e_/u),
   }]);
   expect(reply.evidences).toHaveLength(3);
+  expect(reply.evidences?.[0]).toMatchObject({ language: "fr" });
   expect(reply.evidences?.[1]).toMatchObject({
     provider: "citator",
     source_class: "case",
     citation: "2022 ONCA 400",
     target_citation: "2016 SCC 27",
     resolver_version: "citator-analysis-v1",
+    language: "fr",
   });
   expect(reply.evidences?.[2]).toMatchObject({
     provider: "journal",
@@ -134,6 +145,32 @@ it("returns judicial and journal analysis as separate attributed lanes", { timeo
     target_citation: "2016 SCC 27",
     locator: { kind: "page", label: "7" },
   });
+  const resource = String(payload.judicial_discussion[0].resource);
+  expect(payload.citing_decisions[0].resource).toBe(resource);
+  expect(researchSourceFromResource(resource)).toMatchObject({
+    provider: "a2aj", kind: "case", id: "2022 ONCA 400", language: "fr",
+  });
+  expect(researchSourceFromResource(String(payload.journal_analysis[0].resource)))
+    .toMatchObject({ provider: "journal", kind: "journal", id: "1" });
+  const text = "[1] Le plafond présumé gouverne le délai.",
+    native = await structureNative().deriveDocumentStructure({ kind: "provider_text",
+      input: { provider: "a2aj", citation: "2022 ONCA 400", source_kind: "cases",
+        text, dataset: "ONCA", require_report_start: true } });
+  const document = {
+    docType: "cases", dataset: "ONCA", citation: "2022 ONCA 400", alternateCitation: null,
+    name: "R. v. Second", date: "2022-06-20", url: "https://example.test/case",
+    verifiedPdf: null, language: "fr", upstreamLicense: null, native,
+  };
+  const load = vi.spyOn(legalSourceOperations, "readWithRenditions").mockImplementation(async (request) => ({
+    status: "found", pdfRenditions: [], values: nativeDocumentPassages({ request,
+      reference: { ...researchSourceFromResource(resource)!, citation: "2022 ONCA 400" },
+      document: native, native: document }),
+  }));
+  const read = await readLegalSourceResource({ name: "Read", id: "follow-up", input: {} },
+    { file_path: resource }, { userId: "test", knownSources: new Map() });
+  expect(read?.result.isError).toBeUndefined();
+  expect(JSON.stringify(read?.result)).toContain("Le plafond présumé");
+  expect(load.mock.calls[0][0].source).toMatchObject({ id: "2022 ONCA 400", language: "fr" });
 });
 
 it("reports a missing note-up graph", () => {

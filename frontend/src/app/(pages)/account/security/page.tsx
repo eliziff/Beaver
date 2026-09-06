@@ -13,14 +13,14 @@ import { AccountSection } from "../AccountSection";
 import { Switch } from "@/app/components/ui/switch";
 import { errorMessage } from "@/app/lib/utils";
 import {
-    challengeMfa,
-    enrollMfa,
-    getMfaAssurance,
-    listMfaFactors,
-    unenrollMfa,
-    verifyMfa,
-    updateAuthPassword,
-} from "@/app/lib/authApi";
+  challengeMfa,
+  enrollMfa,
+  getMfaAssurance,
+  listMfaFactors,
+  unenrollMfa,
+  verifyMfa,
+  updateAuthPassword,
+} from "@/app/lib/api/auth";
 type Enrollment = {
     factorId: string;
     challengeId: string;

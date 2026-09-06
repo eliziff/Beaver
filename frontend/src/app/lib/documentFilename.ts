@@ -18,3 +18,8 @@ export function filenameExtensionChangeWarning(filename: string) {
         ? `File extensions cannot be changed here. Keep ${extension} at the end of the name.`
         : "File extensions cannot be changed here.";
 }
+
+export const isSpreadsheetFilename = (filename: string) =>
+  /\.(xlsx|xlsm|xls)$/i.test(filename);
+export const isDocxFilename = (filename: string) =>
+  /\.(docx|doc)$/i.test(filename);

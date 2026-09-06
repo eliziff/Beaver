@@ -5,10 +5,12 @@ import json
 import tempfile
 import time
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.error import HTTPError
+from urllib.parse import urlencode, urljoin
+from urllib.request import urlopen
 
 from selenium import webdriver
-from selenium.common.exceptions import StaleElementReferenceException
+from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
 from selenium.webdriver import ActionChains, Keys
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -22,12 +24,15 @@ def visible(driver, by: str, value: str, timeout=30):
 
 
 def click_text(driver, text: str, root=None):
+    if text in ("View all", "View none") and root is not None:
+        click_text(driver, "Label selection", root)
+        root = visible(driver, By.CSS_SELECTOR, "[role='menu'][aria-label='Label selection']")
     for _attempt in range(3):
         try:
-            xpath = f".//button[normalize-space()='{text}']"
+            xpath = f".//button[normalize-space()='{text}' or normalize-space(text()[last()])='{text}' or @aria-label='{text}']"
             node = WebDriverWait(driver, 30).until(lambda _page: next(
                 (item for item in root.find_elements(By.XPATH, xpath) if item.is_displayed()), None)) \
-                if root else visible(driver, By.XPATH, f"//button[normalize-space()='{text}']")
+                if root else visible(driver, By.XPATH, f"//button[normalize-space()='{text}' or normalize-space(text()[last()])='{text}' or @aria-label='{text}']")
             WebDriverWait(driver, 30).until(lambda _page: node.is_enabled())
             driver.execute_script("arguments[0].scrollIntoView({block:'center'})", node)
             node.click()
@@ -41,20 +46,18 @@ def click_text(driver, text: str, root=None):
 def panel(driver, name: str):
     if name in ("Labels", "Highlights"):
         if not any(node.is_displayed() for node in driver.find_elements(By.CSS_SELECTOR, "[aria-label='Label organizer']")):
-            click_text(driver, "Labels")
+            visible(driver, By.XPATH, "//*[@role='tab' and normalize-space()='Labels']").click()
         root = visible(driver, By.CSS_SELECTOR, "[aria-label='Label organizer']")
         click_text(driver, "Sources" if name == "Labels" else "Passages", root)
         return root
     if name == "Search Saved sources":
         if not any(node.is_displayed() for node in driver.find_elements(By.CSS_SELECTOR, "section[aria-label='Search Saved sources']")):
-            click_text(driver, "Search Saved sources")
+            visible(driver, By.XPATH, "//*[@role='tab' and normalize-space()='Search']").click()
         return visible(driver, By.CSS_SELECTOR, "section[aria-label='Search Saved sources']")
-    for label in ("Close labels",):
-        for button in driver.find_elements(By.CSS_SELECTOR, f"button[aria-label='{label}']"):
-            if button.is_displayed(): button.click()
-    for button in driver.find_elements(By.XPATH, "//button[normalize-space()='Back to sources']"):
-        if button.is_displayed(): button.click()
-    return visible(driver, By.CSS_SELECTOR, "section[aria-label='Saved sources']")
+    visible(driver, By.XPATH, "//*[@role='tab' and normalize-space()='Labels']").click()
+    root = visible(driver, By.CSS_SELECTOR, "section[aria-label='Saved sources']")
+    driver.execute_script("arguments[0].scrollIntoView({block:'start'})", root)
+    return root
 
 
 def history_count(driver):
@@ -74,6 +77,37 @@ return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height
     assert value["right"] <= value["viewportWidth"] + 1, value
     assert value["bottom"] <= value["viewportHeight"] + 1, value
     return value
+
+
+def check_reader_expansion(driver, reader, content, screenshot):
+    before = box(driver, reader)
+    content_text = content.text
+    scrolls = driver.execute_script("return [arguments[0], ...arguments[0].querySelectorAll('*')].filter(n=>n.scrollTop||n.scrollLeft).map(n=>[n,n.scrollTop,n.scrollLeft])", reader)
+    reader.find_element(By.CSS_SELECTOR, "button[aria-label='Expand reader']").click()
+    WebDriverWait(driver, 15).until(lambda _page: reader.find_element(
+        By.CSS_SELECTOR, "button[aria-label='Restore reader size']").is_displayed())
+    expanded = box(driver, reader)
+    assert expanded["width"] >= expanded["viewportWidth"] - 40, expanded
+    assert expanded["height"] >= expanded["viewportHeight"] - 40, expanded
+    assert content.is_displayed() and content.text == content_text
+    driver.save_screenshot(str(screenshot))
+    # WebDriver Escape may not leave browser fullscreen in headless Chromium; the
+    # restore control exercises the same exit operation when that happens.
+    reader.find_element(By.CSS_SELECTOR, "button[aria-label='Restore reader size']").send_keys(Keys.ESCAPE)
+    try:
+        WebDriverWait(driver, 2).until(lambda _page: not driver.execute_script("return !!document.fullscreenElement"))
+    except TimeoutException:
+        buttons = reader.find_elements(By.CSS_SELECTOR, "button[aria-label='Restore reader size']")
+        if buttons:
+            buttons[0].click()
+    WebDriverWait(driver, 15).until(lambda _page: reader.find_element(
+        By.CSS_SELECTOR, "button[aria-label='Expand reader']").is_displayed())
+    restored = box(driver, reader)
+    assert abs(restored["width"] - before["width"]) <= 2, (before, restored)
+    assert content.is_displayed() and content.text == content_text
+    for node, top, left in scrolls:
+        assert abs(driver.execute_script("return arguments[0].scrollTop", node) - top) <= 2
+        assert abs(driver.execute_script("return arguments[0].scrollLeft", node) - left) <= 2
 
 
 def front(driver, node):
@@ -97,15 +131,26 @@ def research(driver, research_id: str):
 
 
 def research_items(driver, research_id: str, kind: str, source_id=None):
-    items, cursor = [], None
-    while True:
-        query = urlencode({"kind": kind, "limit": 200, **({"source_id": source_id} if source_id else {}),
-                           **({"cursor": cursor} if cursor else {})})
-        page = api(driver, f"/api/single-documents/{research_id}/research/items?{query}")
-        items.extend(item["value"] for item in page["items"])
-        cursor = page.get("next_cursor")
-        if not cursor:
-            return items
+    # Autosave can replace the revision while this local-mode assertion pages.
+    # Restart its snapshot without adding harness requests to browser diagnostics.
+    for _attempt in range(3):
+        items, cursor = [], None
+        while True:
+            query = urlencode({"kind": kind, "limit": 200, **({"source_id": source_id} if source_id else {}),
+                               **({"cursor": cursor} if cursor else {})})
+            url = urljoin(driver.current_url, f"/api/single-documents/{research_id}/research/items?{query}")
+            try:
+                with urlopen(url, timeout=30) as response:
+                    page = json.load(response)
+            except HTTPError as error:
+                if error.code == 400 and json.load(error).get("detail") == "invalid cursor":
+                    break
+                raise
+            items.extend(item["value"] for item in page["items"])
+            cursor = page.get("next_cursor")
+            if not cursor:
+                return items
+    raise AssertionError("Research items kept changing while reading a snapshot")
 
 
 def research_documents(driver):
@@ -170,7 +215,9 @@ def drain_network(driver):
 def drain_resources(driver):
     resources = getattr(driver, "_beaver_resources", [])
     resources.extend(driver.execute_script("""const entries=performance.getEntriesByType('resource')
-  .map(({name,duration,initiatorType})=>({name,duration,initiatorType}));
+  .map(({name,duration,initiatorType,startTime,requestStart,responseStart,responseEnd})=>({
+    name,duration,initiatorType,startedAt:performance.timeOrigin+startTime,
+    requestStart,responseStart,responseEnd}));
 performance.clearResourceTimings(); return entries;"""))
     driver._beaver_resources = resources
     return resources
@@ -194,6 +241,7 @@ def main() -> None:
     parser.add_argument("--url", default="http://127.0.0.1:3000/")
     parser.add_argument("--output")
     parser.add_argument("--headed", action="store_true")
+    parser.add_argument("--dock-layout-only", action="store_true")
     args = parser.parse_args()
     output = Path(args.output) if args.output else Path(tempfile.mkdtemp(prefix="beaver-research-pilot-"))
     output.mkdir(parents=True, exist_ok=True)
@@ -225,9 +273,78 @@ try{new PerformanceObserver(list=>list.getEntries().forEach(e=>window.__beaverVi
 """})
         cleanup = None
         try:
+            print("Research pilot: standalone workspace layout", flush=True)
+            driver.get(urljoin(args.url, "/sources"))
+            visible(driver, By.CSS_SELECTOR, "button[aria-label='Open research workspace']").click()
+            workspace_dock = visible(driver, By.CSS_SELECTOR, "[data-assistant-dock][aria-hidden='false']")
+            assert not driver.find_elements(By.XPATH, "//button[normalize-space()='Find sources']")
+            rail = workspace_dock.find_element(By.CSS_SELECTOR, "[data-tabs-rail]")
+            assert rail.text == "Workspaces", rail.text
+            assert not workspace_dock.find_elements(By.TAG_NAME, "h2")
+            driver.save_screenshot(str(output / "00-workspace-empty.png"))
+            click_text(driver, "Open", workspace_dock)
+            workspace_picker = visible(driver, By.CSS_SELECTOR, "dialog[open]")
+            assert workspace_picker.find_element(By.XPATH, ".//*[@role='tab' and normalize-space()='Projects']").is_displayed()
+            new_workspace = workspace_picker.find_element(By.XPATH, ".//button[normalize-space()='New workspace']")
+            new_project = workspace_picker.find_element(By.XPATH, ".//button[normalize-space()='New project']")
+            assert new_workspace.rect["x"] > new_project.rect["x"] + new_project.rect["width"]
+            driver.save_screenshot(str(output / "00-workspace-picker.png"))
+            click_text(driver, "Close", workspace_picker)
             print("Research pilot: Sources search and workspace selection", flush=True)
             driver.get(args.url)
             visible(driver, By.CSS_SELECTOR, "button[aria-label='Expand assistant dock']").click()
+            # Protect rendered geometry: responsive UI edits must never turn the
+            # right-hand dock into a bottom sheet or an overlay that blocks chat.
+            for viewport_width in (1440, 1280, 1279, 1024, 600, 390):
+                driver.execute_cdp_cmd("Emulation.setDeviceMetricsOverride", {
+                    "width": viewport_width, "height": 800,
+                    "deviceScaleFactor": 1, "mobile": False,
+                })
+                dock = visible(driver, By.CSS_SELECTOR, "[data-assistant-dock][aria-hidden='false']")
+                bounds = box(driver, dock)
+                surface = box(driver, dock.find_element(By.XPATH, ".."))
+                assert 0 <= bounds["top"] - surface["top"] <= 16, ("Dock must start at the surface top", bounds, surface)
+                assert bounds["height"] >= surface["height"] - 32, ("Dock must span the surface height", bounds, surface)
+                assert 0 <= surface["right"] - bounds["right"] <= 16, ("Dock must stay on the right", bounds, surface)
+                assert bounds["left"] >= 32, ("Dock must leave space on its left", bounds)
+                draft = visible(driver, By.CSS_SELECTOR, "textarea")
+                draft_bounds = box(driver, draft)
+                assert draft_bounds["right"] <= bounds["left"], ("Chat and dock must not overlap", draft_bounds, bounds)
+                assert draft_bounds["width"] > 60, ("Chat must retain usable space", draft_bounds)
+                draft.click()
+                draft.send_keys("Concurrent draft")
+                assert driver.execute_script("return document.activeElement === arguments[0]", draft), "Dock stole chat focus"
+                assert draft.get_attribute("value") == "Concurrent draft"
+                assert dock.is_displayed(), "Writing in chat closed the dock"
+                front(driver, draft)
+                draft.clear()
+                dock_tabs = dock.find_element(By.CSS_SELECTOR, "[role='tablist']")
+                if bounds["width"] >= 500:
+                    assert driver.execute_script("return arguments[0].scrollWidth <= arguments[0].clientWidth + 1", dock_tabs), "Dock tabs clipped despite available width"
+                dock_tabs.find_element(By.XPATH, ".//*[@role='tab'][.//span[normalize-space()='Workflows']]").click()
+                visible(driver, By.CSS_SELECTOR, "input[aria-label='Search workflows']")
+                driver.save_screenshot(str(output / f"00-workflows-dock-{viewport_width}.png"))
+                if viewport_width == 1280:
+                    visible(driver, By.CSS_SELECTOR, "button[aria-label='Info about Research a legal issue']").click()
+                    workflow_info = visible(driver, By.CSS_SELECTOR, "dialog[open]")
+                    driver.save_screenshot(str(output / "00-workflow-info.png"))
+                    workflow_info.find_element(By.CSS_SELECTOR, "button[aria-label='Close']").click()
+
+                library_tab = dock_tabs.find_element(By.XPATH, ".//*[@role='tab'][.//span[normalize-space()='Library']]")
+                library_tab.click()
+                assert not dock.find_elements(By.CSS_SELECTOR, "button[aria-label='Expand reader']")
+                directory = dock.find_element(By.CSS_SELECTOR, ".document-directory")
+                file_tabs = directory.find_elements(By.CSS_SELECTOR, "[role='tab']")
+                assert len({round(tab.rect["y"]) for tab in file_tabs}) == 1, "Library tabs wrapped"
+                driver.save_screenshot(str(output / f"00-library-dock-{viewport_width}.png"))
+                dock_tabs.find_element(By.XPATH, ".//*[@role='tab'][.//span[normalize-space()='Sources']]").click()
+                categories = dock.find_element(By.CSS_SELECTOR, "[aria-label='Source category']")
+                assert len({round(tab.rect["y"]) for tab in categories.find_elements(By.CSS_SELECTOR, "[role='tab']")}) == 1, "Source categories wrapped"
+                driver.save_screenshot(str(output / f"00-dock-{viewport_width}.png"))
+            driver.execute_cdp_cmd("Emulation.clearDeviceMetricsOverride", {})
+            print("Dock geometry passed at desktop, breakpoint, tablet, and phone widths", flush=True)
+            if args.dock_layout_only:
+                return
             visible(driver, By.XPATH, "//*[@role='tab' and normalize-space()='Sources']").click()
             driver.save_screenshot(str(output / "00-sources-open.png"))
             driver.get_log("browser")  # Ignore restored-tab errors before this isolated run.
@@ -268,17 +385,21 @@ return {border:s.borderColor,shadow:s.boxShadow};""", search)
             assert "Library" in chooser.text and "Projects" in chooser.text
             assert not chooser.find_elements(By.CSS_SELECTOR, "input[name='title']")
             driver.save_screenshot(str(output / "03-open-workspace.png"))
-            click_text(driver, "Close", chooser)
-            click_text(driver, "New workspace", workspace)
-            name = visible(driver, By.CSS_SELECTOR, "input[name='title'][placeholder='e.g. Duty of care']")
-            create_dialog = name.find_element(By.XPATH, "ancestor::dialog[1]")
-            assert "Library" in create_dialog.text and "Project" in create_dialog.text and "Location:" not in create_dialog.text
-            click_text(driver, "Project", create_dialog)
-            visible(driver, By.CSS_SELECTOR, "[role='group'][aria-label='Projects']")
-            click_text(driver, "Library", create_dialog)
+            click_text(driver, "New workspace", chooser)
+            name = visible(driver, By.CSS_SELECTOR, "input[aria-label='Workspace name']")
+            assert name.find_element(By.XPATH, "ancestor::dialog[1]") == chooser, "New workspace replaced the directory"
+            name.send_keys("Cancelled workspace", Keys.ESCAPE)
+            assert chooser.is_displayed(), "Cancelling a name closed the directory"
+            assert not chooser.find_elements(By.CSS_SELECTOR, "input[aria-label='Workspace name']")
+            click_text(driver, "New workspace", chooser)
+            name = visible(driver, By.CSS_SELECTOR, "input[aria-label='Workspace name']")
             name.send_keys(title)
-            click_text(driver, "Create workspace", create_dialog)
-            WebDriverWait(driver, 30).until(lambda page: not page.find_elements(By.CSS_SELECTOR, "input[name='title']"))
+            driver.save_screenshot(str(output / "03a-inline-workspace-name.png"))
+            name.send_keys(Keys.ENTER)
+            selected = visible(driver, By.CSS_SELECTOR, f"input[aria-label='Select {title}']")
+            assert selected.is_selected(), "New workspace must be selected in its directory"
+            click_text(driver, "Open", chooser)
+            WebDriverWait(driver, 30).until(lambda page: not page.find_elements(By.CSS_SELECTOR, "dialog[open]"))
             workspace = visible(driver, By.CSS_SELECTOR, "section[aria-label='Research collection']")
             WebDriverWait(driver, 30).until(lambda _page: title in driver.find_element(By.TAG_NAME, "body").text)
             documents = [item for item in research_documents(driver) if item["id"] not in existing_research]
@@ -288,6 +409,7 @@ return {border:s.borderColor,shadow:s.boxShadow};""", search)
             assert len(initial_versions["versions"]) == 1, initial_versions
             report["noMagicWorkspace"] = True
 
+            workspace = visible(driver, By.CSS_SELECTOR, "section[aria-label='Research collection']")
             moved = box(driver, workspace)
             front(driver, workspace)
             driver.save_screenshot(str(output / "04-collection.png"))
@@ -307,15 +429,12 @@ return {border:s.borderColor,shadow:s.boxShadow};""", search)
                 item["filename"] == f"{title}.research.md" for item in research_documents(driver)))
             report["title"] = title
 
-            visible(driver, By.CSS_SELECTOR, "button[aria-label='Workspace options']").click()
-            click_text(driver, "Workspace note", visible(driver, By.CSS_SELECTOR,
-                "[role='menu'][aria-label='Workspace options']"))
-            note = visible(driver, By.CSS_SELECTOR, "textarea[aria-label='Workspace note']")
-            note_dialog = note.find_element(By.XPATH, "ancestor::dialog[1]")
+            visible(driver, By.XPATH, "//*[@role='tab' and normalize-space()='Memo']").click()
+            note = visible(driver, By.CSS_SELECTOR, "[contenteditable='true'][aria-label='Workspace memo']")
             note.send_keys("Question presented and working theory.")
-            click_text(driver, "Done", note_dialog)
             WebDriverWait(driver, 30).until(lambda _page: research(driver, research_id)["note"]
                                             == "Question presented and working theory.")
+            visible(driver, By.XPATH, "//*[@role='tab' and normalize-space()='Labels']").click()
 
             visible(driver, By.CSS_SELECTOR, "button[aria-label='Workspace options']").click()
             options_menu = visible(driver, By.CSS_SELECTOR, "[role='menu'][aria-label='Workspace options']")
@@ -435,7 +554,7 @@ target.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,data
             driver.save_screenshot(str(output / "10-label-tree.png"))
 
             # Assign an unsaved result, then work with the collection's saved source.
-            click_text(driver, "Find sources")
+            visible(driver, By.CSS_SELECTOR, "button[aria-label='Close workspace']").click()
             article = visible(driver, By.CSS_SELECTOR, "article")
             marker = article.find_element(By.CSS_SELECTOR, "button[aria-label^='Label ']")
             started = time.perf_counter()
@@ -578,6 +697,7 @@ effect:e.dataTransfer.dropEffect});},true);""")
             search_saved = panel(driver, "Search Saved sources")
             search_saved.find_element(By.CSS_SELECTOR, "button[aria-label='Search target']").click()
             click_text(driver, "Source text", visible(driver, By.CSS_SELECTOR, "[role='menu'][aria-label='Search target']"))
+            search_saved.find_element(By.XPATH, ".//summary[normalize-space()='Capture rules']").click()
             click_text(driver, "Add rule", search_saved)
             rule_modal = visible(driver, By.CSS_SELECTOR, "dialog[open]")
             box(driver, rule_modal); front(driver, rule_modal)
@@ -616,7 +736,7 @@ effect:e.dataTransfer.dropEffect});},true);""")
 
             # A direct journal search renders its title once, not again as metadata.
             print("Research pilot: journal results and source reading", flush=True)
-            click_text(driver, "Find sources")
+            visible(driver, By.CSS_SELECTOR, "button[aria-label='Collapse workspace']").click()
             click_text(driver, "Journals")
             search = visible(driver, By.CSS_SELECTOR, "input[aria-label='Search sources']")
             search.send_keys(Keys.CONTROL, "a"); search.send_keys("administrative law")
@@ -646,6 +766,8 @@ effect:e.dataTransfer.dropEffect});},true);""")
             click_text(driver, case_title, list_panel)
             reader = visible(driver, By.CSS_SELECTOR, "section[data-legal-block]", 90)
             reader_pane = visible(driver, By.CSS_SELECTOR, "section[aria-label='Source reader']")
+            check_reader_expansion(driver, reader_pane.find_element(By.CSS_SELECTOR, "[data-reader-view]"),
+                reader, output / "17a-source-expanded.png")
             workspace_dock = visible(driver, By.CSS_SELECTOR, "[data-assistant-dock]")
             assert reader_pane.rect["x"] + reader_pane.rect["width"] <= workspace_dock.rect["x"] + 1, \
                 "Source text must be left of the workspace dock"
@@ -713,14 +835,48 @@ const text=s.toString(); root.dispatchEvent(new PointerEvent('pointerup',{bubble
             driver.set_window_size(600, 800)
             list_panel = panel(driver, "List")
             click_text(driver, case_title, list_panel)
-            WebDriverWait(driver, 10).until(lambda page: not any(node.is_displayed()
-                for node in page.find_elements(By.CSS_SELECTOR, "[data-assistant-dock]")))
-            box(driver, visible(driver, By.CSS_SELECTOR, "section[aria-label='Source reader']"))
+            reader_bounds = box(driver, visible(driver, By.CSS_SELECTOR, "section[aria-label='Source reader']"))
+            workspace_bounds = box(driver, visible(driver, By.CSS_SELECTOR, "[data-assistant-dock][aria-hidden='false']"))
+            assert reader_bounds["right"] <= workspace_bounds["left"], "Reading must leave the workspace alongside the source"
+            assert driver.execute_script("return arguments[0].scrollWidth <= arguments[0].clientWidth + 1", list_panel), "Saved passages must fit the narrow workspace"
             driver.save_screenshot(str(output / "19a-narrow-reader.png"))
             driver.set_window_size(1440, 900)
-            visible(driver, By.CSS_SELECTOR, "button[aria-label='Open research workspace']").click()
 
-            panel(driver, "List")
+            print("Research pilot: formatted memo, source citation, and passage drop", flush=True)
+            list_panel = panel(driver, "List")
+            list_panel.find_element(By.CSS_SELECTOR, "button[aria-label^='Cite ']").click()
+            memo = visible(driver, By.CSS_SELECTOR, "section[aria-label='Workspace memo']")
+            editor = memo.find_element(By.CSS_SELECTOR, "[contenteditable='true']")
+            editor.click(); editor.send_keys(Keys.CONTROL, Keys.END); editor.send_keys(Keys.ENTER)
+            editor.send_keys(Keys.CONTROL, "b"); editor.send_keys("Holding")
+            editor.send_keys(Keys.CONTROL, "b"); editor.send_keys(" supports ")
+            editor.send_keys(Keys.CONTROL, "i"); editor.send_keys("fairness")
+            editor.send_keys(Keys.CONTROL, "i"); editor.send_keys(" and ")
+            editor.send_keys(Keys.CONTROL, "u"); editor.send_keys("a remedy")
+            editor.send_keys(Keys.CONTROL, "u"); editor.send_keys(". "); editor.send_keys(Keys.ENTER)
+            drop_target = editor.find_elements(By.TAG_NAME, "p")[-1]
+            WebDriverWait(driver, 15).until(lambda _page: len(editor.find_elements(By.CSS_SELECTOR, "[data-citation-ref]")) >= 1)
+            saved_passage = research_items(driver, research_id, "passages", source_id)[0]
+            driver.execute_script("""
+                const target = arguments[0], transfer = new DataTransfer();
+                transfer.setData('application/x-beaver-research-passage', JSON.stringify(arguments[1]));
+                const rect = target.getBoundingClientRect();
+                target.dispatchEvent(new DragEvent('drop', {bubbles: true, cancelable: true,
+                    dataTransfer: transfer, clientX: rect.x + 5, clientY: rect.y + 5}));
+            """, drop_target, saved_passage)
+            WebDriverWait(driver, 15).until(lambda _page: len(editor.find_elements(By.CSS_SELECTOR, "[data-citation-ref]")) >= 2)
+            memo.find_element(By.CSS_SELECTOR, "button[aria-label='Table']").click()
+            click_text(driver, "Insert table", visible(driver, By.CSS_SELECTOR, "[role='menu'][aria-label='Table']"))
+            cells = editor.find_elements(By.CSS_SELECTOR, "th")
+            cells[0].click(); cells[0].send_keys("Issue")
+            cells[1].click(); cells[1].send_keys("Result")
+            WebDriverWait(driver, 30).until(lambda _page: "evidence_id=" in research(driver, research_id)["note"]
+                and "Result" in research(driver, research_id)["note"])
+            memo_markdown = research(driver, research_id)["note"]
+            assert all(text in memo_markdown for text in ("**Holding**", "*fairness*", "++a remedy++", "/sources/view?", "|")), memo_markdown
+            assert len([item for item in research_documents(driver) if item["id"] not in existing_research]) == 1
+            driver.save_screenshot(str(output / "19b-formatted-memo.png"))
+            visible(driver, By.XPATH, "//*[@role='tab' and normalize-space()='Labels']").click()
             drain_resources(driver)
             drain_vitals(driver)
             driver.refresh()
@@ -738,7 +894,12 @@ const text=s.toString(); root.dispatchEvent(new PointerEvent('pointerup',{bubble
             assert any(item["note"] == "Passage-level analysis." and len(item["labelIds"]) == 2
                        for item in passages), passages
             assert state["sources"][source_id]["note"] == "Saved with outside click."
-            assert state["note"] == "Question presented and working theory."
+            assert state["note"] == memo_markdown
+            visible(driver, By.XPATH, "//*[@role='tab' and normalize-space()='Memo']").click()
+            restored_memo = visible(driver, By.CSS_SELECTOR, "[contenteditable='true'][aria-label='Workspace memo']")
+            assert len(restored_memo.find_elements(By.CSS_SELECTOR, "[data-citation-ref]")) >= 2
+            assert all(restored_memo.find_elements(By.CSS_SELECTOR, selector) for selector in ("strong", "em", "u", "table"))
+            visible(driver, By.XPATH, "//*[@role='tab' and normalize-space()='Labels']").click()
             driver.save_screenshot(str(output / "20-reload-restored.png"))
 
             drain_resources(driver)
@@ -770,16 +931,34 @@ const text=s.toString(); root.dispatchEvent(new PointerEvent('pointerup',{bubble
             assert not preview.find_elements(By.TAG_NAME, "blockquote")
             assert "Passage-level analysis." not in preview.text
             assert not preview.find_elements(By.CSS_SELECTOR, "[aria-label='Research panels']")
+            details_toggle = preview.find_element(By.CSS_SELECTOR, "button[aria-controls='document-details']")
+            details = preview.find_element(By.ID, "document-details")
+            assert details.is_displayed(), "Document metadata should be visible beside the preview"
+            driver.save_screenshot(str(output / "21c-library-details.png"))
+            driver.execute_cdp_cmd("Emulation.setDeviceMetricsOverride", {
+                "width": 390, "height": 800, "deviceScaleFactor": 1, "mobile": False,
+            })
+            assert not details.is_displayed(), "Narrow previews initially collapse metadata"
+            visible(driver, By.CSS_SELECTOR, "button[aria-controls='document-details']").click()
+            assert details.is_displayed()
+            details_toggle.click()
+            assert not details.is_displayed()
+            driver.save_screenshot(str(output / "21d-library-details-narrow.png"))
+            driver.execute_cdp_cmd("Emulation.setDeviceMetricsOverride", {
+                "width": 1440, "height": 1000, "deviceScaleFactor": 1, "mobile": False,
+            })
+            assert details.is_displayed(), "Wide previews retain visible metadata"
             driver.save_screenshot(str(output / "21-library-preview.png"))
-            icon = preview.find_element(By.CSS_SELECTOR, "svg[data-file-kind='research']")
-            title_slot = icon.find_element(By.XPATH, "..")
-            before_title, before_icon = title_slot.rect, icon.rect
-            title_text = title_slot.find_element(By.XPATH, "./span[last()]")
+            check_reader_expansion(driver, preview, preview.find_element(By.CSS_SELECTOR, "[aria-label='Workspace contents']"),
+                output / "21b-library-expanded.png")
+            heading = driver.find_element(By.ID, preview.get_attribute("aria-labelledby"))
+            title_text = heading.find_element(By.XPATH, f".//span[not(*) and normalize-space()='{title}']")
+            title_slot = title_text.find_element(By.XPATH, "..")
+            before_title = title_slot.rect
             metrics = driver.execute_script("const s=getComputedStyle(arguments[0]); return [s.fontSize,s.fontWeight,s.lineHeight]", title_text)
             preview.find_element(By.CSS_SELECTOR, "button[aria-label='Rename document']").click()
             name_input = preview.find_element(By.CSS_SELECTOR, "input[aria-label='Document name']")
             assert all(abs(title_slot.rect[key] - before_title[key]) <= 1 for key in ("y", "height"))
-            assert abs(icon.rect["y"] - before_icon["y"]) <= 1
             assert driver.execute_script("return arguments[0].scrollLeft", name_input) <= 1
             assert driver.execute_script("const s=getComputedStyle(arguments[0]); return [s.fontSize,s.fontWeight,s.lineHeight]", name_input) == metrics
             driver.save_screenshot(str(output / "21a-library-rename.png"))

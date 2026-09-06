@@ -1,23 +1,21 @@
 import { jsonRecord as row, trimmedText as text } from "../value";
 import { WORK_PRODUCT_KINDS, type WorkProductKind,
   type WorkProductReference } from "../workProduct";
+import type { WorkflowRunEvent } from "./assistantEvents";
 
-type WorkflowRunTool =
-  | "update_work_product"
-  | "fix_docx_supras";
+type WorkflowRunTool = "update_work_product";
 type Row = Record<string, unknown>;
 const number = (value: unknown) => typeof value === "number" && Number.isFinite(value)
   ? value
   : undefined;
-const workProduct = (value: unknown) => {
+const workProduct = (value: unknown): WorkProductReference | undefined => {
   const item = row(value), id = text(item?.id), revision = number(item?.revision);
   const kind = item?.kind;
   return id && Number.isSafeInteger(revision) && revision! >= 1 &&
     WORK_PRODUCT_KINDS.includes(kind as WorkProductKind)
-    ? { id, kind, revision } : undefined;
+    ? { id, kind: kind as WorkProductKind, revision: revision! } : undefined;
 };
 
-export type LocalWorkflowRunEvent = Row & { type: "workflow_run"; id: string };
 export const workProductResult = (product: WorkProductReference,
   values: Row = {}) => ({ ok: true, work_product: { id: product.id, kind: product.kind,
     revision: product.revision }, ...values });
@@ -28,7 +26,7 @@ function event(
   fields: ReadonlyArray<readonly [label: string, key: string]>,
   value: unknown,
   id: string,
-): LocalWorkflowRunEvent | null {
+): WorkflowRunEvent | null {
   const result = row(value);
   if (!result) return null;
   const error = text(result.error);
@@ -54,10 +52,3 @@ function event(
 export const workProductEvent = (value: unknown, id: string) =>
   event("update_work_product", "Update work product", [], value, id);
 
-export const supraFixEvent = (value: unknown, id: string) =>
-  event("fix_docx_supras", "Fix supra references", [
-    ["Found", "detected"],
-    ["Fixed", "converted"],
-    ["Already linked", "already_linked"],
-    ["Needs review", "review_required"],
-  ], value, id);

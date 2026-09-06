@@ -1,26 +1,67 @@
 import {
     createElement,
+    createContext,
+    useContext,
     type ComponentProps,
     type ElementType,
     type RefObject,
 } from "react";
 import ReactMarkdown from "react-markdown";
+import type { Root, Element, Text } from "hast";
+import { searchHighlightRanges } from "@/app/lib/searchHighlight";
 import remend from "remend";
 import remarkGfm from "remark-gfm";
 import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
-import type { Citation } from "../../shared/types";
+import type { Citation } from "@/app/lib/citations";
 import { withoutMarkdownNode } from "./messageStyles";
 import {
     citationPillParts,
     citationTooltip,
 } from "./CitationSources";
 import { omitBroadCitationDuplicates } from "./citationUtils";
+export const MessageSearchHighlight = createContext("");
+
+function highlightText(query: string) {
+    return () => (tree: Root) => {
+        const nodes: { node: Text; parent: Root | Element; start: number }[] = [];
+        let text = "";
+        function collect(parent: Root | Element) {
+            for (const node of parent.children) {
+                if (node.type === "text") {
+                    nodes.push({ node, parent, start: text.length });
+                    text += node.value;
+                } else if (node.type === "element") collect(node);
+            }
+        }
+        collect(tree);
+        const matches = searchHighlightRanges(text, query);
+        for (const { node, parent, start } of nodes) {
+            const ranges = matches.filter(([from, to]) => from < start + node.value.length && to > start);
+            if (!ranges.length) continue;
+            const replacement: (Text | Element)[] = [];
+            let cursor = 0;
+            for (const [from, to] of ranges) {
+                const left = Math.max(0, from - start), right = Math.min(node.value.length, to - start);
+                if (left > cursor) replacement.push({ type: "text", value: node.value.slice(cursor, left) });
+                replacement.push({ type: "element", tagName: "mark", properties: {
+                    className: ["bg-amber-200", "text-gray-950"], "data-search-match": true,
+                }, children: [{ type: "text", value: node.value.slice(left, right) }] });
+                cursor = right;
+            }
+            if (cursor < node.value.length) replacement.push({ type: "text", value: node.value.slice(cursor) });
+            parent.children.splice(parent.children.indexOf(node), 1, ...replacement);
+        }
+    };
+}
+
 export function GfmMarkdown(props: ComponentProps<typeof ReactMarkdown>) {
-    const { remarkPlugins, urlTransform, ...rest } = props;
+    const { remarkPlugins, rehypePlugins, urlTransform, ...rest } = props;
+    const query = useContext(MessageSearchHighlight).trim();
     return (
         <ReactMarkdown
             {...rest}
             remarkPlugins={[remarkGfm, ...(remarkPlugins ?? [])]}
+            rehypePlugins={[...(rehypePlugins ?? []), ...(query ? [highlightText(query)] : [])]}
             urlTransform={urlTransform ?? ((url) => safeAssistantUrl(url) ?? "")}
         />
     );
@@ -48,17 +89,22 @@ export function CitationPill({
     className = "",
     title,
     truncateStyleOfCause = false,
+    sourceOnly = false,
 }: {
     citation: Citation;
     onClick?: (citation: Citation) => void;
     className?: string;
     title?: string;
     truncateStyleOfCause?: boolean;
+    sourceOnly?: boolean;
 }) {
-    const label = citationPillParts(citation);
+    const displayCitation = truncateStyleOfCause || sourceOnly
+        ? { ...citation, display_form: "full" as const } : citation;
+    const label = citationPillParts(displayCitation, sourceOnly);
     const content = label.styleOfCause ? (
-        <><em className={truncateStyleOfCause ? "inline-block max-w-56 truncate align-bottom" : undefined}>{label.styleOfCause}</em>{label.rest}</>
+        <><em className={truncateStyleOfCause ? "min-w-0 max-w-56 truncate" : undefined}>{label.styleOfCause}</em><span className={truncateStyleOfCause ? "shrink-0 whitespace-nowrap" : undefined}>{label.rest}</span></>
     ) : label.rest;
+    const pillClassName = `${LEGAL_CITATION_PILL} ${truncateStyleOfCause && label.styleOfCause ? "!inline-flex !whitespace-nowrap" : ""} ${className}`;
     const href = safeAssistantUrl(
         ("url" in citation ? citation.url : null) ?? citation.external_url,
         { relative: false },
@@ -66,8 +112,8 @@ export function CitationPill({
     if (href) return (
         <a href={href} target="_blank" rel="noopener noreferrer"
             data-citation-ref={citation.ref}
-            className={`${LEGAL_CITATION_PILL} ${className}`}
-            title={title ?? citationTooltip(citation)}>
+            className={pillClassName}
+            title={title ?? citationTooltip(displayCitation)}>
             {content}
         </a>
     );
@@ -76,8 +122,8 @@ export function CitationPill({
             type="button"
             onClick={() => onClick(citation)}
             data-citation-ref={citation.ref}
-            className={`${LEGAL_CITATION_PILL} ${className} text-left`}
-            title={title ?? citationTooltip(citation)}
+            className={`${pillClassName} text-left`}
+            title={title ?? citationTooltip(displayCitation)}
         >
             {content}
         </button>
@@ -85,8 +131,8 @@ export function CitationPill({
     return (
         <span
             data-citation-ref={citation.ref}
-            className={`${LEGAL_CITATION_PILL} ${className}`}
-            title={title ?? citationTooltip(citation)}
+            className={pillClassName}
+            title={title ?? citationTooltip(displayCitation)}
         >
             {content}
         </span>
@@ -203,6 +249,7 @@ export function MarkdownContent({
                     li: styled("li", "mb-2 leading-7"),
                     strong: styled("strong", "font-semibold"),
                     em: styled("em", "italic"),
+                    pre: styled("pre", "my-4 overflow-x-auto rounded-lg bg-gray-900 p-4 whitespace-pre [&_code]:bg-transparent [&_code]:p-0"),
                     code: (props) => {
                         const { children, ...codeProps } =
                             withoutMarkdownNode(props);
@@ -224,7 +271,7 @@ export function MarkdownContent({
                         }
                         return (
                             <code
-                                className="rounded bg-gray-800 px-1.5 py-0.5 font-serif text-sm text-gray-100"
+                                className="rounded bg-gray-800 px-1.5 py-0.5 font-mono text-sm text-gray-100"
                                 {...codeProps}
                             >
                                 {children}

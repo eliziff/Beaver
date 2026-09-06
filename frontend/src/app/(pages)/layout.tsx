@@ -6,7 +6,6 @@ import {
     useMatches,
 } from "react-router-dom";
 import { PanelLeft } from "lucide-react";
-import { AssistantWorkflowActivity } from "@/app/components/assistant/WorkflowRun";
 import { AppSidebar } from "@/app/components/shared/AppSidebar";
 import { KeyboardShortcuts } from "@/app/components/shared/KeyboardShortcuts";
 import { useAuth } from "@/app/contexts/AuthContext";
@@ -113,7 +112,6 @@ export default function AppShell() {
                         </div>
                     </div>
                 </div>
-                <AssistantWorkflowActivity />
             </SidebarContext.Provider>
         </ChatHistoryProvider>
     );

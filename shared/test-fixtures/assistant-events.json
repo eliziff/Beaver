@@ -1,0 +1,22 @@
+[
+  {"type":"turn_queued","jobId":"job-1"},
+  {"type":"chat_id","chatId":"chat-1","transcriptVersion":0},
+  {"type":"transcript_version","transcriptVersion":2},
+  {"type":"client_tool_call","callId":"call-1","name":"save","input":{"document":"draft-1"}},
+  {"type":"reasoning_delta","text":"Checking the record"},
+  {"type":"reasoning_block_end"},
+  {"type":"reasoning","text":"Checked the record"},
+  {"type":"content","text":"The record supports this answer."},
+  {"type":"content_final","text":"The record supports this answer.","citations":[{"kind":"document","ref":1,"document_id":"document-1","filename":"Record.pdf","quotes":[]}]},
+  {"type":"ask_inputs","items":[{"id":"choice","kind":"choice","question":"Which forum?","options":[{"value":"Alberta"}]},{"id":"files","kind":"documents","document_types":["Record"]}]},
+  {"type":"ask_inputs_response","responses":[{"id":"choice","kind":"choice","answer":"Alberta"},{"id":"files","kind":"documents","documents":[{"document_id":"document-1","filename":"Record.pdf"}]}]},
+  {"type":"tool_activity","id":"activity-1","tool":"Read","label":"Read the record","status":"completed","citations":[]},
+  {"type":"subagent_run","id":"reader-1","task":"Read the record","status":"interrupted","activities":[],"output":"","error":"Reading interrupted","citations":[]},
+  {"type":"workflow_run","id":"workflow-1","tool":"update_work_product","stage":"Build","status":"complete","counts":[{"label":"Pages","value":3}],"outputs":[{"name":"Record.pdf"}],"app_url":"/court-records/draft-1","work_product":{"id":"draft-1","kind":"court-record","revision":2},"requested_action":"build"},
+  {"type":"document_artifact","action":"edited","filename":"Draft.docx","download_url":"/documents/document-1/download","document_id":"document-1","version_id":"version-1","version_number":2,"edit_mode":"manual","annotations":[{"edit_id":"edit-1","document_id":"document-1","version_id":"version-1","version_number":2,"deleted_text":"old","inserted_text":"new","context_before":"The ","context_after":" clause","diff":[{"kind":"delete","text":"old"},{"kind":"insert","text":"new"}],"status":"pending"}]},
+  {"type":"steering","id":"steer-1","text":"Focus on Alberta"},
+  {"type":"context_usage","used_tokens":120,"window_tokens":1000},
+  {"type":"compaction","status":"completed"},
+  {"type":"turn_status","status":"cancelled"},
+  {"type":"error","message":"The turn was interrupted","retryable":true,"accepted":true}
+]

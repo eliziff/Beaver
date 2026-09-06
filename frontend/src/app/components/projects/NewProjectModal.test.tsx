@@ -1,7 +1,7 @@
 import { Profiler } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
-import type { Project } from "../shared/types";
+import type { Project } from "@/app/lib/api/projects";
 import { NewProjectModal } from "./NewProjectModal";
 
 const mocks = vi.hoisted(() => ({
@@ -11,13 +11,17 @@ const mocks = vi.hoisted(() => ({
     uploadDirectory: vi.fn(),
 }));
 
-vi.mock("@/app/lib/beaverApi", async (importOriginal) => ({
-    ...await importOriginal(),
-    ...mocks,
-    directoryResource: () => ({
+vi.mock("@/app/lib/api/documents", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/documents")>(),
+  addDocumentToProject: mocks.addDocumentToProject,
+  directoryResource: () => ({
         uploadDocument: mocks.uploadDocument,
         uploadDirectory: mocks.uploadDirectory,
-    }),
+    })
+}));
+vi.mock("@/app/lib/api/projects", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/projects")>(),
+  createProject: mocks.createProject
 }));
 vi.mock("@/app/contexts/AuthContext", () => ({
     useAuth: () => ({

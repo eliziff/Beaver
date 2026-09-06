@@ -517,7 +517,7 @@ def stable_headers(headers: dict[str, dict[str, float]]) -> None:
 
 def header_cycle(driver: webdriver.Chrome, static: dict[str, float]) -> dict[str, dict[str, float]]:
     headers = {"static": static, "draft": header_rect(driver)}
-    for name in ("Drafts", "Settings", "Automatic"):
+    for name in ("Drafts", "Automatic"):
         tab(driver, name).click()
         wait(driver, 5).until(lambda _item, name=name:
             tab(driver, name).get_attribute("aria-selected") == "true")
@@ -1366,7 +1366,7 @@ def keyboard_tabs(driver: webdriver.Chrome) -> None:
 
 
 def visit_tabs(driver: webdriver.Chrome) -> list[str]:
-    names = ["Automatic", "Manual", "Drafts", "Settings"]
+    names = ["Automatic", "Manual", "Drafts"]
     for name in names:
         control = tab(driver, name)
         control.click()
@@ -1407,14 +1407,20 @@ return {width:innerWidth,visualWidth:visualViewport?.width||innerWidth,
         assert metrics["deviceScale"] == scale and metrics["physicalWidth"] == width * scale, metrics
         assert metrics["overflow"] <= 1 and metrics["cls"] <= 0.1, metrics
         assert metrics["selectedTabs"] == 1 and metrics["visibleTabs"] and \
-            visited == ["Automatic", "Manual", "Drafts", "Settings"], metrics
+            visited == ["Automatic", "Manual", "Drafts"], metrics
         assert not metrics["unnamed"], metrics
         assert driver.save_screenshot(str(output / f"authorities-{name}.png"))
-        for section, heading in (("Drafts", "Saved drafts"), ("Settings", "New drafts")):
+        for section, heading in (("Drafts", "Saved drafts"),):
             tab(driver, section).click()
             wait(driver, 5).until(lambda item, heading=heading: item.find_elements(
                 By.XPATH, f"//h2[normalize-space(.)='{heading}']"))
             assert driver.save_screenshot(str(output / f"authorities-{section.lower()}-{name}.png"))
+        driver.find_element(By.CSS_SELECTOR, '.authorities-workspace button[aria-label="Settings"]').click()
+        dialog = wait(driver, 5).until(lambda item: item.find_element(By.CSS_SELECTOR, "dialog[open]"))
+        assert driver.execute_script("return arguments[0].scrollWidth <= arguments[0].clientWidth + 1", dialog)
+        assert driver.save_screenshot(str(output / f"authorities-settings-{name}.png"))
+        dialog.send_keys(Keys.ESCAPE)
+        wait(driver, 5).until(lambda item: not item.find_elements(By.CSS_SELECTOR, "dialog[open]"))
         tab(driver, "Automatic").click()
         proof[name] = metrics
     driver.execute_cdp_cmd("Emulation.clearDeviceMetricsOverride", {})

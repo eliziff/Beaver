@@ -5,11 +5,7 @@ import { Input } from "@/app/components/ui/input";
 import { SiteLogo } from "@/app/components/site-logo";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useMfaAction } from "@/app/components/account/useMfaAction";
-import {
-    exchangeAuthCode,
-    requestPasswordReset,
-    updateAuthPassword,
-} from "@/app/lib/authApi";
+import { exchangeAuthCode, requestPasswordReset, updateAuthPassword } from "@/app/lib/api/auth";
 
 function safeNext(value: string | null, fallback: string) {
     return value?.startsWith("/") && !value.startsWith("//") && !value.includes("\\")

@@ -5,41 +5,23 @@ import {
     RefreshCw,
     X,
 } from "lucide-react";
-import type { ColumnConfig, Document, TabularCell } from "../shared/types";
-import { isDocxFilename, isSpreadsheetFilename } from "../shared/types";
-import type { ParsedCitation } from "./citation-utils";
-import { parseTabularMarkdown, TabularMarkdown } from "./TabularMarkdown";
-import { DocumentViewer } from "../shared/views/DocumentViewer";
+import type { ColumnConfig, TabularCell, TabularDocument } from "@/app/lib/api/tabular";
+import { type Citation, expandCitationToEntries, citationPinpoint } from "@/app/lib/citations";
+import { ResearchCitationContent } from "../legal/ResearchCitationViewer";
+import { GroundedAnswerContent } from "../shared/GroundedAnswerContent";
 import { FileTypeIcon } from "../shared/FileTypeIcon";
 import { CitationQuotesHeader } from "../assistant/CitationQuotesHeader";
 import { cn } from "@/app/lib/utils";
 import { LIQUID_PANEL_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
 interface Props {
     cell: TabularCell;
-    document: Document;
+    document: TabularDocument;
     column: ColumnConfig;
     onClose: () => void;
     onRegenerate?: () => Promise<void>;
     displayDocument?: boolean;
-    citationQuote?: string;
-    citationPage?: number;
-    citationSheet?: string;
-    citationCell?: string;
-    citationRef?: number;
+    citation?: Citation;
 }
-type TRPanelCitation = {
-    quote: string;
-    page?: number;
-    sheet?: string;
-    cell?: string;
-    citationRef?: number;
-};
-const FLAG_BADGE: Record<string, string> = {
-    green: "bg-emerald-600 border border-emerald-700 text-white shadow-sm",
-    grey: "bg-slate-500 border border-slate-600 text-white shadow-sm",
-    yellow: "bg-amber-500 border border-amber-600 text-white shadow-sm",
-    red: "bg-red-600 border border-red-700 text-white shadow-sm",
-};
 const COMPACT_PANEL = "(max-width: 767px)";
 export function TRSidePanel({
     cell,
@@ -48,11 +30,7 @@ export function TRSidePanel({
     onClose,
     onRegenerate,
     displayDocument = false,
-    citationQuote,
-    citationPage,
-    citationSheet,
-    citationCell,
-    citationRef,
+    citation,
 }: Props) {
     const [regenerating, setRegenerating] = useState(false);
     const panelRef = useRef<HTMLDialogElement>(null);
@@ -63,19 +41,7 @@ export function TRSidePanel({
             : null,
     );
     const [documentPaneOpen, setDocumentPaneOpen] = useState(displayDocument);
-    const [docCitation, setDocCitation] = useState<
-        TRPanelCitation | undefined
-    >(
-        displayDocument && citationQuote
-            ? {
-                  quote: citationQuote,
-                  page: citationPage,
-                  sheet: citationSheet,
-                  cell: citationCell,
-                  citationRef,
-              }
-            : undefined,
-    );
+    const [docCitation, setDocCitation] = useState(citation);
     useLayoutEffect(() => {
         const panel = panelRef.current, media = window.matchMedia?.(COMPACT_PANEL);
         const opener = openerRef.current;
@@ -118,27 +84,14 @@ export function TRSidePanel({
                 handleOutsidePointerDown,
             );
     }, [onClose]);
-    function handleCitationOpen(
-        citation: ParsedCitation,
-        citationRef: number,
-    ) {
-        setDocCitation({ ...citation, citationRef });
+    function handleCitationOpen(citation: Citation) {
+        setDocCitation(citation);
         setDocumentPaneOpen(true);
     }
-    const summary = parseTabularMarkdown(cell.content?.summary || "—");
-    const reasoning = parseTabularMarkdown(cell.content?.reasoning ?? "");
-    const documentKind =
-        (["docx", "doc"].includes((doc.file_type ?? "").toLowerCase()) ||
-            isDocxFilename(doc.filename)) &&
-        !doc.pdf_storage_path
-            ? "docx"
-            : isSpreadsheetFilename(doc.filename)
-              ? "spreadsheet"
-              : "pdf";
-    const citationLocation = docCitation
-        ? formatCitationLocation(docCitation)
-        : "";
+    const source = doc.reference;
+    const citationLocation = docCitation ? citationPinpoint(docCitation) : "";
     const citationText = `${doc.filename}, ${citationLocation}`;
+    const quoteEntries = docCitation?.kind === "document" ? expandCitationToEntries(docCitation) : docCitation?.quotes ?? [];
     return (
         <dialog
             ref={panelRef}
@@ -168,53 +121,28 @@ export function TRSidePanel({
                             />
                             <div
                                 className="min-w-0 truncate text-sm font-medium text-gray-700"
-                                title={doc.filename}
+                                title={source?.title ?? doc.filename}
                             >
-                                {doc.filename}
+                                {source?.title ?? doc.filename}
                             </div>
                         </div>
                     </div>
-                    {docCitation?.quote && (
+                    {!!quoteEntries.length && (
                         <div className="-mx-3 shrink-0 py-2">
                             <CitationQuotesHeader
-                                quotes={[
-                                    {
-                                        id: citationKey(cell.id, docCitation),
-                                        quote: docCitation.quote,
+                                quotes={quoteEntries.map(({ quote }, index) => ({
+                                        id: `${cell.id}:${docCitation?.ref}:${index}`,
+                                        quote,
                                         inlineDetail: citationLocation,
                                         citationText,
-                                    },
-                                ]}
-                                activeQuoteId={citationKey(cell.id, docCitation)}
-                                citationRef={docCitation.citationRef}
+                                    }))}
+                                activeQuoteId={`${cell.id}:${docCitation?.ref}:0`}
+                                citationRef={docCitation?.ref}
                                 citationText={citationText}
                             />
                         </div>
                     )}
-                    <DocumentViewer
-                        documentId={doc.id}
-                        kind={documentKind}
-                        quotes={
-                            docCitation
-                                ? [
-                                      {
-                                          page: docCitation.page,
-                                          quote: docCitation.quote,
-                                      },
-                                  ]
-                                : undefined
-                        }
-                        highlightCells={
-                            docCitation?.sheet || docCitation?.cell
-                                ? [
-                                      {
-                                          sheet: docCitation.sheet,
-                                          cell: docCitation.cell,
-                                      },
-                                  ]
-                                : undefined
-                        }
-                    />
+                    <ResearchCitationContent document={doc} reference={source} citation={docCitation} />
                 </div>
             )}
             <div
@@ -301,64 +229,10 @@ export function TRSidePanel({
                                 )}
                             </div>
                         </div>
-                        {cell.content?.flag && (
-                            <div className="mb-5">
-                                <h4 className="mb-2 text-xs font-medium text-gray-900">
-                                    Flag
-                                </h4>
-                                <span
-                                    className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${FLAG_BADGE[cell.content.flag] ?? FLAG_BADGE.grey}`}
-                                >
-                                    {cell.content.flag.charAt(0).toUpperCase() +
-                                        cell.content.flag.slice(1)}
-                                </span>
-                            </div>
-                        )}
-                        <div className="mb-6">
-                            <h4 className="mb-2 text-xs font-medium text-gray-900">
-                                Results
-                            </h4>
-                            <div className="text-xs leading-relaxed text-slate-600">
-                                <TabularMarkdown
-                                    parsed={summary}
-                                    onCitationClick={handleCitationOpen}
-                                    column={column}
-                                />
-                            </div>
-                        </div>
-                        {cell.content?.reasoning && (
-                            <div>
-                                <h4 className="mb-2 text-xs font-medium text-gray-900">
-                                    Reasoning
-                                </h4>
-                                <div className="text-xs leading-relaxed text-slate-600">
-                                    <TabularMarkdown
-                                        parsed={reasoning}
-                                        onCitationClick={handleCitationOpen}
-                                        citationOffset={
-                                            summary.citations.length
-                                        }
-                                        column={column}
-                                        inline
-                                    />
-                                </div>
-                            </div>
-                        )}
+                        {cell.content && <GroundedAnswerContent answer={cell.content} column={column} onCitation={handleCitationOpen} />}
                     </div>
                 </div>
             </div>
         </dialog>
     );
-}
-function formatCitationLocation(citation: ParsedCitation): string {
-    if (citation.sheet && citation.cell) {
-        return `${citation.sheet}, cell ${citation.cell}`;
-    }
-    return `Page ${citation.page ?? 1}`;
-}
-function citationKey(cellId: string, citation: ParsedCitation): string {
-    const location = citation.sheet
-        ? `${citation.sheet}:${citation.cell ?? ""}`
-        : `page:${citation.page ?? 1}`;
-    return `tr-cell:${cellId}:${location}`;
 }

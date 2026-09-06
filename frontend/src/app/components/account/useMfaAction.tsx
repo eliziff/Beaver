@@ -3,7 +3,7 @@ import {
     MfaVerificationPopup,
     needsMfaVerification,
 } from "@/app/components/popups/MfaVerificationPopup";
-import { isMfaRequiredError } from "@/app/lib/authApi";
+import { isMfaRequiredError } from "@/app/lib/api/auth";
 
 type MfaActionOptions = {
     title?: string;

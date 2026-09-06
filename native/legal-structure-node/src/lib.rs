@@ -1160,6 +1160,44 @@ pub fn document_has_origin_node(
 }
 
 #[cfg(feature = "legalpdf")]
+fn pdf_lookup_unit_spans(
+    structure: &DocumentStructure,
+    ids: &[String],
+) -> std::collections::BTreeMap<String, legal_structure::ScalarRange> {
+    let nodes: std::collections::HashMap<_, _> = structure
+        .nodes
+        .iter()
+        .filter_map(|node| node.rendered_range.map(|span| (node.id.as_str(), span)))
+        .collect();
+    let notes: std::collections::HashMap<_, _> = structure
+        .notes
+        .iter()
+        .map(|note| (note.id.as_str(), note.node_id.as_str()))
+        .collect();
+    ids.iter()
+        .filter_map(|id| {
+            nodes
+                .get(id.as_str())
+                .or_else(|| notes.get(id.as_str()).and_then(|node| nodes.get(node)))
+                .map(|span| (id.clone(), *span))
+        })
+        .collect()
+}
+
+#[cfg(feature = "legalpdf")]
+#[napi(js_name = "pdfLookupUnitSpans")]
+pub fn pdf_lookup_unit_spans_node(
+    env: Env,
+    document: &External<NativeDocument>,
+    ids: Vec<String>,
+) -> napi::Result<Unknown<'static>> {
+    let NativeProduct::Pdf(pdf) = &document.product else {
+        return Err(Error::from_reason("PDF query requires a PDF document"));
+    };
+    js_value(env, &pdf_lookup_unit_spans(pdf.structure(), &ids))
+}
+
+#[cfg(feature = "legalpdf")]
 #[napi(js_name = "queryPdfDocument")]
 pub fn query_pdf_document_node(
     env: Env,
@@ -1192,4 +1230,52 @@ pub fn query_pdf_document_node(
 
 fn native_error(error: legal_structure::EngineError) -> Error {
     Error::from_reason(error.to_string())
+}
+
+#[cfg(all(test, feature = "legalpdf"))]
+mod pdf_evidence_tests {
+    use super::*;
+    use legal_structure::{Derivation, NodeKind, Note, NoteKindV2, ScalarRange, StructureNode};
+
+    #[test]
+    fn lookup_spans_preserve_rendered_offsets_and_footnote_identity() {
+        let mut structure = analyze_instrument(
+            "Repeated\n\nRepeated".to_owned(),
+            "pdf".to_owned(),
+            &[],
+            false,
+        )
+        .unwrap();
+        let span = ScalarRange { start: 10, end: 18 };
+        let mut node = StructureNode::new(
+            "heading-2".to_owned(),
+            NodeKind::Heading,
+            ScalarRange { start: 0, end: 8 },
+            "native",
+            Derivation::Native,
+            None,
+        );
+        node.rendered_range = Some(span);
+        structure.nodes = vec![node];
+        structure.notes.push(Note {
+            id: "pair-2".to_owned(),
+            node_id: "heading-2".to_owned(),
+            kind: NoteKindV2::Footnote,
+            label_range: span,
+            body_range: span,
+            references: vec![],
+            primary_reference: None,
+        });
+        let spans = pdf_lookup_unit_spans(
+            &structure,
+            &[
+                "heading-2".to_owned(),
+                "pair-2".to_owned(),
+                "missing".to_owned(),
+            ],
+        );
+        assert_eq!(spans.len(), 2);
+        assert_eq!(spans["heading-2"], span);
+        assert_eq!(spans["pair-2"], span);
+    }
 }

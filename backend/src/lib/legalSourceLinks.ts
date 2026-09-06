@@ -18,14 +18,6 @@ import { buildA2AJWebPinpointUrl } from "./a2ajWebLinks";
  * Everything here queries the canonical native document.
  */
 
-type A2AJCitationIdentity = {
-  citation: string | null;
-  name: string | null;
-  dataset: string | null;
-  url: string | null;
-  quotes: { quote: string }[];
-};
-
 export type LegalSourceEvidence = {
   url: string;
   docType?: A2AJCompiledDocument["docType"];
@@ -495,17 +487,13 @@ export function shouldUseA2AJWebFallback(
   }
 }
 
-function buildA2AJSourcePinpointUrl(
-  source: Pick<
-    A2AJCompiledDocument,
-    "docType" | "dataset" | "citation" | "alternateCitation" | "name" |
-      "date" | "language" | "url" | "verifiedPdf" | "searchText"
-  >,
+export function buildA2AJDocumentPinpointUrl(
+  source: A2AJCompiledDocument,
   locator: { kind: A2AJLocatorKind; label: string },
   blockText: string,
   quotes: string[],
-  document: NativeDocument,
 ) {
+  const document = source.searchNative;
   const publisher = source.url
     ? buildLegalSourcePinpoint({
         url: source.url,
@@ -611,32 +599,6 @@ function normalizedIdentity(value: string | null | undefined) {
   return value?.trim().replace(/\s+/gu, " ").toLowerCase() ?? "";
 }
 
-function identityMatches(
-  citation: A2AJCitationIdentity,
-  source: Pick<
-    A2AJCompiledDocument,
-    "citation" | "alternateCitation" | "dataset"
-  >,
-) {
-  if (citation.citation) {
-    const wanted = normalizedIdentity(citation.citation);
-    if (
-      ![source.citation, source.alternateCitation]
-        .map(normalizedIdentity)
-        .includes(wanted)
-    ) {
-      return false;
-    }
-  }
-  if (
-    citation.dataset &&
-    normalizedIdentity(citation.dataset) !== normalizedIdentity(source.dataset)
-  ) {
-    return false;
-  }
-  return true;
-}
-
 function isCanadianDecisionUrl(url: URL) {
   return (
     isDecisiaDocument(url) ||
@@ -648,23 +610,6 @@ function isCanadianDecisionUrl(url: URL) {
     ((url.hostname === "scc-csc.ca" ||
       url.hostname === "www.scc-csc.ca") &&
       url.pathname.toLowerCase().includes("/case-dossier/"))
-  );
-}
-
-/** Rebuild the same A2AJ link after a prior-turn receipt has been rehydrated. */
-export function buildA2AJDocumentPinpointUrl(
-  document: A2AJCompiledDocument,
-  locator: { kind: A2AJLocatorKind; label: string },
-  blockText: string,
-  quotes: string[],
-  _source: NativeDocument | null = null,
-) {
-  return buildA2AJSourcePinpointUrl(
-    document,
-    locator,
-    blockText,
-    quotes,
-    document.searchNative,
   );
 }
 
@@ -716,36 +661,12 @@ export function buildA2AJParagraphRangeUrl(
   citation: string,
   start: string,
   end: string,
-  documents: A2AJCompiledDocument[],
+  document?: A2AJCompiledDocument,
 ) {
-  const sources = new Map<
-    NativeDocument,
-    {
-      source: NativeDocument;
-      metadata: A2AJCompiledDocument;
-    }
-  >();
-  for (const document of documents) {
-    if (
-      document.url &&
-      identityMatches(
-        { citation, name: null, dataset: null, url: null, quotes: [] },
-        document,
-      )
-    ) {
-      const source = document.native;
-      sources.set(source, { source, metadata: document });
-    }
-  }
-  const candidates = [...sources.values()].flatMap(({ source, metadata }) => {
-    const directive = structureNative().documentParagraphRangeDirective(source, start, end);
-    return directive === null ? [] : [{ metadata, directive }];
-  });
-  const structured = candidates.length === 1 ? candidates[0] : null;
-  if (!structured?.directive) return null;
-  const anchor = `par${Number(start)}`;
-  const baseUrl = structured.metadata.url
-    ? sourceUrl(structured.metadata.url, anchor)
-    : null;
-  return baseUrl ? appendDirectives(baseUrl, [structured.directive]) : null;
+  if (!document?.url || (citation && ![document.citation, document.alternateCitation]
+    .map(normalizedIdentity).includes(normalizedIdentity(citation)))) return null;
+  const directive = structureNative().documentParagraphRangeDirective(document.native, start, end);
+  if (!directive) return null;
+  const baseUrl = sourceUrl(document.url, `par${Number(start)}`);
+  return baseUrl ? appendDirectives(baseUrl, [directive]) : null;
 }

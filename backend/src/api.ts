@@ -157,7 +157,8 @@ api.use(
     const [library, documents] = await Promise.all([
       runtime.library(), runtime.documents(),
     ]);
-    return createDocumentsRouter(library, documents);
+    return createDocumentsRouter(library, documents,
+      (...events) => runtime.audit().then((store) => store.record(...events)));
   }),
 );
 api.use(
@@ -185,6 +186,8 @@ if (runtime.mode === "local") api.use(
   lazyRouter(async () => (await import("./routes/authoritiesRuntime"))
     .createAuthoritiesRuntimeRouter()),
 );
+api.use("/quote-check", lazyRouter(async () => (await import("./routes/quoteCheck"))
+  .createQuoteCheckRouter(await runtime.documents())));
 api.use(
   "/authorities",
   lazyRouter(async () => (await import("./routes/authorities"))

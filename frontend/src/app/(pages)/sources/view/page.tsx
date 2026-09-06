@@ -1,6 +1,6 @@
 import { useSearchParams } from "react-router-dom";
 import { LegalLibrarySourcePage } from "@/app/components/legal/LegalLibrary";
-import type { LegalDocumentType } from "@/app/lib/beaverApi";
+import type { LegalDocumentType } from "@/app/lib/api/legalSources";
 
 export default function DirectSourcePage() {
     const [params] = useSearchParams();

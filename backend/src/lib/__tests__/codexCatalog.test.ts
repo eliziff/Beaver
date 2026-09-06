@@ -37,20 +37,21 @@ describe("normalizeCodexCatalog", () => {
     });
   });
 
-  it("keeps auto-review when the CLI reports it as a distinct model", () => {
+  it("omits internal Codex UI models", () => {
     const result = normalizeCodexCatalog([
         luna,
         {
           ...luna,
-          model: "codex-auto-review",
-          displayName: "Codex Auto Review",
+          model: "gpt-auto-review",
+          displayName: "GPT Auto Review",
         },
+        { ...luna, model: "codex-auto-review", displayName: "Codex Auto Review" },
+        { ...luna, model: "gpt-reserve", displayName: "GPT Reserve" },
       ],
     );
 
     expect(result.models.map((model) => model.slug)).toEqual([
       "gpt-5.6-luna",
-      "codex-auto-review",
     ]);
   });
 });

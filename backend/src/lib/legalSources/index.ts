@@ -1,4 +1,5 @@
 import { safeErrorLog } from "../safeError";
+import { z } from "zod";
 import type { NativeDocument, NativeDocumentBlock } from "../structureNative";
 
 export type LegalSourceKind = "case" | "legislation" | "journal" | "hansard";
@@ -9,20 +10,15 @@ export type LegalSourceLocator = {
   endValue?: string;
 };
 
-export type LegalSourceReference = {
-  provider: string;
-  family?: string;
-  id: string;
-  part?: string;
-  kind: LegalSourceKind;
-  title?: string | null;
-  citation?: string | null;
-  alternateCitation?: string | null;
-  date?: string | null;
-  collection?: string | null;
-  language?: "en" | "fr";
-  url?: string | null;
-};
+const referenceText = (max: number) => z.string().trim().min(1).max(max);
+export const legalSourceReferenceSchema = z.object({ provider: referenceText(100),
+  family: referenceText(1_000).optional(), id: referenceText(500),
+  part: referenceText(1_000).optional(), kind: z.enum(["case", "legislation", "journal", "hansard"]),
+  title: referenceText(1_000).nullable().optional(), citation: referenceText(1_000).nullable().optional(),
+  alternateCitation: referenceText(1_000).nullable().optional(), date: referenceText(1_000).nullable().optional(),
+  collection: referenceText(1_000).nullable().optional(), language: z.enum(["en", "fr"]).optional(),
+  url: z.string().url().max(4_000).nullable().optional() }).strict();
+export type LegalSourceReference = z.infer<typeof legalSourceReferenceSchema>;
 
 export type LegalSourceSearchRequest = {
   text: string;

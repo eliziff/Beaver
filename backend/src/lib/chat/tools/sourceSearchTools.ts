@@ -1,6 +1,4 @@
-import {
-  searchLegalSources,
-} from "../../legalSourceRegistry";
+import { legalSourceOperations } from "../../legalSourceApplication";
 import type { Tool } from "../../llm";
 import { researchSourceResource } from "../../researchFile";
 import { trimmedText as text } from "../../value";
@@ -15,7 +13,7 @@ export const SEARCH_SOURCES_TOOL: Tool & BeaverToolPolicy = {
   reader: ["CA", "US"],
   annotations: { readOnlyHint: true },
   description:
-    "Default discovery tool for requests about cases, legislation, journal commentary, Hansard, or legal authorities. Searches one or two installed legal-source corpora, not the user's uploaded Library. Apply filters here, start near 10 hits, then fetch plausible sources; refine instead of paging broadly. Exact known citations should be fetched directly. Results use SQLite FTS5/BM25 and are not evidence.",
+    "Discover legal authorities in installed corpora. Apply filters here and Read plausible hits; refine broad searches. Read known citations directly. Search snippets identify candidates; use retrieved passages for conclusions.",
   inputSchema: {
       type: "object",
       properties: {
@@ -24,7 +22,7 @@ export const SEARCH_SOURCES_TOOL: Tool & BeaverToolPolicy = {
           minLength: 1,
           maxLength: 256,
           description:
-            "Terms, or SQLite FTS5 syntax when syntax=boolean: quoted phrases, prefix*, NEAR(...), AND, OR, NOT, and parentheses.",
+            "Exact tokens; with syntax=boolean use quoted phrases, prefix* (at least three characters), NEAR(...), AND, OR, NOT, and parentheses.",
         },
         source_types: {
           type: "array",
@@ -36,12 +34,12 @@ export const SEARCH_SOURCES_TOOL: Tool & BeaverToolPolicy = {
             enum: ["case", "legislation", "journal", "hansard"],
           },
           description:
-            "One or more corpora to search. Choose only the corpora relevant to the question.",
+            "Relevant source types.",
         },
         syntax: {
           type: "string",
           enum: ["terms", "boolean"],
-          description: "terms is the default; boolean uses native FTS5 syntax.",
+          description: "Defaults to terms (all tokens required).",
         },
         search_type: {
           type: "string",
@@ -63,12 +61,6 @@ export const SEARCH_SOURCES_TOOL: Tool & BeaverToolPolicy = {
           type: "string",
           description: "Exact CourtListener court code when its indexed/API field is available.",
         },
-        court_level: {
-          type: "string",
-          enum: ["supreme", "appellate", "trial", "tribunal"],
-          description:
-            "Requires an installed source index with court-level metadata; otherwise the tool refuses this filter.",
-        },
         speaker: {
           type: "string",
           description: "Speaker-name substring for Hansard.",
@@ -83,7 +75,7 @@ export const SEARCH_SOURCES_TOOL: Tool & BeaverToolPolicy = {
           type: "integer",
           minimum: 1,
           maximum: 20,
-          description: "Candidate count. Start with 10 and narrow the query before requesting more.",
+          description: "Candidate count; start with 10.",
         },
       },
       required: ["query", "source_types"],
@@ -183,7 +175,7 @@ export async function searchSources(
     searchCache.set(cacheKey, cached);
     return cached.value;
   }
-  const searched = await searchLegalSources({
+  const searched = await legalSourceOperations.search({
     text: query,
     kinds: [...types] as Array<"case" | "legislation" | "journal" | "hansard">,
     syntax,

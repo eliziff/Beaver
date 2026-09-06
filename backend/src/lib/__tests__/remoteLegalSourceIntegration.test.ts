@@ -11,8 +11,9 @@ vi.mock("../remoteUrlSafety", async (importOriginal) => ({
   ) => fetch(input, init),
 }));
 
-import { readLegalSourcePassage } from "../legalSourceRegistry";
+import { legalSourceOperations } from "../legalSourceApplication";
 import { resourceReference } from "../resourceReferences";
+import { researchSourceFromResource } from "../researchFile";
 import { runLocalAssistantTools } from "./support/localAssistantTools";
 
 let temporaryDirectory = "";
@@ -82,12 +83,16 @@ describe("remote legal-source providers through the registry", () => {
     const payload = JSON.parse(toolResult.content);
     expect(payload.ok).toBe(true);
     expect(payload.passages).toMatchObject([{
-      role: "selected",
+      kind: "paragraph",
       locator: "par24",
       evidence_id: expect.stringMatching(/^e_/u),
     }]);
-    expect(payload.passages[0].text_sha256).toMatch(/^[0-9a-f]{64}$/u);
-    expect(toolResult.content).not.toContain("caselaw.nationalarchives.gov.uk");
+    expect(payload.passages[0].text).toContain("First exact proposition appears here.");
+    expect(researchSourceFromResource(payload.sources[0].resource)).toMatchObject({
+      provider: "tna", id: "[2024] UKSC 1",
+      part: "https://caselaw.nationalarchives.gov.uk/trusted/source.xml",
+    });
+    expect(payload.sources[0]).not.toHaveProperty("url");
   });
 
   it("does not mint document-wide evidence for an unlocated provider Read", async () => {
@@ -99,14 +104,16 @@ describe("remote legal-source providers through the registry", () => {
     }]);
     const payload = JSON.parse(toolResult.content);
     expect(payload.ok).toBe(true);
-    expect(payload.evidence_ids).toEqual([]);
-    expect(payload.passages[0]).not.toHaveProperty("evidence_id");
-    expect(payload.next_required_action).toContain("native locator");
+    expect(payload.passages).toHaveLength(2);
+    expect(payload.passages.map(({ kind, locator }: { kind: string; locator: string }) => [kind, locator]))
+      .toEqual([["paragraph", "par24"], ["paragraph", "par25"]]);
+    expect(payload.passages.every(({ evidence_id }: { evidence_id: string }) => /^e_/u.test(evidence_id)))
+      .toBe(true);
   });
 
   it("keeps the native document and selected block needed for a canonical pinpoint", async () => {
     vi.stubGlobal("fetch", providerFetch());
-    const read = await readLegalSourcePassage({
+    const read = await legalSourceOperations.readPassage({
       source: { provider: "tna", id: "[2024] UKSC 1", kind: "case" },
       locator: { kind: "paragraph", value: "24" },
     });

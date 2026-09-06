@@ -1,13 +1,16 @@
-import type { Document } from "@/app/components/shared/types";
+import type { Document } from "@/app/lib/api/documents";
 
 const NEW_CHAT_DOCUMENTS = "beaver:new-chat-documents";
 
 export const clearStagedChatDocuments = () =>
     typeof window === "undefined" || sessionStorage.removeItem(NEW_CHAT_DOCUMENTS);
 
-export function stageNewChatDocuments(documents: Document[]) {
+export function stageNewChatDocuments(documents: (Pick<Document, "id" | "filename"> & Partial<Document>)[]) {
     if (typeof window === "undefined") return;
-    sessionStorage.setItem(NEW_CHAT_DOCUMENTS, JSON.stringify(documents));
+    sessionStorage.setItem(NEW_CHAT_DOCUMENTS, JSON.stringify(documents.map((document) => ({
+        project_id: null, file_type: null, pdf_storage_path: null, size_bytes: null,
+        page_count: null, created_at: null, ...document,
+    }))));
 }
 
 export function takeNewChatDocuments(): Document[] {

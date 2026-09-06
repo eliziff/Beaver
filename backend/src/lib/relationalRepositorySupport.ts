@@ -1,6 +1,7 @@
 import type { ApplicationScope } from "./applicationError";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql,
   type RelationalDatabase, type SqlStatement } from "./relationalDatabase";
+import { tabularSubjectId, type TabularSelection } from "./tabularStore";
 
 export type Row = Record<string, any>;
 export const now = () => new Date().toISOString();
@@ -27,21 +28,26 @@ export async function deleteDocumentRows(db: RelationalDatabase, ids: string[]) 
   const unique = [...new Set(ids)];
   if (!unique.length) return 0;
   const selected = new Set(unique);
-  const reviews = new Map<string, { id: string; document_ids: unknown }>();
+  const reviews = new Map<string, { id: string; document_ids: unknown; scope_config: unknown }>();
   for (let start = 0; start < unique.length; start += 250) {
     const batch = unique.slice(start, start + 250);
-    for (const review of await rows<{ id: string; document_ids: unknown }>(
-      db.engine === "postgres" ? sql`SELECT id,document_ids FROM tabular_reviews
-        WHERE document_ids ?| ARRAY[${sql.join(batch)}] ORDER BY id FOR UPDATE`
-        : sql`SELECT id,document_ids FROM tabular_reviews WHERE EXISTS(
+    for (const review of await rows<{ id: string; document_ids: unknown; scope_config: unknown }>(
+      db.engine === "postgres" ? sql`SELECT id,document_ids,scope_config FROM tabular_reviews
+        WHERE document_ids ?| ARRAY[${sql.join(batch)}] OR
+          scope_config->>'research_file_id' IN(${sql.join(batch)}) ORDER BY id FOR UPDATE`
+        : sql`SELECT id,document_ids,scope_config FROM tabular_reviews WHERE EXISTS(
           SELECT 1 FROM json_each(tabular_reviews.document_ids)
-          WHERE value IN(${sql.join(batch)})) ORDER BY id`, db)) reviews.set(review.id, review);
+          WHERE value IN(${sql.join(batch)})) OR
+          scope_config->>'research_file_id' IN(${sql.join(batch)}) ORDER BY id`, db)) reviews.set(review.id, review);
   }
   for (const review of reviews.values()) {
     const current = decode<string[]>(review.document_ids, []);
     const next = current.filter((id) => !selected.has(id));
-    if (next.length !== current.length) await changes(sql`UPDATE tabular_reviews
-      SET document_ids=${encode(next)},updated_at=${now()} WHERE id=${review.id}`, db);
+    const selection = decode<TabularSelection>(review.scope_config, { subjects: [] });
+    selection.subjects = selection.subjects.filter((subject) => !selected.has(tabularSubjectId(subject)));
+    if (selection.research_file_id && selected.has(selection.research_file_id)) delete selection.research_file_id;
+    await changes(sql`UPDATE tabular_reviews SET document_ids=${encode(next)},
+      scope_config=${encode(selection)},updated_at=${now()} WHERE id=${review.id}`, db);
   }
   let deleted = 0;
   for (let start = 0; start < unique.length; start += 250) {

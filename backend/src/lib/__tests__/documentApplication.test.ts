@@ -61,6 +61,10 @@ function memoryRepository(readable: (scope: DocumentScope, value: DocumentAggreg
       const version = value?.versions.find(({ id }) => id === value.document.currentVersionId);
       return value && version ? { document: value.document, versions: [version] } : null;
     },
+    async heads(scope, ids) {
+      return (await Promise.all(ids.map((id) => repository.head(scope, id))))
+        .flatMap((head) => head ?? []);
+    },
     async version(scope, id, versionId) {
       const value = values.get(id);
       return value && readable(scope, value)
@@ -458,7 +462,8 @@ describe("shared document application", () => {
     if (revised.status !== "committed") return;
     expect((await documents.projectionSource(scope, created.id, null))?.provenance)
       .toMatchObject({ actor: "assistant", action: "revised", turnId: "revise" });
-    const checkpoint = await documents.checkpointVersion(scope, created.id, revised.version.id, 0);
+    await documents.renameVersion(scope, created.id, revised.version.id, "Revised memo.md", 0);
+    const checkpoint = await documents.checkpointVersion(scope, created.id, revised.version.id, 1);
     expect(checkpoint.status).toBe("created");
     if (checkpoint.status !== "created") return;
     expect((await documents.projectionSource(scope, created.id, null))?.provenance)
@@ -556,6 +561,9 @@ describe("shared document application", () => {
     const created = await documents.create(scope, {
       filename: "notes.md", fileType: "md", bytes: Buffer.from("one"),
     });
+    await expect(documents.checkpointVersion(scope, created.id, created.current_version_id, 0))
+      .rejects.toMatchObject({ status: 409 });
+    expect((await documents.versions(scope, created.id))?.versions).toHaveLength(1);
     const replaced = await documents.replaceVersion(
       scope, created.id, created.current_version_id, 0,
       { filename: "notes.md", fileType: "md", bytes: Buffer.from("two") });
@@ -780,10 +788,10 @@ describe("shared document application", () => {
     const created = await documents.create({ userId: "owner" }, {
       filename: "Brief.docx", fileType: "docx", bytes: await docx("private"),
     });
-    expect(await documents.download({ userId: "other" }, created.id, null, false, "attachment"))
+    expect(await documents.download({ userId: "other" }, created.id, null, { preferPdf: false, disposition: "attachment" }))
       .toBeNull();
     expect(mode.signedGet).not.toHaveBeenCalled();
-    expect(await documents.download({ userId: "owner" }, created.id, null, false, "attachment"))
+    expect(await documents.download({ userId: "owner" }, created.id, null, { preferPdf: false, disposition: "attachment" }))
       .toMatchObject({ kind: "redirect" });
     const stored = state.values.get(created.id)!.versions[0];
     expect(mode.signedGet).toHaveBeenCalledWith(stored.blobKey, expect.objectContaining({
@@ -792,7 +800,7 @@ describe("shared document application", () => {
       disposition: "attachment",
     }));
     mode.signedGet!.mockResolvedValueOnce(null);
-    expect(await documents.download({ userId: "owner" }, created.id, null, false, "attachment"))
+    expect(await documents.download({ userId: "owner" }, created.id, null, { preferPdf: false, disposition: "attachment" }))
       .toBeNull();
 
     const put = mode.objects.put;

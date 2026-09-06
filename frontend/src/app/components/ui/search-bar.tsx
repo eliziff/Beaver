@@ -15,6 +15,7 @@ type SearchBarProps = Omit<
     wrapperClassName?: string;
     inputClassName?: string;
     booleanSearch?: boolean;
+    action?: React.ReactNode;
 };
 
 const sizeClasses: Record<
@@ -47,6 +48,7 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
             wrapperClassName,
             inputClassName,
             booleanSearch = false,
+            action,
             ...props
         },
         ref,
@@ -94,6 +96,7 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
                         <X aria-hidden="true" className={classes.icon} />
                     </button>
                 ) : null}
+                {action}
                 {booleanSearch && <HelpPopover label="Boolean search help">
                     <strong className="block text-gray-900">Search operators</strong>
                     <span className="block"><code>AND</code> or a space finds all terms.</span>

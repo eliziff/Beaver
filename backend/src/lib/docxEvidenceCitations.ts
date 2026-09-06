@@ -10,6 +10,7 @@ import { authoritySeedFromReceipts,
   type AuthorityCitationLedger } from "./authoritiesDomain";
 import { sha256 } from "./hash";
 import { structureNative, type NativeAuthorityTextUnit } from "./structureNative";
+import { isJsonRecord } from "./value";
 
 const CITATION_ID = /^[a-z][a-z0-9_-]{0,63}$/u;
 const EVIDENCE_ID = /^e_[A-Za-z0-9_-]{8,64}$/u;
@@ -46,22 +47,15 @@ type LedgerNative = Pick<ReturnType<typeof structureNative>,
 
 function citationInputs(raw: unknown): CitationInput[] {
   if (raw === undefined) return [];
-  if (!Array.isArray(raw) || raw.length > 100) {
-    throw new Error("DOCX citations must be an array of at most 100 entries.");
+  if (!isJsonRecord(raw) || Object.keys(raw).length > 100) {
+    throw new Error("DOCX citations must be an object of at most 100 entries.");
   }
   const seen = new Set<string>();
   let evidenceCount = 0;
-  return raw.map((value) => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      throw new Error("Each DOCX citation must be an object.");
-    }
-    const row = value as Record<string, unknown>;
-    if (Object.keys(row).some((key) => !["id", "evidence_ids"].includes(key))) {
-      throw new Error("DOCX citation objects contain unsupported fields.");
-    }
-    const id = typeof row.id === "string" ? row.id.trim() : "";
-    const evidenceIds = Array.isArray(row.evidence_ids)
-      ? row.evidence_ids.map((item) => typeof item === "string" ? item.trim() : "")
+  return Object.entries(raw).map(([key, value]) => {
+    const id = key.trim();
+    const evidenceIds = Array.isArray(value)
+      ? value.map((item) => typeof item === "string" ? item.trim() : "")
       : [];
     if (!CITATION_ID.test(id) || seen.has(id)) {
       throw new Error("DOCX citation ids must be unique lowercase identifiers.");

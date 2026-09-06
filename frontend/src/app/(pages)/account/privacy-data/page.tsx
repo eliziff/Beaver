@@ -5,7 +5,14 @@ import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { useMfaAction } from "@/app/components/account/useMfaAction";
-import { deleteAllChats, deleteAllProjects, deleteAllTabularReviews, exportAccountData, exportChatData, exportTabularReviewsData } from "@/app/lib/beaverApi";
+import {
+  deleteAllChats,
+  deleteAllProjects,
+  deleteAllTabularReviews,
+  exportAccountData,
+  exportChatData,
+  exportTabularReviewsData,
+} from "@/app/lib/api/account";
 import { accountGlassDangerOutlineButtonClassName, accountGlassPrimaryButtonClassName } from "../accountStyles";
 import { AccountSection } from "../AccountSection";
 import { downloadBlob } from "@/app/lib/download";

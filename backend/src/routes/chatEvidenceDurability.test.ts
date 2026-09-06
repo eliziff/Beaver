@@ -145,6 +145,8 @@ async function loadApp() {
     chatRepository, generateChatTitle, {
       project: async (scope, id) => !!await localProjects.get(scope, id),
       review: async () => false,
+      research: async (scope, id) => !!await (await import("../lib/researchFile"))
+        .readResearchFile(localDocuments, scope, id),
     },
   );
   const documents = mocks.preflightFailure
@@ -260,6 +262,8 @@ describe("chat PDF evidence durability", () => {
     const saved = (await readResearchFile(loaded.documents,
       { userId: USER_ID }, workspace.id))!;
     expect(saved.state.queries?.count).toBe(1);
+    expect(saved.state.chats).toEqual([chat.body.id]);
+    expect((await loaded.store.get({ userId: USER_ID }, chat.body.id))?.research_file_id).toBe(workspace.id);
     expect((await pageResearchItems(loaded.documents, { userId: USER_ID }, saved,
       "queries")).items).toHaveLength(1);
   });

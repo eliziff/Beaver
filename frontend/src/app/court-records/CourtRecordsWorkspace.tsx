@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
-import { Files, Settings2 } from "lucide-react";
-import type { Document } from "@/app/components/shared/types";
+import { Settings2 } from "lucide-react";
+import type { Document } from "@/app/lib/api/documents";
 import { cn } from "@/app/lib/utils";
 import { CourtRecordBuildPanel } from "./CourtRecordBuildPanel";
 import { CourtRecordDocuments } from "./CourtRecordDocuments";
@@ -8,7 +8,8 @@ import { buildCourtRecord } from "./assembly";
 import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { Button } from "@/app/components/ui/button";
 import { LibraryDocumentPicker } from "@/app/components/shared/LibraryDocumentPicker";
-import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
+import { Pagination } from "@/app/components/shared/TablePrimitive";
+import { SearchBar } from "@/app/components/ui/search-bar";
 import { Modal } from "@/app/components/modals/Modal";
 import { OutputFolderSetting } from "@/app/components/shared/OutputFolderSetting";
 import { applySourceEntryFields, courtRecordDraft, courtRecordDraftFromDocuments, restoreCourtRecordDraft } from "./draftState";
@@ -53,8 +54,9 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const [cover, setCover] = useState<CoverValues>({});
   const [entries, setEntries] = useState<RecordEntry[]>([]);
   const [drafts, setDrafts] = useState<WorkProductMetadata[]>([]);
+  const [draftsLoading, setDraftsLoading] = useState(true);
   const [draft, setDraft] = useState<WorkProduct<CourtRecordDraft>>();
-  const [draftBusy, setDraftBusy] = useState(true);
+  const [draftBusy, setDraftBusy] = useState(!!initialDraftId);
   const [creating, setCreating] = useState(false);
   const pendingDocuments = useRef(initialDraftId ? undefined : initialDocuments);
   const [savedOpen, setSavedOpen] = useState(false);
@@ -69,12 +71,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const [result, setResult] = useState<BuildResult>();
   const [sourceKindId, setSourceKindId] = useState<string>();
   const [sourceExhibitLabel, setSourceExhibitLabel] = useState<string>();
-  const [sourceQuery, setSourceQuery] = useState("");
-  const [sourceResults, setSourceResults] = useState<Array<{
-    document: Document; draft?: DraftOutputChoice;
-  }>>([]);
-  const [sourceBusy, setSourceBusy] = useState(false);
-  const sourceSearchId = useRef(0);
+  const [importingSource, setImportingSource] = useState(false);
   const refreshSeen = useRef(0);
   const openRequest = useRef(0);
   const routeLoading = useRef(false);
@@ -88,7 +85,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const profile = COURT_PROFILE_BY_ID.get(profileId) ?? COURT_PROFILE_BY_ID.get(DEFAULT_PROFILE_ID)!;
   const isAffidavit = profile.family === "affidavit";
   const hasCaseDetails = !!(profile.cover.fields.length || profile.cover.partyStyles?.length);
-  const operationBusy = draftBusy || building || saving || !!busyEntryId || sourceBusy;
+  const operationBusy = draftBusy || building || saving || !!busyEntryId || importingSource;
   const openDraftEffect = useEffectEvent(openDraft);
   const saveDraftEffect = useEffectEvent(saveCurrentDraft);
   const refreshDraftEffect = useEffectEvent(refreshDraft);
@@ -108,6 +105,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   useEffect(() => {
     let cancelled = false;
     setDrafts([]);
+    setDraftsLoading(true);
     void (async () => {
       const saved = host.drafts.listMetadata
         ? await host.drafts.listMetadata("court-record", projectId)
@@ -118,6 +116,8 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)));
     })().catch((caught) => {
       if (!cancelled) setError(errorMessage(caught, "Saved records could not be listed."));
+    }).finally(() => {
+      if (!cancelled) setDraftsLoading(false);
     });
     return () => { cancelled = true; };
   }, [host, projectId]);
@@ -126,8 +126,8 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     if (initialDraftId && initialDraftId === draftRef.current?.id &&
         (draftRef.current.projectId ?? "") === (projectId ?? "")) return;
     let cancelled = false;
-    routeLoading.current = true;
-    setDraftBusy(true);
+    routeLoading.current = !!initialDraftId || !!draftRef.current;
+    setDraftBusy(routeLoading.current);
     void (async () => {
       if (draftRef.current && !await saveDraftEffect()) return;
       if (cancelled) return;
@@ -476,7 +476,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       invalidate();
       try {
         const prepared = await host.prepareDeviceFile(file, (message) => setProgress(message),
-          { workProductId: draftRef.current?.id });
+          { workProductId: draftRef.current?.id, destination: kind });
         let ready = applySourceEntryFields({ ...pending, ...prepared,
           binding: prepared.binding ?? selection.input }, previous ? undefined : pending.title,
         previous?.sourceFields);
@@ -540,7 +540,8 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       const resolved = await host.relinkInput(entry.binding);
       if (resolved.status === "missing") return;
       const prepared = resolved.prepared ?? await host.prepareDeviceFile(resolved.file,
-        (message) => setProgress(message), { workProductId: draftRef.current?.id });
+        (message) => setProgress(message), { workProductId: draftRef.current?.id,
+          destination: profile.documentKinds.find((kind) => kind.id === entry.kindId) });
       const ready = applySourceEntryFields({
         ...entry,
         ...prepared,
@@ -594,7 +595,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         return { ...entry, inputStatus: "missing" as const, missingReason: resolved.reason };
       }
       const prepared = resolved.prepared ?? await host.prepareDeviceFile(resolved.file,
-        (message) => setProgress(message), { workProductId: draftRef.current?.id });
+        (message) => setProgress(message), { workProductId: draftRef.current?.id, destination });
       let next: RecordEntry = applySourceEntryFields({ ...entry, ...prepared,
         binding: resolved.input, inputStatus: resolved.status, missingReason: undefined,
         nonTextPagesConfirmed: resolved.status === "ready"
@@ -714,59 +715,39 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     } finally { setSavingFilingContact(false); }
   }
 
-  async function searchSources(query: string, kindId = sourceKindId) {
-    setSourceQuery(query);
-    if (!kindId) return;
-    const kind = profile.documentKinds.find((item) => item.id === kindId);
-    if (!kind) return;
-    const searchId = ++sourceSearchId.current;
-    setSourceBusy(true);
-    try {
-      const formats = acceptedSourceFormats(kind);
-      const [library, outputs] = await Promise.all([
-        host.searchLibrary?.(query, formats,
-          { workProductId: draftRef.current?.id }) ?? [],
-        host.searchDraftOutputs?.(query, kind, draftRef.current?.id) ?? [],
-      ]);
-      const results = new Map<string, { document: Document; draft?: DraftOutputChoice }>(
-        library.map((document) => [document.id, { document }]),
-      );
-      for (const draft of outputs) {
-        results.set(draft.document.id, { document: draft.document, draft });
-      }
-      if (searchId === sourceSearchId.current) setSourceResults([...results.values()]);
-    } catch (caught) {
-      if (searchId === sourceSearchId.current) {
-        setError(errorMessage(caught, "Available files could not be loaded."));
-      }
-    } finally {
-      if (searchId === sourceSearchId.current) setSourceBusy(false);
-    }
+  async function searchSources(query: string, signal: AbortSignal) {
+    const current = draftRef.current;
+    const kind = profile.documentKinds.find((item) => item.id === sourceKindId);
+    if (!current || !kind) return [];
+    const [library, outputs] = await Promise.all([
+      host.searchLibrary?.(query, acceptedSourceFormats(kind), current, signal) ?? [],
+      host.searchDraftOutputs?.(query, kind, current, signal) ?? [],
+    ]);
+    const results = new Map<string, Document & { draft?: DraftOutputChoice }>(
+      library.map((document) => [document.id, document]),
+    );
+    for (const draft of outputs) results.set(draft.document.id, { ...draft.document, draft });
+    return [...results.values()];
   }
 
   function openSource(kindId: string, exhibitLabel?: string) {
     setSourceKindId(kindId);
     setSourceExhibitLabel(exhibitLabel);
-    setSourceQuery("");
-    setSourceResults([]);
-    void searchSources("", kindId);
   }
 
-  async function importSource(document: Document) {
-    if (!sourceKindId) return;
-    const selected = sourceResults.find((item) => item.document.id === document.id);
-    if (!selected) return;
+  async function importSource(selected: Document & { draft?: DraftOutputChoice }) {
+    if (!sourceKindId || importingSource) return;
     const kindId = sourceKindId, exhibitLabel = sourceExhibitLabel;
     const kind = profile.documentKinds.find((item) => item.id === kindId);
     if (!kind) return;
-    setSourceBusy(true);
+    setImportingSource(true);
     setError(undefined);
     setResult(undefined);
     try {
       const prepared = selected.draft
         ? await host.importDraftOutput!(selected.draft, kind,
           (message) => setProgress(message))
-        : await host.importLibraryDocument!(selected.document, (message) => setProgress(message));
+        : await host.importLibraryDocument!(selected, (message) => setProgress(message), kind);
       const previous = replacementEntry(entries, kind, exhibitLabel);
       const entry: RecordEntry = {
         id: previous?.id ?? crypto.randomUUID(),
@@ -791,7 +772,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     } catch (caught) {
       setError(errorMessage(caught, "The selected file could not be added."));
     } finally {
-      setSourceBusy(false);
+      setImportingSource(false);
       setBusyEntryId(undefined);
       setProgress(undefined);
     }
@@ -808,7 +789,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     invalidate();
   }
   const WorkspaceElement = host.mode === "standalone" ? "main" : "div";
-  const documents = (heading: string, kindIds?: string[], showUnassigned = false) => (
+  const documents = (heading: string, kindIds?: string[], showUnassigned = false, step?: number) => (
     <CourtRecordDocuments
       profile={profile}
       entries={entries}
@@ -816,7 +797,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       entryFindings={entryFindings}
       kindIds={kindIds}
       showUnassigned={showUnassigned}
-      heading={heading}
+      heading={heading} step={step}
       onFiles={(kindId, files, exhibitLabel) => void addFiles(kindId, files, exhibitLabel)}
       onDescription={addDescription}
       onPick={host.pickDeviceFiles
@@ -844,8 +825,8 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   );
   const canSaveFilingContact = !!host.saveFilingContact && FILING_CONTACT_FIELDS.some((field) =>
     profile.cover.fields.some(({ id }) => id === field));
-  const setup = (heading: string) => <CourtRecordSetup
-    profile={profile} cover={cover} missingFields={missingFields} heading={heading}
+  const setup = (step: number) => <CourtRecordSetup
+    profile={profile} cover={cover} missingFields={missingFields} heading="Case details" step={step}
     onSaveFilingContact={canSaveFilingContact ? () => void saveFilingContact() : undefined}
     savingFilingContact={savingFilingContact}
     onCover={(field, value) => {
@@ -854,14 +835,22 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         : { ...current, [field]: value });
       invalidate();
     }} />;
+  const requiredInputs = profile.documentKinds.filter((kind) => kind.requirement === "required" &&
+    !kind.generated && !kind.descriptionOnly).sort((left, right) => left.order - right.order);
+  const firstInput = requiredInputs[0];
+  const initialKind = firstInput && !firstInput.repeatable && sourceKindMayFillCover(firstInput.id)
+    ? firstInput : undefined;
+  const awaitingSource = !!initialKind && !entries.some((entry) => entry.kindId === initialKind.id && !entry.descriptionOnly);
+  const compactLayout = awaitingSource || !profile.cover.generated || profile.outputMode === "separate-files";
+  const remainingKinds = profile.documentKinds.filter((kind) => kind.id !== initialKind?.id &&
+    kind.requirement !== "forbidden").map(({ id }) => id);
   const actions = <>{host.outputFolder && <Button type="button" variant="outline"
     aria-label="Settings" className="h-9 w-9 shrink-0 border-gray-400 px-0 sm:w-auto sm:px-4"
     disabled={operationBusy || locked}
     onClick={() => setSettingsOpen(true)}>
     <Settings2 /><span className="hidden sm:inline">Settings</span></Button>}{headerActions}</>;
-  const headerClass = host.mode === "standalone"
-    ? "mx-auto w-[calc(100%-2rem)] max-w-[78rem] max-sm:[&_h1]:text-xl md:w-[calc(100%-3rem)]"
-    : undefined;
+  const headerClass = cn("mx-auto w-full px-4 max-sm:[&_h1]:text-xl sm:px-6 md:mx-auto",
+    compactLayout ? "max-w-[48rem]" : "max-w-[70rem]");
   return (
     <div className={cn("court-records-workspace bg-app-background [scrollbar-gutter:stable]", host.mode === "standalone"
       ? "min-h-dvh"
@@ -871,57 +860,49 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
           busy={operationBusy || locked} itemLabel="court record" headerActions={actions}
           onBack={() => void closeDraft()} onRename={(title) => void renameDraft(title)}
           onDuplicate={() => void duplicateDraft()} onDelete={() => void deleteDraft()} />
-          : <WorkspaceHeader className={headerClass} title="Court Records"
+          : <WorkspaceHeader className="max-sm:[&_h1]:text-xl" title="Court Records"
             headerActions={actions} />}
       {!draft ? <WorkspaceElement id="court-record-workspace" tabIndex={-1}
         aria-busy={draftBusy} inert={draftBusy}
         className="mx-auto min-h-80 max-w-[50rem] px-4 py-4 outline-none sm:px-6">
-        <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm sm:p-5">
         {draftBusy && initialDraftId ? <p className="text-sm text-gray-600" role="status">
           Opening court record
-        </p> : <><div className="flex items-center gap-3">
-          <Files className="h-6 w-6 shrink-0 text-red-700" aria-hidden="true" />
-          <p className="text-sm text-gray-600">{drafts.length
-            ? "Create a filing or continue a saved record."
-            : "Choose a filing format to begin."}</p>
-        </div>
-        <div className="mt-5 flex flex-wrap gap-2">
+        </p> : <div className="rounded-xl border border-gray-200 bg-white p-6 sm:p-8">
+          <h2 className="text-lg font-medium text-gray-900">Prepare a court record</h2>
+          <p className="mt-2 max-w-lg text-sm leading-6 text-gray-600">Choose a document format, add your files, and prepare the record for filing.</p>
+          <div className="mt-5 flex flex-wrap gap-2">
           <Button disabled={draftBusy} onClick={() => setCreating(true)}>New court record</Button>
-          {!!drafts.length && <Button variant="outline" disabled={draftBusy}
-            onClick={() => setSavedOpen(true)}>Open saved record</Button>}
+          <Button variant="outline" disabled={draftBusy || draftsLoading}
+            onClick={() => setSavedOpen(true)}>Open saved record</Button>
+          </div>
           {(error || progress || draftBusy) && <p className={cn("inline-flex min-h-10 items-center text-sm",
             error ? "text-red-700" : "text-gray-600")} role={error ? "alert" : "status"}>
             {error || progress || (initialDraftId ? "Opening court record" : "Loading court records")}
           </p>}
-        </div></>}
-        </section>
+        </div>}
       </WorkspaceElement> : <div inert={locked} aria-busy={locked || undefined}
-        className="court-record-layout mx-auto grid max-w-[78rem] grid-cols-[minmax(0,1fr)] items-start gap-5 px-4 py-5 sm:px-6">
+        className={cn("mx-auto grid grid-cols-[minmax(0,1fr)] items-start gap-5 px-4 py-5 sm:px-6",
+          compactLayout ? "w-full max-w-[48rem]" : "court-record-layout max-w-[70rem]")}>
         <WorkspaceElement id="court-record-workspace" tabIndex={-1}
           aria-busy={operationBusy || locked} inert={operationBusy || locked}
           className="min-w-0 space-y-4 outline-none">
-          <section className="px-1 pb-1" aria-labelledby="builder-intro-heading">
-            <h2 id="builder-intro-heading" className="text-balance text-xl font-semibold leading-tight text-gray-950 sm:text-2xl">
-              {isAffidavit ? "Build an affidavit with exhibits" : `Build ${profile.label.toLowerCase()}`}
-            </h2>
-            <p className="mt-1 max-w-2xl text-base leading-6 text-gray-600">
-              {isAffidavit ? "Add the affidavit, complete the case details, then add the exhibits in order."
-                : hasCaseDetails ? "Complete the case details, add the documents, then review and build the record."
-                  : "Add the documents, then review and prepare the filing set."}
-            </p>
-          </section>
-          <CourtRecordChooser profile={profile} onProfile={chooseProfile}
-            jurisdictionOrder={jurisdictionOrder} />
-          {isAffidavit ? <>
-            {documents("1. Add the affidavit", ["affidavit"], true)}
-            {setup("2. Case details")}
-            {documents("3. Add exhibits or another document", ["exhibit", "other-document"])}
+          {!awaitingSource && <CourtRecordChooser profile={profile} onProfile={chooseProfile}
+            jurisdictionOrder={jurisdictionOrder} />}
+          {initialKind ? <>
+            {documents(`Add the ${initialKind.label.toLowerCase()}`, [initialKind.id], true, 1)}
+            {!awaitingSource && <>
+              {hasCaseDetails && setup(2)}
+              {!!remainingKinds.length && documents(isAffidavit ? "Exhibits" : "Documents",
+                remainingKinds, false, hasCaseDetails ? 3 : 2)}
+            </>}
           </> : <>
-            {hasCaseDetails && setup("1. Case details")}
-            {documents(`${hasCaseDetails ? "2" : "1"}. Add documents`, undefined, true)}
+            {hasCaseDetails && setup(1)}
+            {documents("Documents", undefined, true, hasCaseDetails ? 2 : 1)}
           </>}
+          {awaitingSource && (error || progress) && <p role={error ? "alert" : "status"}
+            className={cn("text-sm", error ? "text-red-700" : "text-gray-600")}>{error || progress}</p>}
         </WorkspaceElement>
-        <CourtRecordBuildPanel
+        {!awaitingSource && <CourtRecordBuildPanel
           profile={profile}
           cover={cover}
           entries={entries}
@@ -936,7 +917,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
           onBuild={() => void build()}
           onDownload={(artifact) => void download(artifact)}
           onSave={host.saveArtifacts ? () => void save() : undefined}
-        />
+        />}
       </div>}
       {creating && <CourtRecordChooser creating profile={profile}
         jurisdictionOrder={jurisdictionOrder}
@@ -946,32 +927,20 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
           pendingDocuments.current = undefined;
           onDocumentsConsumed?.();
         }} />}
-      {savedOpen && <SearchableChoiceModal open title="Open saved record"
-        searchLabel="Search saved records" searchable={drafts.length > 8}
-        size="lg"
-        listClassName="space-y-1 [&>button]:border [&>button]:border-gray-200 [&>button]:px-3 [&>button]:py-2"
-        value={null} options={drafts.map(({ id, title, profileId, createdAt }) => ({
-          value: id, label: title,
-          description: `${COURT_PROFILE_BY_ID.get(profileId ?? "")?.shortLabel ?? "Court record"} · Created ${formatDateTime(createdAt)}`,
-        }))}
-        onChange={(id) => {
-          const next = drafts.find((item) => item.id === id);
-          if (next) void openSavedDraft(next);
-        }} onClose={() => setSavedOpen(false)} />}
+      {savedOpen && <SavedRecordsModal drafts={drafts}
+        onOpen={(next) => { setSavedOpen(false); void openSavedDraft(next); }}
+        onClose={() => setSavedOpen(false)} />}
       {draft && sourceKindId && sourceKind && (
         <LibraryDocumentPicker
           open
           title={`Choose ${sourceKind.label}`}
           formatLabel={sourceFormatLabel(sourceKind)}
           sourceLabel={host.searchLibrary ? "Library" : "Saved outputs"}
-          query={sourceQuery}
-          results={sourceResults.map(({ document }) => document)}
-          busy={sourceBusy}
-          detail={(document) => {
-            const output = sourceResults.find((item) => item.document.id === document.id)?.draft;
-            return output ? `From ${output.workProductTitle}` : undefined;
-          }}
-          onQuery={(query) => void searchSources(query)}
+          key={`${draft.id}:${draft.projectId}:${profile.id}:${sourceKindId}`}
+          search={searchSources}
+          busy={importingSource}
+          detail={({ draft }) => draft ? `From ${draft.workProductTitle}` : undefined}
+          onError={(caught) => setError(errorMessage(caught, "Available files could not be loaded."))}
           onSelect={(document) => void importSource(document)}
           onClose={() => { setSourceKindId(undefined); setSourceExhibitLabel(undefined); }}
         />
@@ -997,12 +966,9 @@ function focusFinding(finding?: ComplianceFinding) {
   if (!finding) return;
   let target: HTMLElement | null = null;
   if (finding.fieldId === "partyContacts") {
-    const details = [...document.querySelectorAll<HTMLDetailsElement>("[data-contact-finding-id]")]
+    const contact = [...document.querySelectorAll<HTMLElement>("[data-contact-finding-id]")]
       .find((item) => item.dataset.contactFindingId === finding.id);
-    if (details) {
-      details.open = true;
-      target = details.querySelector<HTMLElement>("[aria-invalid=true], input, textarea");
-    }
+    target = contact?.querySelector<HTMLElement>("[aria-invalid=true], input, textarea") ?? null;
   } else if (finding.fieldId === "partyGroups") {
     target = document.querySelector(`[data-party-group-id="${finding.id.slice(6)}"] input`);
   } else if (finding.fieldId) {
@@ -1186,4 +1152,34 @@ function putPreparedEntry(entries: RecordEntry[], entry: RecordEntry, label?: st
 function sameState(left: CourtRecordDraft, right: CourtRecordDraft) {
   return JSON.stringify([left.profileId, left.cover, left.entries, left.bindings]) ===
     JSON.stringify([right.profileId, right.cover, right.entries, right.bindings]);
+}
+
+function SavedRecordsModal({ drafts, onOpen, onClose }: {
+  drafts: WorkProductMetadata[];
+  onOpen: (draft: WorkProductMetadata) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [requestedPage, setPage] = useState(1);
+  const needle = query.trim().toLowerCase();
+  const filtered = drafts.filter((item) => item.title.toLowerCase().includes(needle));
+  const pages = Math.max(1, Math.ceil(filtered.length / 8));
+  const page = Math.min(requestedPage, pages);
+  return <Modal open onClose={onClose} breadcrumbs={["Open saved record"]} size="lg">
+    <SearchBar aria-label="Search saved records" placeholder="Search saved records"
+      value={query} onValueChange={(value) => { setQuery(value); setPage(1); }} />
+    <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
+      {filtered.slice((page - 1) * 8, page * 8).map((item) => <button
+        key={item.id} type="button" onClick={() => onOpen(item)}
+        className="flex min-h-11 w-full items-center gap-3 border-b border-gray-100 px-3 py-2 text-left text-sm outline-none hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600">
+        <span className="min-w-0 flex-1 truncate font-medium text-gray-950" title={item.title}>{item.title}</span>{" "}
+        <time dateTime={item.updatedAt} className="shrink-0 text-xs tabular-nums text-gray-500"
+          title="Last updated">{formatDateTime(item.updatedAt)}</time>
+      </button>)}
+      {!filtered.length && <p role="status" className="px-3 py-6 text-center text-sm text-gray-600">
+        {needle ? "No matching records." : "No saved court records yet."}
+      </p>}
+    </div>
+    <Pagination page={page} pages={pages} label="Saved records" onPage={setPage} />
+  </Modal>;
 }

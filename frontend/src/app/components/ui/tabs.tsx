@@ -2,7 +2,7 @@ import { useId, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } fr
 import { X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 
-type TabVariant = "segmented" | "dock" | "pill" | "settings" | "sheets";
+type TabVariant = "segmented" | "dock" | "pill" | "settings" | "sheets" | "subtab";
 type TabOption<T extends string = string> = { value: T; label: ReactNode;
     onClose?: () => void; closeLabel?: string };
 type TabListProps<T extends string> = { value: T; onValueChange: (value: T) => void;
@@ -13,6 +13,7 @@ type TabsProps<T extends string> = { value: T; onValueChange: (value: T) => void
     variant?: TabVariant; actions?: ReactNode; className?: string; railClassName?: string };
 
 const railClass: Record<TabVariant, string> = {
+    subtab: "border-b border-gray-200",
     segmented: "",
     dock: "min-h-12 border-b border-gray-200 px-2 py-1.5",
     pill: "",
@@ -20,6 +21,7 @@ const railClass: Record<TabVariant, string> = {
     sheets: "h-9 border-t border-gray-300 bg-gray-100",
 };
 const listClass: Record<TabVariant, string> = {
+    subtab: "w-full gap-1 [&>div]:flex-1",
     segmented: "gap-1 rounded-lg bg-gray-100 p-1",
     dock: "gap-1",
     pill: "w-full flex-wrap items-center gap-1 py-0.5 sm:w-auto sm:gap-2",
@@ -27,6 +29,7 @@ const listClass: Record<TabVariant, string> = {
     sheets: "h-full items-stretch",
 };
 const tabClass: Record<TabVariant, string> = {
+    subtab: "h-10 w-full border-b-2 px-1 text-xs font-medium",
     segmented: "h-8 shrink-0 rounded-md px-1 text-sm font-medium sm:px-3",
     dock: "h-9 max-w-40 shrink-0 rounded-md px-2 text-[13px] font-semibold sm:text-sm",
     pill: "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-sm font-medium sm:px-4",
@@ -34,6 +37,7 @@ const tabClass: Record<TabVariant, string> = {
     sheets: "h-full shrink-0 border-r border-gray-300 px-4 text-xs font-medium",
 };
 const selectedClass: Record<TabVariant, string> = {
+    subtab: "border-gray-800 text-gray-900",
     segmented: "bg-gray-900 text-white shadow-sm",
     dock: "bg-gray-900 text-white",
     pill: "border-gray-900 bg-gray-900 text-white",
@@ -41,6 +45,7 @@ const selectedClass: Record<TabVariant, string> = {
     sheets: "bg-white text-gray-900",
 };
 const idleClass: Record<TabVariant, string> = {
+    subtab: "border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-900",
     segmented: "text-gray-600 hover:bg-white/70 hover:text-gray-900",
     dock: "text-gray-600 hover:bg-white/70 hover:text-gray-900",
     pill: "border-gray-300 bg-white text-gray-700 hover:bg-gray-100 hover:text-gray-900",

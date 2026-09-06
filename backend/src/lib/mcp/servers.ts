@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { McpToolEvent } from "../chat/assistantEvents";
 import { ToolSchema, type Tool } from "@modelcontextprotocol/sdk/types.js";
 import { sql } from "../relational";
 import {
@@ -26,7 +27,6 @@ import {
   type Db,
   type McpAuthConfig,
   type McpConnectorSummary,
-  type McpToolEvent,
   type ToolRow,
 } from "./types";
 

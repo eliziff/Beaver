@@ -1,7 +1,7 @@
 "use client";
 import { useState, type DragEvent } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import type { Document, Folder } from "@/app/components/shared/types";
+import type { Document, Folder } from "@/app/lib/api/documents";
 import { DocumentResultRow } from "@/app/components/shared/DocumentResultRow";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { RowActions } from "@/app/components/shared/RowActions";

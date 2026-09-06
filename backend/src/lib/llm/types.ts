@@ -54,46 +54,6 @@ export type NormalizedToolResult = {
     | "past_end"
     | "already_exposed"
     | "error";
-  /** Host-only durable mutation receipt; provider adapters send `content`. */
-  /** Host-only source ranges exposed by text-shaped navigation tools. */
-  evidenceSpans?: Array<[number, number]>;
-  /** Host-only original-source ranges for virtual multi-document projections. */
-  evidenceSegments?: Array<{
-    documentId: string;
-    versionId: string;
-    start: number;
-    end: number;
-    filename?: string;
-    locator?: string;
-    locatorKind?: "paragraph" | "page" | "section" | "footnote";
-    /** Immutable virtual source view used to expose this exact span. */
-    virtualPath?: string;
-    projection?: string;
-    /** Search previews orient; reads and exact passages support a draft. */
-    kind?: "candidate" | "evidence";
-  }>;
-  /** Exact provider/PDF passages that cannot be rehydrated from a local file. */
-  evidenceRefs?: Array<{
-    handle: string;
-    text: string;
-    filename?: string;
-    locator?: string;
-    exactSha256?: string;
-    kind?: "candidate" | "evidence";
-  }>;
-  /** Host-only deterministic navigation hints offered alongside search hits. */
-  retrievalHints?: Array<{
-    kind: "literal_reference";
-    label: string;
-    path: string;
-    offset: number;
-    limit: number;
-  }>;
-  /** Host-only exact-evidence accounting; never duplicated into provider context. */
-  exposure?: {
-    uniqueSourceChars: number;
-    suppressedSourceChars: number;
-  };
   /** End the provider loop after this result; the caller owns final rendering. */
   terminal?: boolean;
 };

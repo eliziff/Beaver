@@ -33,7 +33,7 @@ vi.mock("@/app/lib/standaloneWorkProducts", () => ({
     update: mocks.update,
   },
 }));
-vi.mock("@/app/lib/apiTransport", () => ({ apiResponse: mocks.apiResponse }));
+vi.mock("@/app/lib/api/client", () => ({ apiResponse: mocks.apiResponse }));
 
 import { standaloneAuthoritiesHost } from "./standaloneHost";
 

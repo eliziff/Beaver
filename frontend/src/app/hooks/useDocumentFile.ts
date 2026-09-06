@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiFetch } from "../lib/apiTransport";
+import { readDocumentFile } from "@/app/lib/api/documents";
 
 export type DocumentFile = {
   type: "pdf" | "spreadsheet" | "docx" | "text";
@@ -46,15 +46,8 @@ async function load(
   const inFlight = pending.get(key);
   if (inFlight) return inFlight;
 
-  const query = new URLSearchParams();
-  if (!original) query.set("rendition", "pdf");
-  if (versionId) query.set("version_id", versionId);
-  const search = query.toString();
   const generation = cacheGeneration;
-  const request = apiFetch(
-    `/single-documents/${encodeURIComponent(documentId)}/file${search ? `?${search}` : ""}`,
-    { cache: "default", headers: { Accept: "*/*" } },
-  ).then(async (response) => {
+  const request = readDocumentFile(documentId, versionId, original).then(async (response) => {
     if (!response.ok) throw new Error(`Failed to load document (${response.status})`);
     if (generation !== cacheGeneration) throw new Error("Authentication changed");
     const result: DocumentFile = {

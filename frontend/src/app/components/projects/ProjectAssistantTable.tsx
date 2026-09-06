@@ -14,7 +14,7 @@ import {
     useTableSelection,
 } from "@/app/components/shared/TablePrimitive";
 import { ChatSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
-import type { Chat } from "@/app/components/shared/types";
+import type { Chat } from "@/app/lib/api/chat";
 import { formatDate } from "@/app/lib/utils";
 const LOADING_TITLE_WIDTHS = ["w-36", "w-40", "w-44", "w-48", "w-52"];
 export function ProjectAssistantTable({

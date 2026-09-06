@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { Project } from "../shared/types";
+import type { Project } from "@/app/lib/api/projects";
 import { ProjectChoiceList } from "./ProjectChoiceList";
 
 const projects = [

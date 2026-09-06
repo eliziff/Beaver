@@ -1,5 +1,7 @@
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
+import { fixDocxSupras } from "../docxDeterministicCleanup";
+import { resolveTrackedChange, extractTrackedChangeIds } from "../docxTrackedChanges";
 import { structureNative } from "../structureNative";
 
 const { fixDocxSupraCrossReferences, hasDocxSupraReferences } = structureNative();
@@ -136,4 +138,24 @@ describe("deterministic DOCX supra cleanup", () => {
     });
     expect(result.bytes).toEqual(original);
   });
+});
+
+for (const mode of ["accept", "reject"] as const) it(`can ${mode} supra field changes in footnotes`, async () => {
+  const original = await fixture();
+  const tracked = await fixDocxSupras(original);
+  expect(tracked.changes).toHaveLength(1);
+  const ids = tracked.changes.flatMap(({ delId, insId }) => [delId!, insId!]);
+  expect(await extractTrackedChangeIds(tracked.bytes)).toHaveLength(2);
+  const resolved = await resolveTrackedChange(tracked.bytes, ids, mode);
+  expect(resolved.found).toBe(true);
+  expect(await extractTrackedChangeIds(resolved.bytes)).toEqual([]);
+  const notes = await entry(resolved.bytes, "word/footnotes.xml");
+  if (mode === "accept") {
+    expect(notes).toContain("NOTEREF MikeSupraNote2");
+    expect((await fixDocxSupraCrossReferences(resolved.bytes)).already_linked).toBe(1);
+  } else {
+    expect(notes).not.toContain("NOTEREF");
+    expect(notes).toContain("See Smith, supra note 2.");
+    expect((await fixDocxSupraCrossReferences(resolved.bytes)).converted).toBe(1);
+  }
 });

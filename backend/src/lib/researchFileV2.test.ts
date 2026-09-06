@@ -1,11 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 import { ApplicationError } from "./applicationError";
-import { createA2AJPassageEvidence, createPublicJournalPassageEvidence } from "./chat/legalEvidence";
+import { createA2AJPassageEvidence, createPublicJournalPassageEvidence, createLibraryEvidence,
+  createLegalEvidenceTurnState, legalEvidenceReceiptEvent, registerLegalEvidence,
+  type LegalEvidenceReceipt } from "./chat/legalEvidence";
+import type { GroundedAnswer } from "./groundedAnswer";
+import { resolveChatFindings } from "./researchChat";
 import { sha256 } from "./hash";
 import { commitResearchFile, createResearchFileState, pageResearchItems, parseResearchFile,
   readResearchFile, researchFileActionSchema, researchFileMarkdown, researchQueryReceipt,
+  readResearchHistory, saveResearchFile,
   researchSourceFromResource, researchSourceResource, type ResearchFileAction } from "./researchFile";
 import { runResearchFileQuery, verifyResearchPassage } from "./researchFileQuery";
+import type { ResearchOperationContext } from "./researchProvenance";
+import { resolveResearchSelection } from "./researchSelection";
+
+vi.mock("./documentProjectionService", () => ({ documentProjectionService: {
+  read: async (projection: { document: unknown }) => projection.document,
+} }));
 
 vi.mock("./structureNative", () => ({ structureNative: () => ({
   documentRevision: (document: { revision?: string }) => document.revision ?? "a".repeat(64),
@@ -45,7 +56,9 @@ function fixture() {
       return names.flatMap((name) => {
         const bytes = parts.get(name); return bytes ? [{ name, bytes, sha256: sha256(bytes) }] : [];
       }); }),
-    replaceVersion: vi.fn(async (_scope, _id, _version, _revision, input) => write(input, false)),
+    replaceVersion: vi.fn(async (_scope, _id, expectedVersion, expectedRevision, input) =>
+      expectedVersion !== versionId || expectedRevision !== workingRevision ? { status: "conflict" }
+        : write(input, false)),
     commitAssistantVersion: vi.fn(async (_scope, _id, input) =>
       write(input, true, input.turnVersionId)),
   };
@@ -54,11 +67,11 @@ function fixture() {
 }
 
 async function act(f: ReturnType<typeof fixture>, action: ResearchFileAction,
-  assistant?: { turnVersionId?: string; turnId?: string }) {
+  assistant?: { turnVersionId?: string; turnId?: string }, context?: ResearchOperationContext) {
   const current = await readResearchFile(f.documents as never, { userId: "user-1" }, "doc-1");
   expect(current).not.toBeNull();
   const result = await commitResearchFile(f.documents as never, { userId: "user-1" },
-    current!, action, assistant);
+    current!, action, assistant, context);
   expect(result).not.toBeNull(); return result!;
 }
 
@@ -68,6 +81,79 @@ const receipt = (id: string, text = `holding ${id}`) => createA2AJPassageEvidenc
   sourceReference: { id }, sourceSha256: id.repeat(64).slice(0, 64).replace(/[^a-f0-9]/gu, "a") });
 
 describe("Research v2 parts", () => {
+  it("audits human and assistant collection and labelling with the same canonical passage ID", async () => {
+    const f = fixture(), audit = vi.fn(async () => {}), passage = receipt("case-a"),
+      human = { audit, executor: "human" as const };
+    await act(f, { type: "label", id: highlightLabel, name: "Holding", scope: "highlight" });
+    const collected = await act(f, { type: "merge", evidence: [passage] }, undefined, human),
+      sourceId = Object.keys(collected.state.sources)[0],
+      assistant = { audit, executor: "assistant" as const, model: "model-a", turnId: "turn-1", callId: "call-1" };
+    const observed = await act(f, { type: "merge", evidence: [passage] }, undefined, assistant);
+    expect(observed.versionId).toBe(collected.versionId);
+    expect(observed.workingRevision).toBe(collected.workingRevision);
+    await act(f, { type: "annotate", kind: "evidence", sourceId,
+      id: passage.evidence_id, labelIds: [highlightLabel] }, { turnId: "turn-1" }, assistant);
+    const events = audit.mock.calls.map((args) => (args as unknown[])[0]) as Array<{
+      userId: string; model?: string; detail: Record<string, unknown> }>;
+    expect(events).toHaveLength(3);
+    expect(events.map(({ userId, model, detail }) => ({ userId, model, executor: detail.executor })))
+      .toEqual([{ userId: "user-1", model: undefined, executor: "human" },
+        { userId: "user-1", model: "model-a", executor: "assistant" },
+        { userId: "user-1", model: "model-a", executor: "assistant" }]);
+    expect(events[0].detail.observed_passages).toEqual(events[1].detail.observed_passages);
+    expect(events[1].detail.passages).toEqual([]);
+    expect(events[2].detail).toMatchObject({ turn_id: "turn-1", call_id: "call-1", passages: [{
+      id: passage.evidence_id, before: { labelIds: [] }, after: {
+        labelIds: [highlightLabel], sourceSha256: passage.source_sha256 } }] });
+    const page = await pageResearchItems(f.documents as never, { userId: "user-1" },
+      (await readResearchFile(f.documents as never, { userId: "user-1" }, "doc-1"))!, "passages", 0, 10);
+    expect(page.items).toMatchObject([{ kind: "passage", value: { receipt: { evidence_id: passage.evidence_id } } }]);
+  });
+
+  it("uses the same pinned Library passages for collection, search, and selection labels", async () => {
+    const f = fixture(), text = "The governing law is Alberta.", scope = { userId: "user-1" },
+      block = { kind: "paragraph", label: "1", start: 0, end: text.length, text },
+      library = { provider: "library" as const, kind: "document" as const, id: "library-doc", versionId: "revision-1", title: "Lease.txt" },
+      documents = Object.assign(f.documents, { projectionSource: vi.fn(async () => ({
+        document: { text, blocks: [block] }, sourceSha256: "b".repeat(64) })) });
+    await act(f, { type: "label", id: highlightLabel, name: "Law", scope: "highlight" });
+    await act(f, { type: "source", reference: library });
+    const original = createLibraryEvidence({ documentId: library.id, versionId: library.versionId,
+      filename: library.title, sourceSha256: "a".repeat(64), start: 0, end: text.length, spanText: text });
+    const collected = await act(f, { type: "merge", evidence: [original] });
+    expect(Object.values(collected.state.sources)).toHaveLength(1);
+    const searched = await runResearchFileQuery(documents as never, scope, "doc-1", {
+      versionId: collected.versionId, workingRevision: collected.workingRevision,
+      text: "Alberta", syntax: "literal", target: "sources" });
+    expect(searched.evidence.map(({ evidence_id }) => evidence_id)).toEqual([original.evidence_id]);
+    const labelled = await act(f, { type: "label-selection", target: "passages", assign: [highlightLabel],
+      evidenceIds: [original.evidence_id], mode: "add" });
+    const selected = await resolveResearchSelection(documents as never, scope, {
+      researchFileId: "doc-1", target: "passages", labelIds: [highlightLabel] }, labelled);
+    expect(selected.subjects).toMatchObject([{ resource: researchSourceResource(library),
+      sourceSha256: "b".repeat(64), evidence: [{ evidence_id: original.evidence_id }] }]);
+    await act(f, { type: "label-selection", target: "passages", labelIds: [highlightLabel],
+      assign: [highlightLabel], mode: "remove" });
+    expect((await resolveResearchSelection(documents as never, scope, {
+      researchFileId: "doc-1", target: "passages", labelIds: [highlightLabel] })).subjects).toEqual([]);
+    expect((await resolveResearchSelection(documents as never, scope, {
+      researchFileId: "doc-1", target: "sources", sourceIds: [] })).subjects).toEqual([]);
+  });
+  it("keeps memo edits in the same file and rejects overwriting a newer memo", async () => {
+    const f = fixture();
+    const collected = await act(f, { type: "merge", evidence: [receipt("case-a")] });
+    const parts = new Map(f.parts);
+    const markdown = "## Analysis\n\n**Holding** and ++emphasis++.\n\n| Case | Result |\n| --- | --- |\n| A | Allowed |";
+    const saved = await act(f, { type: "note", markdown, expectedMarkdown: "" });
+    expect(saved.document.id).toBe(collected.document.id);
+    expect(saved.state.sources).toEqual(collected.state.sources);
+    expect(saved.state.note).toBe(markdown);
+    expect(new Map([...f.parts].filter(([name]) => name !== "history.json"))).toEqual(parts);
+    await expect(act(f, { type: "note", markdown: "stale edit", expectedMarkdown: "" }))
+      .rejects.toMatchObject({ status: 409, details: { code: "memo_conflict" } });
+    expect((await readResearchFile(f.documents as never, { userId: "user-1" }, "doc-1"))?.state.note).toBe(markdown);
+  });
+
   it("keeps the root small and reads or changes only the selected source part", async () => {
     const f = fixture();
     const initial = await readResearchFile(f.documents as never, { userId: "user-1" }, "doc-1");
@@ -129,23 +215,22 @@ describe("Research v2 parts", () => {
       "passages", 50, 1)).items[0]).toMatchObject({ value: { labelIds: [] } });
   });
 
-  it("enforces three-level label nesting and rejects cycles", async () => {
+  it("allows arbitrary label nesting and rejects cycles", async () => {
     const f = fixture(), root = "30000000-0000-4000-8000-000000000001",
       child = "30000000-0000-4000-8000-000000000002",
       grandchild = "30000000-0000-4000-8000-000000000003";
     await act(f, { type: "label", id: root, name: "Root", scope: "source" });
     await act(f, { type: "label", id: child, name: "Child", parentId: root, scope: "source" });
-    const saved = await act(f, { type: "label", id: grandchild, name: "Grandchild",
+    await act(f, { type: "label", id: grandchild, name: "Grandchild",
       parentId: child, scope: "source" });
-    await expect(commitResearchFile(f.documents as never, { userId: "user-1" }, saved,
-      { type: "label", name: "Too deep", parentId: grandchild, scope: "source" }))
-      .rejects.toThrow("three levels");
+    const saved = await act(f, { type: "label", name: "Fourth level", parentId: grandchild, scope: "source" });
+    expect(Object.values(saved.state.labels).map(({ name }) => name)).toContain("Fourth level");
     await expect(commitResearchFile(f.documents as never, { userId: "user-1" }, saved,
       { type: "label", id: root, name: "Root", parentId: grandchild, scope: "source" }))
       .rejects.toThrow();
   });
 
-  it("keeps query receipts after labels and sources are removed without reading source parts", async () => {
+  it("keeps query receipts after labels and sources are removed", async () => {
     const f = fixture();
     await act(f, { type: "label", id: sourceLabel, name: "Filed", scope: "source" });
     await act(f, { type: "label", id: highlightLabel, name: "Holding", scope: "highlight" });
@@ -165,7 +250,6 @@ describe("Research v2 parts", () => {
     saved = await act(f, { type: "remove", kind: "label", id: sourceLabel });
     f.documents.readParts.mockClear();
     saved = await act(f, { type: "remove", kind: "source", id: sourceId });
-    expect(f.documents.readParts.mock.calls.flatMap((call) => call[3])).toEqual(["queries.json"]);
     expect(f.parts.has(`source.${sourceId}.json`)).toBe(false);
     const ledger = await pageResearchItems(f.documents as never, { userId: "user-1" }, saved,
       "queries", 0, 20);
@@ -498,7 +582,7 @@ describe("Research v2 parts", () => {
     for (const item of saved.items) expect(item.value.labelIds).toEqual([sourceLabel, highlightLabel]);
   });
 
-  it("continues unsaved assistant queries only through a trusted turn receipt", async () => {
+  it("persists assistant queries and continues through the saved receipt", async () => {
     const f = fixture(), file = await act(f, { type: "source", reference: {
       provider: "courtlistener", id: "1", kind: "case" } }),
       source = Object.values(file.state.sources)[0].reference, text = "needle one\nneedle two",
@@ -511,14 +595,15 @@ describe("Research v2 parts", () => {
         text: "needle", syntax: "literal" as const, target: "sources" as const, limit: 1 };
     const first = await runResearchFileQuery(f.documents as never, { userId: "user-1" },
       "doc-1", input, { reader, assistant: {} });
-    expect(first.file.state.queries).toBeNull();
-    const continuation = { ...input, after: first.coverage.next_after! };
+    expect(first.file.state.queries?.count).toBe(1);
+    const continuation = { ...input, versionId: first.file.versionId,
+      workingRevision: first.file.workingRevision, after: first.coverage.next_after! };
     await expect(runResearchFileQuery(f.documents as never, { userId: "user-1" },
-      "doc-1", continuation, { reader, assistant: {} })).rejects.toMatchObject({ status: 409 });
+      "doc-1", { ...continuation, workingRevision: -1 }, { reader, assistant: {} })).rejects.toMatchObject({ status: 409 });
     const second = await runResearchFileQuery(f.documents as never, { userId: "user-1" },
-      "doc-1", continuation, { reader, assistant: {}, priorQueries: [first.receipt] });
+      "doc-1", continuation, { reader, assistant: {} });
     expect(second.evidence.map(({ span_text }) => span_text)).toEqual(["needle two"]);
-    expect(second.file.state.queries).toBeNull();
+    expect(second.file.state.queries?.count).toBe(2);
   });
 
   it("keeps a non-A2AJ search result and its evidence under one source", async () => {
@@ -542,5 +627,136 @@ describe("Research v2 parts", () => {
     const markdown = researchFileMarkdown("Cases", state);
     expect(parseResearchFile(markdown)).toEqual(state);
     expect(parseResearchFile(markdown.replace("beaver-research:v2", "beaver-research:v1"))).toBeNull();
+  });
+
+  it("holds an explicit grouped proposal, accepts it atomically, and undoes only its affected fields", async () => {
+    const f = fixture(), scope = { userId: "user-1" }, model = { executor: "assistant" as const, model: "model-a" },
+      added = "40000000-0000-4000-8000-000000000001", later = "40000000-0000-4000-8000-000000000002";
+    await act(f, { type: "label", id: sourceLabel, name: "Reviewed", definition: "Documents reviewed by the user" });
+    const collected = await act(f, { type: "merge", evidence: [receipt("note")] }), sourceId = Object.keys(collected.state.sources)[0];
+    await act(f, { type: "annotate", kind: "source", id: sourceId, labelIds: [sourceLabel] });
+    const proposed = await act(f, { type: "batch", title: "Organize project material", propose: true, actions: [
+      { type: "label", id: sourceLabel, name: "Read" }, { type: "label", id: added, name: "Follow up" },
+      { type: "annotate", kind: "source", id: sourceId, labelIds: [added] },
+    ] }, undefined, model), id = proposed.state.proposals![0].id;
+    expect(proposed.state.labels[sourceLabel].name).toBe("Reviewed");
+    expect(proposed.state.labels[added]).toBeUndefined();
+    expect(proposed.state.sources[sourceId].labelIds).toEqual([sourceLabel]);
+    await act(f, { type: "note", markdown: "Independent memo edit" });
+    expect(await saveResearchFile(f.documents as never, scope, "doc-1", proposed.versionId, proposed.workingRevision,
+      { type: "accept", changeId: id })).toBeNull();
+    const accepted = await act(f, { type: "accept", changeId: id });
+    expect(accepted.state.proposals).toEqual([]);
+    expect(accepted.state.labels[sourceLabel].name).toBe("Read");
+    expect(accepted.state.sources[sourceId].labelIds).toEqual([added]);
+    await act(f, { type: "label", id: later, name: "Independent label" });
+    await act(f, { type: "annotate", kind: "source", id: sourceId, labelIds: [added, later], note: "Keep this note" });
+    const undone = await act(f, { type: "undo", changeId: id });
+    expect(undone.state.labels[sourceLabel].name).toBe("Reviewed");
+    expect(undone.state.labels[added]).toBeUndefined();
+    expect(undone.state.labels[later].name).toBe("Independent label");
+    expect(undone.state.sources[sourceId]).toMatchObject({ labelIds: [later, sourceLabel], note: "Keep this note" });
+    expect(undone.state.note).toBe("Independent memo edit");
+    const history = await readResearchHistory(f.documents as never, scope, undone);
+    expect(history.find((change) => change.id === id)).toMatchObject({ status: "applied", executor: "assistant", resolvedBy: scope.userId });
+    expect(history.at(-1)).toMatchObject({ status: "applied", undoOf: id, executor: "human" });
+  });
+
+  it("applies reversible model edits by default and rejects stale proposals without overwriting later changes", async () => {
+    const f = fixture(), scope = { userId: "user-1" }, model = { executor: "assistant" as const };
+    const original = await act(f, { type: "label", id: sourceLabel, name: "Original" });
+    const changed = await act(f, { type: "label", ...original.state.labels[sourceLabel], name: "Model choice" }, undefined, model);
+    const edit = (await readResearchHistory(f.documents as never, scope, changed)).at(-1)!;
+    expect(changed.state.labels[sourceLabel].name).toBe("Model choice");
+    expect(edit).toMatchObject({ executor: "assistant", userId: scope.userId, status: "applied" });
+    expect(changed.state.proposals).toEqual([]);
+    const proposed = await act(f, { type: "batch", title: "Suggested organization", propose: true,
+      actions: [{ type: "label", id: sourceLabel, name: "Suggestion" }] }, undefined, model), id = proposed.state.proposals![0].id;
+    const latest = await act(f, { type: "label", id: sourceLabel, name: "Later human choice" });
+    await expect(commitResearchFile(f.documents as never, scope, latest, { type: "accept", changeId: id }))
+      .rejects.toMatchObject({ status: 409 });
+    await expect(commitResearchFile(f.documents as never, scope, latest, { type: "undo", changeId: edit.id }))
+      .rejects.toMatchObject({ status: 409 });
+    const rejected = await act(f, { type: "reject", changeId: id });
+    expect(rejected.state.labels[sourceLabel].name).toBe("Later human choice");
+    expect(rejected.state.proposals).toEqual([]);
+    expect((await readResearchHistory(f.documents as never, scope, rejected)).find((entry) => entry.id === id)?.status).toBe("rejected");
+  });
+
+  it("uses earlier classification edits in the same batch and undoes the group together", async () => {
+    const f = fixture(), scope = { userId: "user-1" }, passage = receipt("a"),
+      model = { executor: "assistant" as const, model: "model-a" };
+    await act(f, { type: "merge", evidence: [passage] });
+    const classified = await act(f, { type: "batch", title: "Organize selected passages", actions: [
+      { type: "label", id: sourceLabel, name: "Facts", scope: "highlight" },
+      { type: "label", id: highlightLabel, name: "Relevant", scope: "highlight" },
+      { type: "label-selection", target: "passages", evidenceIds: [passage.evidence_id], assign: [sourceLabel], mode: "add" },
+      { type: "label-selection", target: "passages", labelIds: [sourceLabel], assign: [highlightLabel], mode: "add" },
+    ] }, undefined, model), history = await readResearchHistory(f.documents as never, scope, classified);
+    expect(classified.state.proposals).toEqual([]);
+    expect((await pageResearchItems(f.documents as never, scope, classified, "passages")).items)
+      .toMatchObject([{ value: { receipt: passage, labelIds: [sourceLabel, highlightLabel] } }]);
+    expect(history.at(-1)).toMatchObject({ title: "Organize selected passages", status: "applied",
+      counts: { labels: 2, sources: 0, passages: 1 }, executor: "assistant", model: "model-a" });
+    const undone = await act(f, { type: "undo", changeId: history.at(-1)!.id });
+    expect(undone.state.labels).toEqual({});
+    expect((await pageResearchItems(f.documents as never, scope, undone, "passages")).items)
+      .toMatchObject([{ value: { receipt: passage, labelIds: [] } }]);
+  });
+
+  it("preserves main and reader answers and every uncited passage when opening chat findings", async () => {
+    const f = fixture(), scope = { userId: "user-1" }, first = receipt("a", "First holding"),
+      reader = receipt("a", "Reader holding"), extra = receipt("a", "Additional passage"),
+      second = receipt("b", "Second source"), uncited = receipt("c", "Uncited source"),
+      event = (evidence: LegalEvidenceReceipt[], claims: GroundedAnswer["claims"]) => {
+        const state = createLegalEvidenceTurnState(); evidence.forEach((item) => registerLegalEvidence(state, item));
+        state.answer = claims; return legalEvidenceReceiptEvent(state)!;
+      }, mainClaims = [{ text: "Combined answer", evidence_ids: [first.evidence_id, second.evidence_id] }],
+      readerClaims = [{ text: "Reader finding", evidence_ids: [reader.evidence_id] }],
+      chats = { get: async () => ({ id: "chat-1", research_file_id: "doc-1" }), transcript: async () => [
+        { id: "user-1", role: "user", content: "Compare the cases" },
+        { id: "message-1", role: "assistant", content: [event([first, second, extra, uncited], mainClaims),
+          { type: "subagent_run", id: "reader-1", task: "Examine the first case", status: "completed",
+            grounding: event([reader], readerClaims) }] },
+      ] };
+    const { file, findings } = await resolveChatFindings(chats as never, f.documents as never, scope,
+      { researchFileId: "doc-1", chatId: "chat-1" });
+    const main = findings.filter(({ question }) => question.id === "message-1:answer:0"),
+      child = findings.find(({ question }) => question.id === "message-1:reader:reader-1"),
+      passages = findings.filter(({ kind }) => kind === "passages");
+    expect(main).toHaveLength(2);
+    for (const finding of main) {
+      expect(finding.answer.claims).toEqual(mainClaims);
+      expect(finding.evidence).toEqual([first, second]);
+      expect(finding.question.prompt).toBe("Compare the cases");
+    }
+    expect(child).toMatchObject({ kind: "answer", answer: { claims: readerClaims }, evidence: [reader],
+      question: { prompt: "Examine the first case" }, origin: { messageId: "message-1", subagentId: "reader-1" } });
+    expect(passages.flatMap(({ evidence }) => evidence)).toEqual([extra, uncited]);
+    expect(new Set(findings.flatMap(({ evidence }) => evidence.map(({ evidence_id }) => evidence_id))).size).toBe(5);
+    expect((await pageResearchItems(f.documents as never, scope, file, "passages")).total).toBe(5);
+    const reopened = await resolveChatFindings(chats as never, f.documents as never, scope,
+      { researchFileId: "doc-1", chatId: "chat-1", readOnly: true });
+    expect(reopened.findings).toEqual(findings);
+  });
+
+  it("undoes passage classification and deletion with the exact original receipt", async () => {
+    const f = fixture(), scope = { userId: "user-1" }, passage = createLibraryEvidence({
+      documentId: "notes", versionId: "notes-v1", filename: "project notes.txt", sourceSha256: "a".repeat(64),
+      start: 0, end: 17, spanText: "Deliver on Friday" });
+    await act(f, { type: "label", id: highlightLabel, name: "Delivery", scope: "highlight" });
+    const collected = await act(f, { type: "merge", evidence: [passage] }), sourceId = Object.keys(collected.state.sources)[0];
+    const classified = await act(f, { type: "annotate", kind: "evidence", sourceId, id: passage.evidence_id,
+      labelIds: [highlightLabel] }), classification = (await readResearchHistory(f.documents as never, scope, classified)).at(-1)!;
+    const removed = await act(f, { type: "remove", kind: "source", id: sourceId }),
+      deletion = (await readResearchHistory(f.documents as never, scope, removed)).at(-1)!;
+    const restored = await act(f, { type: "undo", changeId: deletion.id });
+    expect((await pageResearchItems(f.documents as never, scope, restored, "passages")).items).toMatchObject([
+      { value: { receipt: passage, labelIds: [highlightLabel] } },
+    ]);
+    const unclassified = await act(f, { type: "undo", changeId: classification.id });
+    expect((await pageResearchItems(f.documents as never, scope, unclassified, "passages")).items).toMatchObject([
+      { value: { receipt: passage, labelIds: [] } },
+    ]);
   });
 });

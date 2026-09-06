@@ -28,7 +28,7 @@ const frontendRequired = ["/src/authoritiesMain.tsx",
   "/src/app/lib/standaloneWorkProducts.ts"];
 const frontendForbidden = [/\/src\/app\/authorities\/beaverHost\.ts$/u,
   /\/src\/app\/components\/assistant\//u,
-  /\/src\/app\/lib\/(?:beaverApi|auth|projects|supabase)\.[^/]+$/u,
+  /\/src\/app\/lib\/(?:api\/(?!client\.)[^/]+|supabase)\.[^/]+$/u,
   /\/node_modules\/(?:@anthropic-ai|@aws-sdk|@google\/genai|@supabase|openai)\//u];
 
 export function assertAuthoritiesBundle(metafile) {

@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import { ArrowRight, Check, Library, Loader2, Plus, Square, X } from "lucide-react";
 import { FileTypeIcon } from "../shared/FileTypeIcon";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
@@ -9,11 +9,13 @@ import { ModelEffortToggle } from "./ModelToggle";
 import { useSelectedModel, useSelectedReasoningEffort } from "@/app/hooks/useSelectedModel";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { getModelProvider, isModelAvailable, type ModelProvider } from "@/app/lib/modelAvailability";
-import type { Document, Message } from "../shared/types";
+import { type Document, uploadDocumentsSettled, uploadStandaloneDocument } from "@/app/lib/api/documents";
+import type { Message, ChatDraft } from "@/app/lib/api/chat";
+import { currentChatDraft, readChatDraft, writeChatDraft } from "@/app/lib/chatDrafts";
 import { workflowDocumentTab, workflowMessage } from "../workflows/workflowRoutes";
 import type { DirectoryTab } from "../shared/FileDirectory";
 import { cn } from "@/app/lib/utils";
-import { uploadDocumentsSettled, uploadStandaloneDocument } from "@/app/lib/beaverApi";
+
 import { formatUnsupportedDocumentWarning, partitionSupportedDocumentFiles } from "@/app/lib/documentUploadValidation";
 import { CHAT_DOCUMENT_DRAG_TYPE } from "@/app/components/documents/documentTree";
 import { WorkflowSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
@@ -59,6 +61,9 @@ export interface ChatInputHandle {
     }) => void;
 }
 interface Props {
+    initialDraft?: ChatDraft | null;
+    draftChatId?: string | null;
+    onDraftChange?: (draft: ChatDraft | null) => Promise<unknown>;
     onSubmit: (message: Message) => void;
     onCancel: () => void;
     isLoading: boolean;
@@ -84,20 +89,24 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     { onSubmit, onCancel, isLoading, contextUsage, showContextTools = true, rows = 1,
         projectName, projectCmNumber, restoreDraft, onDraftRestored,
         promptHistory = [], onOpenWorkflows, initialModel,
-        initialReasoningEffort, editModeLabels, disabled = false }: Props,
+        initialReasoningEffort, editModeLabels, disabled = false, draftChatId, onDraftChange, initialDraft }: Props,
     ref,
 ) {
-    const [hasValue, setHasValue] = useState(false);
-    const [attachedDocs, setAttachedDocs] = useState<Document[]>([]);
+    const [openingDraft] = useState(() => currentChatDraft(draftChatId, initialDraft));
+    const [hasValue, setHasValue] = useState(!!openingDraft?.content.trim());
+    const [attachedDocs, setAttachedDocs] = useState<Document[]>(openingDraft?.documents ?? []);
     const [droppedDocuments, setDroppedDocuments] = useState<Document[]>([]);
-    const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
-    const [model, setModel] = useSelectedModel(initialModel);
+    const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(openingDraft?.workflow ?? null);
+    const [draftPreferences, setDraftPreferences] = useState<Pick<ChatDraft, "model" | "reasoningEffort">>(openingDraft ?? {});
+    const [model, setModel] = useSelectedModel(draftPreferences.model ?? initialModel);
     const [reasoningEffort, setReasoningEffort] =
-        useSelectedReasoningEffort(initialReasoningEffort);
+        useSelectedReasoningEffort(draftPreferences.reasoningEffort ?? initialReasoningEffort);
     const [{ showAutoMode, showContextUsage, editMode }, updatePreferences] =
         useAssistantPreferences();
-    const setEditMode = (mode: "manual" | "auto") =>
+    const setEditMode = (mode: "manual" | "auto") => {
+        scheduleDraft();
         updatePreferences((current) => ({ ...current, editMode: mode }));
+    };
     const { profile } = useUserProfile();
     const apiKeys = profile?.apiKeys;
     const textareaId = useId();
@@ -106,18 +115,73 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const [apiKeyModalProvider, setApiKeyModalProvider] = useState<ModelProvider | null>(null);
     const [uploadingFilenames, setUploadingFilenames] = useState<string[]>([]);
     const [uploadWarning, setUploadWarning] = useState<string | null>(null);
+    const [draftSaveFailed, setDraftSaveFailed] = useState(false);
     const lastSubmittedDocsRef = useRef<Document[]>([]);
+    const restoredDraftRef = useRef<Message | null>(null);
     const historyIndexRef = useRef<number | null>(null);
     const historyDraftRef = useRef("");
+    const draftEdited = useRef(false);
+    const draftContent = useRef(openingDraft?.content ?? "");
+    const draftCleared = useRef(false);
+    const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const saveDraftRef = useRef<() => Promise<unknown>>(async () => {});
+    const draftSnapshot = (): ChatDraft | null => {
+        if (draftCleared.current) return null;
+        const content = draftContent.current;
+        return content || attachedDocs.length || selectedWorkflow ? {
+            role: "user", content, documents: attachedDocs, workflow: selectedWorkflow ?? undefined,
+            model, reasoningEffort, editMode,
+        } : null;
+    };
+    saveDraftRef.current = async () => {
+        const draft = draftSnapshot();
+        try {
+            if (onDraftChange) await onDraftChange(draft);
+            else if (draftChatId) await writeChatDraft(draftChatId, draft);
+            setDraftSaveFailed(false);
+        } catch { setDraftSaveFailed(true); }
+    };
+    useLayoutEffect(() => {
+        if (!draftChatId) return;
+        let active = true;
+        const loaded = currentChatDraft(draftChatId, initialDraft);
+        const restore = (draft: ChatDraft | null) => {
+            if (!active || !draft || draftEdited.current) return;
+            setInputValue(draft.content, false, false);
+            setAttachedDocs(draft.documents ?? []);
+            setSelectedWorkflow(draft.workflow ?? null);
+            setDraftPreferences({ model: draft.model, reasoningEffort: draft.reasoningEffort });
+        };
+        if (loaded !== undefined) restore(loaded);
+        else void readChatDraft(draftChatId).then(restore).catch(() => {});
+        return () => { active = false; };
+    }, [draftChatId, initialDraft]);
+    useEffect(() => {
+        if (!draftEdited.current) return;
+        scheduleDraft();
+    }, [attachedDocs, selectedWorkflow, model, reasoningEffort, editMode]);
+    function scheduleDraft() {
+        draftEdited.current = true;
+        if (!draftChatId && !onDraftChange) return;
+        if (draftTimer.current) clearTimeout(draftTimer.current);
+        draftTimer.current = setTimeout(() => { draftTimer.current = null; void saveDraftRef.current(); }, 250);
+    }
+    useEffect(() => () => {
+        if (draftTimer.current) { clearTimeout(draftTimer.current); void saveDraftRef.current(); }
+    }, []);
 
     function attachDocuments(documents: Document[], dropped = false) {
+        scheduleDraft();
+        draftCleared.current = false;
         setAttachedDocs((current) => mergeDocuments(current, documents));
         if (dropped) setDroppedDocuments((current) => mergeDocuments(current, documents));
     }
 
-    function setInputValue(value: string, focus = false) {
+    function setInputValue(value: string, focus = false, persist = true) {
         if (!textareaRef.current) return;
         textareaRef.current.value = value;
+        draftContent.current = value;
+        if (persist) scheduleDraft();
         setHasValue(!!value.trim());
         if (focus) textareaRef.current.focus();
     }
@@ -155,6 +219,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
 
     const startWorkflowDocumentSelection: ChatInputHandle["startWorkflowDocumentSelection"] =
         (workflow, prompt, options) => {
+            scheduleDraft();
             setSelectedWorkflow(workflow);
             if (prompt && !textareaRef.current?.value) setInputValue(prompt);
             const tab = options?.initialDocumentTab ?? "files";
@@ -175,11 +240,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         startWorkflowDocumentSelection,
     }));
     useEffect(() => {
-        if (!restoreDraft) return;
+        if (!restoreDraft) { restoredDraftRef.current = null; return; }
+        const restored = restoredDraftRef.current;
+        if (restored && restored.turnId === restoreDraft.turnId && restored.content === restoreDraft.content) return;
         const frame = requestAnimationFrame(() => {
+            restoredDraftRef.current = restoreDraft;
             const current = textareaRef.current?.value ?? "";
             setInputValue(
-                current.trim()
+                current.trim() === restoreDraft.content.trim() ? current : current.trim()
                     ? `${restoreDraft.content}\n\n${current}`
                     : restoreDraft.content,
                 true,
@@ -261,6 +329,10 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         lastSubmittedDocsRef.current = attachedDocs;
         setAttachedDocs([]);
         setSelectedWorkflow(null);
+        draftCleared.current = true;
+        if (draftTimer.current) { clearTimeout(draftTimer.current); draftTimer.current = null; }
+        if (onDraftChange) void onDraftChange(null);
+        else if (draftChatId) void writeChatDraft(draftChatId, null).catch(() => {});
         const files = attachedDocs.map(({ filename, id }) => ({ filename, document_id: id }));
         onSubmit({
             role: "user",
@@ -300,7 +372,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                     className="rounded-full border border-white/20 bg-gray-950 pl-2.5 pr-1 text-white"
                                     dark icon={<Library className="h-2.5 w-2.5 shrink-0" />}
                                     label={selectedWorkflow.title}
-                                    onRemove={() => setSelectedWorkflow(null)}
+                                    onRemove={() => { scheduleDraft(); setSelectedWorkflow(null); }}
                                 />
                             )}
                             {attachedDocs.map((document) => (
@@ -310,11 +382,12 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                     icon={<FileTypeIcon fileType={document.file_type}
                                         className="h-2.5 w-2.5" />}
                                     label={document.filename}
-                                    onRemove={() =>
+                                    onRemove={() => {
+                                        scheduleDraft();
                                         setAttachedDocs((current) =>
                                             current.filter(({ id }) => id !== document.id),
-                                        )
-                                    }
+                                        );
+                                    }}
                                 />
                             ))}
                             {uploadingFilenames.map((label, index) => (
@@ -333,9 +406,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                         <textarea
                             id={textareaId}
                             ref={textareaRef}
+                            defaultValue={openingDraft?.content ?? ""}
                             rows={rows}
                             placeholder="How can I help?"
                             onChange={(event) => {
+                                draftEdited.current = true;
+                                draftContent.current = event.currentTarget.value;
+                                draftCleared.current = false;
+                                scheduleDraft();
                                 historyIndexRef.current = null;
                                 const next = !!event.currentTarget.value.trim();
                                 if (next !== hasValue) setHasValue(next);
@@ -488,8 +566,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 <ModelEffortToggle
                                     model={model}
                                     effort={reasoningEffort}
-                                    onModelChange={setModel}
-                                    onEffortChange={setReasoningEffort}
+                                    onModelChange={(value) => { scheduleDraft(); setModel(value); }}
+                                    onEffortChange={(value) => { scheduleDraft(); setReasoningEffort(value); }}
                                     apiKeys={apiKeys}
                                 />
                             </div>
@@ -515,6 +593,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                         </div>
                     </div>
                 </form>
+                {draftSaveFailed && <div role="status" className="mt-2 flex items-center gap-2 px-2 text-xs text-red-700">
+                    <span>Draft not saved.</span>
+                    <button type="button" onClick={() => void saveDraftRef.current()}
+                        className="rounded px-1 py-1 font-medium underline underline-offset-2 focus-visible:outline focus-visible:outline-2">Retry saving</button>
+                </div>}
             </div>
             {showContextTools && (
                 <AddDocumentsModal

@@ -17,6 +17,7 @@ import { boundRemoteResponse, guardedRemoteFetch, normalizeRemoteHttpsUrl } from
 import { rankedPublisherPdfLinks } from "./legalSourcePresentation";
 import { sha256 } from "./hash";
 import type { RemoteLegalSourceDocument } from "./legalSources/remoteProvider";
+import { legalSourceReferenceSchema, type LegalSourceReference } from "./legalSources";
 import { resourceReference } from "./resourceReferences";
 import { structureNative } from "./structureNative";
 import {
@@ -26,6 +27,7 @@ import {
 import type { JobHandler } from "./jobQueue";
 
 export type ProviderPdfAttachment = {
+  source: LegalSourceReference;
   provider: string;
   identity: string;
   url: string;
@@ -84,18 +86,23 @@ function publicUrl(raw: string) {
   return url;
 }
 
-function sourceUrl(raw: string) {
-  const url = publicUrl(raw);
+function withoutApiKey(url: URL) {
   if (url.hostname === "api.govinfo.gov") url.searchParams.delete("api_key");
   return url;
 }
+const sourceUrl = (raw: string) => withoutApiKey(publicUrl(raw));
 
 function safeRequest(input: ProviderPdfAttachment): SafeRequest {
   if (!/^[a-z][a-z0-9-]{0,31}$/u.test(input.provider))
     throw new Error("Source provider is invalid");
   const identity = text(input.identity, 500);
   if (!identity) throw new Error("Source PDF identity is invalid");
+  const source = legalSourceReferenceSchema.safeParse(input.source);
+  if (!source.success || source.data.provider !== input.provider)
+    throw new Error("Source PDF legal reference is invalid");
   const request = {
+    source: { ...source.data,
+      ...(source.data.url ? { url: withoutApiKey(new URL(source.data.url)).toString() } : {}) },
     provider: input.provider,
     identity,
     url: sourceUrl(input.url).toString(),
@@ -253,16 +260,6 @@ export async function downloadProviderOriginalPdf(
   return null;
 }
 
-/** Downloads one provider-verified PDF through the shared guarded cache. */
-export async function downloadProviderPdfAttachment(
-  input: ProviderPdfAttachment,
-  signal?: AbortSignal,
-) {
-  const request = safeRequest(input);
-  const result = await download(request, signal);
-  return { bytes: await readFile(result.path), sourceSha256: result.digest };
-}
-
 const parse = (bytes: Buffer, digest: string, signal?: AbortSignal,
   pdfProfile?: PdfProfileSelection) =>
   documentProjectionService.preparePdf({
@@ -323,7 +320,7 @@ async function stateFor(request: SafeRequest, expected: string | null, userId: s
   if (expected && digest !== expected) return state(request, null);
   const content = await verifiedContent(digest ?? undefined);
   if (!content) {
-    if (record?.status === "queued") return state(request, record);
+    if (record?.status === "queued" || record?.status === "failed") return state(request, record);
     const queued = await queueProviderPdfAttachment(request, userId);
     record = await readRecord(request.requestKey);
     return queued ?? state(request, record);
@@ -436,6 +433,7 @@ export const rehydrateProviderPdfReference = (
 
 export async function queueProviderPdfRenditions(
   document: RemoteLegalSourceDocument,
+  source: LegalSourceReference,
   userId?: string,
 ) {
   if (!userId || structureNative().documentHasOrigin(document.native, "native")) {
@@ -458,6 +456,7 @@ export async function queueProviderPdfRenditions(
   return (await Promise.all([...attachments.values()].map(async (attachment) => {
     try {
       const queued = await queueProviderPdfAttachment({
+        source,
         provider: document.provider,
         identity: document.identity,
         url: attachment.url,

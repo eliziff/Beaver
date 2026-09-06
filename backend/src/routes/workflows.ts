@@ -143,12 +143,12 @@ function workflowArchive(workflow: {
   metadata: { title: string; description: string | null; language: string;
     version: string | null; category: string; audiences: readonly string[];
     jurisdictions: readonly string[] | null; contributors: WorkflowContributor[] };
-  launcher: { kind: "instructions"; variants: (Omit<InstructionVariant, "columns_config"> &
+  launcher: { kind: "instructions" | "quote_check"; variants: (Omit<InstructionVariant, "columns_config"> &
     { columns_config: unknown[] | null })[] } |
-    { kind: "authorities" } | { kind: "court_records" };
+    { kind: "authorities" } | { kind: "court_records" } | { kind: "fix_supras" };
 }) {
   const launcher = workflow.launcher;
-  if (launcher.kind !== "instructions") {
+  if (launcher.kind !== "instructions" && launcher.kind !== "quote_check") {
     return reject(400, "Workspace workflows are not instruction packages.");
   }
   const slug = archiveSlug(workflow.metadata.title, workflow.id);
@@ -199,7 +199,7 @@ export function createWorkflowsRouter(
       workflowVisibleTo(workflow.metadata.audiences, audience) &&
       (!q || [workflow.metadata.title, workflow.metadata.description,
         workflow.metadata.category,
-        ...(workflow.launcher.kind === "instructions"
+        ...((workflow.launcher.kind === "instructions" || workflow.launcher.kind === "quote_check")
           ? workflow.launcher.variants.flatMap(({ label, result, description }) =>
             [label, result ?? "", description ?? ""])
           : []),

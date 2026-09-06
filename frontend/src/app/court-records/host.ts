@@ -1,5 +1,5 @@
-import type { Document } from "@/app/components/shared/types";
-import type { InputResolution, WorkProduct, WorkProductInput, WorkProductOutput,
+import type { Document } from "@/app/lib/api/documents";
+import type { InputResolution, WorkProduct, WorkProductContext, WorkProductInput, WorkProductOutput,
   WorkProductOutputRef, WorkProductStore } from "@/app/lib/workProducts";
 import { downloadBlob } from "@/app/lib/download";
 import type { BuildArtifact, CourtRecordDraft, CourtRecordReceipt, CoverValues,
@@ -32,7 +32,7 @@ export const mergeFilingContact = (contact: FilingContact,
 });
 
 export type PreparationProgress = (message: string, completed?: number, total?: number) => void;
-export type PreparationContext = { workProductId?: string };
+export type PreparationContext = { workProductId?: string; destination?: DocumentKind };
 
 export type PreparedFile = Pick<RecordEntry,
   "file" | "pdfRendition" | "pageCount" | "searchable" | "encrypted" | "textlessPageCount" |
@@ -59,10 +59,11 @@ export interface CourtRecordsHost {
     destination?: DocumentKind): Promise<InputResolution & { prepared?: PreparedFile }>;
   relinkInput?(input: WorkProductInput): Promise<InputResolution & { prepared?: PreparedFile }>;
   runOcr?(entry: RecordEntry, progress?: PreparationProgress): Promise<Partial<RecordEntry>>;
-  searchLibrary?(query: string, formats: CourtSourceFormat[], context?: PreparationContext):
+  searchLibrary?(query: string, formats: CourtSourceFormat[], draft: WorkProductContext, signal?: AbortSignal):
     Promise<Document[]>;
-  importLibraryDocument?(document: Document, progress?: PreparationProgress): Promise<PreparedFile>;
-  searchDraftOutputs?(query: string, destination: DocumentKind, excludeId?: string):
+  importLibraryDocument?(document: Document, progress?: PreparationProgress,
+    destination?: DocumentKind): Promise<PreparedFile>;
+  searchDraftOutputs?(query: string, destination: DocumentKind, draft: WorkProductContext, signal?: AbortSignal):
     Promise<DraftOutputChoice[]>;
   importDraftOutput?(choice: DraftOutputChoice, destination: DocumentKind,
     progress?: PreparationProgress):

@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { deleteChat, renameChat } from "@/app/lib/beaverApi";
+import { deleteChat, renameChat, type Chat } from "@/app/lib/api/chat";
 import { ProjectAssistantTable } from "@/app/components/projects/ProjectAssistantTable";
 import {
     ProjectSectionTabs,
     useProjectWorkspace,
 } from "@/app/components/projects/ProjectWorkspace";
-import type { Chat } from "@/app/components/shared/types";
+
 import { useAuth } from "@/app/contexts/AuthContext";
 import { Button } from "@/app/components/ui/button";
 import { ChatDeleteWarning } from "@/app/components/assistant/ChatDeleteWarning";

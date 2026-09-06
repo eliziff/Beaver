@@ -30,10 +30,11 @@ async function sourceApp() {
   const [{ createLegalLibraryRouter }, { createLegalSourceStore }, { relationalDatabase }] =
     await Promise.all([import("./legalLibrary"), import("../lib/legalSourceStore"),
       import("../lib/relationalDatabase")]);
+  const { createLegalSourceApplication } = await import("../lib/legalSourceApplication");
   const store = createLegalSourceStore(await relationalDatabase());
   const app = express();
   app.use(express.json());
-  app.use("/sources", createLegalLibraryRouter(store));
+  app.use("/sources", createLegalLibraryRouter(createLegalSourceApplication(store)));
   return { app, store };
 }
 
@@ -127,6 +128,10 @@ describe("legal Library provider PDF rendition", () => {
       provider: "a2aj",
       identity: "SCC:2099 SCC 7",
       url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/99997/1/document.do",
+      source: { provider: "a2aj", id: "2099 SCC 7", kind: "case", collection: "SCC",
+        language: "en", citation: "2099 SCC 7", title: "Pointer v. Restart",
+        alternateCitation: null, date: null,
+        url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/99997/index.do" },
       canonicalUrl:
         "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/99997/index.do",
       title: "Pointer v. Restart",

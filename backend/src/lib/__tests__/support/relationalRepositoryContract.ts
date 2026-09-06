@@ -78,6 +78,173 @@ const removeUserData = async (userId: string) => {
 export function relationalRepositoryContract(
   prepareScopes: (scopes: TestScope[]) => Promise<void> = async () => undefined,
 ) {
+  it("round-trips legal receipts and resume state while exposing only public transcript fields", async () => {
+    const [{ chatRepository }, { relationalDatabase, sql }, evidence, { visibleChatMessages }] = await Promise.all([
+      import("../../relationalChatRepository"), import("../../relationalDatabase"),
+      import("../../chat/legalEvidence"), import("../../chat/chatTranscript"),
+    ]);
+    const owner = scope("event-owner");
+    await prepareScopes([owner]);
+    const repository = chatRepository(owner), assistantId = randomUUID();
+    const chat = await repository.create({ projectId: null, tabularReviewId: null });
+    try {
+      const passage = "The appeal is allowed.\nWith costs.", state = evidence.createLegalEvidenceTurnState("citation_structure");
+      const receipt = evidence.createLibraryEvidence({ documentId: "document-1", versionId: "version-1",
+        filename: "Record.pdf", sourceText: passage, spanText: passage, start: 0, end: passage.length });
+      evidence.registerLegalEvidence(state, receipt);
+      state.answer = [{ text: "The appeal is allowed.", evidence_ids: [receipt.evidence_id] }];
+      state.queries.set("q_1", { query_id: "q_1", call_id: "read-1", tool: "Read",
+        executed_at: "2026-09-05T00:00:00.000Z", model: "reader-model",
+        executor_version: "legal-source-pattern-v1", input: { pattern: "appeal", options: { exact: true } },
+        results: [{ rank: 1, evidence_id: receipt.evidence_id }] });
+      const grounding = evidence.legalEvidenceReceiptEvent(state)!;
+      const content: import("../../chat/assistantEvents").AssistantEvent[] = [
+        grounding,
+        { type: "context_checkpoint", schema_version: 1, keep_current: true, provider: "openai",
+          payload: { encrypted_content: "provider-private", nested: { value: [1, null, "text"] } } },
+        { type: "mcp_tool_call", connector_id: "connector-1", connector_name: "Private connector",
+          tool_name: "read", openai_tool_name: "mcp_read", status: "ok" },
+        { type: "subagent_run", id: "reader-1", task: "Read the record", status: "interrupted",
+          agent: "scout", model: "reader-model", effort: "high", error: "private error",
+          publicError: "Reading interrupted", activities: [], output: "", grounding,
+          resume: { id: "reader-1", continuation_id: "private-session", model: "reader-model", effort: "high",
+            assignment: { task: "Read the record", scope: "appeal", jurisdiction: "CA" }, evidence: [receipt] } },
+        { type: "content", text: "The appeal is allowed." },
+        { type: "local_turn_completed", schema_version: 1 },
+      ];
+      await repository.commit(chat.id, { kind: "turn", turn: { expectedVersion: 0,
+        assistantMessage: { id: assistantId, turnId: randomUUID(), content } } });
+      const loaded = (await chatRepository(owner).read(chat.id, true))!.messages;
+      expect(loaded[0].content).toEqual(content);
+      expect(visibleChatMessages(loaded)[0]).toMatchObject({ turn_complete: true, content: [
+        { type: "subagent_run", id: "reader-1", task: "Read the record", status: "interrupted",
+          error: "Reading interrupted", activities: [], output: "" },
+        { type: "content", text: "The appeal is allowed." },
+      ] });
+      const db = await relationalDatabase();
+      for (const [index, invalid] of [
+        { type: "content", text: 123 }, { type: "ask_inputs", items: [null] },
+        { type: "unknown_private", secret: "private" },
+      ].entries()) await db.query(sql`INSERT INTO chat_message_events(message_id,ordinal,event,created_at)
+        VALUES(${assistantId},${content.length + index},${JSON.stringify(invalid)},${new Date().toISOString()})`);
+      expect((await repository.read(chat.id, true))!.messages[0].content).toEqual(content);
+    } finally { await repository.removeAll(); }
+  });
+
+  it("recovers an unsent draft in history without adding transcript messages", async () => {
+    const { chatRepository } = await import("../../relationalChatRepository");
+    const owner = scope("draft-owner"), stranger = scope("draft-stranger");
+    await prepareScopes([owner, stranger]);
+    const repository = chatRepository(owner);
+    const chat = await repository.create({ projectId: null, tabularReviewId: null });
+    const draft = { role: "user", content: "An unfinished question", documents: [{ id: "doc", filename: "Record.pdf" }] };
+    await repository.update(chat.id, { draft });
+    expect(await repository.read(chat.id, true)).toEqual(expect.objectContaining({
+      chat: expect.objectContaining({ draft }), messages: [],
+    }));
+    expect(await repository.list({})).toEqual([expect.objectContaining({ id: chat.id, title: draft.content })]);
+    expect(await chatRepository(stranger).read(chat.id)).toBeNull();
+    expect(await chatRepository(stranger).update(chat.id, { draft: null })).toBeNull();
+    await repository.update(chat.id, { draft: null });
+    expect((await repository.read(chat.id))?.chat.draft).toBeNull();
+    expect(await repository.list({})).toEqual([]);
+    await repository.removeAll();
+  });
+  it("searches conversation titles and pages results within the assistant's scope", async () => {
+    const { chatRepository } = await import("../../relationalChatRepository");
+    const owner = scope("conversation-search"), stranger = scope("other-conversations");
+    await prepareScopes([owner, stranger]);
+    try {
+      const repository = chatRepository(owner);
+      for (const title of ["Lease renewal", "LEASE 100%_\\", "Other matter"]) {
+        const chat = await repository.create({ projectId: null, tabularReviewId: null });
+        await repository.update(chat.id, { title });
+        await repository.commit(chat.id, { kind: "turn", turn: { expectedVersion: 0,
+          userMessage: { id: randomUUID(), content: "Question" } } });
+      }
+      const matches = await repository.list({ search: "lease", limit: 10 });
+      expect(matches).toHaveLength(2);
+      await expect(repository.list({ search: "lease", offset: 1, limit: 1 })).resolves.toEqual([matches[1]]);
+      await expect(repository.list({ search: "100%_\\", limit: 10 })).resolves.toEqual([
+        expect.objectContaining({ title: "LEASE 100%_\\" }),
+      ]);
+      await expect(chatRepository(stranger).list({ search: "lease", limit: 10 })).resolves.toEqual([]);
+      await repository.trash(matches[0].id, new Date().toISOString());
+      await expect(repository.list({ search: "lease", limit: 10 })).resolves.toEqual([matches[1]]);
+    } finally {
+      await removeUserData(owner.userId);
+    }
+  });
+
+  it("searches visible transcript text with message anchors, creation filters, and activity ordering", async () => {
+    const [{ chatRepository }, { relationalDatabase, sql }] = await Promise.all([
+      import("../../relationalChatRepository"), import("../../relationalDatabase"),
+    ]);
+    const owner = scope("transcript-search"), stranger = scope("private-search");
+    await prepareScopes([owner, stranger]);
+    const repository = chatRepository(owner), db = await relationalDatabase();
+    try {
+      const user = await repository.create({ projectId: null, tabularReviewId: null }), userId = randomUUID();
+      await repository.commit(user.id, { kind: "turn", turn: { expectedVersion: 0,
+        userMessage: { id: userId, content: `${"Earlier context. ".repeat(40)}A common lease question.` } } });
+      const assistant = await repository.create({ projectId: null, tabularReviewId: null }), assistantId = randomUUID();
+      await repository.commit(assistant.id, { kind: "turn", turn: { expectedVersion: 0,
+        assistantMessage: { id: assistantId, content: [
+          { type: "content", text: "A common " }, { type: "content", text: "lease answer." },
+          { type: "context_checkpoint", summary: "secretsearch" },
+          { type: "tool_result", output: "secretsearch" },
+        ] } } });
+      const title = await repository.create({ projectId: null, tabularReviewId: null });
+      await repository.update(title.id, { title: "Common lease" });
+      await repository.commit(title.id, { kind: "turn", turn: { expectedVersion: 0,
+        userMessage: { id: randomUUID(), content: "Unrelated question" } } });
+      for (const [chat, day, activity] of [[user, "01", "04"], [assistant, "02", "02"], [title, "03", "03"]] as const)
+        await db.query(sql`UPDATE chats SET created_at=${`2026-09-${day}T00:00:00.000Z`},
+          updated_at=${`2026-09-${activity}T00:00:00.000Z`} WHERE id=${chat.id}`);
+      const result = await repository.list({ search: "common lease", searchScope: "transcripts", limit: 10 });
+      expect(result.map(({ id }) => id)).toEqual([user.id, assistant.id]);
+      expect(result[0].search_hit).toEqual({ message_id: userId, snippet: expect.stringContaining("common lease") });
+      expect(result[0].search_hit?.snippet.length).toBeLessThanOrEqual(360);
+      expect(result[1].search_hit).toEqual({ message_id: assistantId, snippet: "A common lease answer." });
+      expect((await repository.list({ search: "common lease", searchScope: "titles" })).map(({ id }) => id)).toEqual([title.id]);
+      expect((await repository.list({ search: "common lease", sort: "oldest", limit: 1, offset: 1 })).map(({ id }) => id)).toEqual([title.id]);
+      expect((await repository.list({ search: "common lease", createdFrom: "2026-09-02T00:00:00.000Z",
+        createdTo: "2026-09-03T00:00:00.000Z" })).map(({ id }) => id)).toEqual([assistant.id]);
+      expect(await repository.list({ search: "secretsearch" })).toEqual([]);
+      expect(await chatRepository(stranger).list({ search: "common lease" })).toEqual([]);
+      await repository.trash(assistant.id, new Date().toISOString());
+      expect((await repository.list({ search: "common lease", searchScope: "transcripts" })).map(({ id }) => id)).toEqual([user.id]);
+    } finally { await repository.removeAll(); }
+  });
+
+  it("searches standalone review conversations with shared access without leaking project or private chats", async () => {
+    const [{ chatRepository }, { tabularRepository }, { projectRepository }] = await Promise.all([
+      import("../../relationalChatRepository"), import("../../relationalTabularRepository"), import("../../relationalProjectRepository"),
+    ]);
+    const owner = scope("review-search"), member = scope("review-member"), stranger = scope("review-stranger");
+    await prepareScopes([owner, member, stranger]);
+    const repository = chatRepository(owner);
+    try {
+      const review = await tabularRepository.create(owner, { projectId: null, title: "Review", columns: [],
+        documentIds: [], workflowId: null, sharedWith: [member.userEmail] });
+      if (review.status !== "committed") throw new Error("Review fixture failed");
+      const project = await projectRepository.create(owner, { name: "Matter", cmNumber: null,
+        practice: null, sharedWith: [member.userEmail], metadata: {}, notes: null });
+      const reviewChat = await repository.create({ projectId: null, tabularReviewId: review.value.id });
+      const privateChat = await repository.create({ projectId: null, tabularReviewId: null });
+      const projectChat = await repository.create({ projectId: project.id, tabularReviewId: null });
+      for (const chat of [reviewChat, privateChat, projectChat]) await repository.commit(chat.id,
+        { kind: "turn", turn: { expectedVersion: 0, userMessage: { id: randomUUID(), content: "Shared phrase" } } });
+      expect((await repository.list({ search: "Shared phrase" })).map(({ id }) => id)).toEqual([privateChat.id]);
+      expect(await chatRepository(member).list({ search: "Shared phrase", searchContext: "reviews" })).toEqual([
+        expect.objectContaining({ id: reviewChat.id, tabular_review_id: review.value.id }),
+      ]);
+      expect((await repository.list({ search: "Shared phrase", searchContext: "all" })).map(({ id }) => id).sort()).toEqual([privateChat.id, reviewChat.id].sort());
+      expect(await chatRepository(stranger).list({ search: "Shared phrase", searchContext: "all" })).toEqual([]);
+      expect((await chatRepository(member).list({ projectId: project.id, search: "Shared phrase" })).map(({ id }) => id)).toEqual([projectChat.id]);
+    } finally { await repository.removeAll(); await removeUserData(owner.userId); }
+  });
+
   it("keeps the version author email as an immutable snapshot", async () => {
     const { documentRepository } = await import("../../relationalDocumentRepository");
     const owner = scope("version-author"), documentId = randomUUID(), versionId = randomUUID();
@@ -203,6 +370,145 @@ export function relationalRepositoryContract(
       await removeUserData(member.userId);
       await removeUserData(owner.userId);
     }
+  });
+
+  it("preserves public-source table rows, guarded answers and sharing through either adapter", async () => {
+    const [{ tabularRepository }, { researchSourceResource }] = await Promise.all([
+      import("../../relationalTabularRepository"), import("../../researchFile"),
+    ]);
+    const owner = scope("source-table-owner"), member = scope("source-table-member"),
+      stranger = scope("source-table-stranger"), reference = {
+        provider: "tna", id: "ewca/civ/2024/1", kind: "case" as const, title: "Decision",
+      }, resource = researchSourceResource(reference);
+    await prepareScopes([owner, member, stranger]);
+    try {
+      const created = await tabularRepository.create(owner, { projectId: null,
+        columns: [{ index: 0, name: "Issue", prompt: "Extract the issue" }],
+        documentIds: [resource], sharedWith: [member.userEmail],
+        scopeConfig: { subjects: [{ sourceId: "source", resource, reference }] } });
+      if (created.status !== "committed") throw new Error("Table fixture failed");
+      const id = created.value.id, initial = (await tabularRepository.detail(owner, id))!.cells[0],
+        input = { reviewId: id, documentId: resource, columnIndex: 0 },
+        first = await tabularRepository.setCell(owner, { ...input, expected: { ...initial,
+          updated_at: String(initial.updated_at) }, status: "generating", content: null });
+      if (first.status !== "committed") throw new Error("Cell fixture failed");
+      const cleared = await tabularRepository.setCell(owner, { ...input, expected: { ...first.value,
+        updated_at: String(first.value.updated_at) }, status: "pending", content: null });
+      if (cleared.status !== "committed") throw new Error("Cell fixture failed");
+      const newer = await tabularRepository.setCell(owner, { ...input, expected: { ...cleared.value,
+        updated_at: String(cleared.value.updated_at) }, status: "generating", content: null });
+      if (newer.status !== "committed") throw new Error("Cell fixture failed");
+      const content = { claims: [], value: null, summary: "Not Found", evidence: [],
+        outcome: "not_found" as const, coverage: "complete" as const, resource };
+      await expect(tabularRepository.setCell(owner, { ...input, expected: { ...first.value,
+        updated_at: String(first.value.updated_at) }, status: "done", content }))
+        .resolves.toMatchObject({ status: "conflict" });
+      await expect(tabularRepository.setCell(owner, { ...input, expected: { ...newer.value,
+        updated_at: String(newer.value.updated_at) }, status: "done", content }))
+        .resolves.toMatchObject({ status: "committed" });
+      await expect(tabularRepository.detail(member, id)).resolves.toMatchObject({
+        review: { scope_config: { subjects: [{ resource, reference }] } }, cells: [{ content }],
+      });
+      await expect(tabularRepository.detail(stranger, id)).resolves.toBeNull();
+      await tabularRepository.update(owner, id, created.value.updated_at, {
+        columns: [{ index: 0, name: "Issue", prompt: "Extract a different issue" }],
+      });
+      await expect(tabularRepository.detail(owner, id)).resolves.toMatchObject({
+        cells: [{ status: "pending", content: null }],
+      });
+    } finally { await removeUserData(owner.userId); await removeUserData(member.userId);
+      await removeUserData(stranger.userId); }
+  });
+
+  it("reverses table question and result changes with provenance and stale-value protection", async () => {
+    const { tabularRepository: tables } = await import("../../relationalTabularRepository"),
+      owner = scope("table-history-owner"), stranger = scope("table-history-stranger"),
+      reference = { provider: "tna", kind: "case" as const, id: "ewca/civ/2024/1" },
+      { researchSourceResource } = await import("../../researchFile"), resource = researchSourceResource(reference);
+    await prepareScopes([owner, stranger]);
+    try {
+      const originalColumns = [{ index: 0, name: "Issue", prompt: "Identify the issue" }],
+        created = await tables.create(owner, { projectId: null, title: "Research", columns: originalColumns,
+          documentIds: [resource], scopeConfig: { subjects: [{ sourceId: "case", resource, reference }] } });
+      if (created.status !== "committed") throw new Error("Table fixture failed");
+      const id = created.value.id, detail = async () => (await tables.detail(owner, id))!,
+        history = async () => (await tables.history(owner, id, { offset: 0, limit: 100 }))!,
+        original = { claims: [], evidence: [], value: "First answer", summary: "First answer",
+          outcome: "answered" as const, coverage: "complete" as const, resource },
+        write = async (status: "done" | "generating", content: typeof original | null, changeKey?: string) => {
+          const current = (await detail()).cells[0];
+          const saved = await tables.setCell(owner, { reviewId: id, documentId: resource, columnIndex: 0,
+            expected: { ...current, updated_at: String(current.updated_at) }, status, content,
+            operation: { executor: "assistant", model: "test-model", changeKey, title: "Generate answer" } });
+          expect(saved.status).toBe("committed");
+        },
+        change = async (changeId: string, action: "accept" | "reject" | "undo") =>
+          tables.change(owner, id, changeId, action, (await detail()).review.updated_at);
+      await write("done", original);
+      const generationId = randomUUID();
+      await write("generating", null, generationId);
+      await write("done", { ...original, summary: "Replacement", value: "Replacement" }, generationId);
+      const generation = (await history()).items.find(({ changes }) => changes.some(({ after }) =>
+        (after as { content?: { summary?: string } } | null)?.content?.summary === "Replacement"))!;
+      expect(generation).toMatchObject({ executor: "assistant", model: "test-model", userId: owner.userId,
+        changes: [{ before: { content: original }, after: { status: "done" } }] });
+      await change(generation.id, "undo");
+      expect((await detail()).cells[0]).toMatchObject({ status: "done", content: original });
+      expect((await history()).items.find(({ undoOf }) => undoOf === generation.id))
+        .toMatchObject({ executor: "human", userId: owner.userId });
+
+      await tables.update(owner, id, (await detail()).review.updated_at, {
+        columns: [{ ...originalColumns[0], prompt: "Identify the holding" }] });
+      const question = (await history()).items.find(({ changes }) => changes.some(({ field }) => field === "columns_config.0.prompt"))!;
+      expect((await detail()).cells[0]).toMatchObject({ status: "pending", content: null });
+      await tables.update(owner, id, (await detail()).review.updated_at, { title: "Renamed" });
+      await change(question.id, "undo");
+      expect(await detail()).toMatchObject({ review: { title: "Renamed", columns_config: originalColumns },
+        cells: [{ status: "done", content: original }] });
+      await expect(change(question.id, "undo")).rejects.toMatchObject({ status: 409 });
+
+      await tables.update(owner, id, (await detail()).review.updated_at, { title: "Suggested",
+        operation: { executor: "assistant", model: "test-model", propose: true } });
+      const proposed = (await history()).items.find(({ status }) => status === "pending")!;
+      expect((await detail()).review.title).toBe("Renamed");
+      expect((await detail()).review.proposals).toEqual([expect.objectContaining({ id: proposed.id })]);
+      await expect(tables.change(owner, id, proposed.id, "accept", created.value.updated_at))
+        .resolves.toMatchObject({ status: "conflict" });
+      await change(proposed.id, "accept");
+      expect((await detail()).review.title).toBe("Suggested");
+      expect((await history()).items.find(({ id }) => id === proposed.id))
+        .toMatchObject({ status: "applied", executor: "assistant", resolvedBy: owner.userId });
+      await tables.update(owner, id, (await detail()).review.updated_at, { title: "Rejected",
+        operation: { executor: "assistant", propose: true } });
+      await change((await history()).items.find(({ status }) => status === "pending")!.id, "reject");
+      expect((await detail()).review.title).toBe("Suggested");
+      expect((await detail()).review.proposals).toEqual([]);
+
+      await tables.update(owner, id, (await detail()).review.updated_at, { documentIds: [] });
+      const removed = (await history()).items.find(({ changes }) => changes.some(({ field, after }) =>
+        field === "document_ids" && Array.isArray(after) && !after.length))!;
+      expect((await detail()).cells).toEqual([]);
+      await change(removed.id, "undo");
+      expect((await detail()).cells[0]).toMatchObject({ status: "done", content: original });
+      await expect(tables.history(stranger, id, { offset: 0, limit: 1 })).resolves.toBeNull();
+      await expect(tables.change(stranger, id, removed.id, "undo", (await detail()).review.updated_at))
+        .resolves.toEqual({ status: "missing" });
+      expect((await tables.history(owner, id, { offset: 0, limit: 1 }))?.next_offset).toBe(1);
+      await tables.update(owner, id, (await detail()).review.updated_at, {
+        columns: [...originalColumns, { index: 1, name: "Reason", prompt: "Explain why" }] });
+      await tables.update(owner, id, (await detail()).review.updated_at, {
+        columns: (await detail()).review.columns_config.map((column) => column.index === 0
+          ? { ...column, name: "Renamed issue" } : column) });
+      const renamed = (await history()).items.find(({ changes }) => changes.some(({ field, after }) =>
+        field === "columns_config.0.name" && after === "Renamed issue"))!;
+      expect((await detail()).cells.find(({ column_index }) => column_index === 0)?.content).toEqual(original);
+      await tables.update(owner, id, (await detail()).review.updated_at, {
+        columns: (await detail()).review.columns_config.map((column) => column.index === 1
+          ? { ...column, prompt: "Explain the later reasoning" } : column) });
+      await change(renamed.id, "undo");
+      expect((await detail()).review.columns_config).toEqual([
+        originalColumns[0], { index: 1, name: "Reason", prompt: "Explain the later reasoning" }]);
+    } finally { await removeUserData(owner.userId); await removeUserData(stranger.userId); }
   });
 
   it("keeps concurrent Library folder creation inside a deleted tree", async () => {

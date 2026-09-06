@@ -7,14 +7,12 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import type { NormalizedToolCall, NormalizedToolResult } from "../llm";
 import { safeErrorLog } from "../safeError";
-import type { AskInputsEvent } from "./types";
+import type { AskInputsEvent, AssistantEvent } from "./assistantEvents";
 import type { LegalEvidenceReceipt, PendingLegalResearchQueryReceipt,
   RegisteredEvidence } from "./legalEvidence";
 import type { ReadSubagentRegion } from "./readSubagents";
-import type { AssistantEvent } from "./turnEngine";
 
 export const LOAD_TOOLS_NAME = "load_tools";
-const SPECIALIST_LIMIT = 3;
 const MAX_PARALLEL_TOOL_CALLS = 4;
 export const MAX_MODEL_TOOL_RESULT_CHARS = 64_000;
 
@@ -36,6 +34,7 @@ export type BeaverToolPolicy = {
   reader?: readonly ReadSubagentRegion[];
   sequential?: boolean | ((input: Record<string, unknown>) => boolean);
   activity?: (input: Record<string, unknown>) => string | null;
+  activityCitations?: (input: Record<string, unknown>) => Record<string, unknown>[];
 };
 export type BeaverTool<Context> = Tool & BeaverToolPolicy & {
   execute(
@@ -44,15 +43,6 @@ export type BeaverTool<Context> = Tool & BeaverToolPolicy & {
     signal: AbortSignal,
     call: Readonly<NormalizedToolCall>,
   ): Promise<BeaverOutcome>;
-};
-export type ToolBatch = {
-  results: NormalizedToolResult[];
-  outcomes: BeaverOutcome[];
-  pause?: AskInputsEvent;
-  mutated: boolean;
-  events: AssistantEvent[];
-  evidence: LegalEvidenceReceipt[];
-  queryReceipts: PendingLegalResearchQueryReceipt[];
 };
 
 const validator = new AjvJsonSchemaValidator();
@@ -67,13 +57,13 @@ const schema = (tool: Tool): Tool => ({
   ...(tool.icons && { icons: tool.icons }),
   ...(tool._meta && { _meta: tool._meta }),
 });
-const loader = (names: string[], limit: number): Tool => ({
+const loader = (names: string[]): Tool => ({
   name: LOAD_TOOLS_NAME,
-  description: `Load up to ${limit} exact specialist tool names for this turn.`,
+  description: "Load the specialist tools needed for this task by exact name.",
   inputSchema: {
     type: "object",
     properties: { names: {
-      type: "array", minItems: 1, maxItems: limit, uniqueItems: true,
+      type: "array", minItems: 1, maxItems: names.length, uniqueItems: true,
       items: names.length ? { type: "string", enum: names } : { type: "string" },
     } },
     required: ["names"],
@@ -109,19 +99,10 @@ const visibleText = (result: CallToolResult) => {
 };
 const normalize = (id: string, outcome: BeaverOutcome): NormalizedToolResult => {
   const visible = visibleText(outcome.result);
-  const evidenceRefs = outcome.evidence?.flatMap((receipt) => receipt.span_text ? [{
-    handle: receipt.evidence_id,
-    filename: receipt.name ?? receipt.citation,
-    locator: receipt.locator.label,
-    text: receipt.span_text,
-    exactSha256: receipt.exact_span_sha256 ?? receipt.span_sha256,
-    kind: "evidence" as const,
-  }] : []);
   return {
     tool_use_id: id,
     content: visible.text,
     ...outcome.metadata,
-    ...(!outcome.metadata?.evidenceRefs && evidenceRefs?.length && { evidenceRefs }),
     status: outcome.metadata?.status ??
       (visible.truncated ? "truncated" : outcome.result.isError ? "error" : "ok"),
     ...(outcome.terminal && { terminal: true }),
@@ -131,6 +112,7 @@ const normalize = (id: string, outcome: BeaverOutcome): NormalizedToolResult => 
 type Check = ReturnType<AjvJsonSchemaValidator["getValidator"]>;
 type Compiled<Context> = { tool: BeaverTool<Context>; input: Check; output?: Check };
 type Execution = { call: NormalizedToolCall; outcome: BeaverOutcome };
+type OnResult = (call: NormalizedToolCall, outcome: BeaverOutcome) => void;
 const errorOutcome = (error: string, detail?: string): BeaverOutcome => ({
   result: toolText({ ok: false, error, ...(detail && { detail }) }, true),
 });
@@ -139,7 +121,6 @@ export class TurnToolRegistry<Context> {
   readonly #tools: Compiled<Context>[];
   readonly #byName = new Map<string, Compiled<Context>>();
   readonly #active = new Set<string>();
-  readonly #loaded = new Set<string>();
   #mutated = false;
 
   constructor(tools: BeaverTool<Context>[]) {
@@ -169,87 +150,85 @@ export class TurnToolRegistry<Context> {
     return this.#tools.flatMap(({ tool }) => this.#active.has(tool.name) ? [] : [tool.name]);
   }
   visible() {
-    const specialists = this.specialists(), remaining = SPECIALIST_LIMIT - this.#loaded.size;
+    const specialists = this.specialists();
     return [
-      ...(remaining > 0 && specialists.length ? [loader(specialists, remaining)] : []),
+      ...(specialists.length ? [loader(specialists)] : []),
       ...this.#tools.flatMap(({ tool }) => this.#active.has(tool.name) ? [schema(tool)] : []),
     ];
   }
   all() {
     const specialists = this.specialists();
     return [
-      ...(specialists.length ? [loader(specialists, SPECIALIST_LIMIT)] : []),
+      ...(specialists.length ? [loader(specialists)] : []),
       ...this.#tools.map(({ tool }) => schema(tool)),
     ];
-  }
-  specialistPrompt() {
-    const names = this.specialists();
-    return names.length
-      ? `Specialist tools available through load_tools: ${names.join(", ")}. Load only exact names needed for the task.`
-      : "";
   }
   activity(call: NormalizedToolCall) {
     return call.name === LOAD_TOOLS_NAME ? "Loading tools"
       : this.#byName.get(call.name)?.tool.activity?.(call.input) ?? null;
+  }
+  activityCitations(call: NormalizedToolCall) {
+    return this.#byName.get(call.name)?.tool.activityCitations?.(call.input) ?? [];
   }
 
   async run(
     calls: NormalizedToolCall[],
     context: Context,
     signal: AbortSignal = new AbortController().signal,
-  ): Promise<ToolBatch> {
+    onResult?: OnResult,
+  ): Promise<NormalizedToolResult[]> {
     const serial = calls.some((call) => {
       const setting = this.#byName.get(call.name)?.tool.sequential;
       return typeof setting === "function" ? setting(call.input) : setting === true;
     });
     const executions = serial
-      ? await this.#serial(calls, context, signal)
-      : await this.#parallel(calls, context, signal);
-    this.#mutated ||= executions.some(({ outcome }) => outcome.mutated);
+      ? await this.#serial(calls, context, signal, onResult)
+      : await this.#parallel(calls, context, signal, onResult);
     const terminal = executions.length > 0 && executions.every(({ outcome }) => outcome.terminal);
-    const outcomes = executions.map(({ outcome }) => outcome);
-    return {
-      results: executions.map(({ call, outcome }) => normalize(call.id, { ...outcome, terminal })),
-      outcomes,
-      pause: outcomes.find(({ pause }) => pause)?.pause,
-      mutated: outcomes.some(({ mutated }) => mutated === true),
-      events: outcomes.flatMap(({ events }) => events ?? []),
-      evidence: outcomes.flatMap(({ evidence }) => evidence ?? []),
-      queryReceipts: outcomes.flatMap(({ queryReceipts }) => queryReceipts ?? []),
-    };
+    return executions.map(({ call, outcome }) => normalize(call.id, { ...outcome, terminal }));
   }
 
-  async #parallel(calls: NormalizedToolCall[], context: Context, signal: AbortSignal) {
+  async #parallel(
+    calls: NormalizedToolCall[], context: Context, signal: AbortSignal, onResult?: OnResult,
+  ) {
     const results = new Array<Execution>(calls.length);
-    let next = 0;
-    await Promise.all(Array.from(
+    let next = 0, failed = false;
+    const workers = await Promise.allSettled(Array.from(
       { length: Math.min(MAX_PARALLEL_TOOL_CALLS, calls.length) },
       async () => {
-        while (next < calls.length) {
-          const index = next++;
-          results[index] = await this.#execute(calls[index], context, signal);
-        }
+        try {
+          while (!failed && next < calls.length) {
+            const index = next++;
+            results[index] = await this.#execute(calls[index], context, signal);
+            this.#mutated ||= results[index].outcome.mutated === true;
+            onResult?.(results[index].call, results[index].outcome);
+          }
+        } catch (error) { failed = true; throw error; }
       },
     ));
+    const rejected = workers.find((worker) => worker.status === "rejected");
+    if (rejected) throw rejected.reason;
     return results;
   }
 
-  async #serial(calls: NormalizedToolCall[], context: Context, signal: AbortSignal) {
+  async #serial(
+    calls: NormalizedToolCall[], context: Context, signal: AbortSignal, onResult?: OnResult,
+  ) {
     const results: Execution[] = [];
-    let mutated = this.#mutated;
     for (const call of calls) {
       let executed = results.some(({ outcome }) => outcome.pause)
         ? { call, outcome: errorOutcome("waiting_for_user") }
         : await this.#execute(call, context, signal);
-      if (executed.outcome.pause && mutated) executed = {
+      if (executed.outcome.pause && this.#mutated) executed = {
         call,
         outcome: errorOutcome(
           "ask_inputs_after_mutation",
           "ask_inputs must run before document or workflow changes",
         ),
       };
-      mutated ||= executed.outcome.mutated === true;
+      this.#mutated ||= executed.outcome.mutated === true;
       results.push(executed);
+      onResult?.(call, executed.outcome);
     }
     return results;
   }
@@ -261,7 +240,7 @@ export class TurnToolRegistry<Context> {
   ): Promise<Execution> {
     if (call.name === LOAD_TOOLS_NAME) {
       const checked = validator.getValidator(
-        loader(this.specialists(), SPECIALIST_LIMIT).inputSchema)(call.input);
+        loader([...this.#byName.keys()]).inputSchema)(call.input);
       return { call, outcome: checked.valid
         ? { result: this.#load(call.input.names as string[]) }
         : errorOutcome("invalid_arguments", checked.errorMessage) };
@@ -297,13 +276,8 @@ export class TurnToolRegistry<Context> {
   }
 
   #load(names: string[]) {
-    const unknown = names.filter((name) => !this.#byName.has(name));
-    if (unknown.length) return toolText({ ok: false, error: "unknown_tools", unknown }, true);
     const added = names.filter((name) => !this.#active.has(name));
-    if (this.#loaded.size + added.length > SPECIALIST_LIMIT) return toolText({
-      ok: false, error: `At most ${SPECIALIST_LIMIT} specialist tools may be loaded per turn`,
-    }, true);
-    added.forEach((name) => { this.#active.add(name); this.#loaded.add(name); });
+    added.forEach((name) => this.#active.add(name));
     return toolText({ ok: true, loaded: added });
   }
 }

@@ -3,18 +3,22 @@ import type { ApplicationScope } from "./applicationError";
 import { patchChatEditEvents, type ChatCommitResult, type ChatMessageRecord, type ChatMutation, type ChatRecord, type CreateChatRepository } from "./chatStore";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
 import { chatAccess, changes, documentAccess, now, one, rows, type Row } from "./relationalRepositorySupport";
+import { parseAssistantEvent, type AssistantEvent } from "./chat/assistantEvents";
 
 const chatRecord = (row: Row): ChatRecord => ({ ...row, id: String(row.id),
   user_id: String(row.user_id), project_id: typeof row.project_id === "string" ? row.project_id : null,
   tabular_review_id: typeof row.tabular_review_id === "string" ? row.tabular_review_id : null,
+  research_file_id: typeof row.research_file_id === "string" ? row.research_file_id : null,
   title: typeof row.title === "string" ? row.title : null,
   model: typeof row.model === "string" ? row.model : null,
   reasoning_effort: typeof row.reasoning_effort === "string" ? row.reasoning_effort : null,
+  draft: decode(row.draft, null),
   transcript_version: Number(row.transcript_version ?? 0) });
 const chatMessage = (row: Row, content?: unknown[]): ChatMessageRecord => ({ ...row, id: String(row.id),
   chat_id: String(row.chat_id), ...(row.turn_id ? { turn_id: String(row.turn_id) } : {}),
   role: row.role === "user" ? "user" : "assistant",
-  content: content ?? decode(row.content, null),
+  content: row.role === "user" ? decode<string>(row.content, "")
+    : (content ?? []).flatMap((event) => parseAssistantEvent(event) ?? []),
   ...(row.files !== null ? { files: decode(row.files, null) } : {}),
   ...(row.workflow !== null ? { workflow: decode(row.workflow, null) } : {}),
   ...(row.citations !== null ? { citations: decode(row.citations, null) } : {}) });
@@ -33,7 +37,7 @@ function grouped(values: Sequenced[]) {
 async function syncMessageEvents(
   tx: RelationalDatabase,
   messageId: string,
-  values: unknown[],
+  values: AssistantEvent[],
 ) {
   const prior = new Map((await tx.query<{ sequence: number; value: unknown }>(sql`
     SELECT ordinal AS sequence,event AS value FROM chat_message_events
@@ -51,21 +55,19 @@ async function syncMessageEvents(
 }
 async function findChat(scope: ApplicationScope, id: string, deleted = false,
   owner = false, db?: RelationalDatabase) {
-  const row = await one(sql`SELECT c.* FROM chats c WHERE c.id=${id}
+  const row = await one(sql`SELECT c.*,(SELECT d.content FROM chat_drafts d WHERE d.chat_id=c.id AND d.user_id=${scope.userId}) AS draft FROM chats c WHERE c.id=${id}
     AND c.deleted_at IS ${deleted ? sql.raw("NOT NULL") : sql.raw("NULL")}
     AND ${chatAccess(scope, owner)}`, db);
   return row ? chatRecord(row) : null;
 }
 async function decorateMessages(scope: ApplicationScope, messages: ChatMessageRecord[]) {
   const editIds = new Set<string>(), versionIds = new Set<string>();
-  for (const message of messages) for (const raw of Array.isArray(message.content)
-    ? message.content as Record<string, unknown>[] : []) {
+  for (const message of messages) for (const raw of Array.isArray(message.content) ? message.content : []) {
     if (raw.type !== "document_artifact" || raw.action !== "edited") continue;
-    if (typeof raw.version_id === "string") versionIds.add(raw.version_id);
-    for (const annotation of Array.isArray(raw.annotations)
-      ? raw.annotations as Record<string, unknown>[] : []) {
-      if (typeof annotation.edit_id === "string") editIds.add(annotation.edit_id);
-      if (typeof annotation.version_id === "string") versionIds.add(annotation.version_id);
+    versionIds.add(raw.version_id);
+    for (const annotation of raw.annotations ?? []) {
+      editIds.add(annotation.edit_id);
+      versionIds.add(annotation.version_id);
     }
   }
   const [edits, versions] = await Promise.all([
@@ -128,13 +130,51 @@ async function commitChat(scope: ApplicationScope, id: string, mutation: ChatMut
 
 export const chatRepository: CreateChatRepository = (scope) => ({
   async list(options) {
+    const db = await relationalDatabase();
+    const assistantContext = sql`c.project_id IS NULL AND c.tabular_review_id IS NULL AND c.user_id=${scope.userId}`;
+    const reviewContext = sql`c.project_id IS NULL AND EXISTS(SELECT 1 FROM tabular_reviews r
+      WHERE r.id=c.tabular_review_id AND r.project_id IS NULL)`;
     const context = options.projectId ? sql`c.project_id=${options.projectId}`
       : options.tabularReviewId ? sql`c.tabular_review_id=${options.tabularReviewId}`
-        : sql`c.project_id IS NULL AND c.tabular_review_id IS NULL AND c.user_id=${scope.userId}`;
-    return (await rows(sql`SELECT c.* FROM chats c WHERE ${context} AND ${chatAccess(scope)}
-      AND c.deleted_at IS NULL AND EXISTS(SELECT 1 FROM chat_messages m WHERE m.chat_id=c.id)
-      ORDER BY c.updated_at DESC,c.created_at DESC,c.id
-      ${options.limit ? sql`LIMIT ${options.limit}` : sql.raw("")}`)).map(chatRecord);
+        : options.searchContext === "reviews" ? reviewContext
+          : options.searchContext === "all" ? sql`(${assistantContext} OR ${reviewContext})` : assistantContext;
+    const scoped = sql`SELECT c.* FROM chats c WHERE ${context} AND ${chatAccess(scope)}
+      AND c.deleted_at IS NULL AND (EXISTS(SELECT 1 FROM chat_messages m WHERE m.chat_id=c.id)
+        OR EXISTS(SELECT 1 FROM chat_drafts d WHERE d.chat_id=c.id AND d.user_id=${scope.userId}))
+      ${options.createdFrom ? sql`AND c.created_at>=${options.createdFrom}` : sql.raw("")}
+      ${options.createdTo ? sql`AND c.created_at<${options.createdTo}` : sql.raw("")}`;
+    const order = options.sort === "oldest" ? sql.raw("c.updated_at ASC,c.created_at ASC,c.id")
+      : sql.raw("c.updated_at DESC,c.created_at DESC,c.id");
+    const paging = options.limit ? sql`LIMIT ${options.limit} OFFSET ${options.offset ?? 0}` : sql.raw("");
+    const search = options.search?.trim().toLowerCase();
+    if (!search) return (await rows(sql`${scoped} ORDER BY ${order} ${paging}`, db)).map(chatRecord);
+    const pattern = `%${search.replace(/[\\%_]/gu, "\\$&")}%`;
+    const titleMatch = sql`LOWER(COALESCE(c.title,'')) LIKE ${pattern} ESCAPE '\\'`;
+    if (options.searchScope === "titles") return (await rows(sql`${scoped}
+      AND ${titleMatch} ORDER BY ${order} ${paging}`, db)).map((row) => ({
+      ...chatRecord(row), search_hit: { message_id: null, snippet: String(row.title ?? "") } }));
+    const userText = db.engine === "postgres" ? sql.raw("m.content #>> '{}'") : sql.raw("m.content ->> '$'");
+    const assistantText = db.engine === "postgres"
+      ? sql.raw("STRING_AGG(e.event ->> 'text', '' ORDER BY e.ordinal)")
+      : sql.raw("GROUP_CONCAT(e.event ->> 'text', '' ORDER BY e.ordinal)");
+    const position = db.engine === "postgres" ? sql`STRPOS(LOWER(h.body),${search})`
+      : sql`INSTR(LOWER(h.body),${search})`;
+    // ponytail: scans the scoped transcript; add a text index only when measured history size requires one.
+    return (await rows(sql`WITH scoped AS (${scoped}), message_text AS (
+      SELECT m.chat_id,m.id,m.created_at,CASE WHEN m.role='user' THEN ${userText}
+        ELSE (SELECT ${assistantText} FROM chat_message_events e
+          WHERE e.message_id=m.id AND e.event ->> 'type'='content') END AS body
+      FROM chat_messages m JOIN scoped c ON c.id=m.chat_id
+    ), hits AS (
+      SELECT chat_id,id,body,ROW_NUMBER() OVER(PARTITION BY chat_id ORDER BY created_at,id) AS rank
+      FROM message_text WHERE LOWER(body) LIKE ${pattern} ESCAPE '\\'
+    ) SELECT c.*,h.id AS search_message_id,
+      SUBSTR(h.body,CASE WHEN ${position}>80 THEN ${position}-80 ELSE 1 END,360) AS search_snippet
+      FROM scoped c LEFT JOIN hits h ON h.chat_id=c.id AND h.rank=1
+      WHERE ${options.searchScope === "transcripts" ? sql`h.id IS NOT NULL` : sql`(${titleMatch} OR h.id IS NOT NULL)`}
+      ORDER BY ${order} ${paging}`, db)).map(({ search_message_id, search_snippet, ...row }) => ({
+      ...chatRecord(row), search_hit: { message_id: search_message_id ? String(search_message_id) : null,
+        snippet: String(search_snippet ?? row.title ?? "") } }));
   },
   async deleted() {
     return (await rows(sql`SELECT c.* FROM chats c WHERE c.user_id=${scope.userId}
@@ -146,9 +186,9 @@ export const chatRepository: CreateChatRepository = (scope) => ({
   },
   async create(input) {
     const id = randomUUID(), created = now();
-    await changes(sql`INSERT INTO chats(id,user_id,project_id,tabular_review_id,title,
+    await changes(sql`INSERT INTO chats(id,user_id,project_id,tabular_review_id,research_file_id,title,
       created_at,updated_at,deleted_at,transcript_version) VALUES(${id},${scope.userId},
-      ${input.projectId},${input.tabularReviewId},${null},${created},${created},${null},0)`);
+      ${input.projectId},${input.tabularReviewId},${input.researchFileId ?? null},${null},${created},${created},${null},0)`);
     return (await findChat(scope, id, false, true))!;
   },
   async read(id, messages = false, deleted = false) {
@@ -171,8 +211,18 @@ export const chatRepository: CreateChatRepository = (scope) => ({
   async update(id, input) {
     const current = await findChat(scope, id, false, true);
     if (!current) return null;
+    if (input.draft !== undefined) {
+      if (input.draft === null) await changes(sql`DELETE FROM chat_drafts WHERE chat_id=${id} AND user_id=${scope.userId}`);
+      else await changes(sql`INSERT INTO chat_drafts(chat_id,user_id,content) VALUES(${id},${scope.userId},${encode(input.draft)})
+        ON CONFLICT(chat_id,user_id) DO UPDATE SET content=excluded.content`);
+      const title = typeof input.draft?.content === "string" ? input.draft.content.trim().slice(0, 80) : "";
+      await changes(sql`UPDATE chats SET updated_at=${now()},title=CASE WHEN transcript_version=0 AND ${title}<>'' THEN ${title} ELSE title END
+        WHERE id=${id} AND user_id=${scope.userId} AND deleted_at IS NULL`);
+      return findChat(scope, id, false, true);
+    }
     await changes(sql`UPDATE chats SET title=${input.title ?? current.title},
       project_id=${input.projectId === undefined ? current.project_id : input.projectId},
+      research_file_id=${input.researchFileId === undefined ? current.research_file_id ?? null : input.researchFileId},
       model=${input.model === undefined ? current.model : input.model},
       reasoning_effort=${input.reasoningEffort === undefined
         ? current.reasoning_effort : input.reasoningEffort},

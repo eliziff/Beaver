@@ -16,7 +16,8 @@ const mocks = vi.hoisted(() => ({
   loadChats: vi.fn(),
   deleteChat: vi.fn(),
   replace: vi.fn(),
-  updateChatProject: vi.fn(),
+  moveChat: vi.fn(),
+  listChats: vi.fn(),
 }));
 function sidebar(mobileOpen: boolean, onToggle = vi.fn()) {
   return (
@@ -56,9 +57,7 @@ vi.mock("@/app/contexts/AuthContext", () => ({
 vi.mock("@/app/contexts/UserProfileContext", () => ({
   useUserProfile: () => ({ profile: mocks.profile }),
 }));
-vi.mock("@/app/contexts/ChatHistoryContext", () => ({
-  useChatHistoryContext: () => ({
-    chats: [
+const sidebarChats = [
       {
         id: "assistant-chat",
         project_id: null,
@@ -87,17 +86,21 @@ vi.mock("@/app/contexts/ChatHistoryContext", () => ({
         title: "Third matter",
         created_at: "2026-07-25T00:00:00Z",
       },
-    ],
+    ];
+vi.mock("@/app/lib/api/chat", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/app/lib/api/chat")>(),
+  listChats: mocks.listChats,
+}));
+vi.mock("@/app/contexts/ChatHistoryContext", () => ({
+  useChatHistoryContext: () => ({
+    chats: sidebarChats,
     hasMoreChats: false,
     loadMoreChats: vi.fn(),
     loadChats: mocks.loadChats,
     renameChat: vi.fn(),
     deleteChat: mocks.deleteChat,
+    moveChat: mocks.moveChat,
   }),
-}));
-vi.mock("@/app/lib/beaverApi", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/app/lib/beaverApi")>()),
-  updateChatProject: mocks.updateChatProject,
 }));
 vi.mock("@/app/lib/authMode", () => ({
   get isLocalMode() {
@@ -205,36 +208,34 @@ describe("AppSidebar", () => {
     mocks.profile = null;
     vi.clearAllMocks();
     mocks.loadChats.mockResolvedValue(undefined);
+    mocks.listChats.mockResolvedValue([]);
     mocks.deleteChat.mockResolvedValue(undefined);
-    mocks.updateChatProject.mockResolvedValue({
+    mocks.moveChat.mockResolvedValue({
       id: "assistant-chat",
       title: "Assistant matter",
       project_id: "project-1",
     });
   });
 
-  it("gives Assistant history the remaining height after primary navigation", () => {
+  it("keeps conversations under Assistant with separate resume and new-conversation links", () => {
     const onToggle = vi.fn();
     render(sidebar(true, onToggle));
 
     const history = screen.getByRole("region", {
-      name: "Assistant history",
+      name: "Assistant conversations",
     });
-    expect(history).toHaveClass("flex-1", "min-h-0");
-    expect(document.querySelector("#assistant-history")).toHaveClass(
-      "flex-1",
-      "overflow-y-auto",
-    );
     expect(
       within(history).getByRole("link", { name: "Assistant matter" }),
     ).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("tab", { name: "Assistant" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("link", { name: "New chat" })).toHaveAttribute("href", "/assistant");
     expect(within(history).queryByText("Project matter")).not.toBeInTheDocument();
     expect(
       within(screen.getByRole("navigation", { name: "Primary" })).getByRole(
-        "link",
+        "tab",
         { name: "Assistant" },
       ),
-    ).toHaveAttribute("aria-current", "page");
+    ).toHaveAttribute("aria-selected", "true");
     fireEvent.click(
       within(history).getByRole("link", { name: "Assistant matter" }),
     );
@@ -257,13 +258,13 @@ describe("AppSidebar", () => {
     await waitFor(() => expect(close).toHaveFocus());
 
     const first = within(dialog).getByRole("link", { name: "Beaver" });
-    const settings = within(dialog).getByRole("button", { name: "Settings" });
-    settings.focus();
+    const last = within(dialog).getByRole("link", { name: "Activity log" });
+    last.focus();
     fireEvent.keyDown(dialog, { key: "Tab" });
     expect(first).toHaveFocus();
     first.focus();
     fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
-    expect(settings).toHaveFocus();
+    expect(last).toHaveFocus();
 
     fireEvent.keyDown(dialog, { key: "Escape" });
     expect(onToggle).toHaveBeenCalledOnce();
@@ -272,9 +273,55 @@ describe("AppSidebar", () => {
     opener.remove();
   });
 
+  it("keeps workspace links visible and resumes Assistant after visiting a tool", () => {
+    const { rerender } = render(sidebar(false));
+    expect(screen.getByRole("searchbox", { name: "Search history" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Projects" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Workflows" })).toBeInTheDocument();
+    mocks.pathname = "/workflows";
+    rerender(sidebar(false));
+    expect(screen.getByRole("link", { name: "Workflows" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Projects" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse history" }));
+    expect(screen.queryByRole("link", { name: "Assistant matter" })).toBeNull();
+    expect(screen.getByRole("searchbox", { name: "Search history" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Expand history" }));
+    expect(screen.getByRole("link", { name: "Assistant matter" })).toBeVisible();
+  });
+
+  it("focuses inline history with Ctrl K without changing the chat draft", () => {
+    render(<>{sidebar(false)}<textarea aria-label="Message" defaultValue="Unsent text" /></>);
+    const search = screen.getByRole("searchbox", { name: "Search history" });
+    vi.spyOn(search, "getClientRects").mockReturnValue({ length: 1 } as DOMRectList);
+    const input = screen.getByRole("textbox", { name: "Message" });
+    input.focus();
+    fireEvent.keyDown(input, { key: "k", ctrlKey: true });
+    expect(search).toHaveFocus();
+    expect(input).toHaveValue("Unsent text");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("finds an older chat through inline history and links directly to it", async () => {
+    mocks.listChats.mockResolvedValue([{ ...sidebarChats[0], id: "older-chat", title: "Older matter" }]);
+    render(sidebar(false));
+    expect(screen.queryByRole("link", { name: "Older matter" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search history" }), { target: { value: "Older" } });
+    const result = await screen.findByRole("link", { name: "Older matter" });
+    expect(result).toHaveAttribute("href", "/assistant/chat/older-chat");
+    fireEvent.click(result);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("opens the activity log directly and closes the mobile sidebar", () => {
+    const onToggle = vi.fn();
+    render(sidebar(true, onToggle));
+    const link = screen.getByRole("link", { name: "Activity log" });
+    expect(link).toHaveAttribute("href", "/history");
+    fireEvent.click(link);
+    expect(onToggle).toHaveBeenCalledOnce();
+  });
+
   it("moves an Assistant chat through the shared project chooser", async () => {
-    const moved = vi.fn();
-    window.addEventListener("beaver:chat-project-moved", moved);
     render(sidebar(false));
 
     fireEvent.click(
@@ -289,19 +336,13 @@ describe("AppSidebar", () => {
     );
 
     await waitFor(() =>
-      expect(mocks.updateChatProject).toHaveBeenCalledWith(
+      expect(mocks.moveChat).toHaveBeenCalledWith(
         "assistant-chat",
         "project-1",
       ),
     );
-    expect(mocks.loadChats).toHaveBeenCalledOnce();
-    expect(moved).toHaveBeenCalledOnce();
-    expect((moved.mock.calls[0][0] as CustomEvent).detail).toEqual({
-      chatId: "assistant-chat",
-      projectId: "project-1",
-    });
+    expect(screen.queryByRole("dialog", { name: "Choose project" })).not.toBeInTheDocument();
     expect(mocks.replace).not.toHaveBeenCalled();
-    window.removeEventListener("beaver:chat-project-moved", moved);
   });
 
   it("uses Shift for ranges, Ctrl for toggles, and drags the selection", async () => {

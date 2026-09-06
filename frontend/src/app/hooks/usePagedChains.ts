@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Page } from "@/app/lib/beaverApi";
+import type { Page } from "@/app/lib/api/client";
 
 type PageChain<T> = { items: T[]; nextCursor: string | null; loading: boolean; error: unknown; revision?: string };
 

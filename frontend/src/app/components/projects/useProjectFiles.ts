@@ -1,10 +1,11 @@
 import { useMemo } from "react";
 import {
-    directoryResource,
-    getDocumentParseStates,
-    removeProjectDocument,
-} from "@/app/lib/beaverApi";
-import type { Folder } from "@/app/components/shared/types";
+  directoryResource,
+  getDocumentParseStates,
+  removeProjectDocument,
+  type Folder,
+} from "@/app/lib/api/documents";
+
 import { usePagedDirectory } from "@/app/hooks/usePagedDirectory";
 import { useProjectWorkspace } from "./ProjectWorkspace";
 

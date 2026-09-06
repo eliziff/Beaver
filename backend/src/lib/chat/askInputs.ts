@@ -2,7 +2,7 @@ import type {
   AskInputItem,
   AskInputOption,
   AskInputsEvent,
-} from "./types";
+} from "./assistantEvents";
 
 function clean(value: unknown, fallback = "") {
   const text = typeof value === "string" ? value.trim() : "";

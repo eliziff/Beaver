@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, expect, it, vi } from "vitest";
-import type { Document } from "../shared/types";
+import type { Document } from "@/app/lib/api/documents";
 import type { WorkflowSelection } from "../workflows/workflowRoutes";
 import { assistantWorkflowLaunch } from "../workflows/workflowRoutes";
 import { ProjectDocumentsView } from "./ProjectDocumentsView";
@@ -28,14 +28,21 @@ vi.mock("@/app/contexts/UserProfileContext", () => ({
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     useChatHistoryContext: () => ({ saveChat: mocks.saveChat }),
 }));
-vi.mock("@/app/lib/beaverApi", () => ({
-    createTabularReview: vi.fn(), deleteProject: vi.fn(),
-    getProject: vi.fn().mockResolvedValue({
+vi.mock("@/app/lib/api/tabular", () => ({
+  createTabularReview: vi.fn()
+}));
+vi.mock("@/app/lib/api/projects", () => ({
+  deleteProject: vi.fn(),
+  getProject: vi.fn().mockResolvedValue({
         id: "project-1", user_id: "local-user", name: "Appeal",
         cm_number: null, practice: null, shared_with: [],
         created_at: "2026-08-31T00:00:00Z",
     }),
-    getProjectPeople: vi.fn(), listProjectChats: vi.fn(), updateProject: vi.fn(),
+  getProjectPeople: vi.fn(),
+  updateProject: vi.fn()
+}));
+vi.mock("@/app/lib/api/chat", () => ({
+  listProjectChats: vi.fn()
 }));
 vi.mock("./useProjectFiles", () => ({
     useProjectFiles: () => ({

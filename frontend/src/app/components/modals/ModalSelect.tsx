@@ -121,6 +121,9 @@ export function SearchableChoiceModal({
     className,
     listClassName,
     controls,
+    footer,
+    sidePanel,
+    closeOnSelect = true,
 }: {
     open: boolean;
     onClose: () => void;
@@ -134,6 +137,9 @@ export function SearchableChoiceModal({
     className?: string;
     listClassName?: string;
     controls?: ReactNode;
+    footer?: ReactNode;
+    sidePanel?: ReactNode;
+    closeOnSelect?: boolean;
 }) {
     const [query, setQuery] = useState("");
     const searchRef = useRef<HTMLInputElement>(null);
@@ -156,7 +162,7 @@ export function SearchableChoiceModal({
     };
     const choose = (next: string | null) => {
         onChange(next);
-        close();
+        if (closeOnSelect) close();
     };
     return (
         <Modal
@@ -167,6 +173,8 @@ export function SearchableChoiceModal({
             className={cn(size === "sm" && "h-[min(20rem,calc(100dvh-2rem))]", className)}
         >
             {controls}
+            <div className="flex min-h-0 flex-1 gap-5 pb-4">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {searchable && (
                 <SearchBar
                     ref={searchRef}
@@ -229,6 +237,10 @@ export function SearchableChoiceModal({
                     </p>
                 )}
             </div>
+            </div>
+            {sidePanel && <aside className="w-32 shrink-0 overflow-y-auto border-l border-gray-200 pl-4 sm:w-44">{sidePanel}</aside>}
+            </div>
+            {footer}
         </Modal>
     );
 }
