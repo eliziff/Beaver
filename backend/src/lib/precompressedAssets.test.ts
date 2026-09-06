@@ -26,7 +26,7 @@ beforeAll(async () => {
   await mkdir(path.join(directory, "assets"));
   for (const [name, bytes] of Object.entries({ "fixture.js": source, "fixture.js.br": encoded.br,
     "fixture.js.gz": encoded.gzip, "gzip-only.css": source, "gzip-only.css.gz": encoded.gzip,
-    "identity.svg": source, "orphan.js.br": encoded.br }))
+    "identity.svg": source, "worker.mjs": source, "worker.mjs.br": encoded.br, "orphan.js.br": encoded.br }))
     await writeFile(path.join(directory, "assets", name), bytes);
   await writeFile(path.join(directory, "index.html"), "configuration-bearing html");
   const app = express();
@@ -60,6 +60,13 @@ describe("public asset representations", () => {
     expect(decode(result.body)).toEqual(source);
     expect(Number(result.headers["content-length"])).toBe(result.body.length);
     if (expected) expect(result.headers["cache-control"]).toBe("public, max-age=31536000, immutable");
+  });
+  it("serves compressed module workers with a JavaScript MIME type", async () => {
+    const result = await get("/assets/worker.mjs", { "Accept-Encoding": "br" });
+    expect(result.status).toBe(200);
+    expect(result.headers["content-encoding"]).toBe("br");
+    expect(result.headers["content-type"]).toContain("text/javascript");
+    expect(brotliDecompressSync(result.body)).toEqual(source);
   });
   it("uses identity when Accept-Encoding is absent", async () => {
     const result = await get("/assets/fixture.js");

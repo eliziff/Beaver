@@ -24,7 +24,7 @@ const profile = {
     ['memo', 'factum', 'letter', 'other'].map(key => [key, { citationPlacement: 'footnotes', citationHyperlinks: true, numberHeadings: 'auto' }])) },
   apiKeyStatus: { sources: {} },
 };
-const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.wasm': 'application/wasm' };
+const mime = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.wasm': 'application/wasm' };
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function serve(directory, settings = {}) {
   const root = resolve(directory);
@@ -68,7 +68,7 @@ async function serve(directory, settings = {}) {
 }
 
 const browser = await chromium.launch({ headless: true });
-const report = { methodology: 'Fresh Chromium context, cache disabled, loopback fixture API, production bundles over HTTP/1.1, original uncompressed serving versus actual production precompressed-asset middleware; cold timings use 80ms RTT / 10Mbps download / 4x CPU slowdown, five alternating samples per configuration, plus an uncompressed candidate control. Not a live-backend or HTTP/2 benchmark.', samples: [], checks: [] };
+const report = { methodology: 'Fresh Chromium context, cache disabled, loopback fixture API, production bundles over HTTP/1.1, original uncompressed serving versus actual production precompressed-asset middleware; cold timings use 80ms RTT / 10Mbps download / 4x CPU slowdown, five alternating samples per configuration, plus an uncompressed candidate control and five unthrottled loopback samples per build. Not a live-backend or HTTP/2 benchmark.', samples: [], checks: [] };
 async function contextFor(server, options = {}) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 960 }, ...options });
   const page = await context.newPage();
@@ -77,15 +77,15 @@ async function contextFor(server, options = {}) {
   await context.route('**/*', route => new URL(route.request().url()).origin === server.origin ? route.continue() : route.abort());
   return { context, page, errors };
 }
-async function sample(directory, name, fetchedConfig) {
+async function sample(directory, name, fetchedConfig, loopback = false) {
   const server = await serve(directory, { fetchedConfig, configDelay: fetchedConfig ? 80 : 0, compressed: name === 'candidate' });
   const { context, page, errors } = await contextFor(server);
   try {
     const cdp = await context.newCDPSession(page);
     await cdp.send('Network.enable');
     await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
-    await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 80, downloadThroughput: 10 * 1024 * 1024 / 8, uploadThroughput: 1024 * 1024 });
-    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    if (!loopback) await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 80, downloadThroughput: 10 * 1024 * 1024 / 8, uploadThroughput: 1024 * 1024 });
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: loopback ? 1 : 4 });
     await page.addInitScript(() => {
       const observer = new MutationObserver(() => {
         if ([...document.querySelectorAll('a')].some(a => a.textContent === 'Performance fixture')) {
@@ -98,8 +98,8 @@ async function sample(directory, name, fetchedConfig) {
     await page.getByRole('link', { name: project.name, exact: true }).waitFor();
     const measured = await page.evaluate(() => ({ contentReadyMs: window.__contentReady, resources: performance.getEntriesByType('resource').map(r => ({ path: new URL(r.name).pathname, start: r.startTime, end: r.responseEnd, bytes: r.encodedBodySize, decodedBytes: r.decodedBodySize })) }));
     assert.deepEqual(errors, []);
-    await page.screenshot({ path: `${output}/${name}-${fetchedConfig ? 'fetched' : 'embedded'}.png` });
-    report.samples.push({ name, config: fetchedConfig ? 'fetched' : 'embedded', ...measured });
+    await page.screenshot({ path: `${output}/${loopback ? 'loopback-' : ''}${name}-${fetchedConfig ? 'fetched' : 'embedded'}.png` });
+    report.samples.push({ name, environment: loopback ? 'loopback' : 'throttled', config: fetchedConfig ? 'fetched' : 'embedded', ...measured });
   } finally { await context.close(); await server.close(); }
 }
 async function behavior(reducedMotion) {
@@ -159,10 +159,12 @@ async function behavior(reducedMotion) {
     let dialog = page.getByRole('dialog', { name: 'Settings', exact: true });
     await dialog.waitFor();
     await dialog.getByRole('tab', { name: 'Display', exact: true }).click();
+    assert.equal(await dialog.getByRole('tab', { name: 'Display', exact: true }).getAttribute('aria-selected'), 'true');
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
     await settings.click();
     dialog = page.getByRole('dialog', { name: 'Settings', exact: true });
-    assert.equal(await dialog.getByRole('tab', { name: 'Display', exact: true }).getAttribute('aria-selected'), 'true');
+    // AppSidebar intentionally unmounts Settings on close; preserve its reset.
+    assert.equal(await dialog.getByRole('tab', { name: 'General', exact: true }).getAttribute('aria-selected'), 'true');
     await page.screenshot({ path: `${output}/settings-${reducedMotion}.png` });
     await page.keyboard.press('Escape');
     await dialog.waitFor({ state: 'hidden' });
@@ -184,7 +186,7 @@ try {
       await page.goto(`${server.origin}/projects`);
       if (settings.invalidConfig) {
         await page.getByRole('heading', { name: 'Beaver could not start' }).waitFor();
-        assert.ok(!server.requests.some(path => path === '/api/user/profile' || path === '/api/auth/session'));
+        assert.deepEqual(server.requests.filter(path => path.startsWith('/api/') && path !== '/api/config'), []);
       } else await page.getByRole('link', { name: project.name, exact: true }).waitFor();
       assert.deepEqual(errors, []);
       report.checks.push({ scenario: settings.invalidConfig ? 'invalid-config-fails-closed' : 'cloud-cold-start', passed: true });
@@ -212,10 +214,19 @@ try {
       }
     }
   }
+  for (let i = 0; i < 5; i++) {
+    for (const [dir, name] of i % 2 ? [[candidate, 'candidate'], [baseline, 'baseline']] : [[baseline, 'baseline'], [candidate, 'candidate']]) {
+      if (dir) await sample(dir, name, false, true);
+    }
+  }
+  report.loopbackMedians = Object.fromEntries(['baseline', 'candidate'].map(name => {
+    const values = report.samples.filter(s => s.environment === 'loopback' && s.name === name).map(s => s.contentReadyMs).sort((a, b) => a - b);
+    return [name, values.length ? values[Math.floor(values.length / 2)] : null];
+  }));
   report.medians = Object.fromEntries(['embedded', 'fetched'].map(config => [config, Object.fromEntries(['baseline', 'candidate-identity', 'candidate'].map(name => {
-    const values = report.samples.filter(s => s.config === config && s.name === name).map(s => s.contentReadyMs).sort((a, b) => a - b);
+    const values = report.samples.filter(s => s.environment === 'throttled' && s.config === config && s.name === name).map(s => s.contentReadyMs).sort((a, b) => a - b);
     return [name, values.length ? values[Math.floor(values.length / 2)] : null];
   }))]));
-  console.log(JSON.stringify({ checks: report.checks, medians: report.medians }, null, 2));
+  console.log(JSON.stringify({ checks: report.checks, medians: report.medians, loopbackMedians: report.loopbackMedians }, null, 2));
 } catch (error) { report.failure = error.stack; throw error; }
 finally { await writeFile(`${output}/report.json`, JSON.stringify(report, null, 2)); await browser.close(); }

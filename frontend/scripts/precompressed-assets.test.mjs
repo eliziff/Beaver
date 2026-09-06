@@ -18,6 +18,7 @@ test("compressed outputs decode to the exact final build, excluding HTML and pri
             plugins: [precompressedAssets(), { name: "final-asset-fixture", generateBundle(_options, bundle) {
                 // A later ordinary hook can still finalize code before compression.
                 for (const asset of Object.values(bundle)) if (asset.type === "chunk") asset.code += "\n/* final bytes */";
+                this.emitFile({ type: "asset", fileName: "assets/worker.mjs", source: "/* worker */".repeat(800) });
                 for (const fileName of ["assets/config.json", "index.html.private", "assets/tiny.js"])
                     this.emitFile({ type: "asset", fileName, source: fileName.endsWith("tiny.js") ? "0;" : "private fixture ".repeat(1000) });
             } }],
@@ -25,8 +26,8 @@ test("compressed outputs decode to the exact final build, excluding HTML and pri
         assert.ok(!Array.isArray(result) && "output" in result);
         const outputs = new Map(result.output.map((asset) => [asset.fileName,
             Buffer.from(asset.type === "chunk" ? asset.code : asset.source)]));
-        const originals = [...outputs.keys()].filter((name) => /^assets\/.*\.(js|css)$/.test(name) && !name.endsWith("tiny.js"));
-        assert.equal(originals.length, 2);
+        const originals = [...outputs.keys()].filter((name) => /^assets\/.*\.(m?js|css)$/.test(name) && !name.endsWith("tiny.js"));
+        assert.equal(originals.length, 3);
         for (const name of originals) {
             assert.deepEqual(brotliDecompressSync(outputs.get(`${name}.br`)), outputs.get(name));
             assert.deepEqual(gunzipSync(outputs.get(`${name}.gz`)), outputs.get(name));
