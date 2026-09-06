@@ -336,9 +336,9 @@ export const deleteDocument = (document: Document) =>
   });
 const documentFilePath = (documentId: string, versionId?: string | null, rendition?: "pdf") =>
   pagePath(`/single-documents/${segment(documentId)}/file`, { rendition, version_id: versionId });
-export const readDocumentFile = (documentId: string, versionId?: string | null, original = false) =>
+export const readDocumentFile = (documentId: string, versionId?: string | null, original = false, signal?: AbortSignal) =>
   apiFetch(documentFilePath(documentId, versionId, original ? undefined : "pdf"), {
-    cache: "default", headers: { Accept: "*/*" },
+    cache: "default", headers: { Accept: "*/*" }, signal,
   });
 export const downloadDocument = (documentId: string, versionId?: string | null) =>
   apiBlobRequest(documentFilePath(documentId, versionId));

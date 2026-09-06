@@ -4,6 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
     cancelled: 0,
     rendered: [] as number[],
+    textRequests: [] as number[],
+    textLayers: [] as number[],
+    textError: false,
+    textDelay: 0,
+    pageGates: new Map<number, Promise<void>>(),
+    textGates: new Map<number, Promise<void>>(),
     renderDelay: 20,
     clientWidth: 620,
     buffer: new ArrayBuffer(8),
@@ -17,7 +23,7 @@ const mocks = vi.hoisted(() => ({
     standardFontDataUrl: "",
 }));
 
-let fileResult: { type: "pdf"; buffer: ArrayBuffer };
+let fileResult: { type: "pdf"; buffer: ArrayBuffer } | null;
 vi.mock("@/app/hooks/useDocumentFile", () => ({
     useDocumentFile: () => {
         mocks.hookCalls += 1;
@@ -29,12 +35,14 @@ vi.mock("@/app/hooks/useDocumentFile", () => ({
     },
 }));
 
-vi.mock("./highlightQuote", () => {
+vi.mock("./highlightQuote", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("./highlightQuote")>();
     const pdf = {
         get numPages() { return mocks.numPages; },
         destroy: vi.fn(),
         getPage: async (pageNumber: number) => {
             mocks.pageRequests.push(pageNumber);
+            await mocks.pageGates.get(pageNumber);
             return {
                 getViewport: ({ scale }: { scale: number }) => ({
                     width: 600 * scale,
@@ -57,6 +65,12 @@ vi.mock("./highlightQuote", () => {
                         },
                     };
                 },
+                getTextContent: async () => {
+                    mocks.textRequests.push(pageNumber);
+                    await mocks.textGates.get(pageNumber);
+                    if (mocks.textError) throw new Error("Unreadable text");
+                    return { items: [{ str: `Page ${pageNumber} text` }] };
+                },
                 streamTextContent: () => ({ pageNumber }),
             };
         },
@@ -76,6 +90,9 @@ vi.mock("./highlightQuote", () => {
             this.pageNumber = textContentSource.pageNumber;
         }
         async render() {
+            mocks.textLayers.push(this.pageNumber);
+            if (mocks.textDelay) await new Promise(resolve => setTimeout(resolve, mocks.textDelay));
+            if (mocks.textError) throw new Error("Unreadable text");
             const span = document.createElement("span");
             span.textContent = `Page ${this.pageNumber} text`;
             this.container.appendChild(span);
@@ -84,8 +101,7 @@ vi.mock("./highlightQuote", () => {
         static cleanup() {}
     }
     return {
-        clearHighlights: vi.fn(),
-        highlightQuote: vi.fn(() => false),
+        ...actual,
         STANDARD_FONT_DATA_URL: `${location.origin}/pdfjs-standard-fonts/`,
         getPdfJs: vi.fn(async () => ({
             TextLayer,
@@ -112,6 +128,7 @@ vi.mock("./highlightQuote", () => {
 });
 
 import { PdfView } from "./PdfView";
+import { getPdfJs } from "./highlightQuote";
 
 class ResizeObserverMock {
     constructor(callback: ResizeObserverCallback) {
@@ -125,6 +142,8 @@ describe("PdfView", () => {
     beforeEach(() => {
         mocks.cancelled = 0;
         mocks.rendered = [];
+        mocks.textRequests = []; mocks.textLayers = []; mocks.textError = false; mocks.textDelay = 0;
+        mocks.pageGates.clear(); mocks.textGates.clear();
         mocks.renderDelay = 20;
         mocks.clientWidth = 620;
         mocks.buffer = new ArrayBuffer(8);
@@ -148,9 +167,24 @@ describe("PdfView", () => {
         );
         vi.spyOn(HTMLElement.prototype, "clientWidth", "get")
             .mockImplementation(() => mocks.clientWidth);
+        vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+            const page = this.closest<HTMLElement>("[data-page-number]");
+            let top = 0;
+            if (page) {
+                for (const sibling of Array.from(page.parentElement!.children)) {
+                    if (sibling === page) break;
+                    top += parseFloat((sibling as HTMLElement).style.height) + 8;
+                }
+                top -= page.closest<HTMLElement>(".overflow-auto")?.scrollTop ?? 0;
+            }
+            return { top, bottom: top + (page ? parseFloat(page.style.height) : 800),
+                left: 0, right: 600, width: 600, height: page ? parseFloat(page.style.height) : 800,
+                x: 0, y: top, toJSON() {} };
+        });
     });
 
     afterEach(() => {
+        window.getSelection()?.removeAllRanges();
         vi.restoreAllMocks();
         vi.unstubAllGlobals();
     });
@@ -178,12 +212,13 @@ describe("PdfView", () => {
         expect(container.querySelector(".pdf-text-layer")).toBeNull();
     });
 
-    it("reserves mixed-size geometry before painting and bounds canvases when jumping", async () => {
+    it("finishes exact mixed-size geometry and bounds canvases when jumping", async () => {
         mocks.numPages = 300;
         mocks.renderDelay = 60;
         const { container } = render(<PdfView doc={null} bytes={new Uint8Array([1])} />);
         await waitFor(() => expect(container.querySelectorAll("[data-page-number]")).toHaveLength(300));
         const pages = [...container.querySelectorAll<HTMLElement>("[data-page-number]")];
+        await waitFor(() => expect(pages[299]).toHaveAttribute("data-geometry-ready", "true"));
         const heights = pages.map((page) => page.style.height);
         expect(heights.slice(0, 2)).toEqual(["800px", "1000px"]);
         expect(container.querySelectorAll("canvas").length).toBeLessThan(4);
@@ -261,7 +296,7 @@ describe("PdfView", () => {
         expect(container.querySelector("canvas")).toBeNull();
     });
 
-    it("builds quote text layers and checks the active page once per frame", async () => {
+    it("finds quotes without rendering every text layer and checks the active page once per frame", async () => {
         let callback: FrameRequestCallback | null = null;
         const requestFrame = vi.fn((next: FrameRequestCallback) => {
             callback = next;
@@ -279,8 +314,7 @@ describe("PdfView", () => {
         await waitFor(() => expect(
             container.querySelectorAll("[data-page-number]"),
         ).toHaveLength(3));
-        expect(new Set(mocks.pageRequests)).toEqual(new Set([1, 2, 3]));
-        expect(container.querySelectorAll(".pdf-text-layer")).toHaveLength(3);
+        await waitFor(() => expect(container.querySelector(".pdf-text-highlight")).not.toBeNull());
         const renders = mocks.hookCalls;
         act(() => mocks.resize!(
             [{ contentRect: { width: 800 } } as ResizeObserverEntry],
@@ -304,4 +338,92 @@ describe("PdfView", () => {
         unmount();
         expect(cancelFrame).toHaveBeenCalledWith(7);
     });
+    it("paints a cited deep page while unrelated page metadata is held, without scrolling as geometry fills in", async () => {
+        mocks.numPages = 300;
+        let release!: () => void;
+        const held = new Promise<void>(resolve => { release = resolve; });
+        for (let page = 2; page < 299; page++) mocks.pageGates.set(page, held);
+        const { container } = render(<PdfView doc={null} bytes={new Uint8Array([1])}
+            quotes={[{ page: 299, quote: "Page 299 text" }]} />);
+        const selected = () => container.querySelector<HTMLElement>('[data-page-number="299"]')!;
+        await waitFor(() => expect(selected()?.querySelector("canvas")).not.toBeNull());
+        await waitFor(() => expect(selected()?.querySelector(".pdf-text-highlight")).not.toBeNull());
+        expect(container.querySelector('[data-page-number="2"]')).toHaveAttribute("data-geometry-ready", "false");
+        expect(mocks.textRequests).toEqual([299]);
+        expect(mocks.textLayers.length).toBeLessThan(5);
+        const top = selected().getBoundingClientRect().top;
+        await act(async () => release());
+        await waitFor(() => expect(container.querySelector('[data-page-number="298"]'))
+            .toHaveAttribute("data-geometry-ready", "true"));
+        expect(selected().getBoundingClientRect().top).toBeCloseTo(top);
+    });
+
+    it("paints the first page without waiting for page 2 metadata or text extraction", async () => {
+        mocks.numPages = 200;
+        mocks.pageGates.set(2, new Promise(() => undefined));
+        mocks.textDelay = 100;
+        const { container, unmount } = render(<PdfView doc={null} bytes={new Uint8Array([1])} />);
+        await waitFor(() => expect(container.querySelector('[data-page-number="1"] canvas')).not.toBeNull());
+        expect(container.querySelector('[data-page-number="2"]')).toHaveAttribute("data-geometry-ready", "false");
+        expect(screen.queryByRole("status")).toBeNull();
+        unmount();
+    });
+
+    it("changing quotes does not destroy canvases, repeat page requests, or let an obsolete search regain focus", async () => {
+        mocks.numPages = 8;
+        const bytes = new Uint8Array([1]);
+        const { container, rerender } = render(<PdfView doc={null} bytes={bytes} />);
+        await waitFor(() => expect(container.querySelector('canvas')).not.toBeNull());
+        const canvas = container.querySelector('canvas');
+        let release!: () => void;
+        mocks.textGates.set(4, new Promise<void>(resolve => { release = resolve; }));
+        rerender(<PdfView doc={null} bytes={bytes} quotes={[{ page: 4, quote: "Page 4 text" }]} />);
+        await waitFor(() => expect(mocks.textRequests).toContain(4));
+        rerender(<PdfView doc={null} bytes={bytes} quotes={[{ page: 1, quote: "Page 1 text" }]} />);
+        await waitFor(() => expect(container.querySelector('[data-page-number="1"] .pdf-text-highlight')).not.toBeNull());
+        await act(async () => release());
+        expect(container.querySelector('canvas')).toBe(canvas);
+        expect(container.querySelector('[data-page-number="4"] .pdf-text-highlight')).toBeNull();
+        expect(new Set(mocks.pageRequests).size).toBe(mocks.pageRequests.length);
+    });
+
+    it("shares a slow text layer between quote search and painting and keeps text selection in ordinary readers", async () => {
+        mocks.numPages = 1; mocks.textDelay = 40;
+        const { container } = render(<PdfView doc={null} bytes={new Uint8Array([1])}
+            quotes={[{ page: 1, quote: "Page 1 text" }]} />);
+        await waitFor(() => expect(container.querySelector('.pdf-text-highlight')).not.toBeNull());
+        expect(container.querySelectorAll('.pdf-text-layer')).toHaveLength(1);
+        expect(mocks.textLayers).toEqual([1]);
+        expect(container.querySelector('.pdf-text-layer')).toHaveStyle({ userSelect: "text" });
+    });
+
+    it("a bad text stream cannot hide a successfully painted scan", async () => {
+        mocks.numPages = 1; mocks.textError = true;
+        vi.spyOn(console, "warn").mockImplementation(() => undefined);
+        const { container } = render(<PdfView doc={null} bytes={new Uint8Array([1])}
+            quotes={[{ quote: "Missing passage" }]} />);
+        await waitFor(() => expect(container.querySelector('canvas')).not.toBeNull());
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it("starts loading the engine while document bytes are still pending", async () => {
+        fileResult = null;
+        vi.mocked(getPdfJs).mockClear();
+        render(<PdfView doc={{ document_id: "still-downloading" }} />);
+        await waitFor(() => expect(getPdfJs).toHaveBeenCalled());
+        expect(mocks.pdfOptions).toBeNull();
+    });
+
+    it("scrolls past a neighbouring page whose metadata never arrives", async () => {
+        mocks.numPages = 30;
+        mocks.pageGates.set(2, new Promise(() => undefined));
+        const { container } = render(<PdfView doc={null} bytes={new Uint8Array([1])} />);
+        await waitFor(() => expect(container.querySelector('[data-page-number="1"] canvas')).not.toBeNull());
+        const scroller = container.querySelector<HTMLElement>('.overflow-auto')!;
+        scroller.scrollTop = 808 * 20;
+        fireEvent.scroll(scroller);
+        await waitFor(() => expect(container.querySelector('[data-page-number="21"] canvas')).not.toBeNull());
+        expect(container.querySelector('[data-page-number="2"]')).toHaveAttribute('data-geometry-ready', 'false');
+    });
+
 });
