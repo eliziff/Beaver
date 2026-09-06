@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LegalLibraryPage } from "./LegalLibrary";
+import { useSourcesWorkspace } from "./SourcesWorkspace";
 
 const api = vi.hoisted(() => ({
     actOnResearchFile: vi.fn(),
@@ -22,11 +23,12 @@ vi.mock("@/app/lib/api/legalSources", async (original) => ({
   getLegalSourceCoverage: api.getLegalSourceCoverage,
   searchLegalSources: api.searchLegalSources
 }));
-vi.mock("./ResearchFileBar", () => ({ ResearchFileBar: ({ onChange, onReadSource }: { onChange: (file: unknown) => void; onReadSource: (source: any) => void }) =>
+vi.mock("./ResearchFileBar", () => ({ ResearchFileBar: ({ onReadSource }: { onReadSource: (source: any) => void }) => {
+    const { accept: onChange } = useSourcesWorkspace(); return (
     <><button onClick={() => onChange({ document: { id: "chosen", filename: "Chosen.research.md" }, versionId: "v1", workingRevision: 0,
         state: { schemaVersion: "beaver.research.v2", labels: {}, sources: {}, queries: null, note: "" } })}>Choose fixture</button>
     <button onClick={() => onReadSource({ id: "saved-source", reference: {
-        provider: "a2aj", id: "case-1", kind: "case", title: "Saved decision" } })}>Read saved decision</button></> }));
+        provider: "a2aj", id: "case-1", kind: "case", title: "Saved decision" } })}>Read saved decision</button></>); } }));
 vi.mock("./LegalSourceViewer", async (original) => ({
     ...await original<typeof import("./LegalSourceViewer")>(),
     LegalSourceViewer: () => <div>Decision text</div>,
@@ -123,7 +125,7 @@ describe("LegalLibraryPage search", () => {
         rerender(view("turn-2"));
         await waitFor(() => expect(api.getResearchFile).toHaveBeenCalledTimes(2));
         expect(api.getResearchFile).toHaveBeenLastCalledWith("linked-file");
-        expect(publish).toHaveBeenLastCalledWith(refreshed);
+        await waitFor(() => expect(publish).toHaveBeenLastCalledWith(refreshed));
         expect(screen.getByPlaceholderText("Search cases, legislation, journals, and Hansard"))
             .toHaveValue("procedural fairness");
         rerender(view("turn-2"));

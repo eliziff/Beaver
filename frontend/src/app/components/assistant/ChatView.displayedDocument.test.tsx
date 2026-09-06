@@ -1,5 +1,5 @@
 import React from "react";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render as rtlRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -7,6 +7,9 @@ import type { Document } from "@/app/lib/api/documents";
 import type { Message } from "@/app/lib/api/chat";
 import { ChatView, type ChatViewHandle } from "./ChatView";
 import { createAssistantSessionState } from "@/app/lib/assistantSession";
+import { newResearchState, type ResearchFile } from "@/app/lib/researchFiles";
+import { SourcesWorkspaceProvider } from "../legal/SourcesWorkspace";
+const render = (ui: React.ReactNode, options?: Parameters<typeof rtlRender>[1]) => rtlRender(ui, { wrapper: MemoryRouter, ...options });
 
 const dockMocks = vi.hoisted(() => ({
     addDocument: vi.fn(),
@@ -86,8 +89,7 @@ vi.mock("@/app/components/library/LibraryWorkspace", () => ({
     },
 }));
 vi.mock("@/app/components/legal/LegalLibrary", () => ({
-    LegalLibraryPage: ({ onResearchFileChange, onOpenSource, researchRefreshKey }: {
-        onResearchFileChange?: (file: unknown) => void;
+    LegalLibraryPage: ({ onOpenSource, researchRefreshKey }: {
         onOpenSource?: (tab: unknown) => void;
         researchRefreshKey?: string | null;
     }) => {
@@ -95,9 +97,6 @@ vi.mock("@/app/components/legal/LegalLibrary", () => ({
         return <><input aria-label="Sources query" value={query}
             onChange={(event) => setQuery(event.target.value)} />
             <output aria-label="Sources refresh key">{researchRefreshKey ?? "none"}</output>
-            <button type="button" onClick={() => onResearchFileChange?.({
-                document: { id: "research-1", filename: "Appeal research.research.md" },
-            })}>Use appeal research</button>
             <button type="button" onClick={() => onOpenSource?.({
                 kind: "legal", id: "legal:a2aj:2024-scc-1", provider: "a2aj",
                 sourceId: "2024-scc-1", citation: "2024 SCC 1", name: "Example v Test",
@@ -182,6 +181,24 @@ vi.mock("./ChatInput", () => ({
 }));
 
 describe("ChatView displayed document context", () => {
+    it("submits an assistant intent once after its workspace and chat are ready in StrictMode", async () => {
+        const handleChat = vi.fn().mockResolvedValue(null), onIntentSent = vi.fn();
+        const file = { document: { id: "research-1", filename: "Appeal.research.md" }, state: newResearchState(), versionId: "v1", workingRevision: 1 } as ResearchFile;
+        const selection = { target: "sources" as const, members: [{ sourceId: "source-1", evidenceIds: ["exact-passage"] }] };
+        const intent = { id: "organize-1", text: "Organize the selected sources and passages" };
+        const view = (ready: boolean) => <React.StrictMode><SourcesWorkspaceProvider file={file} selection={selection}>
+            <ChatView session={session()} ready={ready} initialIntent={intent} onIntentSent={onIntentSent}
+                handleChat={handleChat} cancel={vi.fn()} />
+        </SourcesWorkspaceProvider></React.StrictMode>;
+        const { rerender } = render(view(false));
+        expect(handleChat).not.toHaveBeenCalled();
+        rerender(view(true));
+        await waitFor(() => expect(handleChat).toHaveBeenCalledWith({ role: "user", content: intent.text,
+            research_file_id: "research-1", research_selection: selection }));
+        rerender(view(true));
+        expect(handleChat).toHaveBeenCalledTimes(1);
+        expect(onIntentSent).toHaveBeenCalledTimes(1);
+    });
     it("opens supplied project files in the existing assistant dock", async () => {
         const user = userEvent.setup();
         render(
@@ -503,20 +520,15 @@ describe("ChatView displayed document context", () => {
         });
     });
 
-    it("attaches the selected research file to the next turn", async () => {
+    it("sends the active workspace and exact selected passages with the next turn", async () => {
         const user = userEvent.setup();
         const handleChat = vi.fn();
-        render(<ChatView session={session()} handleChat={handleChat} cancel={vi.fn()} />);
-
-        await user.click(screen.getByRole("button", { name: "Browse workflows" }));
-        await user.click(screen.getByRole("tab", { name: "Sources" }));
-        await user.click(screen.getByRole("button", { name: "Use appeal research" }));
+        const file = { document: { id: "research-1", filename: "Appeal research.research.md" }, state: newResearchState(), versionId: "v1", workingRevision: 1 } as ResearchFile;
+        const selection = { target: "passages" as const, sourceIds: ["source-1"], evidenceIds: ["original-evidence"] };
+        render(<SourcesWorkspaceProvider file={file} selection={selection}><ChatView session={session()} handleChat={handleChat} cancel={vi.fn()} /></SourcesWorkspaceProvider>);
         await user.click(screen.getByRole("button", { name: "Workflows" }));
 
-        expect(handleChat).toHaveBeenCalledWith(expect.objectContaining({ files: [{
-            filename: "Appeal research.research.md",
-            document_id: "research-1",
-        }] }));
+        expect(handleChat).toHaveBeenCalledWith(expect.objectContaining({ research_file_id: "research-1", research_selection: selection }));
     });
 
     it("keeps project document context separate from attachments", async () => {

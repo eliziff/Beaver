@@ -3,6 +3,7 @@ import { ChevronDown, Plus, X } from "lucide-react";
 import { listChats, type Chat } from "@/app/lib/api/chat";
 import { useAssistantChat } from "@/app/hooks/useAssistantChat";
 import { ChatView } from "../assistant/ChatView";
+import type { AssistantIntent } from "../assistant/assistantIntent";
 
 import type { Citation } from "@/app/lib/citations";
 import {
@@ -19,8 +20,9 @@ interface Props {
     chatId?: string | null;
     onChatIdChange: (chatId: string | null) => void;
     searchMessageId?: string | null;
-    initialMessage?: string;
-    onInitialMessageSent?: () => void;
+    initialIntent?: AssistantIntent;
+    workspaceReady?: boolean;
+    onIntentSent?: () => void;
     onUpdated?: () => void;
 }
 
@@ -31,7 +33,7 @@ export function TRChatPanel({
     onCitationClick,
     onClose,
     chatId: currentChatId = null,
-    onChatIdChange, searchMessageId, initialMessage, onInitialMessageSent, onUpdated,
+    onChatIdChange, searchMessageId, initialIntent, workspaceReady = true, onIntentSent, onUpdated,
 }: Props) {
     const [chats, setChats] = useState<Chat[]>([]);
     const [historyOpen, setHistoryOpen] = useState(false);
@@ -42,18 +44,7 @@ export function TRChatPanel({
         onTitleChange: (chatId, title) => setChats((current) =>
             current.map((chat) => chat.id === chatId ? { ...chat, title } : chat)),
     });
-    const submitted = useRef(false), wasRunning = useRef(false);
-    useEffect(() => {
-        if (!initialMessage || submitted.current || assistant.chatLoad.status !== "loaded" || assistant.state.run) return;
-        let active = true;
-        queueMicrotask(() => {
-            if (!active || submitted.current) return;
-            submitted.current = true;
-            onInitialMessageSent?.();
-            void assistant.actions.handleChat({ role: "user", content: initialMessage });
-        });
-        return () => { active = false; };
-    }, [initialMessage, assistant.chatLoad.status, assistant.state.run, assistant.actions, onInitialMessageSent]);
+    const wasRunning = useRef(false);
     useEffect(() => {
         if (wasRunning.current && !assistant.state.run) onUpdated?.();
         wasRunning.current = !!assistant.state.run;
@@ -141,6 +132,8 @@ export function TRChatPanel({
             </div>
             <ChatView
                 chatId={assistant.state.chatId}
+                ready={workspaceReady && assistant.chatLoad.status === "loaded"}
+                initialIntent={initialIntent} onIntentSent={onIntentSent}
                 searchMessageId={searchMessageId}
                 session={assistant.state}
                 handleChat={assistant.actions.handleChat}

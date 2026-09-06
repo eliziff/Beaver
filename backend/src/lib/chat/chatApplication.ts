@@ -39,13 +39,14 @@ import { availableDocumentsPrompt } from "./resourceTools";
 import {
   createLegalEvidenceTurnState,
   legalEvidenceReceiptEvent,
+  legalEvidenceResourceReference,
   priorLegalEvidencePrompt,
   priorLegalEvidenceReceipts,
   priorLegalResearchQueryReceipts,
   registerPriorLegalResearchQueries,
 } from "./legalEvidence";
 import { resumableReadSubagents } from "./readSubagents";
-import { tabularChatContext } from "./tabularContext";
+import { tabularChatPrompt } from "./tabularContext";
 import { safeErrorLog, safeErrorMessage } from "../safeError";
 import {
   normalizeChatTitle,
@@ -63,14 +64,15 @@ import type { AssistantEvent, AskInputResponseItem, AskInputsEvent, AskInputsRes
 import type {
   ChatMessage,
   DocIndex,
-  TabularCellStore,
   WorkflowStore,
 } from "./types";
 import type { EditMode } from "../docxTrackedChanges";
 import { setChatTurnControl } from "../chatTurns";
 import { wordClientTools, type WordClientCall } from "./wordClientTools";
-import { readResearchFile, pageResearchItems } from "../researchFile";
-import { collectChatResearch, resolveChatFindings } from "../researchChat";
+import type { SourceWorkspaceApplication } from "../sourceWorkspaceApplication";
+import type { ChatCreateInput } from "../chatStore";
+import { researchSelectionSchema } from "../researchSelection";
+import { researchResultFilter } from "../researchReader";
 import { resourceReference } from "../resourceReferences";
 import type { AuditStore } from "../audit";
 
@@ -117,6 +119,8 @@ export const chatTurnInputSchema = z.object({
   chat_id: uuid.nullish(),
   project_id: uuid.nullish(),
   tabular_review_id: uuid.nullish(),
+  research_file_id: uuid.nullish(),
+  research_selection: researchSelectionSchema.nullish(),
   current_turn: currentTurn,
   expected_version: z.number().int().nonnegative(),
   model: z.string().trim().min(1).max(200)
@@ -158,12 +162,6 @@ export const chatTurnInputSchema = z.object({
 });
 
 export type ChatTurnInput = z.infer<typeof chatTurnInputSchema>;
-export const researchFilePromotionBodySchema = z.object({
-  version_id: z.string().trim().min(1).max(200),
-  working_revision: z.number().int().nonnegative(), includeQueries: z.boolean().default(false),
-}).strict();
-type ResearchFilePromotionInput = z.infer<typeof researchFilePromotionBodySchema> &
-  { chatId: string; researchFileId: string };
 type AskInputsSubmission = Extract<
   ChatTurnInput["current_turn"], { kind: "ask_inputs_response" }
 >;
@@ -238,6 +236,7 @@ export type ChatTurnExecution = {
 
 type Dependencies = {
   chats: ChatStore;
+  sources: SourceWorkspaceApplication;
   documents: DocumentStore;
   library: LibraryStore;
   projects: ProjectStore;
@@ -249,7 +248,7 @@ type Dependencies = {
       "addReceipts" | "attachLibraryPdf">;
   courtRecords?: Pick<CourtRecordsApplication, "bindOutput" | "updateDraft">;
   tabular: Pick<TabularApplication, "detail"> & Partial<Pick<TabularApplication,
-    "fromFindings" | "create" | "update" | "generate" | "stop" | "answers" | "history" | "change">>;
+    "create" | "update" | "generate" | "stop" | "history" | "change">>;
   audit?: AuditStore["record"];
   features: ChatApplicationFeatures;
 };
@@ -412,44 +411,15 @@ function imageForMessage(message: ChatMessage, images: Map<string, LlmImage>) {
 
 export function createChatApplication(deps: Dependencies) {
   return {
-    async create(auth: AuthContext, input: { projectId: string | null; tabularReviewId: string | null;
-      researchFileId?: string | null }) {
-      const file = input.researchFileId ? await readResearchFile(deps.documents, auth, input.researchFileId) : null;
-      if (input.researchFileId && !file) throw new ChatApplicationError(404, "Research workspace not found");
+    async create(auth: AuthContext, input: ChatCreateInput) {
+      const file = input.researchFileId ? await deps.sources.get(auth, input.researchFileId) : null;
       if (file?.document.project_id && input.projectId && file.document.project_id !== input.projectId)
         throw new ChatApplicationError(400, "Workspace belongs to another project");
       const chat = await deps.chats.create(auth, { ...input,
         projectId: input.tabularReviewId ? null : file?.document.project_id ?? input.projectId });
-      if (file) await collectChatResearch(deps.documents, auth, file.document.id, chat.id, [], file);
+      if (file) await deps.sources.bind(auth, file.document.id, { chatId: chat.id,
+        selection: input.researchSelection ?? undefined }, { executor: "human" });
       return chat;
-    },
-    async table(auth: AuthContext, input: { chatId: string; researchFileId: string; messageIds?: string[] }) {
-      const resolved = await resolveChatFindings(deps.chats, deps.documents, auth, input);
-      if (!deps.tabular.fromFindings) throw new ChatApplicationError(503, "Tabular review is unavailable");
-      return deps.tabular.fromFindings(auth, resolved);
-    },
-    async researchAnswers(auth: AuthContext, input: { chatId: string; researchFileId: string;
-      sourceIds?: string[]; offset: number; limit: number }) {
-      const result = await resolveChatFindings(deps.chats, deps.documents, auth, { ...input, readOnly: true }),
-        answers = result.findings.filter((finding) => !input.sourceIds || input.sourceIds.includes(finding.sourceId));
-      return { items: answers.slice(input.offset, input.offset + input.limit), total: answers.length,
-        next_offset: input.offset + input.limit < answers.length ? input.offset + input.limit : null };
-    },
-    async promoteResearchFile(auth: AuthContext, input: ResearchFilePromotionInput) {
-      const [chat, rows, file] = await Promise.all([deps.chats.get(auth, input.chatId),
-        deps.chats.transcript(auth, input.chatId),
-        readResearchFile(deps.documents, auth, input.researchFileId)]);
-      if (!chat || !rows) throw new ChatApplicationError(404, "Chat not found");
-      if (!file || file.versionId !== input.version_id ||
-          file.workingRevision !== input.working_revision || file.document.project_id !== null &&
-          file.document.project_id !== chat.project_id)
-        throw new ChatApplicationError(409, "This research file is unavailable or changed");
-      const events = rows.filter(({ role }) => role === "assistant").flatMap(({ content }) =>
-        Array.isArray(content) ? content : []);
-      const saved = await collectChatResearch(deps.documents, auth, file.document.id, chat.id, events, file,
-        { audit: deps.audit, executor: "human", chatId: chat.id });
-      await deps.chats.update(auth, chat.id, { researchFileId: file.document.id });
-      return saved;
     },
 
     async compact(
@@ -539,8 +509,13 @@ export function createChatApplication(deps: Dependencies) {
             response.kind === "documents" ? response.documents : []);
       const tabularDetail = tabularReviewId ? await deps.tabular.detail(auth, tabularReviewId) : null;
       if (tabularReviewId && !tabularDetail) throw new ChatApplicationError(404, "Review not found");
-      const researchFileId = chat?.research_file_id ?? tabularDetail?.review.scope_config?.research_file_id,
-        research = researchFileId ? await readResearchFile(deps.documents, auth, researchFileId) : null;
+      const researchFileId = input.research_file_id === undefined
+        ? chat?.research_file_id ?? tabularDetail?.review.scope_config?.research_file_id : input.research_file_id,
+        researchSelection = input.research_selection === undefined
+          ? input.research_file_id !== undefined && input.research_file_id !== chat?.research_file_id
+            ? undefined : chat?.research_selection ?? tabularDetail?.review.scope_config?.selection : input.research_selection,
+        research = researchFileId ? await deps.sources.get(auth, researchFileId) : null;
+      if (researchSelection && !research) throw new ChatApplicationError(400, "Select a workspace for this research scope");
       if (researchFileId && !research) throw new ChatApplicationError(404, "Research workspace not found");
       const requested = [
         ...(research ? [research.document.id, ...Object.values(research.state.sources).flatMap(({ reference }) =>
@@ -555,7 +530,7 @@ export function createChatApplication(deps: Dependencies) {
         document_id: file.document_id,
         filename: String(context.records.get(file.document_id)?.filename),
       }));
-      const tabular = tabularDetail ? tabularChatContext(tabularDetail) : undefined;
+      const tabularPrompt = tabularDetail ? tabularChatPrompt(tabularDetail) : undefined;
       const features = await deps.features.load(auth);
       const submittedWorkflow = input.current_turn.kind === "message"
         ? input.current_turn.workflow : undefined;
@@ -674,12 +649,22 @@ export function createChatApplication(deps: Dependencies) {
         files: canonicalFiles,
         workflow: canonicalWorkflow,
       });
-      const researchEvidence = research ? await pageResearchItems(deps.documents, auth, research, "passages", 0, 100) : null,
-        researchQueries = research ? await pageResearchItems(deps.documents, auth, research, "queries", 0, 50) : null;
+      const researchEvidence = research ? await deps.sources.items(auth, research.document.id,
+        { kind: "passages", offset: 0, limit: 100 }) : null,
+        researchQueries = research ? await deps.sources.items(auth, research.document.id,
+          { kind: "queries", offset: 0, limit: 50 }) : null,
+        workspaceContext = research ? await deps.sources.context(auth, research.document.id,
+          researchSelection ?? undefined) : undefined;
+      const researchContext = workspaceContext && tabularDetail && input.research_selection === undefined &&
+          !chat?.research_selection && researchFileId === tabularDetail.review.scope_config?.research_file_id
+        ? { ...workspaceContext, subjects: tabularDetail.review.scope_config?.subjects ?? workspaceContext.subjects, restricted: true }
+        : workspaceContext,
+        permittedEvidence = researchResultFilter(researchContext);
       const priorEvents = rows.flatMap((row) => Array.isArray(row.content) ? row.content : []),
         priorEvidenceReceipts = [...new Map([...priorLegalEvidenceReceipts(priorEvents),
           ...(researchEvidence?.items.flatMap((item) => item.kind === "passage" ? [item.value.receipt] : []) ?? [])]
-          .map((receipt) => [receipt.evidence_id, receipt])).values()],
+          .map((receipt) => [receipt.evidence_id, receipt])).values()].filter((receipt) =>
+            permittedEvidence({ resource: legalEvidenceResourceReference(receipt) ?? "", evidence: [receipt] })),
         priorQueries = [...new Map([...priorLegalResearchQueryReceipts(priorEvents),
           ...(researchQueries?.items.flatMap((item) => item.kind === "query" ? [item.value] : []) ?? [])]
           .map((receipt) => [receipt.query_id, receipt])).values()],
@@ -706,10 +691,10 @@ export function createChatApplication(deps: Dependencies) {
         jurisdictionPreferencePrompt(input.jurisdiction_preference ?? null),
         features.personalisationPrompt,
         priorLegalEvidencePrompt(priorEvidenceReceipts, priorQueries),
-        tabular?.prompt,
+        tabularPrompt,
         research ? `CURRENT RESEARCH WORKSPACE: ${resourceReference.document(research.document.id, research.versionId)}\n` +
-          `Read this workspace for its labels, saved sources, passages, searches, memo, and change history. Page through Read for more results.\n` +
-          `Choose useful sets, labels, question columns, or a table arrangement for the user's task. Apply reversible work within the request; propose suggestions and material changes beyond that scope for review.\n` +
+          `Read this workspace for labels, sources, passages, searches, memo, and history. Read findings for saved answers and table results, then use their returned references when arranging a view. Page through Read for more results.\n` +
+          `Choose useful sets, labels, question columns, and grouping for the user's task. Reuse relevant findings and request new answers where needed. Apply reversible work within the request; propose material changes beyond that scope for review.\n` +
           `Linked tables: ${(research.state.tables ?? []).join(", ") || "none"}. Use update_research_table to create or organize a table and read_table_cells to read its supported answers.` : "",
         focus.length ? `CURRENT MATTER FOCUS:\n${focus.join("\n")}` : "",
         availableDocumentsPrompt(context.docIndex, context.records, requested),
@@ -724,7 +709,8 @@ export function createChatApplication(deps: Dependencies) {
         throw new ChatApplicationError(400, "The Word document bridge is unavailable");
       }
 
-      if (!chat) chat = await deps.chats.create(auth, { projectId, tabularReviewId, researchFileId });
+      if (!chat) chat = await deps.chats.create(auth, { projectId, tabularReviewId, researchFileId,
+        researchSelection: researchSelection ?? null });
       if (!sink.claim(chat.id)) {
         conflict("chat_turn_in_progress", chat.transcript_version,
           "A response is already running");
@@ -735,9 +721,14 @@ export function createChatApplication(deps: Dependencies) {
         conflict("chat_version_conflict", claimed.currentVersion);
       }
       let version = claimed.currentVersion;
+      if (research && (!research.state.chats?.includes(chat.id) || researchFileId !== chat.research_file_id ||
+          JSON.stringify(researchSelection ?? null) !== JSON.stringify(chat.research_selection ?? null))) {
+        await deps.sources.bind(auth, research.document.id, { chatId: chat.id,
+          selection: researchSelection ?? undefined }, { executor: "human", chatId: chat.id, turnId });
+      }
       chat = await deps.chats.update(auth, chat.id, {
         model: selectedModel,
-        ...(researchFileId ? { researchFileId } : {}),
+        ...(input.research_file_id === null ? { researchFileId: null, researchSelection: null } : {}),
         reasoningEffort: input.reasoning_effort ?? null,
       }) ?? chat;
       await execution?.onAccepted?.(chat.id);
@@ -754,7 +745,7 @@ export function createChatApplication(deps: Dependencies) {
       let localTools!: ReturnType<typeof createChatToolRunner>;
       const currentWorkspace = async () => {
         const current = await deps.chats.get(auth, chat!.id), id = current?.research_file_id;
-        return id ? readResearchFile(deps.documents, auth, id) : null;
+        return id ? deps.sources.get(auth, id) : null;
       };
       localTools = createChatToolRunner({
         userId: auth.userId,
@@ -763,12 +754,14 @@ export function createChatApplication(deps: Dependencies) {
         turnId,
         chatId: chat.id,
         audit: deps.audit,
+        sources: deps.sources,
         onResearchWorkspace: async (documentId, state) => {
-          await deps.chats.update(auth, chat!.id, { researchFileId: documentId });
+          await deps.sources.bind(auth, documentId, { chatId: chat!.id },
+            { executor: "assistant", model: selectedModel, chatId: chat!.id, turnId });
           const observation = state && legalEvidenceReceiptEvent({ ...state, answer: null, failure: null });
-          return collectChatResearch(deps.documents, auth, documentId, chat!.id,
-            [...priorEvents, ...(observation ? [observation] : [])], undefined,
-            { audit: deps.audit, executor: "assistant", model: selectedModel, chatId: chat!.id, turnId });
+          if (observation) await deps.sources.observe(auth, documentId, observation,
+            { executor: "assistant", model: selectedModel, chatId: chat!.id, turnId });
+          return deps.sources.get(auth, documentId);
         },
         projectId,
         allowedDocumentIds: context.allowed,
@@ -795,17 +788,16 @@ export function createChatApplication(deps: Dependencies) {
         courtRecordRevision: input.work_product?.kind === "court-record"
           ? input.work_product.revision : undefined,
         workflows: features.workflows,
-        tabular: tabular?.store as TabularCellStore | undefined,
         researchTables: deps.tabular.create && deps.tabular.update && deps.tabular.generate && deps.tabular.stop &&
-          deps.tabular.answers && deps.tabular.history && deps.tabular.change
+          deps.tabular.history && deps.tabular.change
           ? { application: { detail: deps.tabular.detail, create: deps.tabular.create,
             update: deps.tabular.update, generate: deps.tabular.generate, stop: deps.tabular.stop,
-            answers: deps.tabular.answers, history: deps.tabular.history, change: deps.tabular.change },
+            history: deps.tabular.history, change: deps.tabular.change },
             getWorkspace: currentWorkspace } : undefined,
         resolveTabular: async (reviewId) => {
-          if (!(await currentWorkspace())?.state.tables?.includes(reviewId)) return null;
-          const detail = await deps.tabular.detail(auth, reviewId);
-          return detail ? tabularChatContext(detail).store : null;
+          const id = reviewId ?? tabularReviewId;
+          if (!id || id !== tabularReviewId && !(await currentWorkspace())?.state.tables?.includes(id)) return null;
+          return deps.tabular.detail(auth, id);
         },
         editMode: input.edit_mode as EditMode,
         timeZone: input.time_zone,
@@ -836,14 +828,6 @@ export function createChatApplication(deps: Dependencies) {
         contextCheckpoint: message.contextCheckpoint,
       }));
       const assistantId = assistant?.id ?? randomUUID();
-      let researchPersistence = Promise.resolve();
-      const saveResearchObservations = async (events: AssistantEvent[]) => {
-        const current = await deps.chats.get(auth, chat!.id);
-        if (current?.research_file_id) await collectChatResearch(deps.documents, auth, current.research_file_id,
-          current.id, events, undefined, { audit: deps.audit, executor: "assistant",
-            model: selectedModel, chatId: current.id, turnId });
-      };
-      const collectResearch = async () => { await researchPersistence; await saveResearchObservations(assistantContent); };
       function queuePersist(events: AssistantEvent[], citations: unknown[] = [], force = false) {
         for (const event of events) {
           const index = "id" in event && REPLACEABLE_EVENT_TYPES.has(event.type)
@@ -896,10 +880,7 @@ export function createChatApplication(deps: Dependencies) {
       }
       let activeContinuationId = execution?.continuationId ?? providerSession?.continuationId;
       const onSubagentEvent = (event: ReadSubagentEvent) => {
-        const saved = queuePersist([event]);
-        if (event.status === "completed") void saved?.then(collectResearch).catch((error) =>
-          console.error("[research] subagent results remain in the chat", safeErrorLog(error)));
-        else void saved?.catch(() => undefined);
+        void queuePersist([event])?.catch(() => undefined);
       };
       try {
         sink.emit({ type: "chat_id", chatId: chat.id, transcriptVersion: version });
@@ -908,9 +889,13 @@ export function createChatApplication(deps: Dependencies) {
           systemPrompt,
           messages: modelMessages,
           createTools: localTools.createTools,
-          onResearchObserved: (receipt) => {
-            researchPersistence = researchPersistence.then(() => saveResearchObservations([receipt])).catch((error) =>
-              console.error("[research] observed passages remain in the chat", safeErrorLog(error)));
+          researchContext,
+          priorQueries,
+          operation: { executor: "assistant", model: selectedModel, chatId: chat.id, turnId,
+            ...(tabularReviewId ? { reviewId: tabularReviewId } : {}) },
+          onResearchObserved: async (receipt, operation) => {
+            const current = await currentWorkspace();
+            if (current) await deps.sources.observe(auth, current.document.id, receipt, operation);
           },
           emit: (event) => {
             sink.emit(event);
@@ -968,7 +953,6 @@ export function createChatApplication(deps: Dependencies) {
         }
         events.push({ type: LOCAL_TURN_COMPLETED_EVENT, schema_version: 1 });
         await queuePersist(events, result.citations, true);
-        await collectResearch();
         if (!chat.title) {
           const lastUser = [...messages].reverse().find(({ role }) => role === "user");
           if (lastUser?.content) {
@@ -999,8 +983,6 @@ export function createChatApplication(deps: Dependencies) {
           ], [], true)?.catch((persistError) => console.error(
             "[chat] failed to persist model error", safeErrorLog(persistError),
           ));
-          await collectResearch().catch((error) =>
-            console.error("[research] interrupted results remain in the chat", safeErrorLog(error)));
           await providerSession?.save(activeContinuationId, version);
         }
         deps.features.audit?.(auth, {

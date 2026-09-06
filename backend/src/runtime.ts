@@ -10,7 +10,7 @@ import { createLibraryStore } from "./lib/libraryStore";
 import { isLocalRuntime } from "./lib/localMode";
 import { createProjectStore } from "./lib/projectStore";
 import { createTabularApplication } from "./lib/tabular/application";
-import { resolveChatFindings } from "./lib/researchChat";
+import { createSourceWorkspaceApplication, type SourceWorkspaceApplication } from "./lib/sourceWorkspaceApplication";
 import { durableTabularAgents, tabularAgentJobHandler,
   TABULAR_AGENT_JOB } from "./lib/tabular/agents";
 import { publicOrigin } from "./lib/publicOrigin";
@@ -150,10 +150,13 @@ const tabular: Lazy<ReturnType<typeof createTabularApplication>> = lazy(async ()
   createTabularApplication(
   (await persistence()).tabular, await documents(), await projects(),
   { agents: durableTabularAgents,
-    resolveAnswers: async (scope, researchFileId, chatId) => (await resolveChatFindings(
-      await chats(), await documents(), scope, { researchFileId, chatId, readOnly: true })).findings,
+    sources,
     audit: (...events) => audit().then((store) => store.record(...events)),
     settings: (userId) => user().then((value) => value.modelSettings(userId)) }));
+const sources: Lazy<SourceWorkspaceApplication> = lazy(async () => createSourceWorkspaceApplication(
+  await documents(), { chats: await chats(), tables: (await persistence()).tabular, tabular,
+    isTableRunning: (reviewId, ownerId) => durableTabularAgents.active(reviewId, ownerId),
+    audit: (...events) => audit().then((store) => store.record(...events)) }));
 const authoritiesWorkspace = lazy(async () =>
   (await import("./lib/authoritiesWorkspaceApplication"))
     .createAuthoritiesWorkspaceApplication(
@@ -226,13 +229,13 @@ async function connectorTools(userId: string): Promise<BeaverTool<ChatToolContex
 }
 const chat = lazy(async () => {
   const [chatStore, documentStore, libraryStore, projectStore, tabularStore,
-    workProductApplication, ports] = await Promise.all([
+    workProductApplication, ports, sourceWorkspaces] = await Promise.all([
     chats(), documents(), library(), projects(), tabular(), workProducts(),
-    persistence(),
+    persistence(), sources(),
   ]);
   return createChatApplication({ chats: chatStore, documents: documentStore,
     library: libraryStore, projects: projectStore, workProducts: workProductApplication,
-    tabular: tabularStore,
+    tabular: tabularStore, sources: sourceWorkspaces,
     audit: (...events) => audit().then((store) => store.record(...events)),
     authorities: chatAuthorities, courtRecords: chatCourtRecords,
     features: { ...ports.features, audit(auth, input) {
@@ -296,6 +299,6 @@ export const runtime = { mode: local ? "local" as const : "cloud" as const, capa
       ), 60 * 60 * 1_000);
       cleanupTimer.unref();
     }
-  }, authoritiesWorkspace, courtRecords, chat, chats, documents,
+  }, authoritiesWorkspace, courtRecords, chat, chats, documents, sources,
   audit, background, connectors, legalSources, library, projects, startWorkers, workProducts,
   tabular, workflows, preferences, user, shutdown };

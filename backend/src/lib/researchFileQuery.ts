@@ -7,8 +7,8 @@ import { createLegalEvidenceTurnState, createLibraryEvidence, legalSourceEvidenc
   type LegalEvidenceReceipt, type LegalResearchQueryReceipt } from "./chat/legalEvidence";
 import type { DocumentStore } from "./documentStore";
 import { legalSourceOperations } from "./legalSourceApplication";
-import { commitResearchFile, readResearchFile, visitResearchEvidenceParts,
-  researchLabelPath, researchSourceKey, readResearchQueries,
+import { commitResearchFile, readResearchFile,
+  researchLabelPath, researchSourceKey, researchSourceResource, readResearchQueries,
   type PublicResearchFileAction,
   type ResearchFile, type ResearchFileAction, type ResearchFileState,
   type ResearchQueryReceipt } from "./researchFile";
@@ -16,15 +16,16 @@ import { structureNative } from "./structureNative";
 import { escapeRegExp } from "./text";
 import { sha256 } from "./hash";
 import { documentProjectionService } from "./documentProjectionService";
-import { researchSelectionLabels } from "./researchSelection";
+import { resolveResearchSelection, researchSelectionSchema, researchSelectionLabels, intersectResearchSubjects,
+  type ResearchSelection } from "./researchSelection";
+import type { ResearchReadContext } from "./researchReader";
 
 export const researchCaptureRuleSchema = z.object({ phrase: z.string().trim().min(1).max(500),
   direction: z.enum(["before", "after"]), unit: z.enum(["sentence", "line", "paragraph", "chars"]),
   chars: z.number().int().min(1).max(50_000).optional(), slot: z.string().trim().min(1).max(200) }).strict();
 export type ResearchCaptureRule = z.infer<typeof researchCaptureRuleSchema>;
-export type ResearchFileQueryInput = { versionId: string; workingRevision: number; text?: string;
-  syntax: "literal" | "terms"; target: "sources" | "passages";
-  sourceIds?: string[]; labelIds?: string[]; unlabelled?: boolean; limit?: number; after?: string; rules?: ResearchCaptureRule[];
+export type ResearchFileQueryInput = ResearchSelection & { versionId: string; workingRevision: number; text?: string;
+  syntax: "literal" | "terms"; limit?: number; after?: string; rules?: ResearchCaptureRule[];
   conflict?: "prompt" | "first" | "longer" | "shorter" | "append" };
 type ResearchPassageReader = typeof legalSourceOperations.readPassage;
 const clean = (value: string) => value.normalize("NFC").replace(/\s+/gu, " ").trim();
@@ -104,11 +105,6 @@ export async function verifyResearchPassage(file: ResearchFile, action: PublicRe
   return { type: "merge", evidence: [evidence] };
 }
 
-const labelled = (ids: string[], selected: Set<string>) =>
-  ids.some((id) => selected.has(id));
-const inScope = (ids: string[], labels: Set<string>, unlabelled = false, alternate: string[] = []) =>
-  !labels.size && !unlabelled || unlabelled && !ids.length || labelled(ids, labels) || labelled(alternate, labels);
-
 type Capture = { start: number; end: number; slot: string; order: number; assign: boolean };
 const overlap = (left: Capture, right: Capture) => left.start < right.end && right.start < left.end;
 const resolveCaptures = (values: Capture[], conflict: ResearchFileQueryInput["conflict"]) => {
@@ -152,6 +148,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
   documentId: string, input: ResearchFileQueryInput, options: {
     signal?: AbortSignal; actor?: { model?: string; callId?: string };
     operation?: ResearchOperationContext;
+    context?: ResearchReadContext;
     assistant?: { turnVersionId?: string; turnId?: string };
     priorQueries?: Iterable<LegalResearchQueryReceipt>;
     reader?: ResearchPassageReader } = {}) {
@@ -167,8 +164,6 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
   catch { throw new ApplicationError(400, "Capture rules are invalid"); }
   if ((!query && !rules.length) || !!query === !!rules.length || query.length > 10_000)
     throw new ApplicationError(400, "Query text is invalid");
-  if (rules.length && input.target !== "sources")
-    throw new ApplicationError(400, "Capture rules search saved sources");
   if (rules.some(({ slot }) => slot !== "Unclassified" &&
       state.labels[slot]?.scope !== "highlight"))
     throw new ApplicationError(400, "Capture slots must use a highlight label or Unclassified");
@@ -177,17 +172,23 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
   if (needles.length > 100) throw new ApplicationError(400, "Query has too many terms");
   const matches = (text: string) => { const value = text.toLowerCase();
     return needles.every((term) => value.includes(term)); };
-  const labels = researchSelectionLabels(state, input.labelIds ?? []),
-    limit = Math.max(1, Math.min(5_000, input.limit ?? 500));
-  const requested = input.sourceIds ? [...new Set(input.sourceIds)] : Object.keys(state.sources);
-  if ((input.sourceIds?.length ?? 0) > 10_000 ||
-      requested.some((id) => !state.sources[id]))
-    throw new ApplicationError(400, "Invalid source selection");
+  const scopeInput = researchSelectionSchema.parse({ target: input.target, sourceIds: input.sourceIds,
+    evidenceIds: input.evidenceIds, members: input.members, labelIds: input.labelIds, unlabelled: input.unlabelled }),
+    labels = researchSelectionLabels(state, input.labelIds ?? []),
+    limit = Math.max(1, Math.min(5_000, input.limit ?? 500)),
+    baseline = input.members?.map(({ sourceId }) => sourceId) ?? input.sourceIds ?? Object.keys(state.sources),
+    contextResources = options.context?.restricted && new Set(options.context.subjects?.map(({ resource }) => resource)),
+    requested = [...new Set(baseline)].filter((id) => {
+      if (!state.sources[id]) throw new ApplicationError(400, "Invalid source selection");
+      return (!input.sourceIds || input.sourceIds.includes(id)) &&
+        (!contextResources || contextResources.has(researchSourceResource(state.sources[id].reference)));
+    });
   let sources = requested.map((id) => state.sources[id]);
   const selection = sha256(JSON.stringify([query, input.syntax, input.target, rules, input.conflict,
-    [...labels], input.unlabelled,
+    scopeInput, [...labels], options.context?.restricted ? options.context.subjects?.map(({ resource, evidence }) =>
+      [resource, evidence?.map(({ evidence_id, source_sha256 }) => [evidence_id, source_sha256])]) : null,
     sources.map(({ id, reference, labelIds, passages }) => [id, researchSourceKey(reference), labelIds,
-      input.target === "passages" ? passages?.sha256 : null])]));
+      input.target === "passages" && !input.evidenceIds && !input.members ? passages?.sha256 : null])]));
   let cursor: [string, string, string, string, boolean] | undefined;
   if (input.after !== undefined) {
     try { cursor = z.tuple([z.string(), z.string(), z.string(), z.string(), z.boolean()]).parse(
@@ -249,28 +250,37 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
     if (cursor?.[0] === sourceId && cursor[2] !== sha256(JSON.stringify([...new Set(hashes)].sort())))
       throw new ApplicationError(409, "Research source changed. Restart the search.");
   };
-  if (input.target === "passages") await visitResearchEvidenceParts(documents, scope, file,
-    sources.map(({ id }) => id), (parts) => {
-    for (const [sourceId, values] of parts) { attempted.push(sourceId); Object.values(values).forEach(
-      (item) => rememberFingerprint(sourceId, item.receipt.source_sha256)); }
-    for (const [sourceId, values] of parts) { const source = state.sources[sourceId];
-    verifyCursor(sourceId, sourceFingerprints[sourceId] ?? []);
-    for (const item of Object.values(values)) {
-      const span = item.receipt.span_text ?? "", assigned = item.labelIds.filter((id) => state.labels[id]);
-      if (inScope(assigned, labels, input.unlabelled, source.labelIds)) {
-        if (matches(span) && afterCursor(source.id, item.receipt)) add(span, item.receipt, source.id);
-      }
-      if (evidence.length === limit || captureFull) return false;
-    } } });
-  const searchable = sources.filter((source) => inScope(source.labelIds, labels, input.unlabelled));
-  const native = input.target === "sources" && searchable.length ? structureNative() : null;
-  const scan = async (source: ResearchFileState["sources"][string]) => {
+  const native = structureNative();
+  const scan = async (savedSource: ResearchFileState["sources"][string]): Promise<{ sourceId: string;
+    sourceSha256s?: string[]; failure?: string; found: Array<{ span: string;
+      receipt: LegalEvidenceReceipt | undefined; slot?: string; assign?: boolean }> }> => {
+    const sourceId = savedSource.id;
     try {
+      const resolved = await resolveResearchSelection(documents, scope, { ...scopeInput,
+        sourceIds: [sourceId], researchFileId: documentId }, file, { allowUnmatchedEvidenceIds: true }),
+        subjects = options.context?.restricted ? intersectResearchSubjects(resolved.subjects, options.context.subjects ?? []) : resolved.subjects,
+        subject = subjects[0];
+      if (!subject) return { sourceId, found: [] };
+      const source = { ...savedSource, evidence: subject.evidence }, boundaries = options.context?.restricted
+        ? options.context.subjects?.filter(({ resource }) => resource === subject.resource) ?? [] : [];
+      if (source.evidence && !rules.length) {
+        const sourceSha256s = source.evidence.map(({ source_sha256 }) => source_sha256.replace(/^sha256:/u, "")),
+          found: Array<{ span: string; receipt: LegalEvidenceReceipt }> = [];
+        verifyCursor(source.id, sourceSha256s);
+        for (const receipt of source.evidence) {
+          const span = receipt.span_text ?? "";
+          if (matches(span) && afterCursor(source.id, receipt)) found.push({ span, receipt });
+          if (found.length === limit) break;
+        }
+        return { sourceId: source.id, sourceSha256s, found };
+      }
       const reference = source.reference, passages: Array<{ documentArtifact: Parameters<ReturnType<typeof structureNative>["documentText"]>[0];
         evidence: (span: LegalEvidenceSpan) => LegalEvidenceReceipt | undefined }> = [];
       if (reference.kind === "document") {
         const projection = await documents.projectionSource(scope, reference.id, reference.versionId);
         if (!projection) throw new ApplicationError(404, "Document version not found");
+        if (boundaries.some(({ sourceSha256 }) => sourceSha256 && sourceSha256 !== projection.sourceSha256))
+          throw new ApplicationError(409, "Selected source changed during research");
         const documentArtifact = await documentProjectionService.read(projection, { signal: options.signal });
         passages.push({ documentArtifact, evidence: (span) => createLibraryEvidence({
           documentId: reference.id, versionId: reference.versionId, filename: reference.title ?? reference.id,
@@ -291,15 +301,35 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
       let truncated = false, resultLimited = false, sizeLimited = false, pageFull = false,
         foundChars = 0, candidates = 0;
       verifyCursor(source.id, sourceSha256s);
-      for (const passage of passages) {
-        const text = adapter.documentText(passage.documentArtifact);
+      if (boundaries.some(({ sourceSha256s: expected }) => expected?.length &&
+          sourceSha256s.some((hash) => !expected.includes(hash))))
+        throw new ApplicationError(409, "Selected source changed during research");
+      const verified = new Set<string>(), windows = passages.map((passage) => {
+        const text = adapter.documentText(passage.documentArtifact), revision = adapter.documentRevision(passage.documentArtifact),
+          ranges = source.evidence ? source.evidence.flatMap((receipt) => {
+            if (receipt.source_sha256.replace(/^sha256:/u, "") !== revision.replace(/^sha256:/u, "")) return [];
+            const span = receipt.span;
+            if (!span || text.slice(span.start, span.end) !== receipt.span_text) return [];
+            verified.add(receipt.evidence_id); return [span];
+          }) : [{ start: 0, end: text.length }];
+        return { ...passage, text, ranges };
+      });
+      if (source.evidence?.some(({ evidence_id }) => !verified.has(evidence_id)))
+        throw new ApplicationError(409, "Selected passage changed or is unavailable");
+      for (const passage of windows) {
+        const { text } = passage;
         if (rules.length) {
-          const captures: Capture[] = [];
-          captureRules: for (const rule of rules) {
+          const captures: Capture[] = [], captureKeys = new Set<string>();
+          captureRules: for (const [order, rule] of rules.entries()) for (const range of passage.ranges) {
+            const selectedText = text.slice(range.start, range.end);
             const pattern = new RegExp(escapeRegExp(rule.phrase), "giu"); let match: RegExpExecArray | null;
-            while ((match = pattern.exec(text))) {
-              const span = adjacent(text, match.index, match[0].length, rule);
+            while ((match = pattern.exec(selectedText))) {
+              const span = adjacent(selectedText, match.index, match[0].length, rule);
               if (span) {
+                span.start += range.start; span.end += range.start;
+                const key = `${order}:${span.start}:${span.end}`;
+                if (captureKeys.has(key)) continue;
+                captureKeys.add(key);
                 // ponytail: hostile-input ceiling; paginate if 50k captures/source becomes a real need.
                 if (candidates++ === MAX_CAPTURE_CANDIDATES) { truncated = true; break captureRules; }
                 captures.push({ start: span.start, end: span.end, slot: rule.slot,
@@ -364,14 +394,13 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
         ...(sizeLimited ? { failure: "capture_size_limit" }
           : resultLimited ? { failure: "result_limit" } : {}), found };
     } catch (error) { options.signal?.throwIfAborted();
-      if (error instanceof ApplicationError && cursor?.[0] === source.id) throw error;
-      return { sourceId: source.id, failure: "unavailable", found: [] }; }
+      if (error instanceof ApplicationError && cursor?.[0] === sourceId) throw error;
+      return { sourceId, failure: "unavailable", found: [] }; }
   };
-  if (input.target === "sources") for (let offset = 0;
-    offset < searchable.length && evidence.length < limit && !captureFull; offset += 4) {
-    const results = await Promise.all(searchable.slice(offset, offset + 4).map(scan));
+  for (let offset = 0; offset < sources.length && evidence.length < limit && !captureFull; offset += 4) {
+    const results = await Promise.all(sources.slice(offset, offset + 4).map(scan));
     for (const result of results) { attempted.push(result.sourceId);
-      if ("sourceSha256s" in result) result.sourceSha256s.forEach((value) =>
+      result.sourceSha256s?.forEach((value) =>
         rememberFingerprint(result.sourceId, value));
       if (result.failure) fail(result.sourceId, result.failure);
       for (const { span, receipt, slot, assign } of result.found) {
@@ -388,12 +417,16 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
         ...lastMatch, sha256(JSON.stringify([...(sourceFingerprints[lastMatch[0]] ?? [])].sort())),
         selection, incomplete])).toString("base64url") : null,
       attempted_sources: attempted.length,
-      selected_sources: input.target === "sources" ? searchable.length : sources.length };
+      selected_sources: sources.length };
   const base = { call_id: options.actor?.callId ?? randomUUID(), tool: "Read" as const,
     executed_at: new Date().toISOString(), executor_version: "legal-source-pattern-v1" as const,
     input: { ...(rules.length ? { rules, conflict: input.conflict ?? "first" }
       : { pattern: query, syntax: input.syntax }), target: input.target,
       source_ids: requested, label_ids: input.labelIds ?? [],
+      ...(input.evidenceIds ? { evidence_ids: input.evidenceIds } : {}),
+      ...(input.members ? { members: input.members } : {}),
+      ...(options.context?.restricted ? { scope: options.context.subjects?.map(({ resource, evidence }) =>
+        ({ resource, ...(evidence ? { evidence_ids: evidence.map(({ evidence_id }) => evidence_id) } : {}) })) } : {}),
       ...(input.unlabelled ? { unlabelled: true } : {}), limit,
       ...(input.after ? { after: input.after } : {}), coverage },
     results: evidence.slice(0, 100).map(({ evidence_id }, rank) => ({ rank: rank + 1, evidence_id })) };

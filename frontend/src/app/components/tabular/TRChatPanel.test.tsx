@@ -1,5 +1,5 @@
 import { StrictMode, useState } from "react";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import type { AssistantSessionState } from "@/app/lib/assistantSession";
 import { TRChatPanel } from "./TRChatPanel";
@@ -10,21 +10,22 @@ vi.mock("@/app/lib/api/chat", async (original) => ({ ...await original<typeof im
   streamChat: api.streamChat, getChat: api.getChat, listChats: async () => [], generateChatTitle: async () => ({ title: "Research" }) }));
 vi.mock("@/app/contexts/UserProfileContext", () => ({ useUserProfile: () => ({ profile: null }) }));
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({ useChatHistoryContext: () => ({ loadChats: api.loadChats, renameChat: api.renameChat }) }));
-vi.mock("../assistant/ChatView", () => ({ ChatView: ({ session }: { session: AssistantSessionState }) =>
-  <div>{session.messages.map((message, index) => <p key={index}>{message.role === "user" ? message.content
+vi.mock("../assistant/ChatView", () => ({ ChatView: ({ session, handleChat }: { session: AssistantSessionState; handleChat: (message: unknown) => void }) =>
+  <div><button onClick={() => handleChat({ role: "user", content: "Arrange the existing research" })}>Send</button>{session.messages.map((message, index) => <p key={index}>{message.role === "user" ? message.content
     : message.blocks.map(({ text }) => text).join("\n")}</p>)}{session.run && <p role="status">Running</p>}</div> }));
 
-it("shows the arrangement intent as one ordinary turn and refreshes the table when it completes", async () => {
+it("shows an ordinary table chat turn and refreshes the table when it completes", async () => {
   let finish!: (response: Response) => void;
   api.streamChat.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
   api.getChat.mockResolvedValue({ chat: { id: "arrangement-chat", transcript_version: 2 }, messages: [] });
   function Example() {
-    const [intent, setIntent] = useState<string | undefined>("Arrange the existing research"), [refreshed, setRefreshed] = useState(false);
-    return <><TRChatPanel reviewId="review" initialMessage={intent} onInitialMessageSent={() => setIntent(undefined)}
+    const [refreshed, setRefreshed] = useState(false);
+    return <><TRChatPanel reviewId="review"
       onChatIdChange={vi.fn()} onCitationClick={vi.fn()} onClose={vi.fn()} onUpdated={() => setRefreshed(true)} />
       {refreshed && <p>Table refreshed</p>}</>;
   }
   const { rerender } = render(<StrictMode><Example /></StrictMode>);
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
   expect(await screen.findByText("Arrange the existing research")).toBeVisible();
   expect(screen.getByRole("status")).toHaveTextContent("Running");
   rerender(<StrictMode><Example /></StrictMode>);

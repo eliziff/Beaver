@@ -3,16 +3,16 @@ import { ApplicationError, type ApplicationScope } from "../applicationError";
 import type { DocumentStore } from "../documentStore";
 import { researchLabelPath, researchSourceResource, visitResearchEvidenceParts,
   type ResearchEvidence, type ResearchFile } from "../researchFile";
-import type { resolveChatFindings } from "../researchChat";
-import { resolveResearchSelection, researchSelectionLabels } from "../researchSelection";
-import type { TabularCell, TabularCellContent, TabularColumn, TabularSubject } from "../tabularStore";
+import { researchFindingReferenceSchema, type ResearchFinding, type ResearchFindingReference } from "../researchChat";
+import { resolveResearchSelection, researchSelectionLabels, type ResearchSubject } from "../researchSelection";
+import type { TabularCell, TabularCellContent, TabularColumn } from "../tabularStore";
 
 const id = z.string().min(1).max(200), ids = z.array(id).max(500);
 const item = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("label"), labelId: id, sourceId: id, evidenceId: id.optional(),
     display: z.enum(["name", "path"]).optional() }).strict(),
   z.object({ kind: z.literal("passage"), sourceId: id, evidenceId: id }).strict(),
-  z.object({ kind: z.literal("answer"), chatId: id, answerId: id, resource: z.string().min(1).max(4_000) }).strict(),
+  ...researchFindingReferenceSchema.options,
 ]);
 export const researchArrangementSchema = z.object({
   rows: z.array(z.object({ id, title: z.string().trim().min(1).max(500), sourceId: id,
@@ -32,21 +32,21 @@ export const researchArrangementToolSchema = {
     cells: { type: "array", items: { type: "object", required: ["rowId", "columnIndex", "items"],
       additionalProperties: false, properties: { rowId: string, columnIndex: { type: "integer" },
         items: { type: "array", items: { type: "object", required: ["kind"], additionalProperties: false,
-          properties: { kind: { type: "string", enum: ["label", "passage", "answer"] }, labelId: string,
+          properties: { kind: { type: "string", enum: ["label", "passage", "answer", "cell"] }, labelId: string,
             sourceId: string, evidenceId: string, chatId: string, answerId: string, resource: string,
-            display: { type: "string", enum: ["name", "path"] } },
-          description: "label: labelId,sourceId,evidenceId?,display? (name by default); passage: sourceId,evidenceId; answer: chatId,answerId,resource" } } } } },
+            display: { type: "string", enum: ["name", "path"] }, reviewId: string, rowId: string,
+            columnIndex: { type: "integer" } },
+          description: "label: labelId,sourceId,evidenceId?,display? (name by default); passage: sourceId,evidenceId; answer: chatId,answerId,resource; cell: reviewId,rowId,columnIndex" } } } } },
   },
 };
 
-type Findings = Awaited<ReturnType<typeof resolveChatFindings>>["findings"];
 function missing(message: string): never { throw new ApplicationError(409, message); }
 
 /** Resolve a chosen arrangement from canonical research, without storing a second answer or ontology. */
 export async function resolveResearchArrangement(input: {
   documents: DocumentStore; scope: ApplicationScope; file: ResearchFile;
   arrangement: ResearchArrangement; columns: TabularColumn[]; storedCells: TabularCell[];
-  resolveAnswers?: (chatId: string) => Promise<Findings>;
+  resolveFinding?: (reference: ResearchFindingReference) => Promise<ResearchFinding | null>;
   strict?: boolean;
 }) {
   const { documents, scope, file, columns, storedCells } = input,
@@ -55,14 +55,14 @@ export async function resolveResearchArrangement(input: {
   if (rowIds.size !== arrangement.rows.length) throw new ApplicationError(400, "Row IDs must be unique");
   const selection = await resolveResearchSelection(documents, scope, { researchFileId: file.document.id,
     target: "sources", sourceIds: [...new Set(arrangement.rows.map(({ sourceId }) => sourceId))]
-      .filter((id) => input.strict || file.state.sources[id]) }, file),
+      .filter((id) => input.strict || file.state.sources[id]) }, file, { availableOnly: !input.strict }),
     sources = new Map(selection.subjects.map((subject) => [subject.sourceId, subject])),
-    parts = new Map<string, Record<string, ResearchEvidence>>(), findings = new Map<string, Findings>();
+    parts = new Map<string, Record<string, ResearchEvidence>>();
   await visitResearchEvidenceParts(documents, scope, file, [...sources.keys()], (batch) =>
     batch.forEach((value, key) => parts.set(key, value)));
   const passage = (sourceId: string, evidenceId: string) => parts.get(sourceId)?.[evidenceId]
     ?? missing("A referenced passage is no longer in this workspace");
-  const subjects: TabularSubject[] = arrangement.rows.flatMap((row) => {
+  const subjects: ResearchSubject[] = arrangement.rows.flatMap((row) => {
     const subject = sources.get(row.sourceId);
     if (!subject) return [];
     return [{ ...subject, rowId: row.id, ...(row.evidenceIds ? { evidence: row.evidenceIds.flatMap((id) =>
@@ -86,16 +86,14 @@ export async function resolveResearchArrangement(input: {
       const resource = researchSourceResource(file.state.sources[row.sourceId].reference),
         values: string[] = [], claims: TabularCellContent["claims"] = [],
         receipts = new Map<string, TabularCellContent["evidence"][number]>();
+      let singleFinding: ResearchFinding | undefined;
       for (const reference of mapping.items) {
-        if (reference.kind === "answer") {
-          if (!file.state.chats?.includes(reference.chatId) || !input.resolveAnswers)
-            missing("The referenced chat is unavailable in this workspace");
-          if (!findings.has(reference.chatId)) findings.set(reference.chatId, await input.resolveAnswers!(reference.chatId));
-          const answer = findings.get(reference.chatId)!.find((finding) => finding.kind === "answer" &&
-            finding.question.id === reference.answerId && finding.resource === reference.resource);
+        if (reference.kind === "answer" || reference.kind === "cell") {
+          const answer = await input.resolveFinding?.(reference);
           if (!answer || answer.resource !== resource) missing("The referenced answer is unavailable for this row");
-          values.push(answer.answer.value == null ? answer.answer.claims.map(({ text }) => text).join("\n\n")
-            : Array.isArray(answer.answer.value) ? answer.answer.value.join("\n") : String(answer.answer.value));
+          if (mapping.items.length === 1) singleFinding = answer;
+          values.push(answer.answer.summary ?? (answer.answer.value == null ? answer.answer.claims.map(({ text }) => text).join("\n\n")
+            : Array.isArray(answer.answer.value) ? answer.answer.value.join("\n") : String(answer.answer.value)));
           claims.push(...answer.answer.claims);
           answer.evidence.forEach((receipt) => receipts.set(receipt.evidence_id, receipt));
           continue;
@@ -121,6 +119,9 @@ export async function resolveResearchArrangement(input: {
           summary: values.join("\n\n"), value: values.length === 1 ? values[0] : values,
           claims: [...new Map(claims.map((claim) => [JSON.stringify(claim), claim])).values()],
           evidence: [...receipts.values()], resource, outcome: "answered", coverage: "complete",
+          ...(singleFinding ? { ...singleFinding.answer,
+            summary: singleFinding.answer.summary ?? values.join("\n\n"),
+            outcome: singleFinding.answer.outcome ?? "answered", coverage: singleFinding.answer.coverage ?? "partial" } : {}),
         } });
     } catch (error) {
       if (input.strict || !(error instanceof ApplicationError)) throw error;

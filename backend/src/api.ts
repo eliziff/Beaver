@@ -157,10 +157,11 @@ api.use(
     const [library, documents] = await Promise.all([
       runtime.library(), runtime.documents(),
     ]);
-    return createDocumentsRouter(library, documents,
-      (...events) => runtime.audit().then((store) => store.record(...events)));
+    return createDocumentsRouter(library, documents);
   }),
 );
+api.use("/source-workspaces", lazyRouter(async () => (await import("./routes/sourceWorkspaces"))
+  .createSourceWorkspacesRouter(await runtime.sources())));
 api.use(
   "/sources",
   lazyRouter(async () => (await import("./routes/legalLibrary"))

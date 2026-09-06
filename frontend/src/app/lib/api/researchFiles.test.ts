@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   actOnResearchFile,
+  bindWorkspaceView,
   createResearchFile,
   getResearchItems,
-  promoteChatResearch,
   runResearchFileQuery,
 } from "@/app/lib/api/researchFiles";
 import {
@@ -17,33 +17,32 @@ afterEach(() => vi.unstubAllGlobals());
 const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
 
 describe("research file API", () => {
-  it("creates a normal Library Markdown document", async () => {
-    const fetchMock = vi.fn(async () => json({ id: "file-1", filename: "Fairness.research.md",
-      file_type: "md", project_id: null, pdf_storage_path: null, size_bytes: 1, page_count: null,
-      created_at: null, current_version_id: "version-1" }));
+  it("creates a Sources workspace through the workspace application", async () => {
+    const fetchMock = vi.fn(async () => json({ document: { id: "file-1", filename: "Fairness.research.md" },
+      versionId: "version-1", workingRevision: 0 }));
     vi.stubGlobal("fetch", fetchMock);
-    await expect(createResearchFile({ title: "Fairness" }))
+    await expect(createResearchFile({ title: "Fairness", projectId: "project-1" }))
       .resolves.toMatchObject({ versionId: "version-1", workingRevision: 0 });
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/library/files/documents");
-    const body = fetchMock.mock.calls[0][1]?.body as FormData;
-    expect((body.get("file") as File).name).toBe("Fairness.research.md");
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/source-workspaces");
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ title: "Fairness", projectId: "project-1" });
   });
 
-  it("version-checks edits, queries, and chat saves on the document", async () => {
+  it("version-checks edits and queries, and binds views to the workspace", async () => {
     const fetchMock = vi.fn(async () => json({})); vi.stubGlobal("fetch", fetchMock);
     await actOnResearchFile("file/1", "v1", 3, { type: "note", markdown: "Note" });
     await runResearchFileQuery("file/1", { versionId: "v2", workingRevision: 4,
       text: "fairness", syntax: "terms", target: "sources" });
-    await promoteChatResearch({ chatId: "chat/1", researchFileId: "file/1",
-      versionId: "v3", workingRevision: 5, includeQueries: true });
+    await bindWorkspaceView("file/1", { chatId: "chat/1", selection: { target: "sources", sourceIds: ["s1"] } });
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      "/api/single-documents/file%2F1/research/actions",
-      "/api/single-documents/file%2F1/research/query",
-      "/api/chat/chat%2F1/research-files/file%2F1/promote",
+      "/api/source-workspaces/file%2F1/actions",
+      "/api/source-workspaces/file%2F1/query",
+      "/api/source-workspaces/file%2F1/bind",
     ]);
-    expect(fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body)))
-      .map(({ version_id, working_revision }) => [version_id, working_revision]))
-      .toEqual([["v1", 3], ["v2", 4], ["v3", 5]]);
+    const bodies = fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
+    expect(bodies.slice(0, 2).map(({ version_id, working_revision }) => [version_id, working_revision]))
+      .toEqual([["v1", 3], ["v2", 4]]);
+    expect(bodies[1]).not.toHaveProperty("versionId");
+    expect(bodies[2]).toEqual({ chatId: "chat/1", selection: { target: "sources", sourceIds: ["s1"] } });
   });
 
   it("pages v2 parts without reconstructing them from the root file", async () => {
@@ -52,7 +51,7 @@ describe("research file API", () => {
     await getResearchItems("file/1", { kind: "passages",
       sourceId: "source/1", cursor: "next page", limit: 25 });
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "/api/single-documents/file%2F1/research/items?kind=passages&source_id=source%2F1&cursor=next+page&limit=25");
+      "/api/source-workspaces/file%2F1/items?kind=passages&source_id=source%2F1&cursor=next+page&limit=25");
   });
 
   it("carries the version head and revision through document writes", async () => {

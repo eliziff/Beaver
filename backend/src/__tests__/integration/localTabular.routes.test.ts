@@ -147,7 +147,7 @@ describe("account-free tabular reviews", () => {
     const extraction = completed.cells[0].content, calls = mocks.streamChatWithTools.mock.calls.length;
     const chats = await runtime.chats(),
       { createLegalEvidenceTurnState, registerLegalEvidence, legalEvidenceReceiptEvent } = await import("../../lib/chat/legalEvidence"),
-      { resolveChatFindings } = await import("../../lib/researchChat"), state = createLegalEvidenceTurnState(),
+      sources = await runtime.sources(), state = createLegalEvidenceTurnState(),
       chat = await chats.create(scope, { projectId: null, tabularReviewId: null, researchFileId: created.id }),
       answerMessageId = randomUUID();
     for (const receipt of extraction.evidence) registerLegalEvidence(state, receipt);
@@ -155,9 +155,8 @@ describe("account-free tabular reviews", () => {
     await chats.commitTurn(scope, chat.id, { expectedVersion: 0,
       userMessage: { id: randomUUID(), content: "What law applies?" },
       assistantMessage: { id: answerMessageId, content: [legalEvidenceReceiptEvent(state)!] } });
-    const selected = await resolveChatFindings(chats, documents, scope, {
-      researchFileId: created.id, chatId: chat.id, messageIds: [answerMessageId] }),
-      finding = selected.findings[0], imported = await app.fromFindings(scope, selected);
+    const imported = await sources.table(scope, created.id, { chatId: chat.id, messageIds: [answerMessageId] }),
+      finding = (await sources.findings(scope, created.id, { chatId: chat.id, offset: 0, limit: 10 })).items[0];
     expect(imported.needs_arrangement).toBe(true);
     expect(imported.id).not.toBe(table.body.id);
     expect((await app.detail(scope, imported.id)).cells).toEqual([]);
@@ -170,13 +169,12 @@ describe("account-free tabular reviews", () => {
     expect(detail.cells[0].content).toMatchObject({ claims: extraction.claims, evidence: extraction.evidence,
       summary: extraction.claims.map(({ text }: { text: string }) => text).join("\n\n") });
     expect(detail.review.scope_config).toMatchObject({ arrangement,
-      findings: { chatId: chat.id, answerIds: [`${answerMessageId}:answer:0`], sourceIds: [sourceId] } });
+      findings: { references: [finding.reference], sourceIds: [sourceId] } });
     const { tabularRepository } = await import("../../lib/relationalTabularRepository");
     expect((await tabularRepository.detail(scope, imported.id))?.cells[0])
       .toMatchObject({ status: "pending", content: null });
-    expect(await app.fromFindings(scope, await resolveChatFindings(chats, documents, scope, {
-      researchFileId: created.id, chatId: chat.id, messageIds: [answerMessageId], readOnly: true,
-    }))).toMatchObject({ id: imported.id, needs_arrangement: false });
+    expect(await sources.table(scope, created.id, { chatId: chat.id, messageIds: [answerMessageId] }))
+      .toMatchObject({ id: imported.id, needs_arrangement: false });
     expect(mocks.streamChatWithTools.mock.calls.length).toBe(calls);
   });
 
@@ -320,11 +318,11 @@ describe("account-free tabular reviews", () => {
     await waitForReview(api, created.body.id, (detail) =>
       detail.review.is_running === false && detail.cells[0]?.status === "done");
 
-    const workspace = await request(api).post(`/tabular-review/${created.body.id}/workspace`);
+    const workspace = await request(api).post("/source-workspaces/ensure").send({ tableId: created.body.id });
     expect(workspace.status).toBe(200);
-    expect(workspace.body.research_file_id).toEqual(expect.any(String));
-    const reopenedWorkspace = await request(api).post(`/tabular-review/${created.body.id}/workspace`);
-    expect(reopenedWorkspace.body).toEqual(workspace.body);
+    expect(workspace.body.document.id).toEqual(expect.any(String));
+    const reopenedWorkspace = await request(api).post("/source-workspaces/ensure").send({ tableId: created.body.id });
+    expect(reopenedWorkspace.body.document.id).toEqual(workspace.body.document.id);
 
     await closeStores?.();
     closeStores = null;
@@ -344,7 +342,7 @@ describe("account-free tabular reviews", () => {
       },
     });
 
-    expect(persisted.body.review.scope_config.research_file_id).toBe(workspace.body.research_file_id);
+    expect(persisted.body.review.scope_config.research_file_id).toBe(workspace.body.document.id);
     expect(persisted.body.cells[0].content.evidence).toEqual(expect.arrayContaining([
       expect.objectContaining({ provider: "library", stable_source_id: uploaded.body.id,
         version: uploaded.body.current_version_id }),

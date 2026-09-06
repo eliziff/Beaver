@@ -1,41 +1,37 @@
 import { ApplicationError, type ApplicationScope } from "./applicationError";
+import { z } from "zod";
 import type { ChatStore } from "./chatStore";
 import type { DocumentStore } from "./documentStore";
-import type { GroundedAnswer } from "./groundedAnswer";
-import type { AssistantEvent } from "./chat/assistantEvents";
-import type { ResearchOperationContext } from "./researchProvenance";
-import { legalEvidenceResourceReference, priorLegalEvidenceReceipts, priorLegalResearchQueryReceipts,
+import type { GroundedAnswer, GroundedResult } from "./groundedAnswer";
+import { legalEvidenceResourceReference, priorLegalEvidenceReceipts,
   type LegalEvidenceReceipt } from "./chat/legalEvidence";
-import { commitResearchFile, readResearchFile, researchQueryReceipt, researchQuerySources,
-  researchSourceResource, type ResearchFile } from "./researchFile";
+import { readResearchFile, researchSourceResource } from "./researchFile";
 
-/** Reuse durable transcript receipts; retries add references by identity. */
-export async function collectChatResearch(documents: DocumentStore, scope: ApplicationScope,
-  researchFileId: string, chatId: string, events: AssistantEvent[], current?: ResearchFile,
-  operation?: ResearchOperationContext) {
-  const evidence = priorLegalEvidenceReceipts(events), queries = priorLegalResearchQueryReceipts(events);
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const file = attempt === 0 && current ? current : await readResearchFile(documents, scope, researchFileId);
-    if (!file) throw new ApplicationError(404, "Research workspace not found");
-    const saved = await commitResearchFile(documents, scope, file, { type: "merge", evidence,
-      queries: queries.map(researchQueryReceipt), sources: researchQuerySources(queries), chats: [chatId] }, undefined, operation);
-    if (saved) return saved;
-  }
-  throw new ApplicationError(409, "The workspace changed. Reopen it to collect the saved chat results.");
-}
+const findingId = z.string().min(1).max(200);
+export const researchFindingReferenceSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("answer"), chatId: findingId, answerId: findingId,
+    resource: z.string().min(1).max(4_000) }).strict(),
+  z.object({ kind: z.literal("cell"), reviewId: findingId, rowId: z.string().min(1).max(4_000),
+    columnIndex: z.number().int().min(0).max(10_000) }).strict(),
+]);
+export type ResearchFindingReference = z.infer<typeof researchFindingReferenceSchema>;
+export type ResearchFinding = { reference: ResearchFindingReference; kind: "answer" | "passages" | "result";
+  sourceId: string; resource: string; question: { id: string; title: string; prompt: string; format?: string; tags?: string[] };
+  answer: GroundedResult; evidence: LegalEvidenceReceipt[];
+  origin: { chatId?: string; messageId?: string; subagentId?: string; reviewId?: string; rowId?: string; columnIndex?: number } };
 
 export async function resolveChatFindings(chats: ChatStore, documents: DocumentStore, scope: ApplicationScope,
-  input: { researchFileId: string; chatId: string; messageIds?: string[]; readOnly?: boolean }) {
+  input: { researchFileId: string; chatId: string; messageIds?: string[] }) {
   const [chat, rows, current] = await Promise.all([chats.get(scope, input.chatId),
     chats.transcript(scope, input.chatId), readResearchFile(documents, scope, input.researchFileId)]);
   if (!chat || !rows) throw new ApplicationError(404, "Chat not found");
-  if (!current || chat.research_file_id !== current.document.id)
-    throw new ApplicationError(400, "Open this chat in the workspace first");
-  const file = input.readOnly ? current : await collectChatResearch(documents, scope, input.researchFileId, chat.id,
-    rows.flatMap(({ content }) => Array.isArray(content) ? content : []), current),
+  if (!current || !current.state.chats?.includes(chat.id))
+    throw new ApplicationError(400, "This chat has not been saved in the workspace");
+  const file = current,
     sources = new Map(Object.values(file.state.sources).map((source) => [researchSourceResource(source.reference), source.id])),
     requested = input.messageIds && new Set(input.messageIds), found = new Set<string>(),
-    findings: Array<{ kind: "answer" | "passages"; sourceId: string; resource: string; question: { id: string; title: string; prompt: string };
+    findings: Array<{ reference: Extract<ResearchFindingReference, { kind: "answer" }>; kind: "answer" | "passages";
+      sourceId: string; resource: string; question: { id: string; title: string; prompt: string };
       answer: GroundedAnswer; evidence: LegalEvidenceReceipt[]; origin: { chatId: string; messageId: string; subagentId?: string } }> = [];
   let prompt = "Recorded answer";
   for (const row of rows) {
@@ -55,7 +51,8 @@ export async function resolveChatFindings(chats: ChatStore, documents: DocumentS
         const selected = claims.filter((claim) => claim.evidence_ids.some((id) =>
           legalEvidenceResourceReference(byId.get(id)!) === resource)),
           selectedIds = [...new Set(selected.flatMap(({ evidence_ids }) => evidence_ids))];
-        findings.push({ kind, sourceId, resource, question: { id: answerId,
+        findings.push({ reference: { kind: "answer", chatId: chat.id, answerId, resource },
+          kind, sourceId, resource, question: { id: answerId,
           title: kind === "passages" ? "Collected passages" : question.slice(0, 100), prompt: question },
           answer: { claims: selected.map(({ text, evidence_ids }) => ({ text, evidence_ids })) },
           evidence: selectedIds.map((id) => byId.get(id)!), origin: { chatId: chat.id, messageId: row.id,
@@ -75,6 +72,5 @@ export async function resolveChatFindings(chats: ChatStore, documents: DocumentS
   }
   if (requested && [...requested].some((id) => !found.has(id)))
     throw new ApplicationError(400, "A selected message has no recorded grounded answer");
-  if (!findings.length && !input.readOnly) throw new ApplicationError(400, "This chat has no collected passages or grounded answers to open as a table");
   return { file, findings };
 }

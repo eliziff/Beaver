@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { asyncRoute } from "../lib/asyncRoute";
 import { ChatStoreError, type ChatScope, type ChatStore } from "../lib/chatStore";
-import { ChatApplicationError, chatTurnInputSchema, researchFilePromotionBodySchema,
+import { ChatApplicationError, chatTurnInputSchema,
   type ChatApplication } from "../lib/chat/chatApplication";
 import { beginChatTurn, finishChatTurn } from "../lib/chatTurns";
 import type { ChatTurnQueue } from "../lib/chatTurnQueue";
@@ -13,6 +13,7 @@ import { safeErrorLog } from "../lib/safeError";
 import { jsonRecord } from "../lib/value";
 import { ApplicationError } from "../lib/applicationError";
 import { z } from "zod";
+import { researchSelectionSchema } from "../lib/researchSelection";
 
 const historyQuery = z.object({
   search_scope: z.enum(["all", "titles", "transcripts"]).default("all"),
@@ -153,6 +154,7 @@ export function createChatRouter(
       "A chat cannot belong to both a project and a tabular review");
     const chat = await (research.value ? application.create(scope, {
       projectId: project.value, tabularReviewId: review.value, researchFileId: research.value,
+      researchSelection: researchSelectionSchema.nullish().parse(req.body?.research_selection),
     }) : chats.create(scope, {
       projectId: project.value,
       tabularReviewId: review.value,
@@ -182,22 +184,6 @@ export function createChatRouter(
       return void res.status(404).json({ detail: "Chat not found" });
     }
     res.json({ stopped: await turns.cancel(scope, req.params.chatId) });
-  }));
-
-  router.post("/:chatId/table", route(async (req, res, scope) => {
-    const input = z.object({ research_file_id: z.string().uuid(),
-      message_ids: z.array(z.string().uuid()).min(1).max(50).optional() }).strict().parse(req.body);
-    const review = await application.table(scope, { chatId: req.params.chatId,
-      researchFileId: input.research_file_id, messageIds: input.message_ids });
-    res.json({ id: review.id, needs_arrangement: review.needs_arrangement });
-  }));
-  router.get("/:chatId/research-answers", route(async (req, res, scope) => {
-    const input = z.object({ research_file_id: z.string().uuid(), source_ids: z.string().optional(),
-      offset: z.coerce.number().int().nonnegative().default(0), limit: z.coerce.number().int().min(1).max(200).default(50),
-    }).parse(req.query);
-    res.json(await application.researchAnswers(scope, { chatId: req.params.chatId,
-      researchFileId: input.research_file_id, offset: input.offset, limit: input.limit,
-      sourceIds: input.source_ids?.split(",") }));
   }));
 
   router.post("/jobs/:jobId/stop", route(async (req, res, scope) => {
@@ -269,22 +255,6 @@ export function createChatRouter(
     } finally {
       if (claimedChatId) finishChatTurn(claimedChatId, controller);
     }
-  }));
-
-  router.post("/:chatId/research-files/:researchFileId/promote", route(async (
-    req, res, scope,
-  ) => {
-    const parsed = researchFilePromotionBodySchema.safeParse(req.body);
-    if (!parsed.success) return void res.status(400).json({
-      detail: parsed.error.issues[0]?.message ?? "Invalid research selection",
-    });
-    const file = await application.promoteResearchFile(scope, {
-      chatId: req.params.chatId,
-      researchFileId: req.params.researchFileId,
-      ...parsed.data,
-    });
-    res.json({ document_id: file.document.id, version_id: file.versionId,
-      working_revision: file.workingRevision });
   }));
 
   router.patch("/:chatId", route(async (req, res, scope) => {

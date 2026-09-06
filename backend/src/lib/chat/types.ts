@@ -1,5 +1,4 @@
 import type { LlmImage, LlmMessage } from "../llm/types";
-import type { TabularCell } from "../tabularStore";
 
 export type WorkflowStore = Map<string, {
   workflow_id: string;
@@ -16,15 +15,6 @@ export type DocIndex = Record<
     version_number?: number | null;
   }
 >;
-
-export type TabularCellStore = {
-  review_id: string;
-  app_url?: string;
-  columns: { index: number; name: string }[];
-  documents: { id: string; filename: string }[];
-  /** key: `${colIndex}:${docId}` */
-  cells: Map<string, Pick<TabularCell, "content" | "status">>;
-};
 
 export type ChatMessage = {
   role: string;

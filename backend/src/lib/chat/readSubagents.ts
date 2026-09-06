@@ -43,6 +43,12 @@ const assignmentSchema = {
       type: "array", minItems: 1, maxItems: 4, uniqueItems: true,
       items: { type: "string", enum: ["case", "legislation", "journal", "hansard"] },
     },
+    resources: { type: "array", minItems: 1, maxItems: 500, uniqueItems: true,
+      items: { type: "string", minLength: 1, maxLength: 4_000 },
+      description: "Narrow this reader to these exact resources from the current selection." },
+    evidence_ids: { type: "array", minItems: 1, maxItems: 5_000, uniqueItems: true,
+      items: { type: "string", minLength: 1, maxLength: 200 },
+      description: "Narrow this reader to these original passages within the current selection." },
   },
   required: ["task", "scope"],
   additionalProperties: false,
@@ -164,6 +170,8 @@ export function readSubagentAssignment(call: NormalizedToolCall): ReadSubagentAs
       source_types: strings(call.input.source_types).filter((item) =>
         ["case", "legislation", "journal", "hansard"].includes(item)),
     }),
+    ...(Array.isArray(call.input.resources) && { resources: strings(call.input.resources) }),
+    ...(Array.isArray(call.input.evidence_ids) && { evidence_ids: strings(call.input.evidence_ids) }),
   } : null;
 }
 

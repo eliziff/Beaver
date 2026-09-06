@@ -1,5 +1,7 @@
 import { readLegalSourceResource, readLibraryResearchWindow, readResearchWorkspace, restoreResearchEvidence,
-  oneHopLegalScope, sourceActivityCitations } from "../researchReader";
+  oneHopLegalScope, sourceActivityCitations, readResearchContext, readResearchContextInventory, researchResultFilter,
+  type ResearchReadContext } from "../researchReader";
+import { ApplicationError } from "../applicationError";
 import { researchMemoCitation } from "../researchMemo";
 import { randomUUID } from "node:crypto";
 import { sha256 } from "../hash";
@@ -64,6 +66,7 @@ import {
   createDirectSourceEvidence,
   createLibraryEvidence,
   legalEvidenceSourceReference,
+  legalEvidenceResourceReference,
   legalEvidenceProseIntegrityErrors,
   modelEvidencePassage,
   modelEvidencePreview,
@@ -116,8 +119,12 @@ import {
   type BeaverOutcome,
   type BeaverTool,
 } from "./toolRegistry";
-import { tabularTool } from "./tabularCells";
-import type { DocIndex, TabularCellStore, WorkflowStore } from "./types";
+import { tabularTool, type ResearchTableResolver } from "./tabularCells";
+import { readResearchFindings } from "./researchTableTool";
+import { researchFindingReferenceSchema } from "../researchChat";
+import type { DocIndex, WorkflowStore } from "./types";
+import type { SourceWorkspaceApplication } from "../sourceWorkspaceApplication";
+import type { ResearchOperationContext } from "../researchProvenance";
 import type { AuditStore } from "../audit";
 import type { AssistantEvent, ReadSubagentAssignment } from "./assistantEvents";
 import { safeErrorMessage } from "../safeError";
@@ -132,10 +139,10 @@ import { COURT_RECORD_PROFILE_BY_ID } from "../courtRecordContract";
 import type { FeaturePreferences } from "../userPreferences";
 import type { WorkProductApplication } from "../workProductApplication";
 import { WORK_PRODUCT_KINDS, type WorkProductKind } from "../workProduct";
-import { createResearchFileState, readResearchEvidenceParts,
-  readResearchFile, researchFileActionSchema, researchReferenceFromEvidence,
-  researchFileMarkdown, researchQueryReceipt, researchQuerySources,
-  researchSourceFromResource, researchSourceKey, researchSourceResource, saveResearchFile,
+import { readResearchEvidenceParts,
+  researchFileActionSchema, researchReferenceFromEvidence,
+  researchQueryReceipt, researchQuerySources,
+  researchSourceFromResource, researchSourceKey, researchSourceResource,
   type ResearchEvidence, type ResearchFile, type ResearchFileAction, type ResearchQueryReceipt } from "../researchFile";
 import { researchCaptureRuleSchema, runResearchFileQuery } from "../researchFileQuery";
 import { COURT_RECORD_TOOL_PROPERTIES, courtRecordResult,
@@ -213,7 +220,7 @@ const documentOperationTool = (research = true): Tool & BeaverToolPolicy => ({
       "{type:'save'} with top-level evidence_ids/query_ids saves verified evidence and returns " +
       "saved:[{evidence_id,source_id}] for annotation; " +
       "Workspace queries save automatically; use save for search_sources query_ids. " +
-      "{type:'query',text,syntax:'literal'|'terms',target:'sources'|'passages',sourceIds?,labelIds?,unlabelled?,limit?,after?}; follow coverage.next_after with the same query until null; limit is 25 unless rules capture results into the file; " +
+      "{type:'query',text,syntax:'literal'|'terms',target:'sources'|'passages',sourceIds?,labelIds?,evidenceIds?,members?,unlabelled?,limit?,after?}; members are {sourceId,evidenceIds?}, refined by other filters. Follow coverage.next_after with the same query until null; limit is 25 unless rules capture results into the file; " +
       "query may instead use rules:[{phrase,direction:'before'|'after',unit:'sentence'|'line'|'paragraph'|'chars',chars?,slot}] where slot is a returned highlight label_id, and conflict; rules also support after; incomplete coverage is never exhaustive; " +
       "{type:'label',name,definition?,parentId?,color?:'#RRGGBB',order?,scope:'source'|'highlight'} creates a label: omit id, " +
       "then use returned label_id for child parentId and later labelIds; supply id only to edit; " +
@@ -1775,6 +1782,9 @@ type AssistantToolsDependencies = {
   userId: string;
   userEmail?: string;
   documents: DocumentStore;
+  sources?: SourceWorkspaceApplication;
+  researchContext?: ResearchReadContext;
+  operation?: ResearchOperationContext;
   library: LibraryStore;
   projects: ProjectStore;
   workProducts: Pick<WorkProductApplication, "create" | "get" | "list" | "resolve">;
@@ -1805,8 +1815,7 @@ type AssistantToolsDependencies = {
   timeZone?: string;
   scope: "main" | "reader";
   readerAssignment?: ReadSubagentAssignment;
-  tabular?: TabularCellStore;
-  resolveTabular?: (reviewId: string) => Promise<TabularCellStore | null>;
+  resolveTabular?: ResearchTableResolver;
   documentNames?: ReadonlyMap<string, string>;
   docIndex?: DocIndex;
   resolveArtifact(value: string): string | undefined;
@@ -1835,6 +1844,9 @@ export function assistantTools<Context extends {
     editMode = "manual",
     timeZone,
     documents,
+    sources,
+    researchContext,
+    operation: researchOperation,
     library,
     projects,
     workProducts,
@@ -1855,7 +1867,6 @@ export function assistantTools<Context extends {
     workflows,
     scope: turnScope,
     readerAssignment,
-    tabular,
     resolveTabular,
     documentNames,
     docIndex,
@@ -1878,56 +1889,52 @@ export function assistantTools<Context extends {
     const source = legalEvidenceSourceReference(receipt);
     if (source) knownSources.set(researchSourceResource(source), source);
   }
-  const persistGenerated = async (
-    filename: string,
-    bytes: Buffer,
-    provenance?: DocumentProvenance,
-  ) => {
-    const document = await documents.create(scope, {
-      filename,
-      fileType: filename.slice(filename.lastIndexOf(".") + 1).toLowerCase(),
-      bytes,
-      projectId: matterId,
-      libraryKind: "file",
-      provenance: provenance?.actor === "assistant" && turnId
-        ? { ...provenance, turnId } : provenance,
-    });
+  const publishGenerated = (document: DocumentRecord, workingRevision = 0) => {
     allowedDocumentIds?.add(document.id);
     knownDocumentNames.set(document.id, document.filename);
     turnEditState?.set(document.id, { versionId: document.current_version_id,
-      workingRevision: 0, parentVersionId: document.current_version_id,
-      turnVersionId: document.current_version_id });
-    if (filename.endsWith(".research.md") && onResearchWorkspace) {
-      onMutationCommitted();
-      const saved = await onResearchWorkspace(document.id, legalEvidenceState);
-      if (saved) turnEditState?.set(document.id, { versionId: saved.versionId, workingRevision: saved.workingRevision,
-        parentVersionId: saved.versionId, turnVersionId: saved.versionId });
-    }
-    return artifactResult({
-      type: "document_artifact",
-      action: "created",
-      document_id: document.id,
-      version_id: document.current_version_id,
-      version_number: document.active_version_number,
-      filename: document.filename,
-      download_url: `/api/single-documents/${encodeURIComponent(document.id)}/file?version_id=${encodeURIComponent(document.current_version_id)}`,
-    });
+      workingRevision, parentVersionId: document.current_version_id, turnVersionId: document.current_version_id });
+    return artifactResult({ type: "document_artifact", action: "created", document_id: document.id,
+      version_id: document.current_version_id, version_number: document.active_version_number, filename: document.filename,
+      download_url: `/api/single-documents/${encodeURIComponent(document.id)}/file?version_id=${encodeURIComponent(document.current_version_id)}` });
   };
+  const persistGenerated = async (filename: string, bytes: Buffer, provenance?: DocumentProvenance) =>
+    publishGenerated(await documents.create(scope, { filename,
+      fileType: filename.slice(filename.lastIndexOf(".") + 1).toLowerCase(), bytes,
+      projectId: matterId, libraryKind: "file", provenance: provenance?.actor === "assistant" && turnId
+        ? { ...provenance, turnId } : provenance }));
   const coding: AssistantToolRun = async (call, args, signal, progress) => {
     const requested = trimmed(args.file_path);
+    if (call.name === "Read" && requested === "selection") return researchContext?.subjects
+      ? readResearchContextInventory(researchContext, { offset: Number(args.offset) || 1, limit: Number(args.limit) || 20 })
+      : fail("No research scope is selected");
+    if (call.name === "Read" && requested === "findings") {
+      if (!sources || !researchContext?.workspace) return fail("Open a Sources workspace to read its findings");
+      const reference = args.section ? researchFindingReferenceSchema.parse(JSON.parse(String(args.section))) : undefined,
+        offset = Math.max(0, Math.trunc(Number(args.offset) || 1) - 1), limit = Math.max(1, Math.trunc(Number(args.limit) || (reference ? 1 : 20)));
+      return readResearchFindings({ sources, scope, workspaceId: researchContext.workspace.documentId,
+        ...(researchContext.restricted ? { subjects: researchContext.subjects ?? [] } : {}) }, {
+        reference, ...(args.pattern ? { evidence_id: String(args.pattern) } : {}),
+        ...(reference ? { claim_offset: offset, claim_limit: Math.min(10, limit), text_offset: Number(args.start_char) || 0 }
+          : { offset, limit: Math.min(50, limit) }),
+      });
+    }
     if (call.name === "Read" && legalEvidenceState) {
+      const inScope = researchResultFilter(researchContext), permittedEvidence = [...legalEvidenceState.evidence.values()]
+        .filter(({ receipt }) => inScope({ resource: legalEvidenceResourceReference(receipt) ?? "", evidence: [receipt] }));
       if (requested === "evidence" || requested === "queries") {
         const offset = Math.max(0, Number(args.offset ?? 1) - 1), limit = Math.min(50, Number(args.limit ?? 20));
         const values = requested === "evidence"
-          ? [...legalEvidenceState.evidence.values()].slice(offset, offset + limit)
+          ? permittedEvidence.slice(offset, offset + limit)
             .map(({ receipt }) => { const { preview: _preview, ...entry } = modelEvidencePreview(receipt); return entry; })
           : [...legalEvidenceState.queries.values()].slice(offset, offset + limit).map(modelResearchQueryPreview);
-        const total = requested === "evidence" ? legalEvidenceState.evidence.size : legalEvidenceState.queries.size;
+        const total = requested === "evidence" ? permittedEvidence.length : legalEvidenceState.queries.size;
         return result({ total, items: values, next_offset: offset + limit < total ? offset + limit + 1 : null });
       }
       if (/^e_/u.test(requested)) {
         const entry = readPriorLegalEvidence(legalEvidenceState, requested);
-        return entry ? result(modelEvidencePassage(entry.receipt)) : fail("Evidence unavailable or invalid");
+        return entry && inScope({ resource: legalEvidenceResourceReference(entry.receipt) ?? "", evidence: [entry.receipt] })
+          ? result(modelEvidencePassage(entry.receipt)) : fail("Evidence unavailable in the selected scope");
       }
       if (/^q_/u.test(requested)) {
         const query = legalEvidenceState.queries.get(requested);
@@ -1937,6 +1944,28 @@ export function assistantTools<Context extends {
             ? offset + limit + 1 : null }) : fail("Search receipt not found");
       }
     }
+    const reference = call.name === "Read" ? parseResourceReference(requested) : null;
+    const workspaceId = reference?.kind === "document" &&
+      (reference.documentId === researchContext?.workspace?.documentId ||
+        knownDocumentNames.get(reference.documentId)?.toLowerCase().endsWith(".research.md")) ? reference.documentId : undefined;
+    if (workspaceId && sources) {
+      const saved = await sources.get(scope, workspaceId);
+      if (saved) {
+        if (researchContext && !researchContext.restricted) Object.assign(researchContext,
+          await sources.context(scope, saved.document.id));
+        turnEditState?.set(saved.document.id, { versionId: saved.versionId, workingRevision: saved.workingRevision,
+          parentVersionId: saved.versionId, turnVersionId: turnEditState?.get(saved.document.id)?.turnVersionId });
+        return readResearchWorkspace(documents, scope, saved, args, signal, legalEvidenceState, researchContext);
+      }
+    }
+    if (researchContext?.subjects && (reference?.kind === "source" || reference?.kind === "document") && !workspaceId) {
+      const selected = researchContext.subjects?.filter(({ resource }) => resource === requested) ?? [];
+      if (selected.some(({ evidence }) => evidence !== undefined) || !args.locator_kind && !args.section && !args.pattern && !args.references &&
+          args.mode !== "drafting" && args.mode !== "redline") return readResearchContext(documents, scope, researchContext,
+        { resource: requested, offset: Number(args.offset) || 1, start_char: Number(args.start_char) || 0,
+          limit: Number(args.limit) || 100, signal, callId: call.id, reader: readerAssignment });
+      if (researchContext.restricted && !selected.length) return fail("Source is outside the selected research scope");
+    }
     const sourceRead = await readLegalSourceResource(call, args, {
       userId,
       signal,
@@ -1944,19 +1973,6 @@ export function assistantTools<Context extends {
       knownSources,
     });
     if (sourceRead) return sourceRead;
-    const reference = call.name === "Read"
-      ? parseResourceReference(trimmed(args.file_path)) : null;
-    if (reference?.kind === "document" &&
-        knownDocumentNames.get(reference.documentId)?.toLowerCase().endsWith(".research.md")) {
-      const saved = await readResearchFile(documents, scope, reference.documentId);
-      if (saved?.versionId === reference.versionId) {
-        if (!turnEditState?.has(saved.document.id)) turnEditState?.set(saved.document.id, {
-          versionId: saved.versionId, workingRevision: saved.workingRevision,
-          parentVersionId: saved.versionId,
-        });
-        return readResearchWorkspace(documents, scope, saved, args, signal, legalEvidenceState);
-      }
-    }
     const output = await runCodingShapeCall(
       call,
       args,
@@ -2239,13 +2255,14 @@ export function assistantTools<Context extends {
   const updateResearch = documentTool(async (call, input, documentId, signal) => {
     const command = objectRecord(input.research_action);
     if (!command) return fail("research requires research_action");
-    const operation = { audit, executor: "assistant" as const, model, turnId,
-      callId: call.id, chatId, reviewId: tabular?.review_id };
+    if (!sources) return fail("Sources workspace operations are unavailable");
+    const operation = { audit, executor: "assistant" as const, model, turnId, chatId,
+      ...researchOperation, callId: call.id };
     const edit = turnEditState?.get(documentId), versionId = edit?.versionId ?? trimmed(input.version_id);
     if (!edit) return fail("Read the research file before changing it");
     if (command.type === "memo") {
       const title = trimmed(command.title), markdown = typeof command.markdown === "string"
-        ? command.markdown.trim() : "", research = await readResearchFile(documents, scope, documentId);
+        ? command.markdown.trim() : "", research = await sources.get(scope, documentId);
       if (!title || title.length > 200 || !markdown || markdown.length > 250_000)
         return fail("memo requires a title and Markdown content");
       if (!research || research.versionId !== versionId ||
@@ -2278,10 +2295,9 @@ export function assistantTools<Context extends {
         .replace(/\[@([^\]\n]+)\]/gu, (_marker, id: string) => links.get(id)!);
       const memo = `${command.mode === "append" && research.state.note ? `${research.state.note}\n\n` : ""}` +
         `## ${title.replace(/[\r\n#]/gu, " ")}\n\n${body}`;
-      const next = await saveResearchFile(documents, scope, documentId, versionId, edit.workingRevision,
-        { type: "note", markdown: memo, expectedMarkdown: research.state.note },
-        { turnVersionId: edit.turnVersionId, turnId }, operation);
-      if (!next) return fail("Version conflict");
+      const { file: next } = await sources.update(scope, documentId, { versionId, workingRevision: edit.workingRevision,
+        action: { type: "note", markdown: memo, expectedMarkdown: research.state.note } },
+      { operation, assistant: { turnVersionId: edit.turnVersionId, turnId }, signal });
       turnEditState?.set(documentId, { versionId: next.versionId, workingRevision: next.workingRevision,
         parentVersionId: edit.parentVersionId, turnVersionId: next.versionId });
       return mutationResult({ ok: true, action: "updated", document_id: next.document.id,
@@ -2295,7 +2311,7 @@ export function assistantTools<Context extends {
     if (command.type === "query") {
       const rules = command.rules === undefined ? undefined
         : researchCaptureRuleSchema.array().max(50).parse(command.rules);
-      const queried = await runResearchFileQuery(documents, scope, documentId,
+      const queried = await sources.query(scope, documentId,
         { versionId, workingRevision: edit.workingRevision, text: trimmed(command.text),
         syntax: command.syntax === "literal" ? "literal" : "terms",
         target: command.target === "passages" ? "passages" : "sources",
@@ -2305,12 +2321,15 @@ export function assistantTools<Context extends {
         sourceIds: Array.isArray(command.sourceIds)
           ? command.sourceIds.filter((id): id is string => typeof id === "string")
           : undefined,
+        evidenceIds: Array.isArray(command.evidenceIds) ? command.evidenceIds.map(trimmed).filter(Boolean) : undefined,
+        members: command.members as import("../researchSelection").ResearchSelection["members"],
         labelIds: Array.isArray(command.labelIds)
           ? command.labelIds.filter((id): id is string => typeof id === "string") : [],
         unlabelled: command.unlabelled === true || undefined,
         rules, conflict: command.conflict === "prompt" || command.conflict === "longer" ||
           command.conflict === "shorter" || command.conflict === "append" ? command.conflict : "first" },
-          { signal, operation, actor: { model, callId: call.id }, priorQueries: legalEvidenceState?.queries.values(),
+          { signal, operation, context: researchContext?.workspace?.documentId === documentId ? researchContext : undefined,
+            actor: { model, callId: call.id }, priorQueries: legalEvidenceState?.queries.values(),
             assistant: { turnVersionId: edit.turnVersionId, turnId } });
       next = queried.file; queryId = queried.receipt.query_id; matched = queried.evidence;
       if (command.target === "passages") matched = (await restoreResearchEvidence(
@@ -2337,7 +2356,7 @@ export function assistantTools<Context extends {
         action = researchFileActionSchema.parse(command);
         if (action.type === "passage") throw new Error("Save verified evidence_ids instead");
         if (action.type === "label") {
-          if (action.id && !(await readResearchFile(documents, scope, documentId))
+          if (action.id && !(await sources.get(scope, documentId))
             ?.state.labels[action.id]) throw new Error("Unknown label ID");
           if (!action.id) action = { ...action, id: randomUUID() };
         }
@@ -2356,14 +2375,14 @@ export function assistantTools<Context extends {
         }
       }
       performed = action;
-      next = await saveResearchFile(documents, scope, documentId, versionId,
-        edit.workingRevision, action,
-        { turnVersionId: edit.turnVersionId, turnId }, operation);
-      if (!next) return fail("Version conflict");
+      next = (await sources.update(scope, documentId, { versionId, workingRevision: edit.workingRevision, action },
+        { operation, assistant: { turnVersionId: edit.turnVersionId, turnId }, signal })).file;
       checkpointed = next.versionId !== versionId ||
         next.workingRevision !== edit.workingRevision;
     }
     const preview = matched.slice(0, 25);
+    if (researchContext?.workspace?.documentId === documentId && !researchContext.restricted)
+      Object.assign(researchContext, await sources.context(scope, documentId));
     if (checkpointed) turnEditState?.set(documentId, { versionId: next.versionId,
       workingRevision: next.workingRevision,
       parentVersionId: edit.parentVersionId, turnVersionId: next.versionId });
@@ -2407,10 +2426,12 @@ export function assistantTools<Context extends {
         if (objectRecord(input.research_action)?.type === "create") {
           const title = trimmed(objectRecord(input.research_action)?.title);
           if (!title || title.length > 200) return Promise.resolve(fail("create requires a title"));
-          const filename = safeGeneratedFilename(title, "research.md");
-          return persistGenerated(filename,
-            Buffer.from(researchFileMarkdown(title, createResearchFileState())), {
-              schemaVersion: 1, actor: "assistant", action: "created" });
+          if (!sources) return fail("Sources workspace operations are unavailable");
+          let file = await sources.create(scope, { title, projectId: matterId },
+            { audit, executor: "assistant", model, turnId, chatId, ...researchOperation, callId: call.id });
+          onMutationCommitted();
+          if (onResearchWorkspace) file = await onResearchWorkspace(file.document.id, legalEvidenceState) ?? file;
+          return publishGenerated(file.document, file.workingRevision);
         }
         return updateResearch(call, input, signal);
       default:
@@ -2875,8 +2896,9 @@ export function assistantTools<Context extends {
     activity: policy.activity ?? schema.activity ?? ((input) =>
       assistantToolActivityLabel(schema.name, input) ?? null),
     async execute(input, context, signal, call) {
-      const output = await run(call, input, signal, (label) =>
-        context.updateActivity?.(call.id, label));
+      let output: AssistantOutcome;
+      try { output = await run(call, input, signal, (label) => context.updateActivity?.(call.id, label)); }
+      catch (error) { if (error instanceof ApplicationError) return present(fail(error.message)); throw error; }
       if (schema.name === "Read" && output.evidence?.length) {
         const label = assistantReadEvidenceActivityLabel(
           output.evidence,
@@ -2987,8 +3009,8 @@ export function assistantTools<Context extends {
     definition(COMPARE_VERSIONS_TOOL, compare),
   ];
 
-  if ((tabular || resolveTabular) && legalEvidenceState) {
-    tools.splice(5, 0, tabularTool(tabular, legalEvidenceState, resolveTabular));
+  if (resolveTabular) {
+    tools.splice(5, 0, tabularTool(resolveTabular, researchContext));
   }
   return tools;
 }

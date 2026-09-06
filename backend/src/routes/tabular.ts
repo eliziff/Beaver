@@ -36,8 +36,6 @@ export function createTabularRouter(app: TabularApplication) {
   }));
   router.get("/:reviewId/people", json((req, res) => app.people(scope(res),
     parse(tabularDtos.id, req.params.reviewId))));
-  router.post("/:reviewId/workspace", json((req, res) => app.workspace(scope(res),
-    parse(tabularDtos.id, req.params.reviewId))));
   router.get("/:reviewId/history", json((req, res) => app.history(scope(res),
     parse(tabularDtos.id, req.params.reviewId), parse(tabularDtos.history, req.query))));
   router.post("/:reviewId/changes", json((req, res) => app.change(scope(res),

@@ -210,17 +210,17 @@ export function TRTable({
                             </div>}
                         <div
                             data-tr-row
-                            className={`group flex min-w-full ${rowBg}`}
+                            className={`group flex min-h-20 min-w-full ${rowBg}`}
                         >
                             <div
-                                className={`sticky left-0 z-[60] ${DOC_COL_W} border-b border-r border-gray-200 py-2 pl-4 pr-2 text-xs text-gray-800 flex items-center ${stickyRowBg} ${isSelected ? "" : APP_SURFACE_GROUP_HOVER_CLASS}`}
+                                className={`sticky left-0 z-[60] ${DOC_COL_W} border-b border-r border-gray-200 py-3 pl-4 pr-3 text-sm leading-5 text-gray-800 flex items-center ${stickyRowBg} ${isSelected ? "" : APP_SURFACE_GROUP_HOVER_CLASS}`}
                             >
                                 <TableSelectionCheckbox
                                     aria-label={`Select ${doc.filename}`}
                                     checked={isSelected}
                                     onChange={() => selection.toggle(doc.id)} />
                                 <span
-                                    className="line-clamp-1"
+                                    className="line-clamp-2 [overflow-wrap:anywhere]"
                                     title={doc.filename}
                                 >
                                     {doc.filename}
@@ -236,7 +236,7 @@ export function TRTable({
                                 return (
                                     <div
                                         key={col.index}
-                                        className={`${COL_W} border-b border-r border-gray-200 ${isHighlighted ? "bg-red-100" : ""}`}                                    >
+                                        className={`${COL_W} border-b border-r border-gray-200 ${isHighlighted ? "bg-amber-50 ring-2 ring-inset ring-amber-600" : ""}`}>
                                         {cell && (
                                             <TabularCellComponent
                                                 cell={cell}

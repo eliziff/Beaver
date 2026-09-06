@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getResearchItems } from "@/app/lib/api/researchFiles";
 import { researchLabelPath, type ResearchChange, type ResearchFile, type ResearchLabel } from "@/app/lib/researchFiles";
 import { actOnTabularChange, getTabularHistory, type TabularDocument, type TabularReview } from "@/app/lib/api/tabular";
@@ -60,18 +60,20 @@ type Props = { historyOpen: boolean; onCloseHistory: () => void } &
   | { review: TabularReview; documents: TabularDocument[]; onChanged: () => Promise<void>; file?: never; mutations?: never });
 export function ResearchChanges({ file, mutations, review, documents, onChanged, historyOpen, onCloseHistory }: Props) {
   const [reviewing, setReviewing] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState("");
-  const [undo, setUndo] = useState<string | null>(null);
+  const [undo, setUndo] = useState<string | null>(null), [dismissed, setDismissed] = useState<string | null>(null);
   const pending = file?.state.proposals ?? review?.proposals ?? [], open = historyOpen || reviewing;
+  const historyKey = file?.state.history?.sha256 ?? `${review?.updated_at}:${review?.history_count}`, firstKey = useRef(historyKey);
   const pages = usePagedChains<ResearchChange>(async (_key, cursor, signal) => {
     if (file) { const page = await getResearchItems(file.document.id, { kind: "history", cursor, limit: 50 }, signal);
       return { ...page, items: page.items.flatMap((item) => item.kind === "change" ? [item.value] : []) }; }
     const page = await getTabularHistory(review!.id, Number(cursor ?? 0), signal);
     return { items: page.items, next_cursor: page.next_offset === null ? null : String(page.next_offset) };
-  }, [file?.document.id, review?.id], "history", open,
-    { history: file?.state.history?.sha256 ?? `${review?.updated_at}:${review?.history_count}` });
+  }, [file?.document.id, review?.id], "history", open || historyKey !== firstKey.current, { history: historyKey });
   const chain = pages.chains.history, changes = chain?.items ?? [],
     visible = reviewing && !historyOpen ? changes.filter(({ status }) => status === "pending") : changes,
-    undone = new Set(changes.flatMap(({ undoOf }) => undoOf ?? []));
+    undone = new Set(changes.flatMap(({ undoOf }) => undoOf ?? [])),
+    latest = changes[0], assistantChange = latest && latest.executor !== "human" && latest.status === "applied" &&
+      !latest.undoOf && !undone.has(latest.id) && dismissed !== latest.id ? latest : null;
   useEffect(() => {
     if (reviewing && !historyOpen && visible.length < pending.length && chain?.nextCursor && !chain.loading && !chain.error)
       void pages.fetchPage("history", chain.nextCursor, true);
@@ -93,9 +95,13 @@ export function ResearchChanges({ file, mutations, review, documents, onChanged,
     {pending.length > 0 ? <div className="mb-2 flex shrink-0 items-center justify-between gap-2 border-b border-gray-200 pb-2 text-sm">
       <span>{pending.length} suggested {pending.length === 1 ? "change" : "changes"}</span>
       <Button variant="outline" size="compact" onClick={() => { setReviewing(true); setError(""); }}>Review</Button>
-    </div> : undo && <div className="mb-2 flex shrink-0 items-center justify-between gap-2 text-sm">
+    </div> : undo ? <div className="mb-2 flex shrink-0 items-center justify-between gap-2 text-sm">
       <span role="status">Changes accepted</span><Button variant="outline" size="compact" disabled={busy}
         onClick={() => void run("undo", undo)}>Undo</Button>
+    </div> : assistantChange && <div className="mb-2 flex shrink-0 items-center gap-2 border-b border-gray-200 pb-2 text-sm">
+      <span role="status" className="min-w-0 flex-1 truncate" title={assistantChange.title}>Assistant: {assistantChange.title}</span>
+      <Button variant="outline" size="compact" disabled={busy} onClick={() => void run("undo", assistantChange.id)}>Undo</Button>
+      <Button variant="ghost" size="compact" aria-label="Dismiss" onClick={() => setDismissed(assistantChange.id)}>×</Button>
     </div>}
     {!open && error && <p role="alert" className="mb-2 text-sm text-red-700">{error}</p>}
     <Modal open={open} onClose={close} size="lg" breadcrumbs={[historyOpen ? `${file ? "Workspace" : "Table"} history` : "Review changes"]}

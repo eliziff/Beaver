@@ -72,9 +72,10 @@ function model(execute: (submit: (args: Record<string, unknown>) => Promise<unkn
   read: (args: Record<string, unknown>) => Promise<unknown>, evidenceId: string) => Promise<void>): typeof runChatTurn {
   return async (options) => {
     const state = options.evidenceState ?? createLegalEvidenceTurnState(),
-      tools = options.createTools(state, "main"), signal = new AbortController().signal;
+      context = { evidence: state, addEvent() {}, operation: { executor: "assistant" as const, model: options.model } },
+      tools = options.createTools(state, "main", context), signal = new AbortController().signal;
     const run = (name: string, args: Record<string, unknown>) => tools.find((tool) => tool.name === name)!.execute(
-      args, { evidence: state, addEvent() {} }, signal, { id: name, name, input: args });
+      args, context, signal, { id: name, name, input: args });
     await execute((args) => run("submit_extraction", args), (args) => run("Read", args), [...state.evidence.keys()][0]);
     return { status: "complete", fullText: "", citations: [], events: [], evidence: state };
   };
@@ -85,22 +86,23 @@ const answer = (index: number, value: unknown, evidenceId: string) => ({ column_
 const settings = async () => ({ title_model: "codex:gpt-5.6", tabular_model: "codex:gpt-5.6",
   last_selected_chat_model: null, last_selected_reasoning_effort: null,
   legal_research_us: true, api_keys: {} as UserApiKeys });
+const sources = async () => { throw new Error("This unit fixture has no Sources binding"); };
 const projects = { get: vi.fn(async () => ({ id: "project" })) } as never;
 
 describe("TabularApplication", () => {
   it("maps committed, conflict, and missing writes explicitly", async () => {
-    const committed = createTabularApplication(port(), documentStore(), projects, { settings });
+    const committed = createTabularApplication(port(), documentStore(), projects, { settings, sources });
     await expect(committed.update(scope, "review", {
       title: "Changed", workflow_id: "document-review",
     })).resolves.toMatchObject({ title: "Changed", workflow_id: "document-review" });
 
     const conflict = createTabularApplication(port({ update: vi.fn(async () =>
-      ({ status: "conflict", value: review })) }), documentStore(), projects, { settings });
+      ({ status: "conflict", value: review })) }), documentStore(), projects, { settings, sources });
     await expect(conflict.update(scope, "review", { title: "Changed" }))
       .rejects.toMatchObject({ status: 409 });
 
     const missing = createTabularApplication(port({ detail: vi.fn(async () => null) }),
-      documentStore(), projects, { settings });
+      documentStore(), projects, { settings, sources });
     await expect(missing.update(scope, "review", { title: "Changed" }))
       .rejects.toMatchObject({ status: 404 });
   });
@@ -119,7 +121,7 @@ describe("TabularApplication", () => {
     const done = { ...cell, status: "done" as const, content };
     const app = createTabularApplication(port({ detail: vi.fn(async () => ({
       review, cells: [done],
-    })) }), documentStore(), projects, { settings });
+    })) }), documentStore(), projects, { settings, sources });
     const file = await app.export(scope, "review");
     const XLSX = await import("xlsx");
     const workbook = XLSX.read(file.bytes, { type: "buffer" });
@@ -133,7 +135,7 @@ describe("TabularApplication", () => {
   it("rejects oversized extraction files before invoking a model", async () => {
     const runTurn = vi.fn() as unknown as typeof import("../chat/turnEngine").runChatTurn;
     const app = createTabularApplication(port(),
-      documentStore(Buffer.alloc(25 * 1024 * 1024 + 1)), projects, { settings, runTurn });
+      documentStore(Buffer.alloc(25 * 1024 * 1024 + 1)), projects, { settings, sources, runTurn });
     await expect(app.runAgent(scope, { reviewId: "review", documentId: "document",
       columnIndex: 0, model: "codex:gpt-5.6" })).rejects.toMatchObject({ status: 413 });
     expect(runTurn).not.toHaveBeenCalled();
@@ -144,7 +146,7 @@ describe("TabularApplication", () => {
       values = ["Alberta", ["Alberta", "Canada"], 3.5, 12.5, "CAD 1000", ["CAD", "USD"], true, "2026-09-05", "High"],
       columns = formats.map((format, index) => ({ index, name: format, prompt: "Extract", format, tags: ["High", "Low"] }));
     const { repository, cells } = generated(columns);
-    const app = createTabularApplication(repository, documentStore(), projects, { settings,
+    const app = createTabularApplication(repository, documentStore(), projects, { settings, sources,
       runTurn: model(async (submit, _read, id) => {
         await submit(answer(2, "not a number", id));
         await submit(answer(7, "2026-02-31", id));
@@ -168,7 +170,7 @@ describe("TabularApplication", () => {
     const { repository, cells } = generated(columns), bytes = Buffer.from(Array.from({ length: 101 },
       (_, index) => `Line ${index + 1}`).join("\n"));
     const missing = { column_index: 0, value: null, flag: "grey", outcome: "not_found", claims: [] };
-    const app = createTabularApplication(repository, documentStore(bytes), projects, { settings,
+    const app = createTabularApplication(repository, documentStore(bytes), projects, { settings, sources,
       runTurn: model(async (submit, read) => {
         await submit(missing);
         expect(cells[0].status).toBe("generating");
@@ -188,7 +190,7 @@ describe("TabularApplication", () => {
       { ...cell, status: "done", content }, { ...cell, id: "cell1", column_index: 1 },
     ]);
     let requested = 1;
-    const app = createTabularApplication(repository, documentStore(), projects, { settings,
+    const app = createTabularApplication(repository, documentStore(), projects, { settings, sources,
       runTurn: model(async (submit, _read, id) => { await submit(answer(requested, "Alberta", id)); }) });
     await app.runAgent(scope, { reviewId: "review", documentId: "document" });
     expect(cells[0].content).toBe(content);

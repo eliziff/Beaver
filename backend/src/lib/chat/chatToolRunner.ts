@@ -1,7 +1,9 @@
 import { assistantTools, type WorkProductFocus } from "./assistantTools";
 import type { ChatToolContext } from "./turnEngine";
 import type { BeaverTool } from "./toolRegistry";
-import type { DocIndex, TabularCellStore, WorkflowStore } from "./types";
+import type { DocIndex, WorkflowStore } from "./types";
+import type { ResearchTableResolver } from "./tabularCells";
+import type { SourceWorkspaceApplication } from "../sourceWorkspaceApplication";
 import type { DraftingStyleSettings } from "../draftingStyle";
 import type { EditMode } from "../docxTrackedChanges";
 import type { DocumentStore } from "../documentStore";
@@ -44,10 +46,10 @@ export function createChatToolRunner(options: {
   allowedDocumentIds?: Set<string>;
   documentNames?: ReadonlyMap<string, string>;
   docIndex?: DocIndex;
-  tabular?: TabularCellStore;
-  resolveTabular?: (reviewId: string) => Promise<TabularCellStore | null>;
+  resolveTabular?: ResearchTableResolver;
   researchTables?: Pick<Parameters<typeof createResearchTableTool>[0], "application" | "getWorkspace">;
   documents: DocumentStore;
+  sources: SourceWorkspaceApplication;
   library: LibraryStore;
   projects: ProjectStore;
   workProducts: Pick<WorkProductApplication, "create" | "get" | "list" | "resolve">;
@@ -87,15 +89,18 @@ export function createChatToolRunner(options: {
   const createTools = (
     evidence: ChatToolContext["evidence"],
     scope: "main" | ReadSubagentAssignment,
+    context: ChatToolContext,
   ): BeaverTool<ChatToolContext>[] => {
     const turnState = scope === "main" ? main : state();
+    context.research ??= {};
     return [
       ...assistantTools<ChatToolContext>({
         userId: options.userId,
         scope: scope === "main" ? "main" : "reader",
         ...(scope === "main" ? {} : { readerAssignment: scope }),
-        tabular: options.tabular,
         resolveTabular: options.resolveTabular,
+        researchContext: context.research,
+        operation: context.operation,
         documentNames: options.documentNames,
         docIndex: options.docIndex,
         ...artifacts,
@@ -105,14 +110,20 @@ export function createChatToolRunner(options: {
         userEmail: options.userEmail,
         ...turnState,
         documents: options.documents,
+        sources: options.sources,
         library: options.library,
         projects: options.projects,
         workProducts: options.workProducts,
-        model: options.model,
+        model: context.operation.model ?? options.model,
         turnId: options.turnId,
         chatId: options.chatId,
         audit: options.audit,
-        onResearchWorkspace: scope === "main" ? options.onResearchWorkspace : undefined,
+        onResearchWorkspace: scope === "main" ? async (documentId, state) => {
+          const file = await options.onResearchWorkspace?.(documentId, state);
+          if (file) Object.assign(context.research!, await options.sources.context(
+            { userId: options.userId, userEmail: options.userEmail }, file.document.id));
+          return file ?? null;
+        } : undefined,
         authorities: options.authorities,
         authoritiesId: options.authoritiesId,
         authoritiesRevision: options.authoritiesRevision,
