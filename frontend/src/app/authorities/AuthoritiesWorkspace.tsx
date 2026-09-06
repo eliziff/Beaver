@@ -38,6 +38,8 @@ import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesProduct,
 import { deriveAuthorityProcedure, tabLabel } from "../../../../shared/authorities-order.mjs";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
+import { AuthoritiesHighlights } from "./AuthoritiesHighlightEditor";
+
 type WorkspaceTab = "automatic" | "manual" | "drafts";
 type StartPreferences = Pick<AuthoritiesBuildSettings, "sourceMode" | "passageMarking"> & {
   profileId: AuthoritiesProfileId;
@@ -664,12 +666,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       ? (slot, supplementId) => openLibrary({ kind: "book", slot, supplementId }) : undefined}
     sourceLabel={sourceLabel} onBuild={build} onCancel={() => buildRequest.current?.abort()}
     onDownload={download} />;
-  const highlightPanel = draft && (stage === "highlights" || stage === "build") && <>
-    <HighlightReview draft={draft} tabs={authorityTabs} busy={busy} onAction={act} />
-    {stage === "highlights" && <div className="mt-3 flex justify-end">
-      <Button disabled={busy} onClick={() => act({ type: "set-stage", stage: "build" })}>
-        Done — build book<ChevronRight /></Button></div>}
-  </>;
+  const highlightPanel = draft && <AuthoritiesHighlights product={draft} tabs={authorityTabs}
+    busy={busy} host={host} onSaved={remember} />;
   const quotationReview = draft && stage !== "citations" && discrepancies.length > 0 && <section className="mt-3 rounded-lg border border-amber-300 bg-amber-50/30 p-3">
     <div className="flex items-center justify-between gap-3"><span className="text-sm text-gray-800">
       {discrepancies.length} quotation difference{discrepancies.length === 1 ? "" : "s"} to review</span>

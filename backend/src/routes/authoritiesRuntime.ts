@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { reject } from "../lib/applicationError";
-import { authorityPassageTargets, authoritiesTextRoles, buildAuthorities } from
+import { authorityPassageTargets, authoritiesTextRoles, buildAuthorities, prepareAuthorityAnnotations } from
   "../lib/authoritiesBuild";
 import { attachedAuthoritySources, createAuthoritiesDraft, decodeAuthoritiesDraft,
   reduceAuthoritiesDraft, type AuthoritiesDraft } from "../lib/authoritiesDomain";
@@ -138,6 +138,26 @@ export function createAuthoritiesRuntimeRouter(
     } catch {
       if (!abort.signal.aborted) res.write(`data: ${JSON.stringify({ error: "Checking stopped. Completed receipts are available to download." })}\n\n`);
     } finally { res.end(); }
+  }));
+  router.post("/annotations", singleFileUpload("file"), asyncRoute(async (req, res) => {
+    const state = draft(json(req.body?.draft, "draft"));
+    const authority = state.authorities[String(req.body?.authorityId)];
+    const source = authority && attachedAuthoritySources(authority.source).find(item =>
+      item.bindingRole === req.body?.bindingRole);
+    if (!authority || !source) return reject(400, "The authority PDF is not attached");
+    const file = req.file ?? reject(400, "file is required");
+    const bytes = await readFile(file.path);
+    if (sha256(bytes) !== source.sourceSha256) return reject(409, "This PDF changed. Relink it before editing highlights.");
+    const abort = new AbortController(); res.on("close", () => abort.abort());
+    const pdf = await import("pdf-lib");
+    const document = await pdf.PDFDocument.load(bytes, { updateMetadata: false });
+    if (!document.getPageCount() || document.getPageCount() > 2_000) return reject(400, "Unsupported PDF page count");
+    const targets = authorityPassageTargets(state, authority.id);
+    // Manual editing never forces OCR or depends on a successful automatic match.
+    const text = state.settings.passageMarking !== "none" && targets.length
+      ? await authorityPdfText({ bytes, signal: abort.signal, passageTargets: targets,
+          scannedPdfPolicy: state.settings.scannedPdfPolicy }) : {};
+    res.json(prepareAuthorityAnnotations(pdf, document, state, authority, source, text, true));
   }));
   router.post("/create", asyncRoute(async (req, res) => {
     await sendDraft(res, applyAuthoritiesInitialSettings(

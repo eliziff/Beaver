@@ -93,7 +93,7 @@ for (const path of ["/single-documents", "/library/:kind/documents",
   "/single-documents/:documentId/versions", "/projects/:projectId/documents",
   "/court-records/documents", "/court-records/documents/:documentId/versions",
   "/court-records/docx-rendition", "/court-records/pdf-preparation",
-  "/authorities-runtime/import", "/authorities-runtime/refresh", "/authorities-runtime/build",
+  "/authorities-runtime/annotations", "/authorities-runtime/import", "/authorities-runtime/refresh", "/authorities-runtime/build",
   "/authorities/documents", "/authorities/:id/attachments/:authorityId"])
   api.post(path, uploadLimiter);
 for (const path of ["/court-records/docx-rendition", "/court-records/pdf-preparation"])
@@ -111,7 +111,7 @@ for (const path of ["/user/mcp-connectors/:connectorId/oauth/start",
   "/work-products/:id/research-query",
   "/library/:kind/documents/:documentId/actions/retry-pdf-parse",
   "/authorities", "/authorities/:id/actions",
-  "/authorities-runtime/import", "/authorities-runtime/refresh",
+  "/authorities-runtime/annotations", "/authorities-runtime/import", "/authorities-runtime/refresh",
   "/authorities-runtime/action", "/authorities-runtime/build",
   "/authorities/:id/refresh", "/authorities/:id/build"])
   api.post(path, lookupLimiter, workSlot);
