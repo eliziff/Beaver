@@ -1,0 +1,58 @@
+name: Cold-load validation
+on:
+  push:
+    branches: [codex/performance-cold-load]
+permissions:
+  contents: read
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: bd896cb8a06af9f472feefa3875d65d579235263
+          path: .baseline
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+      - name: Install locked dependencies
+        run: |
+          mkdir -p .perf/report
+          npm ci
+          npm ci --prefix frontend
+          npm ci --prefix .baseline/frontend
+      - name: Frontend tests
+        run: npm test --prefix frontend 2>&1 | tee .perf/frontend-tests.log
+      - name: Production build and standalone boundaries
+        if: ${{ !cancelled() }}
+        run: npm run build --prefix frontend 2>&1 | tee .perf/frontend-build.log
+      - name: Source boundaries
+        if: ${{ !cancelled() }}
+        run: npm run check:source-boundaries 2>&1 | tee .perf/source-boundaries.log
+      - name: Build pinned baseline
+        if: ${{ !cancelled() }}
+        working-directory: .baseline/frontend
+        run: npx vite build --outDir ../../.perf/baseline --emptyOutDir 2>&1 | tee ../../.perf/baseline-build.log
+      - name: Browser regression and cold comparison
+        if: ${{ !cancelled() }}
+        run: |
+          npx playwright install --with-deps chromium
+          node scripts/test-cold-load.mjs frontend/dist .perf/baseline .perf/report 2>&1 | tee .perf/browser.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cold-load-validation
+          include-hidden-files: true
+          retention-days: 7
+          path: |
+            .perf/*.log
+            .perf/report
