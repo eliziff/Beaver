@@ -258,7 +258,7 @@ const AUTHORITIES_ACTION = objectSchema({
     "remove-authority", "exclude-authority",
     "rename-authority", "clear-authority-source", "set-profile", "set-settings",
     "set-output-mode", "set-document-output", "set-cover", "clear-book-part",
-    "remove-book-supplement",
+    "remove-book-supplement", "set-highlight-exclusion",
   ] },
   occurrenceId: { type: "string", minLength: 1,
     description: "Citation occurrence; omit in a bound view to use the focused citation." },
@@ -295,6 +295,10 @@ const AUTHORITIES_ACTION = objectSchema({
   }, ["courtFileNumber", "partyGroups", "applicationUnder", "title"]),
   slot: { type: "string", enum: ["cover", "index"] },
   id: { type: "string", minLength: 1, maxLength: 200 },
+  locator: objectSchema({
+    kind: { type: "string", enum: ["paragraph", "section", "page"] },
+    label: { type: "string", minLength: 1, maxLength: 500 },
+  }, ["kind", "label"]),
 }, ["type"]);
 const workProductTool = (authoritiesEnabled: boolean, bound = false,
   name = "update_work_product"): Tool & BeaverToolPolicy => ({

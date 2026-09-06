@@ -115,6 +115,22 @@ describe("authorities draft domain", () => {
     expect(validateAuthoritiesDraft(draft)).toEqual([]);
   });
 
+  it("carries highlight exclusions across a document refresh", () => {
+    let draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
+      type: "add-authority", authority: { ...authority("grant"), locators: [
+        { kind: "paragraph", label: "12" }] },
+    });
+    draft = reduceAuthoritiesDraft(draft, { type: "set-highlight-exclusion",
+      authorityId: "grant", locator: { kind: "paragraph", label: "12" }, excluded: true });
+    draft = reduceAuthoritiesDraft(draft, { type: "refresh", review: {
+      import: draft.import, bindings: draft.bindings, units: [], occurrences: {},
+      authorities: { grant: authority("grant") }, authorityOrder: ["grant"],
+    } });
+    expect(draft.authorities.grant.highlightExclusions).toEqual([{ kind: "paragraph",
+      label: "12" }]);
+    expect(validateAuthoritiesDraft(draft)).toEqual([]);
+  });
+
   it("fills missing cover data without replacing manual Form 66 values", () => {
     let draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
       type: "set-cover", cover: { courtFileNumber: "T-9-26", partyGroups: [

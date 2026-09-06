@@ -101,6 +101,13 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
     case "remove-authority": return { type, authorityId: text(item.authorityId) };
     case "exclude-authority": return { type, authorityId: text(item.authorityId),
       excluded: typeof item.excluded === "boolean" ? item.excluded : bad() };
+    case "set-highlight-exclusion": {
+      const locator = object(item.locator);
+      return { type, authorityId: text(item.authorityId),
+        locator: { kind: choice(locator.kind, ["paragraph", "section", "page"] as const),
+          label: text(locator.label, 500) },
+        excluded: typeof item.excluded === "boolean" ? item.excluded : bad() };
+    }
     case "edit-authority": return { type, authorityId: text(item.authorityId),
       kind: choice(item.kind, authorityKinds), citation: text(item.citation, 2_000),
       name: nullableText(item.name, 2_000) };
