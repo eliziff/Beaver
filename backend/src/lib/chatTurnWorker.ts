@@ -31,7 +31,10 @@ export function chatTurnJobHandler(
     const turn = request(job);
     if (!turn) throw new PermanentJobError("ChatTurnRequestUnavailable");
     const events = await createJobEventWriter(job.id);
-    const emit: EventSink["emit"] = events.append;
+    let acceptingEvents = true;
+    const emit: EventSink["emit"] = (event) => {
+      if (acceptingEvents) events.append(event);
+    };
     const current = turn.chatId ? await chats.get(turn.scope, turn.chatId) : null;
     if (turn.chatId && !current) throw new PermanentJobError("ChatUnavailable");
     const controller = new AbortController();
@@ -99,6 +102,7 @@ export function chatTurnJobHandler(
             const text = typeof payload?.text === "string" ? payload.text : "";
             if (command.kind === "steer" && id && text && claimedChatId &&
                 await steerChatTurn(claimedChatId, { id, text })) {
+              if (commandStop.signal.aborted || controller.signal.aborted) return;
               await finishJobCommand(command.id); handled += 1;
             } else if (command.kind === "client_tool_result") {
               const callId = typeof payload?.callId === "string" ? payload.callId : "";
@@ -116,6 +120,7 @@ export function chatTurnJobHandler(
     };
     const sink: EventSink = {
       claim(chatId) {
+        if (!acceptingEvents || controller.signal.aborted) return false;
         if (!beginChatTurn(chatId, controller)) return false;
         claimedChatId = chatId;
         commandTask = checkCommands();
@@ -123,6 +128,7 @@ export function chatTurnJobHandler(
       },
       emit,
       setControl(control) {
+        if (!acceptingEvents) return;
         if (claimedChatId) setChatTurnControl(claimedChatId, controller, control);
         commands.wake();
       },
@@ -158,12 +164,19 @@ export function chatTurnJobHandler(
       }
       throw error;
     } finally {
+      acceptingEvents = false;
       commandStop.abort(); commands.close();
-      await commandTask;
+      // Disconnect steering before joining the command loop: provider acknowledgement
+      // must not hold completion, cancellation, or worker shutdown hostage.
+      if (claimedChatId) setChatTurnControl(claimedChatId, controller, null);
       for (const pending of clientTools.values()) pending.cancel();
-      await events.flush();
-      context.signal.removeEventListener("abort", abort);
-      if (claimedChatId) finishChatTurn(claimedChatId, controller);
+      try {
+        await commandTask;
+        await events.flush();
+      } finally {
+        context.signal.removeEventListener("abort", abort);
+        if (claimedChatId) finishChatTurn(claimedChatId, controller);
+      }
     }
   };
 }
