@@ -792,6 +792,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                   {quotationReview}
                   {sourcesContinue}
                   {highlightPanel}
+                  {stage === "highlights" && <div className="mt-3 flex justify-end">
+                    <Button disabled={busy} onClick={() => act({ type: "set-stage", stage: "build" })}>
+                      Done — build book<ChevronRight /></Button></div>}
                   {buildPanel}</>}
         </div>
       </main>
