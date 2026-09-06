@@ -219,8 +219,8 @@ export async function resolveAuthoritiesSources(
       authority.kind === "legislation" && federalEnactmentCitation(authority.citation) &&
       authority.sourceIdentity?.provider === "a2aj" &&
       !hasBilingualAuthoritySource(authority.source);
-    return authority && ["case", "legislation"].includes(authority.kind) &&
-      (["unresolved", "resolved"].includes(authority.source.kind) || incompleteEnactment) &&
+    return authority && !authority.excluded && ["case", "legislation"].includes(authority.kind) &&
+      (["unresolved", "resolved", "pending-canlii"].includes(authority.source.kind) || incompleteEnactment) &&
       !(authority.sourceIdentity && authority.sourceIdentity.provider !== "a2aj")
       ? [{ id, authority }] : [];
   });
@@ -685,7 +685,7 @@ export function createAuthoritiesWorkspaceApplication(
         signal?.throwIfAborted();
         const saved = await files.create(scope, "authorities",
           { filename: attachment.filename, fileType: "pdf", bytes: attachment.bytes },
-          { projectId });
+          { projectId, pdfOcrProvider: null });
         created.push(createdDocumentRollback(saved));
         if (saved.source_sha256 !== attachment.sourceSha256) {
           throw new Error("Saved authority PDF hash does not match its prepared source");
@@ -888,6 +888,8 @@ export function createAuthoritiesWorkspaceApplication(
       const text = needsText ? await authorityPdfText({ bytes: file.bytes,
         documentId: binding.documentId, versionId: file.version.id,
         sourceSha256: file.version.source_sha256, pdfProfile: file.pdfProfile, signal,
+        scannedPdfPolicy: draft.settings.scannedPdfPolicy,
+        ocrTargets: authorityPassageTargets(draft, authority.id),
         passageTargets: draft.settings.passageMarking === "none"
           ? [] : authorityPassageTargets(draft, authority.id) }) : null;
       result[source.bindingRole] = { ...(forBook || forFiling ? { bytes: file.bytes } : {}),
@@ -1082,7 +1084,7 @@ export function createAuthoritiesWorkspaceApplication(
       const { product, draft } = await edit(scope, id, input.revision);
       const authority = attachableAuthority(draft, input.authorityId);
       const created = await files.create(scope, "authorities", input.file,
-        { projectId: product.projectId });
+        { projectId: product.projectId, pdfOcrProvider: null });
       return withRollback(scope, [createdDocumentRollback(created)], async () => {
         const state = attachSource(draft, authority,
           { kind: "document", documentId: created.id,
@@ -1101,7 +1103,7 @@ export function createAuthoritiesWorkspaceApplication(
       }
       const { product, draft } = await edit(scope, id, input.revision);
       const created = await files.create(scope, "authorities", input.file,
-        { projectId: product.projectId });
+        { projectId: product.projectId, pdfOcrProvider: null });
       return withRollback(scope, [createdDocumentRollback(created)], async () => {
         const binding = { kind: "document" as const, documentId: created.id,
           version: { versionId: created.current_version_id, sha256: created.source_sha256 } };
@@ -1129,6 +1131,14 @@ export function createAuthoritiesWorkspaceApplication(
             version.filename, version.source_sha256, input.target.language)
           : attachBookSource(draft, input.target, binding, version.filename,
             version.source_sha256) });
+    },
+    async prepareHighlights(scope: ApplicationScope, id: string, revision: number, signal?: AbortSignal) {
+      const { product, draft } = await edit(scope, id, revision);
+      // This prepares the same source/profile cache used by the book builder.
+      // No output artifact is generated and no newer source is silently adopted.
+      await buildSources(scope, draft, signal);
+      signal?.throwIfAborted();
+      return product;
     },
     async build(scope: ApplicationScope, id: string, revision: number, signal?: AbortSignal):
       Promise<{ product: AuthoritiesProduct; receipt: AuthoritiesBuildResult["receipt"] }> {

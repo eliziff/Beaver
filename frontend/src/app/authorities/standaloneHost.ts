@@ -1,3 +1,4 @@
+import type { AuthoritiesProduct } from "./types";
 import {
   bindStandaloneFile, chooseStandaloneOutputFolder, clearStandaloneOutputFolder,
   getStandaloneOutputFolder, inspectStandaloneFile, pickRetainedFiles, readStandaloneOutput,
@@ -10,6 +11,7 @@ import type { AuthoritiesAction, AuthoritiesDraft, AttachedAuthoritySource,
   AuthoritySourceLanguage } from "./types";
 import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
 import { authoritiesProfile } from "./profiles";
+import { prepareAnnotations } from "./annotationPreparation";
 
 async function resolveExact(input: WorkProductInput) {
   const result = await resolveStandaloneFile(input, true);
@@ -94,7 +96,38 @@ async function refreshImported(state: AuthoritiesDraft, file: File, replace = fa
 }
 const validPdf = async (file: File) => await file.slice(0, 5).text() === "%PDF-";
 
+async function buildInputs(product: AuthoritiesProduct, progress?: (message: string) => void,
+  signal?: AbortSignal) {
+    const filingPdfs = product.state.insertIntoDocument &&
+      !!authoritiesProfile(product.state.settings.profileId).requirements?.unlinkedPdfTableSources &&
+      product.state.import.kind === "document" && product.state.import.fileType === "pdf";
+    const roles = [
+      ...(product.state.outputMode === "table" && !filingPdfs ? [] :
+        Object.values(product.state.authorities).flatMap(({ excluded, source }) =>
+          !excluded && source.kind === "attached"
+            ? source.sources.map(({ bindingRole }) => bindingRole) : [])),
+      ...(product.state.insertIntoDocument && product.state.import.kind === "document"
+        ? [product.state.import.bindingRole] : []),
+      ...(product.state.outputMode === "table" ? [] : [product.state.bookParts.cover,
+        product.state.bookParts.index, ...product.state.bookParts.supplements]
+        .flatMap((part) => part ? [part.bindingRole] : [])),
+    ];
+    const form = new FormData(); form.append("draft", JSON.stringify(product.state));
+    form.append("id", product.id); form.append("revision", String(product.revision));
+    form.append("title", product.title);
+    progress?.("Preparing sources");
+    for (const role of roles) {
+      signal?.throwIfAborted();
+      const file = await resolveExact(product.state.bindings[role]);
+      signal?.throwIfAborted();
+      form.append("files", file, file.name);
+    }
+    form.append("roles", JSON.stringify(roles));
+    return form;
+}
+
 export const standaloneAuthoritiesHost: AuthoritiesHost = {
+  prepareAnnotations,
   mode: "standalone",
   drafts: standaloneWorkProducts,
   async create({ source, title, settings }) {
@@ -201,6 +234,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     }
     state.bindings[role] = binding;
     authority.source = { kind: "attached", sources };
+    if (state.stage !== "citations") state.stage = "sources";
     return save(id, revision, state);
   },
   async attachBookPdf(id, revision, slot, selected, supplementId) {
@@ -221,34 +255,17 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     state.bindings[part.bindingRole] = binding;
     return save(id, revision, state);
   },
+  async prepareHighlights(selected, progress, signal) {
+    const product = await currentProduct(selected.id, selected.revision);
+    const form = await buildInputs(product, progress, signal);
+    progress?.("Preparing highlight review");
+    await runtimeResponse("prepare-highlights", form, false, signal);
+    signal?.throwIfAborted();
+  },
   async build(selected, progress, signal) {
     signal?.throwIfAborted();
     const product = await currentProduct(selected.id, selected.revision);
-    const filingPdfs = product.state.insertIntoDocument &&
-      !!authoritiesProfile(product.state.settings.profileId).requirements?.unlinkedPdfTableSources &&
-      product.state.import.kind === "document" && product.state.import.fileType === "pdf";
-    const roles = [
-      ...(product.state.outputMode === "table" && !filingPdfs ? [] :
-        Object.values(product.state.authorities).flatMap(({ excluded, source }) =>
-          !excluded && source.kind === "attached"
-            ? source.sources.map(({ bindingRole }) => bindingRole) : [])),
-      ...(product.state.insertIntoDocument && product.state.import.kind === "document"
-        ? [product.state.import.bindingRole] : []),
-      ...(product.state.outputMode === "table" ? [] : [product.state.bookParts.cover,
-        product.state.bookParts.index, ...product.state.bookParts.supplements]
-        .flatMap((part) => part ? [part.bindingRole] : [])),
-    ];
-    const form = new FormData(); form.append("draft", JSON.stringify(product.state));
-    form.append("id", product.id); form.append("revision", String(product.revision));
-    form.append("title", product.title);
-    progress?.("Preparing sources");
-    for (const role of roles) {
-      signal?.throwIfAborted();
-      const file = await resolveExact(product.state.bindings[role]);
-      signal?.throwIfAborted();
-      form.append("files", file, file.name);
-    }
-    form.append("roles", JSON.stringify(roles));
+    const form = await buildInputs(product, progress, signal);
     progress?.("Building outputs");
     const response = await (await runtimeResponse("build", form, false, signal)).formData();
     signal?.throwIfAborted();

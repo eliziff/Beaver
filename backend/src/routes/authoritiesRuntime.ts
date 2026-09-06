@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { reject } from "../lib/applicationError";
-import { authorityPassageTargets, authoritiesTextRoles, buildAuthorities } from
+import { authorityPassageTargets, authoritiesTextRoles, buildAuthorities, prepareAuthorityAnnotations } from
   "../lib/authoritiesBuild";
 import { attachedAuthoritySources, createAuthoritiesDraft, decodeAuthoritiesDraft,
   reduceAuthoritiesDraft, type AuthoritiesDraft } from "../lib/authoritiesDomain";
@@ -18,7 +18,6 @@ import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
 import { asyncRoute } from "../lib/asyncRoute";
 import { sha256 } from "../lib/hash";
 import { multipleFileUpload, singleFileUpload } from "../lib/upload";
-import { requireAuth } from "../middleware/auth";
 import { checkQuotes, decodeQuoteLinks } from "../lib/quoteCheck";
 import { decodeAuthoritiesDiscrepancyAction, decodeAuthoritiesInitialSettings,
   decodeAuthoritiesUserAction } from "../lib/authoritiesActionContract";
@@ -118,8 +117,8 @@ async function standaloneSource(req: Request): Promise<
 }
 
 export function createAuthoritiesRuntimeRouter(
+  authenticate: RequestHandler,
   resolveSources: typeof resolveAuthoritiesSources = resolveAuthoritiesSources,
-  authenticate: RequestHandler = requireAuth,
   reviewDiscrepancies: typeof reviewAuthoritiesDiscrepancies = reviewAuthoritiesDiscrepancies,
 ) {
   const router = Router(); router.use(authenticate);
@@ -139,6 +138,26 @@ export function createAuthoritiesRuntimeRouter(
     } catch {
       if (!abort.signal.aborted) res.write(`data: ${JSON.stringify({ error: "Checking stopped. Completed receipts are available to download." })}\n\n`);
     } finally { res.end(); }
+  }));
+  router.post("/annotations", singleFileUpload("file"), asyncRoute(async (req, res) => {
+    const state = draft(json(req.body?.draft, "draft"));
+    const authority = state.authorities[String(req.body?.authorityId)];
+    const source = authority && attachedAuthoritySources(authority.source).find(item =>
+      item.bindingRole === req.body?.bindingRole);
+    if (!authority || !source) return reject(400, "The authority PDF is not attached");
+    const file = req.file ?? reject(400, "file is required");
+    const bytes = await readFile(file.path);
+    if (sha256(bytes) !== source.sourceSha256) return reject(409, "This PDF changed. Relink it before editing highlights.");
+    const abort = new AbortController(); res.on("close", () => abort.abort());
+    const pdf = await import("pdf-lib");
+    const document = await pdf.PDFDocument.load(bytes, { updateMetadata: false });
+    if (!document.getPageCount() || document.getPageCount() > 2_000) return reject(400, "Unsupported PDF page count");
+    const targets = authorityPassageTargets(state, authority.id);
+    // Manual editing never forces OCR or depends on a successful automatic match.
+    const text = state.settings.passageMarking !== "none" && targets.length
+      ? await authorityPdfText({ bytes, signal: abort.signal, passageTargets: targets,
+          scannedPdfPolicy: state.settings.scannedPdfPolicy }) : {};
+    res.json(prepareAuthorityAnnotations(pdf, document, state, authority, source, text, true));
   }));
   router.post("/create", asyncRoute(async (req, res) => {
     await sendDraft(res, applyAuthoritiesInitialSettings(
@@ -257,7 +276,7 @@ export function createAuthoritiesRuntimeRouter(
       ? { type: "set-book-supplement", supplement: { ...pdf, id }, binding }
       : { type: "set-book-part", slot, pdf, binding }));
   }));
-  router.post("/build", multipleFileUpload("files", 100), asyncRoute(async (req, res) => {
+  router.post(["/build", "/prepare-highlights"], multipleFileUpload("files", 100), asyncRoute(async (req, res) => {
     const build = new AbortController();
     res.once("close", () => build.abort());
     let raw: unknown, roles: unknown;
@@ -270,6 +289,7 @@ export function createAuthoritiesRuntimeRouter(
         !roles.every((role) => typeof role === "string" && role.length <= 300))
       reject(400, "Authorities build inputs are invalid");
     const roleNames = roles as string[];
+    if (new Set(roleNames).size !== roleNames.length) reject(400, "Duplicate source roles are invalid");
     const id = String(req.body?.id ?? ""), revision = Number(req.body?.revision);
     const title = String(req.body?.title ?? "").trim();
     if (!id || !title || title.length > 300 || !Number.isSafeInteger(revision) || revision < 1)
@@ -280,10 +300,16 @@ export function createAuthoritiesRuntimeRouter(
     for (let index = 0; index < files.length; index += 1) {
       const role = roleNames[index], bytes = await readFile(files[index].path);
       build.signal.throwIfAborted();
+      const binding = state.bindings[role];
+      const expectedHash = binding?.kind === "local-file" ? binding.lastSeen.sha256
+        : binding?.kind === "document" && binding.version !== "latest" ? binding.version.sha256 : null;
+      if (!expectedHash || sha256(bytes) !== expectedHash) reject(409, "An attached PDF changed. Add the current file before continuing.");
       const authority = Object.values(state.authorities).find(({ source }) =>
         attachedAuthoritySources(source).some(({ bindingRole }) => bindingRole === role));
       const text = textRoles.has(role)
         ? await authorityPdfText({ bytes, signal: build.signal,
+          scannedPdfPolicy: state.settings.scannedPdfPolicy,
+          ocrTargets: authority ? authorityPassageTargets(state, authority.id) : [],
           passageTargets: state.settings.passageMarking === "none" || !authority
             ? [] : authorityPassageTargets(state, authority.id) }).catch((error) => {
           if (build.signal.aborted) throw error;
@@ -295,6 +321,11 @@ export function createAuthoritiesRuntimeRouter(
         ...(text ? { pageTextByPage: text.pageTextByPage } : {}),
         ...(text?.ocrTextByPage.some(Boolean) ? { ocrTextByPage: text.ocrTextByPage } : {}),
         ...(text?.passageGeometry ? { passageGeometry: text.passageGeometry } : {}) };
+    }
+    if (req.path === "/prepare-highlights") {
+      const missing = [...textRoles].filter((role) => !sources[role]);
+      if (missing.length) reject(400, "Some source PDFs were not supplied for highlight preparation");
+      res.json({ prepared: true }); return;
     }
     const built = await buildAuthorities({ draft: state, title,
       workProduct: { id, revision }, sources, signal: build.signal }).catch((error) => {

@@ -473,7 +473,8 @@ export function createDocumentApplication(repository: DocumentRepository,
       };
       const parts = await stageParts(documentId, document, version.id, input.parts);
       const created = await pdfLifecyclePhase("upload.repository", documentId, () =>
-        repository.create(scope, { document, version, parts }));
+        repository.create(scope, { document, version, parts,
+          ...(input.pdfOcrProvider !== undefined ? { pdfOcrProvider: input.pdfOcrProvider } : {}) }));
       if (!created) throw new ApplicationError(409, "Document location changed during upload");
       return responseDocument({ document, versions: [version] });
     },

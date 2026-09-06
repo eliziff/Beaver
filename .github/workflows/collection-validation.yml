@@ -7,11 +7,8 @@ permissions:
   contents: read
 jobs:
   validate:
-    if: github.repository == 'eliziff/Beaver' && github.ref == 'refs/heads/codex/collection-reuse'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    permissions:
-      contents: write
     defaults:
       run:
         shell: bash
@@ -25,20 +22,7 @@ jobs:
           git fetch --depth=1 origin "$SOURCE_SHA"
           git checkout --detach FETCH_HEAD
           mkdir -p .collection-validation
-      - name: Apply verified collection patch to this feature branch
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          cat .collection-transfer/*.gzpart | gzip -d > /tmp/collection.patch
-          echo 'ec26650bc7badd8088a2660d0e810a66e9a8f344a84768344c58093b0c1090ce  /tmp/collection.patch' | sha256sum --check
-          git apply --check /tmp/collection.patch
-          git apply --index /tmp/collection.patch
-          git rm -r .collection-transfer
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Reuse account-scoped collection snapshots and revalidate without remount flashes'
-          git -c credential.helper='!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' push origin HEAD:refs/heads/codex/collection-reuse
-          git rev-parse HEAD | tee .collection-validation/validated-sha.txt
+          git rev-parse HEAD > .collection-validation/validated-sha.txt
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
@@ -62,10 +46,10 @@ jobs:
         run: |
           npm run build --prefix backend 2>&1 | tee .collection-validation/backend-build.log
           node scripts/check-source-boundaries.mjs 2>&1 | tee .collection-validation/boundaries.log
-      - name: Build pinned comparison
+      - name: Build pinned current-main comparison
         if: ${{ !cancelled() }}
         run: |
-          git fetch --depth=1 origin bd896cb8a06af9f472feefa3875d65d579235263
+          git fetch --depth=1 origin 1df77ce661cf01ccaebc42cf79c4ed7f01bf73f8
           git worktree add --detach .collection-baseline FETCH_HEAD
           cmp frontend/package-lock.json .collection-baseline/frontend/package-lock.json
           ln -s "$PWD/frontend/node_modules" .collection-baseline/frontend/node_modules

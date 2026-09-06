@@ -1,0 +1,11 @@
+/* Reserve layout immediately, but do not paint/announce transient placeholders.
+   Only loading UI receives this class: real content and errors are never delayed.
+   There is no fade, minimum display time, timer, or extra React render. */
+.beaver-loading-indicator {
+    animation: beaver-loading-reveal 0s 150ms both;
+}
+
+@keyframes beaver-loading-reveal {
+    from { visibility: hidden; }
+    to { visibility: visible; }
+}

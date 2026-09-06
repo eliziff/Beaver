@@ -17,6 +17,8 @@ import {
   type AuthoritySourceDecision,
   type AuthoritySourceIdentity,
 } from "./authoritiesDomain";
+import { annotationSetForSource } from "mike/shared/pdf-annotations.mjs";
+import { initialAuthorityAnnotations, writeAuthorityAnnotations } from "./authoritiesAnnotations";
 import { canonicalJson, canonicalJsonSha256, sha256 } from "./hash";
 import { applyTableOfAuthorities, type DocxAuthorityMark } from "./docxOperations";
 import type { NativePdfPassageGeometry, NativePdfPassageTarget } from "./structureNative";
@@ -159,8 +161,11 @@ export function authoritiesTextRoles(draft: AuthoritiesDraft) {
       (locatorKinds.has("paragraph") || locatorKinds.has("section"));
     const needsQuoteText = ["margin", "text"].includes(draft.settings.passageMarking) &&
       requests.some(({ exactQuotes }) => exactQuotes.length);
-    return paperExtract || needsOcr || needsLocatorText || needsQuoteText
-      ? authority.source.sources.map(({ bindingRole }) => bindingRole) : [];
+    return authority.source.sources.flatMap(source => {
+      const saved = annotationSetForSource(authority.annotations, source.bindingRole, source.sourceSha256);
+      return paperExtract || needsOcr || !saved && (needsLocatorText || needsQuoteText)
+        ? [source.bindingRole] : [];
+    });
   }));
 }
 
@@ -184,7 +189,7 @@ type PdfColor = import("pdf-lib").Color;
 type RequestedRole = Exclude<AuthoritiesOutputRole, `book-${number}`>;
 const RENDERERS: Record<RequestedRole, string> = {
   table: "beaver.authorities.table-docx.v1",
-  book: "beaver.authorities.book-pdf.v2",
+  book: "beaver.authorities.book-pdf.v3",
   "annotated-document": "beaver.authorities.filing-output.v1",
 };
 
@@ -226,7 +231,7 @@ function citedAt(draft: AuthoritiesDraft, authorityId: string) {
 
 const reproducedInBook = (draft: AuthoritiesDraft, authority: AuthorityIdentity) =>
   !authority.excluded && (authority.source.kind === "attached" ||
-    draft.settings.missingSourcePolicy === "placeholder");
+    (draft.settings.allowIncomplete || draft.settings.missingSourcePolicy === "placeholder"));
 
 const authorityProcedure = (draft: AuthoritiesDraft, purpose: "table" | "book") =>
   deriveAuthorityProcedure({
@@ -239,6 +244,7 @@ const authorityProcedure = (draft: AuthoritiesDraft, purpose: "table" | "book") 
     units: draft.units, occurrences: draft.occurrences,
     manual: draft.import.kind === "manual", purpose,
     tableOrder: draft.settings.tableOrder, tabStyle: draft.settings.tabStyle,
+    tabStart: draft.settings.tabStart, tabPrefix: draft.settings.tabPrefix, tabLabels: draft.settings.tabLabels,
   });
 
 function authoritySourceUrl(authority: AuthorityIdentity) {
@@ -577,6 +583,7 @@ async function filingPdfArtifact(groups: Group[], filename: string,
 
 type BookRow = { key: string; name: string; tab: string; sourceUrl?: string | null };
 type LoadedBookPdf = BookRow & { document: PdfDocument; authority: AuthorityIdentity | null;
+  markedPages?: Set<number>;
   pageTextByPage?: string[]; ocrTextByPage?: string[];
   passageGeometry?: NativePdfPassageGeometry };
 type PreparedBookPdf = LoadedBookPdf & { pageIndices: number[];
@@ -665,14 +672,48 @@ async function loadBookPdf(
   return document;
 }
 
+/** Preparing highlights does not require assembling a book or emitting an artifact. */
+export function prepareAuthorityAnnotations(
+  pdf: PdfModule, document: PdfDocument, draft: AuthoritiesDraft, authority: AuthorityIdentity,
+  source: AuthoritiesBoundPdf, text: NonNullable<AuthoritiesBuildInput["sources"]>[string] = {},
+  regenerate = false,
+) {
+  const saved = regenerate ? undefined : annotationSetForSource(authority.annotations,
+    source.bindingRole, source.sourceSha256);
+  if (saved) return { annotations: saved, unresolved: [] };
+  const pages = document.getPages().map(page => {
+    const crop = page.getCropBox(), rotated = Math.abs(page.getRotation().angle % 180) === 90;
+    return { width: rotated ? crop.height : crop.width, height: rotated ? crop.width : crop.height };
+  });
+  return initialAuthorityAnnotations({ sourceSha256: source.sourceSha256,
+    style: draft.settings.passageMarking, geometry: text.passageGeometry, pages,
+    citedPages: citedSourcePages(draft, authority.id, text.pageTextByPage ?? [],
+      document.catalog.has(pdf.PDFName.of("PageLabels")) ? pdfPageLabelIndices(pdf, document) : undefined,
+      document.getPageCount()),
+    exclusions: new Set((authority.highlightExclusions ?? []).map(({ kind, label }) => `${kind.trim()}\0${label.trim()}`)) });
+}
+
 async function loadAuthorityPdf(
   pdf: PdfModule, sources: AttachedAuthoritySource[], label: string,
   attached: NonNullable<AuthoritiesBuildInput["sources"]>,
+  editing?: { draft: AuthoritiesDraft; authority: AuthorityIdentity },
 ) {
   const loaded = await Promise.all(sources.map(async (source) => ({ source,
     document: await loadBookPdf(pdf, source, label, attached),
     text: attached[source.bindingRole] })));
-  if (loaded.length === 1) return { document: loaded[0].document,
+  const markedPages = new Set<number>();
+  let sourceOffset = 0;
+  for (const item of loaded) {
+    if (editing) {
+      const { annotations } = prepareAuthorityAnnotations(pdf, item.document, editing.draft,
+        editing.authority, item.source, item.text);
+      writeAuthorityAnnotations(pdf, item.document, annotations, item.source.bindingRole);
+      annotations.marks.forEach(mark => mark.fragments.forEach(fragment =>
+        markedPages.add(sourceOffset + fragment.pageNumber - 1)));
+    }
+    sourceOffset += item.document.getPageCount();
+  }
+  if (loaded.length === 1) return { document: loaded[0].document, markedPages,
     pageTextByPage: loaded[0].text?.pageTextByPage,
     ocrTextByPage: loaded[0].text?.ocrTextByPage,
     passageGeometry: loaded[0].text?.passageGeometry };
@@ -704,12 +745,13 @@ async function loadAuthorityPdf(
             pageNumber: quote.pageNumber + pageOffset,
           }) })) }))),
   } satisfies NativePdfPassageGeometry : undefined;
-  return { document, pageTextByPage,
+  return { document, pageTextByPage, markedPages,
     ocrTextByPage: ocrTextByPage.some(Boolean) ? ocrTextByPage : undefined,
     passageGeometry };
 }
 
-async function missingSourcePdf(pdf: PdfModule, label: string, federal = false) {
+async function missingSourcePdf(pdf: PdfModule, label: string, federal = false,
+  detail = "No source PDF was attached for this authority.") {
   const document = await pdf.PDFDocument.create();
   const regular = await document.embedFont(federal
     ? pdf.StandardFonts.TimesRoman : pdf.StandardFonts.Helvetica);
@@ -723,7 +765,7 @@ async function missingSourcePdf(pdf: PdfModule, label: string, federal = false) 
   for (const line of wrapped(regular, label, 12, 612 - (2 * margin))) {
     page.drawText(line, { x: margin, y, size: 12, font: regular }); y -= 18;
   }
-  page.drawText("No source PDF was attached for this authority.",
+  page.drawText(detail,
     { x: margin, y: y - 18, size: federal ? 12 : 10,
       font: regular, color: pdf.rgb(.35, .35, .35) });
   return document;
@@ -746,7 +788,8 @@ async function bookArtifact(
     ? FEDERAL_APPEAL_PAPER_COVERS[role as keyof typeof FEDERAL_APPEAL_PAPER_COVERS] : null;
   const bookTitle = profile.bookTitle ??
     (draft.import.kind === "manual" ? subtitle : "Book of Authorities");
-  const documentTitle = draft.cover.title || bookTitle;
+  const documentTitle = (draft.settings.allowIncomplete ? "DRAFT — incomplete sources · " : "") +
+    (draft.cover.title || bookTitle);
   if (federal && !draft.bookParts.cover && !role) {
     throw new Error("Choose who is filing the Federal Court book.");
   }
@@ -760,7 +803,8 @@ async function bookArtifact(
   const supplementRows: BookRow[] = draft.bookParts.supplements.map((item, index) => ({
     key: `supplement:${item.id}`,
     name: item.filename.replace(/\.pdf$/iu, "").trim() || item.filename,
-    tab: tabLabel(authorityRows.length + index + 1, draft.settings.tabStyle),
+    tab: tabLabel(draft.authorityOrder.filter((id) => !draft.authorities[id].excluded).length + index + 1,
+      draft.settings.tabStyle, draft.settings),
   }));
   const rows: BookRow[] = [...authorityRows.map((entry) => ({
     key: `authority:${entry.authority.id}`, name: entry.name, tab: entry.tab,
@@ -772,8 +816,17 @@ async function bookArtifact(
     Promise.all(authorityRows.map(async (entry): Promise<LoadedBookPdf> => {
       const source = entry.authority.source;
       const loaded = source.kind === "attached"
-        ? await loadAuthorityPdf(pdf, source.sources, entry.name, attached)
+        ? await loadAuthorityPdf(pdf, source.sources, entry.name, attached,
+          { draft, authority: entry.authority })
         : { document: await missingSourcePdf(pdf, entry.name, federal) };
+      if (draft.settings.allowIncomplete && profile.requirements?.bilingualEnactments &&
+          entry.authority.kind === "legislation" && federalEnactmentCitation(entry.authority.citation) &&
+          source.kind === "attached" && !hasBilingualAuthoritySource(source)) {
+        const missingLanguage = source.sources.some(({ language }) => language === "en") ? "French" : "English";
+        const stub = await missingSourcePdf(pdf, entry.name, federal,
+          `${missingLanguage} version not attached. This draft is incomplete.`);
+        for (const page of await loaded.document.copyPages(stub, stub.getPageIndices())) loaded.document.addPage(page);
+      }
       return { key: `authority:${entry.authority.id}`, name: entry.name, tab: entry.tab,
         sourceUrl: entry.sourceUrl, authority: entry.authority,
         ...loaded };
@@ -892,6 +945,14 @@ async function bookArtifact(
             { x: margin, y: 462, size: 13, font: serif, color: ink });
         }
       }
+      if (draft.settings.allowIncomplete) {
+        const first = document.getPage(0), width = first.getWidth();
+        first.drawRectangle({ x: 0, y: 0, width, height: 28, color: pdf.rgb(1, .94, .88) });
+        first.drawText("DRAFT - INCOMPLETE SOURCES - NOT FOR FILING", {
+          x: Math.min(24, width / 20), y: 10, size: Math.min(10, width / 48), font: bold,
+          color: pdf.rgb(.55, .1, .06),
+        });
+      }
       const volumeLabel = `Volume ${volumeIndex + 1} of ${volumes.length}`;
       if (multi && limits?.coverLabels) document.getPage(0).drawText(volumeLabel,
         { x: margin, y: Math.min(400, coverBottom), size: 12, font: bold });
@@ -960,9 +1021,6 @@ async function bookArtifact(
           if (draft.settings.scannedPdfPolicy === "full" ||
               draft.settings.scannedPdfPolicy === "cited-pages" && cited.has(index))
             addOcrText(page, regular, source.ocrTextByPage?.[index]);
-          if (draft.settings.passageMarking !== "none") addPassageMarks(pdf, page, index,
-            draft.settings.passageMarking, cited.has(index), source.passageGeometry,
-            highlightExclusionKeys(source.authority));
           if (source.databaseReference) addDatabaseReference(pdf, page, bold,
             source.databaseReference.url, source.databaseReference.host);
         });
@@ -1141,6 +1199,7 @@ function federalPaperExtract(draft: AuthoritiesDraft, source: LoadedBookPdf,
   const reasonsStart = text.findIndex((page) =>
     /(?:^|\n)\s*(?:\[\s*1\s*\]|1[.)])(?:\s|$)/u.test(page));
   const cited = citedSourcePages(draft, source.authority.id, text, pageLabels);
+  source.markedPages?.forEach(index => cited.add(index));
   source.passageGeometry?.targets.forEach((target) => {
     if (target.status === "found") target.pages.forEach(({ pageNumber }) => {
       if (pageNumber > 0 && pageNumber <= pageCount) cited.add(pageNumber - 1);
@@ -1165,145 +1224,6 @@ function addDatabaseReference(pdf: PdfModule, page: PdfPage, font: PdfFont,
     opacity: .94, borderOpacity: 1 });
   page.drawText(label, { x, y, size, font, color: pdf.rgb(.08, .08, .08) });
   addExternalLink(pdf, page, [x - 5, y - 3, x - 5 + width, y + 15], url);
-}
-
-function addHighlightAnnot(pdf: PdfModule, page: PdfPage,
-  boxes: Array<{ x: number; y: number; width: number; height: number }>, contents: string) {
-  const valid = boxes.filter(({ width, height }) => width > 0 && height > 0);
-  if (!valid.length) return;
-  const quads = valid.flatMap(({ x, y, width, height }) =>
-    [x, y + height, x + width, y + height, x, y, x + width, y]);
-  const xs = valid.flatMap(({ x, width }) => [x, x + width]);
-  const ys = valid.flatMap(({ y, height }) => [y, y + height]);
-  const annotation = page.doc.context.obj({ Type: "Annot", Subtype: "Highlight",
-    Rect: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)],
-    QuadPoints: quads, C: [1, 0.92, 0.6], CA: 0.45, Border: [0, 0, 0],
-    T: pdf.PDFHexString.fromText("Beaver"),
-    Contents: pdf.PDFHexString.fromText(contents.slice(0, 500)),
-    F: 4 });
-  page.node.addAnnot(page.doc.context.register(annotation));
-}
-
-function addSquareAnnot(pdf: PdfModule, page: PdfPage,
-  box: { x: number; y: number; width: number; height: number },
-  rgb: [number, number, number], opacity: number, contents: string) {
-  if (box.width <= 0 || box.height <= 0) return;
-  const annotation = page.doc.context.obj({ Type: "Annot", Subtype: "Square",
-    Rect: [box.x, box.y, box.x + box.width, box.y + box.height],
-    C: [...rgb], IC: [...rgb], CA: opacity, Border: [0, 0, 0],
-    T: pdf.PDFHexString.fromText("Beaver"),
-    Contents: pdf.PDFHexString.fromText(contents.slice(0, 500)),
-    F: 4 });
-  page.node.addAnnot(page.doc.context.register(annotation));
-}
-
-function addPageMarginAnnot(pdf: PdfModule, page: PdfPage, black = false,
-  contents = "Cited page") {
-  const { x, y, width, height } = page.getCropBox();
-  const inset = 8, end = 18, half = 1.25;
-  const angle = ((page.getRotation().angle % 360) + 360) % 360;
-  const box = angle === 90
-    ? { x: x + end, y: y + height - inset - half, width: width - (2 * end), height: half * 2 }
-    : angle === 180
-      ? { x: x + inset - half, y: y + end, width: half * 2, height: height - (2 * end) }
-      : angle === 270
-        ? { x: x + end, y: y + inset - half, width: width - (2 * end), height: half * 2 }
-        : { x: x + width - inset - half, y: y + end, width: half * 2, height: height - (2 * end) };
-  addSquareAnnot(pdf, page, box, black ? [0.08, 0.08, 0.08] : [0.75, 0.08, 0.08], 0.9, contents);
-}
-
-function highlightExclusionKeys(
-  authority: Pick<AuthorityIdentity, "highlightExclusions"> | null | undefined,
-) {
-  return new Set((authority?.highlightExclusions ?? [])
-    .map(({ kind, label }) => `${kind.trim()}\0${label.trim()}`));
-}
-
-const passageLabel = (locatorKind: string, locator: string) =>
-  `${locatorKind === "paragraph" ? "para" : locatorKind === "section" ? "s" : "p"} ${locator}`;
-
-type MarkRect = [number, number, number, number];
-
-function pageRect(page: PdfPage, rect: MarkRect, sourceWidth: number, sourceHeight: number) {
-  const crop = page.getCropBox(), angle = ((page.getRotation().angle % 360) + 360) % 360;
-  const visibleWidth = angle === 90 || angle === 270 ? crop.height : crop.width;
-  const visibleHeight = angle === 90 || angle === 270 ? crop.width : crop.height;
-  const x0 = rect[0] * visibleWidth / sourceWidth, x1 = rect[2] * visibleWidth / sourceWidth;
-  const y0 = rect[1] * visibleHeight / sourceHeight, y1 = rect[3] * visibleHeight / sourceHeight;
-  const values = angle === 90 ? [y0, x0, y1, x1]
-    : angle === 180 ? [crop.width - x1, y0, crop.width - x0, y1]
-      : angle === 270 ? [crop.width - y1, crop.height - x1,
-        crop.width - y0, crop.height - x0]
-        : [x0, crop.height - y1, x1, crop.height - y0];
-  return { x: crop.x + values[0], y: crop.y + values[1],
-    width: values[2] - values[0], height: values[3] - values[1] };
-}
-
-function uniqueRects(rects: MarkRect[]) {
-  const seen = new Set<string>();
-  return rects.filter((rect) => {
-    const key = rect.map((value) => value.toFixed(2)).join(":");
-    if (seen.has(key)) return false; seen.add(key); return true;
-  });
-}
-
-function addPassageMarks(pdf: PdfModule, page: PdfPage, pageIndex: number,
-  style: AuthoritiesSettings["passageMarking"], cited: boolean,
-  geometry?: NativePdfPassageGeometry, exclusions: ReadonlySet<string> = new Set()) {
-  const number = pageIndex + 1;
-  const hadTargets = (geometry?.targets.length ?? 0) > 0;
-  const targets = (geometry?.targets ?? []).filter(({ locatorKind, locator }) =>
-    !exclusions.has(`${locatorKind.trim()}\0${locator.trim()}`));
-  if (hadTargets && !targets.length) return;
-  const withPassages = targets.flatMap((target) => target.pages
-    .filter((item) => item.pageNumber === number && item.source === "native")
-    .map((item) => ({ target, item })));
-  const hasPassages = withPassages.some(({ item }) => item.passageRects.length > 0);
-  if ((style === "margin" || style === "sidelined") && !hasPassages &&
-      (cited || targets.some((target) => target.pages.some((item) => item.pageNumber === number)))) {
-    addPageMarginAnnot(pdf, page, style === "sidelined");
-  }
-  const barRgb: [number, number, number] = style === "sidelined"
-    ? [0.08, 0.08, 0.08] : [0.75, 0.08, 0.08];
-  for (const { target, item } of withPassages) {
-    const label = passageLabel(target.locatorKind, target.locator);
-    const contents = `Cited passage — ${label}`;
-    const rects = uniqueRects(item.passageRects);
-    if (style === "margin" || style === "sidelined") for (const rect of rects) {
-      const x = Math.min(item.width - 4, rect[2] + 5);
-      addSquareAnnot(pdf, page,
-        pageRect(page, [x, rect[1], x + 2, rect[3]], item.width, item.height),
-        barRgb, 0.9, contents);
-    }
-    if (style === "paragraph") {
-      addHighlightAnnot(pdf, page, rects.map((rect) =>
-        pageRect(page, rect, item.width, item.height)), contents);
-    }
-  }
-  if (style === "text" || style === "margin") {
-    const byTarget = new Map<string, { target: (typeof targets)[number];
-      texts: string[]; rects: MarkRect[]; dimensions: { width: number; height: number } }>();
-    for (const target of targets) for (const quote of target.quotes) {
-      if (quote.status !== "found" || quote.pageNumber !== number || !quote.rects.length) continue;
-      const dimensions = target.pages.find((item) => item.pageNumber === number &&
-        item.source === "native") ?? target.pages[0];
-      if (!dimensions) continue;
-      const seen = byTarget.get(target.id) ?? { target, texts: [], rects: [],
-        dimensions: { width: dimensions.width, height: dimensions.height } };
-      if (quote.text.trim() && !seen.texts.includes(quote.text.trim())) {
-        seen.texts.push(quote.text.trim());
-      }
-      seen.rects.push(...quote.rects);
-      byTarget.set(target.id, seen);
-    }
-    for (const { target, texts, rects, dimensions } of byTarget.values()) {
-      const label = passageLabel(target.locatorKind, target.locator);
-      addHighlightAnnot(pdf, page, uniqueRects(rects).map((rect) =>
-        pageRect(page, rect, dimensions.width, dimensions.height)),
-      texts.length === 1 ? `Cited quote — ${texts[0]}`.slice(0, 500)
-        : `Cited quotes — ${label}`);
-    }
-  }
 }
 
 function addOcrText(page: PdfPage, font: PdfFont, value?: string) {
@@ -1366,14 +1286,14 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
     ? ["table", "book"] : [input.draft.outputMode];
   const profile = authoritiesProfile(input.draft.settings.profileId);
   const completeBook = profile.requirements?.completeBookSources ? profile.label : null;
-  if (wanted.includes("book") && completeBook) {
+  if (wanted.includes("book") && completeBook && !input.draft.settings.allowIncomplete) {
     const missing = input.draft.authorityOrder.map((id) => input.draft.authorities[id])
       .filter((authority) => !authority.excluded && authority.source.kind !== "attached");
     if (missing.length) throw new Error(
       `Attach a complete PDF or exclude ${authorityName(input.draft, missing[0])} before building this ${completeBook} book.`,
     );
   }
-  if (wanted.includes("book") && profile.requirements?.bilingualEnactments) {
+  if (wanted.includes("book") && profile.requirements?.bilingualEnactments && !input.draft.settings.allowIncomplete) {
     const incomplete = input.draft.authorityOrder.map((id) => input.draft.authorities[id])
       .find((authority) => !authority.excluded && authority.kind === "legislation" &&
         federalEnactmentCitation(authority.citation) && authority.source.kind === "attached" &&
@@ -1434,7 +1354,7 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
     ? [await tableArtifact(tableGroups, `${base}.table-of-authorities.docx`, subtitle,
       input.draft.settings.tableDelivery === "linked-append", wanted.includes("book"))]
     : role === "book"
-      ? bookArtifact(input.draft, bookGroups, `${base}.${bookName}.pdf`, subtitle,
+      ? bookArtifact(input.draft, bookGroups, `${base}${input.draft.settings.allowIncomplete ? ".draft-incomplete" : ""}.${bookName}.pdf`, subtitle,
         sources, input.signal)
       : input.draft.import.kind === "document" && input.draft.import.fileType === "pdf"
         ? [await filingPdfArtifact(tableGroups,

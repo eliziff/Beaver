@@ -110,11 +110,11 @@ export function ResearchSourceList({ sources, reader, opened, setOpened, passage
               <ResearchLabelPicker file={file} kind="source" itemId={source.id} labelIds={source.labelIds}
                 badge={source.badge} badgeColor={source.badgeColor} note={source.note} title={name} size="sm"
                 onError={onStatus} onSourceDrag={onSourceDrag} mutations={commit} />
-              <span className="min-w-[9rem] flex-1 [overflow-wrap:anywhere]"><span className="block">{link(source, name, undefined, true)}</span>
+              <span className="min-w-0 flex-1 basis-[9rem] [overflow-wrap:anywhere]"><span className="block">{link(source, name, undefined, true)}</span>
                 {source.reference.citation && source.reference.citation !== name && <span className="block text-xs text-gray-600">{source.reference.citation}</span>}
                 {source.note && <span className="line-clamp-1 whitespace-pre-wrap text-xs text-gray-600 group-open:line-clamp-none">{source.note}</span>}</span>
             </span>
-            <span className="absolute end-1 top-1 flex items-center gap-0.5 rounded bg-white/90 opacity-0 focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:static [@media(hover:none)]:col-span-3 [@media(hover:none)]:opacity-100">
+            <span className="absolute end-1 top-1 flex items-center gap-0.5 rounded bg-white/90 opacity-0 focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
               <Button variant="outline" size="compact" aria-label={`Cite ${name}`} onClick={(event) => { event.preventDefault(); onCite(source); }}>Cite</Button>
               <MoreActionsMenu label={`${name} options`} items={[
                 ...(reader.sourceHref(source) ? [{ label: "Open source", onSelect: () => openSource(source) }] : []),
@@ -135,7 +135,7 @@ export function ResearchSourceList({ sources, reader, opened, setOpened, passage
                   <ResearchLabelPicker file={file} kind="evidence" itemId={item.receipt.evidence_id} sourceId={source.id}
                     labelIds={item.labelIds} note={item.note} title={locator} size="sm" onError={onStatus} mutations={commit} />
                   {link(source, locator, locator)}
-                  <span className="absolute end-0 top-0 flex gap-0.5 rounded bg-white/90 opacity-0 focus-within:opacity-100 group-hover/passage:opacity-100 [@media(hover:none)]:static [@media(hover:none)]:col-span-3 [@media(hover:none)]:opacity-100">
+                  <span className="absolute end-0 top-0 flex gap-0.5 rounded bg-white/90 opacity-0 focus-within:opacity-100 group-hover/passage:opacity-100 [@media(hover:none)]:opacity-100">
                     <Button variant="outline" size="compact" aria-label={`Cite ${locator}`} onClick={() => onCite(source, item)}>Cite</Button>
                     <button type="button" aria-label={`Delete ${locator}`}
                       onClick={() => onRemove({ kind: "evidence", id: item.receipt.evidence_id, sourceId: source.id, name: locator })}
