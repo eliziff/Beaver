@@ -1,0 +1,83 @@
+name: Authorities slot regression
+on:
+  push:
+    branches: [fix/authorities-parity-workflow]
+    paths: [.github/workflows/authorities-slot-regression.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the proposed source
+        run: |
+          git init .
+          git remote add origin https://github.com/eliziff/Beaver.git
+          git fetch --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+      - name: Apply the tested slot-format propagation fix
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          p=Path('frontend/src/app/authorities/AuthoritiesWorkspace.tsx');s=p.read_text()
+          assert hashlib.sha256(p.read_bytes()).hexdigest()=='71d25984162a5d1f77d80eacae07e6a0c85d3dd223d89e2a1499ef1464089057'
+          s=s.replace('tableOrder: state.settings.tableOrder, tabStyle: state.settings.tabStyle,\n','tableOrder: state.settings.tableOrder, tabStyle: state.settings.tabStyle,\n    tabStart: state.settings.tabStart, tabPrefix: state.settings.tabPrefix,\n    tabLabels: state.settings.tabLabels,\n')
+          s=s.replace('tabLabel(supplementStart + index + 1, draft.state.settings.tabStyle)', 'tabLabel(supplementStart + index + 1, draft.state.settings.tabStyle, draft.state.settings)')
+          p.write_text(s)
+          p=Path('frontend/src/app/(pages)/table-of-authorities/page.test.tsx');s=p.read_text()
+          assert hashlib.sha256(p.read_bytes()).hexdigest()=='ff039cfe3f4b0586fb55038c84134c7a9864c9ecbf267385e703a89ba255254f'
+          needle='  it("renames a manual draft and derives its procedural tabs", async () => {'
+          new='''  it.each(["manual", "document"] as const)("retains slot formats when moving an authority in %s mode", async (mode) => {
+              const saved = add(mode === "manual" ? draft() : documentDraft(),
+                authority("alpha", "Alpha", { kind: "unresolved" }),
+                authority("beta", "Beta", { kind: "unresolved" }),
+                authority("gamma", "Gamma", { kind: "unresolved" }));
+              saved.state.outputMode = "book"; saved.state.stage = "sources";
+              Object.assign(saved.state.settings, { tabStyle: "roman", tabStart: 4,
+                tabPrefix: "Record ", tabLabels: ["Front", "", "End"] });
+              const moved = structuredClone(saved); moved.revision += 1;
+              moved.state.authorityOrder = ["beta", "alpha", "gamma"];
+              api.getWorkProduct.mockResolvedValue(saved);
+              api.actOnAuthorities.mockResolvedValue(moved);
+              render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+                route={workspaceRoute("draft-1")} /></MemoryRouter>);
+              const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("details")!;
+              const checkSlots = (names: string[]) => {
+                const cards = within(sources).getAllByRole("article");
+                cards.forEach((card, i) => {
+                  expect(within(card).getByRole("heading")).toHaveTextContent(names[i]);
+                  expect(within(card.parentElement!).getByText(["Front", "Record V", "End"][i])).toBeVisible();
+                });
+              };
+              checkSlots(["Alpha", "Beta", "Gamma"]);
+              await userEvent.click(within(sources).getByRole("button", { name: "Move Alpha down", exact: true }));
+              await waitFor(() => checkSlots(["Beta", "Alpha", "Gamma"]));
+            });
+
+          '''
+          assert needle in s;s=s.replace(needle,new+needle);p.write_text(s)
+          PY
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Gate the shared automatic and manual workspace
+        run: |
+          npm ci --ignore-scripts
+          npm ci --ignore-scripts --prefix frontend
+          (cd frontend && npx vitest run 'src/app/(pages)/table-of-authorities/page.test.tsx' --maxWorkers=2)
+      - name: Commit the tested source and the gated native pin
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'Authorities parity workbench'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/src/app/authorities/AuthoritiesWorkspace.tsx 'frontend/src/app/(pages)/table-of-authorities/page.test.tsx'
+          git update-index --cacheinfo 160000,1b6463f5895df2a584c54adf503c5364ed4b35d9,legal-structure
+          git rm .github/workflows/authorities-slot-regression.yml
+          git diff --cached --check
+          git commit -m 'fix: carry custom slot formats through the workspace and preserve quote guards'
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$AUTH"
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:refs/heads/fix/authorities-parity-workflow
