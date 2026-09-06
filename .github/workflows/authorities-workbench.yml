@@ -12,12 +12,11 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-          submodules: recursive
       - name: Package source for offline validation
         run: |
           python3 - <<'PY'
           import pathlib, subprocess, tarfile
-          paths = subprocess.check_output(['git', 'ls-files', '--recurse-submodules', '-z']).decode().split('\0')
+          paths = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
           with tarfile.open('authorities-source.tar.gz', 'w:gz') as archive:
               for value in paths:
                   path = pathlib.Path(value)
