@@ -26,9 +26,9 @@ export default defineConfig(({ mode }) => {
                     codeSplitting: {
                         groups: [{
                             // Avoid dozens of sub-kilobyte requests for shared
-                            // icons on a cold connection. Keep feature-only
-                            // icons lazy and do not pull React or application
-                            // dependencies into this pure, leaf-module group.
+                            // icons on a cold connection. Leave single-entry
+                            // icons with their existing chunks; do not pull
+                            // React or application dependencies into this group.
                             name: "shared-icons",
                             test: /node_modules[\\/]lucide-react[\\/]dist[\\/]esm[\\/]icons[\\/]/,
                             minShareCount: 2,
