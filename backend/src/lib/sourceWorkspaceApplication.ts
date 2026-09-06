@@ -1,17 +1,12 @@
-import { randomUUID } from "node:crypto";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { AuditStore } from "./audit";
 import type { ChatStore } from "./chatStore";
-import type { DocumentRecord, DocumentStore } from "./documentStore";
-import type { LibraryStore } from "./libraryStore";
-import type { ProjectStore } from "./projectStore";
-import type { UserPreferencesRepository } from "./userPreferences";
+import type { DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
 import { commitResearchFile, createResearchFileState, pageResearchItems, readResearchFile,
   researchFileMarkdown, researchQueryReceipt, researchQuerySources, researchSourceResource,
-  visitResearchEvidenceParts,
-  type ResearchEvidence, type ResearchFileAction, type ResearchFile, type ResearchFileState,
-  type ResearchQueryReceipt, type ResearchSourceReference } from "./researchFile";
+  type ResearchFileAction, type ResearchFile, type ResearchQueryReceipt,
+  type ResearchSourceReference } from "./researchFile";
 import { runResearchFileQuery, verifyResearchPassage, type ResearchFileQueryInput } from "./researchFileQuery";
 import { readResearchMemoCitation } from "./researchMemo";
 import { resolveChatFindings, researchFindingReferenceSchema,
@@ -25,10 +20,8 @@ import { priorLegalEvidenceReceipts, priorLegalResearchQueryReceipts,
 import type { LegalEvidenceReceiptEvent } from "./chat/assistantEvents";
 import { parseResourceReference } from "./resourceReferences";
 import { resolveResearchArrangement } from "./tabular/researchArrangement";
-import { researchTableArrangement, type ResearchImportInput } from "./tabular/researchImport";
 import type { TabularApplication } from "./tabular/application";
-import { tabularSubjectId, type TabularCellContent, type TabularColumn,
-  type TabularRepository, type TabularReview } from "./tabularStore";
+import { tabularSubjectId, type TabularRepository, type TabularReview } from "./tabularStore";
 
 type Scope = ApplicationScope;
 type Operation = ResearchOperationContext;
@@ -39,17 +32,11 @@ type FindingsInput = { sourceIds?: string[]; reference?: ResearchFindingReferenc
   messageIds?: string[]; offset: number; limit: number; subjects?: ResearchSubject[] };
 type FindingsPage = { items: ResearchFinding[]; total: number; next_offset: number | null; is_running: boolean };
 type TableInput = { tableId?: string; chatId?: string; messageIds?: string[];
-  selection?: ResearchSelection; findingRefs?: ResearchFindingReference[] } & Partial<ResearchImportInput>;
-export type WorkspaceMembership = Record<string, {
-  workspaces: Array<{ id: string; title: string; sourceId: string }>;
-  labels: Array<{ id: string; name: string; color: string | null; workspaceId: string }> }>;
-
-const workspaceTitle = (filename: string) => filename.replace(/\.research\.md$/iu, "");
+  selection?: ResearchSelection; findingRefs?: ResearchFindingReference[] };
 
 /** The Sources workspace use cases share the existing document, chat and table persistence ports. */
 export function createSourceWorkspaceApplication(documents: DocumentStore, dependencies: {
   chats: ChatStore; tables: TabularRepository; tabular(): Promise<TabularApplication>; audit?: AuditStore["record"];
-  projects: ProjectStore; preferences: UserPreferencesRepository; library: LibraryStore;
   isTableRunning?(reviewId: string, ownerId: string): Promise<boolean>;
 }) {
   const operation = (value?: Operation): Operation => ({ executor: "human", audit: dependencies.audit, ...value });
@@ -298,9 +285,10 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
         research_file_id: detail.review.scope_config?.research_file_id }); }
     return { chats, tables };
   }
-  async function table(scope: Scope, id: string, input: TableInput = {}, actor?: Operation): Promise<TabularReview> {
+  async function table(scope: Scope, id: string, input: TableInput = {}, actor?: Operation): Promise<TabularReview & { needs_arrangement: boolean }> {
     if (input.tableId) { await bind(scope, id, { tableId: input.tableId, selection: input.selection }, actor);
-      return (await (await dependencies.tabular()).detail(scope, input.tableId)).review; }
+      const detail = await (await dependencies.tabular()).detail(scope, input.tableId);
+      return { ...detail.review, needs_arrangement: false }; }
     if (input.chatId) await collectView(scope, id, { chatId: input.chatId }, actor);
     for (const ref of input.findingRefs ?? []) await collectView(scope, id,
       ref.kind === "answer" ? { chatId: ref.chatId } : { tableId: ref.reviewId }, actor);
@@ -310,144 +298,27 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
       references = selected.map(({ reference }) => reference).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
       selectedScope = input.selection ?? { target: "sources" as const,
         ...(selected.length ? { sourceIds: [...new Set(selected.map(({ sourceId }) => sourceId))].sort() } : {}) };
-    const resolved = await selection(scope, id, selectedScope);
+    await selection(scope, id, selectedScope);
     if (input.messageIds?.some((id) => !selected.some(({ origin }) => origin.messageId === id)))
       return fail(400, "A selected message contains no saved findings");
-    const parts = new Map<string, Record<string, ResearchEvidence>>();
-    await visitResearchEvidenceParts(documents, scope, file, resolved.subjects.map(({ sourceId }) => sourceId),
-      (batch) => batch.forEach((value, key) => parts.set(key, value)));
-    const bound: Array<{ title: string; findings: ResearchFinding[] }> = [];
-    for (const chatId of file.state.chats ?? []) {
-      const chat = await dependencies.chats.get(scope, chatId); if (!chat) continue;
-      bound.push({ title: chat.title ?? "",
-        findings: (await findings(scope, id, { chatId, offset: 0, limit: 1_000 })).items });
-    }
-    const { columns_config, arrangement } = researchTableArrangement(file, resolved.subjects, parts, bound,
-      { rows: input.rows ?? "sources", ...(input.labelId ? { labelId: input.labelId } : {}) });
     for (const tableId of file.state.tables ?? []) {
       const existing = await dependencies.tables.detail(scope, tableId), config = existing?.review.scope_config;
       if (existing && config?.research_file_id === id && JSON.stringify(config.selection) === JSON.stringify(selectedScope) &&
-          JSON.stringify(config.findings?.references ?? []) === JSON.stringify(references) &&
-          JSON.stringify(existing.review.columns_config) === JSON.stringify(columns_config) &&
-          JSON.stringify(config.arrangement ?? null) === JSON.stringify(arrangement))
-        return existing.review;
+          JSON.stringify(config.findings?.references ?? []) === JSON.stringify(references))
+        return { ...existing.review, needs_arrangement: !config.arrangement && !existing.review.columns_config.length };
     }
-    const app = await dependencies.tabular(), review = await app.create(scope, { title: workspaceTitle(file.document.filename),
-      project_id: file.document.project_id ?? undefined, research_file_id: id, research_selection: selectedScope,
-      arrangement, columns_config }, actor);
-    const scopeConfig = { ...review.scope_config!, selection: selectedScope,
-        ...(references.length ? { findings: { references, sourceIds: [...new Set(selected.map(({ sourceId }) => sourceId))] } } : {}) },
-      changed = await dependencies.tables.update(scope, review.id, review.updated_at, { scopeConfig, operation: actor });
-    if (changed.status !== "committed") return fail(409, "The table changed while arranging its research");
-    return changed.value;
-  }
-  const columnValues = (column: TabularColumn, content: TabularCellContent) => {
-    if (column.format === "yes_no") return typeof content.value === "boolean" ? [content.value ? "Yes" : "No"] : [];
-    const values = Array.isArray(content.value) ? content.value : [content.value ?? content.summary];
-    return values.flatMap((value) => typeof value === "string" && value.trim() ? [value.trim().slice(0, 200)] : []);
-  };
-  async function columnLabels(scope: Scope, id: string, input: { reviewId: string; columnIndex: number },
-    actor?: Operation): Promise<ResearchFile> {
-    const file = await required(scope, id);
-    if (!file.state.tables?.includes(input.reviewId)) return fail(404, "Table is outside this workspace");
-    const detail = await (await dependencies.tabular()).detail(scope, input.reviewId),
-      column = detail.review.columns_config.find(({ index }) => index === input.columnIndex);
-    if (!column) return fail(404, "Column not found");
-    if (column.format !== "tag" && column.format !== "yes_no")
-      return fail(400, "Only tag and yes/no columns become labels");
-    const sources = new Map((detail.review.scope_config?.subjects ?? []).map((subject) =>
-      [tabularSubjectId(subject), subject.sourceId])), values = new Map<string, string[]>();
-    for (const cell of detail.cells) {
-      const sourceId = sources.get(cell.document_id);
-      if (cell.column_index !== input.columnIndex || cell.status !== "done" || !cell.content || !sourceId) continue;
-      for (const value of columnValues(column, cell.content)) {
-        const assigned = values.get(value) ?? []; if (!assigned.includes(sourceId)) assigned.push(sourceId);
-        values.set(value, assigned);
-      }
+    const app = await dependencies.tabular(), review = await app.create(scope, { title: file.document.filename.replace(/\.research\.md$/iu, ""),
+      project_id: file.document.project_id ?? undefined, research_file_id: id, research_selection: selectedScope, columns_config: [] }, actor);
+    if (references.length) {
+      const scopeConfig = { ...review.scope_config!, findings: { references, sourceIds: [...new Set(selected.map(({ sourceId }) => sourceId))] } },
+        changed = await dependencies.tables.update(scope, review.id, review.updated_at, { scopeConfig, operation: actor });
+      if (changed.status !== "committed") return fail(409, "The table changed while arranging its findings");
+      return { ...changed.value, needs_arrangement: true };
     }
-    if (!values.size) return fail(400, "This column has no completed values to label");
-    const parentId = randomUUID(), children = [...values.keys()].sort().map((value) =>
-      ({ value, id: randomUUID() })).slice(0, 50);
-    const actions = [
-      { type: "label" as const, id: parentId, name: column.name, parentId: null, scope: "source" as const },
-      ...children.map(({ value, id: labelId }) => ({ type: "label" as const, id: labelId, name: value,
-        parentId, scope: "source" as const })),
-      ...children.map(({ value, id: labelId }) => ({ type: "label-selection" as const, target: "sources" as const,
-        sourceIds: values.get(value)!, assign: [labelId], mode: "add" as const })),
-    ];
-    return await commitResearchFile(documents, scope, file, { type: "batch", propose: true,
-      title: `Labels from ${column.name}`.slice(0, 200), actions },
-    undefined, operation(actor)) ?? conflict("The workspace changed. Reload it before editing.");
-  }
-
-  const pointer = async (scope: Scope, projectId: string | null) => {
-    if (!projectId) return (await dependencies.preferences.get(scope.userId)).libraryLabelsId;
-    const project = await dependencies.projects.get(scope, projectId) ?? fail(404, "Project not found"),
-      metadata = project.metadata as Record<string, unknown> | null | undefined,
-      value = metadata && typeof metadata === "object" ? metadata.labelsResearchFileId : null;
-    return typeof value === "string" && value ? value : null;
-  };
-  const setPointer = async (scope: Scope, projectId: string | null, documentId: string) => {
-    if (!projectId) { await dependencies.preferences.update(scope.userId, { libraryLabelsId: documentId }); return; }
-    const project = await dependencies.projects.get(scope, projectId) ?? fail(404, "Project not found"),
-      metadata = project.metadata && typeof project.metadata === "object" ? project.metadata as Record<string, unknown> : {};
-    await dependencies.projects.update(scope, projectId, { metadata: { ...metadata, labelsResearchFileId: documentId } });
-  };
-  async function ontology(scope: Scope, input: { projectId?: string | null; create?: boolean }): Promise<ResearchFile | null> {
-    const projectId = input.projectId ?? null;
-    const settle = async (mine: string): Promise<ResearchFile | null> => {
-      const winner = await pointer(scope, projectId);
-      if (!winner || winner === mine) return null;
-      const other = await get(scope, winner); if (!other) return null;
-      await documents.deleteDocument(scope, mine, true).catch(() => undefined);
-      return other;
-    };
-    const existing = await pointer(scope, projectId), found = existing ? await get(scope, existing) : null;
-    if (found || !input.create) return found;
-    const project = projectId ? await dependencies.projects.get(scope, projectId) : null,
-      title = project && typeof project.name === "string" && project.name.trim()
-        ? `${project.name.trim()} labels`.slice(0, 300) : "Library labels";
-    const created = await create(scope, { title, projectId }, { executor: "human" }),
-      raced = await settle(created.document.id);
-    if (raced) return raced;
-    await setPointer(scope, projectId, created.document.id);
-    return await settle(created.document.id) ?? created;
-  }
-
-  const parsed = new Map<string, ResearchFileState>();
-  async function membership(scope: Scope, input: { projectId?: string | null; documentIds: string[] }): Promise<WorkspaceMembership> {
-    const wanted = new Set(input.documentIds), result: WorkspaceMembership = {};
-    if (!wanted.size) return result;
-    const listed: DocumentRecord[] = [], projectId = input.projectId ?? null;
-    let after: [number, string, string] | null = null;
-    for (let page = 0; page < 10; page++) {
-      const options = { q: '".research.md"', parentFolderId: null, limit: 200, after, documentsOnly: true },
-        found: { items: Array<{ kind: "folder" } | { kind: "document"; document: DocumentRecord }>;
-          nextAfter: [number, string, string] | null } =
-          projectId ? await dependencies.projects.directory(scope, projectId, options)
-            : await dependencies.library.page({ ...scope, kind: "file" }, options);
-      listed.push(...found.items.flatMap((item) => item.kind === "document" ? [item.document] : []));
-      after = found.nextAfter; if (!after) break;
-    }
-    for (const document of listed) {
-      if (!document.filename?.toLowerCase().endsWith(".research.md")) continue;
-      const key = `${document.id}:${document.current_version_id}:${document.current_working_revision}`;
-      let state = parsed.get(key);
-      if (!state) { const file = await get(scope, document.id); if (!file) continue;
-        state = file.state; parsed.set(key, state);
-        if (parsed.size > 200) parsed.delete(parsed.keys().next().value!); }
-      for (const source of Object.values(state.sources)) {
-        if (source.reference.kind !== "document" || !wanted.has(source.reference.id)) continue;
-        const entry = result[source.reference.id] ??= { workspaces: [], labels: [] };
-        entry.workspaces.push({ id: document.id, title: workspaceTitle(document.filename), sourceId: source.id });
-        for (const labelId of source.labelIds) { const label = state.labels[labelId];
-          if (label) entry.labels.push({ id: label.id, name: label.name, color: label.color, workspaceId: document.id }); }
-      }
-    }
-    return result;
+    return { ...review, needs_arrangement: true };
   }
   return { get, create, update, query, collect, observe, revision, items, citation, bind, ensure, selection,
-    context, finding, findings, views, table, columnLabels, ontology, membership };
+    context, finding, findings, views, table };
 }
 
 export type SourceWorkspaceApplication = ReturnType<typeof createSourceWorkspaceApplication>;

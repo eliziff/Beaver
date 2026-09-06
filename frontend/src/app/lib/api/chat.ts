@@ -175,7 +175,7 @@ type StreamCurrentTurn =
       turn_id?: string;
       content: string;
       files?: { document_id: string }[];
-      workflow?: { id: string; variant_id?: string };
+      workflow?: { id: string };
     }
   | {
       kind: "ask_inputs_response";

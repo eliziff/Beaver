@@ -52,12 +52,12 @@ describe("ResearchLabelPicker", () => {
     render(<ResearchLabelEditor target={{ file, kind: "evidence", itemId: "e-1", sourceId: "source-1",
       labelIds: [], title: "Passage" }} mutations={lane(act)} onClose={vi.fn()} />);
     expect(screen.queryByLabelText("Badge")).not.toBeInTheDocument();
-    const choice = screen.getByRole("button", { name: "H" }), icon = choice.querySelector("span[style]");
-    expect(icon).toHaveStyle({ backgroundColor: "#eab308" });
+    const choice = screen.getByRole("button", { name: "H" }), icon = choice.querySelector("svg");
+    expect(icon).toHaveStyle({ color: "#eab308" });
     fireEvent.click(choice);
     expect(screen.getByRole("button", { name: "H" })).toBe(choice);
     expect(choice).toHaveAttribute("aria-pressed", "true");
-    expect(choice.querySelector("span[style]")).toBe(icon);
+    expect(choice.querySelector("svg")).toBe(icon);
     await waitFor(() => expect(act).toHaveBeenCalledWith({ type: "annotate", kind: "evidence",
       id: "e-1", sourceId: "source-1", labelIds: ["h"], note: "" }));
   });

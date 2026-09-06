@@ -65,10 +65,11 @@ async function fixture(answered = true) {
 
 async function arrange(f: Awaited<ReturnType<typeof fixture>>, id: string, answered = true) {
   const answers = await request(f.api).get(`/source-workspaces/${f.workspace.id}/findings`),
-    findings = (answers.body.items as Awaited<ReturnType<typeof import("../lib/researchChat").resolveChatFindings>>["findings"])
-      .filter(({ reference }) => reference.kind === "answer"),
+    findings = answers.body.items as Awaited<ReturnType<typeof import("../lib/researchChat").resolveChatFindings>>["findings"],
     current = await request(f.api).get(`/tabular-review/${id}`), rows = findings.map((finding, index) => ({
       id: `branch-${index}`, title: `Chosen row ${index + 1}`, sourceId: finding.sourceId }));
+  expect(current.body.review.columns_config).toEqual([]);
+  expect(current.body.cells).toEqual([]);
   const arranged = await request(f.api).patch(`/tabular-review/${id}`).send({
     expected_version: current.body.review.updated_at,
     columns_config: [{ index: 3, name: "Finding", prompt: "Explain the finding", format: "text" }],
@@ -86,8 +87,7 @@ it("reuses stored chat answers and their original Library/public evidence across
   };
   const first = await request(f.api).post(tablePath).send(input);
   expect(first.status).toBe(200);
-  expect(first.body.columns_config.map(({ name }: { name: string }) => name).slice(0, 2)).toEqual(["Labels", "Note"]);
-  expect((await request(f.api).post(tablePath).send(input)).body.id).toBe(first.body.id);
+  expect(first.body.needs_arrangement).toBe(true);
   const table = await arrange(f, first.body.id);
   expect(table.status).toBe(200);
   expect(table.body.cells).toHaveLength(2);
@@ -98,6 +98,8 @@ it("reuses stored chat answers and their original Library/public evidence across
     .toEqual(expect.arrayContaining(f.claims));
   expect(table.body.review.scope_config.subjects.map((subject: { resource: string }) => subject.resource))
     .toContain(f.resource);
+  expect((await request(f.api).post(tablePath).send(input)).body)
+    .toMatchObject({ id: first.body.id, needs_arrangement: false });
   const { tabularRepository } = await import("../lib/relationalTabularRepository");
   expect((await tabularRepository.detail(owner, first.body.id))?.cells.every(({ status, content }) =>
     status === "pending" && content === null)).toBe(true);
@@ -182,49 +184,3 @@ it("keeps the chat and its answers when its table and Sources workspace are dele
   expect(await f.chats.get(owner, f.chat.id)).toMatchObject({ research_file_id: null, research_selection: null });
   expect((await f.chats.transcript(owner, f.chat.id))?.some(({ id }) => id === f.assistantId)).toBe(true);
 });
-
-it("keeps one ontology set per scope, reports Library membership and proposes labels from a column", async () => {
-  const f = await fixture(), sources = await f.runtime.sources(), tables = await f.runtime.tabular(),
-    labelId = randomUUID();
-  const created = await request(f.api).post("/source-workspaces/ontology").send({});
-  expect(created.status).toBe(200);
-  expect((await request(f.api).post("/source-workspaces/ontology").send({})).body.document.id)
-    .toBe(created.body.document.id);
-  expect((await request(f.api).get("/source-workspaces/ontology")).body.document.id).toBe(created.body.document.id);
-  expect(created.body.document.filename).toBe("Library labels.research.md");
-  expect((await request(f.api).get("/user/profile")).body.libraryLabelsId).toBe(created.body.document.id);
-
-  const file = (await sources.get(owner, f.workspace.id))!, sourceId = Object.values(file.state.sources)
-    .find(({ reference }) => f.research.researchSourceResource(reference) === f.resource)!.id;
-  const act = async (action: unknown) => { const current = (await sources.get(owner, f.workspace.id))!;
-    return request(f.api).post(`/source-workspaces/${f.workspace.id}/actions`).send({
-      version_id: current.versionId, working_revision: current.workingRevision, action }); };
-  await act({ type: "label", id: labelId, name: "Leases", scope: "source" });
-  await act({ type: "annotate", kind: "source", id: sourceId, labelIds: [labelId] });
-  const membership = await request(f.api).get(`/source-workspaces/membership?document_ids=${f.source.id}`);
-  expect(membership.status).toBe(200);
-  expect(membership.body[f.source.id].workspaces)
-    .toEqual([{ id: f.workspace.id, title: "Review", sourceId }]);
-  expect(membership.body[f.source.id].labels)
-    .toEqual([{ id: labelId, name: "Leases", color: null, workspaceId: f.workspace.id }]);
-
-  const review = await sources.table(owner, f.workspace.id, { chatId: f.chat.id });
-  expect(review.columns_config.map(({ name }) => name).slice(0, 2)).toEqual(["Labels", "Note"]);
-  await tables.update(owner, review.id, { expected_version: review.updated_at,
-    columns_config: review.columns_config.map((column) => column.index === 0
-      ? { ...column, name: "Topic", format: "tag" } : column) });
-  const proposal = await request(f.api).post(`/source-workspaces/${f.workspace.id}/column-labels`)
-    .send({ reviewId: review.id, columnIndex: 0 });
-  expect(proposal.status).toBe(200);
-  expect(proposal.body.state.proposals).toMatchObject([{ title: "Labels from Topic" }]);
-  expect(Object.values(proposal.body.state.labels).map((label) => (label as { name: string }).name)).toEqual(["Leases"]);
-  const history = await request(f.api).get(`/source-workspaces/${f.workspace.id}/items?kind=history`),
-    pending = (history.body.items as Array<{ value: { status: string;
-      changes: Array<{ target: string; id: string; field: string; after: unknown }> } }>)
-      .find(({ value }) => value.status === "pending")!;
-  expect(pending.value.changes.filter(({ target, field }) => target === "label" && field === "$")
-    .map(({ after }) => (after as { name: string }).name)).toEqual(["Topic", "Leases"]);
-  expect(pending.value.changes.some(({ target, id, field, after }) => target === "source" &&
-    id === sourceId && field.startsWith("labelIds.") && after === true)).toBe(true);
-  expect(model).not.toHaveBeenCalled();
-}, 60_000);

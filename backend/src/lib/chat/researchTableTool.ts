@@ -118,7 +118,7 @@ export function createResearchTableTool<Context>(dependencies: {
   const { application, scope } = dependencies;
   return {
     name: "update_research_table", research: true, sequential: true,
-    description: "Arrange current workspace research into chosen rows, named columns and grouping. Link existing labels, passages and findings with arrangement references. Read findings to inspect canonical answer and cell references. Unmapped cells can generate new grounded answers. Read a column_index to inspect its prompt before editing; updates and change actions require expected_version. Updates apply reversibly; set propose to offer a change for review instead of applying it. History supports accept, reject and undo. Use read_table_cells to inspect cell answers.",
+    description: "Arrange current workspace research into chosen rows, named columns and grouping. Link existing labels, passages and findings with arrangement references. Read findings to inspect canonical answer and cell references. Unmapped cells can generate new grounded answers. Read a column_index to inspect its prompt before editing; updates and change actions require expected_version. Updates apply reversibly; use propose only when the user requests a suggestion. History supports accept, reject and undo. Use read_table_cells to inspect cell answers.",
     inputSchema: object({
       action: { type: "string", enum: ["read", "create", "update", "generate", "stop", "history", "accept", "reject", "undo"] },
       review_id: string(200), title: { type: ["string", "null"], maxLength: 300 },
@@ -159,18 +159,9 @@ export function createResearchTableTool<Context>(dependencies: {
           if (current.review.scope_config?.research_file_id !== workspace.document.id)
             throw new ApplicationError(404, "Table is outside the current workspace");
           if (action === "update") {
-            const { propose, ...changes } = updateInput.parse(values), next = changes.columns_config;
-            // Renames, reorders and additions apply; rewriting, reformatting or dropping an
-            // existing column is the user's call, so it is always offered as a proposal.
-            const revises = !!next && current.review.columns_config.some((column) => {
-              const updated = next.find(({ index }) => index === column.index);
-              return !updated || updated.prompt !== column.prompt ||
-                (updated.format ?? "text") !== (column.format ?? "text") ||
-                JSON.stringify(updated.tags ?? []) !== JSON.stringify(column.tags ?? []);
-            });
+            const { propose, ...changes } = updateInput.parse(values);
             await application.update(scope, reviewId, { ...changes,
-              ...(changes.research_selection ? { research_file_id: workspace.document.id } : {}) },
-            { ...operation, propose: revises || propose });
+              ...(changes.research_selection ? { research_file_id: workspace.document.id } : {}) }, { ...operation, propose });
             mutated = true;
           } else if (action === "history") {
             const page = await application.history(scope, reviewId, tabularDtos.history.parse(values));

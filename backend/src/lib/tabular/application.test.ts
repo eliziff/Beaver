@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import type { DocumentStore } from "../documentStore";
 import type { UserApiKeys } from "../llm";
 import type { TabularCell, TabularCellContent, TabularColumn, TabularRepository } from "../tabularStore";
-import { createLegalEvidenceTurnState, createLibraryEvidence } from "../chat/legalEvidence";
+import { createLegalEvidenceTurnState } from "../chat/legalEvidence";
 import type { runChatTurn } from "../chat/turnEngine";
 import { createTabularApplication, tabularDtos } from "./application";
 
@@ -42,8 +42,7 @@ const documentStore = (bytes = Buffer.from("Governing law: Alberta")) => {
       size_bytes: bytes.length, current_version_id: "v1", source_sha256: sourceSha256 };
   return {
     metadata: vi.fn(async () => metadata),
-    metadataMany: vi.fn(async (_scope, ids: string[]) => ids.flatMap((id) => id === "document" ? [metadata]
-      : id === "workspace" ? [{ ...metadata, id, filename: "Sources.research.md" }] : [])),
+    metadataMany: vi.fn(async (_scope, ids) => ids.includes("document") ? [metadata] : []),
     versions: vi.fn(async () => ({ versions: [{ id: "v1", size_bytes: bytes.length }] })),
     projectionSource: vi.fn(async () => ({ documentId: "document", versionId: "v1",
       fileType: "txt", sourceSha256, readBytes: () => bytes })),
@@ -70,16 +69,14 @@ function generated(columns: TabularColumn[], seed?: TabularCell[]) {
   return { repository, cells };
 }
 function model(execute: (submit: (args: Record<string, unknown>) => Promise<unknown>,
-  read: (args: Record<string, unknown>) => Promise<unknown>, evidenceId: string,
-  firstMessage: string) => Promise<void>): typeof runChatTurn {
+  read: (args: Record<string, unknown>) => Promise<unknown>, evidenceId: string) => Promise<void>): typeof runChatTurn {
   return async (options) => {
     const state = options.evidenceState ?? createLegalEvidenceTurnState(),
       context = { evidence: state, addEvent() {}, operation: { executor: "assistant" as const, model: options.model } },
       tools = options.createTools(state, "main", context), signal = new AbortController().signal;
     const run = (name: string, args: Record<string, unknown>) => tools.find((tool) => tool.name === name)!.execute(
       args, context, signal, { id: name, name, input: args });
-    await execute((args) => run("submit_extraction", args), (args) => run("Read", args),
-      [...state.evidence.keys()][0], String(options.messages[0].content));
+    await execute((args) => run("submit_extraction", args), (args) => run("Read", args), [...state.evidence.keys()][0]);
     return { status: "complete", fullText: "", citations: [], events: [], evidence: state };
   };
 }
@@ -185,84 +182,6 @@ describe("TabularApplication", () => {
       { status: "done", content: { outcome: "not_found", coverage: "complete", value: null, claims: [] } },
       { status: "error", content: null },
     ]);
-  });
-
-  it("designs a review and revises supplied columns from the same request", async () => {
-    const prompts: string[] = [];
-    let payload = JSON.stringify({ title: "Lease review", columns: [
-      { name: "Term", prompt: "How long is the term?", format: "number" },
-      { name: "Governing law", prompt: "Which law governs?", format: "unsupported" }] });
-    const runTurn = (async (options: Parameters<typeof runChatTurn>[0]) => {
-      prompts.push(String(options.messages[0].content));
-      return { status: "complete", fullText: payload, citations: [], events: [] };
-    }) as unknown as typeof runChatTurn;
-    const app = createTabularApplication(port(), documentStore(), projects, { settings, sources, runTurn });
-
-    const designed = await app.design(scope, tabularDtos.design.parse({
-      request: "Review commercial leases", documentNames: ["lease.txt"] }));
-    expect(designed).toEqual({ title: "Lease review", columns_config: [
-      { index: 0, name: "Term", prompt: "How long is the term?", format: "number" },
-      { index: 1, name: "Governing law", prompt: "Which law governs?", format: "text" }] });
-    expect(prompts[0]).toContain("Review commercial leases");
-    expect(prompts[0]).not.toContain("Current columns");
-
-    payload = JSON.stringify({ title: "Lease review", columns: [
-      { name: "Term", prompt: "How long is the term?", format: "number" },
-      { name: "Governing law", prompt: "Which law governs?", format: "text" },
-      { name: "Rent", prompt: "What is the monthly rent?", format: "monetary_amount" }] });
-    const revised = await app.design(scope, tabularDtos.design.parse({
-      request: "Add the monthly rent", current: designed.columns_config }));
-    expect(prompts[1]).toContain("Current columns");
-    expect(prompts[1]).toContain("How long is the term?");
-    expect(revised.columns_config.map(({ index, name }) => [index, name]))
-      .toEqual([[0, "Term"], [1, "Governing law"], [2, "Rent"]]);
-
-    payload = "not a design";
-    await expect(app.design(scope, tabularDtos.design.parse({ request: "Review leases" })))
-      .rejects.toMatchObject({ status: 502 });
-  });
-
-  it("cites a workspace passage without reading it again and records the reads behind the cell", async () => {
-    const saved = createLibraryEvidence({ documentId: "document", versionId: "v1", filename: "lease.txt",
-      sourceText: "Rent is payable monthly in advance.", spanText: "Rent is payable monthly in advance.",
-      start: 0, end: 35 });
-    const priorQuery = { query_id: "q_prior", call_id: "call-prior", tool: "Read" as const,
-      executed_at: "2026-01-01T00:00:00.000Z", model: "codex:gpt-5.6",
-      executor_version: "legal-source-pattern-v1" as const,
-      input: { resource: "document://document/version/v1" },
-      results: [{ rank: 1, evidence_id: saved.evidence_id }], sourceIds: ["document"],
-      matchedSourceIds: ["document"], evidenceIds: [saved.evidence_id], failures: [], slots: {} };
-    const observed: { queries: { tool: string }[] }[] = [];
-    const workspace = {
-      items: async (_scope: unknown, _id: string, input: { kind: string }) => ({ total: 1, nextOffset: null,
-        items: input.kind === "passages"
-          ? [{ kind: "passage", index: 0, value: { receipt: saved, sourceId: "document", labelIds: [], note: "" } }]
-          : [{ kind: "query", index: 0, value: priorQuery }] }),
-      observe: async (_scope: unknown, _id: string, event: { queries: { tool: string }[] }) => { observed.push(event); },
-    };
-    const columns = [{ index: 0, name: "Rent", prompt: "Extract" }];
-    const scopeConfig = { research_file_id: "workspace", subjects: [{ sourceId: "document",
-      resource: "document://document/version/v1", reference: { provider: "library" as const,
-        kind: "document" as const, id: "document", versionId: "v1", title: "lease.txt" } }] };
-    const { repository, cells } = generated(columns);
-    const scoped = port({ ...repository,
-      detail: async () => ({ review: { ...review, columns_config: columns, scope_config: scopeConfig }, cells }) });
-    let prompt = "";
-    const app = createTabularApplication(scoped, documentStore(), projects,
-      { settings, sources: async () => workspace as never,
-        runTurn: model(async (submit, _read, _id, first) => {
-          prompt = first;
-          await submit({ column_index: 0, value: "Monthly", flag: "green", outcome: "answered",
-            claims: [{ text: "Rent is payable monthly in advance.", evidence_ids: [saved.evidence_id] }] });
-        }) });
-    await app.runAgent(scope, { reviewId: "review", documentId: "document" });
-
-    expect(prompt).toContain("Saved passages and previous reads for this source");
-    expect(prompt).toContain(saved.evidence_id);
-    expect(cells[0]).toMatchObject({ status: "done", content: { summary: "Monthly",
-      evidence: [{ evidence_id: saved.evidence_id }] } });
-    expect(cells[0].content?.query_ids).toEqual(["q_prior"]);
-    expect(observed.flatMap(({ queries }) => queries ?? []).filter(({ tool }) => tool === "Read")).toHaveLength(1);
   });
 
   it("generates only missing cells and can explicitly regenerate one completed cell", async () => {

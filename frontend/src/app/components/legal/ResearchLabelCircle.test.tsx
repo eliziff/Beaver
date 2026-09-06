@@ -6,25 +6,21 @@ const labels = {
   root: { id: "root", name: "Root", parentId: null, color: "#1d4ed8", order: 0, scope: "source" as const },
   child: { id: "child", name: "Child", parentId: "root", color: "#047857", order: 1, scope: "source" as const },
   detail: { id: "detail", name: "Detail", parentId: "child", color: "#991b1b", order: 2, scope: "source" as const },
-  extra: { id: "extra", name: "Extra", parentId: null, color: "#a16207", order: 3, scope: "source" as const },
 };
 
 describe("ResearchLabelCircle", () => {
-  it("shows one coloured dot per label with its full path in the accessible name", () => {
+  it("keeps the primary folder in front of its hierarchy and shows additional memberships on its face", () => {
     render(<ResearchLabelCircle labels={labels} labelIds={["detail", "root"]} />);
-    const dots = screen.getByRole("group", { name: "Labels: Root / Child / Detail, Root" });
-    expect([...dots.querySelectorAll<HTMLElement>("[data-label-dot]")].map((dot) => dot.style.backgroundColor))
-      .toEqual(["rgb(153, 27, 27)", "rgb(29, 78, 216)"]);
+    const stack = screen.getByRole("group", { name: "Labels: Root / Child / Detail, Root" });
+    expect(stack.querySelector('[data-label-layer="primary"]')).toHaveAttribute("fill", "#1d4ed8");
+    expect(stack.querySelector('[data-label-layer="middle"]')).toHaveAttribute("fill", "#047857");
+    expect(stack.querySelector('[data-label-layer="inner"]')).toHaveAttribute("fill", "#991b1b");
+    expect([...stack.querySelectorAll("[data-label-layer]")].map((layer) => layer.getAttribute("fill")))
+      .toEqual(["#991b1b", "#047857", "#1d4ed8"]);
+    expect(stack.querySelector('[data-additional-label="root"]')).toHaveAttribute("fill", "#1d4ed8");
   });
 
-  it("caps the dots and counts the rest", () => {
-    render(<ResearchLabelCircle labels={labels} labelIds={["root", "child", "detail", "extra"]} />);
-    const dots = screen.getByRole("group", { name: /^Labels:/u });
-    expect(dots.querySelectorAll("[data-label-dot]")).toHaveLength(3);
-    expect(dots).toHaveTextContent("+1");
-  });
-
-  it("keeps an unassigned marker outlined", () => {
+  it("keeps an unassigned stack outlined", () => {
     render(<ResearchLabelCircle labels={labels} labelIds={[]} size="sm" />);
     expect(screen.getByRole("group", { name: "No labels" })).toHaveAttribute("data-empty", "true");
   });

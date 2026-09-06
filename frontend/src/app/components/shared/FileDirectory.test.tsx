@@ -140,15 +140,6 @@ describe("FileDirectory folders", () => {
         ]);
     });
 
-    it("keeps research sets out of the document picker", async () => {
-        const research = { ...document, id: "research", folder_id: null, filename: "Notes.research.md", file_type: "md" };
-        listDirectory.mockResolvedValue({ items: [], next_cursor: null });
-        render(<FileDirectory documents={[{ ...document, folder_id: null }, research]}
-            selectedDocuments={[]} onChange={vi.fn()} showTabs />);
-        expect(await screen.findByText("Inside.pdf")).toBeVisible();
-        expect(screen.queryByText("Notes")).not.toBeInTheDocument();
-    });
-
     it("can limit selection to documents accepted by the caller", async () => {
         const research = { ...document, id: "research", folder_id: null, filename: "Notes.research.md", file_type: "markdown" };
         listDirectory.mockResolvedValue({ items: [], next_cursor: null });

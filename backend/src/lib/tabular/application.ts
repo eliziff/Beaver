@@ -23,7 +23,7 @@ import { ApplicationError, reject as fail } from "../applicationError";
 import { parseResourceReference, resourceReference } from "../resourceReferences";
 import { researchSelectionSchema } from "../researchSelection";
 import { researchSourceResource } from "../researchFile";
-import { extractTabularAnswers, tabularFormatDescription, TABULAR_FORMATS } from "./extraction";
+import { extractTabularAnswers, tabularFormatDescription } from "./extraction";
 import type { TabularAgents, TabularAgentSnapshot } from "./agents";
 import type { SourceWorkspaceApplication } from "../sourceWorkspaceApplication";
 import type { AuditStore } from "../audit";
@@ -84,12 +84,6 @@ export const tabularDtos = {
     shared_with: z.array(z.string().trim().toLowerCase().email().max(320)).max(100)
       .transform((value) => [...new Set(value)]).optional(),
     expected_version: z.string().max(100).optional(),
-  }).strict(),
-  design: z.object({
-    request: z.string().trim().min(1).max(4_000),
-    title: z.string().trim().max(300).optional(),
-    current: columns.optional(),
-    documentNames: z.array(z.string().trim().min(1).max(300)).max(50).optional(),
   }).strict(),
   prompt: z.object({
     title: z.string().trim().min(1).max(200),
@@ -343,23 +337,12 @@ export function createTabularApplication(
       cells.set(key, changed);
     }
     let received: Set<number>;
-    const fileId = selection?.research_file_id, workspace = fileId ? await dependencies.sources() : null;
-    const prior = workspace && fileId ? await (async () => {
-      const [saved, queries] = await Promise.all([
-        workspace.items(scope, fileId, { kind: "passages", sourceId: item.sourceId, offset: 0, limit: 40 }),
-        workspace.items(scope, fileId, { kind: "queries", offset: 0, limit: 50 })]);
-      const scoped = item.evidence && new Set(item.evidence.map(({ evidence_id }) => evidence_id));
-      return { passages: saved.items.flatMap((entry) => entry.kind === "passage" &&
-          (!scoped || scoped.has(entry.value.receipt.evidence_id)) ? [entry.value] : []),
-        queries: queries.items.flatMap((entry) => entry.kind === "query" &&
-          entry.value.sourceIds.includes(item.sourceId) ? [entry.value] : []) };
-    })() : undefined;
     try {
-      received = await extractTabularAnswers({ model, apiKeys, reasoningEffort, subject: item, prior,
+      received = await extractTabularAnswers({ model, apiKeys, reasoningEffort, subject: item,
         documents, scope, runTurn: turn, operation: { executor: "assistant", model, jobId,
           reviewId: cells.values().next().value?.review_id },
-        onResearchObserved: workspace && fileId ? async (event, operation) => {
-          await workspace.observe(scope, fileId, event, operation);
+        onResearchObserved: selection?.research_file_id ? async (event, operation) => {
+          await (await dependencies.sources()).observe(scope, selection.research_file_id!, event, operation);
         } : undefined,
         columns: pending, signal, accept: async (index, result) => {
           const key = `${item.id}:${index}`, current = cells.get(key)!;
@@ -560,30 +543,6 @@ export function createTabularApplication(
         !mappedCell(detail.review.scope_config, cell.document_id, cell.column_index) &&
         (cell.status !== "pending" || cell.content !== null))
         await cellWrite(scope, cell, "pending", null, detail.review.updated_at, { executor: "human", title: "Clear table answer" });
-    },
-    async design(scope: TabularScope, input: z.infer<typeof tabularDtos.design>,
-      signal?: AbortSignal) {
-      const config = await settings(scope.userId);
-      const raw = await modelText({ model: config.title_model, apiKeys: config.api_keys,
-        system: `Design a tabular review: a short title and the columns to extract from every document. Each column asks one extraction question in its prompt and answers in one format from ${
-          TABULAR_FORMATS.join(", ")}; list the allowed values of a tag column in tags. When current columns are given, revise them and keep everything the request does not change. Return only {"title":string,"columns":[{"name":string,"prompt":string,"format":string,"tags":string[]}]}.`,
-        user: [`Request: ${input.request}`,
-          input.title ? `Title: ${input.title}` : "",
-          input.documentNames?.length ? `Documents: ${input.documentNames.join(", ")}` : "",
-          input.current?.length ? `Current columns: ${JSON.stringify(input.current.map(
-            ({ index: _index, ...column }) => column))}` : ""].filter(Boolean).join("\n"),
-        signal });
-      try {
-        const designed = json(raw), title = String(designed.title ?? input.title ?? "").trim().slice(0, 300);
-        const columns_config = columns.parse((Array.isArray(designed.columns) ? designed.columns : [])
-          .slice(0, 100).map((value: Record<string, unknown>, index: number) => ({ index,
-            name: String(value?.name ?? "").slice(0, 200), prompt: String(value?.prompt ?? "").slice(0, 20_000),
-            format: TABULAR_FORMATS.includes(String(value?.format)) ? String(value.format) : "text",
-            ...(Array.isArray(value?.tags) && value.tags.length
-              ? { tags: value.tags.slice(0, 100).map((tag: unknown) => String(tag).slice(0, 200)) } : {}) })));
-        if (title && columns_config.length) return { title, columns_config };
-      } catch {}
-      return fail(502, "LLM returned an invalid design");
     },
     async prompt(scope: TabularScope, input: z.infer<typeof tabularDtos.prompt>,
       signal?: AbortSignal) {
