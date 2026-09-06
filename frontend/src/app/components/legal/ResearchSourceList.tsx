@@ -100,18 +100,20 @@ export function ResearchSourceList({ sources, reader, opened, setOpened, passage
         evidence = sourcePage?.items.flatMap((item) => item.kind === "passage" && passageVisible(item.value) ? [item.value] : []) ?? [];
       return <li key={source.id} className={`border-b border-gray-200 last:border-0 ${selectedSourceId === source.id ? "bg-gray-100" : ""}`}>
         <details open={open} className="group rounded hover:bg-gray-50" onToggle={(event) => toggle(source.id, event.currentTarget.open)}>
-          <summary className="relative grid list-none grid-cols-[1.5rem_auto_minmax(0,1fr)] items-start gap-1.5 py-1.5 pe-1 text-sm"
+          <summary className="relative grid list-none grid-cols-[1.5rem_minmax(0,1fr)] items-start gap-1.5 py-1.5 pe-1 text-sm"
             onClick={(event) => { if (!(event.target as Element).closest("button,a,input")) event.preventDefault(); }}>
             <button type="button" aria-label={`Passages in ${name}`} aria-expanded={open}
               onClick={(event) => { event.preventDefault(); toggle(source.id); }}
               className="grid size-6 shrink-0 place-items-center rounded hover:bg-gray-200">
               <ChevronRight aria-hidden="true" className="size-3 text-gray-500 group-open:rotate-90" /></button>
-            <ResearchLabelPicker file={file} kind="source" itemId={source.id} labelIds={source.labelIds}
-              badge={source.badge} badgeColor={source.badgeColor} note={source.note} title={name} size="sm"
-              onError={onStatus} onSourceDrag={onSourceDrag} mutations={commit} />
-            <span className="min-w-0 [overflow-wrap:anywhere]"><span className="block">{link(source, name, undefined, true)}</span>
-              {source.reference.citation && source.reference.citation !== name && <span className="block text-xs text-gray-600">{source.reference.citation}</span>}
-              {source.note && <span className="line-clamp-1 whitespace-pre-wrap text-xs text-gray-600 group-open:line-clamp-none">{source.note}</span>}</span>
+            <span className="flex min-w-0 flex-wrap items-start gap-x-1.5 gap-y-0.5">
+              <ResearchLabelPicker file={file} kind="source" itemId={source.id} labelIds={source.labelIds}
+                badge={source.badge} badgeColor={source.badgeColor} note={source.note} title={name} size="sm"
+                onError={onStatus} onSourceDrag={onSourceDrag} mutations={commit} />
+              <span className="min-w-[9rem] flex-1 [overflow-wrap:anywhere]"><span className="block">{link(source, name, undefined, true)}</span>
+                {source.reference.citation && source.reference.citation !== name && <span className="block text-xs text-gray-600">{source.reference.citation}</span>}
+                {source.note && <span className="line-clamp-1 whitespace-pre-wrap text-xs text-gray-600 group-open:line-clamp-none">{source.note}</span>}</span>
+            </span>
             <span className="absolute end-1 top-1 flex items-center gap-0.5 rounded bg-white/90 opacity-0 focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:static [@media(hover:none)]:col-span-3 [@media(hover:none)]:opacity-100">
               <Button variant="outline" size="compact" aria-label={`Cite ${name}`} onClick={(event) => { event.preventDefault(); onCite(source); }}>Cite</Button>
               <MoreActionsMenu label={`${name} options`} items={[
@@ -127,7 +129,7 @@ export function ResearchSourceList({ sources, reader, opened, setOpened, passage
               return <div key={item.receipt.evidence_id} draggable
                 onDragStart={(event) => { event.dataTransfer.setData(RESEARCH_PASSAGE_DRAG, JSON.stringify(item)); }}
                 className="group/passage border-s-2 border-gray-200 ps-2">
-                <div className="relative grid min-w-0 grid-cols-[auto_auto_minmax(0,1fr)] items-start gap-1 pe-1">
+                <div className="relative flex min-w-0 flex-wrap items-start gap-1 pe-1">
                   {onPick ? <input type="checkbox" aria-label={`Select ${locator}`} checked={picked?.has(item.receipt.evidence_id) ?? false}
                     onChange={(event) => onPick(item.receipt.evidence_id, event.target.checked)} className="mt-1.5" /> : <span />}
                   <ResearchLabelPicker file={file} kind="evidence" itemId={item.receipt.evidence_id} sourceId={source.id}
