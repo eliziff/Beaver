@@ -33,6 +33,7 @@ type RenderedPage = {
     wrapper: HTMLDivElement;
     textDivs: HTMLElement[];
     hasTextLayer: boolean;
+    textLayer?: Promise<void>;
     top: number;
     height: number;
 };
@@ -186,6 +187,9 @@ export function PdfCanvas({
                     width: `${viewport.width}px`, height: `${viewport.height}px`,
                 });
                 wrapper.dataset.pageNumber = String(index + 1);
+                wrapper.dataset.legalBlock = "";
+                wrapper.dataset.locatorKind = "page";
+                wrapper.dataset.locatorValue = String(index + 1);
                 wrapper.setAttribute("aria-label", `Page ${index + 1}`);
                 fragment.appendChild(wrapper);
                 const entry: RenderedPage = {
@@ -201,24 +205,33 @@ export function PdfCanvas({
             const target = list.find(({ page }) => page)?.page ?? scrollToPage;
             if (target) scrollToHighlight(pages, scrollRef.current, target);
 
-            async function ensureTextLayer(index: number) {
-                if (pages[index].hasTextLayer || generation !== generationRef.current) return;
+            function ensureTextLayer(index: number): Promise<void> {
+                if (generation !== generationRef.current) return Promise.resolve();
+                // Painting and quote search can request the same page concurrently.
+                return pages[index].textLayer ??= renderTextLayer(index);
+            }
+
+            async function renderTextLayer(index: number) {
                 const viewport = pdfPages[index].getViewport({ scale });
                 const textLayerElement = document.createElement("div");
                 textLayerElement.className = "pdf-text-layer";
                 Object.assign(textLayerElement.style, { position: "absolute", left: "0", top: "0",
                     width: `${viewport.width}px`, height: `${viewport.height}px`,
-                    ...(editorRef.current ? { userSelect: "text", pointerEvents: "auto", zIndex: "1" } : {}) });
+                    userSelect: "text", pointerEvents: "auto", zIndex: "1" });
                 textLayerElement.style.setProperty("--scale-factor", String(scale));
                 pages[index].wrapper.appendChild(textLayerElement);
-                const textLayer = new lib.TextLayer({ textContentSource: pdfPages[index].streamTextContent(),
-                    container: textLayerElement, viewport });
                 try {
+                    const textLayer = new lib.TextLayer({ textContentSource: pdfPages[index].streamTextContent(),
+                        container: textLayerElement, viewport });
                     await textLayer.render();
                     if (generation !== generationRef.current) return;
                     pages[index].textDivs = textLayer.textDivs;
                     pages[index].hasTextLayer = true;
-                } catch (cause) { textLayerElement.remove(); throw cause; }
+                } catch (cause) {
+                    textLayerElement.remove();
+                    // Unreadable text must not turn a successfully rendered scan into an error.
+                    if (generation === generationRef.current) console.warn("PDF text selection unavailable", cause);
+                }
             }
 
             const rendered = new Map<number, HTMLCanvasElement>();
@@ -268,11 +281,9 @@ export function PdfCanvas({
                             if (generation !== generationRef.current) return;
                             pages[index].wrapper.prepend(canvas);
                             rendered.set(index, canvas);
-                            if (editorRef.current) {
-                                // A missing text layer must not erase a successfully rendered scan.
-                                try { await ensureTextLayer(index); }
-                                catch (cause) { console.warn("PDF text selection unavailable", cause); }
-                            }
+                            // Selection is available in ordinary readers too, without extracting
+                            // text for untouched offscreen pages or delaying the first bitmap.
+                            await ensureTextLayer(index);
                         } catch (cause) {
                             canvas.width = canvas.height = 0;
                             if ((cause as { name?: string })?.name !== "RenderingCancelledException") {
@@ -315,6 +326,7 @@ export function PdfCanvas({
                 for (const index of order) {
                     if (generation !== generationRef.current) return;
                     await ensureTextLayer(index);
+                    if (generation !== generationRef.current) return;
                     let hit = false;
                     for (const entry of list) hit = highlightQuote(pages[index].textDivs, entry.quote) || hit;
                     if (hit && !focused) {
