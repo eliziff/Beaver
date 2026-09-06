@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { setTimeout as delay } from "node:timers/promises";
+import { watchJobChanges } from "./jobNotifications";
 import {
   relationalDatabase,
   sql,
@@ -28,8 +28,6 @@ export type ApplicationJob = {
 };
 
 type JobRow = Record<string, unknown>;
-const wakeWorkers = new Set<() => void>();
-const wakeJobWorker = () => wakeWorkers.forEach((wake) => wake());
 export type JobHandlerContext = {
   signal: AbortSignal;
   progress(value: Json): Promise<void>;
@@ -112,17 +110,19 @@ export async function enqueueJob(input: {
       updated_at=excluded.updated_at
     RETURNING *`)).rows;
   const queued = job(rows[0]);
-  wakeJobWorker();
+  db.notifications?.publish(`queue:${kind}`);
   return queued;
 }
 
 async function claim(workerId: string, leaseMilliseconds: number, kinds: string[]) {
   const db = await relationalDatabase(), claimedAt = now(), lockedUntil = later(leaseMilliseconds);
   return db.transaction(async (tx) => {
-    await tx.query(sql`UPDATE application_jobs SET status='failed',dedupe_key=NULL,
+    const expired = await tx.query<{ id: string }>(sql`UPDATE application_jobs SET status='failed',dedupe_key=NULL,
       locked_by=NULL,locked_until=NULL,interrupt_requested_at=NULL,
       last_error='LeaseExpired',completed_at=${claimedAt},updated_at=${claimedAt}
-      WHERE status='running' AND locked_until<=${claimedAt} AND attempts>=max_attempts`);
+      WHERE status='running' AND locked_until<=${claimedAt} AND attempts>=max_attempts
+      RETURNING id`);
+    for (const { id } of expired.rows) tx.notifications?.publish(`events:${id}`);
     const locking = tx.engine === "postgres" ? sql.raw("FOR UPDATE SKIP LOCKED") : sql.raw("");
     const candidate = (await tx.query<JobRow>(sql`SELECT * FROM application_jobs
       WHERE ((status='queued' AND run_at<=${claimedAt}) OR
@@ -137,6 +137,7 @@ async function claim(workerId: string, leaseMilliseconds: number, kinds: string[
         ((status='queued' AND run_at<=${claimedAt}) OR
           (status='running' AND locked_until<=${claimedAt}))
       RETURNING *`)).rows[0];
+    if (updated) tx.notifications?.publish(`events:${String(updated.id)}`);
     return updated ? job(updated) : null;
   });
 }
@@ -164,24 +165,29 @@ async function finish(id: string, workerId: string, result: Json) {
       dedupe_key=NULL,locked_by=NULL,locked_until=NULL,completed_at=${timestamp},
       updated_at=${timestamp} WHERE id=${id} AND status='running'
         AND locked_by=${workerId} AND cancel_requested_at IS NOT NULL`);
+    tx.notifications?.publish(`events:${id}`);
   });
 }
 
 async function completeCancellation(id: string, workerId: string) {
   const timestamp = now();
-  await (await relationalDatabase()).query(sql`UPDATE application_jobs SET
+  const db = await relationalDatabase();
+  await db.query(sql`UPDATE application_jobs SET
     status='cancelled',dedupe_key=NULL,locked_by=NULL,locked_until=NULL,
     completed_at=${timestamp},updated_at=${timestamp}
     WHERE id=${id} AND status='running' AND locked_by=${workerId}
       AND cancel_requested_at IS NOT NULL`);
+  db.notifications?.publish(`events:${id}`);
 }
 
-async function release(id: string, workerId: string) {
+async function release(id: string, workerId: string, kind: string) {
   const db = await relationalDatabase(), timestamp = now();
   await db.query(sql`UPDATE application_jobs SET status='queued',run_at=${timestamp},
     attempts=CASE WHEN attempts>0 THEN attempts-1 ELSE 0 END,
     locked_by=NULL,locked_until=NULL,interrupt_requested_at=NULL,updated_at=${timestamp}
     WHERE id=${id} AND status='running' AND locked_by=${workerId}`);
+  db.notifications?.publish(`queue:${kind}`);
+  db.notifications?.publish(`events:${id}`);
 }
 
 async function fail(job: ApplicationJob, workerId: string, error: unknown) {
@@ -194,6 +200,8 @@ async function fail(job: ApplicationJob, workerId: string, error: unknown) {
     interrupt_requested_at=NULL,dedupe_key=${exhausted ? null : job.dedupeKey},
     completed_at=${exhausted ? timestamp : null},updated_at=${timestamp}
     WHERE id=${job.id} AND status='running' AND locked_by=${workerId}`);
+  db.notifications?.publish(`events:${job.id}`);
+  if (!exhausted) db.notifications?.publish(`queue:${job.kind}`);
 }
 
 export async function interruptJobs(groupKey: string, belowPriority: number) {
@@ -202,6 +210,7 @@ export async function interruptJobs(groupKey: string, belowPriority: number) {
     SET interrupt_requested_at=${timestamp},
     updated_at=${timestamp} WHERE group_key=${bounded(groupKey, 500, "Job group")}
       AND status='running' AND priority<${belowPriority} RETURNING id`)).rows;
+  for (const { id } of rows) db.notifications?.publish(`control:${id}`);
   const interrupted = new Set(rows.map(({ id }) => id));
   for (const active of activeJobs.values()) {
     if (interrupted.has(active.job.id)) active.controller.abort();
@@ -220,6 +229,8 @@ export async function requestJobCancellation(id: string, userId: string) {
       AND status IN('queued','running') RETURNING *`)).rows[0];
   if (!row) return null;
   const current = job(row);
+  db.notifications?.publish(`control:${current.id}`);
+  db.notifications?.publish(`events:${current.id}`);
   for (const active of activeJobs.values()) {
     if (active.job.id === current.id) active.controller.abort();
   }
@@ -237,6 +248,10 @@ export async function requestGroupCancellation(groupKey: string, userId: string)
     WHERE group_key=${bounded(groupKey, 500, "Job group")}
       AND user_id=${bounded(userId, 200, "Job user")}
       AND status IN('queued','running') RETURNING id`)).rows;
+  for (const { id } of rows) {
+    db.notifications?.publish(`control:${id}`);
+    db.notifications?.publish(`events:${id}`);
+  }
   const cancelled = new Set(rows.map(({ id }) => id));
   for (const active of activeJobs.values()) {
     if (cancelled.has(active.job.id)) active.controller.abort();
@@ -298,7 +313,12 @@ export async function createJobEventWriter(jobId: string) {
       const current = ++sequence, created = now();
       writes = writes.then(async () => { await database.query(sql`INSERT INTO
         application_job_events(job_id,sequence,event,created_at)
-        VALUES(${jobId},${current},${event},${created})`); });
+        VALUES(${jobId},${current},${event},${created})`);
+        database.notifications?.publish(`events:${jobId}`);
+      });
+      // Keep flush() rejecting, but observe the rejection even if the provider
+      // does not yield control back to the handler immediately.
+      void writes.catch(() => undefined);
     },
     flush: () => writes,
   };
@@ -321,12 +341,14 @@ export async function enqueueJobCommand(
   payload: Json,
 ) {
   const database = await relationalDatabase(), created = now();
-  if (!(await database.query<{ id: string }>(sql`SELECT id FROM application_jobs
-    WHERE id=${jobId} AND user_id=${bounded(userId, 200, "Job user")}
-      AND status='running'`)).rows[0]) return false;
-  await database.query(sql`INSERT INTO application_job_commands(
-    id,job_id,kind,payload,created_at) VALUES(${randomUUID()},${jobId},
-      ${bounded(kind, 80, "Job command")},${boundedJson(payload, 128 * 1024, "Job command")},${created})`);
+  const inserted = await database.query<{ id: string }>(sql`INSERT INTO application_job_commands(
+    id,job_id,kind,payload,created_at)
+    SELECT ${randomUUID()},id,${bounded(kind, 80, "Job command")},
+      ${boundedJson(payload, 128 * 1024, "Job command")},${created}
+    FROM application_jobs WHERE id=${jobId} AND user_id=${bounded(userId, 200, "Job user")}
+      AND status='running' RETURNING id`);
+  if (!inserted.rows.length) return false;
+  database.notifications?.publish(`control:${jobId}`);
   return true;
 }
 
@@ -343,8 +365,8 @@ export async function finishJobCommand(id: string) {
     SET handled_at=${now()} WHERE id=${id} AND handled_at IS NULL`);
 }
 
-export function waitForJobEvent(signal: AbortSignal, milliseconds = 100) {
-  return delay(milliseconds, undefined, { signal }).catch(() => undefined);
+export async function watchJob(jobId: string, kind: "events" | "control") {
+  return watchJobChanges((await relationalDatabase()).notifications, [`${kind}:${jobId}`]);
 }
 
 export async function pruneJobs(
@@ -367,23 +389,25 @@ const activeJobs = new Map<string, { job: ApplicationJob; controller: AbortContr
 
 export function startJobWorker(handlers: Readonly<Record<string, JobHandler>>) {
   const workerId = randomUUID(), lease = 30_000, kinds = Object.keys(handlers);
-  let stopping = false, resume: (() => void) | undefined;
-  const wake = () => resume?.();
-  const idle = () => new Promise<void>((resolve) => {
-    let timer: NodeJS.Timeout;
-    resume = () => {
-      clearTimeout(timer);
-      resume = undefined;
-      resolve();
-    };
-    timer = setTimeout(resume, 250);
-    timer.unref();
-  });
+  let stopping = false;
+  const shutdown = new AbortController();
   const execute = async (next: ApplicationJob) => {
     const handler = handlers[next.kind];
     const controller = new AbortController();
-    if (next.cancelRequested) controller.abort();
+    if (next.cancelRequested || stopping) controller.abort();
     activeJobs.set(workerId, { job: next, controller });
+    const controls = await watchJob(next.id, "control");
+    const controlStop = new AbortController();
+    const controlTask = (async () => {
+      while (!controlStop.signal.aborted && !controller.signal.aborted) {
+        const version = controls.version;
+        const owned = await (await relationalDatabase()).query<{ id: string }>(sql`
+          SELECT id FROM application_jobs WHERE id=${next.id} AND locked_by=${workerId}
+            AND status='running' AND cancel_requested_at IS NULL AND interrupt_requested_at IS NULL`);
+        if (!owned.rows.length) { controller.abort(); return; }
+        await controls.wait(version, controlStop.signal);
+      }
+    })().catch(() => controller.abort());
     const pulse = setInterval(() => {
       void heartbeat(next.id, workerId, lease).then((owned) => {
         if (!owned) controller.abort();
@@ -394,9 +418,10 @@ export function startJobWorker(handlers: Readonly<Record<string, JobHandler>>) {
       if (!stopping && controller.signal.aborted &&
           await jobCancellationRequested(next.id, workerId))
         await completeCancellation(next.id, workerId);
-      else await release(next.id, workerId);
+      else await release(next.id, workerId, next.kind);
     };
     try {
+      controller.signal.throwIfAborted();
       if (!handler) throw new Error("UnknownJobKind");
       const checkpoint: JobHandlerContext["checkpoint"] = async (value) => {
         const payload = Object.hasOwn(value, "payload") ? value.payload! : next.payload;
@@ -426,36 +451,41 @@ export function startJobWorker(handlers: Readonly<Record<string, JobHandler>>) {
       else await fail(next, workerId, error);
     } finally {
       clearInterval(pulse);
+      controlStop.abort(); controls.close();
+      await controlTask;
       activeJobs.delete(workerId);
     }
   };
   const active = (async () => {
+    const db = await relationalDatabase();
+    const changes = watchJobChanges(db.notifications, kinds.map((kind) => `queue:${kind}`));
     let nextPruneAt = 0;
-    while (!stopping) {
-      try {
-        if (Date.now() >= nextPruneAt) {
-          await pruneJobs();
-          nextPruneAt = Date.now() + 60 * 60_000;
-        }
-        const next = await claim(workerId, lease, kinds);
-        if (next) await execute(next);
-        else await idle();
-      } catch (error) {
-        if (!stopping) {
-          console.error("[jobs] worker cycle failed", { error: errorCategory(error) });
-          await idle();
+    try {
+      while (!stopping) {
+        const version = changes.version;
+        try {
+          if (Date.now() >= nextPruneAt) {
+            await pruneJobs();
+            nextPruneAt = Date.now() + 60 * 60_000;
+          }
+          const next = await claim(workerId, lease, kinds);
+          if (next) await execute(next);
+          else await changes.wait(version, shutdown.signal);
+        } catch (error) {
+          if (!stopping) {
+            console.error("[jobs] worker cycle failed", { error: errorCategory(error) });
+            await changes.wait(changes.version, shutdown.signal);
+          }
         }
       }
-    }
+    } finally { changes.close(); }
   })();
-  wakeWorkers.add(wake);
   return {
     async stop() {
       stopping = true;
-      wake();
+      shutdown.abort();
       activeJobs.get(workerId)?.controller.abort();
       await active;
-      wakeWorkers.delete(wake);
     },
   };
 }
