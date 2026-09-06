@@ -1,4 +1,4 @@
-name: Database workbench sources
+name: Focused database and event validation
 on:
   push:
     branches: [codex/database-event-efficiency]
@@ -6,11 +6,22 @@ on:
 permissions:
   contents: read
 jobs:
-  sources:
+  focused:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: event-fixture-only
+          POSTGRES_DB: event_tests
+        ports: [5432:5432]
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
-      - name: Package exact public backend sources (no CI battery)
+      - name: Read exact public candidate
         env:
           SOURCE_SHA: ${{ github.sha }}
         run: |
@@ -18,9 +29,39 @@ jobs:
           git remote add origin https://github.com/eliziff/Beaver.git
           git fetch --depth=1 origin "$SOURCE_SHA"
           git checkout --detach FETCH_HEAD
-          tar -czf /tmp/database-source.tgz backend/src backend/schema.sql backend/package.json backend/package-lock.json backend/tsconfig.json backend/vitest.config.mts scripts shared docs/roadmap AGENTS.md package.json package-lock.json subrepos.lock.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+          mkdir -p .database-validation
+          git rev-parse HEAD > .database-validation/validated-sha.txt
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          name: database-source
-          path: /tmp/database-source.tgz
-          retention-days: 1
+          node-version: '22.16.0'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install locked backend tooling only
+        run: npm ci --ignore-scripts --prefix backend
+      - name: Targeted database, queue and event regressions only
+        run: |
+          (cd backend && npx vitest run src/lib/__tests__/sqliteStatements.test.ts src/lib/__tests__/jobEventBatching.test.ts src/lib/__tests__/relationalDatabase.test.ts src/lib/__tests__/relationalRepositories.test.ts src/lib/__tests__/jobQueue.test.ts src/lib/__tests__/jobScheduling.test.ts src/lib/__tests__/chatCommands.test.ts src/lib/__tests__/chatTurnTransport.test.ts) 2>&1 | tee .database-validation/sqlite-tests.log
+      - name: Same event-write cases on real PostgreSQL
+        if: ${{ !cancelled() }}
+        env:
+          BEAVER_TEST_POSTGRES_URL: postgres://postgres:event-fixture-only@127.0.0.1:5432/event_tests?sslmode=disable
+        run: (cd backend && npx vitest run src/lib/__tests__/jobEventBatching.test.ts) 2>&1 | tee .database-validation/postgres-tests.log
+      - name: Backend type checking only
+        if: ${{ !cancelled() }}
+        run: (cd backend && npx tsc --noEmit --incremental false) 2>&1 | tee .database-validation/types.log
+      - name: Matched database microbenchmarks
+        if: ${{ !cancelled() }}
+        run: |
+          git fetch --depth=1 origin b979831747a5ceb678400fb0863a35b3a87e626e
+          git worktree add --detach .database-baseline FETCH_HEAD
+          cmp backend/package-lock.json .database-baseline/backend/package-lock.json
+          ln -s "$PWD/backend/node_modules" .database-baseline/backend/node_modules
+          node scripts/benchmark-database-events.mjs .database-baseline .database-validation/benchmark.json > .database-validation/benchmark.log
+          git diff --check b979831747a5ceb678400fb0863a35b3a87e626e HEAD
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: database-event-focused
+          include-hidden-files: true
+          path: .database-validation
+          retention-days: 7
