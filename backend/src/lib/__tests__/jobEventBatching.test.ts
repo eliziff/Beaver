@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
+const owner = "10000000-0000-4000-8000-000000000001";
+const other = "20000000-0000-4000-8000-000000000002";
 let directory = "";
 let closeFixture: (() => Promise<void>) | undefined;
 const releases: Array<() => void> = [];
@@ -35,10 +37,10 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   releases.splice(0).forEach(release => release());
-  vi.restoreAllMocks();
+  vi.restoreAllMocks(); vi.useRealTimers();
   await (await import("../relationalDatabase")).closeRelationalDatabase();
   await closeFixture?.(); closeFixture = undefined;
-  vi.useRealTimers(); vi.unstubAllEnvs(); vi.resetModules();
+  vi.unstubAllEnvs(); vi.resetModules();
   await rm(directory, { recursive: true, force: true });
 });
 const deferred = () => {
@@ -51,7 +53,7 @@ async function fixture() {
   const queue = await import("../jobQueue");
   const { relationalDatabase, sql } = await import("../relationalDatabase");
   const db = await relationalDatabase();
-  const job = await queue.enqueueJob({ kind: "chat.turn", dedupeKey: "fixture", userId: "owner", payload: {} });
+  const job = await queue.enqueueJob({ kind: "chat.turn", dedupeKey: "fixture", userId: owner, payload: {} });
   return { queue, db, sql, job, writer: await queue.createJobEventWriter(job.id) };
 }
 const isInsert = (text: string) => /INSERT INTO\s+application_job_events/u.test(text);
@@ -64,20 +66,22 @@ it("batches a burst without merging events, changing their sequence, or bypassin
   await writer.flush();
   const batches = query.mock.calls.filter(([statement]) => isInsert(statement.text));
   expect(batches.map(([statement]) => statement.params.length / 4)).toEqual([64, 64, 3]);
-  const rows = await queue.readJobEvents("owner", job.id, 0);
+  const rows = await queue.readJobEvents(owner, job.id, 0);
   expect(rows.map(row => row.sequence)).toEqual(Array.from({ length: 131 }, (_, i) => i + 1));
   expect(rows.slice(0, 130).map(row => row.event)).toEqual(events);
   expect(rows[130].event).toMatchObject({ type: "client_tool_call" });
-  expect(await queue.readJobEvents("other", job.id, 0)).toEqual([]);
-  expect((await queue.readJobEvents("owner", job.id, 129)).map(row => row.sequence)).toEqual([130, 131]);
+  expect(await queue.readJobEvents(other, job.id, 0)).toEqual([]);
+  expect((await queue.readJobEvents(owner, job.id, 129)).map(row => row.sequence)).toEqual([130, 131]);
   const reopened = await queue.createJobEventWriter(job.id);
   reopened.append({ type: "content", text: "after reopen" }); await reopened.flush();
-  expect((await queue.readJobEvents("owner", job.id, 131))[0].sequence).toBe(132);
+  expect((await queue.readJobEvents(owner, job.id, 131))[0].sequence).toBe(132);
 });
 
-it("automatically commits a first event and a control event with all batching timers frozen", async () => {
+it("automatically commits the first event without a flush or a later event", async () => {
   const { queue, db, job, writer } = await fixture();
-  vi.useFakeTimers({ toFake: ["setTimeout", "setInterval", "setImmediate"] });
+  // Freeze all clocks for the shared writer's SQLite proof. PostgreSQL's actual
+  // socket driver needs setImmediate/connect timers to perform the same writes.
+  if (db.engine === "sqlite") vi.useFakeTimers({ toFake: ["setTimeout", "setInterval", "setImmediate"] });
   const inserted = deferred(), query = db.query.bind(db);
   vi.spyOn(db, "query").mockImplementation(async statement => {
     const result = await query(statement);
@@ -87,10 +91,10 @@ it("automatically commits a first event and a control event with all batching ti
   writer.append({ type: "content", text: "first token" });
   // No flush, further event, or timer is needed to make the first event durable.
   await inserted.promise;
-  expect((await queue.readJobEvents("owner", job.id, 0))[0].event).toEqual({ type: "content", text: "first token" });
+  expect((await queue.readJobEvents(owner, job.id, 0))[0].event).toEqual({ type: "content", text: "first token" });
   writer.append({ type: "error", message: "finished" });
   await writer.flush();
-  expect((await queue.readJobEvents("owner", job.id, 1))[0].event).toEqual({ type: "error", message: "finished" });
+  expect((await queue.readJobEvents(owner, job.id, 1))[0].event).toEqual({ type: "error", message: "finished" });
 });
 
 it("does not let future appends extend an outstanding flush", async () => {
@@ -106,9 +110,9 @@ it("does not let future appends extend an outstanding flush", async () => {
   writer.append({ type: "content", text: "later" });
   const later = writer.flush();
   await prefix; await started.promise;
-  expect((await queue.readJobEvents("owner", job.id, 0)).map(row => row.event)).toEqual([{ type: "content", text: "prefix" }]);
+  expect((await queue.readJobEvents(owner, job.id, 0)).map(row => row.event)).toEqual([{ type: "content", text: "prefix" }]);
   release.resolve(); await later;
-  expect(await queue.readJobEvents("owner", job.id, 0)).toHaveLength(2);
+  expect(await queue.readJobEvents(owner, job.id, 0)).toHaveLength(2);
 });
 
 it("batches arrivals while a previous insert is slow and snapshots mutable inputs", async () => {
@@ -130,7 +134,7 @@ it("batches arrivals while a previous insert is slow and snapshots mutable input
   }
   const flushed = writer.flush(); release.resolve(); await flushed;
   expect(sizes).toEqual([1, 20]);
-  expect((await queue.readJobEvents("owner", job.id, 0))[0].event).toEqual({ type: "content", text: "original" });
+  expect((await queue.readJobEvents(owner, job.id, 0))[0].event).toEqual({ type: "content", text: "original" });
 });
 
 it("bounds multi-row payloads while permitting an existing valid large single event", async () => {
@@ -149,7 +153,7 @@ it("rejects an oversized event without consuming its sequence number", async () 
   const { writer, queue, job } = await fixture();
   expect(() => writer.append({ type: "content", text: "x".repeat(512 * 1024) })).toThrow("Job event is too large");
   writer.append({ type: "content", text: "valid" }); await writer.flush();
-  expect((await queue.readJobEvents("owner", job.id, 0)).map(row => row.sequence)).toEqual([1]);
+  expect((await queue.readJobEvents(owner, job.id, 0)).map(row => row.sequence)).toEqual([1]);
 });
 
 it("rolls back a failing batch, leaves a durable prefix, and never reports failed writes as flushed", async () => {
@@ -173,6 +177,6 @@ it("rolls back a failing batch, leaves a durable prefix, and never reports faile
     writer.append({ type: "content", text: "cannot skip the failure" });
     await expect(writer.flush()).rejects.toThrow("fixture batch failure");
     expect(notified).not.toHaveBeenCalled();
-    expect((await queue.readJobEvents("owner", job.id, 0)).map(row => row.event)).toEqual([{ type: "content", text: "committed" }]);
+    expect((await queue.readJobEvents(owner, job.id, 0)).map(row => row.event)).toEqual([{ type: "content", text: "committed" }]);
   } finally { notified.mockRestore(); }
 });

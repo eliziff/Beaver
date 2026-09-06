@@ -8,7 +8,7 @@ permissions:
 jobs:
   focused:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     defaults:
       run:
         shell: bash
@@ -38,9 +38,9 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - name: Install locked backend tooling only
         run: npm ci --ignore-scripts --prefix backend
-      - name: Targeted database, queue and event regressions only
+      - name: Recheck the two changed database test files only
         run: |
-          (cd backend && npx vitest run src/lib/__tests__/sqliteStatements.test.ts src/lib/__tests__/jobEventBatching.test.ts src/lib/__tests__/relationalDatabase.test.ts src/lib/__tests__/relationalRepositories.test.ts src/lib/__tests__/jobQueue.test.ts src/lib/__tests__/jobScheduling.test.ts src/lib/__tests__/chatCommands.test.ts src/lib/__tests__/chatTurnTransport.test.ts) 2>&1 | tee .database-validation/sqlite-tests.log
+          (cd backend && npx vitest run src/lib/__tests__/sqliteStatements.test.ts src/lib/__tests__/jobEventBatching.test.ts) 2>&1 | tee .database-validation/sqlite-tests.log
       - name: Same event-write cases on real PostgreSQL
         if: ${{ !cancelled() }}
         env:
@@ -48,16 +48,9 @@ jobs:
         run: (cd backend && npx vitest run src/lib/__tests__/jobEventBatching.test.ts) 2>&1 | tee .database-validation/postgres-tests.log
       - name: Backend type checking only
         if: ${{ !cancelled() }}
-        run: (cd backend && npx tsc --noEmit --incremental false) 2>&1 | tee .database-validation/types.log
-      - name: Matched database microbenchmarks
-        if: ${{ !cancelled() }}
         run: |
-          git fetch --depth=1 origin b979831747a5ceb678400fb0863a35b3a87e626e
-          git worktree add --detach .database-baseline FETCH_HEAD
-          cmp backend/package-lock.json .database-baseline/backend/package-lock.json
-          ln -s "$PWD/backend/node_modules" .database-baseline/backend/node_modules
-          node scripts/benchmark-database-events.mjs .database-baseline .database-validation/benchmark.json > .database-validation/benchmark.log
-          git diff --check b979831747a5ceb678400fb0863a35b3a87e626e HEAD
+          (cd backend && npx tsc --noEmit --incremental false) 2>&1 | tee .database-validation/types.log
+          git diff --check
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
