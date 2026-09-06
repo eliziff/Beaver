@@ -6,14 +6,7 @@ import type { LibraryStore } from "../lib/libraryStore";
 import { zipDocumentBytes } from "../lib/__tests__/support/documentBytes";
 import { MAX_OBJECT_SIZE_BYTES } from "../lib/storage";
 import { sha256 } from "../lib/hash";
-import { createA2AJPassageEvidence } from "../lib/chat/legalEvidence";
-import { createResearchFileState, researchFileMarkdown } from "../lib/researchFile";
-import { verifyResearchPassage } from "../lib/researchFileQuery";
 import { createDocumentsRouter } from "./documentRoutes";
-
-vi.mock("../lib/researchFileQuery", async (original) => { const module =
-  await original<typeof import("../lib/researchFileQuery")>();
-return { ...module, verifyResearchPassage: vi.fn(module.verifyResearchPassage) }; });
 
 const version = {
   id: "v1",
@@ -116,126 +109,6 @@ describe("canonical document routes", () => {
     });
     vi.mocked(documents.deleteDocument).mockResolvedValueOnce(false);
     expect((await request(app).delete("/single-documents/d1").send(expected)).status).toBe(409);
-  });
-
-  it("commits one snapshot and returns passage IDs without a rescan", async () => {
-    const { app, documents } = fixture(), sourceId = "10000000-0000-4000-8000-000000000001",
-      state = createResearchFileState(), receipt = createA2AJPassageEvidence({
-        citation: "Example", name: "Example", dataset: "scc", language: "en",
-        sourceText: "holding", spanText: "holding", start: 0, end: 7, externalUrl: null,
-        sourceClass: "case", sourceReference: { id: "case-1" } });
-    state.sources[sourceId] = { id: sourceId, reference: { provider: "a2aj", id: "case-1",
-      kind: "case" }, labelIds: [], badge: "", note: "", passages: null };
-    const bytes = Buffer.from(researchFileMarkdown("Cases", state));
-    vi.mocked(documents.metadata).mockResolvedValueOnce({ id: "d1",
-      filename: "Cases.research.md", current_version_id: "v1", current_working_revision: 0 });
-    vi.mocked(documents.read).mockResolvedValueOnce({ bytes, filename: "Cases.research.md",
-      fileType: "md", hasPdfRendition: false, version: { ...version,
-        filename: "Cases.research.md", file_type: "md", size_bytes: bytes.length,
-        source_sha256: sha256(bytes) } });
-    vi.mocked(documents.replaceVersion).mockResolvedValueOnce({ status: "replaced",
-      version: { ...version, working_revision: 1, filename: "Cases.research.md",
-        file_type: "md", size_bytes: bytes.length } });
-    vi.mocked(verifyResearchPassage).mockResolvedValueOnce({ type: "merge", evidence: [receipt] });
-    const response = await request(app).post("/single-documents/d1/research/actions").send({
-      version_id: "v1", working_revision: 0, action: { type: "passage", sourceId,
-        locator: { kind: "paragraph", value: "1" }, quote: "holding" }, });
-    expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({ sourceId, evidenceId: receipt.evidence_id });
-    expect(documents.metadata).toHaveBeenCalledTimes(1);
-    expect(documents.read).toHaveBeenCalledTimes(1);
-    expect(documents.replaceVersion).toHaveBeenCalledWith(
-      expect.anything(), "d1", "v1", 0, expect.objectContaining({ fileType: "md" }),
-    );
-  });
-
-  it("marks stale research revisions as retryable", async () => {
-    const { app } = fixture();
-    const action = await request(app).post("/single-documents/d1/research/actions").send({
-      version_id: "v1", working_revision: 0, action: { type: "note", markdown: "Reviewed" },
-    });
-    const query = await request(app).post("/single-documents/d1/research/query").send({
-      version_id: "v1", working_revision: 0, text: "fairness", syntax: "literal", target: "sources",
-    });
-    expect([action.status, query.status]).toEqual([409, 409]);
-    expect([action.body, query.body]).toEqual([
-      expect.objectContaining({ code: "revision_conflict" }),
-      expect.objectContaining({ code: "revision_conflict" }),
-    ]);
-  });
-
-  it("passes the Unclassified scope through research queries", async () => {
-    const { app, documents } = fixture();
-    const bytes = Buffer.from(researchFileMarkdown("Cases", createResearchFileState()));
-    vi.mocked(documents.metadata).mockResolvedValueOnce({ id: "d1",
-      filename: "Cases.research.md", current_version_id: "v1", current_working_revision: 0 });
-    vi.mocked(documents.read).mockResolvedValueOnce({ bytes, filename: "Cases.research.md",
-      fileType: "md", hasPdfRendition: false, version: { ...version,
-        filename: "Cases.research.md", file_type: "md", size_bytes: bytes.length } });
-    vi.mocked(documents.replaceVersion).mockResolvedValueOnce({ status: "replaced",
-      version: { ...version, working_revision: 1, filename: "Cases.research.md",
-        file_type: "md", size_bytes: bytes.length } });
-    const response = await request(app).post("/single-documents/d1/research/query").send({
-      version_id: "v1", working_revision: 0, text: "fairness", syntax: "literal",
-      target: "sources", unlabelled: true,
-    });
-    expect(response.status).toBe(200);
-    expect(response.body.coverage).toMatchObject({ complete: true, next_after: null,
-      attempted_sources: 0, selected_sources: 0 });
-    const written = vi.mocked(documents.replaceVersion).mock.calls[0][4], queryPart =
-      written.parts?.put?.find(({ name }) => name === "queries.json");
-    const saved = JSON.parse(queryPart!.bytes.toString()).queries[response.body.receipt.query_id];
-    expect(response.body.receipt).toEqual(saved);
-    expect(saved.input).toMatchObject({ unlabelled: true });
-  });
-
-  it("keeps research cursors across metadata edits but rejects changed passage content", async () => {
-    const { app, documents } = fixture(), sourceId = "10000000-0000-4000-8000-000000000001",
-      receipts = Array.from({ length: 3 }, (_, index) => createA2AJPassageEvidence({
-        citation: "Example", name: "Example", dataset: "scc", language: "en",
-        sourceText: `holding ${index}`, spanText: `holding ${index}`, start: 0, end: 9,
-        externalUrl: null, sourceClass: "case", sourceReference: { id: "case-1" } })),
-      evidence = Object.fromEntries(receipts.map((receipt) => [receipt.evidence_id,
-        { receipt, sourceId, labelIds: [], note: "" }])), part = Buffer.from(JSON.stringify({
-          schemaVersion: "beaver.research-source.v1", sourceId, evidence })),
-      state = createResearchFileState();
-    state.sources[sourceId] = { id: sourceId, reference: { provider: "a2aj", id: "case-1",
-      kind: "case", citation: "Example" }, labelIds: [], badge: "", note: "",
-      passages: { count: 3, sha256: sha256(part), labelCounts: {}, unlabelledCount: 3 } };
-    let bytes = Buffer.from(researchFileMarkdown("Cases", state)), revision = 0;
-    vi.mocked(documents.metadata).mockImplementation(async () => ({ id: "d1",
-      filename: "Cases.research.md", current_version_id: "v1",
-      current_working_revision: revision }));
-    vi.mocked(documents.read).mockImplementation(async () => ({ bytes,
-      filename: "Cases.research.md", fileType: "md", hasPdfRendition: false,
-      version: { ...version, filename: "Cases.research.md", file_type: "md",
-        size_bytes: bytes.length, working_revision: revision, source_sha256: sha256(bytes) } }));
-    vi.mocked(documents.readParts).mockImplementation(async (_scope, _id, _version, names) =>
-      names.includes(`source.${sourceId}.json`)
-        ? [{ name: `source.${sourceId}.json`, bytes: part, sha256: sha256(part) }] : []);
-
-    const first = await request(app).get(`/single-documents/d1/research/items`)
-      .query({ kind: "passages", source_id: sourceId, limit: 2 });
-    expect(first.body).toMatchObject({ total: 3, items: [{ index: 0 }, { index: 1 }] });
-    expect(first.body.next_cursor).toEqual(expect.any(String));
-    const second = await request(app).get(`/single-documents/d1/research/items`)
-      .query({ kind: "passages", source_id: sourceId, limit: 2,
-        cursor: first.body.next_cursor });
-    expect(second.body).toMatchObject({ total: 3, items: [{ index: 2 }], next_cursor: null });
-    expect((await request(app).get(`/single-documents/d1/research/items`).query({
-      kind: "passages", source_id: "20000000-0000-4000-8000-000000000002" })).status).toBe(404);
-    revision = 1;
-    state.sources[sourceId]!.note = "Updated source note";
-    bytes = Buffer.from(researchFileMarkdown("Renamed", state));
-    const continued = await request(app).get(`/single-documents/d1/research/items`).query({
-      kind: "passages", source_id: sourceId, limit: 2, cursor: first.body.next_cursor });
-    expect(continued.status).toBe(200);
-    expect(continued.body).toMatchObject({ items: [{ index: 2 }], next_cursor: null });
-    state.sources[sourceId]!.passages!.sha256 = sha256("changed");
-    bytes = Buffer.from(researchFileMarkdown("Renamed", state));
-    expect((await request(app).get(`/single-documents/d1/research/items`).query({
-      kind: "passages", source_id: sourceId, limit: 2,
-      cursor: first.body.next_cursor })).status).toBe(400);
   });
 
   it("bounds archive work and flattens untrusted filenames", async () => {

@@ -42,7 +42,7 @@ fetch(path).then(async r=>done({status:r.status,value:await r.json()})).catch(e=
             files = get("/api/library/files?limit=100")
             research_doc = next(item["document"] for item in files["items"] if item.get("kind") == "document"
                 and item["document"]["filename"] == "Luna fairness pilot.research.md")
-            state = get(f"/api/single-documents/{research_doc['id']}/research")["state"]
+            state = get(f"/api/source-workspaces/{research_doc['id']}")["state"]
             assert len(state["sources"]) >= 3 and len(state["labels"]) >= 6
             assert all(source["note"] and source["labelIds"] for source in state["sources"].values())
             dialog.find_element(By.LINK_TEXT, "Open in Sources").click()

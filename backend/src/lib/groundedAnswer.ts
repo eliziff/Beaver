@@ -4,3 +4,5 @@ export type GroundedAnswer = {
   value?: string | number | boolean | string[] | null;
 };
 export type GroundedAnswerFlag = "green" | "grey" | "yellow" | "red";
+export type GroundedResult = GroundedAnswer & { summary?: string; flag?: GroundedAnswerFlag;
+  reasoning?: string; outcome?: "answered" | "not_found"; coverage?: "complete" | "partial" };

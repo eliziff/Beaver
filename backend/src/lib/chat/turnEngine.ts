@@ -46,12 +46,19 @@ import {
   registerLegalEvidence,
   registerLegalResearchQueries,
   registerPriorLegalEvidence,
+  registerPriorLegalResearchQueries,
+  priorLegalEvidencePrompt,
+  legalEvidenceResourceReference,
   renderLegalEvidenceAnswer,
   restorePriorLegalEvidence,
   submitLegalEvidenceAnswer,
   type PriorLegalEvidence,
   type LegalEvidenceTurnState,
+  type LegalResearchQueryReceipt,
 } from "./legalEvidence";
+import { childResearchReadContext, researchReadContextPrompt, researchReadReceipt, researchResultFilter,
+  type ResearchReadContext, type ResearchObserver } from "../researchReader";
+import type { ResearchOperationContext } from "../researchProvenance";
 import {
   READ_SUBAGENT_TOOL,
   READ_SUBAGENT_TOOL_NAME,
@@ -96,6 +103,8 @@ class AssistantStreamAbortError extends AssistantStreamError {
 
 export type ChatToolContext = {
   evidence: LegalEvidenceTurnState;
+  research?: ResearchReadContext;
+  operation: ResearchOperationContext;
   addEvent: (event: AssistantEvent) => void;
   updateActivity?(id: string, label: string): void;
   onActivity?: () => void;
@@ -127,6 +136,7 @@ export async function runChatTurn(options: {
   createTools: (
     evidence: LegalEvidenceTurnState,
     scope: "main" | ReadSubagentAssignment,
+    context: ChatToolContext,
   ) => BeaverTool<ChatToolContext>[];
   emit: (event: PublicAssistantEvent) => void;
   apiKeys?: UserApiKeys;
@@ -140,7 +150,10 @@ export async function runChatTurn(options: {
   jurisdictionPreference?: JurisdictionPreference | null;
   activityDetail?: "auto" | "standard" | "tools" | "trace";
   priorEvidence?: PriorLegalEvidence[];
+  priorQueries?: LegalResearchQueryReceipt[];
   evidenceState?: LegalEvidenceTurnState;
+  researchContext?: ResearchReadContext;
+  operation?: ResearchOperationContext;
   readerAssignment?: ReadSubagentAssignment;
   resumableSubagents?: ReadonlyMap<string, ReadSubagentCheckpoint>;
   providerSession?: { persist: true; continuationId?: string };
@@ -153,7 +166,7 @@ export async function runChatTurn(options: {
     onCompaction: (status: "running" | "completed" | "failed") => void,
   ) => Promise<LlmMessage[]>;
   onSubagentEvent?: (event: ReadSubagentEvent) => void;
-  onResearchObserved?: (event: LegalEvidenceReceiptEvent) => void;
+  onResearchObserved?: ResearchObserver;
   onActivity?: () => void;
 }) {
   const {
@@ -167,6 +180,7 @@ export async function runChatTurn(options: {
   const evidence = options.evidenceState ?? createLegalEvidenceTurnState();
   const submissionTool = options.submissionTool ?? LEGAL_EVIDENCE_TOOL_NAME;
   registerPriorLegalEvidence(evidence, options.priorEvidence ?? []);
+  registerPriorLegalResearchQueries(evidence, options.priorQueries ?? []);
   const addEvent = (event: AssistantEvent) => events.push(event);
   const replaceLastEvent = (
     type: AssistantEvent["type"],
@@ -197,6 +211,8 @@ export async function runChatTurn(options: {
   };
   const context: ChatToolContext = {
     evidence,
+    research: options.researchContext,
+    operation: { ...options.operation, executor: "assistant", model: options.model },
     addEvent,
     updateActivity(id, label) {
       const activity = toolActivities.get(id);
@@ -205,13 +221,16 @@ export async function runChatTurn(options: {
       }
     },
   };
+  let researchPersistence = Promise.resolve();
+  const observe: ResearchObserver = (event, operation) => researchPersistence = researchPersistence.then(
+    () => options.onResearchObserved?.(event, operation));
   const internalNames = new Set([
     "ask_inputs",
     LEGAL_EVIDENCE_TOOL_NAME,
     READ_SUBAGENT_TOOL_NAME,
     RESUME_SUBAGENT_TOOL_NAME,
   ]);
-  const mainTools = options.createTools(evidence, options.readerAssignment ?? "main")
+  const mainTools = options.createTools(evidence, options.readerAssignment ?? "main", context)
     .filter((tool) => !internalNames.has(tool.name))
     .filter((tool) => !options.readerAssignment ||
       tool.reader?.includes(options.readerAssignment.jurisdiction))
@@ -311,10 +330,10 @@ export async function runChatTurn(options: {
       for (const receipt of grounding.evidence) registerLegalEvidence(evidence, receipt,
         childEvidence.evidence.get(receipt.evidence_id));
       for (const query of grounding.queries) registerLegalResearchQueries(evidence, [query], query.model);
-      options.onResearchObserved?.(grounding);
     };
     let continuationId = resume?.continuation_id;
     const id = resume?.id ?? call.id;
+    let research = resume?.research;
     const activities = new Map(
       (resume?.activities ?? []).map((activity) => [activity.id, activity]),
     );
@@ -335,6 +354,8 @@ export async function runChatTurn(options: {
           effort: capability.effort,
           assignment,
           evidence: [...childEvidence.evidence.values()].map(({ receipt }) => receipt),
+          queries: [...childEvidence.queries.values()],
+          ...(research && { research: structuredClone(research) }),
         }
       : undefined;
     const publish = (event: ReadSubagentEvent, visible = event) => {
@@ -351,14 +372,19 @@ export async function runChatTurn(options: {
         ...(resumeState ? { resume: resumeState } : {}),
       }, { ...base, status: "running", ...(activity && { activity }) });
     };
-    running();
     try {
+      research ??= childResearchReadContext(options.researchContext, assignment,
+        [...evidence.evidence.values()].map(({ receipt }) => receipt));
+      const inScope = researchResultFilter(research), priorEvidence = resume?.evidence.filter((receipt) =>
+        inScope({ resource: legalEvidenceResourceReference(receipt) ?? "", evidence: [receipt] }));
+      running();
       const child = await runChatTurn({
         model: `codex:${capability.model}`,
         systemPrompt: [
           readSubagentInstruction(assignment),
           jurisdictionPreferencePrompt(options.jurisdictionPreference ?? null),
           SOURCE_SEARCH_SYSTEM_PROMPT,
+          priorLegalEvidencePrompt(priorEvidence ?? [], resume?.queries ?? []),
         ].filter(Boolean).join("\n\n"),
         messages: [{
           role: "user",
@@ -369,7 +395,14 @@ export async function runChatTurn(options: {
         createTools: options.createTools,
         readerAssignment: assignment,
         evidenceState: childEvidence,
-        priorEvidence: resume?.evidence,
+        priorEvidence,
+        priorQueries: resume?.queries,
+        researchContext: research,
+        operation: { ...context.operation, subagentId: id },
+        onResearchObserved(grounding, operation) {
+          inheritReads(grounding);
+          return observe(grounding, operation);
+        },
         emit(event) {
           if (event.type === "tool_activity") {
             const { type: _type, ...activity } = event;
@@ -475,7 +508,7 @@ export async function runChatTurn(options: {
     ...mainTools,
     ...readerTools,
   ]);
-  const systemPrompt = options.systemPrompt;
+  const systemPrompt = [options.systemPrompt, researchReadContextPrompt(context.research)].filter(Boolean).join("\n\n");
   const resolveTools = () => registry.visible();
   const runTools = async (
     calls: NormalizedToolCall[],
@@ -485,18 +518,13 @@ export async function runChatTurn(options: {
     const previousActivity = context.onActivity;
     context.onActivity = onActivity;
     const results = await registry.run(calls, context, providerSignal, (call, outcome) => {
-      const observed = options.onResearchObserved ? createLegalEvidenceTurnState() : null;
       const entries = outcome.evidence?.flatMap((receipt) => {
         registerLegalEvidence(evidence, receipt, outcome.evidenceSources?.get(receipt.evidence_id));
-        if (observed) registerLegalEvidence(observed, receipt);
         return receipt.span_text ? [evidence.evidence.get(receipt.evidence_id)!] : [];
       }) ?? [];
       registerLegalResearchQueries(evidence, outcome.queryReceipts ?? [], options.model);
-      if (observed) {
-        registerLegalResearchQueries(observed, outcome.queryReceipts ?? [], options.model);
-        const receipt = legalEvidenceReceiptEvent(observed);
-        if (receipt) options.onResearchObserved?.(receipt);
-      }
+      const receipt = options.onResearchObserved && researchReadReceipt(outcome, options.model);
+      if (receipt) void observe(receipt, { ...context.operation, callId: call.id });
       for (const event of outcome.events ?? []) {
         addEvent(event);
         const visible = publicAssistantEvent(event);
@@ -516,6 +544,9 @@ export async function runChatTurn(options: {
         });
       }
     })
+      .then(async (results) => { await researchPersistence; return results; }, async (error) => {
+        await researchPersistence.catch(() => undefined); throw error;
+      })
       .catch((error) => {
         settleToolActivities(
           providerSignal.aborted ? "interrupted" : "error",

@@ -1,78 +1,33 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, ChevronRight, Ellipsis, FilePlus2, FolderKanban, FolderPlus, GripVertical,
-  Pencil, Plus, Trash2, X } from "lucide-react";
-import { Modal } from "@/app/components/modals/Modal";
-import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
-import { NewProjectModal } from "@/app/components/projects/NewProjectModal";
-import { FileDirectory, type DirectoryLocation } from "@/app/components/shared/FileDirectory";
-import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
-import { ResearchSelectionLabels } from "@/app/components/shared/ResearchSelectionLabels";
-import { type Document, directoryResource } from "@/app/lib/api/documents";
-import { ActionMenu } from "@/app/components/ui/action-menu";
-import { Tabs } from "@/app/components/ui/tabs";
-import { Button, buttonClassName } from "@/app/components/ui/button";
-import {
-  createResearchFile,
-  getResearchCitation,
-  getResearchFile,
-  getResearchItems,
-} from "@/app/lib/api/researchFiles";
-
-import { usePagedChains } from "@/app/hooks/usePagedChains";
-import { isResearchDocument, legalSourceViewerHref, researchLabelPath, researchSourceKey,
-  type ResearchAction, type ResearchEvidence, type ResearchFile, type ResearchLabel, type ResearchQueryInput,
-  type ResearchPageItem, type ResearchSource, type ResearchQueryCoverage, type ResearchSelection } from "@/app/lib/researchFiles";
+import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import { ConfirmPopup } from "../popups/ConfirmPopup";
+import { ResearchSelectionLabels } from "../shared/ResearchSelectionLabels";
+import { ActionMenu } from "../ui/action-menu";
+import { Tabs } from "../ui/tabs";
+import { Button, buttonClassName } from "../ui/button";
+import { getResearchCitation, getResearchItems } from "@/app/lib/api/researchFiles";
+import { legalSourceViewerHref, type ResearchAction, type ResearchEvidence, type ResearchLabel,
+  type ResearchSource, type ResearchSelection } from "@/app/lib/researchFiles";
 import { evidenceCitation } from "@/app/lib/groundedAnswers";
 import type { Citation } from "@/app/lib/citations";
 import { errorMessage } from "@/app/lib/utils";
 import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
-import { ResearchLabelCircle, researchLabelColor } from "./ResearchLabelCircle";
-import { RESEARCH_SOURCE_DRAG, RESEARCH_SOURCE_REFERENCE_DRAG, ResearchLabelPicker } from "./ResearchLabelPicker";
-import { useResearchFileMutations, type ResearchFileMutations } from "./useResearchFileMutations";
+import { ResearchLabelPicker } from "./ResearchLabelPicker";
+import { useSourcesWorkspace } from "./SourcesWorkspace";
 import { RESEARCH_PASSAGE_DRAG, memoCitation as parseMemoCitation } from "./researchMemo";
-import { ResearchSourceAnswers, ResearchWorkspaceViews, useResearchAnswers } from "./ResearchWorkspaceViews";
+import { ResearchSourceAnswers, WorkspaceOrganize } from "./ResearchWorkspaceViews";
 import { ResearchCitationViewer } from "./ResearchCitationViewer";
 import { ResearchChanges } from "./ResearchChanges";
+import { ResearchLabelsPanel } from "./ResearchLabelsPanel";
+import { ResearchWorkspacePicker } from "./ResearchWorkspacePicker";
+import { ResearchSearchPanel } from "./ResearchSearchPanel";
+import { ChoiceMenu } from "./ResearchControls";
 
 const ResearchMemoPane = lazy(() => import("./ResearchMemoPane"));
 
-const RECIPE = "beaver.research.recipe.v1", COLLAPSED = "beaver.research.collapsed.v1";
-const UNSORTED = "__unsorted__", UNCLASSIFIED = "Unclassified", PAGE_SIZE = 50;
-const LABEL_DRAG = "application/x-beaver-research-label";
+const UNSORTED = "__unsorted__", PAGE_SIZE = 50;
 type Scope = ResearchLabel["scope"];
-type Rule = NonNullable<ResearchQueryInput["rules"]>[number];
-type LabelDrop = { id: string; mode: "before" | "inside" | "after" };
-const fileTitle = (file: ResearchFile | null) => file?.document.filename
-  .replace(/\.research\.md$/iu, "") ?? "Workspace";
-const readCollapsed = (id?: string) => { try { const value = id
-  ? JSON.parse(localStorage.getItem(`${COLLAPSED}:${id}`) ?? "null") : null;
-  return new Set<string>(Array.isArray(value) ? value.filter((item) => typeof item === "string") : []);
-  } catch { return new Set<string>(); } };
-const queryText = (input: Record<string, unknown>) => Array.isArray(input.rules)
-  ? input.rules.map((rule) => String((rule as { phrase?: unknown }).phrase ?? "")).filter(Boolean).join("; ")
-  : String(input.pattern ?? input.query ?? "Search");
-const queryRules = (input: Record<string, unknown>) => Array.isArray(input.rules) ? input.rules as Rule[] : [];
-const queryConflict = (input: Record<string, unknown>): NonNullable<ResearchQueryInput["conflict"]> =>
-  ["prompt", "first", "longer", "shorter", "append"].includes(String(input.conflict))
-    ? input.conflict as NonNullable<ResearchQueryInput["conflict"]> : "first";
-const receiptLabel = (labels: Record<string, ResearchLabel>, id: string,
-  paths: Record<string, string> = {}) => paths[id] ??
-  (researchLabelPath(labels, id).map(({ name }) => name).join(" / ") || id);
-const slotSummary = (slots: Record<string, string[]>, labels: Record<string, ResearchLabel>,
-  paths: Record<string, string> = {}) => {
-  const counts = new Map<string, number>();
-  Object.values(slots).forEach((ids) => ids.forEach((id) => { const name = receiptLabel(labels, id, paths);
-    counts.set(name, (counts.get(name) ?? 0) + 1); }));
-  return [...counts].map(([name, count]) => `${name}${count > 1 ? ` × ${count}` : ""}`).join(", ");
-};
-const readRecipe = (id?: string) => { try { const value = JSON.parse(localStorage.getItem(`${RECIPE}:${id ?? "empty"}`) ?? "null");
-  const valid = Array.isArray(value?.rules) && value.rules.every((rule: Rule) => rule && typeof rule.phrase === "string" &&
-    typeof rule.slot === "string" && ["before", "after"].includes(rule.direction) && ["sentence", "line", "paragraph", "chars"].includes(rule.unit));
-  return valid ? { rules: value.rules as Rule[], conflict: queryConflict(value) }
-    : { rules: [] as Rule[], conflict: "first" as const };
-  } catch { return { rules: [] as Rule[], conflict: "first" as const }; } };
 const sourceName = (source: ResearchSource) => source.reference.title || source.reference.citation || source.reference.id;
 const expandSelection = (selected: Set<string> | null, children: Map<string | null, ResearchLabel[]>) => {
   if (selected === null) return null; const ids = new Set(selected);
@@ -84,68 +39,39 @@ const passageSelected = (source: ResearchSource, selected: Set<string> | null) =
   !!source.passages && (selected.has(UNSORTED) && source.passages.unlabelledCount > 0 ||
     [...selected].some((id) => (source.passages?.labelCounts[id] ?? 0) > 0));
 
-function ChoiceMenu({ label, value, options, onChange, className = "" }: { label: string; value: string;
-  options: readonly { value: string; label: string }[]; onChange: (value: string) => void; className?: string;
-}) { const selected = options.find((option) => option.value === value)?.label;
-  return <ActionMenu label={label} className={`min-w-0 ${className}`} items={options.map((option) => ({
-    label: option.label, checked: option.value === value, onSelect: () => onChange(option.value) }))}
-    triggerClassName="h-8 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-800 hover:border-gray-500">
-    <span className="truncate">{selected}</span><ChevronDown aria-hidden="true" className="size-3.5" />
-  </ActionMenu>; }
-
-type Props = { file: ResearchFile | null; projectId?: string; onChange: (file: ResearchFile) => void;
-  rail?: HTMLElement | null; mutations?: ResearchFileMutations; sourceDropNonce?: number;
+type Props = { projectId?: string;
+  rail?: HTMLElement | null; sourceDropNonce?: number;
   onReadSource?: (source: ResearchSource, locator?: string) => void; selectedSourceId?: string };
 export function ResearchFileBar(props: Props) {
-  return <ResearchFileBarContent key={props.file?.document.id ?? "empty"} {...props} />;
+  const { file } = useSourcesWorkspace();
+  return <ResearchFileBarContent key={file?.document.id ?? "empty"} {...props} />;
 }
-function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, sourceDropNonce, onReadSource, selectedSourceId }: Props) {
-  const localMutations = useResearchFileMutations(file, onChange), commit = mutations ?? localMutations;
-  const answers = useResearchAnswers(file);
+function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource, selectedSourceId }: Props) {
+  const { file, mutations: commit, selection: workspaceSelection, setSelection, passages: passagePages } = useSourcesWorkspace();
+  const [scope, setScope] = useState<ResearchSelection>(() => workspaceSelection);
   const [reading, setReading] = useState<{ citation: Citation; reference?: ResearchSource["reference"] } | null>(null);
   const [tab, setTab] = useState<"labels" | "search" | "memo">("labels");
   const labelsOpen = tab === "labels", searchOpen = tab === "search", noteOpen = tab === "memo";
   const [labelScope, setLabelScope] = useState<Scope>("source");
-  const [open, setOpen] = useState(false), [selectedDocuments, setSelectedDocuments] = useState<Document[]>([]);
-  const [createOpen, setCreateOpen] = useState(false), [renameOpen, setRenameOpen] = useState(false);
   const [changesOpen, setChangesOpen] = useState(false);
+  const [organizeOpen, setOrganizeOpen] = useState(() => !!file && !Object.keys(file.state.labels).length &&
+    !!Object.keys(file.state.sources).length);
   const [memoCitation, setMemoCitation] = useState<{ href: string; sequence: number }>();
-  const [folderOpen, setFolderOpen] = useState(false), [projectOpen, setProjectOpen] = useState(false),
-    [directoryKey, setDirectoryKey] = useState(0), [folderError, setFolderError] = useState(""),
-    [openLocation, setOpenLocation] = useState<DirectoryLocation>(() => projectId ?? file?.document.project_id
-      ? { projectId: projectId ?? file!.document.project_id! } : { library: "files" });
   const [sourceSelected, setSourceSelected] = useState<Set<string> | null>(null),
     [highlightSelected, setHighlightSelected] = useState<Set<string> | null>(null), [highlightFilter, setHighlightFilter] = useState(false),
-    [activeLabel, setActiveLabel] = useState<string | null>(null),
     [matches, setMatches] = useState<{ evidence: Set<string>; sources: Set<string> } | null>(null);
-  const [collapsed, setCollapsed] = useState(() => readCollapsed(file?.document.id)),
-    [labelSearch, setLabelSearch] = useState<Record<Scope, string>>({ source: "", highlight: "" }),
-    [labelDrop, setLabelDrop] = useState<LabelDrop | null>(null), [openedSources, setOpenedSources] = useState<Set<string>>(() => new Set());
+  const [openedSources, setOpenedSources] = useState<Set<string>>(() => new Set());
   const [listSearch, setListSearch] = useState("");
   const [sort, setSort] = useState("saved"), [kindFilter, setKindFilter] = useState<Set<string>>(() => new Set()),
     [yearFilter, setYearFilter] = useState<Set<string>>(() => new Set()), [collectionFilter, setCollectionFilter] = useState<Set<string>>(() => new Set()),
-    [page, setPage] = useState(0), [recipe, setRecipe] = useState(() => readRecipe(file?.document.id));
-  const [plain, setPlain] = useState(""), [syntax, setSyntax] = useState<"literal" | "terms">("literal"),
-    [target, setTarget] = useState<"sources" | "passages">("sources"), [historyOpen, setHistoryOpen] = useState(false),
-    [openQueries, setOpenQueries] = useState<Set<string>>(() => new Set());
-  const [ruleEditor, setRuleEditor] = useState<number | null>(null);
-  const [searchResult, setSearchResult] = useState<{ input: ResearchQueryInput; coverage: ResearchQueryCoverage } | null>(null);
-  const [busy, setBusy] = useState(false), [status, setStatus] = useState("");
+    [page, setPage] = useState(0);
+  const [target, setTarget] = useState<"sources" | "passages">(scope.target);
+  const [status, setStatus] = useState("");
   const [removing, setRemoving] = useState<{ kind: "label" | "source" | "evidence"; id: string; name: string; sourceId?: string } | null>(null);
-  const labelDrag = useRef<string | null>(null), handledDrop = useRef(0), returnToPicker = useRef(false);
+  const handledDrop = useRef(0);
   const revealLabels = useCallback(() => { setTab("labels"); setLabelScope("source"); }, []);
-  const toggleQuery = (id: string) => setOpenQueries((values) => { const next = new Set(values);
-    if (next.has(id)) next.delete(id); else next.add(id); return next; });
-  const directory = useMemo(() => directoryResource(file?.document.project_id
-    ? { projectId: file.document.project_id } : { library: "files" }), [file?.document.project_id]);
   const labels = useMemo(() => file?.state.labels ?? {}, [file?.state.labels]);
   const allSources = useMemo(() => Object.values(file?.state.sources ?? {}), [file?.state.sources]);
-  const passageRevisions = useMemo(() => Object.fromEntries(allSources.map(({ id, passages }) =>
-    [id, passages?.sha256 ?? ""])), [allSources]);
-  const queryPages = usePagedChains<ResearchPageItem>((_key, cursor, signal) => getResearchItems(file!.document.id,
-    { kind: "queries", cursor, limit: PAGE_SIZE }, signal), [file?.document.id],
-    "queries", !!file && historyOpen && searchOpen, { queries: file?.state.queries?.sha256 ?? "" });
-  const queryCount = file?.state.queries?.count ?? 0;
   const children = useMemo(() => { const map = new Map<string | null, ResearchLabel[]>();
     Object.values(labels).forEach((label) => { const values = map.get(label.parentId) ?? [];
       values.push(label); map.set(label.parentId, values); });
@@ -153,25 +79,21 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
   const sourceLabelIds = useMemo(() => expandSelection(sourceSelected, children), [sourceSelected, children]);
   const highlightLabelIds = useMemo(() => expandSelection(highlightSelected, children), [highlightSelected, children]);
   const appliedHighlightIds = highlightFilter ? highlightLabelIds : null;
-  const passagePages = usePagedChains<ResearchPageItem>(async (key, cursor, signal) => {
-    // Advance past nonmatching source pages before presenting a filtered page.
-    let page;
-    do {
-      page = await getResearchItems(file!.document.id,
-        { kind: "passages", sourceId: key, cursor, limit: PAGE_SIZE }, signal);
-      page.items = page.items.filter((item) => item.kind === "passage" &&
-        itemSelected(item.value.labelIds, appliedHighlightIds) &&
-        (matches === null || matches.evidence.has(item.value.receipt.evidence_id)));
-      cursor = page.next_cursor;
-    } while (!signal.aborted && !page.items.length && cursor);
-    return page;
-  }, [file?.document.id, appliedHighlightIds, matches], "*", false, passageRevisions);
+  const passageInScope = useCallback((item: ResearchEvidence) => (!scope.evidenceIds || scope.evidenceIds.includes(item.receipt.evidence_id)) &&
+    (!scope.members || scope.members.some((member) => member.sourceId === item.sourceId &&
+      (!member.evidenceIds || member.evidenceIds.includes(item.receipt.evidence_id)))), [scope]);
   useEffect(() => {
-    for (const id of openedSources) if (!passagePages.chains[id])
-      void passagePages.fetchPage(id, null, false);
-  }, [openedSources, passagePages.chains, passagePages.fetchPage]);
-  const scopedSources = useMemo(() => allSources.filter((source) => itemSelected(source.labelIds, sourceLabelIds) &&
-    passageSelected(source, appliedHighlightIds)), [allSources, sourceLabelIds, appliedHighlightIds]);
+    for (const id of openedSources) {
+      const page = passagePages.chains[id];
+      if (!page) void passagePages.fetchPage(id, null, false);
+      else if (!page.loading && !page.error && page.nextCursor && !page.items.some((item) => item.kind === "passage" &&
+        passageInScope(item.value) && itemSelected(item.value.labelIds, appliedHighlightIds) && (matches === null || matches.evidence.has(item.value.receipt.evidence_id))))
+        void passagePages.fetchPage(id, page.nextCursor, true);
+    }
+  }, [openedSources, appliedHighlightIds, matches, passageInScope, passagePages.chains, passagePages.fetchPage]);
+  const scopedSources = useMemo(() => allSources.filter((source) =>
+    (!scope.sourceIds || scope.sourceIds.includes(source.id)) && (!scope.members || scope.members.some((member) => member.sourceId === source.id)) &&
+    itemSelected(source.labelIds, sourceLabelIds) && passageSelected(source, appliedHighlightIds)), [allSources, scope, sourceLabelIds, appliedHighlightIds]);
   const years = useMemo(() => [...new Set(allSources.map(({ reference }) => reference.date?.slice(0, 4))
     .filter((value): value is string => !!value))].sort().reverse(), [allSources]);
   const filteredSources = useMemo(() => scopedSources.filter((source) => { const haystack = [source.reference.title, source.reference.citation,
@@ -184,25 +106,16 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
   const list = useMemo(() => filteredSources.filter((source) => matches === null || matches.sources.has(source.id)),
     [filteredSources, matches]);
   const viewTarget = searchOpen ? target : labelScope === "highlight" ? "passages" : "sources";
-  const viewSelection: ResearchSelection = { target: viewTarget, sourceIds: list.map(({ id }) => id),
+  const constrain = (selection: ResearchSelection): ResearchSelection => ({ ...scope, ...selection,
+    ...(scope.members ? { members: scope.members.filter(({ sourceId }) => selection.sourceIds?.includes(sourceId)), sourceIds: undefined } : {}),
+    ...(scope.evidenceIds ? { evidenceIds: selection.evidenceIds ? selection.evidenceIds.filter((id) => scope.evidenceIds!.includes(id)) : scope.evidenceIds } : {}) });
+  const viewSelection: ResearchSelection = constrain({ target: scope.target === "passages" ? "passages" : viewTarget, sourceIds: list.map(({ id }) => id),
     ...(viewTarget === "passages" && highlightLabelIds ? { labelIds: [...highlightLabelIds].filter((id) => id !== UNSORTED),
-      unlabelled: highlightLabelIds.has(UNSORTED) } : {}), ...(matches && viewTarget === "passages" ? { evidenceIds: [...matches.evidence] } : {}) };
-  const labelCounts = useMemo(() => { const counts: Record<string, number> = {};
-    const visit = (items: typeof allSources, scope: Scope) => items.forEach(({ labelIds }) => {
-      const applied = new Set<string>(); labelIds.forEach((id) => researchLabelPath(labels, id).forEach((label) => {
-        if (label.scope === scope) applied.add(label.id); })); applied.forEach((id) => { counts[id] = (counts[id] ?? 0) + 1; }); });
-    visit(allSources, "source"); allSources.forEach(({ passages }) => Object.entries(passages?.labelCounts ?? {})
-      .forEach(([id, count]) => { if (labels[id]?.scope === "highlight") counts[id] = (counts[id] ?? 0) + count; }));
-    return counts;
-  }, [labels, allSources]);
-  const unlabelledCount = allSources.reduce((sum, source) => sum +
-    (source.passages?.unlabelledCount ?? 0), 0);
-  useEffect(() => { if (file) localStorage.setItem(`${COLLAPSED}:${file.document.id}`,
-    JSON.stringify([...collapsed])); }, [collapsed, file]);
+      unlabelled: highlightLabelIds.has(UNSORTED) } : {}), ...(matches && viewTarget === "passages" ? { evidenceIds: [...matches.evidence] } : {}) });
+  const selectionKey = JSON.stringify(viewSelection);
+  useEffect(() => { setSelection(JSON.parse(selectionKey) as ResearchSelection); }, [selectionKey, setSelection]);
   useEffect(() => { if (sourceDropNonce && handledDrop.current !== sourceDropNonce) {
     handledDrop.current = sourceDropNonce; if (!noteOpen) revealLabels(); } }, [revealLabels, sourceDropNonce, noteOpen]);
-  useEffect(() => { localStorage.setItem(`${RECIPE}:${file?.document.id ?? "empty"}`, JSON.stringify(recipe)); }, [file?.document.id, recipe]);
-  useEffect(() => { if (open) setSelectedDocuments(file ? [file.document] : []); }, [open, file]);
   useEffect(() => setPage(0), [listSearch, kindFilter, yearFilter, collectionFilter, sourceSelected, highlightSelected]);
   useEffect(() => setPage((current) => Math.min(current,
     Math.max(0, Math.ceil(list.length / PAGE_SIZE) - 1))), [list.length]);
@@ -212,102 +125,13 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
     try { return await commit.act(action); }
     catch (reason) { setStatus(errorMessage(reason, "Could not update workspace")); return null; }
   }
-  async function choose(task: () => Promise<ResearchFile>) {
-    setBusy(true); setStatus("");
-    try { onChange(await task()); setOpen(false); }
-    catch (reason) { setStatus(errorMessage(reason, "Could not open research")); }
-    finally { setBusy(false); }
-  }
-  async function rename(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!file) return; const title = String(new FormData(event.currentTarget).get("title") ?? "").trim();
-    if (!title) return; setBusy(true); setStatus("");
-    try { await directory.renameDocument(file.document.id, `${title.replace(/\.research\.md$/iu, "")}.research.md`);
-      onChange(await getResearchFile(file.document.id)); setRenameOpen(false); }
-    catch (reason) { setStatus(errorMessage(reason, "Could not rename workspace")); }
-    finally { setBusy(false); }
-  }
-  async function createLibraryFolder(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const name = String(new FormData(event.currentTarget).get("name") ?? "").trim();
-    const activeProject = projectId ?? ("projectId" in openLocation ? openLocation.projectId : null);
-    if (!name) return; setBusy(true); setFolderError("");
-    try { await directoryResource(activeProject ? { projectId: activeProject } : { library: "files" }).createFolder(name, null);
-      setDirectoryKey((value) => value + 1); setFolderOpen(false); setOpen(true); returnToPicker.current = false; }
-    catch (reason) { setFolderError(errorMessage(reason, "Could not create folder")); }
-    finally { setBusy(false); }
-  }
-  async function addLabel(scope: Scope) {
-    if (!file) { newWorkspace(); return; }
-    setBusy(true); setStatus("");
-    try { const id = crypto.randomUUID();
-      const selected = scope === "source" ? sourceSelected : highlightSelected, selectedId = selected?.size === 1 ? [...selected][0] : "";
-      const parentId = labels[selectedId]?.scope === scope ? selectedId : null;
-      if (parentId) setCollapsed((current) => { const next = new Set(current); next.delete(parentId); return next; });
-      await commit.act({ type: "label", id, name: scope === "source" ? "New label" : "New category", parentId, scope,
-        color: scope === "source" ? "#3498db" : "#eab308" }); setActiveLabel(id); }
-    catch (reason) { setStatus(errorMessage(reason, "Could not add label")); }
-    finally { setBusy(false); }
-  }
-  async function editLabel(event: FormEvent<HTMLFormElement>, id: string) {
-    event.preventDefault(); const label = labels[id], data = new FormData(event.currentTarget), name = String(data.get("name") ?? "").trim();
-    if (label && name && await act({ type: "label", ...label, name,
-      color: String(data.get("color") ?? researchLabelColor(label)) })) setActiveLabel(null);
-  }
-  function canReparent(id: string, parentId: string | null) {
-    const label = labels[id], parent = parentId ? labels[parentId] : null;
-    if (!label || id === parentId || parentId && (!parent || parent.scope !== label.scope ||
-      researchLabelPath(labels, parentId).some((item) => item.id === id))) return false;
-    return true;
-  }
-  async function reparent(id: string, parentId: string | null, order?: number) {
-    const label = labels[id]; if (!label || !canReparent(id, parentId)) return;
-    await act({ type: "label", ...label, parentId, order: order ?? label.order });
-  }
-  function keyMove(label: ResearchLabel, key: string) {
-    const siblings = (children.get(label.parentId) ?? []).filter(({ scope }) => scope === label.scope),
-      index = siblings.findIndex(({ id }) => id === label.id);
-    if (key === "ArrowUp" && index > 0) void reparent(label.id, label.parentId, siblings[index - 1].order - .5);
-    else if (key === "ArrowDown" && index + 1 < siblings.length) void reparent(label.id, label.parentId, siblings[index + 1].order + .5);
-    else if (key === "ArrowRight" && index > 0) void reparent(label.id, siblings[index - 1].id, children.get(siblings[index - 1].id)?.length ?? 0);
-    else if (key === "ArrowLeft" && label.parentId) { const parent = labels[label.parentId];
-      if (parent) void reparent(label.id, parent.parentId, parent.order + .5); }
-    else return false;
-    return true;
-  }
   function showMatches(evidenceIds: string[], sourceIds: string[]) {
-    setSearchResult(null);
     setMatches({ evidence: new Set(evidenceIds), sources: new Set(sourceIds) }); setTab("search"); setPage(0);
   }
-  async function query(input: ResearchQueryInput, continuing = false) {
-    if (!file) return;
-    const selected = input.target === "passages" ? highlightSelected : sourceSelected,
-      scoped = sourceSelected !== null || highlightFilter && highlightSelected !== null ||
-        !!listSearch.trim() || kindFilter.size > 0 || yearFilter.size > 0 || collectionFilter.size > 0;
-    if (!continuing && (selected?.size === 0 || scoped && !filteredSources.length))
-      return setStatus(input.target === "passages" ? "No passages selected" : "No sources selected");
-    setBusy(true); setStatus("");
-    try { const request = continuing ? input : { ...input,
-      ...(selected === null ? {} : { labelIds: [...selected].filter((id) => id !== UNSORTED),
-        ...(selected.has(UNSORTED) ? { unlabelled: true } : {}) }),
-      ...(scoped ? { sourceIds: filteredSources.map(({ id }) => id) } : {}) };
-      const result = await commit.query(request);
-      const limited = result.receipt.failures.some(({ code }) => code.endsWith("_limit")), failed =
-        new Set(result.receipt.failures.filter(({ code }) => !code.endsWith("_limit")).map(({ sourceId }) => sourceId)).size;
-      showMatches([...new Set([...(continuing ? matches?.evidence ?? [] : []), ...result.receipt.evidenceIds])],
-        [...new Set([...(continuing ? matches?.sources ?? [] : []), ...result.receipt.matchedSourceIds])]);
-      setSearchResult(result.coverage ? { input: request, coverage: result.coverage } : null);
-      setStatus([`${result.receipt.evidenceIds.length} matches`, limited && "limit reached",
-        failed && `${failed} source failure${failed === 1 ? "" : "s"}`].filter(Boolean).join(" · ")); }
-    catch (reason) { setStatus(errorMessage(reason, "Search failed")); }
-    finally { setBusy(false); }
-  }
-  function runQuery() {
-    const rules = recipe.rules.filter(({ phrase, slot }) => phrase.trim() && slot.trim())
-      .map((rule) => ({ ...rule, phrase: rule.phrase.trim(), slot: labels[rule.slot]?.scope === "highlight" ? rule.slot : UNCLASSIFIED }));
-    if (rules.length) void query({ syntax: "literal", target: "sources", rules, conflict: recipe.conflict });
-    else setStatus("Add a capture rule first");
-  }
-  function runPlain(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (plain.trim()) void query({ text: plain.trim(), syntax, target });
+  function querySelection(target: "sources" | "passages"): ResearchSelection {
+    const selected = target === "passages" ? highlightSelected : sourceSelected;
+    return constrain({ target, sourceIds: filteredSources.map(({ id }) => id),
+      ...(selected === null ? {} : { labelIds: [...selected].filter((id) => id !== UNSORTED), unlabelled: selected.has(UNSORTED) }) });
   }
   function sourceHref(source: ResearchSource, locator?: string) {
     if (source.reference.kind === "document") return `/library?${new URLSearchParams({ document_id: source.reference.id,
@@ -351,134 +175,9 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
         : citation.kind === "a2aj" && reference.provider === "a2aj" && reference.citation === citation.citation);
     setReading({ citation, reference: source?.reference });
   }
-  const editRule = (patch: Partial<Rule>) => setRecipe((current) => ({ ...current,
-    rules: current.rules.map((rule, index) => index === ruleEditor ? { ...rule, ...patch } : rule) }));
-  const closeRule = () => { setRecipe((current) => ({ ...current,
-    rules: current.rules.filter((rule, index) => index !== ruleEditor || !!rule.phrase.trim()) })); setRuleEditor(null); };
-  const ruleText = (rule: Rule, paths: Record<string, string> = {}) => `${rule.phrase} → ${rule.direction} ${rule.unit}${rule.unit === "chars" ? ` (${rule.chars ?? 100})` : ""} → ${receiptLabel(labels, rule.slot, paths)}`;
-  function matchesLabel(id: string, search: string): boolean { return !search || labels[id].name.toLowerCase().includes(search.toLowerCase()) ||
-    (children.get(id) ?? []).some(({ id: child }) => matchesLabel(child, search)); }
   const filterItems = (values: string[], selected: Set<string>, change: (value: Set<string>) => void) =>
     values.map((value) => ({ label: value, checked: selected.has(value), keepOpen: true,
       onSelect: () => { const next = new Set(selected); if (next.has(value)) next.delete(value); else next.add(value); change(next); } }));
-  function labelTree(scope: Scope, parentId: string | null, depth = 0): ReactNode {
-    const search = labelSearch[scope], selection = scope === "source" ? sourceSelected : highlightSelected;
-    return (children.get(parentId) ?? []).filter((label) => label.scope === scope && matchesLabel(label.id, search)).map((label) => {
-      const hasChildren = !!children.get(label.id)?.length, open = !collapsed.has(label.id) || !!search,
-        count = labelCounts[label.id] ?? 0;
-      return <div key={label.id}>
-        <div data-tree-drop-folder={label.id} draggable tabIndex={0} onKeyDown={(event) => {
-          if (event.target !== event.currentTarget) return;
-          if (event.altKey && keyMove(label, event.key)) { event.preventDefault(); event.stopPropagation(); } }}
-          onDragStart={(event) => {
-          if ((event.target as Element).closest("button,input,label,form,a")) { event.preventDefault(); return; }
-          labelDrag.current = label.id; event.dataTransfer.setData(LABEL_DRAG, label.id); event.dataTransfer.effectAllowed = "move"; }}
-          onDragEnd={() => { labelDrag.current = null; setLabelDrop(null); }}
-          title="Drag to reorder or move into another label" onDragOver={(event) => {
-            const sourceDrag = event.dataTransfer.types.includes(RESEARCH_SOURCE_DRAG) ||
-              event.dataTransfer.types.includes(RESEARCH_SOURCE_REFERENCE_DRAG);
-            const dragged = labels[labelDrag.current ?? ""];
-            if (sourceDrag ? scope !== "source" : !event.dataTransfer.types.includes(LABEL_DRAG) || dragged?.scope !== scope)
-              return setLabelDrop(null);
-            const box = event.currentTarget.getBoundingClientRect(), y = (event.clientY - box.top) / box.height,
-              mode = sourceDrag ? "inside" : event.clientX - box.left > Math.min(96, box.width * .55)
-                ? "inside" : y < .5 ? "before" : "after";
-            if (!sourceDrag && !canReparent(dragged.id, mode === "inside" ? label.id : label.parentId))
-              return setLabelDrop(null);
-            event.preventDefault(); setLabelDrop({ id: label.id, mode }); }} onDragLeave={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget as Node)) setLabelDrop(null); }} onDrop={(event) => { event.preventDefault(); setLabelDrop(null);
-            const sourceId = event.dataTransfer.getData(RESEARCH_SOURCE_DRAG), source = file?.state.sources[sourceId];
-            if (scope === "source" && source) { void act({ type: "annotate", kind: "source", id: sourceId,
-              labelIds: [label.id, ...source.labelIds.filter((id) => id !== label.id)] }); return; }
-            const raw = event.dataTransfer.getData(RESEARCH_SOURCE_REFERENCE_DRAG);
-            if (scope === "source" && raw) { try { void act({ type: "source", reference: JSON.parse(raw), labelIds: [label.id] }); } catch { /* Invalid drag payload. */ } return; }
-            const drop = labelDrop?.id === label.id ? labelDrop.mode : "inside"; labelDrag.current = null;
-            void reparent(event.dataTransfer.getData(LABEL_DRAG), drop === "inside" ? label.id : label.parentId,
-              drop === "inside" ? children.get(label.id)?.length ?? 0 : label.order + (drop === "before" ? -.5 : .5)); }}
-          className={`group relative flex h-9 w-full min-w-0 items-center gap-1.5 rounded-md pe-1 ${labelDrop?.id === label.id
-            ? labelDrop.mode === "inside" ? "bg-blue-50 ring-1 ring-inset ring-blue-300"
-              : labelDrop.mode === "before" ? "before:absolute before:inset-x-1 before:top-0 before:h-0.5 before:rounded before:bg-brand"
-                : "after:absolute after:inset-x-1 after:bottom-0 after:h-0.5 after:rounded after:bg-brand"
-            : selection?.has(label.id) ? "bg-gray-100" : "hover:bg-gray-50"}`}
-          style={{ paddingInlineStart: 8 + depth * 16 }}>
-          <GripVertical aria-hidden="true" className="size-3 shrink-0 cursor-grab text-gray-300 group-hover:text-gray-500" />
-          <button type="button" disabled={!hasChildren} aria-label={`${open ? "Collapse" : "Expand"} ${label.name}`}
-            onClick={() => setCollapsed((current) => { const next = new Set(current); if (next.has(label.id)) next.delete(label.id); else next.add(label.id); return next; })}
-            className="grid size-6 shrink-0 place-items-center rounded disabled:invisible">
-            {open ? <ChevronDown aria-hidden="true" className="size-3.5" /> : <ChevronRight aria-hidden="true" className="size-3.5" />}
-          </button>
-          <label title={`Change ${label.name} colour`} className="relative grid size-6 shrink-0 cursor-pointer place-items-center rounded focus-within:outline focus-within:outline-2 focus-within:outline-offset-1">
-            <FolderSvgIcon open={open} className="size-4" fill="currentColor" style={{ color: researchLabelColor(label) }} />
-            <input type="color" value={researchLabelColor(label)} aria-label={`${label.name} color`}
-              onClick={(event) => event.stopPropagation()} onChange={(event) => { const color = event.target.value;
-                if (!file) return; onChange({ ...file, state: { ...file.state,
-                  labels: { ...labels, [label.id]: { ...label, color } } } });
-                void act({ type: "label", ...label, color }).then((saved) => { if (!saved)
-                  void getResearchFile(file.document.id).then(onChange).catch(() => undefined); }); }}
-              className="absolute inset-0 cursor-pointer opacity-0" />
-          </label>
-          {activeLabel === label.id ? <form onSubmit={(event) => void editLabel(event, label.id)} className="flex min-w-0 flex-1 items-center gap-1">
-            <input required autoFocus name="name" aria-label="Label name" defaultValue={label.name}
-              onBlur={(event) => event.currentTarget.form?.requestSubmit()}
-              onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); setActiveLabel(null); } }}
-              className="h-7 min-w-0 flex-1 rounded border border-gray-300 px-1.5 text-sm" />
-          </form> : <><button type="button" onClick={(event) => { const set = scope === "source" ? setSourceSelected : setHighlightSelected;
-            set((current) => { if (!event.shiftKey) return new Set([label.id]); const next = new Set(current ?? []);
-              if (next.has(label.id)) next.delete(label.id); else next.add(label.id); return next; }); }}
-            aria-pressed={selection?.has(label.id) ?? false}
-            aria-label={`${label.name}, ${count} ${scope === "source" ? "sources" : "directly labelled passages"}`}
-            title={scope === "highlight" ? `${count} directly labelled passages; selecting includes nested labels` : undefined}
-            className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left text-sm font-medium">
-            <span className="min-w-0 flex-1 truncate">{label.name}</span><span className="tabular-nums text-gray-500">{count}</span>
-          </button><button type="button" onClick={() => setActiveLabel(label.id)} aria-label={`Edit ${label.name}`}
-            className="absolute end-1 grid size-7 place-items-center rounded bg-white/90 text-gray-500 opacity-0 hover:bg-gray-100 focus-visible:opacity-100 group-hover:opacity-100"><Pencil className="size-3" aria-hidden="true" /></button></>}
-        </div>{hasChildren && open && labelTree(scope, label.id, depth + 1)}
-      </div>;
-    });
-  }
-
-  function labelPanel(scope: Scope) { const selection = scope === "source" ? sourceSelected : highlightSelected,
-    setSelection = scope === "source" ? setSourceSelected : setHighlightSelected;
-    return <><div className="mb-1 flex items-center gap-1.5">
-      <input type="search" autoComplete="off" value={labelSearch[scope]} onChange={(event) => setLabelSearch((value) => ({ ...value, [scope]: event.target.value }))}
-        aria-label={scope === "source" ? "Search labels" : "Search highlight categories"}
-        placeholder={scope === "source" ? "Search labels" : "Search categories"}
-        className="h-8 min-w-0 flex-1 rounded-md border border-gray-300 px-2 text-sm" />
-      <ActionMenu label="Label selection" items={[
-        { label: "View all", checked: selection === null, onSelect: () => setSelection(null) },
-        { label: "View none", checked: selection?.size === 0, onSelect: () => setSelection(new Set()) },
-      ]} triggerClassName={buttonClassName({ variant: "outline", size: "compact" })}>
-        {selection === null ? "All" : selection.size === 0 ? "None" : `${selection.size} selected`}<ChevronDown className="size-3" />
-      </ActionMenu>
-    </div>
-    {scope === "highlight" && <label className="mb-1 flex items-center gap-1 rounded bg-gray-50 px-1.5 py-1 text-[13px] leading-4 text-gray-600">
-      <input type="checkbox" checked={highlightFilter} onChange={(event) => setHighlightFilter(event.target.checked)} />
-      Filter sources by these passages
-    </label>}
-    <div>{labelTree(scope, null)}</div>
-    {scope === "highlight" && unlabelledCount > 0 && <button type="button"
-      aria-pressed={selection?.has(UNSORTED) ?? false}
-      onClick={() => setSelection(new Set([UNSORTED]))}
-      className={`mt-1 flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm ${selection?.has(UNSORTED) ? "bg-gray-200" : "hover:bg-gray-50"}`}>
-      <ResearchLabelCircle labels={labels} labelIds={[]} size="sm" />Unclassified
-      <span className="ms-auto tabular-nums text-gray-400">{unlabelledCount}</span>
-    </button>}
-    {scope === "source" && <button type="button" aria-pressed={selection?.has(UNSORTED) ?? false} onClick={() => setSelection(new Set([UNSORTED]))}
-      className={`mt-1 flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm font-medium text-gray-500 ${selection?.has(UNSORTED) ? "bg-gray-200" : "hover:bg-gray-50"}`}>
-      <ResearchLabelCircle labels={labels} labelIds={[]} size="sm" />Unsorted
-    </button>}
-    <button type="button" data-tree-drop-root={scope} disabled={busy} onClick={() => void addLabel(scope)}
-      onDragOver={(event) => { const dragged = labels[labelDrag.current ?? ""];
-        if (dragged?.scope !== scope || !canReparent(dragged.id, null)) return setLabelDrop(null);
-        event.preventDefault(); setLabelDrop({ id: `root:${scope}`, mode: "inside" }); }}
-      onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setLabelDrop(null); }}
-      onDrop={(event) => { event.preventDefault(); setLabelDrop(null); labelDrag.current = null;
-        const id = event.dataTransfer.getData(LABEL_DRAG);
-        if (labels[id]?.scope === scope) void reparent(id, null, children.get(null)?.filter((label) => label.scope === scope).length ?? 0); }}
-      className={`mt-1 flex h-9 w-full items-center rounded-md border border-dashed px-2 text-left text-sm text-gray-500 hover:text-gray-800 ${labelDrop?.id === `root:${scope}`
-        ? "border-brand bg-blue-50 ring-1 ring-inset ring-blue-300" : "border-gray-300 hover:border-gray-500"}`}>
-      {labelDrop?.id === `root:${scope}` ? "Move to top level" : `+ Add ${scope === "source" ? "label" : "category"}`}
-    </button></>; }
   const listPanel = () => <>
     <div className="mb-2 flex items-center gap-1.5">
       <input type="search" autoComplete="off" value={listSearch} onChange={(event) => setListSearch(event.target.value)} aria-label="Search list"
@@ -498,11 +197,13 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
     </div></details>
     <div className="mt-1 min-h-0">
     <div className="mb-1 flex items-center justify-between text-sm"><span role="status" className="tabular-nums text-gray-600">{list.length} {list.length === 1 ? "source" : "sources"}</span>
-      {!!list.length && file && <ResearchSelectionLabels prepare={() => ({ file, selection: viewSelection })} mutations={commit} />}</div>
-    {answers.error && <p role="alert" className="text-sm text-red-700">{answers.error}</p>}
+      {!!list.length && file && <span className="flex items-center gap-1.5"><ResearchSelectionLabels />
+        <Button size="compact" variant="outline" aria-expanded={organizeOpen} onClick={() => setOrganizeOpen((open) => !open)}>Organize</Button></span>}</div>
+    {file && <WorkspaceOrganize open={organizeOpen} onClose={() => setOrganizeOpen(false)} />}
     {list.length ? <ol>{list.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((source) => {
       const sourcePage = passagePages.chains[source.id], evidence = (sourcePage?.items.flatMap((item) =>
-        item.kind === "passage" ? [item.value] : []) ?? []);
+        item.kind === "passage" && passageInScope(item.value) && itemSelected(item.value.labelIds, appliedHighlightIds) &&
+          (matches === null || matches.evidence.has(item.value.receipt.evidence_id)) ? [item.value] : []) ?? []);
       return <li key={source.id} className={`border-b border-gray-200 last:border-0 ${selectedSourceId === source.id ? "bg-gray-100" : ""}`}><details open={openedSources.has(source.id)} className="group rounded hover:bg-gray-50" onToggle={(event) => {
         const isOpen = event.currentTarget.open; setOpenedSources((current) => { const next = new Set(current);
         if (isOpen) next.add(source.id); else next.delete(source.id); return next; }); }}><summary className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] list-none items-start gap-1.5 py-2 text-sm @xs:flex" onClick={(event) => {
@@ -539,7 +240,7 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
         {sourcePage?.nextCursor && <button type="button" aria-label={`Show more passages from ${sourceName(source)}`}
           disabled={sourcePage.loading} onClick={() => void passagePages.fetchPage(source.id, sourcePage.nextCursor, true)}
           className={buttonClassName({ variant: "outline", size: "compact", className: "w-full" })}>Show more passages</button>}
-        <ResearchSourceAnswers findings={answers.findings.filter((finding) => finding.source === researchSourceKey(source.reference))} onCitation={openAnswerCitation} />
+        <ResearchSourceAnswers sourceId={source.id} onCitation={openAnswerCitation} />
         <button type="button" onClick={() => setRemoving({ kind: "source", id: source.id, name: sourceName(source) })}
           className={buttonClassName({ variant: "outline", size: "compact" })}>Remove source</button>
       </div>}</details></li>;
@@ -547,97 +248,9 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
     {list.length > PAGE_SIZE && <div className="mt-2 flex items-center justify-center gap-2 text-xs"><Button variant="outline" size="compact" disabled={!page} onClick={() => setPage(page - 1)}>Previous</Button>
       <span>Page {page + 1} of {Math.ceil(list.length / PAGE_SIZE)}</span><Button variant="outline" size="compact" disabled={(page + 1) * PAGE_SIZE >= list.length} onClick={() => setPage(page + 1)}>Next</Button></div>}
     </div></>;
-  const queryChain = queryPages.chains.queries,
-    historyQueries = queryChain?.items.flatMap((item) => item.kind === "query" ? [item.value] : []) ?? [];
-  const searchPanel = () => file ? <>
-    <form onSubmit={runPlain} className="mb-2 grid grid-cols-2 gap-1.5 border-b border-gray-200 pb-2">
-      <input required autoComplete="off" value={plain} onChange={(event) => setPlain(event.target.value)} aria-label="Search saved source text"
-        placeholder="Find in saved text" className="col-span-2 h-8 min-w-0 rounded-md border border-gray-300 px-2 text-sm" />
-      <ChoiceMenu label="Search syntax" value={syntax} onChange={(value) => setSyntax(value as typeof syntax)}
-        options={[{ value: "literal", label: "Exact" }, { value: "terms", label: "All terms" }]} />
-      <ChoiceMenu label="Search target" value={target} onChange={(value) => setTarget(value as typeof target)}
-        options={[{ value: "sources", label: "Source text" }, { value: "passages", label: "Saved passages" }]} />
-      <button disabled={busy} className="col-span-2 h-8 rounded-md bg-gray-900 px-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-40">Find passages</button>
-    </form>
-    <details className="group/rules mb-2 rounded-md border border-gray-200">
-      <summary className="flex h-8 cursor-pointer list-none items-center gap-1.5 bg-gray-50 px-2 text-xs font-medium text-gray-800">
-        <ChevronRight className="size-3.5 group-open/rules:rotate-90" aria-hidden="true" />Capture rules
-        {!!recipe.rules.length && <span className="ms-auto tabular-nums text-gray-500">{recipe.rules.length}</span>}
-      </summary>
-    <div className="p-2"><div className="mb-2 flex gap-1.5">
-      <button type="button" onClick={() => { setRuleEditor(recipe.rules.length); setRecipe((current) => ({ ...current,
-        rules: [...current.rules, { phrase: "", direction: "after", unit: "sentence", slot: UNCLASSIFIED }] })); }}
-        className="inline-flex h-8 flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-md border border-gray-300 bg-white px-1.5 text-[13px] font-medium text-gray-700 hover:bg-gray-50"><Plus className="size-3.5" />Add rule</button>
-      <button type="button" disabled={busy || !recipe.rules.length} onClick={runQuery}
-        className="h-8 flex-1 whitespace-nowrap rounded-md bg-brand px-1.5 text-[13px] font-medium text-white hover:bg-brand-dark disabled:opacity-40">Run rules</button>
-    </div>
-    <div className="space-y-1">{recipe.rules.map((rule, index) => <div key={index}
-      className="flex min-h-8 items-center gap-1 rounded bg-gray-50 px-1.5 text-xs">
-      <button type="button" onClick={() => setRuleEditor(index)}
-        className="min-w-0 flex-1 truncate text-left hover:underline">{ruleText(rule)}</button>
-      <button type="button" onClick={() => setRecipe((current) => ({ ...current,
-        rules: current.rules.filter((_, item) => item !== index) }))} aria-label={`Remove rule ${index + 1}`}
-        className="grid size-6 place-items-center rounded text-gray-400 hover:bg-gray-200 hover:text-red-700"><X className="size-3" /></button>
-    </div>)}</div>
-    {!!recipe.rules.length && <label className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-xs text-gray-600">When rules overlap
-      <ChoiceMenu label="Conflict policy" value={recipe.conflict} onChange={(value) => setRecipe((current) => ({ ...current, conflict: value as typeof current.conflict }))}
-        options={[{ value: "prompt", label: "Keep for review" }, { value: "first", label: "First rule wins" }, { value: "longer", label: "Longer passage" }, { value: "shorter", label: "Shorter passage" }, { value: "append", label: "Keep both" }]} />
-    </label>}
-    </div></details>
-    {!!queryCount && <details open={historyOpen}
-      className="group/history mt-2 overflow-hidden rounded-md border border-gray-200 text-xs text-gray-600">
-      <summary onClick={(event) => { event.preventDefault(); setHistoryOpen((open) => !open); }} className="flex h-8 cursor-pointer list-none items-center gap-1.5 bg-gray-50 px-2 font-medium text-gray-800">
-        <ChevronRight className="size-3.5 group-open/history:rotate-90" aria-hidden="true" />Search history
-        <span className="ms-auto tabular-nums text-gray-500">{queryCount}</span>
-      </summary>{historyOpen && <div className="space-y-1.5 border-t border-gray-200 p-2">
-      <ol className="space-y-1">{historyQueries
-        .map((item) => { const openQuery = openQueries.has(item.query_id), saved = openQuery ? queryRules(item.input) : [],
-          scopeLabels = openQuery && Array.isArray(item.input.label_ids)
-            ? item.input.label_ids.map((id) => receiptLabel(labels, String(id), item.labelPaths)) : [],
-          failures = new Map(item.failures.map((value) => [value.sourceId, value.code])),
-          searched = openQuery ? item.sourceIds.map((id) => { const source = file.state.sources[id],
-            reference = source?.reference ?? item.sourceReferences?.[id], failure = failures.get(id);
-            return `${source ? sourceName(source) : reference?.title || reference?.citation || reference?.id || id}${failure ? ` · ${failure}` : ""}`; }).join("\n") : "",
-          audit = openQuery ? item.sourceIds.map((id) => {
-            const hashes = item.sourceFingerprints?.[id], failure = failures.get(id);
-            return `[${id}]${hashes?.length ? ` · ${hashes.join(", ")}` : ""}${failure ? ` · ${failure}` : ""}`; }).join("\n") : "";
-          return <li key={item.query_id}>
-        <details open={openQuery} className="group/query rounded-md border border-gray-200 bg-white"><summary
-          onClick={(event) => { event.preventDefault(); toggleQuery(item.query_id); }} className="flex cursor-pointer list-none items-center gap-1.5 px-2 py-1.5">
-          <ChevronRight className="size-3 group-open/query:rotate-90" aria-hidden="true" />
-          <span className="min-w-0 flex-1 truncate font-medium text-gray-800">{queryText(item.input)}</span>
-          <span className="shrink-0 tabular-nums text-gray-500">{item.evidenceIds.length} matches</span></summary>
-          {openQuery && <div className="space-y-1 border-t border-gray-100 px-2 py-1.5 leading-4">
-          <p>{saved.length ? saved.map((rule) => ruleText(rule, item.labelPaths)).join("; ") : `${String(item.input.syntax ?? "literal")} · ${String(item.input.target ?? "sources")}`}</p>
-          <p className="text-gray-500">{new Date(item.executed_at).toLocaleString()} · {item.model || "human"} · {item.sourceIds.length} sources · {item.failures.length} failures</p>
-          {!!scopeLabels.length && <p>Scope: {scopeLabels.join(", ")}</p>}
-          {searched && <p aria-label="Sources searched" className="whitespace-pre-wrap">{searched}</p>}
-          {!!Object.keys(item.slots).length && <p>Slots: {slotSummary(item.slots, labels, item.labelPaths)}</p>}
-          {audit && <details className="rounded bg-gray-50"><summary className="cursor-pointer px-1.5 py-1 font-medium">Technical details</summary>
-            <pre aria-label="Search fingerprints" className="max-h-28 overflow-y-auto whitespace-pre-wrap break-all px-1.5 pb-1.5 text-xs">{audit}</pre>
-          </details>}
-          {(!!saved.length || !!item.evidenceIds.length) && <div className="mt-1 flex flex-wrap gap-1">
-            {!!saved.length && <button type="button" onClick={() => setRecipe({ rules: saved, conflict: queryConflict(item.input) })}
-              className="rounded border px-2 py-1 font-medium text-gray-700 hover:bg-gray-50">Use these rules</button>}
-            {!!item.evidenceIds.length && <button type="button" onClick={() => showMatches(item.evidenceIds, item.matchedSourceIds)}
-              className="rounded border px-2 py-1 font-medium text-gray-700 hover:bg-gray-50">View matches</button>}
-          </div>}
-          </div>}</details></li>; })}</ol>
-      {queryChain?.loading && !queryChain.items.length && <p role="status">Loading search history…</p>}
-      {!!queryChain?.error && <button type="button" onClick={() => void queryPages.fetchPage("queries", null, false)}
-        className="w-full rounded py-1 text-sm font-medium text-red-700">Retry search history</button>}
-      {queryChain?.nextCursor && <button type="button" disabled={queryChain.loading}
-        onClick={() => void queryPages.fetchPage("queries", queryChain.nextCursor, true)}
-        className="w-full rounded py-1 font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40">Load earlier searches</button>}
-      </div>}</details>}
-  </> : <p className="p-2 text-xs text-gray-500">Open or create a workspace to search saved sources.</p>;
   const selection = labelScope === "source" ? sourceSelected : highlightSelected,
     selectedLabel = selection?.size === 1 ? [...selection][0] : null;
 
-  const newWorkspace = () => { setOpen(true); setCreateOpen(true); setSelectedDocuments([]); };
-  const closePicker = () => { setOpen(false); setCreateOpen(false); };
-  const newFolder = () => { setFolderError(""); setFolderOpen(true); };
-  const closeFolder = () => { setFolderOpen(false); if (returnToPicker.current) { returnToPicker.current = false; setOpen(true); } };
   const cite = async (source: ResearchSource, passage?: ResearchEvidence) => {
     if (!file) return;
     try { const { href } = await getResearchCitation(file.document.id, source.id, passage?.receipt.evidence_id);
@@ -655,28 +268,11 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
     const affected = allSources.filter((item) => item.labelIds.some((id) => ids.has(id))).length;
     return `${prefix} ${affected} saved source${affected === 1 ? "" : "s"} will lose ${ids.size === 1 ? "this label" : "these labels"}.`;
   })();
-  const selector = file ? <div className="flex min-w-0 max-w-full items-center gap-2">
-    <span className="min-w-0 truncate text-base font-semibold text-gray-900" title={fileTitle(file)}>{fileTitle(file)}</span>
-    <ActionMenu label="Workspace options" className="shrink-0" items={[
-    { label: "Rename", onSelect: () => setRenameOpen(true) },
-    { label: "History", onSelect: () => setChangesOpen(true) },
-    { label: "Open another", onSelect: () => setOpen(true) },
-    { label: "New workspace", onSelect: () => { returnToPicker.current = false; newWorkspace(); } },
-  ]} triggerClassName="grid size-8 place-items-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
-    <Ellipsis className="size-4" aria-hidden="true" />
-  </ActionMenu><ResearchWorkspaceViews file={file} selection={viewSelection} onChange={onChange} /></div> : <span className="text-base font-semibold text-gray-900">Workspaces</span>;
   return <div className="@container relative flex h-full min-h-0 flex-col overflow-hidden">
-    {rail === undefined ? <div className="flex h-10 shrink-0 items-center pb-2">{selector}</div>
-      : rail ? createPortal(selector, rail) : null}
+    <ResearchWorkspacePicker projectId={projectId} rail={rail} onHistory={() => setChangesOpen(true)} />
     {status && <span role="status" className="pointer-events-none absolute bottom-2 left-1/2 z-30 max-w-[calc(100%-1rem)] -translate-x-1/2 truncate rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-700 shadow-lg">{status}</span>}
     {file && <ResearchChanges file={file} mutations={commit} historyOpen={changesOpen} onCloseHistory={() => setChangesOpen(false)} />}
-    {!file ? <div className="py-4">
-        <p className="text-sm leading-5 text-gray-600">Keep sources, passages, labels, searches, and notes together.</p>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => setOpen(true)} className="h-9 rounded-md bg-gray-900 px-3 text-sm font-medium text-white hover:bg-gray-700">Open</button>
-          <button type="button" onClick={() => { returnToPicker.current = false; newWorkspace(); }} className="ms-auto h-9 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 hover:bg-gray-50">New workspace</button>
-        </div>
-    </div> : <Tabs value={tab} onValueChange={setTab} ariaLabel="Workspace views" variant="subtab"
+    {file && <Tabs value={tab} onValueChange={setTab} ariaLabel="Workspace views" variant="subtab"
       className="min-h-0 flex-1" options={[
         { value: "labels", label: "Labels" },
         { value: "search", label: "Search" }, { value: "memo", label: "Memo" }]}>
@@ -688,24 +284,24 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
             {(["source", "highlight"] as const).map((scope) => <button key={scope} type="button" aria-pressed={labelScope === scope}
               onClick={() => setLabelScope(scope)} className={`h-8 rounded text-sm font-medium ${labelScope === scope ? "bg-white shadow-sm" : "text-gray-600"}`}>
               {scope === "source" ? "Sources" : "Passages"}</button>)}
-          </div><Button variant="outline" size="icon-sm" disabled={busy || !selectedLabel || !labels[selectedLabel]}
+          </div><Button variant="outline" size="icon-sm" disabled={!selectedLabel || !labels[selectedLabel]}
             onClick={() => selectedLabel && setRemoving({ kind: "label", id: selectedLabel, name: labels[selectedLabel].name })}
             aria-label={labelScope === "source" ? "Delete selected label" : "Delete selected highlight category"}><Trash2 aria-hidden="true" /></Button>
           </div>
-          {labelPanel(labelScope)}
+          <ResearchLabelsPanel scope={labelScope} selected={labelScope === "source" ? sourceSelected : highlightSelected}
+            onSelectionChange={labelScope === "source" ? setSourceSelected : setHighlightSelected}
+            highlightFilter={highlightFilter} setHighlightFilter={setHighlightFilter} onError={setStatus} />
         </aside>}
-        {searchOpen && <section aria-label="Search Saved sources" className="mb-3 min-w-0">
-          {searchPanel()}
-        </section>}
+        <section hidden={!searchOpen} aria-label="Search Saved sources" className="mb-3 min-w-0">
+          <ResearchSearchPanel active={searchOpen} target={target} setTarget={setTarget}
+            selections={{ sources: querySelection("sources"), passages: querySelection("passages") }}
+            matches={matches} onMatches={showMatches} onStatus={setStatus} />
+        </section>
         <section aria-label="Saved sources" className="min-w-0">
+          {(scope.members || scope.sourceIds || scope.evidenceIds) && <div className="mb-2 flex items-center justify-between gap-2 text-sm text-gray-600">
+            <span>Selected material</span><Button size="compact" variant="outline" onClick={() => setScope({ target: "sources" })}>Show all sources</Button></div>}
           {matches && <div className="mb-3 flex items-center justify-between gap-2 text-sm"><span>Search matches</span>
-            <button type="button" onClick={() => { setMatches(null); setSearchResult(null); }} className="rounded border border-gray-300 px-2 py-1 hover:bg-gray-50">Clear search matches</button></div>}
-          {searchResult && <div className="mb-3 space-y-2 text-sm text-gray-600">
-            <p>{searchResult.coverage.complete ? "Search complete" : "Partial search"} · {searchResult.coverage.attempted_sources} of {searchResult.coverage.selected_sources} sources searched</p>
-            {searchResult.coverage.next_after && <button type="button" disabled={busy}
-              onClick={() => void query({ ...searchResult.input, after: searchResult.coverage.next_after! }, true)}
-              className="h-9 rounded-md border border-gray-300 bg-white px-3 font-medium hover:bg-gray-50 disabled:opacity-40">{busy ? "Searching…" : "Continue search"}</button>}
-          </div>}
+            <button type="button" onClick={() => { setMatches(null); }} className="rounded border border-gray-300 px-2 py-1 hover:bg-gray-50">Clear search matches</button></div>}
           {listPanel()}
         </section>
       </div>
@@ -720,86 +316,6 @@ function ResearchFileBarContent({ file, projectId, onChange, rail, mutations, so
     </Suspense></div>
     </Tabs>}
     {reading && <ResearchCitationViewer {...reading} onClose={() => setReading(null)} />}
-    <Modal open={ruleEditor !== null} onClose={closeRule} size="sm" className="!h-fit max-h-[calc(100dvh-2rem)] [&_.modal-scroll-body]:flex-none"
-      breadcrumbs={["Search Saved sources", "Capture rule"]}
-      cancelAction={{ label: "Done", onClick: closeRule }}
-      primaryAction={{ label: "Run rules", onClick: () => { closeRule(); runQuery(); }, disabled: busy }}>
-      {ruleEditor !== null && recipe.rules[ruleEditor] && <div className="grid grid-cols-2 gap-3 pb-5 text-[13px]">
-        <label className="col-span-2 grid gap-1 text-gray-600">Phrase to find
-          <input autoFocus autoComplete="off" value={recipe.rules[ruleEditor].phrase} onChange={(event) => editRule({ phrase: event.target.value })}
-            className="h-9 rounded border border-gray-300 px-2 text-sm text-gray-900" />
-        </label>
-        <label className="grid gap-1 text-gray-600">Direction
-          <ChoiceMenu label="Direction" value={recipe.rules[ruleEditor].direction} onChange={(direction) => editRule({ direction: direction as Rule["direction"] })}
-            options={[{ value: "after", label: "After phrase" }, { value: "before", label: "Before phrase" }]} />
-        </label>
-        <label className="grid gap-1 text-gray-600">Unit
-          <ChoiceMenu label="Unit" value={recipe.rules[ruleEditor].unit} onChange={(unit) => editRule({ unit: unit as Rule["unit"] })}
-            options={[{ value: "sentence", label: "Sentence" }, { value: "line", label: "Line" }, { value: "paragraph", label: "Paragraph" }, { value: "chars", label: "Characters" }]} />
-        </label>
-        <label className="grid gap-1 text-gray-600">Save as highlight
-          <ChoiceMenu label="Save as highlight" value={recipe.rules[ruleEditor].slot} onChange={(slot) => editRule({ slot })}
-            options={[{ value: UNCLASSIFIED, label: "Unclassified" },
-              ...Object.values(labels).filter(({ scope }) => scope === "highlight").sort((a, b) => a.order - b.order)
-                .map((label) => ({ value: label.id, label: label.name }))]} />
-        </label>
-        {recipe.rules[ruleEditor].unit === "chars" && <label className="grid gap-1 text-gray-600">Characters
-          <input type="number" min="10" max="50000" value={recipe.rules[ruleEditor].chars ?? 100}
-            onChange={(event) => editRule({ chars: Number(event.target.value) })} className="h-9 rounded border px-2 text-sm text-gray-900" />
-        </label>}
-      </div>}
-    </Modal>
-    <Modal open={open} onClose={closePicker} size="lg" className="!h-[min(30rem,calc(100dvh-2rem))]" breadcrumbs={["Workspaces"]}
-      footerStatus={status && <span role="alert" className="text-sm text-red-700">{status}</span>}
-      cancelAction={{ label: "Close", onClick: closePicker }} primaryAction={{ label: busy ? "Opening..." : "Open",
-        onClick: () => { const document = selectedDocuments.find(isResearchDocument); if (document) void choose(() => getResearchFile(document.id)); },
-        disabled: busy || createOpen || !selectedDocuments.some(isResearchDocument) }}>
-      <div className="flex h-full min-h-0 flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <button type="button" disabled={!projectId && "projectId" in openLocation && !openLocation.projectId}
-          onClick={() => { returnToPicker.current = true; setOpen(false); newFolder(); }}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"><FolderPlus className="size-3.5" />New folder</button>
-        <button type="button" onClick={() => { returnToPicker.current = true; setOpen(false); setProjectOpen(true); }}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"><FolderKanban className="size-3.5" />New project</button>
-        <button type="button" disabled={createOpen || (!projectId && "projectId" in openLocation && !openLocation.projectId)} onClick={newWorkspace}
-          className="ms-auto inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"><FilePlus2 aria-hidden className="size-3.5" />New workspace</button>
-      </div>
-      <FileDirectory key={directoryKey} selectedDocuments={selectedDocuments} onChange={setSelectedDocuments}
-        showTabs={!projectId} projectId={projectId} initialLocation={openLocation}
-        tabs={[["files", "Library"], ["projects", "Projects"]]} noun="workspaces" multiple={false}
-        documentFilter={isResearchDocument} onLocationChange={setOpenLocation}
-        newDocument={createOpen ? { label: "Workspace name", filename: "Workspace.research.md",
-          onCreate: async (title, location, folderId) => (await createResearchFile({ title,
-            projectId: "projectId" in location ? location.projectId : undefined,
-            ...(folderId ? { folderId } : {}) })).document,
-          onCancel: () => setCreateOpen(false) } : undefined} />
-      </div>
-    </Modal>
-    <Modal open={renameOpen} onClose={() => setRenameOpen(false)} size="sm" className="!h-fit [&_.modal-scroll-body]:flex-none"
-      breadcrumbs={["Workspace", "Rename"]} cancelAction={{ label: "Cancel", onClick: () => setRenameOpen(false) }}
-      primaryAction={{ label: busy ? "Renaming..." : "Rename", type: "submit", form: "research-rename", disabled: busy }}>
-      <form id="research-rename" onSubmit={rename} className="pb-5">
-        <label className="grid gap-1 text-xs font-medium text-gray-700">Workspace name
-          <input required autoFocus name="title" defaultValue={file ? fileTitle(file) : ""} className="h-9 rounded-md border border-gray-300 px-2 text-sm font-normal text-gray-900" />
-        </label>
-      </form>
-    </Modal>
-    <Modal open={folderOpen} onClose={closeFolder} size="sm" className="!h-fit [&_.modal-scroll-body]:flex-none"
-      breadcrumbs={["projectId" in openLocation ? "Projects" : "Library", "New folder"]}
-      cancelAction={{ label: "Cancel", onClick: closeFolder }}
-      primaryAction={{ label: busy ? "Creating..." : "Create folder", type: "submit", form: "research-new-folder",
-        disabled: busy }}>
-      <form id="research-new-folder" onSubmit={createLibraryFolder} className="pb-5">
-        <label className="grid gap-1 text-xs font-medium text-gray-600">Folder name
-          <input required autoFocus name="name" className="h-9 rounded-md border border-gray-300 px-2 text-sm font-normal text-gray-900" />
-        </label>
-        {folderError && <p role="alert" className="mt-2 text-xs text-red-700">{folderError}</p>}
-      </form>
-    </Modal>
-    <NewProjectModal open={projectOpen} onClose={() => { setProjectOpen(false); if (returnToPicker.current) {
-      returnToPicker.current = false; setOpen(true); } }} onCreated={(project) => {
-      setOpenLocation({ projectId: project.id });
-      setDirectoryKey((value) => value + 1); setProjectOpen(false); setOpen(true); returnToPicker.current = false; }} />
     <ConfirmPopup open={!!removing} title={removing?.kind === "label" ? "Delete label?" : removing?.kind === "source" ? "Remove source?" : "Delete passage?"}
       message={removalMessage} confirmLabel={removing?.kind === "source" ? "Remove" : "Delete"}
       onCancel={() => setRemoving(null)} onConfirm={() => { if (removing) void act(removing.kind === "evidence"

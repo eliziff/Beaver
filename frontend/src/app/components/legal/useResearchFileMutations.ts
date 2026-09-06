@@ -37,7 +37,7 @@ export function useResearchFileMutations(file: ResearchFile | null,
           retryConnection && isResearchConnectionError(reason)))
           throw reason;
         base = await getResearchFile(id);
-        if (generation.current !== run) throw new Error("The workspace is no longer open.");
+        if (generation.current !== run) throw new Error("The workspace is no longer open.", { cause: reason });
         current.current = base;
         result = await operation(base);
       }

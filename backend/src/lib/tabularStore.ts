@@ -1,28 +1,27 @@
 import type { ApplicationScope } from "./applicationError";
-import type { GroundedAnswer, GroundedAnswerFlag } from "./groundedAnswer";
+import type { GroundedResult, GroundedAnswerFlag } from "./groundedAnswer";
 import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
-import type { ResearchSourceReference } from "./researchFile";
 import { parseResourceReference } from "./resourceReferences";
 import type { ResearchChange, ResearchChangeSummary } from "./researchHistory";
 import type { ResearchArrangement } from "./tabular/researchArrangement";
+import type { ResearchSelection, ResearchSubject } from "./researchSelection";
+import type { ResearchFindingReference } from "./researchChat";
 
 export type TabularScope = ApplicationScope;
 
 export type TabularColumn = { index: number; name: string; prompt: string;
   format?: string; tags?: string[] };
-export type TabularCellContent = GroundedAnswer & {
+export type TabularCellContent = GroundedResult & {
   summary: string; flag?: GroundedAnswerFlag; reasoning?: string;
   evidence: LegalEvidenceReceipt[]; outcome: "answered" | "not_found";
   coverage: "complete" | "partial"; resource: string;
   origin?: { chatId: string; messageId: string };
 };
-export type TabularSubject = { rowId?: string; sourceId: string; resource: string;
-  reference: ResearchSourceReference; evidence?: LegalEvidenceReceipt[]; sourceSha256?: string;
-  sourceSha256s?: string[] };
 export type TabularSelection = { research_file_id?: string; versionId?: string;
-  workingRevision?: number; subjects: TabularSubject[]; arrangement?: ResearchArrangement;
-  findings?: { chatId: string; answerIds: string[]; sourceIds: string[] } };
-export const tabularSubjectId = (subject: Pick<TabularSubject, "resource" | "rowId">) => {
+  workingRevision?: number; subjects: ResearchSubject[]; arrangement?: ResearchArrangement;
+  selection?: ResearchSelection;
+  findings?: { chatId?: string; answerIds?: string[]; sourceIds: string[]; references?: ResearchFindingReference[] } };
+export const tabularSubjectId = (subject: Pick<ResearchSubject, "resource" | "rowId">) => {
   if (subject.rowId) return subject.rowId;
   const reference = parseResourceReference(subject.resource);
   return reference?.kind === "document" ? reference.documentId : subject.resource;

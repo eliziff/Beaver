@@ -4,6 +4,7 @@ import {
 } from "./localDocumentFixtures";
 import { assistantTools } from "../../chat/assistantTools";
 import { createArtifactRegistry } from "../../chat/chatToolRunner";
+import { createSourceWorkspaceApplication } from "../../sourceWorkspaceApplication";
 import {
   LOAD_TOOLS_NAME,
   TurnToolRegistry,
@@ -29,6 +30,9 @@ export const localAssistantToolRegistry = (
 ) => new TurnToolRegistry(assistantTools<Record<string, never>>({
     userId,
     documents: localDocuments,
+    sources: createSourceWorkspaceApplication(options.documents ?? localDocuments, {
+      chats: {} as never, tables: {} as never, tabular: async () => { throw new Error("No table view in this fixture"); },
+    }),
     library: localLibraryStore,
     projects: localProjects,
     workProducts: {} as never,

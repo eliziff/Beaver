@@ -20,7 +20,7 @@ export type TabularScope = { research_file_id?: string; versionId?: string; work
   rowId?: string; sourceId: string; resource: string; reference: ResearchSourceReference;
   evidence?: GroundedEvidence[];
 }[] };
-export type TabularDocument = Document & { resource?: string; reference?: ResearchSourceReference; group?: string[] };
+export type TabularDocument = Document & { resource?: string; reference?: ResearchSourceReference; group?: string[]; selection?: ResearchSelection };
 
 export type ColumnFormat =
   | "text"
@@ -127,8 +127,6 @@ export const deleteTabularReview = (reviewId: string) =>
   remove<void>(`/tabular-review/${segment(reviewId)}`);
 export const exportTabularReview = (reviewId: string) =>
   apiBlobRequest(`/tabular-review/${segment(reviewId)}/export`);
-export const ensureTabularWorkspace = (reviewId: string) =>
-  post<{ research_file_id: string }>(`/tabular-review/${segment(reviewId)}/workspace`);
 export const startTabularGeneration = (
   reviewId: string,
   options?: { model?: string; reasoningEffort?: string },

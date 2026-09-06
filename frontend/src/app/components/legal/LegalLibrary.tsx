@@ -1,5 +1,5 @@
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
     ExternalLink,
     Loader2,
@@ -8,7 +8,6 @@ import {
     Search,
 } from "lucide-react";
 import { PageHeader } from "@/app/components/shared/PageHeader";
-import { getResearchFile } from "@/app/lib/api/researchFiles";
 import {
   getLegalSourceCoverage,
   searchLegalSources,
@@ -31,7 +30,7 @@ import { Button } from "@/app/components/ui/button";
 import { TabList } from "@/app/components/ui/tabs";
 import { ResearchLabelPicker } from "./ResearchLabelPicker";
 import { ResearchWorkspaceHost } from "./ResearchWorkspaceHost";
-import { useResearchFileMutations } from "./useResearchFileMutations";
+import { SourcesWorkspace, useSourcesWorkspace } from "./SourcesWorkspace";
 
 const SOURCE_KINDS = {
     cases: [["court", "Courts"], ["tribunal", "Tribunals and boards"]],
@@ -79,16 +78,25 @@ function SearchSnippet({ children }: { children: string }) {
     });
 }
 
-export function LegalLibraryPage({ embedded = false, projectId, onResearchFileChange,
-    onOpenSource, researchRefreshKey, researchFileId }: {
+type LibraryProps = {
     embedded?: boolean; projectId?: string;
     onResearchFileChange?: (file: ResearchFile | null) => void;
     researchRefreshKey?: string | null;
     researchFileId?: string | null;
     onOpenSource?: (tab: LegalSourceTab) => void;
-}) {
+};
+export function LegalLibraryPage(props: LibraryProps) {
     const [params] = useSearchParams();
-    const requestedResearchFileId = researchFileId ?? (embedded ? null : params.get("research_file"));
+    const location = useLocation();
+    const id = props.researchFileId ?? (props.embedded ? null : params.get("research_file"));
+    return <SourcesWorkspace fileId={id} projectId={props.projectId} restoreLast={!id}
+        selection={props.embedded ? undefined : location.state?.researchSelection}
+        refreshKey={props.researchRefreshKey} onChange={props.onResearchFileChange}>
+        <LegalLibraryContent {...props} researchFileId={id} />
+    </SourcesWorkspace>;
+}
+function LegalLibraryContent({ embedded = false, projectId, onOpenSource, researchFileId }: LibraryProps) {
+    const { file: researchFile, mutations } = useSourcesWorkspace();
     const [results, setResults] = useState<LegalSourceSearchResult[]>([]);
     const [searched, setSearched] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
@@ -101,41 +109,18 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
     });
     const [searching, setSearching] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [researchFile, setResearchFile] = useState<ResearchFile | null>(null);
-    const [researchOpen, setResearchOpen] = useState(!!requestedResearchFileId);
+    const [researchOpen, setResearchOpen] = useState(!!researchFileId);
     const [researchRail, setResearchRail] = useState<HTMLElement | null>(null);
     const [readingSource, setReadingSource] = useState<LegalSourceTab | null>(null);
     const [sourceDropNonce, setSourceDropNonce] = useState(0);
     const [researchBusy, setResearchBusy] = useState(false);
-    const refreshedAfter = useRef(researchRefreshKey);
-    const publishResearchFile = useCallback((file: ResearchFile | null) => {
-        setResearchFile(file); if (file) setError(null); onResearchFileChange?.(file);
-    }, [onResearchFileChange]);
-    const mutations = useResearchFileMutations(researchFile, publishResearchFile);
     const { docType, jurisdiction, sourceKind, dataset } = filters;
     const updateFilters = (next: Partial<typeof filters>) =>
         setFilters((current) => ({ ...current, ...next }));
     useEffect(() => {
         getLegalSourceCoverage().then(setCoverage).catch(() => undefined);
     }, []);
-    useEffect(() => {
-        if (!requestedResearchFileId) return;
-        setResearchOpen(true);
-        let current = true;
-        void getResearchFile(requestedResearchFileId).then((file) => {
-            if (current) publishResearchFile(file);
-        }, (reason) => { if (current) setError(errorMessage(reason, "Could not open research file")); });
-        return () => { current = false; };
-    }, [publishResearchFile, requestedResearchFileId]);
-    useEffect(() => {
-        const changed = refreshedAfter.current !== researchRefreshKey;
-        refreshedAfter.current = researchRefreshKey;
-        if (!changed || !researchFile || !researchRefreshKey) return;
-        let current = true; void getResearchFile(researchFile.document.id).then((file) => {
-            if (current) publishResearchFile(file);
-        }, () => undefined);
-        return () => { current = false; };
-    }, [publishResearchFile, researchFile, researchRefreshKey]);
+    useEffect(() => { if (researchFileId) setResearchOpen(true); }, [researchFileId]);
     const sourceIndex = useMemo(() => new Map(Object.values(researchFile?.state.sources ?? {})
         .map((source) => [researchSourceKey(source.reference), source])), [researchFile]);
     const sourceInFile = (result: LegalSourceSearchResult, file = researchFile) => file === researchFile
@@ -239,8 +224,7 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
     const workspace = <ResearchWorkspaceHost embedded={embedded} open={researchOpen}
         rail={researchRail} onReadSource={readSavedSource}
         selectedSourceId={readingSource?.researchSourceId ?? undefined}
-        onOpenChange={setResearchOpen} file={researchFile} projectId={projectId}
-        onChange={publishResearchFile} mutations={mutations} restoreLast={!requestedResearchFileId}
+        onOpenChange={setResearchOpen} projectId={projectId}
         sourceDropNonce={sourceDropNonce} />;
     return (
         <div className="relative flex h-full min-w-0">
@@ -264,7 +248,6 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
             </div>}
             {readingSource && <section aria-label="Source reader" className="min-h-0 min-w-0 flex-1">
                 <LegalSourceViewer key={`${readingSource.id}:${readingSource.initialLocator ?? ""}`} {...readingSource}
-                    researchFile={researchFile} onResearchFileChange={publishResearchFile} mutations={mutations}
                     onOpenResearch={(intent) => { setResearchOpen(true);
                         if (intent) setSourceDropNonce((value) => value + 1); }} />
             </section>}
@@ -587,14 +570,15 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
     );
 }
 
-export function LegalLibrarySourcePage({
-    ...viewerProps
-}: LegalSourceViewerProps) {
+export function LegalLibrarySourcePage(props: LegalSourceViewerProps) {
+    return <SourcesWorkspace fileId={props.researchFileId} projectId={props.projectId} restoreLast={!props.researchFileId}>
+        <LegalLibrarySourceContent {...props} />
+    </SourcesWorkspace>;
+}
+function LegalLibrarySourceContent(viewerProps: LegalSourceViewerProps) {
     const navigate = useNavigate();
-    const [researchFile, setResearchFile] = useState<ResearchFile | null | undefined>();
     const [researchOpen, setResearchOpen] = useState(!!viewerProps.researchFileId);
     const [sourceDropNonce, setSourceDropNonce] = useState(0);
-    const mutations = useResearchFileMutations(researchFile ?? null, setResearchFile);
     return (
         <div className="flex h-full min-h-0 min-w-0">
         <div className="flex min-w-0 flex-1 flex-col">
@@ -611,16 +595,12 @@ export function LegalLibrarySourcePage({
             />
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 <div className="min-h-0 flex-1"><LegalSourceViewer {...viewerProps}
-                    researchFile={researchFile} onResearchFileChange={setResearchFile}
-                    mutations={mutations}
                     onOpenResearch={(intent) => { setResearchOpen(true);
                         if (intent) setSourceDropNonce((value) => value + 1); }} /></div>
             </div>
         </div>
         <ResearchWorkspaceHost embedded={false} open={researchOpen}
-            onOpenChange={setResearchOpen} file={researchFile ?? null}
-            projectId={viewerProps.projectId} onChange={setResearchFile} mutations={mutations}
-            restoreLast={!viewerProps.researchFileId} sourceDropNonce={sourceDropNonce} />
+            onOpenChange={setResearchOpen} projectId={viewerProps.projectId} sourceDropNonce={sourceDropNonce} />
         </div>
     );
 }

@@ -34,24 +34,36 @@ export async function deleteDocumentRows(db: RelationalDatabase, ids: string[]) 
     for (const review of await rows<{ id: string; document_ids: unknown; scope_config: unknown }>(
       db.engine === "postgres" ? sql`SELECT id,document_ids,scope_config FROM tabular_reviews
         WHERE document_ids ?| ARRAY[${sql.join(batch)}] OR
+          EXISTS(SELECT 1 FROM jsonb_array_elements(scope_config->'subjects') subject
+            WHERE subject->'reference'->>'kind'='document' AND subject->'reference'->>'id' IN(${sql.join(batch)})) OR
           scope_config->>'research_file_id' IN(${sql.join(batch)}) ORDER BY id FOR UPDATE`
         : sql`SELECT id,document_ids,scope_config FROM tabular_reviews WHERE EXISTS(
           SELECT 1 FROM json_each(tabular_reviews.document_ids)
           WHERE value IN(${sql.join(batch)})) OR
+          EXISTS(SELECT 1 FROM json_each(tabular_reviews.scope_config,'$.subjects') subject
+            WHERE subject.value->>'$.reference.kind'='document' AND subject.value->>'$.reference.id' IN(${sql.join(batch)})) OR
           scope_config->>'research_file_id' IN(${sql.join(batch)}) ORDER BY id`, db)) reviews.set(review.id, review);
   }
   for (const review of reviews.values()) {
-    const current = decode<string[]>(review.document_ids, []);
-    const next = current.filter((id) => !selected.has(id));
-    const selection = decode<TabularSelection>(review.scope_config, { subjects: [] });
-    selection.subjects = selection.subjects.filter((subject) => !selected.has(tabularSubjectId(subject)));
-    if (selection.research_file_id && selected.has(selection.research_file_id)) delete selection.research_file_id;
+    const current = decode<string[]>(review.document_ids, []), selection = decode<TabularSelection>(review.scope_config, { subjects: [] }),
+      removed = new Set([...current.filter((id) => selected.has(id)), ...selection.subjects.filter(({ reference }) =>
+        reference.kind === "document" && selected.has(reference.id)).map(tabularSubjectId)]),
+      next = current.filter((id) => !removed.has(id));
+    selection.subjects = selection.subjects.filter((subject) => !removed.has(tabularSubjectId(subject)));
+    if (selection.research_file_id && selected.has(selection.research_file_id)) {
+      delete selection.research_file_id; delete selection.selection; delete selection.arrangement; delete selection.findings;
+    } else if (selection.arrangement) {
+      selection.arrangement.rows = selection.arrangement.rows.filter(({ id }) => !removed.has(id));
+      selection.arrangement.cells = selection.arrangement.cells.filter(({ rowId }) => !removed.has(rowId));
+    }
+    for (const rowId of removed) await changes(sql`DELETE FROM tabular_cells WHERE review_id=${review.id} AND document_id=${rowId}`, db);
     await changes(sql`UPDATE tabular_reviews SET document_ids=${encode(next)},
       scope_config=${encode(selection)},updated_at=${now()} WHERE id=${review.id}`, db);
   }
   let deleted = 0;
   for (let start = 0; start < unique.length; start += 250) {
     const batch = unique.slice(start, start + 250);
+    await changes(sql`UPDATE chats SET research_selection=${null} WHERE research_file_id IN(${sql.join(batch)})`, db);
     await changes(sql`DELETE FROM tabular_cells WHERE document_id IN(${sql.join(batch)})`, db);
     const objects = await rows<{ storage_path: string }>(sql`
       SELECT v.storage_path FROM document_versions v WHERE v.document_id IN(${sql.join(batch)})

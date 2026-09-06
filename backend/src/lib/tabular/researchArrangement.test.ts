@@ -58,9 +58,9 @@ it("reads linked answers from their owning chat and retains their original suppo
   const input = fixture(), resource = researchSourceResource(input.file.state.sources[sourceId].reference),
     answer = { claims: [{ text: "Notice can be emailed.", evidence_ids: [input.receipts[0].evidence_id] }], value: "Email" };
   input.arrangement.cells[0].items = [{ kind: "answer", chatId: "chat-1", answerId: "message-1:answer:0", resource }];
-  const read = () => resolveResearchArrangement({ ...input, resolveAnswers: async () => [{ kind: "answer", sourceId,
+  const read = () => resolveResearchArrangement({ ...input, resolveFinding: async (reference) => ({ reference, kind: "answer", sourceId,
     resource, question: { id: "message-1:answer:0", title: "Notice", prompt: "How?" }, answer,
-    evidence: [input.receipts[0]], origin: { chatId: "chat-1", messageId: "message-1" } }] });
+    evidence: [input.receipts[0]], origin: { chatId: "chat-1", messageId: "message-1" } }) });
   expect((await read()).cells[0].content).toMatchObject({ value: "Email", ...answer, evidence: [input.receipts[0]] });
   answer.value = "Written email";
   expect((await read()).cells[0].content?.value).toBe("Written email");

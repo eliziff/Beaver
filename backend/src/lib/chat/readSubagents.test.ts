@@ -96,6 +96,7 @@ describe("reader boundary", () => {
         task: "Read SCC authorities", scope: "SCC", jurisdiction: "CA",
       },
       evidence: [],
+      queries: [],
     };
     const activities = [{
       id: "lookup-1",

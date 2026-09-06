@@ -81,6 +81,8 @@ function userMessage(message: Message): Message {
     reasoningEffort: message.reasoningEffort,
     editMode: message.editMode,
     turnId: message.turnId,
+    research_file_id: message.research_file_id,
+    research_selection: message.research_selection,
   };
 }
 
@@ -407,6 +409,8 @@ export function useAssistantChat({
         chat_id: current.chatId,
         project_id: projectId,
         tabular_review_id: tabularReviewId,
+        research_file_id: message.research_file_id,
+        research_selection: message.research_selection,
         model,
         reasoning_effort: message.reasoningEffort ??
           profile?.lastSelectedReasoningEffort ?? undefined,

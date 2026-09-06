@@ -13,6 +13,7 @@ import { commitResearchFile, createResearchFileState, pageResearchItems, parseRe
 import { runResearchFileQuery, verifyResearchPassage } from "./researchFileQuery";
 import type { ResearchOperationContext } from "./researchProvenance";
 import { resolveResearchSelection } from "./researchSelection";
+import { readResearchWorkspace, type ResearchReadContext } from "./researchReader";
 
 vi.mock("./documentProjectionService", () => ({ documentProjectionService: {
   read: async (projection: { document: unknown }) => projection.document,
@@ -81,13 +82,35 @@ const receipt = (id: string, text = `holding ${id}`) => createA2AJPassageEvidenc
   sourceReference: { id }, sourceSha256: id.repeat(64).slice(0, 64).replace(/[^a-f0-9]/gu, "a") });
 
 describe("Research v2 parts", () => {
+  it("keeps workspace passage pages and exact section reads within the current selection", async () => {
+    const f = fixture(), passages = ["First", "Second"].map((text, index) => createLibraryEvidence({
+      documentId: "library-doc", versionId: "revision-1", filename: "Notes.txt", sourceText: "FirstSecond",
+      spanText: text, start: index ? 5 : 0, end: index ? 11 : 5 })),
+      saved = await act(f, { type: "merge", evidence: passages }),
+      source = Object.values(saved.state.sources)[0], context: ResearchReadContext = { restricted: true, subjects: [{
+        sourceId: source.id, reference: source.reference, resource: researchSourceResource(source.reference), evidence: [passages[1]] }] },
+      documents = { ...f.documents, projectionSource: async () => null },
+      read = (args: Record<string, unknown>) => readResearchWorkspace(documents as never, { userId: "user-1" },
+        saved, args, new AbortController().signal, undefined, context),
+      payload = (output: Awaited<ReturnType<typeof read>>) => JSON.parse(output.result.content
+        .filter((item) => item.type === "text").map((item) => item.text).join(""));
+    const page = await read({});
+    expect(payload(page).items.filter((item: { kind: string }) => item.kind === "unavailable_passage"))
+      .toMatchObject([{ evidence_id: passages[1].evidence_id }]);
+    expect(JSON.stringify(payload(page))).not.toContain(passages[0].evidence_id);
+    expect(page.evidence).toEqual([]);
+    const excluded = await read({ section: "passage:1" });
+    expect(excluded.result.isError).toBe(true);
+    expect(payload(excluded).error).toContain("outside the current selection");
+  });
+
   it("audits human and assistant collection and labelling with the same canonical passage ID", async () => {
     const f = fixture(), audit = vi.fn(async () => {}), passage = receipt("case-a"),
       human = { audit, executor: "human" as const };
     await act(f, { type: "label", id: highlightLabel, name: "Holding", scope: "highlight" });
     const collected = await act(f, { type: "merge", evidence: [passage] }, undefined, human),
       sourceId = Object.keys(collected.state.sources)[0],
-      assistant = { audit, executor: "assistant" as const, model: "model-a", turnId: "turn-1", callId: "call-1" };
+      assistant = { audit, executor: "assistant" as const, model: "model-a", turnId: "turn-1", callId: "call-1", subagentId: "child-1" };
     const observed = await act(f, { type: "merge", evidence: [passage] }, undefined, assistant);
     expect(observed.versionId).toBe(collected.versionId);
     expect(observed.workingRevision).toBe(collected.workingRevision);
@@ -102,9 +125,14 @@ describe("Research v2 parts", () => {
         { userId: "user-1", model: "model-a", executor: "assistant" }]);
     expect(events[0].detail.observed_passages).toEqual(events[1].detail.observed_passages);
     expect(events[1].detail.passages).toEqual([]);
-    expect(events[2].detail).toMatchObject({ turn_id: "turn-1", call_id: "call-1", passages: [{
-      id: passage.evidence_id, before: { labelIds: [] }, after: {
-        labelIds: [highlightLabel], sourceSha256: passage.source_sha256 } }] });
+    expect(events[0].detail).toMatchObject({ sources: [{ id: sourceId, created: true, removed: false }],
+      observed_passages: [{ evidence_id: passage.evidence_id, source_id: sourceId,
+        source_sha256: passage.source_sha256 }] });
+    expect(events[1].detail.changes).toEqual([]);
+    expect(events[2].detail).toMatchObject({ turn_id: "turn-1", call_id: "call-1", subagent_id: "child-1",
+      changes: [{ target: "passage", id: passage.evidence_id, sourceId,
+        field: `labelIds.${highlightLabel}`, before: false, after: true }],
+      passages: [{ evidence_id: passage.evidence_id, labelIds: [highlightLabel], source_sha256: passage.source_sha256 }] });
     const page = await pageResearchItems(f.documents as never, { userId: "user-1" },
       (await readResearchFile(f.documents as never, { userId: "user-1" }, "doc-1"))!, "passages", 0, 10);
     expect(page.items).toMatchObject([{ kind: "passage", value: { receipt: { evidence_id: passage.evidence_id } } }]);
@@ -317,6 +345,67 @@ describe("Research v2 parts", () => {
     const appended = await run("append"), slots = Object.fromEntries(appended.evidence.map(
       (item) => [item.span_text, appended.receipt.slots[item.evidence_id]]));
     expect(slots).toEqual({ abcdefghij: [labels[0]], fghij: [labels[1]], kl: [labels[2]] });
+  });
+
+  it("queries exact and mixed subjects without widening an active reading scope", async () => {
+    const f = fixture(), texts = { a: "needle outside\nneedle selected", b: "needle whole", c: "needle excluded" },
+      evidence = Object.entries(texts).flatMap(([id, text]) => {
+        const starts = id === "a" ? [0, text.indexOf("\n") + 1] : [0];
+        return starts.map((start) => createLibraryEvidence({ documentId: id, versionId: "v1", filename: `${id}.txt`,
+          sourceSha256: "a".repeat(64), start, end: start ? text.length : text.split("\n")[0].length,
+          spanText: text.slice(start).split("\n")[0] }));
+      }), documents = { ...f.documents, projectionSource: async (_scope: unknown, id: keyof typeof texts) => ({
+        sourceSha256: "a".repeat(64), document: { text: texts[id], blocks: [{ kind: "paragraph", label: "1",
+          start: 0, end: texts[id].length }] } }) };
+    let saved = await act(f, { type: "merge", evidence });
+    const byId = Object.fromEntries(Object.values(saved.state.sources).map((source) => [source.reference.id, source])),
+      members = [{ sourceId: byId.a.id, evidenceIds: [evidence[1].evidence_id] }, { sourceId: byId.b.id }],
+      context: ResearchReadContext = { restricted: true, subjects: ["a", "b"].map((id) => ({
+        sourceId: byId[id].id, resource: researchSourceResource(byId[id].reference), reference: byId[id].reference,
+        ...(id === "a" ? { evidence: [evidence[1]] } : {}) })) },
+      run = async (selection: Partial<Parameters<typeof runResearchFileQuery>[3]>, bounded?: ResearchReadContext) => {
+        const result = await runResearchFileQuery(documents as never, { userId: "user-1" }, "doc-1", {
+          versionId: saved.versionId, workingRevision: saved.workingRevision, syntax: "literal",
+          text: "needle", target: "sources", ...selection }, { context: bounded });
+        saved = result.file; return result;
+      };
+    expect((await run({ members, target: "passages" })).evidence.map(({ span_text }) => span_text))
+      .toEqual(["needle selected", "needle whole"]);
+    const bounded = await run({}, context);
+    expect(bounded.evidence.map(({ span_text }) => span_text)).toEqual(["needle selected", "needle whole"]);
+    expect(bounded.evidence[0]).toEqual(evidence[1]);
+    const exact = await run({ target: "passages", evidenceIds: [evidence[1].evidence_id, evidence[2].evidence_id] });
+    expect(exact.evidence.map(({ evidence_id }) => evidence_id)).toEqual([evidence[1].evidence_id, evidence[2].evidence_id]);
+    expect((await run({ members: [{ sourceId: byId.c.id }] }, context)).evidence).toEqual([]);
+  });
+
+  it("captures and continues inside exact native passage bounds with original offsets", async () => {
+    const f = fixture(), text = "İ outside needle Carol\nneedle Alice\nneedle Bob TRAILING OUTSIDE",
+      start = text.indexOf("needle Alice"), end = text.indexOf(" TRAILING"), selected = createLibraryEvidence({
+        documentId: "selected", versionId: "v1", filename: "Notes.txt", sourceSha256: "a".repeat(64),
+        start, end, spanText: text.slice(start, end) }),
+      documents = { ...f.documents, projectionSource: async () => ({ sourceSha256: "a".repeat(64),
+        document: { text, blocks: [{ kind: "paragraph", label: "1", start: 0, end: text.length }] } }) };
+    let saved = await act(f, { type: "merge", evidence: [selected] });
+    const sourceId = Object.keys(saved.state.sources)[0], input = { syntax: "literal" as const,
+      target: "passages" as const, members: [{ sourceId, evidenceIds: [selected.evidence_id] }], limit: 1,
+      rules: [{ phrase: "needle", direction: "after" as const, unit: "line" as const, slot: "Unclassified" }] },
+      run = async (after?: string) => {
+        const result = await runResearchFileQuery(documents as never, { userId: "user-1" }, "doc-1", {
+          versionId: saved.versionId, workingRevision: saved.workingRevision, ...input, after });
+        saved = result.file; return result;
+      }, first = await run(), second = await run(first.coverage.next_after!);
+    expect(first.evidence.map(({ span_text }) => span_text)).toEqual(["Alice"]);
+    expect(second.evidence.map(({ span_text }) => span_text)).toEqual(["Bob"]);
+    expect((await run(second.coverage.next_after!)).coverage).toMatchObject({ complete: true, next_after: null });
+    for (const receipt of [...first.evidence, ...second.evidence]) {
+      expect(receipt.span!.start).toBeGreaterThan(start);
+      expect(receipt.span!.end).toBeLessThanOrEqual(end);
+      expect(text.slice(receipt.span!.start, receipt.span!.end)).toBe(receipt.span_text);
+    }
+    await expect(runResearchFileQuery(documents as never, { userId: "user-1" }, "doc-1", {
+      versionId: saved.versionId, workingRevision: saved.workingRevision, ...input,
+      members: [{ sourceId }], after: first.coverage.next_after! })).rejects.toMatchObject({ status: 409 });
   });
 
   it("keeps capture offsets on the original Unicode text and rejects ambiguous searches", async () => {
@@ -719,6 +808,7 @@ describe("Research v2 parts", () => {
           { type: "subagent_run", id: "reader-1", task: "Examine the first case", status: "completed",
             grounding: event([reader], readerClaims) }] },
       ] };
+    await act(f, { type: "merge", evidence: [first, second, extra, uncited, reader], chats: ["chat-1"] });
     const { file, findings } = await resolveChatFindings(chats as never, f.documents as never, scope,
       { researchFileId: "doc-1", chatId: "chat-1" });
     const main = findings.filter(({ question }) => question.id === "message-1:answer:0"),
@@ -736,7 +826,7 @@ describe("Research v2 parts", () => {
     expect(new Set(findings.flatMap(({ evidence }) => evidence.map(({ evidence_id }) => evidence_id))).size).toBe(5);
     expect((await pageResearchItems(f.documents as never, scope, file, "passages")).total).toBe(5);
     const reopened = await resolveChatFindings(chats as never, f.documents as never, scope,
-      { researchFileId: "doc-1", chatId: "chat-1", readOnly: true });
+      { researchFileId: "doc-1", chatId: "chat-1" });
     expect(reopened.findings).toEqual(findings);
   });
 

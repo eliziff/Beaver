@@ -3,45 +3,48 @@ import { useNavigate } from "react-router-dom";
 import { ChevronDown } from "lucide-react";
 import { ActionMenu } from "../ui/action-menu";
 import { buttonClassName } from "../ui/button";
-import { useResearchFileMutations, type ResearchFileMutations } from "../legal/useResearchFileMutations";
-import { researchLabelPath, type ResearchFile, type ResearchSelection } from "@/app/lib/researchFiles";
+import { useSourcesWorkspace } from "../legal/SourcesWorkspace";
+import { researchLabelPath, type ResearchSelection } from "@/app/lib/researchFiles";
 import { errorMessage } from "@/app/lib/utils";
 
-type Selection = { file: ResearchFile; selection: ResearchSelection };
-export function ResearchSelectionLabels({ prepare, mutations, onChange }: {
-  prepare: () => Selection | Promise<Selection>;
-  mutations?: ResearchFileMutations; onChange?: (file: ResearchFile) => void;
-}) {
+export function ResearchSelectionLabels({ prepare }: { prepare?: () => ResearchSelection | ResearchSelection[] | Promise<ResearchSelection | ResearchSelection[]> }) {
   const navigate = useNavigate();
-  const [ready, setReady] = useState<Selection | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
-  const local = useResearchFileMutations(ready?.file ?? null, (file) => {
-    setReady((current) => current ? { ...current, file } : null); onChange?.(file);
-  });
-  const commit = mutations ?? local;
-  const labels = Object.values(ready?.file.state.labels ?? {}).filter(({ scope }) =>
-    scope === (ready?.selection.target === "passages" ? "highlight" : "source"));
-  const run = (id: string, mode: "add" | "remove") => {
+  const { file, selection, mutations: commit } = useSourcesWorkspace();
+  const [ready, setReady] = useState<ResearchSelection[] | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const labels = Object.values(file?.state.labels ?? {}).filter(({ scope }) =>
+    ready?.some(({ target }) => scope === (target === "passages" ? "highlight" : "source")));
+  const run = (id: string, mode: "add" | "remove", target: "sources" | "passages") => {
     if (!ready || busy) return;
     setBusy(true); setError("");
-    void commit.act({ type: "label-selection", ...ready.selection, assign: [id], mode })
+    const scopes = ready.filter((scope) => scope.target === target), selection = scopes.length === 1 ? scopes[0] : {
+      target, members: scopes.flatMap((scope) => scope.members ?? scope.sourceIds?.map((sourceId) => ({ sourceId,
+        ...(scope.evidenceIds ? { evidenceIds: scope.evidenceIds } : {}) })) ?? []),
+      ...(scopes[0]?.labelIds ? { labelIds: scopes[0].labelIds, unlabelled: scopes[0].unlabelled } : {}),
+    };
+    void commit.act({ type: "label-selection", ...selection, assign: [id], mode })
       .catch((reason) => setError(errorMessage(reason, "Could not update labels"))).finally(() => setBusy(false));
   };
   return <span className="relative inline-flex">
     <ActionMenu label="Labels for selection" onOpen={() => {
-      setBusy(true); setError(""); setReady(null); void Promise.resolve().then(prepare).then((next) => {
-        if (next.selection.sourceIds?.length === 0 || next.selection.target === "passages" &&
-          (next.selection.evidenceIds?.length === 0 || next.selection.labelIds?.length === 0 && !next.selection.unlabelled))
-          throw new Error(`No ${next.selection.target} selected`);
-        setReady(next);
+      setBusy(true); setError(""); setReady(null); void Promise.resolve().then(prepare ?? (() => selection)).then((next) => {
+        const scopes = (Array.isArray(next) ? next : [next]).flatMap((scope) => scope.members ? scope.members
+          .filter((member) => !scope.sourceIds || scope.sourceIds.includes(member.sourceId)).map((member): ResearchSelection => ({
+            ...scope, target: member.evidenceIds || scope.evidenceIds || scope.target === "passages" ? "passages" : "sources",
+            members: [member],
+          })) : [scope]).filter((scope) => scope.sourceIds?.length !== 0 && (scope.target !== "passages" ||
+          scope.evidenceIds?.length !== 0 && (scope.labelIds?.length !== 0 || scope.unlabelled)));
+        if (!scopes.length) throw new Error("Nothing selected");
+        setReady(scopes);
       })
         .catch((reason) => setError(errorMessage(reason, "Could not load labels"))).finally(() => setBusy(false));
     }} triggerClassName={buttonClassName({ variant: "outline", size: "compact" })}
-      items={busy || !ready ? [{ label: error || "Loading labels…", disabled: true, onSelect() {} }]
-        : labels.length ? labels.flatMap(({ id }) => {
-          const path = researchLabelPath(ready.file.state.labels, id).map(({ name }) => name).join(" / ");
-          return [{ label: `Add ${path}`, onSelect: () => run(id, "add") },
-            { label: `Remove ${path}`, onSelect: () => run(id, "remove") }];
-        }) : [{ label: "Create labels in workspace", onSelect: () => navigate(`/sources?research_file=${encodeURIComponent(ready.file.document.id)}`) }]}>
+      items={busy || !ready || !file ? [{ label: error || "Loading labels…", disabled: true, onSelect() {} }]
+        : labels.length ? labels.flatMap(({ id, scope }) => {
+          const path = researchLabelPath(file.state.labels, id).map(({ name }) => name).join(" / ");
+          const target = scope === "highlight" ? "passages" : "sources";
+          return [{ label: `Add ${path}`, onSelect: () => run(id, "add", target) },
+            { label: `Remove ${path}`, onSelect: () => run(id, "remove", target) }];
+        }) : [{ label: "Create labels in workspace", onSelect: () => navigate(`/sources?research_file=${encodeURIComponent(file.document.id)}`) }]}>
       Labels<ChevronDown aria-hidden className="size-3.5" />
     </ActionMenu>
     {error && <span role="alert" className="absolute end-0 top-full z-50 mt-1 w-64 rounded border border-red-200 bg-white p-2 text-sm text-red-700">{error}</span>}

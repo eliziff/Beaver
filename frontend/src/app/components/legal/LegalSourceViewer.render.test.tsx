@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LegalSourceViewerPayload } from "@/app/lib/api/legalSources";
 import { highlightDocxQuotes } from "@/app/components/shared/views/highlightDocxQuote";
+import { SourcesWorkspaceProvider } from "./SourcesWorkspace";
+import type { ResearchFile } from "@/app/lib/researchFiles";
 
 const api = vi.hoisted(() => ({
     direct: vi.fn(),
@@ -32,11 +34,16 @@ vi.mock("react-router-dom", () => ({
     ),
 }));
 import {
-    LegalSourceViewer,
+    LegalSourceViewer as SourceViewer,
     legalPassageTargetFromSelection,
     legalSourceViewerActions,
 } from "./LegalSourceViewer";
 import { LegalLibrarySourcePage } from "./LegalLibrary";
+function LegalSourceViewer({ researchFile, onResearchFileChange, ...props }: React.ComponentProps<typeof SourceViewer> &
+  { researchFile?: ResearchFile | null; onResearchFileChange?: (file: ResearchFile | null) => void }) {
+  return <SourcesWorkspaceProvider file={researchFile} fileId={props.researchFileId} onChange={onResearchFileChange}>
+    <SourceViewer {...props} /></SourcesWorkspaceProvider>;
+}
 
 function viewerPayload(): LegalSourceViewerPayload {
     const text = [
@@ -286,25 +293,23 @@ describe("legal source reader", () => {
     it("forgets completed source preparation so a removed source can be added again", async () => {
         const blank = { ...researchFile, state: { ...researchFile.state, sources: {} } };
         api.direct.mockResolvedValue(viewerPayload());
-        const act = vi.fn(async (action, base = blank) => action.type === "source"
-            ? { ...base, sourceId: "saved", workingRevision: base.workingRevision + 1, state: {
-                ...base.state, sources: { saved: researchFile.state.sources.saved },
-            } }
-            : { ...base, workingRevision: base.workingRevision + 1 });
-        const mutations = { act, query: vi.fn() };
+        api.actOnResearchFile.mockImplementation(async (_id, versionId, revision, action) => ({
+            ...blank, versionId, sourceId: "saved", workingRevision: revision + 1,
+            state: { ...blank.state, sources: { saved: { ...researchFile.state.sources.saved, note: action.note ?? "" } } },
+        }));
         const { rerender } = render(<LegalSourceViewer citation="2099 SCC 1" docType="cases"
-            researchFile={blank} mutations={mutations} />);
+            researchFile={blank} />);
         await screen.findByRole("heading", { name: "Fixture v. Test" });
 
         for (const [note, revision] of [["First", 1], ["Again", 3]] as const) {
             if (revision > 1) rerender(<LegalSourceViewer citation="2099 SCC 1" docType="cases"
                 researchFile={{ ...blank, versionId: `version-${revision}`,
-                    workingRevision: revision }} mutations={mutations} />);
+                    workingRevision: revision }} />);
             fireEvent.click(screen.getByRole("button", { name: "Label Fixture v. Test" }));
             fireEvent.change(screen.getByRole("textbox", { name: "Item note" }),
                 { target: { value: note } });
             fireEvent.blur(screen.getByRole("textbox", { name: "Item note" }));
-            await waitFor(() => expect(act.mock.calls.filter(([action]) => action.type === "source"))
+            await waitFor(() => expect(api.actOnResearchFile.mock.calls.filter(([, , , action]) => action.type === "source"))
                 .toHaveLength(revision > 1 ? 2 : 1));
             fireEvent.click(screen.getByRole("button", { name: "Done" }));
         }

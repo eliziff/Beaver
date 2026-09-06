@@ -9,6 +9,7 @@ const chatRecord = (row: Row): ChatRecord => ({ ...row, id: String(row.id),
   user_id: String(row.user_id), project_id: typeof row.project_id === "string" ? row.project_id : null,
   tabular_review_id: typeof row.tabular_review_id === "string" ? row.tabular_review_id : null,
   research_file_id: typeof row.research_file_id === "string" ? row.research_file_id : null,
+  research_selection: decode(row.research_selection, null),
   title: typeof row.title === "string" ? row.title : null,
   model: typeof row.model === "string" ? row.model : null,
   reasoning_effort: typeof row.reasoning_effort === "string" ? row.reasoning_effort : null,
@@ -186,9 +187,10 @@ export const chatRepository: CreateChatRepository = (scope) => ({
   },
   async create(input) {
     const id = randomUUID(), created = now();
-    await changes(sql`INSERT INTO chats(id,user_id,project_id,tabular_review_id,research_file_id,title,
+    await changes(sql`INSERT INTO chats(id,user_id,project_id,tabular_review_id,research_file_id,research_selection,title,
       created_at,updated_at,deleted_at,transcript_version) VALUES(${id},${scope.userId},
-      ${input.projectId},${input.tabularReviewId},${input.researchFileId ?? null},${null},${created},${created},${null},0)`);
+      ${input.projectId},${input.tabularReviewId},${input.researchFileId ?? null},${encode(input.researchSelection ?? null)},
+      ${null},${created},${created},${null},0)`);
     return (await findChat(scope, id, false, true))!;
   },
   async read(id, messages = false, deleted = false) {
@@ -223,6 +225,9 @@ export const chatRepository: CreateChatRepository = (scope) => ({
     await changes(sql`UPDATE chats SET title=${input.title ?? current.title},
       project_id=${input.projectId === undefined ? current.project_id : input.projectId},
       research_file_id=${input.researchFileId === undefined ? current.research_file_id ?? null : input.researchFileId},
+      research_selection=${encode(input.researchSelection !== undefined ? input.researchSelection
+        : input.researchFileId !== undefined && input.researchFileId !== current.research_file_id
+          ? null : current.research_selection ?? null)},
       model=${input.model === undefined ? current.model : input.model},
       reasoning_effort=${input.reasoningEffort === undefined
         ? current.reasoning_effort : input.reasoningEffort},

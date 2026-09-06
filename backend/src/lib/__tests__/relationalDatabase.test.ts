@@ -34,7 +34,7 @@ describe("local relational database", () => {
 
   it("uses one configured file and reopens committed state", async () => {
     let module = await store(), database = module.localDatabaseSync();
-    expect(database.prepare("PRAGMA user_version").get()).toEqual({ user_version: 14 });
+    expect(database.prepare("PRAGMA user_version").get()).toEqual({ user_version: 15 });
     expect(database.prepare("PRAGMA database_list").all()).toEqual([
       expect.objectContaining({ name: "main", file: path.join(directory, "application.sqlite") }),
     ]);

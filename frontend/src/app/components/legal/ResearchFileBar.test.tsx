@@ -3,18 +3,19 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResearchEvidence, ResearchFile, ResearchQueryReceipt } from "@/app/lib/researchFiles";
-import { ResearchFileBar } from "./ResearchFileBar";
+import { ResearchFileBar as WorkspaceBar } from "./ResearchFileBar";
+import { SourcesWorkspaceProvider } from "./SourcesWorkspace";
+function ResearchFileBar({ file, onChange, ...props }: React.ComponentProps<typeof WorkspaceBar> & {
+  file: ResearchFile | null; onChange: (file: ResearchFile | null) => void }) {
+  return <SourcesWorkspaceProvider file={file} onChange={onChange}><WorkspaceBar {...props} /></SourcesWorkspaceProvider>;
+}
 
 const api = vi.hoisted(() => ({
   actOnResearchFile: vi.fn(), createResearchFile: vi.fn(), directoryResource: vi.fn(),
   getResearchFile: vi.fn(), getResearchItems: vi.fn(), listProjects: vi.fn(),
   runResearchFileQuery: vi.fn(), getResearchCitation: vi.fn(),
-  getTabularReview: vi.fn(), getChatResearchAnswers: vi.fn(),
+  getWorkspaceFindings: vi.fn(), getWorkspaceViews: vi.fn(),
 }));
-vi.mock("@/app/lib/api/tabular", async (original) => ({ ...await original<typeof import("@/app/lib/api/tabular")>(),
-  getTabularReview: api.getTabularReview }));
-vi.mock("@/app/lib/api/chat", async (original) => ({ ...await original<typeof import("@/app/lib/api/chat")>(),
-  getChatResearchAnswers: api.getChatResearchAnswers }));
 vi.mock("../shared/views/DocumentViewer", () => ({ DocumentViewer: (props: { documentId: string; versionId: string }) =>
   <div aria-label="Original document">{props.documentId}:{props.versionId}</div> }));
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({
@@ -24,7 +25,9 @@ vi.mock("@/app/lib/api/researchFiles", async (original) => ({
   getResearchFile: api.getResearchFile,
   getResearchItems: api.getResearchItems,
   runResearchFileQuery: api.runResearchFileQuery,
-  getResearchCitation: api.getResearchCitation
+  getResearchCitation: api.getResearchCitation,
+  getWorkspaceFindings: api.getWorkspaceFindings,
+  getWorkspaceViews: api.getWorkspaceViews,
 }));
 vi.mock("@/app/lib/api/documents", async (original) => ({
   ...await original<typeof import("@/app/lib/api/documents")>(),
@@ -98,6 +101,8 @@ describe("ResearchFileBar", () => {
     localStorage.clear(); sessionStorage.clear();
     vi.clearAllMocks();
     api.actOnResearchFile.mockResolvedValue(file);
+    api.getWorkspaceFindings.mockResolvedValue({ items: [], next_offset: null, total: 0 });
+    api.getWorkspaceViews.mockResolvedValue({ tables: [], chats: [] });
     api.directoryResource.mockReturnValue({
       list: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
       createFolder: vi.fn(), renameDocument: vi.fn(),
@@ -127,12 +132,13 @@ describe("ResearchFileBar", () => {
     const reference = { provider: "library" as const, kind: "document" as const, id: "agreement", versionId: "original-version", title: "Agreement.pdf" };
     const saved = { ...file, state: { ...file.state, tables: ["table-1"], sources: {
       agreement: { ...file.state.sources.appeal, id: "agreement", reference } } } };
-    api.getTabularReview.mockResolvedValue({ review: { id: "table-1", columns_config: [{ index: 0, name: "Termination", format: "yes_no", prompt: "Find termination" }] },
-      documents: [{ id: "agreement", reference }], cells: [{ id: "cell-1", document_id: "agreement", column_index: 0, status: "done",
-        content: { value: true, summary: "Yes", flag: "green", coverage: "partial", outcome: "answered",
-          claims: [{ text: "Termination is permitted on notice.", evidence_ids: ["original"] }], evidence: [{ ...evidence.receipt,
+    api.getWorkspaceFindings.mockResolvedValue({ total: 1, next_offset: null, items: [{
+      reference: { kind: "cell", reviewId: "table-1", rowId: "agreement", columnIndex: 0 },
+      question: { title: "Termination", format: "yes_no", prompt: "Find termination" },
+      answer: { value: true, summary: "Yes", flag: "green", coverage: "partial", outcome: "answered",
+          claims: [{ text: "Termination is permitted on notice.", evidence_ids: ["original"] }] }, evidence: [{ ...evidence.receipt,
             evidence_id: "original", provider: "library", stable_source_id: "agreement", name: "Agreement.pdf", version: "original-version",
-            locator: { kind: "page", label: "2" } }] } }] });
+            locator: { kind: "page", label: "2" } }] }] });
     render(<ResearchFileBar file={saved} onChange={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Passages in Agreement.pdf" }));
     fireEvent.click(await screen.findByText("Termination"));
@@ -496,7 +502,7 @@ describe("ResearchFileBar", () => {
     fireEvent.click(within(picker).getByRole("button", { name: "Open" }));
     expect(await within(picker).findByRole("alert")).toHaveTextContent("Failed to fetch");
     expect(within(picker).getByLabelText("Select Fairness")).toBeChecked();
-    expect(onChange).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalledWith(file);
     fireEvent.click(within(picker).getByRole("button", { name: "Open" }));
     await waitFor(() => expect(onChange).toHaveBeenCalledWith(file));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

@@ -108,7 +108,7 @@ export function relationalRepositoryContract(
           agent: "scout", model: "reader-model", effort: "high", error: "private error",
           publicError: "Reading interrupted", activities: [], output: "", grounding,
           resume: { id: "reader-1", continuation_id: "private-session", model: "reader-model", effort: "high",
-            assignment: { task: "Read the record", scope: "appeal", jurisdiction: "CA" }, evidence: [receipt] } },
+            assignment: { task: "Read the record", scope: "appeal", jurisdiction: "CA" }, evidence: [receipt], queries: [] } },
         { type: "content", text: "The appeal is allowed." },
         { type: "local_turn_completed", schema_version: 1 },
       ];

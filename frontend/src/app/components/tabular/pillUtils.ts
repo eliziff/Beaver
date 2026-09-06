@@ -20,7 +20,7 @@ const CURRENCY_COLORS: Record<string, string> = {
     NZD: "bg-lime-100 text-lime-700",
     CNY: "bg-amber-100 text-amber-700",
 };
-export function getPillClass(content: string, column?: ColumnConfig): string {
+export function getPillClass(content: string, column?: Pick<ColumnConfig, "format" | "tags">): string {
     if (column?.format === "yes_no") {
         const lower = content.toLowerCase();
         if (lower === "yes") return "bg-green-100 text-green-700";

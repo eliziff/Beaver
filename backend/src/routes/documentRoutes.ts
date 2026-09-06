@@ -1,7 +1,7 @@
 import { Router, type Request } from "express";
 import { pipeline } from "node:stream/promises";
 import { requireAuth } from "../middleware/auth";
-import { ApplicationError, applicationScope, reject } from "../lib/applicationError";
+import { applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
 import { contentTypeForDocumentType } from "../lib/documentTypes";
 import type { DocumentStore } from "../lib/documentStore";
@@ -10,15 +10,7 @@ import { pageRequest, pageResponse } from "../lib/pagination";
 import { downloadHeaders, MAX_OBJECT_SIZE_BYTES,
   normalizeDownloadFilename } from "../lib/storage";
 import { singleFileUpload, uploadedDocument } from "../lib/upload";
-import { sha256 } from "../lib/hash";
 import { z } from "zod";
-import { commitResearchFile, pageResearchItems, readResearchFile,
-  researchFileActionSchema, researchSourceKey } from "../lib/researchFile";
-import { researchCaptureRuleSchema, runResearchFileQuery,
-  verifyResearchPassage } from "../lib/researchFileQuery";
-import { readResearchMemoCitation } from "../lib/researchMemo";
-import type { AuditStore } from "../lib/audit";
-
 const scope = applicationScope, MAX_ZIP_FILES = 100;
 const researchVersion = z.string().trim().min(1).max(200);
 const revisionNumber = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -33,22 +25,6 @@ const deleteExpectation = z.object({
   expected_project_id: researchVersion.nullable(),
   expected_folder_id: researchVersion.nullable(),
 }).strict();
-const researchQuery = z.object({ version_id: researchVersion,
-  working_revision: workingRevision,
-  text: z.string().trim().min(1).max(10_000).optional(),
-  syntax: z.enum(["literal", "terms"]), target: z.enum(["sources", "passages"]),
-  sourceIds: z.array(z.string().uuid()).max(10_000).optional(),
-  labelIds: z.array(z.string().uuid()).max(1_000).optional(),
-  unlabelled: z.boolean().optional(),
-  rules: z.array(researchCaptureRuleSchema).max(50).optional(),
-  conflict: z.enum(["prompt", "first", "longer", "shorter", "append"]).optional(),
-  after: z.string().max(4096).optional(),
-  limit: z.number().int().min(1).max(5_000).optional() }).strict()
-  .refine((input) => Boolean(input.text) !== Boolean(input.rules?.length),
-    "Supply either text or capture rules");
-const researchConflict = (): never => { throw new ApplicationError(409,
-  "This research file changed. Reload it.", { code: "revision_conflict" }); };
-
 const versionId = (req: Request) =>
   typeof req.query.version_id === "string" ? req.query.version_id : null;
 
@@ -75,7 +51,6 @@ const archiveName = (name: string, index: number) => {
 export function createDocumentsRouter(
   library: LibraryStore,
   documents: DocumentStore,
-  audit?: AuditStore["record"],
 ) {
   const router = Router();
   router.use(requireAuth);
@@ -115,74 +90,6 @@ export function createDocumentsRouter(
       ?? reject(404, "Document not found");
     res.setHeader("Cache-Control", "private, no-store");
     res.json(document);
-  }));
-
-  router.get("/:documentId/research", asyncRoute(async (req, res) => {
-    const file = await readResearchFile(documents, scope(res), req.params.documentId)
-      ?? reject(404, "Research file not found");
-    res.setHeader("Cache-Control", "private, no-store");
-    res.json(file);
-  }));
-
-  router.get("/:documentId/research/items", asyncRoute(async (req, res) => {
-    const kind = z.enum(["passages", "queries", "history"]).parse(req.query.kind), sourceId =
-      z.string().uuid().optional().parse(req.query.source_id), file = await readResearchFile(
-        documents, scope(res), req.params.documentId) ?? reject(404, "Research file not found");
-    if (sourceId && !file.state.sources[sourceId]) reject(404, "Research source not found");
-    const contentRevision = kind === "history" ? file.state.history?.sha256 ?? ""
-      : kind === "queries" ? file.state.queries?.sha256 ?? ""
-      : sourceId ? file.state.sources[sourceId]!.passages?.sha256 ?? ""
-      : sha256(JSON.stringify(Object.values(file.state.sources).map(({ id, passages }) =>
-          [id, passages?.sha256 ?? ""]))),
-      filters = { document_id: req.params.documentId, content_revision: contentRevision,
-        kind, source_id: sourceId ?? null },
-      { after, limit } = pageRequest<[number]>(req.query as Record<string, unknown>,
-        "research-items", filters, ["number"]), page = await pageResearchItems(
-        documents, scope(res), file, kind, after?.[0] ?? 0, limit,
-        sourceId && kind === "passages" ? [sourceId] : undefined);
-    res.setHeader("Cache-Control", "private, no-store");
-    res.json({ ...pageResponse("research-items", filters, { items: page.items,
-      nextAfter: page.nextOffset === null ? null : [page.nextOffset] }), total: page.total });
-  }));
-
-  router.get("/:documentId/research/citation", asyncRoute(async (req, res) => {
-    const sourceId = z.string().uuid().parse(req.query.source_id),
-      evidenceId = z.string().min(1).max(200).optional().parse(req.query.evidence_id),
-      file = await readResearchFile(documents, scope(res), req.params.documentId)
-        ?? reject(404, "Research file not found");
-    res.setHeader("Cache-Control", "private, no-store");
-    res.json(await readResearchMemoCitation(documents, scope(res), file, sourceId, evidenceId));
-  }));
-
-  router.post("/:documentId/research/actions", asyncRoute(async (req, res) => {
-    const version = researchVersion.parse(req.body?.version_id);
-    const revision = workingRevision.parse(req.body?.working_revision);
-    const current = await readResearchFile(documents, scope(res), req.params.documentId)
-      ?? researchConflict();
-    if (current.versionId !== version || current.workingRevision !== revision)
-      researchConflict();
-    const requested = researchFileActionSchema.parse(req.body?.action),
-      action = await verifyResearchPassage(current, requested, undefined, { documents, scope: scope(res) });
-    const file = await commitResearchFile(documents, scope(res), current, action, undefined,
-      { audit, executor: "human" })
-      ?? researchConflict();
-    const sourceId = requested.type === "passage" ? requested.sourceId
-      : requested.type === "source" ? Object.values(file.state.sources).find(({ reference }) =>
-        researchSourceKey(reference) === researchSourceKey(requested.reference))?.id : undefined,
-      receipt = sourceId && action.type === "merge" ? action.evidence?.[0] : undefined;
-    res.json({ ...file, ...(sourceId ? { sourceId } : {}),
-      ...(receipt ? { evidenceId: receipt.evidence_id, receipt } : {}) });
-  }));
-
-  router.post("/:documentId/research/query", asyncRoute(async (req, res) => {
-    const input = researchQuery.parse(req.body);
-    const result = await runResearchFileQuery(documents, scope(res), req.params.documentId, {
-      versionId: input.version_id, workingRevision: input.working_revision,
-      text: input.text, syntax: input.syntax, target: input.target,
-      sourceIds: input.sourceIds, labelIds: input.labelIds, unlabelled: input.unlabelled, limit: input.limit,
-      rules: input.rules, conflict: input.conflict, after: input.after,
-    }, { operation: { audit, executor: "human" } });
-    res.json({ file: result.file, receipt: result.receipt, coverage: result.coverage });
   }));
 
   router.get("/:documentId/spreadsheet", asyncRoute(async (req, res) => {

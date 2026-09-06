@@ -16,14 +16,14 @@ export function TabularMarkdown({
     text: string;
     citations?: Citation[];
     value?: GroundedAnswer["value"];
-    column?: ColumnConfig;
+    column?: Pick<ColumnConfig, "format" | "tags">;
     onCitationClick: (citation: Citation) => void;
     inline?: boolean;
 }) {
     if (!text) return null;
     if (column?.format && ["yes_no", "tag", "currency"].includes(column.format)) return <>
         {(Array.isArray(value) ? value : [text]).map((label, index) => <span key={index}
-            className={`mr-1 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-none ${getPillClass(label, column)}`}>{label}</span>)}
+            className={`mr-1 inline-block rounded-full px-2 py-1 text-xs font-medium leading-4 ${getPillClass(label, column)}`}>{label}</span>)}
         {citations.map((citation) => <CitationPill key={citation.ref} citation={citation} onClick={onCitationClick}
             className="mx-0.5 !text-[10px] !leading-4" />)}
     </>;

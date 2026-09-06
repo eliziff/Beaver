@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("react-router-dom", () => ({
     useNavigate: () => vi.fn(),
+    useLocation: () => ({ pathname: "/assistant", search: "", state: null }),
 }));
 vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
 vi.mock("@/app/lib/api/chat", () => ({

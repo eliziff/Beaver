@@ -9,7 +9,7 @@ import { legalEvidenceSourceReference, legalEvidenceResourceReference, type Lega
   type LegalResearchQueryReceipt } from "./chat/legalEvidence";
 import { legalSourceReferenceSchema, type LegalSourceReference } from "./legalSources";
 import { jsonRecord as record } from "./value";
-import { recordResearchOperation, researchEvidenceSnapshot,
+import { recordResearchOperation,
   type ResearchOperationContext } from "./researchProvenance";
 import { resolveResearchSelection } from "./researchSelection";
 import { RESEARCH_HISTORY_PART, readResearchHistory, researchChangeCounts, researchChangeSummary,
@@ -36,6 +36,7 @@ const source = z.union([legalSourceReferenceSchema, z.object({
   collection: z.string().max(200).nullable().optional(), language: z.enum(["en", "fr"]).optional(),
   url: z.string().max(4_000).nullable().optional(),
 }).strict()]);
+export { source as researchSourceReferenceSchema };
 export type ResearchSource = { id: string; reference: ResearchSourceReference;
   labelIds: string[]; badge: string; badgeColor?: string; note: string;
   passages: (ResearchPartReference & { labelCounts: Record<string, number>;
@@ -83,6 +84,7 @@ const researchMutationSchema = z.discriminatedUnion("type", [
     quote: text(50_000) }).strict(),
   z.object({ type: z.literal("label-selection"), target: z.enum(["sources", "passages"]),
     sourceIds: ids.optional(), evidenceIds: z.array(text(200)).max(100_000).optional(),
+    members: z.array(z.object({ sourceId: uuid, evidenceIds: z.array(text(200)).max(100_000).optional() }).strict()).max(100_000).optional(),
     labelIds: ids.optional(), unlabelled: z.boolean().optional(), assign: ids,
     mode: z.enum(["add", "remove", "replace"]) }).strict(),
   z.object({ type: z.literal("note"), markdown: z.string().max(250_000), expectedMarkdown: z.string().max(250_000).optional() }).strict(),
@@ -464,7 +466,6 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
       request.type === "accept" || request.type === "reject" || request.type === "undo" ? [] : [request],
     loaded = new Map<string, Record<string, ResearchEvidence>>(), originalEvidence: Record<string, ResearchEvidence> = {},
     puts: Array<{ name: string; bytes: Buffer; expectedSha256: string }> = [], removes: string[] = [];
-  const evidenceBefore: Record<string, ReturnType<typeof researchEvidenceSnapshot>> = {};
   const ownLabels = () => state.labels === current.state.labels
     ? state.labels = structuredClone(state.labels) : state.labels;
   const ownSources = () => state.sources === current.state.sources
@@ -487,9 +488,7 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
       existing = batch.filter((id) => current.state.sources[id]), parts =
         await readResearchEvidenceParts(documents, scope, current, existing);
       batch.forEach((id) => { const evidence = parts.get(id) ?? {}; loaded.set(id, evidence);
-        Object.values(evidence).forEach((item) => { originalEvidence[item.receipt.evidence_id] = structuredClone(item); });
-        if (context) Object.values(evidence).forEach((item) =>
-          evidenceBefore[item.receipt.evidence_id] = researchEvidenceSnapshot(item)); }); }
+        Object.values(evidence).forEach((item) => { originalEvidence[item.receipt.evidence_id] = structuredClone(item); }); }); }
   };
   const clearPart = (name: string) => {
     for (let index = puts.length - 1; index >= 0; index--) if (puts[index].name === name) puts.splice(index, 1);
@@ -539,8 +538,9 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
         saved = await documents.readParts(args[0], args[1], args[2], args[3].filter((name) => !staged.has(name)));
       return [...(saved ?? []), ...args[3].flatMap((name) => staged.get(name) ?? [])];
     } };
-    const selection = await resolveResearchSelection(selectionDocuments, scope,
-      { ...action, researchFileId: current.document.id }, { ...current, state }), assigned =
+    const { type: _type, assign: _assign, mode: _mode, ...selected } = action,
+      selection = await resolveResearchSelection(selectionDocuments, scope,
+      { ...selected, researchFileId: current.document.id }, { ...current, state }), assigned =
       checkedLabels(state, action.assign, action.target === "sources" ? "source" : "highlight"),
       update = (existing: string[]) => action.mode === "replace" ? assigned
         : action.mode === "remove" ? existing.filter((id) => !assigned.includes(id))
@@ -550,7 +550,7 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     else {
       await loadSources(selection.subjects.map(({ sourceId }) => sourceId));
       for (const subject of selection.subjects) {
-        for (const receipt of subject.evidence ?? []) {
+        for (const receipt of subject.evidence ?? Object.values(loaded.get(subject.sourceId)!).map(({ receipt }) => receipt)) {
           const item = loaded.get(subject.sourceId)![receipt.evidence_id]; item.labelIds = update(item.labelIds);
         }
         writeSource(subject.sourceId);
@@ -758,10 +758,9 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
   const filename = current.document.filename, bytes = Buffer.from(researchFileMarkdown(
     filename.replace(/\.research\.md$/iu, ""), state)), remove = [...new Set(removes)];
   const auditOperation = async (updated: ResearchFile) => {
-    if (context) await recordResearchOperation(context, scope, current, updated, request, evidenceBefore,
-      request.type === "batch" && request.propose ? evidenceBefore :
-        Object.fromEntries([...loaded.values()].flatMap((values) => Object.values(values).map((item) =>
-          [item.receipt.evidence_id, researchEvidenceSnapshot(item)]))));
+    if (context) { const observed = allEvidence();
+      await recordResearchOperation(context, scope, current, updated, request,
+        request.type === "batch" && request.propose ? [] : changes, (id) => observed[id] ?? originalEvidence[id]); }
   };
   if (!puts.length && !remove.length && sha256(bytes) === current.document.source_sha256) {
     await auditOperation(current); return current;

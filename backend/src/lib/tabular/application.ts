@@ -21,12 +21,11 @@ import {
 } from "../tabularStore";
 import { ApplicationError, reject as fail } from "../applicationError";
 import { parseResourceReference, resourceReference } from "../resourceReferences";
-import { resolveResearchSelection } from "../researchSelection";
-import { commitResearchFile, createResearchFileState, readResearchFile,
-  researchFileMarkdown } from "../researchFile";
+import { researchSelectionSchema } from "../researchSelection";
+import { researchSourceResource } from "../researchFile";
 import { extractTabularAnswers, tabularFormatDescription } from "./extraction";
-import type { TabularAgents } from "./agents";
-import type { resolveChatFindings } from "../researchChat";
+import type { TabularAgents, TabularAgentSnapshot } from "./agents";
+import type { SourceWorkspaceApplication } from "../sourceWorkspaceApplication";
 import type { AuditStore } from "../audit";
 import type { ResearchOperationContext } from "../researchProvenance";
 import { researchArrangementSchema, resolveResearchArrangement, type ResearchArrangement } from "./researchArrangement";
@@ -52,16 +51,13 @@ const columns = z.array(column).max(100).superRefine((value, context) => {
     seen.add(index);
   });
 });
-const ids = z.array(id).max(500).transform((value) => [...new Set(value)]);
 const rowId = z.string().trim().min(1).max(4_000);
 const rowIds = z.array(rowId).max(500).transform((value) => [...new Set(value)]);
 const modelOptions = {
   model: z.string().trim().min(1).max(200).optional(),
   reasoning_effort: z.string().trim().min(1).max(32).optional(),
 };
-const researchSelection = z.object({ sourceIds: ids.optional(), labelIds: ids.optional(),
-  evidenceIds: ids.optional(), target: z.enum(["sources", "passages"]),
-  unlabelled: z.boolean().optional() }).strict();
+const researchSelection = researchSelectionSchema;
 const researchInput = { research_file_id: id.optional(), research_selection: researchSelection.optional(),
   arrangement: researchArrangementSchema.nullable().optional() };
 
@@ -117,8 +113,7 @@ type Dependencies = {
   runTurn?: typeof runChatTurn;
   audit?: AuditStore["record"];
   settings: (userId: string) => Promise<UserModelSettings>;
-  resolveAnswers?: (scope: TabularScope, researchFileId: string, chatId: string) =>
-    Promise<Awaited<ReturnType<typeof resolveChatFindings>>["findings"]>;
+  sources(): Promise<SourceWorkspaceApplication>;
 };
 
 const value = <T>(result: WriteResult<T>, noun: string) => {
@@ -168,8 +163,14 @@ export function createTabularApplication(
     const jobs = await dependencies.agents.enqueue(scope, { reviewId: review.id, ownerId: review.user_id,
       assignments: assignments.map((assignment) => {
         const subject = review.scope_config?.subjects.find((subject) => tabularSubjectId(subject) === assignment.documentId);
-        return { ...assignment, sourceDocumentId: subject ? subject.reference.kind === "document" ? subject.reference.id : null
-          : parseResourceReference(assignment.documentId)?.kind === "source" ? null : assignment.documentId };
+        if (!subject) return fail(404, "Table source not found");
+        return { ...assignment, sourceDocumentId: subject.reference.kind === "document" ? subject.reference.id : null,
+          snapshot: { subject, columns: review.columns_config.filter(({ index }) =>
+            (assignment.columnIndex === undefined || index === assignment.columnIndex) &&
+            !mappedCell(review.scope_config, assignment.documentId, index)),
+            reviewVersion: review.updated_at, selection: { subjects: [subject],
+              research_file_id: review.scope_config?.research_file_id, versionId: review.scope_config?.versionId,
+              workingRevision: review.scope_config?.workingRevision } } };
       }), model, reasoningEffort: input.reasoning_effort });
     if (jobs.length && !jobs.some(({ created }) => created)) throw new ApplicationError(
       409, "This tabular review is already running.", { code: "review_running" });
@@ -188,7 +189,7 @@ export function createTabularApplication(
     if (values.length !== documentIds.length || values.some((value) => projectId && value.project_id !== projectId))
       fail(404, "Document not found");
     if (previous?.research_file_id && !(await documents.metadataMany(scope, [previous.research_file_id])).length)
-      fail(404, "Research set not found");
+      fail(404, "Sources workspace not found");
     return { ...previous, subjects: unique.map((id) => {
       const existing = byId.get(id);
       if (existing) return existing;
@@ -205,23 +206,31 @@ export function createTabularApplication(
     projectId: string | null, previous?: TabularSelection, columns: TabularColumn[] = []) => {
     const fileId = input.research_file_id ?? previous?.research_file_id,
       arrangement = input.arrangement === undefined ? previous?.arrangement : input.arrangement;
-    if ((input.research_selection || arrangement) && !fileId) fail(400, "Research set is required");
+    if ((input.research_selection || arrangement) && !fileId) fail(400, "Sources workspace is required");
     if (arrangement && fileId) {
-      const file = await readResearchFile(documents, scope, fileId);
-      if (!file) return fail(404, "Research set not found");
+      const sources = await dependencies.sources(), file = await sources.get(scope, fileId);
+      if (!file) return fail(404, "Sources workspace not found");
       const resolved = await resolveResearchArrangement({ documents, scope, file, arrangement, columns,
-        storedCells: [], strict: true, resolveAnswers: dependencies.resolveAnswers
-          ? (chatId) => dependencies.resolveAnswers!(scope, fileId, chatId) : undefined });
+        storedCells: [], strict: true, resolveFinding: (reference) => sources.finding(scope, fileId, reference) });
       return placement(scope, arrangement.rows.map(({ id }) => id), projectId, {
         research_file_id: fileId, versionId: file.versionId, workingRevision: file.workingRevision,
         subjects: resolved.subjects, arrangement,
+        ...(previous?.research_file_id === fileId && previous.selection ? { selection: previous.selection } : {}),
         ...(previous?.research_file_id === fileId && previous.findings ? { findings: previous.findings } : {}) });
     }
-    if (fileId && (input.research_file_id || input.research_selection || input.arrangement === null)) {
-      const resolved = await resolveResearchSelection(documents, scope, {
-        researchFileId: fileId, target: "sources", ...input.research_selection });
+    if (fileId) {
+      const sources = await dependencies.sources();
+      let selected = input.research_selection ?? previous?.selection ?? { target: "sources" as const };
+      if (input.document_ids && !input.research_selection) {
+        const chosen = await placement(scope, input.document_ids, projectId, previous),
+          file = await sources.collect(scope, fileId, { sources: chosen.subjects.map(({ reference }) => reference) });
+        selected = { target: "sources", members: chosen.subjects.map((subject) => ({ sourceId:
+          Object.values(file.state.sources).find(({ reference }) => researchSourceResource(reference) === subject.resource)!.id,
+          ...(subject.evidence ? { evidenceIds: subject.evidence.map(({ evidence_id }) => evidence_id) } : {}) })) };
+      }
+      const resolved = await sources.selection(scope, fileId, selected);
       return placement(scope, resolved.subjects.map(tabularSubjectId), projectId,
-        { ...resolved, research_file_id: fileId,
+        { ...resolved, research_file_id: fileId, selection: selected,
           ...(previous?.research_file_id === fileId && previous.findings ? { findings: previous.findings } : {}) });
     }
     return placement(scope, input.document_ids ?? [], projectId, previous);
@@ -232,7 +241,7 @@ export function createTabularApplication(
     const metadata = await documents.metadataMany(scope, [...new Set(config.subjects.flatMap(({ reference }) =>
       reference.kind === "document" ? [reference.id] : []))]);
     const file = config.arrangement && config.research_file_id
-      ? await readResearchFile(documents, scope, config.research_file_id) : null;
+      ? await (await dependencies.sources()).get(scope, config.research_file_id) : null;
     return config.subjects.map((subject) => ({
       ...metadata.find((document) => document.id === subject.reference.id),
       id: tabularSubjectId(subject), filename: config.arrangement?.rows.find(({ id }) => id === subject.rowId)?.title
@@ -240,36 +249,49 @@ export function createTabularApplication(
       ...(config.arrangement ? { group: (config.arrangement.rows.find(({ id }) => id === subject.rowId)?.group ?? [])
         .map((id) => file?.state.labels[id]?.name ?? "Removed label") } : {}),
       resource: subject.resource, reference: subject.reference,
+      selection: { sourceIds: [subject.sourceId], target: subject.evidence ? "passages" as const : "sources" as const,
+        ...(subject.evidence ? { evidenceIds: subject.evidence.map(({ evidence_id }) => evidence_id) } : {}) },
     }));
   };
   const resolvedDetail = async (scope: TabularScope, reviewId: string) => {
     const detail = await store.detail(scope, reviewId);
     if (!detail) return fail(404, "Review not found");
     const config = detail.review.scope_config;
-    if (!config?.arrangement || !config.research_file_id) return detail;
-    const file = await readResearchFile(documents, scope, config.research_file_id);
-    if (!file) return fail(404, "Research set not found");
-    const resolved = await resolveResearchArrangement({ documents, scope, file, arrangement: config.arrangement,
-      columns: detail.review.columns_config, storedCells: detail.cells,
-      resolveAnswers: dependencies.resolveAnswers
-        ? (chatId) => dependencies.resolveAnswers!(scope, file.document.id, chatId) : undefined });
-    return { ...detail, cells: resolved.cells };
+    if (!config?.research_file_id) return detail;
+    const sources = await dependencies.sources(), file = await sources.get(scope, config.research_file_id);
+    if (!file) return fail(404, "Sources workspace not found");
+    const resolved = config.arrangement ? await resolveResearchArrangement({ documents, scope, file,
+      arrangement: config.arrangement, columns: detail.review.columns_config, storedCells: detail.cells,
+      resolveFinding: (reference) => sources.finding(scope, file.document.id, reference) })
+      : await sources.selection(scope, file.document.id, config.selection ?? { target: "sources" }, { availableOnly: true });
+    const subjects = resolved.subjects, rowIds = subjects.map(tabularSubjectId),
+      stored = new Map(("cells" in resolved ? resolved.cells : detail.cells).map((cell) => [`${cell.document_id}:${cell.column_index}`, cell])),
+      cells = rowIds.flatMap((rowId) => detail.review.columns_config.map(({ index }): TabularCell =>
+        stored.get(`${rowId}:${index}`) ?? { id: `pending:${rowId}:${index}`, review_id: reviewId,
+          document_id: rowId, column_index: index, status: "pending", content: null }));
+    return { review: { ...detail.review, document_ids: rowIds, scope_config: { ...config,
+      versionId: file.versionId, workingRevision: file.workingRevision, subjects } }, cells };
+  };
+  const materialize = async (scope: TabularScope, reviewId: string) => {
+    const current = await store.detail(scope, reviewId);
+    if (!current) return fail(404, "Review not found");
+    await assertIdle(current.review);
+    const detail = await resolvedDetail(scope, reviewId);
+    if (JSON.stringify(current.review.scope_config) !== JSON.stringify(detail.review.scope_config) ||
+        JSON.stringify(current.review.document_ids) !== JSON.stringify(detail.review.document_ids))
+      value(await store.update(scope, reviewId, current.review.updated_at, {
+        documentIds: detail.review.document_ids, scopeConfig: detail.review.scope_config,
+        operation: { executor: "human", title: "Refresh table sources" } }), "Review");
+    return await store.detail(scope, reviewId) ?? fail(404, "Review not found");
   };
   const mappedCell = (config: TabularSelection | undefined, rowId: string, columnIndex: number) =>
     config?.arrangement?.cells.some((cell) => cell.rowId === rowId && cell.columnIndex === columnIndex) ?? false;
-  const mergeWorkspace = async (scope: TabularScope, reviewId: string,
-    selection: TabularSelection, evidence: TabularCellContent["evidence"],
+  const linkWorkspace = async (scope: TabularScope, reviewId: string,
+    selection: TabularSelection,
     operation: Omit<ResearchOperationContext, "audit"> = { executor: "human" }) => {
     if (!selection.research_file_id) return;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const current = await readResearchFile(documents, scope, selection.research_file_id);
-      if (!current) return fail(404, "Research set not found");
-      if (await commitResearchFile(documents, scope, current, { type: "merge",
-        sources: selection.subjects.map(({ reference }) => reference), evidence,
-        tables: [reviewId] }, undefined, dependencies.audit
-          ? { audit: dependencies.audit, ...operation, reviewId } : undefined)) return;
-    }
-    fail(409, "Research set changed; retry the extraction");
+    await (await dependencies.sources()).collect(scope, selection.research_file_id,
+      { sources: selection.subjects.map(({ reference }) => reference), tables: [reviewId] }, { ...operation, reviewId });
   };
 
   async function modelText(input: { model: string; system: string; user: string;
@@ -316,11 +338,13 @@ export function createTabularApplication(
     let received: Set<number>;
     try {
       received = await extractTabularAnswers({ model, apiKeys, reasoningEffort, subject: item,
-        documents, scope, runTurn: turn,
+        documents, scope, runTurn: turn, operation: { executor: "assistant", model, jobId,
+          reviewId: cells.values().next().value?.review_id },
+        onResearchObserved: selection?.research_file_id ? async (event, operation) => {
+          await (await dependencies.sources()).observe(scope, selection.research_file_id!, event, operation);
+        } : undefined,
         columns: pending, signal, accept: async (index, result) => {
           const key = `${item.id}:${index}`, current = cells.get(key)!;
-          if (selection) await mergeWorkspace(scope, current.review_id, selection, result.evidence,
-            { executor: "assistant", model, jobId });
           throwIfAborted(signal);
           const changed = await cellWrite(scope, current, "done", result, reviewVersion, operation(current));
           cells.set(key, changed);
@@ -352,15 +376,15 @@ export function createTabularApplication(
 
   async function runAgent(scope: TabularScope, input: {
     reviewId: string; documentId: string; model?: string;
-    reasoningEffort?: string; columnIndex?: number; jobId?: string;
+    reasoningEffort?: string; columnIndex?: number; jobId?: string; snapshot?: TabularAgentSnapshot;
   }, signal?: AbortSignal) {
     const detail = await store.detail(scope, input.reviewId);
     if (!detail) return fail(404, "Review not found");
     if (!detail.review.document_ids.includes(input.documentId))
       return fail(404, "Document not found");
-    const config = input.columnIndex === undefined
+    const config = input.snapshot?.columns ?? (input.columnIndex === undefined
       ? detail.review.columns_config
-      : detail.review.columns_config.filter(({ index }) => index === input.columnIndex);
+      : detail.review.columns_config.filter(({ index }) => index === input.columnIndex));
     if (!config.length) return fail(400,
       input.columnIndex === undefined ? "No columns configured" : "Column not found");
     const user = await settings(scope.userId);
@@ -368,12 +392,12 @@ export function createTabularApplication(
     modelKey(model, user.api_keys);
     const cells = new Map(detail.cells.map((cell) =>
       [`${cell.document_id}:${cell.column_index}`, cell]));
-    const frozen = await placement(scope, [input.documentId],
-      detail.review.project_id, detail.review.scope_config);
-    const subject = frozen.subjects.find((value) => tabularSubjectId(value) === input.documentId)!;
+    const frozen = input.snapshot?.selection ?? await placement(scope, [input.documentId],
+      detail.review.project_id, detail.review.scope_config),
+      subject = input.snapshot?.subject ?? frozen.subjects.find((value) => tabularSubjectId(value) === input.documentId)!;
     await generateDocument(scope, { ...subject, id: input.documentId },
       config, cells, model, user.api_keys, input.reasoningEffort, signal,
-      input.columnIndex !== undefined, detail.review.updated_at, frozen, input.jobId);
+      input.columnIndex !== undefined, input.snapshot?.reviewVersion ?? detail.review.updated_at, frozen, input.jobId);
     return input.columnIndex === undefined
       ? null
       : cells.get(`${input.documentId}:${input.columnIndex}`)?.content ?? null;
@@ -381,32 +405,6 @@ export function createTabularApplication(
 
   return {
     runAgent,
-    async fromFindings(scope: TabularScope, resolved: Awaited<ReturnType<typeof resolveChatFindings>>) {
-      const { file, findings } = resolved;
-      if (!findings.length) return fail(400, "No grounded findings selected");
-      const chosen = { chatId: findings[0].origin.chatId,
-        answerIds: [...new Set(findings.map(({ question }) => question.id))].sort(),
-        sourceIds: [...new Set(findings.map(({ sourceId }) => sourceId))].sort() };
-      for (const tableId of file.state.tables ?? []) {
-        const existing = await store.detail(scope, tableId);
-        if (existing?.review.scope_config?.research_file_id === file.document.id &&
-            JSON.stringify(existing.review.scope_config.findings) === JSON.stringify(chosen))
-          return { ...existing.review, needs_arrangement: !existing.review.scope_config.arrangement };
-      }
-      const subjects = [...new Map(findings.map(({ sourceId, resource }) => [resource, {
-        sourceId, resource, reference: file.state.sources[sourceId].reference,
-      }])).values()];
-      if (subjects.length > 500) return fail(400, "Select at most 500 sources");
-      const scopeConfig = await placement(scope, subjects.map(tabularSubjectId), file.document.project_id,
-        { research_file_id: file.document.id, versionId: file.versionId,
-          workingRevision: file.workingRevision, subjects, findings: chosen });
-      const review = value(await store.create(scope, { projectId: file.document.project_id,
-        title: file.document.filename.replace(/\.research\.md$/iu, ""), columns: [],
-        documentIds: subjects.map(tabularSubjectId), scopeConfig }), "Review");
-      try { await mergeWorkspace(scope, review.id, scopeConfig, []); }
-      catch (error) { await store.delete(scope, review.id, review.updated_at).catch(() => undefined); throw error; }
-      return { ...review, needs_arrangement: true };
-    },
     async list(scope: TabularScope, input: z.infer<typeof tabularDtos.list>) {
       const q = input.q?.toLocaleLowerCase() ?? "", projectId = input.project_id ?? null;
       if (projectId && !await projects.get(scope, projectId)) fail(404, "Project not found");
@@ -424,11 +422,17 @@ export function createTabularApplication(
     async create(scope: TabularScope, input: z.infer<typeof tabularDtos.create>,
       operation?: TabularOperation) {
       const projectId = input.project_id ?? null;
+      if (!input.research_file_id) {
+        const placed = await placement(scope, input.document_ids ?? [], projectId),
+          file = await (await dependencies.sources()).create(scope, { title: input.title || "Table sources",
+            projectId, sources: placed.subjects.map(({ reference }) => reference) }, operation);
+        input = { ...input, research_file_id: file.document.id };
+      }
       const scopeConfig = await selection(scope, input, projectId, undefined, input.columns_config);
       const review = value(await store.create(scope, { title: input.title,
         projectId, documentIds: scopeConfig.subjects.map(tabularSubjectId), scopeConfig,
         columns: input.columns_config, workflowId: input.workflow_id, operation }), "Review");
-      try { await mergeWorkspace(scope, review.id, scopeConfig, [], operation); }
+      try { await linkWorkspace(scope, review.id, scopeConfig, operation); }
       catch (error) { await store.delete(scope, review.id, review.updated_at).catch(() => undefined); throw error; }
       return review;
     },
@@ -437,28 +441,6 @@ export function createTabularApplication(
       return { ...detail, review: { ...detail.review,
         is_running: await running(detail.review) },
       documents: await subjectDocuments(scope, detail.review) };
-    },
-    async workspace(scope: TabularScope, reviewId: string) {
-      const detail = await store.detail(scope, reviewId);
-      if (!detail) return fail(404, "Review not found");
-      let config = await placement(scope, detail.review.document_ids,
-        detail.review.project_id, detail.review.scope_config);
-      if (!config.research_file_id) {
-        await assertIdle(detail.review);
-        const title = detail.review.title?.trim() || "Tabular Review";
-        const document = await documents.create(scope, { filename: `${title}.research.md`, fileType: "md",
-          projectId: detail.review.project_id, libraryKind: "file",
-          bytes: Buffer.from(researchFileMarkdown(title, createResearchFileState())) });
-        config = { ...config, research_file_id: document.id };
-        const changed = await store.update(scope, reviewId, detail.review.updated_at, { scopeConfig: config });
-        if (changed.status !== "committed") {
-          await documents.deleteDocument(scope, document.id, true);
-          value(changed, "Review");
-        }
-      }
-      await mergeWorkspace(scope, reviewId, config, detail.cells.flatMap((cell) =>
-        cell.status === "done" ? cell.content?.evidence ?? [] : []));
-      return { research_file_id: config.research_file_id! };
     },
     async export(scope: TabularScope, reviewId: string) {
       const detail = await resolvedDetail(scope, reviewId);
@@ -512,9 +494,9 @@ export function createTabularApplication(
       const nextSelection = input.document_ids === undefined && input.project_id === undefined &&
         input.research_file_id === undefined && input.research_selection === undefined && input.arrangement === undefined &&
         !(input.columns_config && current.review.scope_config?.arrangement) ? undefined : await selection(scope,
-          { ...input, document_ids: input.document_ids ?? current.review.document_ids },
+          input,
           nextProject, current.review.scope_config, input.columns_config ?? current.review.columns_config);
-      return value(await store.update(scope, reviewId,
+      const changed = value(await store.update(scope, reviewId,
         input.expected_version ?? current.review.updated_at, {
           ...(input.title !== undefined ? { title: input.title } : {}),
           ...(input.project_id !== undefined ? { projectId: input.project_id } : {}),
@@ -524,6 +506,8 @@ export function createTabularApplication(
           ...(input.shared_with !== undefined ? { sharedWith: input.shared_with } : {}),
           operation,
         }), "Review");
+      if (nextSelection && !operation?.propose) await linkWorkspace(scope, reviewId, nextSelection, operation);
+      return changed;
     },
     async history(scope: TabularScope, reviewId: string, input: z.infer<typeof tabularDtos.history>) {
       return await store.history(scope, reviewId, input) ?? fail(404, "Review not found");
@@ -533,19 +517,9 @@ export function createTabularApplication(
       const current = await store.detail(scope, reviewId);
       if (!current) return fail(404, "Review not found");
       await assertIdle(current.review);
-      return value(await store.change(scope, reviewId, input.id, input.action, input.expected_version, operation), "Review");
-    },
-    async answers(scope: TabularScope, researchFileId: string, input: {
-      chat_id: string; offset: number; limit: number; answer_id?: string; resource?: string }) {
-      const file = await readResearchFile(documents, scope, researchFileId);
-      if (!file?.state.chats?.includes(input.chat_id)) return fail(404, "Chat is outside the current workspace");
-      if (!dependencies.resolveAnswers) return fail(503, "Saved chat answers are unavailable");
-      const findings = (await dependencies.resolveAnswers(scope, researchFileId, input.chat_id))
-        .filter((finding) => (!input.answer_id || finding.question.id === input.answer_id) &&
-          (!input.resource || finding.resource === input.resource));
-      if (input.answer_id && !findings.length) return fail(404, "Saved answer not found");
-      return { items: findings.slice(input.offset, input.offset + input.limit), total: findings.length,
-        next_offset: input.offset + input.limit < findings.length ? input.offset + input.limit : null };
+      const changed = value(await store.change(scope, reviewId, input.id, input.action, input.expected_version, operation), "Review");
+      if (changed.scope_config) await linkWorkspace(scope, reviewId, changed.scope_config, operation);
+      return changed;
     },
     async remove(scope: TabularScope, reviewId: string) {
       const current = await store.detail(scope, reviewId);
@@ -583,9 +557,7 @@ export function createTabularApplication(
     },
     async regenerate(scope: TabularScope, reviewId: string,
       input: z.infer<typeof tabularDtos.regenerate>) {
-      const detail = await store.detail(scope, reviewId);
-      if (!detail) return fail(404, "Review not found");
-      await assertIdle(detail.review);
+      const detail = await materialize(scope, reviewId);
       if (!detail.review.document_ids.includes(input.document_id))
         return fail(404, "Document not found");
       if (!detail.review.columns_config.some(({ index }) => index === input.column_index))
@@ -598,9 +570,7 @@ export function createTabularApplication(
     },
     async generate(scope: TabularScope, reviewId: string,
       input: z.infer<typeof tabularDtos.generate>) {
-      const detail = await store.detail(scope, reviewId);
-      if (!detail) return fail(404, "Review not found");
-      await assertIdle(detail.review);
+      const detail = await materialize(scope, reviewId);
       if (!detail.review.columns_config.length) return fail(400, "No columns configured");
       if (!detail.review.document_ids.length) return fail(400, "No documents configured");
       const pending = new Set(detail.cells.filter((cell) =>
