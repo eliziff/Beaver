@@ -69,9 +69,7 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
                        {"index": 2, "name": "Signed", "prompt": "Is the document signed?", "format": "yes_no"}]
             review = request("POST", "/api/tabular-review", {"title": "Browser check",
                 "document_ids": [doc["id"] for doc in documents], "columns_config": columns})
-            unarranged = request("POST", "/api/tabular-review", {"title": "Unarranged research",
-                "document_ids": [doc["id"] for doc in documents], "columns_config": []})
-            report["reviewId"], report["unarrangedId"] = review["id"], unarranged["id"]
+            report["reviewId"] = review["id"]
 
             print("Tabular browser: grid, header menu, selection strip", flush=True)
             driver.get(f"{args.url}/tabular-reviews/{review['id']}")
@@ -99,38 +97,50 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
             row_boxes[1].click()
             wait.until(lambda page: not [node for node in page.find_elements(By.XPATH, "//*[contains(normalize-space(),'1 selected')]") if node.is_displayed()])
 
-            print("Tabular browser: organize composer and page menus", flush=True)
-            click_text("Organize")
-            composer = visible("form[aria-label='Organize table']")
-            assert composer.find_element(By.CSS_SELECTOR, "textarea[aria-label='Organization request']").get_attribute("value") == ""
-            screenshot("04-organize-composer.png")
-            click_text("Cancel", composer)
+            print("Tabular browser: chat-assist proposal flow", flush=True)
+            driver.get(f"{args.url}/tabular-reviews")
+            click_text("New tabular review")
+            click_text("Create custom")
+            click_text("Chat assist")
+            design_box = visible("textarea[aria-label='Describe the review']")
+            design_box.send_keys("Review leases for parties and amounts.")
+            click_text("Propose design")
+            WebDriverWait(driver, 180).until(lambda page: next((node for node in page.find_elements(
+                By.XPATH, ".//button[normalize-space()='Propose design']") if node.is_displayed()), None))
+            failed = [node for node in driver.find_elements(By.XPATH,
+                "//p[@role='alert' and contains(normalize-space(),'Could not propose a design')]") if node.is_displayed()]
+            report["designOutcome"] = "error-shown" if failed else "columns-proposed"
+            screenshot("04-assist-proposal.png")
+            driver.switch_to.active_element.send_keys(Keys.ESCAPE)
+
+            print("Tabular browser: research-set import step", flush=True)
+            driver.get(f"{args.url}/tabular-reviews")
+            click_text("New tabular review")
+            click_text("Create custom")
+            click_text("Import a Research set")
+            visible("fieldset legend")
+            rows = visible("fieldset")
+            assert "Sources" in rows.text and "Passages" in rows.text, rows.text
+            assert driver.find_elements(By.XPATH,
+                "//button[normalize-space()='Create']"), "Import Create action missing"
+            screenshot("05-import-step.png")
+            driver.switch_to.active_element.send_keys(Keys.ESCAPE)
+
+            print("Tabular browser: chat and Sources dock tabs", flush=True)
+            driver.get(f"{args.url}/tabular-reviews/{review['id']}")
+            visible("[data-tr-col-header]")
             click_text("Actions")
             actions = visible("[role='menu'][aria-label='Actions']")
             report["actions"] = [node.text for node in actions.find_elements(By.CSS_SELECTOR, "[role^='menuitem']")]
             assert "Export XLSX" in report["actions"] and "History" in report["actions"], report["actions"]
-            screenshot("05-actions-menu.png")
             driver.switch_to.active_element.send_keys(Keys.ESCAPE)
-            click_text("Open as")
-            open_as = visible("[role='menu'][aria-label='Open as']")
-            click_text("Workspace", open_as)
-            WebDriverWait(driver, 60).until(lambda page: "/sources?research_file=" in page.current_url)
+            click_text("Chat")
+            tabs = visible("[role='tablist']")
+            names = [node.text for node in tabs.find_elements(By.CSS_SELECTOR, "[role='tab']")]
+            assert "Chat" in names and "Sources" in names, names
+            tabs.find_element(By.XPATH, ".//*[@role='tab' and normalize-space()='Sources']").click()
             visible("section[aria-label='Research collection']")
-            visible("section[aria-label='Saved sources'] button[aria-label^='Passages in ']")
-            screenshot("06-open-as-workspace.png")
-            report["workspaceUrl"] = driver.current_url
-
-            print("Tabular browser: unarranged research opens on the composer", flush=True)
-            driver.get(f"{args.url}/tabular-reviews/{unarranged['id']}")
-            visible("form[aria-label='Organize table']")
-            click_text("Add columns")
-            visible("dialog[open]")
-            driver.switch_to.active_element.send_keys(Keys.ESCAPE)
-            screenshot("07-unarranged-composer.png")
-            driver.set_window_size(720, 800)
-            visible("form[aria-label='Organize table']")
-            assert not driver.execute_script("return document.documentElement.scrollWidth>document.documentElement.clientWidth+1"), "Narrow page scrolls horizontally"
-            screenshot("08-narrow.png")
+            screenshot("06-sources-dock.png")
             report["ok"] = True
         finally:
             (args.output / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")

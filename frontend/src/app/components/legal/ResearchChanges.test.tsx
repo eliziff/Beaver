@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { ResearchChange, ResearchFile } from "@/app/lib/researchFiles";
 import type { TabularReview } from "@/app/lib/api/tabular";
@@ -78,7 +78,7 @@ it("uses the same review and undo controls for a proposed table edit", async () 
   expect(api.actOnTabularChange).toHaveBeenLastCalledWith(expect.objectContaining({ updated_at: "accept" }), "change-1", "undo");
 });
 
-it("names edited and removed columns when reviewing granular table changes", async () => {
+it("reviews granular column changes in the creation column form", async () => {
   const proposal: ResearchChange = { ...change, title: "Refine columns", changes: [
     { target: "table", id: "table", field: "columns_config.7.prompt", before: "Find dates", after: "Find delivery deadlines" },
     { target: "table", id: "table", field: "columns_config.2.$", before: { name: "Legacy", prompt: "Find old terms", format: "text" }, after: null },
@@ -89,12 +89,12 @@ it("names edited and removed columns when reviewing granular table changes", asy
     { index: 7, name: "Delivery", prompt: "Find dates" },
   ] } as TabularReview} documents={[]} onChanged={vi.fn()} historyOpen={false} onCloseHistory={vi.fn()} />);
   fireEvent.click(screen.getByRole("button", { name: "Review" }));
-  expect(await screen.findByText("Delivery · Prompt")).toBeVisible();
-  expect(screen.getByText("Find delivery deadlines")).toBeVisible();
-  expect(screen.getByText("Legacy")).toBeVisible();
-  const order = screen.getByText("Research · Column order").closest("li")!;
-  expect(order.querySelector("del")).toHaveTextContent("Legacy Delivery");
-  expect(order.querySelector("ins")).toHaveTextContent("Delivery");
+  const form = await screen.findByRole("region", { name: "Proposed columns" });
+  expect(within(form).getByText("Legacy")).toBeVisible();
+  expect(within(form).getByText("Removed")).toBeVisible();
+  expect(within(form).getByRole("button", { name: "Keep column 1" })).toBeVisible();
+  fireEvent.click(within(form).getByRole("button", { name: "Delivery" }));
+  expect(await within(form).findByLabelText("Prompt")).toHaveValue("Find delivery deadlines");
 });
 
 const changed = (sha256: string) => ({ ...original, state: { ...original.state, proposals: [], history: { count: 2, sha256 } } });

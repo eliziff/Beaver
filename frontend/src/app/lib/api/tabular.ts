@@ -13,7 +13,7 @@ import {
 import type { Document } from "@/app/lib/api/documents";
 import type { ProjectPeople } from "@/app/lib/api/projects";
 import type { GroundedAnswer, GroundedEvidence } from "@/app/lib/groundedAnswers";
-import type { ResearchChange, ResearchProposal, ResearchSelection, ResearchSourceReference } from "@/app/lib/researchFiles";
+import type { ResearchChange, ResearchFile, ResearchProposal, ResearchSelection, ResearchSourceReference } from "@/app/lib/researchFiles";
 
 export type TabularResearchScope = { researchFileId: string; selection: ResearchSelection };
 export type TabularScope = { research_file_id?: string; versionId?: string; workingRevision?: number; subjects: {
@@ -69,6 +69,7 @@ export interface TabularCell {
     outcome: "answered" | "not_found";
     coverage: "complete" | "partial";
     resource?: string;
+    query_ids?: string[];
   } | null;
   status: "pending" | "generating" | "done" | "error";
 }
@@ -102,6 +103,7 @@ export const updateTabularReview = (
     shared_with?: string[];
     research_file_id?: string;
     research_selection?: TabularResearchScope["selection"];
+    expected_version?: string;
   },
 ) => patch<TabularReview>(`/tabular-review/${segment(reviewId)}`, payload);
 export const getTabularReviewPeople = (reviewId: string) =>
@@ -111,6 +113,16 @@ export const getTabularHistory = (reviewId: string, offset = 0, signal?: AbortSi
     pagePath(`/tabular-review/${segment(reviewId)}/history`, { offset, limit: 50 }), { signal });
 export const actOnTabularChange = (review: Pick<TabularReview, "id" | "updated_at">, id: string, action: "accept" | "reject" | "undo") =>
   post<TabularReview>(`/tabular-review/${segment(review.id)}/changes`, { id, action, expected_version: review.updated_at });
+export const designTabularReview = (payload: {
+  request: string;
+  title?: string;
+  current?: ColumnConfig[];
+  documentNames?: string[];
+}) => post<{ title: string; columns_config: ColumnConfig[] }>("/tabular-review/design", payload);
+export const proposeColumnLabels = (fileId: string, reviewId: string, columnIndex: number) =>
+  post<ResearchFile>(`/source-workspaces/${segment(fileId)}/column-labels`, {
+    reviewId, columnIndex,
+  });
 export const generateTabularColumnPrompt = (
   title: string,
   options?: { format?: string; documentName?: string; tags?: string[] },

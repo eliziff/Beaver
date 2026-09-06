@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { Profiler, useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Document } from "@/app/lib/api/documents";
+import { newResearchState, type ResearchFile } from "@/app/lib/researchFiles";
+import { SourcesWorkspaceProvider } from "@/app/components/legal/SourcesWorkspace";
 import {
     DocTable,
     type DocTableFolder,
@@ -21,6 +23,17 @@ vi.mock("@/app/lib/api/documents", async (original) => ({
   ...await original<typeof import("@/app/lib/api/documents")>(),
   listDocumentVersions: listVersions,
   uploadDocumentVersion: uploadVersion
+}));
+const ontologyApi = vi.hoisted(() => ({ membership: vi.fn(), ensure: vi.fn() }));
+vi.mock("@/app/lib/api/ontology", () => ({
+  getWorkspaceMembership: ontologyApi.membership,
+  ensureOntologyWorkspace: ontologyApi.ensure,
+}));
+const researchApi = vi.hoisted(() => ({ act: vi.fn(), getFile: vi.fn() }));
+vi.mock("@/app/lib/api/researchFiles", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/researchFiles")>(),
+  actOnResearchFile: researchApi.act,
+  getResearchFile: researchApi.getFile,
 }));
 
 const sidePanelRender = vi.hoisted(() => vi.fn());
@@ -83,6 +96,8 @@ function Harness({
     onOpenInChat,
     list,
     search = "",
+    ontology,
+    workspaceFile,
 }: {
     selectionFirst?: boolean;
     initialDocuments?: Document[];
@@ -107,6 +122,8 @@ function Harness({
         next_cursor: string | null;
     }>;
     search?: string;
+    ontology?: { projectId?: string | null };
+    workspaceFile?: ResearchFile | null;
 }) {
     const [selection, setSelection] = useState<DocumentSelectionActions | null>(null);
     const operations = useRef({
@@ -127,9 +144,7 @@ function Harness({
         moveDocument,
         renameDocument,
     }).current;
-    return (
-        <><DirectoryActions actions={null} onCreateFolder={null} selection={selection}
-            onOpenWorkflows={onOpenWorkflows} />
+    const table = (
         <DocTable
             scopeKey="library"
             documents={initialDocuments}
@@ -142,7 +157,14 @@ function Harness({
             onSelectionActionsChange={setSelection}
             onOpenInChat={onOpenInChat}
             onOpenWorkflows={onOpenWorkflows}
-        /></>
+            ontology={ontology}
+        />);
+    return (
+        <><DirectoryActions actions={null} onCreateFolder={null} selection={selection}
+            onOpenWorkflows={onOpenWorkflows} />
+        {workspaceFile || ontology
+            ? <SourcesWorkspaceProvider file={workspaceFile ?? undefined}>{table}</SourcesWorkspaceProvider>
+            : table}</>
     );
 }
 
@@ -771,5 +793,47 @@ describe("structural parse state", () => {
         await vi.advanceTimersByTimeAsync(1_000);
         expect(refreshDocumentParseStates).toHaveBeenCalledTimes(1);
         vi.useRealTimers();
+    });
+});
+
+describe("ontology labels", () => {
+    const ontologyFile = (): ResearchFile => ({ document: { id: "ontology-1",
+        filename: "Labels.research.md" }, versionId: "v1", workingRevision: 1,
+        state: { ...newResearchState(), labels: { "label-1": { id: "label-1", name: "Contract",
+            parentId: null, color: "#ff0000", order: 0, scope: "source" } }, sources: {} } } as ResearchFile);
+    const membership = { "document-1": { workspaces: [{ id: "ws-1", title: "Matter", sourceId: "s1" }],
+        labels: [{ id: "label-1", name: "Contract", color: "#ff0000", workspaceId: "ontology-1" }] } };
+
+    it("shows membership labels from the ontology workspace", async () => {
+        ontologyApi.membership.mockResolvedValue(membership);
+        render(<Harness ontology={{ projectId: null }} workspaceFile={ontologyFile()} />);
+        const row = documentRow();
+        expect(await within(row).findByText("Contract")).toBeVisible();
+        expect(within(row).getByText("in 1 workspace")).toBeVisible();
+        expect(ontologyApi.membership).toHaveBeenCalledWith(["document-1"], null);
+    });
+
+    it("creates the ontology once and adds the source when labelling", async () => {
+        ontologyApi.membership.mockResolvedValue({});
+        ontologyApi.ensure.mockResolvedValue(ontologyFile());
+        researchApi.getFile.mockResolvedValue(ontologyFile());
+        researchApi.act.mockImplementation(async (id: string, versionId: string, revision: number, action: { type: string }) => {
+            if (action.type === "source") return { ...ontologyFile(), sourceId: "source-1" };
+            return ontologyFile();
+        });
+        render(<Harness ontology={{ projectId: null }} />);
+        fireEvent.click(within(documentRow()).getByRole("button", { name: "More actions" }));
+        fireEvent.click(screen.getByRole("menuitem", { name: "Label" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Contract" }));
+        await waitFor(() => expect(researchApi.act).toHaveBeenCalledWith("ontology-1", "v1", 1,
+            expect.objectContaining({ type: "source",
+                reference: expect.objectContaining({ provider: "library", kind: "document",
+                    id: "document-1", versionId: "version-1" }) })));
+        expect(ontologyApi.ensure).toHaveBeenCalledTimes(1);
+        fireEvent.click(screen.getByRole("button", { name: "Close label palette" }));
+        fireEvent.click(within(documentRow()).getByRole("button", { name: "More actions" }));
+        fireEvent.click(screen.getByRole("menuitem", { name: "Label" }));
+        await screen.findByRole("dialog", { name: "Labels and note" });
+        expect(ontologyApi.ensure).toHaveBeenCalledTimes(1);
     });
 });

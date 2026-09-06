@@ -15,6 +15,7 @@ import {
     ChevronDown,
     Download,
     FileDiff,
+    Highlighter,
     Loader2,
     Pencil,
     RotateCcw,
@@ -42,12 +43,17 @@ import { preserveReaderScroll } from "./useReaderExpansion";
 import { formatBytes } from "@/app/lib/utils";
 import { SUPPORTED_DOCUMENT_ACCEPT } from "@/app/lib/documentUploadValidation";
 
-import { getResearchFile } from "@/app/lib/api/researchFiles";
+import { getResearchFile, getResearchItems } from "@/app/lib/api/researchFiles";
 import { ResearchLabelCircle } from "@/app/components/legal/ResearchLabelCircle";
+import { useSourcesWorkspaceOrNull } from "@/app/components/legal/SourcesWorkspace";
+import { useLibraryReaderCapture } from "@/app/components/shared/useLibraryReaderCapture";
+import type { CitationQuote } from "@/app/lib/citations";
 import {
     isResearchDocument,
     researchLabelPath,
+    researchSourceKey,
     type ResearchFile,
+    type ResearchSourceReference,
 } from "@/app/lib/researchFiles";
 
 const VERSION_PAGE = 40;
@@ -237,6 +243,31 @@ export function DocumentSidePanel({
     >("idle");
     const uploadRef = useRef<HTMLInputElement>(null);
     const deleteTarget = useRef<Document | null>(null);
+    const sourcesController = useSourcesWorkspaceOrNull();
+    const highlightController = sourcesController?.highlight ?? null;
+    const captureReference: ResearchSourceReference | null =
+        doc && (versionId ?? doc.current_version_id)
+            ? { provider: "library", kind: "document", id: doc.id,
+                versionId: (versionId ?? doc.current_version_id) as string,
+                title: doc.filename }
+            : null;
+    useLibraryReaderCapture(readerBody, captureReference, highlightController);
+    const [savedQuotes, setSavedQuotes] = useState<CitationQuote[]>([]);
+    const ontologyFile = sourcesController?.file ?? null;
+    const captureKey = captureReference ? researchSourceKey(captureReference) : null;
+    useEffect(() => {
+        if (!ontologyFile || !captureKey) { setSavedQuotes([]); return; }
+        const source = Object.values(ontologyFile.state.sources).find(({ reference }) =>
+            researchSourceKey(reference) === captureKey);
+        if (!source) { setSavedQuotes([]); return; }
+        let cancelled = false;
+        void getResearchItems(ontologyFile.document.id, { kind: "passages", sourceId: source.id }).then((page) => {
+            if (cancelled) return;
+            setSavedQuotes(page.items.flatMap((item) => item.kind === "passage" && item.value.receipt.span_text
+                ? [{ quote: item.value.receipt.span_text }] : []));
+        }).catch(() => { if (!cancelled) setSavedQuotes([]); });
+        return () => { cancelled = true; };
+    }, [ontologyFile, captureKey]);
     const loadVersions = useEffectEvent(onLoadVersions);
     const docId = doc?.id;
 
@@ -490,6 +521,24 @@ export function DocumentSidePanel({
             headerAction={
                 <div className="flex shrink-0 items-center gap-1.5">
                 <ReaderExpandButton expanded={expandedReader} onChange={changeReaderSize} />
+                {highlightController && (
+                    <button
+                        type="button"
+                        aria-label="Highlight"
+                        aria-pressed={highlightController.armed}
+                        title="Highlight"
+                        onClick={() => {
+                            setActionError(null);
+                            void highlightController.run().catch((reason: unknown) => {
+                                setActionError(reason instanceof Error ? reason.message
+                                    : "Could not save this highlight");
+                            });
+                        }}
+                        className="h-8 w-8 rounded hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
+                    >
+                        <Highlighter className="mx-auto h-4 w-4" />
+                    </button>
+                )}
                 {editingName ? (
                     <button
                         type="button"
@@ -540,7 +589,8 @@ export function DocumentSidePanel({
                 </div>
             }
         >
-            <div ref={readerBody} className="@container -mx-5 flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div ref={readerBody} data-highlighter={highlightController?.armed || undefined}
+                className={`@container -mx-5 flex min-h-0 flex-1 flex-col overflow-hidden ${highlightController?.armed ? "cursor-crosshair" : ""}`}>
             <main className="flex min-h-0 flex-1 flex-col @min-[42rem]:grid @min-[42rem]:grid-cols-[minmax(0,1fr)_22rem]">
                 <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3">
                     {showResearchPreview ? <ResearchFilePreview
@@ -559,6 +609,7 @@ export function DocumentSidePanel({
                                     ? "docx"
                                     : "pdf"
                         }
+                        {...(savedQuotes.length && (isDocx || (!isSpreadsheet && type === "pdf")) ? { quotes: savedQuotes } : {})}
                         filename={filename}
                         versionId={selectedId}
                         preferPdfRendition={isDocx}
