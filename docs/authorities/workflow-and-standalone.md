@@ -87,13 +87,27 @@ stub. The runtime accepts only its configured loopback host and same-origin writ
 ```sh
 npm run build --prefix backend
 npm exec --prefix frontend -- tsc --noEmit
-(cd backend && npx vitest run authorities authorityPdfText a2aj.test)
-(cd frontend && npx vitest run authorities PdfView inspectPdf prepareDeviceFile)
+(cd backend && npx vitest run authorities authorityPdfText a2aj.test quoteRepair)
+(cd frontend && npx vitest run authorities PdfView inspectPdf prepareDeviceFile table-of-authorities)
 npm run check:source-boundaries
 npm run test:authorities-package
 cargo test --locked --manifest-path legal-structure/Cargo.toml --features citator,quote-verification --lib
 ```
 
-The Windows launcher smoke, live provider corpus, full cloud stack, and full
-browser-through-server workflow remain separate release checks. Component/browser
-visual inspection is not a substitute for those integration checks.
+The real standalone browser check drives the HTTP runtime and pinned Rust engine,
+using a tiny local provider inventory instead of external network dependencies:
+
+```sh
+npx playwright install chromium
+AUTHORITIES_SMOKE_OUTPUT=authorities-browser-results npm run test:authorities:browser
+```
+
+It checks staged disclosure, missing-source stubs, fixed tab labels, keyboard and
+drag/drop reordering, in-app PDF viewing, the manual CanLII handoff, scan-policy
+selection, responsive source cards, saved draft state and the exported PDF. It
+retains screenshots and the generated book. The `Authorities parity` CI workflow
+runs this check alongside the focused tests and both builds.
+
+The fixture browser check deliberately chooses the no-OCR policy; it does not
+claim to validate recognition with production OCR models. The Windows launcher
+smoke, live provider corpus and full cloud stack remain separate release checks.
