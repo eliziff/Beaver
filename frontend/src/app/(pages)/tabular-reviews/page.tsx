@@ -1,3 +1,4 @@
+import { tabularReviewsCollection } from "@/app/lib/collectionKeys";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
@@ -84,6 +85,7 @@ function ReviewCollection({ projectContext }: { projectContext?: ProjectContext 
             ...(projectId ? { project_id: projectId } : { scope }),
         }, signal),
         [projectId, query, scope],
+        true, tabularReviewsCollection({ q: query, ...(projectId ? { project_id: projectId } : { scope }) }),
     );
     const reviews = page.items;
     const loading = page.loading && reviews.length === 0;

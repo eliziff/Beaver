@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 import type { DirectoryEntry, Document } from "@/app/lib/api/documents";
+import type { CollectionSpec } from "@/app/lib/collections";
 import type { Page } from "@/app/lib/api/client";
 
 import { usePagedChains } from "./usePagedChains";
@@ -17,6 +18,7 @@ export function usePagedDirectory(
     q: string,
     dependencies: readonly unknown[],
     enabled = true,
+    collection?: CollectionSpec,
 ) {
     const query = q.trim();
     const rootKey = keyFor(null, query);
@@ -30,6 +32,8 @@ export function usePagedDirectory(
         dependencies,
         rootKey,
         enabled,
+        undefined,
+        collection,
     );
 
     const ensureParent = useCallback((parentId: string | null) => {
@@ -44,7 +48,7 @@ export function usePagedDirectory(
         }
     }, [chains, fetchPage, query]);
     const reload = useCallback((parentId: string | null = null) =>
-        fetchPage(keyFor(parentId, query), null, false), [fetchPage, query]);
+        fetchPage(keyFor(parentId, query), null, false, true), [fetchPage, query]);
     const replaceDocument = useCallback((document: Document) => setChains((current) =>
         Object.fromEntries(Object.entries(current).map(([key, chain]) => [key, {
             ...chain,
@@ -89,7 +93,9 @@ export function usePagedDirectory(
 
     return {
         ...derived,
-        loading: chains[keyFor(null, query)]?.loading ?? enabled,
+        loading: chains[rootKey] ? chains[rootKey].loading && !chains[rootKey].refreshing : enabled,
+        refreshing: !!chains[rootKey]?.loading && !!chains[rootKey]?.loaded,
+        error: chains[rootKey]?.error ?? null,
         ensureParent,
         loadMore,
         reload,

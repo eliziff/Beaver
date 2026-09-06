@@ -1,3 +1,4 @@
+import { projectsCollection } from "@/app/lib/collectionKeys";
 "use client";
 import { useDeferredValue, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -78,6 +79,7 @@ export function ProjectsOverview() {
         }, signal),
         [activeFilter, deferredSearch, userId],
         !authLoading && isAuthenticated && !!userId,
+        projectsCollection({ q: deferredSearch, scope: activeFilter }),
     );
     const loading = authLoading || page.loading;
     const rows = page.items;
