@@ -1,0 +1,45 @@
+name: Startup profile
+on:
+  push:
+    branches: [codex/performance-cold-load]
+    paths: [.github/workflows/startup-profile.yml]
+permissions:
+  contents: read
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out public source without submodule initialization
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          git init .
+          git remote add origin https://github.com/eliziff/Beaver.git
+          git fetch --depth=1 origin "$SOURCE_SHA"
+          git checkout --detach FETCH_HEAD
+          mkdir -p .perf
+          tar -czf .perf/source.tgz AGENTS.md docs/roadmap/master-plan.md frontend/src frontend/scripts frontend/vendor frontend/vite.config.ts frontend/vitest.config.mts frontend/vitest.setup.ts frontend/tsconfig.json frontend/package.json frontend/package-lock.json frontend/index.html shared backend/src scripts/test-cold-load.mjs
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build and record chunk membership
+        run: |
+          npm ci --prefix frontend
+          cat > .perf/profile.mjs <<'JS'
+          import { build } from '../frontend/node_modules/vite/dist/node/index.js';
+          import { writeFileSync } from 'node:fs';
+          await build({ root: 'frontend', plugins: [{name: 'startup-profile', generateBundle(options, bundle) {
+            writeFileSync('.perf/chunks.json', JSON.stringify(Object.values(bundle).filter(x => x.type === 'chunk').map(x => ({fileName:x.fileName,size:x.code.length,imports:x.imports,dynamicImports:x.dynamicImports,facadeModuleId:x.facadeModuleId,modules:Object.entries(x.modules).map(([id,m])=>({id,renderedLength:m.renderedLength,originalLength:m.originalLength}))})),null,2));
+          }}] });
+          JS
+          node .perf/profile.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: startup-profile
+          include-hidden-files: true
+          path: .perf
+          retention-days: 7
