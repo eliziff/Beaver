@@ -8,35 +8,27 @@ permissions:
 jobs:
   pdf:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
     defaults:
       run:
         shell: bash
     steps:
-      - name: Integrate the pinned published reader changes
+      - name: Apply the final checked viewport refinement
         env:
           SOURCE_SHA: ${{ github.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           git init .
           git remote add origin https://github.com/eliziff/Beaver.git
-          git fetch --depth=100 origin "$SOURCE_SHA" b979831747a5ceb678400fb0863a35b3a87e626e
-          git checkout --detach "$SOURCE_SHA"
+          git fetch --depth=1 origin "$SOURCE_SHA"
+          git checkout --detach FETCH_HEAD
+          python3 .pdf-workbench/finalize.py
+          git rm .pdf-workbench/finalize.py
+          git add frontend/src/app/components/shared/views/PdfCanvas.tsx frontend/src/app/components/shared/views/PdfView.test.tsx
+          git diff --cached --check
           git config user.name 'Eli Ziff'
           git config user.email 'eliasziff@gmail.com'
-          git merge --no-commit --no-ff b979831747a5ceb678400fb0863a35b3a87e626e || {
-            python3 - <<'PY'
-          import subprocess
-          conflicts = set(subprocess.check_output(['git','diff','--name-only','--diff-filter=U'], text=True).splitlines())
-          assert conflicts and conflicts <= {'frontend/src/app/components/shared/views/PdfCanvas.tsx','frontend/src/app/components/shared/views/PdfView.test.tsx'}, conflicts
-          PY
-          }
-          git checkout "$SOURCE_SHA" -- frontend/src/app/components/shared/views/PdfCanvas.tsx frontend/src/app/components/shared/views/PdfView.test.tsx
-          python3 .pdf-workbench/reconcile.py
-          git rm .pdf-workbench/reconcile.py
-          git add frontend/src/app/components/shared/views/PdfCanvas.tsx frontend/src/app/components/shared/views/PdfView.test.tsx frontend/src/app/components/shared/views/pdfTextLayer.css scripts/test-pdf-first-use.mjs docs/pdf-first-use.md
-          git diff --cached --check
-          git commit -m 'Integrate reader locators and preserve rotated text alignment [skip ci]'
+          git commit -m 'Keep readable PDF anchors fixed and controls above rotated text layers [skip ci]'
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/codex/pdf-first-use
           mkdir -p .pdf-validation
@@ -55,7 +47,8 @@ jobs:
       - name: Real-renderer fixture only and pinned main comparison
         if: ${{ !cancelled() }}
         run: |
-          git worktree add --detach .pdf-baseline b979831747a5ceb678400fb0863a35b3a87e626e
+          git fetch --depth=1 origin b979831747a5ceb678400fb0863a35b3a87e626e
+          git worktree add --detach .pdf-baseline FETCH_HEAD
           cmp frontend/package-lock.json .pdf-baseline/frontend/package-lock.json
           ln -s "$PWD/frontend/node_modules" .pdf-baseline/frontend/node_modules
           ln -s "$PWD/node_modules" .pdf-baseline/node_modules
