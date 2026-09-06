@@ -41,10 +41,13 @@ jobs:
         run: npm run build --prefix backend 2>&1 | tee .queue-validation/build.log
       - name: Queue and transport regressions
         if: ${{ !cancelled() }}
+        run: |
+          (cd backend && npx vitest run src/lib/jobNotifications.test.ts src/lib/__tests__/jobScheduling.test.ts src/lib/__tests__/chatCommands.test.ts src/lib/__tests__/jobQueue.test.ts src/lib/__tests__/chatTurnTransport.test.ts src/lib/chatTurns.test.ts src/index.test.ts src/server.test.ts src/lib/__tests__/relationalRepositories.test.ts) 2>&1 | tee .queue-validation/tests.log
+      - name: Real process IPC, lost hints, and PostgreSQL reconnection
+        if: ${{ !cancelled() }}
         env:
           QUEUE_TEST_DATABASE_URL: postgres://postgres:queue-fixture-only@127.0.0.1:5432/queue_tests?sslmode=disable
-        run: |
-          (cd backend && npx vitest run src/lib/jobNotifications.test.ts src/lib/__tests__/jobScheduling.test.ts src/lib/__tests__/jobQueue.test.ts src/lib/__tests__/chatTurnTransport.test.ts src/lib/chatTurns.test.ts src/index.test.ts src/server.test.ts) 2>&1 | tee .queue-validation/tests.log
+        run: node scripts/test-job-delivery.mjs .queue-validation/delivery.json 2>&1 | tee .queue-validation/delivery.log
       - name: Source boundaries
         if: ${{ !cancelled() }}
         run: node scripts/check-source-boundaries.mjs 2>&1 | tee .queue-validation/boundaries.log
