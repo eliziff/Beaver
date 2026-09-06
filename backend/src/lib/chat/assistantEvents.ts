@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { WORK_PRODUCT_KINDS } from "../workProduct";
+import { researchReadContextSchema } from "../researchReader";
 import { storedLegalEvidenceReceipt, storedLegalResearchQueryReceipt,
   type LegalEvidenceReceipt, type LegalResearchQueryReceipt } from "./legalEvidence";
 
@@ -52,9 +53,11 @@ const receipt = z.object({ type: z.literal("legal_evidence_receipt"), schema_ver
   evidence: z.array(evidence), queries: z.array(query), bounces: z.tuple([]),
   failure: text.nullable() }).strict();
 const assignment = z.object({ task: text, scope: text, jurisdiction: z.enum(["CA", "US", "UK"]),
-  collections: z.array(text).optional(), source_types: z.array(text).optional() }).strict();
+  collections: z.array(text).optional(), source_types: z.array(text).optional(),
+  resources: z.array(text).optional(), evidence_ids: z.array(text).optional() }).strict();
 const resume = z.object({ id: text, continuation_id: text, model: text, effort: text,
-  assignment, evidence: z.array(evidence), activities: z.array(activity).optional() }).strict();
+  assignment, evidence: z.array(evidence), queries: z.array(query),
+  research: researchReadContextSchema.optional(), activities: z.array(activity).optional() }).strict();
 const privateSubagent = subagent.extend({ agent: z.enum(["scout", "native"]), model: text, effort: text,
   publicError: text.optional(), grounding: receipt.optional(), resume: resume.optional() });
 

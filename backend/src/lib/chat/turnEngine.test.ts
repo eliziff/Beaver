@@ -26,6 +26,11 @@ import { AssistantStreamError, runChatTurn, type ChatToolContext } from "./turnE
 import { toolText, type BeaverTool } from "./toolRegistry";
 import { a2ajLegalSourceProvider } from "../legalSources/a2aj";
 import { structureNative } from "../structureNative";
+import { readResearchContext, researchReadCursors, type ResearchReadContext,
+  type ResearchObserver } from "../researchReader";
+import { parseAssistantEvent, type ReadSubagentEvent } from "./assistantEvents";
+import type { DocumentStore } from "../documentStore";
+import { sha256 } from "../hash";
 const ASSISTANT_TOOLS = assistantTools<ChatToolContext>({
   userId: "test",
   scope: "main",
@@ -603,4 +608,63 @@ it("reports new reads during a turn without duplicating transcript receipts", as
   expect(observed).toHaveLength(2);
   expect(result.events.filter(({ type }) => type === "legal_evidence_receipt")).toHaveLength(1);
   expect(priorLegalEvidenceReceipts(result.events)).toEqual(passages);
+});
+
+it("resumes child source scopes, queries and coverage with the actual reading model", async () => {
+  const resources = ["document://note-a/version/v1", "document://note-b/version/v1"],
+    research: ResearchReadContext = { workspace: { documentId: "workspace", versionId: "w1", workingRevision: 4 },
+      restricted: true, subjects: resources.map((resource, index) => ({ sourceId: `saved-${index}`, resource,
+        reference: { provider: "library", kind: "document", id: `note-${index ? "b" : "a"}`, versionId: "v1" } })) },
+    bytes = Buffer.from("First source sentence.\nSecond source sentence."),
+    documents = { metadata: async () => ({ filename: "Notes.txt" }),
+      projectionSource: async (_scope: unknown, documentId: string) => ({ documentId, versionId: "v1",
+        fileType: "txt", sourceSha256: sha256(bytes), readBytes: () => bytes }) } as unknown as DocumentStore,
+    observed: Parameters<ResearchObserver>[] = [], checkpoints: ReadSubagentEvent[] = [];
+  stream.mockImplementation(async (params) => {
+    if (params.providerSession) {
+      const resource = resources.find((value) => params.systemPrompt.includes(value))!,
+        offset = params.providerSession.continuationId ? 2 : 1;
+      expect(resource).toBeTruthy();
+      params.providerSession.onContinuationId?.(resource);
+      await params.runTools([{ id: `${resource}:${offset}`, name: "Read", input: { file_path: resource, offset, limit: 1 } }]);
+      throw new Error("Reader connection stopped");
+    }
+    await params.runTools([{ id: "load", name: "load_tools", input: { names: ["delegate_read", "resume_read"] } }]);
+    await params.runTools([{ id: "scopes", name: "delegate_read", input: { assignments: resources.map((resource, index) => ({
+      task: "Read both source sentences", scope: `Note ${index}`, jurisdiction: "CA", resources: [resource],
+    })) } }]);
+    expect(observed).toHaveLength(2);
+    await params.runTools([{ id: "resume", name: "resume_read", input: { ids: ["scopes:1", "scopes:2"] } }]);
+    expect(observed).toHaveLength(4);
+    return { fullText: "Reading stopped." };
+  });
+  await runChatTurn({ model: "gemini-3-flash-preview", systemPrompt: "", researchContext: research,
+    operation: { executor: "assistant", chatId: "chat", turnId: "turn" },
+    messages: [{ role: "user", content: "Read these two notes." }], subagentMode: "beaver", emit() {},
+    onSubagentEvent(event) { if (event.status === "error") checkpoints.push(event); },
+    async onResearchObserved(...args) { await Promise.resolve(); observed.push(args); },
+    createTools(_state, assignment, context) {
+      if (assignment === "main") return [];
+      expect(context.operation).toMatchObject({ executor: "assistant", model: "codex:gpt-5.6-luna",
+        chatId: "chat", turnId: "turn", subagentId: expect.stringMatching(/^scopes:/u) });
+      expect(context.research?.subjects).toHaveLength(1);
+      return [{ ...ASSISTANT_TOOLS.find(({ name }) => name === "Read")!, reader: ["CA"],
+        async execute(input, context, signal, call) {
+          const output = await readResearchContext(documents, { userId: "owner" }, context.research!, {
+            resource: String(input.file_path), offset: Number(input.offset), limit: 1, signal, remainingOnly: true });
+          return { ...output, queryReceipts: [{ call_id: call.id, tool: "Read", executed_at: "2026-09-06T08:00:00.000Z",
+            executor_version: "legal-source-pattern-v1", input: { pattern: "source" },
+            results: output.evidence!.map(({ evidence_id }, rank) => ({ rank: rank + 1, evidence_id })) }] };
+        } }];
+    },
+  });
+  expect(observed.map(([, operation]) => operation.model)).toEqual(Array(4).fill("codex:gpt-5.6-luna"));
+  expect(observed.every(([, operation]) => operation.callId?.startsWith("document://note-") && operation.subagentId)).toBe(true);
+  const latest = new Map(checkpoints.map((event) => [event.id, event]));
+  for (const checkpoint of latest.values()) {
+    expect(checkpoint.resume?.queries).toHaveLength(2);
+    expect(checkpoint.resume?.evidence).toHaveLength(2);
+    expect(researchReadCursors(checkpoint.resume!.research!)).toEqual([]);
+    expect(parseAssistantEvent(JSON.parse(JSON.stringify(checkpoint)))).toEqual(checkpoint);
+  }
 });

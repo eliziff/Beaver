@@ -127,7 +127,7 @@ fetch(url).then(async r=>done({status:r.status,body:await r.json().catch(()=>nul
 
 
 def research(driver, research_id: str):
-    return api(driver, f"/api/single-documents/{research_id}/research")["state"]
+    return api(driver, f"/api/source-workspaces/{research_id}")["state"]
 
 
 def research_items(driver, research_id: str, kind: str, source_id=None):
@@ -138,7 +138,7 @@ def research_items(driver, research_id: str, kind: str, source_id=None):
         while True:
             query = urlencode({"kind": kind, "limit": 200, **({"source_id": source_id} if source_id else {}),
                                **({"cursor": cursor} if cursor else {})})
-            url = urljoin(driver.current_url, f"/api/single-documents/{research_id}/research/items?{query}")
+            url = urljoin(driver.current_url, f"/api/source-workspaces/{research_id}/items?{query}")
             try:
                 with urlopen(url, timeout=30) as response:
                     page = json.load(response)
@@ -973,8 +973,7 @@ const text=s.toString(); root.dispatchEvent(new PointerEvent('pointerup',{bubble
 
             resources = drain_resources(driver)
             vitals = drain_vitals(driver)
-            interactive = sorted(row["duration"] for row in resources if "/api/single-documents/" in row["name"]
-                                 and (row["name"].endswith("/research") or "/research/actions" in row["name"]))
+            interactive = sorted(row["duration"] for row in resources if "/api/source-workspaces/" in row["name"])
             assert interactive, "No research resource timings captured"
             budget_ms = 2000
             (output / "timings.json").write_text(json.dumps(resources, indent=2), encoding="utf-8")

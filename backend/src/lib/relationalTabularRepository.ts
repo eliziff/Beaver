@@ -84,8 +84,11 @@ function updatedState(current: TableState, input: ReviewInput): TableState {
     documentIds: "document_ids", scopeConfig: "scope_config", workflowId: "workflow_id", sharedWith: "shared_with" }))
     if (input[key as keyof ReviewInput] !== undefined) review[field] = input[key as keyof ReviewInput];
   const priorSubjects = new Map(current.review.scope_config?.subjects.map((subject) => [tabularSubjectId(subject), subject]));
-  const changedRows = new Set(review.scope_config?.subjects.filter((subject) => !sameResearchValue(subject,
-    priorSubjects.get(tabularSubjectId(subject)))).map(tabularSubjectId));
+  const readInput = (subject: TabularSelection["subjects"][number] | undefined) => subject && ({
+    resource: subject.resource, evidence: subject.evidence, sourceSha256: subject.sourceSha256,
+    sourceSha256s: subject.sourceSha256s });
+  const changedRows = new Set(review.scope_config?.subjects.filter((subject) => !sameResearchValue(readInput(subject),
+    readInput(priorSubjects.get(tabularSubjectId(subject))))).map(tabularSubjectId));
   const question = (column: TabularColumn | undefined) => column && ({ prompt: column.prompt,
     format: column.format ?? "text", tags: column.tags ?? [] });
   const changedColumns = new Set(review.columns_config.filter((column) => !sameResearchValue(question(column),
@@ -241,15 +244,23 @@ export const tabularRepository: TabularRepository = {
   },
   async delete(scope, id, expected): Promise<WriteResult<null>> {
     const db = await relationalDatabase();
-    if (!await findReview(scope, id, true, db)) return { status: "missing" };
-    if (await changes(sql`DELETE FROM tabular_reviews WHERE id=${id}
-      AND user_id=${scope.userId} AND updated_at=${expected}`, db))
+    return db.transaction(async (tx) => {
+      const current = await findReview(scope, id, true, tx, true);
+      if (!current) return { status: "missing" };
+      if (current.updated_at !== expected) return { status: "conflict", value: null };
+      await changes(sql`UPDATE chats SET tabular_review_id=NULL,project_id=COALESCE(project_id,${current.project_id})
+        WHERE tabular_review_id=${id}`, tx);
+      await changes(sql`DELETE FROM tabular_reviews WHERE id=${id} AND user_id=${scope.userId}`, tx);
       return { status: "committed", value: null };
-    return await findReview(scope, id, true, db)
-      ? { status: "conflict", value: null } : { status: "missing" };
+    });
   },
   async deleteAll(scope) {
-    return changes(sql`DELETE FROM tabular_reviews WHERE user_id=${scope.userId}`);
+    return (await relationalDatabase()).transaction(async (tx) => {
+      await changes(sql`UPDATE chats SET project_id=COALESCE(project_id,(SELECT r.project_id FROM tabular_reviews r
+        WHERE r.id=chats.tabular_review_id)),tabular_review_id=NULL
+        WHERE tabular_review_id IN (SELECT id FROM tabular_reviews WHERE user_id=${scope.userId})`, tx);
+      return changes(sql`DELETE FROM tabular_reviews WHERE user_id=${scope.userId}`, tx);
+    });
   },
   async history(scope, reviewId, input) {
     const db = await relationalDatabase();

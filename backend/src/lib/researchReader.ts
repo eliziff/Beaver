@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { DocumentStore } from "./documentStore";
 import { documentProjectionService } from "./documentProjectionService";
@@ -6,28 +7,148 @@ import { structureNative, type NativeDocument, type NativeDocumentBlock } from "
 import { legalSourceOperations } from "./legalSourceApplication";
 import type { LegalSourcePassage, LegalSourceReference } from "./legalSources";
 import type { A2AJCompiledDocument } from "./legalSources/a2aj";
-import { pageResearchItems, researchSourceFromResource, researchSourceResource,
+import { pageResearchItems, researchSourceFromResource, researchSourceResource, researchSourceReferenceSchema,
   type ResearchFile, type ResearchEvidence, type ResearchQueryReceipt } from "./researchFile";
 import { createA2AJPassageEvidence, createLibraryEvidence, legalSourceEvidence,
-  legalEvidenceSourceReference, legalEvidenceResourceReference, restorePriorLegalEvidence,
+  legalEvidenceSourceReference, legalEvidenceResourceReference, restorePriorLegalEvidence, storedLegalEvidenceReceipt,
+  createLegalEvidenceTurnState, registerLegalEvidence, registerLegalResearchQueries, legalEvidenceReceiptEvent,
   type LegalEvidenceReceipt, type LegalEvidenceSpan, type RegisteredEvidence,
   type LegalEvidenceTurnState } from "./chat/legalEvidence";
 import { createLegalSourceSearchCitations } from "./chat/citations";
 import { findTextMatches } from "./chat/tools/documentOps";
 import type { A2AJReferenceDirection } from "./chat/tools/a2ajTools";
-import type { ReadSubagentAssignment } from "./chat/assistantEvents";
+import type { ReadSubagentAssignment, LegalEvidenceReceiptEvent } from "./chat/assistantEvents";
 import type { NormalizedToolCall } from "./llm";
 import { toolText, withoutUrls, type BeaverOutcome } from "./chat/toolRegistry";
 import { jsonRecord as objectRecord, trimmedText as trimmed } from "./value";
 import { utf16PrefixCeil } from "./text";
 import type { ResearchChange } from "./researchHistory";
+import type { ResearchSubject } from "./researchSelection";
+import type { ResearchOperationContext } from "./researchProvenance";
 
 const result = (value: unknown): BeaverOutcome => ({ result: toolText(value, objectRecord(value)?.ok === false) });
 const fail = (error: string) => result({ ok: false, error });
 
+const readCursor = z.object({ resource: z.string().min(1).max(4_000), offset: z.number().int().min(1),
+  start_char: z.number().int().nonnegative().optional() }).strict();
+const readProgress = z.object({ next: z.array(readCursor), fingerprints: z.record(z.string()) }).strict();
+export const researchReadContextSchema = z.object({
+  workspace: z.object({ documentId: z.string(), versionId: z.string(),
+    workingRevision: z.number().int().nonnegative() }).strict().optional(),
+  restricted: z.boolean().optional(),
+  subjects: z.array(z.object({ sourceId: z.string(), resource: z.string().min(1).max(4_000),
+    rowId: z.string().optional(), reference: researchSourceReferenceSchema,
+    evidence: z.array(z.custom<LegalEvidenceReceipt>((value) => storedLegalEvidenceReceipt(value) !== null)).optional(),
+    sourceSha256: z.string().optional(), sourceSha256s: z.array(z.string()).optional(),
+  }).strict()).optional(),
+  reads: z.record(readProgress).optional(),
+}).strict();
+export type ResearchReadContext = z.infer<typeof researchReadContextSchema>;
+export type ResearchReadCursor = z.infer<typeof readCursor>;
+type ResearchResultScope = { resource: string; evidence?: readonly LegalEvidenceReceipt[] };
+export function researchResultFilter(context: ResearchReadContext | undefined) {
+  const subjects = context?.subjects ?? [], resources = new Set(subjects.map(({ resource }) => resource)),
+    wholeSources = new Set(subjects.filter(({ evidence }) => evidence === undefined).map(({ resource }) => resource)),
+    passages = new Set(subjects.flatMap(({ evidence }) => evidence?.map(({ evidence_id }) => evidence_id) ?? []));
+  return ({ resource, evidence }: ResearchResultScope) => !context?.restricted ||
+    (evidence === undefined ? resources : wholeSources).has(resource) ||
+    !!evidence?.some((receipt) => passages.has(receipt.evidence_id) || wholeSources.has(legalEvidenceResourceReference(receipt) ?? ""));
+}
+export type ResearchObserver = (event: LegalEvidenceReceiptEvent, operation: ResearchOperationContext) => void | Promise<void>;
+export function researchReadReceipt(outcome: Pick<BeaverOutcome, "evidence" | "queryReceipts">, model: string) {
+  const observed = createLegalEvidenceTurnState();
+  outcome.evidence?.forEach((receipt) => registerLegalEvidence(observed, receipt));
+  registerLegalResearchQueries(observed, outcome.queryReceipts ?? [], model);
+  return legalEvidenceReceiptEvent(observed);
+}
+
+const progress = (context: ResearchReadContext, resource: string) =>
+  (context.reads ??= {})[resource] ??= { next: [{ resource, offset: 1, start_char: 0 }], fingerprints: {} };
+export function researchReadCursors(context: ResearchReadContext) {
+  if (context.restricted) context.subjects?.forEach(({ resource }) => progress(context, resource));
+  return Object.values(context.reads ?? {}).flatMap(({ next }) => next);
+}
+export function researchReadContextPrompt(context: ResearchReadContext | undefined) {
+  if (!context) return "";
+  return [context.workspace ? `CURRENT RESEARCH WORKSPACE: ${resourceReference.document(
+    context.workspace.documentId, context.workspace.versionId)}` : "",
+  context.subjects ? `${context.subjects.length} ${context.restricted ? "selected" : "saved"} source scopes:\n` +
+    context.subjects.slice(0, 5).map(({ resource, evidence }) => resource +
+      (evidence ? ` (${evidence.length} selected passages)` : "")).join("\n") +
+    (context.subjects.length > 5 ? "\nRead selection to page the complete scoped inventory and remaining reads." : "") : ""].filter(Boolean).join("\n");
+}
+export function readResearchContextInventory(context: ResearchReadContext, args: { offset?: number; limit?: number }) {
+  const offset = Math.max(0, (args.offset ?? 1) - 1), limit = Math.max(1, Math.min(50, args.limit ?? 20)),
+    subjects = context.subjects ?? [], selected = subjects.slice(offset, offset + limit);
+  return result({ workspace: context.workspace, restricted: !!context.restricted, total: subjects.length,
+    items: selected.map(({ sourceId, resource, reference, evidence }) => ({ sourceId, resource,
+      title: reference.title ?? reference.citation, ...(evidence ? { passage_count: evidence.length } : {}),
+      next_reads: context.reads?.[resource]?.next ?? [{ resource, offset: 1, start_char: 0 }] })),
+    next_offset: offset + selected.length < subjects.length ? offset + selected.length + 1 : null });
+}
+
+/** Child assignments narrow the resolved scope; they cannot add another source or passage. */
+export function childResearchReadContext(context: ResearchReadContext | undefined,
+  assignment: Pick<ReadSubagentAssignment, "resources" | "evidence_ids">,
+  available: LegalEvidenceReceipt[]): ResearchReadContext | undefined {
+  if (!assignment.resources && !assignment.evidence_ids) return context && structuredClone(context);
+  if (!context?.subjects) throw new ApplicationError(400, "Select workspace sources before narrowing a reader assignment");
+  const resources = assignment.resources && new Set(assignment.resources), ids = assignment.evidence_ids && new Set(assignment.evidence_ids),
+    found = new Set<string>(), subjects: ResearchSubject[] = [];
+  if (resources && [...resources].some((resource) => !context.subjects!.some((subject) => subject.resource === resource)))
+    throw new ApplicationError(400, "Reader source is outside the selected workspace scope");
+  for (const subject of context.subjects) {
+    if (resources && !resources.has(subject.resource)) continue;
+    const evidence = ids ? (subject.evidence ?? available).filter((receipt) => ids.has(receipt.evidence_id) &&
+      legalEvidenceResourceReference(receipt) === subject.resource) : subject.evidence;
+    evidence?.forEach(({ evidence_id }) => found.add(evidence_id));
+    if (ids && !evidence?.length) continue;
+    subjects.push({ ...subject, ...(evidence ? { evidence } : {}) });
+  }
+  if (ids && [...ids].some((id) => !found.has(id)))
+    throw new ApplicationError(400, "Reader passage is outside the selected workspace scope");
+  return { workspace: context.workspace, restricted: true, subjects };
+}
+
+/** The same source checks, frozen passage scope, fingerprints and continuations serve every reader. */
+export async function readResearchContext(documents: DocumentStore, scope: ApplicationScope,
+  context: ResearchReadContext, input: Parameters<typeof readResearchResource>[2] & { remainingOnly?: boolean }): Promise<ResearchRead> {
+  const direct = context.subjects?.filter(({ resource }) => resource === input.resource) ?? [],
+    parent = direct.length ? input.resource : Object.entries(context.reads ?? {}).find(([, state]) =>
+      state.next.some(({ resource }) => resource === input.resource))?.[0],
+    subjects = direct.length ? direct : context.subjects?.filter(({ resource }) => resource === parent) ?? [];
+  if (context.restricted && !subjects.length) throw new ApplicationError(400, "Source is outside the selected research scope");
+  const state = progress(context, parent ?? input.resource), offset = input.offset ?? 1, start = input.start_char ?? 0,
+    cursor = state.next.findIndex((item) => item.resource === input.resource && item.offset === offset && (item.start_char ?? 0) === start);
+  if (input.remainingOnly && cursor < 0) throw new ApplicationError(400, "Read one of the remaining source pages");
+  const evidence = subjects.length && subjects.every((subject) => subject.evidence !== undefined)
+    ? [...new Map(subjects.flatMap((subject) => subject.evidence!).map((receipt) => [receipt.evidence_id, receipt])).values()] : input.evidence,
+    output = await readResearchResource(documents, scope, { ...input, evidence,
+      expectedSourceSha256: subjects[0]?.sourceSha256 ?? input.expectedSourceSha256 }),
+    fingerprints = { ...state.fingerprints };
+  for (const receipt of output.evidence ?? []) {
+    if (subjects.some((subject) => subject.sourceSha256s?.length && !subject.sourceSha256s.includes(receipt.source_sha256)))
+      throw new ApplicationError(409, "Source changed since this research scope was selected");
+    const key = legalEvidenceResourceReference(receipt) ?? `${receipt.provider}:${receipt.stable_source_id}`;
+    if (fingerprints[key] && fingerprints[key] !== receipt.source_sha256)
+      throw new ApplicationError(409, "Source changed during reading; start the selection again");
+    fingerprints[key] = receipt.source_sha256;
+  }
+  state.fingerprints = fingerprints;
+  if (!output.result.isError && (output.coverage.complete || output.coverage.next.length)) {
+    if (cursor >= 0) state.next.splice(cursor, 1);
+    for (const item of output.coverage.next) if (!state.next.some((pending) => pending.resource === item.resource &&
+      pending.offset === item.offset && (pending.start_char ?? 0) === (item.start_char ?? 0))) state.next.push(item);
+  }
+  return { ...output, coverage: { complete: state.next.length === 0, next: state.next },
+    result: { ...output.result, content: [...output.result.content,
+      { type: "text", text: JSON.stringify({ next_reads: state.next }) }] } };
+}
+
 /** Page the document's existing parts without materializing its entire evidence inventory. */
 export async function readResearchWorkspace(documents: DocumentStore, scope: ApplicationScope,
-  saved: ResearchFile, args: Record<string, unknown>, signal: AbortSignal, state?: LegalEvidenceTurnState) {
+  saved: ResearchFile, args: Record<string, unknown>, signal: AbortSignal, state?: LegalEvidenceTurnState,
+  context?: ResearchReadContext) {
   const chunk = 6000, labels = Object.values(saved.state.labels).sort((a, b) => a.order - b.order),
     sources = Object.values(saved.state.sources), counts = [Math.ceil(saved.state.note.length / chunk),
       labels.length, sources.length, saved.state.queries?.count ?? 0,
@@ -68,6 +189,10 @@ export async function readResearchWorkspace(documents: DocumentStore, scope: App
     });
   };
   const register = async (items: Record<string, unknown>[]) => {
+    const inScope = researchResultFilter(context);
+    items = items.filter((item) => { if (item.kind !== "passage") return true;
+      const receipt = passages.get(Number(item.passage_index) - 1)!.receipt;
+      return inScope({ resource: legalEvidenceResourceReference(receipt) ?? "", evidence: [receipt] }); });
     for (const item of items) if (item.kind === "search") {
       const query = queries.get(Number(item.search_index) - 1)!;
       state?.queries.set(query.query_id, query); state?.priorQueryIds.add(query.query_id);
@@ -85,8 +210,9 @@ export async function readResearchWorkspace(documents: DocumentStore, scope: App
   if (section) {
     const category = kinds.indexOf(section[1]), index = Number(section[2]) - 1;
     if (index < 0 || index >= counts[category]) return fail("Research section not found");
-    const { items: safe, ...evidence } = await register(await rows(category, index, 1)),
-      json = JSON.stringify(withoutUrls(safe[0])), total = Math.ceil(json.length / chunk),
+    const { items: safe, ...evidence } = await register(await rows(category, index, 1));
+    if (!safe.length) return fail("Research passage is outside the current selection");
+    const json = JSON.stringify(withoutUrls(safe[0])), total = Math.ceil(json.length / chunk),
       count = Math.min(3, limit, Math.max(0, total - offset)),
       items = Array.from({ length: count }, (_, index) => ({ kind: "search_continuation", section: section[0],
         field: "receipt", encoding: "json", offset: (offset + index) * chunk + 1,
@@ -186,10 +312,13 @@ export function readLibraryResearchWindow(input: { documentId: string; versionId
 export async function readResearchResource(documents: DocumentStore, scope: ApplicationScope,
   input: { resource: string; offset?: number; start_char?: number; limit?: number;
     evidence?: LegalEvidenceReceipt[]; signal?: AbortSignal; callId?: string; maxBytes?: number;
-    expectedSourceSha256?: string }): Promise<ResearchRead> {
+    expectedSourceSha256?: string; reader?: ReadSubagentAssignment }): Promise<ResearchRead> {
   const reference = parseResourceReference(input.resource);
   if (!reference || !["source", "document"].includes(reference.kind))
     throw new ApplicationError(400, "Select a document or source to read");
+  const source = reference.kind === "source" ? researchSourceFromResource(input.resource) : null,
+    boundary = source && readerBoundary(source, input.reader);
+  if (boundary) throw new ApplicationError(400, boundary);
   const meta = reference.kind === "document" ? await documents.metadata(scope, reference.documentId) : null;
   if (reference.kind === "document" && !meta) throw new ApplicationError(404, "Document not found");
   const projection = reference.kind === "document"
@@ -227,7 +356,7 @@ export async function readResearchResource(documents: DocumentStore, scope: Appl
   const outcome = await readLegalSourceResource({ name: "Read", id: input.callId ?? "research-read",
     input: {} }, { file_path: input.resource, offset: input.offset ?? 1,
       start_char: input.start_char ?? 0, limit: input.limit ?? 100 }, {
-        userId: scope.userId, signal: input.signal, knownSources: new Map() });
+        userId: scope.userId, signal: input.signal, reader: input.reader, knownSources: new Map() });
   if (!outcome || outcome.result.isError) throw new ApplicationError(409, "Source could not be read");
   const payload = outcome.result.content.find((item) => item.type === "text"),
     value = payload?.type === "text" ? objectRecord(JSON.parse(payload.text)) : null,
@@ -314,6 +443,15 @@ const modelLegalPassage = (receipt: LegalEvidenceReceipt) => ({
   locator: receipt.locator.label, text: receipt.span_text,
 });
 
+function readerBoundary(source: LegalSourceReference, reader: ReadSubagentAssignment | undefined) {
+  const region = source.provider === "courtlistener" || source.provider === "govinfo"
+    ? "US" : source.provider === "tna" || source.provider === "govuk-et" ? "UK" : "CA";
+  if (reader && region !== reader.jurisdiction) return `This source is outside the reader's ${reader.jurisdiction} boundary.`;
+  if (reader?.collections?.length && source.collection && !reader.collections.some((value) =>
+    value.toLowerCase() === source.collection!.toLowerCase())) return "This source is outside the reader's collection boundary.";
+  if (reader?.source_types?.length && !reader.source_types.includes(source.kind)) return "This source is outside the reader's source-type boundary.";
+}
+
 export async function readLegalSourceResource(
   call: NormalizedToolCall,
   args: Record<string, unknown>,
@@ -336,14 +474,8 @@ export async function readLegalSourceResource(
     return fail("Unsupported legal-source locator kind.");
   const source = researchSourceFromResource(trimmed(args.file_path));
   if (!source) return fail(`Invalid ${resource.provider} resource.`);
-  const sourceRegion = source.provider === "courtlistener" || source.provider === "govinfo"
-    ? "US" : source.provider === "tna" || source.provider === "govuk-et" ? "UK" : "CA";
-  if (options.reader && sourceRegion !== options.reader.jurisdiction)
-    return fail(`This source is outside the reader's ${options.reader.jurisdiction} boundary.`);
-  if (options.reader?.collections?.length && source.collection &&
-      !options.reader.collections.some((value) => value.toLowerCase() ===
-        source.collection!.toLowerCase()))
-    return fail("This source is outside the reader's collection boundary.");
+  const boundary = readerBoundary(source, options.reader);
+  if (boundary) return fail(boundary);
   const references = (args.references ?? "none") as
     "none" | "inbound" | "outbound" | "both";
   if (references !== "none") {

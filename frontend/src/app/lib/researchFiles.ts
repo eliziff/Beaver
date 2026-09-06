@@ -48,10 +48,10 @@ export type ResearchPageItem = { kind: "passage"; index: number; value: Research
   | { kind: "change"; index: number; value: ResearchChange };
 export type ResearchActionResult = ResearchFile & { sourceId?: string; evidenceId?: string; receipt?: ResearchEvidenceReceipt };
 export type ResearchSelection = { target: "sources" | "passages"; sourceIds?: string[];
-  evidenceIds?: string[]; labelIds?: string[]; unlabelled?: boolean };
-export type ResearchQueryInput = { text?: string; after?: string; syntax: "literal" | "terms";
-  target: "sources" | "passages"; sourceIds?: string[]; labelIds?: string[];
-  unlabelled?: boolean; limit?: number;
+  evidenceIds?: string[]; labelIds?: string[]; unlabelled?: boolean;
+  members?: { sourceId: string; evidenceIds?: string[] }[] };
+export type ResearchQueryInput = ResearchSelection & { text?: string; after?: string; syntax: "literal" | "terms";
+  limit?: number;
   rules?: Array<{ phrase: string; direction: "before" | "after";
     unit: "sentence" | "line" | "paragraph" | "chars"; chars?: number;
     slot: string }>; conflict?: "prompt" | "first" | "longer" | "shorter" | "append" };

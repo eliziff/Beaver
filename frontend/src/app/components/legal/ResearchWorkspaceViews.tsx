@@ -1,103 +1,90 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createChat, getChat, getChatResearchAnswers } from "@/app/lib/api/chat";
-import { createTabularReview, getTabularReview, type TabularCell, type ColumnConfig } from "@/app/lib/api/tabular";
-import { researchSourceKey, type ResearchFile, type ResearchSelection } from "@/app/lib/researchFiles";
-import { getResearchFile } from "@/app/lib/api/researchFiles";
-import { errorMessage } from "@/app/lib/utils";
 import type { Citation } from "@/app/lib/citations";
+import type { Message } from "@/app/lib/api/chat";
+import { useAssistantChat } from "@/app/hooks/useAssistantChat";
+import { errorMessage } from "@/app/lib/utils";
 import { ResearchViews } from "../shared/ResearchViews";
 import { SearchableChoiceModal } from "../modals/ModalSelect";
 import { GroundedAnswerContent } from "../shared/GroundedAnswerContent";
+import { Button } from "../ui/button";
+import { workspaceTableRoute } from "../tabular/tabularReviewRoute";
+import { useSourcesWorkspace } from "./SourcesWorkspace";
+import { OrganizeComposer, type OrganizeTarget } from "./OrganizeComposer";
 
-const fulfilled = <T,>(results: PromiseSettledResult<T>[]) => results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+type Run = { chatId: string; path: string; message: Message };
+/** Runs one visible organization turn in the bound chat without leaving the workspace. */
+function OrganizeRun({ run, target, onDone }: { run: Run; target: OrganizeTarget; onDone: () => void }) {
+  const workspace = useSourcesWorkspace();
+  const assistant = useAssistantChat({ chatId: run.chatId, stayInPlace: true,
+    projectId: workspace.file?.document.project_id ?? undefined });
+  const submitted = useRef(false), started = useRef(false);
+  const { handleChat, cancel } = assistant.actions, loaded = assistant.chatLoad.status === "loaded", running = !!assistant.state.run;
+  useEffect(() => {
+    if (submitted.current || !loaded) return;
+    submitted.current = true;
+    void handleChat(run.message).catch(() => undefined);
+  }, [loaded, handleChat, run.message]);
+  useEffect(() => {
+    if (running) started.current = true;
+    else if (started.current) onDone();
+  }, [running, onDone]);
+  return <OrganizeComposer target={target} running onRun={async () => undefined} chatHref={run.path}
+    onCancel={() => { cancel(); onDone(); }} />;
+}
 
-export function ResearchWorkspaceViews({ file, selection, onChange }: {
-  file: ResearchFile; selection: ResearchSelection; onChange: (file: ResearchFile) => void;
-}) {
-  const navigate = useNavigate();
+/** The single place a workspace asks the assistant to (re)organize its labels; runs stay visible until done. */
+export function WorkspaceOrganize({ open, onClose, target = "labels" }: { open: boolean; onClose: () => void; target?: OrganizeTarget }) {
+  const workspace = useSourcesWorkspace();
+  const [run, setRun] = useState<Run | null>(null);
+  async function start(content: string) {
+    const file = workspace.file;
+    if (!file) throw new Error("Open a workspace first");
+    const views = await workspace.views(), chat = await workspace.chat(views.chats[0]?.id);
+    setRun({ chatId: chat.id, path: chat.path,
+      message: { role: "user", content, research_file_id: file.document.id, research_selection: workspace.selection } });
+    onClose();
+  }
+  if (run) return <OrganizeRun run={run} target={target}
+    onDone={() => { setRun(null); void workspace.refresh().catch(() => undefined); }} />;
+  return open ? <OrganizeComposer target={target} onRun={start} onClose={onClose} /> : null;
+}
+
+export function ResearchWorkspaceViews() {
+  const workspace = useSourcesWorkspace(), navigate = useNavigate();
   const [choices, setChoices] = useState<{ kind: "Table" | "Chat"; items: { value: string; label: string }[] } | null>(null);
   const [error, setError] = useState("");
-  const emptySelection = selection.sourceIds?.length === 0 || selection.target === "passages" &&
-    (selection.evidenceIds?.length === 0 || selection.labelIds?.length === 0 && !selection.unlabelled);
-  const openChat = (id: string) => navigate(`${file.document.project_id ? `/projects/${file.document.project_id}` : ""}/assistant/chat/${id}`);
-  const create = async () => { const chat = await createChat({ research_file_id: file.document.id,
-    ...(file.document.project_id ? { project_id: file.document.project_id } : {}) }); openChat(chat.id); };
-  const createTable = async () => {
-    if (emptySelection) throw new Error(`No ${selection.target} selected`);
-    const review = await createTabularReview({ title: file.document.filename.replace(/\.research\.md$/iu, ""),
-      project_id: file.document.project_id ?? undefined, columns_config: [],
-      research_file_id: file.document.id, research_selection: selection });
-    onChange(await getResearchFile(file.document.id));
-    navigate(`/tabular-reviews/${encodeURIComponent(review.id)}?chat=new`, { state: {
-      tableIntent: "Arrange the selected research in this table. Reuse its labels, passages and answers; choose useful rows, columns and grouping for the existing organization.",
-    } });
-  };
+  async function open(kind: "Table" | "Chat", id?: string) {
+    if (kind === "Chat") navigate((await workspace.chat(id)).path);
+    else navigate(workspaceTableRoute(await workspace.table(id ? { tableId: id } : {})));
+  }
+  async function choose(kind: "Table" | "Chat") {
+    const views = await workspace.views(), items = kind === "Table" ? views.tables : views.chats;
+    if (!items.length) return open(kind);
+    setError("");
+    setChoices({ kind, items: items.map(({ id, title }) => ({ value: id, label: title || `Untitled ${kind.toLowerCase()}` })) });
+  }
   return <>
-    <ResearchViews table={async () => {
-      const results = await Promise.allSettled((file.state.tables ?? []).map(getTabularReview)), tables = fulfilled(results);
-      setError(tables.length < results.length ? "Some saved tables are unavailable." : "");
-      if (!results.length) await createTable();
-      else setChoices({ kind: "Table", items: tables.map(({ review }) => ({ value: review.id, label: review.title || "Untitled review" })) });
-    }} chat={async () => {
-      const results = await Promise.allSettled((file.state.chats ?? []).map((id) => getChat(id))), chats = fulfilled(results);
-      setError(chats.length < results.length ? "Some saved chats are unavailable." : "");
-      if (!results.length) await create();
-      else setChoices({ kind: "Chat", items: chats.map(({ chat }) => ({ value: chat.id, label: chat.title || "Untitled chat" })) });
-    }} />
-    <SearchableChoiceModal open={!!choices} onClose={() => { setChoices(null); setError(""); }} title={`Open ${choices?.kind.toLowerCase() ?? "view"}`}
-      value={null} options={[...(choices?.items ?? []), { value: "new", label: choices?.kind === "Table" ? "New table" : "New chat", disabled: choices?.kind === "Table" && emptySelection }]}
+    <ResearchViews table={() => choose("Table")} chat={() => choose("Chat")} />
+    <SearchableChoiceModal open={!!choices} onClose={() => setChoices(null)} title={`Open ${choices?.kind.toLowerCase() ?? "view"}`}
+      value={null} options={[...(choices?.items ?? []), { value: "new", label: `New ${choices?.kind.toLowerCase() ?? "view"}` }]}
       footer={error && <p role="alert" className="text-sm text-red-700">{error}</p>} closeOnSelect={false}
-      onChange={(id) => {
-        if (!id) return;
-        if (choices?.kind === "Table") {
-          if (id === "new") void createTable().then(() => setChoices(null)).catch((reason) => setError(errorMessage(reason, "Could not create table")));
-          else { navigate(`/tabular-reviews/${encodeURIComponent(id)}`); setChoices(null); }
-        }
-        else if (id === "new") void create().then(() => setChoices(null)).catch((reason) => setError(errorMessage(reason, "Could not create chat")));
-        else { openChat(id); setChoices(null); }
-      }} />
+      onChange={(id) => { if (id && choices) void open(choices.kind, id === "new" ? undefined : id)
+        .then(() => setChoices(null)).catch((reason) => setError(errorMessage(reason, "Could not open view"))); }} />
   </>;
 }
 
-type Finding = { id: string; source: string; column: ColumnConfig; content: NonNullable<TabularCell["content"]> };
-export function useResearchAnswers(file: ResearchFile | null) {
-  const [findings, setFindings] = useState<Finding[]>([]), [error, setError] = useState("");
-  const tables = JSON.stringify(file?.state.tables ?? []), chats = JSON.stringify(file?.state.chats ?? []);
-  useEffect(() => {
-    if (!file || tables === "[]" && chats === "[]") { setFindings([]); setError(""); return; }
-    let live = true, generation = 0, timer: ReturnType<typeof setTimeout> | undefined;
-    const load = async () => {
-      const current = ++generation;
-      try {
-        const tableResults = await Promise.allSettled((JSON.parse(tables) as string[]).map(getTabularReview)), details = fulfilled(tableResults);
-        const chatResults = await Promise.allSettled((JSON.parse(chats) as string[]).map(async (id) => {
-          const result: Finding[] = []; let offset: number | null = 0;
-          while (offset !== null && live) { const page = await getChatResearchAnswers(id, file.document.id, offset);
-            for (const item of page.items) if (item.kind === "answer") result.push({ id: `${id}:${item.question.id}:${item.resource}`,
-              source: item.resource, column: { index: 0, name: item.question.title, prompt: item.question.prompt },
-              content: { ...item.answer, evidence: item.evidence, summary: "", outcome: "answered", coverage: "complete" } });
-            offset = page.next_offset;
-          } return result;
-        })), answers = fulfilled(chatResults).flat();
-        for (const detail of details) for (const cell of detail.cells) {
-          const doc = detail.documents.find(({ id }) => id === cell.document_id), column = detail.review.columns_config?.find(({ index }) => index === cell.column_index);
-          if (cell.content && column && doc?.reference) answers.push({ id: cell.id, source: researchSourceKey(doc.reference), column, content: cell.content });
-        }
-        if (live && current === generation) { setFindings(answers);
-          setError([...tableResults, ...chatResults].some(({ status }) => status === "rejected") ? "Some saved answers are unavailable." : "");
-          if (details.some(({ review }) => review.is_running)) timer = setTimeout(load, 2000); }
-      } catch (reason) { if (live && current === generation) setError(errorMessage(reason, "Could not load saved answers")); }
-    };
-    const refresh = () => { clearTimeout(timer); void load(); };
-    refresh(); window.addEventListener("focus", refresh);
-    return () => { live = false; clearTimeout(timer); window.removeEventListener("focus", refresh); };
-  }, [file?.document.id, file?.versionId, file?.workingRevision, tables, chats]);
-  return { findings, error };
-}
-export function ResearchSourceAnswers({ findings, onCitation }: { findings: Finding[]; onCitation: (citation: Citation) => void }) {
-  return findings.map(({ id, column, content }) => <details key={id} className="border-s-2 border-gray-200 ps-2">
-      <summary className="cursor-pointer text-sm font-medium text-gray-800">{column.name}</summary>
-      <GroundedAnswerContent answer={content} column={column} onCitation={onCitation} />
-    </details>);
+export function ResearchSourceAnswers({ sourceId, onCitation }: { sourceId: string; onCitation: (citation: Citation) => void }) {
+  const { findings } = useSourcesWorkspace(), page = findings.chains[sourceId];
+  useEffect(() => { if (!page) void findings.fetchPage(sourceId, null, false); }, [page, sourceId, findings.fetchPage]);
+  return <>
+    {page?.items.map(({ reference, question, answer, evidence }) => <details key={JSON.stringify(reference)} className="border-s-2 border-gray-200 ps-3">
+      <summary className="cursor-pointer text-sm font-medium text-gray-900">{question.title}</summary>
+      <div className="pt-2"><GroundedAnswerContent answer={{ ...answer, evidence }} column={question} onCitation={onCitation} /></div>
+    </details>)}
+    {page?.loading && !page.items.length && <p role="status" className="text-sm text-gray-500">Loading answers…</p>}
+    {!!page?.error && <Button size="compact" variant="outline" onClick={() => void findings.fetchPage(sourceId, null, false)}>Retry answers</Button>}
+    {page?.nextCursor && <Button size="compact" variant="outline" disabled={page.loading}
+      onClick={() => void findings.fetchPage(sourceId, page.nextCursor, true)}>More answers</Button>}
+  </>;
 }

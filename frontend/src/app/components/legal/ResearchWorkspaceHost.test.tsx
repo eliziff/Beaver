@@ -1,7 +1,13 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { ResearchFile } from "@/app/lib/researchFiles";
-import { ResearchWorkspaceHost } from "./ResearchWorkspaceHost";
+import { ResearchWorkspaceHost as WorkspaceHost } from "./ResearchWorkspaceHost";
+import { SourcesWorkspaceProvider } from "./SourcesWorkspace";
+function ResearchWorkspaceHost({ file, onChange, restoreLast = true, ...props }: React.ComponentProps<typeof WorkspaceHost> & {
+  file: ResearchFile | null; onChange: (file: ResearchFile | null) => void; restoreLast?: boolean }) {
+  return <SourcesWorkspaceProvider file={file ?? undefined} onChange={onChange} restoreLast={restoreLast}>
+    <WorkspaceHost {...props} /></SourcesWorkspaceProvider>;
+}
 import { BeaverApiError } from "@/app/lib/api/client";
 
 const api = vi.hoisted(() => ({ getResearchFile: vi.fn() }));
@@ -9,7 +15,7 @@ vi.mock("@/app/lib/api/researchFiles", () => ({
   getResearchFile: api.getResearchFile
 }));
 vi.mock("./ResearchFileBar", () => ({ ResearchFileBar: () => <div>Saved sources</div> }));
-const file = { document: { id: "research-1" } } as ResearchFile;
+const file = { document: { id: "research-1" }, state: { labels: {}, sources: {} } } as ResearchFile;
 
 beforeEach(() => { localStorage.clear(); vi.clearAllMocks(); });
 

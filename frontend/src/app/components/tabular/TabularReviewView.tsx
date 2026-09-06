@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { MessageSquare, MessageSquareX, Play, Plus, Square, Upload, Users } from "lucide-react";
 import {
@@ -8,7 +8,6 @@ import {
   getTabularReviewPeople,
   regenerateTabularCell,
   exportTabularReview,
-  ensureTabularWorkspace,
   stopTabularGeneration,
   startTabularGeneration,
   updateTabularReview,
@@ -38,8 +37,10 @@ import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { ResearchViews } from "../shared/ResearchViews";
 import { ResearchSelectionLabels } from "../shared/ResearchSelectionLabels";
 import { ResearchChanges } from "../legal/ResearchChanges";
-import { getResearchFile } from "@/app/lib/api/researchFiles";
-import { researchSourceKey } from "@/app/lib/researchFiles";
+import { SourcesWorkspace, useSourcesWorkspace } from "../legal/SourcesWorkspace";
+import type { ResearchSelection } from "@/app/lib/researchFiles";
+import { assistantIntent } from "../assistant/assistantIntent";
+import { OrganizeComposer } from "../legal/OrganizeComposer";
 import { PageHeader, type PageHeaderAction, type PageHeaderBreadcrumb } from "../shared/PageHeader";
 import { TableToolbar } from "../shared/TableToolbar";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
@@ -73,7 +74,11 @@ const pendingCell = (
     status: "pending",
 });
 
-export function TRView({ reviewId, projectId }: Props) {
+export function TRView(props: Props) {
+    return <SourcesWorkspace key={props.reviewId} projectId={props.projectId}><TRViewContent {...props} /></SourcesWorkspace>;
+}
+function TRViewContent({ reviewId, projectId }: Props) {
+    const workspace = useSourcesWorkspace();
     const navigate = useNavigate();
     const location = useLocation();
     const [searchParams, setSearchParams] = useSearchParams();
@@ -104,6 +109,7 @@ export function TRView({ reviewId, projectId }: Props) {
         chatId: initialChat === "new" ? null : initialChat ?? undefined,
         highlightedCell: null as { colIdx: number; rowIdx: number } | null,
         missingProvider: null as ModelProvider | null,
+        organizeOpen: null as boolean | null,
     }));
     const setUi = useCallback((patch: Partial<typeof ui>) =>
         setUiState((current) => ({ ...current, ...patch })), []);
@@ -116,6 +122,9 @@ export function TRView({ reviewId, projectId }: Props) {
         highlightedCell, missingProvider,
     } = ui;
     const columns = review?.columns_config ?? [];
+    const organizeOpen = ui.organizeOpen ?? (!loading && !!documents.length && !columns.length);
+    const workspaceId = review?.scope_config?.research_file_id;
+    useEffect(() => { if (workspaceId) void workspace.open(workspaceId).catch(() => undefined); }, [workspaceId, workspace.open]);
     const project = projectId ? projects.find(({ id }) => id === projectId) ?? null : null;
     const chatOpen = chatId !== undefined;
     const expandedCell = cells.find(({ id }) => id === cellView?.cellId);
@@ -205,13 +214,7 @@ export function TRView({ reviewId, projectId }: Props) {
             columns_config: columns,
         });
         setDocuments((current) => [...current, ...added]);
-        if (columns.length) {
-            setCells((current) => [
-                ...current,
-                ...added.flatMap((document) => columns.map((column) =>
-                    pendingCell(document.id, column.index))),
-            ]);
-        }
+        await refreshReview();
     }
     async function dropFiles(files: File[]) {
         if (!files.length) return;
@@ -445,6 +448,39 @@ export function TRView({ reviewId, projectId }: Props) {
         filename.toLowerCase().includes(search.toLowerCase()));
     const addedDocumentIds = new Set(documents.map(({ id }) => id));
     const selected = !!selectedIds.length;
+    const rowSelection = (rows: TabularDocument[]): ResearchSelection => ({ target: "sources", members: rows.flatMap(({ selection }) =>
+        selection?.members ?? selection?.sourceIds?.map((sourceId) => ({ sourceId,
+            ...(selection.target === "passages" ? { evidenceIds: selection.evidenceIds ?? [] } : {}) })) ?? []) });
+    const scopedRows = selected ? filteredDocuments.filter(({ id }) => selectedIds.includes(id)) : filteredDocuments;
+    const selectedScopeKey = JSON.stringify(rowSelection(scopedRows));
+    useEffect(() => {
+        if (workspaceId && workspace.file?.document.id === workspaceId)
+            workspace.setSelection(JSON.parse(selectedScopeKey) as ResearchSelection);
+    }, [workspaceId, workspace.file?.document.id, workspace.setSelection, selectedScopeKey]);
+    async function prepareRows() {
+        const file = await workspace.ensure({ tableId: reviewId });
+        const data = await getTabularReview(reviewId);
+        setReview(data.review); setCells(data.cells); setDocuments(data.documents);
+        const ids = new Set(scopedRows.map(({ id }) => id));
+        const rows = data.documents.filter(({ id }) => ids.has(id));
+        const selection = rowSelection(rows);
+        workspace.setSelection(selection);
+        return { file, selection, rows };
+    }
+    const prepareChatWorkspace = useEffectEvent(() => { void prepareRows().catch(() => undefined); });
+    useEffect(() => {
+        if (chatOpen && review && !workspaceId) prepareChatWorkspace();
+    }, [chatOpen, !!review, workspaceId]);
+    async function openChat(request?: string) {
+        await prepareRows();
+        setSidebarOpen(false);
+        if (request) {
+            const params = new URLSearchParams(searchParams);
+            params.set("chat", chatId ?? "new");
+            setUi({ organizeOpen: false });
+            navigate(`${location.pathname}?${params}`, { replace: true, state: { assistantIntent: assistantIntent(request) } });
+        } else if (!chatOpen) setChatId(null);
+    }
     const hasTable = !!columns.length && !!documents.length;
     const reviewTitle = review?.title || "Untitled Review";
     const reviewListHref = projectId
@@ -507,9 +543,9 @@ export function TRView({ reviewId, projectId }: Props) {
     ];
     const headerActions: PageHeaderAction[] = [
         { type: "custom", render: <ResearchViews workspace={async () => {
-            const { research_file_id } = await ensureTabularWorkspace(reviewId);
-            navigate(`/sources?research_file=${encodeURIComponent(research_file_id)}`);
-        }} chat={() => { if (!chatOpen) { setSidebarOpen(false); setChatId(null); } }} /> },
+            const { file, selection } = await prepareRows();
+            navigate(`/sources?research_file=${encodeURIComponent(file.document.id)}`, { state: { researchSelection: selection } });
+        }} chat={() => openChat()} /> },
         { type: "search", value: search,
             onChange: (value) => setUi({ search: value }),
             placeholder: "Search documents\u2026",
@@ -540,8 +576,8 @@ export function TRView({ reviewId, projectId }: Props) {
         },
         {
             onClick: () => {
-                if (!chatOpen) setSidebarOpen(false);
-                setChatId(chatOpen ? undefined : null);
+                if (chatOpen) setChatId(undefined);
+                else void openChat();
             },
             disabled: loading,
             title: chatOpen ? "Close chat" : "Open chat",
@@ -566,7 +602,7 @@ export function TRView({ reviewId, projectId }: Props) {
                             <div className="flex items-center gap-1.5">
                                 {loading ? (
                                     <div className="h-8 w-24 rounded-md bg-gray-100" />
-                                ) : (
+                                ) : selected && (
                                     <ActionMenu
                                         label="Selected document actions"
                                         items={[
@@ -580,12 +616,9 @@ export function TRView({ reviewId, projectId }: Props) {
                                                 onSelect: deleteDocuments,
                                             },
                                         ]}
-                                        className={`w-24 ${
-                                            selected ? "" : "invisible"
-                                        }`}
-                                        triggerClassName="h-8 w-24 items-center justify-center rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-100"
+                                        triggerClassName="h-8 items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 hover:bg-gray-100"
                                     >
-                                        Actions
+                                        {selectedIds.length} selected
                                         <span aria-hidden="true">&#9662;</span>
                                     </ActionMenu>
                                 )}
@@ -597,17 +630,15 @@ export function TRView({ reviewId, projectId }: Props) {
                                         Add Columns
                                     </Button>
                                 )}
-                                {selected && <ResearchSelectionLabels prepare={async () => {
-                                    const { research_file_id } = await ensureTabularWorkspace(reviewId);
-                                    const file = await getResearchFile(research_file_id);
-                                    const selected = new Set(selectedIds), resources = new Set(documents
-                                        .filter(({ id }) => selected.has(id)).map(({ resource }) => resource));
-                                    return { file, selection: { target: "sources", sourceIds: Object.values(file.state.sources)
-                                        .filter(({ reference }) => resources.has(researchSourceKey(reference)) ||
-                                            reference.kind === "document" && selected.has(reference.id)).map(({ id }) => id) } };
-                                }} />}
+                                {selected && <ResearchSelectionLabels prepare={async () => (await prepareRows()).rows
+                                    .flatMap(({ selection }) => selection ? [selection] : [])} />}
+                                {!loading && !!documents.length && <Button variant="outline" className="h-8 py-0"
+                                    aria-expanded={organizeOpen} onClick={() => setUi({ organizeOpen: !organizeOpen })}>Organize</Button>}
                             </div>
                         } />
+                        {organizeOpen && <div className="px-4 pt-2"><OrganizeComposer target="table" onRun={(request) => openChat(request)}
+                            onClose={() => setUi({ organizeOpen: false })}
+                            facts={workspace.file ? undefined : `${documents.length} document${documents.length === 1 ? "" : "s"}`} /></div>}
                         <div
                             className="relative flex flex-1 overflow-hidden"
                             onDragOver={(event) => {
@@ -653,9 +684,10 @@ export function TRView({ reviewId, projectId }: Props) {
                     {chatOpen && (
                         <TRChatPanel
                             reviewId={reviewId} chatId={chatId ?? null}
-                            initialMessage={typeof location.state?.tableIntent === "string" ? location.state.tableIntent : undefined}
-                            onInitialMessageSent={() => navigate(`${location.pathname}${location.search}`, { replace: true, state: null })}
-                            onUpdated={() => void refreshReview().catch(() => undefined)}
+                            workspaceReady={!!workspaceId && workspace.file?.document.id === workspaceId && JSON.stringify(workspace.selection) === selectedScopeKey}
+                            initialIntent={location.state?.assistantIntent}
+                            onIntentSent={() => navigate(`${location.pathname}${location.search}`, { replace: true, state: null })}
+                            onUpdated={() => void Promise.all([refreshReview(), workspace.refresh()]).catch(() => undefined)}
                             searchMessageId={searchParams.get("message")}
                             onCitationClick={(colIdx, rowIdx) => {
                                 setUi({

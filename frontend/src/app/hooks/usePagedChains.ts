@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Page } from "@/app/lib/api/client";
 
 type PageChain<T> = { items: T[]; nextCursor: string | null; loading: boolean; error: unknown; revision?: string };
@@ -49,7 +49,7 @@ export function usePagedChains<T>(
     }
   }, dependencies); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const activeRequests = requests.current;
     for (const request of activeRequests.values()) request.abort();
     setChains({});

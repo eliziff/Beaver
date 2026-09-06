@@ -10,12 +10,13 @@ import {
   streamRequest,
 } from "@/app/lib/api/client";
 import type { AssistantTranscriptMessage } from "@/app/lib/assistantSession";
-import type { GroundedAnswer, GroundedEvidence } from "@/app/lib/groundedAnswers";
+import type { ResearchSelection } from "@/app/lib/researchFiles";
 
 export interface Chat {
   search_hit?: { message_id: string | null; snippet: string };
   tabular_review_id?: string | null;
   research_file_id?: string | null;
+  research_selection?: ResearchSelection | null;
   updated_at?: string;
   draft?: ChatDraft | null;
   id: string;
@@ -86,6 +87,8 @@ export type AskInputsResponseEvent = {
   )[];
 };
 export interface Message {
+  research_file_id?: string | null;
+  research_selection?: ResearchSelection | null;
   id?: string;
   role: "user";
   content: string;
@@ -103,17 +106,8 @@ export const createChat = (payload?: {
   project_id?: string;
   tabular_review_id?: string;
   research_file_id?: string;
+  research_selection?: ResearchSelection;
 }) => post<{ id: string }>("/chat/create", payload ?? {});
-export const createTableFromChat = (chatId: string, researchFileId: string, messageIds?: string[]) =>
-  post<{ id: string; needs_arrangement?: boolean }>(`/chat/${segment(chatId)}/table`, {
-    research_file_id: researchFileId, ...(messageIds ? { message_ids: messageIds } : {}),
-  });
-export type ChatResearchAnswer = { kind: "answer" | "passages"; sourceId: string; resource: string;
-  question: { id: string; title: string; prompt: string }; answer: GroundedAnswer; evidence: GroundedEvidence[];
-  origin: { chatId: string; messageId: string } };
-export const getChatResearchAnswers = (chatId: string, researchFileId: string, offset = 0) =>
-  apiRequest<{ items: ChatResearchAnswer[]; total: number; next_offset: number | null }>(
-    pagePath(`/chat/${segment(chatId)}/research-answers`, { research_file_id: researchFileId, offset, limit: 200 }));
 export type ChatSearchOptions = {
   search?: string;
   search_scope?: "all" | "titles" | "transcripts";
@@ -191,6 +185,8 @@ type StreamCurrentTurn =
       )[];
     };
 export const streamChat = (payload: {
+  research_file_id?: string | null;
+  research_selection?: ResearchSelection | null;
   current_turn: StreamCurrentTurn;
   expected_version: number;
   chat_id?: string;

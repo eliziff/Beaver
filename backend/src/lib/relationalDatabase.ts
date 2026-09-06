@@ -86,7 +86,7 @@ const processState = globalThis as typeof globalThis & {
   __beaverLocalDatabase?: { native?: DatabaseSync; relational?: LocalDatabase };
 };
 const localState = processState.__beaverLocalDatabase ??= {};
-const LOCAL_SCHEMA_VERSION = 14;
+const LOCAL_SCHEMA_VERSION = 15;
 
 function openLocalDatabase() {
   const filename = path.join(mikeLocalDataHome(), "application.sqlite");

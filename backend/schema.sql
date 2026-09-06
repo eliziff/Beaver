@@ -202,8 +202,9 @@ create table if not exists tabular_changes (
 
 create table if not exists chats (
   id text primary key, user_id uuid not null, project_id text references projects(id) on delete cascade,
-  tabular_review_id text references tabular_reviews(id) on delete cascade, title text,
+  tabular_review_id text references tabular_reviews(id) on delete set null, title text,
   research_file_id text references documents(id) on delete set null,
+  research_selection jsonb,
   model text, reasoning_effort text,
   created_at text not null, updated_at text not null, deleted_at text,
   transcript_version integer not null default 0,

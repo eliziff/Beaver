@@ -4,10 +4,25 @@ import { documentProjectionService } from "./documentProjectionService";
 import type { DocumentStore } from "./documentStore";
 import { structureNative } from "./structureNative";
 import { sha256 } from "./hash";
+import { researchSourceResource } from "./researchFile";
 import { readLibraryResearchWindow, readResearchResource, restoreResearchEvidence,
-  type ResearchRead } from "./researchReader";
+  readResearchContext, researchReadCursors, researchReadContextSchema, childResearchReadContext,
+  type ResearchRead, type ResearchReadContext } from "./researchReader";
 
 afterEach(() => vi.restoreAllMocks());
+
+it("keeps reader jurisdiction, collection and source-kind boundaries on scoped reads", async () => {
+  const reference = { provider: "tna", kind: "case" as const, id: "ewca/civ/2024/1", collection: "EWCA" },
+    resource = researchSourceResource(reference), context: ResearchReadContext = { restricted: true,
+      subjects: [{ sourceId: "case", resource, reference, evidence: [] }] },
+    read = (reader: Parameters<typeof readResearchResource>[2]["reader"]) => readResearchContext(
+      {} as DocumentStore, { userId: "owner" }, context, { resource, reader });
+  await expect(read({ task: "Read", scope: "Selected cases", jurisdiction: "CA" })).rejects.toThrow("CA boundary");
+  await expect(read({ task: "Read", scope: "Selected cases", jurisdiction: "UK", collections: ["UKSC"] }))
+    .rejects.toThrow("collection boundary");
+  await expect(read({ task: "Read", scope: "Selected cases", jurisdiction: "UK", source_types: ["legislation"] }))
+    .rejects.toThrow("source-type boundary");
+});
 
 it("continues every exact Library span across long Unicode lines and distinguishes invalid windows", async () => {
   const native = structureNative(), document = await native.deriveDocumentStructure({
@@ -33,6 +48,37 @@ it("continues every exact Library span across long Unicode lines and distinguish
     filename: "Long.txt", document, offset: 10_000 });
   expect(invalid.result.isError).toBe(true);
   expect(invalid.coverage.complete).toBe(false);
+});
+
+it("resumes a frozen source scope with its unread cursors and rejects wider passage assignments", async () => {
+  let bytes = Buffer.from("First source sentence.\nSecond source sentence.\nThird source sentence.");
+  const resource = "document://selected/version/v1", documents = {
+    metadata: async () => ({ filename: "Notes.txt" }),
+    projectionSource: async () => ({ documentId: "selected", versionId: "v1", fileType: "txt",
+      sourceSha256: sha256(bytes), readBytes: () => bytes }),
+  } as unknown as DocumentStore, scope = { userId: "owner" },
+    context: ResearchReadContext = { restricted: true, workspace: { documentId: "workspace", versionId: "w1", workingRevision: 7 },
+      subjects: [{ sourceId: "saved", resource,
+        reference: { provider: "library", kind: "document", id: "selected", versionId: "v1" } }] };
+  await readResearchContext(documents, scope, context, { resource, offset: 3, limit: 1 });
+  expect(researchReadCursors(context)).toEqual([{ resource, offset: 1, start_char: 0 }]);
+  const first = await readResearchContext(documents, scope, context, { resource, limit: 1, remainingOnly: true }),
+    restored = researchReadContextSchema.parse(JSON.parse(JSON.stringify(context))),
+    pending = researchReadCursors(restored);
+  expect(pending).toEqual([{ resource, offset: 2, start_char: 0 }]);
+  const second = await readResearchContext(documents, scope, restored, { ...pending[0], limit: 1, remainingOnly: true });
+  expect(second.evidence?.map(({ span_text }) => span_text)).toEqual(["Second source sentence."]);
+  const selected = childResearchReadContext(context, { resources: [resource],
+    evidence_ids: [first.evidence![0].evidence_id] }, first.evidence!)!;
+  expect((await readResearchContext(documents, scope, selected, { resource })).evidence).toEqual(first.evidence);
+  expect(researchReadCursors(selected)).toEqual([]);
+  expect(() => childResearchReadContext(selected, { evidence_ids: [second.evidence![0].evidence_id] },
+    [...first.evidence!, ...second.evidence!])).toThrow("outside the selected workspace scope");
+  await expect(readResearchContext(documents, scope, selected, { resource: "document://other/version/v1" }))
+    .rejects.toThrow("outside the selected research scope");
+  bytes = Buffer.from("First source sentence.\nSecond source sentence.\nChanged final sentence.");
+  await expect(readResearchContext(documents, scope, restored, { ...researchReadCursors(restored)[0], limit: 1 }))
+    .rejects.toThrow("Source changed during reading");
 });
 
 it("keeps spreadsheet cell identity and reads selected Library evidence without widening its scope", async () => {

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { ContextualWorkflowLauncher } from "../workflows/ContextualWorkflowPicker";
 import type { WorkflowDocument } from "../workflows/ContextualWorkflowPicker";
@@ -9,20 +9,18 @@ import { isDocxFilename, isSpreadsheetFilename } from "@/app/lib/documentFilenam
 import { DocumentViewer } from "../shared/views/DocumentViewer";
 import { Button } from "../ui/button";
 
-import { getResearchFile } from "@/app/lib/api/researchFiles";
 import { downloadBlob } from "../../lib/download";
 import { useEditResolution } from "./EditCard";
-import type { ResearchFile } from "../../lib/researchFiles";
+import { SourcesWorkspaceProvider } from "../legal/SourcesWorkspace";
 
-const ResearchFileBar = lazy(async () => ({
-  default: (await import("../legal/ResearchFileBar")).ResearchFileBar,
+const ResearchWorkspaceHost = lazy(async () => ({
+  default: (await import("../legal/ResearchWorkspaceHost")).ResearchWorkspaceHost,
 }));
 
 function ResearchDocument({ documentId, projectId }: { documentId: string; projectId?: string }) {
-  const [file, setFile] = useState<ResearchFile | null>(null);
-  useEffect(() => { void getResearchFile(documentId).then(setFile); }, [documentId]);
-  return file ? <Suspense fallback={null}><ResearchFileBar file={file} projectId={projectId}
-    onChange={setFile} /></Suspense> : <div role="status" className="m-auto text-sm text-gray-500">Loading research…</div>;
+  return <SourcesWorkspaceProvider fileId={documentId} projectId={projectId}>
+    <Suspense fallback={null}><ResearchWorkspaceHost projectId={projectId} embedded open inline onOpenChange={() => undefined} /></Suspense>
+  </SourcesWorkspaceProvider>;
 }
 
 export type DocPanelMode =

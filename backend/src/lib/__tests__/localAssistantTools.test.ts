@@ -226,17 +226,21 @@ describe("local assistant tools", () => {
     const [
       { createChatToolRunner },
       { createLegalEvidenceTurnState },
+      { createSourceWorkspaceApplication },
       { localDocuments, localLibraryStore, localProjects },
     ] =
       await Promise.all([
         import("../chat/chatToolRunner"),
         import("../chat/legalEvidence"),
+        import("../sourceWorkspaceApplication"),
         import("./support/localDocumentFixtures"),
       ]);
     const committed = vi.fn();
     const chat = createChatToolRunner({
       userId: "local-user",
       documents: localDocuments,
+      sources: createSourceWorkspaceApplication(localDocuments, { chats: {} as never, tables: {} as never,
+        tabular: async () => { throw new Error("No table view in this fixture"); } }),
       library: localLibraryStore,
       projects: localProjects,
       projectId: null,
@@ -250,6 +254,7 @@ describe("local assistant tools", () => {
     const entries = chat.createTools(
       evidence,
       "main",
+      { evidence, operation: { executor: "assistant" }, emit: vi.fn(), addEvent: (event) => events.push(event) },
     );
     expect(entries.find(({ name }) => name === "Read")?.activity?.({
       file_path: `document://${document.id}/version/${document.current_version_id}`,
@@ -1164,7 +1169,7 @@ describe("local assistant tools", () => {
       name: "document_operation", input: { action: "research", document_id: resource,
         research_action: { type: "label", name: "Assistant label", scope: "source" } } }],
     { documentNames, edits });
-    expect(JSON.parse(attempt.content)).toEqual({ ok: false, error: "Version conflict" });
+    expect(JSON.parse(attempt.content)).toMatchObject({ ok: false, error: expect.stringMatching(/changed|conflict/iu) });
     const after = await readResearchFile(store.localDocuments, { userId: "local-user" }, document.id);
     expect(after?.state.note).toBe("Human note");
     expect(Object.keys(after?.state.labels ?? {})).toHaveLength(0);

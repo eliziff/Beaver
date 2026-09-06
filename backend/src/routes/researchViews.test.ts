@@ -58,16 +58,13 @@ async function fixture(answered = true) {
     assistantMessage: { id: assistantId, content: [event] } });
   const workspace = await documents.create(owner, { filename: "Review.research.md", fileType: "md",
     bytes: Buffer.from(research.researchFileMarkdown("Review", research.createResearchFileState())) });
-  const file = (await research.readResearchFile(documents, owner, workspace.id))!;
-  expect((await request(api).post(`/chat/${chat.id}/research-files/${workspace.id}/promote`).send({
-    version_id: file.versionId, working_revision: file.workingRevision,
-  })).status).toBe(200);
+  expect((await request(api).post(`/source-workspaces/${workspace.id}/bind`).send({ chatId: chat.id })).status).toBe(200);
   return { api, runtime, research, documents, chats, source, resource, chat, assistantId,
     workspace, claims, receipts: [library, external] };
 }
 
 async function arrange(f: Awaited<ReturnType<typeof fixture>>, id: string, answered = true) {
-  const answers = await request(f.api).get(`/chat/${f.chat.id}/research-answers?research_file_id=${f.workspace.id}`),
+  const answers = await request(f.api).get(`/source-workspaces/${f.workspace.id}/findings`),
     findings = answers.body.items as Awaited<ReturnType<typeof import("../lib/researchChat").resolveChatFindings>>["findings"],
     current = await request(f.api).get(`/tabular-review/${id}`), rows = findings.map((finding, index) => ({
       id: `branch-${index}`, title: `Chosen row ${index + 1}`, sourceId: finding.sourceId }));
@@ -85,8 +82,8 @@ async function arrange(f: Awaited<ReturnType<typeof fixture>>, id: string, answe
 }
 
 it("reuses stored chat answers and their original Library/public evidence across workspace and table views", async () => {
-  const f = await fixture(), tablePath = `/chat/${f.chat.id}/table`, input = {
-    research_file_id: f.workspace.id, message_ids: [f.assistantId],
+  const f = await fixture(), tablePath = `/source-workspaces/${f.workspace.id}/table`, input = {
+    chatId: f.chat.id, messageIds: [f.assistantId],
   };
   const first = await request(f.api).post(tablePath).send(input);
   expect(first.status).toBe(200);
@@ -107,12 +104,12 @@ it("reuses stored chat answers and their original Library/public evidence across
   expect((await tabularRepository.detail(owner, first.body.id))?.cells.every(({ status, content }) =>
     status === "pending" && content === null)).toBe(true);
   expect(table.body.documents.map(({ filename }: { filename: string }) => filename)).toEqual(["Chosen row 1", "Chosen row 2"]);
-  expect((await request(f.api).post(`/tabular-review/${first.body.id}/workspace`)).body)
-    .toEqual({ research_file_id: f.workspace.id });
+  expect((await request(f.api).post('/source-workspaces/ensure').send({ tableId: first.body.id })).body.document.id)
+    .toBe(f.workspace.id);
   const file = (await f.research.readResearchFile(f.documents, owner, f.workspace.id))!;
   expect(file.state.tables).toEqual([first.body.id]);
   expect(file.state.chats).toEqual([f.chat.id]);
-  const answers = await request(f.api).get(`/chat/${f.chat.id}/research-answers?research_file_id=${f.workspace.id}`);
+  const answers = await request(f.api).get(`/source-workspaces/${f.workspace.id}/findings`);
   expect(answers.status).toBe(200);
   expect(answers.body.items.flatMap((finding: { answer: { claims: unknown[] } }) => finding.answer.claims))
     .toEqual(expect.arrayContaining(f.claims));
@@ -123,8 +120,8 @@ it("reuses stored chat answers and their original Library/public evidence across
 }, 60_000);
 
 it("opens collected passages as grounded cells before a chat has a final answer", async () => {
-  const f = await fixture(false), response = await request(f.api).post(`/chat/${f.chat.id}/table`)
-    .send({ research_file_id: f.workspace.id, message_ids: [f.assistantId] });
+  const f = await fixture(false), response = await request(f.api).post(`/source-workspaces/${f.workspace.id}/table`)
+    .send({ chatId: f.chat.id, messageIds: [f.assistantId] });
   expect(response.status).toBe(200);
   const table = await arrange(f, response.body.id, false);
   expect(table.body.cells.flatMap((cell: { content: { claims: { text: string }[] } }) =>
@@ -133,16 +130,57 @@ it("opens collected passages as grounded cells before a chat has a final answer"
 });
 
 it("keeps private chats, workspace bindings and Library sources inside their existing access boundaries", async () => {
-  const f = await fixture(), other = { userId: randomUUID() }, app = await f.runtime.chat(), table = await f.runtime.tabular();
-  await expect(app.table(other, { chatId: f.chat.id, researchFileId: f.workspace.id }))
+  const f = await fixture(), other = { userId: randomUUID() }, app = await f.runtime.chat(), table = await f.runtime.tabular(),
+    sources = await f.runtime.sources();
+  await expect(sources.table(other, f.workspace.id, { chatId: f.chat.id }))
     .rejects.toMatchObject({ status: 404 });
   await expect(app.create(other, { projectId: null, tabularReviewId: null, researchFileId: f.workspace.id }))
     .rejects.toMatchObject({ status: 404 });
-  const imported = await app.table(owner, { chatId: f.chat.id, researchFileId: f.workspace.id });
+  const imported = await sources.table(owner, f.workspace.id, { chatId: f.chat.id });
   await expect(table.detail(other, imported.id)).rejects.toMatchObject({ status: 404 });
   const unrelated = await f.documents.create(owner, { filename: "Other.research.md", fileType: "md",
     bytes: Buffer.from(f.research.researchFileMarkdown("Other", f.research.createResearchFileState())) });
-  await expect(app.table(owner, { chatId: f.chat.id, researchFileId: unrelated.id }))
-    .rejects.toMatchObject({ status: 400 });
+  const related = await sources.table(owner, unrelated.id, { chatId: f.chat.id });
+  expect(related.scope_config?.research_file_id).toBe(unrelated.id);
+  expect((await sources.findings(owner, f.workspace.id, { offset: 0, limit: 20 })).items)
+    .toEqual(expect.arrayContaining([expect.objectContaining({ kind: "answer" })]));
   expect(model).not.toHaveBeenCalled();
+});
+
+it("prunes every branch of a deleted Library source and keeps the remaining table usable", async () => {
+  const f = await fixture(), sources = await f.runtime.sources(), tables = await f.runtime.tabular(),
+    review = await sources.table(owner, f.workspace.id, { chatId: f.chat.id });
+  await arrange(f, review.id);
+  const current = await tables.detail(owner, review.id), config = current.review.scope_config!,
+    originalRow = config.subjects.find(({ resource }) => resource === f.resource)!,
+    firstRow = config.arrangement!.rows.find(({ id }) => id === originalRow.rowId)!;
+  await tables.update(owner, review.id, { expected_version: current.review.updated_at,
+    arrangement: { rows: [...config.arrangement!.rows, { ...firstRow, id: "another-library-branch" }],
+      cells: config.arrangement!.cells } });
+  expect((await tables.detail(owner, review.id)).documents).toHaveLength(3);
+  await f.documents.deleteDocument(owner, f.source.id, true);
+  const remaining = await tables.detail(owner, review.id);
+  expect(remaining.documents).toHaveLength(1);
+  expect(remaining.review.scope_config?.subjects.every(({ resource }) => resource !== f.resource)).toBe(true);
+  expect(remaining.cells).toHaveLength(1);
+  expect(remaining.cells[0].content?.claims).toEqual([f.claims[1]]);
+  expect((await sources.views(owner, f.workspace.id)).tables.map(({ id }) => id)).toContain(review.id);
+});
+
+it("keeps the chat and its answers when its table and Sources workspace are deleted", async () => {
+  const f = await fixture(), sources = await f.runtime.sources(), tables = await f.runtime.tabular(),
+    review = await sources.table(owner, f.workspace.id, { chatId: f.chat.id }),
+    file = (await sources.get(owner, f.workspace.id))!, sourceId = Object.values(file.state.sources)
+      .find(({ reference }) => f.research.researchSourceResource(reference) === f.resource)!.id;
+  const linked = await f.chats.create(owner, { projectId: null, tabularReviewId: review.id });
+  await sources.bind(owner, f.workspace.id, { chatId: f.chat.id,
+    selection: { target: "passages", sourceIds: [sourceId], evidenceIds: [f.receipts[0].evidence_id] } });
+  await tables.remove(owner, review.id);
+  expect(await f.chats.get(owner, linked.id)).toMatchObject({ tabular_review_id: null });
+  expect(await f.chats.get(owner, f.chat.id)).toMatchObject({ research_file_id: f.workspace.id });
+  expect((await sources.findings(owner, f.workspace.id, { offset: 0, limit: 20 })).items)
+    .toEqual(expect.arrayContaining([expect.objectContaining({ kind: "answer" })]));
+  await f.documents.deleteDocument(owner, f.workspace.id, true);
+  expect(await f.chats.get(owner, f.chat.id)).toMatchObject({ research_file_id: null, research_selection: null });
+  expect((await f.chats.transcript(owner, f.chat.id))?.some(({ id }) => id === f.assistantId)).toBe(true);
 });

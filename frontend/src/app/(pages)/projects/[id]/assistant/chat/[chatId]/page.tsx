@@ -226,6 +226,8 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
             ref={chat}
             chatId={chatId}
             researchFileId={route.chatLoad.status === "loaded" ? route.chatLoad.chat?.research_file_id : undefined}
+            ready={route.chatLoaded}
+            researchSelection={route.chatLoad.status === "loaded" ? route.chatLoad.chat?.research_selection : undefined}
             searchMessageId={search.get("message")}
             session={route.state}
             handleChat={route.actions.handleChat}

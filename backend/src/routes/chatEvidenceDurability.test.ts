@@ -154,8 +154,12 @@ async function loadApp() {
         throw new Error("Injected document preflight failure");
       } }
     : localDocuments;
+  const { createSourceWorkspaceApplication } = await import("../lib/sourceWorkspaceApplication"),
+    { createSourceWorkspacesRouter } = await import("./sourceWorkspaces"),
+    sources = createSourceWorkspaceApplication(documents, { chats, tables: tabularRepository,
+      tabular: async () => { throw new Error("Table operations are not part of this chat fixture"); } });
   const application = createChatApplication({
-    chats,
+    chats, sources,
     documents,
     library: localLibraryStore,
     projects: localProjects,
@@ -167,6 +171,7 @@ async function loadApp() {
   });
   const app = express();
   app.use(express.json());
+  app.use("/source-workspaces", createSourceWorkspacesRouter(sources));
   app.use("/chat", createChatRouter(
     chats,
     application,
@@ -252,11 +257,10 @@ describe("chat PDF evidence durability", () => {
     await loaded.store.commitTurn({ userId: USER_ID }, chat.body.id, { expectedVersion: 0,
       assistantMessage: { id: crypto.randomUUID(), content: [event] } });
     const response = await request(loaded.app)
-      .post(`/chat/${chat.body.id}/research-files/${workspace.id}/promote`).send({
-        version_id: workspace.current_version_id, working_revision: 0, includeQueries: true });
+      .post(`/source-workspaces/${workspace.id}/bind`).send({ chatId: chat.body.id });
     expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({ version_id: workspace.current_version_id,
-      working_revision: 1 });
+    expect(response.body).toMatchObject({ versionId: workspace.current_version_id,
+      workingRevision: 1 });
     expect((await loaded.documents.versions({ userId: USER_ID }, workspace.id))?.versions)
       .toHaveLength(1);
     const saved = (await readResearchFile(loaded.documents,

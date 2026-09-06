@@ -96,3 +96,29 @@ it("names edited and removed columns when reviewing granular table changes", asy
   expect(order.querySelector("del")).toHaveTextContent("Legacy Delivery");
   expect(order.querySelector("ins")).toHaveTextContent("Delivery");
 });
+
+const changed = (sha256: string) => ({ ...original, state: { ...original.state, proposals: [], history: { count: 2, sha256 } } });
+it("surfaces the latest applied assistant change with Undo until dismissed", async () => {
+  const applied = { ...change, id: "applied-1", status: "applied" as const };
+  api.getResearchItems.mockResolvedValue({ items: [{ kind: "change", index: 0, value: applied }], next_cursor: null });
+  api.act.mockResolvedValue(changed("after"));
+  const strip = (file: ResearchFile) => <ResearchChanges file={file} historyOpen={false} onCloseHistory={vi.fn()} mutations={{ query: vi.fn(), act: api.act }} />;
+  const view = render(strip(changed("before")));
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(api.getResearchItems).not.toHaveBeenCalled();
+  view.rerender(strip(changed("after")));
+  expect(await screen.findByRole("status")).toHaveTextContent("Assistant: Refine delivery terms");
+  fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+  await waitFor(() => expect(api.act).toHaveBeenCalledWith({ type: "undo", changeId: "applied-1" }));
+});
+
+it("does not offer Undo for a human change or an undone assistant change", async () => {
+  api.getResearchItems.mockResolvedValue({ items: [
+    { kind: "change", index: 0, value: { ...change, id: "undo-1", title: "Undo Refine", status: "applied", undoOf: "applied-1", executor: "human" } },
+    { kind: "change", index: 1, value: { ...change, id: "applied-1", status: "applied" } },
+  ], next_cursor: null });
+  const strip = (file: ResearchFile) => <ResearchChanges file={file} historyOpen={false} onCloseHistory={vi.fn()} mutations={{ query: vi.fn(), act: api.act }} />;
+  const view = render(strip(changed("before"))); view.rerender(strip(changed("after")));
+  await waitFor(() => expect(api.getResearchItems).toHaveBeenCalled());
+  expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
+});

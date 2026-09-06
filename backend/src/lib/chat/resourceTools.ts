@@ -74,18 +74,18 @@ export const RESOURCE_TOOLS = [
   ),
   tool(
     "Read",
-    "Read a document, legal source, saved evidence_id or query_id. Reuse passages and evidence_ids; request independent reads together. Follow returned next inputs for more text. List prior receipts with file_path evidence or queries. Use drafting for semantic DOCX Markdown or redline for editorial markup.",
+    "Read a document, legal source, saved evidence_id or query_id. Reuse passages and evidence_ids; request independent reads together. Follow returned next inputs for more text. List prior receipts with file_path evidence or queries, selected inputs with selection, or saved chat and table results with findings. Use drafting for semantic DOCX Markdown or redline for editorial markup.",
     {
       file_path: {
         type: "string",
         pattern: READABLE_RESOURCE_PATTERN,
-        description: "Resource from Glob or search_sources, or a saved evidence_id or query_id.",
+        description: "Resource from Glob or search_sources, a saved evidence_id or query_id, or selection/findings.",
       },
       mode: { type: "string", enum: ["text", "drafting", "redline"] },
       offset: { type: "integer", minimum: 1, maximum: 100_000_000, description: "Starting line or item." },
       limit: { type: "integer", minimum: 1, maximum: 2000 },
       start_char: { type: "integer", minimum: 0, maximum: 100_000_000 },
-      section: { type: "string", description: "Exact structural handle." },
+      section: { type: "string", description: "Exact structural handle, or the section returned by a findings read." },
       references: {
         type: "string",
         enum: ["none", "inbound", "outbound", "both"],
@@ -112,7 +112,7 @@ export const RESOURCE_TOOLS = [
         type: "string",
         minLength: 1,
         maxLength: 256,
-        description: "Literal phrase to locate within a legal-source resource.",
+        description: "Literal phrase within a legal source, or an exact support ID returned by a findings read.",
       },
       max_results: { type: "integer", minimum: 1, maximum: 50 },
       context_chars: { type: "integer", minimum: 40, maximum: 2000 },

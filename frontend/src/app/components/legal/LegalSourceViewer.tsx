@@ -1,7 +1,6 @@
 import { ReaderExpandButton } from "../shared/ReaderExpandButton";
 import { useReaderExpansion } from "../shared/useReaderExpansion";
 import {
-  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -15,26 +14,23 @@ import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
 import {
   highlightDocxQuotes,
 } from "@/app/components/shared/views/highlightDocxQuote";
-import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 import {
   getDirectLegalSourceDocument,
   getLegalSourceDocument,
   type LegalDocumentType,
   type LegalSourceViewerPayload,
 } from "@/app/lib/api/legalSources";
-import { getResearchFile, getResearchItems } from "@/app/lib/api/researchFiles";
 import { researchSourceKey } from "@/app/lib/researchFiles";
 import type {
   ResearchFile,
   ResearchAction,
-  ResearchPageItem,
   ResearchSourceReference,
 } from "@/app/lib/researchFiles";
 import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { errorMessage, formatLongDate } from "@/app/lib/utils";
 import { ResearchLabelEditor, ResearchLabelPicker,
   type ResearchLabelTarget } from "./ResearchLabelPicker";
-import { useResearchFileMutations, type ResearchFileMutations } from "./useResearchFileMutations";
+import { SourcesWorkspace, useSourcesWorkspace } from "./SourcesWorkspace";
 import { RESEARCH_PASSAGE_REFERENCE_DRAG } from "./researchMemo";
 
 type Anchor = LegalSourceViewerPayload["slices"][number]["anchors"][number];
@@ -73,11 +69,8 @@ export type LegalSourceViewerProps = {
   initialLocator?: string | null;
   researchFileId?: string | null;
   researchSourceId?: string | null;
-  researchFile?: ResearchFile | null;
   projectId?: string;
-  onResearchFileChange?: (file: ResearchFile) => void;
   onOpenResearch?: (intent?: "source-drop") => void;
-  mutations?: ResearchFileMutations;
 };
 
 function legalSourceAnchorId(label: string) {
@@ -253,7 +246,13 @@ export function legalPassageTargetFromSelection(
   };
 }
 
-export function LegalSourceViewer({
+export function LegalSourceViewer(props: LegalSourceViewerProps) {
+  return <SourcesWorkspace fileId={props.researchFileId} projectId={props.projectId}>
+    <LegalSourceViewerContent {...props} />
+  </SourcesWorkspace>;
+}
+
+function LegalSourceViewerContent({
   referenceId,
   provider = "a2aj",
   citation,
@@ -265,13 +264,10 @@ export function LegalSourceViewer({
   citationRef,
   compact = false,
   initialLocator,
-  researchFileId,
   researchSourceId,
-  researchFile: controlledResearchFile,
-  onResearchFileChange,
   onOpenResearch,
-  mutations,
 }: LegalSourceViewerProps) {
+  const { file: researchFile, mutations: commit, loading: researchLoading, error: workspaceError, passages } = useSourcesWorkspace();
   const sourceKey = [referenceId, provider, citation, sourceId, docType, language, dataset].join("\0");
   const [result, setResult] = useState<[string, LegalSourceViewerPayload | Error]>();
   const current = result?.[0] === sourceKey ? result[1] : undefined;
@@ -280,27 +276,16 @@ export function LegalSourceViewer({
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [selectedPassage, setSelectedPassage] = useState<SelectionTarget | null>(null);
   const [selectionAnchor, setSelectionAnchor] = useState<DOMRect | null>(null);
-  const [loadedResearchFile, setLoadedResearchFile] = useState<ResearchFile | null>(null);
-  const researchFile = controlledResearchFile === undefined
-    ? loadedResearchFile : controlledResearchFile;
   const [savedNavigation, setSavedNavigation] = useState<number | null>(null);
-  const [researchBusy, setResearchBusy] = useState(false), [researchError, setResearchError] = useState("");
-  const researchLoading = controlledResearchFile === undefined && !!researchFileId && !loadedResearchFile && !researchError;
+  const [researchBusy, setResearchBusy] = useState(false), [localResearchError, setResearchError] = useState("");
+  const researchError = localResearchError || workspaceError;
   const [labelTarget, setLabelTarget] = useState<ResearchLabelTarget | null>(null);
   const readerRoot = useRef<HTMLDivElement>(null);
   const readerExpansion = useReaderExpansion(readerRoot);
   const root = useRef<HTMLDivElement>(null), highlightMatches = useRef<Array<HTMLElement | null>>([]);
-  const researchChange = useRef(onResearchFileChange);
   const sourcePreparation = useRef<Promise<{ file: ResearchFile; itemId: string }> | null>(null);
   const locator = normalizeLegalSourceLocator(initialLocator);
 
-  useEffect(() => { researchChange.current = onResearchFileChange; }, [onResearchFileChange]);
-  const publishResearchFile = useCallback((file: ResearchFile) => {
-    if (controlledResearchFile === undefined) setLoadedResearchFile(file); setResearchError("");
-    researchChange.current?.(file);
-  }, [controlledResearchFile]);
-  const localMutations = useResearchFileMutations(researchFile, publishResearchFile),
-    commit = mutations ?? localMutations;
   useEffect(() => { sourcePreparation.current = null; },
     [researchFile?.document.id, sourceKey]);
 
@@ -321,15 +306,6 @@ export function LegalSourceViewer({
     return () => { live = false; };
   }, [citation, dataset, docType, language, provider, referenceId, sourceId, sourceKey]);
 
-  useEffect(() => {
-    if (controlledResearchFile !== undefined) return;
-    if (!researchFileId) { setLoadedResearchFile(null); setResearchError(""); return; }
-    let live = true;
-    setLoadedResearchFile(null); setResearchError("");
-    void getResearchFile(researchFileId).then((file) => { if (live) publishResearchFile(file); })
-      .catch((reason: unknown) => { if (live) setResearchError(errorMessage(reason, "Could not open research file")); });
-    return () => { live = false; };
-  }, [controlledResearchFile, publishResearchFile, researchFileId]);
   const slices = payload?.slices ?? [];
   const payloadReference: ResearchSourceReference | null = payload ? {
     provider: payload.reference.provider, id: payload.reference.id, kind: payload.reference.kind,
@@ -344,18 +320,16 @@ export function LegalSourceViewer({
       researchSourceKey(reference) === researchSourceKey(payloadReference)) : undefined
     : null;
   const activeResearchSourceId = researchSource?.id;
-  const passagePage = usePagedQuery<ResearchPageItem>((cursor, signal) => getResearchItems(
-    researchFile!.document.id, { kind: "passages", sourceId: activeResearchSourceId!, cursor,
-      limit: 200 }, signal), [researchFile?.document.id,
-      activeResearchSourceId, researchSource?.passages?.sha256],
-    !!researchFile && !!activeResearchSourceId);
-  const savedPassages = useMemo(() => passagePage.items.flatMap((item) =>
-    item.kind === "passage" ? [item.value] : []), [passagePage.items]);
+  const passagePage = activeResearchSourceId ? passages.chains[activeResearchSourceId] : undefined;
+  useEffect(() => { if (activeResearchSourceId && !passagePage)
+    void passages.fetchPage(activeResearchSourceId, null, false); }, [activeResearchSourceId, passagePage, passages.fetchPage]);
+  const savedPassages = useMemo(() => passagePage?.items.flatMap((item) =>
+    item.kind === "passage" ? [item.value] : []) ?? [], [passagePage?.items]);
   const researchLabels = researchFile?.state.labels;
   useEffect(() => {
-    if (passagePage.error) setResearchError(errorMessage(
+    if (passagePage?.error) setResearchError(errorMessage(
       passagePage.error, "Could not load saved highlights"));
-  }, [passagePage.error]);
+  }, [passagePage?.error]);
   const orderedSavedPassages = useMemo(() => {
     const order = new Map<string, number>();
     payload?.slices.forEach((slice, index) => [slice.primary, ...slice.anchors]
@@ -576,8 +550,8 @@ export function LegalSourceViewer({
         </span>
         <button type="button" disabled={orderedSavedPassages.length < 2} onClick={() => navigateSaved(1)}
           aria-label="Next saved highlight" className="size-7 rounded-e hover:bg-gray-100 disabled:opacity-40">↓</button>
-        {passagePage.hasMore && <button type="button" disabled={passagePage.loading}
-          onClick={passagePage.loadMore} aria-label="Load more saved highlights"
+        {passagePage?.nextCursor && activeResearchSourceId && <button type="button" disabled={passagePage.loading}
+          onClick={() => void passages.fetchPage(activeResearchSourceId, passagePage.nextCursor, true)} aria-label="Load more saved highlights"
           className="h-7 border-s border-gray-200 px-2 hover:bg-gray-100 disabled:opacity-40">
           More
         </button>}

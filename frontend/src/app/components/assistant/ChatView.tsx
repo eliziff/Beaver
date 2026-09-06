@@ -1,4 +1,5 @@
 import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
     forwardRef,
     useCallback,
@@ -48,12 +49,18 @@ import {
 import { ReadSubagentTabs, type ReadSubagentGroup } from "./ReadSubagentTabs";
 import { useAssistantPreferences } from "./assistantPreferences";
 import { ChatResearchSave } from "./ChatResearchSave";
-import type { ResearchFile } from "@/app/lib/researchFiles";
+import type { ResearchSelection } from "@/app/lib/researchFiles";
+import { SourcesWorkspace, useSourcesWorkspace } from "../legal/SourcesWorkspace";
+import type { AssistantIntent } from "./assistantIntent";
 import { InitialDockPanel } from "./InitialDockPanel";
 interface Props {
     initialDraft?: import("@/app/lib/api/chat").ChatDraft | null;
     chatId?: string | null;
     researchFileId?: string | null;
+    researchSelection?: ResearchSelection | null;
+    ready?: boolean;
+    initialIntent?: AssistantIntent;
+    onIntentSent?: () => void;
     session: AssistantSessionState;
     handleChat: (
         message: Message,
@@ -154,10 +161,19 @@ function documentCitationTab(citation: DocumentCitation): AssistantDocumentTab {
         citation,
     };
 }
-export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
+export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(props, ref) {
+    const latest = props.session.messages.findLast((message) => message.role === "assistant");
+    const refreshKey = props.session.run || !latest?.contentFinal ? null : latest.id;
+    return <SourcesWorkspace fileId={props.researchFileId} projectId={props.projectId}
+        selection={props.researchSelection} refreshKey={refreshKey}>
+        <ChatViewContent {...props} ref={ref} />
+    </SourcesWorkspace>;
+});
+const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewContent(
     {
         chatId,
         researchFileId,
+        ready = true, initialIntent, onIntentSent,
         session,
         handleChat,
         cancel,
@@ -186,6 +202,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     ref,
 ) {
     const { messages } = session;
+    const location = useLocation(), navigate = useNavigate();
     const [{ readSubagents }] = useAssistantPreferences();
     const dockEnabled = features?.dock ?? true;
     const contextToolsEnabled = features?.contextTools ?? true;
@@ -202,7 +219,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     );
     const [activeAgentSlot, setActiveAgentSlot] = useState<string | null>(null);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
-    const [activeResearchFile, setActiveResearchFile] = useState<ResearchFile | null>(null);
+    const { file: activeResearchFile, selection: researchSelection, loading: researchLoading } = useSourcesWorkspace();
     const [workflowInitialId, setWorkflowInitialId] = useState(
         initialWorkflow?.workflow.id,
     );
@@ -475,12 +492,8 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         [closeTab, openDocument],
     );
     const submitMessage = (message: Message) => {
-        const contextualMessage = activeResearchFile && !message.files?.some(
-            ({ document_id }) => document_id === activeResearchFile.document.id,
-        ) ? { ...message, files: [...(message.files ?? []), {
-            filename: activeResearchFile.document.filename,
-            document_id: activeResearchFile.document.id,
-        }] } : message;
+        const contextualMessage = activeResearchFile ? { ...message,
+            research_file_id: activeResearchFile.document.id, research_selection: researchSelection } : message;
         if (!activeDocument) {
             return handleChat(contextualMessage);
         }
@@ -533,7 +546,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     projectId={projectId}
                     researchRefreshKey={researchRefreshKey}
                     researchFileId={researchFileId}
-                    onResearchFileChange={setActiveResearchFile}
                     onActivateTab={setActiveTabId}
                     onCloseTab={closeTab}
                     onCloseAll={closeAllTabs}
@@ -577,7 +589,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     versionId: document.current_version_id ?? null, versionNumber: null });
                 void handleChat(message);
             }}
-            projectId={projectId ?? undefined} onResearchFileChange={setActiveResearchFile}
+            projectId={projectId ?? undefined}
             researchFileId={researchFileId} researchRefreshKey={researchRefreshKey} onOpenSource={upsertTab} />;
     const dockTabs: AssistantDockTab[] = [
         ...(projectFiles ? [{
@@ -634,6 +646,21 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             </button> : null}
         </div>
     ) : undefined;
+    const intent = initialIntent ?? (layout === "page" ? location.state?.assistantIntent as AssistantIntent | undefined : undefined);
+    const submittedIntent = useRef<string | null>(null);
+    useEffect(() => {
+        if (!ready || researchLoading || session.run || !intent?.text || !intent.id || submittedIntent.current === intent.id ||
+            researchFileId && activeResearchFile?.document.id !== researchFileId) return;
+        let active = true;
+        queueMicrotask(() => {
+            if (!active || submittedIntent.current === intent.id) return;
+            submittedIntent.current = intent.id;
+            if (onIntentSent) onIntentSent();
+            else navigate(`${location.pathname}${location.search}`, { replace: true, state: { ...location.state, assistantIntent: undefined } });
+            void submitMessage({ role: "user", content: intent.text });
+        });
+        return () => { active = false; };
+    }, [ready, researchLoading, session.run, intent, researchFileId, activeResearchFile, onIntentSent, navigate, location, submitMessage]);
     const dock = dockEnabled && (dockActivated || dockOpen) ? (
         <AssistantDock
             tabs={dockTabs}

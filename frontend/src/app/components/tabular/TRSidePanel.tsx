@@ -104,8 +104,8 @@ export function TRSidePanel({
                 "fixed bottom-3 left-auto right-3 top-3 z-100 m-0 flex max-w-[calc(100vw-1.5rem)] overflow-hidden p-0 text-inherit backdrop:bg-gray-950/20",
                 LIQUID_PANEL_SURFACE_CLASS,
                 documentPaneOpen
-                    ? "w-[900px] flex-col md:flex-row"
-                    : "w-[300px]",
+                    ? "w-[1040px] flex-col md:flex-row"
+                    : "w-[360px]",
                 "max-md:inset-0 max-md:h-dvh max-md:max-h-none max-md:w-screen max-md:max-w-none max-md:rounded-none max-md:border-0",
             )}
         >
@@ -149,7 +149,7 @@ export function TRSidePanel({
                 className={cn(
                     "flex w-full shrink-0 flex-col overflow-hidden",
                     documentPaneOpen
-                        ? "h-[min(320px,45%)] md:h-auto md:w-[300px]"
+                        ? "h-[min(360px,45%)] md:h-auto md:w-[360px]"
                         : "h-full",
                 )}
             >
@@ -216,7 +216,7 @@ export function TRSidePanel({
                                 className="h-3.5 w-3.5"
                             />
                             <div className="min-w-0">
-                                <div className="truncate text-xs font-medium text-gray-900">
+                                <div className="text-sm font-semibold leading-5 text-gray-900 [overflow-wrap:anywhere]">
                                     {column.name}
                                 </div>
                                 {!documentPaneOpen && (
@@ -229,7 +229,12 @@ export function TRSidePanel({
                                 )}
                             </div>
                         </div>
+                        {column.prompt && column.prompt !== column.name && <details className="mb-4 text-sm leading-5 text-gray-600">
+                            <summary className="cursor-pointer text-gray-700">Question</summary><p className="mt-2 whitespace-pre-wrap [overflow-wrap:anywhere]">{column.prompt}</p>
+                        </details>}
                         {cell.content && <GroundedAnswerContent answer={cell.content} column={column} onCitation={handleCitationOpen} />}
+                        {!cell.content && <p role="status" className="text-sm text-gray-500">{cell.status === "error" ? "This result failed. Regenerate to try again."
+                            : cell.status === "generating" ? "Running…" : "This question has not run yet."}</p>}
                     </div>
                 </div>
             </div>

@@ -1,11 +1,13 @@
 import { visibleChatMessages, type VisibleChatMessage } from "./chat/chatTranscript";
 import type { AssistantEvent } from "./chat/assistantEvents";
 import { abortChatTurnForDeletion } from "./chatTurns";
+import type { ResearchSelection } from "./researchSelection";
 
 export type ChatScope = { userId: string; userEmail?: string };
 export type ChatRecord = Record<string, unknown> & {
   id: string; user_id: string; project_id: string | null;
-  tabular_review_id: string | null; research_file_id?: string | null; title: string | null;
+  tabular_review_id: string | null; research_file_id?: string | null;
+  research_selection?: ResearchSelection | null; title: string | null;
   model: string | null; reasoning_effort: string | null;
   transcript_version: number;
   search_hit?: { message_id: string | null; snippet: string }; };
@@ -30,12 +32,14 @@ export type ChatListOptions = { projectId?: string; tabularReviewId?: string; li
   search?: string; searchScope?: "all" | "titles" | "transcripts";
   searchContext?: "assistant" | "reviews" | "all";
   createdFrom?: string; createdTo?: string; sort?: "newest" | "oldest" };
-export type ChatCreateInput = { projectId: string | null; tabularReviewId: string | null; researchFileId?: string | null };
+export type ChatCreateInput = { projectId: string | null; tabularReviewId: string | null;
+  researchFileId?: string | null; researchSelection?: ResearchSelection | null };
 export type ChatUpdateInput = {
   draft?: Record<string, unknown> | null;
   title?: string;
   projectId?: string | null;
   researchFileId?: string | null;
+  researchSelection?: ResearchSelection | null;
   model?: string | null;
   reasoningEffort?: string | null;
 };

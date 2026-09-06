@@ -33,7 +33,9 @@ function AssistantChat({ id }: { id: string }) {
                 <div inert={chatLoaded ? undefined : true} className="h-full">
                     <ChatView
                         chatId={id}
+                        ready={chatLoaded}
                         researchFileId={chatLoad.status === "loaded" ? chatLoad.chat?.research_file_id : undefined}
+                        researchSelection={chatLoad.status === "loaded" ? chatLoad.chat?.research_selection : undefined}
                         initialDocuments={initialDocuments}
                         searchMessageId={search.get("message")}
                         session={session}
