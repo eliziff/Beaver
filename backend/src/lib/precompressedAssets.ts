@@ -3,6 +3,7 @@ import path from "node:path";
 import type { RequestHandler } from "express";
 
 const types: Record<string, string> = {
+  mjs: "text/javascript; charset=utf-8",
   js: "text/javascript; charset=utf-8",
   css: "text/css; charset=utf-8",
   svg: "image/svg+xml",
@@ -15,7 +16,7 @@ const encodings = [{ name: "br", extension: "br" }, { name: "gzip", extension: "
  */
 export function precompressedAssets(frontend: string): RequestHandler {
   return async (req, res, next) => {
-    const match = /^\/assets\/([a-zA-Z0-9_.-]+\.(js|css|svg))$/u.exec(req.path);
+    const match = /^\/assets\/([a-zA-Z0-9_.-]+\.(m?js|css|svg))$/u.exec(req.path);
     if (!match || !["GET", "HEAD"].includes(req.method)) return next();
     res.vary("Accept-Encoding");
     // Byte ranges remain the existing unencoded static-file contract.

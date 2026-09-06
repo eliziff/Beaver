@@ -47,7 +47,7 @@ export async function startAuthoritiesStandalone() {
   }) satisfies ErrorRequestHandler);
 
   const listener = app.listen(port, "127.0.0.1", () => {
-    console.log(`Authorities running at ${origin}/authorities.html`);
+    console.log(`Authorities running at http://127.0.0.1:${port}/authorities.html`);
     process.send?.({ type: "ready" });
   });
   const stop = () => { listener.close(); listener.closeAllConnections(); };

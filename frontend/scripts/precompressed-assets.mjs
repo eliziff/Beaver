@@ -15,7 +15,7 @@ export function precompressedAssets() {
             order: "post",
             async handler(_options, bundle) {
                 await Promise.all(Object.values(bundle).map(async (asset) => {
-                    if (!/^assets\/.*\.(?:js|css|svg)$/u.test(asset.fileName)) return;
+                    if (!/^assets\/.*\.(?:m?js|css|svg)$/u.test(asset.fileName)) return;
                     const bytes = Buffer.from(asset.type === "chunk" ? asset.code : asset.source);
                     if (bytes.length < 1024) return;
                     const variants = await Promise.all([
