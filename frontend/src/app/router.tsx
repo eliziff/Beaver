@@ -7,9 +7,7 @@ import {
   useParams,
   type RouteObject,
 } from "react-router-dom";
-import AppShell from "@/app/(pages)/layout";
 import RouteError from "@/app/error";
-import Root from "@/app/layout";
 import type { LoginGate } from "@/app/components/providers";
 import { CollectionState } from "@/app/components/shared/CollectionState";
 
@@ -169,10 +167,15 @@ const appRoutes: RouteObject[] = [
   }),
 ];
 
+// Keep runtime-dependent modules behind route.lazy: main imports these route
+// definitions while configuration is loading. Matched layouts and pages are
+// then downloaded concurrently, rather than behind the entire app shell.
 function routes(LoginGate?: LoginGate): RouteObject[] {
-  const RootWithProviders = () => <Root LoginGate={LoginGate} />;
   return [{
-  Component: RootWithProviders,
+  lazy: async () => {
+    const { default: Root } = await import("@/app/layout");
+    return { Component: () => <Root LoginGate={LoginGate} /> };
+  },
   ErrorBoundary: RouteError,
   HydrateFallback: () => <CollectionState loading className="m-auto min-h-0 p-6">Loading…</CollectionState>,
   children: [
@@ -200,7 +203,7 @@ function routes(LoginGate?: LoginGate): RouteObject[] {
     route("word.html", namedPage(
       () => import("@/app/components/word/WordPage"), "WordPage",
     )),
-    { Component: AppShell, children: appRoutes },
+    { lazy: page(() => import("@/app/(pages)/layout")), children: appRoutes },
     route("*", page(() => import("@/app/not-found"))),
   ],
 }];
