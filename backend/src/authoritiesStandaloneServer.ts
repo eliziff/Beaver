@@ -1,3 +1,4 @@
+import { precompressedAssets } from "./lib/precompressedAssets";
 import express, { type ErrorRequestHandler } from "express";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -33,6 +34,7 @@ export async function startAuthoritiesStandalone() {
   const staticOptions = {
     immutable: true, maxAge: "1y", fallthrough: false,
   } as const;
+  app.use(precompressedAssets(frontend));
   app.use("/assets", express.static(path.join(frontend, "assets"), staticOptions));
   app.use("/pdfjs-standard-fonts", express.static(
     path.join(frontend, "pdfjs-standard-fonts"), staticOptions));
@@ -45,7 +47,7 @@ export async function startAuthoritiesStandalone() {
   }) satisfies ErrorRequestHandler);
 
   const listener = app.listen(port, "127.0.0.1", () => {
-    console.log(`Authorities running at http://127.0.0.1:${port}/authorities.html`);
+    console.log(`Authorities running at ${origin}/authorities.html`);
     process.send?.({ type: "ready" });
   });
   const stop = () => { listener.close(); listener.closeAllConnections(); };

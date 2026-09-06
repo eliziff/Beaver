@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import { precompressedAssets } from "./scripts/precompressed-assets.mjs";
 
 const apiOrigin = process.env.BEAVER_API_ORIGIN ?? "http://127.0.0.1:3001";
 const pages = {
@@ -16,15 +17,29 @@ export default defineConfig(({ mode }) => {
         : mode === "authorities" ? { authorities: pages.authorities }
             : { main: pages.main, word: pages.word };
     return {
-        plugins: [react()],
+        plugins: [react(), precompressedAssets()],
         build: {
             modulePreload: { polyfill: false },
             emptyOutDir: mode === "production",
             rolldownOptions: {
                 input,
                 output: {
+                    strictExecutionOrder: true,
                     codeSplitting: {
                         groups: [{
+                            // Stable platform code, not a catch-all vendor chunk.
+                            name: "platform",
+                            test: /node_modules[\\/](?:react|react-dom|react-router|react-router-dom|scheduler|tailwind-merge)[\\/]/,
+                            priority: 30,
+                            includeDependenciesRecursively: false,
+                        }, {
+                            // Only configuration-independent UI primitives. Do
+                            // not capture feature modals, viewers, or adapters.
+                            name: "ui-primitives",
+                            test: /src[\\/]app[\\/]components[\\/](?:ui[\\/]|modals[\\/]Modal(?:Select|TextInput|Textarea|SegmentedToggle|FieldLabel)?\.tsx$|shared[\\/](?:TablePrimitive|TableToolbar|PageHeader|CollectionState)\.tsx$)/,
+                            minShareCount: 2,
+                            includeDependenciesRecursively: false,
+                        }, {
                             // Avoid dozens of sub-kilobyte requests for shared
                             // icons on a cold connection. Leave single-entry
                             // icons with their existing chunks; do not pull
