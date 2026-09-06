@@ -134,6 +134,7 @@ async function addVersion(
   db: RelationalDatabase,
   version: StoredDocumentVersion,
   userId: string,
+  ocrProvider?: import("./documentStore").LegalPdfOcrProvider | null,
 ) {
   await changes(sql`INSERT INTO document_versions(id,document_id,parent_version_id,version_number,
     working_revision,source,created_by,author_email,comment,
@@ -150,6 +151,7 @@ async function addVersion(
     documentId: version.documentId,
     versionId: version.id,
     sourceSha256: version.sourceSha256,
+    ...(ocrProvider !== undefined ? { ocrProvider } : {}),
   }, db);
 }
 const versionKeys = (version: StoredDocumentVersion) =>
@@ -347,7 +349,7 @@ export const documentRepository: DocumentRepository = {
         ${document.projectId ? null : document.folderId},${document.status},${version.id},
         ${encode(document.metadata ?? {})},${document.notes ?? null},${version.filename},
         ${document.createdAt},${document.updatedAt})`, tx);
-      await addVersion(tx, version, scope.userId);
+      await addVersion(tx, version, scope.userId, input.pdfOcrProvider);
       await writeParts(tx, document.id, version.id,
         input.parts ? { put: input.parts, remove: [] } : undefined);
       return true;

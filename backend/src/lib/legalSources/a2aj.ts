@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { cachedContent } from "../contentCache";
 import { fetchLocalA2AJDocument, searchLocalA2AJ } from "../a2ajLocalBulk";
-import { citationAuthorityMetricsBatch } from "../caselawCitator";
+import { citationAliasGroups, citationAuthorityMetricsBatch } from "../caselawCitator";
 import {
   decisiaIndexUrl,
   verifiedDecisiaPdf,
@@ -240,9 +240,9 @@ const citationKey = (value: string) => {
   try { return structureNative().citationLookupKey(value); } catch { return ""; }
 };
 const exactCitationRows = (results: unknown, citation: string, dataset?: string,
-  expectedUrl?: string | null) => {
-  const key = citationKey(citation);
-  if (!key) return [];
+  expectedUrl?: string | null, aliases: string[] = []) => {
+  const keys = new Set([citationKey(citation), ...aliases].filter(Boolean));
+  if (!keys.size) return [];
   return (Array.isArray(results) ? results : []).filter((value) => {
     const record = object(value);
     return record && (!dataset?.trim() || string(record.dataset)?.toLowerCase() ===
@@ -251,7 +251,7 @@ const exactCitationRows = (results: unknown, citation: string, dataset?: string,
         sourceUrl(record, "fr") === expectedUrl.trim()) && ["citation_en", "citation2_en", "citation_fr",
       "citation2_fr"].some((field) => {
         const candidate = string(record[field]);
-        return candidate && citationKey(candidate) === key;
+        return candidate && keys.has(citationKey(candidate));
       });
   });
 };
@@ -344,48 +344,48 @@ async function document(args: {
     documents.set(key, { expires: Date.now() + 60 * 60_000, value: result });
     return result;
   }
-  let source = fetchLocalA2AJDocument({
-    citation, docType, language, dataset: args.dataset,
-    sourceUrl: args.sourceUrl ?? undefined, maxChars: Number.MAX_SAFE_INTEGER,
-  });
-  if (!source) {
-    const payload = await request("/fetch", {
-      citation, doc_type: docType, output_language: language,
-    }, args.signal);
-    const candidates = (Array.isArray(payload.results) ? payload.results : [])
-      .map((item) => mapDocument(item, language, docType))
-      .filter((item): item is A2AJDocument => !!item && (!args.dataset?.trim() ||
-        item.dataset.toLowerCase() === args.dataset.trim().toLowerCase()));
-    source = args.sourceUrl?.trim()
-      ? candidates.find((item) => item.url === args.sourceUrl!.trim()) ?? null
-      : candidates[0] ?? null;
+  const native = structureNative();
+  const core = docType === "cases" ? native.citationOccurrencesInText(citation)
+    .filter(({ kind }) => kind === "case").map(({ coreCitation }) => coreCitation.text) : [];
+  const requested = [...new Set([citation, ...core])];
+  const inventory = docType === "cases" ? citationAliasGroups(requested) : [];
+  if (!sourceUrl && inventory.some(({ ambiguous }) => ambiguous)) return null;
+  const aliases = [...new Set(inventory.flatMap(({ keys }) => keys))];
+  const forms = [...new Set([...requested, ...inventory.flatMap(({ forms }) => forms)])].slice(0, 12);
+  const accept = (results: unknown, requestedCitation: string, exactKeys = aliases) => {
+    const matches = exactCitationRows(results, requestedCitation, args.dataset, args.sourceUrl, exactKeys);
+    // Distinct provider records with the same citation require an explicit URL.
+    return matches.length === 1 ? matches[0] : null;
+  };
+  let source: A2AJDocument | null = null;
+  for (const form of forms) {
+    source = fetchLocalA2AJDocument({ citation: form, docType, language, dataset: args.dataset,
+      sourceUrl: args.sourceUrl ?? undefined, maxChars: Number.MAX_SAFE_INTEGER });
+    if (source) break;
+  }
+  if (!source) for (const form of forms) {
+    args.signal?.throwIfAborted();
+    const payload = await request("/fetch", { citation: form, doc_type: docType, output_language: language }, args.signal);
+    const accepted = accept(payload.results, form);
+    source = accepted ? mapDocument(accepted, language, docType) : null;
+    if (source) break;
+  }
+  if (!source) for (const form of forms) {
+    const searched = await request("/search", { query: form, doc_type: docType,
+      search_type: "full_text", search_language: language, size: 10, dataset: args.dataset?.trim() }, args.signal);
+    const accepted = accept(searched.results, form);
+    if (!accepted) continue;
+    source = mapDocument(accepted, language, docType);
     if (!source) {
-      const searched = await request("/search", {
-        query: citation, doc_type: docType, search_type: "full_text",
-        search_language: language, size: 10, dataset: args.dataset?.trim(),
-      }, args.signal);
-      const matches = exactCitationRows(searched.results, citation, args.dataset, args.sourceUrl);
-      if (matches.length === 1) {
-        source = mapDocument(matches[0], language, docType);
-        if (!source) {
-          const record = object(matches[0]);
-          const canonical = record && (languageText(record, "citation", language) ??
-            languageText(record, "citation2", language));
-          if (canonical) {
-            const retried = await request("/fetch", {
-              citation: canonical, doc_type: docType, output_language: language,
-            }, args.signal);
-            const candidates = (Array.isArray(retried.results) ? retried.results : [])
-              .map((item) => mapDocument(item, language, docType))
-              .filter((item): item is A2AJDocument => !!item && (!args.dataset?.trim() ||
-                item.dataset.toLowerCase() === args.dataset.trim().toLowerCase()));
-            source = args.sourceUrl?.trim()
-              ? candidates.find((item) => item.url === args.sourceUrl!.trim()) ?? null
-              : candidates[0] ?? null;
-          }
-        }
+      const record = object(accepted);
+      const canonical = record && (languageText(record, "citation", language) ?? languageText(record, "citation2", language));
+      if (canonical) {
+        const retried = await request("/fetch", { citation: canonical, doc_type: docType, output_language: language }, args.signal);
+        const matched = accept(retried.results, canonical, [...aliases, citationKey(canonical)]);
+        source = matched ? mapDocument(matched, language, docType) : null;
       }
     }
+    if (source) break;
   }
   if (!source) return null;
   source = { ...source, verifiedPdf: await decisiaPdf(source.url, args.signal) };

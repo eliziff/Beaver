@@ -1,3 +1,4 @@
+import { requireAuth } from "./middleware/auth";
 import "./lib/loadEnv";
 import express, {
   type ErrorRequestHandler,
@@ -185,7 +186,7 @@ api.use(
 if (runtime.mode === "local") api.use(
   "/authorities-runtime",
   lazyRouter(async () => (await import("./routes/authoritiesRuntime"))
-    .createAuthoritiesRuntimeRouter()),
+    .createAuthoritiesRuntimeRouter(requireAuth)),
 );
 api.use("/quote-check", lazyRouter(async () => (await import("./routes/quoteCheck"))
   .createQuoteCheckRouter(await runtime.documents())));

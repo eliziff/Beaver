@@ -20,7 +20,7 @@ vi.mock("../lib/authorityPdfText", () => ({ authorityPdfText: mocks.pdfText }));
 const originalMode = process.env.AUTH_MODE;
 const app = express(); app.use(express.json());
 const resolveSources = vi.fn(async (draft: AuthoritiesDraft) => ({ draft, attachments: [] }));
-app.use("/authorities-runtime", createAuthoritiesRuntimeRouter(resolveSources));
+app.use("/authorities-runtime", createAuthoritiesRuntimeRouter((_req, _res, next) => next(), resolveSources));
 
 beforeAll(() => { process.env.AUTH_MODE = "local"; });
 afterAll(() => { process.env.AUTH_MODE = originalMode; });
@@ -63,8 +63,8 @@ describe("standalone Authorities runtime", () => {
       cited: { locator: { kind: "paragraph", label: "7" }, text: "source words" }, found: null,
     };
     const ignoreApp = express(); ignoreApp.use(express.json());
-    ignoreApp.use("/authorities-runtime", createAuthoritiesRuntimeRouter(resolveSources,
-      (_req, _res, next) => next(), async () => [finding]));
+    ignoreApp.use("/authorities-runtime", createAuthoritiesRuntimeRouter((_req, _res, next) => next(),
+      resolveSources, async () => [finding]));
     const response = await request(ignoreApp).post("/authorities-runtime/discrepancies/actions")
       .send({ draft: manualState(), request: { id, action: "ignore", revision: 1 } })
       .expect(200);
@@ -120,8 +120,8 @@ describe("standalone Authorities runtime", () => {
       return fresh;
     });
     const correctionApp = express(); correctionApp.use(express.json());
-    correctionApp.use("/authorities-runtime", createAuthoritiesRuntimeRouter(resolveSources,
-      (_req, _res, next) => next(), async () => [finding]));
+    correctionApp.use("/authorities-runtime", createAuthoritiesRuntimeRouter((_req, _res, next) => next(),
+      resolveSources, async () => [finding]));
     const response = await request(correctionApp).post("/authorities-runtime/discrepancies/actions")
       .field("draft", JSON.stringify(state)).field("request", JSON.stringify({
         id, action: "pinpoint", revision: 1,

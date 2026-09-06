@@ -33,6 +33,8 @@ export interface AuthoritiesHost {
   act(id: string, revision: number, action: AuthoritiesAction): Promise<AuthoritiesProduct>;
   refresh(id: string, revision: number): Promise<AuthoritiesProduct>;
   prepareSources(product: AuthoritiesProduct, signal?: AbortSignal): Promise<AuthoritiesProduct>;
+  prepareHighlights?(product: AuthoritiesProduct, progress?: (message: string) => void,
+    signal?: AbortSignal): Promise<void>;
   review?(id: string, signal?: AbortSignal): Promise<AuthoritiesDiscrepancy[]>;
   resolveDiscrepancy?(id: string, input: { id: string; action: AuthoritiesDiscrepancyAction;
     revision: number }): Promise<AuthoritiesProduct>;

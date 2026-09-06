@@ -9,7 +9,12 @@ export type AuthoritiesBookRole = "applicant" | "respondent" | "joint" |
   "moving-party" | "responding-party";
 export type AuthoritiesBuildSettings = {
   sourceMode: AuthoritiesSourceMode;
-  tabStyle: "numeric" | "alpha";
+  tabStyle: "numeric" | "alpha" | "lower-alpha" | "roman" | "lower-roman";
+  tabStart?: number;
+  tabPrefix?: string;
+  tabLabels?: string[];
+  /** Explicit draft export only; never a representation of filing completeness. */
+  allowIncomplete?: boolean;
   tableOrder: "first-reference" | "alphabetical";
   tableDelivery: "native-marks" | "native-append" | "linked-append";
   tableLocation: "pages" | "pinpoints" | "combined";
@@ -115,6 +120,7 @@ export type AuthoritiesDraft = {
   occurrences: Record<string, AuthorityOccurrence>;
   authorities: Record<string, AuthorityIdentity>;
   authorityOrder: string[];
+  stage?: "citations" | "sources" | "highlights" | "build";
   discrepancyDecisions: Record<string, AuthoritiesDiscrepancyAction>;
 };
 
@@ -139,6 +145,8 @@ export type AuthoritiesDiscrepancy = {
 
 export type AuthoritiesAction =
   | { type: "add-authority"; kind: AuthorityKind; citation: string; name?: string | null }
+  | { type: "move-authority"; authorityId: string; toIndex: number }
+  | { type: "set-stage"; stage: "citations" | "sources" | "highlights" | "build" }
   | { type: "remove-authority"; authorityId: string }
   | { type: "exclude-authority"; authorityId: string; excluded: boolean }
   | { type: "edit-authority"; authorityId: string; kind: AuthorityKind;

@@ -108,3 +108,6 @@ original_details.jsonl
 /research/**/RESULTS.json
 /backend/experiments/a2aj-case-treatment/gold/*-validation.json
 /backend/experiments/a2aj-case-treatment/gold/packet-ranking-*.json
+
+# Local standalone Authorities build and runtime artifacts
+.authorities-dev/

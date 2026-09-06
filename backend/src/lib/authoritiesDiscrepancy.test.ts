@@ -62,6 +62,20 @@ describe("authorities discrepancy review", () => {
     )).toEqual([]);
   });
 
+  it("does not flag nested quotation marks, marked omissions or bracketed edits", () => {
+    const wording = "An individual’s reputation is not to be treated as regrettable but unavoidable road kill on the highway of public controversy, but nor should an overly solicitous regard for personal reputation be permitted to ‘chill’ freewheeling debate on matters of public interest.";
+    const original = wording.replace("‘chill’", "“chill”");
+    expect(findAuthoritiesDiscrepancies(draft(`The court wrote “${wording}”`), source(original))).toEqual([]);
+    for (const omission of ["...", "…", ". . ."]) {
+      expect(findAuthoritiesDiscrepancies(draft(`The court wrote "[T]he deadline is ${omission} [seven] business days."`),
+        source("the deadline is not less than five business days."))).toEqual([]);
+    }
+    expect(findAuthoritiesDiscrepancies(draft('The court wrote "[T]he deadline is seven business days."'),
+      source("the deadline is five business days."))).toHaveLength(1);
+    expect(findAuthoritiesDiscrepancies(draft('The court wrote "The worker’s rights are protected by this rule."'),
+      source("The workers rights are protected by this rule."))).toHaveLength(1);
+  });
+
   it("reports one unique exact match outside the cited locator as a wrong pinpoint", () => {
     const findings = findAuthoritiesDiscrepancies(draft(`The court wrote "${phrase}"`),
       source("Paragraph seven says something else.", [{ label: "9", text: phrase }]));
