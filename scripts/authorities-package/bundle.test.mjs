@@ -20,8 +20,7 @@ test("accepts the shared standalone Authorities core", () => {
 for (const input of ["src/lib/jobQueue.ts", "src/middleware/auth.ts",
   "src/lib/spreadsheet.ts", "node_modules/xlsx/xlsx.mjs",
   "src/lib/chat/chatApplication.ts", "node_modules/@supabase/supabase-js/dist/index.js",
-  "node_modules/openai/index.js", "node_modules/postal-mime/src/postal-mime.js",
-  "node_modules/zod/index.js"]) {
+  "node_modules/openai/index.js", "node_modules/postal-mime/src/postal-mime.js"]) {
   test(`rejects ${input}`, () => assert.throws(() =>
     assertAuthoritiesBundle({ inputs: { ...core, [input]: {} } }), /bundle contains/u));
 }
@@ -30,6 +29,9 @@ const frontend = ["/repo/frontend/src/authoritiesMain.tsx",
   "/repo/frontend/src/app/authorities/AuthoritiesWorkspace.tsx",
   "/repo/frontend/src/app/authorities/standaloneHost.ts",
   "/repo/frontend/src/app/lib/standaloneWorkProducts.ts"];
+test("retains real shared source validation", () => assert.doesNotThrow(() =>
+  assertAuthoritiesBundle({ inputs: { ...core, "node_modules/zod/index.js": {} } })));
+
 test("accepts the shared local Authorities workspace", () => assert.doesNotThrow(() =>
   assertStandaloneFrontendModules(frontend)));
 for (const input of ["/repo/frontend/src/app/authorities/beaverHost.ts",

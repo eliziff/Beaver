@@ -1,4 +1,4 @@
-import { inspectPdf } from "./inspectPdf";
+import { inspectPdf } from "@/app/lib/inspectPdf";
 import { sourceFormat } from "./formats";
 import type { PreparedFile, PreparationProgress } from "./host";
 import { sourceDocumentFields } from "./sourceFields";

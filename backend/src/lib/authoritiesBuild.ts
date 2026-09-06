@@ -226,7 +226,7 @@ function citedAt(draft: AuthoritiesDraft, authorityId: string) {
 
 const reproducedInBook = (draft: AuthoritiesDraft, authority: AuthorityIdentity) =>
   !authority.excluded && (authority.source.kind === "attached" ||
-    draft.settings.missingSourcePolicy === "placeholder");
+    (draft.settings.allowIncomplete || draft.settings.missingSourcePolicy === "placeholder"));
 
 const authorityProcedure = (draft: AuthoritiesDraft, purpose: "table" | "book") =>
   deriveAuthorityProcedure({
@@ -239,6 +239,7 @@ const authorityProcedure = (draft: AuthoritiesDraft, purpose: "table" | "book") 
     units: draft.units, occurrences: draft.occurrences,
     manual: draft.import.kind === "manual", purpose,
     tableOrder: draft.settings.tableOrder, tabStyle: draft.settings.tabStyle,
+    tabStart: draft.settings.tabStart, tabPrefix: draft.settings.tabPrefix, tabLabels: draft.settings.tabLabels,
   });
 
 function authoritySourceUrl(authority: AuthorityIdentity) {
@@ -709,7 +710,8 @@ async function loadAuthorityPdf(
     passageGeometry };
 }
 
-async function missingSourcePdf(pdf: PdfModule, label: string, federal = false) {
+async function missingSourcePdf(pdf: PdfModule, label: string, federal = false,
+  detail = "No source PDF was attached for this authority.") {
   const document = await pdf.PDFDocument.create();
   const regular = await document.embedFont(federal
     ? pdf.StandardFonts.TimesRoman : pdf.StandardFonts.Helvetica);
@@ -723,7 +725,7 @@ async function missingSourcePdf(pdf: PdfModule, label: string, federal = false) 
   for (const line of wrapped(regular, label, 12, 612 - (2 * margin))) {
     page.drawText(line, { x: margin, y, size: 12, font: regular }); y -= 18;
   }
-  page.drawText("No source PDF was attached for this authority.",
+  page.drawText(detail,
     { x: margin, y: y - 18, size: federal ? 12 : 10,
       font: regular, color: pdf.rgb(.35, .35, .35) });
   return document;
@@ -746,7 +748,8 @@ async function bookArtifact(
     ? FEDERAL_APPEAL_PAPER_COVERS[role as keyof typeof FEDERAL_APPEAL_PAPER_COVERS] : null;
   const bookTitle = profile.bookTitle ??
     (draft.import.kind === "manual" ? subtitle : "Book of Authorities");
-  const documentTitle = draft.cover.title || bookTitle;
+  const documentTitle = (draft.settings.allowIncomplete ? "DRAFT — incomplete sources · " : "") +
+    (draft.cover.title || bookTitle);
   if (federal && !draft.bookParts.cover && !role) {
     throw new Error("Choose who is filing the Federal Court book.");
   }
@@ -760,7 +763,8 @@ async function bookArtifact(
   const supplementRows: BookRow[] = draft.bookParts.supplements.map((item, index) => ({
     key: `supplement:${item.id}`,
     name: item.filename.replace(/\.pdf$/iu, "").trim() || item.filename,
-    tab: tabLabel(authorityRows.length + index + 1, draft.settings.tabStyle),
+    tab: tabLabel(draft.authorityOrder.filter((id) => !draft.authorities[id].excluded).length + index + 1,
+      draft.settings.tabStyle, draft.settings),
   }));
   const rows: BookRow[] = [...authorityRows.map((entry) => ({
     key: `authority:${entry.authority.id}`, name: entry.name, tab: entry.tab,
@@ -774,6 +778,14 @@ async function bookArtifact(
       const loaded = source.kind === "attached"
         ? await loadAuthorityPdf(pdf, source.sources, entry.name, attached)
         : { document: await missingSourcePdf(pdf, entry.name, federal) };
+      if (draft.settings.allowIncomplete && profile.requirements?.bilingualEnactments &&
+          entry.authority.kind === "legislation" && federalEnactmentCitation(entry.authority.citation) &&
+          source.kind === "attached" && !hasBilingualAuthoritySource(source)) {
+        const missingLanguage = source.sources.some(({ language }) => language === "en") ? "French" : "English";
+        const stub = await missingSourcePdf(pdf, entry.name, federal,
+          `${missingLanguage} version not attached. This draft is incomplete.`);
+        for (const page of await loaded.document.copyPages(stub, stub.getPageIndices())) loaded.document.addPage(page);
+      }
       return { key: `authority:${entry.authority.id}`, name: entry.name, tab: entry.tab,
         sourceUrl: entry.sourceUrl, authority: entry.authority,
         ...loaded };
@@ -891,6 +903,14 @@ async function bookArtifact(
           if (bookTitle !== subtitle) cover.drawText(fit(serif, subtitle, 13, contentWidth),
             { x: margin, y: 462, size: 13, font: serif, color: ink });
         }
+      }
+      if (draft.settings.allowIncomplete) {
+        const first = document.getPage(0), width = first.getWidth();
+        first.drawRectangle({ x: 0, y: 0, width, height: 28, color: pdf.rgb(1, .94, .88) });
+        first.drawText("DRAFT - INCOMPLETE SOURCES - NOT FOR FILING", {
+          x: Math.min(24, width / 20), y: 10, size: Math.min(10, width / 48), font: bold,
+          color: pdf.rgb(.55, .1, .06),
+        });
       }
       const volumeLabel = `Volume ${volumeIndex + 1} of ${volumes.length}`;
       if (multi && limits?.coverLabels) document.getPage(0).drawText(volumeLabel,
@@ -1366,14 +1386,14 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
     ? ["table", "book"] : [input.draft.outputMode];
   const profile = authoritiesProfile(input.draft.settings.profileId);
   const completeBook = profile.requirements?.completeBookSources ? profile.label : null;
-  if (wanted.includes("book") && completeBook) {
+  if (wanted.includes("book") && completeBook && !input.draft.settings.allowIncomplete) {
     const missing = input.draft.authorityOrder.map((id) => input.draft.authorities[id])
       .filter((authority) => !authority.excluded && authority.source.kind !== "attached");
     if (missing.length) throw new Error(
       `Attach a complete PDF or exclude ${authorityName(input.draft, missing[0])} before building this ${completeBook} book.`,
     );
   }
-  if (wanted.includes("book") && profile.requirements?.bilingualEnactments) {
+  if (wanted.includes("book") && profile.requirements?.bilingualEnactments && !input.draft.settings.allowIncomplete) {
     const incomplete = input.draft.authorityOrder.map((id) => input.draft.authorities[id])
       .find((authority) => !authority.excluded && authority.kind === "legislation" &&
         federalEnactmentCitation(authority.citation) && authority.source.kind === "attached" &&
@@ -1434,7 +1454,7 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
     ? [await tableArtifact(tableGroups, `${base}.table-of-authorities.docx`, subtitle,
       input.draft.settings.tableDelivery === "linked-append", wanted.includes("book"))]
     : role === "book"
-      ? bookArtifact(input.draft, bookGroups, `${base}.${bookName}.pdf`, subtitle,
+      ? bookArtifact(input.draft, bookGroups, `${base}${input.draft.settings.allowIncomplete ? ".draft-incomplete" : ""}.${bookName}.pdf`, subtitle,
         sources, input.signal)
       : input.draft.import.kind === "document" && input.draft.import.fileType === "pdf"
         ? [await filingPdfArtifact(tableGroups,

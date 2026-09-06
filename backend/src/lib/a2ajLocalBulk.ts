@@ -24,25 +24,29 @@ function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
   return withReadonlySqlite(a2ajLocalBulkPath(), operation);
 }
 
-/** Exact parallel-citation aliases from the installed A2AJ citation index. */
-export function a2ajCitationAliasKeysBatch(citations: string[]): string[][] | null {
+export type CitationAliasGroup = { keys: string[]; forms: string[]; ambiguous: boolean };
+
+/** Exact aliases and their authored forms from the installed provider inventory. */
+export function a2ajCitationAliasGroups(citations: string[]): CitationAliasGroup[] | null {
   const keys = structureNative().citationLookupKeys(citations);
-  if (!keys.some(Boolean)) return keys.map(() => []);
   return withDatabase((database) => {
-    const targets = database.prepare(
-      "SELECT document_id FROM citation_lookup WHERE citation_key = ?",
-    );
-    const aliases = database.prepare(
-      "SELECT citation_key FROM citation_lookup WHERE document_id = ?",
-    );
+    const targets = database.prepare("SELECT DISTINCT document_id FROM citation_lookup WHERE citation_key = ?");
+    const aliases = database.prepare("SELECT citation_key FROM citation_lookup WHERE document_id = ?");
+    const document = database.prepare("SELECT citation_en, citation2_en, citation_fr, citation2_fr FROM document WHERE id = ?");
     return keys.map((key) => {
-      if (!key) return [];
+      if (!key) return { keys: [], forms: [], ambiguous: false };
       const rows = targets.all(key) as Row[];
-      if (rows.length !== 1) return [key];
-      return [...new Set([key, ...(aliases.all(Number(rows[0].document_id)) as Row[])
-        .map((row) => String(row.citation_key))])].sort();
+      if (rows.length !== 1) return { keys: [key], forms: [], ambiguous: rows.length > 1 };
+      const id = Number(rows[0].document_id), row = document.get(id) as Row | undefined;
+      return { keys: [...new Set([key, ...(aliases.all(id) as Row[]).map((row) => String(row.citation_key))])].sort(),
+        forms: row ? Object.values(row).filter((value): value is string => typeof value === "string" && !!value.trim()) : [],
+        ambiguous: false };
     });
   });
+}
+
+export function a2ajCitationAliasKeysBatch(citations: string[]): string[][] | null {
+  return a2ajCitationAliasGroups(citations)?.map(({ keys }) => keys) ?? null;
 }
 
 function searchDatabasePath(docType: DocType) {
@@ -215,16 +219,17 @@ export function fetchLocalA2AJDocument(args: {
       filters.push("(document.url_en = ? OR document.url_fr = ?)");
       values.push(args.sourceUrl.trim(), args.sourceUrl.trim());
     }
-    const row = database
+    const rows = database
       .prepare(
-        `SELECT document.*
+        `SELECT DISTINCT document.*
          FROM citation_lookup AS lookup
          JOIN document ON document.id = lookup.document_id
          WHERE ${filters.join(" AND ")}
          ORDER BY document.id
-         LIMIT 1`,
+         LIMIT 2`,
       )
-      .get(...values) as Row | undefined;
+      .all(...values) as Row[];
+    const row = rows.length === 1 ? rows[0] : undefined;
     const result = row
       ? a2ajDocumentFromRow(row, args.language === "fr" ? "fr" : "en")
       : null;

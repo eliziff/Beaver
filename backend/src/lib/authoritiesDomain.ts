@@ -14,7 +14,12 @@ export const AUTHORITIES_BOOK_ROLES = ["applicant", "respondent", "joint", "appe
 export type AuthoritiesBookRole = (typeof AUTHORITIES_BOOK_ROLES)[number];
 export type AuthoritiesBuildSettings = {
   sourceMode: AuthoritiesSourceMode;
-  tabStyle: "numeric" | "alpha";
+  tabStyle: "numeric" | "alpha" | "lower-alpha" | "roman" | "lower-roman";
+  tabStart?: number;
+  tabPrefix?: string;
+  tabLabels?: string[];
+  /** Explicit draft export only; never a representation of filing completeness. */
+  allowIncomplete?: boolean;
   tableOrder: "first-reference" | "alphabetical";
   tableDelivery: "native-marks" | "native-append" | "linked-append";
   tableLocation: "pages" | "pinpoints" | "combined";
@@ -225,6 +230,7 @@ export type AuthoritiesDraft = WorkProductState & {
   occurrences: Record<string, AuthorityOccurrence>;
   authorities: Record<string, AuthorityIdentity>;
   authorityOrder: string[];
+  stage?: "citations" | "sources" | "highlights" | "build";
   discrepancyDecisions: Record<string, AuthoritiesDiscrepancyAction>;
 };
 
@@ -236,6 +242,8 @@ export type AuthoritiesAction =
   | { type: "ingest-ledger"; ledger: AuthorityCitationLedger }
   | { type: "add-seed"; seed: AuthoritySeed }
   | { type: "add-authority"; authority: AuthorityIdentity }
+  | { type: "move-authority"; authorityId: string; toIndex: number }
+  | { type: "set-stage"; stage: "citations" | "sources" | "highlights" | "build" }
   | { type: "remove-authority"; authorityId: string }
   | { type: "exclude-authority"; authorityId: string; excluded: boolean }
   | { type: "set-highlight-exclusion"; authorityId: string;
@@ -286,6 +294,7 @@ export function createAuthoritiesDraft(
 ): AuthoritiesDraft {
   const profile = authoritiesProfile("general");
   const draft: AuthoritiesDraft = { schemaVersion: "beaver.authorities-draft.v1",
+    stage: source.kind === "manual" ? "sources" : "citations",
     import: source, bindings: structuredClone(bindings), outputMode,
     settings: { profileId: "general", ...structuredClone(profile.defaults.settings) },
     cover: { courtFileNumber: "", partyGroups: [], applicationUnder: "", title: "" },
@@ -337,7 +346,7 @@ const buildSettings = (value: unknown) => {
   const keys = ["sourceMode", "tabStyle", "tableOrder", "tableDelivery", "tableLocation",
     "passageMarking", "scannedPdfPolicy", "missingSourcePolicy"];
   const item = object(value);
-  if (!item || !exactKeys(item, ["profileId", ...keys], ["filingMedium", "bookRole"])) {
+  if (!item || !exactKeys(item, ["profileId", ...keys], ["filingMedium", "bookRole", "tabStart", "tabPrefix", "tabLabels", "allowIncomplete"])) {
     return false;
   }
   const profile = typeof item.profileId === "string"
@@ -352,7 +361,11 @@ const buildSettings = (value: unknown) => {
     : !Object.hasOwn(item, "bookRole");
   return !!profile && context && roleContext &&
     oneOf(item.sourceMode, ["automatic", "manual-originals", "render"]) &&
-    oneOf(item.tabStyle, ["numeric", "alpha"]) &&
+    oneOf(item.tabStyle, ["numeric", "alpha", "lower-alpha", "roman", "lower-roman"]) &&
+    (item.tabStart === undefined || integer(item.tabStart) && Number(item.tabStart) >= 1 && Number(item.tabStart) <= 10_000) &&
+    (item.tabPrefix === undefined || typeof item.tabPrefix === "string" && item.tabPrefix.length <= 80 && !/[\u0000-\u001f\u007f]/u.test(item.tabPrefix)) &&
+    (item.tabLabels === undefined || list(item.tabLabels, (label) => typeof label === "string" && label.length <= 100 && !/[\u0000-\u001f\u007f]/u.test(label), 10_000)) &&
+    (item.allowIncomplete === undefined || typeof item.allowIncomplete === "boolean") &&
     oneOf(item.tableOrder, ["first-reference", "alphabetical"]) &&
     oneOf(item.tableDelivery, ["native-marks", "native-append", "linked-append"]) &&
     oneOf(item.tableLocation, ["pages", "pinpoints", "combined"]) &&
@@ -547,15 +560,17 @@ export function decodeAuthoritiesDraft(value: unknown): AuthoritiesDraft | null 
       key !== "discrepancyDecisions"), earlier = keys.filter((key) =>
       key !== "settings" && key !== "bookParts"), oldest = earlier.filter((key) =>
       key !== "discrepancyDecisions");
-    const upgraded = candidate && exactKeys(candidate, withoutDecisions)
+    const upgraded = candidate && exactKeys(candidate, withoutDecisions, ["stage"])
       ? { ...candidate, discrepancyDecisions: {} }
-      : candidate && (exactKeys(candidate, earlier) || exactKeys(candidate, oldest)) ? { ...candidate,
+      : candidate && (exactKeys(candidate, earlier, ["stage"]) || exactKeys(candidate, oldest, ["stage"])) ? { ...candidate,
         settings: { profileId: "general",
           ...structuredClone(authoritiesProfile("general").defaults.settings) },
         bookParts: { cover: null, index: null, supplements: [] },
         discrepancyDecisions: candidate.discrepancyDecisions ?? {},
       } : value;
-    const stored = closed(upgraded, keys);
+    const upgradedRecord = object(upgraded);
+    const stored = upgradedRecord && exactKeys(upgradedRecord, keys, ["stage"])
+      ? upgradedRecord : null;
     const unitText = new Map(Array.isArray(stored?.units) ? stored.units.flatMap((unit) => {
       const item = object(unit);
       return typeof item?.id === "string" && typeof item.text === "string"
@@ -572,6 +587,7 @@ export function decodeAuthoritiesDraft(value: unknown): AuthoritiesDraft | null 
     if (!normalized || normalized.schemaVersion !== "beaver.authorities-draft.v1" ||
         !importedDocument(normalized.import) || !decodeWorkProductBindings(normalized.bindings) ||
         !oneOf(normalized.outputMode, ["table", "book", "both"]) ||
+        (normalized.stage !== undefined && !oneOf(normalized.stage, ["citations", "sources", "highlights", "build"])) ||
         !buildSettings(normalized.settings) || !authoritiesCover(normalized.cover) ||
         !bookParts(normalized.bookParts) ||
         typeof normalized.insertIntoDocument !== "boolean" ||
@@ -675,6 +691,7 @@ export function authorityCitationForms(draft: AuthoritiesDraft, authorityId: str
     const occurrence = draft.occurrences[occurrenceId];
     if (occurrence?.authorityId === authorityId && occurrence.kind !== "reference") {
       forms.add(occurrence.citation);
+      if (occurrence.authoritySpan.text.trim()) forms.add(occurrence.authoritySpan.text.trim());
     }
   }
   return [...forms];
@@ -1046,6 +1063,20 @@ export function reduceAuthoritiesDraft(
       draft.authorityOrder.push(action.authority.id);
       break;
     }
+    case "set-stage":
+      if (!["citations", "sources", "highlights", "build"].includes(action.stage))
+        throw new AuthoritiesDomainError("Unknown Authorities stage.");
+      draft.stage = action.stage;
+      break;
+    case "move-authority": {
+      const from = draft.authorityOrder.indexOf(action.authorityId);
+      if (from < 0 || !Number.isSafeInteger(action.toIndex) || action.toIndex < 0 ||
+          action.toIndex >= draft.authorityOrder.length)
+        throw new AuthoritiesDomainError("Choose an existing authority slot.");
+      draft.authorityOrder.splice(from, 1);
+      draft.authorityOrder.splice(action.toIndex, 0, action.authorityId);
+      break;
+    }
     case "remove-authority":
       if (Object.values(draft.occurrences).some(({ authorityId }) => authorityId === action.authorityId)) {
         throw new AuthoritiesDomainError("Relink occurrences before removing their authority.");
@@ -1287,6 +1318,10 @@ export function reduceAuthoritiesDraft(
       break;
     case "refresh": refresh(draft, action.review); break;
   }
+  if (["attach-source", "clear-authority-source", "add-authority", "remove-authority",
+    "edit-authority", "begin-canlii-handoff"].includes(action.type) && draft.stage !== "citations")
+    draft.stage = "sources";
+  if (action.type === "refresh") draft.stage = draft.import.kind === "manual" ? "sources" : "citations";
   const errors = validateAuthoritiesDraft(draft);
   if (errors.length) throw new AuthoritiesDomainError(errors[0]);
   return draft;
