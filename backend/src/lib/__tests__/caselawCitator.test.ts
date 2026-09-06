@@ -142,6 +142,10 @@ describe("caselaw citator note-up graph", () => {
       temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-citator-"));
       const input = path.join(temporaryDirectory, "cases.jsonl");
       const database = path.join(temporaryDirectory, "noteup.sqlite");
+      // Hermetic alias behavior: without this, a locally installed A2AJ bulk
+      // index unions Carter's French-twin/reporter keys via the provider lane
+      // and the literal-key assertions below stop holding.
+      process.env.MIKE_A2AJ_BULK_DB = path.join(temporaryDirectory, "absent-bulk.sqlite");
       await writeFile(
         input,
         fixtureRows.map((row) => JSON.stringify(row)).join("\n"),

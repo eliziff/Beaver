@@ -39,7 +39,10 @@ node-identity key are faithful ports of the preserved reference implementations:
       AuthoritiesHelper preservation commit 84469a3, toa_maker.py
       (_NEUTRAL_RE, _CANLII_RE,
       _REPORTER_RE, _STATUTE_RE, _JOURNAL_RE, _URL_RE, _anchor_spans,
-      _CASE_LEFT_RE, _case_name_start, _PAR_RE et al.)
+      _PAR_RE et al.)
+  - case-name capture (_CASE_LEFT_RE / _case_name_start origin) now mirrors
+      the shipping legal-structure engine (case_style_start / CASE_LEFT),
+      with the two documented Beaver additions noted at CASE_LEFT_RE.
   - node identity key:
       ALR-Quote-Verifier/local_a2aj.py (_citation_lookup_key) - the exact
       key space of the corpus lookup index (lookup.duckdb), so graph keys
@@ -149,11 +152,16 @@ ANCHOR_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 CASE_ANCHOR_KINDS = frozenset({"neutral", "canlii", "reporter"})
 
-# Ported from toa_maker._CASE_LEFT_RE / _case_name_start: the case name is
-# the capitalized run around the last "v." before the anchor.
+# Mirror of legal-structure case_style_start / CASE_LEFT: the case name is the
+# capitalized run around the last "v." before the anchor. Two deliberate,
+# documented Beaver additions (2026-09-06): a balanced, uppercase-first
+# parenthetical token ("Quebec (Attorney General)") so a qualified party is
+# captured whole, and a balanced-parentheses guard so the digit-tolerant
+# grammar cannot start mid-parenthetical ("1998) v. Smith" falls back to the
+# bare core). "(1998)", "(2d)" and "(see below)" stay rejected.
 CASE_LEFT_RE = re.compile(
-    r"([A-Z][A-Za-z0-9’'&().-]*(?:\s+(?:[A-Z][A-Za-z0-9’'&().-]*|"
-    r"\([A-Z][A-Za-z0-9’'&().-]*\)|of|the|and|de|la|du)){0,12})\s*$"
+    r"([A-Z0-9][A-Za-z0-9’'&().-]*(?:\s+(?:[A-Z0-9][A-Za-z0-9’'&().-]*|"
+    r"\([A-Z][^()\n]{0,80}\)|of|the|and|for|de|la|du)){0,12})\s*$"
 )
 VERSUS_RE = re.compile(r"\bv\.?\s+", re.I)
 
@@ -189,14 +197,25 @@ def anchor_spans(text: str) -> list[tuple[int, int, str]]:
 
 
 def case_name_start(text: str, anchor_start: int, floor: int = 0) -> int:
-    """Port of toa_maker._case_name_start."""
+    """Mirror of legal-structure case_style_start (see CASE_LEFT_RE)."""
     prefix = text[floor:anchor_start].rstrip(" ,")
     matches = list(VERSUS_RE.finditer(prefix))
     if not matches:
         return anchor_start
     left = prefix[: matches[-1].start()]
     match = CASE_LEFT_RE.search(left)
-    return floor + match.start(1) if match else anchor_start
+    if not match:
+        return anchor_start
+    start = floor + match.start(1)
+    depth = 0
+    for character in text[start:anchor_start]:
+        if character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+            if depth < 0:
+                return anchor_start
+    return anchor_start if depth else start
 
 
 def citation_lookup_key(value: str) -> str:
