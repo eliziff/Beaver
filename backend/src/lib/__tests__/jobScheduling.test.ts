@@ -12,7 +12,7 @@ beforeEach(async () => {
 afterEach(async () => {
   await Promise.all(workers.splice(0).map((worker) => worker.stop()));
   await (await import("../relationalDatabase")).closeRelationalDatabase();
-  vi.unstubAllEnvs(); vi.resetModules();
+  vi.useRealTimers(); vi.unstubAllEnvs(); vi.resetModules();
   await rm(directory, { recursive: true, force: true });
 });
 const deferred = () => {
@@ -75,15 +75,17 @@ it("does not publish rolled-back enqueues and wakes only after the outer commit"
 it("delivers persisted events without waiting for the fallback clock, and preserves ownership", async () => {
   const queue = await import("../jobQueue"), { durableChatTurns } = await import("../chatTurnQueue");
   const job = await queue.enqueueJob({ kind: "chat.turn", dedupeKey: "stream", userId: "owner", payload: {} });
+  // With the recovery clock frozen, progress here requires a change notification.
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   const abort = new AbortController(), received = deferred(), events: unknown[] = [];
   const observation = durableChatTurns.observe({ userId: "owner" }, job.id, abort.signal,
     (event) => { events.push(event); received.resolve(); });
   const writer = await queue.createJobEventWriter(job.id);
-  writer.append({ type: "content_delta", text: "first" });
-  await writer.flush(); await received.promise;
+  writer.append({ type: "content", text: "first" });
+  await writer.flush(); await Promise.race([received.promise, observation]);
   await queue.requestJobCancellation(job.id, "owner");
   expect((await observation).status).toBe("cancelled");
-  expect(events).toEqual([{ type: "content_delta", text: "first" }]);
+  expect(events).toEqual([{ type: "content", text: "first" }]);
   const replay: unknown[] = [];
   await durableChatTurns.observe({ userId: "owner" }, job.id, abort.signal, (event) => replay.push(event));
   expect(replay).toEqual(events);

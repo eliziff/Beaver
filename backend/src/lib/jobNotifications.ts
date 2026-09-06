@@ -21,12 +21,15 @@ export function createJobNotifications(send?: (topics: string[] | null) => void)
   const receive = (topics: string[] | null) => {
     const callbacks = new Set(topics === null ? [...listeners.values()].flatMap((set) => [...set])
       : topics.flatMap((topic) => [...listeners.get(topic) ?? []]));
-    callbacks.forEach((wake) => wake());
+    for (const wake of callbacks) {
+      try { wake(); } catch { /* A failed observer cannot fail a committed write. */ }
+    }
   };
   return {
     publish(topic: string) {
       if (!validTopic(topic)) throw new Error("Invalid job notification topic");
-      receive([topic]); send?.([topic]);
+      receive([topic]);
+      try { send?.([topic]); } catch { /* Recover by reading the durable tables. */ }
     },
     subscribe(topics: readonly string[], wake: () => void) {
       for (const topic of topics) {
