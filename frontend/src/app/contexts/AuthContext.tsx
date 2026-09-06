@@ -13,6 +13,7 @@ import { clearLegalSourceRequests } from "@/app/lib/api/legalSources";
 import { getAuthSession, logout, updateAuthEmail, type AuthUser as User } from "@/app/lib/api/auth";
 import { clearDocumentFileCache } from "@/app/hooks/useDocumentFile";
 import { clearStagedChatDocuments } from "@/app/components/assistant/assistantLaunch";
+import { CollectionProvider } from "./CollectionContext";
 interface AuthContextType {
     user: User | null;
     isAuthenticated: boolean;
@@ -84,7 +85,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }), [authLoading, refreshSession, setAuthenticatedUser, user]);
     return (
         <AuthContext.Provider value={value}>
-            {children}
+            <CollectionProvider key={user?.id ?? "anonymous"} owner={user?.id ?? null}>
+                {children}
+            </CollectionProvider>
         </AuthContext.Provider>
     );
 }

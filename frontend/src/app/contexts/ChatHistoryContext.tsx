@@ -1,5 +1,4 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useLocation } from "react-router-dom";
 import {
   createChat,
   deleteChat,
@@ -12,6 +11,7 @@ import {
   type Message,
 } from "@/app/lib/api/chat";
 
+import { onCollectionChange } from "@/app/lib/collectionEvents";
 import { useAuth } from "./AuthContext";
 
 type PreparedChat = { id: string; at: number; result: Promise<ChatDetail>; detail: ChatDetail | null };
@@ -41,7 +41,6 @@ const INITIAL_LIMIT = 20;
 
 export function ChatHistoryProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const { pathname } = useLocation();
   const [chats, setChats] = useState<Chat[] | null>(null);
   const [limit, setLimit] = useState(INITIAL_LIMIT);
   const [hasMoreChats, setHasMore] = useState(false);
@@ -54,6 +53,11 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
   }, []);
   const pending = useRef<{ id: string; message: Message } | null>(null);
   const listRequest = useRef(0);
+  const updateChats = useCallback((update: (current: Chat[] | null) => Chat[] | null) => {
+    // A local mutation result is newer than any list request already in flight.
+    listRequest.current += 1;
+    setChats(update);
+  }, []);
 
   const loadChats = useCallback(async () => {
     const request = ++listRequest.current;
@@ -81,12 +85,29 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
     } else {
       void loadChats();
     }
-  }, [loadChats, pathname, user]);
+  }, [loadChats, user]);
+
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === "visible") void loadChats(); };
+    const off = onCollectionChange(({ tags }) => {
+      if (tags.includes("chats")) { prepared.current = null; void loadChats(); }
+    });
+    window.addEventListener("focus", refresh);
+    window.addEventListener("online", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      off();
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+      listRequest.current += 1;
+    };
+  }, [loadChats]);
 
   const saveChat = useCallback(async (projectId?: string) => {
     try {
       const { id } = await createChat(projectId ? { project_id: projectId } : undefined);
-      setChats((current) => [{
+      updateChats((current) => [{
         id,
         project_id: projectId ?? null,
         user_id: user?.id ?? "",
@@ -97,22 +118,22 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
     } catch {
       return null;
     }
-  }, [user?.id]);
+  }, [user?.id, updateChats]);
   const claimPendingChatMessage = useCallback((id: string) => {
     if (pending.current?.id !== id) return null;
     const message = pending.current.message;
     pending.current = null;
     return message;
   }, []);
-  const setChatTurnInProgress = useCallback((id: string, active: boolean) => setChats((current) =>
-    current?.map((chat) => chat.id === id ? { ...chat, turn_in_progress: active } : chat) ?? null), []);
+  const setChatTurnInProgress = useCallback((id: string, active: boolean) => updateChats((current) =>
+    current?.map((chat) => chat.id === id ? { ...chat, turn_in_progress: active } : chat) ?? null), [updateChats]);
 
   const value = useMemo<Context>(() => ({
     chats,
     onProjectMove,
     moveChat: async (id, projectId) => {
       const updated = await updateChatProject(id, projectId);
-      setChats((current) => current?.map((chat) => chat.id === id
+      updateChats((current) => current?.map((chat) => chat.id === id
         ? { ...chat, project_id: updated.project_id } : chat) ?? null);
       if (prepared.current?.id === id) prepared.current = null;
       for (const listener of projectMoveListeners.current) listener(id, updated.project_id);
@@ -135,17 +156,17 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
     loadMoreChats: () => setLimit((current) => current + 10),
     saveChat,
     renameChat: async (id, title) => {
-      setChats((current) => current?.map((chat) => chat.id === id ? { ...chat, title } : chat) ?? []);
+      updateChats((current) => current?.map((chat) => chat.id === id ? { ...chat, title } : chat) ?? []);
       try { await renameChat(id, title); } catch { await loadChats(); }
     },
     deleteChat: async (id) => {
-      setChats((current) => current?.filter((chat) => chat.id !== id) ?? []);
+      updateChats((current) => current?.filter((chat) => chat.id !== id) ?? []);
       try { await deleteChat(id); } catch { await loadChats(); }
     },
     stagePendingChatMessage: (id, message) => { pending.current = { id, message }; },
     peekPendingChatMessage: (id) => pending.current?.id === id ? pending.current.message : null,
     claimPendingChatMessage,
-    replaceChatId: (oldId, newId, title) => setChats((current) => {
+    replaceChatId: (oldId, newId, title) => updateChats((current) => {
       const unique = new Map((current ?? []).map((chat) => {
         const next = chat.id === oldId ? { ...chat, id: newId, title: title ?? chat.title } : chat;
         return [next.id, next];
@@ -153,7 +174,7 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
       return [...unique.values()];
     }),
     setChatTurnInProgress,
-  }), [chats, onProjectMove, hasMoreChats, loadChats, saveChat, claimPendingChatMessage, setChatTurnInProgress]);
+  }), [chats, onProjectMove, hasMoreChats, loadChats, saveChat, claimPendingChatMessage, setChatTurnInProgress, updateChats]);
   return <ChatHistoryContext.Provider value={value}>{children}</ChatHistoryContext.Provider>;
 }
 
