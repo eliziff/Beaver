@@ -32,8 +32,10 @@ jobs:
               assert len(files) == 3
               patch = lzma.decompress(base64.b64decode(''.join(p.read_text().strip() for p in files), validate=True))
               assert hashlib.sha256(patch).hexdigest() == '1ac0db01a982e72977d94572888580d42afb25cb509a52221ebe81b473d2f046'
-              subprocess.run(['git','apply','--check','--index'], input=patch, check=True)
-              subprocess.run(['git','apply','--index'], input=patch, check=True)
+              subprocess.run(['git','apply','--check','--cached'], input=patch, check=True)
+              subprocess.run(['git','apply','--cached'], input=patch, check=True)
+              paths = subprocess.check_output(['git','diff','--cached','--name-only','-z'])
+              subprocess.run(['git','checkout-index','-f','-z','--stdin'], input=paths, check=True)
               subprocess.run(['git','rm','--',*[str(p) for p in files]], check=True)
           PY
           git diff --cached --check
