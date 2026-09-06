@@ -1,3 +1,4 @@
+import type { PdfAnnotationSet, PdfAnnotationSets } from "../../../../shared/pdf-annotations.mjs";
 import type { WorkProduct, WorkProductInput } from "@/app/lib/workProducts";
 
 export type AuthorityKind = "case" | "legislation" | "commentary" | "other";
@@ -72,6 +73,7 @@ export type AuthorityIdentity = {
   excluded: boolean;
   source: AuthoritySource;
   highlightExclusions?: Array<{ kind: string; label: string }>;
+  annotations?: PdfAnnotationSets;
   userAdded?: true;
 };
 
@@ -144,6 +146,7 @@ export type AuthoritiesDiscrepancy = {
 };
 
 export type AuthoritiesAction =
+  | { type: "set-annotations"; entries: Array<{ authorityId: string; bindingRole: string; annotations: PdfAnnotationSet }> }
   | { type: "add-authority"; kind: AuthorityKind; citation: string; name?: string | null }
   | { type: "move-authority"; authorityId: string; toIndex: number }
   | { type: "set-stage"; stage: "citations" | "sources" | "highlights" | "build" }
