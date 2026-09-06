@@ -39,6 +39,7 @@ async function serve(directory, settings = {}) {
           await pause(settings.configDelay ?? 0);
           body = settings.invalidConfig ? { invalid: true } : config;
         } else if (path === '/api/projects') body = { items: [project], next_cursor: null };
+        else if (path === '/api/chat') body = [];
         else if (path === '/api/user/profile') body = profile;
         else if (path === '/api/auth/session') body = { user };
         else if (path === '/api/auth/mfa/assurance') body = { currentLevel: 'aal1', nextLevel: 'aal1' };
@@ -62,7 +63,7 @@ async function serve(directory, settings = {}) {
 }
 
 const browser = await chromium.launch({ headless: true });
-const report = { methodology: 'Fresh Chromium context, cache disabled, loopback fixture API, production bundles; cold timings use 80ms RTT / 10Mbps download / 4x CPU slowdown. Not a live-backend benchmark.', samples: [], checks: [] };
+const report = { methodology: 'Fresh Chromium context, cache disabled, loopback fixture API, uncompressed production bundles over HTTP/1.1; cold timings use 80ms RTT / 10Mbps download / 4x CPU slowdown, three alternating samples per configuration. Not a live-backend or HTTP/2 benchmark.', samples: [], checks: [] };
 async function contextFor(server, options = {}) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 960 }, ...options });
   const page = await context.newPage();
