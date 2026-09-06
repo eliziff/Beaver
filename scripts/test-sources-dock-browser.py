@@ -643,7 +643,10 @@ effect:e.dataTransfer.dropEffect});},true);""")
                 "return document.querySelector(\"section[aria-label='Research collection']\")?.getBoundingClientRect().width < 600"))
             workspace = visible(driver, By.CSS_SELECTOR, "section[aria-label='Research collection']")
             research_panels = workspace.find_element(By.CSS_SELECTOR, "section[aria-label='Saved sources']")
-            assert driver.execute_script("return arguments[0].scrollWidth<=arguments[0].clientWidth+1", research_panels)
+            overflowing = driver.execute_script("""const s=arguments[0],r=s.getBoundingClientRect();if(s.scrollWidth<=s.clientWidth+1)return [];
+return [...s.querySelectorAll('*')].filter(e=>{const b=e.getBoundingClientRect();return b.width>0&&b.right>r.right+1})
+  .slice(0,8).map(e=>`${e.tagName}${e.getAttribute('aria-label')?`[${e.getAttribute('aria-label')}]`:''} +${Math.round(e.getBoundingClientRect().right-r.right)}px ${String(e.className).slice(0,80)}`)""", research_panels)
+            assert not overflowing, f"Saved sources overflow horizontally: {overflowing}"
             list_panel = panel(driver, "List")
             search_box = list_panel.find_element(By.CSS_SELECTOR, "input[aria-label='Search list']")
             options = list_panel.find_element(By.CSS_SELECTOR, "button[aria-label='List options']")
