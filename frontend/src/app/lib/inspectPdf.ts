@@ -1,5 +1,6 @@
 import { getPdfJs } from "@/app/lib/pdfJs";
-import type { SourceBookmark } from "./types";
+export interface PdfSourceBookmark { title: string; pageIndex: number; children: PdfSourceBookmark[] }
+type SourceBookmark = PdfSourceBookmark;
 
 export interface PdfInspection {
   pageCount: number;
@@ -21,17 +22,21 @@ interface PdfOutlineItem {
 export async function inspectPdf(
   file: File,
   onProgress?: (completedPages: number, totalPages: number) => void,
+  signal?: AbortSignal,
 ): Promise<PdfInspection> {
+  signal?.throwIfAborted();
   const pdfjs = await getPdfJs();
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const loading = pdfjs.getDocument({ data: bytes });
+  const loading = pdfjs.getDocument({ data: bytes, isEvalSupported: false });
   try {
     const document = await loading.promise;
+    if (document.numPages > 2_000) throw new Error("This PDF exceeds the 2,000-page inspection limit.");
     let textlessPageCount = 0;
     const textlessPages: number[] = [];
     const pageTexts: string[] = [];
     let textCharacters = 0;
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+      signal?.throwIfAborted();
       const page = await document.getPage(pageNumber);
       const text = await page.getTextContent();
       pageTexts.push(text.items.map((item) => "str" in item

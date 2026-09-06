@@ -1,0 +1,80 @@
+name: Authorities parity
+on:
+  pull_request:
+    paths:
+      - 'frontend/src/app/authorities/**'
+      - 'frontend/src/app/(pages)/table-of-authorities/**'
+      - 'frontend/src/app/standalone.css'
+      - 'frontend/src/app/components/shared/views/**'
+      - 'backend/src/lib/authorit*'
+      - 'backend/src/lib/chat/__tests__/quoteRepair.test.ts'
+      - 'backend/src/routes/authorities*'
+      - 'backend/src/authorities*'
+      - 'shared/authorities*'
+      - 'shared/sequence-diff*'
+      - 'scripts/*authorities*'
+      - 'scripts/authorities-package/**'
+      - 'legal-structure'
+      - '.github/workflows/authorities-parity.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: authorities-parity-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  shared-runtime-and-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out the requested public revision and its native pins
+        run: |
+          git init .
+          git remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          git fetch --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+          # OpenLegalData is intentionally a local bundle, not a URL submodule.
+          # Initialize only the two native modules required by Authorities.
+          for module in legal-structure legal-pdf-parser; do
+            url=$(git config -f .gitmodules submodule.$module.url)
+            sha=$(git ls-tree HEAD "$module" | awk '{print $3}')
+            git init "$module"
+            git -C "$module" remote add origin "$url"
+            git -C "$module" fetch --depth=1 origin "$sha"
+            git -C "$module" checkout --detach FETCH_HEAD
+          done
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Install locked dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm ci --ignore-scripts --prefix backend
+          npm ci --ignore-scripts --prefix frontend
+      - name: Gate native citation and quotation semantics
+        run: cargo test --locked --manifest-path legal-structure/Cargo.toml --features citator,quote-verification --lib
+      - name: Build native PDF integration
+        run: cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
+      - name: Build both TypeScript surfaces
+        run: |
+          npm run build --prefix backend
+          npm run build --prefix frontend
+      - name: Verify shared behavior and deployment boundaries
+        run: |
+          npm run check:source-boundaries
+          (cd backend && npx vitest run authorities authorityPdfText a2aj.test quoteRepair --maxWorkers=2)
+          (cd frontend && npx vitest run authorities PdfView inspectPdf prepareDeviceFile table-of-authorities --maxWorkers=2)
+          npm run test:authorities-package
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Exercise the standalone application through real HTTP and the Rust engine
+        env:
+          AUTHORITIES_SMOKE_OUTPUT: authorities-browser-results
+        run: npm run test:authorities:browser
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: authorities-browser-evidence
+          path: authorities-browser-results/
+          retention-days: 7
+          if-no-files-found: ignore

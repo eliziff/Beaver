@@ -5,4 +5,4 @@
 @source "./components/modals";
 @source "./components/popups/ConfirmPopup.tsx";
 @source "./components/shared/{CollectionState,DocumentResultRow,LibraryDocumentPicker,MoreActionsMenu,OutputFolderSetting,PageHeader,TablePrimitive,WorkspaceHeader}.tsx";
-@source "./components/shared/views/PdfView.tsx";
+@source "./components/shared/views/{PdfView,PdfCanvas}.tsx";

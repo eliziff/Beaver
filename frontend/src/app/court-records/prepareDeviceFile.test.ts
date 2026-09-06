@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { inspectPdf } from "./inspectPdf";
+import { inspectPdf } from "@/app/lib/inspectPdf";
 import { prepareDeviceFile } from "./prepareDeviceFile";
 
-vi.mock("./inspectPdf", () => ({ inspectPdf: vi.fn() }));
+vi.mock("@/app/lib/inspectPdf", () => ({ inspectPdf: vi.fn() }));
 
 describe("device PDF preparation", () => {
   beforeEach(() => vi.mocked(inspectPdf).mockResolvedValue({

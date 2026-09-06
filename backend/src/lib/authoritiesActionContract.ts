@@ -29,7 +29,7 @@ function choice<T extends string>(value: unknown, choices: readonly T[]): T {
 }
 const authorityKinds = ["case", "legislation", "commentary", "other"] as const;
 export const AUTHORITIES_SETTINGS_CHOICES = {
-  sourceMode: ["automatic", "manual-originals", "render"], tabStyle: ["numeric", "alpha"],
+  sourceMode: ["automatic", "manual-originals", "render"], tabStyle: ["numeric", "alpha", "lower-alpha", "roman", "lower-roman"],
   tableOrder: ["first-reference", "alphabetical"],
   tableDelivery: ["native-marks", "native-append", "linked-append"],
   tableLocation: ["pages", "pinpoints", "combined"],
@@ -38,7 +38,7 @@ export const AUTHORITIES_SETTINGS_CHOICES = {
   missingSourcePolicy: ["placeholder", "omit"],
   filingMedium: ["electronic", "paper"],
   bookRole: AUTHORITIES_BOOK_ROLES,
-} as const satisfies { [K in keyof AuthoritiesBuildSettings]: readonly AuthoritiesBuildSettings[K][] };
+} as const;
 
 export function decodeAuthoritiesInitialSettings(value: unknown): AuthoritiesInitialSettings {
   return settings(value, true);
@@ -47,7 +47,7 @@ function settings(value: unknown, initial: true): AuthoritiesInitialSettings;
 function settings(value: unknown, initial?: false): Partial<AuthoritiesBuildSettings>;
 function settings(value: unknown, initial = false) {
   const item = object(value), allowed = new Set([
-    ...Object.keys(AUTHORITIES_SETTINGS_CHOICES), ...(initial
+    ...Object.keys(AUTHORITIES_SETTINGS_CHOICES), "tabStart", "tabPrefix", "tabLabels", "allowIncomplete", ...(initial
       ? ["profileId", "outputMode", "insertIntoDocument"] : []),
   ]);
   if (Object.keys(item).some((key) => !allowed.has(key))) return bad();
@@ -55,6 +55,20 @@ function settings(value: unknown, initial = false) {
   for (const [key, values] of Object.entries(AUTHORITIES_SETTINGS_CHOICES)) if (item[key] !== undefined) {
     result[key] = choice(item[key], values);
   }
+  if (item.tabStart !== undefined) {
+    result.tabStart = integer(item.tabStart, 1);
+    if (Number(result.tabStart) > 10_000) return bad();
+  }
+  if (item.tabPrefix !== undefined) {
+    // Preserve intentional trailing spaces in the prefix.
+    plain(item.tabPrefix, 80); result.tabPrefix = item.tabPrefix;
+  }
+  if (item.tabLabels !== undefined) {
+    if (!Array.isArray(item.tabLabels) || item.tabLabels.length > 10_000) return bad();
+    result.tabLabels = item.tabLabels.map((label) => plain(label, 100));
+  }
+  if (item.allowIncomplete !== undefined)
+    result.allowIncomplete = typeof item.allowIncomplete === "boolean" ? item.allowIncomplete : bad();
   if (initial && item.profileId !== undefined) result.profileId = choice(
     item.profileId, authoritiesProfileIds) as AuthoritiesProfileId;
   if (initial && item.outputMode !== undefined) result.outputMode = choice(
@@ -98,6 +112,10 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
         name: item.name === null ? null : text(item.name, 2_000),
       }) };
     }
+    case "set-stage": return { type,
+      stage: choice(item.stage, ["citations", "sources", "highlights", "build"] as const) };
+    case "move-authority": return { type, authorityId: text(item.authorityId),
+      toIndex: integer(item.toIndex) };
     case "remove-authority": return { type, authorityId: text(item.authorityId) };
     case "exclude-authority": return { type, authorityId: text(item.authorityId),
       excluded: typeof item.excluded === "boolean" ? item.excluded : bad() };
