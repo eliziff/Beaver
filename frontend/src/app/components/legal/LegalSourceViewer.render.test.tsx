@@ -39,20 +39,10 @@ import {
     legalSourceViewerActions,
 } from "./LegalSourceViewer";
 import { LegalLibrarySourcePage } from "./LegalLibrary";
-import { useSourcesWorkspace } from "./SourcesWorkspace";
-function HighlightButton() {
-  const { highlight } = useSourcesWorkspace();
-  return <button type="button" onClick={() => void highlight.run().catch(() => undefined)}>Highlight</button>;
-}
 function LegalSourceViewer({ researchFile, onResearchFileChange, ...props }: React.ComponentProps<typeof SourceViewer> &
   { researchFile?: ResearchFile | null; onResearchFileChange?: (file: ResearchFile | null) => void }) {
   return <SourcesWorkspaceProvider file={researchFile} fileId={props.researchFileId} onChange={onResearchFileChange}>
-    <SourceViewer {...props} /><HighlightButton /></SourcesWorkspaceProvider>;
-}
-function selectText(node: Node) {
-  const range = document.createRange(); range.selectNodeContents(node);
-  const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
-  return selection;
+    <SourceViewer {...props} /></SourcesWorkspaceProvider>;
 }
 
 function viewerPayload(): LegalSourceViewerPayload {
@@ -276,55 +266,28 @@ describe("legal source reader", () => {
         rect.mockRestore();
     });
 
-    it("saves the selection with the current pen in one request and prepares the source first", async () => {
+    it("opens a first highlight before preparing its source", async () => {
         const blank = { ...researchFile, state: { ...researchFile.state, sources: {} } };
         api.direct.mockResolvedValue(viewerPayload());
-        api.researchItems.mockResolvedValue(researchPage());
         api.actOnResearchFile.mockImplementation(async (_id, _version, _revision, action) =>
             action.type === "source" ? { ...researchFile, sourceId: "saved" }
-                : { ...researchFile, sourceId: "saved", evidenceId: "evidence" });
+                : action.type === "passage" ? { ...researchFile, sourceId: "saved", evidenceId: "evidence" }
+                    : researchFile);
         render(<LegalSourceViewer citation="2099 SCC 1" docType="cases" researchFile={blank} />);
-        const selection = selectText(await screen.findByText("ratio"));
-        fireEvent.click(screen.getByRole("button", { name: "Highlight" }));
+        const emphasis = await screen.findByText("ratio");
+        const range = document.createRange(); range.selectNodeContents(emphasis);
+        Object.defineProperty(range, "getBoundingClientRect", { value: () => ({ left: 10, top: 10,
+            right: 40, bottom: 30, width: 30, height: 20, x: 10, y: 10, toJSON: vi.fn() }) });
+        const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
+        fireEvent.pointerUp(emphasis);
+        fireEvent.click(await screen.findByRole("button", { name: "Save highlight" }));
+        expect(await screen.findByRole("dialog", { name: "Labels and note" })).toBeInTheDocument();
+        expect(api.createResearchFile).not.toHaveBeenCalled();
+        expect(api.actOnResearchFile).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole("button", { name: "Holding", pressed: false }));
         await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", 0,
-            { type: "passage", sourceId: "saved", locator: { kind: "paragraph", value: "par1" },
-                quote: "ratio", labelIds: ["holding"] }));
-        expect(api.actOnResearchFile.mock.calls.map(([, , , action]) => action.type)).toEqual(["source", "passage"]);
-        expect(screen.queryByRole("button", { name: "Save highlight" })).not.toBeInTheDocument();
-        expect(screen.queryByRole("dialog", { name: "Labels and note" })).not.toBeInTheDocument();
+            expect.objectContaining({ type: "source" })));
         selection.removeAllRanges();
-    });
-
-    it("highlights with the last-used pen on Ctrl+Shift+H", async () => {
-        const pens = { ...researchFile, state: { ...researchFile.state, labels: { ...researchFile.state.labels,
-            contrary: { id: "contrary", name: "Contrary", parentId: null, color: "#b91c1c", order: 1, scope: "highlight" as const } } } };
-        localStorage.setItem("beaver.research.pen.v1:file-1", "contrary");
-        api.direct.mockResolvedValue(viewerPayload());
-        api.researchItems.mockResolvedValue(researchPage());
-        api.actOnResearchFile.mockResolvedValue({ ...pens, sourceId: "saved", evidenceId: "evidence" });
-        render(<LegalSourceViewer citation="2099 SCC 1" docType="cases" researchFile={pens} />);
-        const selection = selectText(await screen.findByText("ratio"));
-        fireEvent.keyDown(document, { key: "H", ctrlKey: true, shiftKey: true });
-        await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", 0,
-            expect.objectContaining({ type: "passage", labelIds: ["contrary"] })));
-        selection.removeAllRanges();
-    });
-
-    it("arms highlighter mode and captures the next block click", async () => {
-        api.direct.mockResolvedValue(viewerPayload());
-        api.researchItems.mockResolvedValue(researchPage());
-        api.actOnResearchFile.mockResolvedValue({ ...researchFile, sourceId: "saved", evidenceId: "evidence" });
-        const { container } = render(<LegalSourceViewer citation="2099 SCC 1" docType="cases" researchFile={researchFile} />);
-        await screen.findByText("ratio");
-        window.getSelection()?.removeAllRanges();
-        fireEvent.click(screen.getByRole("button", { name: "Highlight" }));
-        await waitFor(() => expect(container.querySelector("[data-highlighter]")).not.toBeNull());
-        fireEvent.click(screen.getByText("ratio"));
-        await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", 0,
-            expect.objectContaining({ type: "passage", sourceId: "saved",
-                locator: { kind: "paragraph", value: "par1" }, labelIds: ["holding"] })));
-        expect(String(api.actOnResearchFile.mock.calls.at(-1)[3].quote)).toContain("The ratio controls.");
-        await waitFor(() => expect(container.querySelector("[data-highlighter]")).toBeNull());
     });
 
     it("forgets completed source preparation so a removed source can be added again", async () => {
@@ -362,14 +325,17 @@ describe("legal source reader", () => {
             "Choose or create a workspace first",
         );
         expect(onOpenResearch).toHaveBeenCalledTimes(1);
-        const emphasis = screen.getByText("ratio");
-        const selection = selectText(emphasis);
+        const emphasis = screen.getByText("ratio"), range = document.createRange();
+        range.selectNodeContents(emphasis);
+        Object.defineProperty(range, "getBoundingClientRect", { value: () => ({
+            left: 10, top: 10, right: 40, bottom: 30, width: 30, height: 20, x: 10, y: 10,
+        }) });
+        const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
         fireEvent.pointerUp(emphasis);
-        fireEvent.click(emphasis);
-        await waitFor(() => expect(onOpenResearch).toHaveBeenCalledTimes(1));
+        fireEvent.click(await screen.findByRole("button", { name: "Save highlight" }));
+        await waitFor(() => expect(onOpenResearch).toHaveBeenCalledTimes(2));
         selection.removeAllRanges();
         expect(api.createResearchFile).not.toHaveBeenCalled();
-        expect(api.actOnResearchFile).not.toHaveBeenCalled();
     });
 
     it("indexes rendered text once for an overlapping highlight batch", () => {

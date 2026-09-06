@@ -55,9 +55,6 @@ export type ResearchQueryInput = ResearchSelection & { text?: string; after?: st
   rules?: Array<{ phrase: string; direction: "before" | "after" | "around";
     unit: "sentence" | "line" | "paragraph" | "chars"; chars?: number;
     slot: string }>; conflict?: "prompt" | "first" | "longer" | "shorter" | "append" };
-/** Library readers without block anchors address the whole projection with kind `document`. */
-export type PassageLocator = { kind: "paragraph" | "section" | "page" | "footnote" | "document";
-  value: string; endValue?: string };
 export type ResearchAction =
   | { type: "label"; id?: string; name: string; parentId?: string | null;
       color?: string | null; order?: number; scope?: "source" | "highlight" }
@@ -69,7 +66,8 @@ export type ResearchAction =
       badge?: string; badgeColor?: string; note?: string }
   | { type: "annotate"; kind: "evidence"; id: string; sourceId: string;
       labelIds?: string[]; note?: string }
-  | { type: "passage"; sourceId: string; locator: PassageLocator; quote: string; labelIds?: string[] }
+  | { type: "passage"; sourceId: string; locator: { kind: "paragraph" | "section" | "page" | "footnote";
+      value: string; endValue?: string }; quote: string }
   | ({ type: "label-selection"; assign: string[]; mode: "add" | "remove" | "replace" } & ResearchSelection)
   | { type: "accept" | "reject" | "undo"; changeId: string }
   | { type: "note"; markdown: string; expectedMarkdown?: string };

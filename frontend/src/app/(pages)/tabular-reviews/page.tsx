@@ -202,7 +202,6 @@ function ReviewCollection({ projectContext }: { projectContext?: ProjectContext 
                     open={newReviewOpen}
                     onClose={() => setNewReviewOpen(false)}
                     onAdd={createReview}
-                    onOpen={navigate}
                 />
             )}
             <TabularReviewDetailsModal

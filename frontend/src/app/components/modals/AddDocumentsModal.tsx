@@ -12,9 +12,7 @@ import {
   formatUnsupportedDocumentWarning,
   partitionSupportedDocumentFiles,
 } from "@/app/lib/documentUploadValidation";
-import { isResearchDocument } from "@/app/lib/researchFiles";
 import { FileDirectory, type DirectoryTab } from "../shared/FileDirectory";
-import { ModalSegmentedToggle } from "./ModalSegmentedToggle";
 
 import { UploadAction } from "../documents/UploadAction";
 import { Modal } from "./Modal";
@@ -37,9 +35,6 @@ interface Props {
   externalUploadedDocuments?: Document[];
   primaryLabel?: string;
   keepMounted?: boolean;
-  /** Workspace sources that are not rows yet; adding them extends the review's research selection. */
-  sources?: { id: string; title: string }[];
-  onAddSources?: (sourceIds: string[]) => void | Promise<void>;
 }
 
 function merge(...groups: (Document[] | undefined)[]) {
@@ -73,8 +68,6 @@ export function AddDocumentsModal({
   externalUploadedDocuments,
   primaryLabel = "Confirm",
   keepMounted = false,
-  sources,
-  onAddSources,
 }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
@@ -84,10 +77,8 @@ export function AddDocumentsModal({
   const [pendingNames, setPendingNames] = useState<string[]>([]);
   const [warning, setWarning] = useState<string | null>(null);
   const [hasOpened, setHasOpened] = useState(open);
-  const [view, setView] = useState<"documents" | "sources">("documents");
-  const [pickedSources, setPickedSources] = useState<string[]>([]);
   const busy = operationBusy || pendingNames.length > 0;
-  const eligible = (document: Document) => !isResearchDocument(document) && (!documentFilter || documentFilter(document)) &&
+  const eligible = (document: Document) => (!documentFilter || documentFilter(document)) &&
     (accept === SUPPORTED_DOCUMENT_ACCEPT || accept.split(",").some((extension) =>
       document.filename.toLowerCase().endsWith(extension.trim().toLowerCase())));
   const selectable = (documents: Document[]) => {
@@ -103,8 +94,6 @@ export function AddDocumentsModal({
     }
     setSelected((current) => selectable(merge(wasOpen.current ? current : undefined, initialSelectedDocuments)));
     setPendingNames([]);
-    setView("documents");
-    setPickedSources([]);
     setWarning(null);
     if (!keepMounted) setUploaded([]);
     wasOpen.current = true;
@@ -117,12 +106,6 @@ export function AddDocumentsModal({
   }, [externalUploadedDocuments, open]);
 
   if (!open && (!keepMounted || !hasOpened)) return null;
-
-  async function addSources() {
-    if (busy || !pickedSources.length) return;
-    await onAddSources?.(pickedSources);
-    onClose();
-  }
 
   async function confirm() {
     if (busy || !selected.length || selected.some((document) => !eligible(document))) return;
@@ -210,8 +193,8 @@ export function AddDocumentsModal({
       }} />}
       primaryAction={{
         label: busy ? "Saving…" : primaryLabel,
-        onClick: () => void (view === "sources" ? addSources() : confirm()),
-        disabled: busy || !(view === "sources" ? pickedSources.length : selected.length),
+        onClick: () => void confirm(),
+        disabled: !selected.length || busy,
       }}
     >
       <input
@@ -236,21 +219,7 @@ export function AddDocumentsModal({
           </button>
         </p>
       )}
-      {!!sources?.length && <div className="mb-3">
-        <ModalSegmentedToggle value={view} onChange={setView}
-          options={[{ value: "documents", label: "Documents" }, { value: "sources", label: "Sources" }]} />
-      </div>}
-      {view === "sources" ? <ul aria-label="Sources" className="min-h-0 flex-1 overflow-y-auto">
-        {sources?.map(({ id, title }) => <li key={id}>
-          <label className="flex min-h-10 cursor-pointer items-center gap-2 rounded px-2 text-sm">
-            <input type="checkbox" aria-label={`Select ${title}`} checked={pickedSources.includes(id)}
-              onChange={() => setPickedSources((current) => current.includes(id)
-                ? current.filter((item) => item !== id) : [...current, id])}
-              className="h-[18px] w-[18px] shrink-0 cursor-pointer rounded border-gray-500 accent-gray-950" />
-            <span className="min-w-0 flex-1 truncate">{title}</span>
-          </label>
-        </li>)}
-      </ul> : <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col">
         <FileDirectory
           key={initialTab}
           documents={documents ? merge(uploaded, documents) : uploaded}
@@ -264,7 +233,7 @@ export function AddDocumentsModal({
           multiple={multiple}
           tabs={tabs}
         />
-      </div>}
+      </div>
     </Modal>
   );
 }

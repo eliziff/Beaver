@@ -157,12 +157,9 @@ describe("account-free tabular reviews", () => {
       assistantMessage: { id: answerMessageId, content: [legalEvidenceReceiptEvent(state)!] } });
     const imported = await sources.table(scope, created.id, { chatId: chat.id, messageIds: [answerMessageId] }),
       finding = (await sources.findings(scope, created.id, { chatId: chat.id, offset: 0, limit: 10 })).items[0];
+    expect(imported.needs_arrangement).toBe(true);
     expect(imported.id).not.toBe(table.body.id);
-    expect(imported.columns_config.map(({ name }) => name).slice(0, 2)).toEqual(["Labels", "Note"]);
-    expect(imported.scope_config?.arrangement?.rows).toEqual([{ id: sourceId, title: "Example", sourceId }]);
-    expect((await app.detail(scope, imported.id)).cells.every(({ status }) => status === "done")).toBe(true);
-    expect((await sources.table(scope, created.id, { chatId: chat.id, messageIds: [answerMessageId] })).id)
-      .toBe(imported.id);
+    expect((await app.detail(scope, imported.id)).cells).toEqual([]);
     const arrangement = { rows: [{ id: "governing-law", title: "Governing law", sourceId }],
       cells: [{ rowId: "governing-law", columnIndex: 0, items: [{ kind: "answer" as const,
         chatId: chat.id, answerId: finding.question.id, resource }] }] };
@@ -176,6 +173,8 @@ describe("account-free tabular reviews", () => {
     const { tabularRepository } = await import("../../lib/relationalTabularRepository");
     expect((await tabularRepository.detail(scope, imported.id))?.cells[0])
       .toMatchObject({ status: "pending", content: null });
+    expect(await sources.table(scope, created.id, { chatId: chat.id, messageIds: [answerMessageId] }))
+      .toMatchObject({ id: imported.id, needs_arrangement: false });
     expect(mocks.streamChatWithTools.mock.calls.length).toBe(calls);
   });
 

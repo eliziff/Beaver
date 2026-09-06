@@ -1,7 +1,7 @@
 import { apiRequest, segment, pagePath, post, type Page } from "@/app/lib/api/client";
 import type { ResearchFile, ResearchAction, ResearchActionResult, ResearchPageItem, ResearchQueryInput, ResearchQueryResult, ResearchSelection } from "@/app/lib/researchFiles";
 import type { GroundedAnswer, GroundedEvidence } from "@/app/lib/groundedAnswers";
-import type { ColumnConfig, TabularReview } from "./tabular";
+import type { ColumnConfig } from "./tabular";
 
 
 export const createResearchFile = (input: { title: string; projectId?: string | null; folderId?: string | null }) =>
@@ -48,7 +48,6 @@ export const ensureSourcesWorkspace = (input: { chatId?: string; tableId?: strin
   post<ResearchFile>("/source-workspaces/ensure", input);
 export const bindWorkspaceView = (id: string, input: { chatId?: string; tableId?: string; selection?: ResearchSelection }) =>
   post<ResearchFile>(`/source-workspaces/${segment(id)}/bind`, input);
-export const openWorkspaceTable = (id: string, input: { rows?: "sources" | "passages"; labelId?: string;
-  selection?: ResearchSelection; findingRefs?: ResearchFindingReference[];
+export const openWorkspaceTable = (id: string, input: { selection?: ResearchSelection; findingRefs?: ResearchFindingReference[];
   chatId?: string; messageIds?: string[]; tableId?: string }) =>
-  post<TabularReview>(`/source-workspaces/${segment(id)}/table`, input);
+  post<{ id: string; needs_arrangement?: boolean }>(`/source-workspaces/${segment(id)}/table`, input);
