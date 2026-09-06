@@ -7,10 +7,14 @@ if (!container) throw new Error("Missing Beaver application root");
 const root = createRoot(container);
 
 try {
-    const config = await initializeRuntimeConfig();
+    // The route definitions are configuration-independent. Fetch them while
+    // configuration is in flight, but do not evaluate auth-dependent modules
+    // or render the router until configuration has been accepted.
+    const config = initializeRuntimeConfig();
     const [{ Router }, gate] = await Promise.all([
         import("@/app/router"),
-        config.mode === "cloud" ? import("@/app/components/shared/MfaLoginGate") : null,
+        config.then(({ mode }) => mode === "cloud"
+            ? import("@/app/components/shared/MfaLoginGate") : null),
     ]);
     root.render(<Router LoginGate={gate?.MfaLoginGate} />);
 } catch (error) {
