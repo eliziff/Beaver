@@ -20,7 +20,7 @@ jobs:
           import subprocess, pathlib
           root = pathlib.Path('source-repo')
           available = subprocess.check_output(['git','ls-tree','--name-only','HEAD'], cwd=root, text=True).splitlines()
-          wanted = ['frontend','backend','shared','scripts','docs','AGENTS.md','package.json','package-lock.json','subrepos.lock.json']
+          wanted = ['frontend','backend','shared','scripts','docs','packages','AGENTS.md','package.json','package-lock.json','subrepos.lock.json']
           with open('annotation-editor-source.tar','wb') as out:
               subprocess.run(['git','archive','--format=tar','HEAD',*[p for p in wanted if p in available]], cwd=root, stdout=out, check=True)
           PY
@@ -31,12 +31,12 @@ jobs:
           name: annotation-editor-source
           path: annotation-editor-source.tar.gz
           retention-days: 1
-      - name: Install browser test dependencies without lifecycle scripts
-        run: npm ci --prefix frontend --ignore-scripts
-      - name: Bundle isolated browser dependencies
-        run: tar -czf annotation-editor-dependencies.tar.gz frontend/node_modules
+      - name: Install backend dependencies without lifecycle scripts
+        run: npm ci --prefix backend --ignore-scripts
+      - name: Bundle isolated backend dependencies
+        run: tar -czf annotation-editor-backend-dependencies.tar.gz backend/node_modules
       - uses: actions/upload-artifact@v4
         with:
-          name: annotation-editor-dependencies
-          path: annotation-editor-dependencies.tar.gz
+          name: annotation-editor-backend-dependencies
+          path: annotation-editor-backend-dependencies.tar.gz
           retention-days: 1
