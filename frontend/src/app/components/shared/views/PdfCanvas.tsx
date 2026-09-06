@@ -193,7 +193,15 @@ export function PdfCanvas({
                 if (generation !== generationRef.current) return;
                 const scroll = scrollRef.current;
                 const offset = (scroll?.scrollTop ?? 0) - container.offsetTop;
-                const anchor = pageAt(pages, offset);
+                let anchor = pageAt(pages, offset);
+                // An unresolved page at the top is only an estimate. Prefer an
+                // already readable page in view, including a citation below it.
+                if (pages[anchor].wrapper.dataset.geometryReady !== "true") {
+                    const end = offset + (scroll?.clientHeight || 800);
+                    for (let index = anchor + 1; index < pages.length && pages[index].top < end; index++) {
+                        if (pages[index].wrapper.dataset.geometryReady === "true") { anchor = index; break; }
+                    }
+                }
                 const fraction = (offset - pages[anchor].top) / pages[anchor].height;
                 let top = 0;
                 for (const [index, entry] of pages.entries()) {
@@ -647,7 +655,7 @@ export function PdfCanvas({
                     <span className="sr-only">Loading PDF…</span>
                 </div>
             )}
-            <div ref={scrollRef} style={{ scrollbarGutter: "stable" }} className="min-h-0 flex-1 overflow-auto px-3 pb-3 pt-5">
+            <div ref={scrollRef} style={{ scrollbarGutter: "stable", isolation: "isolate" }} className="min-h-0 flex-1 overflow-auto px-3 pb-3 pt-5">
                 {(error || viewerError) && (
                     <div role="alert" className="flex h-full items-center justify-center">
                         <p className="max-w-sm px-6 text-center text-sm text-red-600">
