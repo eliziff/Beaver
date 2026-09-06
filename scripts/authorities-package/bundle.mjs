@@ -13,13 +13,15 @@ const backendRequired = [
   "src/routes/authoritiesRuntime.ts",
   "src/lib/authoritiesBuild.ts",
 ];
+// Pure validation (Zod) is part of the shared runtime contract, not a Beaver
+// deployment dependency. Keep its real validators and error types in this bundle.
 const backendForbidden = [
   /(?:^|\/)src\/(?:index|runtime|supervisor)\.ts$/u,
   /(?:^|\/)src\/middleware\/auth\.ts$/u,
   /(?:^|\/)src\/lib\/(?:jobQueue|relational(?:Database)?|supabase)\.ts$/u,
   /(?:^|\/)src\/lib\/spreadsheet\.ts$/u,
   /(?:^|\/)src\/lib\/chat\//u,
-  /(?:^|\/)node_modules\/(?:@anthropic-ai|@aws-sdk|@google\/genai|@supabase|openai|postal-mime|postgres|xlsx|zod)\//u,
+  /(?:^|\/)node_modules\/(?:@anthropic-ai|@aws-sdk|@google\/genai|@supabase|openai|postal-mime|postgres|xlsx)\//u,
 ];
 const slash = (value) => value.replaceAll("\\", "/");
 const frontendRequired = ["/src/authoritiesMain.tsx",
@@ -76,9 +78,6 @@ function writeThirdPartyNotices(stage, inputs, base, prefix) {
 const localOnly = {
   name: "authorities-local-only",
   setup(build) {
-    build.onResolve({ filter: /^\.\.\/middleware\/auth$/ }, ({ importer }) =>
-      /\/src\/routes\/authorities(?:Runtime)?\.ts$/u.test(slash(importer))
-        ? { path: "auth", namespace: "authorities-local" } : null);
     build.onResolve({ filter: /^\.\/jobQueue$/ }, ({ importer }) =>
       slash(importer).endsWith("/src/lib/providerPdfLibraryBridge.ts")
         ? { path: "jobs", namespace: "authorities-local" } : null);
@@ -88,15 +87,9 @@ const localOnly = {
     build.onResolve({ filter: /^\.\/emailText$/ }, ({ importer }) =>
       slash(importer).endsWith("/src/lib/documentProjectionService.ts")
         ? { path: "email", namespace: "authorities-local" } : null);
-    build.onResolve({ filter: /^zod$/ }, ({ importer }) =>
-      slash(importer).endsWith("/src/lib/asyncRoute.ts")
-        ? { path: "zod", namespace: "authorities-local" } : null);
     build.onLoad({ filter: /.*/, namespace: "authorities-local" }, ({ path: name }) => ({
       loader: "js",
-      contents: name === "auth"
-        ? "export const requireAuth = (_req, _res, next) => next();"
-        : name === "zod" ? "export class ZodError extends Error { issues = []; }"
-        : name === "email"
+      contents: name === "email"
           ? "export const extractEmailText=async()=>{throw new Error('Authorities accepts PDF and Word files only')};"
         : name === "spreadsheet"
           ? "const no=async()=>{throw new Error('Authorities accepts PDF and Word files only')};export const spreadsheetToLLMStructure=no,spreadsheetToLLMText=no;"

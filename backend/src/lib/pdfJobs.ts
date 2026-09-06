@@ -59,7 +59,7 @@ export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHand
     const { documentId, documentVersionId } = job;
     if (!documentId || !documentVersionId) throw new Error("InvalidPdfJob");
     pdfLifecycleMark("queue.claimed", documentId);
-    const input = job.kind === "pdf.reprocess" ? reprocessPayload(job) : documentPayload(job);
+    const input = reprocessPayload(job);
     const content = await pdfLifecyclePhase("worker.source_read", documentId, () =>
       documents.read(
         { userId: job.userId }, documentId, documentVersionId, false,
@@ -95,15 +95,17 @@ export function enqueuePdfPreparation(input: {
   documentId: string;
   versionId: string;
   sourceSha256: string;
+  ocrProvider?: PdfOcrProvider | null;
 }, database?: RelationalDatabase) {
   return enqueueJob({
     kind: "pdf.prepare",
-    dedupeKey: `${groupKey(input.documentId, input.versionId, input.sourceSha256)}:full`,
+    dedupeKey: `${groupKey(input.documentId, input.versionId, input.sourceSha256)}:full${input.ocrProvider === undefined ? "" : `:${input.ocrProvider ?? "none"}`}`,
     groupKey: groupKey(input.documentId, input.versionId, input.sourceSha256),
     userId: input.userId,
     documentId: input.documentId,
     documentVersionId: input.versionId,
-    payload: { sourceSha256: input.sourceSha256 },
+    payload: { sourceSha256: input.sourceSha256,
+      ...(input.ocrProvider !== undefined ? { ocrProvider: input.ocrProvider } : {}) },
     priority: 0,
   }, database);
 }
