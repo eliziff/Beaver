@@ -1,3 +1,4 @@
+import { precompressedAssets } from "./lib/precompressedAssets";
 import express, { type ErrorRequestHandler } from "express";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -31,6 +32,7 @@ export function createAuthoritiesStandaloneApp({ port, buildId, frontend }: Auth
   const staticOptions = {
     immutable: true, maxAge: "1y", fallthrough: false,
   } as const;
+  app.use(precompressedAssets(frontend));
   app.use("/assets", express.static(path.join(frontend, "assets"), staticOptions));
   app.use("/pdfjs-standard-fonts", express.static(
     path.join(frontend, "pdfjs-standard-fonts"), staticOptions));
