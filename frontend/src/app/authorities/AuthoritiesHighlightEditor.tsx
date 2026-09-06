@@ -171,9 +171,9 @@ export function AuthoritiesHighlightEditor({ product, choices: initialChoices, h
         else if(event.key==='Escape'&&selectedId) {event.preventDefault();event.stopPropagation();setSelectedId(null);}
       }}>
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-gray-200 pb-3">
-          <label className="min-w-0 flex-1"><span className="sr-only">Authority PDF</span>
+          <label className="min-w-48 flex-1"><span className="sr-only">Authority PDF</span>
             <select aria-label="Authority PDF" value={role} disabled={saving||loading}
-              onChange={event=>setRole(event.target.value)} className="h-9 w-full min-w-48 rounded border border-gray-300 bg-white px-2 text-sm">
+              onChange={event=>setRole(event.target.value)} className="h-9 w-full min-w-0 rounded border border-gray-300 bg-white px-2 text-sm">
               {choices.map(choice=><option key={choice.bindingRole} value={choice.bindingRole}>{choice.title}</option>)}
             </select></label>
           {([{value:'select',label:'Select',Icon:MousePointer2},{value:'highlight',label:'Highlight text',Icon:Highlighter},
