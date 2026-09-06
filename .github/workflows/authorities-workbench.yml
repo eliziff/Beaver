@@ -49,6 +49,10 @@ jobs:
           assert len(parts)==4
           apply(json.loads(lzma.decompress(base64.b64decode(''.join(p.read_text().strip() for p in parts),validate=True))))
           apply(json.loads(lzma.decompress(base64.b64decode(pathlib.Path('.codex/authorities-followup.xz.b64').read_text().strip(),validate=True))))
+          endings=['frontend/src/app/authorities/FileInputButton.tsx','shared/sequence-diff.mjs']
+          for name in endings:
+              p=pathlib.Path(name);p.write_text(p.read_text().rstrip()+'\n')
+          subprocess.run(['git','add','--',*endings],check=True)
           PY
           git update-index --cacheinfo 160000,f1c1010d004b3be368ece5fba5299f6d006c98f2,legal-structure
           git rm .codex/authorities-delta.* .codex/authorities-followup.xz.b64 .github/workflows/authorities-workbench.yml
