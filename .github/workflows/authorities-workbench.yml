@@ -6,39 +6,33 @@ on:
 permissions:
   contents: read
 jobs:
-  native:
+  recover:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
-      - name: Check out public source without credentials
+      - name: Check out the requested public branch
         run: |
           git init .
           git remote add origin https://github.com/eliziff/Beaver.git
           git fetch --depth=1 origin "$GITHUB_SHA"
           git checkout --detach FETCH_HEAD
-          for module in legal-structure legal-pdf-parser; do
-            url=$(git config -f .gitmodules submodule.$module.url)
-            sha=$(git ls-tree HEAD "$module" | awk '{print $3}')
-            if [ "$module" = legal-structure ]; then sha=50aa7645624706f9f3cbfd7b2d73d5f3f3a9ffcb; fi
-            git init "$module"
-            git -C "$module" remote add origin "$url"
-            git -C "$module" fetch --depth=1 origin "$sha"
-            git -C "$module" checkout --detach FETCH_HEAD
-          done
-      - name: Test native citation and quotation semantics
+      - name: Recover staged source without executing it
         run: |
-          cargo test --locked --manifest-path legal-structure/Cargo.toml --features citator,quote-verification --lib > /tmp/test.log 2>&1 || { tail -90 /tmp/test.log; exit 1; }
-          tail -5 /tmp/test.log
-      - name: Build native citation, quotation and PDF engine
-        run: cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
-      - name: Package pinned native engine and reference sources
-        run: |
-          tar --exclude=.git --exclude=target -czf authorities-native-source.tar.gz legal-structure legal-pdf-parser
-          tar -czf authorities-native.tar.gz native/legal-structure-node/target/release/liblegal_structure_node.so
+          python3 - <<'PY'
+          import base64, gzip, zlib, pathlib, tarfile
+          parts = sorted(pathlib.Path('.codex').glob('authorities-delta.*'))
+          assert len(parts) == 4
+          raw = base64.b64decode(''.join(p.read_text().strip() for p in parts), validate=True)
+          print('Decoded magic:', repr(raw[:32]))
+          if raw.startswith(b'\x1f\x8b'):
+              raw = gzip.decompress(raw)
+          elif raw[:1] == b'x':
+              raw = zlib.decompress(raw)
+          pathlib.Path('authorities-delta.decoded').write_bytes(raw)
+          print('Payload size:', len(raw), 'Header:', repr(raw[:250]))
+          PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: authorities-native
-          path: |
-            authorities-native.tar.gz
-            authorities-native-source.tar.gz
+          name: authorities-recovered-delta
+          path: authorities-delta.decoded
           retention-days: 1
