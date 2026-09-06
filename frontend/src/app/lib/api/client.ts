@@ -1,3 +1,4 @@
+import { notifyApiMutation } from "./mutationEvents";
 const API_BASE = "/api";
 const isWordSurface = () => typeof window !== "undefined" &&
   (window.location.pathname.startsWith("/word") ||
@@ -19,12 +20,14 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
   const headers = new Headers({ Accept: "application/json" });
   if (isWordSurface()) headers.set("X-Beaver-Surface", "word");
   new Headers(init.headers).forEach((value, key) => headers.set(key, value));
-  return fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${API_BASE}${path}`, {
     cache: "no-store",
     credentials: "include",
     ...init,
     headers,
   });
+  if (response.ok) notifyApiMutation(path, init.method ?? "GET", init.body);
+  return response;
 }
 async function responseError(response: Response, fallback?: string) {
   const text = await response.text();

@@ -1,3 +1,4 @@
+import { projectsCollection, directoryCollection } from "@/app/lib/collectionKeys";
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Loader2, X } from "lucide-react";
 import {
@@ -88,16 +89,19 @@ export function FileDirectory({ documents = EMPTY, projectId, autoFocus = true,
         (parentId, q, cursor, signal) => libraryResource.list(
             { parent_id: parentId, q, cursor }, signal),
         query, [libraryResource, query], showTabs && activeTab !== "projects",
+        directoryCollection({ library: libraryKind }, query),
     );
     const projects = usePagedQuery<Project>(
         (cursor, signal) => listProjects({ q: selectedProjectId ? "" : query, cursor }, signal),
         [query, selectedProjectId], showTabs && activeTab === "projects" && !selectedProjectId,
+        projectsCollection({ q: selectedProjectId ? "" : query }),
     );
     const project = usePagedDirectory(
         (parentId, q, cursor, signal) => projectResource.list(
             { parent_id: parentId, q, cursor }, signal),
         query, [projectResource, query],
         !!activeProjectId && (!showTabs || activeTab === "projects"),
+        directoryCollection({ projectId: activeProjectId }, query),
     );
     const directory = !showTabs ? (projectId ? project : null)
         : activeTab === "projects" ? (selectedProjectId ? project : null) : library;

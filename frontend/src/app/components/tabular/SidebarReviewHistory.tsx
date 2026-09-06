@@ -1,3 +1,4 @@
+import { tabularReviewsCollection } from "@/app/lib/collectionKeys";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { SquarePen } from "lucide-react";
@@ -18,7 +19,7 @@ export function SidebarReviewHistory({ collapsed, search, onNavigate }: { collap
     const q = search.trim();
     const conversations = useChatSearch({ search: q, search_context: "reviews" }, !!q);
     const page = usePagedQuery<TabularReview>((cursor, signal) =>
-        listTabularReviews({ scope: "standalone", q, limit: 20, cursor }, signal), [user?.id, q], !!user);
+        listTabularReviews({ scope: "standalone", q, limit: 20, cursor }, signal), [user?.id, q], !!user, tabularReviewsCollection({ scope: "standalone", q, limit: 20 }));
     const lastPath = useRef(pathname);
     useEffect(() => {
         const previous = lastPath.current;
