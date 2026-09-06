@@ -3,9 +3,11 @@ on:
   pull_request:
     paths:
       - 'frontend/src/app/authorities/**'
+      - 'frontend/src/app/(pages)/table-of-authorities/**'
       - 'frontend/src/app/standalone.css'
       - 'frontend/src/app/components/shared/views/**'
       - 'backend/src/lib/authorit*'
+      - 'backend/src/lib/chat/__tests__/quoteRepair.test.ts'
       - 'backend/src/routes/authorities*'
       - 'backend/src/authorities*'
       - 'shared/authorities*'
@@ -60,7 +62,7 @@ jobs:
       - name: Verify shared behavior and deployment boundaries
         run: |
           npm run check:source-boundaries
-          (cd backend && npx vitest run authorities authorityPdfText a2aj.test --maxWorkers=2)
+          (cd backend && npx vitest run authorities authorityPdfText a2aj.test quoteRepair --maxWorkers=2)
           (cd frontend && npx vitest run authorities PdfView inspectPdf prepareDeviceFile table-of-authorities --maxWorkers=2)
           npm run test:authorities-package
       - name: Install browser
