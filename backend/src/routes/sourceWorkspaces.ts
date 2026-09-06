@@ -40,6 +40,20 @@ export function createSourceWorkspacesRouter(app: SourceWorkspaceApplication) {
       .refine(({ chatId, tableId }) => Boolean(chatId) !== Boolean(tableId), "Choose a chat or table").parse(req.body);
     res.json(await app.ensure(scope(res), input, { executor: "human" }));
   }));
+  router.get("/ontology", asyncRoute(async (req, res) => {
+    const input = z.object({ project_id: id.optional() }).strict().parse(req.query);
+    res.json(await app.ontology(scope(res), { projectId: input.project_id ?? null, create: false }));
+  }));
+  router.post("/ontology", asyncRoute(async (req, res) => {
+    const input = z.object({ projectId: id.nullish() }).strict().parse(req.body ?? {});
+    res.json(await app.ontology(scope(res), { projectId: input.projectId ?? null, create: true }));
+  }));
+  router.get("/membership", asyncRoute(async (req, res) => {
+    const input = z.object({ project_id: id.optional(),
+      document_ids: z.string().max(20_000) }).strict().parse(req.query);
+    res.json(await app.membership(scope(res), { projectId: input.project_id ?? null,
+      documentIds: input.document_ids.split(",").map((value) => value.trim()).filter(Boolean).slice(0, 200) }));
+  }));
   router.get("/:id", asyncRoute(async (req, res) => {
     res.json(await app.get(scope(res), id.parse(req.params.id)) ?? reject(404, "Sources workspace not found"));
   }));
@@ -91,8 +105,13 @@ export function createSourceWorkspacesRouter(app: SourceWorkspaceApplication) {
   router.post("/:id/table", asyncRoute(async (req, res) => {
     const input = z.object({ selection: researchSelectionSchema.optional(), tableId: id.optional(),
       chatId: id.optional(), messageIds: z.array(id).min(1).max(100).optional(),
+      rows: z.enum(["sources", "passages"]).optional(), labelId: id.optional(),
       findingRefs: z.array(researchFindingReferenceSchema).min(1).max(10_000).optional() }).strict().parse(req.body ?? {});
     res.json(await app.table(scope(res), id.parse(req.params.id), input, { executor: "human" }));
+  }));
+  router.post("/:id/column-labels", asyncRoute(async (req, res) => {
+    const input = z.object({ reviewId: id, columnIndex: z.number().int().min(0).max(10_000) }).strict().parse(req.body);
+    res.json(await app.columnLabels(scope(res), id.parse(req.params.id), input, { executor: "human" }));
   }));
   return router;
 }

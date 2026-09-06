@@ -549,6 +549,30 @@ describe("Research v2 parts", () => {
       expect(labels).toEqual([sourceLabel, highlightLabel]);
   });
 
+  it("saves a Library highlight with its pen in one write and pins the whole-document quote to a block", async () => {
+    const f = fixture(), scope = { userId: "user-1" },
+      text = "Recitals follow.\n\nThe governing law is Alberta.",
+      blocks = [{ kind: "paragraph", label: "1", start: 0, end: 16, text: "Recitals follow." },
+        { kind: "paragraph", label: "2", start: 18, end: text.length, text: "The governing law is Alberta." }],
+      library = { provider: "library" as const, kind: "document" as const, id: "library-doc",
+        versionId: "revision-1", title: "Lease.docx" },
+      documents = Object.assign(f.documents, { projectionSource: vi.fn(async () => ({
+        document: { text, blocks }, sourceSha256: "b".repeat(64) })) });
+    await act(f, { type: "label", id: highlightLabel, name: "Key", scope: "highlight" });
+    const prepared = await act(f, { type: "source", reference: library }),
+      sourceId = Object.keys(prepared.state.sources)[0];
+    const action = await verifyResearchPassage(prepared, { type: "passage", sourceId,
+      locator: { kind: "document", value: "document" }, quote: "governing law is Alberta",
+      labelIds: [highlightLabel] }, undefined, { documents: documents as never, scope });
+    const saved = await act(f, action);
+    expect(f.documents.replaceVersion).toHaveBeenCalledTimes(3);
+    expect(saved.state.sources[sourceId].passages).toMatchObject({ count: 1,
+      labelCounts: { [highlightLabel]: 1 }, unlabelledCount: 0 });
+    expect((await pageResearchItems(f.documents as never, scope, saved, "passages")).items[0])
+      .toMatchObject({ value: { labelIds: [highlightLabel], receipt: {
+        span_text: "governing law is Alberta", locator: { kind: "paragraph", label: "2" } } } });
+  });
+
   it("accepts only a quote verified against the selected canonical passage", async () => {
     const f = fixture();
     const saved = await act(f, { type: "source", reference: { provider: "courtlistener",
