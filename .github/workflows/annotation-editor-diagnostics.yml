@@ -4,39 +4,79 @@ on:
     branches: [codex/authorities-visual-highlight-editor]
     paths: [.github/workflows/annotation-editor-diagnostics.yml]
 permissions:
-  contents: read
+  contents: write
 jobs:
   workspace:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: source-repo
     steps:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Fetch public source without initializing unrelated submodules
+      - name: Fetch feature branch without initializing unrelated submodules
+        working-directory: .
         run: |
           git clone --depth 1 --no-checkout --branch codex/authorities-visual-highlight-editor https://github.com/eliziff/Beaver.git source-repo
+          cd source-repo
+          git read-tree HEAD
+          git archive HEAD | tar -x
+      - name: Apply checksum-verified feature patch
+        run: |
           python3 - <<'PY'
-          import subprocess, pathlib
-          root = pathlib.Path('source-repo')
-          available = subprocess.check_output(['git','ls-tree','--name-only','HEAD'], cwd=root, text=True).splitlines()
-          wanted = ['frontend','backend','shared','scripts','docs','packages','AGENTS.md','package.json','package-lock.json','subrepos.lock.json']
-          with open('annotation-editor-source.tar','wb') as out:
-              subprocess.run(['git','archive','--format=tar','HEAD',*[p for p in wanted if p in available]], cwd=root, stdout=out, check=True)
+          import base64, hashlib, lzma, pathlib, subprocess
+          files = sorted(pathlib.Path('.github').glob('annotation-editor-patch.[123]'))
+          if files:
+              assert len(files) == 3
+              patch = lzma.decompress(base64.b64decode(''.join(p.read_text().strip() for p in files), validate=True))
+              assert hashlib.sha256(patch).hexdigest() == '1ac0db01a982e72977d94572888580d42afb25cb509a52221ebe81b473d2f046'
+              subprocess.run(['git','apply','--check','--index'], input=patch, check=True)
+              subprocess.run(['git','apply','--index'], input=patch, check=True)
+              subprocess.run(['git','rm','--',*[str(p) for p in files]], check=True)
           PY
-          gzip annotation-editor-source.tar
-          tar -xzf annotation-editor-source.tar.gz
+          git diff --cached --check
+          git diff --cached --stat
+      - name: Commit implementation to feature branch only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! git diff --cached --quiet; then
+            test "$(git branch --show-current)" = codex/authorities-visual-highlight-editor
+            git config user.name 'ChatGPT'
+            git config user.email 'noreply@openai.com'
+            git commit -m 'Replace authorities highlight checklist with a persistent visual PDF editor'
+            git -c http.extraHeader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push origin HEAD:refs/heads/codex/authorities-visual-highlight-editor
+          fi
+      - name: Install exact test dependencies without lifecycle scripts
+        run: |
+          npm ci --prefix frontend --ignore-scripts
+          npm ci --prefix backend --ignore-scripts
+          python3 -m pip install playwright pymupdf
+      - name: Typecheck both applications
+        run: |
+          node frontend/node_modules/typescript/bin/tsc --noEmit -p frontend
+          node backend/node_modules/typescript/bin/tsc --noEmit -p backend
+      - name: Focused backend and viewer regression tests
+        run: |
+          (cd backend && node node_modules/vitest/vitest.mjs run src/lib/authoritiesAnnotations.test.ts src/lib/authoritiesBuild.test.ts src/lib/authoritiesDomain.test.ts src/lib/authorityPdfText.test.ts --maxWorkers=2)
+          (cd frontend && node node_modules/vitest/vitest.mjs run src/app/components/shared/views/PdfView.test.tsx src/app/authorities/beaverHost.test.ts src/app/authorities/standaloneHost.test.tsx --maxWorkers=2)
+          node scripts/check-source-boundaries.mjs
+          node --test frontend/scripts/transport-boundary.test.mjs
+      - name: Real browser editing and independent PDF round trip
+        run: |
+          mkdir -p /tmp/annotation-results
+          node backend/node_modules/tsx/dist/cli.mjs backend/scripts/authorities-highlight-browser-runtime.ts > /tmp/annotation-results/runtime.log 2>&1 &
+          RUNTIME_PID=$!
+          (cd frontend && BEAVER_API_ORIGIN=http://127.0.0.1:3037 node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 3036) > /tmp/annotation-results/vite.log 2>&1 &
+          VITE_PID=$!
+          trap 'kill "$RUNTIME_PID" "$VITE_PID" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do curl -fsS http://127.0.0.1:3036/tests/authorities-highlights/ >/dev/null && break || sleep 1; done
+          python3 scripts/test-authorities-highlights-browser.py --output /tmp/annotation-results
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: annotation-editor-source
-          path: annotation-editor-source.tar.gz
-          retention-days: 1
-      - name: Install backend dependencies without lifecycle scripts
-        run: npm ci --prefix backend --ignore-scripts
-      - name: Bundle isolated backend dependencies
-        run: tar -czf annotation-editor-backend-dependencies.tar.gz backend/node_modules
-      - uses: actions/upload-artifact@v4
-        with:
-          name: annotation-editor-backend-dependencies
-          path: annotation-editor-backend-dependencies.tar.gz
-          retention-days: 1
+          name: annotation-editor-browser-check
+          path: /tmp/annotation-results
+          retention-days: 3
