@@ -18,11 +18,14 @@ The runtime prepares initial geometry through the existing `authorityPdfText` pi
 
 ```sh
 node frontend/node_modules/typescript/bin/tsc --noEmit -p frontend
-node backend/node_modules/typescript/bin/tsc --noEmit -p backend
+node backend/node_modules/typescript/bin/tsc -p backend
 (cd backend && node node_modules/vitest/vitest.mjs run src/lib/authoritiesAnnotations.test.ts src/lib/authoritiesBuild.test.ts src/lib/authoritiesDomain.test.ts src/lib/authorityPdfText.test.ts)
 (cd frontend && node node_modules/vitest/vitest.mjs run src/app/components/shared/views/PdfView.test.tsx src/app/authorities/beaverHost.test.ts src/app/authorities/standaloneHost.test.tsx)
 node scripts/check-source-boundaries.mjs
+node --test frontend/scripts/transport-boundary.test.mjs
 ```
+
+The backend compilation supplies the generated `backend/dist` imports checked by the existing source-boundary script.
 
 For the real-browser fixture, install Python `playwright` and `pymupdf`, and provide Chrome/Chromium. Run these in separate terminals:
 
@@ -33,3 +36,9 @@ python3 scripts/test-authorities-highlights-browser.py --output /tmp/authorities
 ```
 
 The fixture uses the production editor, PDF.js viewer, action decoder/reducer, annotation preparation, and book builder. Only expensive native passage resolution is supplied synthetic geometry; no legal corpus, OCR job, or metered API is used. It exercises independent quote deletion, arbitrary text highlighting, partial erasure, undo/redo, a cropped/rotated page, an image-only scan, persistence/reopening, narrow layout, and manual-only export. PyMuPDF independently reads, renders, deletes, saves, and reopens exported annotations. This is not a claim of a manual Acrobat compatibility test.
+
+## Recorded validation
+
+On September 6, 2026, both application TypeScript checks passed, as did 57 focused backend tests and 32 viewer/host tests. Source and HTTP transport boundaries passed. Standalone Authorities and Court Records production bundles built and passed the preload-boundary check.
+
+The real Chrome fixture completed with no page errors. Its exported book contained four editable Highlight annotations; PyMuPDF deleted one and reopened the saved PDF with three remaining and the source text unchanged. Manual-only export contained one highlight with automatic marking set to `none`. The cropped/rotated page's exported highlight was verified at the corresponding visible-page coordinates. Browser and independently rendered PDF screenshots were inspected.
