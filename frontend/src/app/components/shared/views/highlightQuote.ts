@@ -1,4 +1,4 @@
-import { normalizeQuoteText, strippedToOriginal } from "./quoteText";
+import { normalizeQuoteText, quoteSegments, strippedToOriginal } from "./quoteText";
 export { getPdfJs } from "@/app/lib/pdfJs";
 
 export const STANDARD_FONT_DATA_URL = new URL(
@@ -19,10 +19,7 @@ export function clearHighlights(textDivs: HTMLElement[]) {
 
 export function highlightQuote(textDivs: HTMLElement[], quote: string) {
     clearHighlights(textDivs);
-    const segments = quote
-        .split(/\.{3}|\u2026/u)
-        .map(normalizeQuoteText)
-        .filter(Boolean);
+    const segments = quoteSegments(quote);
     const original: string[] = [];
     const normalized: string[] = [];
     const starts: number[] = [];
