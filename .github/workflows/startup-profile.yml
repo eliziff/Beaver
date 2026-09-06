@@ -48,27 +48,37 @@ jobs:
         run: |
           npm run build --prefix backend 2>&1 | tee .perf/backend-build.log
           (cd backend && npx vitest run src/lib/precompressedAssets.test.ts src/server.test.ts) 2>&1 | tee .perf/backend-tests.log
-      - name: Frontend tests
-        if: ${{ !cancelled() }}
-        run: npm test --prefix frontend 2>&1 | tee .perf/frontend-tests.log
       - name: Production builds and standalone boundaries
         if: ${{ !cancelled() }}
         run: npm run build --prefix frontend 2>&1 | tee .perf/frontend-build.log
-      - name: Source boundaries
-        if: ${{ !cancelled() }}
-        run: npm run check:source-boundaries 2>&1 | tee .perf/source-boundaries.log
       - name: Build pinned previous PR and original main
         if: ${{ !cancelled() }}
         run: |
           for name in previous original; do
             (cd ".baseline-$name/frontend" && npx vite build --outDir "../../.perf/$name" --emptyOutDir) 2>&1 | tee ".perf/$name-build.log"
           done
-      - name: Browser regressions, cold module workers, and cold/loopback comparisons
+      - name: Browser regressions and matched cold/loopback comparisons
         if: ${{ !cancelled() }}
         run: |
           npx playwright install --with-deps chromium
           node scripts/test-cold-load.mjs frontend/dist .perf/previous .perf/report 2>&1 | tee .perf/browser.log
           node scripts/test-cold-load.mjs frontend/dist .perf/original .perf/report-original 2>&1 | tee .perf/browser-original.log
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: startup-browser-validation
+          include-hidden-files: true
+          path: |
+            .perf/*.log
+            .perf/report
+            .perf/report-original
+          retention-days: 7
+      - name: Frontend tests
+        if: ${{ !cancelled() }}
+        run: npm test --prefix frontend 2>&1 | tee .perf/frontend-tests.log
+      - name: Source boundaries
+        if: ${{ !cancelled() }}
+        run: npm run check:source-boundaries 2>&1 | tee .perf/source-boundaries.log
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
