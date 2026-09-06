@@ -132,7 +132,7 @@ export type DocumentStore = {
   }>>;
   create(scope: DocumentScope, input: DocumentFile & { projectId?: string | null;
     libraryKind?: LibraryKind; folderId?: string | null; provenance?: DocumentProvenance;
-    parts?: DocumentPartFile[] }):
+    parts?: DocumentPartFile[]; pdfOcrProvider?: LegalPdfOcrProvider | null }):
     Promise<DocumentRecord>;
   deleteDocument(scope: DocumentScope, id: string, owner?: boolean,
     expected?: DocumentHeadExpectation): Promise<boolean>;

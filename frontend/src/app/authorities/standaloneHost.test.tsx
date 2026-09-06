@@ -539,7 +539,8 @@ describe("standalone Authorities sources", () => {
     expect(relinkSource).toHaveBeenCalledWith("draft-1", "source", 1);
     await waitFor(() => expect(screen.queryByRole("button", { name: "Allow file access" }))
       .not.toBeInTheDocument());
-    expect(screen.getByRole("checkbox")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Done", exact: true })).toBeEnabled();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
   it("labels retained outputs as previous after the draft changes", async () => {
@@ -563,4 +564,41 @@ describe("standalone Authorities sources", () => {
     expect(screen.getByRole("button", { name: "Download previous Factum.table.docx" }))
       .toBeVisible();
   });
+  it("discloses source slots only after citation review and fetching complete, and builds last", async () => {
+    let saved = product(input("0".repeat(64)));
+    saved.state.stage = "citations";
+    saved.state.outputMode = "book";
+    let resolveSources!: (value: AuthoritiesProduct) => void;
+    const pending = new Promise<AuthoritiesProduct>((resolve) => { resolveSources = resolve; });
+    const host: AuthoritiesHost = {
+      drafts: { list: vi.fn().mockResolvedValue([saved]), get: vi.fn().mockResolvedValue(saved),
+        create: vi.fn(), update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() },
+      create: vi.fn(), refresh: vi.fn(), prepareSources: vi.fn(() => pending),
+      act: vi.fn(async (_id, _revision, action) => {
+        saved = { ...saved, revision: saved.revision + 1, state: { ...saved.state } };
+        if (action.type === "set-stage") saved.state.stage = action.stage;
+        if (action.type === "set-settings") Object.assign(saved.state.settings, action.settings);
+        return saved;
+      }),
+      attach: vi.fn(), build: vi.fn(), download: vi.fn(),
+      inspectDraft: vi.fn().mockResolvedValue({ sourceIssues: {}, outputFreshness: "unbuilt" }),
+    };
+    render(<MemoryRouter><AuthoritiesWorkspace host={host}
+      route={{ draftId: "draft-1", replaceDraft: vi.fn() }} /></MemoryRouter>);
+    await screen.findByRole("button", { name: "Done", exact: true });
+    expect(screen.queryByRole("list", { name: "Authority tab slots" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Build outputs" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Done", exact: true }));
+    expect(host.prepareSources).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("list", { name: "Authority tab slots" })).not.toBeInTheDocument();
+    resolveSources(saved);
+    await screen.findByRole("list", { name: "Authority tab slots" });
+    expect(screen.queryByRole("heading", { name: "Build outputs" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Done — review highlights" }));
+    await screen.findByRole("button", { name: "Done — build book" });
+    expect(screen.queryByRole("heading", { name: "Build outputs" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Done — build book" }));
+    await screen.findByRole("heading", { name: "Build outputs" });
+  });
+
 });

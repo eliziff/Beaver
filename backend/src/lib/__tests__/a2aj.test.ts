@@ -313,7 +313,7 @@ describe("A2AJ client", () => {
     }), { status: 200, headers: { "content-type": "application/json" } })));
 
     await expect(a2ajLegalSourceProvider.document({ citation: "2099 SCC 9", dataset: "SCC" }))
-      .resolves.toMatchObject({ url: "https://example.test/first", searchText: "Wrong record." });
+      .resolves.toBeNull();
 
     await expect(a2ajLegalSourceProvider.document({
       citation: "2099 SCC 9",
