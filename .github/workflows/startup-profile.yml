@@ -63,7 +63,7 @@ jobs:
           for name in previous original; do
             (cd ".baseline-$name/frontend" && npx vite build --outDir "../../.perf/$name" --emptyOutDir) 2>&1 | tee ".perf/$name-build.log"
           done
-      - name: Browser regressions and matched cold comparisons
+      - name: Browser regressions, cold module workers, and cold/loopback comparisons
         if: ${{ !cancelled() }}
         run: |
           npx playwright install --with-deps chromium
