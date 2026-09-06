@@ -9,9 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          persist-credentials: false
+      - name: Check out public source without credentials
+        run: |
+          git init .
+          git remote add origin https://github.com/eliziff/Beaver.git
+          git fetch --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
       - name: Package source for offline validation
         run: |
           python3 - <<'PY'
@@ -26,10 +29,14 @@ jobs:
                       continue
                   archive.add(path, arcname=value)
           PY
+          git clone --depth=1 https://github.com/eliziff/AuthoritiesHelper.git /tmp/authorities-reference
+          tar --exclude=.git -czf authorities-reference.tar.gz -C /tmp/authorities-reference .
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: authorities-source
-          path: authorities-source.tar.gz
+          path: |
+            authorities-source.tar.gz
+            authorities-reference.tar.gz
           retention-days: 1
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
