@@ -322,6 +322,7 @@ export function InitialView({
                     open
                     onClose={() => setModal(null)}
                     onAdd={handleNewReview}
+                    onOpen={navigate}
                 />
             )}
         </div>

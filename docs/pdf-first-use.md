@@ -10,6 +10,8 @@ Unknown page geometry remains hidden until resolved. Viewport anchoring compensa
 for mixed page sizes becoming known; annotation navigation awaits the target's
 exact geometry before focusing. Existing normalized annotation coordinates and
 PDF.js rendering options are unchanged. No page raster or highlight is flattened.
+The text-layer rotation stylesheet follows PDF.js viewport rotation so selection
+and quote highlights align with cropped/rotated raster pages.
 
 Quote lookup searches normalized text with the existing matching rule, without
 creating text-layer DOM across the whole document. Matching and visible pages

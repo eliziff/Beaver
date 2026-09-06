@@ -44,7 +44,7 @@ export function SidebarReviewHistory({ collapsed, search, onNavigate }: { collap
                 {!!q && !!conversations.error && <button type="button" onClick={() => void conversations.reload()} className="h-8 px-2 text-xs text-gray-600 hover:underline">Could not search conversations. Retry</button>}
             </div>
         </>}
-        <NewTRModal open={creating} onClose={() => setCreating(false)} onAdd={async (title, projectId, documentIds, columnsConfig, workflowId) => {
+        <NewTRModal open={creating} onClose={() => setCreating(false)} onOpen={(path) => { setCreating(false); navigate(path); onNavigate?.(); }} onAdd={async (title, projectId, documentIds, columnsConfig, workflowId) => {
             const path = await createTabularReviewPath({ title, project_id: projectId, document_ids: documentIds ?? [], columns_config: columnsConfig ?? [], workflow_id: workflowId });
             setCreating(false);
             navigate(path);

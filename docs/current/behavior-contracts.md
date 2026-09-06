@@ -75,6 +75,10 @@ pagination or downloading.
 - Bound chats collect completed and interrupted research into their workspace.
   Workspace and table results remain available through the existing scoped
   application operations, in both local and cloud modes.
+- One labels ontology serves Library and project tables: rows carry label dots
+  and a workspace count with label/workspace filtering and Label and
+  Add to workspace actions. Document readers expose the Highlight tool with
+  the current pen; saved passages appear as quotes.
 - Human and assistant edits have the same reversible change history. Undo checks
   affected values and reverses one change without overwriting unrelated later work.
   The assistant applies reversible work within the request. Suggestions and changes

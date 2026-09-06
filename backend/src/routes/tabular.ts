@@ -27,6 +27,8 @@ export function createTabularRouter(app: TabularApplication) {
     parse(tabularDtos.create, req.body)), 201));
   router.post("/prompt", json((req, res) => app.prompt(scope(res),
     parse(tabularDtos.prompt, req.body), requestAbortController(req, res).signal)));
+  router.post("/design", json((req, res) => app.design(scope(res),
+    parse(tabularDtos.design, req.body), requestAbortController(req, res).signal)));
   router.get("/:reviewId", json((req, res) => app.detail(scope(res),
     parse(tabularDtos.id, req.params.reviewId))));
   router.get("/:reviewId/export", asyncRoute(async (req, res) => {

@@ -1,22 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Plus, X } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import { listChats, type Chat } from "@/app/lib/api/chat";
 import { useAssistantChat } from "@/app/hooks/useAssistantChat";
 import { ChatView } from "../assistant/ChatView";
 import type { AssistantIntent } from "../assistant/assistantIntent";
 
 import type { Citation } from "@/app/lib/citations";
-import {
-    APP_SURFACE_HOVER_CLASS,
-    LIQUID_PANEL_SURFACE_CLASS,
-} from "@/app/components/ui/liquid-surface";
+import { APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
 import { SearchableChoiceModal } from "../modals/ModalSelect";
 import { cn } from "@/app/lib/utils";
 
 interface Props {
     reviewId: string;
     onCitationClick: (colIdx: number, rowIdx: number) => void;
-    onClose: () => void;
     chatId?: string | null;
     onChatIdChange: (chatId: string | null) => void;
     searchMessageId?: string | null;
@@ -31,7 +27,6 @@ const HEADER_BUTTON_CLASS = `flex h-7 shrink-0 items-center justify-center round
 export function TRChatPanel({
     reviewId,
     onCitationClick,
-    onClose,
     chatId: currentChatId = null,
     onChatIdChange, searchMessageId, initialIntent, workspaceReady = true, onIntentSent, onUpdated,
 }: Props) {
@@ -75,11 +70,7 @@ export function TRChatPanel({
     };
 
     return (
-        <div className={cn(
-            "relative flex min-w-0 flex-1 flex-col overflow-hidden",
-            "mx-3 mb-3 md:ml-[-1rem] md:mr-6 md:mt-12 md:w-[380px] md:flex-none",
-            LIQUID_PANEL_SURFACE_CLASS,
-        )}>
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <div className="absolute inset-x-0 top-0 z-40 flex items-center justify-between gap-2 px-2 py-2">
                 <button
                     type="button"
@@ -120,14 +111,6 @@ export function TRChatPanel({
                             <Plus className="h-3.5 w-3.5" />
                         </button>
                     )}
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        title="Close"
-                        className={HEADER_BUTTON_CLASS}
-                    >
-                        <X className="h-3.5 w-3.5" />
-                    </button>
                 </div>
             </div>
             <ChatView

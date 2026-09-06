@@ -24,7 +24,7 @@ function rectangle(parent: SVGElement, r: AnnotationRect, color: string, opacity
   parent.appendChild(shape); return shape;
 }
 /** Individual text-node ranges avoid ancestor boxes that accidentally select an entire page. */
-export function selectedPdfFragments(pages: HTMLElement[], range: Range): AnnotationFragment[] {
+function selectedPdfFragments(pages: HTMLElement[], range: Range): AnnotationFragment[] {
   const fragments: AnnotationFragment[] = [];
   for(const page of pages) {
     const layer=page.querySelector<HTMLElement>('.pdf-text-layer'), b=page.getBoundingClientRect();

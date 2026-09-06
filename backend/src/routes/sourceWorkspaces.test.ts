@@ -28,7 +28,8 @@ function fixture() {
   const app = express();
   app.use(express.json());
   app.use("/source-workspaces", createSourceWorkspacesRouter(createSourceWorkspaceApplication(documents, {
-    chats: {} as never, tables: {} as never, tabular: async () => { throw new Error("No tables in this fixture"); } })));
+    chats: {} as never, tables: {} as never, projects: {} as never, library: {} as never,
+    preferences: {} as never, tabular: async () => { throw new Error("No tables in this fixture"); } })));
   return { app, documents };
 }
 function saved(documents: DocumentStore, state = createResearchFileState(), revision = 0) {

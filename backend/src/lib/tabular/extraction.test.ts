@@ -46,7 +46,11 @@ it.each(["not_found", "failure", "cancellation"])("retains every original extrac
   expect(observations.map(([, operation]) => operation)).toEqual([
     { executor: "assistant", model: "codex:reader", jobId: "job", reviewId: "table" },
     { executor: "assistant", model: "codex:reader", jobId: "job", reviewId: "table", callId: "last-page" },
+    { executor: "assistant", model: "codex:reader", jobId: "job", reviewId: "table" },
   ]);
+  expect(observations.flatMap(([event]) => event.queries)).toMatchObject([{ tool: "Read",
+    input: { resource: "document://document/version/v1", columns: ["Term"] },
+    results: Array.from({ length: 100 }, (_value, index) => ({ rank: index + 1 })) }]);
   expect(accepted).toEqual(ending === "not_found" ? [expect.objectContaining({ outcome: "not_found",
     coverage: "complete", value: null, claims: [], evidence: [] })] : []);
 });

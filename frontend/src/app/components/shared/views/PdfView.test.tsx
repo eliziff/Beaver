@@ -189,7 +189,7 @@ describe("PdfView", () => {
         vi.unstubAllGlobals();
     });
 
-    it("renders every page with same-origin standard fonts and cancels obsolete work", async () => {
+    it("reserves every page with locators and same-origin fonts and cancels obsolete work", async () => {
         const { container } = render(
             <PdfView doc={{ document_id: "doc-1", version_id: "version-1" }} />,
         );
@@ -209,7 +209,26 @@ describe("PdfView", () => {
             maxImageSize: 40_000_000,
         });
         expect(mocks.cancelled).toBeGreaterThan(0);
-        expect(container.querySelector(".pdf-text-layer")).toBeNull();
+        for (const page of container.querySelectorAll<HTMLElement>("[data-page-number]")) {
+            expect(page).toHaveAttribute("data-legal-block");
+            expect(page).toHaveAttribute("data-locator-kind", "page");
+            expect(page).toHaveAttribute("data-locator-value", page.dataset.pageNumber);
+        }
+        expect(await screen.findByText("Page 1 text")).toBeVisible();
+    });
+
+    it("allows an ordinary reader selection to resolve to its PDF page", async () => {
+        mocks.numPages = 1;
+        render(<PdfView doc={null} bytes={new Uint8Array([1])} />);
+        const text = await screen.findByText("Page 1 text");
+        const range = document.createRange();
+        range.setStart(text.firstChild!, 0);
+        range.setEnd(text.firstChild!, 6);
+        const selection = window.getSelection()!;
+        selection.removeAllRanges(); selection.addRange(range);
+        expect(selection.toString()).toBe("Page 1");
+        expect(text.closest("[data-legal-block]")).toHaveAttribute("data-locator-value", "1");
+        expect(text.parentElement).toHaveStyle({ userSelect: "text", pointerEvents: "auto" });
     });
 
     it("finishes exact mixed-size geometry and bounds canvases when jumping", async () => {
@@ -224,6 +243,9 @@ describe("PdfView", () => {
         expect(container.querySelectorAll("canvas").length).toBeLessThan(4);
         await waitFor(() => expect(pages[0].querySelector("canvas")).not.toBeNull());
         const scroller = container.querySelector<HTMLElement>(".overflow-auto")!;
+        await screen.findByText("Page 1 text");
+        expect(pages[100].querySelector(".pdf-text-layer")).toBeNull();
+        expect(mocks.textLayers.length).toBeLessThan(4);
         // Page 201 starts after 100 pairs of mixed-size pages and gaps.
         scroller.scrollTop = 181600;
         fireEvent.scroll(scroller);
@@ -237,6 +259,9 @@ describe("PdfView", () => {
         fireEvent.scroll(scroller);
         await waitFor(() => expect(pages[0].querySelector("canvas")).not.toBeNull());
         expect(pages[200].querySelector("canvas")).toBeNull();
+        expect(pages[0].querySelectorAll(".pdf-text-layer")).toHaveLength(1);
+        expect(mocks.textLayers.filter(page => page === 1)).toHaveLength(1);
+        expect(mocks.textLayers.length).toBeLessThan(10);
     });
 
     it("renders provided bytes in the full viewer without detaching the artifact", async () => {
@@ -387,7 +412,7 @@ describe("PdfView", () => {
         expect(new Set(mocks.pageRequests).size).toBe(mocks.pageRequests.length);
     });
 
-    it("shares a slow text layer between quote search and painting and keeps text selection in ordinary readers", async () => {
+    it("shares an in-flight text layer between painting and quote search", async () => {
         mocks.numPages = 1; mocks.textDelay = 40;
         const { container } = render(<PdfView doc={null} bytes={new Uint8Array([1])}
             quotes={[{ page: 1, quote: "Page 1 text" }]} />);
@@ -397,11 +422,11 @@ describe("PdfView", () => {
         expect(container.querySelector('.pdf-text-layer')).toHaveStyle({ userSelect: "text" });
     });
 
-    it("a bad text stream cannot hide a successfully painted scan", async () => {
+    it.each([false, true])("keeps the PDF readable when text extraction fails (quotes: %s)", async (withQuotes) => {
         mocks.numPages = 1; mocks.textError = true;
         vi.spyOn(console, "warn").mockImplementation(() => undefined);
         const { container } = render(<PdfView doc={null} bytes={new Uint8Array([1])}
-            quotes={[{ quote: "Missing passage" }]} />);
+            quotes={withQuotes ? [{ quote: "Missing passage" }] : undefined} />);
         await waitFor(() => expect(container.querySelector('canvas')).not.toBeNull());
         expect(screen.queryByRole('alert')).toBeNull();
     });

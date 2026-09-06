@@ -1,3 +1,4 @@
+import "./pdfTextLayer.css";
 import {
     useCallback,
     useEffect,

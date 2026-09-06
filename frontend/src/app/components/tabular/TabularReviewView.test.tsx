@@ -16,6 +16,10 @@ const mocks = vi.hoisted(() => ({
     startGeneration: vi.fn(),
     regenerateCell: vi.fn(),
     uploadDocument: vi.fn(),
+    updateReview: vi.fn(),
+    proposeColumnLabels: vi.fn(),
+    getResearchFile: vi.fn(),
+    ensureWorkspace: vi.fn(),
 }));
 function fixture(status: TabularCell["status"]) {
     const document = { id: "document-1", filename: "lease.pdf" } as Document;
@@ -56,8 +60,21 @@ vi.mock("@/app/lib/api/tabular", () => ({
   regenerateTabularCell: mocks.regenerateCell,
   startTabularGeneration: mocks.startGeneration,
   stopTabularGeneration: vi.fn(),
-  updateTabularReview: vi.fn()
+  updateTabularReview: mocks.updateReview,
+  proposeColumnLabels: mocks.proposeColumnLabels
 }));
+vi.mock("@/app/lib/api/researchFiles", () => ({
+  getResearchFile: mocks.getResearchFile,
+  ensureSourcesWorkspace: mocks.ensureWorkspace,
+  actOnResearchFile: vi.fn(),
+  runResearchFileQuery: vi.fn(),
+  bindWorkspaceView: vi.fn(),
+  openWorkspaceTable: vi.fn(),
+  getWorkspaceViews: vi.fn(),
+  getResearchItems: vi.fn().mockResolvedValue({ items: [], next_cursor: null, total: 0 }),
+  getWorkspaceFindings: vi.fn().mockResolvedValue({ items: [], total: 0, next_offset: null })
+}));
+vi.mock("../legal/ResearchWorkspaceHost", () => ({ ResearchWorkspaceHost: () => <div>Sources workspace</div> }));
 vi.mock("@/app/lib/api/documents", () => ({
   directoryResource: () => ({ uploadDocument: mocks.uploadDocument }),
   uploadStandaloneDocument: vi.fn()
@@ -114,6 +131,7 @@ vi.mock("./TRTable", () => ({
         onExpand,
         onSelectionChange,
         onRerunColumn,
+        onColumnLabels,
     }: {
         loading: boolean;
         cells: TabularCell[];
@@ -123,6 +141,7 @@ vi.mock("./TRTable", () => ({
         onExpand: (cell: TabularCell) => void;
         onSelectionChange: (ids: string[]) => void;
         onRerunColumn: (column: { index: number }) => void;
+        onColumnLabels: (column: { index: number }) => void;
     }) => (
         <>
             <button
@@ -136,6 +155,7 @@ vi.mock("./TRTable", () => ({
             </button>
             <button onClick={() => onSelectionChange(selectedDocIds.length ? [] : documents.map(({ id }) => id))}>Toggle rows</button>
             <button onClick={() => onRerunColumn(columns[0])}>Rerun first column</button>
+            <button onClick={() => onColumnLabels(columns[0])}>Labels from first column</button>
         </>
     ),
 }));
@@ -152,7 +172,11 @@ vi.mock("./TabularReviewDetailsModal", () => ({
     TabularReviewDetailsModal: () => null,
 }));
 vi.mock("../modals/AddDocumentsModal", () => ({
-    AddDocumentsModal: () => null,
+    AddDocumentsModal: ({ open, sources, onAddSources }: {
+        open: boolean; sources?: { id: string; title: string }[];
+        onAddSources?: (ids: string[]) => Promise<void>;
+    }) => open ? <>{sources?.map(({ id, title }) => <button key={id}
+        onClick={() => void onAddSources?.([id])}>{`Add ${title}`}</button>)}</> : null,
 }));
 vi.mock("../modals/PeopleModal", () => ({ PeopleModal: () => null }));
 vi.mock("../popups/OwnerOnlyPopup", () => ({ OwnerOnlyPopup: () => null }));
@@ -238,4 +262,48 @@ it("shows review results without waiting for project metadata", async () => {
     render(<TRView reviewId="review-1" projectId="project-1" />);
     await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
     expect(screen.getByTestId("table")).toHaveAttribute("data-status", "done");
+});
+
+const workspaceFile = (sources: Record<string, unknown>) => ({
+    document: { id: "workspace-1" }, versionId: "v1", workingRevision: 0,
+    state: { labels: {}, sources, queries: null, note: "" },
+});
+const scoped = (columns: { index: number; name: string; prompt: string; format?: string }[]) => {
+    const first = fixture("done");
+    return { ...first.data,
+        review: { ...first.data.review, columns_config: columns,
+            scope_config: { research_file_id: "workspace-1", subjects: [] } },
+        documents: [{ ...first.document, selection: { target: "sources", members: [{ sourceId: "source-1" }] } }] };
+};
+
+it("adds workspace sources that are not rows yet", async () => {
+    mocks.getTabularReview.mockResolvedValue(scoped([{ index: 0, name: "Term", prompt: "Find term" }]));
+    mocks.getResearchFile.mockResolvedValue(workspaceFile({
+        "source-1": { id: "source-1", reference: { title: "Lease" }, labelIds: [], badge: "", note: "", passages: null },
+        "source-2": { id: "source-2", reference: { title: "Ruling" }, labelIds: [], badge: "", note: "", passages: null },
+    }));
+    mocks.updateReview.mockResolvedValue({});
+    render(<TRView reviewId="review-1" />);
+    await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Documents" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Add Ruling" }));
+    await waitFor(() => expect(mocks.updateReview).toHaveBeenCalledWith("review-1", {
+        research_selection: { target: "sources", members: [{ sourceId: "source-1" }, { sourceId: "source-2" }] },
+    }));
+    expect(screen.queryByRole("button", { name: "Add Lease" })).not.toBeInTheDocument();
+});
+
+it("proposes labels from a tag column into the review's workspace", async () => {
+    mocks.getTabularReview.mockResolvedValue(scoped([{ index: 3, name: "Outcome", prompt: "Outcome", format: "tag" }]));
+    const file = workspaceFile({});
+    mocks.getResearchFile.mockResolvedValue(file);
+    mocks.ensureWorkspace.mockResolvedValue(file);
+    mocks.proposeColumnLabels.mockResolvedValue(file);
+    render(<TRView reviewId="review-1" />);
+    await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Labels from first column" }));
+    await waitFor(() => expect(mocks.proposeColumnLabels).toHaveBeenCalledWith("workspace-1", "review-1", 3));
+    expect(await screen.findByText("Sources workspace")).toBeVisible();
 });
