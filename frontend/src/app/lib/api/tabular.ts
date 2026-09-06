@@ -149,7 +149,7 @@ export const regenerateTabularCell = (
   model: options?.model,
   reasoning_effort: options?.reasoningEffort,
 });
-export const clearTabularCells = (reviewId: string, documentIds: string[]) =>
+export const clearTabularCells = (reviewId: string, documentIds: string[], columnIndex?: number) =>
   post<void>(`/tabular-review/${segment(reviewId)}/clear-cells`, {
-    document_ids: documentIds,
+    document_ids: documentIds, ...(columnIndex === undefined ? {} : { column_index: columnIndex }),
   });

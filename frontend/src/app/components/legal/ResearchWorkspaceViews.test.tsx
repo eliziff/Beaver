@@ -2,13 +2,17 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { ResearchFile, ResearchSelection } from "@/app/lib/researchFiles";
-import { ResearchWorkspaceViews, ResearchSourceAnswers } from "./ResearchWorkspaceViews";
+import { ResearchWorkspaceViews, ResearchSourceAnswers, WorkspaceOrganize } from "./ResearchWorkspaceViews";
 import { SourcesWorkspaceProvider } from "./SourcesWorkspace";
 const api = vi.hoisted(() => ({ getWorkspaceViews: vi.fn(), openWorkspaceTable: vi.fn(),
-  getResearchFile: vi.fn(), createChat: vi.fn(), getWorkspaceFindings: vi.fn() }));
+  getResearchFile: vi.fn(), createChat: vi.fn(), getWorkspaceFindings: vi.fn(), bindWorkspaceView: vi.fn() }));
+const assistant = vi.hoisted(() => ({ handleChat: vi.fn(async () => null), cancel: vi.fn(),
+  state: { run: null as null | { id: string } }, chatLoad: { status: "loaded" } }));
+vi.mock("@/app/hooks/useAssistantChat", () => ({ useAssistantChat: () => ({ state: assistant.state, chatLoad: assistant.chatLoad,
+  actions: { handleChat: assistant.handleChat, cancel: assistant.cancel } }) }));
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({ ...await original<typeof import("@/app/lib/api/researchFiles")>(),
   getWorkspaceViews: api.getWorkspaceViews, openWorkspaceTable: api.openWorkspaceTable,
-  getResearchFile: api.getResearchFile, getWorkspaceFindings: api.getWorkspaceFindings }));
+  getResearchFile: api.getResearchFile, getWorkspaceFindings: api.getWorkspaceFindings, bindWorkspaceView: api.bindWorkspaceView }));
 vi.mock("@/app/lib/api/chat", async (original) => ({ ...await original<typeof import("@/app/lib/api/chat")>(), createChat: api.createChat }));
 const file = { document: { id: "workspace", filename: "Research.research.md", project_id: "project" },
   versionId: "v1", workingRevision: 0, state: { tables: ["table"], chats: ["chat"], labels: {}, sources: {
@@ -57,4 +61,26 @@ it("pages supported findings and refreshes them after a workspace change", async
   title = "Updated"; view.rerender(answers(1));
   expect(await screen.findByText("Updated 0")).toBeVisible();
   expect(screen.queryByText("Original 0")).not.toBeInTheDocument();
+});
+
+it("runs an organize request as a visible turn in the bound chat and refreshes when it finishes", async () => {
+  const selection = { target: "sources" as const, sourceIds: ["source"] };
+  api.getWorkspaceViews.mockResolvedValue({ tables: [], chats: [{ id: "chat", title: "Research" }] });
+  api.bindWorkspaceView.mockResolvedValue(file);
+  assistant.state = { run: null };
+  const organize = () => <MemoryRouter><SourcesWorkspaceProvider file={file} selection={selection}>
+    <WorkspaceOrganize open onClose={vi.fn()} /></SourcesWorkspaceProvider></MemoryRouter>;
+  const view = render(organize());
+  fireEvent.change(screen.getByRole("textbox", { name: "Organization request" }), { target: { value: "Group by remedy" } });
+  fireEvent.click(screen.getByRole("button", { name: "Organize" }));
+  await waitFor(() => expect(assistant.handleChat).toHaveBeenCalledWith({ role: "user", content: "Group by remedy",
+    research_file_id: "workspace", research_selection: selection }));
+  expect(api.bindWorkspaceView).toHaveBeenCalledWith("workspace", { chatId: "chat", selection });
+  expect(api.createChat).not.toHaveBeenCalled();
+  expect(screen.getByRole("status")).toHaveTextContent("Organizing");
+  expect(screen.getByRole("link", { name: "Open chat" })).toHaveAttribute("href", "/projects/project/assistant/chat/chat");
+  assistant.state = { run: { id: "run" } }; view.rerender(organize());
+  assistant.state = { run: null }; view.rerender(organize());
+  await waitFor(() => expect(api.getResearchFile).toHaveBeenCalledWith("workspace"));
+  expect(await screen.findByRole("textbox", { name: "Organization request" })).toBeVisible();
 });

@@ -143,7 +143,7 @@ describe("ResearchFileBar", () => {
     fireEvent.click(await screen.findByText("Termination"));
     expect(screen.getByText("Yes")).toBeVisible();
     expect(screen.getByText(/Termination is permitted on notice/)).toBeVisible();
-    expect(screen.getByText("Source coverage is incomplete.")).toBeVisible();
+    expect(screen.getByText("Partial coverage")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Agreement.pdf, p. 2" }));
     expect(await screen.findByLabelText("Original document")).toHaveTextContent("agreement:original-version");
   });

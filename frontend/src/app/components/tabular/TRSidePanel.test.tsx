@@ -147,6 +147,13 @@ it("opens provider rows with the source reader and preserves full findings and c
     expect(screen.queryByTestId("document-viewer")).not.toBeInTheDocument();
     expect(screen.getByText("Yes")).toBeVisible();
     expect(screen.getByText("Because the term is express.")).toBeVisible();
-    expect(screen.getByText("Green")).toBeVisible();
-    expect(screen.getByRole("status")).toHaveTextContent("Source coverage is incomplete.");
+    expect(screen.getByText("Supported")).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent("Partial coverage");
+});
+
+it("keeps Regenerate visible but disabled while the review is running", () => {
+    render(<TRSidePanel cell={cell} document={sourceDocument} column={column} onClose={vi.fn()}
+        onRegenerate={vi.fn().mockResolvedValue(undefined)} running />);
+    expect(screen.getByRole("button", { name: "Regenerate" })).toBeDisabled();
+    expect(screen.getByText("Find termination rights.")).toBeVisible();
 });
