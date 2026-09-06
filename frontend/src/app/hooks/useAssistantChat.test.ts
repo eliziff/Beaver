@@ -508,7 +508,8 @@ describe("useAssistantChat local transcript boundary", () => {
           },
         ],
         workflow: {
-          id: "builtin-extract-key-terms",
+          id: "document-review",
+          variant_id: "builtin-extract-key-terms",
           title: "Extract Key Terms",
         },
       });
@@ -526,7 +527,8 @@ describe("useAssistantChat local transcript boundary", () => {
             },
           ],
           workflow: {
-            id: "builtin-extract-key-terms",
+            id: "document-review",
+            variant_id: "builtin-extract-key-terms",
           },
         }),
       }),

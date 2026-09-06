@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
-import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { errorMessage } from "@/app/lib/utils";
 import { researchLabelPath, type ResearchFile, type ResearchLabel,
   type ResearchSourceReference } from "@/app/lib/researchFiles";
@@ -64,8 +63,7 @@ const Dot = ({ file, id, active, onClick }: { file: ResearchFile; id: string;
   aria-pressed={active} title={file.state.labels[id].name}
   className={`flex min-h-7 max-w-full items-center gap-1.5 rounded-md px-1.5 text-start text-sm ${active
     ? "bg-gray-200 text-gray-900 ring-1 ring-inset ring-gray-500" : "bg-gray-50 text-gray-700 hover:bg-gray-100"}`}>
-  <FolderSvgIcon className="size-4 shrink-0" fill="currentColor"
-    style={{ color: researchLabelColor(file.state.labels[id]) }} />
+  <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: researchLabelColor(file.state.labels[id]) }} />
   <span className="max-w-36 truncate">{file.state.labels[id].name}</span>
 </button>;
 

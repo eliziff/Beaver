@@ -112,8 +112,8 @@ describe("DocumentSidePanel document removal", () => {
     const nestedMarker = within(labels).getByRole("group", {
       name: "Labels: Fairness / Right to a hearing",
     });
-    expect([...nestedMarker.querySelectorAll("[data-label-layer]")]
-      .map((layer) => layer.getAttribute("fill"))).toEqual(["#1d4ed8", "#991b1b"]);
+    expect([...nestedMarker.querySelectorAll<HTMLElement>("[data-label-dot]")]
+      .map((dot) => dot.style.backgroundColor)).toEqual(["rgb(29, 78, 216)"]);
     expect(screen.getByText("Authorities on procedural fairness.")).toBeInTheDocument();
     expect(screen.getByText("Leading procedural fairness authority.")).toBeInTheDocument();
     expect(screen.getByLabelText("Workspace contents")).toHaveTextContent(

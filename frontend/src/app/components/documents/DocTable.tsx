@@ -1,6 +1,6 @@
 import { type Dispatch, type DragEvent, type ReactNode, type SetStateAction,
     useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
-import { AlertCircle, TriangleAlert, ChevronDown, ChevronRight, Eye, Loader2 }
+import { AlertCircle, TriangleAlert, ChevronDown, ChevronRight, Eye, Loader2, Tag }
     from "lucide-react";
 import {
   checkpointDocumentVersion,
@@ -45,6 +45,13 @@ import type { DocumentSelectionActions, UploadActions } from "./UploadAction";
 import type { WorkflowSelection } from "@/app/components/workflows/workflowRoutes";
 import { ContextualWorkflowPicker } from "@/app/components/workflows/ContextualWorkflowPicker";
 import { Modal } from "@/app/components/modals/Modal";
+import { getWorkspaceMembership, ensureOntologyWorkspace,
+    type OntologyWorkspaceMembership } from "@/app/lib/api/ontology";
+import { useSourcesWorkspaceOrNull } from "@/app/components/legal/SourcesWorkspace";
+import { ResearchLabelEditor, type ResearchLabelTarget } from "@/app/components/legal/ResearchLabelPicker";
+import { researchSourceKey, type ResearchFile, type ResearchSourceReference } from "@/app/lib/researchFiles";
+import { actOnResearchFile, getResearchFile } from "@/app/lib/api/researchFiles";
+import { directoryResource } from "@/app/lib/api/documents";
 import { buildDocumentTree, CHAT_DOCUMENT_DRAG_TYPE, descendantFolderIds, DOCUMENT_DRAG_TYPE,
     documentTreeDropFolder, FOLDER_DRAG_TYPE, hasDocumentTreeDrag,
     wouldCreateFolderCycle } from "./documentTree";
@@ -255,8 +262,38 @@ function MoveDialog({ title, list, createFolder, rootLabel, disabledIds, canMove
             disabledIds={disabledIds} />
     </Modal>;
 }
-interface DocTableProps {
-    scopeKey: string; documents: Document[]; folders: DocTableFolder[];
+function OntologyWorkspacePicker({ excludeId, onSelect, onClose }: {
+    excludeId?: string | null; onSelect: (id: string) => void; onClose: () => void;
+}) {
+    const [query, setQuery] = useState(""), [choices, setChoices] = useState<Document[] | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        setChoices(null);
+        void directoryResource({ library: "files" }).list({ q: query.trim() || undefined, limit: 50 }).then((page) => {
+            if (cancelled) return;
+            setChoices(page.items.flatMap((entry) => entry.kind === "document"
+                && entry.document.filename.endsWith(".research.md") && entry.document.id !== excludeId
+                ? [entry.document] : []));
+        }).catch(() => { if (!cancelled) setChoices([]); });
+        return () => { cancelled = true; };
+    }, [query, excludeId]);
+    return <Modal open onClose={onClose} breadcrumbs={["Add to workspace"]} size="md">
+        <input role="searchbox" aria-label="Filter" value={query} placeholder="Filter research sets"
+            onChange={(event) => setQuery(event.target.value)}
+            className="mb-3 h-9 w-full rounded-md border border-gray-300 px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-red-600" />
+        {choices === null ? <p role="status" className="py-6 text-center text-sm text-gray-500">Loading…</p>
+        : !choices.length ? <p className="py-6 text-center text-sm text-gray-500">No research sets found.</p>
+        : <ul aria-label="Research collection" className="max-h-80 space-y-1 overflow-y-auto">
+            {choices.map((choice) => <li key={choice.id}>
+                <button type="button" onClick={() => onSelect(choice.id)}
+                    className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-900">
+                    <span className="min-w-0 truncate">{choice.filename.replace(/\.research\.md$/iu, "")}</span>
+                </button>
+            </li>)}
+        </ul>}
+    </Modal>;
+}
+interface DocTableProps {    scopeKey: string; documents: Document[]; folders: DocTableFolder[];
     loading: boolean; active?: boolean; search: string; operations: DocTableOperations; emptyDropLabel?: string;
     renderAddDocumentsModal?: (open: boolean, onClose: () => void,
         onSelect: (documents: Document[]) => void) => ReactNode;
@@ -273,6 +310,7 @@ interface DocTableProps {
     loadingParents?: Set<string | null>;
     onFolderExpanded?: (folderId: string) => void;
     onLoadMore?: (parentId: string | null) => void;
+    ontology?: { projectId?: string | null };
 }
 const PROJECT_TABLE_LOADING = (
     <TableLoadingRows count={5} rowClassName={DOCUMENT_ROW_CLASS}
@@ -296,7 +334,7 @@ export function DocTable({
     onOpenInChat, onAssistantWorkflowSelect, onOwnerOnlyAction,
     documentRemovalMode = "delete", selectionFirst = false, compact = false,
     hasMoreParents = new Set(), loadingParents = new Set(),
-    onFolderExpanded, onLoadMore,
+    onFolderExpanded, onLoadMore, ontology,
 }: DocTableProps) {
     const { user } = useAuth();
     const [state, setState] = useState<DocTableState>(() => ({
@@ -482,8 +520,87 @@ export function DocTable({
     useEffect(() => {
         set("selectedDocIds", (current) => (current.length ? [] : current));
     }, [scopeKey]);
+    const sourcesController = useSourcesWorkspaceOrNull();
+    const ontologyMutations = sourcesController?.mutations ?? null;
+    const ontologyFile = sourcesController?.file ?? null;
+    const ontologyFileRef = useRef(ontologyFile); ontologyFileRef.current = ontologyFile;
+    const ontologyProjectId = ontology?.projectId ?? null;
+    const ontologyActive = !!ontology && !!sourcesController;
+    const [membership, setMembership] = useState<OntologyWorkspaceMembership | null>(null);
+    const membershipKey = useMemo(() => [...new Set(documents.map(({ id }) => id))]
+        .sort().slice(0, 200).join("\0"), [documents]);
+    useEffect(() => {
+        if (!ontologyActive || !membershipKey) { setMembership(null); return; }
+        let cancelled = false;
+        void getWorkspaceMembership(membershipKey.split("\0"), ontologyProjectId).then((value) => {
+            if (!cancelled) setMembership(value);
+        }).catch(() => { if (!cancelled) setMembership(null); });
+        return () => { cancelled = true; };
+    }, [ontologyActive, membershipKey, ontologyProjectId]);
+    const [labelFilter, setLabelFilter] = useState(""), [workspaceFilter, setWorkspaceFilter] = useState("");
+    const [labelTarget, setLabelTarget] = useState<{ doc: Document; file: ResearchFile; versionId: string } | null>(null);
+    const [pickerDoc, setPickerDoc] = useState<Document | null>(null);
+    const ontologyLabels = useMemo(() => {
+        if (!ontologyActive || !membership) return [];
+        const seen = new Map<string, { id: string; name: string }>();
+        for (const entry of Object.values(membership)) for (const label of entry.labels) {
+            if (!seen.has(label.id)) seen.set(label.id, { id: label.id, name: label.name });
+        }
+        return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+    }, [ontologyActive, membership]);
+    const ontologyWorkspaces = useMemo(() => {
+        if (!ontologyActive || !membership) return [];
+        return [...new Set(Object.values(membership).flatMap(({ workspaces }) =>
+            workspaces.map(({ title }) => title)))].sort();
+    }, [ontologyActive, membership]);
+    const displayDocuments = useMemo(() => {
+        if (!ontologyActive || (!labelFilter && !workspaceFilter)) return documents;
+        return documents.filter((doc) => {
+            const entry = membership?.[doc.id];
+            if (labelFilter && !entry?.labels.some(({ id }) => id === labelFilter)) return false;
+            if (workspaceFilter && !entry?.workspaces.some(({ title }) => title === workspaceFilter)) return false;
+            return true;
+        });
+    }, [documents, membership, labelFilter, workspaceFilter, ontologyActive]);
+    async function ensureOntologyFile(): Promise<ResearchFile> {
+        const current = ontologyFileRef.current;
+        if (current) return current;
+        if (!sourcesController) throw new Error("Sources workspace is unavailable");
+        const created = await ensureOntologyWorkspace(ontologyProjectId);
+        await sourcesController.open(created.document.id);
+        return ontologyFileRef.current ?? created;
+    }
+    function documentReference(doc: Document, versionId: string): ResearchSourceReference {
+        return { provider: "library", kind: "document", id: doc.id, versionId, title: doc.filename };
+    }
+    async function openLabelEditor(doc: Document) {
+        try {
+            const file = await ensureOntologyFile();
+            const versionId = doc.current_version_id
+                ?? (await loadDocumentVersions(doc.id))?.currentVersionId;
+            if (!versionId) throw new Error("Document revision is unavailable");
+            setLabelTarget({ doc, file: ontologyFileRef.current ?? file, versionId });
+        } catch (reason) {
+            setWarning("collection", reason instanceof Error ? reason.message
+                : "Could not label this document");
+        }
+    }
+    async function addDocToWorkspace(doc: Document, workspaceId: string) {
+        try {
+            const target = await getResearchFile(workspaceId);
+            const versionId = doc.current_version_id
+                ?? (await loadDocumentVersions(doc.id))?.currentVersionId;
+            if (!versionId) throw new Error("Document revision is unavailable");
+            await actOnResearchFile(target.document.id, target.versionId, target.workingRevision,
+                { type: "source", reference: documentReference(doc, versionId) });
+            setPickerDoc(null);
+        } catch (reason) {
+            setWarning("collection", reason instanceof Error ? reason.message
+                : "Could not add this document to the workspace");
+        }
+    }
     const tree = buildDocumentTree(
-        documents, folders, expandedFolderIds, newFolderParentId, search,
+        displayDocuments, folders, expandedFolderIds, newFolderParentId, search,
         false, hasMoreParents);
     const filteredDocs = tree.visibleDocuments;
     const docsById = useMemo(() =>
@@ -1094,6 +1211,26 @@ export function DocTable({
                                         onRetry={operations.retryPdfParse
                                             ? () => void retryParse(doc.id)
                                             : undefined} />
+                                    {ontologyActive && (membership?.[doc.id]?.labels.length ?? 0) > 0 && (
+                                        <span className="ml-2 inline-flex min-w-0 items-center gap-1.5 text-xs text-gray-500"
+                                            title={membership![doc.id].labels.map(({ name }) => name).join(", ")}>
+                                            <Tag className="h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden="true" />
+                                            <span aria-hidden="true" className="inline-flex shrink-0">
+                                                {membership![doc.id].labels.map(({ id, color }) => (
+                                                    <span key={id} className="-ml-1 size-2.5 rounded-full ring-1 ring-white first:ml-0"
+                                                        style={{ backgroundColor: color ?? "#9ca3af" }} />
+                                                ))}
+                                            </span>
+                                            <span className="max-w-32 truncate">
+                                                {membership![doc.id].labels.map(({ name }) => name).join(", ")}
+                                            </span>
+                                            {membership![doc.id].workspaces.length > 0 && (
+                                                <span className="shrink-0 text-gray-400">
+                                                    in {membership![doc.id].workspaces.length} workspace{membership![doc.id].workspaces.length === 1 ? "" : "s"}
+                                                </span>
+                                            )}
+                                        </span>
+                                    )}
                                     {selectionFirst && (
                                         <Button size="compact"
                                             aria-label={`View ${docName}`}
@@ -1117,6 +1254,10 @@ export function DocTable({
                             <div className="flex w-8 shrink-0 justify-end">
                                 {!isProcessing && (
                                     <RowActions
+                                        additionalItems={ontologyActive ? [
+                                            { label: "Label", onSelect: () => void openLabelEditor(doc) },
+                                            { label: "Add to workspace…", onSelect: () => setPickerDoc(doc) },
+                                        ] : []}
                                         onRename={() => set("renamingDocumentId", doc.id)}
                                         renameLabel="Rename document"
                                         onDownload={() => downloadDoc(doc.id)}
@@ -1297,6 +1438,56 @@ export function DocTable({
                     onLaunched={() => set("folderWorkflowDocuments", null)}
                     className="pb-4" />
             </Modal>
+            {labelTarget && ontologyMutations && (() => {
+                const reference = documentReference(labelTarget.doc, labelTarget.versionId);
+                const key = researchSourceKey(reference);
+                const existing = Object.values(labelTarget.file.state.sources).find(({ reference: candidate }) =>
+                    researchSourceKey(candidate) === key);
+                const target: ResearchLabelTarget = {
+                    file: ontologyFileRef.current ?? labelTarget.file, kind: "source",
+                    itemId: existing?.id ?? "", labelIds: existing?.labelIds ?? [],
+                    title: labelTarget.doc.filename,
+                    prepare: async (file) => {
+                        const found = Object.values(file.state.sources).find(({ reference: candidate }) =>
+                            researchSourceKey(candidate) === key);
+                        if (found) return { file, itemId: found.id };
+                        const next = await actOnResearchFile(file.document.id, file.versionId,
+                            file.workingRevision, { type: "source", reference });
+                        if (!next.sourceId) throw new Error("Saved source was not returned");
+                        return { file: next, itemId: next.sourceId };
+                    },
+                };
+                return <ResearchLabelEditor target={target} mutations={ontologyMutations}
+                    onClose={() => setLabelTarget(null)}
+                    onError={(message) => setWarning("collection", message)} />;
+            })()}
+            {pickerDoc && (
+                <OntologyWorkspacePicker excludeId={ontologyFile?.document.id}
+                    onSelect={(workspaceId) => void addDocToWorkspace(pickerDoc, workspaceId)}
+                    onClose={() => setPickerDoc(null)} />
+            )}
+            {ontologyActive && ontologyLabels.length > 0 && (
+                <div className="flex flex-wrap items-center gap-3 px-4 py-2">
+                    <label className="inline-flex items-center gap-1.5 text-xs text-gray-600">
+                        Label
+                        <select value={labelFilter} onChange={(event) => setLabelFilter(event.target.value)}
+                            className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs text-gray-800 outline-none focus-visible:ring-2 focus-visible:ring-red-600">
+                            <option value="">All labels</option>
+                            {ontologyLabels.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
+                        </select>
+                    </label>
+                    {ontologyWorkspaces.length > 0 && (
+                        <label className="inline-flex items-center gap-1.5 text-xs text-gray-600">
+                            Workspace
+                            <select value={workspaceFilter} onChange={(event) => setWorkspaceFilter(event.target.value)}
+                                className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs text-gray-800 outline-none focus-visible:ring-2 focus-visible:ring-red-600">
+                                <option value="">All workspaces</option>
+                                {ontologyWorkspaces.map((title) => <option key={title} value={title}>{title}</option>)}
+                            </select>
+                        </label>
+                    )}
+                </div>
+            )}
             <TableScrollArea className="document-table"
                 header={<TableHeaderRow className="!min-w-0 w-full pr-2">
                     <TableStickyCell header widthClassName={DOC_NAME_COL_W}>
