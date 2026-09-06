@@ -1,32 +1,37 @@
-import {
-    Fragment,
-    useEffect,
-    useMemo,
-    useRef,
-} from "react";
-import { Loader2, Pencil } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef } from "react";
+import { Loader2 } from "lucide-react";
 import type { ColumnConfig, TabularCell, TabularDocument } from "@/app/lib/api/tabular";
 import type { Citation } from "@/app/lib/citations";
+import { cn } from "@/app/lib/utils";
 import { TabularCell as TabularCellComponent } from "./TabularCell";
+import { FORMAT_OPTIONS } from "./columnFormat";
 import {
     SkeletonLine,
+    TableBody,
+    TableCell,
+    TableEmptyState,
+    TableHeaderCell,
+    TableHeaderRow,
     TableLoadingRows,
+    TableRow,
     TableScrollArea,
     TableSelectionCheckbox,
+    TableStickyCell,
     useTableSelection,
 } from "../shared/TablePrimitive";
-import {
-    APP_SURFACE_ACTIVE_CLASS,
-    APP_SURFACE_GROUP_HOVER_CLASS,
-    APP_SURFACE_HOVER_CLASS,
-} from "@/app/components/ui/liquid-surface";
+import { FLAGS, FlagDot, type AnswerFlag } from "../shared/GroundedAnswerContent";
+import { MoreActionsMenu } from "../shared/MoreActionsMenu";
+import { Button } from "../ui/button";
+import { HelpPopover } from "../ui/help-popover";
+import { APP_SURFACE_ACTIVE_CLASS, APP_SURFACE_GROUP_HOVER_CLASS, APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
+
 const SKELETON_COLS = 4;
 const SKELETON_ROWS = 5;
-const COL_W = "w-[142px] sm:w-[220px] lg:w-[240px] shrink-0";
-const DOC_COL_W =
-    "w-[112px] sm:w-[220px] md:w-[280px] xl:w-[332px] shrink-0";
-const TR_STICKY_CELL_BG = "bg-app-surface";
-const TR_HEADER_BG = "bg-app-surface";
+const COLUMN_WIDTH = "w-[180px] sm:w-[220px] shrink-0";
+const GRID_LINE = "border-b border-r border-gray-200";
+const ROW = "h-10 w-max min-w-full pr-0 [contain-intrinsic-size:auto_40px]";
+const STICKY = `sticky left-0 z-10 self-stretch bg-app-surface ${GRID_LINE}`;
+const FILLER = "min-w-8 flex-1 self-stretch border-b border-gray-200";
 interface Props {
     loading: boolean;
     columns: ColumnConfig[];
@@ -37,222 +42,148 @@ interface Props {
     uploadingFilenames?: string[];
     dragOverFiles?: boolean;
     highlightedCell?: { colIdx: number; rowIdx: number } | null;
+    running?: boolean;
     onSelectionChange: (ids: string[]) => void;
     onExpand: (cell: TabularCell) => void;
     onCitationClick: (cell: TabularCell, citation: Citation) => void;
     onEditColumn: (col: ColumnConfig) => void;
+    onRerunColumn?: (col: ColumnConfig) => void;
+    onClearColumn?: (col: ColumnConfig) => void;
+    onDeleteColumn?: (col: ColumnConfig) => void;
+    onAddColumns?: () => void;
+    onAddDocuments?: () => void;
 }
 export function TRTable({
-        loading,
-        columns,
-        documents,
-        cells,
-        savingColumnsConfig,
-        selectedDocIds,
-        uploadingFilenames = [],
-        dragOverFiles = false,
-        highlightedCell,
-        onSelectionChange,
-        onExpand,
-        onCitationClick,
-        onEditColumn,
-    }: Props) {
+    loading, columns, documents, cells, savingColumnsConfig, selectedDocIds,
+    uploadingFilenames = [], dragOverFiles = false, highlightedCell, running = false,
+    onSelectionChange, onExpand, onCitationClick, onEditColumn, onRerunColumn, onClearColumn, onDeleteColumn,
+    onAddColumns, onAddDocuments,
+}: Props) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
-    const sortedColumns = useMemo(
-        () => [...columns].sort((a, b) => a.index - b.index),
-        [columns],
-    );
-    const cellsByKey = useMemo(() => {
-        const next = new Map<string, TabularCell>();
-        for (const cell of cells) {
-            next.set(`${cell.document_id}:${cell.column_index}`, cell);
-        }
-        return next;
-    }, [cells]);
+    const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.index - b.index), [columns]);
+    const cellsByKey = useMemo(() => new Map(cells.map((cell) => [`${cell.document_id}:${cell.column_index}`, cell])), [cells]);
     const selection = useTableSelection(documents, selectedDocIds, onSelectionChange);
-    const columnPositionByIndex = useMemo(
-        () => new Map(sortedColumns.map((column, index) => [column.index, index])),
-        [sortedColumns],
-    );
     useEffect(() => {
         if (!highlightedCell) return;
         const container = scrollContainerRef.current;
         if (!container) return;
-        const targetRow =
-            container.querySelectorAll<HTMLElement>("[data-tr-row]")[
-                highlightedCell.rowIdx
-            ];
-        if (targetRow) {
-            container.scrollTop = Math.max(0, targetRow.offsetTop - 40);
-        }
-        const surface = container.parentElement;
-        const targetColumn = surface?.querySelectorAll<HTMLElement>(
-            "[data-tr-col-header]",
-        )[highlightedCell.colIdx];
-        const documentColumn = surface?.querySelector<HTMLElement>(
-            "[data-tr-doc-header]",
-        );
-        if (targetColumn && documentColumn) {
-            container.scrollLeft = Math.max(
-                0,
-                targetColumn.offsetLeft +
-                    targetColumn.offsetWidth / 2 -
-                    (container.clientWidth + documentColumn.offsetWidth) / 2,
-            );
-        }
+        const targetRow = container.querySelectorAll<HTMLElement>("[data-tr-row]")[highlightedCell.rowIdx];
+        if (targetRow) container.scrollTop = Math.max(0, targetRow.offsetTop - 40);
+        const headers = container.querySelectorAll<HTMLElement>("[data-tr-col-header]");
+        const targetColumn = headers[highlightedCell.colIdx];
+        const documentWidth = headers[0]?.offsetLeft ?? 0;
+        if (targetColumn) container.scrollLeft = Math.max(0,
+            targetColumn.offsetLeft + targetColumn.offsetWidth / 2 - (container.clientWidth + documentWidth) / 2);
     }, [highlightedCell]);
     const dragOverlay = dragOverFiles && (
-        <div className="pointer-events-none absolute inset-0 z-[90] border-2 border-red-400 bg-red-50/40" />
+        <div className="pointer-events-none absolute inset-0 z-20 border-2 border-dashed border-blue-400 bg-blue-50/50" />
     );
-    const empty = !columns.length && !documents.length && !uploadingFilenames.length;
     const headerColumns = loading ? Array.from({ length: SKELETON_COLS }, (_, index) => ({ index, name: "", prompt: "" })) : sortedColumns;
+    const noRows = !documents.length && !uploadingFilenames.length;
     return (
-        <TableScrollArea
-            horizontal
-            scrollRef={scrollContainerRef}
-            header={
-                <div
-                    className={`z-[70] flex h-10 min-w-full shrink-0 ${TR_HEADER_BG}`}
-                >
-                    <div
-                        data-tr-doc-header
-                        className={`sticky left-0 z-[80] ${DOC_COL_W} ${TR_STICKY_CELL_BG} border-b border-r border-gray-200 flex items-center py-2 pl-4 pr-2 text-left text-xs font-medium text-gray-500 select-none`}
-                    >
-                        <TableSelectionCheckbox
-                            loading={loading || empty}
-                            aria-label="Select loaded documents"
-                            checked={selection.allSelected}
-                            indeterminate={selection.someSelected}
-                            onChange={selection.toggleAll} />
-                        <span>Document</span>
-                    </div>
-                    {headerColumns.map((col) => (
-                        <div
-                            key={col.index}
-                            data-tr-col-header
-                            className={`${COL_W} flex items-center border-b border-r border-gray-200 p-2 text-left text-xs font-medium text-gray-500 select-none`}
-                        >
-                            {loading ? <SkeletonLine className="h-4 w-28" /> : <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
-                                <span className="truncate">{col.name}</span>
-                                <button
-                                    type="button"
-                                    aria-label={`Edit ${col.name}`}
-                                    title="Edit column"
-                                    disabled={savingColumnsConfig}
-                                    onClick={() => onEditColumn(col)}
-                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:text-gray-300"
-                                >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                </button>
-                            </div>}
-                        </div>
-                    ))}
-                    <div className="min-w-8 flex-1 border-b border-gray-200" />
-                </div>
-            }
+        <TableScrollArea horizontal scrollRef={scrollContainerRef}
+            header={<TableHeaderRow className="h-9 w-max min-w-full pr-0 text-xs font-medium text-gray-500">
+                <TableStickyCell header className={`${STICKY} justify-between pr-1`}>
+                    <span className="flex min-w-0 items-center">
+                        <TableSelectionCheckbox loading={loading || noRows} aria-label="Select loaded documents"
+                            checked={selection.allSelected} indeterminate={selection.someSelected} onChange={selection.toggleAll} />
+                        Document
+                    </span>
+                    {!loading && !!sortedColumns.length && <HelpPopover label="Flag legend">
+                        <ul className="space-y-1">{(Object.keys(FLAGS) as AnswerFlag[]).map((flag) =>
+                            <li key={flag} className="flex items-center gap-2"><FlagDot flag={flag} />{FLAGS[flag].meaning}</li>)}</ul>
+                    </HelpPopover>}
+                </TableStickyCell>
+                {headerColumns.map((col) => loading
+                    ? <TableHeaderCell key={col.index} data-tr-col-header className={`${COLUMN_WIDTH} ${GRID_LINE} h-full justify-start`}>
+                        <SkeletonLine className="h-3 w-28" />
+                    </TableHeaderCell>
+                    : <ColumnHeader key={col.index} column={col} disabled={savingColumnsConfig} running={running || !documents.length}
+                        onEdit={onEditColumn} onRerun={onRerunColumn} onClear={onClearColumn} onDelete={onDeleteColumn} />)}
+                <div className={FILLER} />
+            </TableHeaderRow>}
         >
-                {loading ? <TableLoadingRows count={SKELETON_ROWS}
-                    rowClassName="h-8 min-w-full pr-0"
-                    primaryWidthClassName={DOC_COL_W}
-                    primaryClassName={`sticky left-0 z-[60] ${TR_STICKY_CELL_BG} border-b border-r border-gray-200`}
-                    primaryLineClassName="h-4 w-32"
-                    columns={[
-                        ...headerColumns.map(() => ({ className: `${COL_W} flex items-center border-b border-r border-gray-200 p-2`, lineClassName: "h-4" })),
-                        { className: "min-w-8 flex-1 border-b border-gray-200" },
-                    ]} /> : empty ? <div className="relative flex min-h-0 flex-1">
-                    {dragOverlay}
-                    <div className="mx-auto flex w-full max-w-xs flex-1 items-center">
-                        <p className="text-sm text-gray-500">Add columns and documents to begin.</p>
+            {loading ? <TableLoadingRows count={SKELETON_ROWS} rowClassName={ROW}
+                primaryClassName={STICKY} primaryLineClassName="h-3 w-32"
+                columns={[...headerColumns.map(() => ({ className: `${COLUMN_WIDTH} ${GRID_LINE} flex h-full items-center`, lineClassName: "h-3 w-20" })),
+                    { className: FILLER }]} />
+            : noRows ? <div className="relative flex min-h-0 flex-1">
+                {dragOverlay}
+                <TableEmptyState className="py-16">
+                    <p className="text-sm text-gray-600">{sortedColumns.length ? "No documents yet." : "Nothing to review yet."}</p>
+                    <div className="mt-4 flex gap-2">
+                        {!sortedColumns.length && <Button variant="outline" size="compact" onClick={onAddColumns}>Add columns</Button>}
+                        <Button variant="outline" size="compact" onClick={onAddDocuments}>Add documents</Button>
                     </div>
-                </div> :
-                <div className="relative min-h-0 flex-1">
-                    {dragOverlay}
-                    {uploadingFilenames.map((filename) => (
-                    <div
-                        key={`uploading-${filename}`}
-                        className="flex h-8 min-w-full"
-                    >
-                        <div
-                            className={`sticky left-0 z-[60] ${DOC_COL_W} ${TR_STICKY_CELL_BG} border-b border-r border-gray-200 py-2 pl-4 pr-2 text-xs text-gray-400 flex items-center`}
-                        >
-                            <TableSelectionCheckbox
-                                disabled
-                                aria-label={`Uploading ${filename}`}
-                            />
-                            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin shrink-0" />
-                            <span className="line-clamp-1" title={filename}>
-                                {filename}
-                            </span>
-                        </div>
-                        {sortedColumns.map((col) => (
-                            <div
-                                key={col.index}
-                                className={`${COL_W} border-b border-r border-gray-200 p-2`}
-                            >
-                                <SkeletonLine className="h-4 w-20" />
-                            </div>
-                        ))}
-                        <div className="flex-1 border-b border-gray-200 min-h-8 min-w-8" />
-                    </div>
-                    ))}
-                    {documents.map((doc, docIdx) => {
+                </TableEmptyState>
+            </div>
+            : <TableBody className="relative min-h-0">
+                {dragOverlay}
+                {uploadingFilenames.map((filename) => (
+                    <TableRow key={`uploading-${filename}`} interactive={false} className={ROW}>
+                        <TableStickyCell className={`${STICKY} items-center py-0 text-[13px] text-gray-400`}>
+                            <TableSelectionCheckbox disabled aria-label={`Uploading ${filename}`} />
+                            <Loader2 aria-hidden="true" className="mr-2 size-3.5 shrink-0 animate-spin" />
+                            <span className="truncate" title={filename}>{filename}</span>
+                        </TableStickyCell>
+                        {sortedColumns.map((col) => <TableCell key={col.index} className={`${COLUMN_WIDTH} ${GRID_LINE} flex h-full items-center`}>
+                            <SkeletonLine className="h-3 w-20" />
+                        </TableCell>)}
+                        <div className={FILLER} />
+                    </TableRow>
+                ))}
+                {documents.map((doc, docIdx) => {
                     const isSelected = selection.selected.has(doc.id);
-                    const rowBg = isSelected
-                        ? APP_SURFACE_ACTIVE_CLASS
-                        : APP_SURFACE_HOVER_CLASS;
-                    const stickyRowBg = isSelected
-                        ? APP_SURFACE_ACTIVE_CLASS
-                        : TR_STICKY_CELL_BG;
-                    return (<Fragment key={doc.id}>
+                    return <Fragment key={doc.id}>
                         {!!doc.group?.length && JSON.stringify(doc.group) !== JSON.stringify(documents[docIdx - 1]?.group) &&
-                            <div className="sticky left-0 border-b border-gray-200 bg-gray-50 px-4 py-1.5 text-xs font-medium text-gray-700">
-                                {doc.group.join(" / ")}
-                            </div>}
-                        <div
-                            data-tr-row
-                            className={`group flex min-h-20 min-w-full ${rowBg}`}
-                        >
-                            <div
-                                className={`sticky left-0 z-[60] ${DOC_COL_W} border-b border-r border-gray-200 py-3 pl-4 pr-3 text-sm leading-5 text-gray-800 flex items-center ${stickyRowBg} ${isSelected ? "" : APP_SURFACE_GROUP_HOVER_CLASS}`}
-                            >
-                                <TableSelectionCheckbox
-                                    aria-label={`Select ${doc.filename}`}
-                                    checked={isSelected}
+                            <TableRow interactive={false} className="h-7 w-max min-w-full border-b border-gray-200 bg-gray-50 pr-0 text-xs font-medium text-gray-700">
+                                <div className="sticky left-0 truncate px-4">{doc.group.join(" / ")}</div>
+                            </TableRow>}
+                        <TableRow data-tr-row selected={isSelected} interactive={false}
+                            className={cn(ROW, !isSelected && APP_SURFACE_HOVER_CLASS)}>
+                            <TableStickyCell className={cn(STICKY, "items-center py-0 text-[13px] leading-4 text-gray-800",
+                                isSelected ? APP_SURFACE_ACTIVE_CLASS : APP_SURFACE_GROUP_HOVER_CLASS)}>
+                                <TableSelectionCheckbox aria-label={`Select ${doc.filename}`} checked={isSelected}
                                     onChange={() => selection.toggle(doc.id)} />
-                                <span
-                                    className="line-clamp-2 [overflow-wrap:anywhere]"
-                                    title={doc.filename}
-                                >
-                                    {doc.filename}
-                                </span>
-                            </div>
-                            {sortedColumns.map((col) => {
+                                <span className="line-clamp-2 [overflow-wrap:anywhere]" title={doc.filename}>{doc.filename}</span>
+                            </TableStickyCell>
+                            {sortedColumns.map((col, colPos) => {
                                 const cell = cellsByKey.get(`${doc.id}:${col.index}`);
-                                const colPos =
-                                    columnPositionByIndex.get(col.index) ?? 0;
-                                const isHighlighted =
-                                    highlightedCell?.colIdx === colPos &&
-                                    highlightedCell?.rowIdx === docIdx;
-                                return (
-                                    <div
-                                        key={col.index}
-                                        className={`${COL_W} border-b border-r border-gray-200 ${isHighlighted ? "bg-amber-50 ring-2 ring-inset ring-amber-600" : ""}`}>
-                                        {cell && (
-                                            <TabularCellComponent
-                                                cell={cell}
-                                                column={col}
-                                                onExpand={onExpand}
-                                                onCitationClick={onCitationClick}
-                                            />
-                                        )}
-                                    </div>
-                                );
+                                const isHighlighted = highlightedCell?.colIdx === colPos && highlightedCell?.rowIdx === docIdx;
+                                return <TableCell key={col.index} className={cn(COLUMN_WIDTH, GRID_LINE, "h-full p-0",
+                                    isHighlighted && "bg-amber-50 ring-2 ring-inset ring-amber-600")}>
+                                    {cell && <TabularCellComponent cell={cell} column={col} onExpand={onExpand} onCitationClick={onCitationClick} />}
+                                </TableCell>;
                             })}
-                            <div className="flex-1 border-b border-gray-200 min-h-8 min-w-8" />
-                        </div></Fragment>
-                    );
-                    })}
-                </div>}
+                            <div className={FILLER} />
+                        </TableRow>
+                    </Fragment>;
+                })}
+            </TableBody>}
         </TableScrollArea>
     );
+}
+
+function ColumnHeader({ column, disabled, running, onEdit, onRerun, onClear, onDelete }: {
+    column: ColumnConfig; disabled: boolean; running: boolean;
+    onEdit: (col: ColumnConfig) => void; onRerun?: (col: ColumnConfig) => void;
+    onClear?: (col: ColumnConfig) => void; onDelete?: (col: ColumnConfig) => void;
+}) {
+    const format = FORMAT_OPTIONS.find(({ value }) => value === (column.format ?? "text")) ?? FORMAT_OPTIONS[0]!;
+    const Icon = format.icon;
+    const prompt = column.prompt && column.prompt !== column.name ? column.prompt : "";
+    return <TableHeaderCell data-tr-col-header className={`group/head ${COLUMN_WIDTH} ${GRID_LINE} h-full justify-start gap-1.5 pl-2.5 pr-1 text-left`}>
+        <Icon aria-hidden="true" className={`size-3.5 shrink-0 ${format.iconClassName}`} />
+        <span className="min-w-0 flex-1 truncate text-gray-700" title={column.name}>{column.name}</span>
+        <span className="flex shrink-0 items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover/head:opacity-100 [&:has([aria-expanded=true])]:opacity-100">
+            {prompt && <HelpPopover label={`${column.name} prompt`}><span className="whitespace-pre-wrap">{prompt}</span></HelpPopover>}
+            <MoreActionsMenu label={`${column.name} actions`} triggerClassName="h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                items={[
+                    { label: "Edit", disabled, onSelect: () => onEdit(column) },
+                    ...(onRerun ? [{ label: "Rerun column", disabled: disabled || running, onSelect: () => onRerun(column) }] : []),
+                    ...(onClear ? [{ label: "Clear column", disabled: disabled || running, onSelect: () => onClear(column) }] : []),
+                    ...(onDelete ? [{ label: "Delete", disabled, onSelect: () => onDelete(column) }] : []),
+                ]} />
+        </span>
+    </TableHeaderCell>;
 }

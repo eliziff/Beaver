@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useEffectEvent, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { MessageSquare, MessageSquareX, Play, Plus, Square, Upload, Users } from "lucide-react";
+import { MessageSquare, MessageSquareX, Play, Plus, Square, Upload } from "lucide-react";
 import {
   clearTabularCells,
   deleteTabularReview,
@@ -42,13 +42,11 @@ import type { ResearchSelection } from "@/app/lib/researchFiles";
 import { assistantIntent } from "../assistant/assistantIntent";
 import { OrganizeComposer } from "../legal/OrganizeComposer";
 import { PageHeader, type PageHeaderAction, type PageHeaderBreadcrumb } from "../shared/PageHeader";
-import { TableToolbar } from "../shared/TableToolbar";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
 import { PeopleModal } from "../modals/PeopleModal";
 import { ApiKeyMissingPopup } from "../popups/ApiKeyMissingPopup";
 import { ConfirmPopup } from "../popups/ConfirmPopup";
 import { OwnerOnlyPopup } from "../popups/OwnerOnlyPopup";
-import { ActionMenu } from "../ui/action-menu";
 import { Button } from "../ui/button";
 import { WorkflowPickerModal } from "../workflows/WorkflowPickerModal";
 import type { WorkflowSelection } from "../workflows/workflowRoutes";
@@ -110,6 +108,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
         highlightedCell: null as { colIdx: number; rowIdx: number } | null,
         missingProvider: null as ModelProvider | null,
         organizeOpen: null as boolean | null,
+        columnRun: null as { columnIndex: number; total: number; queue: string[] } | null,
     }));
     const setUi = useCallback((patch: Partial<typeof ui>) =>
         setUiState((current) => ({ ...current, ...patch })), []);
@@ -119,7 +118,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
     const {
         loading, generating, columnModal, modal, workflowStatus, deleteStatus,
         ownerAction, cellView, selectedIds, search, dragOver, uploading, chatId,
-        highlightedCell, missingProvider,
+        highlightedCell, missingProvider, columnRun,
     } = ui;
     const columns = review?.columns_config ?? [];
     const organizeOpen = ui.organizeOpen ?? (!loading && !!documents.length && !columns.length);
@@ -258,6 +257,23 @@ function TRViewContent({ reviewId, projectId }: Props) {
             setUi({ generating: false });
         }
     }
+    // The API only regenerates one cell per request and refuses new work while
+    // the review is running, so a column rerun queues its rows and sends the
+    // next one each time the poll reports the review idle.
+    function rerunColumn({ index }: ColumnConfig) {
+        if (generating || columnRun || modelUnavailable()) return;
+        const queue = documents.map(({ id }) => id);
+        if (queue.length) setUi({ columnRun: { columnIndex: index, total: queue.length, queue } });
+    }
+    const advanceColumnRun = useEffectEvent(() => {
+        if (!columnRun) return;
+        const [documentId, ...queue] = columnRun.queue;
+        setUi({ columnRun: queue.length ? { ...columnRun, queue } : null });
+        if (documentId) void regenerateCell(documentId, columnRun.columnIndex);
+    });
+    useEffect(() => {
+        if (!generating && columnRun) advanceColumnRun();
+    }, [generating, columnRun]);
     async function generate() {
         if (!review || generating || !columns.length || modelUnavailable()) return;
         setUi({ generating: true });
@@ -292,6 +308,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
         }
     }
     async function stopGeneration() {
+        setUi({ columnRun: null });
         try {
             await stopTabularGeneration(reviewId);
             const data = await getTabularReview(reviewId);
@@ -375,14 +392,14 @@ function TRViewContent({ reviewId, projectId }: Props) {
             console.error("Failed to delete tabular review documents", error);
         }
     }
-    async function clearResults(documentIds: string[]) {
+    async function clearResults(documentIds: string[], columnIndex?: number) {
         if (!documentIds.length) return;
         const selected = new Set(documentIds);
         setCells((current) => current.map((cell) =>
-            selected.has(cell.document_id)
+            selected.has(cell.document_id) && (columnIndex === undefined || cell.column_index === columnIndex)
                 ? { ...cell, content: null, status: "pending" } : cell));
-        setUi({ selectedIds: [] });
-        await clearTabularCells(reviewId, documentIds);
+        if (columnIndex === undefined) setUi({ selectedIds: [] });
+        await clearTabularCells(reviewId, documentIds, columnIndex);
     }
     function ownerOnly(action: string, run: () => void) {
         if (review?.is_owner === false) setUi({ ownerAction: action });
@@ -512,8 +529,13 @@ function TRViewContent({ reviewId, projectId }: Props) {
             ? { loading: true, skeletonClassName: "w-40" }
             : { label: reviewTitle },
     ];
+    const finishedCells = cells.filter(({ status }) => status === "done" || status === "error").length;
+    const progress = columnRun
+        ? { done: columnRun.total - columnRun.queue.length - (generating ? 1 : 0), total: columnRun.total }
+        : { done: finishedCells, total: cells.length };
     const menuItems = [
         { label: "History", onSelect: () => setUi({ historyOpen: true }) },
+        ...(!projectId ? [{ label: "People", disabled: loading, onSelect: () => setUi({ modal: "people" as Modal }) }] : []),
         { label: "Edit details",
             onSelect: () => ownerOnly(
                 "edit tabular review details",
@@ -524,14 +546,14 @@ function TRViewContent({ reviewId, projectId }: Props) {
                 "apply a workflow",
                 () => setUi({ workflowStatus: "open" })),
         },
-        { label: "Export", disabled: !hasTable,
+        { label: "Export XLSX", disabled: !hasTable,
             onSelect: () => void exportTabularReview(reviewId).then(
                 ({ blob, filename }) => downloadBlob(
                     blob,
                     filename ?? `${review?.title || "Tabular Review"}.xlsx`,
                 )),
         },
-        { label: "Clear results", disabled: !documents.length,
+        { label: "Clear results", disabled: !documents.length || generating,
             onSelect: () => void clearResults(
                 documents.map(({ id }) => id)),
         },
@@ -541,29 +563,22 @@ function TRViewContent({ reviewId, projectId }: Props) {
                 () => setUi({ deleteStatus: "open" })),
         },
     ];
-    const headerActions: PageHeaderAction[] = [
-        { type: "custom", render: <ResearchViews workspace={async () => {
-            const { file, selection } = await prepareRows();
-            navigate(`/sources?research_file=${encodeURIComponent(file.document.id)}`, { state: { researchSelection: selection } });
-        }} chat={() => openChat()} /> },
+    const headerActions: (PageHeaderAction | false)[] = [
         { type: "search", value: search,
             onChange: (value) => setUi({ search: value }),
             placeholder: "Search documents\u2026",
-        },
-        ...(!projectId ? [{
-            onClick: () => setUi({ modal: "people" }),
-            disabled: loading, iconOnly: true,
-            title: "People with access",
-            icon: <Users className="h-4 w-4" />,
-        } satisfies PageHeaderAction] : []),
-        { type: "custom",
-            render: <MoreActionsMenu items={menuItems} />,
         },
         {
             onClick: () => setUi({ modal: "documents" }),
             disabled: loading, title: "Add documents",
             icon: <Upload className="h-4 w-4" />,
             label: <span className="hidden sm:inline">Documents</span>,
+        },
+        {
+            onClick: () => setUi({ columnModal: null }),
+            disabled: loading, title: "Add columns",
+            icon: <Plus className="h-4 w-4" />,
+            label: <span className="hidden sm:inline">Add columns</span>,
         },
         {
             onClick: generating ? stopGeneration : generate, disabled: !hasTable,
@@ -573,6 +588,15 @@ function TRViewContent({ reviewId, projectId }: Props) {
             label: <span className="hidden sm:inline">
                 {generating ? "Stop" : "Run"}
             </span>,
+        },
+        { type: "custom", render: <ResearchViews workspace={async () => {
+            const { file, selection } = await prepareRows();
+            navigate(`/sources?research_file=${encodeURIComponent(file.document.id)}`, { state: { researchSelection: selection } });
+        }} chat={() => openChat()} /> },
+        !loading && !!documents.length && { type: "custom", render: <Button variant="outline" size="compact" className="h-9 px-3 text-sm"
+            aria-expanded={organizeOpen} onClick={() => setUi({ organizeOpen: !organizeOpen })}>Organize</Button> },
+        { type: "custom",
+            render: <MoreActionsMenu items={menuItems} />,
         },
         {
             onClick: () => {
@@ -598,44 +622,25 @@ function TRViewContent({ reviewId, projectId }: Props) {
                     <div className={`flex flex-1 flex-col overflow-hidden ${
                         chatOpen ? "max-md:hidden" : ""
                     }`}>
-                        <TableToolbar actions={
-                            <div className="flex items-center gap-1.5">
-                                {loading ? (
-                                    <div className="h-8 w-24 rounded-md bg-gray-100" />
-                                ) : selected && (
-                                    <ActionMenu
-                                        label="Selected document actions"
-                                        items={[
-                                            { label: "Clear results",
-                                                disabled: !selected,
-                                                onSelect: () => void clearResults(
-                                                    selectedIds),
-                                            },
-                                            { label: "Delete",
-                                                disabled: !selected,
-                                                onSelect: deleteDocuments,
-                                            },
-                                        ]}
-                                        triggerClassName="h-8 items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 hover:bg-gray-100"
-                                    >
-                                        {selectedIds.length} selected
-                                        <span aria-hidden="true">&#9662;</span>
-                                    </ActionMenu>
-                                )}
-                                {!loading && (
-                                    <Button variant="outline"
-                                        className="h-8 py-0" onClick={() =>
-                                        setUi({ columnModal: null })}>
-                                        <Plus className="h-3.5 w-3.5" />
-                                        Add Columns
-                                    </Button>
-                                )}
-                                {selected && <ResearchSelectionLabels prepare={async () => (await prepareRows()).rows
-                                    .flatMap(({ selection }) => selection ? [selection] : [])} />}
-                                {!loading && !!documents.length && <Button variant="outline" className="h-8 py-0"
-                                    aria-expanded={organizeOpen} onClick={() => setUi({ organizeOpen: !organizeOpen })}>Organize</Button>}
-                            </div>
-                        } />
+                        {!loading && (selected || generating) && <div className="mx-4 mb-2 flex min-h-8 flex-wrap items-center gap-2 md:mx-6">
+                            {selected && <>
+                                <span className="text-sm font-medium text-gray-800">{selectedIds.length} selected</span>
+                                <ResearchSelectionLabels prepare={async () => (await prepareRows()).rows
+                                    .flatMap(({ selection }) => selection ? [selection] : [])} />
+                                <Button variant="outline" size="compact" disabled={generating}
+                                    onClick={() => void clearResults(selectedIds)}>Clear results</Button>
+                                <Button variant="outline" size="compact" onClick={() => void deleteDocuments()}>Remove</Button>
+                            </>}
+                            {generating && <div role="progressbar" aria-label="Run progress" aria-valuemin={0}
+                                aria-valuemax={progress.total} aria-valuenow={progress.done}
+                                className="ml-auto flex items-center gap-2 text-xs tabular-nums text-gray-600">
+                                <span className="h-1.5 w-32 overflow-hidden rounded-full bg-gray-200">
+                                    <span className="block h-full rounded-full bg-gray-800 transition-[width]"
+                                        style={{ width: `${progress.total ? Math.round(100 * progress.done / progress.total) : 0}%` }} />
+                                </span>
+                                {progress.done}/{progress.total}
+                            </div>}
+                        </div>}
                         {organizeOpen && <div className="px-4 pt-2"><OrganizeComposer target="table" onRun={(request) => openChat(request)}
                             onClose={() => setUi({ organizeOpen: false })}
                             facts={workspace.file ? undefined : `${documents.length} document${documents.length === 1 ? "" : "s"}`} /></div>}
@@ -672,12 +677,18 @@ function TRViewContent({ reviewId, projectId }: Props) {
                                 selectedDocIds={selectedIds}
                                 uploadingFilenames={uploading}
                                 dragOverFiles={dragOver}
+                                running={generating || !!columnRun}
                                 onSelectionChange={(selectedIds) =>
                                     setUi({ selectedIds })}
                                 onExpand={expandCell}
                                 onCitationClick={openCitation}
                                 onEditColumn={(columnModal) =>
                                     setUi({ columnModal })}
+                                onRerunColumn={rerunColumn}
+                                onClearColumn={({ index }) => void clearResults(documents.map(({ id }) => id), index)}
+                                onDeleteColumn={({ index }) => void deleteColumn(index)}
+                                onAddColumns={() => setUi({ columnModal: null })}
+                                onAddDocuments={() => setUi({ modal: "documents" })}
                             />
                         </div>
                     </div>
@@ -708,8 +719,9 @@ function TRViewContent({ reviewId, projectId }: Props) {
                     key={JSON.stringify(cellView)} cell={expandedCell}
                     document={expandedDocument} column={expandedColumn}
                     onClose={() => setUi({ cellView: null })}
-                    onRegenerate={generating ? undefined : () => regenerateCell(
+                    onRegenerate={() => regenerateCell(
                         expandedCell.document_id, expandedCell.column_index)}
+                    running={generating || !!columnRun}
                     displayDocument={expandedCitation !== undefined}
                     citation={expandedCitation}
                 />

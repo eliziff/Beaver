@@ -62,20 +62,49 @@ describe("TRTable", () => {
         expect(screen.getByLabelText("Select Later amendment")).toBeVisible();
     });
 
-    it("opens the shared editor for a column", () => {
-        const column = {
-            index: 0,
-            name: "Parties",
-            prompt: "Identify parties",
-        };
-        const onEditColumn = vi.fn();
-        renderTable([column], onEditColumn);
+    it("edits, reruns and deletes a column from its header menu", () => {
+        const column = { index: 0, name: "Parties", prompt: "Identify parties" };
+        const onEditColumn = vi.fn(), onRerunColumn = vi.fn(), onClearColumn = vi.fn(), onDeleteColumn = vi.fn();
+        render(<TRTable loading={false} columns={[column]} documents={[doc]} cells={[]} savingColumnsConfig={false}
+            selectedDocIds={[]} onSelectionChange={vi.fn()} onExpand={vi.fn()} onCitationClick={vi.fn()}
+            onEditColumn={onEditColumn} onRerunColumn={onRerunColumn} onClearColumn={onClearColumn} onDeleteColumn={onDeleteColumn} />);
+        const open = () => fireEvent.click(screen.getByRole("button", { name: "Parties actions" }));
 
-        fireEvent.click(screen.getByRole("button", { name: "Edit Parties" }));
+        open();
+        fireEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
         expect(onEditColumn).toHaveBeenCalledWith(column);
+        open();
+        fireEvent.click(screen.getByRole("menuitem", { name: "Rerun column" }));
+        expect(onRerunColumn).toHaveBeenCalledWith(column);
+        open();
+        fireEvent.click(screen.getByRole("menuitem", { name: "Clear column" }));
+        expect(onClearColumn).toHaveBeenCalledWith(column);
+        open();
+        fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+        expect(onDeleteColumn).toHaveBeenCalledWith(column);
     });
 
-    it("opens details from the cell and routes citation locators separately", () => {
+    it("blocks a column rerun while the review is running", () => {
+        render(<TRTable loading={false} columns={[{ index: 0, name: "Parties", prompt: "" }]} documents={[doc]} cells={[]}
+            savingColumnsConfig={false} selectedDocIds={[]} running onSelectionChange={vi.fn()} onExpand={vi.fn()}
+            onCitationClick={vi.fn()} onEditColumn={vi.fn()} onRerunColumn={vi.fn()} />);
+        fireEvent.click(screen.getByRole("button", { name: "Parties actions" }));
+        expect(screen.getByRole("menuitem", { name: "Rerun column" })).toBeDisabled();
+        expect(screen.getByRole("menuitem", { name: "Edit" })).toBeEnabled();
+    });
+
+    it("offers the next step when the table has no rows", () => {
+        const onAddColumns = vi.fn(), onAddDocuments = vi.fn();
+        render(<TRTable loading={false} columns={[]} documents={[]} cells={[]} savingColumnsConfig={false} selectedDocIds={[]}
+            onSelectionChange={vi.fn()} onExpand={vi.fn()} onCitationClick={vi.fn()} onEditColumn={vi.fn()}
+            onAddColumns={onAddColumns} onAddDocuments={onAddDocuments} />);
+        fireEvent.click(screen.getByRole("button", { name: "Add columns" }));
+        fireEvent.click(screen.getByRole("button", { name: "Add documents" }));
+        expect(onAddColumns).toHaveBeenCalledOnce();
+        expect(onAddDocuments).toHaveBeenCalledOnce();
+    });
+
+    it("opens details from the cell and the first citation from the count chip", () => {
         const column = {
             index: 0,
             name: "Finding",
@@ -110,25 +139,16 @@ describe("TRTable", () => {
             onCitationClick,
         );
 
-        const pageCitation = screen.getByTitle('report.pdf, p. 7: "page quote"');
         fireEvent.click(screen.getByRole("button", { name: "Open Finding result" }));
         expect(onExpand).toHaveBeenCalledOnce();
         expect(onExpand).toHaveBeenCalledWith(cell);
 
-        fireEvent.click(pageCitation);
-        fireEvent.click(screen.getByTitle('Authorities.xlsx, Authorities!B2: "sheet quote"'));
-        expect(onCitationClick).toHaveBeenNthCalledWith(
-            1,
+        fireEvent.click(screen.getByRole("button", { name: "2 citations" }));
+        expect(onCitationClick).toHaveBeenCalledOnce();
+        expect(onCitationClick).toHaveBeenCalledWith(
             cell,
             expect.objectContaining({ kind: "document", document_id: doc.id,
                 version_id: "version-page", ref: 1, quotes: [{ page: "7", quote: "page quote" }] }),
-        );
-        expect(onCitationClick).toHaveBeenNthCalledWith(
-            2,
-            cell,
-            expect.objectContaining({ kind: "document", document_id: "workbook",
-                version_id: "version-sheet", ref: 2,
-                quotes: [{ quote: "sheet quote", sheet: "Authorities", cell: "B2" }] }),
         );
         expect(onExpand).toHaveBeenCalledOnce();
     });
