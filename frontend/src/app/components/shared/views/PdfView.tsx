@@ -16,7 +16,10 @@ import {
     STANDARD_FONT_DATA_URL,
 } from "./highlightQuote";
 
+import { attachPdfAnnotationLayer, focusPdfAnnotation, type PdfAnnotationEditorPort } from "./pdfAnnotationLayer";
+
 interface Props {
+    annotationEditor?: PdfAnnotationEditorPort;
     doc: { document_id: string; version_id?: string | null } | null;
     bytes?: Uint8Array;
     revision?: string | number | null;
@@ -100,7 +103,12 @@ export function PdfView({
     rounded = true,
     ariaLabel = "PDF document",
     onUnavailable,
+    annotationEditor,
 }: Props) {
+    const editorRef = useRef(annotationEditor);
+    editorRef.current = annotationEditor;
+    const [layoutRevision, setLayoutRevision] = useState(0);
+    const [pageInput, setPageInput] = useState("1");
     const containerRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const pdfRef = useRef<import("pdfjs-dist").PDFDocumentProxy | null>(null);
@@ -130,6 +138,20 @@ export function PdfView({
         doc?.version_id ?? null,
         revision,
     );
+    useEffect(() => setPageInput(String(currentPage)), [currentPage]);
+    useEffect(() => {
+        const scroll = scrollRef.current;
+        if (!annotationEditor || !scroll) return;
+        return attachPdfAnnotationLayer(scroll, pagesRef.current.map(page => page.wrapper), annotationEditor);
+    }, [annotationEditor, layoutRevision]);
+    useEffect(() => {
+        const scroll = scrollRef.current, focus = editorRef.current?.focus;
+        const mark = editorRef.current?.marks.find(mark => mark.id === focus?.id);
+        if (scroll && mark) {
+            focusPdfAnnotation(scroll, pagesRef.current.map(page => page.wrapper), mark);
+            scheduleRef.current?.();
+        }
+    }, [annotationEditor?.focus?.request, layoutRevision]);
     const notifyUnavailable = useEffectEvent(() => onUnavailable?.());
 
     const renderPdf = useCallback(async (
@@ -195,9 +217,30 @@ export function PdfView({
             });
             container.appendChild(fragment);
             pagesRef.current = pages;
+            setLayoutRevision(value => value + 1);
             setPreparing(false);
             const target = list.find(({ page }) => page)?.page ?? scrollToPage;
             if (target) scrollToHighlight(pages, scrollRef.current, target);
+
+            async function ensureTextLayer(index: number) {
+                if (pages[index].hasTextLayer || generation !== generationRef.current) return;
+                const viewport = pdfPages[index].getViewport({ scale });
+                const textLayerElement = document.createElement("div");
+                textLayerElement.className = "pdf-text-layer";
+                Object.assign(textLayerElement.style, { position: "absolute", left: "0", top: "0",
+                    width: `${viewport.width}px`, height: `${viewport.height}px`,
+                    ...(editorRef.current ? { userSelect: "text", pointerEvents: "auto", zIndex: "1" } : {}) });
+                textLayerElement.style.setProperty("--scale-factor", String(scale));
+                pages[index].wrapper.appendChild(textLayerElement);
+                const textLayer = new lib.TextLayer({ textContentSource: pdfPages[index].streamTextContent(),
+                    container: textLayerElement, viewport });
+                try {
+                    await textLayer.render();
+                    if (generation !== generationRef.current) return;
+                    pages[index].textDivs = textLayer.textDivs;
+                    pages[index].hasTextLayer = true;
+                } catch (cause) { textLayerElement.remove(); throw cause; }
+            }
 
             const rendered = new Map<number, HTMLCanvasElement>();
             const failed = new Set<number>();
@@ -246,6 +289,11 @@ export function PdfView({
                             if (generation !== generationRef.current) return;
                             pages[index].wrapper.prepend(canvas);
                             rendered.set(index, canvas);
+                            if (editorRef.current) {
+                                // A missing text layer must not erase a successfully rendered scan.
+                                try { await ensureTextLayer(index); }
+                                catch (cause) { console.warn("PDF text selection unavailable", cause); }
+                            }
                         } catch (cause) {
                             canvas.width = canvas.height = 0;
                             if ((cause as { name?: string })?.name !== "RenderingCancelledException") {
@@ -287,25 +335,9 @@ export function PdfView({
                 let focused = false;
                 for (const index of order) {
                     if (generation !== generationRef.current) return;
-                    const viewport = pdfPages[index].getViewport({ scale });
-                    const textLayerElement = document.createElement("div");
-                    textLayerElement.className = "pdf-text-layer";
-                    Object.assign(textLayerElement.style, {
-                        position: "absolute", left: "0", top: "0",
-                        width: `${viewport.width}px`, height: `${viewport.height}px`,
-                    });
-                    textLayerElement.style.setProperty("--scale-factor", String(scale));
-                    pages[index].wrapper.appendChild(textLayerElement);
-                    const textLayer = new lib.TextLayer({
-                        textContentSource: pdfPages[index].streamTextContent(),
-                        container: textLayerElement, viewport,
-                    });
-                    await textLayer.render();
-                    if (generation !== generationRef.current) return;
-                    pages[index].textDivs = textLayer.textDivs;
-                    pages[index].hasTextLayer = true;
+                    await ensureTextLayer(index);
                     let hit = false;
-                    for (const entry of list) hit = highlightQuote(textLayer.textDivs, entry.quote) || hit;
+                    for (const entry of list) hit = highlightQuote(pages[index].textDivs, entry.quote) || hit;
                     if (hit && !focused) {
                         focused = true;
                         scrollToHighlight(pages, scrollRef.current, index + 1);
@@ -500,6 +532,15 @@ export function PdfView({
         if (page) scrollToHighlight(pagesRef.current, scrollRef.current, page);
     }, [quoteFocusKey, quoteKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    function jumpToPage() {
+        const number = Number(pageInput);
+        if (!Number.isSafeInteger(number) || number < 1 || number > numPages) {
+            setPageInput(String(currentPage)); return;
+        }
+        scrollToHighlight(pagesRef.current, scrollRef.current, number);
+        scheduleRef.current?.();
+    }
+
     function changeZoom(event: ReactMouseEvent<HTMLButtonElement>) {
         const next = clampZoom(
             zoomRef.current + Number(event.currentTarget.value),
@@ -535,7 +576,15 @@ export function PdfView({
                 <>
                     <div className="pointer-events-none absolute bottom-4 left-4">
                         <span className="flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium tabular-nums text-gray-700 shadow-sm">
-                            {currentPage}/{numPages}
+                            {annotationEditor ? <label className="flex items-center gap-1 pointer-events-auto">
+                                <span className="sr-only">PDF page</span>
+                                <input aria-label="PDF page" value={pageInput} inputMode="numeric"
+                                    className="w-12 bg-transparent text-center outline-none focus:ring-2 focus:ring-red-600"
+                                    onChange={event => setPageInput(event.target.value)}
+                                    onKeyDown={event => { if (event.key === "Enter") {
+                                        event.preventDefault(); jumpToPage();
+                                    } }} onBlur={jumpToPage} /> / {numPages}
+                            </label> : <>{currentPage}/{numPages}</>}
                         </span>
                     </div>
                     <div className="absolute bottom-4 right-4 flex items-center gap-px rounded-full border border-gray-200 bg-white p-1 shadow-sm">

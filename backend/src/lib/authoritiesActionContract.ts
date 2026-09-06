@@ -1,3 +1,4 @@
+import { decodeAnnotationSet } from "mike/shared/pdf-annotations.mjs";
 import { reject } from "./applicationError";
 import { AUTHORITIES_BOOK_ROLES, authoritiesProfileIds, type AuthorityOccurrence,
   type AuthoritiesBuildSettings, type AuthoritiesCover, type AuthoritiesDiscrepancyAction,
@@ -101,6 +102,14 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
     case "remove-authority": return { type, authorityId: text(item.authorityId) };
     case "exclude-authority": return { type, authorityId: text(item.authorityId),
       excluded: typeof item.excluded === "boolean" ? item.excluded : bad() };
+    case "set-annotations": {
+      if (!Array.isArray(item.entries) || !item.entries.length || item.entries.length > 2_000) return bad();
+      return { type, entries: item.entries.map(value => {
+        const entry = object(value);
+        try { return { authorityId: text(entry.authorityId), bindingRole: text(entry.bindingRole, 300),
+          annotations: decodeAnnotationSet(entry.annotations) }; } catch { return bad(); }
+      }) };
+    }
     case "set-highlight-exclusion": {
       const locator = object(item.locator);
       return { type, authorityId: text(item.authorityId),

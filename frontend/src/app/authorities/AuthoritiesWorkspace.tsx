@@ -31,6 +31,8 @@ import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesProduct,
 import { deriveAuthorityProcedure, tabLabel } from "../../../../shared/authorities-order.mjs";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
+import { AuthoritiesHighlights } from "./AuthoritiesHighlightEditor";
+
 type WorkspaceTab = "automatic" | "manual" | "drafts";
 type StartPreferences = Pick<AuthoritiesBuildSettings, "sourceMode" | "passageMarking"> & {
   profileId: AuthoritiesProfileId;
@@ -626,8 +628,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       ? (slot, supplementId) => openLibrary({ kind: "book", slot, supplementId }) : undefined}
     sourceLabel={sourceLabel} onBuild={build} onCancel={() => buildRequest.current?.abort()}
     onDownload={download} />;
-  const highlightPanel = draft && <HighlightReview draft={draft} tabs={authorityTabs}
-    busy={busy} onAction={act} />;
+  const highlightPanel = draft && <AuthoritiesHighlights product={draft} tabs={authorityTabs}
+    busy={busy} host={host} onSaved={remember} />;
   const authorityPanelProps = { authorities, tabs: authorityTabs, busy, sourceIssues,
     onAction: act, canWatch: canWatchDownloads, watching: !!downloadDirectory, capturingId,
     onWatch: () => void watchDownloads(),
@@ -725,12 +727,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                       onResolve={host.resolveDiscrepancy ? resolveDiscrepancy : undefined}
                       onBeginLink={(id) => { setError(""); setLinkingId(id); }} />
                   </section>
-                  {highlightPanel}
-                  {buildPanel}
                   <Sources key={draft.id} draft={draft} occurrences={occurrences}
                     {...authorityPanelProps}
                     forceOpen={sourceIntervention === sourceKey}
-                    /></>}
+                    />
+                  {highlightPanel}
+                  {buildPanel}</>}
         </div>
       </main>
       {LibraryPicker && <LibraryPicker open={!!libraryTarget}
@@ -1030,82 +1032,6 @@ function Sources({ draft, authorities, tabs, occurrences, busy, sourceIssues, on
       <Button type="button" variant="ghost" className="mt-2 h-9" disabled={busy} onClick={onAdd}>
         <Plus /> Add authority</Button>
     </div>
-  </details>;
-}
-
-function passageShortLabel(kind: string, label: string) {
-  return `${kind === "paragraph" ? "para" : kind === "section" ? "s" : "p"} ${label}`;
-}
-
-function highlightPassages(state: AuthoritiesProduct["state"]) {
-  if (state.outputMode === "table") return [];
-  const grouped = new Map<string, Map<string, { kind: string; label: string }>>();
-  const add = (authorityId: string, kind: string, label: string) => {
-    const cleanKind = kind.trim(), cleanLabel = label.trim();
-    if (!cleanKind || !cleanLabel ||
-        !["paragraph", "section", "page"].includes(cleanKind)) return;
-    if (!grouped.has(authorityId)) grouped.set(authorityId, new Map());
-    grouped.get(authorityId)!.set(`${cleanKind}\0${cleanLabel}`,
-      { kind: cleanKind, label: cleanLabel });
-  };
-  for (const id of state.authorityOrder) {
-    const authority = state.authorities[id];
-    if (!authority || authority.excluded || authority.source.kind !== "attached") continue;
-    authority.locators.forEach(({ kind, label }) => add(id, kind, label));
-  }
-  for (const occurrence of Object.values(state.occurrences)) {
-    if (!occurrence.authorityId || occurrence.kind === "reference") continue;
-    const authority = state.authorities[occurrence.authorityId];
-    if (!authority || authority.excluded || authority.source.kind !== "attached") continue;
-    occurrence.pinpoints.forEach(({ kind, text }) => add(authority.id, kind, text));
-  }
-  return state.authorityOrder.flatMap((id) => {
-    const authority = state.authorities[id], passages = grouped.get(id);
-    if (!authority || !passages?.size) return [];
-    const off = new Set((authority.highlightExclusions ?? [])
-      .map(({ kind, label }) => `${kind}\0${label}`));
-    return [{ authority, passages: [...passages.values()].map((passage) => ({ ...passage,
-      excluded: off.has(`${passage.kind}\0${passage.label}`) })) }];
-  });
-}
-
-function HighlightReview({ draft, tabs, busy, onAction }: {
-  draft: AuthoritiesProduct; tabs: ReadonlyMap<string, string>; busy: boolean;
-  onAction: ActionHandler;
-}) {
-  const rows = useMemo(() => highlightPassages(draft.state), [draft]);
-  if (draft.state.settings.passageMarking === "none" || !rows.length) return null;
-  const total = rows.reduce((count, { passages }) => count + passages.length, 0);
-  const off = rows.reduce((count, { passages }) => count +
-    passages.filter(({ excluded }) => excluded).length, 0);
-  return <details
-    className="group mt-3 overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
-    <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-4 outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600 [&::-webkit-details-marker]:hidden">
-      <ChevronRight className="h-4 w-4 shrink-0 text-red-700 transition-transform group-open:rotate-90 motion-reduce:transition-none" />
-      <h2 className="font-semibold text-gray-950">Highlights</h2>
-      <span className="ms-auto text-sm tabular-nums text-gray-500">
-        {off ? `${off} off` : total}</span>
-    </summary>
-    <ul className="space-y-1.5 border-t border-gray-200 px-4 pb-4 pt-3">
-      {rows.map(({ authority, passages }) => <li key={authority.id}
-        className="rounded-lg border border-gray-200 px-3 py-2">
-        <p className="truncate text-sm font-medium text-gray-950"
-          title={authorityLabel(authority)}>
-          <span className="mr-2 text-[11px] font-semibold uppercase tabular-nums text-gray-500">
-            {tabs.get(authority.id) ?? ""}</span>{authorityLabel(authority)}</p>
-        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
-          {passages.map(({ kind, label, excluded }) => <label key={`${kind}\0${label}`}
-            className="inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm text-gray-800 has-[:disabled]:cursor-default">
-            <input type="checkbox" className="h-4 w-4 accent-red-700" disabled={busy}
-              checked={!excluded} onChange={(event) => onAction({
-                type: "set-highlight-exclusion", authorityId: authority.id,
-                locator: { kind, label }, excluded: !event.target.checked })}
-              aria-label={`${passageShortLabel(kind, label)} in ${authorityLabel(authority)}`} />
-            {passageShortLabel(kind, label)}
-          </label>)}
-        </div>
-      </li>)}
-    </ul>
   </details>;
 }
 

@@ -34,7 +34,10 @@ const drafts: WorkProductStore = {
   update: updateWorkProduct, duplicate: duplicateWorkProduct, remove: deleteWorkProduct,
 };
 
+import { prepareAnnotations } from "./annotationPreparation";
+
 export const beaverAuthoritiesHost: AuthoritiesHost = {
+  prepareAnnotations,
   mode: "beaver",
   drafts,
   async create({ source, title, projectId, settings }) {

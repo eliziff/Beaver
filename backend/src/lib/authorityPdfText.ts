@@ -13,6 +13,7 @@ export async function authorityPdfText(input: {
   sourceSha256?: string;
   pdfProfile?: PdfProfileSelection;
   passageTargets?: NativePdfPassageTarget[];
+  nativeOnly?: boolean;
   signal?: AbortSignal;
 }, projection: Projection = documentProjectionService) {
   const sourceSha256 = input.sourceSha256 ?? sha256(input.bytes);
@@ -21,7 +22,7 @@ export async function authorityPdfText(input: {
   const prepared = await projection.preparePdf({ documentId, versionId,
     bytes: input.bytes, sourceSha256, signal: input.signal, ...(input.pdfProfile
       ? { pdfProfile: input.pdfProfile }
-      : { ocrProvider: "kraken-lite" as const }) });
+      : { ocrProvider: input.nativeOnly ? null : "kraken-lite" as const }) });
   if (input.pdfProfile && prepared.cacheKey !== input.pdfProfile.cacheKey) {
     throw new Error("Prepared authority PDF profile changed.");
   }
