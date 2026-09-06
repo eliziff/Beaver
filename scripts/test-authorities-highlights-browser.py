@@ -10,7 +10,7 @@ import json
 import re
 import shutil
 from pathlib import Path
-import fitz
+import pymupdf as fitz
 from playwright.sync_api import sync_playwright, expect
 
 
@@ -30,6 +30,8 @@ def run(url: str, output: Path, browser: str | None):
         assert page.locator('canvas').count() <= 5, 'Do not rasterize the whole document.'
         sidebar.get_by_role('button', name=re.compile('para 42.*Second independent quote')).click()
         expect(page.get_by_role('textbox', name='PDF page')).to_have_value('2')
+        expect(page.locator('[data-page-number="2"] canvas')).to_be_attached()
+        page.screenshot(path=str(output / '01b-focused-quote.png'))
         first = sidebar.get_by_role('listitem').filter(has_text='First independent quote')
         first.get_by_role('button', name='Delete para 42 · Quote').click()
         expect(sidebar.get_by_role('listitem')).to_have_count(1)
@@ -90,6 +92,7 @@ def run(url: str, output: Path, browser: str | None):
         dialog = page.get_by_role('dialog').first
         assert dialog.evaluate('(el) => el.scrollWidth <= el.clientWidth + 2'), 'Editor overflows horizontally.'
         page.get_by_role('button', name='Save and close', exact=True).click()
+        expect(page.get_by_role('dialog')).to_have_count(0)
         with page.expect_download() as download:
             page.get_by_role('button', name='Build test book').click()
         pdf_path = output / 'edited-book.pdf'
@@ -103,6 +106,7 @@ def run(url: str, output: Path, browser: str | None):
         drag(page.locator('[data-page-number="1"]').bounding_box(), .15, .15, .45, .20)
         expect(sidebar.get_by_role('listitem')).to_have_count(1)
         page.get_by_role('button', name='Save and close', exact=True).click()
+        expect(page.get_by_role('dialog')).to_have_count(0)
         manual = page.evaluate('window.annotationTestProduct')
         assert manual['state']['settings']['passageMarking'] == 'none'
         assert len(manual['state']['authorities']['text']['annotations']['text-en']['marks']) == 1
