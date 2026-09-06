@@ -1,0 +1,49 @@
+name: Authorities workbench
+on:
+  push:
+    branches: [fix/authorities-parity-workflow]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Package source for offline validation
+        run: |
+          python3 - <<'PY'
+          import pathlib, subprocess, tarfile
+          paths = subprocess.check_output(['git', 'ls-files', '--recurse-submodules', '-z']).decode().split('\0')
+          with tarfile.open('authorities-source.tar.gz', 'w:gz') as archive:
+              for value in paths:
+                  path = pathlib.Path(value)
+                  if not value or not path.is_file() or path.stat().st_size > 8_000_000:
+                      continue
+                  if path.suffix.lower() in {'.pdf','.png','.jpg','.jpeg','.webp','.onnx','.bin','.sqlite','.db','.docx','.zip','.gz','.wasm','.bundle'}:
+                      continue
+                  archive.add(path, arcname=value)
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: authorities-source
+          path: authorities-source.tar.gz
+          retention-days: 1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Install locked dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm ci --ignore-scripts --prefix backend
+          npm ci --ignore-scripts --prefix frontend
+      - name: Package dependencies for offline tests
+        run: tar -czf authorities-dependencies.tar.gz node_modules backend/node_modules frontend/node_modules
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: authorities-dependencies
+          path: authorities-dependencies.tar.gz
+          retention-days: 1
