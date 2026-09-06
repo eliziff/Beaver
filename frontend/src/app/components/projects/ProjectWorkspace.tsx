@@ -214,6 +214,7 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
           open={dialog === "review"}
           onClose={() => setDialog(null)}
           onAdd={createReview}
+          onOpen={navigate}
           projectId={projectId}
           projectName={project?.name}
           projectCmNumber={project?.cm_number}

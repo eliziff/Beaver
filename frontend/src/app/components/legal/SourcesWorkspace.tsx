@@ -3,7 +3,8 @@ import { bindWorkspaceView, ensureSourcesWorkspace, getResearchFile, getResearch
   getWorkspaceViews, openWorkspaceTable, type ResearchFinding } from "@/app/lib/api/researchFiles";
 import { createChat } from "@/app/lib/api/chat";
 import { BeaverApiError } from "@/app/lib/api/client";
-import type { ResearchFile, ResearchPageItem, ResearchSelection } from "@/app/lib/researchFiles";
+import { researchSourceKey, type PassageLocator, type ResearchFile, type ResearchPageItem,
+  type ResearchSelection, type ResearchSourceReference } from "@/app/lib/researchFiles";
 import { usePagedChains } from "@/app/hooks/usePagedChains";
 import { errorMessage } from "@/app/lib/utils";
 import { useResearchFileMutations } from "./useResearchFileMutations";
@@ -21,6 +22,9 @@ type Options = {
 type Controller = ReturnType<typeof useWorkspaceController>;
 const Context = createContext<Controller | null>(null);
 const ALL_SOURCES: ResearchSelection = { target: "sources" };
+const PEN_KEY = "beaver.research.pen.v1";
+/** What a reader hands the Highlight tool: the source it shows and the text the user picked. */
+export type HighlightCapture = { reference: ResearchSourceReference; locator: PassageLocator; quote: string };
 
 function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey, selection: suppliedSelection, restoreLast = false, onChange }: Options) {
   const memoryKey = `beaver.research.current:${projectId ?? "personal"}`;
@@ -138,12 +142,62 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
     return { id, path: `${source.document.project_id ? `/projects/${source.document.project_id}` : ""}/assistant/chat/${id}` };
   }
 
+  const [pen, setPenState] = useState<string | null>(null), [armed, setArmed] = useState(false);
+  const capture = useRef<(() => HighlightCapture | null) | null>(null);
+  const penFile = useRef(file?.document.id); penFile.current = file?.document.id;
+  const penId = useRef(pen); penId.current = pen;
+  const openedId = file?.document.id;
+  useEffect(() => { setPenState(openedId ? localStorage.getItem(`${PEN_KEY}:${openedId}`) : null); }, [openedId]);
+  const setPen = useCallback((id: string | null) => {
+    setPenState(id); const key = penFile.current; if (!key) return;
+    if (id) localStorage.setItem(`${PEN_KEY}:${key}`, id); else localStorage.removeItem(`${PEN_KEY}:${key}`);
+  }, []);
+  const { act } = mutations;
+  /** One deliberate write: prepare the source, ensure a pen, save the passage with it. */
+  const runHighlight = useCallback(async (): Promise<"saved" | "armed" | "none"> => {
+    if (!capture.current) return "none";
+    const picked = capture.current();
+    if (!picked) { setArmed(true); return "armed"; }
+    const base = current.current;
+    if (!base) throw new Error("Open a workspace first");
+    const key = researchSourceKey(picked.reference);
+    const sourceId = Object.values(base.state.sources).find(({ reference }) =>
+      researchSourceKey(reference) === key)?.id ?? (await act({ type: "source", reference: picked.reference })).sourceId;
+    if (!sourceId) throw new Error("Saved source was not returned");
+    const labels = current.current?.state.labels ?? {};
+    let active = penId.current && labels[penId.current]?.scope === "highlight" ? penId.current
+      : Object.values(labels).filter(({ scope }) => scope === "highlight").sort((a, b) => a.order - b.order)[0]?.id;
+    if (!active) {
+      active = crypto.randomUUID();
+      await act({ type: "label", id: active, name: "Highlight", parentId: null, scope: "highlight", color: "#eab308" });
+    }
+    if (active !== penId.current) { penId.current = active; setPen(active); }
+    await act({ type: "passage", sourceId, locator: picked.locator, quote: picked.quote, labelIds: [active] });
+    window.getSelection()?.removeAllRanges();
+    setArmed(false);
+    return "saved";
+  }, [act, setPen]);
+  const highlight = { pen, setPen, armed, arm: setArmed, run: runHighlight,
+    registerReader: useCallback((next: (() => HighlightCapture | null) | null) => { capture.current = next; }, []) };
+
   return { file, selection, setSelection, accept, open, refresh, loading, error, mutations, passages, findings,
-    ensure, bind, table, chat, views: () => getWorkspaceViews(requireFile().document.id), retry: restore };
+    ensure, bind, table, chat, highlight, views: () => getWorkspaceViews(requireFile().document.id), retry: restore };
 }
 
 export function SourcesWorkspaceProvider(props: Options) {
+  const nested = !!useContext(Context);
   const controller = useWorkspaceController(props);
+  const { run } = controller.highlight;
+  useEffect(() => {
+    if (nested) return;
+    const pressed = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== "h") return;
+      event.preventDefault();
+      void run().catch(() => undefined);
+    };
+    document.addEventListener("keydown", pressed);
+    return () => document.removeEventListener("keydown", pressed);
+  }, [nested, run]);
   return <Context value={controller}>{props.children}</Context>;
 }
 

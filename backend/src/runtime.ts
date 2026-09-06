@@ -155,6 +155,7 @@ const tabular: Lazy<ReturnType<typeof createTabularApplication>> = lazy(async ()
     settings: (userId) => user().then((value) => value.modelSettings(userId)) }));
 const sources: Lazy<SourceWorkspaceApplication> = lazy(async () => createSourceWorkspaceApplication(
   await documents(), { chats: await chats(), tables: (await persistence()).tabular, tabular,
+    projects: await projects(), preferences: await preferences(), library: await library(),
     isTableRunning: (reviewId, ownerId) => durableTabularAgents.active(reviewId, ownerId),
     audit: (...events) => audit().then((store) => store.record(...events)) }));
 const authoritiesWorkspace = lazy(async () =>

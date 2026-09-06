@@ -175,6 +175,29 @@ describe("application job queue", () => {
     expect(attempts).toBe(2);
   });
 
+  it("persists PermanentJobError messages but keeps generic messages private", async () => {
+    const queue = await import("../jobQueue");
+    const worker = queue.startJobWorker({
+      safe: async () => { throw new queue.PermanentJobError("Selected workflow is unavailable"); },
+      provider: async () => { throw new Error("secret provider detail"); },
+    });
+    const safe = await queue.enqueueJob({
+      kind: "safe", dedupeKey: "safe", userId: "owner", payload: {}, maxAttempts: 1,
+    });
+    const provider = await queue.enqueueJob({
+      kind: "provider", dedupeKey: "provider", userId: "owner", payload: {}, maxAttempts: 1,
+    });
+    await eventually(() => queue.getJob(safe.id, "owner"), (job) => job?.status === "failed");
+    await eventually(() => queue.getJob(provider.id, "owner"), (job) => job?.status === "failed");
+    await worker.stop();
+    await expect(queue.getJob(safe.id, "owner")).resolves.toMatchObject({
+      status: "failed", lastError: "Selected workflow is unavailable",
+    });
+    await expect(queue.getJob(provider.id, "owner")).resolves.toMatchObject({
+      status: "failed", lastError: "Error",
+    });
+  });
+
   it("reclaims an expired lease and terminally fails an exhausted lease", async () => {
     const queue = await import("../jobQueue");
     const { relationalDatabase, sql } = await import("../relationalDatabase");

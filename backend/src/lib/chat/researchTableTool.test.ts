@@ -300,3 +300,31 @@ it("reuses a canonical typed table result across arrangements without copying it
   await expect(f.sources.bind(owner, other.document.id, { tableId: linked.id,
     selection: { target: "sources" } })).rejects.toMatchObject({ status: 400 });
 });
+
+it("applies a column rename directly and turns a rewritten prompt into a proposal", async () => {
+  const f = await fixture(), columns = [{ index: 0, name: "Payment", prompt: "When is payment due?" },
+    { index: 1, name: "Notice", prompt: "How is notice given?" }],
+    created = await f.run({ action: "create", columns_config: columns }), reviewId = created.value.review_id;
+
+  const renamed = await f.run({ action: "update", review_id: reviewId,
+    expected_version: created.value.expected_version,
+    columns_config: [{ ...columns[0], name: "Payment date" }, columns[1]] });
+  expect(renamed.status).toBe("ok");
+  let detail = await f.application.detail(owner, reviewId);
+  expect(detail.review.columns_config.map(({ name }) => name)).toEqual(["Payment date", "Notice"]);
+  expect(detail.review.proposals ?? []).toHaveLength(0);
+
+  const rewritten = await f.run({ action: "update", review_id: reviewId,
+    expected_version: renamed.value.expected_version,
+    columns_config: [{ index: 0, name: "Payment date", prompt: "State the payment deadline and any grace period." },
+      columns[1]] });
+  expect(rewritten.status).toBe("ok");
+  detail = await f.application.detail(owner, reviewId);
+  expect(detail.review.columns_config[0].prompt).toBe("When is payment due?");
+  expect(detail.review.proposals).toHaveLength(1);
+  const accepted = await f.run({ action: "accept", review_id: reviewId,
+    change_id: detail.review.proposals![0].id, expected_version: rewritten.value.expected_version });
+  expect(accepted.status).toBe("ok");
+  expect((await f.application.detail(owner, reviewId)).review.columns_config[0].prompt)
+    .toBe("State the payment deadline and any grace period.");
+});
