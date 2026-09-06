@@ -1528,7 +1528,7 @@ function BookContents({ draft, busy, onAction, sourceIssues, onRelink, onFiles, 
         return <div key={part.id}
           className="grid min-h-11 grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-1 px-2 py-1 sm:grid-cols-[4.25rem_minmax(0,1fr)_auto] sm:gap-2 sm:py-0">
           <span className="text-xs font-semibold uppercase tabular-nums text-gray-500">
-            {tabLabel(supplementStart + index + 1, draft.state.settings.tabStyle)}</span>
+            {tabLabel(supplementStart + index + 1, draft.state.settings.tabStyle, draft.state.settings)}</span>
           <span className="min-w-0 truncate text-sm text-gray-800" title={part.filename}>
             {part.filename}</span>
           <div className="col-span-2 flex items-center justify-end gap-1 sm:col-span-1">
@@ -1752,6 +1752,8 @@ function planAuthorities(draft: AuthoritiesProduct) {
     manual: state.import.kind === "manual",
     purpose: state.outputMode === "table" ? "table" : "book",
     tableOrder: state.settings.tableOrder, tabStyle: state.settings.tabStyle,
+    tabStart: state.settings.tabStart, tabPrefix: state.settings.tabPrefix,
+    tabLabels: state.settings.tabLabels,
   });
 }
 function selectionRange(root: HTMLElement | null) {
