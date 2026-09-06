@@ -150,10 +150,15 @@ ANCHOR_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 CASE_ANCHOR_KINDS = frozenset({"neutral", "canlii", "reporter"})
 
 # Ported from toa_maker._CASE_LEFT_RE / _case_name_start: the case name is
-# the capitalized run around the last "v." before the anchor.
+# the capitalized run around the last "v." before the anchor. One deliberate,
+# documented deviation (recorded 2026-09-06): the parenthetical token accepts
+# internal spaces with an uppercase-first, bounded (<=80 char), non-nested,
+# non-line-spanning shape - "(Attorney General)" - so a party like
+# "Quebec (Attorney General)" is captured whole instead of the old fallthrough
+# to "Attorney General)". "(1998)", "(2d)" and "(see below)" stay rejected.
 CASE_LEFT_RE = re.compile(
     r"([A-Z][A-Za-z0-9’'&().-]*(?:\s+(?:[A-Z][A-Za-z0-9’'&().-]*|"
-    r"\([A-Z][A-Za-z0-9’'&().-]*\)|of|the|and|de|la|du)){0,12})\s*$"
+    r"\([A-Z][^()\n]{0,80}\)|of|the|and|de|la|du)){0,12})\s*$"
 )
 VERSUS_RE = re.compile(r"\bv\.?\s+", re.I)
 

@@ -59,9 +59,15 @@ const bounded = (value: string, maximum: number, label: string) => {
   }
   return result;
 };
-const errorCategory = (error: unknown) =>
-  (error instanceof Error ? error.name : "JobError")
+const errorCategory = (error: unknown) => {
+  // PermanentJobError messages are controlled rejection codes, safe to persist;
+  // other error messages may embed provider detail and must stay name-only.
+  if (error instanceof PermanentJobError && error.name === "PermanentJobError") {
+    return error.message.trim().slice(0, 120) || "PermanentJobError";
+  }
+  return (error instanceof Error ? error.name : "JobError")
     .replace(/[^A-Za-z0-9_.-]/gu, "").slice(0, 120) || "JobError";
+};
 const job = (row: JobRow): ApplicationJob => ({
   id: String(row.id), kind: String(row.kind),
   dedupeKey: typeof row.dedupe_key === "string" ? row.dedupe_key : null,

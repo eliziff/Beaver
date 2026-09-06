@@ -6,12 +6,11 @@ import { usePagedChains } from "@/app/hooks/usePagedChains";
 import { getResearchItems } from "@/app/lib/api/researchFiles";
 import { researchLabelPath, type ResearchLabel, type ResearchPageItem, type ResearchQueryInput, type ResearchQueryCoverage, type ResearchSelection } from "@/app/lib/researchFiles";
 import { errorMessage } from "@/app/lib/utils";
-import { sourceName } from "./ResearchSourceList";
+import { sourceName } from "./useSourceReader";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 
 const UNCLASSIFIED = "Unclassified", PAGE_SIZE = 50;
 type Rule = NonNullable<ResearchQueryInput["rules"]>[number];
-type Target = "sources" | "passages";
 type Extent = "match" | `${Rule["direction"]}:${"sentence" | "paragraph"}`;
 /** How much text each match carries; anything beyond the match reuses the capture-rule machinery. */
 const EXTENTS: readonly { value: Extent; label: string }[] = [
@@ -44,9 +43,8 @@ function ChoiceMenu<T extends string>({ label, value, options, onChange, disable
   </ActionMenu>;
 }
 
-export function ResearchSearchPanel({ active, target, setTarget, selections, matches, onMatches, onStatus: setStatus }: {
-  active: boolean; target: Target; setTarget: (target: Target) => void;
-  selections: Record<Target, ResearchSelection>;
+export function ResearchSearchPanel({ active, selection, matches, onMatches, onStatus: setStatus }: {
+  active: boolean; selection: ResearchSelection;
   matches: { evidence: Set<string>; sources: Set<string> } | null;
   onMatches: (evidenceIds: string[], sourceIds: string[]) => void; onStatus: (message: string) => void;
 }) {
@@ -56,7 +54,7 @@ export function ResearchSearchPanel({ active, target, setTarget, selections, mat
     [openQueries, setOpenQueries] = useState<Set<string>>(() => new Set());
   const [searchResult, setSearchResult] = useState<{ input: ResearchQueryInput; coverage: ResearchQueryCoverage } | null>(null);
   const [busy, setBusy] = useState(false);
-  const extentAllowed = syntax === "literal" && target === "sources";
+  const extentAllowed = syntax === "literal";
   const toggleQuery = (id: string) => setOpenQueries((values) => { const next = new Set(values);
     if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const queryPages = usePagedChains<ResearchPageItem>((_key, cursor, signal) => getResearchItems(file!.document.id,
@@ -66,11 +64,9 @@ export function ResearchSearchPanel({ active, target, setTarget, selections, mat
   useEffect(() => { if (!matches) setSearchResult(null); }, [matches]);
   async function query(input: ResearchQueryInput, continuing = false) {
     if (!file) return;
-    const scope = selections[input.target ?? "sources"];
-    if (!continuing && (scope.sourceIds?.length === 0 || scope.labelIds?.length === 0 && !scope.unlabelled))
-      return setStatus(`No ${scope.target} selected`);
+    if (!continuing && selection.sourceIds?.length === 0) return setStatus("No sources selected");
     setBusy(true); setStatus("");
-    try { const request = continuing ? input : { ...input, ...scope };
+    try { const request = continuing ? input : { ...input, ...selection };
       const result = await commit.query(request);
       const limited = result.receipt.failures.some(({ code }) => code.endsWith("_limit")), failed =
         new Set(result.receipt.failures.filter(({ code }) => !code.endsWith("_limit")).map(({ sourceId }) => sourceId)).size;
@@ -87,23 +83,21 @@ export function ResearchSearchPanel({ active, target, setTarget, selections, mat
     const [direction, unit] = extent.split(":") as [Rule["direction"], Rule["unit"]];
     void query(extentAllowed && extent !== "match"
       ? { syntax: "literal", target: "sources", rules: [{ phrase, direction, unit, slot: UNCLASSIFIED }], conflict: "append" }
-      : { text: phrase, syntax, target });
+      : { text: phrase, syntax, target: "sources" });
   }
   const rerun = (input: Record<string, unknown>) => { const rules = queryRules(input);
     void query(rules.length ? { syntax: "literal", target: "sources", rules, conflict: "append" }
-      : { text: queryText(input), syntax: input.syntax === "terms" ? "terms" : "literal", target: input.target === "passages" ? "passages" : "sources" }); };
+      : { text: queryText(input), syntax: input.syntax === "terms" ? "terms" : "literal", target: "sources" }); };
   const queryChain = queryPages.chains.queries, history = queryChain?.items.flatMap((item) => item.kind === "query" ? [item.value] : []) ?? [];
   if (!file) return <p className="p-2 text-xs text-gray-500">Open or create a workspace to search saved sources.</p>;
   return <>
-    <form onSubmit={find} className="mb-2 grid grid-cols-3 gap-1.5 border-b border-gray-200 pb-2">
+    <form onSubmit={find} className="mb-2 grid grid-cols-2 gap-1.5 border-b border-gray-200 pb-2">
       <input required autoComplete="off" value={text} onChange={(event) => setText(event.target.value)} aria-label="Search saved source text"
-        placeholder="Find in saved text" className="col-span-3 h-8 min-w-0 rounded-md border border-gray-300 px-2 text-sm" />
+        placeholder="Find in saved text" className="col-span-2 h-8 min-w-0 rounded-md border border-gray-300 px-2 text-sm" />
       <ChoiceMenu label="Search syntax" value={syntax} onChange={setSyntax}
         options={[{ value: "literal", label: "Exact" }, { value: "terms", label: "All terms" }]} />
-      <ChoiceMenu label="Search target" value={target} onChange={setTarget}
-        options={[{ value: "sources", label: "Source text" }, { value: "passages", label: "Saved passages" }]} />
       <ChoiceMenu label="Passage extent" value={extentAllowed ? extent : "match"} disabled={!extentAllowed} onChange={setExtent} options={EXTENTS} />
-      <Button type="submit" size="compact" disabled={busy} className="col-span-3">Find passages</Button>
+      <Button type="submit" size="compact" disabled={busy} className="col-span-2">Find passages</Button>
     </form>
     {searchResult && <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-gray-600">
       <p>{searchResult.coverage.complete ? "Search complete" : "Partial search"} · {searchResult.coverage.attempted_sources} of {searchResult.coverage.selected_sources} sources searched</p>

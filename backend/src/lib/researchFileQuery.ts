@@ -73,26 +73,35 @@ export async function verifyResearchPassage(file: ResearchFile, action: PublicRe
   if (action.type !== "passage") return action;
   const source = file.state.sources[action.sourceId]?.reference;
   if (!source) throw new ApplicationError(400, "Research source not found");
+  const labelled = (evidence: LegalEvidenceReceipt): ResearchFileAction => ({ type: "merge", evidence: [evidence],
+    ...(action.labelIds?.length ? { labels: { [evidence.evidence_id]: action.labelIds } } : {}) });
   if (source.kind === "document") {
     const projection = context && await context.documents.projectionSource(context.scope, source.id, source.versionId);
     if (!projection) throw new ApplicationError(404, "Document version not found");
     const document = await documentProjectionService.read(projection), native = structureNative(),
-      text = native.documentText(document), blocks = native.documentAnchors(document).filter((block) =>
+      text = native.documentText(document), whole = action.locator.kind === "document",
+      blocks = whole ? [] : native.documentAnchors(document).filter((block) =>
         block.kind === action.locator.kind && (block.label === action.locator.value ||
           !!action.locator.endValue && Number(block.label) >= Number(action.locator.value) &&
           Number(block.label) <= Number(action.locator.endValue)));
-    if (!blocks.length) throw new ApplicationError(409, "The canonical document passage is unavailable");
-    const from = Math.min(...blocks.map(({ start }) => start)), end = Math.max(...blocks.map(({ end }) => end)),
+    if (!whole && !blocks.length) throw new ApplicationError(409, "The canonical document passage is unavailable");
+    const from = whole ? 0 : Math.min(...blocks.map(({ start }) => start)),
+      end = whole ? text.length : Math.max(...blocks.map(({ end }) => end)),
       match = exactQuote(text.slice(from, end), clean(action.quote));
     if (!match) throw new ApplicationError(400, "The quote is not contained in the canonical passage");
-    return { type: "merge", evidence: [createLibraryEvidence({ documentId: source.id,
+    const start = from + match.index, stop = start + match[0].length,
+      block = whole ? native.smallestContainingDocumentBlock(document, start, stop) : null;
+    return labelled(createLibraryEvidence({ documentId: source.id,
       versionId: source.versionId, filename: source.title ?? source.id,
-      sourceSha256: native.documentRevision(document), start: from + match.index,
-      end: from + match.index + match[0].length, spanText: match[0],
-      locator: { kind: action.locator.kind, label: action.locator.endValue
-        ? `${action.locator.value}-${action.locator.endValue}` : action.locator.value } })] };
+      sourceSha256: native.documentRevision(document), start, end: stop, spanText: match[0],
+      ...(whole ? block && pinpoint.has(block.kind)
+        ? { locator: { kind: block.kind as LegalEvidenceReceipt["locator"]["kind"], label: block.label } } : {}
+        : { locator: { kind: action.locator.kind, label: action.locator.endValue
+          ? `${action.locator.value}-${action.locator.endValue}` : action.locator.value } }) }));
   }
-  const read = await reader({ source, locator: action.locator, contextBlocks: 0 });
+  const { kind } = action.locator;
+  if (kind === "document") throw new ApplicationError(400, "Select a numbered passage in this source");
+  const read = await reader({ source, locator: { ...action.locator, kind }, contextBlocks: 0 });
   const selected = read.status === "found" ? read.values.filter(({ role }) => role === "selected") : [];
   if (!selected.length) throw new ApplicationError(409, "The canonical source passage is unavailable");
   const first = selected[0], last = selected.at(-1)!, native = structureNative(),
@@ -105,7 +114,7 @@ export async function verifyResearchPassage(file: ResearchFile, action: PublicRe
     blockId: `${action.locator.kind}:${label}:${start}:${start + match[0].length}`,
     locator: { kind: action.locator.kind, label } });
   if (!evidence) throw new ApplicationError(409, "The canonical source passage is unavailable");
-  return { type: "merge", evidence: [evidence] };
+  return labelled(evidence);
 }
 
 type Capture = { start: number; end: number; slot: string; order: number; assign: boolean };
