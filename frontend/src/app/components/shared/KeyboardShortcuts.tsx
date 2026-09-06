@@ -99,6 +99,8 @@ export function KeyboardShortcuts() {
                 <dd>Search this page</dd>
                 <dt><kbd>Alt N</kbd></dt>
                 <dd>Create a new item</dd>
+                <dt><kbd>Ctrl / ⌘ Shift H</kbd></dt>
+                <dd>Highlight the selected text</dd>
                 <dt><kbd>?</kbd></dt>
                 <dd>Show shortcuts</dd>
                 <dt><kbd>Esc</kbd></dt>

@@ -7,7 +7,8 @@ import { useSourcesWorkspace } from "../legal/SourcesWorkspace";
 import { researchLabelPath, type ResearchSelection } from "@/app/lib/researchFiles";
 import { errorMessage } from "@/app/lib/utils";
 
-export function ResearchSelectionLabels({ prepare }: { prepare?: () => ResearchSelection | ResearchSelection[] | Promise<ResearchSelection | ResearchSelection[]> }) {
+export function ResearchSelectionLabels({ prepare, label = "Labels" }: { label?: string;
+  prepare?: () => ResearchSelection | ResearchSelection[] | Promise<ResearchSelection | ResearchSelection[]> }) {
   const navigate = useNavigate();
   const { file, selection, mutations: commit } = useSourcesWorkspace();
   const [ready, setReady] = useState<ResearchSelection[] | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
@@ -25,7 +26,7 @@ export function ResearchSelectionLabels({ prepare }: { prepare?: () => ResearchS
       .catch((reason) => setError(errorMessage(reason, "Could not update labels"))).finally(() => setBusy(false));
   };
   return <span className="relative inline-flex">
-    <ActionMenu label="Labels for selection" onOpen={() => {
+    <ActionMenu label={label} onOpen={() => {
       setBusy(true); setError(""); setReady(null); void Promise.resolve().then(prepare ?? (() => selection)).then((next) => {
         const scopes = (Array.isArray(next) ? next : [next]).flatMap((scope) => scope.members ? scope.members
           .filter((member) => !scope.sourceIds || scope.sourceIds.includes(member.sourceId)).map((member): ResearchSelection => ({
@@ -45,7 +46,7 @@ export function ResearchSelectionLabels({ prepare }: { prepare?: () => ResearchS
           return [{ label: `Add ${path}`, onSelect: () => run(id, "add", target) },
             { label: `Remove ${path}`, onSelect: () => run(id, "remove", target) }];
         }) : [{ label: "Create labels in workspace", onSelect: () => navigate(`/sources?research_file=${encodeURIComponent(file.document.id)}`) }]}>
-      Labels<ChevronDown aria-hidden className="size-3.5" />
+      {label}<ChevronDown aria-hidden className="size-3.5" />
     </ActionMenu>
     {error && <span role="alert" className="absolute end-0 top-full z-50 mt-1 w-64 rounded border border-red-200 bg-white p-2 text-sm text-red-700">{error}</span>}
   </span>;

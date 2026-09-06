@@ -20,7 +20,9 @@ for (let n = 1; n <= 300; n++) {
   const page = fixture.addPage(n % 2 ? [612, 792] : [700, 900]);
   page.drawText(`Document page ${n}`, { x: 72, y: 700, size: 20, font });
   page.drawText(`Target passage on page ${n}.`, { x: 72, y: 620, size: 14, font });
-  if (n === 299) { page.setCropBox(20, 30, 560, 710); page.setRotation(degrees(90)); }
+  if (n >= 297 && n <= 299) {
+    page.setCropBox(20, 30, 560, 710); page.setRotation(degrees([180, 270, 90][n - 297]));
+  }
 }
 const bytes = Buffer.from(await fixture.save());
 const instrument = `
@@ -60,6 +62,7 @@ import { PdfView } from '@/app/components/shared/views/PdfView';
 import { eraseAnnotations } from '${path.join(source, 'shared/pdf-annotations.mjs').replaceAll('\\', '/')}';
 import '@/app/globals.css';
 const query = new URLSearchParams(location.search);
+const targetPage = Number(query.get('target') || 299);
 let release;
 window.pdfProbe = { pages: [], text: [], hold: query.has('hold'), gate: new Promise(resolve => release = resolve),
   release() { this.hold = false; release(); } };
@@ -76,7 +79,7 @@ function App() {
  return <main style={{height:'100vh',display:'flex',flexDirection:'column'}}>
    {editing && <nav>{['select','draw','highlight','erase-area'].map(value => <button style={{padding:8}} key={value} onClick={()=>setTool(value)}>{value}</button>)}</nav>}
    <PdfView doc={{document_id:'fixture',version_id:'fixture-v1'}}
-     quotes={editing ? undefined : [{page:299,quote:'Target passage on page 299.'}]}
+     quotes={editing ? undefined : [{page:targetPage,quote:'Target passage on page '+targetPage+'.'}]}
      annotationEditor={editing ? editor : undefined} />
  </main>;
 }
@@ -143,6 +146,31 @@ async function run(source, name, candidate) {
     await page.screenshot({path:path.join(reportDir, `${name}-ready.png`)});
     const report = { name, held, readyTextLayers:await page.locator('.pdf-text-layer').count(), errors };
     if (candidate) {
+      // Compare the actual highlight box to raster ink, not just its own CSS.
+      report.rotations = [];
+      for (const [number, angle] of [[297, 180], [298, 270], [299, 90]]) {
+        await page.goto(`${origin}/${entry}?target=${number}`);
+        const rotated = page.locator(`[data-page-number="${number}"]`);
+        await rotated.locator('canvas').waitFor();
+        await rotated.locator('.pdf-text-highlight').waitFor();
+        const ink = await rotated.evaluate(wrapper => {
+          const canvas = wrapper.querySelector('canvas');
+          const c = canvas.getBoundingClientRect();
+          const r = wrapper.querySelector('.pdf-text-highlight').getBoundingClientRect();
+          const x = Math.max(0, Math.floor((r.left-c.left)*canvas.width/c.width));
+          const y = Math.max(0, Math.floor((r.top-c.top)*canvas.height/c.height));
+          const w = Math.min(canvas.width-x, Math.ceil(r.width*canvas.width/c.width));
+          const h = Math.min(canvas.height-y, Math.ceil(r.height*canvas.height/c.height));
+          const data = canvas.getContext('2d').getImageData(x,y,w,h).data;
+          let dark = 0;
+          for(let i=0;i<data.length;i+=4) if(data[i]<100 && data[i+1]<100 && data[i+2]<100 && data[i+3]>128) dark++;
+          return { dark, width:r.width, height:r.height };
+        });
+        assert.ok(ink.dark > 50, `rotation ${angle}: highlight must cover rendered text ink`);
+        assert.equal(ink.height > ink.width, angle !== 180);
+        report.rotations.push({ angle, inkPixels:ink.dark });
+        await page.screenshot({path:path.join(reportDir,`candidate-rotation-${angle}.png`)});
+      }
       await page.goto(`${origin}/${entry}?editor`);
       await page.locator('[data-page-number="299"] canvas').waitFor();
       const rectangles = () => page.locator('[data-page-number="299"] [data-annotation-id="auto"] rect').evaluateAll(nodes=>nodes.map(el=>['x','y','width','height'].map(key=>el.getAttribute(key))));

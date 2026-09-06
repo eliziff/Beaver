@@ -12,6 +12,8 @@ import { useNavigate } from "react-router-dom";
 import { stageNewChatDocuments } from "../assistant/assistantLaunch";
 import { assistantWorkflowLaunch, type WorkflowSelection } from "../workflows/workflowRoutes";
 import { DocTable, type DocTableFolder } from "../documents/DocTable";
+import { SourcesWorkspace } from "../legal/SourcesWorkspace";
+import { useOntologyWorkspace } from "../../hooks/useOntologyWorkspace";
 import { DirectoryActions, type DocumentSelectionActions,
     type UploadActions } from "../documents/UploadAction";
 import { PageHeader } from "../shared/PageHeader";
@@ -90,7 +92,14 @@ export function LibraryCollectionPage(props: LibraryCollectionProps) {
         </div>);
 }
 
-function LibraryCollection({
+function LibraryCollection(props: LibraryCollectionProps) {
+    const { ontologyId } = useOntologyWorkspace(null);
+    return <SourcesWorkspace fileId={ontologyId}>
+        <LibraryCollectionTable {...props} />
+    </SourcesWorkspace>;
+}
+
+function LibraryCollectionTable({
     kind,
     onKindChange,
     onOpenInChat,
@@ -195,6 +204,7 @@ function LibraryCollection({
                     active={active}
                     search={search}
                     operations={operations}
+                    ontology={{ projectId: null }}
                     onUploadActionsChange={setUploadActions}
                     onCreateFolderActionChange={setCreateFolder}
                     onSelectionActionsChange={setSelectionActions}
