@@ -19,6 +19,11 @@ drag/drop, saved source lists, passage highlights, notes, capture rules and
 Search Saved sources. Reading stays primary; collection interaction must work
 in full Sources and its narrow assistant placement without clipping or jumps.
 Library previews contents and offers Open in Sources, not another workspace UI.
+Library and project tables share one labels ontology per scope: document rows
+show their label dots and workspace count, filter by label or workspace, and
+offer Label and Add to workspace row actions. The document panel's Highlight
+tool (or Ctrl+Shift+H) saves the selection with the current pen; pens live in
+the research rail beside the workspace tree.
 Collection selection/name/rename are cohesive; autosave, ordinary Library placement
 and existing folder interactions remain. No export concept.
 
