@@ -24,6 +24,12 @@ beforeEach(() => {
     "MIKE_A2AJ_BULK_DB",
     path.join(os.tmpdir(), `beaver-a2aj-http-test-${crypto.randomUUID()}.sqlite`),
   );
+  // Same for the installed note-up graph: its resolution table would
+  // otherwise union the reporter's aliases and skip the /search leg.
+  vi.stubEnv(
+    "MIKE_CITATOR_DB",
+    path.join(os.tmpdir(), `beaver-citator-http-test-${crypto.randomUUID()}.sqlite`),
+  );
 });
 
 afterEach(() => {
