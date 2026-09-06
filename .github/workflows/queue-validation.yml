@@ -6,11 +6,22 @@ on:
 permissions:
   contents: read
 jobs:
-  sources:
+  validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: queue-fixture-only
+          POSTGRES_DB: queue_tests
+        ports: [5432:5432]
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
-      - name: Read public pinned sources without initializing orphan submodules
+      - name: Check out public candidate without initializing orphan submodules
         env:
           SOURCE_SHA: ${{ github.sha }}
         run: |
@@ -18,12 +29,29 @@ jobs:
           git remote add origin https://github.com/eliziff/Beaver.git
           git fetch --depth=1 origin "$SOURCE_SHA"
           git checkout --detach FETCH_HEAD
-          git archive --format=tar HEAD backend/src backend/schema.sql backend/package.json backend/package-lock.json backend/tsconfig.json backend/vitest.config.mts scripts/check-source-boundaries.mjs scripts/check-typescript-surface.mjs docs/roadmap/master-plan.md AGENTS.md subrepos.lock.json > queue-source.tar
-          find backend scripts -name AGENTS.md -print -exec cat {} \; > nested-agents.txt
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+          mkdir -p .queue-validation
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          name: queue-source
-          path: |
-            queue-source.tar
-            nested-agents.txt
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install locked backend dependencies
+        run: npm ci --ignore-scripts --prefix backend
+      - name: Backend compilation
+        run: npm run build --prefix backend 2>&1 | tee .queue-validation/build.log
+      - name: Queue and transport regressions
+        if: ${{ !cancelled() }}
+        env:
+          QUEUE_TEST_DATABASE_URL: postgres://postgres:queue-fixture-only@127.0.0.1:5432/queue_tests?sslmode=disable
+        run: |
+          (cd backend && npx vitest run src/lib/jobNotifications.test.ts src/lib/__tests__/jobScheduling.test.ts src/lib/__tests__/jobQueue.test.ts src/lib/__tests__/chatTurnTransport.test.ts src/lib/chatTurns.test.ts src/index.test.ts src/server.test.ts) 2>&1 | tee .queue-validation/tests.log
+      - name: Source boundaries
+        if: ${{ !cancelled() }}
+        run: node scripts/check-source-boundaries.mjs 2>&1 | tee .queue-validation/boundaries.log
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: queue-validation
+          include-hidden-files: true
+          path: .queue-validation
           retention-days: 7
