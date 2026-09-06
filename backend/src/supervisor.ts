@@ -2,9 +2,11 @@ import "./lib/loadEnv";
 import { fork, type ChildProcess } from "node:child_process";
 import { renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { createJobNotificationRelay } from "./lib/jobNotifications";
 
 const services = ["index", "worker"] as const;
 const children = new Map<string, ChildProcess>();
+const notifications = createJobNotificationRelay();
 let stopping = false;
 
 function publishListener(child: ChildProcess) {
@@ -22,6 +24,7 @@ function launch(service: typeof services[number]) {
     stdio: ["ignore", "inherit", "inherit", "ipc"],
   });
   children.set(service, child);
+  const detachNotifications = notifications.attach(child);
   child.on("message", (message) => {
     if (service === "index" &&
         (message as { type?: unknown })?.type === "ready") {
@@ -33,6 +36,7 @@ function launch(service: typeof services[number]) {
     `[supervisor] ${service} process error`, error,
   ));
   child.once("close", (code, signal) => {
+    detachNotifications();
     if (children.get(service) === child) children.delete(service);
     if (stopping) return;
     console.error(`[supervisor] ${service} exited; restarting`, {

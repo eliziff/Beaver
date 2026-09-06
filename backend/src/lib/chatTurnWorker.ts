@@ -3,7 +3,7 @@ import { ChatApplicationError, chatTurnInputSchema,
   type ChatApplication, type EventSink } from "./chat/chatApplication";
 import { beginChatTurn, finishChatTurn, setChatTurnControl, steerChatTurn } from "./chatTurns";
 import type { ChatScope, ChatStore } from "./chatStore";
-import { createJobEventWriter, finishJobCommand, jobCancellationRequested,
+import { createJobEventWriter, finishJobCommand, watchJob,
   pendingJobCommands, PermanentJobError, type ApplicationJob,
   jsonValue, type JobHandler } from "./jobQueue";
 import { jsonRecord } from "./value";
@@ -82,41 +82,50 @@ export function chatTurnJobHandler(
         throw error;
       }
     };
-    let claimedChatId: string | undefined, checkingCommands = false;
+    let claimedChatId: string | undefined;
+    const commands = await watchJob(job.id, "control");
+    const commandStop = new AbortController();
+    let commandTask = Promise.resolve();
     const checkCommands = async () => {
-      if (checkingCommands) return;
-      checkingCommands = true;
-      try {
-        if (await jobCancellationRequested(job.id)) controller.abort();
-        if (!claimedChatId) return;
-        for (const command of await pendingJobCommands(job.id)) {
-          const payload = jsonRecord(command.payload);
-          const id = typeof payload?.id === "string" ? payload.id : "";
-          const text = typeof payload?.text === "string" ? payload.text : "";
-          if (command.kind === "steer" && id && text &&
-              await steerChatTurn(claimedChatId, { id, text })) {
-            await finishJobCommand(command.id);
-          } else if (command.kind === "client_tool_result") {
-            const callId = typeof payload?.callId === "string" ? payload.callId : "";
-            if (callId) clientTools.get(callId)?.settle(payload?.result);
-            await finishJobCommand(command.id);
+      while (!commandStop.signal.aborted && !controller.signal.aborted) {
+        const version = commands.version;
+        try {
+          const page = await pendingJobCommands(job.id);
+          let handled = 0;
+          for (const command of page) {
+            if (commandStop.signal.aborted || controller.signal.aborted) return;
+            const payload = jsonRecord(command.payload);
+            const id = typeof payload?.id === "string" ? payload.id : "";
+            const text = typeof payload?.text === "string" ? payload.text : "";
+            if (command.kind === "steer" && id && text && claimedChatId &&
+                await steerChatTurn(claimedChatId, { id, text })) {
+              await finishJobCommand(command.id); handled += 1;
+            } else if (command.kind === "client_tool_result") {
+              const callId = typeof payload?.callId === "string" ? payload.callId : "";
+              if (callId) clientTools.get(callId)?.settle(payload?.result);
+              await finishJobCommand(command.id); handled += 1;
+            }
           }
+          if (page.length === 20 && handled > 0) continue;
+        } catch {
+          // Preserve the durable command for a subsequent read on transient errors.
+          // Cancellation is independently enforced by the job worker/lease.
         }
-      } finally {
-        checkingCommands = false;
+        await commands.wait(version, commandStop.signal);
       }
     };
-    const commandPoll = setInterval(() => void checkCommands(), 100);
-    commandPoll.unref();
     const sink: EventSink = {
       claim(chatId) {
         if (!beginChatTurn(chatId, controller)) return false;
         claimedChatId = chatId;
+        commandTask = checkCommands();
         return true;
       },
       emit,
-      setControl: (control) => claimedChatId &&
-        setChatTurnControl(claimedChatId, controller, control),
+      setControl(control) {
+        if (claimedChatId) setChatTurnControl(claimedChatId, controller, control);
+        commands.wake();
+      },
     };
     try {
       const result = await application.turn(turn.scope, {
@@ -149,7 +158,8 @@ export function chatTurnJobHandler(
       }
       throw error;
     } finally {
-      clearInterval(commandPoll);
+      commandStop.abort(); commands.close();
+      await commandTask;
       for (const pending of clientTools.values()) pending.cancel();
       await events.flush();
       context.signal.removeEventListener("abort", abort);
