@@ -1,0 +1,32 @@
+name: PDF workbench sources
+on:
+  push:
+    branches: [codex/pdf-first-use]
+    paths: [.github/workflows/pdf-workbench.yml]
+permissions:
+  contents: read
+jobs:
+  sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read pinned public source
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          git init .
+          git remote add origin https://github.com/eliziff/Beaver.git
+          git fetch --depth=1 origin "$SOURCE_SHA"
+          git checkout --detach FETCH_HEAD
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Package source and locked backend tooling only (no CI tests)
+        run: |
+          npm ci --ignore-scripts --prefix backend
+          tar -czf /tmp/pdf-workbench.tgz frontend backend scripts shared docs/roadmap AGENTS.md package.json package-lock.json subrepos.lock.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pdf-workbench
+          path: /tmp/pdf-workbench.tgz
+          retention-days: 1
