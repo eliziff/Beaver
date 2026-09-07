@@ -14,6 +14,13 @@ export type AuthoritiesLibraryPdfTarget =
 export type AuthoritiesSourceIssue =
   | { status: "changed" }
   | { status: "missing"; reason: "deleted" | "permission" | "unavailable" };
+/** Durable recognition of scanned source PDFs: start (cited pages first), stop, and watch. */
+export type AuthoritiesOcrPort = {
+  start(id: string, roles: string[]): Promise<Array<{ role: string; documentId?: string }>>;
+  cancel(id: string, roles: string[]): Promise<unknown>;
+  progress(documentIds: string[]): Promise<Array<{ id: string; done: boolean;
+    running: boolean; page?: number; error?: string }>>;
+};
 export type AuthoritiesDraftInspection = {
   sourceIssues: Record<string, AuthoritiesSourceIssue>;
   outputFreshness: "unbuilt" | "current" | "stale";
@@ -57,5 +64,6 @@ export interface AuthoritiesHost {
   attachLibraryPdf?(id: string, revision: number, document: Document,
     target: AuthoritiesLibraryPdfTarget): Promise<AuthoritiesProduct>;
   readSource?(draft: AuthoritiesProduct, role: string): Promise<Blob>;
+  sourceOcr?: AuthoritiesOcrPort;
   outputFolder?: OutputFolderPort;
 }

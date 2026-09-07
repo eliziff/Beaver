@@ -60,7 +60,9 @@ export async function authorityPdfText(input: {
     // A paragraph or section on a scan cannot be located until the scan is read.
     // This fallback is disclosed beside the cited-pages option in the UI.
     if (!recognizedPages || recognizedPages.size) recognized = await projection.preparePdf({ ...options,
-      ocrProvider: "kraken-lite", ...(recognizedPages ? { pages: [...recognizedPages].sort((a, b) => a - b) } : {}) });
+      // Recognized pages are held zero-based for indexing; the engine numbers them from one.
+      ocrProvider: "kraken-lite", ...(recognizedPages
+        ? { pages: [...recognizedPages].map((index) => index + 1).sort((a, b) => a - b) } : {}) });
   }
   const routed = new Set(policy === "page-margin" ? [] : recognized.ocrRoutedPages);
   const pageTextByPage: string[] = [];
