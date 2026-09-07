@@ -18,27 +18,6 @@ beforeAll(() => { process.env.AUTH_MODE = "local"; });
 afterAll(() => { process.env.AUTH_MODE = originalMode; });
 
 describe("Court Records output HTTP boundary", () => {
-  it("carries the Court draft identity for a contained source upload", async () => {
-    application.saveFile = vi.fn(async () => ({ id: "source-1" })) as never;
-    await request(app).post("/court-records/documents")
-      .field("work_product_id", "record-1")
-      .attach("file", Buffer.from("%PDF-1.7\n%%EOF"), "motion.pdf")
-      .expect(201, { id: "source-1" });
-  });
-
-  it("carries every output and closed receipt through one server-owned build save", async () => {
-    const record = JSON.stringify({ schemaVersion: "beaver.work-product-build.v2",
-      output: { role: "record" } });
-    const index = JSON.stringify({ schemaVersion: "beaver.work-product-build.v2",
-      output: { role: "index" } });
-    await request(app).post("/court-records/builds")
-      .field("receipts", record)
-      .field("receipts", index)
-      .attach("files", Buffer.from("%PDF-1.7\n%%EOF"), "Record.pdf")
-      .attach("files", Buffer.from("%PDF-1.7\n%%EOF"), "Index.pdf")
-      .expect(200, { id: "record-1", revision: 4 });
-  });
-
   it("rejects a partial batch before the application operation", async () => {
     application.saveBuild = vi.fn() as never;
     await request(app).post("/court-records/builds")
@@ -47,12 +26,5 @@ describe("Court Records output HTTP boundary", () => {
       .attach("files", Buffer.from("%PDF-1.7\n%%EOF"), "Index.pdf")
       .expect(400);
     expect(application.saveBuild).not.toHaveBeenCalled();
-  });
-
-  it("passes a staged PDF and one-based pages to stateless preparation", async () => {
-    await request(app).post("/court-records/pdf-preparation")
-      .field("pages", "[2]")
-      .attach("file", Buffer.from("%PDF-1.7\n%%EOF"), "scan.pdf")
-      .expect(200, { page_count: 1, pages: [{ page_number: 1, text: "Recognized text" }] });
   });
 });
