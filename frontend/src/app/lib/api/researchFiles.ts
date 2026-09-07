@@ -72,7 +72,3 @@ export const previewWorkspaceLabels = (id: string, input: Omit<ResearchTableInpu
   post<ResearchLabelProposal>(`/source-workspaces/${segment(id)}/labels/preview`, input);
 export const applyWorkspaceLabels = (id: string, input: Omit<ResearchTableInput, "design"> & { design: ResearchLabelDesign }) =>
   post<ResearchFile>(`/source-workspaces/${segment(id)}/labels`, input);
-export const saveFindingHighlights = (file: ResearchFile, references: ResearchFindingReference[], typeId?: string) =>
-  post<{ file: ResearchFile; saved: number }>(`/source-workspaces/${segment(file.document.id)}/save-findings`, {
-    references, typeId, versionId: file.versionId, workingRevision: file.workingRevision,
-  });
