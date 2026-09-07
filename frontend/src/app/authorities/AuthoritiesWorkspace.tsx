@@ -1,4 +1,5 @@
 import { QuotationReview } from "./QuotationFinding";
+import { StepProgress, StepSection } from "./StepSection";
 import { FileInputButton } from "./FileInputButton";
 import { authorityName, authorityLabel,
   requiresBilingualSources,
@@ -131,11 +132,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     authorityId: string; selected: PdfChoice;
   }>();
   const [findingId, setFindingId] = useState("");
+  const [quotationsDone, setQuotationsDone] = useState(false);
   const [highlightWarnings, setHighlightWarnings] = useState<{ key: string;
     items: Array<{ label: string; excerpt: string }>; sets: Record<string, PdfAnnotationSet> }>();
   const [editingAuthority, setEditingAuthority] = useState<AuthorityIdentity>();
   const [sourcePreview, setSourcePreview] = useState<{ role: string; name: string;
-    bytes?: Uint8Array; error?: string }>();
+    quote?: string; bytes?: Uint8Array; error?: string }>();
   const [scanReview, setScanReview] = useState<ScannedAuthorityPdf[]>();
   const [stubWarning, setStubWarning] = useState(false);
   const scanRequest = useRef<AbortController | null>(null);
@@ -160,7 +162,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
 
   const display = useCallback((next?: AuthoritiesProduct, preserveTab = false) => {
     reviewRequest.current?.abort(); reviewRequest.current = null; setReview(undefined);
-    setFindingId(""); setHighlightWarnings(undefined);
+    setFindingId(""); setQuotationsDone(false); setHighlightWarnings(undefined);
     scanRequest.current?.abort(); setScanReview(undefined);
     previewRequest.current += 1; setSourcePreview(undefined);
     draftRef.current = next; setDraft(next); setSelectedId(orderedOccurrences(next)[0]?.id ?? "");
@@ -278,6 +280,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const reviewKey = useMemo(() => discrepancyKey(draft), [draft]);
   useEffect(() => {
     reviewRequest.current?.abort();
+    setQuotationsDone(false);
     if (!draftId || !host.review || !reviewKey) { setReview(undefined); return; }
     const request = new AbortController(); reviewRequest.current = request;
     const id = draftId, key = reviewKey;
@@ -314,8 +317,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const importedIssue = importedRole ? sourceIssues[importedRole] : undefined;
   const reviewError = !globalTab ? currentReview?.error || "" : "";
   const status = error || message || reviewError;
-  const busyText = building ? "Building outputs" : pendingImport ? "Finding citations"
-    : operation || "Updating authorities";
+  // Work a step starts reports itself in that step; only unattached work needs the page-level line.
+  const stepOperation = STEP_PROGRESS.has(operation) ? operation : "";
+  const busyText = stepOperation ? "" : building ? "Building outputs"
+    : pendingImport ? "Finding citations" : operation || "Updating authorities";
   const libraryAvailable = !!LibraryPicker && !!host.searchLibrary;
   const attachLibraryAvailable = libraryAvailable && !!host.attachLibraryPdf;
   const sourceLabel = (draft?.projectId ?? projectId) ? "Project" : "Library";
@@ -549,20 +554,26 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     void host.download(documentId, versionId).then((blob) => downloadBlob(blob, filename))
       .catch((caught) => setError(errorText(caught)));
   }
-  function openSource(role: string) {
+  function openSource(role: string, quote?: string) {
     const current = draftRef.current;
     if (!current || !host.readSource) return;
     const request = ++previewRequest.current;
     const authority = Object.values(current.state.authorities).find((item) =>
       item.source.kind === "attached" && item.source.sources.some((source) => source.bindingRole === role));
     const name = authority ? authorityName(authority) : current.title;
-    setSourcePreview({ role, name });
+    setSourcePreview({ role, name, quote });
     void host.readSource(current, role).then((blob) => blob.arrayBuffer()).then((buffer) => {
       if (request === previewRequest.current && draftRef.current?.id === current.id)
-        setSourcePreview({ role, name, bytes: new Uint8Array(buffer) });
+        setSourcePreview({ role, name, quote, bytes: new Uint8Array(buffer) });
     }).catch((caught) => {
-      if (request === previewRequest.current) setSourcePreview({ role, name, error: errorText(caught) });
+      if (request === previewRequest.current) setSourcePreview({ role, name, quote, error: errorText(caught) });
     });
+  }
+  // The quotation belongs at the pinpoint the author cited, so open the PDF on that passage.
+  function openFindingSource(finding: AuthoritiesDiscrepancy) {
+    const source = draftRef.current?.state.authorities[finding.authorityId]?.source;
+    const role = source?.kind === "attached" ? source.sources[0]?.bindingRole : undefined;
+    if (role) openSource(role, (finding.found ?? finding.cited).text);
   }
   function findSources() {
     const current = draftRef.current;
@@ -671,23 +682,26 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const preparedHighlights = highlightWarnings?.key === highlightPreparationKey(draft) ? highlightWarnings : undefined;
   const highlightPanel = draft && (stage === "highlights" || stage === "build") && <AuthoritiesHighlights product={draft} tabs={authorityTabs}
     busy={busy} host={host} onSaved={remember} prepared={preparedHighlights?.sets} />;
-  const quotationReview = draft && stage !== "citations" && discrepancies.length > 0 && <section className="mt-3 rounded-lg border border-amber-300 bg-amber-50/30 p-3">
-    <div className="flex items-center justify-between gap-3"><span className="text-sm text-gray-800">
-      {discrepancies.length} quotation check{discrepancies.length === 1 ? "" : "s"} to review</span>
-      <Button variant="outline" className="h-8 border-amber-500 px-3 text-xs" disabled={busy}
-        onClick={() => setFindingId(discrepancies[0].id)}>Review</Button></div>
-  </section>;
+  // While editing citations the step appears only on request, from the finding's own Review button.
+  const quotationReview = draft && !quotationsDone && discrepancies.length > 0 &&
+    (stage !== "citations" || !!findingId) &&
+    <QuotationReview items={currentReview?.items} currentId={findingId || discrepancies[0].id}
+      busy={busy || !currentReview} error={error || currentReview?.error} onSelect={setFindingId}
+      onOpenSource={host.readSource ? openFindingSource : undefined}
+      onResolve={host.resolveDiscrepancy ? resolveDiscrepancy : undefined}
+      onDone={() => { setFindingId(""); if (stage !== "citations") setQuotationsDone(true); }} />;
   const markingIssues = preparedHighlights?.items.length ? preparedHighlights.items : undefined;
   const sourcesContinue = draft && stage === "sources" && <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
     {missingPdfs.length > 0 && <p className="mr-auto text-sm text-gray-600">
       {missingPdfs.length} missing PDF{missingPdfs.length === 1 ? "" : "s"}</p>}
-    {markingIssues && <details open className="w-full rounded border border-amber-300 p-3 text-sm">
-      <summary className="cursor-pointer text-amber-900">{markingIssues.length} passages need manual highlighting</summary>
+    {markingIssues && <details open className="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm">
+      <summary className="cursor-pointer font-medium text-red-800">{markingIssues.length} passages need manual highlighting</summary>
       <p className="mt-2 text-gray-600">Check these citations or mark the passages in the PDF. No guessed highlights were added.</p>
       <ul className="mt-2 max-h-40 space-y-2 overflow-y-auto">{markingIssues.map((item, index) =>
         <li key={index}><span className="font-medium">{item.label}</span>
           {item.excerpt && <p className="line-clamp-2 text-xs text-gray-600">{item.excerpt}</p>}</li>)}</ul>
     </details>}
+    <StepProgress label={stepOperation} />
     <Button disabled={busy} onClick={() => markingIssues
       ? act({ type: "set-stage", stage: "highlights" }) : finishSources()}>
       Done<ChevronRight /></Button>
@@ -759,29 +773,25 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                   {sourcesContinue}
                   {highlightPanel}
                   {buildPanel}</>
-                : <><section className="rounded-xl border border-gray-300 bg-white shadow-sm">
-                    <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
-                      <div className="min-w-0"><h2 className="font-semibold text-gray-950">Import and review</h2>
-                        <p className="truncate text-sm text-gray-600" title={draft.state.import.filename}>
-                          {draft.state.import.filename}</p></div>
-                      <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                        {stage !== "citations" && <Button variant="outline" className="h-9 border-gray-400"
-                          disabled={busy} onClick={() => act({ type: "set-stage", stage: "citations" })}>Edit citations</Button>}
-                        {stage === "citations" && <>
-                        {importedRole && importedIssue && host.relinkSource &&
-                          relinkable(importedIssue) && <Button type="button"
-                          variant="outline" className="h-9 border-gray-400" disabled={busy}
-                          onClick={() => relinkSource(importedRole)}><FilePlus2 />
-                          {sourceAction(importedIssue, "source")}</Button>}
-                        <Button disabled={busy} className="h-9" onClick={findSources}>Done<ChevronRight /></Button>
-                        </>}
-                      </div>
-                    </div>
+                : <><StepSection title="Import and review" subtitle={draft.state.import.filename}
+                    subtitleTitle={draft.state.import.filename}
+                    actions={<>
+                      {stage !== "citations" && <Button variant="outline" className="h-9 border-gray-400"
+                        disabled={busy} onClick={() => act({ type: "set-stage", stage: "citations" })}>Edit citations</Button>}
+                      {stage === "citations" && <>
+                      {importedRole && importedIssue && host.relinkSource &&
+                        relinkable(importedIssue) && <Button type="button"
+                        variant="outline" className="h-9 border-gray-400" disabled={busy}
+                        onClick={() => relinkSource(importedRole)}><FilePlus2 />
+                        {sourceAction(importedIssue, "source")}</Button>}
+                      <StepProgress label={stepOperation} />
+                      <Button disabled={busy} className="h-9" onClick={findSources}>Done<ChevronRight /></Button></>}
+                    </>}>
                     {stage === "citations" && operation !== "Finding source PDFs" && <CitationReview occurrences={occurrences} units={draft.state.units}
                       selected={selected} authorities={authorities} discrepancies={discrepancies}
                       busy={busy} onSelect={setSelectedId} onAction={act}
                       onFocusChange={onFocusChange} onReview={setFindingId} />}
-                  </section>
+                  </StepSection>
                   {stage !== "citations" && <Sources key={draft.id} draft={draft} occurrences={occurrences}
                     {...authorityPanelProps}
                     forceOpen={sourceIntervention === sourceKey} />}
@@ -794,11 +804,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                   {buildPanel}</>}
         </div>
       </main>
-      {draft && findingId && <QuotationReview initialId={findingId} items={currentReview?.items}
-        busy={busy || !currentReview} error={error || currentReview?.error}
-        sourceUrl={({ authorityId }) => draft.state.authorities[authorityId]?.sourceIdentity?.externalUrl ?? undefined}
-        onResolve={host.resolveDiscrepancy ? resolveDiscrepancy : undefined}
-        onClose={() => setFindingId("")} />}
       {LibraryPicker && <LibraryPicker open={!!libraryTarget}
         key={`${draft?.id}:${draft?.projectId ?? projectId}:${libraryTarget?.kind}`}
         title={libraryTitle(libraryTarget, sourceLabel)}
@@ -862,7 +867,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         secondaryAction={{ label: "Close", onClick: () => { previewRequest.current += 1; setSourcePreview(undefined); } }}>
         <div className="h-[min(70dvh,750px)] min-h-60">
           <PdfCanvas bytes={sourcePreview?.bytes} loading={!!sourcePreview && !sourcePreview.bytes && !sourcePreview.error}
-            error={sourcePreview?.error} />
+            error={sourcePreview?.error} quoteFocusKey={sourcePreview?.quote}
+            quotes={sourcePreview?.quote ? [{ quote: sourcePreview.quote }] : undefined} />
         </div>
       </Modal>
       <SearchableChoiceModal open={!!pendingAttachment} title="PDF language" searchable={false}
@@ -1555,7 +1561,7 @@ function SelectField<T extends string>({ label, value, options, onChange, disabl
 
 function Status({ busy, busyText, status, error }: { busy: boolean; busyText: string;
   status: string; error: boolean }) {
-  const visible = busy || !!status;
+  const visible = (busy && !!busyText) || !!status;
   return <p className={cn("mb-1 flex min-h-6 items-center px-1 text-sm",
     visible && "font-medium",
     error ? "text-red-800" : "text-gray-600")}
@@ -1566,6 +1572,9 @@ function Status({ busy, busyText, status, error }: { busy: boolean; busyText: st
     {busy ? status || busyText : status}
   </p>;
 }
+/** Operations a step owns: their progress belongs in that step, not at the top of the page. */
+const STEP_PROGRESS = new Set(["Finding source PDFs", "Checking source PDFs",
+  "Preparing highlight review"]);
 
 const SOURCE_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["sourceMode"]>> = [
   { value: "automatic", label: "Automatic sources",
