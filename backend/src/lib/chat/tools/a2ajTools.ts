@@ -58,7 +58,9 @@ export function assistantToolActivityLabel(
   }
   if (name === "Read") {
     const file = typeof args.file_path === "string" ? args.file_path.trim() : "";
-    if (!file || file.startsWith(".mike/")) return null;
+    // A bare number is an index the model mistook for a file, not a document:
+    // "Reading lines 1-5 of 11" names nothing the reader can recognise.
+    if (!file || file.startsWith(".mike/") || /^\d+$/u.test(file)) return null;
     const resource = parseResourceReference(file);
     let title = sourceName;
     if (resource?.kind === "source") {
