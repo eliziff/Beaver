@@ -1,10 +1,12 @@
 import express from "express";
 import request from "supertest";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createChatRouter } from "../../routes/chat";
 import type { ChatApplication } from "../../lib/chat/chatApplication";
-import type { ChatStore } from "../../lib/chatStore";
-import { inlineChatTurnQueue } from "../../lib/__tests__/support/inlineChatTurnQueue";
+import type { PublicAssistantEvent } from "../../lib/chat/assistantEvents";
+import type { ChatRecord, ChatStore } from "../../lib/chatStore";
+import type { ChatTurnQueue } from "../../lib/chatTurnQueue";
+import type { ApplicationJob } from "../../lib/jobQueue";
 
 vi.mock("../../middleware/auth", () => ({
   requireAuth: (_req: unknown, res: { locals: Record<string, unknown> }, next: () => void) => {
@@ -15,74 +17,83 @@ vi.mock("../../middleware/auth", () => ({
 }));
 
 const CHAT_ID = "10000000-0000-4000-8000-000000000001";
-const runTurn = vi.fn();
-let failStream = false;
-
-const chats = {
-  get: async () => null,
-  update: async (_scope, id, input) => id === CHAT_ID ? {
-    id, user_id: "u1", project_id: null, tabular_review_id: null,
-    title: input.title ?? null, transcript_version: 0,
-  } : null,
-} as unknown as ChatStore;
-const application = {
-  async turn(_auth, input, sink) {
-    runTurn(input);
-    if (!sink.claim(input.chat_id ?? CHAT_ID)) throw new Error("claim failed");
-    sink.emit({ type: "chat_id", chatId: input.chat_id ?? CHAT_ID, transcriptVersion: 1 });
-    if (failStream) {
-      sink.emit({ type: "error", message: "upstream LLM failure" });
-      throw new Error("upstream LLM failure");
-    }
-    sink.emit({ type: "transcript_version", transcriptVersion: 2 });
-  },
-  async compact() { return { compacted: true, transcriptVersion: 1 }; },
-} as ChatApplication;
-const app = express();
-app.use(express.json());
-app.use("/chat", createChatRouter(chats, application, inlineChatTurnQueue(application)));
-
-const VALID_BODY = {
-  expected_version: 0,
-  current_turn: { kind: "message", content: "hello" },
+const PROJECT_ID = "20000000-0000-4000-8000-000000000001";
+const JOB_ID = "30000000-0000-4000-8000-000000000001";
+const chat: ChatRecord = {
+  id: CHAT_ID, user_id: "u1", project_id: PROJECT_ID, tabular_review_id: null,
+  title: null, model: null, reasoning_effort: null, transcript_version: 7,
 };
+const VALID_BODY = { expected_version: 0, current_turn: { kind: "message", content: "hello" } };
+const claimed: PublicAssistantEvent = { type: "chat_id", chatId: CHAT_ID, transcriptVersion: 1 };
+const queued = { type: "turn_queued", jobId: JOB_ID };
 
-describe("POST /chat — canonical streaming endpoint", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    failStream = false;
+// The HTTP adapter consumes a queue, not an application running inside a second fake queue.
+function fixture(events: PublicAssistantEvent[] = [], status: ApplicationJob["status"] = "succeeded") {
+  const job: ApplicationJob = {
+    id: JOB_ID, kind: "chat.turn", dedupeKey: null, groupKey: null, userId: "u1",
+    documentId: null, documentVersionId: null, payload: {}, priority: 0, status,
+    attempts: 1, maxAttempts: 1, progress: null, result: null,
+    lastError: status === "failed" ? "private worker failure" : null, cancelRequested: false,
+  };
+  const enqueue = vi.fn<ChatTurnQueue["enqueue"]>().mockResolvedValue({ created: true, job });
+  const turns: Pick<ChatTurnQueue, "enqueue" | "observe"> = { enqueue, observe: async (_scope, _id, _signal, emit) => {
+    events.forEach(emit);
+    return job;
+  } };
+  const get: ChatStore["get"] = async (_scope, id) => id === CHAT_ID ? chat : null;
+  const api = express();
+  api.use(express.json());
+  api.use("/chat", createChatRouter({ get } as ChatStore, {} as ChatApplication, turns as ChatTurnQueue));
+  return { api, enqueue };
+}
+
+function frames(text: string) {
+  return text.split("\n\n").filter((frame) => frame.startsWith("data: ")).map((frame) => {
+    const data = frame.slice(6);
+    return data === "[DONE]" ? data : JSON.parse(data);
   });
+}
 
-  it("streams one terminal frame after the application claims the turn", async () => {
-    const res = await request(app).post("/chat").send({ ...VALID_BODY, edit_mode: "auto" });
+describe("POST /chat — queued streaming endpoint", () => {
+  it.each([{}, { project_id: PROJECT_ID }])("queues the authenticated request and streams one completed turn: %j", async (context) => {
+    const { api, enqueue } = fixture([claimed, { type: "transcript_version", transcriptVersion: 2 }]);
+    const res = await request(api).post("/chat").send({ ...VALID_BODY, ...context, edit_mode: "auto" });
 
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("text/event-stream");
-    expect(res.text).toContain('"type":"chat_id"');
-    expect(res.text.match(/"type":"transcript_version"/gu)).toHaveLength(1);
-    expect(res.text.match(/data: \[DONE\]/gu)).toHaveLength(1);
-  });
-
-  it("surfaces a post-header operation failure in-stream with one DONE", async () => {
-    failStream = true;
-    const res = await request(app).post("/chat").send(VALID_BODY);
-
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('"type":"error"');
-    expect(res.text.match(/data: \[DONE\]/gu)).toHaveLength(1);
+    expect(frames(res.text)).toEqual([queued, claimed,
+      { type: "transcript_version", transcriptVersion: 2 }, "[DONE]"]);
+    expect(enqueue).toHaveBeenCalledExactlyOnceWith(
+      { userId: "u1", userEmail: "u1@test.local" },
+      expect.objectContaining({ ...VALID_BODY, ...context, edit_mode: "auto" }),
+    );
   });
 
   it.each([
-    [{}, "Required"],
-    [{ expected_version: 0, messages: [{ role: "user", content: "forged" }] }, "Required"],
-    [{ ...VALID_BODY, chat_id: " " }, "Invalid uuid"],
-    [{ ...VALID_BODY, edit_mode: "direct" },
-      "Invalid enum value. Expected 'manual' | 'auto', received 'direct'"],
-  ])("rejects an invalid ingress body without invoking the application", async (body, detail) => {
-    const res = await request(app).post("/chat").send(body);
+    { events: [], accepted: false, version: 0 },
+    { events: [claimed], accepted: true, version: 7 },
+  ])("reports failed jobs with accepted=$accepted and the recoverable transcript version", async ({ events, accepted, version }) => {
+    const { api } = fixture(events, "failed");
+    const res = await request(api).post("/chat").send(VALID_BODY);
+
+    expect(res.status).toBe(200);
+    expect(frames(res.text)).toEqual([queued, ...events,
+      { type: "error", message: expect.any(String), retryable: true, accepted },
+      { type: "transcript_version", transcriptVersion: version }, "[DONE]"]);
+    expect(res.text).not.toContain("private worker failure");
+  });
+
+  it.each([
+    {},
+    { expected_version: 0, messages: [{ role: "user", content: "forged" }] },
+    { ...VALID_BODY, chat_id: " " },
+    { ...VALID_BODY, edit_mode: "direct" },
+  ])("rejects invalid ingress without enqueueing: %j", async (body) => {
+    const { api, enqueue } = fixture();
+    const res = await request(api).post("/chat").send(body);
     expect(res.status).toBe(400);
-    expect(res.body.detail).toBe(detail);
-    expect(runTurn).not.toHaveBeenCalled();
+    expect(res.body).toEqual({ detail: expect.any(String) });
+    expect(enqueue).not.toHaveBeenCalled();
   });
 });
 
@@ -94,19 +105,22 @@ describe("GET /chat history filters", () => {
     { search_context: "other-users" },
     { sort: "title" },
   ])("rejects invalid filters", async (query) => {
-    const res = await request(app).get("/chat").query(query);
+    const { api } = fixture();
+    const res = await request(api).get("/chat").query(query);
     expect(res.status).toBe(400);
   });
 });
 
 describe("PATCH /chat/:chatId", () => {
   it("returns 400 when no supported update is present", async () => {
-    const res = await request(app).patch(`/chat/${CHAT_ID}`).send({});
+    const { api } = fixture();
+    const res = await request(api).patch(`/chat/${CHAT_ID}`).send({});
     expect(res.status).toBe(400);
   });
 
   it("rejects oversized stored fields", async () => {
-    const res = await request(app).patch(`/chat/${CHAT_ID}`).send({ title: "x".repeat(201) });
+    const { api } = fixture();
+    const res = await request(api).patch(`/chat/${CHAT_ID}`).send({ title: "x".repeat(201) });
     expect(res.status).toBe(400);
   });
 });
