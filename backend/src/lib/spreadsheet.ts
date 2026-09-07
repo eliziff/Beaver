@@ -41,48 +41,22 @@ function cellText(cell: XLSX.CellObject | undefined): string {
   return value.replace(/\r?\n/g, " ").replace(/\|/g, "\\|").trim();
 }
 
-interface RenderedSheet {
-  text: string;
-  tableCells: SpreadsheetCellSpan[];
-}
-
 function renderSheet(
   { utils }: XlsxModule,
   table: number,
   sheetName: string,
   ws: XLSX.WorkSheet,
   includeCells: boolean,
-): RenderedSheet | null {
-  const mergeAnchors = new Map<
-    string,
-    {
-      range: string;
-      startRow: number;
-      endRow: number;
-      startColumn: number;
-      endColumn: number;
-      columnSpan: number;
-      rowSpan: number;
-    }
-  >();
+): SpreadsheetLlmStructure | null {
+  const mergeAnchors = new Map<string, XLSX.Range>();
   for (const merge of ws["!merges"] ?? []) {
-    mergeAnchors.set(utils.encode_cell(merge.s), {
-      range: utils.encode_range(merge),
-      startRow: merge.s.r,
-      endRow: merge.e.r,
-      startColumn: merge.s.c,
-      endColumn: merge.e.c,
-      columnSpan: merge.e.c - merge.s.c + 1,
-      rowSpan: merge.e.r - merge.s.r + 1,
-    });
+    mergeAnchors.set(utils.encode_cell(merge.s), merge);
   }
 
   // Track only columns with visible anchor content. Formatting-only used
   // ranges and empty columns must not inflate the model projection.
-  const rowsByNumber = new Map<number, {
-    rowNumber: number;
-    cells: Map<number, { address: string; text: string; value: string }>;
-  }>();
+  const rowsByNumber = new Map<number,
+    Map<number, { address: string; text: string; value: string }>>();
   const occupiedColumns = new Set<number>();
   const addresses = new Set([
     ...Object.keys(ws).filter((key) => !key.startsWith("!")),
@@ -93,8 +67,8 @@ function renderSheet(
     let isCovered = false;
     for (const [anchor, merge] of mergeAnchors) {
       if (anchor !== address &&
-          row >= merge.startRow && row <= merge.endRow &&
-          column >= merge.startColumn && column <= merge.endColumn) {
+          row >= merge.s.r && row <= merge.e.r &&
+          column >= merge.s.c && column <= merge.e.c) {
         isCovered = true;
         break;
       }
@@ -104,21 +78,17 @@ function renderSheet(
     const merge = mergeAnchors.get(address);
     const text = merge
       ? value
-        ? `${value} ⟨merged ${merge.range}⟩`
-        : `⟨merged ${merge.range}⟩`
+        ? `${value} ⟨merged ${utils.encode_range(merge)}⟩`
+        : `⟨merged ${utils.encode_range(merge)}⟩`
       : value;
     if (!text) continue;
-    const rowEntry = rowsByNumber.get(row) ?? {
-      rowNumber: row + 1,
-      cells: new Map<number, { address: string; text: string; value: string }>(),
-    };
-    rowEntry.cells.set(column, { address, text, value });
-    rowsByNumber.set(row, rowEntry);
+    const cells = rowsByNumber.get(row) ??
+      new Map<number, { address: string; text: string; value: string }>();
+    cells.set(column, { address, text, value });
+    rowsByNumber.set(row, cells);
     occupiedColumns.add(column);
   }
-  const rows = [...rowsByNumber.values()].sort(
-    (left, right) => left.rowNumber - right.rowNumber,
-  );
+  const rows = [...rowsByNumber].sort(([left], [right]) => left - right);
   if (!rows.length || !occupiedColumns.size) return null;
 
   const columns = [...occupiedColumns].sort((a, b) => a - b);
@@ -132,8 +102,8 @@ function renderSheet(
   const tableCells: SpreadsheetCellSpan[] = [];
   let cursor = lines.join("\n").length + 1;
 
-  for (const { rowNumber, cells } of rows) {
-    let line = `| ${rowNumber} | `;
+  for (const [row, cells] of rows) {
+    let line = `| ${row + 1} | `;
     for (let index = 0; index < columns.length; index += 1) {
       const column = columns[index];
       const cell = cells.get(column);
@@ -145,15 +115,15 @@ function renderSheet(
           tableCells.push({
             table,
             tableName: sheetName,
-            row: rowNumber,
+            row: row + 1,
             column: column + 1,
             address: cell.address,
             displayValue: cell.value,
-            ...(merge?.columnSpan && merge.columnSpan > 1
-              ? { columnSpan: merge.columnSpan }
+            ...(merge && merge.e.c > merge.s.c
+              ? { columnSpan: merge.e.c - merge.s.c + 1 }
               : {}),
-            ...(merge?.rowSpan && merge.rowSpan > 1
-              ? { rowSpan: merge.rowSpan }
+            ...(merge && merge.e.r > merge.s.r
+              ? { rowSpan: merge.e.r - merge.s.r + 1 }
               : {}),
             start,
             end: cursor + line.length,
@@ -197,18 +167,14 @@ async function spreadsheetProjection(
     if (cells > MAX_CELLS || (populated + merges) * merges > MAX_MERGE_CHECKS)
       throw new Error("Spreadsheet is too complex to render safely");
   }
-  const sheets: RenderedSheet[] = [];
+  let text = "", table = 0;
+  const tableCells: SpreadsheetCellSpan[] = [];
   for (const sheetName of workbook.SheetNames) {
     const worksheet = workbook.Sheets[sheetName];
     if (!worksheet) continue;
-    const rendered = renderSheet(
-      xlsx, sheets.length + 1, sheetName, worksheet, includeCells);
-    if (rendered) sheets.push(rendered);
-  }
-
-  let text = "";
-  const tableCells: SpreadsheetCellSpan[] = [];
-  for (const sheet of sheets) {
+    const sheet = renderSheet(xlsx, table + 1, sheetName, worksheet, includeCells);
+    if (!sheet) continue;
+    table += 1;
     const separator = text ? "\n\n" : "";
     const shift = text.length + separator.length;
     text += separator + sheet.text;
