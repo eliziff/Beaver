@@ -128,8 +128,8 @@ import type { ResearchOperationContext } from "../researchProvenance";
 import type { AuditStore } from "../audit";
 import type { AssistantEvent, ReadSubagentAssignment } from "./assistantEvents";
 import { safeErrorMessage } from "../safeError";
-import type { AuthoritiesUserAction,
-  AuthoritiesWorkspaceApplication } from "../authoritiesWorkspaceApplication";
+import type { AuthoritiesUserAction } from "../authoritiesActions";
+import type { AuthoritiesWorkspaceApplication } from "../authoritiesWorkspaceApplication";
 import { AUTHORITIES_SETTINGS_CHOICES, decodeAuthoritiesUserAction } from
   "../authoritiesActionContract";
 import { authoritiesProfileIds,
