@@ -3,7 +3,8 @@ import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
   attachAuthorityPdf as attachSource, attachAuthoritiesBookPdf as attachBookSource,
   authoritiesReview as review, updateAuthoritiesDraft as update,
   type AuthoritiesInitialSettings, type AuthoritiesUserAction } from "./authoritiesActions";
-import { buildAuthorities, type AuthoritiesBuildInput, type AuthoritiesBuildResult } from "./authoritiesBuild";
+import { authorityPassageTargets, buildAuthorities, type AuthoritiesBuildInput,
+  type AuthoritiesBuildResult } from "./authoritiesBuild";
 import { attachedAuthoritySources, authoritiesBookPdfs, decodeAuthoritiesDraft,
   type AuthoritiesDraft, type AuthoritiesDiscrepancyAction,
   type AuthoritySourceLanguage } from "./authoritiesDomain";
@@ -15,6 +16,7 @@ import { authoritySourceServices, resolveAuthoritiesSources, type SourceServices
 import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
   type DocumentFile, type DocumentRollback, type DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
+import { cancelPdfJobs, enqueueAuthorityOcr } from "./pdfJobs";
 import type { WorkProduct, WorkProductInput, WorkProductState } from "./workProduct";
 import { saveWorkProductBuild, type WorkProductApplication } from "./workProductApplication";
 import type { WorkflowFiles } from "./workflowFiles";
@@ -462,6 +464,34 @@ export function createAuthoritiesWorkspaceApplication(
             version.filename, version.source_sha256, input.target.language)
           : attachBookSource(draft, input.target, binding, version.filename,
             version.source_sha256) });
+    },
+    /** Recognition runs in the durable queue so the workspace can watch, pause, and stop it. */
+    async sourceOcr(scope: ApplicationScope, id: string, roles: string[], cancel: boolean) {
+      const { draft } = await open(scope, id);
+      const plan = createAuthoritiesPreparation(draft);
+      return Promise.all(plan.authoritySources
+        .filter(({ source }) => roles.includes(source.bindingRole))
+        .map(async ({ source, authority }) => {
+          const binding = draft.bindings[source.bindingRole];
+          if (binding?.kind !== "document") throw new ApplicationError(409,
+            `The PDF for ${source.filename} is unavailable`);
+          const resolved = await documents.projectionSource(scope, binding.documentId,
+            binding.version === "latest" ? null : binding.version.versionId);
+          if (!resolved) throw new ApplicationError(409, `The PDF for ${source.filename} is unavailable`);
+          const reference = { userId: scope.userId, documentId: resolved.documentId,
+            versionId: resolved.versionId, sourceSha256: resolved.sourceSha256 };
+          if (cancel) return { role: source.bindingRole, cancelled: await cancelPdfJobs(reference) };
+          // Page pinpoints are printed page numbers. They address physical pages only
+          // where the scan is numbered from its first page, so they are clamped to the
+          // PDF and treated as a priority hint: the whole-PDF job follows either way
+          // and is the one that records the document profile.
+          const pageCount = (await documents.metadata(scope, binding.documentId))?.page_count ?? 0;
+          const citedPages = authorityPassageTargets(draft, authority.id)
+            .flatMap(({ locatorKind, locator }) => locatorKind === "page" && /^\d+$/u.test(locator)
+              && Number(locator) <= pageCount ? [Number(locator)] : []);
+          await enqueueAuthorityOcr({ ...reference, citedPages });
+          return { role: source.bindingRole, documentId: resolved.documentId };
+        }));
     },
     async prepareHighlights(scope: ApplicationScope, id: string, revision: number, signal?: AbortSignal) {
       const { product, draft } = await edit(scope, id, revision);
