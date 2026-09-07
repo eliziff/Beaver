@@ -118,7 +118,7 @@ export function TRSidePanel({
             </div>
             {(onRegenerate || onDiscuss) && <div className="flex shrink-0 items-center justify-between gap-2 border-t border-gray-200 px-3 py-2">
                 {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
-                {onDiscuss && <Button variant="ghost" size="compact" onClick={onDiscuss}>Discuss</Button>}
+                {onDiscuss && <Button variant="ghost" size="compact" onClick={onDiscuss}>Chat</Button>}
                 {onRegenerate && <Button variant="outline" size="compact" disabled={regenerating || running} aria-label="Regenerate" title="Regenerate"
                     onClick={async () => { setRegenerating(true); setError("");
                         try { await onRegenerate(); } catch { setError("Could not regenerate. Try again."); }
