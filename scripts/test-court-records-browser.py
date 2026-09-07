@@ -32,14 +32,10 @@ CHROMEDRIVER = next(iter(sorted(Path.home().parent.glob(
     r"*/.cache/selenium/chromedriver/win64/*/chromedriver.exe"
 ), reverse=True)), None)
 CHOICES = {
-    "ab-kb-affidavit-exhibits": ("Alberta", "Trial", "Affidavit"),
-    "fc-motion-record-moving": ("Federal courts", "Trial", "Motion record"),
-    "fca-motion-record-moving": ("Federal courts", "Appeal", "Motion record"),
-    "ab-ca-appeal-record": ("Alberta", "Appeal", "Appeal record"),
-}
-FORMATS = {
-    "fc-motion-record-moving": ".//button[normalize-space()='Motion record — moving']",
-    "fca-motion-record-moving": ".//button[normalize-space()='Motion record — moving']",
+    "ab-kb-affidavit-exhibits": "Alberta",
+    "fc-motion-record-moving": "Federal courts",
+    "fca-motion-record-moving": "Federal courts",
+    "ab-ca-appeal-record": "Alberta",
 }
 RESPONSIVE_SCROLL_RESETS: list[dict[str, object]] = []
 
@@ -386,40 +382,20 @@ def choose_new_profile(
     wait = WebDriverWait(driver, 20)
     driver.find_element(By.XPATH, "//button[normalize-space()='New court record']").click()
     dialog = wait.until(lambda item: item.find_element(By.CSS_SELECTOR, "dialog[open]"))
-    jurisdiction, level, document = CHOICES[profile_id]
-    proof: dict[str, object] = {"jurisdiction": jurisdiction, "level": level,
-                               "document": document}
+    jurisdiction = CHOICES[profile_id]
+    proof: dict[str, object] = {"jurisdiction": jurisdiction, "profile": profile_id}
     if chooser_output:
         proof["jurisdiction_viewports"] = chooser_contract(
             driver, dialog, chooser_output, "jurisdiction")
-    Select(dialog.find_element(By.CSS_SELECTOR, "select[aria-label='Jurisdiction']")).select_by_visible_text(jurisdiction)
-    assert driver.find_elements(By.CSS_SELECTOR, "dialog[open]") == [dialog], "Jurisdiction replaced the dialog"
-    wait.until(lambda _item: dialog.find_element(By.XPATH,
-        ".//*[@role='tablist' and @aria-label='Court level']"))
-    levels = dialog.find_elements(By.XPATH,
-        ".//*[@role='tablist' and @aria-label='Court level']//*[@role='tab']")
-    assert [item.text.strip() for item in levels] == ["Trial", "Appeal"], [
-        item.text for item in levels]
-    next(item for item in levels if item.text.strip() == level).click()
-    wait.until(lambda _item: next(item for item in dialog.find_elements(
-        By.XPATH, ".//*[@role='tablist' and @aria-label='Court level']//*[@role='tab']")
-        if item.text.strip() == level).get_attribute("aria-selected") == "true")
+    dialog.find_element(By.XPATH,
+        f".//*[@aria-label='Jurisdiction']//button[normalize-space()='{jurisdiction}']").click()
+    assert driver.find_elements(By.CSS_SELECTOR, "dialog[open]") == [dialog], \
+        "Jurisdiction replaced the dialog"
     if chooser_output:
         proof["document_viewports"] = chooser_contract(
             driver, dialog, chooser_output, "document")
-    dialog.find_element(By.XPATH, f".//button[normalize-space()='{document}']").click()
-    direct = wait.until(lambda item: (
-        (not item.find_elements(By.CSS_SELECTOR, "dialog[open]") and
-         bool(item.find_elements(By.CSS_SELECTOR, "button[aria-label='Back from court record']")))
-        or next(iter(item.find_elements(By.CSS_SELECTOR, "dialog[open]")), False)
-    ))
-    if direct is True:
-        proof["format"] = {"direct": True}
-        return proof
-    assert direct == dialog, "Format selection replaced the dialog"
-    if chooser_output:
-        proof["format_viewports"] = chooser_contract(driver, dialog, chooser_output, "format")
-    dialog.find_element(By.XPATH, FORMATS[profile_id]).click()
+    wait.until(lambda _item: dialog.find_element(
+        By.CSS_SELECTOR, f"button[data-choice='{profile_id}']")).click()
     wait.until(lambda item: not item.find_elements(By.CSS_SELECTOR, "dialog[open]") and
         item.find_elements(By.CSS_SELECTOR, "button[aria-label='Back from court record']"))
     return proof
@@ -1449,7 +1425,8 @@ def main() -> int:
                         continue
                     courts[0].click()
                     dialog = driver.find_element(By.CSS_SELECTOR, "dialog[open]")
-                    Select(dialog.find_element(By.CSS_SELECTOR, "select[aria-label='Jurisdiction']")).select_by_visible_text("No court preset")
+                    dialog.find_element(By.XPATH,
+                        ".//*[@aria-label='Jurisdiction']//button[normalize-space()='No court preset']").click()
                     assert driver.find_elements(By.CSS_SELECTOR, "dialog[open]") == [dialog]
                     dialog.send_keys(Keys.ESCAPE)
                     assert not driver.find_elements(By.CSS_SELECTOR, "dialog[open]")
