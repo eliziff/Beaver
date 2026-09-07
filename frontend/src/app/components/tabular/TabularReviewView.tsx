@@ -624,9 +624,6 @@ function TRViewContent({ reviewId, projectId }: Props) {
             </span>,
         },
         { onClick: () => void openSources(), disabled: loading, title: "Open Sources", icon: <BookOpen className="h-4 w-4" />, label: "Sources" },
-        { type: "custom",
-            render: <MoreActionsMenu items={menuItems} />,
-        },
         {
             onClick: () => {
                 if (dockTab === "chat") closeDock();
@@ -639,12 +636,15 @@ function TRViewContent({ reviewId, projectId }: Props) {
                 : <MessageSquare className="h-4 w-4" />,
             label: <span className="hidden sm:inline">Chat</span>,
         },
+        { type: "custom",
+            render: <MoreActionsMenu items={menuItems} />,
+        },
     ];
 
     return (
         <div className="flex h-full overflow-hidden">
             <div className="flex flex-1 flex-col overflow-hidden">
-                <PageHeader shrink stacked breadcrumbs={breadcrumbs} actions={headerActions} />
+                <PageHeader shrink breadcrumbs={breadcrumbs} actions={headerActions} />
                 {review && <ResearchChanges review={review} documents={documents} onChanged={refreshReview}
                     historyOpen={ui.historyOpen} onCloseHistory={() => setUi({ historyOpen: false })} />}
                 <div className="flex flex-1 overflow-hidden">
