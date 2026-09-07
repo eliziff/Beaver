@@ -87,7 +87,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     return <Modal open onClose={onClose} size="lg" breadcrumbs={[...(setName ? [setName] : []),
         labelling ? "Organize this research" : "Review this research"]}
         footerStatus={error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-        cancelAction={at > 0 && { label: "Back", disabled: busy, onClick: () => setAt(at - 1) }}
+        secondaryAction={at > 0 ? { label: "Back", disabled: busy, onClick: () => setAt(at - 1) } : undefined}
         primaryAction={{ label: busy ? "Working…" : last ? (labelling ? "Apply labels" : "Create review") : "Next",
             onClick: () => void advance(), disabled: busy || loading || !ready }}>
         <div className="flex min-h-0 flex-1 flex-col gap-6 py-4">
