@@ -95,8 +95,10 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
         </li>;
     return <Modal open onClose={onClose} size="2xl" breadcrumbs={[labelling ? "Organize this research" : "Review this research"]}
         footerStatus={error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-        primaryAction={{ label: busy ? "Working…" : labelling ? "Apply labels" : "Open review",
-            onClick: () => void create(), disabled: (labelling ? !plan : !preview) || busy || loading }}>
+        primaryAction={labelling && !plan
+            ? { label: busy ? "Working…" : "Propose labels", onClick: () => void suggest(), disabled: busy || loading || !request.trim() }
+            : { label: busy ? "Working…" : labelling ? "Apply labels" : "Open review",
+                onClick: () => void create(), disabled: (labelling ? !plan : !preview) || busy || loading }}>
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pb-3">
             {!fileId && <div className="min-h-40"><FileDirectory selectedDocuments={picked} onChange={(next) => { setTypeId(""); setPicked(next); }}
                 showTabs multiple={false} noun="research sets" documentFilter={isResearchDocument}
@@ -141,18 +143,18 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                     <p className="text-xs text-gray-500">Reused passages stay excerpts; new questions still need extraction. Later research edits will not rewrite this review.</p>
                 </>}
                 <FormField label={labelling ? "What should these be sorted into?" : "What would you like to compare?"} htmlFor="import-question">
-                    <textarea id="import-question" value={request} onChange={(event) => setRequest(event.target.value)} rows={2}
+                    <textarea id="import-question" value={request} rows={2}
+                        onChange={(event) => { setRequest(event.target.value); setPlan(null); }}
                         className="w-full rounded border border-gray-300 bg-white p-2 text-sm"
                         placeholder={labelling ? "The cases that state the test, grouped by how they applied it."
                             : "Compare the outcome, reasons, and wording that mattered."} /></FormField>
-                <div className="flex gap-2"><Button size="compact" variant="outline" onClick={() => void suggest()} disabled={busy || loading || !request.trim()}>
-                    {labelling ? plan ? "Propose again" : "Propose labels" : "Suggest layout"}</Button>
-                    {!labelling && <Button size="compact" variant="ghost" disabled={busy || loading} onClick={() => {
+                {!labelling && <div className="flex gap-2"><Button size="compact" variant="outline" onClick={() => void suggest()} disabled={busy || loading || !request.trim()}>
+                    Suggest layout</Button><Button size="compact" variant="ghost" disabled={busy || loading} onClick={() => {
                         const run = ++generation.current; setLoading(true); setError("");
                         void previewWorkspaceTable(activeId, input).then((next) => { if (run === generation.current) setPreview(next); })
                             .catch((reason) => { if (run === generation.current) setError(errorMessage(reason, "Could not refresh the preview")); })
                             .finally(() => { if (run === generation.current) setLoading(false); });
-                    }}>Refresh preview</Button>}</div>
+                    }}>Refresh preview</Button></div>}
             </>}
         </div>
     </Modal>;

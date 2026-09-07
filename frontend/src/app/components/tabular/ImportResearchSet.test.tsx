@@ -4,6 +4,7 @@ import type { ResearchFile } from "@/app/lib/researchFiles";
 import { ImportResearchSet } from "./ImportResearchSet";
 const api = vi.hoisted(() => ({ getResearchFile: vi.fn(), previewWorkspaceTable: vi.fn(), openWorkspaceTable: vi.fn() }));
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({ ...await original<typeof import("@/app/lib/api/researchFiles")>(), ...api }));
+vi.mock("@/app/hooks/useSelectedModel", () => ({ useSelectedModel: () => ["model", vi.fn()] }));
 const file = { document: { id: "workspace", filename: "Research.research.md" }, state: { labels: {}, sources: {} } } as ResearchFile;
 const preview = { fingerprint: "a".repeat(64), design: { title: "Research", columns: [{ index: 0, name: "Finding", prompt: "Question?" }],
   cells: [{ rowId: "source", columnIndex: 0, itemIds: ["item"] }] }, rows: [{ id: "source", sourceId: "source", title: "Case A" }],
