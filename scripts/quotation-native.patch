@@ -1,0 +1,177 @@
+diff --git a/native/legal-structure-node/src/lib.rs b/native/legal-structure-node/src/lib.rs
+index 196a2b5..a7f107c 100644
+--- a/native/legal-structure-node/src/lib.rs
++++ b/native/legal-structure-node/src/lib.rs
+@@ -559,13 +559,50 @@ mod legalpdf_exports {
+         status: legalpdf::PdfLookupStatus,
+         pages: Vec<u32>,
+         lines: Vec<String>,
+-        fallback_markers: Vec<String>,
+     }
+ 
+-    fn starts_with_exact_marker(text: &str, marker: &str) -> bool {
+-        text.trim_start()
+-            .strip_prefix(marker)
+-            .is_some_and(|rest| rest.chars().next().is_none_or(char::is_whitespace))
++    // A citation's printed [29] is not necessarily the parser's 29th paragraph.
++    // Resolve it to complete native prose nodes, including continuation nodes, not
++    // just the line bearing the number. Never choose among duplicate printed labels.
++    fn printed_paragraph_plan(document: &legalpdf::PdfDocument, locator: &str)
++        -> Option<(legalpdf::PdfLookupStatus, Vec<String>, Vec<u32>)>
++    {
++        use legal_structure::{NodeKind, ScalarText};
++        let text = ScalarText::new(document.structure().query_text());
++        let nodes = document.structure().nodes.iter()
++            .filter(|node| node.kind == NodeKind::Prose && !node.line_ids.is_empty())
++            .collect::<Vec<_>>();
++        let labels = nodes.iter().enumerate().filter_map(|(index, node)| {
++            let range = node.rendered_range?;
++            let value = text.slice_utf16(range.start..range.end)?.trim_start();
++            let (number, rest) = value.strip_prefix('[')?.split_once(']')?;
++            if !rest.starts_with(char::is_whitespace) || !number.chars().all(|c| c.is_ascii_digit()) { return None; }
++            Some((number.parse::<usize>().ok()?, index))
++        }).collect::<Vec<_>>();
++        if labels.is_empty() { return None; }
++        let range = legal_pdf_support::numeric_range("paragraph", locator)
++            .or_else(|| legal_pdf_support::parse_ordinal("paragraph", locator).map(|n| (n, n)));
++        let Some((from, to)) = range.filter(|(a, b)| a <= b && b - a < 100) else {
++            return Some((legalpdf::PdfLookupStatus::Invalid, vec![], vec![]));
++        };
++        let mut lines = Vec::new();
++        let mut pages = Vec::new();
++        for number in from..=to {
++            let hits = labels.iter().filter(|(label, _)| *label == number).collect::<Vec<_>>();
++            if hits.len() != 1 {
++                return Some((if hits.is_empty() { legalpdf::PdfLookupStatus::NotFound }
++                    else { legalpdf::PdfLookupStatus::Ambiguous }, vec![], vec![]));
++            }
++            let start = hits[0].1;
++            // A following printed paragraph is an explicit end boundary. At EOF,
++            // retain only the native paragraph rather than swallowing unnumbered end matter.
++            let end = labels.iter().find(|(_, index)| *index > start).map_or(start + 1, |(_, index)| *index);
++            for node in &nodes[start..end] {
++                lines.extend(node.line_ids.iter().cloned());
++                pages.extend(node.page_indexes.iter().map(|index| *index as u32 + 1));
++            }
++        }
++        Some((legalpdf::PdfLookupStatus::Found, lines, pages))
+     }
+ 
+     pub struct PdfPassagePagesTask {
+@@ -594,56 +631,11 @@ mod legalpdf_exports {
+                 .unwrap()
+                 .into_iter()
+                 .map(|plan| {
+-                    let mut selected = plan
++                    let selected = plan
+                         .lines
+                         .iter()
+                         .map(String::as_str)
+                         .collect::<HashSet<_>>();
+-                    let hits = pdf
+-                        .pages
+-                        .iter()
+-                        .flat_map(|page| {
+-                            page.lines
+-                                .iter()
+-                                .filter_map(|line| {
+-                                    plan.fallback_markers
+-                                        .iter()
+-                                        .position(|marker| {
+-                                            starts_with_exact_marker(&line.text, marker)
+-                                        })
+-                                        .map(|marker| (marker, page.number, line))
+-                                })
+-                                .collect::<Vec<_>>()
+-                        })
+-                        .collect::<Vec<_>>();
+-                    let counts = (0..plan.fallback_markers.len())
+-                        .map(|marker| hits.iter().filter(|(index, _, _)| *index == marker).count())
+-                        .collect::<Vec<_>>();
+-                    let exact = !counts.is_empty() && counts.iter().all(|count| *count == 1);
+-                    let ambiguous = counts.iter().any(|count| *count > 1);
+-                    let colocated = !counts.is_empty()
+-                        && counts.iter().all(|count| *count > 0)
+-                        && (0..counts.len()).all(|marker| {
+-                            hits.iter()
+-                                .filter(|(index, _, _)| *index == marker)
+-                                .map(|(_, page, _)| page)
+-                                .collect::<HashSet<_>>()
+-                                .len()
+-                                == 1
+-                        });
+-                    if exact || colocated {
+-                        selected.clear();
+-                        selected.extend(hits.iter().map(|(_, _, line)| line.id.as_str()));
+-                    } else if ambiguous {
+-                        selected.clear();
+-                    }
+-                    let status = if exact || colocated {
+-                        legalpdf::PdfLookupStatus::Found
+-                    } else if ambiguous {
+-                        legalpdf::PdfLookupStatus::Ambiguous
+-                    } else {
+-                        plan.status
+-                    };
+                     let selected_pages = pdf
+                         .pages
+                         .iter()
+@@ -658,7 +650,7 @@ mod legalpdf_exports {
+                         .pages
+                         .iter()
+                         .filter(|page| {
+-                            (!exact && !ambiguous && plan.pages.contains(&page.number))
++                            plan.pages.contains(&page.number)
+                                 || selected_pages.contains(&page.number)
+                         })
+                         .map(|page| {
+@@ -687,7 +679,7 @@ mod legalpdf_exports {
+                             })
+                         })
+                         .collect::<Vec<_>>();
+-                    serde_json::json!({ "id": plan.id, "status": status, "pages": pages })
++                    serde_json::json!({ "id": plan.id, "status": plan.status, "pages": pages })
+                 })
+                 .collect::<Vec<_>>();
+             Ok(serde_json::json!({
+@@ -722,6 +714,11 @@ mod legalpdf_exports {
+         let plans = targets
+             .into_iter()
+             .map(|target| {
++                if target.locator_kind == "paragraph" {
++                    if let Some((status, lines, pages)) = printed_paragraph_plan(document, &target.locator) {
++                        return PassagePlan { id: target.id, page: false, status, pages, lines };
++                    }
++                }
+                 let lookup = document.lookup(&legalpdf::PdfLookupRequest::new(
+                     &target.locator_kind,
+                     &target.locator,
+@@ -750,28 +747,12 @@ mod legalpdf_exports {
+                             .map(|page| page as u32),
+                     );
+                 }
+-                let fallback_markers = if target.locator_kind == "paragraph" {
+-                    let range = legal_pdf_support::numeric_range("paragraph", &target.locator)
+-                        .or_else(|| {
+-                            legal_pdf_support::parse_ordinal("paragraph", &target.locator)
+-                                .map(|number| (number, number))
+-                        });
+-                    range
+-                        .filter(|(start, end)| start <= end && end - start < 100)
+-                        .map(|(start, end)| (start..=end).map(|number| format!("[{number}]")))
+-                        .into_iter()
+-                        .flatten()
+-                        .collect()
+-                } else {
+-                    Vec::new()
+-                };
+                 PassagePlan {
+                     id: target.id,
+                     page: target.locator_kind == "page",
+                     status: lookup.status,
+                     pages,
+                     lines,
+-                    fallback_markers,
+                 }
+             })
+             .collect();
