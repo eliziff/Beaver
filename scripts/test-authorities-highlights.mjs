@@ -57,7 +57,7 @@ const quotationCases = {
     'The Board explained that "the landlord may deliver a written notice to terminate the lease within seven calendar days" before any hearing may be scheduled.', '42',
     'If rent is unpaid, the landlord may deliver a written notice to terminate the lease not less than seven business days after receipt of the notice by the tenant.'),
   missingOne: quotationFindings('missing-1', 'The panel confirmed that "the deadline is seven business days" in every case.', '43',
-    'Municipal liability concerns the design and maintenance of public roads.'),
+    'A different paragraph begins.'),
   missingTwo: quotationFindings('missing-2', 'It added that "an operator bears the whole of the risk" without exception.', '44',
     'Nothing in these reasons addresses the allocation of commercial risk between parties.'),
 };
