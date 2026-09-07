@@ -1,6 +1,7 @@
 import type { ApplicationScope } from "./applicationError";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql,
   type RelationalDatabase, type SqlStatement } from "./relationalDatabase";
+import { searchFilter } from "./searchQuery";
 import { tabularSubjectId, type TabularSelection } from "./tabularStore";
 
 export type Row = Record<string, any>;
@@ -12,6 +13,31 @@ export const one = async <T extends Row>(statement: SqlStatement, db?: Relationa
   (await rows<T>(statement, db))[0] ?? null;
 export const changes = async (statement: SqlStatement, db?: RelationalDatabase) =>
   (await (db ?? await relationalDatabase()).query(statement)).changes;
+
+/** Sources are already authorized; both expose parent_folder_id for browsing. */
+export async function directoryPage<F>(options: { q: string; parentFolderId: string | null;
+  limit: number; after: [number, string, string] | null; documentsOnly?: boolean },
+  sources: { folders: ReturnType<typeof sql>; documents: ReturnType<typeof sql> },
+  folder: (row: Row) => F) {
+  const search = options.q || options.documentsOnly, after = options.after;
+  const documents = sql`SELECT 'document' kind,id,1 bucket,lower(filename) sort_name,
+    NULL name,NULL parent_folder_id,NULL created_at,NULL updated_at FROM (${sources.documents}) d
+    WHERE ${options.q ? searchFilter(sql`lower(filename)`, options.q) : search ? sql.raw("1=1")
+      : sql`COALESCE(parent_folder_id,'')=${options.parentFolderId ?? ""}`}`;
+  const entries = search ? documents : sql`SELECT 'folder' kind,id,0 bucket,
+    lower(name) sort_name,name,parent_folder_id,created_at,updated_at FROM (${sources.folders}) f
+    WHERE COALESCE(parent_folder_id,'')=${options.parentFolderId ?? ""} UNION ALL ${documents}`;
+  const seek = after ? sql`AND (bucket>${after[0]} OR (bucket=${after[0]} AND
+    (sort_name>${after[1]} OR (sort_name=${after[1]} AND id>${after[2]}))))` : sql.raw("");
+  const result = await rows(sql`SELECT * FROM (${entries}) entries WHERE 1=1 ${seek}
+    ORDER BY bucket,sort_name,id LIMIT ${options.limit + 1}`);
+  const page = result.slice(0, options.limit), last = page.at(-1);
+  return { items: page.map((row) => row.kind === "folder"
+    ? { kind: "folder" as const, folder: folder(row) }
+    : { kind: "document" as const, id: String(row.id) }),
+  nextAfter: result.length > options.limit && last
+    ? [Number(last.bucket), String(last.sort_name), String(last.id)] as [number, string, string] : null };
+}
 
 export async function queueObjectCleanup(db: RelationalDatabase, keys: string[]) {
   const unique = [...new Set(keys)];
