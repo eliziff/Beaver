@@ -1,0 +1,35 @@
+name: Quotation workbench
+on:
+  push:
+    branches: [fix/quotation-differences-review]
+    paths: [.github/workflows/quotation-workbench.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Source snapshot
+        run: |
+          tar --exclude=.git --exclude=node_modules --exclude=target --exclude='*.pdf' --exclude='*.docx' --exclude='*.png' --exclude='*.jpg' --exclude='*.onnx' --exclude='*.zip' --exclude='*.parquet' -czf /tmp/quotation-source.tgz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quotation-source
+          path: /tmp/quotation-source.tgz
+          retention-days: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Test dependencies
+        run: tar -czf /tmp/quotation-node.tgz node_modules frontend/node_modules backend/node_modules 2>/dev/null || test -s /tmp/quotation-node.tgz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quotation-node
+          path: /tmp/quotation-node.tgz
+          retention-days: 1
