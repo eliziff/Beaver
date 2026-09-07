@@ -173,10 +173,10 @@ function DesignBox({ current, title, documentNames, onDesign }: {
         <ModalTextarea aria-label="Describe the review" value={request} rows={2} disabled={running} className="min-h-16"
             placeholder={current?.length ? "Describe a revision…" : "Describe the review…"}
             onChange={(event) => setRequest(event.currentTarget.value)} />
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-end gap-3">
+            {error && <p role="alert" className="mr-auto text-sm text-red-700">{error}</p>}
             <Button type="button" variant="outline" size="compact" disabled={running || !request.trim()}
                 onClick={() => void propose()}>{running ? "Proposing…" : "Propose design"}</Button>
-            {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
         </div>
     </div>;
 }
