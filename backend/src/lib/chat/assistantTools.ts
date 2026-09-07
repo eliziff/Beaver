@@ -2472,8 +2472,11 @@ export function assistantTools<Context extends {
           const title = trimmed(objectRecord(input.research_action)?.title);
           if (!title || title.length > 200) return Promise.resolve(fail("create requires a title"));
           if (!sources) return fail("Sources workspace operations are unavailable");
-          let file = await sources.create(scope, { title, projectId: matterId },
-            { audit, executor: "assistant", model, turnId, chatId, ...researchOperation, callId: call.id });
+          // Reuse this chat's bound workspace; repeated creates otherwise orphan Library files.
+          const createActor = { audit, executor: "assistant" as const, model, turnId, chatId,
+            ...researchOperation, callId: call.id };
+          let file = chatId ? await sources.ensure(scope, { chatId, title, projectId: matterId }, createActor)
+            : await sources.create(scope, { title, projectId: matterId }, createActor);
           onMutationCommitted();
           if (onResearchWorkspace) file = await onResearchWorkspace(file.document.id, legalEvidenceState) ?? file;
           return publishGenerated(file.document, file.workingRevision);
