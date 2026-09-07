@@ -9,13 +9,22 @@ jobs:
   snapshot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          persist-credentials: false
-      - name: Source snapshot
+      - name: Checkout application and native pins
         run: |
-          tar --exclude=.git --exclude=node_modules --exclude=target --exclude='*.pdf' --exclude='*.docx' --exclude='*.png' --exclude='*.jpg' --exclude='*.onnx' --exclude='*.zip' --exclude='*.parquet' -czf /tmp/quotation-source.tgz .
+          git init .
+          git remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          git fetch --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+          for module in legal-structure legal-pdf-parser; do
+            url=$(git config -f .gitmodules submodule.$module.url)
+            sha=$(git ls-tree HEAD "$module" | awk '{print $3}')
+            git init "$module"
+            git -C "$module" remote add origin "$url"
+            git -C "$module" fetch --depth=1 origin "$sha"
+            git -C "$module" checkout --detach FETCH_HEAD
+          done
+      - name: Source snapshot
+        run: tar --exclude=.git --exclude=node_modules --exclude=target --exclude='*.onnx' --exclude='*.zip' --exclude='*.parquet' -czf /tmp/quotation-source.tgz .
       - uses: actions/upload-artifact@v4
         with:
           name: quotation-source
@@ -25,11 +34,20 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci --ignore-scripts
+      - run: |
+          npm ci --ignore-scripts
+          npm ci --ignore-scripts --prefix frontend
+          npm ci --ignore-scripts --prefix backend
       - name: Test dependencies
-        run: tar -czf /tmp/quotation-node.tgz node_modules frontend/node_modules backend/node_modules 2>/dev/null || test -s /tmp/quotation-node.tgz
+        run: tar -czf /tmp/quotation-node.tgz node_modules frontend/node_modules backend/node_modules
       - uses: actions/upload-artifact@v4
         with:
           name: quotation-node
           path: /tmp/quotation-node.tgz
+          retention-days: 1
+      - run: cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quotation-native
+          path: native/legal-structure-node/target/release/liblegal_structure_node.so
           retention-days: 1
