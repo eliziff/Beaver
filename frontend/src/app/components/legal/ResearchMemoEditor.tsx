@@ -14,7 +14,7 @@ import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { RESEARCH_SOURCE_DRAG, RESEARCH_SOURCE_REFERENCE_DRAG } from "./ResearchLabelPicker";
 import { citationMarkdown, memoCitation, RESEARCH_PASSAGE_DRAG, RESEARCH_PASSAGE_REFERENCE_DRAG, type MemoSourceReference } from "./researchMemo";
 import { getResearchCitation, getResearchItems } from "@/app/lib/api/researchFiles";
-import type { ResearchEvidence, ResearchFile } from "@/app/lib/researchFiles";
+import { researchHighlightCount, type ResearchEvidence, type ResearchFile } from "@/app/lib/researchFiles";
 
 function CitationView({ node, extension }: NodeViewProps) {
   const citation = memoCitation(node.attrs.href, node.attrs.label);
@@ -153,7 +153,7 @@ export default function ResearchMemoEditor({ file, value, onChange, onOpenCitati
         ? [{ value: "", label: "Whole source" }, ...passages.map((item) => ({ value: item.receipt.evidence_id,
             label: item.receipt.locator.label, description: item.receipt.span_text ?? undefined }))]
         : sources.map((source) => ({ value: source.id, label: sourceLabel(source.id),
-            description: source.passages?.count ? `${source.passages.count} saved` : undefined }))}
+            description: researchHighlightCount(source) ? `${researchHighlightCount(source)} highlights` : undefined }))}
       onChange={(id) => { if (id === null) return;
         if (citing?.sourceId) void cite(citing.sourceId, id || undefined);
         else setCiting({ sourceId: id }); }} />

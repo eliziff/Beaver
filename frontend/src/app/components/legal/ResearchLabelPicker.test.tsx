@@ -62,6 +62,19 @@ describe("ResearchLabelPicker", () => {
       id: "e-1", sourceId: "source-1", labelIds: ["h"], note: "" }));
   });
 
+  it("replaces a highlight type without offering additional assignment slots", async () => {
+    const typed = { ...file, state: { ...file.state, labels: { ...labels,
+      other: label("other", 1, "highlight", "#93ab87") } } }, act = vi.fn().mockResolvedValue(file);
+    render(<ResearchLabelEditor target={{ file: typed, kind: "evidence", itemId: "e-1",
+      sourceId: "source-1", labelIds: ["h"], title: "Passage" }} mutations={lane(act)} onClose={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Add label assignment" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show this label" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "OTHER" }));
+    await waitFor(() => expect(act).toHaveBeenCalledWith(expect.objectContaining({
+      type: "annotate", kind: "evidence", id: "e-1", sourceId: "source-1", labelIds: ["other"],
+    })));
+  });
+
   it("autosaves a source-only 19-character badge and its native colour", async () => {
     const act = vi.fn().mockResolvedValue(file), close = vi.fn();
     render(<ResearchLabelEditor target={{ file, kind: "source", itemId: "source-1",

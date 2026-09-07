@@ -157,7 +157,6 @@ async function loadApp() {
   const { createSourceWorkspaceApplication } = await import("../lib/sourceWorkspaceApplication"),
     { createSourceWorkspacesRouter } = await import("./sourceWorkspaces"),
     sources = createSourceWorkspaceApplication(documents, { chats, tables: tabularRepository,
-      projects: localProjects, library: localLibraryStore, preferences: {} as never,
       tabular: async () => { throw new Error("Table operations are not part of this chat fixture"); } });
   const application = createChatApplication({
     chats, sources,
