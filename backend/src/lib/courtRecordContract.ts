@@ -1,115 +1,11 @@
-import values from "mike/shared/court-record-profiles.json";
-import courtRegistry from "mike/shared/court-registry.json";
-import { matchesWorkProductRole,
-  type CourtRecordWorkProductOutput } from "mike/shared/court-record-work-products.mjs";
+import { COURT_PROFILE_BY_ID, COURT_RECORD_COVER_FIELD_IDS,
+  type DocumentKind, type CourtProfile } from "mike/shared/court-record-profiles.mjs";
+import { matchesWorkProductRole } from "mike/shared/court-record-work-products.mjs";
 import { decodeWorkProductBindings, type WorkProductState } from "./workProduct";
 
-export type CourtRecordSlotContract = {
-  id: string;
-  label: string;
-  requirement: "required" | "optional" | "conditional" | "forbidden";
-  order: number;
-  repeatable?: boolean;
-  group?: string;
-  condition?: string;
-  maximumPages?: number;
-  rule70PageLimit?: "standard" | "combined-cross-appeal";
-  acceptedFormats?: Array<"pdf" | "docx">;
-  acceptedWorkProductOutputs?: CourtRecordWorkProductOutput[];
-  generated?: string;
-  descriptionOnly?: boolean;
-  defaultDescription?: string;
-  allowUnavailableNote?: boolean;
-  separateFile?: boolean;
-};
-const UNASSIGNED_SLOT: CourtRecordSlotContract = {
+const UNASSIGNED_SLOT: DocumentKind = {
   id: "unassigned", label: "Unassigned", requirement: "optional", order: 0, repeatable: true,
 };
-export type CourtRecordProfileContract = {
-  id: string;
-  label: string;
-  selectable?: boolean;
-  coverFields: string[];
-  partyStyles?: CourtRecordPartyStyleContract[];
-  filingGroupId?: string;
-  effectiveFrom?: string;
-  oneOf?: Array<{ slots: string[]; label: string }>;
-  slots: CourtRecordSlotContract[];
-};
-
-export type CourtRecordPartyStyleContract = {
-  id: string;
-  label: string;
-  groups: Array<{ id: string; role: string; roleBelow?: string; optional?: boolean }>;
-};
-
-type ProfileSource = Pick<CourtRecordProfileContract,
-  "id" | "label" | "selectable" | "effectiveFrom" | "oneOf" | "slots"> & {
-  courtId: string;
-  cover: { fieldKeys: string[] };
-  technical: string;
-  partyStyleIds?: string[];
-  filingGroupId?: string;
-};
-type Catalogue = {
-  partyStyles: CourtRecordPartyStyleContract[];
-  coverFieldDefinitions: Record<string, { id: string; partyStyleId?: string }>;
-  technicalDefinitions: Record<string, unknown>;
-  profiles: ProfileSource[];
-};
-const contract = values as unknown as Catalogue;
-const styleById = new Map(contract.partyStyles.map((style) => [style.id, style]));
-const courtIds = new Set(courtRegistry.courts.map(({ id }) => id));
-if (styleById.size !== contract.partyStyles.length || contract.partyStyles.some((style) =>
-  new Set(style.groups.map(({ id }) => id)).size !== style.groups.length)) {
-  throw new Error("Duplicate Court Record party style or group id");
-}
-const requiredStyle = (id: string) => {
-  const style = styleById.get(id);
-  if (!style) throw new Error(`Missing Court Record party style ${id}`);
-  return style;
-};
-const profileIds = new Set<string>();
-export const COURT_RECORD_PROFILES: CourtRecordProfileContract[] = contract.profiles.map((source) => {
-  if (profileIds.has(source.id)) throw new Error(`Duplicate Court Record profile ${source.id}`);
-  profileIds.add(source.id);
-  if (!courtIds.has(source.courtId)) throw new Error(`Missing Court Record court ${source.courtId}`);
-  if (!Object.hasOwn(contract.technicalDefinitions, source.technical)) {
-    throw new Error(`Missing Court Record technical definition ${source.technical}`);
-  }
-  const partyStyles = source.partyStyleIds?.map(requiredStyle);
-  const coverFields = source.cover.fieldKeys.map((key) => {
-    const field = contract.coverFieldDefinitions[key];
-    if (!field) throw new Error(`Missing Court Record cover field ${key}`);
-    if (field.partyStyleId && !partyStyles?.some(({ id }) => id === field.partyStyleId)) {
-      throw new Error(`Invalid Court Record conditional field for ${source.id}`);
-    }
-    return field.id;
-  });
-  const slotIds = new Set(source.slots.map(({ id }) => id));
-  if (slotIds.size !== source.slots.length || source.oneOf?.some((choice) =>
-    choice.slots.some((id) => !slotIds.has(id)))) {
-    throw new Error(`Invalid Court Record slots for ${source.id}`);
-  }
-  if (source.filingGroupId && (!partyStyles?.length || partyStyles.some((style) =>
-    !style.groups.some(({ id }) => id === source.filingGroupId)))) {
-    throw new Error(`Invalid Court Record filing group for ${source.id}`);
-  }
-  return {
-    id: source.id,
-    label: source.label,
-    ...(source.selectable !== undefined && { selectable: source.selectable }),
-    coverFields,
-    ...(partyStyles && { partyStyles }),
-    ...(source.filingGroupId && { filingGroupId: source.filingGroupId }),
-    ...(source.effectiveFrom && { effectiveFrom: source.effectiveFrom }),
-    ...(source.oneOf && { oneOf: source.oneOf }),
-    slots: source.slots,
-  };
-});
-export const COURT_RECORD_PROFILE_BY_ID = new Map(
-  COURT_RECORD_PROFILES.map((profile) => [profile.id, profile]),
-);
 const object = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown> : null;
@@ -131,7 +27,7 @@ export function decodeCourtRecordPartyContact(value: unknown): CourtRecordPartyC
     Object.values(contact).every((field) => string(field))
     ? contact as CourtRecordPartyContact : null;
 }
-const sourceCoverFields = new Set(Object.values(contract.coverFieldDefinitions).map(({ id }) => id));
+const sourceCoverFields = new Set(COURT_RECORD_COVER_FIELD_IDS);
 
 function validSourceFields(value: unknown) {
   const source = object(value), cover = object(source?.cover), groups = source?.partyGroups,
@@ -155,18 +51,18 @@ function validSourceFields(value: unknown) {
       source[key] === undefined || string(source[key]));
 }
 
-function validCover(value: unknown, profile: CourtRecordProfileContract) {
+function validCover(value: unknown, profile: CourtProfile) {
   const cover = object(value);
-  const partyFields = profile.partyStyles?.length
+  const partyFields = profile.cover.partyStyles?.length
     ? ["partyStyleId", "partyGroups", "filingPartyIds"] : [];
   if (!cover || Object.keys(cover).some((key) =>
-    !profile.coverFields.includes(key) && !partyFields.includes(key))) {
+    !profile.cover.fields.some(({ id }) => id === key) && !partyFields.includes(key))) {
     return false;
   }
   for (const [key, field] of Object.entries(cover)) {
     if (key !== "partyGroups" && key !== "filingPartyIds" && !string(field)) return false;
   }
-  const styles = profile.partyStyles;
+  const styles = profile.cover.partyStyles;
   if (!styles?.length) return true;
   const styleId = String(cover.partyStyleId ?? "").trim();
   const style = styles.find(({ id }) => id === styleId) ??
@@ -210,7 +106,7 @@ function validCover(value: unknown, profile: CourtRecordProfileContract) {
   return valid && (filingPartyIds === undefined || Array.isArray(filingPartyIds) &&
     filingPartyIds.length <= 100 && new Set(filingPartyIds).size === filingPartyIds.length &&
     filingPartyIds.every((partyId) => id(partyId) && partyIds.has(partyId) &&
-      (!profile.filingGroupId || partyGroupById.get(partyId) === profile.filingGroupId)));
+      (!profile.cover.filingGroupId || partyGroupById.get(partyId) === profile.cover.filingGroupId)));
 }
 
 /** Decodes the durable, file-byte-free Court draft stored at the application boundary. */
@@ -219,7 +115,7 @@ export function decodeCourtRecordDraftState(value: unknown): WorkProductState | 
   if (!state || !exactKeys(state, ["profileId", "cover", "entries", "bindings"]) ||
       !id(state.profileId) || !Array.isArray(state.entries) ||
       state.entries.length > 500) return null;
-  const profile = COURT_RECORD_PROFILE_BY_ID.get(String(state.profileId));
+  const profile = COURT_PROFILE_BY_ID.get(String(state.profileId));
   const bindings = decodeWorkProductBindings(state.bindings);
   if (!bindings || !profile || !validCover(state.cover, profile)) return null;
   const entryIds = new Set<string>(), slotCounts = new Map<string, number>();
@@ -229,7 +125,7 @@ export function decodeCourtRecordDraftState(value: unknown): WorkProductState | 
     const entry = object(raw), seen = object(entry?.lastSeen);
     const isUnassigned = entry?.kindId === "unassigned";
     const slot = isUnassigned ? UNASSIGNED_SLOT
-      : profile?.slots.find(({ id: slotId }) => slotId === entry?.kindId);
+      : profile?.documentKinds.find(({ id: slotId }) => slotId === entry?.kindId);
     if (!entry || !seen || !slot ||
         !exactKeys(entry, ["id", "kindId", "title", "lastSeen"],
           ["date", "rule70CountedPages", "exhibitLabel", "sourceExhibits", "sourceFields",

@@ -3,9 +3,10 @@ import { randomUUID } from "node:crypto";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { docxToPdf } from "./convert";
 import { contentTypeForDocumentType, validateDocumentFile } from "./documentTypes";
-import { COURT_RECORD_PROFILE_BY_ID, decodeCourtRecordDraftState,
-  decodeCourtRecordPartyContact, type CourtRecordPartyContact,
-  type CourtRecordPartyStyleContract, type CourtRecordProfileContract } from "./courtRecordContract";
+import { COURT_PROFILE_BY_ID, type PartyStyle, type CourtProfile }
+  from "mike/shared/court-record-profiles.mjs";
+import { decodeCourtRecordDraftState, decodeCourtRecordPartyContact,
+  type CourtRecordPartyContact } from "./courtRecordContract";
 import { documentProjectionService } from "./documentProjectionService";
 import type { DocumentFile, DocumentStore } from "./documentStore";
 import { decodeWorkProductBuildReceipt, type WorkProductInput } from "./workProduct";
@@ -105,8 +106,8 @@ export function createCourtRecordsApplication(
           typeof state.bindings !== "object" || Array.isArray(state.bindings)) {
         throw new ApplicationError(409, "This court record draft is invalid");
       }
-      const profile = COURT_RECORD_PROFILE_BY_ID.get(String(record.state.profileId));
-      const slot = profile?.slots.find(({ id }) => id === input.kindId);
+      const profile = COURT_PROFILE_BY_ID.get(String(record.state.profileId));
+      const slot = profile?.documentKinds.find(({ id }) => id === input.kindId);
       if (!slot || slot.requirement === "forbidden" || slot.generated || slot.descriptionOnly ||
           !acceptsWorkProductOutput(slot, { kind: child.kind,
             profileId: child.kind === "court-record" ? String(child.state.profileId) : undefined,
@@ -157,7 +158,7 @@ export function createCourtRecordsApplication(
         throw new ApplicationError(409, "This court record draft is invalid");
       }
       const profileId = input.profileId ?? String(state.profileId ?? "");
-      const profile = COURT_RECORD_PROFILE_BY_ID.get(profileId);
+      const profile = COURT_PROFILE_BY_ID.get(profileId);
       if (!profile) {
         throw new ApplicationError(400, "Select an available court record format");
       }
@@ -166,7 +167,7 @@ export function createCourtRecordsApplication(
           "Remove or move the existing documents before changing the court record format");
       }
       const cover = structuredClone(state.cover);
-      const partyStyles = profile.partyStyles ?? [];
+      const partyStyles = profile.cover.partyStyles ?? [];
       if (profileId !== state.profileId) cleanCoverForProfile(cover, profile);
       const requestedStyleId = typeof input.cover?.partyStyleId === "string"
         ? input.cover.partyStyleId.trim() : "";
@@ -203,7 +204,7 @@ export function createCourtRecordsApplication(
           }
           continue;
         }
-        if (![...profile.coverFields, "partyStyleId"].includes(field) ||
+        if (![...profile.cover.fields.map(({ id }) => id), "partyStyleId"].includes(field) ||
             typeof value !== "string" || !value.trim() || value.length > 5_000) {
           throw new ApplicationError(400, `Invalid cover field: ${field}`);
         }
@@ -217,7 +218,7 @@ export function createCourtRecordsApplication(
       let entryId: string | undefined;
       if (input.entry) {
         const patch = input.entry;
-        const slot = profile.slots.find(({ id }) => id === patch.slotId);
+        const slot = profile.documentKinds.find(({ id }) => id === patch.slotId);
         if (!slot || slot.requirement === "forbidden" || slot.generated) {
           throw new ApplicationError(409, "Select a slot available in this format");
         }
@@ -468,8 +469,8 @@ function selectedOcrPages(value: unknown) {
   return [...new Set(value as number[])].sort((left, right) => left - right);
 }
 
-function parsePartyGroups(value: unknown, profile: CourtRecordProfileContract,
-  style: CourtRecordPartyStyleContract, requireNames = false): PartyGroup[] {
+function parsePartyGroups(value: unknown, profile: CourtProfile,
+  style: PartyStyle, requireNames = false): PartyGroup[] {
   const definitions = new Map(style.groups.map((group) => [group.id, group]));
   const partyGroups = !Array.isArray(value) ? value : value.map((raw) => {
     const group = object(raw) ? raw : {};
@@ -525,9 +526,9 @@ function mergePartyGroups(value: unknown, incoming: PartyGroup[]): PartyGroup[] 
   return groups;
 }
 
-function cleanCoverForProfile(cover: Record<string, unknown>, profile: CourtRecordProfileContract) {
-  const styles = profile.partyStyles ?? [];
-  const allowed = new Set([...profile.coverFields,
+function cleanCoverForProfile(cover: Record<string, unknown>, profile: CourtProfile) {
+  const styles = profile.cover.partyStyles ?? [];
+  const allowed = new Set([...profile.cover.fields.map(({ id }) => id),
     ...(styles.length ? ["partyStyleId", "partyGroups", "filingPartyIds"] : [])]);
   for (const key of Object.keys(cover)) if (!allowed.has(key)) delete cover[key];
   const style = styles.find(({ id }) => id === cover.partyStyleId);
@@ -537,8 +538,8 @@ function cleanCoverForProfile(cover: Record<string, unknown>, profile: CourtReco
   }
   const groups = parsePartyGroups(cover.partyGroups ?? [], profile, style);
   cover.partyGroups = groups;
-  const eligible = new Set(groups.filter((group) => !profile.filingGroupId ||
-    group.id === profile.filingGroupId).flatMap((group) => group.parties.map(({ id }) => id)));
+  const eligible = new Set(groups.filter((group) => !profile.cover.filingGroupId ||
+    group.id === profile.cover.filingGroupId).flatMap((group) => group.parties.map(({ id }) => id)));
   const filingPartyIds = Array.isArray(cover.filingPartyIds)
     ? cover.filingPartyIds.filter((id): id is string => typeof id === "string" && eligible.has(id))
     : [];
