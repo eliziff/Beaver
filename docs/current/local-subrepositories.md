@@ -23,6 +23,14 @@ not another active product or backlog.
 
 ## Fresh checkout
 
+**Known blocker, verified September 7, 2026:** the upstream server rejects Beaver's
+`mike-workflows` pin `8ca09c44b6b06c21046c4cc22edf0ed75e8d72ad` with `not our ref`.
+The sequence below therefore cannot currently finish from public remotes alone.
+A maintainer must publish the exact missing history or explicitly review and gate
+a replacement catalogue revision. Do not use `--remote` or a newer branch as an
+undocumented substitute. Existing compatible local checkouts can retain their
+pinned source while this is resolved.
+
 Do not use an unqualified `--recurse-submodules`: `OpenLegalData` is a Git link
 without a `.gitmodules` URL. Initialize the four public paths explicitly, then
 restore the bundled repository. From PowerShell:
@@ -38,12 +46,14 @@ git -C OpenLegalData checkout --detach $lock.repositories.OpenLegalData.commit
 
 Then follow the [application setup](../../README.md#run-locally). The native Node
 addon is built inside Beaver; standalone parser/browser guides own their separate
-executables and model/runtime packages.
+executables and model/runtime packages. The documentation CI checks its linked
+source repositories; passing it does not certify complete application bootstrap
+or repair the unavailable workflow pin.
 
 ## Existing checkout and changes
 
 Inspect each working tree before updating; never reset or overwrite another
-session's work. For the public paths:
+session's work. Once the required pins are available, for the public paths:
 
 ```sh
 git submodule sync -- legal-structure legal-pdf-parser legal-browser-ocr mike-workflows
