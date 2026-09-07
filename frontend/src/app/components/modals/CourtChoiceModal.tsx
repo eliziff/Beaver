@@ -28,7 +28,7 @@ export function CourtChoiceModal({ open, onClose, title, searchLabel, value, opt
   const close = () => { setPicked(undefined); onClose(); };
   return <SearchableChoiceModal open={open} onClose={close} title={title} value={value}
     searchLabel={searchLabel} searchable={visible.length > 8} size="2xl"
-    className="!h-[min(32rem,calc(100dvh-2rem))]"
+    className="!h-fit min-h-[min(28rem,calc(100dvh-2rem))] max-h-[calc(100dvh-2rem)]"
     options={visible}
     onChange={(next) => { if (next) { setPicked(undefined); onChange(next); } }}
     leadPanel={<div role="group" aria-label="Jurisdiction" className="grid gap-0.5">
