@@ -26,6 +26,8 @@ import type { ResearchChange } from "./researchHistory";
 import type { ResearchSubject } from "./researchSelection";
 import type { ResearchOperationContext } from "./researchProvenance";
 
+import { researchFindingReferenceSchema } from "./researchFindingReference";
+
 const result = (value: unknown): BeaverOutcome => ({ result: toolText(value, objectRecord(value)?.ok === false) });
 const fail = (error: string) => result({ ok: false, error });
 
@@ -36,6 +38,7 @@ export const researchReadContextSchema = z.object({
   workspace: z.object({ documentId: z.string(), versionId: z.string(),
     workingRevision: z.number().int().nonnegative() }).strict().optional(),
   restricted: z.boolean().optional(),
+  findingRefs: z.array(researchFindingReferenceSchema).max(500).optional(),
   subjects: z.array(z.object({ sourceId: z.string(), resource: z.string().min(1).max(4_000),
     rowId: z.string().optional(), reference: researchSourceReferenceSchema,
     evidence: z.array(z.custom<LegalEvidenceReceipt>((value) => storedLegalEvidenceReceipt(value) !== null)).optional(),
@@ -70,7 +73,8 @@ export function researchReadCursors(context: ResearchReadContext) {
 }
 export function researchReadContextPrompt(context: ResearchReadContext | undefined) {
   if (!context) return "";
-  return [context.workspace ? `CURRENT RESEARCH WORKSPACE: ${resourceReference.document(
+  return [context.findingRefs ? `SELECTED RESEARCH RESULTS: ${JSON.stringify(context.findingRefs)}. Read findings or read_table_cells for the original answers and their support.` : "",
+  context.workspace ? `CURRENT RESEARCH WORKSPACE: ${resourceReference.document(
     context.workspace.documentId, context.workspace.versionId)}` : "",
   context.subjects ? `${context.subjects.length} ${context.restricted ? "selected" : "saved"} source scopes:\n` +
     context.subjects.slice(0, 5).map(({ resource, evidence }) => resource +

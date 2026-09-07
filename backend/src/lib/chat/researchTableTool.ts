@@ -2,7 +2,7 @@ import { z } from "zod";
 import { ApplicationError, type ApplicationScope } from "../applicationError";
 import type { ResearchFile } from "../researchFile";
 import type { SourceWorkspaceApplication } from "../sourceWorkspaceApplication";
-import { researchFindingReferenceSchema } from "../researchChat";
+import { researchFindingReferenceSchema, type ResearchFindingReference } from "../researchFindingReference";
 import type { ResearchSubject } from "../researchSelection";
 import { researchResultFilter } from "../researchReader";
 import { safeErrorMessage } from "../safeError";
@@ -34,9 +34,9 @@ const updateInput = tabularDtos.update.pick({ title: true, columns_config: true,
   .required({ expected_version: true }).extend({ propose: z.boolean().optional() });
 
 export async function readResearchFindings(dependencies: { sources: SourceWorkspaceApplication;
-  scope: ApplicationScope; workspaceId: string; subjects?: ResearchSubject[] }, input: z.input<typeof findingsInput>): Promise<BeaverOutcome> {
+  scope: ApplicationScope; workspaceId: string; subjects?: ResearchSubject[]; findingRefs?: ResearchFindingReference[] }, input: z.input<typeof findingsInput>): Promise<BeaverOutcome> {
   const options = findingsInput.parse(input), { sources, scope, workspaceId } = dependencies,
-    page = await sources.findings(scope, workspaceId, { ...options,
+    page = await sources.findings(scope, workspaceId, { ...options, references: dependencies.findingRefs,
       ...(!options.reference ? { subjects: dependencies.subjects } : {}) }),
     permitted = researchResultFilter({ subjects: dependencies.subjects ?? [], restricted: !!dependencies.subjects }),
     metadata = (finding: typeof page.items[number]) => ({ reference: finding.reference, kind: finding.kind,
