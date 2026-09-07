@@ -997,20 +997,10 @@ export const hasCaseNameInText = (text: string) => CASE_NAME.test(text);
 export function renderLegalEvidenceAnswer(state: LegalEvidenceTurnState): string | null {
   if (state.failure) return null;
   if (!state.answer) return null;
-  const refs = new Map<string, number>();
-  for (const group of legalEvidenceCitationGroups(state))
-    for (const entry of group.members)
-      refs.set(entry.receipt.evidence_id, group.ref);
-  // Consecutive claims resting on the same chip repeat one citation down the
-  // page. The first claim carries it; the run that follows is already attributed.
-  let carried = "";
+  const { claimRefs } = legalEvidenceCitationPlan(state);
   return state.answer.map((claim, index) => {
-    const markers = [...new Set(claim.evidence_ids.flatMap((id) =>
-      refs.has(id) ? [`[${refs.get(id)}]`] : []))];
     const table = claim.text.startsWith("|") && claim.text.endsWith("|");
-    const joined = markers.join("");
-    const citations = !table && joined === carried ? "" : joined;
-    carried = table ? "" : joined;
+    const citations = claimRefs[index].map((ref) => `[${ref}]`).join("");
     const text = table
       ? `${claim.text.slice(0, -1).trimEnd()} ${citations} |`
       : `${claim.text}${citations ? ` ${citations}` : ""}`;
@@ -1030,6 +1020,9 @@ export type LegalEvidenceCitationGroup = {
   members: CitationEntry[];
   locatorKind: LegalEvidenceReceipt["locator"]["kind"];
   locatorLabels: string[];
+  /** A lower-numbered chip already cited this authority, so this one is a
+   * subsequent reference and carries the short form with its own pinpoint. */
+  shortForm: boolean;
 };
 
 // One authority, one identity: read from A2AJ and attested by the citator is
@@ -1040,65 +1033,69 @@ function sourceKey(receipt: LegalEvidenceReceipt) {
     : [receipt.citation, receipt.name, receipt.source_class].join("\u0000");
 }
 
+/** A bare passage list has no claims to divide, so it reads as one claim. */
 export function legalEvidenceCitationGroupsFromEntries(
   entries: readonly RegisteredEvidence[],
 ): LegalEvidenceCitationGroup[] {
+  const ids = entries.map(({ receipt }) => receipt.evidence_id);
+  return ids.length ? legalEvidenceCitationPlan({
+    answer: [{ text: "", evidence_ids: ids }],
+    evidence: new Map(entries.map((entry) => [entry.receipt.evidence_id, entry])),
+  } as LegalEvidenceTurnState).groups : [];
+}
+
+/**
+ * A citation belongs to the proposition it supports, not to the authority: a
+ * chip carries the pinpoints of its own claim, and two claims resting on the
+ * same pinpoints share one chip. The first chip for an authority is the full
+ * citation; later chips are subsequent references carrying the new pinpoint.
+ */
+export function legalEvidenceCitationPlan(state: LegalEvidenceTurnState): {
+  groups: LegalEvidenceCitationGroup[];
+  claimRefs: number[][];
+} {
   const groups: LegalEvidenceCitationGroup[] = [];
   const grouped = new Map<string, LegalEvidenceCitationGroup>();
-  const pinpoints = new Map<string, Set<LegalEvidenceReceipt["locator"]["kind"]>>();
-  for (const { receipt } of entries) if (receipt.locator.kind !== "document")
-    pinpoints.set(sourceKey(receipt),
-      (pinpoints.get(sourceKey(receipt)) ?? new Set()).add(receipt.locator.kind));
-  for (const raw of entries) {
-    const source = sourceKey(raw.receipt), kinds = pinpoints.get(source);
-    // An unpinpointed passage has no locator system of its own, so it joins its
-    // authority's pinpointed chip rather than standing up a locator-less twin.
-    const kind = raw.receipt.locator.kind !== "document" ? raw.receipt.locator.kind
-      : kinds?.size === 1 ? [...kinds][0] : "document";
-    const key = `${source}\u0000${kind}`;
-    let group = grouped.get(key);
-    if (!group) {
-      group = { ref: groups.length + 1, members: [], locatorKind: kind, locatorLabels: [] };
-      grouped.set(key, group);
-      groups.push(group);
-    }
-    group.members.push({ ...raw, ref: group.ref });
-  }
-  for (const group of groups) {
-    const labels = group.members.flatMap(({ receipt }) =>
-      receipt.locator.kind === group.locatorKind ? [receipt.locator.label] : []);
-    group.locatorLabels = collapseProvisionLabels(labels, group.locatorKind)
-      ?? [...new Set(labels)];
-  }
-  return groups;
-}
-
-export function legalEvidenceCitationGroups(
-  state: LegalEvidenceTurnState,
-): LegalEvidenceCitationGroup[] {
-  return legalEvidenceCitationGroupsFromEntries(legalEvidenceCitationEntries(state));
-}
-
-export function legalEvidenceCitationEntries(
-  state: LegalEvidenceTurnState,
-): Array<RegisteredEvidence & { ref: number }> {
-  const entries: Array<RegisteredEvidence & { ref: number }> = [];
-  const seen = new Set<string>();
+  const cited = new Set<string>();
+  const claimRefs: number[][] = [];
   for (const claim of state.answer ?? []) {
-    const claimEntries = claim.evidence_ids.flatMap((id) => state.evidence.get(id) ?? []);
-    const pinpointed = new Set(claimEntries
-      .filter(({ receipt }) => receipt.locator.kind !== "document")
-      .map(({ receipt }) => sourceKey(receipt)));
-    for (const entry of claimEntries) {
-      const { evidence_id, locator, span_text } = entry.receipt;
-      if (!span_text || seen.has(evidence_id) ||
-          (locator.kind === "document" && pinpointed.has(sourceKey(entry.receipt)))) continue;
-      seen.add(evidence_id);
-      entries.push({ ...entry, ref: entries.length + 1 });
+    const bySource = new Map<string, RegisteredEvidence[]>();
+    for (const entry of claim.evidence_ids.flatMap((id) => state.evidence.get(id) ?? [])) {
+      if (!entry.receipt.span_text) continue;
+      const source = sourceKey(entry.receipt);
+      bySource.set(source, [...bySource.get(source) ?? [], entry]);
     }
+    const refs: number[] = [];
+    for (const [source, members] of bySource) {
+      // An unpinpointed passage has no locator system of its own, so it joins
+      // its authority's pinpointed chip rather than standing up a twin.
+      const kinds = new Set(members.flatMap(({ receipt }) =>
+        receipt.locator.kind === "document" ? [] : [receipt.locator.kind]));
+      const kind = kinds.size === 1 ? [...kinds][0] : "document";
+      const labels = kind === "document" ? [] : members.flatMap(({ receipt }) =>
+        receipt.locator.kind === kind ? [receipt.locator.label] : []);
+      const locatorLabels = collapseProvisionLabels(labels, kind) ?? [...new Set(labels)];
+      const key = [source, kind, locatorLabels.join("")].join(" ");
+      let group = grouped.get(key);
+      if (!group) {
+        group = { ref: groups.length + 1, members: [], locatorKind: kind, locatorLabels,
+          shortForm: cited.has(source) };
+        grouped.set(key, group);
+        groups.push(group);
+        cited.add(source);
+      }
+      for (const entry of members)
+        if (!group.members.some(({ receipt }) => receipt.evidence_id === entry.receipt.evidence_id))
+          group.members.push({ ...entry, ref: group.ref });
+      refs.push(group.ref);
+    }
+    claimRefs.push([...new Set(refs)]);
   }
-  return entries;
+  return { groups, claimRefs };
 }
+
+export const legalEvidenceCitationEntries = (state: LegalEvidenceTurnState) =>
+  legalEvidenceCitationPlan(state).groups.flatMap(({ members }) => members);
 
 
 export function legalEvidenceReceiptEvent(

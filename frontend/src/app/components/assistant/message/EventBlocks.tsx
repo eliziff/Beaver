@@ -138,9 +138,11 @@ export function collapseActivities(activities: readonly AssistantActivity[]): As
                 label: count ? `${activity.label} — ${count} citing source${count === 1 ? "" : "s"}` : activity.label });
             continue;
         }
-        const previous = rows.at(-1);
-        if (!previous || previous.tool !== "Read" || activity.tool !== "Read" ||
-            activitySource(previous) !== activitySource(activity)) {
+        // Windows of one source are one act however they interleave with another's.
+        const index = activity.tool !== "Read" ? -1 : rows.findLastIndex((row) =>
+            row.tool === "Read" && activitySource(row) === activitySource(activity));
+        const previous = index < 0 ? undefined : rows[index];
+        if (!previous) {
             rows.push(activity);
             continue;
         }
@@ -149,7 +151,7 @@ export function collapseActivities(activities: readonly AssistantActivity[]): As
             LOCATOR_NOUNS.has(before[1]) && LOCATOR_NOUNS.has(next[1])
             ? `Reading ${next[1]} ${[...new Set([...before[2].split(", "), ...next[2].split(", ")])].join(", ")} of ${next[3]}`
             : activity.label;
-        rows[rows.length - 1] = { ...previous, label: merged, status: activity.status,
+        rows[index] = { ...previous, label: merged, status: activity.status,
             citations: [...(previous.citations ?? []), ...(activity.citations ?? [])]
                 .filter((citation, index, all) =>
                     all.findIndex((other) => citationSourceKey(other) === citationSourceKey(citation)) === index) };
