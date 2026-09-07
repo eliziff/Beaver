@@ -16,7 +16,9 @@ import type { GroundedAnswer, GroundedEvidence } from "@/app/lib/groundedAnswers
 import type { ResearchChange, ResearchFile, ResearchProposal, ResearchSelection, ResearchSourceReference } from "@/app/lib/researchFiles";
 
 export type TabularResearchScope = { researchFileId: string; selection: ResearchSelection };
-export type TabularScope = { research_file_id?: string; versionId?: string; workingRevision?: number; subjects: {
+export type TabularScope = { selection?: ResearchSelection;
+  researchImport?: { rows: "sources" | "passages"; labelId?: string; columns: (ColumnConfig & { fieldIds: string[] })[] };
+  research_file_id?: string; versionId?: string; workingRevision?: number; subjects: {
   rowId?: string; sourceId: string; resource: string; reference: ResearchSourceReference;
   evidence?: GroundedEvidence[];
 }[] };
@@ -119,10 +121,7 @@ export const designTabularReview = (payload: {
   current?: ColumnConfig[];
   documentNames?: string[];
 }) => post<{ title: string; columns_config: ColumnConfig[] }>("/tabular-review/design", payload);
-export const proposeColumnLabels = (fileId: string, reviewId: string, columnIndex: number) =>
-  post<ResearchFile>(`/source-workspaces/${segment(fileId)}/column-labels`, {
-    reviewId, columnIndex,
-  });
+
 export const generateTabularColumnPrompt = (
   title: string,
   options?: { format?: string; documentName?: string; tags?: string[] },

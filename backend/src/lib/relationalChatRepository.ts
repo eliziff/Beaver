@@ -97,7 +97,10 @@ async function commitChat(scope: ApplicationScope, id: string, mutation: ChatMut
         AND chat_id=${id} AND role='assistant'`, tx);
       if (!message) return { status: "missing" };
     }
-    const version = current.transcript_version + 1, created = now();
+    // A turn may write both messages in one millisecond. UUID order must not
+    // associate the answer with the next question during research conversion.
+    const version = current.transcript_version + 1, created = new Date(Math.max(
+      Date.now(), (Date.parse(String(current.updated_at)) || 0) + 2)).toISOString();
     if (!await changes(sql`UPDATE chats SET updated_at=${created},transcript_version=${version}
       WHERE id=${id} AND transcript_version=${current.transcript_version}`, tx))
       return { status: "conflict", currentVersion: current.transcript_version };
@@ -119,7 +122,7 @@ async function commitChat(scope: ApplicationScope, id: string, mutation: ChatMut
         await changes(sql`INSERT INTO chat_messages(id,chat_id,turn_id,role,
         content,files,workflow,citations,created_at) VALUES(${assistantMessage.id},${id},
         ${assistantMessage.turnId ?? null},'assistant',${encode([])},${null},${null},
-        ${assistantMessage.citations === undefined ? null : encode(assistantMessage.citations)},${created})
+        ${assistantMessage.citations === undefined ? null : encode(assistantMessage.citations)},${new Date(Date.parse(created) + 1).toISOString()})
         ON CONFLICT(id) DO UPDATE SET turn_id=COALESCE(excluded.turn_id,chat_messages.turn_id),
           content=excluded.content,citations=excluded.citations`, tx);
         await syncMessageEvents(tx, assistantMessage.id, assistantMessage.content);

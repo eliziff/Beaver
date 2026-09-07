@@ -5,9 +5,11 @@ import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
 import { readResearchFile, visitResearchEvidenceParts, researchSourceResource,
   type ResearchFile, type ResearchFileState, type ResearchEvidence, type ResearchSourceReference } from "./researchFile";
 
+import { researchFindingReferenceSchema } from "./researchFindingReference";
+
 const selectionIds = z.array(z.string().min(1).max(200)).max(100_000)
   .transform((values) => [...new Set(values)]);
-export const researchSelectionSchema = z.object({ sourceIds: selectionIds.optional(), labelIds: selectionIds.optional(),
+export const researchSelectionSchema = z.object({ findingRefs: z.array(researchFindingReferenceSchema).max(10_000).optional(), sourceIds: selectionIds.optional(), labelIds: selectionIds.optional(),
   evidenceIds: selectionIds.optional(), target: z.enum(["sources", "passages"]), unlabelled: z.boolean().optional(),
   members: z.array(z.object({ sourceId: z.string().min(1).max(200), evidenceIds: selectionIds.optional() }).strict())
     .max(100_000).optional() }).strict();

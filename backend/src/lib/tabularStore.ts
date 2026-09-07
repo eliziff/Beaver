@@ -5,7 +5,7 @@ import { parseResourceReference } from "./resourceReferences";
 import type { ResearchChange, ResearchChangeSummary } from "./researchHistory";
 import type { ResearchArrangement } from "./tabular/researchArrangement";
 import type { ResearchSelection, ResearchSubject } from "./researchSelection";
-import type { ResearchFindingReference } from "./researchChat";
+import type { ResearchFindingReference } from "./researchFindingReference";
 
 export type TabularScope = ApplicationScope;
 
@@ -19,7 +19,8 @@ export type TabularCellContent = GroundedResult & {
 };
 export type TabularSelection = { research_file_id?: string; versionId?: string;
   workingRevision?: number; subjects: ResearchSubject[]; arrangement?: ResearchArrangement;
-  selection?: ResearchSelection;
+  researchImport?: { rows: "sources" | "passages"; labelId?: string; columns: (TabularColumn & { fieldIds: string[] })[] };
+  selection?: ResearchSelection; groupNames?: Record<string, string>;
   findings?: { chatId?: string; answerIds?: string[]; sourceIds: string[]; references?: ResearchFindingReference[] } };
 export const tabularSubjectId = (subject: Pick<ResearchSubject, "resource" | "rowId">) => {
   if (subject.rowId) return subject.rowId;
@@ -47,9 +48,12 @@ export type WriteResult<T> = { status: "committed"; value: T }
 export type TabularOperation = { executor: "human" | "assistant"; model?: string;
   title?: string; changeKey?: string; propose?: boolean };
 
+export type TabularSeedCell = Pick<TabularCell, "document_id" | "column_index" | "status" | "content">;
+
 export type ReviewInput = { title?: string | null; projectId?: string | null;
   columns?: TabularColumn[]; documentIds?: string[]; workflowId?: string | null;
-  sharedWith?: string[]; scopeConfig?: TabularSelection; operation?: TabularOperation };
+  sharedWith?: string[]; scopeConfig?: TabularSelection; operation?: TabularOperation;
+  seedCells?: TabularSeedCell[] };
 
 export type TabularRepository = {
   page(scope: TabularScope, options: {

@@ -5,9 +5,9 @@ import type { ResearchFile, ResearchSelection } from "@/app/lib/researchFiles";
 import { ResearchWorkspaceViews, ResearchSourceAnswers } from "./ResearchWorkspaceViews";
 import { SourcesWorkspaceProvider } from "./SourcesWorkspace";
 const api = vi.hoisted(() => ({ getWorkspaceViews: vi.fn(), openWorkspaceTable: vi.fn(),
-  getResearchFile: vi.fn(), createChat: vi.fn(), getWorkspaceFindings: vi.fn(), bindWorkspaceView: vi.fn() }));
+  previewResearchTable: vi.fn(), getResearchFile: vi.fn(), createChat: vi.fn(), getWorkspaceFindings: vi.fn(), bindWorkspaceView: vi.fn() }));
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({ ...await original<typeof import("@/app/lib/api/researchFiles")>(),
-  getWorkspaceViews: api.getWorkspaceViews, openWorkspaceTable: api.openWorkspaceTable,
+  previewResearchTable: api.previewResearchTable, getWorkspaceViews: api.getWorkspaceViews, openWorkspaceTable: api.openWorkspaceTable,
   getResearchFile: api.getResearchFile, getWorkspaceFindings: api.getWorkspaceFindings, bindWorkspaceView: api.bindWorkspaceView }));
 vi.mock("@/app/lib/api/chat", async (original) => ({ ...await original<typeof import("@/app/lib/api/chat")>(), createChat: api.createChat }));
 const file = { document: { id: "workspace", filename: "Research.research.md", project_id: "project" },
@@ -22,12 +22,15 @@ function setup(selection: ResearchSelection = { target: "sources" }) {
 function open(name: "Table" | "Chat") { fireEvent.click(screen.getByRole("button", { name: "Open as" }));
   fireEvent.click(screen.getByRole("menuitem", { name })); }
 beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); api.getResearchFile.mockResolvedValue(file);
-  api.getWorkspaceViews.mockResolvedValue({ tables: [], chats: [] }); });
+  api.getWorkspaceViews.mockResolvedValue({ tables: [], chats: [] });
+  api.previewResearchTable.mockResolvedValue({ title: "Research", basis: "basis", columns: [{ index: 0, name: "Reason", prompt: "Why?", fieldIds: ["question"] }],
+    fields: [], reuse: [{ index: 0, reused: 1, unrun: 0 }], preview: [{ title: "Case", values: ["Existing grounded finding"] }], arrangement: { rows: [{ id: "source" }] } }); });
 it("opens a table through the deterministic Research-set import", async () => {
   api.openWorkspaceTable.mockResolvedValue({ id: "table", project_id: "project" }); setup(); open("Table");
-  expect(await screen.findByRole("dialog", { name: /Import a Research set/u })).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "Create" }));
-  await waitFor(() => expect(api.openWorkspaceTable).toHaveBeenCalledWith("workspace", { rows: "sources" }));
+  expect(await screen.findByRole("dialog", { name: /Review existing research/u })).toBeVisible();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Create review" })).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "Create review" }));
+  await waitFor(() => expect(api.openWorkspaceTable).toHaveBeenCalledWith("workspace", expect.objectContaining({ rows: "sources", basis: "basis", selection: { target: "sources" } })));
   await waitFor(() => expect(screen.getByLabelText("Location")).toHaveTextContent("/projects/project/tabular-reviews/table"));
 });
 it("creates a chat attached to the current workspace and selection", async () => {

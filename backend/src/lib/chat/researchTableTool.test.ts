@@ -24,8 +24,7 @@ afterEach(async () => {
 
 async function fixture() {
   const { runtime } = await import("../../runtime"), research = await import("../researchFile"),
-    { readResearchResource } = await import("../researchReader"),
-    { resourceReference } = await import("../resourceReferences"),
+    { createLibraryEvidence } = await import("./legalEvidence"),
     { createResearchTableTool, readResearchFindings } = await import("./researchTableTool"),
     { TurnToolRegistry } = await import("./toolRegistry");
   close = () => runtime.shutdown();
@@ -34,9 +33,9 @@ async function fixture() {
       bytes: Buffer.from("Payment is due in thirty days.") }),
     reference = { provider: "library" as const, kind: "document" as const, id: source.id,
       versionId: source.current_version_id, title: source.filename },
-    read = await readResearchResource(documents, owner, {
-      resource: resourceReference.document(source.id, source.current_version_id) }),
-    receipt = read.evidence![0];
+    receipt = createLibraryEvidence({ documentId: source.id, versionId: source.current_version_id,
+      filename: source.filename, sourceText: "Payment is due in thirty days.",
+      spanText: "Payment is due in thirty days.", start: 0, end: 29 });
   const createWorkspace = async (title: string) => {
     const document = await documents.create(owner, { filename: `${title}.research.md`, fileType: "md",
       bytes: Buffer.from(research.researchFileMarkdown(title, research.createResearchFileState())) });
@@ -164,8 +163,10 @@ it("pages saved reasoning with original support and queues only unmapped cells i
 it("keeps exact mixed membership and exposes the canonical selection for each row", async () => {
   const f = await fixture(), other = await f.documents.create(owner, { filename: "Notice.txt", fileType: "txt",
     bytes: Buffer.from("Notice may be sent by email. Payment is due on Friday.") }),
-    { readResearchResource } = await import("../researchReader"),
-    read = await readResearchResource(f.documents, owner, { resource: `document://${other.id}/version/${other.current_version_id}` }),
+    { createLibraryEvidence } = await import("./legalEvidence"),
+    read = { evidence: [createLibraryEvidence({ documentId: other.id, versionId: other.current_version_id, filename: other.filename,
+      sourceText: "Notice may be sent by email. Payment is due on Friday.",
+      spanText: "Notice may be sent by email. Payment is due on Friday.", start: 0, end: 52 })] },
     file = await f.sources.collect(owner, f.workspace.document.id, { evidence: read.evidence }),
     sourceId = Object.keys(f.workspace.state.sources)[0], otherId = Object.values(file.state.sources)
       .find(({ reference }) => reference.id === other.id)!.id,
@@ -201,7 +202,7 @@ it("keeps exact mixed membership and exposes the canonical selection for each ro
   expect(whole.subjects.find((item) => item.sourceId === otherId)?.evidence).toBeUndefined();
 });
 
-it("resolves label membership live while a queued table agent keeps its permitted passages and question", async () => {
+it("freezes label membership while a queued table agent keeps its permitted passages and question", async () => {
   const f = await fixture(), labelId = randomUUID(), sourceId = Object.keys(f.workspace.state.sources)[0];
   let file = (await f.research.commitResearchFile(f.documents, owner, f.workspace,
     { type: "label", id: labelId, name: "Payment", scope: "highlight" }))!;
@@ -215,7 +216,7 @@ it("resolves label membership live while a queued table agent keeps its permitte
   file = (await f.sources.get(owner, file.document.id))!;
   await f.research.commitResearchFile(f.documents, owner, file,
     { type: "label-selection", target: "passages", evidenceIds: [f.receipt.evidence_id], assign: [labelId], mode: "remove" });
-  expect((await f.application.detail(owner, table.id)).review.document_ids).toEqual([]);
+  expect((await f.application.detail(owner, table.id)).review.document_ids).toEqual(table.document_ids);
   const { createTabularApplication } = await import("../tabular/application"),
     { tabularRepository } = await import("../relationalTabularRepository"),
     { tabularAgentJobHandler } = await import("../tabular/agents"),
@@ -253,13 +254,14 @@ it("preserves the first observed passage when extraction fails before submitting
   expect((await f.sources.items(owner, id, { kind: "passages", offset: 0, limit: 10 })).total).toBe(0);
   await expect(app.runAgent(owner, { reviewId: table.id, documentId: f.source.id, jobId: "failed-job" }))
     .rejects.toThrow("Model unavailable");
-  const saved = await f.sources.items(owner, id, { kind: "passages", offset: 0, limit: 10 });
+  const saved = await f.sources.items(owner, id, { kind: "evidence", offset: 0, limit: 10 });
+  expect((await f.sources.items(owner, id, { kind: "passages", offset: 0, limit: 10 })).total).toBe(0);
   expect(saved.total).toBe(1);
   expect(saved.items[0].value).toMatchObject({ receipt: { span_text: "Payment is due in thirty days." } });
   expect((await tabularRepository.detail(owner, table.id))?.cells[0]).toMatchObject({ status: "error", content: null });
 });
 
-it("reuses a canonical typed table result across arrangements without copying its answer", async () => {
+it("snapshots a canonical typed result with original evidence across arrangements", async () => {
   const f = await fixture(), sourceId = Object.keys(f.workspace.state.sources)[0],
     columns = [{ index: 0, name: "Days", prompt: "How many days?", format: "number" }],
     original = await f.application.create(owner, { research_file_id: f.workspace.document.id, columns_config: columns }),
@@ -282,19 +284,19 @@ it("reuses a canonical typed table result across arrangements without copying it
     evidence_id: f.receipt.evidence_id, exact_passage: f.receipt.span_text });
   expect(support.evidence).toEqual([f.receipt]);
   expect((await f.application.detail(owner, linked.id)).cells[0].content).toMatchObject(content);
-  expect((await tabularRepository.detail(owner, linked.id))?.cells[0]).toMatchObject({ status: "pending", content: null });
+  expect((await tabularRepository.detail(owner, linked.id))?.cells[0]).toMatchObject({ status: "done", content });
   const latest = (await tabularRepository.detail(owner, original.id))!.cells[0];
   await tabularRepository.setCell(owner, { reviewId: original.id, documentId: f.source.id, columnIndex: 0,
     expected: latest, status: "done", content: { ...content, flag: "green", reasoning: "Confirmed from the payment clause." } });
   expect((await f.application.detail(owner, linked.id)).cells[0].content).toMatchObject({ value: 30,
-    flag: "green", reasoning: "Confirmed from the payment clause.", evidence: [f.receipt] });
+    flag: "yellow", reasoning: content.reasoning, evidence: [f.receipt] });
 
   const other = await f.createWorkspace("Other analysis");
   await f.sources.bind(owner, other.document.id, { tableId: linked.id });
   const crossReference = { kind: "cell" as const, reviewId: linked.id, rowId: "payment", columnIndex: 0 },
     imported = await f.sources.finding(owner, other.document.id, crossReference);
   expect(imported).toMatchObject({ sourceId: Object.keys(other.state.sources)[0], answer: {
-    value: 30, flag: "green", reasoning: "Confirmed from the payment clause." }, evidence: [f.receipt] });
+    value: 30, flag: "yellow", reasoning: content.reasoning }, evidence: [f.receipt] });
   expect((await f.application.detail(owner, linked.id)).review.scope_config?.research_file_id)
     .toBe(f.workspace.document.id);
   await expect(f.sources.bind(owner, other.document.id, { tableId: linked.id,
