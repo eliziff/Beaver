@@ -50,13 +50,6 @@ function citationPillLabel(annotation: Citation, sourceOnly = false): string {
     const source = citationSourceLabel(annotation, sourceOnly);
     if (sourceOnly) return source;
     const pinpoint = citationPinpoint(annotation);
-    if (annotation.display_form === "pinpoint" && pinpoint) return pinpoint;
-    if (annotation.display_form === "supra") {
-        const style = caseName(annotation);
-        const short = annotation.short_authority?.trim() ||
-            (style ? shortCaseName(style) : source);
-        return `${short}, supra${pinpoint ? ` at ${pinpoint}` : ""}`;
-    }
     if (!pinpoint || source.toLowerCase().includes(pinpoint.toLowerCase()))
         return source;
     const separator = annotation.locator_separator ??
@@ -72,12 +65,10 @@ export function citationPillParts(annotation: Citation, sourceOnly = false): {
 } {
     const label = citationPillLabel(annotation, sourceOnly);
     const style = caseName(annotation);
-    if (!style || annotation.display_form === "pinpoint")
-        return { styleOfCause: null, rest: label };
-    const shown = annotation.display_form === "supra" ? shortCaseName(style) : style;
+    if (!style) return { styleOfCause: null, rest: label };
     return {
-        styleOfCause: shown,
-        rest: label.startsWith(shown) ? label.slice(shown.length) : `, ${label}`,
+        styleOfCause: style,
+        rest: label.startsWith(style) ? label.slice(style.length) : `, ${label}`,
     };
 }
 export function citationTooltip(annotation: Citation): string {

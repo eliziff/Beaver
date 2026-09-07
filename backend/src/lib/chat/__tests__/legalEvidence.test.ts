@@ -216,12 +216,14 @@ describe("production legal evidence", () => {
       { text: "Fourth clause proposition.", evidence_ids: [ids[3]] },
     ] }, state);
 
+    // The run rests on one chip, so it is attributed once rather than after
+    // every sentence.
     expect(renderLegalEvidenceAnswer(state)).toBe(
       [
         "First clause proposition. [1]",
-        "Second clause proposition. [1]",
-        "Third clause proposition. [1]",
-        "Fourth clause proposition. [1]",
+        "Second clause proposition.",
+        "Third clause proposition.",
+        "Fourth clause proposition.",
       ].join("\n\n"),
     );
     const citations = createLegalEvidenceCitations(state);
