@@ -12,18 +12,16 @@ export type ResearchFinding = { reference: ResearchFindingReference; kind: "answ
   answer: GroundedResult; evidence: LegalEvidenceReceipt[];
   origin: { chatId?: string; messageId?: string; subagentId?: string; reviewId?: string; rowId?: string; columnIndex?: number } };
 
-/** Select original claim indices without rewriting their wording or manufacturing support. */
-export function selectFindingClaims(finding: ResearchFinding, reference: ResearchFindingReference): ResearchFinding {
-  if (!reference.claimIndices) return finding;
-  const claims = reference.claimIndices.map((index) => {
-    const at = finding.reference.claimIndices ? finding.reference.claimIndices.indexOf(index) : index;
-    const claim = finding.answer.claims[at];
-    if (!claim) throw new ApplicationError(400, "A selected claim is outside this finding");
-    return claim;
-  }), ids = new Set(claims.flatMap(({ evidence_ids }) => evidence_ids));
-  return { ...finding, reference, question: { ...finding.question, format: "text", tags: undefined },
-    answer: { claims, summary: claims.map(({ text }) => text).join("\n\n"),
-      coverage: finding.answer.coverage }, evidence: finding.evidence.filter(({ evidence_id }) => ids.has(evidence_id)) };
+/** Narrow a captured answer by its original claim indices without rereading changing output. */
+export function selectFindingClaims(finding: ResearchFinding, ref: ResearchFindingReference): ResearchFinding {
+  if (ref.kind !== "answer" || !ref.claimIndices) return finding;
+  const available = finding.reference.kind === "answer" ? finding.reference.claimIndices : undefined;
+  const indices = [...new Set(ref.claimIndices)].sort((a, b) => a - b);
+  const claims = indices.map((index) => finding.answer.claims[available ? available.indexOf(index) : index]);
+  if (claims.some((claim) => !claim)) throw new ApplicationError(409, "The selected Chat claim is unavailable");
+  const ids = new Set(claims.flatMap(({ evidence_ids }) => evidence_ids));
+  return { ...finding, reference: ref, answer: { claims, coverage: "partial" },
+    evidence: finding.evidence.filter(({ evidence_id }) => ids.has(evidence_id)) };
 }
 
 export async function resolveChatFindings(chats: ChatStore, documents: DocumentStore, scope: ApplicationScope,
@@ -39,15 +37,21 @@ export async function resolveChatFindings(chats: ChatStore, documents: DocumentS
     findings: Array<{ reference: Extract<ResearchFindingReference, { kind: "answer" }>; kind: "answer";
       sourceId: string; resource: string; question: { id: string; title: string; prompt: string };
       answer: GroundedAnswer; evidence: LegalEvidenceReceipt[]; origin: { chatId: string; messageId: string; subagentId?: string } }> = [];
+  // A committed turn may store its user and assistant messages at the same timestamp.
+  // Tie ordering must not attach an answer to the previous question.
+  const userPrompts = rows.filter((row) => row.role === "user" && typeof row.content === "string"),
+    byTurn = new Map(userPrompts.filter((row) => row.turn_id).map((row) => [row.turn_id!, row.content as string]));
   const byId = new Map<string, LegalEvidenceReceipt>();
   let prompt = "Recorded answer";
   for (const row of rows) {
     if (row.role === "user") { if (typeof row.content === "string") prompt = row.content; continue; }
     if (!Array.isArray(row.content)) continue;
-    // A later answer may cite an earlier read. Selection limits answers, not their
-    // original supporting receipts; future messages must never repair past claims.
+    // Earlier reads are reusable support, never findings in their own right.
     for (const receipt of priorLegalEvidenceReceipts(row.content)) byId.set(receipt.evidence_id, receipt);
     if (requested && !requested.has(row.id)) continue;
+    const simultaneous = row.created_at ? userPrompts.filter((user) => user.created_at === row.created_at) : [];
+    const questionPrompt = (row.turn_id ? byTurn.get(row.turn_id) : undefined) ??
+      (simultaneous.length === 1 ? simultaneous[0].content as string : prompt);
     let ordinal = 0;
     const append = (kind: "answer", answerId: string, question: string,
       claims: GroundedAnswer["claims"], subagentId?: string) => {
@@ -70,7 +74,7 @@ export async function resolveChatFindings(chats: ChatStore, documents: DocumentS
     };
     for (const event of row.content) {
       if (event.type === "legal_evidence_receipt" && event.status === "passed" && event.claims.length)
-        append("answer", `${row.id}:answer:${ordinal++}`, prompt, event.claims);
+        append("answer", `${row.id}:answer:${ordinal++}`, questionPrompt, event.claims);
       else if (event.type === "subagent_run" && event.status === "completed" &&
           event.grounding?.status === "passed" && event.grounding.claims.length)
         append("answer", `${row.id}:reader:${event.id}`, event.task, event.grounding.claims, event.id);

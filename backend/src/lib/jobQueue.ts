@@ -313,20 +313,41 @@ export async function createJobEventWriter(jobId: string) {
   let sequence = Number((await database.query<{ sequence: number }>(sql`
     SELECT COALESCE(MAX(sequence),0) sequence FROM application_job_events
     WHERE job_id=${jobId}`)).rows[0]?.sequence ?? 0), writes = Promise.resolve();
+  type Batch = { rows: Array<ReturnType<typeof sql>>; bytes: number };
+  let pending: Batch | undefined;
   return {
     append(value: unknown) {
       const event = boundedJson(jsonValue(value), 512 * 1024, "Job event");
-      const current = ++sequence, created = now();
-      writes = writes.then(async () => { await database.query(sql`INSERT INTO
-        application_job_events(job_id,sequence,event,created_at)
-        VALUES(${jobId},${current},${event},${created})`);
-        database.notifications?.publish(`events:${jobId}`);
-      });
-      // Keep flush() rejecting, but observe the rejection even if the provider
-      // does not yield control back to the handler immediately.
-      void writes.catch(() => undefined);
+      const bytes = Buffer.byteLength(event);
+      // The first write starts on the same microtask boundary as before. Only
+      // events already available before a write starts share an INSERT; there
+      // is no batching timer and individual events/sequence IDs are unchanged.
+      if (!pending || pending.rows.length >= 64 || pending.bytes + bytes > 64 * 1024) {
+        const batch: Batch = { rows: [], bytes: 0 };
+        pending = batch;
+        writes = writes.then(async () => {
+          if (pending === batch) pending = undefined;
+          try {
+            await database.query(sql`INSERT INTO application_job_events(job_id,sequence,event,created_at)
+              VALUES ${sql.join(batch.rows)}`);
+            database.notifications?.publish(`events:${jobId}`);
+          } finally { batch.rows = []; }
+        });
+        // Keep flush() rejecting, including calls made after failure. Do not
+        // continue past a failed batch, publish a false hint, or leak rejections.
+        void writes.catch(() => {
+          batch.rows = [];
+          if (pending === batch) pending = undefined;
+        });
+      }
+      pending.rows.push(sql`(${jobId},${++sequence},${event},${now()})`);
+      pending.bytes += bytes;
     },
-    flush: () => writes,
+    flush() {
+      // Seal this prefix: later appends cannot extend an outstanding flush.
+      pending = undefined;
+      return writes;
+    },
   };
 }
 
