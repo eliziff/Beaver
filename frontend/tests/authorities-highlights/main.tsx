@@ -4,6 +4,7 @@ import { PDFDocument, StandardFonts, degrees } from 'pdf-lib';
 import { QuotationReview } from '../../src/app/authorities/QuotationFinding';
 import type { AuthoritiesDiscrepancy } from '../../src/app/authorities/types';
 import { AuthoritiesHighlights } from '../../src/app/authorities/AuthoritiesHighlightEditor';
+import { PdfCanvas } from '../../src/app/components/shared/views/PdfCanvas';
 import type { AuthoritiesHost } from '../../src/app/authorities/host';
 import type { AuthoritiesProduct } from '../../src/app/authorities/types';
 import '../../src/app/globals.css';
@@ -49,6 +50,8 @@ const post=async(path:string,body:unknown)=>{
 function App() {
   const [product,setProduct]=useState(initial),[error,setError]=useState('');
   const [reviewOpen,setReviewOpen]=useState(false),[rechecking,setRechecking]=useState(false);
+  const [currentId,setCurrentId]=useState('');
+  const [preview,setPreview]=useState<{role:string;quote:string}>();
   // Real backend findings, so the dialog can only show what the deterministic check produces.
   const [findings,setFindings]=useState<AuthoritiesDiscrepancy[]>([]);
   useEffect(()=>{void fetch('/api/test-annotations/discrepancies').then(r=>r.json()).then(setFindings);},[]);
@@ -69,11 +72,18 @@ function App() {
   return <div className="mx-auto max-w-4xl p-6">
     <AuthoritiesHighlights product={product} tabs={new Map([['text','Tab 1'],['scan','Tab 2']])} host={host} busy={false} onSaved={setProduct}/>
     <button className="m-4 border p-2" disabled={!findings.length} onClick={()=>setReviewOpen(true)}>Review test quotations</button>
-    {reviewOpen && <QuotationReview initialId={findings[0]?.id ?? ''} items={rechecking ? undefined : findings} busy={rechecking}
-      sourceUrl={()=>'https://example.test/2024scc1'}
-      onClose={()=>setReviewOpen(false)} onResolve={(finding,_action,done)=>{
+    {reviewOpen && <QuotationReview currentId={currentId || findings[0]?.id || ''} items={rechecking ? undefined : findings} busy={rechecking}
+      onSelect={setCurrentId} onDone={()=>setReviewOpen(false)}
+      onOpenSource={finding=>{
+        const source=product.state.authorities[finding.authorityId].source;
+        if(source.kind==='attached')setPreview({role:source.sources[0].bindingRole,quote:(finding.found??finding.cited).text});
+      }}
+      onResolve={(finding,_action,done)=>{
         setRechecking(true);setTimeout(()=>{setFindings(values=>values.filter(value=>value.id!==finding.id));setRechecking(false);done();},100);
       }}/>}
+    {preview && <div className="mt-4 h-[520px] rounded-lg border border-gray-300">
+      <PdfCanvas bytes={files[preview.role]} quotes={[{quote:preview.quote}]} quoteFocusKey={preview.quote} ariaLabel="Source PDF" />
+    </div>}
     <button className="m-4 border p-2" onClick={()=>void build()}>Build test book</button>
     <button className="m-4 border p-2" onClick={()=>setProduct({...initial,state:{...initial.state,
       settings:{...initial.state.settings,passageMarking:'none'}}})}>Start with no automatic highlights</button>
