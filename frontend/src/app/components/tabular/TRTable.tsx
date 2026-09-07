@@ -84,14 +84,12 @@ export function TRTable({
     const noRows = !documents.length && !uploadingFilenames.length;
     return (
         <TableScrollArea horizontal scrollRef={scrollContainerRef}
-            header={<TableHeaderRow className="h-auto min-h-14 w-max min-w-full items-stretch pr-0 text-xs font-medium text-gray-500">
-                <TableStickyCell header className={`${STICKY} justify-between pr-1`}>
-                    <span className="flex min-w-0 items-center">
-                        <TableSelectionCheckbox loading={loading || noRows} aria-label="Select loaded documents"
-                            checked={selection.allSelected} indeterminate={selection.someSelected} onChange={selection.toggleAll} />
-                        Document
-                    </span>
-                    {!loading && !!sortedColumns.length && <HelpPopover label="Flag legend">
+            header={<TableHeaderRow className="h-10 w-max min-w-full items-stretch pr-0 text-xs font-medium text-gray-500">
+                <TableStickyCell header className={`${STICKY} pr-1`}>
+                    <TableSelectionCheckbox loading={loading || noRows} aria-label="Select loaded documents"
+                        checked={selection.allSelected} indeterminate={selection.someSelected} onChange={selection.toggleAll} />
+                    <span className="truncate text-sm font-medium text-gray-700">Document</span>
+                    {!loading && !!sortedColumns.length && <HelpPopover label="Flag legend" className="ml-1 shrink-0">
                         <ul className="space-y-1">{(Object.keys(FLAGS) as AnswerFlag[]).map((flag) =>
                             <li key={flag} className="flex items-center gap-2"><FlagDot flag={flag} />{FLAGS[flag].meaning}</li>)}</ul>
                     </HelpPopover>}
@@ -176,10 +174,10 @@ function ColumnHeader({ column, disabled, running, onEdit, onRerun, onClear, onD
     const format = FORMAT_OPTIONS.find(({ value }) => value === (column.format ?? "text")) ?? FORMAT_OPTIONS[0]!;
     const Icon = format.icon;
     const prompt = column.prompt && column.prompt !== column.name ? column.prompt : "";
-    return <TableHeaderCell data-tr-col-header className={`group/head ${COLUMN_WIDTH} ${GRID_LINE} h-auto flex-col items-stretch justify-start gap-1 px-2.5 py-2 text-left`}>
-        <span className="block whitespace-normal text-sm font-medium leading-5 text-gray-700 [overflow-wrap:anywhere]">{column.name}</span>
-        <span className="mt-auto flex min-h-6 items-center justify-end gap-1 text-gray-500">
-            <Icon aria-hidden="true" className="mr-auto size-3.5 shrink-0" />
+    return <TableHeaderCell data-tr-col-header className={`group/head ${COLUMN_WIDTH} ${GRID_LINE} h-full items-center justify-start gap-1 px-2.5 py-0 text-left`}>
+        <span className="truncate text-sm font-medium text-gray-700" title={column.name}>{column.name}</span>
+        <span className="ml-auto flex shrink-0 items-center gap-1 text-gray-500">
+            <Icon aria-hidden="true" className="size-3.5 shrink-0" />
             {prompt && <HelpPopover label={`${column.name} prompt`}><span className="whitespace-pre-wrap">{prompt}</span></HelpPopover>}
             <MoreActionsMenu label={`${column.name} actions`} triggerClassName="h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-800"
                 items={[
