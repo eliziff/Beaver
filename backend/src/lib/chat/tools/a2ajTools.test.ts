@@ -154,4 +154,27 @@ describe("legal-source assistant activity", () => {
       locator: { kind: "section" as const, label: `sec${label}` },
     })), "Family Law Act")).toBe("Reading ss 49(1)–49(4) of Family Law Act");
   });
+
+  it("never presents the no-locator fallback as a place in the document", () => {
+    // Live regression: a whole-document read of a journal article .docx was
+    // labelled "Reading document document through s 4(2)(b) of …docx", which
+    // claims a section structure the article does not have.
+    const evidence = createLibraryEvidence({
+      documentId: "document-1",
+      versionId: "version-1",
+      filename: "article.docx",
+      sourceText: "Exact passage.",
+      spanText: "Exact passage.",
+      start: 0,
+      end: 14,
+      blockId: "block-1",
+      locator: { kind: "document", label: "document" },
+    });
+    expect(assistantReadEvidenceActivityLabel([evidence], "article.docx"))
+      .toBe("Reading article.docx");
+    expect(assistantReadEvidenceActivityLabel([evidence, {
+      ...evidence,
+      locator: { kind: "section", label: "sec4(2)(b)" },
+    }], "article.docx")).toBe("Reading s 4(2)(b) of article.docx");
+  });
 });
