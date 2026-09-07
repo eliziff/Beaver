@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { ChevronRight, Plus } from "lucide-react";
+import { buttonClassName } from "../ui/button";
+import { FolderSvgIcon } from "../shared/FolderSvgIcon";
 import { InlineNameInput } from "../shared/InlineNameInput";
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { researchLabelPath, type ResearchAction, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
@@ -13,10 +15,12 @@ const LABEL_DRAG = "application/x-beaver-research-label";
 const COLOURS = ["#d6b85a", "#8aa8c7", "#90ac99", "#bda0b5", "#b4ab91", "#9fa7bf"];
 
 /** The same small hierarchy editor serves source folders and the highlight-type picker. */
-export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, onRemove, onStatus, preview }: {
+export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, onRemove, onStatus, preview, renderSources }: {
   scope: ResearchLabel["scope"]; sources?: ResearchSource[]; selectedId: string | null;
   onSelect: (id: string | null) => void; onRemove: (removal: ResearchRemoval) => void;
   onStatus: (message: string) => void; preview?: ResearchTreePreview;
+  /** Sources carried by a label render inline beneath it; `null` covers the unlabelled ones. */
+  renderSources?: (labelId: string | null) => React.ReactNode;
 }) {
   const { file, mutations } = useSourcesWorkspace();
   const labels = preview?.labels ?? file?.state.labels ?? {};
@@ -31,6 +35,11 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
       .forEach((label) => { const items = result.get(label.parentId) ?? []; items.push(label); result.set(label.parentId, items); });
     return result;
   }, [labels, scope]);
+  const direct = useMemo(() => {
+    const result = new Set<string>();
+    for (const source of sources) source.labelIds.forEach((id) => result.add(id));
+    return result;
+  }, [sources]);
   const counts = useMemo(() => {
     const result = new Map<string, number>();
     for (const source of sources) {
@@ -78,7 +87,8 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
   </div>;
   function branch(parentId: string | null): React.ReactNode {
     return <>{(children.get(parentId) ?? []).map((label) => {
-      const hasChildren = !!children.get(label.id)?.length, open = !collapsed.has(label.id);
+      const hasChildren = !!children.get(label.id)?.length || (!!renderSources && direct.has(label.id)),
+        open = !collapsed.has(label.id);
       return <div key={label.id} role="treeitem" aria-label={label.name} aria-selected={selectedId === label.id}
         aria-expanded={hasChildren ? open : undefined}>
         <div data-tree-drop-folder={label.id} draggable={!preview && !busy}
@@ -106,8 +116,8 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
           className={`group flex min-h-8 min-w-0 items-center gap-1 rounded px-1 ${drop?.id === label.id ? drop.mode === "inside" ? "ring-1 ring-gray-400" : drop.mode === "before" ? "border-t-2 border-gray-500" : "border-b-2 border-gray-500" : selectedId === label.id ? "bg-gray-100" : "hover:bg-gray-50"}`}>
           {hasChildren ? <button type="button" aria-label={`${open ? "Collapse" : "Expand"} ${label.name}`} onClick={() => toggle(label.id)} className="grid size-6 shrink-0 place-items-center rounded">
             <ChevronRight aria-hidden className={`size-3.5 text-gray-500 ${open ? "rotate-90" : ""}`} /></button> : <span className="w-6 shrink-0" />}
-          <label className="relative grid size-5 shrink-0 place-items-center rounded focus-within:outline focus-within:outline-2" title={`${label.name} colour`}>
-            <span className="size-2.5 rounded-full" style={{ backgroundColor: researchLabelColor(label) }} />
+          <label className="relative grid size-5 shrink-0 place-items-center rounded text-gray-500 focus-within:outline focus-within:outline-2" title={`${label.name} colour`}>
+            <FolderSvgIcon open={open && hasChildren} className="size-4" style={{ color: researchLabelColor(label) }} />
             {!preview && <input type="color" disabled={busy} aria-label={`${label.name} colour`} value={researchLabelColor(label)}
               onChange={(event) => void act({ type: "label", ...label, color: event.target.value })} className="absolute inset-0 size-5 cursor-pointer opacity-0" />}
           </label>
@@ -128,11 +138,11 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
               { label: "Delete", onSelect: () => onRemove({ kind: "label", id: label.id, name: label.name }) },
             ]} /></span>}
         </div>
-        {open && <div role={hasChildren ? "group" : undefined} className="ms-4">{branch(label.id)}{addField(label.id)}</div>}
+        {open && <div role={hasChildren ? "group" : undefined} className="ms-4">{branch(label.id)}{renderSources?.(label.id)}{addField(label.id)}</div>}
       </div>;
     })}</>;
   }
-  return <div ref={tree} role="tree" aria-label={scope === "source" ? "Source labels" : "Highlight types"} className="min-w-0"
+  return <div ref={tree} role="tree" aria-label={scope === "source" ? "Sources" : "Highlight types"} className="min-w-0"
     onKeyDown={(event) => {
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-label-select]");
       if (!button || !["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
@@ -154,11 +164,11 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
         className="flex h-8 w-full items-center justify-between rounded px-2 text-sm text-gray-700 aria-pressed:bg-gray-100 aria-pressed:font-semibold">
         All sources<span className="text-xs tabular-nums text-gray-500">{sources.length}</span>
       </button></div>}
-    {branch(null)}{addField(null)}
+    {branch(null)}{renderSources?.(null)}{addField(null)}
     {!preview && <button type="button" disabled={busy} data-tree-drop-root onClick={() => setAdding(null)}
       onDragOver={(event) => { if (canMove(dragged.current ?? "", null)) event.preventDefault(); }}
       onDrop={(event) => { event.preventDefault(); void move(event.dataTransfer.getData(LABEL_DRAG), null, children.get(null)?.length ?? 0); setDrop(null); }}
-      className="mt-1 flex h-8 items-center gap-1 rounded px-2 text-xs text-gray-500 hover:bg-gray-50 hover:text-gray-800">
+      className={buttonClassName({ variant: "outline", size: "compact", className: "mt-1 gap-1" })}>
       <Plus aria-hidden className="size-3" />{scope === "source" ? "Label" : "Highlight type"}
     </button>}
   </div>;

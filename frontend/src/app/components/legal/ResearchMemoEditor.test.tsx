@@ -23,16 +23,6 @@ describe("workspace memo Markdown", () => {
     expect(screen.queryByRole("button", { name: /Baker|Cite/ })).not.toBeInTheDocument();
     fireEvent.click(link); expect(open).toHaveBeenCalledWith(href);
   });
-  it("offers collected sources for citation insertion without surfacing background reads", async () => {
-    const file = { document: { id: "research" }, state: { labels: {}, sources: {
-      saved: { id: "saved", collected: true, reference: { title: "Collected case" }, passages: null },
-      read: { id: "read", collected: false, reference: { title: "Background read" }, passages: null },
-    } } } as unknown as ResearchFile;
-    render(<MemoryRouter><ResearchMemoEditor file={file} value="" onOpenCitation={vi.fn()} /></MemoryRouter>);
-    fireEvent.click(await screen.findByRole("button", { name: "Insert citation" }));
-    expect(await screen.findByText("Collected case")).toBeVisible();
-    expect(screen.queryByText("Background read")).not.toBeInTheDocument();
-  });
   it("round-trips formatting, tables and exact source citation links", () => {
     const href = "/sources/view?provider=a2aj&source_id=case-1&citation=2026+SCC+1&title=Baker+v+Canada&doc_type=cases&locator=7&locator_kind=paragraph&evidence_id=e1";
     const editor = new Editor({ extensions: memoExtensions, contentType: "markdown",

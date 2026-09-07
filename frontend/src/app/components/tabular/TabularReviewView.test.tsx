@@ -289,8 +289,10 @@ const scoped = (columns: { index: number; name: string; prompt: string; format?:
 it("adds workspace sources that are not rows yet", async () => {
     mocks.getTabularReview.mockResolvedValue(scoped([{ index: 0, name: "Term", prompt: "Find term" }]));
     mocks.getResearchFile.mockResolvedValue(workspaceFile({
-        "source-1": { id: "source-1", reference: { title: "Lease" }, labelIds: [], badge: "", note: "", passages: null },
-        "source-2": { id: "source-2", reference: { title: "Ruling" }, labelIds: [], badge: "", note: "", passages: null },
+        "source-1": { id: "source-1", reference: { title: "Lease" }, labelIds: [],
+      note: "", passages: null },
+        "source-2": { id: "source-2", reference: { title: "Ruling" }, labelIds: [],
+      note: "", passages: null },
     }));
     mocks.updateReview.mockResolvedValue({});
     render(<TRView reviewId="review-1" />);
@@ -323,7 +325,8 @@ it("discusses the selected column with its actual completed cell references", as
     data.cells = [{ ...data.cells[0], content: { summary: "Two years", claims: [], evidence: [], missing: [], coverage: "complete" } },
         { ...data.cells[0], id: "other", column_index: 2, content: { summary: "Not selected", claims: [], evidence: [], missing: [], coverage: "complete" } }];
     mocks.getTabularReview.mockResolvedValue(data);
-    const file = workspaceFile({ "source-1": { id: "source-1", reference: { title: "Lease" }, labelIds: [], badge: "", note: "", passages: null } });
+    const file = workspaceFile({ "source-1": { id: "source-1", reference: { title: "Lease" }, labelIds: [],
+      note: "", passages: null } });
     mocks.getResearchFile.mockResolvedValue(file); mocks.ensureWorkspace.mockResolvedValue(file);
     render(<TRView reviewId="review-1" />);
     await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));

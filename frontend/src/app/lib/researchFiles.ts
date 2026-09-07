@@ -12,7 +12,7 @@ export type ResearchSourceReference = { id: string;
     family?: never; part?: never } | { provider: string; family?: string; part?: string;
     kind: "case" | "legislation" | "journal" | "hansard"; versionId?: never });
 export type ResearchSource = { id: string; reference: ResearchSourceReference; collected?: boolean;
-  labelIds: string[]; badge: string; badgeColor?: string; note: string;
+  labelIds: string[]; note: string;
   passages: (ResearchPartReference & { labelCounts: Record<string, number>;
     unlabelledCount: number }) | null };
 export type ResearchEvidenceReceipt = GroundedEvidence;
@@ -64,10 +64,8 @@ export type ResearchAction =
       color?: string | null; order?: number; scope?: "source" | "highlight" }
   | { type: "remove"; kind: "label" | "source"; id: string }
   | { type: "remove"; kind: "evidence"; id: string; sourceId: string }
-  | { type: "source"; reference: ResearchSourceReference; labelIds?: string[];
-      badge?: string; badgeColor?: string; note?: string }
-  | { type: "annotate"; kind: "source"; id: string; labelIds?: string[];
-      badge?: string; badgeColor?: string; note?: string }
+  | { type: "source"; reference: ResearchSourceReference; labelIds?: string[]; note?: string }
+  | { type: "annotate"; kind: "source"; id: string; labelIds?: string[]; note?: string }
   | { type: "annotate"; kind: "evidence"; id: string; sourceId: string;
       labelIds?: string[]; note?: string }
   | { type: "passage"; sourceId: string; locator: PassageLocator; quote: string; labelIds?: string[] }

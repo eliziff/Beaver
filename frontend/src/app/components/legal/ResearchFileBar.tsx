@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Highlighter, SlidersHorizontal } from "lucide-react";
 import { ConfirmPopup } from "../popups/ConfirmPopup";
 import { ResearchSelectionLabels } from "../shared/ResearchSelectionLabels";
@@ -17,8 +17,7 @@ import { ResearchTree, type ResearchRemoval } from "./ResearchTree";
 import { AddResearchSources } from "./AddResearchSources";
 import { ResearchWorkspacePicker } from "./ResearchWorkspacePicker";
 import { sourceMatches, useSourceReader } from "./useSourceReader";
-
-const ResearchMemoPane = lazy(() => import("./ResearchMemoPane"));
+import ResearchMemoPane from "./ResearchMemoPane";
 
 type Props = { projectId?: string;
   rail?: HTMLElement | null; sourceDropNonce?: number;
@@ -207,9 +206,9 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
               if (value) next.add(id); else next.delete(id); return next; }) : undefined}
             onRemove={setRemoving} onStatus={setStatus}
             onSourceDrag={() => { if (!noteOpen) requestAnimationFrame(revealLabels); }} />
-          <Button size="compact" variant="ghost" onClick={() => setAddingSources(true)}>+ Add source</Button>
+          <Button size="compact" variant="outline" className="mt-1" onClick={() => setAddingSources(true)}>Add source</Button>
         </div>
-        <div className={`${noteOpen ? "flex" : "hidden"} min-h-0 flex-1 flex-col`}><Suspense fallback={<p role="status" className="py-3 text-sm text-gray-500">Opening memo…</p>}>
+        <div className={`${noteOpen ? "flex" : "hidden"} min-h-0 flex-1 flex-col`}>
           <ResearchMemoPane file={file} mutations={commit}
             onOpenCitation={(href) => {
               const params = new URLSearchParams(href.slice(href.indexOf("?") + 1)), source = file.state.sources[params.get("research_source") ?? ""];
@@ -217,7 +216,7 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
               else if (href.startsWith("/library?")) { const citation = parseMemoCitation(href); if (citation) reader.setReading({ citation }); }
               else window.open(href, "_blank", "noopener,noreferrer");
             }} />
-        </Suspense></div>
+        </div>
       </Tabs>
     </>}
     {addingSources && file && <AddResearchSources labelId={selectedLabel ?? scopedSourceLabels[0]} onClose={() => setAddingSources(false)}

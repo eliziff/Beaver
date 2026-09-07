@@ -72,24 +72,6 @@ describe("ResearchLabelPicker", () => {
     })));
   });
 
-  it("autosaves a source-only 19-character badge and its native colour", async () => {
-    const act = vi.fn().mockResolvedValue(file), close = vi.fn();
-    render(<ResearchLabelEditor target={{ file, kind: "source", itemId: "source-1",
-      labelIds: [], title: "Source" }} mutations={lane(act)} onClose={close} />);
-    fireEvent.click(screen.getByText("Badge", { selector: "summary" }));
-    const badge = screen.getByLabelText("Badge");
-    expect(badge).toHaveAttribute("id", "research-badge");
-    expect(badge).toHaveAttribute("maxlength", "19");
-    fireEvent.change(screen.getByLabelText("Badge color"), { target: { value: "#7c3aed" } });
-    fireEvent.change(badge, { target: { value: "12345678901234567890" } });
-    fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    await waitFor(() => expect(act).toHaveBeenCalledWith(expect.objectContaining({
-      type: "annotate", kind: "source", id: "source-1", badge: "1234567890123456789",
-      badgeColor: "#7c3aed",
-    })));
-    expect(close).toHaveBeenCalledOnce();
-  });
-
   it("does not turn arbitrary drags on label choices into membership changes", () => {
     const act = vi.fn().mockResolvedValue(file);
     render(<ResearchLabelEditor target={{ file, kind: "source", itemId: "source-1",

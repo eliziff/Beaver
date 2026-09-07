@@ -9,7 +9,8 @@ vi.mock("@/app/lib/api/researchFiles", async (original) => ({ ...await original<
   getResearchFile: api.file, getWorkspaceFindings: api.findings, getResearchItems: api.passages }));
 const file = (id = "workspace"): ResearchFile => ({ document: { id, filename: `${id}.research.md` }, versionId: "v1", workingRevision: 1,
   state: { ...newResearchState(), sources: { source: { id: "source", reference: { provider: "library", kind: "document", id: "document", versionId: "original" },
-    labelIds: [], badge: "", note: "", passages: { count: 1, sha256: "original", labelCounts: {}, unlabelledCount: 1 } } } } } as ResearchFile);
+    labelIds: [],
+      note: "", passages: { count: 1, sha256: "original", labelCounts: {}, unlabelledCount: 1 } } } } } as ResearchFile);
 function Results() {
   const workspace = useSourcesWorkspace(), page = workspace.findings.chains.source, passages = workspace.passages.chains.source;
   useEffect(() => { if (!page) void workspace.findings.fetchPage("source", null, false); }, [page, workspace.findings.fetchPage]);
