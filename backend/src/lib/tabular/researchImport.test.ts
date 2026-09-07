@@ -119,6 +119,17 @@ it("groups by actual question, not an entire chat, and offers individual origina
   expect(plan.arrangement.cells[0].items).toEqual([{ ...first.reference, claimIndices: [1] }]);
   expect(plan.samples[0].text).toBe("Second reason");
 });
+it("names the default highlight type for what it holds and reimports a question into its own column", () => {
+  const f = fixture();
+  f.file.state.labels[notice] = { ...f.file.state.labels[notice], name: "Highlight" };
+  const repeat = finding(f, "Contract");
+  // A review made from this research earlier comes back as a finding; it must not double the column.
+  repeat.question = { ...repeat.question, title: "Classification",
+    prompt: "Recorded source classifications; preserve their full paths." };
+  const catalog = researchImportCatalog(f.file, f.subjects, f.parts, [repeat], { rows: "sources" });
+  expect(defaultResearchImport(catalog).columns.map(({ name }) => name))
+    .toEqual(["Classification", "Research note", "Saved passages", "Payment"]);
+});
 it("keeps narrowed answer claim indices and row support rather than re-indexing the original answer", () => {
   const f = fixture(), answer = finding(f, "Why?", ["Only selected claim"]);
   answer.reference = { ...answer.reference, claimIndices: [7] } as typeof answer.reference;
