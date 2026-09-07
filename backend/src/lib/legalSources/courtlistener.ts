@@ -9,7 +9,7 @@ import {
   type NativeDocument,
 } from "../structureNative";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
-import { nonemptyString as asString } from "../value";
+import { jsonRecord, nonemptyString as asString } from "../value";
 import {
   courtlistenerLocalBulkAvailable,
   getLocalCourtlistenerCase,
@@ -183,35 +183,6 @@ async function capPageCitations(
   }
 }
 
-function compactCluster(raw: unknown) {
-  if (!raw || typeof raw !== "object") {
-    return {
-      id: null, caseName: null, dateFiled: null, court: null,
-      citations: [], url: null, pdfUrl: null, subOpinions: [],
-    };
-  }
-  const cluster = raw as JsonRecord;
-  return {
-    id: asNumber(cluster.id),
-    caseName: firstString(cluster, "case_name", "caseName", "name"),
-    dateFiled: firstString(cluster, "date_filed", "dateFiled"),
-    court:
-      asString((cluster.docket as JsonRecord | undefined)?.court_id) ??
-      asString(cluster.court) ??
-      null,
-    citations: Array.isArray(cluster.citations)
-      ? cluster.citations.map(citationLabel).filter(Boolean)
-      : [],
-    url: absoluteWebUrl(cluster.absolute_url),
-    pdfUrl:
-      absoluteStorageUrl(cluster.filepath_pdf_harvard) ??
-      absoluteStorageUrl(cluster.filepath_pdf_scan),
-    subOpinions: Array.isArray(cluster.sub_opinions)
-      ? cluster.sub_opinions
-      : [],
-  };
-}
-
 function opinionIdentifier(opinion: JsonRecord) {
   return asNumber(opinion.opinionId) ?? asNumber(opinion.id) ??
     asNumber(opinion.opinion_id);
@@ -370,132 +341,60 @@ function compactLocalBulkCluster(
   };
 }
 
-type CitationLookupCluster = ReturnType<typeof compactCluster>;
-
-type CitationLookupRow = {
-  citation: string | null;
-  status: string;
-  message: string | null;
-  clusters: CitationLookupCluster[];
-};
-
-type CitationLookupPayload = {
-  citationsSubmitted?: number;
-  citationLinks: {
-    clusterId: number | null;
-    citation: string | null;
-    caseName: string | null;
-    court: string | null;
-    dateFiled: string | null;
-    pdfUrl: string | null;
-    url: string | null;
-    markdown: string;
-  }[];
-  results: CitationLookupRow[];
-  source?: string;
-};
-
-function buildCitationLinks(results: CitationLookupRow[]) {
-  return results.flatMap((result) =>
-    result.clusters.flatMap((cluster) => {
-      if (!cluster.url) return [];
-      const label = [cluster.caseName, result.citation]
-        .filter(Boolean)
-        .join(", ");
-      return [
-        {
-          clusterId: cluster.id,
-          citation: result.citation,
-          caseName: cluster.caseName,
-          court: cluster.court,
-          dateFiled: cluster.dateFiled,
-          pdfUrl: cluster.pdfUrl,
-          url: cluster.url,
-          markdown: `[${label || cluster.url}](${cluster.url})`,
-        },
-      ];
-    }),
-  );
-}
-
 function courtlistenerApiTokenAvailable(apiToken?: string | null) {
   return !!(apiToken?.trim() || process.env.COURTLISTENER_API_TOKEN?.trim());
 }
 
-function getBulkCitationLookup(citations: string[]): CitationLookupPayload | null {
-  if (!courtlistenerLocalBulkAvailable()) return null;
-  const results: CitationLookupRow[] = citations.map((input) => {
-    const parts = parseCitationParts(input);
-    if (!parts) {
-      return {
-        citation: input,
-        status: "invalid",
-        message: "Citation could not be parsed for bulk lookup.",
-        clusters: [],
-      };
-    }
-    const citation = [parts.volume, parts.reporter, parts.page].filter(Boolean).join(" ");
-    const matches = lookupLocalCourtlistenerCitation(parts) ?? [];
-    return {
-      citation,
-      status: matches.length ? "ok" : "not_found",
-      message: matches.length
-        ? null
-        : "Citation was not found in the local bulk index.",
-      clusters: matches.map((cluster) =>
-        compactLocalBulkCluster(cluster, citation ? [citation] : []),
-      ),
-    };
-  });
-  return {
-    citationsSubmitted: citations.length || undefined,
-    citationLinks: buildCitationLinks(results),
-    results,
-    source: "bulk-local",
-  };
+function uniqueCitationCluster(ids: unknown[]): number | null {
+  const matches = [...new Set(ids.filter((id): id is number =>
+    typeof id === "number" && Number.isSafeInteger(id) && id > 0))];
+  return matches.length === 1 ? matches[0] : null;
 }
 
-async function fetchCourtlistenerCitationLookup(args: {
-  text: string;
-  citationsSubmitted?: number;
-  apiToken?: string | null;
-  signal?: AbortSignal;
-}): Promise<CitationLookupPayload> {
-  const body = new URLSearchParams({ text: args.text.slice(0, 64000) });
-  const results = await courtlistenerFetch<unknown[]>(
-    "/citation-lookup/",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body,
-      signal: args.signal,
-    },
-    args.apiToken,
-  );
-
-  const compactResults: CitationLookupRow[] = (
-    Array.isArray(results) ? results : []
-  )
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const row = item as JsonRecord;
-      return {
-        citation:
-          asString(row.citation) ?? asString(row.normalized_citation) ?? null,
-        status: asString(row.status) ?? String(row.status ?? "unknown"),
-        message: asString(row.message),
-        clusters: Array.isArray(row.clusters)
-          ? row.clusters.map(compactCluster)
-          : [],
-      };
-    })
-    .filter((row): row is CitationLookupRow => !!row);
-
-  return {
-    citationsSubmitted: args.citationsSubmitted,
-    citationLinks: buildCitationLinks(compactResults),
-    results: compactResults,
-  };
+/** Resolve one request; report/link rendering is not part of this boundary. */
+async function citationCluster(
+  citation: string,
+  apiToken?: string | null,
+  signal?: AbortSignal,
+): Promise<number | null> {
+  let text = typeof citation === "string" ? citation.trim() : "";
+  if (!text) return null;
+  const localAvailable = courtlistenerLocalBulkAvailable();
+  if (localAvailable) {
+    const parts = parseCitationParts(text);
+    if (parts) {
+      text = [parts.volume, parts.reporter, parts.page].filter(Boolean).join(" ");
+      const matches = lookupLocalCourtlistenerCitation(parts) ?? [];
+      // An ambiguous local hit is authoritative too: do not ask the API to choose.
+      if (matches.length) return uniqueCitationCluster(matches.map(({ id }) => id));
+    }
+    if (!courtlistenerApiTokenAvailable(apiToken)) return null;
+  }
+  try {
+    const results = await courtlistenerFetch<unknown>(
+      "/citation-lookup/",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ text: text.slice(0, 64000) }),
+        signal,
+      },
+      apiToken,
+    );
+    return uniqueCitationCluster((Array.isArray(results) ? results : []).flatMap((value) => {
+      const row = jsonRecord(value);
+      if (!Array.isArray(row?.clusters)) return [];
+      return row.clusters.flatMap((value) => {
+        const cluster = jsonRecord(value);
+        return asString(cluster?.absolute_url) ? [cluster?.id] : [];
+      });
+    }));
+  } catch (error) {
+    // Preserve optional API fallback: a local miss survives API failure, while
+    // API-only failures (including cancellation) still propagate to the registry.
+    if (!localAvailable) throw error;
+    return null;
+  }
 }
 
 async function getBulkCourtlistenerCaseOpinions(clusterId: number, opinionId?: number) {
@@ -544,69 +443,6 @@ async function compactLocalOpinion(
     },
     pageCitations,
   );
-}
-
-async function verifyCitations(args: {
-  citations?: string[];
-  apiToken?: string | null;
-  signal?: AbortSignal;
-}) {
-  const citations = Array.isArray(args.citations)
-    ? args.citations
-        .map((c) => (typeof c === "string" ? c.trim() : ""))
-        .filter(Boolean)
-        .slice(0, 250)
-    : [];
-  if (!citations.length) {
-    return { error: "Provide at least one citation or case name." };
-  }
-
-  const bulk = getBulkCitationLookup(citations);
-  if (bulk) {
-    const apiFallbackInputs =
-      citations.length > 0 && courtlistenerApiTokenAvailable(args.apiToken)
-        ? bulk.results
-            .filter(
-              (result) =>
-                result.status === "not_found" || result.status === "invalid",
-            )
-            .map((result) => result.citation)
-            .filter((citation): citation is string => !!citation)
-        : [];
-    if (!apiFallbackInputs.length) return bulk;
-
-    try {
-      const apiFallback = await fetchCourtlistenerCitationLookup({
-        text: apiFallbackInputs.join("\n"),
-        citationsSubmitted: apiFallbackInputs.length,
-        apiToken: args.apiToken,
-        signal: args.signal,
-      });
-      const fallbackRows = [...apiFallback.results];
-      const mergedResults = bulk.results.flatMap((result) => {
-        if (result.status !== "not_found" && result.status !== "invalid") {
-          return [result];
-        }
-        return [fallbackRows.shift() ?? result];
-      });
-      mergedResults.push(...fallbackRows);
-      return {
-        citationsSubmitted: bulk.citationsSubmitted,
-        citationLinks: buildCitationLinks(mergedResults),
-        results: mergedResults,
-        source: "bulk+api",
-      };
-    } catch {
-      return bulk;
-    }
-  }
-
-  return fetchCourtlistenerCitationLookup({
-    text: citations.join("\n"),
-    citationsSubmitted: citations.length || undefined,
-    apiToken: args.apiToken,
-    signal: args.signal,
-  });
 }
 
 async function searchCases(args: {
@@ -712,20 +548,6 @@ async function caseOpinions(args: {
   }) };
 }
 
-function uniqueCitationCluster(value: unknown) {
-  const links = (value as JsonRecord | null)?.citationLinks;
-  if (!Array.isArray(links)) return null;
-  const ids = [
-    ...new Set(
-      links.flatMap((raw) => {
-        const id = asNumber((raw as JsonRecord | null)?.clusterId);
-        return id && Number.isSafeInteger(id) && id > 0 ? [id] : [];
-      }),
-    ),
-  ];
-  return ids.length === 1 ? ids[0] : null;
-}
-
 function courtlistenerReference(
   source: LegalSourceReference,
   caseRecord: JsonRecord,
@@ -757,12 +579,7 @@ function provider(
       request.kind === "case" && structureNative().providerCitationsInText(request.text)
         .some(({ jurisdiction }) => jurisdiction === "us"),
     async resolve(request) {
-      const verified = await verifyCitations({
-        citations: [request.text],
-        apiToken: options.apiToken,
-        signal: request.signal,
-      });
-      const clusterId = uniqueCitationCluster(verified);
+      const clusterId = await citationCluster(request.text, options.apiToken, request.signal);
       return clusterId
         ? [{
             provider: "courtlistener",
