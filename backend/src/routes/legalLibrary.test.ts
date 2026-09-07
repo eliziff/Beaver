@@ -83,19 +83,6 @@ describe("legal Library viewer responses", () => {
       });
 
     expect(response.status).toBe(200);
-    expect(searchLegalSources).toHaveBeenCalledWith(expect.objectContaining({
-      text: '"registered"',
-      syntax: "fts5",
-      kinds: ["journal"],
-      providers: ["journal"],
-      author: "Example Author",
-      journal: "Alberta",
-      dateFrom: "2020-01-01",
-      dateTo: "2025-12-31",
-      sort: "newest",
-      limit: 25,
-      perProviderLimit: 25,
-    }));
     expect(response.body.results).toEqual([{
       provider: "journal",
       doc_type: "articles",

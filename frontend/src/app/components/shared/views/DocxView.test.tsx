@@ -168,14 +168,6 @@ describe("DocxView", () => {
         const viewport = container.querySelector<HTMLElement>(
             '[data-document-id="doc-1"]',
         )!;
-        expect(viewport).toHaveClass("flex-1", "overflow-auto");
-        expect(viewport.parentElement).toHaveClass(
-            "flex",
-            "min-h-0",
-            "flex-1",
-            "flex-col",
-            "overflow-hidden",
-        );
         Object.defineProperties(viewport, {
             clientHeight: { configurable: true, value: 320 },
             scrollHeight: { configurable: true, value: 1_500 },

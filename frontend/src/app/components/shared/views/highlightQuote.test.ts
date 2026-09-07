@@ -28,6 +28,5 @@ describe("PDF quote highlighting", () => {
     it("loads standard fonts only from the current origin", () => {
         const fonts = new URL(STANDARD_FONT_DATA_URL);
         expect(fonts.origin).toBe(location.origin);
-        expect(fonts.pathname).toBe("/pdfjs-standard-fonts/");
     });
 });

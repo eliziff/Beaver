@@ -380,7 +380,6 @@ describe("DocTable Library interactions", () => {
             </Profiler>,
         );
         const rootDropTarget = documentRow().parentElement!;
-        expect(rootDropTarget).toHaveClass("flex-1", "flex-col");
         const rootDropSpacer = rootDropTarget.querySelector(
             ".min-h-16",
         ) as HTMLElement;

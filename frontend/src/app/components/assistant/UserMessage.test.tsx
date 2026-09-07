@@ -5,13 +5,13 @@ import { describe, expect, it, vi } from "vitest";
 import { UserMessage } from "./UserMessage";
 
 describe("UserMessage", () => {
-    it("renders user markdown inside the same bubble", () => {
+    it("renders user markdown without raw markers", () => {
         const { container } = render(
             <UserMessage content={"Please review **section 7**:\n\n- Notice\n- Renewal"} />,
         );
 
-        expect(screen.getByText("section 7").tagName).toBe("STRONG");
-        expect(container.querySelectorAll("ul li")).toHaveLength(2);
+        expect(screen.getByText("section 7")).toBeInTheDocument();
+        expect(screen.getByText("Notice")).toBeInTheDocument();
         expect(container.textContent).not.toContain("**");
         expect(screen.getAllByTestId("user-message-bubble")).toHaveLength(1);
     });

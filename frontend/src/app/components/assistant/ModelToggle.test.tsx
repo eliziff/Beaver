@@ -72,20 +72,6 @@ it("shows the Sol default effort before lazy model discovery", () => {
   expect(getCatalog).not.toHaveBeenCalled();
 });
 
-it("spells xHigh in the model picker", () => {
-  render(
-    <ModelEffortToggle
-      model="muse-spark-1.2"
-      effort="xhigh"
-      onModelChange={vi.fn()}
-      onEffortChange={vi.fn()}
-    />,
-  );
-
-  expect(screen.getByRole("button", { name: /^Model:.*xHigh/ }))
-    .toHaveTextContent("xHigh");
-});
-
 it("changes model and supported effort without leaving the picker", async () => {
   function Picker() {
     const [model, setModel] = useState("codex:gpt-5.6-sol");

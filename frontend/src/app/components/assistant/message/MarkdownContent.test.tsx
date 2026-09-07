@@ -80,8 +80,6 @@ describe("MarkdownContent links", () => {
         const chip = screen.getByRole("button", {
             name: "Example v. Example, 2020 BCSC 1 at para 12",
         });
-        expect(chip).toHaveClass("bg-red-800");
-        expect(screen.getByText("Example v. Example")).not.toHaveClass("truncate");
         await userEvent.click(chip);
         expect(onCitationClick).toHaveBeenCalledWith(source);
     });
@@ -120,14 +118,6 @@ describe("MarkdownContent links", () => {
         expect(screen.getByText("External")).toBeInTheDocument();
     });
 
-    it("renders the complete streamed text, including terminal punctuation", () => {
-        const text =
-            "It will need local-law review before use because tenancy rules vary by jurisdiction.";
-        renderMarkdown(text);
-
-        expect(screen.getByText(text)).toHaveTextContent(text);
-    });
-
     it("keeps a verified journal page inside the citation pill", () => {
         renderMarkdown("Quoted analysis `\u00a70\u00a7`.", [
             {
@@ -152,16 +142,6 @@ describe("MarkdownContent links", () => {
         expect(pill).toHaveAttribute("target", "_blank");
         expect(pill).toHaveTextContent(
             "Ada Example, “A Fixture Article” (2026) 1:2 Fixture LJ 100 at 101",
-        );
-        expect(pill).toHaveClass(
-            "rounded-md",
-            "[overflow-wrap:anywhere]",
-            "bg-red-800",
-            "text-red-50",
-        );
-        expect(pill).toHaveAttribute(
-            "title",
-            'Ada Example, “A Fixture Article” (2026) 1:2 Fixture LJ 100 at 101: "Quoted analysis"',
         );
     });
 

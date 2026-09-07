@@ -165,6 +165,7 @@ function SpreadsheetGrid({
                     aria-colindex={column}
                     aria-rowindex={row}
                     data-position={key}
+                    data-highlighted={active || undefined}
                     className={`absolute flex items-center overflow-hidden border-b border-r border-gray-200 px-1.5 text-xs text-gray-900 ${
                         active
                             ? "z-[1] bg-red-100 ring-2 ring-inset ring-red-600"

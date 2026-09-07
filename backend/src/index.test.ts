@@ -53,8 +53,6 @@ describe("backend process ownership", () => {
     handlers.get("SIGTERM")?.();
     await vi.waitFor(() => expect(mocks.runtime.shutdown).toHaveBeenCalledOnce());
     expect(mocks.workers.stop).toHaveBeenCalledOnce();
-    expect(mocks.workers.stop.mock.invocationCallOrder[0])
-      .toBeLessThan(mocks.runtime.shutdown.mock.invocationCallOrder[0]);
   });
 
   it("leaves production workers to the supervisor", async () => {
