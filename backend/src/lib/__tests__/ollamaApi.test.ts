@@ -28,11 +28,12 @@ describe("Ollama API", () => {
       models: [{ name: "qwen3:32b", capabilities: ["thinking", "tools"] }],
     }), { status: 200, headers: { "Content-Type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
-    const { getOllamaModelCatalog } = await import("../llm/ollamaModels");
-    await expect(getOllamaModelCatalog()).resolves.toEqual({
+    const { ollamaModelCatalogSnapshot } = await import("../llm/ollamaModels");
+    expect(ollamaModelCatalogSnapshot()).toEqual({ source: "unavailable", models: [] });
+    await vi.waitFor(() => expect(ollamaModelCatalogSnapshot()).toEqual({
       source: "live",
       models: [{ name: "qwen3:32b", displayName: "Qwen 3 32B", supportsThinking: true }],
-    });
+    }));
     expect(fetchMock).toHaveBeenCalledWith(
       "http://127.0.0.1:11434/api/tags",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
