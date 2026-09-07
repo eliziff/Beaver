@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { XMLParser } from "fast-xml-parser";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -174,16 +175,33 @@ break
       }],
     };
     const bytes = await renderDocxMarkdown(
-      "First.[@jordan]\n\nSecond.[@other]\n\nThird.[@jordan]",
+      [
+        "Author.[^author]", "First.[@jordan][@missing]", "Again.[@jordan]",
+        "Second.[@other]", "Third.[@jordan]", "Group.[@group]",
+        "After group.[@jordan]", "[^author]: Authored note.",
+      ].join("\n\n"),
       {
-        citations: { jordan: jordanCitation, other },
+        citations: {
+          jordan: jordanCitation, other,
+          group: { sources: [...jordanCitation.sources, ...other.sources] },
+        },
         citationPlacement: "footnotes",
       },
     );
     const footnotesXml = await packageXml(bytes, "word/footnotes.xml");
-    expect(footnotesXml).toContain("R v Jordan, 2016 SCC 27");
-    expect(footnotesXml).toContain("R v Other, 2020 SCC 2");
-    expect(footnotesXml).toContain("Jordan, supra note 1");
+    const notes = [...footnotesXml.matchAll(/<w:footnote\b[^>]*w:id="(\d+)"[^>]*>(.*?)<\/w:footnote>/gu)]
+      .filter(([, id]) => Number(id) > 0)
+      .map(([, id, xml]) => [Number(id), [...xml.matchAll(/<w:t(?: [^>]*)?>(.*?)<\/w:t>/gu)]
+        .map(([, text]) => text).join("")]);
+    expect(notes).toEqual([
+      [1, "Authored note."],
+      [2, "R v Jordan, 2016 SCC 27 at para. 5"],
+      [3, "Ibid at para. 5"],
+      [4, "R v Other, 2020 SCC 2 at para. 5"],
+      [5, "Jordan, supra note 2 at para. 5"],
+      [6, "R v Jordan, 2016 SCC 27 at para. 5; R v Other, 2020 SCC 2 at para. 5"],
+      [7, "Jordan, supra note 2 at para. 5"],
+    ]);
   });
 
   it("parses the bounded structure and emits native Word features", async () => {
@@ -462,9 +480,23 @@ Tenant: **{{ Tenant Name }}**; rent: *{{ MONTHLY RENT }}*.[^Lease_Note]
     const documentXml = await packageXml(bytes, "word/document.xml");
     const stylesXml = await packageXml(bytes, "word/styles.xml");
 
-    expect(stylesXml).toContain('w:styleId="Title"');
-    expect(stylesXml).toContain('w:styleId="Heading1"');
-    expect(stylesXml).toContain('<w:color w:val="000000"/>');
+    const styles = new XMLParser({ ignoreAttributes: false }).parse(stylesXml)["w:styles"]["w:style"];
+    for (const [id, size, before, after] of [
+      ["Title", 28, 0, 240], ["Heading1", 26, 240, 80],
+      ["Heading2", 24, 180, 60], ["Heading3", 22, 140, 40],
+      ["Heading4", 22, 120, 40], ["Heading5", 22, 100, 40], ["Heading6", 22, 80, 40],
+    ] as const) {
+      const style = styles.find((value: Record<string, unknown>) => value["@_w:styleId"] === id);
+      expect(style?.["w:rPr"], id).toMatchObject({
+        "w:rFonts": { "@_w:ascii": "Times New Roman" }, "w:b": "",
+        "w:color": { "@_w:val": "000000" }, "w:sz": { "@_w:val": String(size) },
+      });
+      expect(style?.["w:pPr"], id).toMatchObject({
+        "w:spacing": { "@_w:before": String(before), "@_w:after": String(after) },
+        "w:keepNext": "", "w:keepLines": "",
+      });
+      expect(style?.["w:pPr"]["w:jc"]?.["@_w:val"], id).toBe(id === "Title" ? "center" : undefined);
+    }
     expect(stylesXml).not.toContain("2E74B5");
     expect(documentXml).toContain(
       '<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"',
@@ -719,14 +751,14 @@ describe("weak-model recovery", () => {
         "Plain paragraph.",
         {
           citations: {
-            case: { text: "Case", url: "https://example.test/case" },
+            case: jordanCitation,
           },
         },
         warnings,
       ),
       "word/document.xml",
     );
-    expect(xml).not.toContain("Case");
+    expect(xml).not.toContain("R v Jordan, 2016 SCC 27");
     expect(warnings.join("\n")).toContain("no [@case] marker");
   });
 
