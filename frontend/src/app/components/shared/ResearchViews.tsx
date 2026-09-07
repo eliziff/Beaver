@@ -4,15 +4,16 @@ import { ActionMenu } from "../ui/action-menu";
 import { buttonClassName } from "../ui/button";
 import { errorMessage } from "@/app/lib/utils";
 
-export function ResearchViews({ workspace, table, chat }: {
+export function ResearchViews({ workspace, table, chat, plain }: {
   workspace?: () => void | Promise<void>;
   table?: () => void | Promise<void>;
   chat?: () => void | Promise<void>;
+  plain?: () => void | Promise<void>;
 }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   return <span className="relative inline-flex shrink-0">
     <ActionMenu label="Open as" triggerClassName={buttonClassName({ variant: "outline", size: "compact" })}
-      items={([["Workspace", workspace], ["Table", table], ["Chat", chat]] as const)
+      items={([["Workspace", workspace], ["Table", table], ["Chat", chat], ["Open without organizing", plain]] as const)
         .flatMap(([label, open]) => open ? [{ label, disabled: busy, onSelect: () => {
           setBusy(true); setError(""); void Promise.resolve().then(open).catch((reason) =>
             setError(errorMessage(reason, `Could not open ${label.toLowerCase()}`))).finally(() => setBusy(false));
