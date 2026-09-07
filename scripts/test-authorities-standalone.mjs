@@ -131,7 +131,7 @@ try {
   await expect(slots).toHaveCount(3);
   for (let i = 0; i < 3; i++) await expect(slots.nth(i)).toContainText(`Tab ${i + 1}`);
   await expect(page.getByRole("heading", { name: "Build outputs", exact: true })).toHaveCount(0);
-  const handoff = slots.first().getByRole("link", { name: "Get from CanLII", exact: true });
+  const handoff = slots.first().getByRole("link", { name: "CanLII", exact: true });
   await expect(handoff).toHaveAttribute("href", /canlii\.org\/.*\.pdf$/);
   await expect(handoff).toHaveAttribute("target", "_blank");
   await expect(page.getByRole("dialog")).toHaveCount(0);
