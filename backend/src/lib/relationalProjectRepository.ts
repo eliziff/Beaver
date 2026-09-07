@@ -3,7 +3,7 @@ import type { ApplicationScope } from "./applicationError";
 import type { ProjectFolder, ProjectRecord, ProjectRepository } from "./projectStore";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
 import { changes, deleteDocumentRows, directoryPage, email, missingProfileEmail, now, one, projectAccess,
-  replaceMembers, rows, type Row } from "./relationalRepositorySupport";
+  replaceMembers, resourcePeople, rows, type Row } from "./relationalRepositorySupport";
 import { searchFilter } from "./searchQuery";
 
 const projectRecord = (scope: ApplicationScope, row: Row): ProjectRecord => ({
@@ -73,22 +73,8 @@ export const projectRepository: ProjectRepository = {
   project: findProject,
   async people(scope, id) {
     const project = await findProject(scope, id);
-    if (!project) return null;
-    const db = await relationalDatabase(), shared = project.shared_with as string[];
-    if (db.engine === "sqlite") return { owner: { user_id: String(project.user_id),
-      email: null, display_name: null }, members: shared.map((value) => ({
-        email: value, display_name: null })) };
-    const profiles = await rows<{ user_id: string; email: string | null;
-      display_name: string | null }>(sql`SELECT p.user_id,p.email,u.display_name
-      FROM user_profiles p LEFT JOIN user_preferences u ON u.user_id=p.user_id
-      WHERE p.user_id=${String(project.user_id)} OR lower(p.email) IN(${shared.length
-        ? sql.join(shared) : sql.raw("NULL")})`, db);
-    const owner = profiles.find(({ user_id }) => user_id === project.user_id);
-    const byEmail = new Map(profiles.flatMap((profile) => profile.email
-      ? [[profile.email.toLowerCase(), profile.display_name] as const] : []));
-    return { owner: { user_id: String(project.user_id), email: owner?.email ?? null,
-      display_name: owner?.display_name ?? null }, members: shared.map((value) => ({
-        email: value, display_name: byEmail.get(value) ?? null })) };
+    return project ? resourcePeople(await relationalDatabase(),
+      String(project.user_id), project.shared_with as string[]) : null;
   },
   async update(scope, id, input) {
     const db = await relationalDatabase();
