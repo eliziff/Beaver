@@ -10,8 +10,8 @@ import {
   type CitationPresentation,
 } from "./citationPresentation";
 
-function receiptLocator(entry: RegisteredEvidence, presentation: CitationPresentation) {
-  const { kind } = entry.receipt.locator;
+function receiptLocator(kind: RegisteredEvidence["receipt"]["locator"]["kind"],
+  presentation: CitationPresentation) {
   return !presentation.locator ? {} : {
     locator_kind: kind,
     locator: presentation.locator.label,
@@ -45,7 +45,10 @@ function citationsFromGroups(
 ) {
   return groups.flatMap<Record<string, unknown>>(
     (group) => {
-      const entry = group.members[0];
+      // Present the group from a member that carries its locator system, so the
+      // chip's pinpoint and passage link agree.
+      const entry = group.members.find(
+        ({ receipt }) => receipt.locator.kind === group.locatorKind) ?? group.members[0];
       const { receipt } = entry;
       const quote = receipt.span_text;
       if (!quote) return [];
@@ -57,8 +60,9 @@ function citationsFromGroups(
         entry,
         quotes.map(({ quote }) => quote),
         group.locatorLabels,
+        group.locatorKind,
       );
-      const locator = receiptLocator(entry, presentation);
+      const locator = receiptLocator(group.locatorKind, presentation);
       const display = {
         authority: presentation.authority,
         short_authority: presentation.shortAuthority,
