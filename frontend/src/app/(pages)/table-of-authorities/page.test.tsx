@@ -1411,13 +1411,18 @@ describe("Authorities UI contracts", () => {
     await userEvent.click(screen.getByRole("button", { name: "Settings" }));
     await userEvent.click(screen.getByRole("button", { name: "Court: No court preset" }));
     let chooser = screen.getByRole("dialog", { name: "Choose court" });
-    const choices = within(within(chooser).getByRole("group", { name: "Choose court" })).getAllByRole("button");
-    expect(choices[0]).toHaveTextContent("Alberta");
+    const jurisdictions = within(within(chooser).getByRole("group", { name: "Jurisdiction" }))
+      .getAllByRole("button");
+    expect(jurisdictions[0]).toHaveTextContent("Alberta");
+    expect(jurisdictions.map((button) => button.textContent)).toContain("Federal courts");
+    await userEvent.click(jurisdictions[0]);
     expect(within(chooser).getByRole("button", { name: "Court of Appeal of Alberta" })).toBeVisible();
+    await userEvent.click(within(chooser).getByRole("button", { name: "Federal courts" }));
     await userEvent.click(within(chooser).getByRole("button", { name: "Federal Court", exact: true }));
     expect(screen.queryByRole("dialog", { name: "Choose court" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Court: Federal Court", exact: true }));
     chooser = screen.getByRole("dialog", { name: "Choose court" });
+    await userEvent.click(within(chooser).getByRole("button", { name: "Alberta" }));
     await userEvent.click(within(chooser).getByRole("button", { name: "Court of Appeal of Alberta" }));
     expect(screen.queryByRole("dialog", { name: "Choose court" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Court: Court of Appeal of Alberta" })).toBeVisible();
@@ -1425,7 +1430,9 @@ describe("Authorities UI contracts", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Manual" }));
     await userEvent.click(screen.getByRole("button", { name: /Court:/ }));
     chooser = screen.getByRole("dialog", { name: "Choose court" });
+    await userEvent.click(within(chooser).getByRole("button", { name: "Alberta" }));
     expect(within(chooser).queryByRole("button", { name: "Court of Appeal of Alberta" })).not.toBeInTheDocument();
+    await userEvent.click(within(chooser).getByRole("button", { name: "Federal courts" }));
     expect(within(chooser).getByRole("button", { name: "Federal Court", exact: true })).toBeVisible();
   });
 

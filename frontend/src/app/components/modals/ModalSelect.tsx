@@ -122,6 +122,7 @@ export function SearchableChoiceModal({
     listClassName,
     controls,
     footer,
+    leadPanel,
     sidePanel,
     closeOnSelect = true,
 }: {
@@ -138,6 +139,7 @@ export function SearchableChoiceModal({
     listClassName?: string;
     controls?: ReactNode;
     footer?: ReactNode;
+    leadPanel?: ReactNode;
     sidePanel?: ReactNode;
     closeOnSelect?: boolean;
 }) {
@@ -173,7 +175,8 @@ export function SearchableChoiceModal({
             className={cn(size === "sm" && "h-[min(20rem,calc(100dvh-2rem))]", className)}
         >
             {controls}
-            <div className="flex min-h-0 flex-1 gap-5 pb-4">
+            <div className="flex min-h-0 flex-1 gap-3 pb-4 sm:gap-5">
+            {leadPanel && <nav className="w-28 shrink-0 overflow-y-auto border-r border-gray-200 pr-2 sm:w-52 sm:pr-4">{leadPanel}</nav>}
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {searchable && (
                 <SearchBar
@@ -208,6 +211,7 @@ export function SearchableChoiceModal({
                             )}
                         <button
                             type="button"
+                            data-choice={option.value ?? undefined}
                             disabled={option.disabled}
                             aria-pressed={option.value === value}
                             aria-label={option.description

@@ -136,107 +136,87 @@ describe("CourtRecordSetup parties", () => {
   });
 });
 
-it("keeps jurisdiction and court levels in one dialog and skips singleton formats", async () => {
+function Chooser({ initial = "general-affidavit-exhibits", order }: {
+  initial?: string; order?: string[];
+}) {
+  const [profile, setProfile] = useState(COURT_PROFILE_BY_ID.get(initial)!);
+  return <>
+    <CourtRecordChooser profile={profile} jurisdictionOrder={order}
+      onProfile={(id) => setProfile(COURT_PROFILE_BY_ID.get(id)!)} />
+    <output>{profile.id}</output>
+  </>;
+}
+
+it("picks a court record in one jurisdiction-first dialog", async () => {
   const user = userEvent.setup();
-  function Chooser() {
-    const [profile, setProfile] = useState(COURT_PROFILE_BY_ID.get("general-affidavit-exhibits")!);
-    return <>
-      <CourtRecordChooser profile={profile} onProfile={(id) => setProfile(COURT_PROFILE_BY_ID.get(id)!)} />
-      <output>{profile.id}</output>
-    </>;
-  }
   render(<Chooser />);
 
-  expect(screen.queryByRole("button", { name: /^Format:/u })).toBeNull();
   await user.click(screen.getByRole("button", { name: /^Change format:/u }));
-  expect(screen.getByRole("dialog", { name: "Choose document" })).toBeVisible();
-  await user.click(within(screen.getByRole("dialog", { name: "Choose document" }))
-    .getByRole("button", { name: "Close" }));
-  await user.click(screen.getByRole("button", { name: /^Change format:/u }));
-  const dialog = screen.getByRole("dialog", { name: "Choose document" }), jurisdictions = within(dialog);
-  expect(jurisdictions.getByRole("option", { name: "Alberta" })).toBeInTheDocument();
-  expect(jurisdictions.getByRole("option", { name: "No court preset" })).toBeInTheDocument();
-  expect(jurisdictions.queryByRole("option", { name: /British Columbia/ })).not.toBeInTheDocument();
-  await user.selectOptions(jurisdictions.getByRole("combobox", { name: "Jurisdiction" }), "ca");
-  expect(screen.getByRole("dialog", { name: "Choose document" })).toBe(dialog);
+  const dialog = screen.getByRole("dialog", { name: "Choose document" });
+  const jurisdictions = within(within(dialog).getByRole("group", { name: "Jurisdiction" }));
+  expect(jurisdictions.getByRole("button", { name: "Alberta" })).toBeVisible();
+  expect(jurisdictions.getByRole("button", { name: "No court preset" }))
+    .toHaveAttribute("aria-pressed", "true");
 
-  const documents = within(screen.getByRole("dialog", { name: "Choose document" }));
-  expect(documents.getByRole("tab", { name: "Trial" })).toHaveAttribute("aria-selected", "true");
-  await user.click(documents.getByRole("tab", { name: "Appeal" }));
+  await user.click(jurisdictions.getByRole("button", { name: "Federal courts" }));
   expect(screen.getByRole("dialog", { name: "Choose document" })).toBe(dialog);
+  const documents = within(within(dialog).getByRole("group", { name: "Choose document" }));
+  expect(documents.getByText("Trial")).toBeVisible();
+  expect(documents.getAllByRole("button", { name: /Motion reply/u })[0]).toBeVisible();
   await user.click(documents.getByRole("button", { name: "Informal motion letter" }));
-  expect(screen.getByRole("button", { name: /^Change format:/u })).toBeVisible();
+
   expect(screen.getByText("fca-informal-motion-letter")).toBeInTheDocument();
-  expect(screen.queryByRole("dialog", { name: /format/u })).toBeNull();
-  expect(screen.queryByRole("button", { name: /^Format:/u })).toBeNull();
-});
-
-it("keeps the format chooser open and distinguishes reply formats", async () => {
-  const user = userEvent.setup();
-  function Chooser() {
-    const [profile, setProfile] = useState(COURT_PROFILE_BY_ID.get("general-affidavit-exhibits")!);
-    return <>
-      <CourtRecordChooser profile={profile} onProfile={(id) => setProfile(COURT_PROFILE_BY_ID.get(id)!)} />
-      <output>{profile.id}</output>
-    </>;
-  }
-  render(<Chooser />);
-
-  await user.click(screen.getByRole("button", { name: /^Change format:/u }));
-  const dialog = screen.getByRole("dialog", { name: "Choose document" });
-  await user.selectOptions(screen.getByRole("combobox", { name: "Jurisdiction" }), "ca");
-  await user.click(within(screen.getByRole("dialog", { name: "Choose document" }))
-    .getByRole("button", { name: "Motion record" }));
-  expect(screen.getByRole("dialog", { name: "Choose document" })).toBe(dialog);
-  const formats = screen.getByRole("group", { name: "Motion record format" });
-  expect(within(formats).getByRole("button", { name: "Motion reply — moving party" }))
-    .toBeVisible();
-  await user.click(within(formats).getByRole("button", { name: "Motion record — moving" }));
-  expect(screen.getByText("fc-motion-record-moving")).toBeInTheDocument();
-});
-
-it("discards an abandoned court choice before opening the current format", async () => {
-  const user = userEvent.setup();
-  render(<CourtRecordChooser
-    profile={COURT_PROFILE_BY_ID.get("fc-motion-record-moving")!}
-    onProfile={() => undefined}
-  />);
-
-  await user.click(screen.getByRole("button", { name: /^Change format:/u }));
-  await user.selectOptions(screen.getByRole("combobox", { name: "Jurisdiction" }), "ab");
-  const documents = screen.getByRole("dialog", { name: "Choose document" });
-  await user.click(within(documents).getByRole("button", { name: "Close" }));
-  await user.click(screen.getByRole("button", { name: /^Change format:/u }));
-  expect(screen.getByRole("combobox", { name: "Jurisdiction" })).toHaveValue("ca");
-  expect(screen.getByRole("group", { name: "Motion record format" })).toBeVisible();
-});
-
-it("selects the singleton document without an extra format step", async () => {
-  const user = userEvent.setup(), onProfile = vi.fn();
-  render(<CourtRecordChooser profile={COURT_PROFILE_BY_ID.get("fc-motion-record-moving")!}
-    onProfile={onProfile} />);
-
-  await user.click(screen.getByRole("button", { name: /^Change format:/u }));
-  const dialog = screen.getByRole("dialog", { name: "Choose document" });
-  await user.selectOptions(screen.getByRole("combobox", { name: "Jurisdiction" }), "general");
-  expect(screen.getByRole("dialog", { name: "Choose document" })).toBe(dialog);
-  await user.click(within(dialog).getByRole("button", { name: "Affidavit" }));
-  expect(onProfile).toHaveBeenCalledWith("general-affidavit-exhibits");
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 
-it("starts a new record unselected and only cancels on an explicit close", async () => {
+it("shows the configured jurisdictions first and keeps the rest listed", async () => {
+  const user = userEvent.setup();
+  render(<Chooser order={["ca-ab"]} />);
+
+  await user.click(screen.getByRole("button", { name: /^Change format:/u }));
+  const jurisdictions = within(screen.getByRole("group", { name: "Jurisdiction" }))
+    .getAllByRole("button").map((button) => button.textContent);
+  expect(jurisdictions[0]).toBe("Alberta");
+  expect(jurisdictions).toContain("Federal courts");
+  expect(jurisdictions).toContain("No court preset");
+});
+
+it("discards an abandoned jurisdiction before reopening on the current court", async () => {
+  const user = userEvent.setup();
+  render(<Chooser initial="fc-motion-record-moving" />);
+
+  await user.click(screen.getByRole("button", { name: /^Change format:/u }));
+  await user.click(within(screen.getByRole("group", { name: "Jurisdiction" }))
+    .getByRole("button", { name: "Alberta" }));
+  await user.click(within(screen.getByRole("dialog", { name: "Choose document" }))
+    .getByRole("button", { name: "Close" }));
+  await user.click(screen.getByRole("button", { name: /^Change format:/u }));
+
+  expect(within(screen.getByRole("group", { name: "Jurisdiction" }))
+    .getByRole("button", { name: "Federal courts" })).toHaveAttribute("aria-pressed", "true");
+});
+
+it("starts a new record without a selection", async () => {
+  const user = userEvent.setup(), onCancel = vi.fn(), onProfile = vi.fn();
+  render(<CourtRecordChooser creating
+    profile={COURT_PROFILE_BY_ID.get("general-affidavit-exhibits")!}
+    jurisdictionOrder={["ca-federal"]} onProfile={onProfile} onCancel={onCancel} />);
+
+  const dialog = screen.getByRole("dialog", { name: "Choose document" });
+  expect(within(dialog).getByRole("group", { name: "Jurisdiction" })).toBeVisible();
+  await user.click(within(dialog).getByRole("button", { name: "Trial record" }));
+  expect(onProfile).toHaveBeenCalledWith("fc-trial-record");
+  expect(onCancel).not.toHaveBeenCalled();
+});
+
+it("cancels a new record on an explicit close", async () => {
   const user = userEvent.setup(), onCancel = vi.fn();
   render(<CourtRecordChooser creating
     profile={COURT_PROFILE_BY_ID.get("general-affidavit-exhibits")!}
     onProfile={() => undefined} onCancel={onCancel} />);
 
-  const dialog = screen.getByRole("dialog", { name: "Choose document" }), jurisdictions = within(dialog);
-  expect(jurisdictions.getByRole("combobox", { name: "Jurisdiction" })).toHaveValue("");
-  await user.selectOptions(jurisdictions.getByRole("combobox", { name: "Jurisdiction" }), "ca");
-  expect(screen.getByRole("dialog", { name: "Choose document" })).toBe(dialog);
-  expect(onCancel).not.toHaveBeenCalled();
   await user.click(within(screen.getByRole("dialog", { name: "Choose document" }))
     .getByRole("button", { name: "Close" }));
   expect(onCancel).toHaveBeenCalledOnce();
 });
+
