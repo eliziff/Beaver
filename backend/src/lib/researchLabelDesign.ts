@@ -93,6 +93,20 @@ export function researchLabelPlan(file: ResearchFile, catalog: ResearchImportCat
     : { type: "label-selection", target: "passages", assign: [ids.get(labelKey)!], mode: "add",
       members: [...rows].map(([sourceId, evidence]) => ({ sourceId, evidenceIds: [...evidence] })) });
   if (!members.size) bad("This proposal classifies nothing");
+  /** A label is a concept or issue that material is filed under. A label that names one document,
+   *  or an ontology with a label per document, is a classification that classifies nothing. */
+  const normalise = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/gu, " ").trim();
+  const titles = new Map(catalog.rows.map((row) => [normalise(row.title), row.title]));
+  for (const label of parsed.labels) {
+    const named = titles.get(normalise(label.name));
+    if (named && !existing.has(label.key)) bad(`“${clip(label.name, 80)}” names one ${
+      target === "sources" ? "document" : "passage"}, not a concept to file it under`);
+  }
+  const leaves = ordered.filter((label) => !ordered.some(({ parentKey }) => parentKey === label.key)
+    && !!shown.get(label.key)?.size);
+  if (target === "sources" && catalog.rows.length > 2 && leaves.length > 1 &&
+    leaves.every((label) => shown.get(label.key)!.size === 1))
+    bad("Every label holds a single document; group the research by concept and file the documents under those");
   if (actions.length > 100) throw new ApplicationError(413,
     "This proposal needs more than 100 operations; ask for a smaller label set");
   const path = (label: ResearchLabelDesign["labels"][number]): string => existing.has(label.key)
