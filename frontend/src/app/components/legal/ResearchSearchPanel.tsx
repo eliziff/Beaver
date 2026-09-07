@@ -49,9 +49,12 @@ function LabelChoice({ title, anchor, labels, scopes, selectedId, onChoose, onCl
   return createPortal(<div ref={popover} role="dialog" aria-label={title} popover="manual"
     className="fixed inset-auto z-[220] m-0 grid max-h-[min(26rem,calc(100dvh-1rem))] w-[min(22rem,calc(100vw-1rem))] content-start gap-1.5 overflow-y-auto overscroll-contain rounded-xl border border-gray-200 bg-white p-2.5 shadow-xl">
     <p className="text-xs font-medium text-gray-700">{title}</p>
-    {scopes.map((scope) => <ResearchLabelWaterfall key={scope} labels={labels} scope={scope}
-      selectedId={labels[selectedId ?? ""]?.scope === scope ? selectedId : null}
-      noneLabel={scope === "source" ? noneLabel : undefined} onChoose={walk} />)}
+    {scopes.map((scope) => <div key={scope} className="grid min-w-0 gap-0.5">
+      {scopes.length > 1 && <p className="px-1.5 text-[11px] leading-4 text-gray-500">{scope === "source" ? "Labels" : "Highlight types"}</p>}
+      <ResearchLabelWaterfall labels={labels} scope={scope}
+        selectedId={labels[selectedId ?? ""]?.scope === scope ? selectedId : null}
+        noneLabel={scope === "source" ? noneLabel : undefined} onChoose={walk} />
+    </div>)}
   </div>, anchor?.closest('dialog,[role="dialog"],[data-assistant-dock]') ?? document.body);
 }
 
