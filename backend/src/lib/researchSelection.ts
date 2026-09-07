@@ -1,8 +1,9 @@
+import { readResearchReads } from "./researchReadHistory";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { z } from "zod";
 import type { DocumentStore } from "./documentStore";
 import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
-import { readResearchFile, visitResearchEvidenceParts, researchSourceResource,
+import { readResearchFile, visitResearchEvidenceParts, researchSourceResource, researchReferenceFromEvidence,
   type ResearchFile, type ResearchFileState, type ResearchEvidence, type ResearchSourceReference } from "./researchFile";
 
 const selectionIds = z.array(z.string().min(1).max(200)).max(100_000)
@@ -94,6 +95,18 @@ export async function resolveResearchSelection(documents: DocumentStore, scope: 
     found = new Set<string>();
   if (input.target === "passages" || selectedEvidence) await visitResearchEvidenceParts(documents, scope,
     file, sources.map(({ id }) => id), (batch) => { batch.forEach((value, key) => parts.set(key, value)); });
+  // Explicitly chosen read IDs may be handed to a table/chat without becoming highlights.
+  if (selectedEvidence && !labels.size && !input.unlabelled) {
+    const receipts = await readResearchReads(documents, scope, file), byResource = new Map(sources.map((source) =>
+      [researchSourceResource(source.reference), source.id]));
+    for (const receipt of Object.values(receipts)) {
+      if (!selectedEvidence.has(receipt.evidence_id)) continue;
+      const reference = researchReferenceFromEvidence(receipt), sourceId = reference && byResource.get(researchSourceResource(reference));
+      if (!sourceId) continue;
+      const values = parts.get(sourceId) ?? {}; parts.set(sourceId, values);
+      values[receipt.evidence_id] ??= { receipt, sourceId, labelIds: [], note: "" };
+    }
+  }
   const subjects: ResearchSubject[] = [];
   for (const source of sources) {
     if (input.target === "sources" && !matches(source.labelIds)) continue;

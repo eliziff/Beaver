@@ -1,9 +1,8 @@
 """Drive the research Sources E surfaces in Chrome against a running Beaver and save screenshots for inspection.
 
-Covers the research-overhaul Phase E additions: the Library table Label row
-action, the document side-panel Highlight button (select-to-save plus
-Ctrl+Shift+H arming), and the research-dock rail (Pens group, Filter box,
-Labels/Search/Memo tabs, Labels-and-sources tree).
+Covers explicit Library-to-research membership, neutral Library rows, contextual
+highlighting (selection and Ctrl+Shift+H), and the existing research dock.
+No implicit Library workspace or global research labels are created.
 """
 from __future__ import annotations
 
@@ -85,24 +84,27 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
                 "First passage about fairness. Second passage about remedies.")
             report["documentId"] = document["id"]
 
-            print("Sources dock: Label row action opens the palette", flush=True)
+            research = api("POST", "/api/source-workspaces", {"title": "Highlight research"})["document"]
+            print("Sources dock: explicitly add the document to a chosen research set", flush=True)
             driver.get(urljoin(args.url, "/library"))
             row = WebDriverWait(driver, 30).until(lambda page: next((node for node in page.find_elements(
                 By.CSS_SELECTOR, "[data-document-row]") if node.is_displayed()
                 and "Highlight me.txt" in node.text), None))
             row.find_element(By.XPATH, ".//button[@aria-label='More actions']").click()
-            driver.find_element(By.XPATH, "//*[@role='menuitem' and normalize-space()='Label']").click()
-            palette = visible(driver, By.CSS_SELECTOR, "[role='dialog'][aria-label='Labels and note']")
-            assert "Highlight me.txt" in palette.text
-            screenshot("01-label-palette.png")
-            palette.find_element(By.CSS_SELECTOR, "button[aria-label='Close label palette']").click()
+            assert not driver.find_elements(By.XPATH, "//*[@role='menuitem' and normalize-space()='Label']")
+            driver.find_element(By.XPATH, "//*[@role='menuitem' and normalize-space()='Add to research…']").click()
+            click_text(driver, "Highlight research")
+            def saved_source():
+                workspace = api("GET", f"/api/source-workspaces/{research['id']}")
+                return next((source for source in workspace["state"]["sources"].values()
+                    if source["reference"]["id"] == document["id"]), None)
+            source = WebDriverWait(driver, 30).until(lambda _page: saved_source())
+            screenshot("01-explicit-research.png")
 
-            print("Sources dock: Highlight button saves a text selection", flush=True)
-            driver.get(urljoin(args.url, "/library"))
-            row = WebDriverWait(driver, 30).until(lambda page: next((node for node in page.find_elements(
-                By.CSS_SELECTOR, "[data-document-row]") if node.is_displayed()
-                and "Highlight me.txt" in node.text), None))
-            row.find_element(By.XPATH, ".//button[starts-with(@aria-label,'View ')]").click()
+            print("Sources dock: Highlight saves only inside the selected research context", flush=True)
+            driver.get(urljoin(args.url, f"/sources?research_file={research['id']}"))
+            rail = visible(driver, By.CSS_SELECTOR, "section[aria-label='Research collection']")
+            click_text(driver, "Highlight me.txt", rail)
             dialog = visible(driver, By.CSS_SELECTOR, "dialog[open]")
             highlight = next(node for node in dialog.find_elements(
                 By.XPATH, ".//button[@aria-label='Highlight']") if node.is_displayed())
@@ -113,11 +115,11 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
 const range=document.createRange();range.selectNodeContents(text.nodeType === 3 ? text : block);
 const selection=getSelection();selection.removeAllRanges();selection.addRange(range);""", block)
             highlight.click()
-            membership = WebDriverWait(driver, 60).until(lambda _page: api(
-                "GET", f"/api/source-workspaces/membership?document_ids={document['id']}"))
-            names = [label["name"] for label in membership[document["id"]]["labels"]]
-            assert "Highlight" in names, names
-            report["savedLabels"] = names
+            passages = WebDriverWait(driver, 60).until(lambda _page: api(
+                "GET", f"/api/source-workspaces/{research['id']}/items?kind=passages")["items"])
+            assert len(passages) == 1, passages
+            assert len(passages[0]["value"]["labelIds"]) == 1, passages
+            report["savedHighlights"] = len(passages)
             screenshot("02-highlight-saved.png")
 
             print("Sources dock: Ctrl+Shift+H arms and Escape disarms", flush=True)
@@ -131,13 +133,10 @@ const selection=getSelection();selection.removeAllRanges();selection.addRange(ra
             screenshot("03-disarmed.png")
             dialog.find_element(By.CSS_SELECTOR, "button[aria-label='Close']").click()
 
-            print("Sources dock: research rail shows Pens, Filter, tabs and tree", flush=True)
-            workspaces = api("GET", "/api/library/files?limit=100")["items"]
-            research = next(item["document"] for item in workspaces if item.get("kind") == "document"
-                and item["document"]["filename"].endswith(".research.md"))
+            print("Sources dock: research rail shows Highlight types, Filter, tabs and tree", flush=True)
             driver.get(urljoin(args.url, f"/sources?research_file={research['id']}"))
             rail = visible(driver, By.CSS_SELECTOR, "section[aria-label='Research collection']")
-            assert rail.find_element(By.CSS_SELECTOR, "[role='group'][aria-label='Pens']").is_displayed()
+            assert rail.find_element(By.CSS_SELECTOR, "[role='group'][aria-label='Highlight types']").is_displayed()
             assert rail.find_element(By.CSS_SELECTOR, "input[aria-label='Filter']").is_displayed()
             tabs = rail.find_element(By.CSS_SELECTOR, "[role='tablist']")
             names = [node.text for node in tabs.find_elements(By.CSS_SELECTOR, "[role='tab']")]

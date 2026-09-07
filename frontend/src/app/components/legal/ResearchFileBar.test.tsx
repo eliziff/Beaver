@@ -111,13 +111,33 @@ describe("ResearchFileBar", () => {
     });
   });
 
-  it("nests a source under every label it carries and leaves unlabelled sources in Unsorted", async () => {
+  it("nests a source under every label it carries and keeps unlabelled sources at the root without a pseudo-label", async () => {
     await renderWorkspace();
     const tree = screen.getByRole("tree", { name: "Labels and sources" });
     const names = within(tree).getAllByRole("treeitem").map((row) => row.getAttribute("aria-label"));
     expect(names).toEqual(["Fairness, 1 sources", "Baker v Canada", "Other, 1 sources", "Baker v Canada",
-      "Unsorted, 1 sources", "Appeal case"]);
+      "Appeal case"]);
     expect(screen.queryByRole("complementary", { name: "Label organizer" })).not.toBeInTheDocument();
+  });
+
+  it("shows search reads as neutral matches until the user explicitly saves them", async () => {
+    const observed = { ...file, state: { ...file.state, reads: { count: 1, sha256: "read-hash" }, sources: {
+      baker: { ...file.state.sources.baker, labelIds: [], passages: null },
+    } } };
+    api.runResearchFileQuery.mockResolvedValue({ file: observed, receipt: { ...receipt, slots: {} } });
+    api.getResearchItems.mockImplementation(async (_id: string, input: { kind: string }) => ({
+      items: input.kind === "reads" ? [{ kind: "read", index: 0, value: {
+        ...evidence, labelIds: [], note: "" } }] : [], next_cursor: null, total: input.kind === "reads" ? 1 : 0,
+    }));
+    render(<ResearchFileBar file={observed} onChange={vi.fn()} />);
+    openBaker();
+    expect(screen.queryByText("A duty of fairness applies.")).not.toBeInTheDocument();
+    openSearch();
+    fireEvent.change(screen.getByRole("textbox", { name: "Search saved source text" }), { target: { value: "fairness" } });
+    fireEvent.click(screen.getByRole("button", { name: "Find passages" }));
+    expect(await screen.findByText("A duty of fairness applies.")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "para 5 options" })).not.toBeInTheDocument();
+    expect(api.actOnResearchFile).not.toHaveBeenCalled();
   });
 
   it("shows a source's saved passages under it when it is expanded", async () => {
@@ -195,7 +215,7 @@ describe("ResearchFileBar", () => {
     expect(screen.getByRole("tree", { name: "Labels and sources" })).toBeVisible();
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Labels", "Search", "Memo"]);
     expect(screen.queryByRole("textbox", { name: "Search saved source text" })).not.toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Pens" })).toBeVisible();
+    expect(screen.getByRole("group", { name: "Highlight types" })).toBeVisible();
     expect(screen.getByRole("searchbox", { name: "Filter" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "List options" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Organize" })).not.toBeInTheDocument();
@@ -365,7 +385,7 @@ describe("ResearchFileBar", () => {
     await waitFor(() => expect(api.runResearchFileQuery).toHaveBeenCalledTimes(2));
     expect(api.runResearchFileQuery).toHaveBeenLastCalledWith("file-1", expect.objectContaining({
       syntax: "literal", target: "sources", conflict: "append",
-      rules: [{ phrase: "natural justice", direction: "after", unit: "sentence", slot: "Unclassified" }],
+      rules: [{ phrase: "natural justice", direction: "after", unit: "sentence" }],
     }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -378,7 +398,7 @@ describe("ResearchFileBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Holding" }));
     fireEvent.click(screen.getByRole("button", { name: "Highlight 1 as Holding" }));
     await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", 0,
-      { type: "label-selection", target: "passages", sourceIds: ["baker"], evidenceIds: ["e_1"], assign: ["holding"], mode: "add" }));
+      { type: "save-highlights", evidenceIds: ["e_1"], labelId: "holding" }));
   });
 
   it("loads receipt history only when opened and returns to sources for its matches", async () => {

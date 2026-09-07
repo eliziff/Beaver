@@ -1,3 +1,10 @@
+> Superseded implementation brief: A–F were pushed in `b9798317`.
+> Research foundation PR 1 removes the Library ontology/membership layer,
+> separates passive reads from saved highlights and grounded findings, and
+> makes a highlight type the single name/colour/parent primitive. The original
+> Phase E instructions below are historical, not work to reintroduce.
+> Current semantics: `docs/current/behavior-contracts.md#sources-workspace`.
+
 # Handoff — research sets / Sources workspace / Tabular Review overhaul (2026-09-06)
 
 Session ran out of usage mid-orchestration. Nothing is committed. All work is

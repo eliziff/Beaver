@@ -16,7 +16,7 @@ export const actOnResearchFile = (id: string, versionId: string,
   post<ResearchActionResult>(`/source-workspaces/${segment(id)}/actions`, {
     version_id: versionId, working_revision: workingRevision, action,
   });
-export const getResearchItems = (id: string, input: { kind: "passages" | "queries" | "history";
+export const getResearchItems = (id: string, input: { kind: "passages" | "queries" | "history" | "reads";
   sourceId?: string; cursor?: string | null; limit?: number }, signal?: AbortSignal) =>
   apiRequest<Page<ResearchPageItem> & { total: number }>(pagePath(
     `/source-workspaces/${segment(id)}/items`, {

@@ -2282,7 +2282,7 @@ export function assistantTools<Context extends {
         savedEvidence = new Map<string, ResearchEvidence>();
       for (let offset = 0; offset < sourceIds.length; offset += 100)
         [...(await readResearchEvidenceParts(documents, scope, research,
-          sourceIds.slice(offset, offset + 100))).values()].flatMap(Object.values)
+          sourceIds.slice(offset, offset + 100), ids)).values()].flatMap(Object.values)
           .forEach((item) => { if (wanted.has(item.receipt.evidence_id))
             savedEvidence.set(item.receipt.evidence_id, item); });
       const citations = ids.map((id) => {

@@ -29,7 +29,7 @@ export function ResearchFileBar(props: Props) {
 }
 function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource, selectedSourceId }: Props) {
   const { file, mutations: commit, selection: workspaceSelection, setSelection,
-    passages: passagePages, highlight } = useSourcesWorkspace();
+    passages: savedPages, reads: readPages, highlight } = useSourcesWorkspace();
   const [scope, setScope] = useState<ResearchSelection>(() => workspaceSelection);
   const [tab, setTab] = useState<"labels" | "search" | "memo">("labels");
   const searchOpen = tab === "search", noteOpen = tab === "memo";
@@ -38,6 +38,7 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
     [picked, setPicked] = useState<Set<string>>(() => new Set());
   const [openedSources, setOpenedSources] = useState<Set<string>>(() => new Set());
   const [status, setStatus] = useState(""), [removing, setRemoving] = useState<ResearchRemoval | null>(null);
+  const passagePages = searchOpen && matches ? readPages : savedPages;
   const handledDrop = useRef(0);
   const revealLabels = useCallback(() => setTab("labels"), []);
   const reader = useSourceReader({ file, passagePages, onReadSource, onStatus: setStatus });
@@ -51,14 +52,14 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
     (!scope.evidenceIds || scope.evidenceIds.includes(item.receipt.evidence_id)) &&
     (!scope.members || scope.members.some((member) => member.sourceId === item.sourceId &&
       (!member.evidenceIds || member.evidenceIds.includes(item.receipt.evidence_id)))) &&
-    (!pen || item.labelIds.includes(pen)) &&
-    (matches === null || matches.evidence.has(item.receipt.evidence_id)), [scope, pen, matches]);
+    (!pen || searchOpen || item.labelIds.includes(pen)) &&
+    (matches === null || matches.evidence.has(item.receipt.evidence_id)), [scope, pen, matches, searchOpen]);
   useEffect(() => {
     for (const id of openedSources) {
       const page = passagePages.chains[id];
       if (!page) void passagePages.fetchPage(id, null, false);
       else if (!page.loading && !page.error && page.nextCursor &&
-        !page.items.some((item) => item.kind === "passage" && passageVisible(item.value)))
+        !page.items.some((item) => (item.kind === "passage" || item.kind === "read") && passageVisible(item.value)))
         void passagePages.fetchPage(id, page.nextCursor, true);
     }
   }, [openedSources, passageVisible, passagePages.chains, passagePages.fetchPage]);
@@ -66,15 +67,15 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
   const named = useMemo(() => allSources.filter((source) =>
     (!scope.sourceIds || scope.sourceIds.includes(source.id)) &&
     (!scope.members || scope.members.some(({ sourceId }) => sourceId === source.id)) &&
-    (!pen || (source.passages?.labelCounts[pen] ?? 0) > 0) &&
-    sourceMatches(source, filter)), [allSources, scope, pen, filter]);
+    (!pen || searchOpen || (source.passages?.labelCounts[pen] ?? 0) > 0) &&
+    sourceMatches(source, filter)), [allSources, scope, pen, filter, searchOpen]);
   const list = useMemo(() => named.filter((source) => matches === null || matches.sources.has(source.id)),
     [named, matches]);
   const constrain = (selection: ResearchSelection): ResearchSelection => ({ ...scope, ...selection,
     ...(scope.members ? { members: scope.members.filter(({ sourceId }) => selection.sourceIds?.includes(sourceId)), sourceIds: undefined } : {}),
     ...(scope.evidenceIds ? { evidenceIds: selection.evidenceIds ? selection.evidenceIds.filter((id) => scope.evidenceIds!.includes(id)) : scope.evidenceIds } : {}) });
   const viewSelection = constrain({ target: scope.target === "passages" || pen || matches ? "passages" : "sources",
-    sourceIds: list.map(({ id }) => id), ...(pen ? { labelIds: [pen] } : {}),
+    sourceIds: list.map(({ id }) => id), ...(pen && !searchOpen ? { labelIds: [pen] } : {}),
     ...(matches ? { evidenceIds: [...matches.evidence] } : {}) });
   const selectionKey = JSON.stringify(viewSelection);
   useEffect(() => { setSelection(JSON.parse(selectionKey) as ResearchSelection); }, [selectionKey, setSelection]);
@@ -96,13 +97,12 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
     catch (reason) { setStatus(errorMessage(reason, "Could not save this highlight")); }
   }
   async function highlightPicked() {
-    const evidenceIds = [...picked], sourceIds = allSources.filter(({ id }) => passagePages.chains[id]?.items
-      .some((item) => item.kind === "passage" && picked.has(item.value.receipt.evidence_id))).map(({ id }) => id);
+    const evidenceIds = [...picked];
     let target = activePen?.id;
     if (!target) { target = crypto.randomUUID();
-      if (!await act({ type: "label", id: target, name: "Highlight", parentId: null, scope: "highlight", color: "#eab308" })) return;
+      if (!await act({ type: "label", id: target, name: "Highlight", parentId: null, scope: "highlight", color: "#d6b85a" })) return;
       highlight.setPen(target); }
-    if (await act({ type: "label-selection", target: "passages", sourceIds, evidenceIds, assign: [target], mode: "add" }))
+    if (await act({ type: "save-highlights", evidenceIds, labelId: target }))
       setPicked(new Set());
   }
   const handedOff = !!(scope.members || scope.sourceIds || scope.evidenceIds);
@@ -159,7 +159,7 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
               {matches && <Button size="compact" variant="outline" onClick={() => { setMatches(null); setPicked(new Set()); }}>Clear matches</Button>}
             </span>
           </div>
-          <ResearchTree reader={reader} sources={list} filter={filter} matches={matches}
+          <ResearchTree pages={passagePages} reader={reader} sources={list} filter={filter} matches={matches}
             opened={openedSources} setOpened={setOpenedSources} passageVisible={passageVisible}
             selectedSourceId={selectedSourceId} picked={matches && searchOpen ? picked : undefined}
             onPick={matches && searchOpen ? (id, value) => setPicked((current) => { const next = new Set(current);

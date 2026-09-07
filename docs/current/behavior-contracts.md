@@ -58,27 +58,36 @@ pagination or downloading.
   and View matches. Capture rules remain a model-facing query capability.
 - Source and passage actions use compact controls that appear on hover. Cite
   opens the memo; the memo and its autosave remain mounted across tab changes.
-- Open as connects Chat, Workspace and the existing Tabular Review. Views reuse
-  original supporting evidence and refer to canonical answers and label assignments.
-  An existing arrangement opens directly. Organizing across forms goes through one
-  composer on the workspace and the table: the request is the user's own words or
-  the visible default, it runs as a visible turn in the bound chat, and it lands
-  either as an undoable change (with an inline Undo strip) or, when the user
-  chooses Propose, as a proposal for review. No hidden prompt is sent.
-- Organization follows the task: arbitrary nested or overlapping labels, passage
-  sets, question columns, and combinations remain first-class. The human or model
-  chooses rows, columns and grouping; chat turns never dictate table columns.
-  Separate supported branches of one source can occupy separate rows.
-- Source and passage selections are resolved before bulk labelling or extraction.
-  Human highlights, assistant reads and extracted supports use the same receipt
-  identity; actor and model provenance remain separate audit metadata.
-- Bound chats collect completed and interrupted research into their workspace.
-  Workspace and table results remain available through the existing scoped
-  application operations, in both local and cloud modes.
-- One labels ontology serves Library and project tables: rows carry label dots
-  and a workspace count with label/workspace filtering and Label and
-  Add to workspace actions. Document readers expose the Highlight tool with
-  the current pen; saved passages appear as quotes.
+- Open as connects Chat, Workspace and Tabular Review. Views reuse original
+  supporting evidence and refer to canonical answers and label assignments.
+  An existing arrangement opens directly. Requests to reorganize research use
+  the existing visible assistant, not a separate Organize composer.
+- Whole-source labels belong to the research set. They may be nested or overlap;
+  sources without labels remain at the root rather than in an Unsorted category.
+  The virtual-folder navigator and one-source-list layout are the next UI phase.
+- Each saved highlight has exactly one highlight type: name, colour and optional
+  parent. The type is the pen; there is no separate palette/category assignment,
+  inherited colour or per-passage override. Deleting a type keeps its passages as
+  ordinary Highlight selections. Source labels do not classify passage contents.
+- Reads, saved highlights and grounded support share stable receipt identities,
+  but have different meanings. Passive reads and search matches stay in the
+  research file's background read/query parts; they create no curated sources,
+  highlights or fallback findings. A successful grounded answer can add its
+  supporting sources, but does not paint its evidence as highlights.
+- Highlighting, choosing Save highlights, or an explicit capture rule with a
+  highlight type saves passages. Search alone does not. Default passage selection
+  includes saved highlights only; explicit evidence IDs can reuse background
+  receipts without promoting them. Missing or out-of-scope evidence is rejected.
+- Read-only chats yield no grounded findings. Later answers can use earlier
+  receipts, including when only a later message is converted. Memo and table
+  references retain exact evidence IDs independently of highlight membership.
+- Source and passage membership is resolved before bulk labelling or extraction.
+  Actor and model provenance remain separate audit metadata. Human and model
+  operations share application/persistence ports in local and cloud modes.
+- Library and project document lists have no primary research workspace, global
+  label dots, membership counts or research-label filters. Add to research is an
+  explicit action targeting a chosen research set. Readers may highlight inside
+  an explicitly selected research context; browsing Library never creates one.
 - Human and assistant edits have the same reversible change history. Undo checks
   affected values and reverses one change without overwriting unrelated later work.
   The assistant applies reversible work within the request. Suggestions and changes

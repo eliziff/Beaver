@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ApplicationError, type ApplicationScope } from "../applicationError";
 import type { DocumentStore } from "../documentStore";
-import { researchLabelPath, researchSourceResource, visitResearchEvidenceParts,
+import { researchLabelPath, researchSourceResource, readResearchEvidenceParts,
   type ResearchEvidence, type ResearchFile } from "../researchFile";
 import { researchFindingReferenceSchema, type ResearchFinding, type ResearchFindingReference } from "../researchChat";
 import { resolveResearchSelection, researchSelectionLabels, type ResearchSubject } from "../researchSelection";
@@ -59,8 +59,12 @@ export async function resolveResearchArrangement(input: {
       .filter((id) => input.strict || file.state.sources[id]) }, file, { availableOnly: !input.strict }),
     sources = new Map(selection.subjects.map((subject) => [subject.sourceId, subject])),
     parts = new Map<string, Record<string, ResearchEvidence>>();
-  await visitResearchEvidenceParts(documents, scope, file, [...sources.keys()], (batch) =>
-    batch.forEach((value, key) => parts.set(key, value)));
+  const readIds = [...new Set([...arrangement.rows.flatMap((row) => row.evidenceIds ?? []),
+    ...arrangement.cells.flatMap((cell) => cell.items.flatMap((item) =>
+      "evidenceId" in item && item.evidenceId ? [item.evidenceId] : []))])], sourceIds = [...sources.keys()];
+  for (let offset = 0; offset < sourceIds.length; offset += 100)
+    (await readResearchEvidenceParts(documents, scope, file, sourceIds.slice(offset, offset + 100), readIds))
+      .forEach((value, key) => parts.set(key, value));
   const passage = (sourceId: string, evidenceId: string) => parts.get(sourceId)?.[evidenceId]
     ?? missing("A referenced passage is no longer in this workspace");
   const subjects: ResearchSubject[] = arrangement.rows.flatMap((row) => {

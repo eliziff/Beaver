@@ -24,11 +24,6 @@ vi.mock("@/app/lib/api/documents", async (original) => ({
   listDocumentVersions: listVersions,
   uploadDocumentVersion: uploadVersion
 }));
-const ontologyApi = vi.hoisted(() => ({ membership: vi.fn(), ensure: vi.fn() }));
-vi.mock("@/app/lib/api/ontology", () => ({
-  getWorkspaceMembership: ontologyApi.membership,
-  ensureOntologyWorkspace: ontologyApi.ensure,
-}));
 const researchApi = vi.hoisted(() => ({ act: vi.fn(), getFile: vi.fn() }));
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({
   ...await original<typeof import("@/app/lib/api/researchFiles")>(),
@@ -96,7 +91,6 @@ function Harness({
     onOpenInChat,
     list,
     search = "",
-    ontology,
     workspaceFile,
 }: {
     selectionFirst?: boolean;
@@ -122,7 +116,6 @@ function Harness({
         next_cursor: string | null;
     }>;
     search?: string;
-    ontology?: { projectId?: string | null };
     workspaceFile?: ResearchFile | null;
 }) {
     const [selection, setSelection] = useState<DocumentSelectionActions | null>(null);
@@ -157,12 +150,11 @@ function Harness({
             onSelectionActionsChange={setSelection}
             onOpenInChat={onOpenInChat}
             onOpenWorkflows={onOpenWorkflows}
-            ontology={ontology}
         />);
     return (
         <><DirectoryActions actions={null} onCreateFolder={null} selection={selection}
             onOpenWorkflows={onOpenWorkflows} />
-        {workspaceFile || ontology
+        {workspaceFile
             ? <SourcesWorkspaceProvider file={workspaceFile ?? undefined}>{table}</SourcesWorkspaceProvider>
             : table}</>
     );
@@ -796,44 +788,31 @@ describe("structural parse state", () => {
     });
 });
 
-describe("ontology labels", () => {
-    const ontologyFile = (): ResearchFile => ({ document: { id: "ontology-1",
-        filename: "Labels.research.md" }, versionId: "v1", workingRevision: 1,
-        state: { ...newResearchState(), labels: { "label-1": { id: "label-1", name: "Contract",
-            parentId: null, color: "#ff0000", order: 0, scope: "source" } }, sources: {} } } as ResearchFile);
-    const membership = { "document-1": { workspaces: [{ id: "ws-1", title: "Matter", sourceId: "s1" }],
-        labels: [{ id: "label-1", name: "Contract", color: "#ff0000", workspaceId: "ontology-1" }] } };
-
-    it("shows membership labels from the ontology workspace", async () => {
-        ontologyApi.membership.mockResolvedValue(membership);
-        render(<Harness ontology={{ projectId: null }} workspaceFile={ontologyFile()} />);
+describe("research is contextual, not Library metadata", () => {
+    it("does not decorate Library rows with a research set's labels", () => {
+        const workspaceFile = { document: { id: "research-1", filename: "Contract research.research.md" },
+            versionId: "v1", workingRevision: 1,
+            state: { ...newResearchState(), labels: { contract: { id: "contract", name: "Contract",
+                parentId: null, color: "#83a99a", order: 0, scope: "source" } }, sources: {
+                brief: { id: "brief", labelIds: ["contract"], badge: "", note: "", passages: null,
+                    reference: { provider: "library", kind: "document", id: document.id,
+                        versionId: document.current_version_id, title: document.filename } },
+            } } } as ResearchFile;
+        render(<Harness workspaceFile={workspaceFile} />);
         const row = documentRow();
-        expect(await within(row).findByText("Contract")).toBeVisible();
-        expect(within(row).getByText("in 1 workspace")).toBeVisible();
-        expect(ontologyApi.membership).toHaveBeenCalledWith(["document-1"], null);
+        expect(within(row).queryByText("Contract")).not.toBeInTheDocument();
+        expect(within(row).queryByText(/in .* workspace/)).not.toBeInTheDocument();
+        fireEvent.click(within(row).getByRole("button", { name: "More actions" }));
+        expect(screen.getByRole("menuitem", { name: "Add to research…" })).toBeVisible();
+        expect(screen.queryByRole("menuitem", { name: "Label" })).not.toBeInTheDocument();
     });
 
-    it("creates the ontology once and adds the source when labelling", async () => {
-        ontologyApi.membership.mockResolvedValue({});
-        ontologyApi.ensure.mockResolvedValue(ontologyFile());
-        researchApi.getFile.mockResolvedValue(ontologyFile());
-        researchApi.act.mockImplementation(async (id: string, versionId: string, revision: number, action: { type: string }) => {
-            if (action.type === "source") return { ...ontologyFile(), sourceId: "source-1" };
-            return ontologyFile();
-        });
-        render(<Harness ontology={{ projectId: null }} />);
+    it("offers explicit research membership without an implicit workspace", () => {
+        researchApi.act.mockClear();
+        render(<Harness />);
         fireEvent.click(within(documentRow()).getByRole("button", { name: "More actions" }));
-        fireEvent.click(screen.getByRole("menuitem", { name: "Label" }));
-        fireEvent.click(await screen.findByRole("button", { name: "Contract" }));
-        await waitFor(() => expect(researchApi.act).toHaveBeenCalledWith("ontology-1", "v1", 1,
-            expect.objectContaining({ type: "source",
-                reference: expect.objectContaining({ provider: "library", kind: "document",
-                    id: "document-1", versionId: "version-1" }) })));
-        expect(ontologyApi.ensure).toHaveBeenCalledTimes(1);
-        fireEvent.click(screen.getByRole("button", { name: "Close label palette" }));
-        fireEvent.click(within(documentRow()).getByRole("button", { name: "More actions" }));
-        fireEvent.click(screen.getByRole("menuitem", { name: "Label" }));
-        await screen.findByRole("dialog", { name: "Labels and note" });
-        expect(ontologyApi.ensure).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole("menuitem", { name: "Add to research…" })).toBeVisible();
+        expect(screen.queryByRole("menuitem", { name: "Label" })).not.toBeInTheDocument();
+        expect(researchApi.act).not.toHaveBeenCalled();
     });
 });

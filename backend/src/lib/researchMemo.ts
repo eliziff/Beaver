@@ -46,7 +46,7 @@ export async function readResearchMemoCitation(documents: DocumentStore, scope: 
   const source = file.state.sources[sourceId];
   if (!source) throw new ApplicationError(404, "Research source not found");
   if (!evidenceId) return researchMemoCitation(file, source);
-  const evidence = (await readResearchEvidenceParts(documents, scope, file, [sourceId])).get(sourceId)?.[evidenceId];
-  if (!evidence) throw new ApplicationError(404, "Saved passage not found");
+  const evidence = (await readResearchEvidenceParts(documents, scope, file, [sourceId], [evidenceId])).get(sourceId)?.[evidenceId];
+  if (!evidence) throw new ApplicationError(404, "Referenced passage not found");
   return researchMemoCitation(file, source, evidence.receipt);
 }

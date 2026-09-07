@@ -1,3 +1,4 @@
+import type { AssistantEvent } from "./chat/assistantEvents";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { z } from "zod";
 import type { ChatStore } from "./chatStore";
@@ -20,6 +21,16 @@ export type ResearchFinding = { reference: ResearchFindingReference; kind: "answ
   answer: GroundedResult; evidence: LegalEvidenceReceipt[];
   origin: { chatId?: string; messageId?: string; subagentId?: string; reviewId?: string; rowId?: string; columnIndex?: number } };
 
+/** Only successful grounded claims select sources; their support is not a coloured highlight. */
+export function groundedResearchEvidence(events: readonly AssistantEvent[]): LegalEvidenceReceipt[] {
+  const receipts = new Map(priorLegalEvidenceReceipts([...events]).map((item) => [item.evidence_id, item]));
+  const ids = new Set(events.flatMap((event) => event.type === "legal_evidence_receipt" && event.status === "passed"
+    ? event.claims.flatMap(({ evidence_ids }) => evidence_ids)
+    : event.type === "subagent_run" && event.status === "completed" && event.grounding?.status === "passed"
+      ? event.grounding.claims.flatMap(({ evidence_ids }) => evidence_ids) : []));
+  return [...ids].flatMap((id) => receipts.get(id) ?? []);
+}
+
 export async function resolveChatFindings(chats: ChatStore, documents: DocumentStore, scope: ApplicationScope,
   input: { researchFileId: string; chatId: string; messageIds?: string[] }) {
   const [chat, rows, current] = await Promise.all([chats.get(scope, input.chatId),
@@ -30,19 +41,22 @@ export async function resolveChatFindings(chats: ChatStore, documents: DocumentS
   const file = current,
     sources = new Map(Object.values(file.state.sources).map((source) => [researchSourceResource(source.reference), source.id])),
     requested = input.messageIds && new Set(input.messageIds), found = new Set<string>(),
-    findings: Array<{ reference: Extract<ResearchFindingReference, { kind: "answer" }>; kind: "answer" | "passages";
+    findings: Array<{ reference: Extract<ResearchFindingReference, { kind: "answer" }>; kind: "answer";
       sourceId: string; resource: string; question: { id: string; title: string; prompt: string };
       answer: GroundedAnswer; evidence: LegalEvidenceReceipt[]; origin: { chatId: string; messageId: string; subagentId?: string } }> = [];
+  // Reads remain available to later answers without becoming findings themselves.
+  const byId = new Map<string, LegalEvidenceReceipt>();
   let prompt = "Recorded answer";
   for (const row of rows) {
     if (row.role === "user") { if (typeof row.content === "string") prompt = row.content; continue; }
-    if (requested && !requested.has(row.id) || !Array.isArray(row.content)) continue;
-    const evidence = priorLegalEvidenceReceipts(row.content), byId = new Map(evidence.map((item) => [item.evidence_id, item]));
-    if (!evidence.length) continue;
-    found.add(row.id);
-    const claimed = new Set<string>(); let ordinal = 0;
-    const append = (kind: "answer" | "passages", answerId: string, question: string,
+    if (row.role !== "assistant" || !Array.isArray(row.content)) continue;
+    priorLegalEvidenceReceipts(row.content).forEach((item) => byId.set(item.evidence_id, item));
+    if (requested && !requested.has(row.id)) continue;
+    let ordinal = 0;
+    const append = (answerId: string, question: string,
       claims: GroundedAnswer["claims"], subagentId?: string) => {
+      if (claims.some(({ evidence_ids }) => !evidence_ids.length))
+        throw new ApplicationError(409, "An original supporting passage is unavailable");
       const ids = [...new Set(claims.flatMap(({ evidence_ids }) => evidence_ids))],
         supporting = ids.map((id) => byId.get(id));
       if (supporting.some((value) => !value)) throw new ApplicationError(409, "An original supporting passage is unavailable");
@@ -52,23 +66,21 @@ export async function resolveChatFindings(chats: ChatStore, documents: DocumentS
           legalEvidenceResourceReference(byId.get(id)!) === resource)),
           selectedIds = [...new Set(selected.flatMap(({ evidence_ids }) => evidence_ids))];
         findings.push({ reference: { kind: "answer", chatId: chat.id, answerId, resource },
-          kind, sourceId, resource, question: { id: answerId,
-          title: kind === "passages" ? "Collected passages" : question.slice(0, 100), prompt: question },
+          kind: "answer", sourceId, resource, question: { id: answerId,
+          title: question.slice(0, 100), prompt: question },
           answer: { claims: selected.map(({ text, evidence_ids }) => ({ text, evidence_ids })) },
           evidence: selectedIds.map((id) => byId.get(id)!), origin: { chatId: chat.id, messageId: row.id,
             ...(subagentId && { subagentId }) } });
+        found.add(row.id);
       }
-      if (kind === "answer") ids.forEach((id) => claimed.add(id));
     };
     for (const event of row.content) {
       if (event.type === "legal_evidence_receipt" && event.status === "passed" && event.claims.length)
-        append("answer", `${row.id}:answer:${ordinal++}`, prompt, event.claims);
+        append(`${row.id}:answer:${ordinal++}`, prompt, event.claims);
       else if (event.type === "subagent_run" && event.status === "completed" &&
           event.grounding?.status === "passed" && event.grounding.claims.length)
-        append("answer", `${row.id}:reader:${event.id}`, event.task, event.grounding.claims, event.id);
+        append(`${row.id}:reader:${event.id}`, event.task, event.grounding.claims, event.id);
     }
-    append("passages", `${row.id}:passages`, "Collected source passages", evidence.filter((item) =>
-      !claimed.has(item.evidence_id) && item.span_text).map((item) => ({ text: item.span_text!, evidence_ids: [item.evidence_id] })));
   }
   if (requested && [...requested].some((id) => !found.has(id)))
     throw new ApplicationError(400, "A selected message has no recorded grounded answer");

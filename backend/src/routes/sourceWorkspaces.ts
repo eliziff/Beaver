@@ -40,25 +40,11 @@ export function createSourceWorkspacesRouter(app: SourceWorkspaceApplication) {
       .refine(({ chatId, tableId }) => Boolean(chatId) !== Boolean(tableId), "Choose a chat or table").parse(req.body);
     res.json(await app.ensure(scope(res), input, { executor: "human" }));
   }));
-  router.get("/ontology", asyncRoute(async (req, res) => {
-    const input = z.object({ project_id: id.optional() }).strict().parse(req.query);
-    res.json(await app.ontology(scope(res), { projectId: input.project_id ?? null, create: false }));
-  }));
-  router.post("/ontology", asyncRoute(async (req, res) => {
-    const input = z.object({ projectId: id.nullish() }).strict().parse(req.body ?? {});
-    res.json(await app.ontology(scope(res), { projectId: input.projectId ?? null, create: true }));
-  }));
-  router.get("/membership", asyncRoute(async (req, res) => {
-    const input = z.object({ project_id: id.optional(),
-      document_ids: z.string().max(20_000) }).strict().parse(req.query);
-    res.json(await app.membership(scope(res), { projectId: input.project_id ?? null,
-      documentIds: input.document_ids.split(",").map((value) => value.trim()).filter(Boolean).slice(0, 200) }));
-  }));
   router.get("/:id", asyncRoute(async (req, res) => {
     res.json(await app.get(scope(res), id.parse(req.params.id)) ?? reject(404, "Sources workspace not found"));
   }));
   router.get("/:id/items", asyncRoute(async (req, res) => {
-    const documentId = id.parse(req.params.id), input = z.object({ kind: z.enum(["passages", "queries", "history"]),
+    const documentId = id.parse(req.params.id), input = z.object({ kind: z.enum(["passages", "queries", "history", "reads"]),
       source_id: id.optional() }).parse(req.query), first = await app.revision(scope(res), documentId,
       { kind: input.kind, sourceId: input.source_id }),
       filters = { document_id: documentId, content_revision: first.contentRevision,

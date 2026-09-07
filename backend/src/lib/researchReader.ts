@@ -1,3 +1,4 @@
+import { readResearchReads } from "./researchReadHistory";
 import { z } from "zod";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { DocumentStore } from "./documentStore";
@@ -152,7 +153,7 @@ export async function readResearchWorkspace(documents: DocumentStore, scope: App
   const chunk = 6000, labels = Object.values(saved.state.labels).sort((a, b) => a.order - b.order),
     sources = Object.values(saved.state.sources), counts = [Math.ceil(saved.state.note.length / chunk),
       labels.length, sources.length, saved.state.queries?.count ?? 0,
-      sources.reduce((sum, source) => sum + (source.passages?.count ?? 0), 0), saved.state.history?.count ?? 0],
+      sources.reduce((sum, source) => sum + (source.passages?.count ?? 0), 0), context?.restricted ? 0 : saved.state.history?.count ?? 0],
     names = ["notes", "labels", "sources", "searches", "passages", "history"],
     kinds = ["note", "label", "source", "search", "passage", "change"],
     offset = Math.max(0, Math.trunc(Number(args.offset) || 1) - 1),
@@ -160,7 +161,19 @@ export async function readResearchWorkspace(documents: DocumentStore, scope: App
     queries = new Map<number, ResearchQueryReceipt>(), passages = new Map<number, ResearchEvidence>(),
     changes = new Map<number, ResearchChange>(),
     header = { document_id: saved.document.id, filename: saved.document.filename,
-      resource: resourceReference.document(saved.document.id, saved.versionId) };
+      resource: resourceReference.document(saved.document.id, saved.versionId),
+      read_history: { count: saved.state.reads?.count ?? 0, section: "read:<number>" } };
+  const readSection = /^read:(\d+)$/u.exec(trimmed(args.section));
+  if (readSection) {
+    const receipt = Object.values(await readResearchReads(documents, scope, saved))[Number(readSection[1]) - 1];
+    if (!receipt || !researchResultFilter(context)({ resource: legalEvidenceResourceReference(receipt) ?? "", evidence: [receipt] }))
+      return fail("Read receipt is outside the current selection");
+    const restored = await restoreResearchEvidence(documents, scope, [receipt], signal);
+    if (!restored.length) return fail("Read receipt is unavailable");
+    return { ...result({ ...header, kind: "read", evidence_id: receipt.evidence_id, locator: receipt.locator,
+      exact_passage: receipt.span_text }), evidence: restored.map(({ receipt }) => receipt),
+      evidenceSources: new Map(restored.map(({ receipt, ...source }) => [receipt.evidence_id, source])) };
+  }
   const rows = async (category: number, start: number, count: number): Promise<Record<string, unknown>[]> => {
     if (category >= 3) for (const item of (await pageResearchItems(documents, scope, saved,
       category === 3 ? "queries" : category === 4 ? "passages" : "history", start, count)).items) {

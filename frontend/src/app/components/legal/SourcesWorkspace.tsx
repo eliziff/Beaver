@@ -50,6 +50,9 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
   const passages = usePagedChains<ResearchPageItem>((sourceId, cursor, signal) => getResearchItems(file!.document.id,
     { kind: "passages", sourceId, cursor, limit: 50 }, signal), [file?.document.id], "passages", false,
     Object.fromEntries(Object.values(sources).map((source) => [source.id, source.passages?.sha256 ?? ""])));
+  const reads = usePagedChains<ResearchPageItem>((sourceId, cursor, signal) => getResearchItems(file!.document.id,
+    { kind: "reads", sourceId, cursor, limit: 50 }, signal), [file?.document.id], "reads", false,
+    Object.fromEntries(Object.keys(sources).map((id) => [id, file?.state.reads?.sha256 ?? ""])));
   const [running, setRunning] = useState(false);
   const [findingsRevision, setFindingsRevision] = useState(0);
   const findings = usePagedChains<ResearchFinding>(async (sourceId, cursor, signal) => {
@@ -180,7 +183,7 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
   const highlight = { pen, setPen, armed, arm: setArmed, run: runHighlight,
     registerReader: useCallback((next: (() => HighlightCapture | null) | null) => { capture.current = next; }, []) };
 
-  return { file, selection, setSelection, accept, open, refresh, loading, error, mutations, passages, findings,
+  return { file, selection, setSelection, accept, open, refresh, loading, error, mutations, passages, reads, findings,
     ensure, bind, table, chat, highlight, views: () => getWorkspaceViews(requireFile().document.id), retry: restore };
 }
 
