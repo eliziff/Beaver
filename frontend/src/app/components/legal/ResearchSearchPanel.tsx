@@ -34,14 +34,16 @@ function marked(text: string, phrase: string) {
     {text.slice(at + phrase.length, to)}{to < text.length ? "…" : ""}</>;
 }
 
-/** Choosing a label, a highlight type or a search scope is always the same waterfall, in a plain panel. */
+/** Choosing a label, a highlight type or a search scope is always the same waterfall, in a plain panel.
+ *  A label with children keeps the panel open so the user can walk down to the one they mean. */
 function LabelChoice({ title, labels, scope, selectedId, onChoose, onClose, noneLabel }: {
   title: string; labels: Record<string, ResearchLabel>; scope: ResearchLabel["scope"];
   selectedId: string | null; onChoose: (id: string | null) => void; onClose: () => void; noneLabel?: string }) {
   return <div role="group" aria-label={title} className="grid min-w-0 gap-1.5 rounded-lg border border-gray-200 bg-gray-50 p-2">
     <p className="text-xs font-medium text-gray-700">{title}</p>
     <ResearchLabelWaterfall labels={labels} scope={scope} selectedId={selectedId} noneLabel={noneLabel}
-      onChoose={(id) => { onChoose(id); onClose(); }} />
+      onChoose={(id) => { onChoose(id);
+        if (!id || !Object.values(labels).some((label) => label.parentId === id)) onClose(); }} />
   </div>;
 }
 
