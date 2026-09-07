@@ -345,7 +345,7 @@ function LegalSourceViewerContent({
       const color = researchLabels?.[item.labelIds[0]]?.color ?? "#eab308";
       const category = researchLabels?.[item.labelIds[0]]?.name ?? "Highlight";
       span.style.setProperty("background-color", /^#[\da-f]{6}$/iu.test(color)
-        ? `${color}33` : color, "important");
+        ? `${color}59` : color, "important");
       span.style.setProperty("border-bottom", `3px solid ${color}`);
       span.dataset.researchEvidence = item.receipt.evidence_id;
       span.tabIndex = 0;
