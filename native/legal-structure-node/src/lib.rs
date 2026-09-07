@@ -570,7 +570,7 @@ mod legalpdf_exports {
         use legal_structure::{NodeKind, ScalarText};
         let text = ScalarText::new(document.structure().query_text());
         let nodes = document.structure().nodes.iter()
-            .filter(|node| node.kind == NodeKind::Prose && !node.line_ids.is_empty())
+            .filter(|node| matches!(node.kind, NodeKind::Prose | NodeKind::Heading) && !node.line_ids.is_empty())
             .collect::<Vec<_>>();
         let labels = nodes.iter().enumerate().filter_map(|(index, node)| {
             let range = node.rendered_range?;
