@@ -9,7 +9,7 @@ jobs:
   publish:
     if: github.repository == 'eliziff/Beaver' && github.ref == 'refs/heads/codex/authorities-shared-inputs'
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 6
     steps:
       - name: Publish only the two dedicated refactor branches
         shell: bash
@@ -22,12 +22,12 @@ jobs:
           git remote add origin https://github.com/eliziff/Beaver.git
           git fetch --depth=2 origin "$SOURCE_SHA"
           git checkout --detach FETCH_HEAD
-          test "$(git rev-parse HEAD^)" = 3aadfa18efdd8013da574ae4a3afb1b0a45e94aa
+          test "$(git rev-parse HEAD^)" = 3297d0c4bbfbd0cf6e20e7b79c783d840394f676
           test -z "$(git ls-remote --heads origin refs/heads/codex/authorities-shared-workflows)"
           git config user.name 'Eli Ziff'
           git config user.email 'eliziff@users.noreply.github.com'
           python3 - <<'PY'
-          import hashlib, pathlib, subprocess
+          import hashlib, pathlib
           p = pathlib.Path('backend/src/lib/authoritiesDomain.ts')
           text = p.read_text()
           before = 'import type { AuthoritySourceLanguage, AttachedAuthoritySource, AuthoritySourceDecision,'
@@ -59,8 +59,7 @@ jobs:
           recipe = json.loads(data)
           expected = {'backend/src/lib/__tests__/localAssistantTools.test.ts', 'backend/src/lib/authoritiesActionContract.ts', 'backend/src/lib/authoritiesActions.ts', 'backend/src/lib/authoritiesPreparation.test.ts', 'backend/src/lib/authoritiesPreparation.ts', 'backend/src/lib/authoritiesSourceResolution.ts', 'backend/src/lib/authoritiesWorkspaceApplication.test.ts', 'backend/src/lib/authoritiesWorkspaceApplication.ts', 'backend/src/lib/chat/assistantTools.ts', 'backend/src/routes/authoritiesRuntime.ts'}
           assert {entry['path'] for entry in recipe['files']} == expected
-          # The source artifact had unrelated assistant-test edits. Never publish them:
-          # keep the pinned repository test and change only its two moved imports.
+          # Preserve the pinned repository test; the source artifact also had unrelated edits.
           assistant_path = 'backend/src/lib/__tests__/localAssistantTools.test.ts'
           assert recipe['sources'][0]['path'] == assistant_path
           assistant = pathlib.Path(assistant_path).read_bytes()
@@ -69,7 +68,6 @@ jobs:
           old_import = 'await import("../authoritiesWorkspaceApplication")'
           assert text.count(old_import) == 2
           assistant_changed = text.replace(old_import, 'await import("../authoritiesActions")').encode()
-          # Literal common lines reused by the compact transfer recipe; no stale test body.
           literals = {(18,19): '\n', (26,27): '\n', (155,157): '});\n\n',
               (193,195): '  });\n\n', (2386,2389): '    expect(read).not.toHaveBeenCalled();\n  });\n\n',
               (2412,2414): '  });\n\n', (2458,2459): '\n', (2471,2473): '  });\n\n',
@@ -100,6 +98,8 @@ jobs:
           assert changed == expected, changed
           PY
           git diff --cached --check
+          npm ci --prefix backend --ignore-scripts --no-audit --no-fund
+          npm run build --prefix backend
           node scripts/check-source-boundaries.mjs
           git commit -m 'Share Authorities correction, refresh and source preparation workflows [skip ci]'
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
