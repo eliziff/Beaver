@@ -15,8 +15,10 @@ import { sourceName, type SourceReader } from "./useSourceReader";
 export type ResearchRemoval = { kind: "label" | "source" | "evidence"; id: string; name: string; sourceId?: string };
 export type ResearchTreePreview = { labels: Record<string, ResearchLabel>; marks: Record<string, "added" | "changed"> };
 const NO_ROWS = new Set<string>();
-/** Every row shares one shape: chevron, glyph, name, actions, number. Nothing moves when a mark appears. */
-export const ROW = "group flex min-h-8 min-w-0 items-center gap-1 rounded px-1";
+const NEWLINE = "\n";
+/** File-explorer row: one fixed-height line, chevron, glyph, name, actions, number.
+ *  Nothing wraps, so a row can never grow into the one above it. */
+export const ROW = "group flex h-7 min-w-0 items-center gap-1 rounded px-1";
 export const ROW_ACTIONS = "flex w-7 shrink-0 items-center justify-end gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100 @[22rem]:w-14";
 export const ROW_COUNT = "w-6 shrink-0 text-end text-xs tabular-nums text-gray-500";
 
@@ -60,7 +62,7 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
       onDragStart={(event) => { onSourceDrag?.(); event.dataTransfer.setData(RESEARCH_SOURCE_DRAG, source.id); }}>
       {preview ? <span className="size-6 shrink-0" /> : chevron(open, `Passages in ${name}`, () => openSource(source.id))}
       <span className="grid size-5 shrink-0 place-items-center"><ResearchSourceKindIcon reference={source.reference} /></span>
-      <button type="button" disabled={!!preview} onClick={() => openSource(source.id)} title={name}
+      <button type="button" disabled={!!preview} onClick={() => openSource(source.id)} title={[name, source.note].filter(Boolean).join(NEWLINE)}
         aria-current={selectedSourceId === source.id ? "true" : undefined} data-mark={mark(source.id)}
         className={`min-w-0 flex-1 truncate text-start text-sm text-gray-700 ${mark(source.id) ? "font-semibold underline decoration-gray-400" : ""}`}>{name}</button>
       <span className={ROW_ACTIONS}>
@@ -79,14 +81,14 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
   function passageRow(source: ResearchSource, item: ResearchEvidence) {
     const locator = passageLabel(item.receipt.locator);
     const color = item.labelIds[0] ? researchLabelColor(labels[item.labelIds[0]]) : "#d1d5db";
+    const quote = trimPassageMarker(item.receipt.span_text ?? "", item.receipt.locator);
     return <div draggable onDragStart={(event) => event.dataTransfer.setData(RESEARCH_PASSAGE_DRAG, JSON.stringify(item))}
-      className={`${ROW} items-start py-1 hover:bg-gray-50`}>
+      title={[locator, quote, item.note].filter(Boolean).join(NEWLINE)}
+      className={`${ROW} hover:bg-gray-50`}>
       <span className="size-6 shrink-0" />
-      <span className="mt-1 h-4 w-1 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs font-medium text-gray-700">{locator}</span>
-        <span className="line-clamp-2 text-xs text-gray-600 [overflow-wrap:anywhere]">{trimPassageMarker(item.receipt.span_text ?? "", item.receipt.locator)}</span>
-        {item.note && <span className="block text-xs text-gray-700 [overflow-wrap:anywhere]">{item.note}</span>}
+      <span className="h-4 w-1 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+      <span className="min-w-0 flex-1 truncate text-xs text-gray-600">
+        <span className="font-medium text-gray-700">{locator}</span> {quote}
       </span>
       <span className={ROW_ACTIONS}>
         {openControl(source, sourceName(source), item.receipt.locator.label, item.receipt.evidence_id, locator)}
@@ -111,8 +113,7 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
           ? [<div key={item.value.receipt.evidence_id} role="treeitem" aria-label={item.value.receipt.locator.label}>
               {passageRow(source, item.value)}
             </div>] : [])}
-        {source.note && <p className="px-1 py-1 text-xs text-gray-600 [overflow-wrap:anywhere]">{source.note}</p>}
-        {page?.loading && !page.items.length && <p role="status" className="px-1 py-1 text-xs text-gray-500">Loading passages…</p>}
+        {page?.loading && !page.items.length && <p role="status" className={`${ROW} text-xs text-gray-500`}>Loading passages…</p>}
         {!!page?.error && <Button variant="outline" size="compact" className="my-1" onClick={() => void passagePages.fetchPage(source.id, null, false)}>Retry passages</Button>}
         {page?.nextCursor && <Button variant="outline" size="compact" className="my-1" disabled={page.loading}
           aria-label={`Show more passages from ${sourceName(source)}`}
