@@ -43,7 +43,7 @@ it("does not start model discovery until the user opens the model selector", asy
   expect(await screen.findByRole("dialog")).toBeInTheDocument();
 });
 
-it("shows a persisted Sol effort before lazy model discovery", () => {
+it("shows persisted and default Sol effort before lazy model discovery", () => {
   render(
     <ModelEffortToggle
       model="codex:gpt-5.6-sol"
@@ -56,9 +56,7 @@ it("shows a persisted Sol effort before lazy model discovery", () => {
   expect(screen.getByRole("button", { name: /^Model:.*max/ }))
     .toHaveTextContent("max");
   expect(getCatalog).not.toHaveBeenCalled();
-});
 
-it("shows the Sol default effort before lazy model discovery", () => {
   render(
     <ModelEffortToggle
       model="codex:gpt-5.6-sol"
