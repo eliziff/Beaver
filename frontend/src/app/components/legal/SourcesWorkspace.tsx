@@ -24,7 +24,10 @@ const Context = createContext<Controller | null>(null);
 const ALL_SOURCES: ResearchSelection = { target: "sources" };
 const PEN_KEY = "beaver.research.pen.v1";
 /** What a reader hands the Highlight tool: the source it shows and the text the user picked. */
-export type HighlightCapture = { reference: ResearchSourceReference; locator: PassageLocator; quote: string };
+/** A reader that renders the canonical text reports offsets in the revision it served; one that
+ *  renders the original file reports the text it captured. */
+export type HighlightCapture = { reference: ResearchSourceReference }
+  & ({ revision: string; start: number; end: number } | { quote: string });
 
 function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey, selection: suppliedSelection, restoreLast = false, onChange }: Options) {
   const memoryKey = `beaver.research.current:${projectId ?? "personal"}`;
@@ -179,7 +182,8 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
       await act({ type: "label", id: active, name: "Highlight", parentId: null, scope: "highlight", color: "#d6b85a" });
     }
     if (active !== penId.current) { penId.current = active; setPen(active); }
-    await act({ type: "passage", sourceId, locator: picked.locator, quote: picked.quote, labelIds: [active] });
+    const { reference: _reference, ...span } = picked;
+    await act({ type: "passage", sourceId, ...span, labelIds: [active] });
     window.getSelection()?.removeAllRanges();
     return "saved";
   }, [act, setPen]);
