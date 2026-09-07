@@ -37,7 +37,6 @@ export type UserPreferences = {
   lastSelectedChatModel: string | null;
   lastSelectedReasoningEffort: string | null;
   legalResearchUs: boolean;
-  libraryLabelsId: string | null;
   features: FeaturePreferences;
   workflowFileTargets: WorkflowFileTargets;
   filingContact: FilingContact;
@@ -64,7 +63,6 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   lastSelectedChatModel: null,
   lastSelectedReasoningEffort: null,
   legalResearchUs: true,
-  libraryLabelsId: null,
   features: { authorities: true },
   workflowFileTargets: { "court-records": null, authorities: null },
   filingContact: { name: "", address: "", phone: "", fax: "", email: "" },
