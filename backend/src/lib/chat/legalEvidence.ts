@@ -1094,9 +1094,6 @@ export function legalEvidenceCitationPlan(state: LegalEvidenceTurnState): {
   return { groups, claimRefs };
 }
 
-export const legalEvidenceCitationGroups = (state: LegalEvidenceTurnState) =>
-  legalEvidenceCitationPlan(state).groups;
-
 export const legalEvidenceCitationEntries = (state: LegalEvidenceTurnState) =>
   legalEvidenceCitationPlan(state).groups.flatMap(({ members }) => members);
 
