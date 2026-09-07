@@ -1,3 +1,11 @@
+import { attachAuthoritySource, attachedAuthoritySources,
+  authoritiesBookPdfs, removeUnusedBinding, replaceSource } from "mike/shared/authorities-sources.mjs";
+import type { AuthoritySourceLanguage, AttachedAuthoritySource, AuthoritySourceDecision,
+  AuthoritiesBoundPdf, AuthoritiesBookSupplement, AuthoritiesBookParts } from "mike/shared/authorities-sources.mjs";
+export { attachedAuthoritySources, hasBilingualAuthoritySource, authoritiesBookPdfs } from
+  "mike/shared/authorities-sources.mjs";
+export type { AuthoritySourceLanguage, AttachedAuthoritySource, AuthoritySourceDecision,
+  AuthoritiesBoundPdf, AuthoritiesBookSupplement, AuthoritiesBookParts } from "mike/shared/authorities-sources.mjs";
 import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
 import { buildCanliiPdfUrl } from "./canliiUrls";
 import { sha256 } from "./hash";
@@ -124,41 +132,6 @@ export type AuthorityCitationLedger = {
   document: AuthoritiesDocumentSnapshot;
   seeds: AuthoritySeed[];
   occurrences: AuthoritiesLedgerOccurrence[];
-};
-
-export type AuthoritySourceLanguage = "en" | "fr" | "bilingual";
-export type AttachedAuthoritySource = {
-  bindingRole: string;
-  filename: string;
-  sourceSha256: string;
-  sourceUrl: string | null;
-  origin: "manual" | "original" | "reconstructed";
-  language: AuthoritySourceLanguage;
-};
-export type AuthoritySourceDecision =
-  | { kind: "unresolved" }
-  | { kind: "resolved" }
-  | { kind: "attached"; sources: AttachedAuthoritySource[] }
-  | { kind: "pending-canlii"; authorityKey: string; pageUrl: string; pdfUrl: string };
-
-export const attachedAuthoritySources = (source: AuthoritySourceDecision) =>
-  source.kind === "attached" ? source.sources : [];
-export const hasBilingualAuthoritySource = (source: AuthoritySourceDecision) => {
-  const languages = attachedAuthoritySources(source).map(({ language }) => language);
-  return languages.includes("bilingual") ||
-    (["en", "fr"] as const).every((language) => languages.includes(language));
-};
-
-export type AuthoritiesBoundPdf = {
-  bindingRole: string;
-  filename: string;
-  sourceSha256: string;
-};
-export type AuthoritiesBookSupplement = AuthoritiesBoundPdf & { id: string };
-export type AuthoritiesBookParts = {
-  cover: AuthoritiesBoundPdf | null;
-  index: AuthoritiesBoundPdf | null;
-  supplements: AuthoritiesBookSupplement[];
 };
 
 export type AuthorityTextSpan = { start: number; end: number; text: string };
@@ -681,12 +654,6 @@ function requireRecord<T>(record: Record<string, T>, id: string, label: string):
   return value;
 }
 
-export const authoritiesBookPdfs = (draft: AuthoritiesDraft): AuthoritiesBoundPdf[] => [
-  ...(draft.bookParts.cover ? [draft.bookParts.cover] : []),
-  ...(draft.bookParts.index ? [draft.bookParts.index] : []),
-  ...draft.bookParts.supplements,
-];
-
 /** Citation forms observed for one authority, in filing order. */
 export function authorityCitationForms(draft: AuthoritiesDraft, authorityId: string): string[] {
   const canonical = requireRecord(draft.authorities, authorityId, "authority").citation;
@@ -788,24 +755,6 @@ export function unusedScanOnlyAuthority(draft: AuthoritiesDraft, id: string) {
     !authority.evidenceIds.length && !authority.displayName && !authority.excluded &&
     !authority.locators.length &&
     !Object.values(draft.occurrences).some(({ authorityId }) => authorityId === id);
-}
-
-function removeUnusedBinding(draft: AuthoritiesDraft, role: string | undefined) {
-  if (!role || draft.import.kind === "document" && draft.import.bindingRole === role ||
-      Object.values(draft.authorities).some((authority) =>
-        attachedAuthoritySources(authority.source).some(({ bindingRole }) => bindingRole === role)) ||
-      authoritiesBookPdfs(draft).some(({ bindingRole }) => bindingRole === role)) return;
-  delete draft.bindings[role];
-}
-
-function replaceSource(
-  draft: AuthoritiesDraft,
-  authority: AuthorityIdentity,
-  source: AuthoritySourceDecision,
-) {
-  const oldRoles = attachedAuthoritySources(authority.source).map(({ bindingRole }) => bindingRole);
-  authority.source = source;
-  oldRoles.forEach((role) => removeUnusedBinding(draft, role));
 }
 
 function resolvedNameSpan(value: string, name: string) {
@@ -1220,17 +1169,12 @@ export function reduceAuthoritiesDraft(
     }
     case "attach-source": {
       if (!action.bindingRole) throw new AuthoritiesDomainError("Attachment binding role is required.");
-      draft.bindings[action.bindingRole] = structuredClone(action.binding);
       const authority = requireRecord(draft.authorities, action.authorityId, "authority");
-      const source = { bindingRole: action.bindingRole, filename: action.filename,
+      attachAuthoritySource(draft, authority, {
+        bindingRole: action.bindingRole, filename: action.filename,
         sourceSha256: action.sourceSha256, sourceUrl: action.sourceUrl,
-        origin: action.origin ?? "manual", language: action.language };
-      const previous = attachedAuthoritySources(authority.source);
-      const sources = action.language === "bilingual" ? [source]
-        : [...previous.filter(({ language }) => language !== "bilingual" &&
-          language !== action.language), source].sort((left, right) =>
-          left.language === "en" ? -1 : right.language === "en" ? 1 : 0);
-      replaceSource(draft, authority, { kind: "attached", sources });
+        origin: action.origin ?? "manual", language: action.language,
+      }, action.binding);
       break;
     }
     case "clear-authority-source": {
@@ -1340,7 +1284,7 @@ export function reduceAuthoritiesDraft(
       break;
     case "refresh": refresh(draft, action.review); break;
   }
-  if (["attach-source", "clear-authority-source", "add-authority", "remove-authority",
+  if (["clear-authority-source", "add-authority", "remove-authority",
     "edit-authority", "begin-canlii-handoff"].includes(action.type) && draft.stage !== "citations")
     draft.stage = "sources";
   if (action.type === "refresh") draft.stage = draft.import.kind === "manual" ? "sources" : "citations";

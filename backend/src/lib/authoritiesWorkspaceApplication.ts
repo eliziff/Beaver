@@ -1,3 +1,4 @@
+import { authoritiesInputPlan } from "mike/shared/authorities-sources.mjs";
 import { randomUUID } from "node:crypto";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { authorityPassageTargets, authoritiesTextRoles, buildAuthorities, renderAuthoritySourcePdf,
@@ -831,20 +832,9 @@ export function createAuthoritiesWorkspaceApplication(
         result[bindingRole].bytes = file.bytes;
       }
     }
-    const attached = Object.values(draft.authorities).flatMap((authority) =>
-      attachedAuthoritySources(authority.source).map((source) => ({ authority, source })));
-    const needsBook = draft.outputMode !== "table";
-    const needsFilingPdfs = draft.insertIntoDocument &&
-      !!authoritiesProfile(draft.settings.profileId).requirements?.unlinkedPdfTableSources &&
-      draft.import.kind === "document" && draft.import.fileType === "pdf";
-    const bookRoles = new Set(Object.values(draft.authorities).flatMap(({ excluded, source }) =>
-      needsBook && !excluded ? attachedAuthoritySources(source).map(({ bindingRole }) =>
-        bindingRole) : []));
-    const filingRoles = new Set(Object.values(draft.authorities).flatMap(({ excluded, source }) =>
-      needsFilingPdfs && !excluded ? attachedAuthoritySources(source).map(({ bindingRole }) =>
-        bindingRole) : []));
+    const plan = authoritiesInputPlan(draft, authoritiesProfile(draft.settings.profileId).requirements);
     const textRoles = authoritiesTextRoles(draft);
-    const preparedRoles = new Set([...bookRoles, ...textRoles]);
+    const preparedRoles = new Set([...plan.bookRoles, ...textRoles]);
     const preparation = new Map(preparedRoles.size
       ? (await documents.parseStates(scope, [...preparedRoles].flatMap((role) => {
         const binding = draft.bindings[role];
@@ -866,11 +856,10 @@ export function createAuthoritiesWorkspaceApplication(
         documentId: binding.documentId, versionId: file.version.id,
         filename: file.filename, sha256: file.version.source_sha256 } };
     };
-    await Promise.all(attached.map(async ({ authority, source }) => {
+    await Promise.all(plan.authoritySources.map(async ({ authority, source }) => {
       signal?.throwIfAborted();
       const { binding, file, resolved } = await readPdf(source, "Attached PDF");
-      const forBook = bookRoles.has(source.bindingRole);
-      const forFiling = filingRoles.has(source.bindingRole);
+      const forBook = plan.bookRoles.has(source.bindingRole);
       const needsText = textRoles.has(source.bindingRole);
       if (forBook && !file.pdfProfile) {
         const state = preparation.get(binding.documentId);
@@ -892,13 +881,13 @@ export function createAuthoritiesWorkspaceApplication(
         ocrTargets: authorityPassageTargets(draft, authority.id),
         passageTargets: draft.settings.passageMarking === "none"
           ? [] : authorityPassageTargets(draft, authority.id) }) : null;
-      result[source.bindingRole] = { ...(forBook || forFiling ? { bytes: file.bytes } : {}),
+      result[source.bindingRole] = { ...(plan.byteRoles.has(source.bindingRole) ? { bytes: file.bytes } : {}),
         ...(text ? { pageTextByPage: text.pageTextByPage } : {}),
         ...(text?.ocrTextByPage.some(Boolean) ? { ocrTextByPage: text.ocrTextByPage } : {}),
         ...(text?.passageGeometry ? { passageGeometry: text.passageGeometry } : {}),
         resolved };
     }));
-    if (needsBook) await Promise.all(authoritiesBookPdfs(draft).map(async (source) => {
+    await Promise.all(plan.bookPdfs.map(async (source) => {
       signal?.throwIfAborted();
       const { file, resolved } = await readPdf(source, "Book PDF");
       result[source.bindingRole] = { bytes: file.bytes, resolved };
