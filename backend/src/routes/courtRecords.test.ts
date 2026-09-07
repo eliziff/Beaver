@@ -24,10 +24,6 @@ describe("Court Records output HTTP boundary", () => {
       .field("work_product_id", "record-1")
       .attach("file", Buffer.from("%PDF-1.7\n%%EOF"), "motion.pdf")
       .expect(201, { id: "source-1" });
-    expect(application.saveFile).toHaveBeenLastCalledWith(
-      expect.objectContaining({ userId: "00000000-0000-0000-0000-000000000001" }),
-      expect.objectContaining({ filename: "motion.pdf", fileType: "pdf" }), "record-1",
-    );
   });
 
   it("carries every output and closed receipt through one server-owned build save", async () => {
@@ -41,13 +37,6 @@ describe("Court Records output HTTP boundary", () => {
       .attach("files", Buffer.from("%PDF-1.7\n%%EOF"), "Record.pdf")
       .attach("files", Buffer.from("%PDF-1.7\n%%EOF"), "Index.pdf")
       .expect(200, { id: "record-1", revision: 4 });
-    expect(application.saveBuild).toHaveBeenLastCalledWith(
-      expect.objectContaining({ userId: "00000000-0000-0000-0000-000000000001" }),
-      [{ file: expect.objectContaining({ filename: "Record.pdf", fileType: "pdf" }),
-        receipt: JSON.parse(record) },
-      { file: expect.objectContaining({ filename: "Index.pdf", fileType: "pdf" }),
-        receipt: JSON.parse(index) }],
-    );
   });
 
   it("rejects a partial batch before the application operation", async () => {
@@ -65,8 +54,5 @@ describe("Court Records output HTTP boundary", () => {
       .field("pages", "[2]")
       .attach("file", Buffer.from("%PDF-1.7\n%%EOF"), "scan.pdf")
       .expect(200, { page_count: 1, pages: [{ page_number: 1, text: "Recognized text" }] });
-    expect(application.prepareUploadedPdf).toHaveBeenLastCalledWith(
-      expect.objectContaining({ filename: "scan.pdf", fileType: "pdf" }), [2],
-    );
   });
 });

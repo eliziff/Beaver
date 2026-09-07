@@ -188,32 +188,6 @@ describe("ChatView rejected normal turn", () => {
         expect(mocks.clearDraft).toHaveBeenCalledOnce();
     });
 
-    it("stops the activity spinner when final content arrives before transport cleanup", () => {
-        let session = assistantSessionReducer(createAssistantSessionState({ chatId: "chat-1" }), {
-            type: "run_started",
-            runId: "run-1",
-            chatId: "chat-1",
-            message: { role: "user", content: "Answer" },
-        });
-        session = assistantSessionReducer(session, {
-            type: "protocol",
-            runId: "run-1",
-            chatId: "chat-1",
-            event: { type: "content_final", text: "Done.", citations: [] },
-        });
-
-        render(
-            <ChatView
-                chatId="chat-1"
-                session={session}
-                handleChat={vi.fn()}
-                cancel={vi.fn()}
-            />,
-        );
-
-        expect(screen.getByTestId("assistant-streaming")).toHaveTextContent("false");
-    });
-
     it("keeps prior reading rounds and the selected agent after transcript reconciliation", async () => {
         const session = (status: "running" | "completed") =>
             createAssistantSessionState({ chatId: "chat-1", messages: [

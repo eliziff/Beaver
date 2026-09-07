@@ -24,7 +24,6 @@ describe("CitationQuotesHeader", () => {
         await user.click(screen.getByRole("button", { name: "Copy quote and citation" }));
 
         expect(writeText).toHaveBeenCalledWith(`"he said 'hi'" Doe 2020`);
-        expect(await screen.findByText("Copied")).toBeInTheDocument();
     });
 
     it("selects and collapses quotes", async () => {

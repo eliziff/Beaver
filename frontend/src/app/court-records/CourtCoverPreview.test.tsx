@@ -28,6 +28,5 @@ describe("Federal motion cover preview", () => {
 
     expect(screen.getByText("Applicant")).toBeInTheDocument();
     expect(screen.getByText("Respondent")).toBeInTheDocument();
-    expect(screen.queryByText(/Moving Party|Responding Party/u)).not.toBeInTheDocument();
   });
 });

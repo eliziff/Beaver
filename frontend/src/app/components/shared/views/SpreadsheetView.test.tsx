@@ -28,7 +28,7 @@ describe("SpreadsheetView", () => {
     );
 
     expect(await screen.findByRole("grid", { name: "Authorities" })).toBeVisible();
-    expect(screen.getByText("R v Example").closest('[role="gridcell"]')).toHaveClass("bg-red-100");
+    expect(screen.getByText("R v Example").closest('[role="gridcell"]')).toHaveAttribute("data-highlighted", "true");
     expect(getSpreadsheetProjection).toHaveBeenCalledWith("sheet-1", "v1");
   });
 });

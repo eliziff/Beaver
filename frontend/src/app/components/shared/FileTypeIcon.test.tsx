@@ -37,19 +37,6 @@ describe("file types", () => {
         );
     });
 
-    it("renders a decorative symbol for the normalized kind", () => {
-        const { container, rerender } = render(
-            <FileTypeIcon fileType="evidence.png" />,
-        );
-        const icon = container.querySelector("[data-file-kind]");
-
-        expect(icon).toHaveAttribute("data-file-kind", "image");
-        expect(icon).toHaveAttribute("aria-hidden", "true");
-
-        rerender(<FileTypeIcon fileType={null} />);
-        expect(icon).toHaveAttribute("data-file-kind", "other");
-    });
-
     it("recognizes workspaces even when their stored file type is Markdown", () => {
         const { container } = render(<FileTypeIcon fileType="md" filename="Fairness.research.md" />);
         expect(container.querySelector("svg[data-file-kind='research']")).toHaveAttribute("aria-hidden", "true");

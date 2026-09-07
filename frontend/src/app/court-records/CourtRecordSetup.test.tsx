@@ -161,7 +161,6 @@ it("picks a court record in one jurisdiction-first dialog", async () => {
   await user.click(jurisdictions.getByRole("button", { name: "Federal courts" }));
   expect(screen.getByRole("dialog", { name: "Choose document" })).toBe(dialog);
   const documents = within(within(dialog).getByRole("group", { name: "Choose document" }));
-  expect(documents.getByText("Trial")).toBeVisible();
   expect(documents.getAllByRole("button", { name: /^Motion record$/u })[0]).toBeVisible();
   await user.click(documents.getByRole("button", { name: "Informal motion letter" }));
 

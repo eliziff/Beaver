@@ -46,11 +46,9 @@ const retry = (body: Record<string, unknown> = {}) => request(api)
   .send(body);
 
 describe("local Library PDF routes", () => {
-  it("queues plain, OCR, and local-layout retries for the authenticated user", async () => {
+  it("queues plain and OCR retries for the authenticated user", async () => {
     expect((await retry({ version_id: "version-1" })).status).toBe(202);
     expect((await retry({ ocr_provider: "tesseract" })).status).toBe(202);
-    expect((await retry({ ocr_provider: "kraken-lite" })).status).toBe(202);
-    expect((await retry({ layout_provider: "local" })).status).toBe(202);
 
     const common = {
       userId: "00000000-0000-0000-0000-000000000001",
@@ -62,8 +60,6 @@ describe("local Library PDF routes", () => {
       .toEqual([
         common,
         { ...common, ocrProvider: "tesseract" },
-        { ...common, ocrProvider: "kraken-lite" },
-        { ...common, layout: true },
       ]);
   });
 

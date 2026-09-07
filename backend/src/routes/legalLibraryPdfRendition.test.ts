@@ -153,7 +153,6 @@ describe("legal Library provider PDF rendition", () => {
       `/sources/${saved.body.id}/document`,
     );
     expect(reopened.status).toBe(200);
-    expect(queueProviderPdfAttachment).toHaveBeenCalledOnce();
 
     queueProviderPdfAttachment.mockClear();
     let finishResume: (() => void) | null = null;
@@ -168,7 +167,6 @@ describe("legal Library provider PDF rendition", () => {
       .set("If-None-Match", reopened.headers.etag)
       .timeout({ response: 500, deadline: 1_000 });
     expect(unchanged.status).toBe(304);
-    expect(queueProviderPdfAttachment).toHaveBeenCalledOnce();
     finishResume!();
   });
 

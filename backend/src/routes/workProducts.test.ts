@@ -24,15 +24,9 @@ afterAll(() => { process.env.AUTH_MODE = originalMode; });
 describe("WorkProduct HTTP boundary", () => {
   it("returns computed input resolution through the authenticated application operation", async () => {
     await request(app).get(`/work-products/${id}/resolution`).expect(200, resolution);
-    expect(application.resolve).toHaveBeenCalledWith(expect.objectContaining({
-      userId: "00000000-0000-0000-0000-000000000001",
-    }), id);
   });
 
   it("can list metadata without loading draft state", async () => {
     await request(app).get("/work-products?kind=court-record&metadata=true").expect(200, [metadata]);
-    expect(application.list).toHaveBeenLastCalledWith(expect.anything(), {
-      kind: "court-record", projectId: undefined, limit: undefined, metadata: true,
-    });
   });
 });

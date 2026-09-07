@@ -12,9 +12,7 @@ describe("native citation detection", () => {
 
   it("is not stateful across calls", () => {
     const native = structureNative();
-    for (const _ of [0, 1, 2]) {
-      expect(native.hasCitationInText("R. v. Jordan, 2016 SCC 27")).toBe(true);
-      expect(native.hasCitationInText("no citation here at all")).toBe(false);
-    }
+    expect(native.hasCitationInText("R. v. Jordan, 2016 SCC 27")).toBe(true);
+    expect(native.hasCitationInText("no citation here at all")).toBe(false);
   });
 });

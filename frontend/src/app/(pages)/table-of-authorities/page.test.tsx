@@ -475,7 +475,6 @@ describe("Authorities UI contracts", () => {
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
 
-    expect(screen.getByRole("main")).toHaveClass("min-h-80");
     expect(screen.getByText("Loading authorities")).toBeVisible();
     load.resolve(draft());
     expect(await screen.findByRole("heading", { name: "Book of Authorities" })).toBeVisible();

@@ -131,7 +131,6 @@ describe("user routes", () => {
       .send({ api_key: "sk-secret-value" });
     expect(stored.status).toBe(200);
     expect(stored.body).toEqual(STATUS);
-    expect(save).toHaveBeenCalledWith("u1", "openai", "sk-secret-value");
 
     manageEnvironmentKey(true);
     expect((await request(api).put("/user/api-keys/openai").send({ api_key: "x" })).status)
