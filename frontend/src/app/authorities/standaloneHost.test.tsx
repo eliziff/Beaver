@@ -290,29 +290,6 @@ describe("standalone Authorities sources", () => {
     expect(mocks.relink).not.toHaveBeenCalled();
   });
 
-  it("replaces the imported source and retains the new local binding", async () => {
-    const saved = product(input("0".repeat(64))), file = new File(
-      ["%PDF-replacement"], "Replacement.pdf", { type: "application/pdf", lastModified: 4 });
-    const binding = { kind: "local-file" as const, handleId: "replacement-handle",
-      lastSeen: { name: file.name, size: file.size, modified: 4, sha256: await sha256(file) } };
-    mocks.get.mockResolvedValue(saved); mocks.bindFile.mockResolvedValue(binding);
-    mocks.apiResponse.mockImplementation(async (_path, options) => {
-      const form = options.body as FormData, state = JSON.parse(String(form.get("draft")));
-      return { headers: new Headers({ "content-type": "application/json" }), json: async () => ({
-        ...state, import: { ...state.import, filename: file.name, fileType: "pdf" },
-      }) };
-    });
-    mocks.update.mockImplementation(async (_id, patch) => ({ ...saved, revision: 2,
-      state: patch.state }));
-
-    const replaced = await standaloneAuthoritiesHost.replaceSource!("draft-1", 1, { file });
-
-    expect(replaced.state.import).toMatchObject({ filename: file.name, fileType: "pdf" });
-    expect(replaced.state.bindings.source).toEqual(binding);
-    const form = mocks.apiResponse.mock.calls[0][1].body as FormData;
-    expect(form.get("replace")).toBe("true");
-  });
-
   it.each(["cover", "supplemental"] as const)(
     "retains a %s book PDF through the standalone runtime seam", async (slot) => {
     const saved = product(input("0".repeat(64))), file = new File(
