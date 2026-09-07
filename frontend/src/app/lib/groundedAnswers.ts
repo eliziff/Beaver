@@ -1,4 +1,5 @@
 import type { Citation, DocumentCitation } from "./citations";
+import type { ResearchSourceReference } from "./researchFiles";
 
 export type GroundedAnswer = {
   claims: { text: string; evidence_ids: string[] }[];
@@ -48,6 +49,17 @@ export function evidenceCitation(receipt: GroundedEvidence, ref: number): Citati
     title: receipt.name,
   };
   return null;
+}
+
+/** The authority a receipt cites, for opening it in the shared source reader. */
+export function citedSourceReference(receipt: GroundedEvidence): ResearchSourceReference | undefined {
+  if (receipt.provider === "library" || !receipt.source_reference) return undefined;
+  return { provider: receipt.provider, id: receipt.source_reference.id, part: receipt.source_reference.part,
+    family: receipt.source_reference.family,
+    kind: receipt.source_class === "legislation" ? "legislation"
+      : receipt.provider === "journal" ? "journal" : receipt.provider === "hansard" ? "hansard" : "case",
+    citation: receipt.citation, title: receipt.name, collection: receipt.dataset,
+    language: receipt.language, url: receipt.external_url };
 }
 
 export function groundedAnswerMarkdown(answer: GroundedAnswer & { evidence: GroundedEvidence[] }) {
