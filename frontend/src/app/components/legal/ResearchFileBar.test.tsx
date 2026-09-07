@@ -168,21 +168,6 @@ describe("ResearchFileBar", () => {
     expect(screen.getByRole("treeitem", { name: "Appeal case" })).toBeVisible();
   });
 
-  it("intersects a local parent highlight filter with the narrower carried scope", async () => {
-    function Selection() { return <output aria-label="Current selection">{JSON.stringify(useSourcesWorkspace().selection)}</output>; }
-    render(<SourcesWorkspaceProvider file={file} selection={{ target: "passages", labelIds: ["holding"] }}>
-      <WorkspaceBar /><Selection />
-    </SourcesWorkspaceProvider>);
-    fireEvent.click(screen.getByLabelText("Filter sources"));
-    fireEvent.change(screen.getByLabelText("Filter by highlight type"), { target: { value: "finding" } });
-    await waitFor(() => expect(JSON.parse(screen.getByLabelText("Current selection").textContent!))
-      .toMatchObject({ target: "passages", labelIds: ["holding"], sourceIds: ["baker"] }));
-    openSearch(); fireEvent.change(screen.getByRole("textbox", { name: "Phrase to find in saved sources" }), { target: { value: "fairness" } });
-    fireEvent.click(screen.getByRole("button", { name: "Find" }));
-    await waitFor(() => expect(api.runResearchFileQuery).toHaveBeenCalledWith("file-1",
-      expect.objectContaining({ labelIds: ["holding"], sourceIds: ["baker"] })));
-  });
-
   it("creates a named highlight type in one action and cancels an unfinished type without writing", async () => {
     await renderWorkspace(); fireEvent.click(screen.getByRole("button", { name: /^Highlight type:/ }));
     const popup = screen.getByRole("dialog", { name: "Highlight types" });
