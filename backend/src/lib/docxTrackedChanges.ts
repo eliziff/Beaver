@@ -351,83 +351,43 @@ export function normalizeWs(input: string): Normalized {
 }
 
 /**
- * Locate the unique position in `hayNorm` where `findNorm` appears AND is
- * preceded by `ctxBeforeNorm` AND followed by `ctxAfterNorm`. The context
- * check uses direct string-slice equality rather than concatenation so
- * boundary-whitespace collapsing doesn't matter. Returns the normalized
- * [start, end) range of the `find` portion, or a structured error.
+ * Locate one context-qualified edit and return original UTF-16 document offsets.
+ * Match contexts separately: concatenating them with the find text would change
+ * the meaning of whitespace collapsed at their boundaries.
  */
-function findUniqueAnchor(
-    hayNorm: string,
-    findNorm: string,
-    ctxBeforeNorm: string,
-    ctxAfterNorm: string,
+function locateEdit(
+    body: Normalized,
+    originalLength: number,
+    edit: EditInput,
 ): { start: number; end: number } | { error: "none" | "ambiguous" } {
+    const find = normalizeWs(edit.find ?? "").norm;
+    const before = normalizeWs(edit.context_before ?? "").norm;
+    const after = normalizeWs(edit.context_after ?? "").norm;
+    const needle = find || before || after;
+    const offset = !find && before ? before.length : 0;
     let match = -1;
 
-    const checkCtx = (pos: number): boolean => {
-        if (ctxBeforeNorm) {
-            const start = pos - ctxBeforeNorm.length;
-            if (start < 0) return false;
-            if (hayNorm.slice(start, pos) !== ctxBeforeNorm) return false;
-        }
-        if (ctxAfterNorm) {
-            const end = pos + findNorm.length;
-            if (hayNorm.slice(end, end + ctxAfterNorm.length) !== ctxAfterNorm)
-                return false;
-        }
-        return true;
-    };
-
-    if (findNorm.length === 0) {
-        const anchor = ctxBeforeNorm || ctxAfterNorm;
-        let from = 0;
-        while (from <= hayNorm.length - anchor.length) {
-            const index = hayNorm.indexOf(anchor, from);
-            if (index < 0) break;
-            const position = ctxBeforeNorm ? index + ctxBeforeNorm.length : index;
-            if (checkCtx(position)) {
-                if (match >= 0) return { error: "ambiguous" };
-                match = position;
-            }
-            from = index + 1;
-        }
-    } else {
-        let from = 0;
-        while (from <= hayNorm.length - findNorm.length) {
-            const idx = hayNorm.indexOf(findNorm, from);
-            if (idx < 0) break;
-            if (checkCtx(idx)) {
-                if (match >= 0) return { error: "ambiguous" };
-                match = idx;
-            }
-            from = idx + 1;
-        }
+    for (let from = 0; from <= body.norm.length - needle.length;) {
+        const index = body.norm.indexOf(needle, from);
+        if (index < 0) break;
+        from = index + 1; // Include overlapping occurrences when checking uniqueness.
+        const position = index + offset;
+        const contextStart = position - before.length;
+        const contextEnd = position + find.length;
+        if (
+            contextStart < 0 ||
+            body.norm.slice(contextStart, position) !== before ||
+            body.norm.slice(contextEnd, contextEnd + after.length) !== after
+        ) continue;
+        if (match >= 0) return { error: "ambiguous" };
+        match = position;
     }
 
-    return match < 0
-        ? { error: "none" }
-        : { start: match, end: match + findNorm.length };
-}
-
-/** Map a normalized [start, end) range back to the original string range. */
-function mapNormRangeToOriginal(
-    paraNorm: Normalized,
-    origLen: number,
-    normStart: number,
-    normEnd: number,
-): { start: number; end: number } {
-    const origStart =
-        normStart < paraNorm.origIdx.length
-            ? paraNorm.origIdx[normStart]
-            : origLen;
-    const origEnd =
-        normEnd === normStart
-            ? origStart
-            : normEnd - 1 < paraNorm.origIdx.length
-              ? paraNorm.origIdx[normEnd - 1] + 1
-              : origLen;
-    return { start: origStart, end: origEnd };
+    if (match < 0) return { error: "none" };
+    // An insertion can land at EOF; a nonempty match always has a last character.
+    const start = body.origIdx[match] ?? originalLength;
+    const end = find ? body.origIdx[match + find.length - 1] + 1 : start;
+    return { start, end };
 }
 
 export interface InsertTrackedBlocksInput {
@@ -508,28 +468,17 @@ export async function applyTrackedEdits(
             continue;
         }
 
-        const candidate = findUniqueAnchor(
-            bodyNorm.norm,
-            normalizeWs(find).norm,
-            normalizeWs(source.context_before ?? "").norm,
-            normalizeWs(source.context_after ?? "").norm,
-        );
-        if ("error" in candidate) {
+        const matched = locateEdit(bodyNorm, bodyText.length, source);
+        if ("error" in matched) {
             errors.push({
                 index: sourceIndex,
                 reason:
-                    candidate.error === "ambiguous"
+                    matched.error === "ambiguous"
                         ? "Ambiguous match for the multi-paragraph edit; the document is unchanged."
                         : "Could not locate the multi-paragraph edit; the document is unchanged.",
             });
             continue;
         }
-        const matched = mapNormRangeToOriginal(
-            bodyNorm,
-            bodyText.length,
-            candidate.start,
-            candidate.end,
-        );
 
         const actualFind = bodyText.slice(matched.start, matched.end);
         diffByEdit.set(sourceIndex, minimalTextEdit(actualFind, replace).diff);
@@ -603,10 +552,6 @@ export async function applyTrackedEdits(
             continue;
         }
 
-        const findNorm = normalizeWs(find).norm;
-        const ctxBeforeNorm = normalizeWs(ctxBefore).norm;
-        const ctxAfterNorm = normalizeWs(ctxAfter).norm;
-
         let paraIdx = -1;
         let findStart = -1;
         let findEnd = -1;
@@ -641,27 +586,16 @@ export async function applyTrackedEdits(
                 continue;
             }
         } else {
-            const hit = findUniqueAnchor(
-                bodyNorm.norm,
-                findNorm,
-                ctxBeforeNorm,
-                ctxAfterNorm,
-            );
+            const hit = locateEdit(bodyNorm, bodyText.length, edit);
             if (!("error" in hit)) {
-                const global = mapNormRangeToOriginal(
-                    bodyNorm,
-                    bodyText.length,
+                paraIdx = paragraphIndexForRange(
+                    paragraphs,
                     hit.start,
                     hit.end,
                 );
-                paraIdx = paragraphIndexForRange(
-                    paragraphs,
-                    global.start,
-                    global.end,
-                );
                 if (paraIdx >= 0) {
-                    findStart = global.start - paragraphs[paraIdx].globalStart;
-                    findEnd = global.end - paragraphs[paraIdx].globalStart;
+                    findStart = hit.start - paragraphs[paraIdx].globalStart;
+                    findEnd = hit.end - paragraphs[paraIdx].globalStart;
                 }
             }
 
