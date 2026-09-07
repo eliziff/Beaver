@@ -1,11 +1,10 @@
 import { ChevronDown, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Modal } from "@/app/components/modals/Modal";
+import { CourtChoiceModal, type CourtChoice } from "@/app/components/modals/CourtChoiceModal";
 import { ModalTextarea } from "@/app/components/modals/ModalTextarea";
 import { Input } from "@/app/components/ui/input";
 import { Button } from "@/app/components/ui/button";
-import { TabList } from "@/app/components/ui/tabs";
-import { registeredCourt, registeredJurisdiction, registeredLevel, COURT_JURISDICTIONS } from "@/app/lib/courtRegistry";
+import { registeredCourt, registeredJurisdiction, registeredLevel } from "@/app/lib/courtRegistry";
 import { cn } from "@/app/lib/utils";
 import { CourtRecordStepHeading } from "./CourtRecordStepHeading";
 import { COURT_PROFILES } from "./profiles";
@@ -24,54 +23,9 @@ export function CourtRecordChooser({ profile, onProfile, creating = false, onCan
   profile: CourtProfile; onProfile: (profileId: string) => void; creating?: boolean;
   onCancel?: () => void; jurisdictionOrder?: string[];
 }) {
-  const [open, setOpen] = useState(creating), [query, setQuery] = useState("");
-  const [choice, setChoice] = useState(() => ({ ...choiceFor(profile), jurisdiction: creating ? "" : profile.jurisdiction }));
+  const [open, setOpen] = useState(creating), chosen = useRef(false);
   const selected = selectionFor(profile);
-  const jurisdictionProfiles = PROFILES.filter((item) => item.jurisdiction === choice.jurisdiction);
-  const levels = levelChoices(jurisdictionProfiles);
-  const activeLevel = levels.some(({ id }) => id === choice.levelId)
-    ? choice.levelId : levels[0]?.id;
-  const documents = documentChoices(jurisdictionProfiles.filter((item) =>
-    levelFor(item).id === activeLevel));
-  const filteredDocuments = documents.filter(({ label }) => label.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
-  const hasFormatChoice = PROFILES.filter((item) => item.jurisdiction === profile.jurisdiction &&
-    levelFor(item).id === levelFor(profile).id && item.documentFamily === profile.documentFamily).length > 1;
-  const jurisdictions = [...JURISDICTIONS].sort((a, b) => {
-    const left = jurisdictionOrder.indexOf(a.preferenceKey ?? a.value), right = jurisdictionOrder.indexOf(b.preferenceKey ?? b.value);
-    return (left < 0 ? jurisdictionOrder.length : left) - (right < 0 ? jurisdictionOrder.length : right);
-  });
-
-  useEffect(() => { if (!creating) setChoice(choiceFor(profile)); }, [profile, creating]);
-
-  function chooseProfile(next: CourtProfile) {
-    onProfile(next.id); setOpen(false);
-  }
-
-  function chooseJurisdiction(id: string) {
-    const profiles = PROFILES.filter((item) => item.jurisdiction === id);
-    const nextLevels = levelChoices(profiles), nextLevel = nextLevels[0]?.id ?? "";
-    setChoice({ jurisdiction: id, levelId: nextLevel, documentId: "" }); setQuery("");
-  }
-
-  function chooseLevel(id: string) {
-    setChoice((current) => ({ ...current, levelId: id, documentId: "" })); setQuery("");
-  }
-
-  function chooseDocument(id: string) {
-    const profiles = documents.find((item) => item.id === id)?.profiles ?? [];
-    setChoice((current) => ({ ...current, documentId: id }));
-    if (profiles.length === 1) { chooseProfile(profiles[0]); return; }
-  }
-
-  function closeDialog() {
-    setOpen(false); setQuery("");
-    setChoice(choiceFor(profile));
-    if (creating) onCancel?.();
-  }
-
-  function openDialog() {
-    setChoice(choiceFor(profile)); setQuery(""); setOpen(true);
-  }
+  const hasFormatChoice = familySize.get(`${profile.courtId}|${profile.documentFamily}`)! > 1;
 
   return <>
     {!creating && <section className="flex flex-wrap gap-2 px-1" aria-label="Court record format"
@@ -79,85 +33,41 @@ export function CourtRecordChooser({ profile, onProfile, creating = false, onCan
       <Button type="button" variant="outline" aria-haspopup="dialog"
         aria-label={`Change format: ${selected.court}, ${hasFormatChoice ? selected.format : selected.document}`}
         className="h-auto min-h-9 max-w-full whitespace-normal text-left font-normal"
-        onClick={openDialog}>
+        onClick={() => setOpen(true)}>
         <span>{selected.court} · {hasFormatChoice ? selected.format : selected.document}</span>
         <ChevronDown className="size-4 shrink-0" aria-hidden="true" />
       </Button>
     </section>}
-    <Modal open={open} onClose={closeDialog} breadcrumbs={["Choose document"]} size="md"
-      className="!h-fit max-h-[min(480px,calc(100dvh-2rem))] [&>.modal-scroll-body]:flex-initial">
-      <div className="mb-3 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
-      <label className="flex min-w-0 items-center gap-2 text-xs text-gray-600">Jurisdiction
-        <span className="relative block w-44 max-w-full">
-        <select autoFocus aria-label="Jurisdiction" value={choice.jurisdiction} onChange={(event) => chooseJurisdiction(event.target.value)}
-          className="h-8 w-full appearance-none rounded-md border border-gray-300 bg-white ps-2.5 pe-8 text-base font-normal text-gray-900 outline-none hover:border-gray-500 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:text-sm">
-          {!choice.jurisdiction && <option value="" disabled>Choose jurisdiction</option>}
-          {jurisdictions.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
-        </select>
-        <ChevronDown aria-hidden="true" className="pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2 text-gray-500" />
-        </span>
-      </label>
-      {levels.length > 1 && <TabList value={activeLevel} onValueChange={chooseLevel}
-        options={levels.map(({ id, label }) => ({ value: id, label }))}
-        ariaLabel="Court level" variant="segmented"
-        className="min-h-0 shrink-0 px-0 py-0 [&_[role=tab]]:h-8 [&_[role=tab]]:px-3 [&_[role=tab]]:text-xs" />}
-      </div>
-      {documents.length > 8 && <Input type="search" aria-label="Search documents" value={query}
-        onChange={(event) => setQuery(event.target.value)} className="mb-2 shrink-0" />}
-      <div role="group" aria-label="Documents" className="min-h-0 divide-y divide-gray-100 overflow-y-auto pb-2">
-        {!!query.trim() && !filteredDocuments.length && <p className="px-3 py-4 text-sm text-gray-600">No matching documents.</p>}
-        {filteredDocuments.map((document) =>
-          <div key={document.id}>
-            <button type="button" aria-pressed={document.id === choice.documentId}
-              onClick={() => chooseDocument(document.id)}
-              className="flex min-h-10 w-full items-center rounded-md px-2 py-2 text-left text-sm hover:bg-gray-100 aria-pressed:bg-gray-100">
-              {document.label}</button>
-            {document.id === choice.documentId && document.profiles.length > 1 && <div role="group"
-              aria-label={`${document.label} format`} className="my-2 space-y-1 border-s-2 border-gray-200 ps-3">
-              <p className="text-sm font-medium text-gray-700">Format</p>
-              {document.profiles.map((item) => <button key={item.id} type="button" onClick={() => chooseProfile(item)}
-                aria-pressed={item.id === profile.id} className="block min-h-9 w-full rounded px-3 py-1.5 text-left text-sm hover:bg-gray-100 aria-pressed:bg-gray-100">
-                {item.shortLabel}</button>)}
-            </div>}
-          </div>)}
-      </div>
-    </Modal>
+    <CourtChoiceModal open={open} title="Choose document" searchLabel="Search documents"
+      value={creating ? null : profile.id} options={COURT_RECORD_CHOICES}
+      preferredKeys={jurisdictionOrder}
+      onClose={() => { setOpen(false); if (creating && !chosen.current) onCancel?.(); }}
+      onChange={(id) => { chosen.current = true; setOpen(false); onProfile(id); }} />
   </>;
 }
 
 const PROFILES = COURT_PROFILES.filter(({ selectable }) => selectable);
-const availableJurisdictions = new Set(PROFILES.map(({ jurisdiction }) => jurisdiction));
-const JURISDICTIONS = COURT_JURISDICTIONS.filter(({ id }) => availableJurisdictions.has(id))
-  .map(({ id, label, preferenceKey }) => ({ value: id, label, preferenceKey }));
-
-function documentChoices(profiles: CourtProfile[]) {
-  const groups = new Map<string, { id: string; label: string; profiles: CourtProfile[] }>();
-  for (const profile of profiles) {
-    const document = profile.documentFamily;
-    const current = groups.get(document) ?? {
-      id: document, label: profile.documentLabel, profiles: [],
-    };
-    current.profiles.push(profile);
-    groups.set(document, current);
-  }
-  return [...groups.values()].sort((left, right) => left.label.localeCompare(right.label));
+const familySize = new Map<string, number>();
+for (const { courtId, documentFamily } of PROFILES) {
+  const key = `${courtId}|${documentFamily}`;
+  familySize.set(key, (familySize.get(key) ?? 0) + 1);
 }
+const COURT_RECORD_CHOICES: CourtChoice[] = PROFILES
+  .map((profile) => ({ profile, level: registeredLevel(registeredCourt(profile.courtId).levelId),
+    format: familySize.get(`${profile.courtId}|${profile.documentFamily}`)! > 1
+      ? profile.shortLabel : undefined }))
+  .sort((left, right) => left.level.order - right.level.order ||
+    left.profile.documentLabel.localeCompare(right.profile.documentLabel) ||
+    (left.format ?? "").localeCompare(right.format ?? ""))
+  .map(({ profile, level, format }) => ({ value: profile.id, label: profile.documentLabel,
+    jurisdictionId: profile.jurisdiction, group: level.label, description: format,
+    keywords: `${profile.court} ${profile.courtAbbreviation} ${profile.shortLabel}` }));
 
 function selectionFor(profile: CourtProfile) {
   return { court: profile.jurisdiction === "general"
       ? registeredJurisdiction(profile.jurisdiction).label : profile.court,
     document: profile.documentLabel,
     format: profile.shortLabel };
-}
-
-const levelFor = ({ courtId }: CourtProfile) => registeredLevel(registeredCourt(courtId).levelId);
-const choiceFor = (profile: CourtProfile) => ({ jurisdiction: profile.jurisdiction,
-  levelId: levelFor(profile).id, documentId: profile.documentFamily });
-function levelChoices(profiles: CourtProfile[]) {
-  return [...new Map(profiles.map((profile) => {
-    const level = levelFor(profile);
-    return [level.id, level];
-  })).values()].sort((left, right) => left.order - right.order);
 }
 
 type Props = {
