@@ -58,11 +58,21 @@ pagination or downloading.
   browsing or previewing a Library document neither creates a research set nor
   writes an assignment. Research-file previews show collected sources and saved
   highlights, not everything encountered during research.
-- The existing Labels, Search and Memo tabs remain for now. Source labels retain
-  nesting and drag/drop. Sources without labels are ordinary root entries, not an
-  Unsorted pseudo-label. Choosing the active highlight type does not filter the
-  source list. The more compact virtual-folder browser and memo/reader cleanup
-  are the next UI phase, not additional semantics in this change.
+- Research, Search and Memo share the existing right-hand dock. Source labels are
+  virtual folders above one source list: All sources includes unlabelled sources;
+  selecting a parent includes descendants and never duplicates a source with
+  multiple labels. Nest/reorder by dragging or keyboard; source drops add a label
+  without removing other classifications. No Unsorted pseudo-folder exists.
+- The compact highlight picker opens the type hierarchy only when needed. Naming
+  a type creates it once with a muted colour; cancelling creates nothing. Children,
+  renaming, recolouring and reordering use the same label operations. Choosing the
+  drawing type does not filter the source list. Optional source/highlight filters
+  narrow the existing list and preserve any narrower carried evidence scope.
+- Highlights stay under their source with brief quoted previews and exact
+  pinpoints. Opening a passage keeps its evidence ID and pinned source version.
+  Reader marks remain editable; saved marks load progressively without a second
+  previous/next paragraph navigation strip. Full findings and notes remain
+  available inside the expanded source.
 - Read/search receipts are background evidence, not highlights or findings. A
   bound chat retains all receipts and queries but collects only explicitly saved
   or grounded-answer sources. Grounded support is not automatically highlighted.
@@ -88,8 +98,25 @@ pagination or downloading.
   change is atomic; undo preserves unrelated later edits. Pending proposals do
   not affect active classifications or extraction scopes.
 - Memo autosave remains mounted across tabs. Interrupted saves retain the draft,
-  reconcile before retrying and do not overwrite another writer. Citation styling
-  and the broader Sources/Table visual cleanup remain separate UI work.
+  reconcile before retrying and do not overwrite another writer. Citations render
+  as ordinary linked text, not Cite chips; insertion and dragging preserve exact
+  internal evidence targets. The citation picker lists collected sources, not
+  background reads. Existing formatting and Markdown round-tripping remain.
+
+## Tabular Review
+
+- The review title has its own wrapping row above compact actions (Docs, Sources,
+  + Column). Column names use the full column width and wrap above their controls.
+  Format icons are neutral; categorical values use muted fills. The existing
+  table selection, prompts, proposals, generation, cancellation and export remain.
+- The cell inspector is a viewport-bounded dialog with fixed header and regenerate
+  footer, and one keyboard-scrollable result region. Answer, supporting evidence
+  and explanation share one presentation; raw receipts, query IDs and the prompt
+  remain under collapsed More details. There is no duplicate Cited strip.
+- Evidence is deduplicated by receipt ID, not by source: different pinpoints remain
+  separate. Open evidence follows the cited source and original version, which may
+  differ from the table row's document. Missing support and partial coverage are
+  visible. Failed regeneration retains the answer and offers retry.
 
 ## Documents and versions
 

@@ -1,13 +1,37 @@
 import { Editor } from "@tiptap/core";
-import { describe, expect, it } from "vitest";
-import { memoExtensions } from "./ResearchMemoEditor";
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import type { ResearchFile } from "@/app/lib/researchFiles";
+import ResearchMemoEditor, { memoExtensions } from "./ResearchMemoEditor";
 import { citationMarkdown, memoCitation } from "./researchMemo";
 import { citationPillParts } from "@/app/components/assistant/message/CitationSources";
 
 describe("workspace memo Markdown", () => {
-  it("uses the assistant citation presentation without exposing internal document ranges", () => {
+  it("formats ordinary citation text without exposing internal document ranges", () => {
     const citation = memoCitation("/sources/view?provider=a2aj&source_id=case-1&citation=2026+SCC+1&title=Baker+v+Canada&authority=Baker+v+Canada%2C+2026+SCC+1&doc_type=cases&locator=chars%3A0-850&locator_kind=document")!;
     expect(citationPillParts(citation)).toEqual({ styleOfCause: "Baker v Canada", rest: ", 2026 SCC 1" });
+  });
+  it("renders a citation as an ordinary text link and opens its exact internal evidence target", async () => {
+    const href = "/sources/view?provider=a2aj&source_id=case-1&citation=2026+SCC+1&title=Baker+v+Canada&doc_type=cases&locator=7&locator_kind=paragraph&evidence_id=e1&external_url=https%3A%2F%2Fexample.com";
+    const file = { document: { id: "research" }, state: { sources: {}, labels: {} } } as ResearchFile;
+    const open = vi.fn();
+    render(<MemoryRouter><ResearchMemoEditor file={file} value={`The inquiry is contextual. ${citationMarkdown("Baker v Canada at para 7", href)}`}
+      onOpenCitation={open} readOnly /></MemoryRouter>);
+    const link = await screen.findByRole("link", { name: "Baker v Canada at para 7" });
+    expect(link).toHaveAttribute("href", href);
+    expect(screen.queryByRole("button", { name: /Baker|Cite/ })).not.toBeInTheDocument();
+    fireEvent.click(link); expect(open).toHaveBeenCalledWith(href);
+  });
+  it("offers collected sources for citation insertion without surfacing background reads", async () => {
+    const file = { document: { id: "research" }, state: { labels: {}, sources: {
+      saved: { id: "saved", collected: true, reference: { title: "Collected case" }, passages: null },
+      read: { id: "read", collected: false, reference: { title: "Background read" }, passages: null },
+    } } } as unknown as ResearchFile;
+    render(<MemoryRouter><ResearchMemoEditor file={file} value="" onOpenCitation={vi.fn()} /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Insert citation" }));
+    expect(await screen.findByText("Collected case")).toBeVisible();
+    expect(screen.queryByText("Background read")).not.toBeInTheDocument();
   });
   it("round-trips formatting, tables and exact source citation links", () => {
     const href = "/sources/view?provider=a2aj&source_id=case-1&citation=2026+SCC+1&title=Baker+v+Canada&doc_type=cases&locator=7&locator_kind=paragraph&evidence_id=e1";

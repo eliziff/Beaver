@@ -286,7 +286,7 @@ it("adds workspace sources that are not rows yet", async () => {
     render(<TRView reviewId="review-1" />);
     await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
 
-    fireEvent.click(screen.getByRole("button", { name: "Documents" }));
+    fireEvent.click(screen.getByRole("button", { name: "Docs" }));
     fireEvent.click(await screen.findByRole("button", { name: "Add Ruling" }));
     await waitFor(() => expect(mocks.updateReview).toHaveBeenCalledWith("review-1", {
         research_selection: { target: "sources", members: [{ sourceId: "source-1" }, { sourceId: "source-2" }] },

@@ -16,6 +16,7 @@ from selenium import webdriver
 from selenium.common.exceptions import StaleElementReferenceException
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 
 
@@ -128,11 +129,16 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
 
             driver.get(urljoin(args.url, f"/sources?research_file={research_id}"))
             rail = visible(driver, By.CSS_SELECTOR, "section[aria-label='Research collection']")
-            assert rail.find_element(By.CSS_SELECTOR, "[role='group'][aria-label='Highlight types']").is_displayed()
+            type_picker = rail.find_element(By.CSS_SELECTOR, "button[aria-label^='Highlight type:']")
+            assert type_picker.is_displayed()
+            type_picker.click()
+            visible(driver, By.CSS_SELECTOR, "[role='dialog'][aria-label='Highlight types']")
+            driver.switch_to.active_element.send_keys(Keys.ESCAPE)
             assert rail.find_element(By.CSS_SELECTOR, "input[aria-label='Filter']").is_displayed()
-            tree = rail.find_element(By.CSS_SELECTOR, "[role='tree'][aria-label='Labels and sources']")
+            assert rail.find_element(By.CSS_SELECTOR, "[role='tree'][aria-label='Source labels']").is_displayed()
+            tree = rail.find_element(By.CSS_SELECTOR, "[role='tree'][aria-label='Sources']")
             assert tree.is_displayed()
-            assert "Highlight me.txt" in tree.text
+            assert len(tree.find_elements(By.CSS_SELECTOR, "[role='treeitem'][aria-label='Highlight me.txt']")) == 1
             assert "Unsorted" not in tree.text and "Unclassified" not in tree.text
             screenshot("02-research-rail.png")
             report["ok"] = True
