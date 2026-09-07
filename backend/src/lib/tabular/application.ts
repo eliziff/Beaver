@@ -337,7 +337,7 @@ export function createTabularApplication(
     const result = await turn({ model: input.model, systemPrompt: input.system,
       messages: [{ role: "user", content: input.user }], createTools: () => [],
       emit() {}, apiKeys: input.apiKeys, reasoningEffort: input.reasoningEffort,
-      signal: input.signal, subagentMode: "none", separateContentBlocks: false,
+      signal: input.signal, subagentMode: "none", separateContentBlocks: false, grounded: false,
     }).catch((error: unknown) => fail(502, error instanceof Error && error.message
       ? `${input.model}: ${error.message}` : `${input.model} did not answer`));
     if (result.fullText.length > MAX_MODEL_CHARS)
