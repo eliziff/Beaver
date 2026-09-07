@@ -76,7 +76,8 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                 {loading && <p role="status" className="text-sm text-gray-500">Preparing existing research…</p>}
                 {preview && <>
                     <p className="text-sm text-gray-600">{preview.rows.length} rows · {reused} populated cells · {preview.rows.length * preview.design.columns.length - reused} unanswered</p>
-                    <div className="overflow-x-auto rounded border border-gray-200">
+                    <div role="region" aria-label="Existing research preview" tabIndex={0}
+                        className="shrink-0 overflow-x-auto rounded border border-gray-200">
                         <table aria-label="Conversion preview" className="w-full text-left text-xs">
                             <thead><tr><th className="min-w-40 p-2">Source</th>{preview.design.columns.map((column) => {
                                 const stat = preview.stats.find(({ index }) => index === column.index)!;
@@ -86,7 +87,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                             <tbody>{preview.rows.slice(0, 3).map((row) => <tr key={row.id} className="border-t border-gray-200">
                                 <th className="p-2 align-top font-medium">{row.title}</th>{preview.design.columns.map(({ index }) => <td key={index} className="p-2 align-top">
                                     {preview.samples.find((cell) => cell.rowId === row.id && cell.columnIndex === index)?.text || <span className="text-gray-400">Not answered</span>}
-                                </td>)}</tr>)}</tbody>
+                                </td>)}</tr>)}
                         </table>
                     </div>
                     {preview.rows.length > 3 && <p className="text-xs text-gray-500">Showing 3 of {preview.rows.length} rows. All are included.</p>}
