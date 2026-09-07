@@ -35,7 +35,7 @@ export function ResearchPens({ onRemove, onStatus }: {
       <span className="max-w-48 truncate">{active ? path(active.id) : "Highlight"}</span><ChevronDown className="size-3 shrink-0" aria-hidden="true" />
     </ActionMenu>
     <Modal open={editing} onClose={() => setEditing(false)} size="sm" breadcrumbs={["Highlight types"]}
-      className="h-auto max-h-[min(600px,calc(100dvh-2rem))]"
+      className="h-fit max-h-[min(600px,calc(100dvh-2rem))]"
       cancelAction={{ label: "Done", onClick: () => setEditing(false) }}>
       <ResearchHierarchy scope="highlight" selectedId={active?.id} onSelect={(id) => highlight.setPen(id)}
         onStatus={onStatus} onRemove={(removal) => { setEditing(false); onRemove(removal); }} />
