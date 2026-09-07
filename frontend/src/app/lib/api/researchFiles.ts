@@ -61,6 +61,17 @@ export const previewWorkspaceTable = (id: string, input: ResearchTableInput) =>
   post<ResearchTablePreview>(`/source-workspaces/${segment(id)}/table/preview`, input);
 export const openWorkspaceTable = (id: string, input: ResearchTableInput) =>
   post<TabularReview>(`/source-workspaces/${segment(id)}/table`, input);
+export type ResearchLabelDesign = { title: string;
+  labels: { key: string; name: string; parentKey?: string | null; color?: string | null; definition?: string }[];
+  assignments: { labelKey: string; rowIds: string[]; itemIds?: string[] }[] };
+export type ResearchLabelProposal = { title: string; target: "sources" | "passages"; propose: boolean;
+  fingerprint: string; design: ResearchLabelDesign; unassigned: { id: string; title: string }[];
+  labels: { key: string; name: string; path: string; parentKey: string | null; color: string | null;
+    definition?: string; existing: boolean; rows: { id: string; title: string; support: string[] }[] }[] };
+export const previewWorkspaceLabels = (id: string, input: Omit<ResearchTableInput, "design"> & { request: string }) =>
+  post<ResearchLabelProposal>(`/source-workspaces/${segment(id)}/labels/preview`, input);
+export const applyWorkspaceLabels = (id: string, input: Omit<ResearchTableInput, "design"> & { design: ResearchLabelDesign }) =>
+  post<ResearchFile>(`/source-workspaces/${segment(id)}/labels`, input);
 export const saveFindingHighlights = (file: ResearchFile, references: ResearchFindingReference[], typeId?: string) =>
   post<{ file: ResearchFile; saved: number }>(`/source-workspaces/${segment(file.document.id)}/save-findings`, {
     references, typeId, versionId: file.versionId, workingRevision: file.workingRevision,
