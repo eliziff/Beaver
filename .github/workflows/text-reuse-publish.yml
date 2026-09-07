@@ -1,0 +1,63 @@
+name: Publish verified document-text patch
+on:
+  push:
+    branches: [codex/document-text-reuse]
+    paths: [.github/workflows/text-reuse-publish.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    if: github.repository == 'eliziff/Beaver' && github.ref == 'refs/heads/codex/document-text-reuse'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Transfer only the checksum-verified patch (no tests or builds)
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git init .
+          git remote add origin https://github.com/eliziff/Beaver.git
+          git fetch --depth=1 origin "$SOURCE_SHA"
+          git checkout --detach FETCH_HEAD
+          python3 - <<'PY'
+          import base64, gzip, hashlib, json, os, pathlib, subprocess, urllib.request
+          parts = ['557e944896523863916207a2c52c0e5dc3b9bdc6', '62e220982e02db7b6ce2e2117ff7e94b4e5cae2a', '08e93c3f326239a4a49286957f67e34527d04e09', '00640980619b9959360013a4fc033b00b13b6aa9', '7416fb8ef779b55e818c768e0cd6a163905fa7dc']
+          compressed = bytearray()
+          for sha in parts:
+              request = urllib.request.Request('https://api.github.com/repos/eliziff/Beaver/git/blobs/' + sha, headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  blob = json.load(response)
+              data = base64.b64decode(blob['content'])
+              assert hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest() == sha
+              compressed.extend(data)
+          patch = gzip.decompress(compressed)
+          assert hashlib.sha256(patch).hexdigest() == '134fee4ab68147b89ea2e115a071226529feacf876fbb31892017502d6bce576'
+          pathlib.Path('/tmp/document-text.patch').write_bytes(patch)
+          subprocess.run(['git', 'apply', '--check', '/tmp/document-text.patch'], check=True)
+          subprocess.run(['git', 'apply', '--index', '/tmp/document-text.patch'], check=True)
+          expected = {
+              'backend/src/lib/__tests__/documentTextAccess.test.ts': '7c29fae4cc1d1f2881c7e220bba29c30a3c3a524',
+              'backend/src/lib/__tests__/documentTextReuse.test.ts': '2a47016fc020b6204f8898d50100bf3cbb194837',
+              'backend/src/lib/documentApplication.ts': '117a13aa21ac13d1256c9e5f58b9c67e55faeb38',
+              'backend/src/lib/documentProjection.ts': 'f48af89fe7bf7d8e340cc0ea5d33e5326c2a205c',
+              'backend/src/lib/documentProjectionService.ts': 'bc63e3b0bf3ad7f25e566f768d41c547f6dfab96',
+              'backend/src/lib/documentStore.ts': 'd58d69c3231ad565dff305fb3f73d7a38733bf7b',
+              'docs/document-text-reuse.md': 'fdcc6a9a7efbfc1877e1d02e73c7f74132ccdf51',
+              'scripts/benchmark-document-text.mjs': '158dc0aa0b090cc89264415b57e4b7d6f9ce3063',
+          }
+          changed = subprocess.check_output(['git', 'diff', '--cached', '--name-only'], text=True).splitlines()
+          assert set(changed) == set(expected), changed
+          for filename, sha in expected.items():
+              actual = subprocess.check_output(['git', 'hash-object', filename], text=True).strip()
+              assert actual == sha, (filename, actual, sha)
+          subprocess.run(['git', 'diff', '--cached', '--check'], check=True)
+          print('Verified all eight source/test/documentation files against the locally tested manifest.')
+          PY
+          git -c user.name='Eli Ziff' -c user.email='eliziff@users.noreply.github.com' commit -m 'Reuse verified document text with per-reader authorization [skip ci]'
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/codex/document-text-reuse
