@@ -12,6 +12,7 @@ import { jsonRecord as record } from "./value";
 import { recordResearchOperation,
   type ResearchOperationContext } from "./researchProvenance";
 import { resolveResearchSelection } from "./researchSelection";
+import { researchFindingReferenceSchema } from "./researchFindingReference";
 import { RESEARCH_HISTORY_PART, readResearchHistory, researchChangeCounts, researchChangeSummary,
   researchChangeSummarySchema, researchStateChanges, assertResearchChangeBase,
   type ResearchChange, type ResearchChangeField, type ResearchChangeSummary } from "./researchHistory";
@@ -84,7 +85,7 @@ const researchMutationSchema = z.discriminatedUnion("type", [
     note: z.string().max(50_000).optional() }).strict(),
   z.object({ type: z.literal("passage"), sourceId: uuid, locator,
     quote: text(50_000), labelIds: ids.optional() }).strict(),
-  z.object({ type: z.literal("label-selection"), target: z.enum(["sources", "passages"]),
+  z.object({ type: z.literal("label-selection"), findingRefs: z.array(researchFindingReferenceSchema).max(500).optional(), target: z.enum(["sources", "passages"]),
     sourceIds: ids.optional(), evidenceIds: z.array(text(200)).max(100_000).optional(),
     members: z.array(z.object({ sourceId: uuid, evidenceIds: z.array(text(200)).max(100_000).optional() }).strict()).max(100_000).optional(),
     labelIds: ids.optional(), unlabelled: z.boolean().optional(), assign: ids,

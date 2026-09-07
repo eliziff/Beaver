@@ -1,3 +1,4 @@
+import { verifiedDownloadCache } from "./verifiedDownloadCache";
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -305,6 +306,8 @@ export function createDocumentApplication(repository: DocumentRepository,
       fileType: usePdf ? "pdf" : version.fileType, filename: editedFilename(version) };
   };
 
+  const retainedDownloads = verifiedDownloadCache();
+
   const checkedBlob = async (key: string, digest: string, sizeBytes?: number) => {
     if (documentBlobDigest(key) !== digest)
       throw new Error("Stored document failed its integrity check");
@@ -591,8 +594,10 @@ export function createDocumentApplication(repository: DocumentRepository,
     },
 
     async projectionSource(scope, documentId, versionId) {
-      const version = await repository.version(scope, documentId, versionId);
-      if (!version) return null;
+      const stored = await repository.version(scope, documentId, versionId);
+      if (!stored) return null;
+      const version = { ...stored };
+      const readerScope = { ...scope };
       return {
         documentId,
         versionId: version.id,
@@ -600,6 +605,14 @@ export function createDocumentApplication(repository: DocumentRepository,
         sourceSha256: version.sourceSha256,
         ...(version.pdfProfile ? { pdfProfile: version.pdfProfile } : {}),
         ...(version.provenance ? { provenance: version.provenance } : {}),
+        assertAvailable: async () => {
+          const current = await repository.version(readerScope, documentId, version.id);
+          if (!current) throw new ApplicationError(404, "Document source is unavailable");
+          if (current.sourceSha256 !== version.sourceSha256 || current.fileType !== version.fileType ||
+              current.blobKey !== version.blobKey || current.sizeBytes !== version.sizeBytes ||
+              current.workingRevision !== version.workingRevision)
+            throw new ApplicationError(409, "Document source changed; acquire its current version");
+        },
         readBytes: async () => {
           const bytes = await checkedBytes(version);
           if (!bytes) throw new Error("Document source is unavailable");
@@ -638,9 +651,28 @@ export function createDocumentApplication(repository: DocumentRepository,
         pageNumbers: receipt.link.page_numbers, pages: receipt.pages };
     },
 
-    async download(scope, documentId, versionId, { preferPdf, disposition, evidence }) {
+    async download(scope, documentId, versionId, { preferPdf, disposition, evidence, range }) {
       const selected = await select(scope, documentId, versionId, preferPdf);
       if (!selected) return null;
+      if (range && !evidence && selected.fileType === "pdf") {
+        // Read and verify the entire source before releasing even its first range.
+        // Subsequent ranges share those immutable bytes, but recheck access/version.
+        const digest = selected.key === selected.version.blobKey
+          ? selected.version.sourceSha256 : documentBlobDigest(selected.key) ?? "";
+        if (documentBlobDigest(selected.key) !== digest) throw new Error("Stored document failed its integrity check");
+        const bytes = await retainedDownloads(selected.key, () => checkedBlob(selected.key, digest));
+        if (!bytes) return null;
+        const current = await repository.version(scope, documentId, versionId);
+        if (!current) return null;
+        if (current.id !== selected.version.id || current.sourceSha256 !== selected.version.sourceSha256 ||
+            current.fileType !== selected.version.fileType || current.blobKey !== selected.version.blobKey ||
+            current.pdfBlobKey !== selected.version.pdfBlobKey ||
+            current.workingRevision !== selected.version.workingRevision)
+          throw new ApplicationError(409, "Document changed while it was loading");
+        return { kind: "bytes", content: { bytes, sha256: digest,
+          version: responseVersion(current), filename: selected.filename,
+          fileType: selected.fileType, hasPdfRendition: !!current.pdfBlobKey } };
+      }
       if (!evidence && objects.signedGet && selected.key === selected.version.blobKey) {
         if (documentBlobDigest(selected.key) !== selected.version.sourceSha256)
           throw new Error("Stored document failed its integrity check");

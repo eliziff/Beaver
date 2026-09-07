@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { AuthoritiesDraft, AuthorityOccurrence } from "./authoritiesDomain";
-import { editorialQuote, findAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
+import { authoritiesDiscrepancyCorrection, editorialQuote, findAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
 
 const phrase = "The deadline is seven business days.";
 
@@ -47,7 +47,7 @@ describe("authorities discrepancy review", () => {
     state.occurrences.citation.unitId = "footnote:1";
     const findings = findAuthoritiesDiscrepancies(state, source("The cited paragraph says something else."));
     expect(findings).toEqual([expect.objectContaining({
-      kind: "quote_mismatch", proposition: `The court wrote "${phrase}"`,
+      kind: "quote_unlocated", proposition: `The court wrote "${phrase}"`,
       authoredQuote: phrase, footnoteId: 2, found: null,
       id: expect.stringMatching(/^[a-f0-9]{64}$/u), actions: ["ignore"],
     })]);
@@ -96,7 +96,7 @@ describe("authorities discrepancy review", () => {
     expect(findAuthoritiesDiscrepancies(draft(body, [occurrence(), occurrence("other", "other")]),
       source("No match."))).toEqual([]);
     expect(findAuthoritiesDiscrepancies(draft(body, [occurrence("citation", "case", false)]),
-      source("No match."))).toEqual([expect.objectContaining({ kind: "quote_mismatch" })]);
+      source("No match."))).toEqual([expect.objectContaining({ kind: "quote_unlocated" })]);
   });
 
   it("returns a bounded source repair and the pinned oracle's editorial wording", () => {
@@ -109,8 +109,7 @@ describe("authorities discrepancy review", () => {
       actions: ["ignore", "quote_exact", "quote_editorial"],
       found: { text: expect.stringContaining("not less than seven") } });
     expect(finding.found!.text.length).toBeLessThan(cited.length);
-    expect(finding.found!.text.match(/[\p{L}\p{N}]+/gu)).toHaveLength(
-      authored.match(/[\p{L}\p{N}]+/gu)!.length);
+    expect(finding.found!.text).toBe("the landlord may deliver a written notice to terminate the lease not less than seven business days");
     expect(editorialQuote("This and that", "This long passage and another"))
       .toBe("This ... and [that]");
     expect([
@@ -120,4 +119,54 @@ describe("authorities discrepancy review", () => {
       editorialQuote("A, B", "A B"),
     ]).toEqual(["[T]he test applies", "[court]", "alpha ... gamma", "A, B"]);
   });
+});
+
+describe("quotation review safety", () => {
+  it("classifies an unrelated source as unlocated and cannot apply a fabricated repair", () => {
+    const state = draft(`The court wrote "${phrase}"`);
+    const [finding] = findAuthoritiesDiscrepancies(state, source("Municipal liability concerns the design of public roads."));
+    expect(finding).toMatchObject({ kind: "quote_unlocated", found: null, actions: ["ignore"] });
+    expect(authoritiesDiscrepancyCorrection(state, { ...finding, kind: "quote_mismatch",
+      actions: ["quote_exact"], found: finding.cited }, "quote_exact")).toBeNull();
+  });
+  it("does not resurrect a decision on an unrelated document revision", () => {
+    const state = draft(`The court wrote "${phrase}"`), evidence = source("The deadline is five business days.");
+    const [before] = findAuthoritiesDiscrepancies(state, evidence);
+    state.occurrences.citation.id = "reimported-citation-id";
+    state.occurrences.citation.sourceTextSha256 = "c".repeat(64);
+    // IDs and whole-document hashes are implementation details, not decision identity.
+    const changed = structuredClone(state);
+    changed.occurrences.citation.id = "citation";
+    const [after] = findAuthoritiesDiscrepancies(changed, evidence);
+    expect(after.id).toBe(before.id);
+    const revisedEvidence = structuredClone(evidence); revisedEvidence[0].sourceVersion = "d".repeat(64);
+    expect(findAuthoritiesDiscrepancies(changed, revisedEvidence)[0].id).not.toBe(before.id);
+  });
+  it("will not edit a different copy when a quotation repeats in the same context", () => {
+    const state = draft(`"${phrase}" and again "${phrase}"`);
+    const [finding] = findAuthoritiesDiscrepancies(state, source("The deadline is five business days."));
+    expect(finding.actions).toEqual(["ignore"]);
+  });
+  it("does not borrow quotes from another footnote or ignore an unresolved second citation", () => {
+    const state = draft(`"${phrase}" First note. A separate proposition.`, [occurrence()], [[2, phrase.length + 2], [1, phrase.length + 41]]);
+    expect(findAuthoritiesDiscrepancies(state, source("Other evidence."))).toEqual([]);
+    const ambiguous = draft(`"${phrase}"`, [occurrence(), occurrence("unresolved", null)]);
+    expect(findAuthoritiesDiscrepancies(ambiguous, source("Other evidence."))).toEqual([]);
+  });
+  it("does not accept a small common fragment of a much longer passage", () => {
+    const [finding] = findAuthoritiesDiscrepancies(draft(`"${phrase}"`), source("The deadline is followed by a long discussion of entirely different substantive legal principles that cannot establish these quoted words."));
+    expect(finding).toMatchObject({ kind: "quote_unlocated", actions: ["ignore"] });
+  });
+});
+
+it("retains decisions when an earlier note renumbers the same Word footnote", () => {
+  const state = draft(`The court wrote "${phrase}"`), evidence = source("The deadline is five business days.");
+  const before = findAuthoritiesDiscrepancies(state, evidence)[0];
+  state.units[1].footnoteId = 2; state.units[0].footnoteRefs[0][0] = 2;
+  expect(findAuthoritiesDiscrepancies(state, evidence)[0].id).toBe(before.id);
+});
+it("does not rewrite a page number to a paragraph number", () => {
+  const state = draft(`The court wrote "${phrase}"`), evidence = source("Other wording.", [{label:"9", text:phrase}]);
+  evidence[0].alternatives[0].locator.kind = "section" as "paragraph";
+  expect(findAuthoritiesDiscrepancies(state, evidence)[0]).toMatchObject({kind:"quote_unlocated",actions:["ignore"]});
 });

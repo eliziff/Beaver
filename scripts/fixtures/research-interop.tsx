@@ -1,85 +1,62 @@
-/** Synthetic transport only; exercise the production conversion/promote components. */
+// Synthetic transport, real conversion/editor components. No user data or model calls.
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
-import { ImportResearchSet } from "@/app/components/tabular/ImportResearchSet";
-import { ColumnLabelsDialog } from "@/app/components/tabular/ColumnLabelsDialog";
-import { SaveResearchPassages } from "@/app/components/legal/SaveResearchPassages";
-import { SourcesWorkspaceProvider } from "@/app/components/legal/SourcesWorkspace";
 import { initializeRuntimeConfig } from "@/app/lib/runtimeConfig";
+import { SourcesWorkspaceProvider } from "@/app/components/legal/SourcesWorkspace";
+import { ImportResearchSet } from "@/app/components/tabular/ImportResearchSet";
+import { SaveFindingHighlights } from "@/app/components/legal/SaveFindingHighlights";
 import type { ResearchFile } from "@/app/lib/researchFiles";
-import type { ResearchImportColumn, ResearchTableInput } from "@/app/lib/api/researchFiles";
 import "./probe.css";
 
-const file = { document: { id: "workspace", filename: "Termination provisions.research.md", file_type: "md" },
-  versionId: "version", workingRevision: 3, state: { schemaVersion: "beaver.research.v2", sources: {}, queries: null, note: "",
-    labels: { relevance: { id: "relevance", name: "Relevance", scope: "source", parentId: null, color: null, order: 0 },
-      drafting: { id: "drafting", name: "Drafting language", scope: "highlight", parentId: null, color: "#d6b656", order: 0 } } } } as unknown as ResearchFile;
-const names = ["Miller v. Northlake", "Chen v. Eastwind", "Singh v. Cedar"];
-const findings = names.map((name, i) => ({ sourceId: `source-${i}`, resource: `document://source-${i}/version/v1`,
-  reference: { kind: "answer", chatId: "chat", answerId: `answer-${i}`, resource: `document://source-${i}/version/v1` },
-  question: { title: "Why was the clause rejected?", prompt: "Why was the clause rejected?" },
-  answer: { claims: [{ text: "The provisions were treated as an integrated scheme.", evidence_ids: [`e_${i}`] }] },
-  evidence: [{ evidence_id: `e_${i}`, name, citation: `2099 EXAMPLE ${i+1}`, scope: "passage", locator: { kind: "paragraph", label: String(40+i) },
-    span_text: "The termination provisions must be read together. The offending language affects the scheme as a whole." },
-    { evidence_id: `e_read_${i}`, name, scope: "passage", locator: { kind: "paragraph", label: "2" }, span_text: "Unselected read, not supporting evidence." }] }));
-const defaultColumns: ResearchImportColumn[] = [
-  { index: 0, name: "Existing classification", prompt: "Use my case classification.", format: "text", fieldIds: ["labels"] },
-  { index: 1, name: "Why the provisions were treated together", prompt: "What drove the result?", format: "text", fieldIds: ["reason"] },
-  { index: 2, name: "Drafting language", prompt: "Which wording mattered?", format: "text", fieldIds: ["wording"] },
-  { index: 3, name: "Treatment of the severability clause", prompt: "Did the severability clause affect the result?", format: "text", fieldIds: [] },
+const file = { document: { id: "research", filename: "Termination clauses.research.md" }, versionId: "v1", workingRevision: 1,
+  state: { schemaVersion: "beaver.research.v2", labels: { rule: { id: "rule", name: "Rule", scope: "highlight", color: "#d6b656", parentId: null, order: 0 } },
+    sources: {}, queries: null, note: "", tables: [], chats: [] } } as ResearchFile;
+const columns = [
+  { index: 0, name: "Reason for invalidity", prompt: "The existing classification of the whole case.", format: "text" },
+  { index: 1, name: "Rule", prompt: "The deliberately saved passages stating the rule.", format: "text" },
+  { index: 2, name: "How did the court treat the saving clause?", prompt: "Reuse the grounded answer to this question.", format: "text" },
 ];
-const values: Record<string, string[]> = { labels: ["Integrated scheme", "Integrated scheme", "Distinguished"],
-  reason: ["The provisions were treated as an integrated scheme.", "The clause was not read in isolation.", "Different wording drove the result."],
-  wording: ['“The termination provisions must be read together.”', '“The offending language affects the whole scheme.”', ""] };
-const calls: Array<{ path: string; input: Record<string, unknown> }> = [];
-Object.assign(globalThis, { __interopCalls: calls });
-const nativeFetch = globalThis.fetch;
-globalThis.fetch = async (input, init) => {
-  const path = typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
-  if (!path.startsWith("/api/")) return nativeFetch(input, init);
-  const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
-  calls.push({ path, input: body });
-  let data: unknown = file;
-  if (path.endsWith("/table-plan")) {
-    const input = body as ResearchTableInput, columns = input.columns ?? defaultColumns;
-    data = { title: input.title || "Termination provisions — comparison", basis: `basis-${calls.length}`, versionId: file.versionId,
-      workingRevision: file.workingRevision, columns, selection: input.selection ?? { target: "sources" }, findingRefs: findings.map(({ reference }) => reference),
-      arrangement: { rows: names.map((title, i) => ({ id: `source-${i}`, sourceId: `source-${i}`, title })) },
-      fields: [{ id: "labels", name: "Existing classification", kind: "classification", rows: 3, samples: values.labels },
-        { id: "reason", name: "Why was the clause rejected?", kind: "finding", rows: 3, samples: values.reason },
-        { id: "wording", name: "Drafting language", kind: "passages", rows: 2, samples: values.wording }],
-      reuse: columns.map((column) => { const reused = names.filter((_, i) => column.fieldIds.some((id) => values[id]?.[i])).length;
-        return { index: column.index, reused, unrun: names.length-reused, kinds: [] }; }),
-      preview: names.map((title, i) => ({ title, values: columns.map(({ fieldIds }) => fieldIds.map((id) => values[id]?.[i]).filter(Boolean).join("\n")) })) };
-  } else if (path.endsWith("/table")) data = { id: "created-review" };
-  else if (path.endsWith("/findings")) data = { items: findings, total: findings.length, next_offset: null };
-  else if (path.endsWith("/column-label-plan")) data = { title: "Reason", basis: "labels-basis", mapping: [
-    { value: "Generally relevant — same wording", label: "Directly relevant", sources: 2 },
-    { value: "Helpful analogy, different wording", label: "Analogous", sources: 1 },
-    { value: "Not decided", label: null, sources: 1 }] };
-  else if (path.includes("/items")) data = { items: [], next_cursor: null, total: 0 };
-  else if (path.endsWith("/views")) data = { chats: [], tables: [] };
-  else if (!/\/source-workspaces\/workspace(?:\/(actions|save-highlights|column-labels))?$/.test(path))
-    return new Response(JSON.stringify({ detail: `Unexpected fixture request ${path}` }), { status: 500 });
-  return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
+const texts = ["Integrated termination scheme", "The termination provisions must be read together.",
+  "The saving language did not cure the invalid scheme."];
+const kinds = ["classification", "passages", "answer"];
+const rows = ["Miller v. Northlake", "Davis v. Orchard", "Singh v. Riverbank", "Chen v. Parkway"].map((title, index) => ({ id: `case-${index}`, sourceId: `case-${index}`, title }));
+const mappings = rows.flatMap(({ id }) => columns.map(({ index }) => ({ rowId: id, columnIndex: index, itemIds: [`${id}-${index}`] })));
+const preview = (assisted: boolean) => ({ fingerprint: "a".repeat(64), rows,
+  design: { title: "Termination clauses", columns: assisted ? [...columns, { index: 3, name: "Costs", prompt: "Were costs awarded?", format: "text" }] : columns, cells: mappings },
+  stats: [...columns.map(({ index }) => ({ index, reused: 4, kinds: [kinds[index]], evidence: index ? 4 : 0 })),
+    ...(assisted ? [{ index: 3, reused: 0, kinds: [], evidence: 0 }] : [])],
+  samples: rows.slice(0, 3).flatMap(({ id }) => columns.map(({ index }) => ({ rowId: id, columnIndex: index, text: texts[index], kinds: [kinds[index]] }))) });
+const requests: Array<{ path: string; body: unknown }> = [];
+Object.assign(globalThis, { __interopRequests: requests });
+window.fetch = async (input, init) => {
+  const path = String(input), body = init?.body ? JSON.parse(String(init.body)) : {};
+  if (init?.method === "POST") requests.push({ path, body });
+  let data: unknown;
+  if (path === "/api/config") data = { mode: "local", capabilities: { connectors: false } };
+  else if (path.endsWith("/table/preview")) data = preview(!!body.request);
+  else if (path.endsWith("/table")) data = { id: "created-review", project_id: null };
+  else if (path.endsWith("/save-findings")) data = { file, saved: 1 };
+  else if (path.includes("/items")) data = { items: [], total: 0, next_cursor: null };
+  else if (path.includes("/views")) data = { chats: [], tables: [] };
+  else if (path.includes("/findings")) data = { items: [], total: 0, next_offset: null };
+  else if (path === "/api/source-workspaces/research") data = file;
+  else throw new Error(`Unexpected fixture request: ${path}`);
+  return new Response(JSON.stringify(data), { status: 200, headers: { "Content-Type": "application/json" } });
 };
-await initializeRuntimeConfig(async () => new Response(JSON.stringify({ mode: "local", capabilities: { connectors: false } })));
+await initializeRuntimeConfig();
 function App() {
-  const [mode, setMode] = useState(""), [result, setResult] = useState("");
+  const [open, setOpen] = useState(true), [destination, setDestination] = useState("");
   return <MemoryRouter><SourcesWorkspaceProvider file={file}>
-    <main className="min-h-dvh bg-gray-50 p-5 text-gray-900"><h1 className="text-xl font-semibold">Research interoperability</h1>
-      <p className="mt-2 text-sm text-gray-500">Synthetic examples. Actual Beaver components; no legal findings or live model calls.</p>
-      <nav className="my-4 flex flex-wrap gap-2">{["Review", "Collect", "Labels"].map((name) => <button key={name}
-        className="rounded border border-gray-300 bg-white px-3 py-2 text-sm" onClick={() => setMode(name)}>{name}</button>)}</nav>
-      <p role="status">{result}</p>
-      {mode === "Review" && <ImportResearchSet open fileId="workspace" selection={{ target: "sources", sourceIds: ["source-0", "source-1", "source-2"] }}
-        onClose={() => setMode("")} onOpen={(path) => setResult(`Opened ${path}`)} />}
-      {mode === "Collect" && <SaveResearchPassages fileId="workspace" chatId="chat" collect onClose={() => setMode("")}
-        onDone={(_, selection) => { setResult(`Collected ${selection.sourceIds?.length} sources`); setMode(""); }} />}
-      {mode === "Labels" && <ColumnLabelsDialog input={{ reviewId: "review", columnIndex: 0 }} onClose={() => setMode("")}
-        onApplied={() => setResult("Label proposal created")} />}
+    <main className="mx-auto max-w-4xl p-6"><h1 className="text-2xl font-semibold">Termination-clause research</h1>
+      <p className="my-3 text-sm text-gray-600">Synthetic component fixture</p>
+      <button className="rounded border px-3 py-2" onClick={() => setOpen(true)}>Review this research</button>
+      {destination && <p role="status">Review opened: {destination}</p>}
+      <section className="mt-6 border-t pt-3"><h2 className="font-medium">Saving-clause finding</h2><p className="mt-2">{texts[2]}</p>
+        <SaveFindingHighlights references={[{ kind: "cell", reviewId: "created-review", rowId: "case-0", columnIndex: 2 }]} />
+      </section>
     </main>
+    <ImportResearchSet open={open} onClose={() => setOpen(false)} fileId="research" chatId="chat" onOpen={setDestination} />
   </SourcesWorkspaceProvider></MemoryRouter>;
 }
 createRoot(document.getElementById("root")!).render(<App />);

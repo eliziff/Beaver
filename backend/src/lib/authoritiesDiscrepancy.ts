@@ -6,6 +6,7 @@ import { a2ajLegalSourceProvider } from "./legalSources/a2aj";
 import type { LegalSourceReference } from "./legalSources";
 import { structureNative } from "./structureNative";
 import { normalizeWhitespace } from "./text";
+import { footnotePropositions, markedQuotations, singleSourceFootnote } from "./authoritiesQuotations";
 
 export type AuthoritiesSourcePassage = {
   locator: { kind: "paragraph" | "section" | "page"; label: string };
@@ -35,6 +36,7 @@ type FindingBase = {
 export type AuthoritiesDiscrepancy = FindingBase & (
   | { kind: "quote_mismatch"; found: AuthoritiesSourcePassage | null }
   | { kind: "wrong_pinpoint"; found: AuthoritiesSourcePassage }
+  | { kind: "quote_unlocated"; found: null }
 );
 
 export type AuthoritiesDiscrepancyCorrection = {
@@ -43,37 +45,12 @@ export type AuthoritiesDiscrepancyCorrection = {
 
 type ReviewDraft = Pick<AuthoritiesDraft, "units" | "occurrences">;
 
-function footnotePropositions(units: ReviewDraft["units"]) {
-  const body = [...units].filter(({ kind }) => kind === "body")
-    .sort((left, right) => left.ordinal - right.ordinal || left.id.localeCompare(right.id));
-  const anchors: Array<{ footnoteId: number; position: number }> = [];
-  let text = "";
-  for (const unit of body) {
-    for (const [footnoteId, offset] of unit.footnoteRefs) {
-      if (Number.isSafeInteger(footnoteId) && footnoteId > 0 &&
-          Number.isSafeInteger(offset) && offset >= 0 && offset <= unit.text.length) {
-        anchors.push({ footnoteId, position: text.length + offset });
-      }
-    }
-    text += `${unit.text}\n`;
-  }
-  anchors.sort((left, right) => left.position - right.position || left.footnoteId - right.footnoteId);
-  const counts = new Map<number, number>();
-  for (const { footnoteId } of anchors) counts.set(footnoteId, (counts.get(footnoteId) ?? 0) + 1);
-  const propositions = new Map<number, string>();
-  let previous = 0;
-  for (const { footnoteId, position } of anchors) {
-    const proposition = normalizeWhitespace(text.slice(previous, position));
-    previous = position;
-    if (counts.get(footnoteId) === 1 && proposition) propositions.set(footnoteId, proposition);
-  }
-  return propositions;
-}
-
 const sameLocator = (left: AuthoritiesSourcePassage, right: AuthoritiesSourcePassage) =>
-  left.locator.kind === right.locator.kind && left.locator.label === right.locator.label;
+  left.locator.kind === right.locator.kind && JSON.stringify(sourceLocator({ kind: left.locator.kind, text: left.locator.label })) ===
+    JSON.stringify(sourceLocator({ kind: right.locator.kind, text: right.locator.label }));
 
 function exactCount(text: string, quote: string) {
+  text = normalizeWhitespace(text).normalize("NFKC"); quote = normalizeWhitespace(quote).normalize("NFKC");
   let count = 0;
   for (let at = text.indexOf(quote); at >= 0; at = text.indexOf(quote, at + quote.length)) {
     if (++count === 2) break;
@@ -81,46 +58,35 @@ function exactCount(text: string, quote: string) {
   return count;
 }
 
-const eligibleQuote = (quote: string) => normalizeWhitespace(quote).length >= 8 &&
-  (quote.match(/[\p{L}\p{N}]+/gu)?.length ?? 0) >= 2;
 const escapePattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+const comparisonWords = (text: string) => [...text.matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu)];
+const wordKey = (word: string) => word.normalize("NFKC").toLowerCase().replace(/’/gu, "'");
 function verbatimRepair(authored: string, source: string) {
-  const suggestion = structureNative().quoteRepairSuggestion(authored, [source]);
-  const match = suggestion && /“([^”]+)”|"([^"]+)"/u.exec(suggestion);
-  const anchor = match?.[1] ?? match?.[2] ?? "", at = source.indexOf(anchor);
-  if (!anchor || at < 0) return null;
-  const spans = [...source.matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu)]
-    .map((word) => ({ start: word.index, end: word.index + word[0].length }));
-  const authoredWords = authored.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu)?.length ?? 0;
-  let first = spans.findIndex(({ end }) => end > at), last = spans.findIndex(
-    ({ start }) => start >= at + anchor.length);
-  if (first < 0) return anchor;
-  if (last < 0) last = spans.length;
-  const authoredAt = authored.indexOf(anchor), before = authoredAt < 0 ? 0
-    : authored.slice(0, authoredAt).match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu)?.length ?? 0;
-  first = Math.max(0, first - before);
-  last = Math.min(spans.length, Math.max(last, first + authoredWords));
-  first = Math.max(0, Math.min(first, last - authoredWords));
-  return source.slice(spans[first].start, spans[last - 1]?.end ?? at + anchor.length);
+  const before = comparisonWords(authored), after = comparisonWords(source);
+  if (!before.length || !after.length) return null;
+  const equal = opcodes(before.map(w => wordKey(w[0])), after.map(w => wordKey(w[0])))
+    .filter(([kind]) => kind === "equal");
+  if (!equal.length) return null;
+  const [, a0, , b0] = equal[0], [, , a1, , b1] = equal[equal.length - 1];
+  const first = Math.max(0, b0 - a0), last = Math.min(after.length, b1 + before.length - a1);
+  const matched = equal.reduce((sum, [, a, b]) => sum + b - a, 0);
+  // Compare BOTH lengths: a tiny common fragment in a long passage is not alignment.
+  if (matched < Math.min(4, before.length) || matched / Math.max(before.length, last - first) < .7 ||
+      Math.max(...equal.map(([, a, b]) => b - a)) < 2) return null;
+  const start = after[first].index, end = after[last - 1].index + after[last - 1][0].length;
+  const candidate = source.slice(start, end) + (source.slice(end).match(/^[.,;:!?]+/u)?.[0] ?? "");
+  // Repeated candidate wording is ambiguous, even if the diff happens to prefer the first copy.
+  return source.indexOf(candidate) === source.lastIndexOf(candidate) ? candidate : null;
 }
 
 function quoteTarget(units: ReviewDraft["units"], footnoteId: number, quote: string) {
+  const context = footnotePropositions(units).get(footnoteId);
   const pattern = new RegExp(quote.trim().split(/\s+/u).map(escapePattern).join("\\s+"), "gu");
-  const candidates: Array<AuthoritiesDiscrepancyCorrection & { distance: number }> = [];
-  for (const unit of units.filter(({ kind }) => kind === "body")) {
-    for (const match of unit.text.matchAll(pattern)) {
-      const start = match.index, end = start + match[0].length;
-      const anchors = unit.footnoteRefs.filter(([id]) => id === footnoteId).map(([, at]) => at);
-      const preceding = anchors.filter((at) => end <= at).map((at) => at - end);
-      const distance = preceding.length ? Math.min(...preceding)
-        : anchors.length ? 1_000_000 + Math.min(...anchors.map((at) => Math.abs(at - end)))
-          : 2_000_000 + unit.ordinal;
-      candidates.push({ unitId: unit.id, start, end, expected: match[0], replacement: "", distance });
-    }
-  }
-  candidates.sort((left, right) => left.distance - right.distance ||
-    left.unitId.localeCompare(right.unitId) || left.start - right.start);
-  return candidates[0] ?? null;
+  const targets = context?.parts.flatMap(({ unit, start, end }) =>
+    [...unit.text.slice(start, end).matchAll(pattern)].map(match => ({ unitId: unit.id,
+      start: start + match.index, end: start + match.index + match[0].length,
+      expected: match[0], replacement: "" }))) ?? [];
+  return targets.length === 1 ? targets[0] : null;
 }
 
 function pinpointText(authored: string, label: string) {
@@ -130,18 +96,19 @@ function pinpointText(authored: string, label: string) {
     : value || null;
 }
 
-function findingId(draftVersion: string, occurrence: AuthorityOccurrence,
+function findingId(occurrence: AuthorityOccurrence,
   source: AuthoritiesOccurrenceSource, kind: AuthoritiesDiscrepancy["kind"], quote: string) {
-  return canonicalJsonSha256(["beaver.authorities-discrepancy.v1", draftVersion,
-    occurrence.sourceTextSha256, source.sourceVersion ?? "", occurrence.id, kind, quote,
-    source.cited.locator.kind, source.cited.locator.label]);
+  // Unrelated Word edits must not resurrect dismissed findings. Relevant text, source
+  // version, authority and pinpoint still invalidate the decision independently.
+  return canonicalJsonSha256(["beaver.authorities-discrepancy.v2", occurrence.unitId,
+    source.sourceVersion ?? source.cited.text, occurrence.citation, occurrence.authorityId,
+    occurrence.pinpoints, kind, quote, source.cited.locator]);
 }
 
 /** Returns only deterministic findings; source resolution and persistence stay with the caller. */
 export function findAuthoritiesDiscrepancies(
   draft: ReviewDraft,
   supplied: readonly AuthoritiesOccurrenceSource[],
-  draftVersion = "",
 ): AuthoritiesDiscrepancy[] {
   const native = structureNative(), propositions = footnotePropositions(draft.units);
   const sources = new Map<string, AuthoritiesOccurrenceSource | null>();
@@ -153,24 +120,19 @@ export function findAuthoritiesDiscrepancies(
     .sort((left, right) => left.ordinal - right.ordinal || left.id.localeCompare(right.id));
   for (const unit of footnotes) {
     if (!unit.footnoteId) continue;
-    const linked = unit.occurrenceIds.map((id) => draft.occurrences[id])
-      .filter((item): item is AuthorityOccurrence => Boolean(item?.authorityId));
-    if (linked.length !== 1) continue;
-    const occurrence = linked[0], source = sources.get(occurrence.id);
-    const proposition = propositions.get(unit.footnoteId);
+    const occurrence = singleSourceFootnote(draft, unit);
+    if (!occurrence?.authorityId) continue;
+    const source = sources.get(occurrence.id), proposition = propositions.get(unit.footnoteId)?.text;
     if (occurrence.unitId !== unit.id || occurrence.pinpoints.length !== 1 ||
         !source?.cited.text.trim() || !proposition) continue;
-    const seen = new Set<string>();
-    for (const marked of native.markedQuoteSpans(proposition)) {
-      const authoredQuote = normalizeWhitespace(marked.text);
-      if (!eligibleQuote(authoredQuote) || seen.has(authoredQuote)) continue;
-      seen.add(authoredQuote);
+    for (const authoredQuote of markedQuotations(proposition)) {
       const evidenceId = "authorities-source";
       if (!native.groundedProseErrors(`\u201c${authoredQuote}\u201d`, [evidenceId], [{
         evidenceId, text: source.cited.text, labels: [],
       }]).length) continue;
       let matchCount = 0, found: AuthoritiesSourcePassage | null = null;
       for (const candidate of source.alternatives ?? []) {
+        if (candidate.locator.kind !== source.cited.locator.kind) continue;
         const count = exactCount(candidate.text, authoredQuote);
         if (!count) continue;
         matchCount += count;
@@ -185,15 +147,16 @@ export function findAuthoritiesDiscrepancies(
           occurrence.pinpointSpan.text, found.locator.label);
         const kind = "wrong_pinpoint" as const;
         findings.push({ ...base, kind, found,
-          id: findingId(draftVersion, occurrence, source, kind, authoredQuote),
+          id: findingId(occurrence, source, kind, authoredQuote),
           actions: replacement ? ["ignore", "pinpoint"] : ["ignore"] });
       } else if (!matchCount) {
         const repair = verbatimRepair(authoredQuote, source.cited.text);
         const excerpt = repair ? { ...source.cited, text: repair } : null;
         const target = excerpt && quoteTarget(draft.units, unit.footnoteId, authoredQuote);
-        const kind = "quote_mismatch" as const;
-        findings.push({ ...base, kind, found: excerpt,
-          id: findingId(draftVersion, occurrence, source, kind, authoredQuote),
+        const kind = excerpt ? "quote_mismatch" as const : "quote_unlocated" as const;
+        findings.push({ ...base, ...(excerpt ? { kind: "quote_mismatch" as const, found: excerpt }
+          : { kind: "quote_unlocated" as const, found: null }),
+          id: findingId(occurrence, source, kind, authoredQuote),
           actions: target ? ["ignore", "quote_exact", "quote_editorial"] : ["ignore"] });
       }
     }
@@ -309,14 +272,15 @@ export function quoteTextComparison(authored: string, source: string) {
 export function authoritiesDiscrepancyCorrection(
   draft: ReviewDraft, finding: AuthoritiesDiscrepancy, action: AuthoritiesDiscrepancyAction,
 ): AuthoritiesDiscrepancyCorrection | null {
-  if (action === "ignore" || !finding.actions.includes(action)) return null;
+  if (action === "ignore" || finding.kind === "quote_unlocated" || !finding.actions.includes(action)) return null;
   if (action === "pinpoint" && finding.kind === "wrong_pinpoint") {
     const occurrence = draft.occurrences[finding.occurrenceId], span = occurrence?.pinpointSpan;
     const replacement = span && pinpointText(span.text, finding.found.locator.label);
     return span && replacement ? { unitId: occurrence.unitId, start: span.start, end: span.end,
       expected: span.text, replacement } : null;
   }
-  if ((action === "quote_exact" || action === "quote_editorial") && finding.found) {
+  if ((action === "quote_exact" || action === "quote_editorial") && finding.kind === "quote_mismatch" &&
+      finding.found && verbatimRepair(finding.authoredQuote, finding.found.text)) {
     const target = quoteTarget(draft.units, finding.footnoteId, finding.authoredQuote);
     return target ? { ...target, replacement: action === "quote_exact" ? finding.found.text
       : editorialQuote(finding.authoredQuote, finding.found.text) } : null;
@@ -327,7 +291,7 @@ export function authoritiesDiscrepancyCorrection(
 export function sourceLocator(pinpoint: AuthorityOccurrence["pinpoints"][number]): {
   kind: "paragraph" | "section" | "page"; value: string; endValue?: string;
 } | null {
-  const prefixes = pinpoint.kind === "paragraph" ? /^(?:at\s+)?(?:paras?|¶+)\.?\s*/iu
+  const prefixes = pinpoint.kind === "paragraph" ? /^(?:at\s+)?(?:paragraphs?|paras?|par|¶+)\.?\s*/iu
     : pinpoint.kind === "section" ? /^(?:at\s+)?(?:ss?|sections?)\.?\s*/iu
       : /^(?:at\s+)?(?:pp?|pages?)\.?\s*/iu;
   const label = pinpoint.text.trim().replace(prefixes, "");
@@ -362,24 +326,25 @@ export async function reviewAuthoritiesDiscrepancies(
           url: identity.externalUrl };
         const values = await a2ajLegalSourceProvider.readPassage!({ source: reference,
           locator, signal });
-        const selected = values.find(({ role }) => role === "selected") ?? values[0];
-        if (!selected || structureNative().documentRevision(selected.documentArtifact) !==
-            identity.sourceSha256) continue;
+        const selections = values.filter(({ role }) => role === "selected"), selected = selections[0];
+        if (!selected || selections.some(value => structureNative().documentRevision(value.documentArtifact) !==
+            identity.sourceSha256)) continue;
         const viewer = structureNative().legalSourceViewer(selected.documentArtifact,
           locator.kind === "section" ? "section" : "paragraph", 10_000);
         const alternatives = viewer.slices.flatMap(({ primary, text }) => primary &&
-          (primary.kind === "paragraph" || primary.kind === "section" || primary.kind === "page")
+          primary.kind === locator.kind
           ? [{ locator: { kind: primary.kind, label: primary.label }, text }] : []);
         supplied.push({ occurrenceId: occurrence.id, sourceVersion: identity.sourceSha256,
-          cited: { locator: { kind: locator.kind, label: selected.locator.label },
-            text: selected.text }, alternatives });
+          cited: { locator: { kind: locator.kind, label: locator.endValue
+            ? `${locator.value}–${locator.endValue}` : selected.locator.label },
+            text: selections.map(value => value.text).join("\n\n") }, alternatives });
       } catch (error) {
         if (signal?.aborted) throw error;
       }
     }
   }));
-  const draftVersion = draft.import.kind === "document" && draft.import.snapshot
-    ? `${draft.import.snapshot.versionId}:${draft.import.snapshot.sha256}` : "manual";
-  return findAuthoritiesDiscrepancies(draft, supplied, draftVersion)
-    .filter(({ id }) => !draft.discrepancyDecisions?.[id]);
+  return findAuthoritiesDiscrepancies(draft, supplied)
+    .filter(({ id }) => !draft.discrepancyDecisions?.[id])
+    .map(finding => draft.import.kind === "document" && draft.import.fileType === "docx"
+      ? finding : { ...finding, actions: ["ignore" as const] });
 }

@@ -1,3 +1,4 @@
+import { useNavigationPrefetch } from "@/app/hooks/useNavigationPrefetch";
 import { projectsCollection } from "@/app/lib/collectionKeys";
 "use client";
 import { useDeferredValue, useEffect, useState } from "react";
@@ -67,6 +68,7 @@ export function ProjectsOverview() {
     const [deleteWarning, setDeleteWarning] = useState<string | null>(null);
     const [deleteRequest, setDeleteRequest] = useState<{ ids: string[]; loading: boolean } | null>(null);
     const navigate = useNavigate();
+    const prefetch = useNavigationPrefetch();
     const { saveChat } = useChatHistoryContext();
     const { user, isAuthenticated, authLoading } = useAuth();
     const userId = user?.id;
@@ -261,6 +263,8 @@ export function ProjectsOverview() {
                                     />
                                     <div className="min-w-0 flex-1">
                                         <Link to={`/projects/${project.id}`}
+                                            onPointerEnter={event => { if (event.pointerType !== "touch") prefetch(`/projects/${project.id}`); }}
+                                            onFocus={() => prefetch(`/projects/${project.id}`)}
                                             onClick={(event) => event.stopPropagation()}
                                             className="block truncate rounded-sm text-base font-medium text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
                                             {project.name}

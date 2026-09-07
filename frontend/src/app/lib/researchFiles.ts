@@ -1,4 +1,4 @@
-import type { ResearchFindingReference } from "./api/researchFiles";
+import type { ResearchFindingReference } from "@/app/lib/api/researchFiles";
 import type { Document } from "@/app/lib/api/documents";
 import type { GroundedEvidence } from "@/app/lib/groundedAnswers";
 
@@ -48,9 +48,9 @@ export type ResearchPageItem = { kind: "passage" | "evidence"; index: number; va
   | { kind: "query"; index: number; value: ResearchQueryReceipt }
   | { kind: "change"; index: number; value: ResearchChange };
 export type ResearchActionResult = ResearchFile & { sourceId?: string; evidenceId?: string; receipt?: ResearchEvidenceReceipt };
-export type ResearchSelection = { findingRefs?: ResearchFindingReference[]; target: "sources" | "passages"; sourceIds?: string[];
+export type ResearchSelection = { target: "sources" | "passages"; sourceIds?: string[];
   evidenceIds?: string[]; labelIds?: string[]; unlabelled?: boolean;
-  members?: { sourceId: string; evidenceIds?: string[] }[] };
+  members?: { sourceId: string; evidenceIds?: string[] }[]; findingRefs?: ResearchFindingReference[] };
 export type ResearchQueryInput = ResearchSelection & { text?: string; after?: string; syntax: "literal" | "terms";
   limit?: number;
   rules?: Array<{ phrase: string; direction: "before" | "after" | "around";
@@ -59,7 +59,7 @@ export type ResearchQueryInput = ResearchSelection & { text?: string; after?: st
 /** Library readers without block anchors address the whole projection with kind `document`. */
 export type PassageLocator = { kind: "paragraph" | "section" | "page" | "footnote" | "document";
   value: string; endValue?: string };
-export type ResearchMutation =
+export type ResearchAction =
   | { type: "label"; id?: string; name: string; parentId?: string | null;
       color?: string | null; order?: number; scope?: "source" | "highlight" }
   | { type: "remove"; kind: "label" | "source"; id: string }
@@ -73,10 +73,9 @@ export type ResearchMutation =
   | { type: "passage"; sourceId: string; locator: PassageLocator; quote: string; labelIds?: string[] }
   | ({ type: "label-selection"; assign: string[]; mode: "add" | "remove" | "replace" } & ResearchSelection)
   | { type: "accept" | "reject" | "undo"; changeId: string }
-  | { type: "note"; markdown: string; expectedMarkdown?: string };
-
-export type ResearchAction = ResearchMutation | { type: "batch"; title: string; propose?: boolean;
-  actions: Extract<ResearchMutation, { type: "source" | "label" | "annotate" | "label-selection" | "remove" }>[] };
+  | { type: "note"; markdown: string; expectedMarkdown?: string }
+  /** One atomic research change: all of it commits, or none of it does. */
+  | { type: "batch"; title: string; propose?: boolean; actions: ResearchAction[] };
 
 /** Receipt inventory counts are not highlight counts. */
 export const researchHighlightCount = (source: ResearchSource) =>

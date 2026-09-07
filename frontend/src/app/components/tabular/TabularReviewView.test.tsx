@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
     regenerateCell: vi.fn(),
     uploadDocument: vi.fn(),
     updateReview: vi.fn(),
-    previewColumnLabels: vi.fn(), applyColumnLabels: vi.fn(),
+    proposeColumnLabels: vi.fn(),
     getResearchFile: vi.fn(),
     ensureWorkspace: vi.fn(),
 }));
@@ -61,9 +61,9 @@ vi.mock("@/app/lib/api/tabular", () => ({
   startTabularGeneration: mocks.startGeneration,
   stopTabularGeneration: vi.fn(),
   updateTabularReview: mocks.updateReview,
+  proposeColumnLabels: mocks.proposeColumnLabels
 }));
 vi.mock("@/app/lib/api/researchFiles", () => ({
-  previewColumnLabels: mocks.previewColumnLabels, applyColumnLabels: mocks.applyColumnLabels,
   getResearchFile: mocks.getResearchFile,
   ensureSourcesWorkspace: mocks.ensureWorkspace,
   actOnResearchFile: vi.fn(),
@@ -132,6 +132,7 @@ vi.mock("./TRTable", () => ({
         onSelectionChange,
         onRerunColumn,
         onColumnLabels,
+        onColumnDiscuss,
     }: {
         loading: boolean;
         cells: TabularCell[];
@@ -142,6 +143,7 @@ vi.mock("./TRTable", () => ({
         onSelectionChange: (ids: string[]) => void;
         onRerunColumn: (column: { index: number }) => void;
         onColumnLabels: (column: { index: number }) => void;
+        onColumnDiscuss: (column: { index: number }) => void;
     }) => (
         <>
             <button
@@ -156,6 +158,7 @@ vi.mock("./TRTable", () => ({
             <button onClick={() => onSelectionChange(selectedDocIds.length ? [] : documents.map(({ id }) => id))}>Toggle rows</button>
             <button onClick={() => onRerunColumn(columns[0])}>Rerun first column</button>
             <button onClick={() => onColumnLabels(columns[0])}>Labels from first column</button>
+            <button onClick={() => onColumnDiscuss(columns[0])}>Discuss first column</button>
         </>
     ),
 }));
@@ -166,7 +169,14 @@ vi.mock("./TRSidePanel", () => ({
         </div>
     ),
 }));
-vi.mock("./TRChatPanel", () => ({ TRChatPanel: () => null }));
+vi.mock("./TRChatPanel", async () => {
+    const { useSourcesWorkspace } = await import("../legal/SourcesWorkspace");
+    return { TRChatPanel: ({ workspaceReady, scopeLabel, onClearScope }: { workspaceReady: boolean; scopeLabel?: string; onClearScope?: () => void }) => {
+        const workspace = useSourcesWorkspace();
+        return <div data-testid="discussion" data-ready={String(workspaceReady)} data-selection={JSON.stringify(workspace.selection)}>
+            {scopeLabel}<button onClick={onClearScope}>Discuss all columns</button></div>;
+    } };
+});
 vi.mock("./AddColumnModal", () => ({ AddColumnModal: () => null }));
 vi.mock("./TabularReviewDetailsModal", () => ({
     TabularReviewDetailsModal: () => null,
@@ -299,16 +309,31 @@ it("proposes labels from a tag column into the review's workspace", async () => 
     const file = workspaceFile({});
     mocks.getResearchFile.mockResolvedValue(file);
     mocks.ensureWorkspace.mockResolvedValue(file);
-    mocks.previewColumnLabels.mockResolvedValue({ title: "Outcome", basis: "basis", mapping: [{ value: "Granted", label: "Granted", sources: 1 }] });
-    mocks.applyColumnLabels.mockResolvedValue(file);
+    mocks.proposeColumnLabels.mockResolvedValue(file);
     render(<TRView reviewId="review-1" />);
     await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
 
     fireEvent.click(screen.getByRole("button", { name: "Labels from first column" }));
-    await waitFor(() => expect(mocks.previewColumnLabels).toHaveBeenCalledWith("workspace-1", expect.objectContaining({ reviewId: "review-1", columnIndex: 3 }), expect.any(AbortSignal)));
-    expect(mocks.applyColumnLabels).not.toHaveBeenCalled();
-    await waitFor(() => expect(screen.getByRole("button", { name: "Propose labels" })).toBeEnabled());
-    fireEvent.click(screen.getByRole("button", { name: "Propose labels" }));
-    await waitFor(() => expect(mocks.applyColumnLabels).toHaveBeenCalledWith("workspace-1", expect.objectContaining({ reviewId: "review-1", columnIndex: 3, basis: "basis" })));
+    await waitFor(() => expect(mocks.proposeColumnLabels).toHaveBeenCalledWith("workspace-1", "review-1", 3, ["document-1"]));
     expect(await screen.findByText("Sources workspace")).toBeVisible();
+});
+
+it("discusses the selected column with its actual completed cell references", async () => {
+    const data = scoped([{ index: 0, name: "Term", prompt: "Find term" }, { index: 2, name: "Other", prompt: "Other" }]);
+    data.cells = [{ ...data.cells[0], content: { summary: "Two years", claims: [], evidence: [], missing: [], coverage: "complete" } },
+        { ...data.cells[0], id: "other", column_index: 2, content: { summary: "Not selected", claims: [], evidence: [], missing: [], coverage: "complete" } }];
+    mocks.getTabularReview.mockResolvedValue(data);
+    const file = workspaceFile({ "source-1": { id: "source-1", reference: { title: "Lease" }, labelIds: [], badge: "", note: "", passages: null } });
+    mocks.getResearchFile.mockResolvedValue(file); mocks.ensureWorkspace.mockResolvedValue(file);
+    render(<TRView reviewId="review-1" />);
+    await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
+    fireEvent.click(screen.getByRole("button", { name: "Discuss first column" }));
+    await waitFor(() => expect(screen.getByTestId("discussion")).toHaveAttribute("data-ready", "true"));
+    expect(JSON.parse(screen.getByTestId("discussion").getAttribute("data-selection")!)).toMatchObject({
+        members: [{ sourceId: "source-1" }], findingRefs: [{ kind: "cell", reviewId: "review-1", rowId: "document-1", columnIndex: 0 }] });
+    fireEvent.click(screen.getByRole("button", { name: "Discuss all columns" }));
+    await waitFor(() => expect(JSON.parse(screen.getByTestId("discussion").getAttribute("data-selection")!).findingRefs).toHaveLength(2));
+    fireEvent.click(screen.getByRole("button", { name: "Discuss first column" }));
+    await waitFor(() => expect(screen.getByTestId("discussion")).toHaveAttribute("data-ready", "true"));
+    expect(JSON.parse(screen.getByTestId("discussion").getAttribute("data-selection")!).findingRefs).toHaveLength(1);
 });

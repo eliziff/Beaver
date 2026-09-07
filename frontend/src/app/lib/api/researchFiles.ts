@@ -1,4 +1,4 @@
-import { apiRequest, segment, pagePath, post, mutationInit, type Page } from "@/app/lib/api/client";
+import { apiRequest, segment, pagePath, post, type Page } from "@/app/lib/api/client";
 import type { ResearchFile, ResearchAction, ResearchActionResult, ResearchPageItem, ResearchQueryInput, ResearchQueryResult, ResearchSelection } from "@/app/lib/researchFiles";
 import type { GroundedAnswer, GroundedEvidence } from "@/app/lib/groundedAnswers";
 import type { ColumnConfig, TabularReview } from "./tabular";
@@ -28,8 +28,8 @@ export const runResearchFileQuery = (id: string,
     ...input, version_id: input.versionId, working_revision: input.workingRevision,
     versionId: undefined, workingRevision: undefined,
   });
-export type ResearchFindingReference = ({ kind: "answer"; chatId: string; answerId: string; resource: string }
-  | { kind: "cell"; reviewId: string; rowId: string; columnIndex: number }) & { claimIndices?: number[] };
+export type ResearchFindingReference = { kind: "answer"; chatId: string; answerId: string; resource: string; claimIndices?: number[] }
+  | { kind: "cell"; reviewId: string; rowId: string; columnIndex: number };
 export type ResearchFinding = {
   reference: ResearchFindingReference;
   sourceId: string;
@@ -48,33 +48,20 @@ export const ensureSourcesWorkspace = (input: { chatId?: string; tableId?: strin
   post<ResearchFile>("/source-workspaces/ensure", input);
 export const bindWorkspaceView = (id: string, input: { chatId?: string; tableId?: string; selection?: ResearchSelection }) =>
   post<ResearchFile>(`/source-workspaces/${segment(id)}/bind`, input);
-export type ResearchImportColumn = ColumnConfig & { fieldIds: string[] };
 export type ResearchTableInput = { rows?: "sources" | "passages"; labelId?: string;
   selection?: ResearchSelection; findingRefs?: ResearchFindingReference[];
-  chatId?: string; messageIds?: string[]; tableId?: string; title?: string; request?: string;
-  basis?: string; columns?: ResearchImportColumn[]; replaceTableId?: string; expectedVersion?: string };
-export type ResearchTablePlan = { title: string; basis: string; selection: ResearchSelection;
-  versionId: string; workingRevision: number; findingRefs: ResearchFindingReference[];
-  columns: ResearchImportColumn[];
-  fields: { id: string; name: string; kind: "classification" | "passages" | "finding" | "claim" | "note"; rows: number; samples: string[] }[];
-  reuse: { index: number; reused: number; unrun: number; kinds: string[] }[];
-  arrangement: { rows: { id: string; sourceId: string; title: string }[] };
-  preview: { title: string; values: string[] }[] };
-export const previewResearchTable = (id: string, input: ResearchTableInput, signal?: AbortSignal) =>
-  apiRequest<ResearchTablePlan>(`/source-workspaces/${segment(id)}/table-plan`, { ...mutationInit("POST", input), signal });
+  chatId?: string; messageIds?: string[]; tableId?: string; fingerprint?: string; design?: ResearchTableDesign; request?: string };
+export type ResearchTableDesign = { title: string; columns: ColumnConfig[];
+  cells: { rowId: string; columnIndex: number; itemIds: string[] }[] };
+export type ResearchTablePreview = { fingerprint: string; design: ResearchTableDesign;
+  rows: { id: string; title: string; sourceId: string; evidenceIds?: string[] }[];
+  stats: { index: number; reused: number; kinds: string[]; evidence: number }[];
+  samples: { rowId: string; columnIndex: number; text: string; kinds: string[] }[] };
+export const previewWorkspaceTable = (id: string, input: ResearchTableInput) =>
+  post<ResearchTablePreview>(`/source-workspaces/${segment(id)}/table/preview`, input);
 export const openWorkspaceTable = (id: string, input: ResearchTableInput) =>
   post<TabularReview>(`/source-workspaces/${segment(id)}/table`, input);
-export const queryWorkspaceFindings = (id: string, input: { references?: ResearchFindingReference[]; selection?: ResearchSelection;
-  chatId?: string; messageIds?: string[]; sourceIds?: string[]; offset?: number; limit?: number }, signal?: AbortSignal) =>
-  apiRequest<{ items: ResearchFinding[]; total: number; next_offset: number | null }>(`/source-workspaces/${segment(id)}/findings`,
-    { ...mutationInit("POST", input), signal });
-export const saveFindingHighlights = (file: ResearchFile, input: { references: ResearchFindingReference[]; evidenceIds: string[]; typeId?: string }) =>
-  post<ResearchFile>(`/source-workspaces/${segment(file.document.id)}/save-highlights`, {
-    ...input, versionId: file.versionId, workingRevision: file.workingRevision });
-export type ColumnLabelInput = { reviewId: string; columnIndex: number; rowIds?: string[]; parentId?: string;
-  basis?: string; request?: string; mapping?: { value: string; label: string | null }[] };
-export type ColumnLabelPlan = { title: string; basis: string; mapping: { value: string; label: string | null; sources: number }[] };
-export const previewColumnLabels = (id: string, input: ColumnLabelInput, signal?: AbortSignal) =>
-  apiRequest<ColumnLabelPlan>(`/source-workspaces/${segment(id)}/column-label-plan`, { ...mutationInit("POST", input), signal });
-export const applyColumnLabels = (id: string, input: ColumnLabelInput) =>
-  post<ResearchFile>(`/source-workspaces/${segment(id)}/column-labels`, input);
+export const saveFindingHighlights = (file: ResearchFile, references: ResearchFindingReference[], typeId?: string) =>
+  post<{ file: ResearchFile; saved: number }>(`/source-workspaces/${segment(file.document.id)}/save-findings`, {
+    references, typeId, versionId: file.versionId, workingRevision: file.workingRevision,
+  });

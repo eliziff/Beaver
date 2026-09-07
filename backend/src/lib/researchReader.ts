@@ -35,10 +35,10 @@ const readCursor = z.object({ resource: z.string().min(1).max(4_000), offset: z.
   start_char: z.number().int().nonnegative().optional() }).strict();
 const readProgress = z.object({ next: z.array(readCursor), fingerprints: z.record(z.string()) }).strict();
 export const researchReadContextSchema = z.object({
-  findingRefs: z.array(researchFindingReferenceSchema).max(10_000).optional(),
   workspace: z.object({ documentId: z.string(), versionId: z.string(),
     workingRevision: z.number().int().nonnegative() }).strict().optional(),
   restricted: z.boolean().optional(),
+  findingRefs: z.array(researchFindingReferenceSchema).max(500).optional(),
   subjects: z.array(z.object({ sourceId: z.string(), resource: z.string().min(1).max(4_000),
     rowId: z.string().optional(), reference: researchSourceReferenceSchema,
     evidence: z.array(z.custom<LegalEvidenceReceipt>((value) => storedLegalEvidenceReceipt(value) !== null)).optional(),
@@ -73,7 +73,7 @@ export function researchReadCursors(context: ResearchReadContext) {
 }
 export function researchReadContextPrompt(context: ResearchReadContext | undefined) {
   if (!context) return "";
-  return [context.findingRefs ? `${context.findingRefs.length} selected grounded findings. Read findings to retrieve their questions, answers and original evidence; other table cells are outside this selection.` : "",
+  return [context.findingRefs ? `SELECTED RESEARCH RESULTS: ${JSON.stringify(context.findingRefs)}. Read findings or read_table_cells for the original answers and their support.` : "",
   context.workspace ? `CURRENT RESEARCH WORKSPACE: ${resourceReference.document(
     context.workspace.documentId, context.workspace.versionId)}` : "",
   context.subjects ? `${context.subjects.length} ${context.restricted ? "selected" : "saved"} source scopes:\n` +
@@ -88,9 +88,6 @@ export function readResearchContextInventory(context: ResearchReadContext, args:
     items: selected.map(({ sourceId, resource, reference, evidence }) => ({ sourceId, resource,
       title: reference.title ?? reference.citation, ...(evidence ? { passage_count: evidence.length } : {}),
       next_reads: context.reads?.[resource]?.next ?? [{ resource, offset: 1, start_char: 0 }] })),
-    ...(context.findingRefs ? { finding_count: context.findingRefs.length,
-      findings: context.findingRefs.slice(offset, offset + limit),
-      next_finding_offset: offset + limit < context.findingRefs.length ? offset + limit + 1 : null } : {}),
     next_offset: offset + selected.length < subjects.length ? offset + selected.length + 1 : null });
 }
 
@@ -114,7 +111,7 @@ export function childResearchReadContext(context: ResearchReadContext | undefine
   }
   if (ids && [...ids].some((id) => !found.has(id)))
     throw new ApplicationError(400, "Reader passage is outside the selected workspace scope");
-  return { workspace: context.workspace, findingRefs: context.findingRefs, restricted: true, subjects };
+  return { workspace: context.workspace, restricted: true, subjects };
 }
 
 /** The same source checks, frozen passage scope, fingerprints and continuations serve every reader. */

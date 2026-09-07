@@ -4,7 +4,7 @@ import { AUTHORITIES_BOOK_ROLES, authoritiesProfileIds, type AuthorityOccurrence
   type AuthoritiesBuildSettings, type AuthoritiesCover, type AuthoritiesDiscrepancyAction,
   type AuthoritiesProfileId } from "./authoritiesDomain";
 import type { AuthoritiesInitialSettings, AuthoritiesUserAction } from
-  "./authoritiesWorkspaceApplication";
+  "./authoritiesActions";
 import { isJsonRecord } from "./value";
 
 const bad = (): never => reject(400, "Invalid Authorities request");

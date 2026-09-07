@@ -12,14 +12,15 @@ const mocks = vi.hoisted(() => ({
     listWorkflows: vi.fn().mockResolvedValue([]),
     design: vi.fn(),
     getResearchFile: vi.fn(),
-    openWorkspaceTable: vi.fn(), previewResearchTable: vi.fn(),
+    openWorkspaceTable: vi.fn(),
+    previewWorkspaceTable: vi.fn(),
 }));
 vi.mock("@/app/lib/api/tabular", async (original) => ({
   ...await original<typeof import("@/app/lib/api/tabular")>(), designTabularReview: mocks.design,
 }));
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({
   ...await original<typeof import("@/app/lib/api/researchFiles")>(),
-  previewResearchTable: mocks.previewResearchTable, getResearchFile: mocks.getResearchFile, openWorkspaceTable: mocks.openWorkspaceTable,
+  getResearchFile: mocks.getResearchFile, openWorkspaceTable: mocks.openWorkspaceTable, previewWorkspaceTable: mocks.previewWorkspaceTable,
 }));
 vi.mock("@/app/lib/api/workflows", () => ({
   getWorkflow: mocks.getWorkflow,
@@ -264,19 +265,21 @@ it("imports a research set as passage rows and opens the created review", async 
     mocks.getResearchFile.mockResolvedValue({ document: set, versionId: "v1", workingRevision: 0, state: {
         labels: { pen: { id: "pen", name: "Key", parentId: null, color: "#eab308", order: 0, scope: "highlight" } },
         sources: {}, queries: null, note: "" } });
+    const preview = { fingerprint: "a".repeat(64), design: { title: "Appeal", columns: [{ index: 0, name: "Key", prompt: "Saved key passages" }],
+        cells: [{ rowId: "passage", columnIndex: 0, itemIds: ["item"] }] }, rows: [{ id: "passage", sourceId: "source", title: "Case" }],
+        stats: [{ index: 0, reused: 1, kinds: ["passages"], evidence: 1 }], samples: [{ rowId: "passage", columnIndex: 0, text: "Saved passage", kinds: ["passages"] }] };
+    mocks.previewWorkspaceTable.mockResolvedValue(preview);
     mocks.openWorkspaceTable.mockResolvedValue({ id: "review-9", project_id: null });
-    mocks.previewResearchTable.mockResolvedValue({ title: "Appeal", basis: "basis", columns: [{ index: 0, name: "Passage", prompt: "Original text", fieldIds: ["passage"] }],
-      fields: [], reuse: [{ index: 0, reused: 1, unrun: 0 }], preview: [{ title: "Case", values: ["Existing passage"] }], arrangement: { rows: [{ id: "row" }] } });
     const onOpen = vi.fn();
     render(<NewTRModal open onClose={vi.fn()} onAdd={vi.fn()} onOpen={onOpen} />);
     fireEvent.click(screen.getByRole("button", { name: "Create custom" }));
     fireEvent.click(screen.getByRole("button", { name: "Import a Research set" }));
     fireEvent.click(await screen.findByRole("radio", { name: "Select Appeal" }));
-    expect(await screen.findByLabelText("Highlight type filter")).toBeVisible();
-    fireEvent.change(screen.getByLabelText("Review rows"), { target: { value: "passages" } });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Create review" })).toBeEnabled());
-    fireEvent.click(screen.getByRole("button", { name: "Create review" }));
+    expect(await screen.findByLabelText("Highlight type")).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Rows"), { target: { value: "passages" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open review" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Open review" }));
 
     await waitFor(() => expect(onOpen).toHaveBeenCalledWith("/tabular-reviews/review-9"));
-    expect(mocks.openWorkspaceTable).toHaveBeenCalledWith("set-1", expect.objectContaining({ rows: "passages", basis: "basis" }));
+    expect(mocks.openWorkspaceTable).toHaveBeenCalledWith("set-1", { rows: "passages", design: preview.design, fingerprint: preview.fingerprint });
 });

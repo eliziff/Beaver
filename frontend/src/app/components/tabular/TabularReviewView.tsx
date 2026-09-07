@@ -11,6 +11,7 @@ import {
   stopTabularGeneration,
   startTabularGeneration,
   updateTabularReview,
+  proposeColumnLabels,
   type ColumnConfig,
   type TabularCell,
   type TabularReview,
@@ -23,7 +24,6 @@ import {
   uploadStandaloneDocument,
   type Document,
 } from "@/app/lib/api/documents";
-import { errorMessage } from "@/app/lib/utils";
 import { BeaverApiError } from "@/app/lib/api/client";
 import { downloadBlob } from "@/app/lib/download";
 import { useAuth } from "@/app/contexts/AuthContext";
@@ -34,6 +34,9 @@ import { getModelProvider, isModelAvailable, type ModelProvider } from "@/app/li
 
 
 
+import { assistantIntent, type AssistantIntent } from "../assistant/assistantIntent";
+import { SaveFindingHighlights } from "../legal/SaveFindingHighlights";
+import { errorMessage } from "@/app/lib/utils";
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { ResearchSelectionLabels } from "../shared/ResearchSelectionLabels";
 import { ResearchChanges } from "../legal/ResearchChanges";
@@ -56,11 +59,6 @@ import { TabularReviewDetailsModal } from "./TabularReviewDetailsModal";
 import { TRChatPanel } from "./TRChatPanel";
 import { TRSidePanel } from "./TRSidePanel";
 import { TRTable } from "./TRTable";
-import { ImportResearchSet } from "./ImportResearchSet";
-import { ColumnLabelsDialog } from "./ColumnLabelsDialog";
-import { SaveResearchPassages } from "../legal/SaveResearchPassages";
-import type { ColumnLabelInput, ResearchFindingReference } from "@/app/lib/api/researchFiles";
-import { assistantIntent } from "../assistant/assistantIntent";
 
 interface Props { reviewId: string; projectId?: string }
 type Modal = "documents" | "details" | "people" | null;
@@ -94,12 +92,6 @@ function TRViewContent({ reviewId, projectId }: Props) {
     const [projects, setProjects] = useState<Project[]>([]);
     const [cells, setCells] = useState<TabularCell[]>([]);
     const [documents, setDocuments] = useState<TabularDocument[]>([]);
-    const [labelInput, setLabelInput] = useState<ColumnLabelInput | null>(null);
-    const [savedResult, setSavedResult] = useState<ResearchFindingReference[] | null>(null);
-    const [refreshResearch, setRefreshResearch] = useState(false);
-    const [focusedResults, setFocusedResults] = useState<{ columnIndex?: number; rowId?: string } | null>(null);
-    const [scopeError, setScopeError] = useState("");
-    const [intent, setIntent] = useState<ReturnType<typeof assistantIntent> | undefined>();
     const initialChat = searchParams.get("chat");
     const [ui, setUiState] = useState(() => ({
         loading: true,
@@ -476,16 +468,18 @@ function TRViewContent({ reviewId, projectId }: Props) {
         filename.toLowerCase().includes(search.toLowerCase()));
     const addedDocumentIds = new Set(documents.map(({ id }) => id));
     const selected = !!selectedIds.length;
+    const [discussion, setDiscussion] = useState<{ columnIndex: number; rowId?: string; intent?: AssistantIntent } | null>(null);
+    const [interopError, setInteropError] = useState("");
     const rowSelection = (rows: TabularDocument[]): ResearchSelection => ({ target: "sources", members: rows.flatMap(({ selection }) =>
         selection?.members ?? selection?.sourceIds?.map((sourceId) => ({ sourceId,
             ...(selection.target === "passages" ? { evidenceIds: selection.evidenceIds ?? [] } : {}) })) ?? []) });
     const scopedRows = selected ? filteredDocuments.filter(({ id }) => selectedIds.includes(id)) : filteredDocuments;
-    const chatRows = focusedResults?.rowId ? scopedRows.filter(({ id }) => id === focusedResults.rowId) : scopedRows;
-    const selectedFindings = cells.filter((cell) => cell.status === "done" && cell.content && chatRows.some(({ id }) => id === cell.document_id) &&
-        (focusedResults?.columnIndex === undefined || cell.column_index === focusedResults.columnIndex)).map((cell): ResearchFindingReference =>
-        ({ kind: "cell", reviewId, rowId: cell.document_id, columnIndex: cell.column_index }));
-    const selectedScopeKey = JSON.stringify({ ...rowSelection(dockTab === "chat" ? chatRows : scopedRows),
-        ...(dockTab === "chat" ? { findingRefs: selectedFindings } : {}) });
+    const discussedRows = discussion?.rowId ? scopedRows.filter(({ id }) => id === discussion.rowId) : scopedRows;
+    const chatSelection = (rows: TabularDocument[]): ResearchSelection => ({ ...rowSelection(rows),
+      findingRefs: rows.flatMap(({ id }) => cells.filter((cell) => cell.document_id === id &&
+        (!discussion || cell.column_index === discussion.columnIndex) && cell.status === "done" && cell.content)
+        .map((cell) => ({ kind: "cell" as const, reviewId, rowId: id, columnIndex: cell.column_index }))) });
+    const selectedScopeKey = JSON.stringify(chatSelection(discussedRows));
     useEffect(() => {
         if (workspaceId && workspace.file?.document.id === workspaceId)
             workspace.setSelection(JSON.parse(selectedScopeKey) as ResearchSelection);
@@ -496,7 +490,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
         setReview(data.review); setCells(data.cells); setDocuments(data.documents);
         const ids = new Set(scopedRows.map(({ id }) => id));
         const rows = data.documents.filter(({ id }) => ids.has(id));
-        const selection = rowSelection(rows);
+        const selection = chatSelection(discussion?.rowId ? rows.filter(({ id }) => id === discussion.rowId) : rows);
         workspace.setSelection(selection);
         return { file, selection, rows };
     }
@@ -504,15 +498,14 @@ function TRViewContent({ reviewId, projectId }: Props) {
     useEffect(() => {
         if (chatOpen && review && !workspaceId) prepareChatWorkspace();
     }, [chatOpen, !!review, workspaceId]);
-    async function openChat(focus?: { columnIndex?: number; rowId?: string }, prompt?: string) {
-        setScopeError("");
-        try {
-            await prepareRows();
-            setFocusedResults(focus ?? null);
-            setSidebarOpen(false); setUi({ dockTab: "chat", cellView: null });
-            if (focus || !chatOpen || prompt) setChatId(null);
-            if (prompt) setIntent(assistantIntent(prompt));
-        } catch (reason) { setScopeError(errorMessage(reason, "Could not prepare research context")); }
+    async function openChat(focus?: { columnIndex: number; rowId?: string; text?: string }) {
+        setInteropError("");
+        try { await prepareRows(); } catch (reason) { setInteropError(errorMessage(reason, "Could not open research")); return; }
+        setDiscussion(focus ? { ...focus, intent: focus.text ? assistantIntent(focus.text) : undefined } : null);
+        setUi({ cellView: null });
+        setSidebarOpen(false);
+        setUi({ dockTab: "chat" });
+        if (!chatOpen) setChatId(null);
     }
     async function openSources() {
         await prepareRows();
@@ -522,20 +515,18 @@ function TRViewContent({ reviewId, projectId }: Props) {
         setUi({ dockTab: null });
         setChatId(undefined);
     }
-    async function labelsFromColumn({ index }: ColumnConfig) {
-        setScopeError("");
-        try { const { rows } = await prepareRows(); setLabelInput({ reviewId, columnIndex: index, rowIds: rows.map(({ id }) => id) }); }
-        catch (reason) { setScopeError(errorMessage(reason, "Could not prepare column labels")); }
-    }
-    async function saveResultPassages(cell: TabularCell) {
-        setScopeError("");
-        try { await prepareRows(); setUi({ cellView: null });
-            setSavedResult([{ kind: "cell", reviewId, rowId: cell.document_id, columnIndex: cell.column_index }]); }
-        catch (reason) { setScopeError(errorMessage(reason, "Could not load supporting passages")); }
+    async function labelsFromColumn(column: ColumnConfig) {
+        if (column.format !== "tag" && column.format !== "yes_no") return openChat({ columnIndex: column.index,
+          text: `Propose a small source-label hierarchy from the selected ${column.name} results. Reuse the existing classifications where appropriate, explain ambiguous mappings, and submit a proposal for review rather than applying it.` });
+        setInteropError("");
+        try { const { file } = await prepareRows();
+          workspace.accept(await proposeColumnLabels(file.document.id, reviewId, column.index, scopedRows.map(({ id }) => id)));
+          setUi({ dockTab: "sources" });
+        } catch (reason) { setInteropError(errorMessage(reason, "Could not propose labels")); }
     }
     const rowMembers = rowSelection(documents).members ?? [];
     const workspaceSources = Object.values(workspace.file?.state.sources ?? {})
-        .filter((source) => source.collected !== false && !rowMembers.some((member) => member.sourceId === source.id))
+        .filter(({ id }) => !rowMembers.some((member) => member.sourceId === id))
         .map(({ id, reference }) => ({ id, title: reference.title ?? reference.citation ?? id }));
     async function addSources(sourceIds: string[]) {
         await updateTabularReview(reviewId, { research_selection: { target: "sources",
@@ -578,10 +569,6 @@ function TRViewContent({ reviewId, projectId }: Props) {
         ? { done: columnRun.total - columnRun.queue.length - (generating ? 1 : 0), total: columnRun.total }
         : { done: finishedCells, total: cells.length };
     const menuItems = [
-        ...(workspaceId ? [{ label: "Refresh from research…", disabled: generating,
-            onSelect: () => setRefreshResearch(true) }] : []),
-        { label: "Suggest columns…", onSelect: () => void openChat(undefined,
-            "Suggest improvements to this review's columns and prompts for the research question. Reuse existing work where appropriate. Show a reversible proposal; do not rerun extraction or silently replace results.") },
         { label: "History", onSelect: () => setUi({ historyOpen: true }) },
         ...(!projectId ? [{ label: "People", disabled: loading, onSelect: () => setUi({ modal: "people" as Modal }) }] : []),
         { label: "Edit details",
@@ -729,7 +716,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
                                 onAddColumns={() => setUi({ columnModal: null })}
                                 onAddDocuments={() => setUi({ modal: "documents" })}
                                 onColumnLabels={(column) => void labelsFromColumn(column)}
-                                onAskColumn={(column) => void openChat({ columnIndex: column.index })}
+                                onColumnDiscuss={(column) => void openChat({ columnIndex: column.index })}
                             />
                         </div>
                     </div>
@@ -743,10 +730,12 @@ function TRViewContent({ reviewId, projectId }: Props) {
                         tabs={[
                             { id: "chat", label: "Chat", icon: <MessageSquare aria-hidden className="size-4" />, content: chatOpen && <TRChatPanel
                                 reviewId={reviewId} chatId={chatId ?? null}
-                                workspaceReady={!!workspaceId && workspace.file?.document.id === workspaceId && !workspace.loading && JSON.stringify(workspace.selection) === selectedScopeKey}
-                                scopeLabel={`${chatRows.length} sources · ${selectedFindings.length} results`}
-                                initialIntent={intent ?? location.state?.assistantIntent}
-                                onIntentSent={() => { setIntent(undefined); navigate(`${location.pathname}${location.search}`, { replace: true, state: null }); }}
+                                workspaceReady={!!workspaceId && workspace.file?.document.id === workspaceId && JSON.stringify(workspace.selection) === selectedScopeKey}
+                                initialIntent={discussion?.intent ?? location.state?.assistantIntent}
+                                scopeLabel={discussion ? `${columns.find(({ index }) => index === discussion.columnIndex)?.name ?? "Results"} · ${discussedRows.length} row${discussedRows.length === 1 ? "" : "s"}` : undefined}
+                                onClearScope={() => setDiscussion(null)}
+                                onIntentSent={() => { setDiscussion((current) => current ? { ...current, intent: undefined } : null);
+                                  navigate(`${location.pathname}${location.search}`, { replace: true, state: null }); }}
                                 onUpdated={() => void Promise.all([refreshReview(), workspace.refresh()]).catch(() => undefined)}
                                 searchMessageId={searchParams.get("message")}
                                 onCitationClick={(colIdx, rowIdx) => {
@@ -760,27 +749,23 @@ function TRViewContent({ reviewId, projectId }: Props) {
                         ]} />}
                 </div>
             </div>
+            {interopError && <p role="alert" className="px-4 py-2 text-sm text-red-700">{interopError}</p>}
             {expandedCell && expandedDocument && expandedColumn && (
                 <TRSidePanel
                     key={JSON.stringify(cellView)} cell={expandedCell}
                     document={expandedDocument} column={expandedColumn}
+                    onDiscuss={() => void openChat({ rowId: expandedCell.document_id, columnIndex: expandedCell.column_index })}
+                    saveHighlights={expandedCell.content?.claims.some(({ evidence_ids }) => evidence_ids.length > 0)
+                      ? <SaveFindingHighlights tableId={reviewId} references={[{ kind: "cell", reviewId,
+                          rowId: expandedCell.document_id, columnIndex: expandedCell.column_index }]} /> : undefined}
                     onClose={() => setUi({ cellView: null })}
                     onRegenerate={() => regenerateCell(
                         expandedCell.document_id, expandedCell.column_index)}
-                    onAsk={() => void openChat({ columnIndex: expandedCell.column_index, rowId: expandedCell.document_id })}
-                    onSaveEvidence={expandedCell.content?.claims.some(({ evidence_ids }) => evidence_ids.length) ? () => void saveResultPassages(expandedCell) : undefined}
                     running={generating || !!columnRun}
                     displayDocument={expandedCitation !== undefined}
                     citation={expandedCitation}
                 />
             )}
-            {scopeError && <div role="alert" className="fixed bottom-4 left-4 z-50 max-w-sm rounded border border-red-200 bg-white p-3 text-sm text-red-700">{scopeError}<button type="button" onClick={() => setScopeError("")} className="ml-2 underline">Dismiss</button></div>}
-            {labelInput && <ColumnLabelsDialog input={labelInput} onClose={() => setLabelInput(null)} onApplied={() => setUi({ dockTab: "sources" })} />}
-            {savedResult && workspace.file && <SaveResearchPassages fileId={workspace.file.document.id} references={savedResult}
-                onClose={() => setSavedResult(null)} onDone={(file) => { workspace.accept(file); setSavedResult(null); setUi({ dockTab: "sources" }); }} />}
-            <ImportResearchSet open={refreshResearch} fileId={workspaceId} replaceTable={review ?? undefined}
-                selection={review?.scope_config?.selection} onClose={() => setRefreshResearch(false)} onOpen={() => undefined}
-                onApplied={() => { void refreshReview(); setUi({ historyOpen: true }); }} />
             <AddColumnModal
                 open={columnModal !== undefined} existingCount={columns.length}
                 editingColumn={columnModal ?? undefined}

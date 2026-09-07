@@ -12,7 +12,7 @@ import { commitResearchFile, createResearchFileState, pageResearchItems, readRes
 import { runResearchFileQuery, verifyResearchPassage, type ResearchFileQueryInput } from "./researchFileQuery";
 import { readResearchMemoCitation } from "./researchMemo";
 import { resolveChatFindings, selectFindingClaims, type ResearchFinding } from "./researchChat";
-import { researchFindingReferenceSchema, researchFindingKey, researchFindingWithin, type ResearchFindingReference } from "./researchFindingReference";
+import { researchFindingReferenceSchema, type ResearchFindingReference } from "./researchFindingReference";
 import { researchSelectionSchema, resolveResearchSelection, type ResearchSelection, type ResearchSubject } from "./researchSelection";
 import { researchResultFilter } from "./researchReader";
 import type { ResearchOperationContext } from "./researchProvenance";
@@ -21,7 +21,9 @@ import { priorLegalEvidenceReceipts, priorLegalResearchQueryReceipts,
   type LegalEvidenceReceipt, type LegalResearchQueryReceipt } from "./chat/legalEvidence";
 import type { AssistantEvent, LegalEvidenceReceiptEvent } from "./chat/assistantEvents";
 import { parseResourceReference } from "./resourceReferences";
-import { researchTableArrangement, type ResearchImportInput } from "./tabular/researchImport";
+import { resolveResearchArrangement } from "./tabular/researchArrangement";
+import { researchImportCatalog, defaultResearchImport, researchImportPlan,
+  type ResearchImportInput, type ResearchImportDesign } from "./tabular/researchImport";
 import type { TabularApplication } from "./tabular/application";
 import { tabularSubjectId, type TabularCellContent, type TabularColumn,
   type TabularRepository, type TabularReview } from "./tabularStore";
@@ -31,15 +33,12 @@ type Operation = ResearchOperationContext;
 type Observations = { evidence?: LegalEvidenceReceipt[]; queries?: Array<LegalResearchQueryReceipt | ResearchQueryReceipt>;
   sources?: ResearchSourceReference[]; chats?: string[]; tables?: string[] };
 type Binding = { chatId?: string; tableId?: string; selection?: ResearchSelection | null };
-type FindingsInput = { references?: ResearchFindingReference[]; sourceIds?: string[]; reference?: ResearchFindingReference; chatId?: string;
-  messageIds?: string[]; offset: number; limit: number; subjects?: ResearchSubject[] };
+type FindingsInput = { sourceIds?: string[]; reference?: ResearchFindingReference; chatId?: string;
+  messageIds?: string[]; references?: ResearchFindingReference[]; offset: number; limit: number; subjects?: ResearchSubject[] };
 type FindingsPage = { items: ResearchFinding[]; total: number; next_offset: number | null; is_running: boolean };
-type ColumnLabelInput = { reviewId: string; columnIndex: number; rowIds?: string[]; parentId?: string;
-  basis?: string; request?: string; mapping?: Array<{ value: string; label: string | null }> };
 type TableInput = { tableId?: string; chatId?: string; messageIds?: string[];
-  title?: string; request?: string; basis?: string; replaceTableId?: string; expectedVersion?: string;
-  selection?: ResearchSelection; findingRefs?: ResearchFindingReference[] } & Partial<ResearchImportInput>;
-const workspaceTitle = (filename: string) => filename.replace(/\.research\.md$/iu, "");
+  selection?: ResearchSelection; findingRefs?: ResearchFindingReference[];
+  fingerprint?: string; design?: ResearchImportDesign; request?: string } & Partial<ResearchImportInput>;
 
 /** The Sources workspace use cases share the existing document, chat and table persistence ports. */
 export function createSourceWorkspaceApplication(documents: DocumentStore, dependencies: {
@@ -134,15 +133,8 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
   }
   async function context(scope: Scope, id: string, selected?: ResearchSelection) {
     const resolved = await selection(scope, id, selected, { availableOnly: true });
-    if (selected?.findingRefs) {
-      const found = await findings(scope, id, { references: selected.findingRefs, subjects: resolved.subjects, offset: 0, limit: 10_000 });
-      if (new Set(found.items.map(({ reference }) => researchFindingKey(reference))).size !==
-          new Set(selected.findingRefs.map(researchFindingKey)).size)
-        return fail(400, "A selected finding is unavailable or outside this research scope");
-    }
     return { workspace: { documentId: id, versionId: resolved.versionId, workingRevision: resolved.workingRevision },
-      subjects: resolved.subjects, ...(selected ? { restricted: true } : {}),
-      ...(selected?.findingRefs ? { findingRefs: selected.findingRefs } : {}) };
+      subjects: resolved.subjects, ...(selected?.findingRefs ? { findingRefs: selected.findingRefs } : {}), ...(selected ? { restricted: true } : {}) };
   }
   async function collectView(scope: Scope, id: string, input: Binding, actor?: Operation): Promise<ResearchFile> {
     if (input.chatId) {
@@ -203,7 +195,8 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
 
   function resolver(scope: Scope, file: ResearchFile) {
     const chatCache = new Map<string, ReturnType<typeof resolveChatFindings>>(),
-      tableCache = new Map<string, ReturnType<TabularRepository["detail"]>>();
+      tableCache = new Map<string, ReturnType<TabularRepository["detail"]>>(),
+      workspaceCache = new Map<string, ReturnType<typeof required>>();
     const checked = new Set<string>();
     const authorize = async (evidence: LegalEvidenceReceipt[]) => {
       for (const receipt of evidence) {
@@ -239,7 +232,19 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
       if (!file.state.tables?.includes(ref.reviewId)) return fail(404, "Table is outside this workspace");
       const detail = await tableDetail(ref.reviewId), column = detail?.review.columns_config.find(({ index }) => index === ref.columnIndex);
       if (!detail || !column) return null;
-      const cell = detail.cells.find((cell) => cell.document_id === ref.rowId && cell.column_index === ref.columnIndex);
+      let cell = detail.cells.find((cell) => cell.document_id === ref.rowId && cell.column_index === ref.columnIndex);
+      const config = detail.review.scope_config;
+      if (!config?.frozen && config?.arrangement?.cells.some((cell) => cell.rowId === ref.rowId && cell.columnIndex === ref.columnIndex)) {
+        const ownerId = config.research_file_id ?? file.document.id;
+        if (!workspaceCache.has(ownerId)) workspaceCache.set(ownerId, ownerId === file.document.id ? Promise.resolve(file) : required(scope, ownerId));
+        const owningFile = await workspaceCache.get(ownerId)!,
+          resolveOriginal = ownerId === file.document.id ? resolve : resolver(scope, owningFile).resolve,
+          resolved = await resolveResearchArrangement({ documents, scope, file: owningFile, columns: detail.review.columns_config,
+          arrangement: { rows: config.arrangement.rows.filter(({ id }) => id === ref.rowId),
+            cells: config.arrangement.cells.filter((cell) => cell.rowId === ref.rowId && cell.columnIndex === ref.columnIndex) },
+          storedCells: cell ? [cell] : [], resolveFinding: (next) => resolveOriginal(next, new Set([...trail, key])) });
+        cell = resolved.cells.find((cell) => cell.document_id === ref.rowId && cell.column_index === ref.columnIndex);
+      }
       if (cell?.status !== "done" || !cell.content) return null;
       const content = cell.content, source = Object.values(file.state.sources).find(({ reference }) =>
         researchSourceResource(reference) === content.resource);
@@ -248,10 +253,10 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
       if (source.reference.kind === "document" && !await documents.projectionSource(scope, source.reference.id,
         source.reference.versionId)) return fail(404, "Finding source is unavailable");
       const { evidence, resource, origin: _origin, ...answer } = content;
-      return selectFindingClaims({ reference: { ...ref, claimIndices: undefined }, kind: "result", sourceId: source.id, resource,
+      return { reference: ref, kind: "result", sourceId: source.id, resource,
         question: { id: `${ref.reviewId}:${column.index}`, title: column.name, prompt: column.prompt,
           format: column.format, tags: column.tags }, answer, evidence,
-        origin: { reviewId: ref.reviewId, rowId: ref.rowId, columnIndex: ref.columnIndex } }, ref);
+        origin: { reviewId: ref.reviewId, rowId: ref.rowId, columnIndex: ref.columnIndex } };
     }
     return { resolve, chatFindings, tableDetail };
   }
@@ -264,8 +269,14 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
       include = (value: ResearchFinding | null) => { if (value && inScope(value) &&
         (!input.sourceIds || input.sourceIds.includes(value.sourceId))) found.push(value); };
     if (input.reference) {
-      if (input.references && !input.references.some((ref) => researchFindingWithin(input.reference!, ref)))
-        return fail(400, "Finding is outside the current selection");
+      if (input.references && !input.references.some((ref) => {
+        const requested = researchFindingReferenceSchema.parse(input.reference), allowed = researchFindingReferenceSchema.parse(ref);
+        return requested.kind === "cell" ? JSON.stringify(requested) === JSON.stringify(allowed)
+          : allowed.kind === "answer" && requested.chatId === allowed.chatId && requested.answerId === allowed.answerId &&
+            requested.resource === allowed.resource && (!allowed.claimIndices || !!requested.claimIndices &&
+              requested.claimIndices.every((index) => allowed.claimIndices!.includes(index)));
+      }))
+        return fail(400, "This finding is outside the selected results");
       include(await read.resolve(input.reference));
     } else if (input.references) {
       for (const ref of input.references) include(await read.resolve(ref));
@@ -299,184 +310,135 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
         research_file_id: detail.review.scope_config?.research_file_id }); }
     return { chats, tables };
   }
-  async function prepareTable(scope: Scope, id: string, input: TableInput, actor?: Operation, signal?: AbortSignal) {
-    if (input.chatId) await collectView(scope, id, { chatId: input.chatId }, actor);
-    for (const ref of input.findingRefs ?? []) await collectView(scope, id,
-      ref.kind === "answer" ? { chatId: ref.chatId } : { tableId: ref.reviewId }, actor);
+  async function importCatalog(scope: Scope, id: string, input: TableInput) {
     const file = await required(scope, id);
-    let selected = input.findingRefs ? await Promise.all(input.findingRefs.map(async (ref) =>
-      await finding(scope, id, ref) ?? fail(404, "Finding not found"))) :
-      (await findings(scope, id, { chatId: input.chatId, messageIds: input.messageIds, offset: 0, limit: 100_000 })).items;
+    const refs = input.findingRefs ?? input.selection?.findingRefs;
+    const selected = refs
+      ? await Promise.all(refs.map(async (ref) => await finding(scope, id, ref) ?? fail(404, "Finding not found")))
+      : (await findings(scope, id, { chatId: input.chatId, messageIds: input.messageIds,
+        offset: 0, limit: 100_000 })).items;
+    if (input.chatId && !selected.length) return fail(400, "This chat has no grounded findings to convert");
     if (input.messageIds?.some((messageId) => !selected.some(({ origin }) => origin.messageId === messageId)))
-      return fail(400, "A selected message contains no grounded findings");
-    const selectedScope = input.selection ?? { target: "sources" as const,
-      ...(input.chatId || input.findingRefs ? { sourceIds: [...new Set(selected.map(({ sourceId }) => sourceId))] } : {}) };
-    if (selectedScope.findingRefs) selected = selectedScope.findingRefs.flatMap((ref) => {
-      const value = selected.find(({ reference }) => researchFindingWithin(ref, reference));
-      return [selectFindingClaims(value ?? fail(404, "A selected finding is unavailable. Refresh the research selection."), ref)];
-    });
-    const resolved = await selection(scope, id, selectedScope), permitted = researchResultFilter({ subjects: resolved.subjects, restricted: true });
-    selected = selected.filter(permitted);
-    if (input.replaceTableId) selected = selected.filter(({ origin }) => origin.reviewId !== input.replaceTableId);
-    if (resolved.subjects.length > 500) return fail(413, "Select at most 500 sources for one review");
+      return fail(400, "A selected message has no grounded findings");
+    const selectedSources = input.chatId || refs ? new Set(selected.map(({ sourceId }) => sourceId)) : null;
+    const resolved = await selection(scope, id, input.selection ?? { target: "sources",
+      ...(selectedSources ? { sourceIds: [...selectedSources] } : {}) });
+    const subjects = resolved.subjects.filter(({ sourceId }) => !selectedSources || selectedSources.has(sourceId));
     const parts = new Map<string, Record<string, ResearchEvidence>>();
-    await visitResearchEvidenceParts(documents, scope, file, resolved.subjects.map(({ sourceId }) => sourceId),
+    await visitResearchEvidenceParts(documents, scope, file, subjects.map(({ sourceId }) => sourceId),
       (batch) => batch.forEach((value, key) => parts.set(key, value)));
-    const imported = { rows: input.rows ?? "sources", labelId: input.labelId, columns: input.columns } as ResearchImportInput;
-    const build = (options: ResearchImportInput) => researchTableArrangement(file, resolved.subjects, parts,
-      [{ title: "Grounded research", findings: selected }], options);
-    let plan = build(imported), title = input.title ?? workspaceTitle(file.document.filename);
-    const app = await dependencies.tabular();
-    if (input.request) {
-      const design = await app.design(scope, { request: input.request, title, current: plan.columns_config,
-        documentNames: plan.arrangement.rows.slice(0, 50).map(({ title }) => title.slice(0, 300)) }, signal, plan.fields);
-      title = design.title;
-      plan = build({ ...imported, columns: design.columns_config.map((column) => ({ ...column,
-        fieldIds: design.mappings?.find(({ index }) => index === column.index)?.fieldIds ?? [] })) });
+    const catalog = researchImportCatalog(file, subjects, parts, selected,
+      { rows: input.rows ?? "sources", labelId: input.labelId });
+    if (!catalog.rows.length) return fail(400, "No sources or saved passages match this conversion");
+    // Retain the very findings fingerprinted in the preview, rather than reread
+    // a concurrently regenerated table cell between acceptance and persistence.
+    const captured = new Map<string, ResearchFinding>(), groups = new Map<string, ResearchFinding[]>();
+    const key = (ref: ResearchFindingReference) => ref.kind === "cell"
+      ? JSON.stringify([ref.kind, ref.reviewId, ref.rowId, ref.columnIndex])
+      : JSON.stringify([ref.kind, ref.chatId, ref.answerId, ref.resource]);
+    for (const item of selected) { const id = key(item.reference); groups.set(id, [...(groups.get(id) ?? []), item]); }
+    for (const { reference } of catalog.entries) {
+      if (reference.kind !== "answer" && reference.kind !== "cell") continue;
+      const original = groups.get(key(reference))?.find(({ reference: item }) => item.kind !== "answer" || !item.claimIndices ||
+        reference.kind === "answer" && !!reference.claimIndices && reference.claimIndices.every((index) => item.claimIndices!.includes(index)));
+      if (original) captured.set(JSON.stringify(reference), selectFindingClaims(original, reference));
     }
-    const createInput = { title, project_id: file.document.project_id ?? undefined, research_file_id: id,
-      research_selection: selectedScope, arrangement: plan.arrangement, columns_config: plan.columns_config };
-    const prepared = await app.previewResearch(scope, createInput);
-    if (prepared.config.versionId !== file.versionId || prepared.config.workingRevision !== file.workingRevision)
-      return conflict("The research changed. Refresh the preview.");
-    const references = selected.map(({ reference }) => reference);
-    prepared.config.researchImport = { rows: imported.rows, labelId: imported.labelId, columns: plan.columns };
-    prepared.config.findings = { references, sourceIds: [...new Set(selected.map(({ sourceId }) => sourceId))] };
-    // The preview and its stale check use the very cells that would be written,
-    // including a result that changed while canonical references were resolved.
-    const seeded = new Map(prepared.seedCells?.map((cell) => [`${cell.document_id}:${cell.column_index}`, cell.content]));
-    plan.preview = plan.arrangement.rows.slice(0, 3).map((row) => ({ title: row.title, values: plan.columns.map((column) => {
-      const answer = seeded.get(`${row.id}:${column.index}`);
-      return answer?.summary ?? answer?.claims.map(({ text }) => text).join("\n") ?? "";
-    }) }));
-    const basis = sha256(JSON.stringify([file.versionId, file.workingRevision, prepared.config.subjects, prepared.seedCells,
-      selected.map(({ reference, answer, evidence }) => [reference, answer, evidence]) ]));
-    return { plan, title, basis, selectedScope, prepared, createInput, findingRefs: references,
-      versionId: file.versionId, workingRevision: file.workingRevision };
+    return { file, catalog, resolveFinding: async (ref: ResearchFindingReference): Promise<ResearchFinding | null> =>
+      captured.get(JSON.stringify(ref)) ?? null };
   }
-  async function tablePlan(scope: Scope, id: string, input: TableInput = {}, signal?: AbortSignal) {
-    const { plan, title, basis, selectedScope, versionId, workingRevision, findingRefs } = await prepareTable(scope, id, input, undefined, signal);
-    return { title, basis, selection: selectedScope, versionId, workingRevision, findingRefs,
-      columns: plan.columns, fields: plan.fields, reuse: plan.reuse, preview: plan.preview, arrangement: { rows: plan.arrangement.rows } };
+  async function previewTable(scope: Scope, id: string, input: TableInput, signal?: AbortSignal) {
+    const { catalog } = await importCatalog(scope, id, input);
+    const design = input.request ? await (await dependencies.tabular()).designResearch(scope, catalog, input.request, signal)
+      : input.design ?? defaultResearchImport(catalog);
+    const { arrangement: _arrangement, columns_config: _columns, ...preview } = researchImportPlan(catalog, design);
+    return preview;
   }
   async function table(scope: Scope, id: string, input: TableInput = {}, actor?: Operation): Promise<TabularReview> {
     if (input.tableId) { await bind(scope, id, { tableId: input.tableId, selection: input.selection }, actor);
       return (await (await dependencies.tabular()).detail(scope, input.tableId)).review; }
-    if (input.request) return fail(400, "Preview the suggested design before creating the review");
-    const result = await prepareTable(scope, id, input, actor);
-    if (input.basis && input.basis !== result.basis) return conflict("The research changed. Refresh the preview before applying it.");
-    if (!result.plan.arrangement.rows.length) return fail(400, "This selection contains no research sources or passages");
-    if (!result.plan.columns_config.length) return fail(400, "Add a question or select existing work to compare");
-    const app = await dependencies.tabular();
-    if (input.replaceTableId) {
-      const current = await app.detail(scope, input.replaceTableId);
-      if (!current?.review.is_owner || current.review.scope_config?.research_file_id !== id) return fail(404, "Review not found");
-      if (current.review.is_running)
-        return conflict("Stop the running review before refreshing its research.");
-      if (!input.expectedVersion || current.review.updated_at !== input.expectedVersion) return conflict("The review changed. Refresh it before updating.");
-      // Refresh is explicit and reviewable. Existing results and configuration can be restored together.
-      const changed = await dependencies.tables.update(scope, current.review.id, input.expectedVersion, {
-        title: result.title, columns: result.plan.columns_config, documentIds: result.prepared.config.subjects.map(tabularSubjectId),
-        scopeConfig: result.prepared.config, seedCells: result.prepared.seedCells,
-        operation: { executor: "human", ...actor, propose: true, title: "Refresh from research" } });
-      if (changed.status !== "committed") return conflict("The review changed. Try again.");
-      return changed.value;
-    }
-    return app.create(scope, result.createInput, actor, result.prepared);
+    const { file, catalog, resolveFinding } = await importCatalog(scope, id, input);
+    if (input.design && (!input.fingerprint || input.fingerprint !== catalog.fingerprint))
+      return conflict("This research changed after the preview. Review the refreshed mapping before creating the table.");
+    const plan = researchImportPlan(catalog, input.design ?? defaultResearchImport(catalog));
+    const review = await (await dependencies.tabular()).create(scope, { title: plan.design.title,
+      project_id: file.document.project_id ?? undefined, research_file_id: id,
+      arrangement: plan.arrangement, columns_config: plan.columns_config }, actor,
+      { freeze: true, resolveFinding, expectedResearch: { versionId: file.versionId, workingRevision: file.workingRevision } });
+    return review;
   }
-  /** Only claim-bound support is eligible. The client supplies IDs, never trusted receipts. */
-  async function saveHighlights(scope: Scope, id: string, input: { references: ResearchFindingReference[];
-    evidenceIds: string[]; typeId?: string; versionId: string; workingRevision: number }, actor?: Operation) {
+  async function saveFindings(scope: Scope, id: string, input: { references: ResearchFindingReference[];
+    typeId?: string; versionId: string; workingRevision: number }, actor?: Operation) {
     const file = await required(scope, id);
     if (file.versionId !== input.versionId || file.workingRevision !== input.workingRevision)
-      return conflict("The research changed. Reload before saving these passages.");
-    const read = resolver(scope, file), supported = new Map<string, LegalEvidenceReceipt>();
-    for (const ref of input.references) {
-      const value = await read.resolve(ref) ?? fail(404, "A selected result is unavailable");
-      const ids = new Set(value.answer.claims.flatMap(({ evidence_ids }) => evidence_ids));
-      value.evidence.forEach((receipt) => {
-        if (ids.has(receipt.evidence_id) && receipt.scope === "passage") supported.set(receipt.evidence_id, receipt);
-      });
+      return conflict("The research set changed. Reload before saving these highlights.");
+    if (input.typeId && file.state.labels[input.typeId]?.scope !== "highlight")
+      return fail(400, "Choose a highlight type from this research set");
+    const read = resolver(scope, file), evidence = new Map<string, LegalEvidenceReceipt>();
+    for (const reference of input.references) {
+      const item = await read.resolve(reference) ?? fail(404, "Finding not found"),
+        support = new Set(item.answer.claims.flatMap(({ evidence_ids }) => evidence_ids));
+      if ([...support].some((id) => !item.evidence.some(({ evidence_id }) => evidence_id === id)))
+        return fail(409, "An original supporting passage is unavailable");
+      for (const receipt of item.evidence) if (support.has(receipt.evidence_id)) {
+        if (receipt.scope !== "passage" || !receipt.span_text) return fail(400, "Highlighting requires an exact supporting passage");
+        evidence.set(receipt.evidence_id, receipt);
+      }
     }
-    const evidence = [...new Set(input.evidenceIds)].map((id) => supported.get(id) ?? fail(400, "A selected passage does not support these results"));
-    if (!evidence.length) return fail(400, "Select at least one supporting passage");
-    if (input.typeId && file.state.labels[input.typeId]?.scope !== "highlight") return fail(400, "Choose a highlight type");
-    return await commitResearchFile(documents, scope, file, { type: "merge", evidence,
-      labels: Object.fromEntries(evidence.map(({ evidence_id }) => [evidence_id, input.typeId ? [input.typeId] : []])) },
-      undefined, operation(actor)) ?? conflict("The research changed. Reload before saving these passages.");
+    if (!evidence.size) return fail(400, "These findings contain no supporting passages to highlight");
+    const saved = await commitResearchFile(documents, scope, file, { type: "merge", evidence: [...evidence.values()],
+      labels: Object.fromEntries([...evidence.keys()].map((key) => [key, input.typeId ? [input.typeId] : []])) },
+    undefined, operation(actor)) ?? conflict("The research set changed. Reload before saving.");
+    return { file: saved, saved: evidence.size };
   }
   const columnValues = (column: TabularColumn, content: TabularCellContent) => {
+    if (content.outcome === "not_found") return [];
     if (column.format === "yes_no") return typeof content.value === "boolean" ? [content.value ? "Yes" : "No"] : [];
-    const value = content.value ?? content.summary ?? content.claims.map(({ text }) => text).join("\n");
-    return (Array.isArray(value) ? value : [value]).flatMap((item) =>
-      typeof item === "string" && item.trim() ? [item.trim()] : []);
+    const values = Array.isArray(content.value) ? content.value : [content.value];
+    return values.flatMap((value) => {
+      if (typeof value !== "string" || !value.trim()) return [];
+      if (value.trim().length > 200) return fail(400, "Consolidate long column values before creating labels; no values were truncated");
+      return [value.trim()];
+    });
   };
-  async function columnLabelData(scope: Scope, id: string, input: ColumnLabelInput) {
+  async function columnLabels(scope: Scope, id: string, input: { reviewId: string; columnIndex: number; rowIds?: string[] },
+    actor?: Operation): Promise<ResearchFile> {
     const file = await required(scope, id);
-    if (!file.state.tables?.includes(input.reviewId)) return fail(404, "Table is outside this research set");
+    if (!file.state.tables?.includes(input.reviewId)) return fail(404, "Table is outside this workspace");
     const detail = await (await dependencies.tabular()).detail(scope, input.reviewId),
       column = detail.review.columns_config.find(({ index }) => index === input.columnIndex);
     if (!column) return fail(404, "Column not found");
-    if (input.rowIds?.some((id) => !detail.review.document_ids.includes(id))) return fail(404, "A selected row is unavailable");
-    if (input.parentId && file.state.labels[input.parentId]?.scope !== "source") return fail(400, "Choose a source label parent");
+    if (column.format !== "tag" && column.format !== "yes_no")
+      return fail(400, "Only tag and yes/no columns become labels");
+    if (input.rowIds?.some((id) => !detail.review.document_ids.includes(id))) return fail(400, "A selected row is outside this table");
     const sources = new Map((detail.review.scope_config?.subjects ?? []).map((subject) =>
       [tabularSubjectId(subject), subject.sourceId])), values = new Map<string, string[]>();
     for (const cell of detail.cells) {
       const sourceId = sources.get(cell.document_id);
-      if (cell.column_index !== input.columnIndex || cell.status !== "done" || !cell.content || !sourceId ||
-          input.rowIds && !input.rowIds.includes(cell.document_id)) continue;
-      if (!file.state.sources[sourceId]) return fail(409, "A row's source was removed from the research set");
+      if (cell.column_index !== input.columnIndex || input.rowIds && !input.rowIds.includes(cell.document_id) ||
+          cell.status !== "done" || !cell.content || !sourceId) continue;
       for (const value of columnValues(column, cell.content)) {
         const assigned = values.get(value) ?? []; if (!assigned.includes(sourceId)) assigned.push(sourceId);
         values.set(value, assigned);
       }
     }
     if (!values.size) return fail(400, "This column has no completed values to label");
-    if (values.size > 200 || [...values.keys()].reduce((sum, value) => sum + value.length, 0) > 40_000)
-      return fail(413, "Select fewer rows before mapping this column to labels");
-    const basis = sha256(JSON.stringify([file.versionId, file.workingRevision, detail.review.updated_at, column, [...values]]));
-    return { file, column, values, basis };
-  }
-  async function columnLabelPlan(scope: Scope, id: string, input: ColumnLabelInput, signal?: AbortSignal) {
-    const { column, values, basis } = await columnLabelData(scope, id, input);
-    const mapping = input.request ? await (await dependencies.tabular()).labelMapping(scope,
-      { request: input.request, column: column.name, values: [...values.keys()] }, signal) :
-      [...values.keys()].map((value) => ({ value, label: value.length <= 200 ? value : null }));
-    return { title: column.name, basis, mapping: mapping.map((item) => ({ ...item, sources: values.get(item.value)!.length })) };
-  }
-  async function columnLabels(scope: Scope, id: string, input: ColumnLabelInput, actor?: Operation): Promise<ResearchFile> {
-    if (input.request) return fail(400, "Preview the label mapping before applying it");
-    const { file, column, values, basis } = await columnLabelData(scope, id, input);
-    if (input.basis && input.basis !== basis) return conflict("The column or research changed. Refresh the label preview.");
-    const mapping = input.mapping ?? [...values.keys()].map((value) => ({ value, label: value }));
-    if (mapping.length !== values.size || new Set(mapping.map(({ value }) => value)).size !== values.size ||
-        mapping.some(({ value, label }) => !values.has(value) || label !== null && (!label.trim() || label.length > 200)))
-      return fail(400, "Map each original value exactly once to a label or an explicit skip");
-    const groups = new Map<string, Set<string>>();
-    for (const { value, label } of mapping) if (label !== null) {
-      const group = groups.get(label.trim()) ?? new Set<string>();
-      values.get(value)!.forEach((sourceId) => group.add(sourceId)); groups.set(label.trim(), group);
-    }
-    if (!groups.size) return fail(400, "Choose at least one label");
-    if (groups.size > 49) return fail(413, "Consolidate the values into at most 49 labels before applying");
-    const parentId = input.parentId ?? randomUUID(), children = [...groups].map(([name, sourceIds]) => {
-      const existing = Object.values(file.state.labels).find((label) => label.scope === "source" && label.parentId === parentId && label.name === name);
-      return { name, sourceIds: [...sourceIds], id: existing?.id ?? randomUUID(), existing: !!existing };
-    });
+    if (values.size > 49) return fail(400, "Consolidate this column's values before creating labels; no values were omitted");
+    const parentId = randomUUID(), children = [...values.keys()].sort().map((value) =>
+      ({ value, id: randomUUID() }));
     const actions = [
-      ...(!input.parentId ? [{ type: "label" as const, id: parentId, name: column.name, parentId: null, scope: "source" as const }] : []),
-      ...children.filter(({ existing }) => !existing).map(({ name, id: labelId }) => ({ type: "label" as const,
-        id: labelId, name, parentId, scope: "source" as const })),
-      ...children.map(({ sourceIds, id: labelId }) => ({ type: "label-selection" as const, target: "sources" as const,
-        sourceIds, assign: [labelId], mode: "add" as const })),
+      { type: "label" as const, id: parentId, name: column.name, parentId: null, scope: "source" as const },
+      ...children.map(({ value, id: labelId }) => ({ type: "label" as const, id: labelId, name: value,
+        parentId, scope: "source" as const })),
+      ...children.map(({ value, id: labelId }) => ({ type: "label-selection" as const, target: "sources" as const,
+        sourceIds: values.get(value)!, assign: [labelId], mode: "add" as const })),
     ];
     return await commitResearchFile(documents, scope, file, { type: "batch", propose: true,
       title: `Labels from ${column.name}`.slice(0, 200), actions },
-      undefined, operation(actor)) ?? conflict("The research changed. Reload before applying labels.");
+    undefined, operation(actor)) ?? conflict("The workspace changed. Reload it before editing.");
   }
 
   return { get, create, update, query, collect, observe, revision, items, citation, bind, ensure, selection,
-    context, finding, findings, views, tablePlan, table, saveHighlights, columnLabelPlan, columnLabels };
+    context, finding, findings, views, table, previewTable, saveFindings, columnLabels };
 }
 
 export type SourceWorkspaceApplication = ReturnType<typeof createSourceWorkspaceApplication>;

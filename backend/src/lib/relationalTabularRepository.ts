@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ApplicationScope } from "./applicationError";
 import { tabularSubjectId, type TabularCell, type TabularColumn, type TabularRepository,
-  type TabularReview, type TabularSelection, type TabularOperation, type TabularSeedCell, type ReviewInput, type WriteResult } from "./tabularStore";
+  type TabularReview, type TabularSelection, type TabularOperation, type ReviewInput, type WriteResult } from "./tabularStore";
 import { ApplicationError } from "./applicationError";
 import { applyTableChanges, resultState, tableChanges, type TableState } from "./tabular/history";
 import { researchChangeCounts, researchChangeSummary, sameResearchValue,
@@ -41,18 +41,22 @@ async function findCell(scope: ApplicationScope, reviewId: string, documentId: s
       AND c.column_index=${columnIndex} AND ${reviewAccess(scope)}`, db);
   return row ? tabularCell(row) : null;
 }
-/** Seed canonical cells in the same transaction as the review/configuration. */
-function applySeeds(cells: TabularCell[], seeds: TabularSeedCell[] = []) {
-  const known = new Set(cells.map((cell) => `${cell.document_id}:${cell.column_index}`));
-  const selected = new Map<string, TabularSeedCell>();
-  for (const seed of seeds) {
-    const key = `${seed.document_id}:${seed.column_index}`;
-    if (!known.has(key) || selected.has(key)) throw new ApplicationError(400, "Invalid or duplicate seeded cell");
-    selected.set(key, seed);
+async function syncCells(db: RelationalDatabase, reviewId: string,
+  documentIds: string[], columns: TabularColumn[]) {
+  const wanted = new Set(documentIds.flatMap((id) => columns.map(({ index }) => `${id}:${index}`)));
+  const existing = await rows<{ id: string; document_id: string; column_index: number }>(
+    sql`SELECT id,document_id,column_index FROM tabular_cells WHERE review_id=${reviewId}`, db);
+  for (const row of existing) if (!wanted.has(`${row.document_id}:${row.column_index}`))
+    await changes(sql`DELETE FROM tabular_cells WHERE id=${row.id}`, db);
+  const present = new Set(existing.map((row) => `${row.document_id}:${row.column_index}`));
+  const created = now();
+  for (const documentId of documentIds) for (const column of columns) {
+    if (!present.has(`${documentId}:${column.index}`)) await changes(sql`INSERT INTO tabular_cells
+      (id,review_id,document_id,column_index,content,status,created_at,updated_at)
+      VALUES(${randomUUID()},${reviewId},${documentId},${column.index},${null},'pending',
+      ${created},${created})`, db);
   }
-  return cells.map((cell) => ({ ...cell, ...selected.get(`${cell.document_id}:${cell.column_index}`) }));
 }
-
 async function lockDocuments(db: RelationalDatabase, scope: ApplicationScope,
   documentIds: string[], projectId: string | null, selection?: TabularSelection) {
   const subjects = new Map(selection?.subjects.map((subject) => [tabularSubjectId(subject), subject]));
@@ -89,14 +93,30 @@ function updatedState(current: TableState, input: ReviewInput): TableState {
     format: column.format ?? "text", tags: column.tags ?? [] });
   const changedColumns = new Set(review.columns_config.filter((column) => !sameResearchValue(question(column),
     question(current.review.columns_config.find(({ index }) => index === column.index)))).map(({ index }) => index));
+  const changedMappings = new Set<string>();
+  if (input.scopeConfig?.frozen && input.scopeConfig.arrangement) {
+    const previous = new Map(current.review.scope_config?.arrangement?.cells.map((cell) => [`${cell.rowId}:${cell.columnIndex}`, cell.items]));
+    const next = new Map(input.scopeConfig.arrangement.cells.map((cell) => [`${cell.rowId}:${cell.columnIndex}`, cell.items]));
+    for (const key of new Set([...previous.keys(), ...next.keys()]))
+      if (!sameResearchValue(previous.get(key), next.get(key))) changedMappings.add(key);
+  }
   const existing = new Map(current.cells.map((cell) => [`${cell.document_id}:${cell.column_index}`, cell]));
   const cells = review.document_ids.flatMap((documentId) => review.columns_config.map((column): TabularCell => {
     const previous = existing.get(`${documentId}:${column.index}`);
-    return previous ? { ...previous, ...(changedRows.has(documentId) || changedColumns.has(column.index)
+    return previous ? { ...previous, ...(changedRows.has(documentId) || changedColumns.has(column.index) || changedMappings.has(`${documentId}:${column.index}`)
       ? { status: "pending", content: null } : {}) } : { id: randomUUID(), review_id: review.id,
       document_id: documentId, column_index: column.index, status: "pending", content: null };
   }));
-  return { review, cells: applySeeds(cells, input.seedCells) };
+  const seeded = new Set<string>();
+  for (const seed of input.seedCells ?? []) {
+    const key = `${seed.document_id}:${seed.column_index}`;
+    if (seeded.has(key)) throw new ApplicationError(400, "An imported cell is duplicated");
+    seeded.add(key);
+    const cell = cells.find((cell) => cell.document_id === seed.document_id && cell.column_index === seed.column_index);
+    if (!cell) throw new ApplicationError(400, "An imported cell is outside this review");
+    cell.status = seed.status; cell.content = seed.content;
+  }
+  return { review, cells };
 }
 
 async function persistState(db: RelationalDatabase, before: TableState, next: TableState) {
@@ -182,12 +202,22 @@ export const tabularRepository: TabularRepository = {
         ${encode(input.documentIds)},${encode(input.scopeConfig ?? { subjects: [] })},${input.workflowId ?? null},${encode(shared)},
         ${created},${created})`, tx);
       await replaceMembers(tx, "tabular_review_members", id, shared);
-      const review = (await findReview(scope, id, true, tx))!, before = { review, cells: [] };
-      const saved = await persistState(tx, before, updatedState(before, input));
-      await recordChange(tx, scope, saved.review, tableChanges({ review: { ...review, columns_config: [],
-        document_ids: [], scope_config: { subjects: [] } }, cells: [] }, saved),
-      { executor: "human", title: "Configure table", ...input.operation });
-      return { status: "committed", value: saved.review } as const;
+      await syncCells(tx, id, input.documentIds, input.columns);
+      const seen = new Set<string>();
+      for (const seed of input.seedCells ?? []) {
+        const key = `${seed.document_id}:${seed.column_index}`;
+        if (seen.has(key) || !input.documentIds.includes(seed.document_id) ||
+            !input.columns.some(({ index }) => index === seed.column_index))
+          throw new ApplicationError(400, "An imported cell is outside this review or duplicated");
+        seen.add(key);
+        await changes(sql`UPDATE tabular_cells SET content=${seed.content ? encode(seed.content) : null},status=${seed.status}
+          WHERE review_id=${id} AND document_id=${seed.document_id} AND column_index=${seed.column_index}`, tx);
+      }
+      const review = (await findReview(scope, id, true, tx))!;
+      await recordChange(tx, scope, review, tableChanges({ review: { ...review, columns_config: [],
+        document_ids: [], scope_config: { subjects: [] } }, cells: [] },
+      { review, cells: await reviewCells(tx, id) }), { executor: "human", title: "Configure table", ...input.operation });
+      return { status: "committed", value: review } as const;
     });
   },
   async detail(scope, id) {
