@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { MAX_PROVIDER_STREAM_BYTES, MAX_PROVIDER_TOOL_ARGUMENT_BYTES,
   runProviderLoop, type ProviderAdapter, type ProviderEvent } from "./providerLoop";
 import type { NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
@@ -23,6 +23,8 @@ const adapter = (
   },
 });
 const done = { type: "done" } as const;
+
+afterEach(() => vi.useRealTimers());
 
 describe("provider loop", () => {
   it("stops immediately after a terminal tool result", async () => {
@@ -94,56 +96,37 @@ describe("provider loop", () => {
     await expect(run).rejects.toMatchObject({ name: "AbortError" });
   });
 
-  it("retries transient failures only before visible output", async () => {
-    let attempts = 0;
-    const recovered = await runProviderLoop(params(), adapter(() => {
-      attempts += 1;
-      if (attempts === 1) throw new Error("server_is_overloaded");
-      return [{ type: "text_delta", text: "ok" }, done];
-    }));
-    expect(recovered.fullText).toBe("ok");
-    expect(recovered.contextRounds?.[0].requestAttempts).toBe(2);
-
-    attempts = 0;
-    const partial: ProviderAdapter = {
-      provider: "fake",
-      async *events() {
-        attempts += 1;
-        yield { type: "text_delta", text: "partial" };
-        throw new Error("server_is_overloaded");
-      },
-    };
-    await expect(runProviderLoop(params(), partial)).rejects.toThrow("server_is_overloaded");
-    expect(attempts).toBe(1);
-
+  it("does not retry after publishing compaction progress", async () => {
     const checkpoint = vi.fn();
-    attempts = 0;
-    const stateful: ProviderAdapter = {
-      provider: "fake",
-      async *events() {
-        attempts += 1;
-        yield { type: "opaque_checkpoint", compaction: "running" };
-        throw new Error("server_is_overloaded");
-      },
-    };
-    await expect(runProviderLoop(params({ callbacks: { onCompaction: checkpoint } }), stateful))
-      .rejects.toThrow("server_is_overloaded");
-    expect([attempts, checkpoint.mock.calls.length]).toEqual([1, 1]);
+    const events = vi.fn(async function* () {
+      yield { type: "opaque_checkpoint", compaction: "running" } as const;
+      throw new Error("server_is_overloaded");
+    });
+    await expect(runProviderLoop(params({ callbacks: { onCompaction: checkpoint } }),
+      { provider: "fake", events })).rejects.toThrow("server_is_overloaded");
+    expect(events).toHaveBeenCalledOnce();
+    expect(checkpoint).toHaveBeenCalledExactlyOnceWith("running");
   });
 
   it.each([
+    "server_is_overloaded",
     "Codex app-server initialize request timed out.",
     "Codex app-server turn/start request timed out: failed to install system skills",
     "thread 123 already has an active writer",
-  ])("retries a known Codex app-server startup race: %s", async (message) => {
-    let attempts = 0;
-    const recovered = await runProviderLoop(params(), adapter(() => {
-      attempts += 1;
-      if (attempts === 1) throw new Error(message);
-      return [{ type: "text_delta", text: "ok" }, done];
-    }));
-    expect(recovered.fullText).toBe("ok");
-    expect(attempts).toBe(2);
+  ])("retries a transient failure before output: %s", async (message) => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const events = vi.fn(async () => [{ type: "text_delta", text: "ok" } as const, done])
+      .mockRejectedValueOnce(new Error(message));
+    const running = runProviderLoop(params(), adapter(events));
+    void running.catch(() => undefined);
+    // Exercise the real backoff without spending wall time asleep.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(events).toHaveBeenCalledOnce();
+    await vi.runAllTimersAsync();
+    await expect(running).resolves.toMatchObject({
+      fullText: "ok", contextRounds: [expect.objectContaining({ requestAttempts: 2 })],
+    });
+    expect(events).toHaveBeenCalledTimes(2);
   });
 
   it("can disable hidden retries when each request consumes an external quota", async () => {
