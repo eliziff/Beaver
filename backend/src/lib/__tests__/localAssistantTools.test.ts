@@ -240,7 +240,6 @@ describe("local assistant tools", () => {
       userId: "local-user",
       documents: localDocuments,
       sources: createSourceWorkspaceApplication(localDocuments, { chats: {} as never, tables: {} as never,
-        projects: {} as never, library: {} as never, preferences: {} as never,
         tabular: async () => { throw new Error("No table view in this fixture"); } }),
       library: localLibraryStore,
       projects: localProjects,
@@ -1984,7 +1983,7 @@ describe("local assistant tools", () => {
     const pdf = await store.createLocalDocument({ userId: "local-user", kind: "file",
       filename: "appendix.pdf", bytes: Buffer.from("%PDF-1.7\n%%EOF") });
     const { createAuthoritiesDraft } = await import("../authoritiesDomain");
-    const { applyAuthoritiesUserAction } = await import("../authoritiesWorkspaceApplication");
+    const { applyAuthoritiesUserAction } = await import("../authoritiesActions");
     const draft = applyAuthoritiesUserAction(createAuthoritiesDraft({ kind: "manual" }),
       { type: "add-authority", kind: "case", citation: "2016 SCC 27" });
     const unusedId = draft.authorityOrder[0];
@@ -2198,7 +2197,7 @@ describe("local assistant tools", () => {
 
   it("manages other workspaces without inheriting the active Authorities focus or crossing projects", async () => {
     const { createAuthoritiesDraft } = await import("../authoritiesDomain");
-    const { applyAuthoritiesUserAction } = await import("../authoritiesWorkspaceApplication");
+    const { applyAuthoritiesUserAction } = await import("../authoritiesActions");
     let other = { id: "other", kind: "authorities" as const, title: "Other authorities",
       projectId: null, revision: 1, state: createAuthoritiesDraft({ kind: "manual" }),
       outputs: {}, createdAt: "now", updatedAt: "now" };

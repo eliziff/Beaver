@@ -7,7 +7,7 @@ import { structureNative, type NativeDocument, type NativeDocumentBlock } from "
 import { legalSourceOperations } from "./legalSourceApplication";
 import type { LegalSourcePassage, LegalSourceReference } from "./legalSources";
 import type { A2AJCompiledDocument } from "./legalSources/a2aj";
-import { pageResearchItems, researchSourceFromResource, researchSourceResource, researchSourceReferenceSchema,
+import { pageResearchItems, researchHighlightCount, researchSourceFromResource, researchSourceResource, researchSourceReferenceSchema,
   type ResearchFile, type ResearchEvidence, type ResearchQueryReceipt } from "./researchFile";
 import { createA2AJPassageEvidence, createLibraryEvidence, legalSourceEvidence,
   legalEvidenceSourceReference, legalEvidenceResourceReference, restorePriorLegalEvidence, storedLegalEvidenceReceipt,
@@ -150,9 +150,9 @@ export async function readResearchWorkspace(documents: DocumentStore, scope: App
   saved: ResearchFile, args: Record<string, unknown>, signal: AbortSignal, state?: LegalEvidenceTurnState,
   context?: ResearchReadContext) {
   const chunk = 6000, labels = Object.values(saved.state.labels).sort((a, b) => a.order - b.order),
-    sources = Object.values(saved.state.sources), counts = [Math.ceil(saved.state.note.length / chunk),
+    sources = Object.values(saved.state.sources).filter((source) => source.collected), counts = [Math.ceil(saved.state.note.length / chunk),
       labels.length, sources.length, saved.state.queries?.count ?? 0,
-      sources.reduce((sum, source) => sum + (source.passages?.count ?? 0), 0), saved.state.history?.count ?? 0],
+      sources.reduce((sum, source) => sum + researchHighlightCount(source), 0), saved.state.history?.count ?? 0],
     names = ["notes", "labels", "sources", "searches", "passages", "history"],
     kinds = ["note", "label", "source", "search", "passage", "change"],
     offset = Math.max(0, Math.trunc(Number(args.offset) || 1) - 1),
@@ -190,7 +190,11 @@ export async function readResearchWorkspace(documents: DocumentStore, scope: App
   };
   const register = async (items: Record<string, unknown>[]) => {
     const inScope = researchResultFilter(context);
-    items = items.filter((item) => { if (item.kind !== "passage") return true;
+    items = items.filter((item) => {
+      // A narrow reading scope must not leak other passages through memo, query or undo payloads.
+      if (context?.restricted && ["note", "search", "change"].includes(String(item.kind))) return false;
+      if (item.kind === "source") return inScope({ resource: String(item.resource) });
+      if (item.kind !== "passage") return true;
       const receipt = passages.get(Number(item.passage_index) - 1)!.receipt;
       return inScope({ resource: legalEvidenceResourceReference(receipt) ?? "", evidence: [receipt] }); });
     for (const item of items) if (item.kind === "search") {

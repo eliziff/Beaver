@@ -29,7 +29,7 @@ export function researchTableArrangement(file: ResearchFile, subjects: ResearchS
   parts: Map<string, Record<string, ResearchEvidence>>, chats: ImportChat[],
   input: ResearchImportInput): { columns_config: TabularColumn[]; arrangement: ResearchArrangement } {
   const pen = input.labelId ? researchSelectionLabels(file.state, [input.labelId]) : null,
-    inPen = (item: ResearchEvidence) => !pen || item.labelIds.some((id) => pen.has(id));
+    inPen = (item: ResearchEvidence) => item.labelIds.length > 0 && (!pen || item.labelIds.some((id) => pen.has(id)));
   const sourceIds = [...new Set(subjects.map(({ sourceId }) => sourceId))]
     .filter((id) => file.state.sources[id]);
   const allowed = new Map<string, Set<string> | null>();
