@@ -68,6 +68,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const [saving, setSaving] = useState(false);
   const [savingFilingContact, setSavingFilingContact] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
+  const [restoredEmpty, setRestoredEmpty] = useState(false);
   const [result, setResult] = useState<BuildResult>();
   const [sourceKindId, setSourceKindId] = useState<string>();
   const [sourceExhibitLabel, setSourceExhibitLabel] = useState<string>();
@@ -212,7 +213,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     setResult(undefined); setShowErrors(false);
     setCreating(false); setSavedOpen(false);
     setSourceKindId(undefined); setSourceExhibitLabel(undefined);
-    setError(undefined); setProgress(undefined);
+    setError(undefined); setProgress(undefined); setRestoredEmpty(false);
   }
 
   function saveCurrentDraft(): Promise<WorkProduct<CourtRecordDraft> | undefined> {
@@ -238,7 +239,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     return operation;
   }
 
-  async function openDraft(next: WorkProduct<CourtRecordDraft>) {
+  async function openDraft(next: WorkProduct<CourtRecordDraft>, wasNew = false) {
     if (projectId && next.projectId !== projectId) {
       throw new Error("This Court Record draft is not in this project.");
     }
@@ -266,7 +267,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       setResult(undefined);
       setShowErrors(false);
       setCreating(false);
-      rememberDraft(next);
+      setRestoredEmpty(!wasNew && next.state.entries.length === 0); rememberDraft(next);
     } catch (caught) {
       if (request === openRequest.current) {
         setError(errorMessage(caught, "This draft could not be opened."));
@@ -311,7 +312,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         pendingDocuments.current = undefined;
         onDocumentsConsumed?.();
       }
-      await openDraft(created);
+      await openDraft(created, true);
     } catch (caught) {
       setError(errorMessage(caught, "The court record could not be created."));
       setDraftBusy(false);
@@ -338,7 +339,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     if (!current) return;
     const created = await host.drafts.duplicate<CourtRecordDraft>(current.id,
       { title: `${current.title} copy`, projectId: current.projectId });
-    await openDraft(created);
+    await openDraft(created, true);
   }
 
   async function renameDraft(title: string) {
@@ -899,8 +900,8 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
             {hasCaseDetails && setup(1)}
             {documents("Documents", undefined, true, hasCaseDetails ? 2 : 1)}
           </>}
-          {awaitingSource && (error || progress) && <p role={error ? "alert" : "status"}
-            className={cn("text-sm", error ? "text-red-700" : "text-gray-600")}>{error || progress}</p>}
+          {awaitingSource && (error || progress || restoredEmpty) && <p role={error ? "alert" : "status"}
+            className={cn("text-sm", error ? "text-red-700" : "text-gray-600")}>{error || progress || "This saved record has no files yet — add them below."}</p>}
         </WorkspaceElement>
         {!awaitingSource && <CourtRecordBuildPanel
           profile={profile}
