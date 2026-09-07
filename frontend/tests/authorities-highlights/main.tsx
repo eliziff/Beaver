@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PDFDocument, StandardFonts, degrees } from 'pdf-lib';
 import { QuotationReview } from '../../src/app/authorities/QuotationFinding';
@@ -49,15 +49,9 @@ const post=async(path:string,body:unknown)=>{
 function App() {
   const [product,setProduct]=useState(initial),[error,setError]=useState('');
   const [reviewOpen,setReviewOpen]=useState(false),[rechecking,setRechecking]=useState(false);
-  const [findings,setFindings]=useState<AuthoritiesDiscrepancy[]>([
-    { id:'wording',kind:'quote_mismatch',actions:['ignore','quote_exact'],occurrenceId:'quote',authorityId:'text',
-      footnoteId:1,citation:'2024 SCC 1',proposition:'Quoted rule',authoredQuote:'The deadline is seven business days.',
-      authoredPinpoint:{kind:'paragraph',text:'42'},cited:{locator:{kind:'paragraph',label:'42'},text:'The deadline is five business days.'},
-      found:{locator:{kind:'paragraph',label:'42'},text:'The deadline is five business days.'}},
-    { id:'unlocated',kind:'quote_unlocated',actions:['ignore'],occurrenceId:'other',authorityId:'text',
-      footnoteId:2,citation:'2024 SCC 1',proposition:'Unlocated quotation',authoredQuote:'An unrelated quoted passage.',
-      authoredPinpoint:{kind:'paragraph',text:'43'},cited:{locator:{kind:'paragraph',label:'43'},text:'A different paragraph begins.'},found:null}
-  ]);
+  // Real backend findings, so the dialog can only show what the deterministic check produces.
+  const [findings,setFindings]=useState<AuthoritiesDiscrepancy[]>([]);
+  useEffect(()=>{void fetch('/api/test-annotations/discrepancies').then(r=>r.json()).then(setFindings);},[]);
   const host={readSource:async(_product:AuthoritiesProduct,role:string)=>new Blob([files[role].slice().buffer],{type:'application/pdf'}),
     prepareAnnotations:async(value:AuthoritiesProduct,authorityId:string,bindingRole:string)=>
       (await post('prepare',{product:value,authorityId,bindingRole,bytes:base64(files[bindingRole])})).json(),
@@ -74,8 +68,9 @@ function App() {
   }
   return <div className="mx-auto max-w-4xl p-6">
     <AuthoritiesHighlights product={product} tabs={new Map([['text','Tab 1'],['scan','Tab 2']])} host={host} busy={false} onSaved={setProduct}/>
-    <button className="m-4 border p-2" onClick={()=>setReviewOpen(true)}>Review test quotations</button>
-    {reviewOpen && <QuotationReview initialId="wording" items={rechecking ? undefined : findings} busy={rechecking}
+    <button className="m-4 border p-2" disabled={!findings.length} onClick={()=>setReviewOpen(true)}>Review test quotations</button>
+    {reviewOpen && <QuotationReview initialId={findings[0]?.id ?? ''} items={rechecking ? undefined : findings} busy={rechecking}
+      sourceUrl={()=>'https://example.test/2024scc1'}
       onClose={()=>setReviewOpen(false)} onResolve={(finding,_action,done)=>{
         setRechecking(true);setTimeout(()=>{setFindings(values=>values.filter(value=>value.id!==finding.id));setRechecking(false);done();},100);
       }}/>}
