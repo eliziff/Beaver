@@ -287,22 +287,11 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
     const openCitation = (citation: Citation) => {
         if (onCitationClick?.(citation)) return;
         if (citation.kind === "tabular") return;
-        const exactProviderUrl = safeAssistantUrl(
-            citation.kind !== "document" &&
-            !(citation.kind === "public_legal" && citation.provider === "journal") &&
-            "url" in citation &&
-            citation.url?.includes("#")
-                ? citation.url
-                : null,
-            { relative: false },
-        );
-        if (exactProviderUrl) {
-            window.open(exactProviderUrl, "_blank", "noopener,noreferrer");
-            return;
-        }
         if (citation.kind === "document") {
             return upsertTab(documentCitationTab(citation));
         }
+        // The reader opens at the chip's own pinpoint; the provider's page is
+        // the fallback for sources the reader cannot render.
         const tab = legalCitationTab(citation, true);
         if (tab) upsertTab(tab);
         else if (citation.url) {
