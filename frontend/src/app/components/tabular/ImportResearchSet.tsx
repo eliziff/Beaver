@@ -10,6 +10,7 @@ import { ModalSelect } from "../modals/ModalSelect";
 import { FileDirectory } from "../shared/FileDirectory";
 import { Button } from "../ui/button";
 import { tabularReviewPath } from "./tabularReviewRoute";
+import { useSelectedModel } from "@/app/hooks/useSelectedModel";
 
 type Props = { open: boolean; onClose: () => void; fileId?: string; projectId?: string | null;
     selection?: ResearchSelection; chatId?: string; messageIds?: string[]; onOpen: (path: string) => void };
@@ -21,7 +22,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const [rows, setRows] = useState<"sources" | "passages">("sources"), [typeId, setTypeId] = useState("");
     const [preview, setPreview] = useState<ResearchTablePreview | null>(null), [request, setRequest] = useState("");
     const [busy, setBusy] = useState(false), [loading, setLoading] = useState(false), [error, setError] = useState("");
-    const generation = useRef(0), activeId = fileId ?? picked[0]?.id;
+    const generation = useRef(0), activeId = fileId ?? picked[0]?.id, [model] = useSelectedModel();
     const input: ResearchTableInput = { rows, ...(typeId ? { labelId: typeId } : {}),
         ...(selection ? { selection } : {}), ...(chatId ? { chatId, messageIds } : {}) };
     const inputKey = JSON.stringify(input);
@@ -40,7 +41,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
         if (!activeId || busy || !request.trim()) return;
         const run = generation.current;
         setBusy(true); setError("");
-        try { const next = await previewWorkspaceTable(activeId, { ...input, request: request.trim() });
+        try { const next = await previewWorkspaceTable(activeId, { ...input, request: request.trim(), model });
             if (run === generation.current) setPreview(next);
         } catch (reason) { if (run === generation.current) setError(errorMessage(reason, "Could not suggest a layout; the current preview is unchanged")); }
         finally { setBusy(false); }
