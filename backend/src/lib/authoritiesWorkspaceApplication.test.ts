@@ -915,44 +915,6 @@ describe("Authorities workspace application", () => {
     })).rejects.toMatchObject({ status: 409 });
   });
 
-  it("replaces an imported document without discarding matching review edits", async () => {
-    const imported = (filename: string, documentId: string) => {
-      let draft = createAuthoritiesDraft({ kind: "document", bindingRole: "source",
-        filename, fileType: "docx", snapshot: null }, { source: {
-        kind: "document", documentId, version: "latest",
-      } });
-      draft = reduceAuthoritiesDraft(draft, { type: "add-authority", authority: {
-        id: "grant", key: "grant", kind: "case", citation: "2009 SCC 32",
-        name: "R v Grant", displayName: null, excluded: false,
-        evidenceIds: [], locators: [], sourceIdentity: null,
-        source: { kind: "unresolved" },
-      } });
-      return draft;
-    };
-    const runtime = harness({ draft: imported("brief.docx", "old-source") });
-    let product = await runtime.application.importDraft(scope,
-      { source: { kind: "manual" } });
-    product = await runtime.application.act(scope, product.id, product.revision, {
-      type: "rename-authority", authorityId: "grant", displayName: "Grant (Charter)",
-    });
-    runtime.importer.draft.mockImplementationOnce(async (_scope, source) => {
-      if (source.kind !== "document") throw new Error("expected document source");
-      return imported("replacement.docx", source.documentId);
-    });
-
-    product = await runtime.application.replaceSource(scope, product.id, {
-      revision: product.revision,
-      file: { filename: "replacement.docx", fileType: "docx",
-        bytes: Buffer.from("PK\x03\x04replacement") },
-    });
-
-    const state = product.state as AuthoritiesDraft;
-    expect(state.import).toMatchObject({ kind: "document", filename: "replacement.docx" });
-    expect(state.authorities.grant.displayName).toBe("Grant (Charter)");
-    expect(state.bindings.source).toEqual({ kind: "document",
-      documentId: expect.stringMatching(/^document-/u), version: "latest" });
-  });
-
   it("does not invent a CanLII action when no exact neutral-citation link is derivable",
     async () => {
     const runtime = harness({ key: () => "uncited" });

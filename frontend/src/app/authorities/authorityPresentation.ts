@@ -37,10 +37,6 @@ export function missingSource(state: AuthoritiesProduct["state"], item: Authorit
   return item.source.kind === "pending-canlii" || prepared &&
     (item.source.kind === "unresolved" || item.source.kind === "resolved");
 }
-export function mustAttachPdf(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
-  if (state.outputMode === "table") return requiresUnlinkedTablePdf(state, item);
-  return !!authoritiesProfile(state.settings.profileId).requirements?.completeBookSources;
-}
 function requiresUnlinkedTablePdf(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
   const sourceUrl = item.source.kind === "attached"
     ? item.source.sources.find(({ sourceUrl }) => sourceUrl)?.sourceUrl

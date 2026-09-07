@@ -15,7 +15,7 @@ const application = {
   saveFile: vi.fn(async () => ({ id: "document-1" })),
   importDraft: vi.fn(async () => product), act: vi.fn(async () => product),
   prepareSources: vi.fn(async () => product),
-  refresh: vi.fn(async () => product), replaceSource: vi.fn(async () => product),
+  refresh: vi.fn(async () => product),
   refreshInput: vi.fn(async () => product),
   attachPdf: vi.fn(async () => product), attachBookPdf: vi.fn(async () => product),
   attachLibraryPdf: vi.fn(async () => product),
@@ -162,12 +162,6 @@ describe("Authorities HTTP boundary", () => {
       expect.objectContaining({ revision: 1, authorityId: "authority-1",
         language: "en",
         file: expect.objectContaining({ filename: "case.pdf", fileType: "pdf" }) }));
-    await request(app).post("/authorities/draft-1/source")
-      .field("revision", "1")
-      .attach("file", Buffer.from("PK\x03\x04replacement"), "replacement.docx").expect(200);
-    expect(application.replaceSource).toHaveBeenCalledWith(expect.anything(), "draft-1",
-      expect.objectContaining({ revision: 1,
-        file: expect.objectContaining({ filename: "replacement.docx", fileType: "docx" }) }));
     await request(app).post("/authorities/draft-1/book-parts/supplemental")
       .field("revision", "1")
       .field("supplement_id", "other-1")
