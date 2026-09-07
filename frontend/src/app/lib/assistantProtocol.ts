@@ -84,7 +84,6 @@ const relativeUrl: Parser<string> = (value) => {
 };
 const longText: Parser<string> = (value) => text(value, ASSISTANT_LIMITS.text);
 const displayFields = {
-  display_form: optional(choices("full", "pinpoint", "supra")),
   source_class: optional(choices("case", "legislation", "commentary")),
   external_url: optional(url), authority: optional(short), short_authority: optional(short),
   locator_separator: optional(choices(" at ", ", ")),

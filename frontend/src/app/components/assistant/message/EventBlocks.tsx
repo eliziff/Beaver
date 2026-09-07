@@ -181,9 +181,8 @@ export function ActivityRow({
     const citations = activity.tool === "search_sources" || activity.tool === "Grep"
         ? [] : activity.citations ?? [];
     const compactRead = activity.tool === "Read" && !markdown && citations.length > 0;
-    const label = compactRead
-        ? { running: "Read", completed: "Read", error: "Failed", interrupted: "Stopped" }[activity.status]
-        : `${activity.label}${busy && !activity.markdown ? "..." : ""}`;
+    const label = `${activity.label}${{ running: busy && !activity.markdown ? "..." : "",
+        completed: "", error: " — failed", interrupted: " — stopped" }[activity.status]}`;
     const labelNode = onClick ? (
         <button
             type="button"
@@ -213,7 +212,7 @@ export function ActivityRow({
                 )}
             </span>
             <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
-                <div title={compactRead ? activity.label : undefined}>
+                <div>
                     {labelNode}{" "}
                     {!markdown && citations.length > 0 && (
                         <span className={compactRead ? "inline" : "mt-1 flex flex-wrap gap-1.5"}>
