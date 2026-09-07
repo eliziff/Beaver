@@ -52,6 +52,7 @@ jobs:
                   path.parent.mkdir(parents=True, exist_ok=True)
                   path.write_bytes(result)
           PY
+          sed -i 's/[[:space:]]*$//' frontend/tests/authorities-highlights/main.tsx
           git rm scripts/quotation-edits-*.b64 .github/workflows/quotation-workbench.yml
           git add -u
           git add backend/src/lib/authoritiesQuotations.ts scripts/test-authorities-highlights.mjs
