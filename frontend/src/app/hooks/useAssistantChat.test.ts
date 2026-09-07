@@ -269,19 +269,26 @@ describe("useAssistantChat local transcript boundary", () => {
     expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
-  it("sends the standing jurisdiction preference with the turn", async () => {
+  it("sends turn context with the turn in one payload", async () => {
     mocks.profile = { jurisdictionPreference: {
       mode: "presume", jurisdictions: ["ca-ab", "us-ny"],
     } };
+    updateAssistantPreferences({
+      readSubagents: { ...readAssistantPreferences().readSubagents, mode: "beaver" },
+    });
     mocks.streamChat.mockResolvedValueOnce(completedTurn());
+    const workProduct = { kind: "authorities" as const,
+      id: "00000000-0000-4000-8000-000000000001", revision: 3,
+      focus: { itemId: "occurrence-1", selection: { start: 4, end: 18 } } };
     const { result } = renderHook(() =>
-      useAssistantChat({ chatId: "chat-1" }),
+      useAssistantChat({ chatId: "chat-1", workProduct }),
     );
 
     await act(async () => {
       await result.current.handleChat({
         role: "user",
-        content: "Research this issue",
+        content: "Fix this citation",
+        editMode: "auto",
       });
     });
 
@@ -294,59 +301,12 @@ describe("useAssistantChat local transcript boundary", () => {
             "New York, United States",
           ],
         },
-      }),
-    );
-  });
-
-  it("sends the active Court Record as typed turn scope", async () => {
-    mocks.streamChat.mockResolvedValueOnce(completedTurn());
-    const workProduct = { kind: "court-record" as const,
-      id: "00000000-0000-4000-8000-000000000001", revision: 3 };
-    const { result } = renderHook(() =>
-      useAssistantChat({ chatId: "chat-1", workProduct }),
-    );
-    await act(async () => {
-      await result.current.handleChat({ role: "user", content: "Connect the book" });
-    });
-    expect(mocks.streamChat).toHaveBeenCalledWith(expect.objectContaining({
-      work_product: workProduct,
-    }));
-  });
-
-  it("sends work-product focus as a bounded transport payload", async () => {
-    mocks.streamChat.mockResolvedValueOnce(completedTurn());
-    const workProduct = { kind: "authorities" as const,
-      id: "00000000-0000-4000-8000-000000000001", revision: 3,
-      focus: { itemId: "occurrence-1", selection: { start: 4, end: 18 } } };
-    const { result } = renderHook(() => useAssistantChat({ chatId: "chat-1", workProduct }));
-    await act(async () => {
-      await result.current.handleChat({ role: "user", content: "Fix this citation" });
-    });
-    expect(mocks.streamChat).toHaveBeenCalledWith(expect.objectContaining({ work_product: {
-      kind: "authorities", id: workProduct.id, revision: 3,
-      focus: { item_id: "occurrence-1", selection: { start: 4, end: 18 } },
-    } }));
-  });
-
-  it("sends the selected subagent mode with the turn", async () => {
-    updateAssistantPreferences({
-      readSubagents: { ...readAssistantPreferences().readSubagents, mode: "beaver" },
-    });
-    mocks.streamChat.mockResolvedValueOnce(completedTurn());
-    const { result } = renderHook(() =>
-      useAssistantChat({ chatId: "chat-1" }),
-    );
-
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Compare these sources",
-        editMode: "auto",
-      });
-    });
-
-    expect(mocks.streamChat).toHaveBeenCalledWith(
-      expect.objectContaining({
+        work_product: {
+          kind: "authorities",
+          id: workProduct.id,
+          revision: 3,
+          focus: { item_id: "occurrence-1", selection: { start: 4, end: 18 } },
+        },
         subagent_mode: "beaver",
         edit_mode: "auto",
       }),
