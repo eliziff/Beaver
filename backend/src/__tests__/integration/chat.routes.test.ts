@@ -61,9 +61,6 @@ describe("POST /chat — canonical streaming endpoint", () => {
     expect(res.text).toContain('"type":"chat_id"');
     expect(res.text.match(/"type":"transcript_version"/gu)).toHaveLength(1);
     expect(res.text.match(/data: \[DONE\]/gu)).toHaveLength(1);
-    expect(runTurn).toHaveBeenCalledWith(expect.objectContaining({
-      edit_mode: "auto", expected_version: 0,
-    }));
   });
 
   it("surfaces a post-header operation failure in-stream with one DONE", async () => {

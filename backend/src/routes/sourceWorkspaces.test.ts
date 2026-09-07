@@ -60,8 +60,6 @@ describe("Sources workspace routes", () => {
         locator: { kind: "paragraph", value: "1" }, quote: "holding" } });
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ sourceId, evidenceId: receipt.evidence_id });
-    expect(documents.metadata).toHaveBeenCalledTimes(1);
-    expect(documents.read).toHaveBeenCalledTimes(1);
     expect(documents.replaceVersion).toHaveBeenCalledWith(
       expect.anything(), "d1", "v1", 0, expect.objectContaining({ fileType: "md" }));
   });

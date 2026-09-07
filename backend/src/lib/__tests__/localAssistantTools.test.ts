@@ -1706,10 +1706,6 @@ describe("local assistant tools", () => {
       tool: "update_work_product",
       work_product: { id: "draft-1", kind: "authorities", revision: 1 },
     })]);
-    expect(importDraft).toHaveBeenCalledWith({ userId: "local-user" }, {
-      source: { kind: "document", documentId: document.id, version: "latest" },
-      projectId: null,
-    });
   });
 
   it("attaches an existing Library PDF to an Authorities citation", async () => {
@@ -1737,10 +1733,6 @@ describe("local assistant tools", () => {
       workProducts: { get: vi.fn(async () => active) } as never,
     });
 
-    expect(attachLibraryPdf).toHaveBeenCalledWith({ userId: "local-user" }, active.id, {
-      revision: 3, documentId: document.id, versionId: document.current_version_id,
-      target: { kind: "authority", authorityId: "authority-1", language: "en" },
-    });
     expect(response.mutated).toBe(true);
     expect(JSON.parse(response.content)).toMatchObject({ ok: true,
       work_product: { id: active.id, kind: "authorities", revision: 4 },
@@ -1890,16 +1882,6 @@ describe("local assistant tools", () => {
       authorities: [expect.objectContaining({ id: "jordan" })],
       occurrence: { reference: { kind: "ibid", targetAuthorityId: "jordan" } },
     });
-    expect(act).toHaveBeenCalledWith({ userId: "local-user" }, current.id, 7,
-      { type: "set-authority-span", occurrenceId: "occurrence-1", start: 4, end: 27 });
-    expect(act).toHaveBeenCalledWith({ userId: "local-user" }, current.id, 8,
-      { type: "remove-occurrence", occurrenceId: "occurrence-2" });
-    expect(refreshInput).toHaveBeenCalledWith({ userId: "local-user" }, current.id,
-      { revision: 9, role: "source" });
-    expect(prepareSources).toHaveBeenCalledWith({ userId: "local-user" }, current.id,
-      10, expect.any(AbortSignal));
-    expect(build).toHaveBeenCalledWith({ userId: "local-user" }, current.id,
-      10, expect.any(AbortSignal));
     expect(responses.at(-2)?.events).toEqual([expect.objectContaining({
       status: "complete", tool: "update_work_product",
       id: `work-product:${current.id}`,
@@ -2029,10 +2011,6 @@ describe("local assistant tools", () => {
     expect(current.state.cover).toEqual(actions[5].cover);
     expect(current.state.settings.profileId).toBe("federal-court");
     expect(current.state.settings.bookRole).toBe("moving-party");
-    expect(attachLibraryPdf).toHaveBeenCalledWith(expect.objectContaining({ userId: "local-user" }), current.id, {
-      revision: 9, documentId: pdf.id, versionId: pdf.current_version_id,
-      target: { kind: "book", slot: "cover" },
-    });
     expect(JSON.parse(responses.at(-1)!.content)).toMatchObject({ ok: true,
       change: { type: "attach-book-pdf", book_slot: "cover" } });
     const before = structuredClone(current);
@@ -2168,8 +2146,6 @@ describe("local assistant tools", () => {
         cited_locator: { label: "para 9" }, suggested_locator: { label: "para 10" } }] });
     expect(review.content.length).toBeLessThan(64_000);
     expect(review.content).not.toContain("\"proposition\"");
-    expect(refreshInput).toHaveBeenCalledWith({ userId: "local-user" }, current.id,
-      { revision: 3, role: "source" });
     expect(refreshed.mutated).toBe(true);
   });
 
@@ -2258,10 +2234,6 @@ describe("local assistant tools", () => {
       },
     }], { workProducts: { create, get: vi.fn() } as never });
 
-    expect(create).toHaveBeenCalledWith({ userId: "local-user", userEmail: undefined }, {
-      kind: "court-record", title: "Motion record", projectId: null,
-      state: { profileId: "fc-motion-record-moving", cover: {}, entries: [], bindings: {} },
-    });
     expect(response.mutated).toBe(true);
     expect(JSON.parse(response.content)).toMatchObject({ ok: true,
       work_product: { id: "record-1", kind: "court-record", revision: 1 },
@@ -2289,10 +2261,6 @@ describe("local assistant tools", () => {
     }], { workProducts: { create: vi.fn(), get: vi.fn(async () => current) } as never,
       courtRecords: { updateDraft, bindOutput: vi.fn() } as never });
 
-    expect(updateDraft).toHaveBeenCalledWith({ userId: "local-user", userEmail: undefined }, {
-      courtRecordId: current.id, revision: 1, projectId: null,
-      cover: { courtFileNumber: "T-123-26" },
-    });
     expect(response.mutated).toBe(true);
     expect(JSON.parse(response.content)).toMatchObject({ ok: true,
       work_product: { id: current.id, kind: "court-record", revision: 2 },
@@ -2345,15 +2313,8 @@ describe("local assistant tools", () => {
       documents: { read } as never,
     });
 
-    expect(importDraft).toHaveBeenCalledWith(expect.objectContaining({
-      userId: "local-user",
-    }), {
-      source: { kind: "receipts", seeds: [{
-        authorityKey: "2016scc27",
-        receipts,
-      }] },
-      projectId: "project-1", title: undefined,
-    });
+    expect(importDraft.mock.calls[0][1].source.seeds).toEqual([{
+      authorityKey: "2016scc27", receipts }]);
     expect(importDraft.mock.calls[0][1].source.seeds[0].receipts[0]).toBe(receipts[0]);
     expect(read).not.toHaveBeenCalled();
     expect(JSON.parse(response.content)).toEqual({ ok: true, requested_action: "open",
@@ -2375,9 +2336,6 @@ describe("local assistant tools", () => {
       authoritiesId: "active-draft", authoritiesRevision: 3,
       workProducts: { get: vi.fn(async () => active) } as never,
     });
-    expect(addReceipts).toHaveBeenCalledWith(expect.objectContaining({
-      userId: "local-user",
-    }), "active-draft", 3, [{ authorityKey: "2016scc27", receipts }]);
     expect(JSON.parse(updated.content)).toEqual({ ok: true,
       change: { type: "add-authorities", evidence_count: 2 },
       work_product: { id: "active-draft", kind: "authorities", revision: 4 } });

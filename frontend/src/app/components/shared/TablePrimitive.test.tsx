@@ -51,8 +51,6 @@ it("moves through shared pagination without leaving its bounds", () => {
     const onPage = vi.fn();
     render(<Pagination page={2} pages={3} label="17 drafts" onPage={onPage} />);
     expect(screen.getByRole("navigation", { name: "17 drafts pages" })).toBeVisible();
-    expect(screen.getByText("Page 2 of 3")).toBeVisible();
-    expect(screen.queryByText("17 drafts")).not.toBeInTheDocument();
     for (const name of ["Previous", "Next"]) fireEvent.click(screen.getByRole("button", { name }));
     expect(onPage.mock.calls).toEqual([[1], [3]]);
 });

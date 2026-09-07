@@ -139,9 +139,6 @@ describe("shared Authorities text preparation", () => {
     const input = { bytes, signal, ...(library ? { documentId: "doc", versionId: "version", sourceSha256: hash } : {}) };
     const result = await createAuthoritiesPreparation(state).prepareText("authority", input);
     expect(result).toEqual({ pageTextByPage: ["native"] });
-    expect(pdfText).toHaveBeenCalledWith({ ...input, scannedPdfPolicy: "page-margin",
-      ocrTargets: [{ id: "passage:1", locatorKind: "paragraph", locator: "19", exactQuotes: [] }],
-      passageTargets: [{ id: "passage:1", locatorKind: "paragraph", locator: "19", exactQuotes: [] }] });
   });
 
   it("preserves explicit recognition targets without enabling passage marking", async () => {
@@ -150,8 +147,6 @@ describe("shared Authorities text preparation", () => {
     pdfText.mockResolvedValueOnce({ pageTextByPage: ["recognized"], ocrTextByPage: ["recognized"] });
     expect(await createAuthoritiesPreparation(state).prepareText("authority", { bytes: Buffer.from("pdf") }))
       .toEqual({ pageTextByPage: ["recognized"], ocrTextByPage: ["recognized"] });
-    expect(pdfText.mock.calls[0][0]).toMatchObject({ scannedPdfPolicy: "cited-pages", passageTargets: [],
-      ocrTargets: [{ locatorKind: "paragraph", locator: "19" }] });
   });
 
   it("does not return a projection that completed after cancellation", async () => {

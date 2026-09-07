@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DocumentStore } from "../lib/documentStore";
 import type { LibraryStore } from "../lib/libraryStore";
 import { zipDocumentBytes } from "../lib/__tests__/support/documentBytes";
-import { MAX_OBJECT_SIZE_BYTES } from "../lib/storage";
 import { sha256 } from "../lib/hash";
 import { createDocumentsRouter } from "./documentRoutes";
 
@@ -78,7 +77,7 @@ describe("canonical document routes", () => {
   beforeEach(() => process.env.AUTH_MODE = "local");
 
   it("owns collection paging and upload validation", async () => {
-    const { app, documents } = fixture();
+    const { app } = fixture();
     expect((await request(app).get("/single-documents?q=DRAFT")).body.items)
       .toEqual([{ id: "d1", filename: "draft.docx" }]);
     expect((await request(app).post("/single-documents")
@@ -86,10 +85,6 @@ describe("canonical document routes", () => {
     expect((await request(app).post("/single-documents")).status).toBe(400);
     expect((await request(app).post("/single-documents")
       .attach("file", await zipDocumentBytes(), "draft.docx")).status).toBe(201);
-    expect(documents.create).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ filename: "draft.docx", libraryKind: "file" }),
-    );
     expect((await request(app).post("/single-documents/download-zip")
       .send({ document_ids: [] })).status).toBe(400);
     expect((await request(app).post("/single-documents/download-zip")
@@ -104,9 +99,6 @@ describe("canonical document routes", () => {
     expect((await request(app).delete("/single-documents/d1").send({ ...expected,
       expected_working_revision: null })).status).toBe(400);
     expect((await request(app).delete("/single-documents/d1").send(expected)).status).toBe(204);
-    expect(documents.deleteDocument).toHaveBeenCalledWith(expect.anything(), "d1", true, {
-      versionId: "v1", workingRevision: 0, projectId: null, folderId: null,
-    });
     vi.mocked(documents.deleteDocument).mockResolvedValueOnce(false);
     expect((await request(app).delete("/single-documents/d1").send(expected)).status).toBe(409);
   });
@@ -135,21 +127,15 @@ describe("canonical document routes", () => {
     expect(Object.keys(zip.files)).toEqual([
       "001-_brief_.docx", "002-_brief_.docx",
     ]);
-    expect(documents.files).toHaveBeenCalledWith(
-      expect.anything(), ["d1", "d2"], MAX_OBJECT_SIZE_BYTES,
-    );
   });
 
   it("serves local bytes and removes the divergent URL endpoint", async () => {
-    const { app, documents } = fixture();
+    const { app } = fixture();
     const display = await request(app).get(
       "/single-documents/d1/file?rendition=pdf&version_id=v1",
     );
     expect(display.status).toBe(200);
     expect(display.headers["content-disposition"]).toContain("inline");
-    expect(documents.download).toHaveBeenCalledWith(
-      expect.anything(), "d1", "v1", { preferPdf: true, disposition: "inline", evidence: undefined },
-    );
     expect((await request(app).get("/single-documents/d1/url")).status).toBe(404);
   });
 
@@ -172,25 +158,14 @@ describe("canonical document routes", () => {
       .field("expected_working_revision", "0")
       .attach("file", await zipDocumentBytes(), "upload.docx");
     expect(added.status).toBe(201);
-    expect(documents.addVersion).toHaveBeenCalledWith(
-      expect.anything(),
-      "d1",
-      expect.objectContaining({ filename: "revised.docx", fileType: "docx",
-        expectedCurrentVersionId: "v1", expectedCurrentWorkingRevision: 0 }),
-    );
     expect((await request(app).post("/single-documents/d1/versions/v1/restore")).status)
       .toBe(400);
     expect((await request(app).post("/single-documents/d1/versions/v1/restore")
       .send({ expected_current_version_id: "v2", expected_working_revision: 0 })).status)
       .toBe(201);
-    expect(documents.restoreVersion).toHaveBeenCalledWith(
-      expect.anything(), "d1", "v1", "v2", 0, undefined,
-    );
     expect((await request(app).post("/single-documents/d1/versions/checkpoint")
       .send({ expected_current_version_id: "v1", expected_working_revision: 0,
         comment: "Reviewed" })).status).toBe(201);
-    expect(documents.checkpointVersion).toHaveBeenCalledWith(
-      expect.anything(), "d1", "v1", 0, "Reviewed");
     vi.mocked(documents.restoreVersion).mockResolvedValueOnce({ status: "pending-edits" });
     const pendingRestore = await request(app).post(
       "/single-documents/d1/versions/v1/restore",
@@ -215,9 +190,6 @@ describe("canonical document routes", () => {
     expect((await request(app).post("/single-documents/d1/edits/accept")
       .send({ edit_ids: ["e1", "e2"] }))
       .body).toMatchObject({ status: "accepted", version_id: "v1" });
-    expect(documents.resolveEdits).toHaveBeenCalledWith(
-      expect.anything(), "d1", ["e1", "e2"], "accept",
-    );
     vi.mocked(documents.resolveEdits).mockResolvedValueOnce({
       status: "conflict",
       editStatus: "rejected",

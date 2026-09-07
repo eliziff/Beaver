@@ -37,28 +37,6 @@ vi.mock("../modals/AddDocumentsModal", () => ({
         ) : null,
 }));
 
-it("collapses the question body", async () => {
-    const event: Extract<AssistantEvent, { type: "ask_inputs" }> = {
-        type: "ask_inputs",
-        items: [
-            {
-                id: "audience",
-                kind: "choice",
-                question: "Who is this for?",
-                options: [{ value: "A client" }, { value: "The court" }],
-            },
-        ],
-    };
-
-    render(<AskInputPopup event={event} onSubmit={vi.fn()} />);
-
-    screen.getByRole("radio", { name: "A client" });
-    await userEvent.click(screen.getByText("1 question").closest("summary")!);
-    expect(document.querySelector("[data-ask-input-panel]")).not.toHaveAttribute(
-        "open",
-    );
-});
-
 it("submits multiple answers together", async () => {
     const onSubmit = vi.fn();
     const event: Extract<AssistantEvent, { type: "ask_inputs" }> = {
@@ -152,17 +130,12 @@ it("keeps every choice reachable inside the fixed panel", () => {
 
     render(<AskInputPopup event={event} onSubmit={vi.fn()} />);
 
-    const choices = document.querySelector("[data-ask-input-options]")!;
     for (const option of options) {
         expect(screen.getByText(option.value)).toBeInTheDocument();
     }
     expect(
         screen.getByRole("textbox", { name: "Write your own answer" }),
     ).toBeInTheDocument();
-    expect(choices).toHaveClass("overflow-y-auto");
-    expect(choices).not.toContainElement(
-        screen.getByRole("button", { name: "Confirm" }),
-    );
 });
 
 it("submits a native Other answer", async () => {

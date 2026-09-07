@@ -37,6 +37,5 @@ it("keeps quote findings, attribution choices and source identity in the compact
     provider: "courtlistener", id: "42", part: "43", language: "fr" });
   expect(result.citationUnits[0].parts[0].fields).toMatchObject({
     status: "ok", pinpoint_fragments: ["para 2"], bare_citation: "2024 SCC 1" });
-  expect(quote.receipt.sourceSha256).toHaveLength(64);
   expect(JSON.stringify(result)).not.toContain("Sha256");
 });

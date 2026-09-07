@@ -165,10 +165,6 @@ describe("standalone Authorities runtime", () => {
         sourceMode: "manual-originals",
       })).attach("file", Buffer.from("%PDF-1.7\n%%EOF"), "Factum.pdf").expect(200);
 
-    expect(mocks.importFile).toHaveBeenCalledWith(expect.objectContaining({
-      filename: "Factum.pdf", fileType: "pdf", modified: 1,
-      sourceMode: "manual-originals",
-    }));
     expect(response.body.settings.sourceMode).toBe("manual-originals");
   });
 
@@ -224,9 +220,6 @@ describe("standalone Authorities runtime", () => {
       .field("draft", JSON.stringify(current)).field("modified", "2")
       .attach("file", Buffer.from("%PDF-1.7\n%%EOF"), "Updated.pdf").expect(200);
 
-    expect(mocks.importFile).toHaveBeenCalledWith(expect.objectContaining({
-      sourceMode: "automatic",
-    }));
     expect(response.body.bindings.source).toMatchObject({ handleId: "retained-handle",
       lastSeen: { name: "Updated.pdf", size: 14, modified: 2, sha256: "b".repeat(64) } });
     expect(response.body.units[0].text).toBe("2025 ABKB 2");

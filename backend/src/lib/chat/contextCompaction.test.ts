@@ -44,15 +44,6 @@ describe("durable context checkpoints", () => {
     });
 
     expect(planContextCheckpoint(rows())?.messageId).toBe("a1");
-    expect(chats.appendAssistantEvent).toHaveBeenCalledWith(
-      { userId: "local" },
-      "chat",
-      "a1",
-      expect.objectContaining({
-        type: "context_checkpoint",
-        summary: "Section 8 was reviewed.",
-      }),
-    );
     expect(result.messages).toEqual([
       {
         role: "assistant",

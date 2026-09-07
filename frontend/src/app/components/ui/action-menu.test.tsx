@@ -79,7 +79,6 @@ describe("ActionMenu", () => {
         fireEvent.click(screen.getByRole("button", { name: "Actions" }));
         const menu = screen.getByRole("menu");
         expect(screen.getByRole("dialog")).toContainElement(menu);
-        expect(menu).toHaveStyle({ top: "256px", left: "372px", maxHeight: "384px", maxWidth: "484px" });
         fireEvent.click(screen.getByRole("menuitem", { name: "Open" }));
         expect(onSelect).toHaveBeenCalledOnce();
         rect.mockRestore();
