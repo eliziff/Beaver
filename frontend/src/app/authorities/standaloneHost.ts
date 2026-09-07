@@ -1,3 +1,4 @@
+import { attachAuthoritySource, authoritiesInputPlan } from "../../../../shared/authorities-sources.mjs";
 import type { AuthoritiesProduct } from "./types";
 import {
   bindStandaloneFile, chooseStandaloneOutputFolder, clearStandaloneOutputFolder,
@@ -7,7 +8,7 @@ import {
 } from "@/app/lib/standaloneWorkProducts";
 import { apiResponse } from "@/app/lib/api/client";
 import type { WorkProductInput } from "@/app/lib/workProducts";
-import type { AuthoritiesAction, AuthoritiesDraft, AttachedAuthoritySource,
+import type { AuthoritiesAction, AuthoritiesDraft,
   AuthoritySourceLanguage } from "./types";
 import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
 import { authoritiesProfile } from "./profiles";
@@ -98,20 +99,8 @@ const validPdf = async (file: File) => await file.slice(0, 5).text() === "%PDF-"
 
 async function buildInputs(product: AuthoritiesProduct, progress?: (message: string) => void,
   signal?: AbortSignal) {
-    const filingPdfs = product.state.insertIntoDocument &&
-      !!authoritiesProfile(product.state.settings.profileId).requirements?.unlinkedPdfTableSources &&
-      product.state.import.kind === "document" && product.state.import.fileType === "pdf";
-    const roles = [
-      ...(product.state.outputMode === "table" && !filingPdfs ? [] :
-        Object.values(product.state.authorities).flatMap(({ excluded, source }) =>
-          !excluded && source.kind === "attached"
-            ? source.sources.map(({ bindingRole }) => bindingRole) : [])),
-      ...(product.state.insertIntoDocument && product.state.import.kind === "document"
-        ? [product.state.import.bindingRole] : []),
-      ...(product.state.outputMode === "table" ? [] : [product.state.bookParts.cover,
-        product.state.bookParts.index, ...product.state.bookParts.supplements]
-        .flatMap((part) => part ? [part.bindingRole] : [])),
-    ];
+    const roles = [...authoritiesInputPlan(product.state,
+      authoritiesProfile(product.state.settings.profileId).requirements).byteRoles];
     const form = new FormData(); form.append("draft", JSON.stringify(product.state));
     form.append("id", product.id); form.append("revision", String(product.revision));
     form.append("title", product.title);
@@ -223,18 +212,8 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     const sourceUrl = authority.source.kind === "pending-canlii" ? authority.source.pdfUrl
       : replaced?.sourceUrl ?? null;
     const role = replaced?.bindingRole ?? `authority:${crypto.randomUUID()}:${language}`;
-    const source: AttachedAuthoritySource = { bindingRole: role, filename: selected.file.name,
-      sourceSha256: binding.lastSeen.sha256!, sourceUrl, origin: "manual", language };
-    const sources = language === "bilingual" ? [source]
-      : [...previous.filter((item) => item.language !== "bilingual" &&
-        item.language !== language), source].sort((left) => left.language === "en" ? -1 : 1);
-    const retained = new Set(sources.map(({ bindingRole }) => bindingRole));
-    for (const item of previous) if (!retained.has(item.bindingRole)) {
-      delete state.bindings[item.bindingRole];
-    }
-    state.bindings[role] = binding;
-    authority.source = { kind: "attached", sources };
-    if (state.stage !== "citations") state.stage = "sources";
+    attachAuthoritySource(state, authority, { bindingRole: role, filename: selected.file.name,
+      sourceSha256: binding.lastSeen.sha256!, sourceUrl, origin: "manual", language }, binding);
     return save(id, revision, state);
   },
   async attachBookPdf(id, revision, slot, selected, supplementId) {
