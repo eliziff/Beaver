@@ -1,182 +1,101 @@
-import { describe, it, expect } from "vitest";
-import {
-    normalizeEmail,
-    findProfileUserByEmail,
-    syncProfileIdentity,
-} from "../userLookup";
+import { describe, expect, it, vi } from "vitest";
+import { findProfileUserByEmail, normalizeEmail, syncProfileIdentity } from "../userLookup";
 
-type Row = Record<string, unknown>;
+type Profile = { user_id?: string; email: string; display_name?: string; mfa_on_login?: boolean };
 
-/**
- * Minimal user_profiles-shaped Supabase mock. Supports the query chains
- * userLookup uses (select/eq/in/not + single-row readers) plus insert and
- * update so syncProfileIdentity can be exercised end to end.
- */
-function makeDb(initialRows: Row[]) {
-    const tables: Record<string, Row[]> = {
-        user_profiles: initialRows.map((row) => ({ ...row })),
-    };
-    return {
-        tables,
-        from(table: string) {
-            const all = () => tables[table] ?? [];
-            let predicate: (row: Row) => boolean = () => true;
-            let mode: "select" | "insert" | "update" = "select";
-            let pendingRow: Row = {};
-            const narrow = (next: (row: Row) => boolean) => {
-                const prev = predicate;
-                predicate = (row) => prev(row) && next(row);
-            };
-            const query: any = {
-                select: () => query,
-                insert: (row: Row) => {
-                    mode = "insert";
-                    pendingRow = row;
-                    return query;
-                },
-                update: (patch: Row) => {
-                    mode = "update";
-                    pendingRow = patch;
-                    return query;
-                },
-                eq: (column: string, value: unknown) => {
-                    narrow((row) => row[column] === value);
-                    return query;
-                },
-                in: (column: string, values: unknown[]) => {
-                    narrow((row) => values.includes(row[column]));
-                    return query;
-                },
-                not: (column: string, operator: string, value: unknown) => {
-                    if (operator === "is" && value === null) {
-                        narrow((row) => row[column] != null);
-                    }
-                    return query;
-                },
-                maybeSingle: async () => ({
-                    data: all().filter(predicate)[0] ?? null,
-                    error: null,
-                }),
-                then: (
-                    resolve: (value: { data: Row[] | null; error: null }) => unknown,
-                    reject?: (reason: unknown) => unknown,
-                ) => {
-                    if (mode === "insert") {
-                        all().push({ ...pendingRow });
-                        return Promise.resolve({ data: null, error: null }).then(
-                            resolve,
-                            reject,
-                        );
-                    }
-                    if (mode === "update") {
-                        for (const row of all().filter(predicate)) {
-                            Object.assign(row, pendingRow);
-                        }
-                        return Promise.resolve({ data: null, error: null }).then(
-                            resolve,
-                            reject,
-                        );
-                    }
-                    return Promise.resolve({
-                        data: all().filter(predicate),
-                        error: null,
-                    }).then(resolve, reject);
-                },
-            };
-            return query;
-        },
-    };
+function database(profile: Profile | null = null, readError: unknown = null, writeError: unknown = null) {
+    const read = vi.fn().mockResolvedValue({ data: profile, error: readError });
+    const filter = vi.fn(() => ({ maybeSingle: read }));
+    const insert = vi.fn().mockResolvedValue({ error: writeError });
+    const updateFilter = vi.fn().mockResolvedValue({ error: writeError });
+    const update = vi.fn(() => ({ eq: updateFilter }));
+    const from = vi.fn(() => ({ select: () => ({ eq: filter }), insert, update }));
+    // Stub the remote boundary, not a second implementation of its query engine.
+    const db = { from } as unknown as Parameters<typeof syncProfileIdentity>[0];
+    return { db, from, filter, insert, update, updateFilter };
 }
-
-// ---------------------------------------------------------------------------
-// normalizeEmail
-// ---------------------------------------------------------------------------
 
 describe("normalizeEmail", () => {
     it("trims and lowercases", () => {
         expect(normalizeEmail("  User@Example.COM  ")).toBe("user@example.com");
     });
 
-    it("returns empty string for non-strings", () => {
-        expect(normalizeEmail(null)).toBe("");
-        expect(normalizeEmail(undefined)).toBe("");
-        expect(normalizeEmail(42)).toBe("");
+    it.each([null, undefined, 42])("returns an empty string for %j", (value) => {
+        expect(normalizeEmail(value)).toBe("");
     });
 });
-
-// ---------------------------------------------------------------------------
-// findProfileUserByEmail
-// ---------------------------------------------------------------------------
 
 describe("findProfileUserByEmail", () => {
-    const rows = [
-        { user_id: "u1", email: "alice@example.com", display_name: "Alice" },
-    ];
+    it("looks up the normalized email and reads the name from that user's preferences", async () => {
+        const store = database({ user_id: "u1", email: "alice@example.com", display_name: "Old name" });
+        const preferences = { get: vi.fn().mockResolvedValue({ displayName: "Preferred name" }) };
 
-    it("finds a profile by normalized email", async () => {
-        const db = makeDb(rows);
-        await expect(
-            findProfileUserByEmail(db as any, "  ALICE@example.com ", {
-                get: async () => ({ displayName: "Alice" }) as never,
-            }),
-        ).resolves.toEqual({
-            id: "u1",
-            email: "alice@example.com",
-            display_name: "Alice",
-        });
+        await expect(findProfileUserByEmail(store.db, "  ALICE@example.com ", preferences))
+            .resolves.toEqual({ id: "u1", email: "alice@example.com", display_name: "Preferred name" });
+        expect(store.from).toHaveBeenCalledWith("user_profiles");
+        expect(store.filter).toHaveBeenCalledWith("email", "alice@example.com");
+        expect(preferences.get).toHaveBeenCalledWith("u1");
     });
 
-    it("returns null when no profile matches", async () => {
-        const db = makeDb(rows);
-        await expect(
-            findProfileUserByEmail(db as any, "missing@example.com"),
-        ).resolves.toBeNull();
-    });
-
-    it("returns null without querying for empty input", async () => {
-        const db = makeDb(rows);
-        await expect(findProfileUserByEmail(db as any, "   ")).resolves.toBeNull();
-    });
+    it.each([["missing@example.com", 1], ["   ", 0]] as const)(
+        "does not read preferences for %j", async (email, queries) => {
+            const store = database(), preferences = { get: vi.fn() };
+            await expect(findProfileUserByEmail(store.db, email, preferences)).resolves.toBeNull();
+            expect(preferences.get).not.toHaveBeenCalled();
+            expect(store.from).toHaveBeenCalledTimes(queries);
+        },
+    );
 });
 
-// ---------------------------------------------------------------------------
-// syncProfileIdentity
-// ---------------------------------------------------------------------------
-
 describe("syncProfileIdentity", () => {
-    it("inserts a profile row when none exists", async () => {
-        const db = makeDb([]);
-        const result = await syncProfileIdentity(db as any, "u1", "New@Example.com");
-        expect(result).toBe(false);
-        expect(db.tables.user_profiles).toEqual([
-            { user_id: "u1", email: "new@example.com" },
-        ]);
+    it("inserts a normalized identity when no profile exists", async () => {
+        const store = database();
+        await expect(syncProfileIdentity(store.db, "u1", "New@Example.com")).resolves.toBe(false);
+        expect(store.from).toHaveBeenCalledWith("user_profiles");
+        expect(store.filter).toHaveBeenCalledWith("user_id", "u1");
+        expect(store.insert).toHaveBeenCalledWith({ user_id: "u1", email: "new@example.com" });
+        expect(store.update).not.toHaveBeenCalled();
     });
 
-    it("is a no-op when the stored email already matches (case-insensitive)", async () => {
-        const db = makeDb([
-            { user_id: "u1", email: "Same@Example.com", display_name: null },
-        ]);
-        const result = await syncProfileIdentity(db as any, "u1", "same@example.com");
-        expect(result).toBe(false);
-        expect(db.tables.user_profiles[0].email).toBe("Same@Example.com");
+    it.each([false, true])("preserves MFA=%s without writing an unchanged email", async (mfa) => {
+        const store = database({ email: "Same@Example.com", mfa_on_login: mfa });
+        await expect(syncProfileIdentity(store.db, "u1", "same@example.com")).resolves.toBe(mfa);
+        expect(store.insert).not.toHaveBeenCalled();
+        expect(store.update).not.toHaveBeenCalled();
     });
 
-    it("updates the stored email when it changed", async () => {
-        const db = makeDb([
-            { user_id: "u1", email: "old@example.com", display_name: null },
-        ]);
-        const result = await syncProfileIdentity(db as any, "u1", "New@Example.com");
-        expect(result).toBe(false);
-        expect(db.tables.user_profiles[0].email).toBe("new@example.com");
-        expect(db.tables.user_profiles[0].updated_at).toEqual(expect.any(String));
+    it("updates only the requested user's email and preserves their MFA requirement", async () => {
+        const store = database({ email: "old@example.com", mfa_on_login: true });
+        await expect(syncProfileIdentity(store.db, "u1", "New@Example.com")).resolves.toBe(true);
+        expect(store.update).toHaveBeenCalledWith({
+            email: "new@example.com", updated_at: expect.any(String),
+        });
+        expect(store.updateFilter).toHaveBeenCalledWith("user_id", "u1");
+        expect(store.insert).not.toHaveBeenCalled();
     });
 
-    it("returns null without touching the table for missing inputs", async () => {
-        const db = makeDb([]);
-        await expect(syncProfileIdentity(db as any, "", "a@b.com")).resolves.toBe(false);
-        await expect(syncProfileIdentity(db as any, "u1", null)).resolves.toBe(false);
-        await expect(syncProfileIdentity(db as any, "u1", "   ")).resolves.toBe(false);
-        expect(db.tables.user_profiles).toEqual([]);
+    it.each([["", "a@b.com"], ["u1", null], ["u1", "   "]] as const)(
+        "returns false without querying for user=%j, email=%j", async (userId, email) => {
+            const store = database();
+            await expect(syncProfileIdentity(store.db, userId, email)).resolves.toBe(false);
+            expect(store.from).not.toHaveBeenCalled();
+        },
+    );
+});
+
+describe("identity lookup failures", () => {
+    it("propagates read errors before loading preferences or writing an identity", async () => {
+        const error = new Error("Profile read failed"), store = database(null, error);
+        const preferences = { get: vi.fn() };
+        await expect(findProfileUserByEmail(store.db, "alice@example.com", preferences)).rejects.toBe(error);
+        await expect(syncProfileIdentity(store.db, "u1", "alice@example.com")).rejects.toBe(error);
+        expect(preferences.get).not.toHaveBeenCalled();
+        expect(store.insert).not.toHaveBeenCalled();
+        expect(store.update).not.toHaveBeenCalled();
+    });
+
+    it.each([null, { email: "old@example.com" }])("propagates write errors for profile=%j", async (profile) => {
+        const error = new Error("Profile write failed"), store = database(profile, null, error);
+        await expect(syncProfileIdentity(store.db, "u1", "new@example.com")).rejects.toBe(error);
     });
 });
