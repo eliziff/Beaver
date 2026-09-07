@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useEffectEvent, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { MessageSquare, MessageSquareX, Play, Plus, Square, Upload } from "lucide-react";
+import { MessageSquare, MessageSquareX, Play, Square, Upload, BookOpen } from "lucide-react";
 import {
   clearTabularCells,
   deleteTabularReview,
@@ -35,7 +35,6 @@ import { getModelProvider, isModelAvailable, type ModelProvider } from "@/app/li
 
 
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
-import { ResearchViews } from "../shared/ResearchViews";
 import { ResearchSelectionLabels } from "../shared/ResearchSelectionLabels";
 import { ResearchChanges } from "../legal/ResearchChanges";
 import { SourcesWorkspace, useSourcesWorkspace } from "../legal/SourcesWorkspace";
@@ -591,13 +590,12 @@ function TRViewContent({ reviewId, projectId }: Props) {
             onClick: () => setUi({ modal: "documents" }),
             disabled: loading, title: "Add documents",
             icon: <Upload className="h-4 w-4" />,
-            label: <span className="hidden sm:inline">Documents</span>,
+            label: "Docs",
         },
         {
             onClick: () => setUi({ columnModal: null }),
             disabled: loading, title: "Add columns",
-            icon: <Plus className="h-4 w-4" />,
-            label: <span className="hidden sm:inline">Add columns</span>,
+            label: "+ Column",
         },
         {
             onClick: generating ? stopGeneration : generate, disabled: !hasTable,
@@ -608,7 +606,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
                 {generating ? "Stop" : "Run"}
             </span>,
         },
-        { type: "custom", render: <ResearchViews workspace={() => openSources()} chat={() => openChat()} /> },
+        { onClick: () => void openSources(), disabled: loading, title: "Open Sources", icon: <BookOpen className="h-4 w-4" />, label: "Sources" },
         { type: "custom",
             render: <MoreActionsMenu items={menuItems} />,
         },
@@ -629,7 +627,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
     return (
         <div className="flex h-full overflow-hidden">
             <div className="flex flex-1 flex-col overflow-hidden">
-                <PageHeader shrink breadcrumbs={breadcrumbs} actions={headerActions} />
+                <PageHeader shrink stacked breadcrumbs={breadcrumbs} actions={headerActions} />
                 {review && <ResearchChanges review={review} documents={documents} onChanged={refreshReview}
                     historyOpen={ui.historyOpen} onCloseHistory={() => setUi({ historyOpen: false })} />}
                 <div className="flex flex-1 overflow-hidden">

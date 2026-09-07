@@ -18,6 +18,7 @@ export type GroundedEvidence = {
   external_url: string | null;
   source_class?: "case" | "legislation" | "commentary";
   dataset?: string;
+  language?: "en" | "fr";
   version?: string | null;
   locator: { kind: string; label: string; sheet?: string; cells?: string };
 };

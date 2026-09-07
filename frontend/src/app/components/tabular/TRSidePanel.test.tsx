@@ -13,12 +13,9 @@ vi.mock("../shared/views/DocumentViewer", () => ({
         data-document={props.documentId} data-version={props.versionId} data-kind={props.kind}
         data-quotes={JSON.stringify(props.quotes)} data-cells={JSON.stringify(props.highlightCells)} />,
 }));
-vi.mock("../assistant/CitationQuotesHeader", () => ({
-    CitationQuotesHeader: () => <div>Citation</div>,
-}));
 vi.mock("../legal/LegalSourceViewer", () => ({
     LegalSourceViewer: (props: LegalSourceViewerProps) => <div data-testid="source-viewer"
-        data-source={props.sourceId} data-locator={props.initialLocator} />,
+        data-source={props.sourceId} data-language={props.language} data-locator={props.initialLocator} />,
 }));
 afterEach(() => {
     vi.restoreAllMocks();
@@ -155,5 +152,31 @@ it("keeps Regenerate visible but disabled while the review is running", () => {
     render(<TRSidePanel cell={cell} document={sourceDocument} column={column} onClose={vi.fn()}
         onRegenerate={vi.fn().mockResolvedValue(undefined)} running />);
     expect(screen.getByRole("button", { name: "Regenerate" })).toBeDisabled();
+    expect(screen.getByText("Find termination rights.")).not.toBeVisible();
+    fireEvent.click(screen.getByText("More details", { selector: "summary" }));
     expect(screen.getByText("Find termination rights.")).toBeVisible();
+});
+
+it("opens evidence from its actual source rather than the current table row", () => {
+    const evidence = { evidence_id: "other", provider: "a2aj", stable_source_id: "other-case", source_reference: { id: "other-case" },
+        source_sha256: "a".repeat(64), span_sha256: "b".repeat(64), block_id: "par7", span_text: "The court distinguished the rule.",
+        citation: "2026 SCC 2", name: "Other case", external_url: null, dataset: "scc", language: "fr" as const, locator: { kind: "paragraph", label: "7" } };
+    render(<TRSidePanel cell={{ ...cell, content: { ...cell.content!, evidence: [evidence], claims: [{ text: "Distinguished", evidence_ids: ["other"] }] } }}
+        document={{ ...sourceDocument, reference: { provider: "a2aj", id: "row-case", kind: "case", citation: "2026 SCC 1" } }} column={column} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open passage 1: Other case" }));
+    expect(screen.getByTestId("source-viewer")).toHaveAttribute("data-source", "other-case");
+    expect(screen.getByTestId("source-viewer")).toHaveAttribute("data-locator", "7");
+    expect(screen.getByTestId("source-viewer")).toHaveAttribute("data-language", "fr");
+});
+
+
+it("keeps the answer readable after regeneration fails and permits retry", async () => {
+    const regenerate = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(undefined);
+    render(<TRSidePanel cell={cell} document={sourceDocument} column={column} onClose={vi.fn()} onRegenerate={regenerate} />);
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not regenerate");
+    expect(screen.getByText("Yes")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
+    await waitFor(() => expect(regenerate).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
 });
