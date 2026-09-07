@@ -1,5 +1,7 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
 import { BookOpen, ChevronRight } from "lucide-react";
+import { createPortal } from "react-dom";
+import { useAnchoredPopover } from "@/app/hooks/useAnchoredPopover";
 import { Button } from "../ui/button";
 import { usePagedChains } from "@/app/hooks/usePagedChains";
 import { getResearchItems } from "@/app/lib/api/researchFiles";
@@ -34,17 +36,23 @@ function marked(text: string, phrase: string) {
     {text.slice(at + phrase.length, to)}{to < text.length ? "…" : ""}</>;
 }
 
-/** Choosing a label, a highlight type or a search scope is always the same waterfall, in a plain panel.
+/** Choosing a label, a highlight type or a search scope is always the same waterfall, and it is always
+ *  anchored beside the control that opened it: opening one never moves the input or the results.
  *  A label with children keeps the panel open so the user can walk down to the one they mean. */
-function LabelChoice({ title, labels, scope, selectedId, onChoose, onClose, noneLabel }: {
-  title: string; labels: Record<string, ResearchLabel>; scope: ResearchLabel["scope"];
-  selectedId: string | null; onChoose: (id: string | null) => void; onClose: () => void; noneLabel?: string }) {
-  return <div role="group" aria-label={title} className="grid min-w-0 gap-1.5 rounded-lg border border-gray-200 bg-gray-50 p-2">
+function LabelChoice({ title, anchor, labels, scopes, selectedId, onChoose, onClose, noneLabel }: {
+  title: string; anchor: HTMLElement | null; labels: Record<string, ResearchLabel>;
+  scopes: ResearchLabel["scope"][]; selectedId: string | null;
+  onChoose: (id: string | null) => void; onClose: () => void; noneLabel?: string }) {
+  const popover = useAnchoredPopover({ anchor, onDismiss: onClose });
+  const walk = (id: string | null) => { onChoose(id);
+    if (!id || !Object.values(labels).some((label) => label.parentId === id)) onClose(); };
+  return createPortal(<div ref={popover} role="dialog" aria-label={title} popover="manual"
+    className="fixed inset-auto z-[220] m-0 grid max-h-[min(26rem,calc(100dvh-1rem))] w-[min(22rem,calc(100vw-1rem))] content-start gap-1.5 overflow-y-auto overscroll-contain rounded-xl border border-gray-200 bg-white p-2.5 shadow-xl">
     <p className="text-xs font-medium text-gray-700">{title}</p>
-    <ResearchLabelWaterfall labels={labels} scope={scope} selectedId={selectedId} noneLabel={noneLabel}
-      onChoose={(id) => { onChoose(id);
-        if (!id || !Object.values(labels).some((label) => label.parentId === id)) onClose(); }} />
-  </div>;
+    {scopes.map((scope) => <ResearchLabelWaterfall key={scope} labels={labels} scope={scope}
+      selectedId={labels[selectedId ?? ""]?.scope === scope ? selectedId : null}
+      noneLabel={scope === "source" ? noneLabel : undefined} onChoose={walk} />)}
+  </div>, anchor?.closest('dialog,[role="dialog"],[data-assistant-dock]') ?? document.body);
 }
 
 export function ResearchSearchPanel({ active, selection, reader, onStatus: setStatus }: {
@@ -59,8 +67,11 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
   const [more, setMore] = useState<{ input: ResearchQueryInput; phrase: string } | null>(null);
   /** Which slice of the saved research this search reads, and what a result can be filed into. */
   const [scopeId, setScopeId] = useState<string | null>(null);
-  const [choosing, setChoosing] = useState<{ kind: "scope" } | { kind: "file"; sourceId: string }
-    | { kind: "highlight"; sourceId: string; evidenceIds: string[] } | null>(null);
+  type Choice = { kind: "scope" } | { kind: "file"; sourceId: string }
+    | { kind: "highlight"; sourceId: string; evidenceIds: string[] };
+  const [choosing, setChoosing] = useState<(Choice & { anchor: HTMLElement }) | null>(null);
+  const opener = (choice: Choice) => (event: MouseEvent<HTMLButtonElement>) =>
+    setChoosing({ ...choice, anchor: event.currentTarget });
   const scopeLabel = scopeId && labels[scopeId] ? labels[scopeId] : null;
   const pen = (labels[highlight.pen ?? ""]?.scope === "highlight" ? labels[highlight.pen!] : undefined)
     ?? Object.values(labels).filter((label) => label.scope === "highlight").sort((a, b) => a.order - b.order)[0];
@@ -150,7 +161,7 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
     </form>
     <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-gray-600">
       <span className="text-gray-500">Search in</span>
-      <button type="button" onClick={() => setChoosing({ kind: "scope" })} aria-pressed={!!scopeLabel}
+      <button type="button" onClick={opener({ kind: "scope" })} aria-expanded={choosing?.kind === "scope"} aria-pressed={!!scopeLabel}
         title={scopeLabel ? researchLabelPath(labels, scopeLabel.id).map(({ name }) => name).join(" / ") : "All saved sources"}
         className={`${CHOICE} flex min-w-0 max-w-full items-center gap-1.5`}>
         <ResearchLabelFolder labels={labels} labelId={scopeLabel?.id ?? null} size="sm" />
@@ -158,10 +169,9 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
       </button>
       {scopeLabel && <span className="text-gray-500">{scopeLabel.scope === "highlight" ? "highlighted passages" : "and everything under it"}</span>}
     </div>
-    {choosing?.kind === "scope" && <LabelChoice title="Search in" labels={labels} scope="source" noneLabel="All saved sources"
-      selectedId={scopeLabel?.scope === "source" ? scopeLabel.id : null} onClose={() => setChoosing(null)} onChoose={setScopeId} />}
-    {choosing?.kind === "scope" && <LabelChoice title="Or one highlight type" labels={labels} scope="highlight"
-      selectedId={scopeLabel?.scope === "highlight" ? scopeLabel.id : null} onClose={() => setChoosing(null)} onChoose={setScopeId} />}
+    {choosing?.kind === "scope" && <LabelChoice title="Search in" anchor={choosing.anchor} labels={labels}
+      scopes={["source", "highlight"]} noneLabel="All saved sources"
+      selectedId={scopeLabel?.id ?? null} onClose={() => setChoosing(null)} onChoose={setScopeId} />}
     <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-gray-600">
       <span className="text-gray-500">Capture</span>
       {UNITS.map((option) => <button key={option.value} type="button" onClick={() => setUnit(option.value)}
@@ -178,10 +188,11 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
       {found.map((sourceId) => <div key={sourceId} className="min-w-0">
         <div className="flex min-w-0 items-center gap-1.5">
           <h3 className="min-w-0 flex-1 truncate text-xs font-semibold text-gray-800">{sourceName(file.state.sources[sourceId])}</h3>
-          <button type="button" onClick={() => setChoosing({ kind: "file", sourceId })} className={CHOICE}>File under…</button>
+          <button type="button" onClick={opener({ kind: "file", sourceId })} className={CHOICE}>File under…</button>
         </div>
         {choosing?.kind === "file" && choosing.sourceId === sourceId &&
-          <LabelChoice title={`File ${sourceName(file.state.sources[sourceId])} under`} labels={labels} scope="source"
+          <LabelChoice title={`File ${sourceName(file.state.sources[sourceId])} under`} anchor={choosing.anchor}
+            labels={labels} scopes={["source"]}
             selectedId={null} onClose={() => setChoosing(null)} onChoose={(id) => void fileSource(sourceId, id)} />}
         <ul className="mt-1 grid min-w-0 gap-1">{rows(sourceId).map(({ receipt }) => <li key={receipt.evidence_id}
           className="flex min-w-0 items-start gap-1.5 rounded border-s-2 border-gray-200 ps-2">
@@ -195,10 +206,10 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
             className="mt-0.5 grid size-6 shrink-0 place-items-center rounded text-gray-500 hover:bg-gray-200">
             <BookOpen aria-hidden className="size-3.5" /></button>}
           <button type="button" className={`${CHOICE} mt-0.5 shrink-0`}
-            onClick={() => setChoosing({ kind: "highlight", sourceId, evidenceIds: [receipt.evidence_id] })}>Highlight</button>
+            onClick={opener({ kind: "highlight", sourceId, evidenceIds: [receipt.evidence_id] })}>Highlight</button>
         </li>)}</ul>
         {choosing?.kind === "highlight" && choosing.sourceId === sourceId &&
-          <LabelChoice title="Highlight as" labels={labels} scope="highlight" selectedId={pen?.id ?? null}
+          <LabelChoice title="Highlight as" anchor={choosing.anchor} labels={labels} scopes={["highlight"]} selectedId={pen?.id ?? null}
             onClose={() => setChoosing(null)}
             onChoose={(id) => void markPassages([sourceId], choosing.evidenceIds, id ?? undefined)} />}
       </div>)}

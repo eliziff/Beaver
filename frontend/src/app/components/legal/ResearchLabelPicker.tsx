@@ -1,14 +1,11 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useAnchoredPopover } from "@/app/hooks/useAnchoredPopover";
 import { errorMessage } from "@/app/lib/utils";
 import { researchLabelPath, type ResearchFile, type ResearchLabel,
   type ResearchSourceReference } from "@/app/lib/researchFiles";
-import { researchLabelColor, ResearchLabelFolder, ResearchLabelMarker } from "./ResearchLabelMarker";
-import { ResearchLabelTree } from "./ResearchLabelTree";
-import type { ResearchRemoval } from "./ResearchTree";
-import { useSourcesWorkspace } from "./SourcesWorkspace";
+import { ResearchLabelFolder, ResearchLabelMarker } from "./ResearchLabelMarker";
 import type { ResearchFileMutations } from "./useResearchFileMutations";
 
 export const RESEARCH_SOURCE_DRAG = "application/x-beaver-research-source";
@@ -56,23 +53,12 @@ export function ResearchLabelPicker({ file, kind, itemId, sourceId, labelIds, no
   </>;
 }
 
-/** One rung of the waterfall: every folder available under one parent, on its own full-width row.
- *  Each rung says whose children it lists, so a child can never read as a sibling's. */
-const Rung = ({ labels, items, activeId, under, onChoose, children }: { labels: Record<string, ResearchLabel>;
-  items: ResearchLabel[]; activeId: string | null; under?: string;
-  onChoose: (id: string) => void; children?: React.ReactNode }) =>
-  <div className="grid min-w-0 gap-1">
-    {under && <p className="truncate text-[11px] leading-4 text-gray-500" title={under}>in {under}</p>}
-    <div className="flex min-w-0 flex-wrap gap-1">{children}{items.map((label) => <button key={label.id} type="button"
-      onClick={() => onChoose(label.id)} aria-pressed={activeId === label.id} title={label.name}
-      className={`flex h-7 min-w-0 max-w-full items-center gap-1.5 rounded-md border px-1.5 text-sm ${activeId === label.id
-        ? "border-gray-500 bg-gray-100 font-medium text-gray-900" : "border-gray-200 text-gray-700 hover:bg-gray-50"}`}>
-      <ResearchLabelFolder labels={labels} labelId={label.id} />
-      <span className="truncate">{label.name}</span>
-    </button>)}</div>
-  </div>;
+const CHOICE_ROW = (active: boolean) => `flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-start text-sm ${
+  active ? "bg-gray-100 font-medium text-gray-900" : "text-gray-700 hover:bg-gray-50"}`;
 
-/** The waterfall itself: rung after rung down the chosen label's own line of descent. One picker, everywhere. */
+/** The waterfall: one label per row, its binder at the left, each generation indented under the one it
+ *  descends from — never two folders beside each other, and a child can never read as a sibling's.
+ *  One picker, everywhere. */
 export function ResearchLabelWaterfall({ labels, scope, selectedId, onChoose, noneLabel }: {
   labels: Record<string, ResearchLabel>; scope: ResearchLabel["scope"];
   selectedId: string | null; onChoose: (id: string | null) => void; noneLabel?: string }) {
@@ -82,17 +68,20 @@ export function ResearchLabelWaterfall({ labels, scope, selectedId, onChoose, no
     return map; }, [labels, scope]);
   const path = selectedId && labels[selectedId] ? researchLabelPath(labels, selectedId) : [];
   if (!tree.size) return <p className="my-3 text-sm text-gray-500">No {scope === "source" ? "labels" : "highlight types"} yet.</p>;
-  return <div className="grid min-w-0 content-start gap-2">
-    <Rung labels={labels} items={tree.get(null) ?? []} activeId={path[0]?.id ?? null} onChoose={onChoose}>
-      {noneLabel && <button type="button" onClick={() => onChoose(null)} aria-pressed={!selectedId}
-        className={`flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-1.5 text-sm ${selectedId ? "border-gray-200 text-gray-700 hover:bg-gray-50" : "border-gray-500 bg-gray-100 font-medium text-gray-900"}`}>
-        <ResearchLabelFolder labels={labels} labelId={null} />{noneLabel}</button>}
-    </Rung>
-    {path.flatMap((label, depth) => {
-      const items = tree.get(label.id) ?? [];
-      return items.length ? [<Rung key={label.id} labels={labels} items={items} under={label.name}
-        activeId={path[depth + 1]?.id ?? null} onChoose={onChoose} />] : [];
-    })}
+  const rung = (items: ResearchLabel[], activeId: string | null, depth: number) =>
+    <div key={depth} className="grid min-w-0 gap-0.5" style={{ marginInlineStart: `${depth * 14}px` }}>
+      {items.map((label) => <button key={label.id} type="button" onClick={() => onChoose(label.id)}
+        aria-pressed={activeId === label.id} title={label.name} className={CHOICE_ROW(activeId === label.id)}>
+        <ResearchLabelFolder labels={labels} labelId={label.id} />
+        <span className="min-w-0 flex-1 truncate">{label.name}</span>
+      </button>)}
+    </div>;
+  return <div className="grid min-w-0 content-start gap-0.5">
+    {noneLabel && <button type="button" onClick={() => onChoose(null)} aria-pressed={!selectedId} className={CHOICE_ROW(!selectedId)}>
+      <ResearchLabelFolder labels={labels} labelId={null} /><span className="min-w-0 flex-1 truncate">{noneLabel}</span></button>}
+    {rung(tree.get(null) ?? [], path[0]?.id ?? null, 0)}
+    {path.flatMap((label, depth) => { const items = tree.get(label.id) ?? [];
+      return items.length ? [rung(items, path[depth + 1]?.id ?? null, depth + 1)] : []; })}
   </div>;
 }
 
@@ -160,14 +149,14 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
     <button type="button" onClick={() => close.current()} aria-label="Close label palette"
       className="grid size-8 shrink-0 place-items-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"><X className="size-4" aria-hidden="true" /></button>
     </header>
-    {scope === "source" && <div aria-label="Filed under" className="flex items-end gap-2 overflow-x-auto border-b border-gray-100 py-2">
-      {[...slots, ""].map((id, index) => <button key={`${id}:${index}`} type="button" onClick={() => setActiveSlot(index)}
-        aria-pressed={index === activeSlot} aria-label={id ? `Label slot ${index + 1}: ${labels[id]?.name ?? ""}` : "Add a label"}
-        title={id ? researchLabelPath(labels, id).map(({ name }) => name).join(" / ") : "Add a label"}
-        className={`flex w-14 shrink-0 flex-col items-center gap-1 rounded-md p-1 ${index === activeSlot ? "bg-gray-100 ring-1 ring-gray-400" : "hover:bg-gray-50"}`}>
-        <ResearchLabelFolder labels={labels} labelId={id || null} size="lg" />
-        <span className="w-full truncate text-center text-[10px] leading-3 text-gray-600">{id ? labels[id]?.name ?? "" : "Add"}</span>
-      </button>)}
+    {scope === "source" && <div aria-label="Filed under" className="grid gap-0.5 border-b border-gray-100 py-2">
+      {[...slots, ""].map((id, index) => { const name = id ? researchLabelPath(labels, id).map((label) => label.name).join(" / ") : "";
+        return <button key={`${id}:${index}`} type="button" onClick={() => setActiveSlot(index)}
+          aria-pressed={index === activeSlot} aria-label={id ? `Filed under ${name}` : "Add a label"} title={name || "Add a label"}
+          className={`flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-start text-sm ${index === activeSlot ? "bg-gray-100 ring-1 ring-gray-400" : "hover:bg-gray-50"}`}>
+          <ResearchLabelFolder labels={labels} labelId={id || null} />
+          <span className="min-w-0 flex-1 truncate text-gray-700">{name || "Add a label"}</span>
+        </button>; })}
     </div>}
     <div className="min-h-28 min-w-0 border-b border-gray-200 py-2">
       <ResearchLabelWaterfall labels={labels} scope={scope} selectedId={slot} onChoose={put}
@@ -177,33 +166,4 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
       placeholder="Note" className="mt-2 min-h-14 w-full rounded-md border border-gray-300 p-2 text-sm" />
     {error && <p role="status" className="mt-1 text-xs text-red-700">{error}</p>}
   </div>;
-}
-
-/** Picking a type picks its colour. Its hierarchy stays behind this one control. */
-export function ResearchHighlightTypes({ onRemove, onStatus }: {
-  onRemove: (removal: ResearchRemoval) => void; onStatus: (message: string) => void;
-}) {
-  const { file, highlight } = useSourcesWorkspace(), [open, setOpen] = useState(false);
-  const button = useRef<HTMLButtonElement>(null), id = useId();
-  const labels = file?.state.labels ?? {}, active = (labels[highlight.pen ?? ""]?.scope === "highlight" ? labels[highlight.pen!] : undefined) ??
-    Object.values(labels).filter(({ scope }) => scope === "highlight").sort((a, b) => a.order - b.order)[0];
-  const name = active ? researchLabelPath(labels, active.id).map(({ name }) => name).join(" / ") : "Highlight";
-  function close() { setOpen(false); button.current?.focus(); }
-  const popup = useAnchoredPopover({ anchor: button.current, open, below: true, onDismiss: () => setOpen(false) });
-  if (!file) return null;
-  return <>
-    <button ref={button} type="button" aria-label={`Highlight type: ${name}`} aria-haspopup="dialog" aria-expanded={open} aria-controls={id}
-      onClick={() => setOpen(!open)} title={name} className="inline-flex h-8 min-w-0 max-w-full items-center gap-1.5 rounded border border-gray-300 px-2 text-xs text-gray-700">
-      <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: active ? researchLabelColor(active) : "#d6b85a" }} />
-      <span className="truncate">{name}</span><ChevronDown aria-hidden className="size-3 shrink-0" />
-    </button>
-    {open && createPortal(<div ref={popup} id={id} role="dialog" aria-label="Highlight types" popover="manual"
-      className="fixed inset-auto z-[110] m-0 max-h-[calc(100dvh-1rem)] w-[min(20rem,calc(100vw-1rem))] overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 text-gray-700 shadow-lg">
-      <div className="mb-1 flex items-center justify-between px-2 text-xs font-medium">Highlight types
-        <button type="button" aria-label="Close highlight types" onClick={close} className="grid size-7 place-items-center rounded hover:bg-gray-100"><X aria-hidden className="size-3.5" /></button>
-      </div>
-      <ResearchLabelTree scope="highlight" selectedId={active?.id ?? null} onSelect={(id) => { if (id) highlight.setPen(id); close(); }}
-        onRemove={(removal) => { close(); onRemove(removal); }} onStatus={onStatus} />
-    </div>, button.current?.closest(MODAL_BOUNDARY) ?? document.body)}
-  </>;
 }
