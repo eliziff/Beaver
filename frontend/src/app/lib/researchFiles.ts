@@ -68,7 +68,8 @@ export type ResearchAction =
   | { type: "annotate"; kind: "source"; id: string; labelIds?: string[]; note?: string }
   | { type: "annotate"; kind: "evidence"; id: string; sourceId: string;
       labelIds?: string[]; note?: string }
-  | { type: "passage"; sourceId: string; locator: PassageLocator; quote: string; labelIds?: string[] }
+  | ({ type: "passage"; sourceId: string; labelIds?: string[] }
+      & ({ revision: string; start: number; end: number } | { quote: string }))
   | ({ type: "label-selection"; assign: string[]; mode: "add" | "remove" | "replace" } & ResearchSelection)
   | { type: "accept" | "reject" | "undo"; changeId: string }
   | { type: "note"; markdown: string; expectedMarkdown?: string }

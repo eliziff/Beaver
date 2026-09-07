@@ -24,11 +24,11 @@ export const ROW_COUNT = "w-6 shrink-0 text-end text-xs tabular-nums text-gray-5
 
 /** Virtual folders navigate one source list. A source never needs an exclusive location. */
 export function ResearchTree({ reader, sources, navigationSources = sources, filter = "",
-  labelId = null, onLabelChange = () => undefined, selectedSourceId, addSignal,
+  labelId = null, onLabelChange = () => undefined, selectedSourceId,
   opened = NO_ROWS, setOpened = () => undefined, passageVisible = () => true,
   onRemove = () => undefined, onStatus = () => undefined, onSourceDrag, preview, passagePages: suppliedPages }: {
   reader?: SourceReader; sources: ResearchSource[]; navigationSources?: ResearchSource[]; filter?: string;
-  labelId?: string | null; onLabelChange?: (id: string | null) => void; addSignal?: number;
+  labelId?: string | null; onLabelChange?: (id: string | null) => void;
   passagePages?: ReturnType<typeof useSourcesWorkspace>["passages"]; selectedSourceId?: string;
   opened?: Set<string>; setOpened?: Dispatch<SetStateAction<Set<string>>>;
   passageVisible?: (item: ResearchEvidence) => boolean;
@@ -127,7 +127,7 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
 
   return <>
     <ResearchLabelTree scope="source" sources={navigationSources} selectedId={labelId} onSelect={onLabelChange}
-      onRemove={onRemove} onStatus={onStatus} preview={preview} addSignal={addSignal}
+      onRemove={onRemove} onStatus={onStatus} preview={preview}
       renderSources={(id) => under(id).map((source) => sourceNode(source, `${id ?? ""}:${source.id}`))} />
     {!sources.length && <p className="p-2 text-xs text-gray-500">{filter || labelId ? "No matching sources." : "No sources yet."}</p>}
     {labelTarget && <ResearchLabelEditor target={labelTarget} mutations={commit} onError={onStatus} onClose={() => setLabelTarget(null)} />}

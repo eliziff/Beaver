@@ -2,10 +2,10 @@ import { useLayoutEffect, useRef } from "react";
 
 /** One placement for every anchored panel in the workspace: beside its anchor, inside the viewport,
  *  clear of the assistant dock, re-clamped while the page moves, dismissed on Escape or a click outside. */
-export function useAnchoredPopover({ anchor, open = true, onDismiss, below = false }: {
+export function useAnchoredPopover<T extends HTMLElement = HTMLDivElement>({ anchor, open = true, onDismiss, below = false }: {
   anchor: HTMLElement | DOMRect | null | undefined; open?: boolean;
   onDismiss: () => void; below?: boolean }) {
-  const node = useRef<HTMLDivElement>(null), dismiss = useRef(onDismiss);
+  const node = useRef<T>(null), dismiss = useRef(onDismiss);
   dismiss.current = onDismiss;
   useLayoutEffect(() => {
     const panel = node.current; if (!open || !panel) return;

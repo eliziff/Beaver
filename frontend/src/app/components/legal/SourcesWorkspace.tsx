@@ -24,7 +24,10 @@ const Context = createContext<Controller | null>(null);
 const ALL_SOURCES: ResearchSelection = { target: "sources" };
 const PEN_KEY = "beaver.research.pen.v1";
 /** What a reader hands the Highlight tool: the source it shows and the text the user picked. */
-export type HighlightCapture = { reference: ResearchSourceReference; locator: PassageLocator; quote: string };
+/** A reader that renders the canonical text reports offsets in the revision it served; one that
+ *  renders the original file reports the text it captured. */
+export type HighlightCapture = { reference: ResearchSourceReference }
+  & ({ revision: string; start: number; end: number } | { quote: string });
 
 function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey, selection: suppliedSelection, restoreLast = false, onChange }: Options) {
   const memoryKey = `beaver.research.current:${projectId ?? "personal"}`;
@@ -151,6 +154,8 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
   }
 
   const [pen, setPenState] = useState<string | null>(null), [armed, setArmed] = useState(true);
+  /** Only a mounted reader can capture a selection, so only it can offer highlighting. */
+  const [reading, setReading] = useState(false);
   const capture = useRef<(() => HighlightCapture | null) | null>(null);
   const penFile = useRef(file?.document.id); penFile.current = file?.document.id;
   const penId = useRef(pen); penId.current = pen;
@@ -179,12 +184,14 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
       await act({ type: "label", id: active, name: "Highlight", parentId: null, scope: "highlight", color: "#d6b85a" });
     }
     if (active !== penId.current) { penId.current = active; setPen(active); }
-    await act({ type: "passage", sourceId, locator: picked.locator, quote: picked.quote, labelIds: [active] });
+    const { reference: _reference, ...span } = picked;
+    await act({ type: "passage", sourceId, ...span, labelIds: [active] });
     window.getSelection()?.removeAllRanges();
     return "saved";
   }, [act, setPen]);
-  const highlight = { pen, setPen, armed, arm: setArmed, run: runHighlight,
-    registerReader: useCallback((next: (() => HighlightCapture | null) | null) => { capture.current = next; }, []) };
+  const highlight = { pen, setPen, armed, arm: setArmed, run: runHighlight, reading,
+    registerReader: useCallback((next: (() => HighlightCapture | null) | null) => {
+      capture.current = next; setReading(!!next); }, []) };
 
   return { file, selection, setSelection, accept, open, refresh, loading, error, mutations, passages, evidence, findings,
     ensure, bind, table, chat, highlight, views: () => getWorkspaceViews(requireFile().document.id), retry: restore };

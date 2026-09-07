@@ -26,14 +26,12 @@ export function useLibraryReaderCapture(
     const block = wholeBlock.current;
     wholeBlock.current = null;
     if (!reference || !root.current) return null;
-    if (block) {
-      const kind = block.dataset.locatorKind as HighlightCapture["locator"]["kind"] | undefined,
-        value = block.dataset.locatorValue,
-        quote = (block.textContent ?? "").replace(/\s+/gu, " ").trim();
-      return kind && value && quote ? { reference, locator: { kind, value }, quote } : null;
-    }
-    const target = legalPassageTargetFromSelection(root.current, window.getSelection());
-    return target ? { reference, ...target } : null;
+    // These readers render the original file, not the canonical text, so they report what was
+    // captured and the server anchors it back to the revision it holds.
+    const quote = (block ? block.textContent ?? ""
+      : legalPassageTargetFromSelection(root.current, window.getSelection())?.quote ?? "")
+      .replace(/\s+/gu, " ").trim();
+    return quote ? { reference, quote } : null;
   };
   const registerReader = highlight?.registerReader;
   useEffect(() => {

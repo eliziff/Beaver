@@ -41,9 +41,12 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
     else allowed.set(subject.sourceId, new Set([...(allowed.get(subject.sourceId) ?? []), ...subject.evidence.map(({ evidence_id }) => evidence_id)]));
   }
   const rows: ResearchArrangement["rows"] = [], entries: Entry[] = [];
-  const add = (rowId: string, reference: Item, kind: Kind, text: string, columnKey: string,
+  // One column per distinct question, however it arose: a classification, a highlight type or a
+  // recorded finding that already asked it. Re-importing research never doubles a column.
+  const add = (rowId: string, reference: Item, kind: Kind, text: string,
     column: Omit<TabularColumn, "index">, evidenceIds: string[] = [], use = true) => {
-    entries.push({ id: key([rowId, reference]), rowId, reference, kind, text, columnKey,
+    entries.push({ id: key([rowId, reference]), rowId, reference, kind, text,
+      columnKey: key([column.name, column.prompt, column.format, column.tags]),
       column: { ...column, index: 0 }, evidenceIds, default: use });
   };
   for (const [sourceId, permitted] of allowed) {
@@ -66,19 +69,22 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
         if (root?.scope !== "source") continue;
         while (root.parentId) root = file.state.labels[root.parentId];
         add(rowId, { kind: "label", sourceId, labelId, display: "path" }, "classification",
-          researchLabelPath(file.state, labelId), Object.values(file.state.labels).some(({ parentId }) => parentId === root.id) ? `label:${root.id}` : "labels",
+          researchLabelPath(file.state, labelId),
           { name: Object.values(file.state.labels).some(({ parentId }) => parentId === root.id) ? root.name : "Classification",
             prompt: `Recorded source classifications; preserve their full paths.`, format: "text" });
       }
       if (source.note && input.rows === "sources") add(rowId, { kind: "note", sourceId }, "note", source.note,
-        "note", { name: "Research note", prompt: "The note retained for this source.", format: "text" });
+        { name: "Research note", prompt: "The note retained for this source.", format: "text" });
       for (const passage of rowPassages) {
-        const typeId = passage.labelIds[0], path = researchLabelPath(file.state, typeId);
+        const path = researchLabelPath(file.state, passage.labelIds[0]),
+          // An unnamed default highlight type is no question; name the column for what it holds.
+          named = !/^highlights?$/iu.test(path);
         add(rowId, { kind: "passage", sourceId, evidenceId: passage.receipt.evidence_id }, "passages",
-          passage.receipt.span_text ?? "", `highlight:${typeId}`, { name: clip(path),
-            prompt: `Saved passages: ${path}.`, format: "text" }, [passage.receipt.evidence_id]);
+          passage.receipt.span_text ?? "", { name: named ? clip(path) : "Saved passages",
+            prompt: named ? `Saved passages: ${path}.` : "The passages saved from this source.", format: "text" },
+          [passage.receipt.evidence_id]);
         if (input.rows === "passages" && passage.note) add(rowId, { kind: "note", sourceId,
-          evidenceId: passage.receipt.evidence_id }, "note", passage.note, "note",
+          evidenceId: passage.receipt.evidence_id }, "note", passage.note,
           { name: "Research note", prompt: "The note retained for this passage.", format: "text" });
       }
       for (const finding of findings.filter((value) => value.sourceId === sourceId)) {
@@ -86,16 +92,15 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
           !evidenceIds || !!claim.evidence_ids.length && claim.evidence_ids.every((id) => evidenceIds.includes(id)));
         if (evidenceIds && !relevant.length) continue;
         const question = { name: clip(finding.question.title) || "Finding", prompt: finding.question.prompt || "Recorded finding",
-          format: finding.question.format ?? "text", ...(finding.question.tags ? { tags: finding.question.tags } : {}) },
-          columnKey = `question:${key([question.prompt, question.format, question.tags])}`;
+          format: finding.question.format ?? "text", ...(finding.question.tags ? { tags: finding.question.tags } : {}) };
         const complete = relevant.length === finding.answer.claims.length;
         if (complete) add(rowId, finding.reference, "answer", finding.answer.summary ?? (finding.answer.value == null ? finding.answer.claims.map(({ text }) => text).join("\n\n") :
-          Array.isArray(finding.answer.value) ? finding.answer.value.join("\n") : String(finding.answer.value)), columnKey, question,
+          Array.isArray(finding.answer.value) ? finding.answer.value.join("\n") : String(finding.answer.value)), question,
           [...new Set(finding.answer.claims.flatMap(({ evidence_ids }) => evidence_ids))]);
         // A semantic layout may put separate claims from one Chat answer in different columns.
         // Their references still resolve the original text/support, never model-written substitutes.
         if (finding.reference.kind === "answer" && (!complete || finding.answer.claims.length > 1)) for (const { claim, index } of relevant)
-          add(rowId, { ...finding.reference, claimIndices: [finding.reference.claimIndices?.[index] ?? index] }, "answer", claim.text, columnKey, question,
+          add(rowId, { ...finding.reference, claimIndices: [finding.reference.claimIndices?.[index] ?? index] }, "answer", claim.text, question,
             claim.evidence_ids, !complete);
       }
     }
