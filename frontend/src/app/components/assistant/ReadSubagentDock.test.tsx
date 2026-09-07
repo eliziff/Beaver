@@ -56,14 +56,14 @@ it("keeps the delegated source chip unchanged and opens its exact source after c
     expect(screen.getByRole("button", {
         name: "Activity — Reading Example v. Example, 2020 BCSC 1",
     })).toBeVisible();
-    const citation = screen.getByRole("link", {
+    const citation = screen.getByRole("button", {
         name: "Example v. Example, 2020 BCSC 1",
     });
     expect(screen.getByRole("listitem")).toHaveAttribute("aria-busy", "true");
     rerender(<ReadSubagentDock panels={[completedPanel]} onCitationClick={onCitationClick} embedded />);
-    expect(screen.getByRole("link", { name: "Example v. Example, 2020 BCSC 1" })).toBe(citation);
+    expect(screen.getByRole("button", { name: "Example v. Example, 2020 BCSC 1" })).toBe(citation);
     expect(screen.getByRole("listitem")).toHaveAttribute("aria-busy", "false");
-    expect(citation).toHaveAttribute("href", "https://www.canlii.org/example#par12");
-    expect(citation).toHaveAttribute("target", "_blank");
-    expect(onCitationClick).not.toHaveBeenCalled();
+    // The chip opens the source in the reader rather than a browser tab.
+    citation.click();
+    expect(onCitationClick).toHaveBeenCalledTimes(1);
 });
