@@ -29,7 +29,7 @@ it("keeps the read chip unchanged while preserving a completed read's exact sour
     expect(screen.getByRole("listitem")).toHaveAttribute("aria-busy", "true");
     chip.focus();
     rerender(<ActivityRow activity={{
-        ...activity, status: "completed", citations: [broad, passage],
+        ...activity, status: "completed", citations: [passage],
     }} onCitationClick={onCitationClick} />);
 
     expect(screen.getByRole("button", { name: /Bhasin/u })).toBe(chip);

@@ -1,4 +1,4 @@
-import { citationPinpoint, type Citation } from "@/app/lib/citations";
+import { type Citation } from "@/app/lib/citations";
 
 export function citationSourceKey(annotation: Citation): string {
     if (annotation.kind === "a2aj") {
@@ -12,23 +12,14 @@ export function citationSourceKey(annotation: Citation): string {
     return `document:${annotation.document_id}:${annotation.version_id ?? ""}`;
 }
 
-export function omitBroadCitationDuplicates(citations: Citation[]): Citation[] {
-    const pinpointed = new Set(citations
-        .filter((citation) => citationPinpoint(citation))
-        .map(citationSourceKey));
-    return citations.filter((citation) =>
-        citationPinpoint(citation) || !pinpointed.has(citationSourceKey(citation)));
-}
-
 export function preprocessCitations(
     text: string,
     citations: Map<number, Citation>,
     inlineCitationTargets: Citation[],
 ): string {
     return text.replace(/\[(?:\d+(?:,\s*\d+)*)\](?:\s*\[(?:\d+(?:,\s*\d+)*)\])*/g, (full) => {
-        const selected = omitBroadCitationDuplicates(
-            (full.match(/\d+/g) ?? []).flatMap((ref) => citations.get(Number(ref)) ?? []),
-        );
+        const selected = (full.match(/\d+/g) ?? [])
+            .flatMap((ref) => citations.get(Number(ref)) ?? []);
         const tokens = selected.map((citation) => {
             const idx = inlineCitationTargets.length;
             inlineCitationTargets.push(citation);

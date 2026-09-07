@@ -5,19 +5,7 @@ import {
   type LegalEvidenceTurnState,
   type RegisteredEvidence,
 } from "./legalEvidence";
-import {
-  presentLegalEvidence,
-  type CitationPresentation,
-} from "./citationPresentation";
-
-function receiptLocator(kind: RegisteredEvidence["receipt"]["locator"]["kind"],
-  presentation: CitationPresentation) {
-  return !presentation.locator ? {} : {
-    locator_kind: kind,
-    locator: presentation.locator.label,
-    pinpoint: presentation.locator.text,
-  };
-}
+import { presentLegalEvidence } from "./citationPresentation";
 
 export function legalEvidenceDocumentLink(entry: RegisteredEvidence) {
   const { receipt } = entry;
@@ -45,8 +33,8 @@ function citationsFromGroups(
 ) {
   return groups.flatMap<Record<string, unknown>>(
     (group) => {
-      // Present the group from a member that carries its locator system, so the
-      // chip's pinpoint and passage link agree.
+      // Present from a member carrying the group's locator system, so the
+      // chip's pinpoint and its passage link agree.
       const entry = group.members.find(
         ({ receipt }) => receipt.locator.kind === group.locatorKind) ?? group.members[0];
       const { receipt } = entry;
@@ -62,7 +50,9 @@ function citationsFromGroups(
         group.locatorLabels,
         group.locatorKind,
       );
-      const locator = receiptLocator(group.locatorKind, presentation);
+      const locator = !presentation.locator ? {} : {
+        locator_kind: group.locatorKind, locator: presentation.locator.label,
+        pinpoint: presentation.locator.text };
       const display = {
         authority: presentation.authority,
         short_authority: presentation.shortAuthority,

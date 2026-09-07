@@ -19,7 +19,7 @@ import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
 import { downloadDocument } from "@/app/lib/api/documents";
 import { downloadBlob } from "@/app/lib/download";
 import { RESPONSE_GLASS_SURFACE, withoutMarkdownNode } from "./messageStyles";
-import { citationSourceKey, omitBroadCitationDuplicates } from "./citationUtils";
+import { citationSourceKey } from "./citationUtils";
 import {
     CitationPill,
     CitationPillMarkdown,
@@ -136,7 +136,7 @@ export function ActivityRow({
         ? lines.slice(1).join("\n").trim()
         : inlineMarkdown;
     const citations = activity.tool === "search_sources" || activity.tool === "Grep"
-        ? [] : omitBroadCitationDuplicates(activity.citations ?? []);
+        ? [] : activity.citations ?? [];
     const compactRead = activity.tool === "Read" && !markdown && citations.length > 0;
     const label = compactRead
         ? { running: "Read", completed: "Read", error: "Failed", interrupted: "Stopped" }[activity.status]
