@@ -70,6 +70,8 @@ export interface TabularCell {
     coverage: "complete" | "partial";
     resource?: string;
     query_ids?: string[];
+    /** Present when the cell was mapped from existing research rather than extracted by a model. */
+    origin?: { items?: { kind: string }[] };
   } | null;
   status: "pending" | "generating" | "done" | "error";
 }
