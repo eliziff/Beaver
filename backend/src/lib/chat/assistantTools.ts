@@ -625,6 +625,31 @@ async function activeDocx(
 
 
 
+/**
+ * A scanned PDF has no text until recognition finishes, so a read of one
+ * returns an empty window. Report the running job and its progress instead of
+ * an empty file, and say the read is worth repeating.
+ */
+async function textRecognitionWait(
+  documents: DocumentStore,
+  scope: DocumentScope,
+  documentId: string,
+  filename: string,
+) {
+  const [row] = await documents.parseStates(scope, [documentId]);
+  const parse = row?.parse_state;
+  if (!parse || (parse.status !== "queued" && parse.status !== "parsing")) return null;
+  const total = row.page_count ?? parse.page_count ?? 0;
+  const done = parse.pages?.length ?? 0;
+  const percent = total ? Math.min(99, Math.round((100 * done) / total)) : null;
+  return {
+    label: `Waiting on text recognition${percent === null ? "" : ` (${percent}%)`} for ${filename}`,
+    status: parse.phase === "ocr" ? "recognizing_text" : "preparing_text",
+    ...(percent === null ? {} : { progress: `${percent}%` }),
+    next_required_action: `Text recognition is still running on ${filename}. Retry this Read once it finishes.`,
+  };
+}
+
 async function readNonDocumentResource(
   call: NormalizedToolCall,
   args: Record<string, unknown>,
@@ -963,9 +988,19 @@ async function runCodingShapeCall(
     const nativeDocument = document.document;
     const limit = (args.limit as number | undefined) ?? 2_000;
     const startChar = (args.start_char as number | undefined) ?? 0;
-    if (!sectionArg) return readLibraryResearchWindow({ documentId: meta.id,
-      versionId: document.versionId, filename: meta.filename, document: nativeDocument,
-      offset: args.offset as number | undefined, start_char: startChar, limit });
+    if (!sectionArg) {
+      if (!structureNative().documentText(nativeDocument).trim()) {
+        const waiting = await textRecognitionWait(documents, scope, meta.id, meta.filename);
+        if (waiting) {
+          const { label, ...status } = waiting;
+          progress?.(label);
+          return result({ ok: false, resource: requested, ...status });
+        }
+      }
+      return readLibraryResearchWindow({ documentId: meta.id,
+        versionId: document.versionId, filename: meta.filename, document: nativeDocument,
+        offset: args.offset as number | undefined, start_char: startChar, limit });
+    }
     const sourceSha256 = structureNative().documentRevision(nativeDocument);
     const source = (
       locator?: string,
