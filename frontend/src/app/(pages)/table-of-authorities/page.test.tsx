@@ -219,7 +219,7 @@ describe("Authorities UI contracts", () => {
       route={{ ...workspaceRoute(saved.id), projectId: "matter-1" }} /></MemoryRouter>);
 
     await userEvent.click((await screen.findByRole("heading", { name: "Sources" })).closest("summary")!);
-    await userEvent.click(screen.getByRole("button", { name: "Add PDF for R v Grant" }));
+    await userEvent.click(screen.getByRole("button", { name: "Upload for R v Grant" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Choose from Project" }));
     await userEvent.click(await screen.findByRole("button", { name: /Grant\.pdf/u }));
     await waitFor(() => expect(api.attachAuthoritiesLibraryPdf).toHaveBeenLastCalledWith(
@@ -797,7 +797,7 @@ describe("Authorities UI contracts", () => {
     const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("details")!;
     expect(sources).toHaveAttribute("open");
     expect(within(sources).getAllByRole("listitem")).toHaveLength(2);
-    expect(screen.getByRole("button", { name: /Done — review highlights/u })).toBeVisible();
+    expect(screen.getByRole("button", { name: /^Done$/u })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Build outputs" })).not.toBeInTheDocument();
   });
 
@@ -818,7 +818,7 @@ describe("Authorities UI contracts", () => {
 
     const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("details")!;
     expect(sources).toHaveAttribute("open");
-    expect(within(sources).getByRole("button", { name: "Add PDF for Example v Example" })).toBeVisible();
+    expect(within(sources).getByRole("button", { name: "Upload for Example v Example" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Build outputs" })).not.toBeInTheDocument();
   });
 
@@ -939,7 +939,7 @@ describe("Authorities UI contracts", () => {
     const sources = screen.getByRole("heading", { name: "Sources" }).closest("details")!;
     expect(sources).not.toHaveAttribute("open");
     await userEvent.click(within(sources).getByText("Sources"));
-    expect(screen.getByRole("img", { name: "PDF loaded" })).toHaveAttribute("title", "Decision.pdf");
+    expect(screen.getByRole("img", { name: "Decision.pdf" })).toBeVisible();
   });
 
   it.each(["federal-court", "ab-court-of-kings-bench"] as const)(
@@ -1015,7 +1015,7 @@ describe("Authorities UI contracts", () => {
       { type: "clear-authority-source", authorityId: "alpha" }));
     expect(screen.getByRole("heading", { name: "Alpha" })).toBeVisible();
     expect(screen.getByText("Tab 1")).toBeVisible();
-    expect(await screen.findByRole("button", { name: "Add PDF for Alpha" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Upload for Alpha" })).toBeVisible();
   });
 
   it("refreshes a changed Beaver input in place", async () => {
@@ -1150,7 +1150,7 @@ describe("Authorities UI contracts", () => {
     const file = new File(["%PDF-1.7"], "beta.pdf", { type: "application/pdf" });
 
     const authorities = screen.getByRole("heading", { name: "Sources" }).closest("details")!;
-    await userEvent.upload(within(authorities).getByLabelText("Add PDFs"), file);
+    await userEvent.upload(within(authorities).getByLabelText("Upload"), file);
 
     await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1,
       { type: "add-authority", kind: "other", citation: "beta", name: "beta" }));
@@ -1216,8 +1216,8 @@ describe("Authorities UI contracts", () => {
 
     const known = (await screen.findByRole("heading", { name: "R v Oakes" })).closest("article")!;
     const unknown = screen.getByRole("heading", { name: "Unresolved case" }).closest("article")!;
-    expect(within(unknown).queryByRole("link", { name: "Get from CanLII" })).toBeNull();
-    const handoff = within(known).getByRole("link", { name: "Get from CanLII" });
+    expect(within(unknown).queryByRole("link", { name: "CanLII" })).toBeNull();
+    const handoff = within(known).getByRole("link", { name: "CanLII" });
     expect(handoff).toHaveAttribute("href", pdfUrl);
     expect(handoff).toHaveAttribute("target", "_blank");
     expect(handoff).toHaveAttribute("rel", "noopener noreferrer");
@@ -1253,7 +1253,7 @@ describe("Authorities UI contracts", () => {
 
     await waitFor(() => expect(api.prepareAuthoritiesSources)
       .toHaveBeenCalledWith("draft-1", 2, undefined));
-    expect(await screen.findByRole("link", { name: "Get from CanLII" })).toBeVisible();
+    expect(await screen.findByRole("link", { name: "CanLII" })).toBeVisible();
     const row = screen.getByRole("heading", { name: "R v Jordan" }).closest("article")!;
     await userEvent.click(within(row).getByRole("button", { name: "Options for R v Jordan" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Edit details" }));
@@ -1518,12 +1518,12 @@ it("reviews missing highlight locations before opening the editor without saving
     }),
   };
   render(<MemoryRouter><AuthoritiesWorkspace host={host} route={workspaceRoute("draft-1")} /></MemoryRouter>);
-  await userEvent.click(await screen.findByRole("button", { name: "Done — review highlights" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Done" }));
   expect(await screen.findByText("Unlocated quoted words")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Edit in PDF" })).not.toBeInTheDocument();
   expect(current.state.stage).toBe("sources");
   expect(current.state.authorities.case.annotations).toBeUndefined();
-  await userEvent.click(screen.getByRole("button", { name: "Continue to highlights" }));
+  await userEvent.click(screen.getByRole("button", { name: "Done" }));
   expect(await screen.findByRole("button", { name: "Edit in PDF" })).toBeVisible();
   expect(current.state.stage).toBe("highlights");
   expect(host.act.mock.calls.some(([, , action]) => action.type === "set-annotations")).toBe(false);

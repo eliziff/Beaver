@@ -112,16 +112,14 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
             ? `${email} already has access.` : null;
     }
     const loading = status === "loading";
-    return <Modal open onClose={onClose} size={step === "details" ? "md" : "lg"}
-        className={step === "details"
-            ? "!h-fit max-h-[calc(100dvh-2rem)] [&>.modal-scroll-body]:flex-initial"
-            : "!h-[min(28rem,calc(100dvh-2rem))]"}
+    return <Modal open onClose={onClose} size="lg"
+        className="!h-[min(28rem,calc(100dvh-2rem))]"
         breadcrumbs={["Projects", "New project"]}
         headerAction={step === "documents" ? <UploadAction busy={loading} actions={{
             files: () => fileInput.current?.click(),
             folder: () => folderInput.current?.click(),
         }} /> : undefined}
-        cancelAction={step === "documents"
+        secondaryAction={step === "documents"
             ? { label: "Back", onClick: () => setStep("details"), disabled: loading } : undefined}
         primaryAction={{ label: step === "details" ? "Next" : loading ? "Creating…" : "Create project",
             type: "submit", form: formId, disabled: loading }}>

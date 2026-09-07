@@ -1,3 +1,4 @@
+import { createCatalogCache } from "./catalogCache";
 import { acquireCodexAppServer } from "./llm/codexAppServer";
 
 type CodexCatalogModel = {
@@ -12,8 +13,6 @@ export type CodexModelCatalog = {
   source: "live" | "unavailable";
 };
 
-let cached: CodexModelCatalog | null = null;
-let pending: Promise<CodexModelCatalog> | null = null;
 const INTERNAL_CODEX_MODELS = new Set([
   "codex-auto-review", "gpt-auto-review", "gpt-reserve",
 ]);
@@ -101,22 +100,8 @@ async function runCatalog(): Promise<CodexModelCatalog> {
   return normalizeCodexCatalog(models);
 }
 
-export async function getCodexModelCatalog(): Promise<CodexModelCatalog> {
-  if (cached) return cached;
-  if (pending) return pending;
-  pending = (async () => {
-    try {
-      const value = await runCatalog();
-      cached = value;
-      return cached;
-    } catch {
-      return {
-        models: [],
-        source: "unavailable",
-      } satisfies CodexModelCatalog;
-    } finally {
-      pending = null;
-    }
-  })();
-  return pending;
-}
+const cache = createCatalogCache<CodexModelCatalog>(runCatalog, {
+  models: [], source: "unavailable",
+});
+export const getCodexModelCatalog = () => cache.resolve();
+export const codexModelCatalogSnapshot = () => cache.snapshot();

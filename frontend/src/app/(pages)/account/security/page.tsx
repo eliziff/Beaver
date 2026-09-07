@@ -347,12 +347,9 @@ export default function SecurityPage() {
                 open={setup !== null}
                 onClose={() => void cancelSetup(null)}
                 breadcrumbs={["Security", "Set up authenticator app"]}
-                cancelAction={{
-                    label: enrollment ? "Back" : "Cancel",
-                    onClick: () =>
-                        void cancelSetup(enrollment ? emptySetup : null),
-                    disabled: busy,
-                }}
+                secondaryAction={enrollment
+                    ? { label: "Back", onClick: () => void cancelSetup(emptySetup), disabled: busy }
+                    : undefined}
                 primaryAction={
                     enrollment
                         ? {

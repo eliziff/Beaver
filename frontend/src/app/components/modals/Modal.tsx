@@ -23,10 +23,10 @@ interface ModalProps {
     headerStart?: ReactNode;
     size?: ModalSize;
     className?: string;
+    fit?: boolean;
     footerStatus?: ReactNode;
     primaryAction?: ModalAction;
     secondaryAction?: ModalAction;
-    cancelAction?: ModalAction | false;
     keepMounted?: boolean;
 }
 const sizeClassName: Record<ModalSize, string> = {
@@ -47,10 +47,10 @@ export function Modal({
     headerStart,
     size = "lg",
     className,
+    fit = false,
     footerStatus,
     primaryAction,
     secondaryAction,
-    cancelAction,
     keepMounted = false,
 }: ModalProps) {
     const dialogRef = useRef<HTMLDialogElement>(null);
@@ -68,11 +68,7 @@ export function Modal({
     const titleId = useId();
     const breadcrumbCount = breadcrumbs?.length ?? 0;
     const hasHeader = breadcrumbCount > 0;
-    const hasFooter =
-        footerStatus ||
-        primaryAction ||
-        secondaryAction ||
-        cancelAction;
+    const hasFooter = footerStatus || primaryAction || secondaryAction;
     useLayoutEffect(() => {
         const dialog = dialogRef.current;
         if (!open || !dialog) return;
@@ -114,7 +110,10 @@ export function Modal({
                 pointerStartedOnBackdrop.current = false;
             }}
             className={cn(
-                "m-auto h-[min(600px,calc(100dvh-2rem))] w-[calc(100%-2rem)] flex-col overflow-hidden rounded-lg p-0 backdrop:bg-gray-950/20",
+                "m-auto w-[calc(100%-2rem)] flex-col overflow-hidden rounded-lg p-0 backdrop:bg-gray-950/20",
+                fit
+                    ? "h-fit max-h-[calc(100dvh-2rem)]"
+                    : "h-[min(600px,calc(100dvh-2rem))]",
                 open && "flex",
                 sizeClassName[size],
                 "border border-gray-300 bg-white",
@@ -171,37 +170,20 @@ export function Modal({
                     {children}
                 </div>
                 {hasFooter && (
-                    <div
-                        className={cn(
-                            "flex shrink-0 flex-wrap items-center gap-3 border-t border-gray-200 bg-white p-3",
-                            secondaryAction
-                                ? "justify-between"
-                                : "justify-end",
-                        )}
-                    >
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 bg-white p-3">
+                        {footerStatus}
                         {secondaryAction && (
-                            <div className="flex min-w-0 items-center gap-2">
-                                <ModalActionButton
-                                    action={secondaryAction}
-                                    fallbackVariant="secondary"
-                                />
-                            </div>
+                            <ModalActionButton
+                                action={secondaryAction}
+                                fallbackVariant="secondary"
+                            />
                         )}
-                        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-                            {footerStatus}
-                            {cancelAction && (
-                                <ModalActionButton
-                                    action={cancelAction}
-                                    fallbackVariant="cancel"
-                                />
-                            )}
-                            {primaryAction && (
-                                <ModalActionButton
-                                    action={primaryAction}
-                                    fallbackVariant="primary"
-                                />
-                            )}
-                        </div>
+                        {primaryAction && (
+                            <ModalActionButton
+                                action={primaryAction}
+                                fallbackVariant="primary"
+                            />
+                        )}
                     </div>
                 )}
         </dialog>
@@ -212,25 +194,9 @@ function ModalActionButton({
     fallbackVariant,
 }: {
     action: ModalAction;
-    fallbackVariant: "primary" | "secondary" | "cancel";
+    fallbackVariant: "primary" | "secondary";
 }) {
-    const {
-        label,
-        icon,
-        variant = fallbackVariant === "cancel" ? "secondary" : fallbackVariant,
-        ...props
-    } = action;
-    if (fallbackVariant === "cancel") {
-        return (
-            <button
-                type="button"
-                className="rounded-md px-2 py-1.5 text-sm text-gray-500 outline-none hover:text-gray-800 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-40"
-                {...props}
-            >
-                {label}
-            </button>
-        );
-    }
+    const { label, icon, variant = fallbackVariant, ...props } = action;
     const tone =
         variant === "danger"
             ? "danger"

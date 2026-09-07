@@ -1,7 +1,8 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { Modal } from "@/app/components/modals/Modal";
+import { ChevronRight } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
+import { StepProgress, StepSection } from "./StepSection";
 import { sequenceOpcodes } from "../../../../shared/sequence-diff.mjs";
 import type { AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction } from "./types";
 
@@ -44,20 +45,20 @@ const Passage = ({ label, children }: { label: string; children: ReactNode }) =>
 const heading = (finding: AuthoritiesDiscrepancy) =>
   `${finding.citation} · ${readableLocator(finding.authoredPinpoint.kind, finding.authoredPinpoint.text)} · footnote ${finding.footnoteId}`;
 
-/** The session, not a transient finding, owns the dialog's lifetime. */
-export function QuotationReview({ items, initialId, busy, error, sourceUrl, onResolve, onClose }: {
-  items?: AuthoritiesDiscrepancy[]; initialId: string; busy: boolean; error?: string;
-  sourceUrl?: (finding: AuthoritiesDiscrepancy) => string | undefined;
+/** A step of the authorities workflow, not a dialog: it stays in place while the draft is rechecked. */
+export function QuotationReview({ items, currentId, busy, error, onSelect, onOpenSource, onResolve, onDone }: {
+  items?: AuthoritiesDiscrepancy[]; currentId: string; busy: boolean; error?: string;
+  onSelect: (id: string) => void;
+  onOpenSource?: (finding: AuthoritiesDiscrepancy) => void;
   onResolve?: (finding: AuthoritiesDiscrepancy, action: AuthoritiesDiscrepancyAction, done: () => void) => void;
-  onClose: () => void;
+  onDone: () => void;
 }) {
-  const [id, setId] = useState(initialId);
   const [choice, setChoice] = useState<{ id: string; action: AuthoritiesDiscrepancyAction }>();
   // Only real wording differences are adjudicated; quotations that were not found are one batch.
   const differences = items?.filter(({ found }) => found) ?? [];
   const missing = items?.filter(({ found }) => !found) ?? [];
   const pages = [...differences.map(({ id: value }) => value), ...(missing.length ? ["missing"] : [])];
-  const index = Math.max(0, pages.indexOf(missing.some(item => item.id === id) ? "missing" : id));
+  const index = Math.max(0, pages.indexOf(missing.some(item => item.id === currentId) ? "missing" : currentId));
   const finding = differences.find(item => item.id === pages[index]);
   const source = finding?.found ?? null;
   const action = choice?.id === finding?.id ? choice?.action : undefined;
@@ -69,23 +70,24 @@ export function QuotationReview({ items, initialId, busy, error, sourceUrl, onRe
     : value === "quote_exact" ? "Use the source wording (edits your .docx)"
       : value === "quote_editorial" ? "Mark edits with brackets and ellipses (edits your .docx)"
         : "Keep as written";
-  return <Modal open onClose={onClose} size="2xl" breadcrumbs={["Check quotations"]}
-    className="h-fit max-h-[calc(100dvh-2rem)]"
-    headerAction={pages.length > 1 ? <div className="flex shrink-0 items-center gap-1 text-xs text-gray-600">
-      <Button variant="ghost" size="icon-sm" aria-label="Previous quotation" disabled={busy || index === 0}
-        onClick={() => setId(pages[index - 1])}>‹</Button>
+  const summary = [differences.length && `${differences.length} wording difference${differences.length === 1 ? "" : "s"}`,
+    missing.length && `${missing.length} not found in the passage cited`].filter(Boolean).join(" · ")
+    || "Nothing left to review";
+  return <StepSection title="Check quotations" className="mt-3"
+    subtitle={items ? summary : <StepProgress label="Rechecking quotations" className="font-normal text-gray-600" />}
+    actions={<>
+    {pages.length > 1 && <div className="flex items-center gap-1 text-xs text-gray-600">
+      <Button variant="outline" size="icon-sm" className="border-gray-400" aria-label="Previous quotation"
+        disabled={busy || index === 0} onClick={() => onSelect(pages[index - 1])}>‹</Button>
       <span>{index + 1} / {pages.length}</span>
-      <Button variant="ghost" size="icon-sm" aria-label="Next quotation" disabled={busy || index === pages.length - 1}
-        onClick={() => setId(pages[index + 1])}>›</Button>
-    </div> : undefined}
-    secondaryAction={{ label: "Done", onClick: onClose }}
-    footerStatus={error ? <span role="alert" className="text-sm text-red-800">{error}</span> : undefined}
-    primaryAction={finding && onResolve ? { label: action === "ignore" ? "Keep as written" : "Apply correction",
-      disabled: busy || !action || !finding.actions.includes(action),
-      onClick: () => action && onResolve(finding, action, () => { setChoice(undefined); setId(pages[index + 1] ?? pages[index - 1] ?? ""); }) } : undefined}>
-    {!items?.length && !finding ? <p role="status" className="py-6 text-sm text-gray-600">
-      {error ? "The quotation check could not run." : !items || busy ? "Rechecking quotations…" : "No quotations left to review."}
-    </p> : finding && source ? <div className="space-y-3 pb-4 pt-1">
+      <Button variant="outline" size="icon-sm" className="border-gray-400" aria-label="Next quotation"
+        disabled={busy || index === pages.length - 1} onClick={() => onSelect(pages[index + 1])}>›</Button>
+    </div>}
+    <Button className="h-9" disabled={busy} onClick={onDone}>Done<ChevronRight /></Button></>}>
+    {items && <div className="px-4 py-3">
+    {!items.length && !finding ? <p role="status" className="py-2 text-sm text-gray-600">
+      {error ? "The quotation check could not run." : "No quotations left to review."}
+    </p> : finding && source ? <div className="space-y-3">
       <div>
         <p className="text-sm font-medium text-gray-900">{heading(finding)}</p>
         <p className="text-sm text-gray-600">{finding.kind === "wrong_pinpoint"
@@ -102,28 +104,32 @@ export function QuotationReview({ items, initialId, busy, error, sourceUrl, onRe
           <Diff source pieces={diff!.source} />
         </Passage>
       </div>
-      {onResolve && <fieldset className="space-y-1.5 border-t border-gray-200 pt-3">
+      {onResolve && <><fieldset className="space-y-1.5 border-t border-gray-200 pt-3">
         <legend className="sr-only">Quotation decision</legend>
         {finding.actions.map(value => <label key={value} className="flex cursor-pointer items-center gap-2 text-sm text-gray-800">
           <input type="radio" name="quotation-decision" value={value} checked={action === value} disabled={busy}
             onChange={() => setChoice({ id: finding.id, action: value })} className="accent-red-700" />{label(value)}
         </label>)}
-      </fieldset>}
-    </div> : <div className="space-y-3 pb-4 pt-1">
-      <p className="text-sm text-gray-600">
-        {missing.length === 1 ? "This quotation was not" : `These ${missing.length} quotations were not`} found
-        in the passage cited. Check the pinpoint, or open the source to look for the wording.
-      </p>
-      <ul className="divide-y divide-gray-200 border-y border-gray-200">
-        {missing.map(item => <li key={item.id} className="flex items-baseline justify-between gap-4 py-2">
-          <div className="min-w-0">
-            <p className="text-xs text-gray-500">{heading(item)}</p>
-            <p className="break-words text-sm leading-6 text-gray-800">“{item.authoredQuote}”</p>
-          </div>
-          {sourceUrl?.(item) && <a className="shrink-0 text-sm text-red-700 underline" target="_blank"
-            rel="noreferrer" href={sourceUrl(item)}>Open source</a>}
-        </li>)}
-      </ul>
+      </fieldset>
+      <div className="flex flex-wrap items-center justify-end gap-3 border-t border-gray-200 pt-3">
+        {error && <span role="alert" className="mr-auto text-sm text-red-800">{error}</span>}
+        {onOpenSource && <Button variant="outline" className="h-9 border-gray-400" disabled={busy}
+          onClick={() => onOpenSource(finding)}>Open source</Button>}
+        <Button className="h-9" disabled={busy || !action || !finding.actions.includes(action)}
+          onClick={() => action && onResolve(finding, action, () => {
+            setChoice(undefined); onSelect(pages[index + 1] ?? pages[index - 1] ?? "");
+          })}>{action === "ignore" ? "Keep as written" : "Apply correction"}</Button>
+      </div></>}
+    </div> : <ul className="divide-y divide-gray-200">
+      {missing.map(item => <li key={item.id} className="flex items-baseline justify-between gap-4 py-2 first:pt-0 last:pb-0">
+        <div className="min-w-0">
+          <p className="text-xs text-gray-500">{heading(item)}</p>
+          <p className="break-words text-sm leading-6 text-gray-800">“{item.authoredQuote}”</p>
+        </div>
+        {onOpenSource && <Button variant="outline" className="h-8 shrink-0 border-gray-400 px-3 text-xs"
+          disabled={busy} onClick={() => onOpenSource(item)}>Open source</Button>}
+      </li>)}
+    </ul>}
     </div>}
-  </Modal>;
+  </StepSection>;
 }
