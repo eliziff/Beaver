@@ -15,7 +15,7 @@ export const researchFindingReferenceSchema = z.discriminatedUnion("kind", [
     columnIndex: z.number().int().min(0).max(10_000) }).strict(),
 ]);
 export type ResearchFindingReference = z.infer<typeof researchFindingReferenceSchema>;
-export type ResearchFinding = { reference: ResearchFindingReference; kind: "answer" | "passages" | "result";
+export type ResearchFinding = { reference: ResearchFindingReference; kind: "answer" | "result";
   sourceId: string; resource: string; question: { id: string; title: string; prompt: string; format?: string; tags?: string[] };
   answer: GroundedResult; evidence: LegalEvidenceReceipt[];
   origin: { chatId?: string; messageId?: string; subagentId?: string; reviewId?: string; rowId?: string; columnIndex?: number } };
@@ -30,7 +30,7 @@ export async function resolveChatFindings(chats: ChatStore, documents: DocumentS
   const file = current,
     sources = new Map(Object.values(file.state.sources).map((source) => [researchSourceResource(source.reference), source.id])),
     requested = input.messageIds && new Set(input.messageIds), found = new Set<string>(),
-    findings: Array<{ reference: Extract<ResearchFindingReference, { kind: "answer" }>; kind: "answer" | "passages";
+    findings: Array<{ reference: Extract<ResearchFindingReference, { kind: "answer" }>; kind: "answer";
       sourceId: string; resource: string; question: { id: string; title: string; prompt: string };
       answer: GroundedAnswer; evidence: LegalEvidenceReceipt[]; origin: { chatId: string; messageId: string; subagentId?: string } }> = [];
   let prompt = "Recorded answer";
@@ -39,9 +39,8 @@ export async function resolveChatFindings(chats: ChatStore, documents: DocumentS
     if (requested && !requested.has(row.id) || !Array.isArray(row.content)) continue;
     const evidence = priorLegalEvidenceReceipts(row.content), byId = new Map(evidence.map((item) => [item.evidence_id, item]));
     if (!evidence.length) continue;
-    found.add(row.id);
-    const claimed = new Set<string>(); let ordinal = 0;
-    const append = (kind: "answer" | "passages", answerId: string, question: string,
+    let ordinal = 0;
+    const append = (kind: "answer", answerId: string, question: string,
       claims: GroundedAnswer["claims"], subagentId?: string) => {
       const ids = [...new Set(claims.flatMap(({ evidence_ids }) => evidence_ids))],
         supporting = ids.map((id) => byId.get(id));
@@ -53,12 +52,12 @@ export async function resolveChatFindings(chats: ChatStore, documents: DocumentS
           selectedIds = [...new Set(selected.flatMap(({ evidence_ids }) => evidence_ids))];
         findings.push({ reference: { kind: "answer", chatId: chat.id, answerId, resource },
           kind, sourceId, resource, question: { id: answerId,
-          title: kind === "passages" ? "Collected passages" : question.slice(0, 100), prompt: question },
+          title: question.slice(0, 100), prompt: question },
           answer: { claims: selected.map(({ text, evidence_ids }) => ({ text, evidence_ids })) },
           evidence: selectedIds.map((id) => byId.get(id)!), origin: { chatId: chat.id, messageId: row.id,
             ...(subagentId && { subagentId }) } });
       }
-      if (kind === "answer") ids.forEach((id) => claimed.add(id));
+      found.add(row.id);
     };
     for (const event of row.content) {
       if (event.type === "legal_evidence_receipt" && event.status === "passed" && event.claims.length)
@@ -67,8 +66,6 @@ export async function resolveChatFindings(chats: ChatStore, documents: DocumentS
           event.grounding?.status === "passed" && event.grounding.claims.length)
         append("answer", `${row.id}:reader:${event.id}`, event.task, event.grounding.claims, event.id);
     }
-    append("passages", `${row.id}:passages`, "Collected source passages", evidence.filter((item) =>
-      !claimed.has(item.evidence_id) && item.span_text).map((item) => ({ text: item.span_text!, evidence_ids: [item.evidence_id] })));
   }
   if (requested && [...requested].some((id) => !found.has(id)))
     throw new ApplicationError(400, "A selected message has no recorded grounded answer");

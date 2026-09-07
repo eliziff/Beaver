@@ -28,8 +28,8 @@ function fixture() {
   const app = express();
   app.use(express.json());
   app.use("/source-workspaces", createSourceWorkspacesRouter(createSourceWorkspaceApplication(documents, {
-    chats: {} as never, tables: {} as never, projects: {} as never, library: {} as never,
-    preferences: {} as never, tabular: async () => { throw new Error("No tables in this fixture"); } })));
+    chats: {} as never, tables: {} as never,
+    tabular: async () => { throw new Error("No tables in this fixture"); } })));
   return { app, documents };
 }
 function saved(documents: DocumentStore, state = createResearchFileState(), revision = 0) {
@@ -53,7 +53,7 @@ describe("Sources workspace routes", () => {
     state.sources[sourceId] = { id: sourceId, reference: { provider: "a2aj", id: "case-1",
       kind: "case" }, labelIds: [], badge: "", note: "", passages: null };
     saved(documents, state);
-    vi.mocked(verifyResearchPassage).mockResolvedValueOnce({ type: "merge", evidence: [receipt] });
+    vi.mocked(verifyResearchPassage).mockResolvedValueOnce({ type: "merge", evidence: [receipt], labels: { [receipt.evidence_id]: [] } });
     const response = await request(app).post("/source-workspaces/d1/actions").send({
       version_id: "v1", working_revision: 0, action: { type: "passage", sourceId,
         locator: { kind: "paragraph", value: "1" }, quote: "holding" } });
@@ -81,7 +81,7 @@ describe("Sources workspace routes", () => {
     ]);
   });
 
-  it("passes the Unclassified scope through workspace queries", async () => {
+  it("supports an unlabeled-source filter without inventing a pseudo-label", async () => {
     const { app, documents } = fixture();
     saved(documents);
     const response = await request(app).post("/source-workspaces/d1/query").send({
@@ -115,19 +115,29 @@ describe("Sources workspace routes", () => {
         ? [{ name: `source.${sourceId}.json`, bytes: part, sha256: sha256(part) }] : []);
 
     const items = (query: Record<string, unknown>) => request(app).get("/source-workspaces/d1/items").query(query);
-    const first = await items({ kind: "passages", source_id: sourceId, limit: 2 });
+    expect((await items({ kind: "passages", source_id: sourceId })).body.total).toBe(0);
+    const first = await items({ kind: "evidence", source_id: sourceId, limit: 2 });
     expect(first.body).toMatchObject({ total: 3, items: [{ index: 0 }, { index: 1 }] });
     expect(first.body.next_cursor).toEqual(expect.any(String));
-    const second = await items({ kind: "passages", source_id: sourceId, limit: 2, cursor: first.body.next_cursor });
+    const second = await items({ kind: "evidence", source_id: sourceId, limit: 2, cursor: first.body.next_cursor });
     expect(second.body).toMatchObject({ total: 3, items: [{ index: 2 }], next_cursor: null });
     expect((await items({ kind: "passages", source_id: "20000000-0000-4000-8000-000000000002" })).status).toBe(404);
     state.sources[sourceId]!.note = "Updated source note";
     saved(documents, state, 1);
-    const continued = await items({ kind: "passages", source_id: sourceId, limit: 2, cursor: first.body.next_cursor });
+    const continued = await items({ kind: "evidence", source_id: sourceId, limit: 2, cursor: first.body.next_cursor });
     expect(continued.status).toBe(200);
     expect(continued.body).toMatchObject({ items: [{ index: 2 }], next_cursor: null });
     state.sources[sourceId]!.passages!.sha256 = sha256("changed");
     saved(documents, state, 1);
-    expect((await items({ kind: "passages", source_id: sourceId, limit: 2, cursor: first.body.next_cursor })).status).toBe(400);
+    expect((await items({ kind: "evidence", source_id: sourceId, limit: 2, cursor: first.body.next_cursor })).status).toBe(400);
   });
+
+  it("does not offer an implicit Library ontology or global membership endpoint", async () => {
+    const { app, documents } = fixture();
+    expect((await request(app).post("/source-workspaces/ontology").send({})).status).toBe(404);
+    expect((await request(app).get("/source-workspaces/ontology")).status).toBe(404);
+    expect((await request(app).get("/source-workspaces/membership?document_ids=doc-1")).status).toBe(404);
+    expect(documents.replaceVersion).not.toHaveBeenCalled();
+  });
+
 });

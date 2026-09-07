@@ -1,9 +1,8 @@
-"""Drive the research Sources E surfaces in Chrome against a running Beaver and save screenshots for inspection.
+"""Check neutral Library membership and explicit research highlights in a running Beaver.
 
-Covers the research-overhaul Phase E additions: the Library table Label row
-action, the document side-panel Highlight button (select-to-save plus
-Ctrl+Shift+H arming), and the research-dock rail (Pens group, Filter box,
-Labels/Search/Memo tabs, Labels-and-sources tree).
+Highlight selection/shortcut reader interactions are covered by the focused
+DocumentSidePanel and LegalSourceViewer tests; this browser flow verifies the
+Library does not impose a workspace and that a chosen set retains typed passages.
 """
 from __future__ import annotations
 
@@ -15,7 +14,6 @@ from urllib.parse import urljoin
 
 from selenium import webdriver
 from selenium.common.exceptions import StaleElementReferenceException
-from selenium.webdriver import ActionChains, Keys
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -85,66 +83,58 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
                 "First passage about fairness. Second passage about remedies.")
             report["documentId"] = document["id"]
 
-            print("Sources dock: Label row action opens the palette", flush=True)
+            title = "Explicit research " + document["id"][:8]
+            research = api("POST", "/api/source-workspaces", {"title": title})
+            research_id = research["document"]["id"]
+            print("Sources dock: choose an explicit research destination", flush=True)
             driver.get(urljoin(args.url, "/library"))
             row = WebDriverWait(driver, 30).until(lambda page: next((node for node in page.find_elements(
                 By.CSS_SELECTOR, "[data-document-row]") if node.is_displayed()
                 and "Highlight me.txt" in node.text), None))
+            assert not row.find_elements(By.CSS_SELECTOR, "[data-label-dot]")
             row.find_element(By.XPATH, ".//button[@aria-label='More actions']").click()
-            driver.find_element(By.XPATH, "//*[@role='menuitem' and normalize-space()='Label']").click()
-            palette = visible(driver, By.CSS_SELECTOR, "[role='dialog'][aria-label='Labels and note']")
-            assert "Highlight me.txt" in palette.text
-            screenshot("01-label-palette.png")
-            palette.find_element(By.CSS_SELECTOR, "button[aria-label='Close label palette']").click()
-
-            print("Sources dock: Highlight button saves a text selection", flush=True)
-            driver.get(urljoin(args.url, "/library"))
-            row = WebDriverWait(driver, 30).until(lambda page: next((node for node in page.find_elements(
-                By.CSS_SELECTOR, "[data-document-row]") if node.is_displayed()
-                and "Highlight me.txt" in node.text), None))
-            row.find_element(By.XPATH, ".//button[starts-with(@aria-label,'View ')]").click()
+            assert not driver.find_elements(By.XPATH, "//*[@role='menuitem' and normalize-space()='Label']")
+            driver.find_element(By.XPATH, "//*[@role='menuitem' and normalize-space()='Add to research…']").click()
             dialog = visible(driver, By.CSS_SELECTOR, "dialog[open]")
-            highlight = next(node for node in dialog.find_elements(
-                By.XPATH, ".//button[@aria-label='Highlight']") if node.is_displayed())
-            assert highlight.get_attribute("aria-pressed") == "false"
-            block = next(node for node in dialog.find_elements(
-                By.CSS_SELECTOR, "[data-legal-block]") if node.is_displayed())
-            driver.execute_script("""const block=arguments[0],text=block.firstChild;
-const range=document.createRange();range.selectNodeContents(text.nodeType === 3 ? text : block);
-const selection=getSelection();selection.removeAllRanges();selection.addRange(range);""", block)
-            highlight.click()
-            membership = WebDriverWait(driver, 60).until(lambda _page: api(
-                "GET", f"/api/source-workspaces/membership?document_ids={document['id']}"))
-            names = [label["name"] for label in membership[document["id"]]["labels"]]
-            assert "Highlight" in names, names
-            report["savedLabels"] = names
-            screenshot("02-highlight-saved.png")
+            assert not api("GET", f"/api/source-workspaces/{research_id}")["state"]["sources"]
+            dialog.find_element(By.CSS_SELECTOR, "input[aria-label='Filter']").send_keys(title)
+            click_text(driver, title, dialog)
 
-            print("Sources dock: Ctrl+Shift+H arms and Escape disarms", flush=True)
-            driver.execute_script("getSelection().removeAllRanges()")
-            ActionChains(driver).key_down(Keys.CONTROL).key_down(Keys.SHIFT).send_keys("h").key_up(
-                Keys.SHIFT).key_up(Keys.CONTROL).perform()
-            WebDriverWait(driver, 15).until(lambda _page: highlight.get_attribute("aria-pressed") == "true")
-            assert dialog.find_element(By.CSS_SELECTOR, "[data-highlighter]") is not None
-            ActionChains(driver).send_keys(Keys.ESCAPE).perform()
-            WebDriverWait(driver, 15).until(lambda _page: highlight.get_attribute("aria-pressed") == "false")
-            screenshot("03-disarmed.png")
-            dialog.find_element(By.CSS_SELECTOR, "button[aria-label='Close']").click()
+            def collected_source():
+                saved = api("GET", f"/api/source-workspaces/{research_id}")
+                return next((item for item in saved["state"]["sources"].values()
+                    if item.get("collected") and item["reference"]["id"] == document["id"]), None)
 
-            print("Sources dock: research rail shows Pens, Filter, tabs and tree", flush=True)
-            workspaces = api("GET", "/api/library/files?limit=100")["items"]
-            research = next(item["document"] for item in workspaces if item.get("kind") == "document"
-                and item["document"]["filename"].endswith(".research.md"))
-            driver.get(urljoin(args.url, f"/sources?research_file={research['id']}"))
+            source = WebDriverWait(driver, 30).until(lambda _page: collected_source())
+            assert source["reference"]["versionId"] == document["current_version_id"]
+            assert source["labelIds"] == []
+            assert not api("GET", f"/api/source-workspaces/{research_id}/items?kind=passages")["items"]
+            screenshot("01-explicit-membership.png")
+
+            # Explicit save, not a read: default type is one ordinary Highlight.
+            saved = api("GET", f"/api/source-workspaces/{research_id}")
+            saved = api("POST", f"/api/source-workspaces/{research_id}/actions", {
+                "version_id": saved["versionId"], "working_revision": saved["workingRevision"],
+                "action": {"type": "passage", "sourceId": source["id"],
+                    "locator": {"kind": "document", "value": "document"},
+                    "quote": "First passage about fairness."}})
+            items = api("GET", f"/api/source-workspaces/{research_id}/items?kind=passages")["items"]
+            assert len(items) == 1, items
+            type_ids = items[0]["value"]["labelIds"]
+            assert len(type_ids) == 1
+            assert saved["state"]["labels"][type_ids[0]]["name"] == "Highlight"
+            report["researchId"] = research_id
+            report["highlightId"] = items[0]["value"]["receipt"]["evidence_id"]
+
+            driver.get(urljoin(args.url, f"/sources?research_file={research_id}"))
             rail = visible(driver, By.CSS_SELECTOR, "section[aria-label='Research collection']")
-            assert rail.find_element(By.CSS_SELECTOR, "[role='group'][aria-label='Pens']").is_displayed()
+            assert rail.find_element(By.CSS_SELECTOR, "[role='group'][aria-label='Highlight types']").is_displayed()
             assert rail.find_element(By.CSS_SELECTOR, "input[aria-label='Filter']").is_displayed()
-            tabs = rail.find_element(By.CSS_SELECTOR, "[role='tablist']")
-            names = [node.text for node in tabs.find_elements(By.CSS_SELECTOR, "[role='tab']")]
-            assert {"Labels", "Search", "Memo"} <= set(names), names
             tree = rail.find_element(By.CSS_SELECTOR, "[role='tree'][aria-label='Labels and sources']")
             assert tree.is_displayed()
-            screenshot("04-research-rail.png")
+            assert "Highlight me.txt" in tree.text
+            assert "Unsorted" not in tree.text and "Unclassified" not in tree.text
+            screenshot("02-research-rail.png")
             report["ok"] = True
         finally:
             (output / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")

@@ -54,9 +54,9 @@ function OpenImportResearchSet({ onClose, fileId, projectId, onOpen }: Omit<Prop
                     <ModalSegmentedToggle value={rows} onChange={setRows}
                         options={[{ value: "sources", label: "Sources" }, { value: "passages", label: "Passages" }]} />
                 </FieldGroup>
-                {!!pens.length && <FormField label="Pen" htmlFor="import-research-pen" className="min-w-40">
-                    <ModalSelect id="import-research-pen" value={pen} ariaLabel="Pen" placeholder="Any pen"
-                        options={[{ value: "", label: "Any pen" }, ...pens.map(({ id, name }) => ({ value: id, label: name }))]}
+                {!!pens.length && <FormField label="Highlight type" htmlFor="import-research-pen" className="min-w-40">
+                    <ModalSelect id="import-research-pen" value={pen} ariaLabel="Highlight type" placeholder="All highlight types"
+                        options={[{ value: "", label: "All highlight types" }, ...pens.map(({ id, name }) => ({ value: id, label: name }))]}
                         onChange={setPen} />
                 </FormField>}
             </div>

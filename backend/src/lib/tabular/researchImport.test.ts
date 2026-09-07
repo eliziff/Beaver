@@ -78,3 +78,12 @@ it("caps an oversized workspace at the arrangement row limit", () => {
   expect(result.arrangement.rows).toHaveLength(400);
   expect(result.arrangement.cells).toHaveLength(400 * result.columns_config.length);
 });
+
+
+it("does not seed highlight rows or highlight columns from background reads", () => {
+  const f = fixture(), values = f.parts.get(sourceId)!;
+  for (const item of Object.values(values)) item.labelIds = [];
+  expect(researchTableArrangement(f.file, f.subjects, f.parts, [], { rows: "passages" }).arrangement.rows).toEqual([]);
+  const sourceRows = researchTableArrangement(f.file, f.subjects, f.parts, [], { rows: "sources" });
+  expect(sourceRows.columns_config.map(({ name }) => name)).toEqual(["Labels", "Note"]);
+});
