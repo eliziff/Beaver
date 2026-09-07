@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
+import { StepProgress, StepSection } from "./StepSection";
 import { sequenceOpcodes } from "../../../../shared/sequence-diff.mjs";
 import type { AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction } from "./types";
 
@@ -69,28 +70,23 @@ export function QuotationReview({ items, currentId, busy, error, onSelect, onOpe
     : value === "quote_exact" ? "Use the source wording (edits your .docx)"
       : value === "quote_editorial" ? "Mark edits with brackets and ellipses (edits your .docx)"
         : "Keep as written";
-  const summary = !items ? "Rechecking quotations…"
-    : [differences.length && `${differences.length} wording difference${differences.length === 1 ? "" : "s"}`,
-      missing.length && `${missing.length} not found in the passage cited`].filter(Boolean).join(" · ")
-      || "Nothing left to review";
-  return <section aria-label="Check quotations" className="mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
-    <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
-      <div className="min-w-0"><h2 className="font-semibold text-gray-950">Check quotations</h2>
-        <p className="truncate text-sm text-gray-600">{summary}</p></div>
-      <div className="flex shrink-0 items-center gap-2">
-        {pages.length > 1 && <div className="flex items-center gap-1 text-xs text-gray-600">
-          <Button variant="outline" size="icon-sm" className="border-gray-400" aria-label="Previous quotation"
-            disabled={busy || index === 0} onClick={() => onSelect(pages[index - 1])}>‹</Button>
-          <span>{index + 1} / {pages.length}</span>
-          <Button variant="outline" size="icon-sm" className="border-gray-400" aria-label="Next quotation"
-            disabled={busy || index === pages.length - 1} onClick={() => onSelect(pages[index + 1])}>›</Button>
-        </div>}
-        <Button className="h-9" disabled={busy} onClick={onDone}>Done<ChevronRight /></Button>
-      </div>
-    </div>
-    <div className="px-4 py-3">
-    {!items?.length && !finding ? <p role="status" className="py-2 text-sm text-gray-600">
-      {error ? "The quotation check could not run." : !items || busy ? "Rechecking quotations…" : "No quotations left to review."}
+  const summary = [differences.length && `${differences.length} wording difference${differences.length === 1 ? "" : "s"}`,
+    missing.length && `${missing.length} not found in the passage cited`].filter(Boolean).join(" · ")
+    || "Nothing left to review";
+  return <StepSection title="Check quotations" className="mt-3"
+    subtitle={items ? summary : <StepProgress label="Rechecking quotations" className="font-normal text-gray-600" />}
+    actions={<>
+    {pages.length > 1 && <div className="flex items-center gap-1 text-xs text-gray-600">
+      <Button variant="outline" size="icon-sm" className="border-gray-400" aria-label="Previous quotation"
+        disabled={busy || index === 0} onClick={() => onSelect(pages[index - 1])}>‹</Button>
+      <span>{index + 1} / {pages.length}</span>
+      <Button variant="outline" size="icon-sm" className="border-gray-400" aria-label="Next quotation"
+        disabled={busy || index === pages.length - 1} onClick={() => onSelect(pages[index + 1])}>›</Button>
+    </div>}
+    <Button className="h-9" disabled={busy} onClick={onDone}>Done<ChevronRight /></Button></>}>
+    {items && <div className="px-4 py-3">
+    {!items.length && !finding ? <p role="status" className="py-2 text-sm text-gray-600">
+      {error ? "The quotation check could not run." : "No quotations left to review."}
     </p> : finding && source ? <div className="space-y-3">
       <div>
         <p className="text-sm font-medium text-gray-900">{heading(finding)}</p>
@@ -108,14 +104,14 @@ export function QuotationReview({ items, currentId, busy, error, onSelect, onOpe
           <Diff source pieces={diff!.source} />
         </Passage>
       </div>
-      {onResolve && <fieldset className="space-y-1.5 border-t border-gray-200 pt-3">
+      {onResolve && <><fieldset className="space-y-1.5 border-t border-gray-200 pt-3">
         <legend className="sr-only">Quotation decision</legend>
         {finding.actions.map(value => <label key={value} className="flex cursor-pointer items-center gap-2 text-sm text-gray-800">
           <input type="radio" name="quotation-decision" value={value} checked={action === value} disabled={busy}
             onChange={() => setChoice({ id: finding.id, action: value })} className="accent-red-700" />{label(value)}
         </label>)}
-      </fieldset>}
-      {onResolve && <div className="flex flex-wrap items-center justify-end gap-3 border-t border-gray-200 pt-3">
+      </fieldset>
+      <div className="flex flex-wrap items-center justify-end gap-3 border-t border-gray-200 pt-3">
         {error && <span role="alert" className="mr-auto text-sm text-red-800">{error}</span>}
         {onOpenSource && <Button variant="outline" className="h-9 border-gray-400" disabled={busy}
           onClick={() => onOpenSource(finding)}>Open source</Button>}
@@ -123,23 +119,17 @@ export function QuotationReview({ items, currentId, busy, error, onSelect, onOpe
           onClick={() => action && onResolve(finding, action, () => {
             setChoice(undefined); onSelect(pages[index + 1] ?? pages[index - 1] ?? "");
           })}>{action === "ignore" ? "Keep as written" : "Apply correction"}</Button>
-      </div>}
-    </div> : <div className="space-y-3">
-      <p className="text-sm text-gray-600">
-        {missing.length === 1 ? "This quotation was not" : `These ${missing.length} quotations were not`} found
-        in the passage cited. Check the pinpoint, or open the source to look for the wording.
-      </p>
-      <ul className="divide-y divide-gray-200 border-y border-gray-200">
-        {missing.map(item => <li key={item.id} className="flex items-baseline justify-between gap-4 py-2">
-          <div className="min-w-0">
-            <p className="text-xs text-gray-500">{heading(item)}</p>
-            <p className="break-words text-sm leading-6 text-gray-800">“{item.authoredQuote}”</p>
-          </div>
-          {onOpenSource && <Button variant="outline" className="h-8 shrink-0 border-gray-400 px-3 text-xs"
-            disabled={busy} onClick={() => onOpenSource(item)}>Open source</Button>}
-        </li>)}
-      </ul>
+      </div></>}
+    </div> : <ul className="divide-y divide-gray-200">
+      {missing.map(item => <li key={item.id} className="flex items-baseline justify-between gap-4 py-2 first:pt-0 last:pb-0">
+        <div className="min-w-0">
+          <p className="text-xs text-gray-500">{heading(item)}</p>
+          <p className="break-words text-sm leading-6 text-gray-800">“{item.authoredQuote}”</p>
+        </div>
+        {onOpenSource && <Button variant="outline" className="h-8 shrink-0 border-gray-400 px-3 text-xs"
+          disabled={busy} onClick={() => onOpenSource(item)}>Open source</Button>}
+      </li>)}
+    </ul>}
     </div>}
-    </div>
-  </section>;
+  </StepSection>;
 }

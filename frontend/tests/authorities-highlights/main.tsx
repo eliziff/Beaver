@@ -79,7 +79,7 @@ function App() {
         if(source.kind==='attached')setPreview({role:source.sources[0].bindingRole,quote:(finding.found??finding.cited).text});
       }}
       onResolve={(finding,_action,done)=>{
-        setRechecking(true);setTimeout(()=>{setFindings(values=>values.filter(value=>value.id!==finding.id));setRechecking(false);done();},100);
+        setRechecking(true);setTimeout(()=>{setFindings(values=>values.filter(value=>value.id!==finding.id));setRechecking(false);done();},700);
       }}/>}
     {preview && <div className="mt-4 h-[520px] rounded-lg border border-gray-300">
       <PdfCanvas bytes={files[preview.role]} quotes={[{quote:preview.quote}]} quoteFocusKey={preview.quote} ariaLabel="Source PDF" />

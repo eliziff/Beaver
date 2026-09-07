@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Highlighter, MousePointer2, Pencil, Redo2, Trash2, Undo2 } from 'lucide-react';
 import { Modal } from '@/app/components/modals/Modal';
 import { Button } from '@/app/components/ui/button';
+import { StepSection } from './StepSection';
 import { PdfView } from '@/app/components/shared/views/PdfView';
 import type { AnnotationTool } from '@/app/components/shared/views/pdfAnnotationLayer';
 import { cn, errorMessage } from '@/app/lib/utils';
@@ -34,16 +35,13 @@ export function AuthoritiesHighlights({ product, tabs, host, busy, onSaved, prep
   const [open, setOpen] = useState(false);
   const choices = choicesFor(product, tabs);
   if (product.state.outputMode === 'table' || !choices.length) return null;
-  return <section className="mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
-    <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 px-4 py-3">
-      <div className="min-w-0"><h2 className="font-semibold text-gray-950">Highlights</h2>
-        <p className="truncate text-sm text-gray-600">{choices.length} PDF{choices.length === 1 ? '' : 's'} marked for the passages you cited</p></div>
-      <Button type="button" variant="outline" className="h-9 shrink-0 border-gray-400"
-        disabled={busy || !host.readSource} onClick={() => setOpen(true)}><Highlighter /> Edit in PDF</Button>
-    </div>
+  return <><StepSection title="Highlights" className="mt-3"
+    subtitle={`${choices.length} PDF${choices.length === 1 ? '' : 's'} marked for the passages you cited`}
+    actions={<Button type="button" variant="outline" className="h-9 border-gray-400"
+      disabled={busy || !host.readSource} onClick={() => setOpen(true)}><Highlighter /> Edit in PDF</Button>} />
     {open && <AuthoritiesHighlightEditor product={product} choices={choices} host={host}
       onClose={() => setOpen(false)} onSaved={onSaved} prepared={prepared} />}
-  </section>;
+  </>;
 }
 
 function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, onClose, onSaved, prepared }: {
