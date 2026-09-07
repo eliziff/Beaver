@@ -116,13 +116,10 @@ export function createCourtRecordsApplication(
       const output = child.outputs[input.role];
       const fileType = output && (["pdf", "docx"] as const).find((type) =>
         output.mimeType === contentTypeForDocumentType(type));
-      if (!output || !fileType || !(slot.acceptedFormats ?? ["pdf", "docx"]).includes(fileType)) {
-        throw new ApplicationError(409, `The ${input.role} output is unavailable`);
-      }
-      const history = await documents.versions(scope, output.documentId);
-      const version = history?.versions.find(({ id }) => id === output.versionId);
-      if (!version || version.source_sha256 !== output.sha256 ||
-          version.file_type !== fileType) {
+      const version = output && (await documents.versions(scope, output.documentId))
+        ?.versions.find(({ id }) => id === output.versionId);
+      if (!output || !fileType || !(slot.acceptedFormats ?? ["pdf", "docx"]).includes(fileType) ||
+          !version || version.source_sha256 !== output.sha256 || version.file_type !== fileType) {
         throw new ApplicationError(409, `The ${input.role} output is unavailable`);
       }
       const entries = structuredClone(state.entries) as Array<Record<string, unknown>>;
@@ -195,9 +192,9 @@ export function createCourtRecordsApplication(
           continue;
         }
         if (field === "filingPartyIds") {
-          if (!Array.isArray(value) || !value.length || value.length > 100 ||
-              new Set(value).size !== value.length || value.some((id) =>
-                typeof id !== "string" || !id.trim() || id.length > 200)) {
+          // validCover authoritatively checks ids, uniqueness, limits and filing-group
+          // membership; only emptiness has to be refused before the value is stored.
+          if (!Array.isArray(value) || !value.length) {
             throw new ApplicationError(400, "Invalid cover field: filingPartyIds");
           }
           if (!Array.isArray(cover.filingPartyIds) || !cover.filingPartyIds.length) {
@@ -474,43 +471,32 @@ function selectedOcrPages(value: unknown) {
 function parsePartyGroups(value: unknown, profile: CourtRecordProfileContract,
   style: CourtRecordPartyStyleContract, requireNames = false): PartyGroup[] {
   const definitions = new Map(style.groups.map((group) => [group.id, group]));
-  if (!Array.isArray(value)) {
-    throw new ApplicationError(400, "Invalid cover field: partyGroups");
-  }
-  const groups = value.map((raw) => {
-    const group = object(raw) ? raw : null;
-    const definition = definitions.get(String(group?.id));
-    const parties = Array.isArray(group?.parties) ? group.parties.map((rawParty) => {
-      const party = object(rawParty) ? rawParty : null;
-      const contact = party?.contact === undefined ? undefined
-        : decodeCourtRecordPartyContact(party.contact);
-      if (typeof party?.id !== "string" || typeof party.name !== "string" ||
-          party.contact !== undefined && !contact) {
-        throw new ApplicationError(400, "Invalid cover field: partyGroups");
-      }
-      return { id: party.id, name: party.name, ...(contact && { contact }) };
-    }) : null;
-    if (!group || !definition || !parties) {
-      throw new ApplicationError(400, "Invalid cover field: partyGroups");
-    }
-    return { id: definition.id, role: definition.role,
-      ...(definition.roleBelow && { roleBelow: definition.roleBelow }), parties };
+  const partyGroups = !Array.isArray(value) ? value : value.map((raw) => {
+    const group = object(raw) ? raw : {};
+    const definition = definitions.get(String(group.id));
+    return {
+      ...(definition && { id: definition.id, role: definition.role,
+        ...(definition.roleBelow && { roleBelow: definition.roleBelow }) }),
+      parties: !Array.isArray(group.parties) ? group.parties : group.parties.map((rawParty) => {
+        const party = object(rawParty) ? rawParty : {};
+        const contact = decodeCourtRecordPartyContact(party.contact);
+        return { id: party.id,
+          name: typeof party.name === "string" ? party.name.trim() : party.name,
+          ...(party.contact !== undefined && { contact: contact
+            ? Object.fromEntries(Object.entries(contact).map(([key, field]) => [key, field.trim()]))
+            : party.contact }) };
+      }),
+    };
   });
-  const state = { profileId: profile.id,
-    cover: { partyStyleId: style.id, partyGroups: groups }, entries: [], bindings: {} };
-  if (!decodeCourtRecordDraftState(state)) {
+  if (!decodeCourtRecordDraftState({ profileId: profile.id,
+    cover: { partyStyleId: style.id, partyGroups }, entries: [], bindings: {} })) {
     throw new ApplicationError(400, "Invalid cover field: partyGroups");
   }
-  if (requireNames && groups.some((group) => group.parties.some((party) =>
-    !party.name.trim()))) {
+  const groups = partyGroups as PartyGroup[];
+  if (requireNames && groups.some(({ parties }) => parties.some(({ name }) => !name))) {
     throw new ApplicationError(400, "Party names and roles are required");
   }
-  return groups.map((group) => ({ ...group, role: group.role.trim(),
-    ...(group.roleBelow ? { roleBelow: group.roleBelow.trim() } : {}),
-    parties: group.parties.map((party) => ({ id: String(party.id),
-      name: String(party.name).trim(), ...(party.contact && { contact: Object.fromEntries(
-        Object.entries(party.contact).map(([key, value]) => [key, value.trim()]),
-      ) }) })) }));
+  return groups;
 }
 
 function mergePartyGroups(value: unknown, incoming: PartyGroup[]): PartyGroup[] {
