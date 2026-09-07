@@ -130,10 +130,7 @@ describe("FileDirectory folders", () => {
         fireEvent.click(screen.getByRole("tab", { name: "Files" }));
 
         expect(onChange).toHaveBeenCalledTimes(4);
-        expect(onChange).toHaveBeenNthCalledWith(1, []);
-        expect(onChange).toHaveBeenNthCalledWith(2, []);
-        expect(onChange).toHaveBeenNthCalledWith(3, []);
-        expect(onChange).toHaveBeenNthCalledWith(4, []);
+        expect(onChange.mock.calls).toEqual([[[]], [[]], [[]], [[]]]);
         expect(onLocationChange.mock.calls.map(([location]) => location)).toEqual([
             { library: "files" }, { projectId: null }, { projectId: "project-1" },
             { projectId: null }, { library: "files" },

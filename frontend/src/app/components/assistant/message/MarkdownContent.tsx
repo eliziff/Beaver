@@ -96,9 +96,7 @@ export function CitationPill({
     truncateStyleOfCause?: boolean;
     sourceOnly?: boolean;
 }) {
-    const displayCitation = truncateStyleOfCause || sourceOnly
-        ? { ...citation, display_form: "full" as const } : citation;
-    const label = citationPillParts(displayCitation, sourceOnly);
+    const label = citationPillParts(citation, sourceOnly);
     const content = label.styleOfCause ? (
         <><em className={truncateStyleOfCause ? "min-w-0 max-w-56 truncate" : undefined}>{label.styleOfCause}</em><span className={truncateStyleOfCause ? "shrink-0 whitespace-nowrap" : undefined}>{label.rest}</span></>
     ) : label.rest;
@@ -111,7 +109,7 @@ export function CitationPill({
         <a href={href} target="_blank" rel="noopener noreferrer"
             data-citation-ref={citation.ref}
             className={pillClassName}
-            title={title ?? citationTooltip(displayCitation)}>
+            title={title ?? citationTooltip(citation)}>
             {content}
         </a>
     );
@@ -121,7 +119,7 @@ export function CitationPill({
             onClick={() => onClick(citation)}
             data-citation-ref={citation.ref}
             className={`${pillClassName} text-left`}
-            title={title ?? citationTooltip(displayCitation)}
+            title={title ?? citationTooltip(citation)}
         >
             {content}
         </button>
@@ -130,7 +128,7 @@ export function CitationPill({
         <span
             data-citation-ref={citation.ref}
             className={pillClassName}
-            title={title ?? citationTooltip(displayCitation)}
+            title={title ?? citationTooltip(citation)}
         >
             {content}
         </span>
