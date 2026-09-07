@@ -9,7 +9,7 @@ import { researchChangeCounts, researchChangeSummary, sameResearchValue,
 import { parseResourceReference } from "./resourceReferences";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
 import { changes, documentAccess, missingProfileEmail, now, one, projectAccess,
-  replaceMembers, reviewAccess, rows, type Row } from "./relationalRepositorySupport";
+  replaceMembers, resourcePeople, reviewAccess, rows, type Row } from "./relationalRepositorySupport";
 import { searchFilter } from "./searchQuery";
 
 const tabularReview = (scope: ApplicationScope, row: Row): TabularReview => {
@@ -233,22 +233,7 @@ export const tabularRepository: TabularRepository = {
   },
   async people(scope, id) {
     const review = await findReview(scope, id);
-    if (!review) return null;
-    const db = await relationalDatabase(), shared = review.shared_with;
-    if (db.engine === "sqlite") return { owner: { user_id: review.user_id,
-      email: null, display_name: null }, members: shared.map((value) => ({
-        email: value, display_name: null })) };
-    const profiles = await rows<{ user_id: string; email: string | null;
-      display_name: string | null }>(sql`SELECT p.user_id,p.email,u.display_name
-      FROM user_profiles p LEFT JOIN user_preferences u ON u.user_id=p.user_id
-      WHERE p.user_id=${review.user_id} OR lower(p.email) IN(${shared.length
-        ? sql.join(shared) : sql.raw("NULL")})`, db);
-    const owner = profiles.find(({ user_id }) => user_id === review.user_id);
-    const byEmail = new Map(profiles.flatMap((profile) => profile.email
-      ? [[profile.email.toLowerCase(), profile.display_name] as const] : []));
-    return { owner: { user_id: review.user_id, email: owner?.email ?? null,
-      display_name: owner?.display_name ?? null }, members: shared.map((value) => ({
-        email: value, display_name: byEmail.get(value) ?? null })) };
+    return review ? resourcePeople(await relationalDatabase(), review.user_id, review.shared_with) : null;
   },
   async missingRecipient(_scope, emails) {
     return missingProfileEmail(await relationalDatabase(), emails);
