@@ -52,8 +52,6 @@ export interface AuthoritiesHost {
   pickFiles?(options: AuthoritiesFilePick): Promise<AuthoritiesFile[]>;
   inspectDraft(draft: AuthoritiesProduct): Promise<AuthoritiesDraftInspection>;
   relinkSource?(id: string, role: string, revision: number): Promise<AuthoritiesProduct>;
-  replaceSource?(id: string, revision: number,
-    selected: AuthoritiesFile): Promise<AuthoritiesProduct>;
   attachBookPdf?(id: string, revision: number, slot: AuthoritiesBookSlot,
     selected: AuthoritiesFile, supplementId?: string): Promise<AuthoritiesProduct>;
   attachLibraryPdf?(id: string, revision: number, document: Document,

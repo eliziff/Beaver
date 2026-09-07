@@ -29,9 +29,6 @@ export const reviewAuthorities = (id: string, signal?: AbortSignal) =>
 export const resolveAuthoritiesDiscrepancy = (id: string, input: {
   id: string; action: AuthoritiesDiscrepancyAction; revision: number;
 }) => post<AuthoritiesProduct>(`/authorities/${segment(id)}/discrepancies/actions`, input);
-export const replaceAuthoritiesSource = (id: string, revision: number, file: File) =>
-  multipartRequest<AuthoritiesProduct>(`/authorities/${segment(id)}/source`, file,
-    { fields: { revision: String(revision) } });
 export const attachAuthorityPdf = (
   id: string, authorityId: string, revision: number, file: File,
   language: AuthoritySourceLanguage,

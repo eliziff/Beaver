@@ -9,7 +9,6 @@ import {
   prepareAuthoritiesSources,
   prepareAuthoritiesHighlights,
   refreshAuthoritiesInput,
-  replaceAuthoritiesSource,
   reviewAuthorities,
   resolveAuthoritiesDiscrepancy,
   uploadAuthoritiesDocument,
@@ -76,8 +75,6 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
   prepareSources: (draft, signal) =>
     prepareAuthoritiesSources(draft.id, draft.revision, signal),
   relinkSource: refreshAuthoritiesInput,
-  replaceSource: (id, revision, selected) =>
-    replaceAuthoritiesSource(id, revision, selected.file),
   attach: (id, authorityId, revision, selected, language = "en") =>
     attachAuthorityPdf(id, authorityId, revision, selected.file, language),
   attachBookPdf: (id, revision, slot, selected, supplementId) =>
