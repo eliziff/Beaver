@@ -63,7 +63,8 @@ describe("authority PDF text preparation", () => {
     const result = await authorityPdfText({ bytes: Buffer.from("source"), scannedPdfPolicy: "cited-pages",
       ocrTargets: [{ id: "p", locatorKind: "page", locator: "42" }] },
       { preparePdf, lookupPdf, pdfPassageGeometry } as never);
-    expect(preparePdf.mock.calls[1][0]).toMatchObject({ ocrProvider: "kraken-lite", pages: [2] });
+    // The engine numbers requested pages from one; cited page 3 must be requested as 3.
+    expect(preparePdf.mock.calls[1][0]).toMatchObject({ ocrProvider: "kraken-lite", pages: [3] });
     expect(result.pageTextByPage).toEqual(["page 1", "page 2", "page 3"]);
     expect(result.ocrTextByPage).toEqual(["", "", "page 3"]);
   });

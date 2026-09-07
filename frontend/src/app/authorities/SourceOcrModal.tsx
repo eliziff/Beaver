@@ -20,9 +20,8 @@ export function SourceOcrModal({ files, policy, busy, onClose, onContinue, onPre
   const [selected, setSelected] = useState(policy);
   return <Modal open onClose={() => { if (!busy) onClose(); }} size="xl" breadcrumbs={["Scanned source PDFs"]}
     className="h-fit max-h-[calc(100dvh-2rem)]"
-    cancelAction={{ label: "Back to sources", disabled: busy, onClick: onClose }}
     primaryAction={{ label: "Continue to highlights", disabled: busy, onClick: () => onContinue(selected) }}>
-    <p className="mb-3 text-sm leading-6 text-gray-600">Some pages have no selectable text. They may be scans or blank pages. OCR estimates words from the image; the original page appearance is preserved.</p>
+    <p className="mb-3 text-sm leading-6 text-gray-600">Some pages have no selectable text. Recognition of the cited pages has already started and continues in the Sources list, where it can be paused or stopped. OCR estimates words from the image; the original page appearance is preserved.</p>
     <ul className="mb-4 max-h-32 overflow-y-auto divide-y divide-gray-100 rounded-md border border-gray-200">
       {files.map((file) => <li key={file.role} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
         <span className="min-w-0"><span className="block truncate font-medium" title={file.name}>{file.name}</span>

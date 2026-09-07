@@ -13,6 +13,7 @@ import { authorityName, authorityCitationForms, hasRequiredSources, requiresBili
 import type { AuthoritiesAction, AuthoritiesDraft, AuthoritiesProduct,
   AuthorityIdentity, AuthorityOccurrence } from "./types";
 import type { AuthoritiesSourceIssue } from "./host";
+import type { SourceOcrStatus } from "./sourceOcr";
 
 const control = "h-8 shrink-0 border-gray-400 px-2.5 text-xs";
 export type AuthorityPanelProps = {
@@ -27,7 +28,9 @@ export type AuthorityPanelProps = {
 type PanelProps = AuthorityPanelProps & {
   state: AuthoritiesDraft; occurrences: AuthorityOccurrence[]; forceOpen?: boolean;
   onPickMany?: () => void; onLibraryAdd?: () => void; onFiles?: (files: File[]) => void;
-  onRetry?: () => void;
+  onRetry?: () => void; ocr?: Record<string, SourceOcrStatus>;
+  onOcrPause?: (role: string) => void; onOcrResume?: (role: string) => void;
+  onOcrCancel?: (role: string) => void;
 };
 export function ManualDraft(props: Omit<PanelProps, "occurrences">) {
   return <SourcePanel {...props} occurrences={[]} />;
@@ -38,7 +41,8 @@ export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft
 
 function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues,
   onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onRetry, onPick, onLibrary,
-  sourceLabel = "Library", onAttach, onRelink, onOpenSource, onEditIdentity, forceOpen }: PanelProps) {
+  sourceLabel = "Library", onAttach, onRelink, onOpenSource, onEditIdentity, forceOpen,
+  ocr, onOcrPause, onOcrResume, onOcrCancel }: PanelProps) {
   const active = state.stage === "sources" || state.stage === undefined || !!forceOpen;
   const [expanded, setExpanded] = useState(active), [tabSettings, setTabSettings] = useState(false);
   useEffect(() => { setExpanded(active); }, [active]);
@@ -83,7 +87,8 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           onAction={onAction} onPick={onPick ? () => onPick(authority.id) : undefined}
           onLibrary={onLibrary ? () => onLibrary(authority.id) : undefined} sourceLabel={sourceLabel}
           onAttach={(file) => onAttach(authority.id, file)} onRelink={onRelink}
-          onOpen={onOpenSource} onEditIdentity={() => onEditIdentity(authority)} />)}
+          onOpen={onOpenSource} onEditIdentity={() => onEditIdentity(authority)}
+          ocr={ocr} onOcrPause={onOcrPause} onOcrResume={onOcrResume} onOcrCancel={onOcrCancel} />)}
         {!authorities.length && <p className="px-4 py-8 text-center text-sm text-gray-500">Add authorities to begin.</p>}
       </div>
       <Button type="button" variant="ghost" className="mt-2 h-9" disabled={busy} onClick={onAdd}><Plus /> Add authority</Button>
@@ -95,13 +100,15 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
 
 function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLanguages, sourceIssues,
   editableIdentity, removable, sourceLabel, onAction, onPick, onLibrary, onAttach, onRelink,
-  onOpen, onEditIdentity }: {
+  onOpen, onEditIdentity, ocr, onOcrPause, onOcrResume, onOcrCancel }: {
   authority: AuthorityIdentity; tab?: string; citations: string[]; busy: boolean; needsPdf: boolean;
   requireLanguages: boolean; sourceIssues: Record<string, AuthoritiesSourceIssue>;
   editableIdentity: boolean; removable: boolean; sourceLabel: string;
   onAction: (action: AuthoritiesAction) => void; onPick?: () => void; onLibrary?: () => void;
   onAttach: (file?: File) => void; onRelink: (role: string) => void;
   onOpen?: (role: string) => void; onEditIdentity: () => void;
+  ocr?: Record<string, SourceOcrStatus>; onOcrPause?: (role: string) => void;
+  onOcrResume?: (role: string) => void; onOcrCancel?: (role: string) => void;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState(false);
@@ -169,6 +176,11 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
           { label: "Delete entry", disabled: busy || !removable,
             onSelect: () => onAction({ type: "remove-authority", authorityId: authority.id }) }]} />
     </div>
+    {sources.flatMap((source) => {
+      const status = ocr?.[source.bindingRole];
+      return status ? [<SourceOcrProgress key={source.bindingRole} status={status}
+        onPause={onOcrPause} onResume={onOcrResume} onCancel={onOcrCancel} />] : [];
+    })}
     <input ref={fileInput} className="sr-only" tabIndex={-1} type="file" accept=".pdf,application/pdf"
       disabled={busy} aria-label={`Upload PDF for ${title}`} onChange={(event) => {
         const file = event.target.files?.[0]; event.target.value = "";
@@ -176,3 +188,32 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       }} />
   </article>;
 }
+
+/** Text recognition for one scanned source, watched where the source lives. */
+function SourceOcrProgress({ status, onPause, onResume, onCancel }: {
+  status: SourceOcrStatus; onPause?: (role: string) => void;
+  onResume?: (role: string) => void; onCancel?: (role: string) => void;
+}) {
+  const total = status.textlessPages.length;
+  const done = status.state === "done" ? total
+    : status.page ? status.textlessPages.filter((page) => page < status.page!).length : 0;
+  return <div className="col-span-2 flex items-center gap-2 ps-2 text-xs sm:col-span-3">
+    {status.state === "done" ? <span className="text-green-800">Text recognized on {total} scanned page{total === 1 ? "" : "s"}</span>
+      : status.state === "failed" ? <span className="text-red-800">{status.error || "Text recognition failed"}</span>
+      : <>
+        <span className="min-w-0 truncate text-gray-600">
+          {status.state === "paused" ? "Recognition paused" : "Recognizing text"} — {done} of {total} scanned page{total === 1 ? "" : "s"}</span>
+        <div aria-hidden="true" className="h-1 w-24 shrink-0 overflow-hidden rounded-full bg-gray-200">
+          <div className="h-full bg-red-700" style={{ width: `${Math.round(100 * done / Math.max(total, 1))}%` }} /></div>
+      </>}
+    <span className="ms-auto flex shrink-0 gap-1">
+      {status.state === "running" && onPause && <button type="button" className={ocrControl}
+        onClick={() => onPause(status.role)}>Pause</button>}
+      {status.state === "paused" && onResume && <button type="button" className={ocrControl}
+        onClick={() => onResume(status.role)}>Resume</button>}
+      {status.state !== "done" && onCancel && <button type="button" className={ocrControl}
+        onClick={() => onCancel(status.role)}>Stop</button>}
+    </span>
+  </div>;
+}
+const ocrControl = "rounded border border-gray-300 px-2 py-0.5 text-xs hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600";
