@@ -870,6 +870,15 @@ export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnS
   return { claims, errors };
 }
 
+/**
+ * Structure and work-product tools address text by internal handle — `body:12`,
+ * `node:7`, `par25`, `e_<hash>`. Those are addresses into a projection, not
+ * citations, and a reader cannot resolve them; claims name authorities through
+ * their evidence, which renders as a chip.
+ */
+const INTERNAL_HANDLE =
+  /\b(?:body|node|unit|block|chars):\s*\d{1,6}\b|\bpar\d{1,5}\b|\be_[0-9a-f]{8,}\b/iu;
+
 export function legalEvidenceProseIntegrityErrors(
   text: string,
   citedEvidenceIds: readonly string[],
@@ -886,7 +895,11 @@ export function legalEvidenceProseIntegrityErrors(
         labels: [receipt.name, receipt.citation].filter(
           (value): value is string => Boolean(value)) }] : [];
   });
-  return structureNative().groundedProseErrors(text, citedEvidenceIds, visible);
+  const handle = INTERNAL_HANDLE.exec(text)?.[0];
+  return [
+    ...(handle ? [`must not name the internal handle "${handle}"; cite the passage through its evidence instead`] : []),
+    ...structureNative().groundedProseErrors(text, citedEvidenceIds, visible),
+  ];
 }
 
 export function submitLegalEvidenceAnswer(
@@ -977,11 +990,16 @@ export function renderLegalEvidenceAnswer(state: LegalEvidenceTurnState): string
   for (const group of legalEvidenceCitationGroups(state))
     for (const entry of group.members)
       refs.set(entry.receipt.evidence_id, group.ref);
+  // Consecutive claims resting on the same chip repeat one citation down the
+  // page. The first claim carries it; the run that follows is already attributed.
+  let carried = "";
   return state.answer.map((claim, index) => {
     const markers = [...new Set(claim.evidence_ids.flatMap((id) =>
       refs.has(id) ? [`[${refs.get(id)}]`] : []))];
     const table = claim.text.startsWith("|") && claim.text.endsWith("|");
-    const citations = markers.join("");
+    const joined = markers.join("");
+    const citations = !table && joined === carried ? "" : joined;
+    carried = table ? "" : joined;
     const text = table
       ? `${claim.text.slice(0, -1).trimEnd()} ${citations} |`
       : `${claim.text}${citations ? ` ${citations}` : ""}`;
