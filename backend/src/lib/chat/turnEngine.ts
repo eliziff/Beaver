@@ -152,6 +152,8 @@ export async function runChatTurn(options: {
   priorEvidence?: PriorLegalEvidence[];
   priorQueries?: LegalResearchQueryReceipt[];
   evidenceState?: LegalEvidenceTurnState;
+  /** Structuring calls restate already-verified material as JSON; they are not answers to ground. */
+  grounded?: false;
   researchContext?: ResearchReadContext;
   operation?: ResearchOperationContext;
   readerAssignment?: ReadSubagentAssignment;
@@ -798,7 +800,7 @@ export async function runChatTurn(options: {
         throw error;
       }
     }
-    if (!paused && renderLegalEvidenceAnswer(evidence) === null &&
+    if (!paused && options.grounded !== false && renderLegalEvidenceAnswer(evidence) === null &&
         hasModelAuthoredLegalSourceUrl(text)) {
       const rejected = text;
       text = "";
@@ -810,7 +812,7 @@ export async function runChatTurn(options: {
       if (renderLegalEvidenceAnswer(evidence) === null) text = UNVERIFIED_LEGAL_ANSWER;
     }
     if (!paused) {
-      let finalized = finalizeLegalEvidence(evidence, text);
+      let finalized = options.grounded === false || finalizeLegalEvidence(evidence, text);
       for (let attempt = 0; !finalized && attempt < 2; attempt += 1) {
         const rejected = text;
         const failure = evidence.failure ?? "No grounded submission was received.";
