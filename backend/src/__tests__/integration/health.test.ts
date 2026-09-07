@@ -1,80 +1,53 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 
-// requireAuth reads SUPABASE_URL / SUPABASE_SECRET_KEY from process.env at
-// request time (not import time), so setting them here is early enough even
-// though imported modules evaluate before this assignment runs.
-process.env.SUPABASE_URL = "https://supabase.test.local";
-process.env.SUPABASE_PUBLISHABLE_KEY = "test-publishable-key";
-process.env.SUPABASE_SECRET_KEY = "test-service-key";
-process.env.AUTH_MODE = "cloud";
-process.env.S3_ENDPOINT = "https://s3.test.local";
-process.env.S3_REGION = "us-east-1";
-process.env.S3_BUCKET = "private-test";
-process.env.S3_ACCESS_KEY_ID = "test-access";
-process.env.S3_SECRET_ACCESS_KEY = "test-secret";
-
-// Mock the supabase-js client factory so the real requireAuth middleware never
-// makes a network call: auth.getUser() resolves to no user for any token,
-// simulating an invalid/expired JWT.
-vi.mock("@supabase/supabase-js", () => ({
-    createClient: vi.fn(() => ({
-        from: () => {
-            const q: Record<string, unknown> = {};
-            const chain = [
-                "select", "insert", "update", "delete", "upsert",
-                "eq", "neq", "in", "is", "or", "not", "filter",
-                "order", "limit",
-            ];
-            for (const m of chain) q[m] = () => q;
-            q.single = () => Promise.resolve({ data: null, error: null });
-            q.maybeSingle = () => Promise.resolve({ data: null, error: null });
-            q.then = (resolve: (v: unknown) => unknown) =>
-                Promise.resolve({ data: null, error: null }).then(resolve);
-            return q;
-        },
-        rpc: () => Promise.resolve({ data: null, error: null }),
-        auth: {
-            getUser: () =>
-                Promise.resolve({ data: { user: null }, error: null }),
-        },
-    })),
-}));
-
-// Vitest hoists vi.mock() calls before all imports, so this regular import
-// receives the mocked supabase-js module even though it appears after the
-// vi.mock() call in source order.
-import { api } from "../../api";
-
-describe("GET /health", () => {
-    it("reports the effective runtime without exposing configuration", async () => {
-        const res = await request(api).get("/health");
-        expect(res.status).toBe(200);
-        expect(res.body).toEqual({
-            ok: true,
-            runtime: { mode: "cloud" },
-        });
-    });
-
+// Reject attempts in teardown; the non-retryable response prevents SDK retry loops.
+const outbound = vi.fn<typeof fetch>(async () => new Response(null, { status: 400 }));
+beforeEach(() => {
+  outbound.mockClear();
+  vi.stubGlobal("fetch", outbound);
+  vi.stubEnv("AUTH_MODE", "cloud");
+  vi.stubEnv("NODE_ENV", "development");
+  vi.stubEnv("MCP_CONNECTORS_ENABLED", undefined);
+  vi.stubEnv("TRUST_PROXY_HOPS", undefined);
+  vi.stubEnv("SUPABASE_URL", "https://supabase.test.local");
+  vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "test-publishable-key");
+  vi.stubEnv("SUPABASE_SECRET_KEY", "test-service-key");
+});
+afterEach(() => {
+  vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(); vi.resetModules();
+  expect(outbound).not.toHaveBeenCalled();
 });
 
-describe("GET /config", () => {
-    it("returns only the browser's public runtime configuration", async () => {
-        const res = await request(api).get("/config");
-        expect(res.status).toBe(200);
-        expect(res.body).toEqual({
-            mode: "cloud",
-            capabilities: { connectors: true },
-        });
-        expect(JSON.stringify(res.body)).not.toContain("test-publishable-key");
-        expect(JSON.stringify(res.body)).not.toContain("test-service-key");
-        expect(res.headers["cache-control"]?.split(",").map((value) => value.trim())).toContain("no-store");
-    });
-});
+describe("public runtime endpoints", () => {
+  it.each(["local", "cloud"] as const)("exposes only public %s configuration without authenticating", async (mode) => {
+    vi.stubEnv("AUTH_MODE", mode);
+    const { api } = await import("../../api");
+    const health = await request(api).get("/health").expect(200);
+    expect(health.body).toEqual({ ok: true, runtime: { mode } });
+    const config = await request(api).get("/config").expect(200);
+    expect(config.body).toEqual({ mode, capabilities: { connectors: mode === "cloud" } });
+    expect(config.headers["cache-control"].split(",").map((value: string) => value.trim()))
+      .toContain("no-store");
+  });
 
-describe("404 handling", () => {
-    it("returns 404 for unknown routes", async () => {
-        const res = await request(api).get("/this-route-does-not-exist");
-        expect(res.status).toBe(404);
-    });
+  it.each([
+    ["http://supabase.example", "development", 500],
+    ["http://127.0.0.1:54321", "development", 200],
+    ["http://127.0.0.1:54321", "production", 500],
+  ] as const)("enforces the cloud transport policy for %s in %s", async (url, environment, status) => {
+    vi.stubEnv("SUPABASE_URL", url);
+    vi.stubEnv("NODE_ENV", environment);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { api } = await import("../../api");
+    const response = await request(api).get("/config").expect(status);
+    expect(response.body).toEqual(status === 200
+      ? { mode: "cloud", capabilities: { connectors: true } }
+      : { detail: "Internal server error" });
+  });
+
+  it("returns 404 for an unknown route", async () => {
+    const { api } = await import("../../api");
+    await request(api).get("/this-route-does-not-exist").expect(404);
+  });
 });
