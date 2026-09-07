@@ -38,7 +38,7 @@ it("keeps one dialog through correction, recheck, next finding, completion and e
   const props = { initialId: "one", onClose: close, onResolve: resolve };
   const { rerender } = render(<QuotationReview {...props} items={[finding("one"), finding("two")]} busy={false} />);
   const dialog = screen.getByRole("dialog");
-  fireEvent.click(screen.getByRole("radio", { name: "Use the source wording" }));
+  fireEvent.click(screen.getByRole("radio", { name: "Use the source wording (edits your .docx)" }));
   fireEvent.click(screen.getByRole("button", { name: "Apply correction" }));
   expect(close).not.toHaveBeenCalled();
   rerender(<QuotationReview {...props} items={undefined} busy />);
@@ -53,18 +53,36 @@ it("keeps one dialog through correction, recheck, next finding, completion and e
   fireEvent.click(screen.getByRole("button", { name: "Done" }));
   expect(close).toHaveBeenCalledOnce();
 });
-it("does not render a false red/green mismatch or offer corrections for an unlocated quotation", () => {
-  const missing = { ...finding("one"), kind: "quote_unlocated" as const, found: null, actions: ["ignore" as const] };
-  const { container } = render(<QuotationReview initialId="one" items={[missing]} busy={false} onResolve={vi.fn()} onClose={vi.fn()} />);
+it("batches quotations that were not found instead of adjudicating them one at a time", () => {
+  const missing = (id: string) => ({ ...finding(id), kind: "quote_unlocated" as const,
+    found: null, actions: ["ignore" as const] });
+  const { container } = render(<QuotationReview initialId="one" items={[missing("one"), missing("two")]}
+    busy={false} sourceUrl={() => "https://example.test/case"} onResolve={vi.fn()} onClose={vi.fn()} />);
   expect(container.querySelector("del, ins")).toBeNull();
-  expect(screen.getAllByRole("radio")).toHaveLength(1);
-  expect(screen.getByRole("radio", { name: "Keep as written" })).toBeVisible();
+  expect(screen.queryAllByRole("radio")).toHaveLength(0);
+  expect(screen.queryByRole("button", { name: /Apply correction|Keep as written/ })).toBeNull();
+  expect(screen.getByRole("list").children).toHaveLength(2);
+  expect(screen.getAllByRole("link", { name: "Open source" })).toHaveLength(2);
+  expect(screen.getByRole("button", { name: "Done", exact: true })).toBeVisible();
+  // The batch is one page, so it never adds per-quotation navigation steps.
+  expect(screen.queryByText("1 / 2")).toBeNull();
+});
+it("shows the author's own surrounding sentence around the quotation", () => {
+  const quoted = { ...finding("one"),
+    proposition: "The Court was clear that The deadline is seven business days. in every case." };
+  render(<QuotationReview initialId="one" items={[quoted]} busy={false} onResolve={vi.fn()} onClose={vi.fn()} />);
+  expect(screen.getByText(/The Court was clear that/)).toBeVisible();
+  expect(screen.getByText(/in every case\./)).toBeVisible();
+});
+it("ignores case and diacritics when marking changed words", () => {
+  const result = quotationDiff("Le défendeur a agi", "le defendeur a agi");
+  expect(result.authored.filter(({ changed }) => changed)).toEqual([]);
 });
 it("surfaces a failed save without discarding the choice or closing the review", () => {
   const props = { initialId: "one", items: [finding("one")], busy: false, onResolve: vi.fn(), onClose: vi.fn() };
   const { rerender } = render(<QuotationReview {...props} />);
-  fireEvent.click(screen.getByRole("radio", { name: "Use the source wording" }));
+  fireEvent.click(screen.getByRole("radio", { name: "Use the source wording (edits your .docx)" }));
   rerender(<QuotationReview {...props} error="The draft changed. Refresh first." />);
   expect(screen.getByRole("alert")).toHaveTextContent("Refresh first");
-  expect(screen.getByRole("radio", { name: "Use the source wording" })).toBeChecked();
+  expect(screen.getByRole("radio", { name: "Use the source wording (edits your .docx)" })).toBeChecked();
 });
