@@ -436,7 +436,6 @@ function LegalSourceViewerContent({
     id: `legal-quote-${index}`,
     quote: quote.quote,
   }));
-  const sourceBadge = researchSource?.badge;
 
   async function savePassage(passage: SelectionTarget, ready: { file: ResearchFile; itemId: string }) {
     {
@@ -486,8 +485,8 @@ function LegalSourceViewerContent({
           <div className="flex min-w-0 items-center gap-3">
             <ResearchLabelPicker file={researchFile}
               kind="source" itemId={researchSource?.id} labelIds={researchSource?.labelIds ?? []}
-              badge={researchSource?.badge} badgeColor={researchSource?.badgeColor} note={researchSource?.note}
-              title={metadata.title} buttonLabel={sourceBadge}
+              note={researchSource?.note}
+              title={metadata.title}
               disabled={researchLoading} onError={setResearchError} onNeedFile={needResearchFile}
               onSourceDrag={() => onOpenResearch?.("source-drop")}
               prepare={researchSource ? undefined : prepareResearchSource} mutations={commit} sourceReference={sourceReference} />

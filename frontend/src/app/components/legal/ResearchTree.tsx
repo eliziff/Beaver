@@ -71,15 +71,13 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
       <span data-mark={mark(source.id)} title={name} className="min-w-0 flex-1 truncate">
         {openLink(source, name, undefined, `max-w-full truncate text-start text-sm ${markClass(source.id)}`,
           selectedSourceId === source.id)}
-        {!!source.labelIds.length && <span className="block truncate text-xs font-normal text-gray-500">
-          {source.labelIds.map((id) => researchLabelPath(labels, id).map(({ name }) => name).join(" / ")).filter(Boolean).join(" · ")}
-        </span>}</span>
+      </span>
       {!!researchHighlightCount(source) && <span className="ms-auto shrink-0 tabular-nums text-xs text-gray-500">{researchHighlightCount(source)}</span>}
       {!preview && <span className="opacity-0 focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
         <MoreActionsMenu label={`${name} options`} items={[
           ...(href || reader?.canRead(source) ? [{ label: "Open", onSelect: openIt }] : []),
           { label: "Labels", onSelect: () => setLabelTarget({ file: file!, kind: "source", itemId: source.id,
-            labelIds: source.labelIds, badge: source.badge, badgeColor: source.badgeColor, note: source.note, title: name }) },
+            labelIds: source.labelIds, note: source.note, title: name }) },
           { label: "Remove", onSelect: () => onRemove({ kind: "source", id: source.id, name }) },
         ]} /></span>}
     </div>;
@@ -121,28 +119,28 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
   }
 
 
+  /** One tree: labels nest, and each source hangs under every label it carries. */
+  const sourceNode = (source: ResearchSource, depth: number, key: string) =>
+    <div key={key} role="treeitem" aria-label={sourceName(source)}
+      aria-expanded={opened.has(source.id)} aria-selected={selectedSourceId === source.id}>
+      {sourceRow({ kind: "source", source, depth })}
+      {opened.has(source.id) && !preview && <div role="group">
+        {passagePages.chains[source.id]?.items.flatMap((item) => (item.kind === "passage" || item.kind === "evidence") && passageVisible(item.value)
+          ? [<div key={item.value.receipt.evidence_id} role="treeitem" aria-label={item.value.receipt.locator.label}>
+              {passageRow({ kind: "passage", source, item: item.value, depth: depth + 1 })}
+            </div>] : [])}
+        {extraRow({ kind: "extra", source, depth: depth + 1 })}
+      </div>}
+    </div>;
+  const under = (labelId: string | null) => sources.filter((source) => labelId
+    ? source.labelIds.includes(labelId)
+    : !source.labelIds.some((id) => labels[id]?.scope === "source"));
+
   return <>
-    <div className="max-h-52 shrink-0 overflow-y-auto border-b border-gray-200 pb-2">
-      <ResearchLabelTree scope="source" sources={navigationSources} selectedId={labelId} onSelect={onLabelChange}
-        onRemove={onRemove} onStatus={onStatus} preview={preview} />
-    </div>
-    {labelId && <p className="px-2 pb-1 pt-3 text-xs text-gray-500 [overflow-wrap:anywhere]">
-      {researchLabelPath(labels, labelId).map(({ name }) => name).join(" / ")}
-    </p>}
-    <div role="tree" aria-label={preview ? "Proposed sources" : "Sources"} className="min-w-0 pt-2">
-      {sources.map((source) => <div key={source.id} role="treeitem" aria-label={sourceName(source)}
-        aria-expanded={opened.has(source.id)} aria-selected={selectedSourceId === source.id}>
-        {sourceRow({ kind: "source", source, depth: 0 })}
-        {opened.has(source.id) && !preview && <div role="group">
-          {passagePages.chains[source.id]?.items.flatMap((item) => (item.kind === "passage" || item.kind === "evidence") && passageVisible(item.value)
-            ? [<div key={item.value.receipt.evidence_id} role="treeitem" aria-label={item.value.receipt.locator.label}>
-                {passageRow({ kind: "passage", source, item: item.value, depth: 1 })}
-              </div>] : [])}
-          {extraRow({ kind: "extra", source, depth: 1 })}
-        </div>}
-      </div>)}
-      {!sources.length && <p className="p-2 text-xs text-gray-500">{filter || matches || labelId ? "No matching sources." : "No sources yet."}</p>}
-    </div>
+    <ResearchLabelTree scope="source" sources={navigationSources} selectedId={labelId} onSelect={onLabelChange}
+      onRemove={onRemove} onStatus={onStatus} preview={preview}
+      renderSources={(id) => under(id).map((source) => sourceNode(source, id ? 1 : 0, `${id ?? ""}:${source.id}`))} />
+    {!sources.length && <p className="p-2 text-xs text-gray-500">{filter || matches || labelId ? "No matching sources." : "No sources yet."}</p>}
     {labelTarget && <ResearchLabelEditor target={labelTarget} mutations={commit} onError={onStatus} onClose={() => setLabelTarget(null)} />}
   </>;
 }

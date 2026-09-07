@@ -135,7 +135,6 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
             visible(driver, By.CSS_SELECTOR, "[role='dialog'][aria-label='Highlight types']")
             driver.switch_to.active_element.send_keys(Keys.ESCAPE)
             assert rail.find_element(By.CSS_SELECTOR, "input[aria-label='Filter']").is_displayed()
-            assert rail.find_element(By.CSS_SELECTOR, "[role='tree'][aria-label='Source labels']").is_displayed()
             tree = rail.find_element(By.CSS_SELECTOR, "[role='tree'][aria-label='Sources']")
             assert tree.is_displayed()
             assert len(tree.find_elements(By.CSS_SELECTOR, "[role='treeitem'][aria-label='Highlight me.txt']")) == 1
