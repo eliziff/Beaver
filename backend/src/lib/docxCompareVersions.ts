@@ -270,11 +270,6 @@ const TOKEN_RE = new RegExp(
     "gu",
 );
 
-interface DiffToken {
-    text: string;
-    key: string;
-}
-
 /** quote_edits._mergeable: word-bearing or bracketed tokens fuse when
  *  directly adjacent (no whitespace between). */
 function tokenMergeable(t: string): boolean {
@@ -296,30 +291,16 @@ function tokenKey(t: string): string {
         .replace(DASH_FOLD_RE, "-");
 }
 
-function tokenizeForDiff(text: string): DiffToken[] {
-    const raw: { text: string; start: number; end: number }[] = [];
-    for (const m of text.matchAll(TOKEN_RE)) {
-        const start = m.index ?? 0;
-        raw.push({ text: m[0], start, end: start + m[0].length });
-    }
-    const merged: DiffToken[] = [];
-    let i = 0;
-    while (i < raw.length) {
-        let tok = raw[i].text;
-        let end = raw[i].end;
-        let j = i + 1;
-        while (
-            j < raw.length &&
-            end === raw[j].start &&
-            tokenMergeable(tok) &&
-            tokenMergeable(raw[j].text)
-        ) {
-            tok += raw[j].text;
-            end = raw[j].end;
-            j++;
+function tokenizeForDiff(text: string): string[] {
+    const merged: string[] = [];
+    // TOKEN_RE covers every character, so consecutive matches are adjacent.
+    for (const [token] of text.matchAll(TOKEN_RE)) {
+        const previous = merged.at(-1);
+        if (previous !== undefined && tokenMergeable(previous) && tokenMergeable(token)) {
+            merged[merged.length - 1] += token;
+        } else {
+            merged.push(token);
         }
-        merged.push({ text: tok, key: tokenKey(tok) });
-        i = j;
     }
     return merged;
 }
@@ -340,10 +321,11 @@ function wordDiffClusters(oldText: string, newText: string): DiffCluster[] {
 
     const codeByKey = new Map<string, string>();
     let overflow = false;
-    const encode = (toks: DiffToken[]): string => {
+    const encode = (toks: string[]): string => {
         let out = "";
-        for (const t of toks) {
-            let c = codeByKey.get(t.key);
+        for (const token of toks) {
+            const key = tokenKey(token);
+            let c = codeByKey.get(key);
             if (c === undefined) {
                 const next = codeByKey.size + 1;
                 if (next >= 0xd7ff) {
@@ -351,7 +333,7 @@ function wordDiffClusters(oldText: string, newText: string): DiffCluster[] {
                     return "";
                 }
                 c = String.fromCharCode(next);
-                codeByKey.set(t.key, c);
+                codeByKey.set(key, c);
             }
             out += c;
         }
@@ -370,7 +352,7 @@ function wordDiffClusters(oldText: string, newText: string): DiffCluster[] {
         const tokens = op === diff.DELETE
             ? oldToks.slice(oi, oi + count)
             : newToks.slice(nj, nj + count);
-        parts.push([op, tokens.map(({ text }) => text).join("")]);
+        parts.push([op, tokens.join("")]);
         if (op !== diff.INSERT) oi += count;
         if (op !== diff.DELETE) nj += count;
     }
