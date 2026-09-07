@@ -546,8 +546,9 @@ export function createChatApplication(deps: Dependencies) {
           ...(submittedWorkflow.variant_id && { variant_id: submittedWorkflow.variant_id }),
           title: registeredWorkflow.title }
         : undefined;
-      let assistant = input.current_turn.kind === "ask_inputs_response"
-        ? pendingAskInputs(rows)?.assistant : undefined;
+      const pending = input.current_turn.kind === "ask_inputs_response"
+        ? pendingAskInputs(rows) : null;
+      let assistant = pending?.assistant;
       let assistantContent = Array.isArray(assistant?.content)
         ? [...assistant.content] : [];
       let assistantCitations = Array.isArray(assistant?.citations)
@@ -557,7 +558,6 @@ export function createChatApplication(deps: Dependencies) {
         ? input.current_turn.turn_id : undefined;
       let commit: ChatTurnCommit;
       if (input.current_turn.kind === "ask_inputs_response") {
-        const pending = pendingAskInputs(rows);
         if (!pending) throw new ChatApplicationError(400,
           "No assistant question is available for this response");
         const canonical = canonicalAskResponse(
@@ -615,11 +615,11 @@ export function createChatApplication(deps: Dependencies) {
                 (event.status === "interrupted" || event.status === "running" || event.status === "error") &&
                 event.resume) : [];
           assistantCitations = [];
+          // A retried turn without an assistant receipt still needs one atomic CAS write.
           commit = {
             expectedVersion: input.expected_version,
-            ...(assistant ? { assistantMessage: {
-              id: assistant.id, turnId, content: assistantContent, citations: [],
-            } } : {}),
+            assistantMessage: { id: assistant?.id ?? randomUUID(), turnId,
+              content: assistantContent, citations: [] },
           };
         } else commit = {
           expectedVersion: input.expected_version,
@@ -629,12 +629,6 @@ export function createChatApplication(deps: Dependencies) {
             files: canonicalFiles.length ? canonicalFiles : undefined,
             workflow: canonicalWorkflow,
           },
-        };
-      }
-      if (!commit.userMessage && !commit.assistantMessage) {
-        // A retried turn without an assistant receipt still needs one atomic CAS write.
-        commit.assistantMessage = {
-          id: randomUUID(), turnId, content: [], citations: [],
         };
       }
       const transcriptForModel = rows
@@ -829,12 +823,13 @@ export function createChatApplication(deps: Dependencies) {
       });
       const slugByDocumentId = new Map(Object.entries(context.docIndex)
         .map(([slug, info]) => [info.document_id, slug]));
-      const modelMessages = messages.map((message) => ({
-        role: message.role === "assistant" ? "assistant" as const : "user" as const,
-        content: formatChatMessageContent(message, slugByDocumentId),
-        images: imageForMessage(message, images),
-        contextCheckpoint: message.contextCheckpoint,
-      }));
+      const toModelMessages = (list: ReturnType<typeof projectChatTranscript>) =>
+        list.map((message) => ({
+          role: message.role === "assistant" ? "assistant" as const : "user" as const,
+          content: formatChatMessageContent(message, slugByDocumentId),
+          images: imageForMessage(message, images),
+          contextCheckpoint: message.contextCheckpoint,
+        }));
       const assistantId = assistant?.id ?? randomUUID();
       function queuePersist(events: AssistantEvent[], citations: unknown[] = [], force = false) {
         for (const event of events) {
@@ -895,7 +890,7 @@ export function createChatApplication(deps: Dependencies) {
         const result = await runChatTurn({
           model: selectedModel,
           systemPrompt,
-          messages: modelMessages,
+          messages: toModelMessages(messages),
           createTools: localTools.createTools,
           researchContext,
           priorQueries,
@@ -922,13 +917,7 @@ export function createChatApplication(deps: Dependencies) {
               onStatus: onCompaction,
             });
             version = (await deps.chats.get(auth, chat!.id))?.transcript_version ?? version;
-            const preparedMessages = prepared.messages.map((message) => ({
-              role: message.role === "assistant" ? "assistant" as const : "user" as const,
-              content: formatChatMessageContent(message, slugByDocumentId),
-              images: imageForMessage(message, images),
-              contextCheckpoint: message.contextCheckpoint,
-            }));
-            return preparedMessages;
+            return toModelMessages(prepared.messages);
           },
           subagentMode: input.subagent_mode as SubagentMode,
           subagentModel: input.subagent_model,
@@ -937,8 +926,7 @@ export function createChatApplication(deps: Dependencies) {
           activityDetail: input.activity_detail,
           evidenceState,
           priorEvidence: priorEvidenceReceipts,
-          resumableSubagents: resumableReadSubagents(rows.flatMap((row) =>
-            Array.isArray(row.content) ? row.content : [])),
+          resumableSubagents: resumableReadSubagents(priorEvents),
           providerSession: providerSession
             ? { persist: true, ...(activeContinuationId
                 ? { continuationId: activeContinuationId } : {}) }
