@@ -1,49 +1,10 @@
 import { jsonRecord as object } from "./value";
-
-const DRAFTING_STYLE_VERSION = 1 as const;
-
-const DRAFTING_DOCUMENT_TYPES = [
-  "memo",
-  "factum",
-  "letter",
-  "other",
-] as const;
-export type DraftingDocumentType = (typeof DRAFTING_DOCUMENT_TYPES)[number];
-
-const CITATION_PLACEMENTS = [
-  "footnotes",
-  "inline",
-  "after-paragraph",
-  "none",
-] as const;
-export type CitationPlacement = (typeof CITATION_PLACEMENTS)[number];
-export type HeadingNumbering = boolean | "auto";
-
-export type DraftingDocumentStyle = {
-  citationPlacement: CitationPlacement;
-  citationHyperlinks: boolean;
-  numberHeadings: HeadingNumbering;
-};
-
-export type DraftingStyleSettings = {
-  version: typeof DRAFTING_STYLE_VERSION;
-  documents: Record<DraftingDocumentType, DraftingDocumentStyle>;
-  memoHeader: {
-    to: string;
-    from: string;
-  };
-};
-
-export const DEFAULT_DRAFTING_STYLE: DraftingStyleSettings = {
-  version: DRAFTING_STYLE_VERSION,
-  documents: {
-    memo: { citationPlacement: "footnotes", citationHyperlinks: true, numberHeadings: false },
-    factum: { citationPlacement: "inline", citationHyperlinks: true, numberHeadings: true },
-    letter: { citationPlacement: "footnotes", citationHyperlinks: true, numberHeadings: false },
-    other: { citationPlacement: "inline", citationHyperlinks: true, numberHeadings: "auto" },
-  },
-  memoHeader: { to: "File", from: "AI Assistant" },
-};
+import { CITATION_PLACEMENTS, DEFAULT_DRAFTING_STYLE, DRAFTING_DOCUMENT_TYPES,
+  DRAFTING_STYLE_VERSION, type CitationPlacement, type DraftingDocumentType,
+  type DraftingStyleSettings, type HeadingNumbering } from "mike/shared/user-preferences.mjs";
+export { DEFAULT_DRAFTING_STYLE } from "mike/shared/user-preferences.mjs";
+export type { CitationPlacement, DraftingDocumentStyle, DraftingDocumentType,
+  DraftingStyleSettings, HeadingNumbering } from "mike/shared/user-preferences.mjs";
 
 function oneLine(value: unknown, fallback: string) {
   if (typeof value !== "string") return fallback;
