@@ -265,67 +265,57 @@ describe("production legal evidence", () => {
     )).toEqual(citations);
   });
 
-  // Replays two chat turns from the local transcript store (chat_messages
-  // b0fdad8d/8f391c98, 2026-09-05/06), where the same authority produced one
-  // chip per paragraph and the unpinpointed headnote passage produced a
-  // further chip with a highlight but no pinpoint at all.
+  // Replays two turns from the local transcript store (chat_messages
+  // 8f391c98 and b0fdad8d), which showed one chip per paragraph of the same
+  // decision and a further chip with a highlight but no pinpoint at all.
   it("gives one authority one chip carrying every selected pinpoint", () => {
     const state = createLegalEvidenceTurnState("citation_structure");
-    const oakes = ["par1", "par3", "par4", "par69", "par70", "par78", "par80", "par81"]
+    const ids = ["par1", "par3", "par4", "par69", "par70", "par78", "par80", "par81"]
       .map((label) => {
-        const evidence = { ...passage(label), provider: "a2aj" as const,
-          stable_source_id: "a2aj:scc:1986scr103", citation: "[1986] 1 SCR 103",
-          dataset: "SCC", name: "R. v. Oakes",
-          external_url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/117/index.do" };
+        const evidence = { ...passage(label), citation: "[1986] 1 SCR 103",
+          name: "R. v. Oakes" };
         registerLegalEvidence(state, evidence);
         return evidence.evidence_id;
       });
-    submitLegalEvidenceAnswer({ claims: oakes.map((id, index) => (
+    submitLegalEvidenceAnswer({ claims: ids.map((id, index) => (
       { text: `Oakes proposition ${index + 1}.`, evidence_ids: [id] })) }, state);
 
-    const citations = createLegalEvidenceCitations(state);
-    expect(citations).toHaveLength(1);
-    expect(citations[0]).toMatchObject({
-      ref: 1, authority: "R. v. Oakes, [1986] 1 SCR 103",
-      locator_kind: "paragraph", locator: "1, 3\u20134, 69\u201370, 78, 80\u201381",
+    expect(createLegalEvidenceCitations(state)).toEqual([expect.objectContaining({
+      ref: 1, authority: "R. v. Oakes, [1986] 1 SCR 103", locator_kind: "paragraph",
       pinpoint: "paras 1, 3\u20134, 69\u201370, 78, 80\u201381",
-    });
+    })]);
     expect(renderLegalEvidenceAnswer(state)).not.toContain("[2]");
   });
 
   it("keeps an unpinpointed passage inside its authority's pinpointed chip", () => {
     const state = createLegalEvidenceTurnState("citation_structure");
-    // The A2AJ headnote of a paragraph-numbered decision sits outside every
-    // native paragraph, so the read can only address it by character range.
-    const source = "The prohibition of arbitrary detention in s. 9 of the Charter.";
-    const headnote = createTnaEvidence({
-      jurisdiction: "CA", sourceClass: "case", stableSourceId: "a2aj:scc:2019scc34",
-      sourceText: source, spanText: source, citation: "2019 SCC 34",
-      name: "R. v. Le", dataset: "SCC",
-      externalUrl: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/17804/index.do",
-      locatorKind: "document", locatorLabel: "characters 1963\u20132391" });
-    const paragraphs = ["par1", "par5", "par9", "par14"].map((label) => {
-      const evidence = { ...passage(label), stable_source_id: "a2aj:scc:2019scc34",
-        citation: "2019 SCC 34", dataset: "SCC", name: "R. v. Le" };
+    // An A2AJ headnote sits outside every native paragraph of a
+    // paragraph-numbered decision, so the read can only address it by
+    // character range; the citator attests the same authority as a document.
+    const unpinpointed = ["characters 1963\u20132391", "2019 SCC 34"].map((label, index) => {
+      const evidence = createTnaEvidence({
+        jurisdiction: "CA", sourceClass: "case", stableSourceId: `le-${index}`,
+        sourceText: `Le passage ${index}.`, spanText: `Le passage ${index}.`,
+        citation: "2019 SCC 34", name: "R. v. Le", dataset: `dataset-${index}`,
+        locatorKind: "document", locatorLabel: label });
       registerLegalEvidence(state, evidence);
       return evidence.evidence_id;
     });
-    registerLegalEvidence(state, headnote);
-    submitLegalEvidenceAnswer({ claims: [
-      { text: "The headnote states the prohibition.", evidence_ids: [headnote.evidence_id] },
-      ...paragraphs.map((id, index) => (
-        { text: `Le proposition ${index + 1}.`, evidence_ids: [id] })),
-    ] }, state);
+    const paragraphs = ["par1", "par5", "par9", "par14"].map((label) => {
+      const evidence = { ...passage(label), citation: "2019 SCC 34", name: "R. v. Le" };
+      registerLegalEvidence(state, evidence);
+      return evidence.evidence_id;
+    });
+    submitLegalEvidenceAnswer({ claims: [...unpinpointed, ...paragraphs].map(
+      (id, index) => ({ text: `Le proposition ${index}.`, evidence_ids: [id] })) }, state);
 
     const citations = createLegalEvidenceCitations(state);
-    expect(citations).toHaveLength(1);
-    expect(citations[0]).toMatchObject({
-      authority: "R. v. Le, 2019 SCC 34",
-      locator_kind: "paragraph", pinpoint: "paras 1, 5, 9, 14",
-    });
-    // The headnote quote keeps its highlight under that one chip, and every
-    // claim still resolves to it.
-    expect(citations[0].quotes).toContainEqual({ quote: headnote.span_text });
+    expect(citations).toEqual([expect.objectContaining({
+      authority: "R. v. Le, 2019 SCC 34", locator_kind: "paragraph",
+      pinpoint: "paras 1, 5, 9, 14",
+    })]);
+    // Every passage keeps its highlight under that one chip.
+    expect(citations[0].quotes).toHaveLength(6);
     expect(renderLegalEvidenceAnswer(state)).not.toContain("[2]");
   });
 

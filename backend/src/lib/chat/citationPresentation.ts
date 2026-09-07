@@ -43,9 +43,7 @@ export function presentLegalEvidence(
   entry: RegisteredEvidence,
   quotes: string[] = entry.receipt.span_text ? [entry.receipt.span_text] : [],
   locatorLabels: readonly string[] = [entry.receipt.locator.label],
-  // The locator system the whole citation is presented in. It comes from the
-  // citation group, whose unpinpointed members share the pinpointed members'
-  // system rather than dropping the group's locator.
+  // The citation group's locator system, which its unpinpointed members share.
   locatorKind: RegisteredEvidence["receipt"]["locator"]["kind"] = entry.receipt.locator.kind,
 ): CitationPresentation {
   const { receipt, document } = entry;
