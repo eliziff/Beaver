@@ -1029,7 +1029,7 @@ function CitationReview({ occurrences, units, selected, authorities, discrepanci
   const unit = units.find(({ id }) => id === selected?.unitId), unitText = unit?.text ?? selected?.text ?? "";
   const authorityById = new Map(authorities.map((item) => [item.id, item]));
   const findingByOccurrence = new Map(discrepancies.map((item) => [item.occurrenceId, item]));
-  return <div className="authorities-review grid min-h-80 grid-rows-[14rem_auto] @min-[35rem]:grid-cols-[18rem_minmax(0,1fr)]! @min-[35rem]:grid-rows-1">
+  return <div className="authorities-review grid min-h-0 grid-rows-[14rem_auto] overflow-hidden @min-[35rem]:h-[30rem] @min-[35rem]:grid-cols-[18rem_minmax(0,1fr)]! @min-[35rem]:grid-rows-1">
     <div className="min-h-0 overflow-y-auto border-b border-gray-200 [scrollbar-width:thin] @min-[35rem]:border-b-0 @min-[35rem]:border-e" role="listbox"
       aria-label="Citations">
       {occurrences.map((item, index) => {
@@ -1098,7 +1098,7 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
     window.getSelection()?.removeAllRanges(); setSelection(null);
   });
   const actionClass = "h-auto min-h-10 min-w-0 whitespace-normal px-2 py-1.5 text-xs leading-tight @min-[35rem]:min-h-9 @min-[35rem]:whitespace-nowrap";
-  return <div className="min-w-0 p-3">
+  return <div className="min-h-0 min-w-0 overflow-y-auto p-3 [scrollbar-gutter:stable]">
     {finding && <div className="mb-2 flex min-h-8 items-center">
       <Button type="button" variant="outline" className="h-8 border-red-300 px-2 text-xs text-red-800"
         onClick={() => onReview(finding.id)}>Review quotation</Button>
