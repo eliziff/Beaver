@@ -264,8 +264,7 @@ export function createDocumentApplication(repository: DocumentRepository,
   };
 
   const ensurePdf = async (scope: DocumentScope,
-    aggregate: Pick<DocumentAggregate, "document" | "versions">,
-    version: StoredDocumentVersion) => {
+    document: DocumentAggregate["document"], version: StoredDocumentVersion) => {
     if (version.pdfBlobKey || !shouldConvertToPdf(version.fileType)) return version;
     const source = await checkedBytes(version);
     if (!source) return version;
@@ -279,9 +278,9 @@ export function createDocumentApplication(repository: DocumentRepository,
       return version;
     }
     const digest = sha256(pdf);
-    const key = documentBlobKey(aggregate.document, digest);
+    const key = documentBlobKey(document, digest);
     await writeBlob(key, pdf, "application/pdf", digest);
-    const updated = await repository.updateVersion(scope, aggregate.document.id, {
+    const updated = await repository.updateVersion(scope, document.id, {
       versionId: version.id,
       expectedBlobKey: version.blobKey,
       expectedPdfBlobKey: version.pdfBlobKey,
@@ -290,20 +289,9 @@ export function createDocumentApplication(repository: DocumentRepository,
       update: { pdfBlobKey: key },
     });
     if (updated !== "updated") {
-      return await repository.version(scope, aggregate.document.id, version.id) ?? version;
+      return await repository.version(scope, document.id, version.id) ?? version;
     }
     return { ...version, pdfBlobKey: key };
-  };
-
-  const selectedVersion = async (scope: DocumentScope,
-    aggregate: Pick<DocumentAggregate, "document" | "versions">,
-    requested: string | null, preferPdf: boolean) => {
-    const selected = activeVersion(aggregate, requested);
-    if (!selected) return null;
-    const version = preferPdf ? await ensurePdf(scope, aggregate, selected) : selected;
-    const usePdf = preferPdf && !!version.pdfBlobKey && shouldConvertToPdf(version.fileType);
-    return { version, key: usePdf ? version.pdfBlobKey! : version.blobKey,
-      fileType: usePdf ? "pdf" : version.fileType, filename: editedFilename(version) };
   };
 
   const retainedDownloads = verifiedDownloadCache();
@@ -344,13 +332,16 @@ export function createDocumentApplication(repository: DocumentRepository,
     if (!preferPdf) return repository.version(scope, documentId, requested).then((version) =>
       version && { version, key: version.blobKey, fileType: version.fileType,
         filename: editedFilename(version) });
-    const [aggregate, version] = await Promise.all([
+    const [aggregate, requestedVersion] = await Promise.all([
       repository.head(scope, documentId),
       requested ? repository.version(scope, documentId, requested) : Promise.resolve(null),
     ]);
-    return aggregate && selectedVersion(scope,
-      requested ? { ...aggregate, versions: version ? [version] : [] } : aggregate,
-      requested, true);
+    const selected = requested ? requestedVersion : aggregate && activeVersion(aggregate);
+    if (!aggregate || !selected) return null;
+    const version = await ensurePdf(scope, aggregate.document, selected);
+    const usePdf = !!version.pdfBlobKey && shouldConvertToPdf(version.fileType);
+    return { version, key: usePdf ? version.pdfBlobKey! : version.blobKey,
+      fileType: usePdf ? "pdf" : version.fileType, filename: editedFilename(version) };
   };
 
   const add = async (scope: DocumentScope,
@@ -636,8 +627,8 @@ export function createDocumentApplication(repository: DocumentRepository,
     async projectionSource(scope, documentId, versionId) {
       const stored = await repository.version(scope, documentId, versionId);
       if (!stored) return null;
-      const version = { ...stored };
-      const readerScope = { ...scope };
+      // Snapshot both so a caller mutating its scope or version cannot widen this descriptor.
+      const version = { ...stored }, readerScope = { ...scope };
       return {
         documentId,
         versionId: version.id,
