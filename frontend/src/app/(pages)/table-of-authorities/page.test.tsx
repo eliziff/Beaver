@@ -17,7 +17,7 @@ const api = vi.hoisted(() => ({
   downloadDocument: vi.fn(), duplicateWorkProduct: vi.fn(), getDocumentParseStates: vi.fn(),
   getWorkProduct: vi.fn(),
   getWorkProductResolution: vi.fn(), listWorkProductMetadata: vi.fn(),
-  listWorkProducts: vi.fn(), prepareAuthoritiesSources: vi.fn(), prepareAuthoritiesHighlights: vi.fn(), refreshAuthorities: vi.fn(), replaceAuthoritiesSource: vi.fn(),
+  listWorkProducts: vi.fn(), prepareAuthoritiesSources: vi.fn(), prepareAuthoritiesHighlights: vi.fn(), refreshAuthorities: vi.fn(),
   refreshAuthoritiesInput: vi.fn(), reviewAuthorities: vi.fn(),
   resolveAuthoritiesDiscrepancy: vi.fn(),
   updateWorkProduct: vi.fn(),
@@ -36,7 +36,6 @@ vi.mock("@/app/lib/api/authorities", () => ({
   prepareAuthoritiesSources: api.prepareAuthoritiesSources,
   prepareAuthoritiesHighlights: api.prepareAuthoritiesHighlights,
   refreshAuthorities: api.refreshAuthorities,
-  replaceAuthoritiesSource: api.replaceAuthoritiesSource,
   refreshAuthoritiesInput: api.refreshAuthoritiesInput,
   reviewAuthorities: api.reviewAuthorities,
   resolveAuthoritiesDiscrepancy: api.resolveAuthoritiesDiscrepancy,
@@ -732,11 +731,11 @@ describe("Authorities UI contracts", () => {
     api.actOnAuthorities.mockResolvedValue({ ...saved, revision: 2, state: { ...saved.state, stage: "sources" } });
     await userEvent.click(screen.getByRole("button", { name: "Done" }));
     const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("details")!;
-    expect(within(sources).getAllByRole("article")).toHaveLength(1);
+    expect(within(sources).getAllByRole("listitem")).toHaveLength(1);
     expect(within(sources).getByText(`${neutral}; ${reporter}`)).toBeInTheDocument();
   });
 
-  it("links a visible Ibid by keyboard and restores focus to the source row", async () => {
+  it("links a cross-reference through the authority chooser", async () => {
     const saved = documentDraft(), text = "2024 ABKB 1; Ibid", ibidStart = text.indexOf("Ibid");
     const span = (start: number, end: number) => ({ start, end, text: text.slice(start, end) });
     saved.state.units = [{ id: "footnote:1", kind: "footnote", ordinal: 0, footnoteId: 1,
@@ -765,21 +764,15 @@ describe("Authorities UI contracts", () => {
     const source = await screen.findByRole("option", { name: /Ibid/ });
     await userEvent.click(source);
     await userEvent.click(screen.getByRole("button", { name: "Link to authority" }));
-    expect(source).toHaveFocus();
-    await userEvent.keyboard("{ArrowUp}");
-    const target = screen.getByRole("option", { name: /2024 ABKB 1/ });
-    expect(target).toHaveFocus();
-    expect(source).toHaveAttribute("aria-selected", "true");
-    await userEvent.keyboard("{Enter}");
+    const chooser = screen.getByRole("dialog", { name: "Link to authority" });
+    await userEvent.click(within(chooser).getByRole("button", { name: /Example v Example/ }));
     await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1, {
       type: "set-reference", occurrenceId: "ibid",
       reference: { kind: "ibid", targetAuthorityId: "authority-1" },
     }));
-    await waitFor(() => expect(source).toHaveFocus());
+    expect(screen.queryByRole("dialog", { name: "Link to authority" })).not.toBeInTheDocument();
+    expect(await screen.findByText("Linked to Example v Example, 2024 ABKB 1")).toBeVisible();
     expect(source).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("Linked to Example v Example, 2024 ABKB 1")).toBeVisible();
-    expect(screen.queryByText("Choose the full citation this cross-reference points to."))
-      .not.toBeInTheDocument();
   });
 
   it("fetches after citation review and reveals Sources only when acquisition finishes", async () => {
@@ -803,8 +796,8 @@ describe("Authorities UI contracts", () => {
     await act(async () => pending.resolve(saved));
     const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("details")!;
     expect(sources).toHaveAttribute("open");
-    expect(within(sources).getAllByRole("article")).toHaveLength(2);
-    expect(screen.getByRole("button", { name: "Continue with stubs" })).toBeVisible();
+    expect(within(sources).getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: /Done — review highlights/u })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Build outputs" })).not.toBeInTheDocument();
   });
 
@@ -970,42 +963,15 @@ describe("Authorities UI contracts", () => {
       render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
         route={workspaceRoute("draft-1")} /></MemoryRouter>);
 
-      expect(screen.queryByText(/source PDF.*required before building/u)).toBeNull();
       await userEvent.click(await screen.findByRole("button", { name: "Build" }));
 
-      expect(await screen.findByText("Return to Sources to add the missing PDFs or explicitly continue with stubs.")).toBeVisible();
-      expect(screen.getByText("1 source PDF is required before building.")).toBeVisible();
-      expect(api.prepareAuthoritiesSources).not.toHaveBeenCalled();
-      expect(screen.getByRole("heading", { name: "Sources" })).toBeVisible();
+      const warning = await screen.findByRole("dialog", { name: /Missing PDFs/u });
+      expect(within(warning).getByText(/1 authority has no PDF/u)).toBeVisible();
+      expect(api.buildAuthorities).not.toHaveBeenCalled();
+      await userEvent.click(within(warning).getByRole("button", { name: "Cancel" }));
+      expect(screen.queryByRole("dialog", { name: /Missing PDFs/u })).not.toBeInTheDocument();
       expect(api.buildAuthorities).not.toHaveBeenCalled();
     });
-
-  it("replaces an imported source without starting a new draft", async () => {
-    const saved = documentDraft(), replaced = { ...saved, revision: 2 };
-    api.getWorkProduct.mockResolvedValue(saved);
-    api.replaceAuthoritiesSource.mockResolvedValue(replaced);
-    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
-    const file = new File(["PK\x03\x04new"], "Replacement.docx");
-
-    await userEvent.upload(await screen.findByLabelText("Replace file"), file);
-
-    expect(api.replaceAuthoritiesSource).toHaveBeenCalledWith("draft-1", 1, file);
-    expect(api.createAuthorities).not.toHaveBeenCalled();
-  });
-
-  it("offers file replacement instead of a dead relink for missing Beaver inputs", async () => {
-    const saved = documentDraft();
-    api.getWorkProduct.mockResolvedValue(saved);
-    api.getWorkProductResolution.mockResolvedValue({ inputs: {
-      source: { status: "missing", reason: "deleted" },
-    } });
-    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
-
-    expect(await screen.findByLabelText("Replace file")).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Relink source" })).not.toBeInTheDocument();
-  });
 
   it("remembers a missing attached PDF and offers its replacement", async () => {
     const saved = add(draft(), authority("alpha", "Alpha",
@@ -1096,15 +1062,15 @@ describe("Authorities UI contracts", () => {
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
 
     const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("details")!;
-    const rows = within(sources).getAllByRole("article");
+    const rows = within(sources).getAllByRole("listitem");
     expect(rows.map((row) => within(row).getByRole("heading").textContent))
       .toEqual(["Zulu Act", "Beta v Test", "Alpha v Test"]);
-    expect(within(rows[0].parentElement!).getByText("Tab 1")).toBeVisible();
-    expect(within(rows[1].parentElement!).getByText("Tab 2")).toBeVisible();
-    expect(within(rows[2].parentElement!).getByText("Excluded")).toBeVisible();
+    expect(within(rows[0]).getByText("Tab 1")).toBeVisible();
+    expect(within(rows[1]).getByText("Tab 2")).toBeVisible();
+    expect(within(rows[2]).getByText("Excluded")).toBeVisible();
   });
 
-  it.each(["manual", "document"] as const)("retains slot formats when moving an authority in %s mode", async (mode) => {
+  it.each(["manual", "document"] as const)("labels fixed slots with the configured tab format in %s mode", async (mode) => {
     const saved = add(mode === "manual" ? draft() : documentDraft(),
       authority("alpha", "Alpha", { kind: "unresolved" }),
       authority("beta", "Beta", { kind: "unresolved" }),
@@ -1112,23 +1078,16 @@ describe("Authorities UI contracts", () => {
     saved.state.outputMode = "book"; saved.state.stage = "sources";
     Object.assign(saved.state.settings, { tabStyle: "roman", tabStart: 4,
       tabPrefix: "Record ", tabLabels: ["Front", "", "End"] });
-    const moved = structuredClone(saved); moved.revision += 1;
-    moved.state.authorityOrder = ["beta", "alpha", "gamma"];
     api.getWorkProduct.mockResolvedValue(saved);
-    api.actOnAuthorities.mockResolvedValue(moved);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
     const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("details")!;
-    const checkSlots = (names: string[]) => {
-      const cards = within(sources).getAllByRole("article");
-      cards.forEach((card, i) => {
-        expect(within(card).getByRole("heading")).toHaveTextContent(names[i]);
-        expect(within(card.parentElement!).getByText(["Front", "Record V", "End"][i])).toBeVisible();
-      });
-    };
-    checkSlots(["Alpha", "Beta", "Gamma"]);
-    await userEvent.click(within(sources).getByRole("button", { name: "Move Alpha down", exact: true }));
-    await waitFor(() => checkSlots(["Beta", "Alpha", "Gamma"]));
+    const rows = within(sources).getAllByRole("listitem");
+    rows.forEach((row, i) => {
+      expect(within(row).getByRole("heading")).toHaveTextContent(["Alpha", "Beta", "Gamma"][i]);
+      expect(within(row).getByText(["Front", "Record V", "End"][i])).toBeVisible();
+    });
+    expect(within(sources).queryByRole("button", { name: /^Move / })).toBeNull();
   });
 
   it("renames a manual draft and derives its procedural tabs", async () => {
@@ -1257,10 +1216,10 @@ describe("Authorities UI contracts", () => {
 
     const known = (await screen.findByRole("heading", { name: "R v Oakes" })).closest("article")!;
     const unknown = screen.getByRole("heading", { name: "Unresolved case" }).closest("article")!;
-    expect(within(unknown).queryByRole("button", { name: "Get from CanLII" })).toBeNull();
-    await userEvent.click(within(known).getByRole("button", { name: "Get from CanLII" }));
-    const handoff = screen.getByRole("link", { name: "Open CanLII" });
-    expect(handoff).toHaveAttribute("href", pdfUrl.replace(/\.pdf$/u, ".html"));
+    expect(within(unknown).queryByRole("link", { name: "Get from CanLII" })).toBeNull();
+    const handoff = within(known).getByRole("link", { name: "Get from CanLII" });
+    expect(handoff).toHaveAttribute("href", pdfUrl);
+    expect(handoff).toHaveAttribute("target", "_blank");
     expect(handoff).toHaveAttribute("rel", "noopener noreferrer");
 
     const file = new File(["%PDF-"], "oakes.pdf", { type: "application/pdf" });
@@ -1294,7 +1253,7 @@ describe("Authorities UI contracts", () => {
 
     await waitFor(() => expect(api.prepareAuthoritiesSources)
       .toHaveBeenCalledWith("draft-1", 2, undefined));
-    expect(await screen.findByRole("button", { name: "Get from CanLII" })).toBeVisible();
+    expect(await screen.findByRole("link", { name: "Get from CanLII" })).toBeVisible();
     const row = screen.getByRole("heading", { name: "R v Jordan" }).closest("article")!;
     await userEvent.click(within(row).getByRole("button", { name: "Options for R v Jordan" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Edit details" }));
@@ -1393,7 +1352,7 @@ describe("Authorities UI contracts", () => {
       { type: "set-cover", cover: covered.state.cover }));
     await waitFor(() => expect(within(screen.getByText("Cover").parentElement!)
       .getByText("Generated")).toBeVisible());
-    expect(screen.getByText("1 source PDF is required before building.")).toBeVisible();
+    expect(screen.getByText("1 missing PDF.")).toBeVisible();
     const filedBy = screen.getByLabelText("Filed by");
     expect(within(filedBy).getAllByRole("option").map(({ textContent }) => textContent))
       .toEqual(["Plaintiff", "Defendant", "Applicant", "Respondent", "Moving party",
@@ -1444,7 +1403,7 @@ describe("Authorities UI contracts", () => {
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
 
     await screen.findByRole("button", { name: /Court:/u });
-    expect(screen.getByText("1 source PDF is required before building.")).toBeVisible();
+    expect(screen.getByText("1 missing PDF.")).toBeVisible();
     await userEvent.click(screen.getByText("Options"));
     expect(screen.queryByLabelText("Missing sources")).not.toBeInTheDocument();
   });

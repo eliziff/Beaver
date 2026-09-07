@@ -1,8 +1,8 @@
 import { QuotationReview } from "./QuotationFinding";
 import { FileInputButton } from "./FileInputButton";
 import { authorityName, authorityLabel,
-  requiresBilingualSources, hasRequiredSources,
-  missingSource, mustAttachPdf, sourceAction, relinkable } from "./authorityPresentation";
+  requiresBilingualSources,
+  missingSource, sourceAction, relinkable } from "./authorityPresentation";
 import { BookOpen, ChevronRight, Download, Eye, FilePlus2, FolderSearch,
   History, Link2, Loader2, Plus, Scale, Settings2 } from "lucide-react";
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState,
@@ -130,15 +130,14 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const [pendingAttachment, setPendingAttachment] = useState<{
     authorityId: string; selected: PdfChoice;
   }>();
-  const [linkingId, setLinkingId] = useState("");
-  const [focusRequest, setFocusRequest] = useState(0);
   const [findingId, setFindingId] = useState("");
   const [highlightWarnings, setHighlightWarnings] = useState<{ key: string;
     items: Array<{ label: string; excerpt: string }>; sets: Record<string, PdfAnnotationSet> }>();
   const [editingAuthority, setEditingAuthority] = useState<AuthorityIdentity>();
   const [sourcePreview, setSourcePreview] = useState<{ role: string; name: string;
     bytes?: Uint8Array; error?: string }>();
-  const [scanReview, setScanReview] = useState<{ files: ScannedAuthorityPdf[]; withStubs: boolean }>();
+  const [scanReview, setScanReview] = useState<ScannedAuthorityPdf[]>();
+  const [stubWarning, setStubWarning] = useState(false);
   const scanRequest = useRef<AbortController | null>(null);
   const previewRequest = useRef(0);
   const [sourceIssueState, setSourceIssueState] = useState<{
@@ -170,7 +169,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       if (!preserveTab) setTab(next.state.import.kind === "manual" ? "manual" : "automatic");
       if (next.state.import.kind === "manual") setManualTitle(next.title);
     }
-    setLinkingId(""); setPendingAttachment(undefined); setError(""); setMessage("");
+    setPendingAttachment(undefined); setError(""); setMessage("");
   }, []);
   const remember = useCallback((next: AuthoritiesProduct) => {
     draftRef.current = next; setDraft(next);
@@ -309,9 +308,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const authorityPlan = useMemo(() => draft ? planAuthorities(draft) : [], [draft]);
   const authorities = draft ? authorityPlan.map(({ id }) => draft.state.authorities[id]) : [];
   const authorityTabs = new Map(authorityPlan.map(({ id, tab }) => [id, tab]));
-  const missingPdfs = draft ? authorities.filter((item) => !item.excluded &&
-    missingSource(draft.state, item,
-      draft.state.stage !== "citations")) : [];
+  const missingPdfs = draft ? missingSources(draft) : [];
   const importedRole = draft?.state.import.kind === "document"
     ? draft.state.import.bindingRole : undefined;
   const importedIssue = importedRole ? sourceIssues[importedRole] : undefined;
@@ -346,7 +343,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       }
     }
     setTab(next);
-    setError(""); setMessage(""); setLinkingId("");
+    setError(""); setMessage("");
   }
   async function run<T>(operationFn: () => Promise<T>, done: (value: T) => void,
     success = "", label = "Updating authorities") {
@@ -510,11 +507,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     },
       "Source relinked");
   }
-  function replaceSource(selected?: AuthoritiesFile) {
-    if (!draft || !selected || !host.replaceSource) return;
-    void run(() => host.replaceSource!(draft.id, draft.revision, selected), remember,
-      "Source replaced");
-  }
   function rename(title: string) {
     if (draft) void run(() => host.drafts.update<AuthoritiesProduct["state"]>(draft.id,
       { revision: draft.revision, title }), (next) => { remember(next); if (next.state.import.kind === "manual") setManualTitle(next.title); });
@@ -531,17 +523,13 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       setDrafts((current) => current.filter((item) => item.id !== id)); newDraft();
     });
   }
-  function build() {
-    if (!draft) return;
+  function build(current = draftRef.current, force = false) {
+    if (!current) return;
+    if (!force && !current.state.settings.allowIncomplete && missingSources(current).length) {
+      setStubWarning(true); return;
+    }
     const request = new AbortController(); buildRequest.current = request; setBuilding(true);
-    void run(async () => {
-      const required = authorities.filter((authority) => !authority.excluded &&
-        !hasRequiredSources(draft.state, authority) && mustAttachPdf(draft.state, authority));
-      if (required.length && !draft.state.settings.allowIncomplete) {
-        throw new Error("Return to Sources to add the missing PDFs or explicitly continue with stubs.");
-      }
-      return host.build(draft, setMessage, request.signal);
-    },
+    void run(() => host.build(current, setMessage, request.signal),
       ({ product, notice }) => {
         inspectionRequest.current += 1;
         setSourceIssueState((current) => {
@@ -621,20 +609,20 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     return items.length ? current : host.act(current.id, current.revision, { type: "set-stage", stage: "highlights" });
   }
 
-  function finishSourceReview(policy: AuthoritiesBuildSettings["scannedPdfPolicy"], withStubs: boolean) {
+  function finishSourceReview(policy: AuthoritiesBuildSettings["scannedPdfPolicy"]) {
     const current = draftRef.current;
     if (!current) return;
     const request = new AbortController(); scanRequest.current?.abort(); scanRequest.current = request;
     void run(async () => {
       const configured = await host.act(current.id, current.revision, {
-        type: "set-settings", settings: { scannedPdfPolicy: policy, allowIncomplete: withStubs },
+        type: "set-settings", settings: { scannedPdfPolicy: policy },
       });
       remember(configured);
       return prepareHighlightReview(configured, request.signal);
     }, (next) => { remember(next); setScanReview(undefined); }, "", "Preparing highlight review")
       .finally(() => { if (scanRequest.current === request) scanRequest.current = null; });
   }
-  function finishSources(withStubs = false) {
+  function finishSources() {
     const current = draftRef.current;
     if (!current || busy) return;
     const request = new AbortController(); scanRequest.current?.abort(); scanRequest.current = request;
@@ -658,30 +646,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       }
       request.signal.throwIfAborted();
       if (files.length) return { files, next: undefined };
-      const configured = await host.act(current.id, current.revision, {
-        type: "set-settings", settings: { allowIncomplete: withStubs },
-      });
-      remember(configured);
-      return { files, next: await prepareHighlightReview(configured, request.signal) };
+      return { files, next: await prepareHighlightReview(current, request.signal) };
     }, ({ files, next }) => {
       setMessage("");
-      if (next) remember(next); else setScanReview({ files, withStubs });
+      if (next) remember(next); else setScanReview(files);
     }, "", "Checking source PDFs").finally(() => {
       if (scanRequest.current === request) scanRequest.current = null;
-    });
-  }
-  function selectOccurrence(id: string) {
-    if (!linkingId || !draft) { setSelectedId(id); return; }
-    if (busy) return;
-    const target = draft.state.occurrences[id], source = draft.state.occurrences[linkingId];
-    if (!target?.authorityId || target.id === source?.id) {
-      setError("Choose the full citation this cross-reference points to."); return;
-    }
-    const kind = /\bibid\b/iu.test(source?.text ?? "") ? "ibid" : "supra";
-    const sourceId = linkingId;
-    act({ type: "set-reference", occurrenceId: sourceId,
-      reference: { kind, targetAuthorityId: target.authorityId } }, () => {
-      setLinkingId(""); setSelectedId(sourceId); setFocusRequest((value) => value + 1);
     });
   }
   const stage = draft?.state.stage ?? (draft && Object.keys(draft.outputs).length ? "build"
@@ -696,7 +666,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       multiple, "pdf", (files) => attachBookFiles(slot, files, supplementId)) : undefined}
     onLibraryBook={attachLibraryAvailable
       ? (slot, supplementId) => openLibrary({ kind: "book", slot, supplementId }) : undefined}
-    sourceLabel={sourceLabel} onBuild={build} onCancel={() => buildRequest.current?.abort()}
+    sourceLabel={sourceLabel} onBuild={() => build()} onCancel={() => buildRequest.current?.abort()}
     onDownload={download} />;
   const preparedHighlights = highlightWarnings?.key === highlightPreparationKey(draft) ? highlightWarnings : undefined;
   const highlightPanel = draft && (stage === "highlights" || stage === "build") && <AuthoritiesHighlights product={draft} tabs={authorityTabs}
@@ -719,8 +689,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
           {item.excerpt && <p className="line-clamp-2 text-xs text-gray-600">{item.excerpt}</p>}</li>)}</ul>
     </details>}
     <Button disabled={busy} onClick={() => markingIssues
-      ? act({ type: "set-stage", stage: "highlights" }) : finishSources(missingPdfs.length > 0)}>
-      {markingIssues ? "Continue to highlights" : missingPdfs.length ? "Continue with stubs" : "Done — review highlights"}<ChevronRight /></Button>
+      ? act({ type: "set-stage", stage: "highlights" }) : finishSources()}>
+      {markingIssues ? "Continue to highlights" : "Done — review highlights"}<ChevronRight /></Button>
   </div>;
   const authorityPanelProps = { authorities, tabs: authorityTabs, busy, sourceIssues,
     onAction: act, onEditIdentity: setEditingAuthority,
@@ -803,26 +773,14 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                           variant="outline" className="h-9 border-gray-400" disabled={busy}
                           onClick={() => relinkSource(importedRole)}><FilePlus2 />
                           {sourceAction(importedIssue, "source")}</Button>}
-                        {host.replaceSource && (host.pickFiles
-                          ? <Button type="button" variant="outline" className="h-9 border-gray-400"
-                              disabled={busy} onClick={() => void pickFiles(false, "source",
-                                (files) => replaceSource(files[0]))}><FilePlus2 /> Replace file</Button>
-                          : <FileInputButton multiple={false} disabled={busy} label="Replace file"
-                              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                              onFiles={(files) => replaceSource(files[0] && { file: files[0] })}
-                              variant="outline" compact />)}
                         <Button disabled={busy} className="h-9" onClick={findSources}>Done<ChevronRight /></Button>
                         </>}
                       </div>
                     </div>
                     {stage === "citations" && operation !== "Finding source PDFs" && <CitationReview occurrences={occurrences} units={draft.state.units}
                       selected={selected} authorities={authorities} discrepancies={discrepancies}
-                      busy={busy} linkingId={linkingId} focusRequest={focusRequest}
-                      onCancelLink={() => setLinkingId("")}
-                      onSelect={selectOccurrence} onAction={act}
-                      onFocusChange={onFocusChange}
-                      onReview={setFindingId}
-                      onBeginLink={(id) => { setError(""); setLinkingId(id); }} />}
+                      busy={busy} onSelect={setSelectedId} onAction={act}
+                      onFocusChange={onFocusChange} onReview={setFindingId} />}
                   </section>
                   {stage !== "citations" && <Sources key={draft.id} draft={draft} occurrences={occurrences}
                     {...authorityPanelProps} onRetry={findSources}
@@ -883,10 +841,21 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
           act({ type: "edit-authority", authorityId: editingAuthority.id, kind, citation, name });
           setEditingAuthority(undefined);
         }} />}
-      {scanReview && <SourceOcrModal files={scanReview.files} busy={busy}
+      {scanReview && <SourceOcrModal files={scanReview} busy={busy}
         policy={draft?.state.settings.scannedPdfPolicy ?? "page-margin"}
         onClose={() => setScanReview(undefined)} onPreview={openSource}
-        onContinue={(policy) => finishSourceReview(policy, scanReview.withStubs)} />}
+        onContinue={finishSourceReview} />}
+      <Modal open={stubWarning} onClose={() => setStubWarning(false)} size="md"
+        breadcrumbs={["Missing PDFs"]} className="!h-fit max-h-[calc(100dvh-2rem)]"
+        cancelAction={{ label: "Cancel", onClick: () => setStubWarning(false) }}
+        primaryAction={{ label: "Build anyway", disabled: busy, onClick: () => {
+          setStubWarning(false);
+          act({ type: "set-settings", settings: { allowIncomplete: true } },
+            (next) => build(next, true));
+        } }}>
+        <p className="pb-4 text-sm text-gray-700">{missingPdfs.length} authorit{missingPdfs.length === 1
+          ? "y has" : "ies have"} no PDF. Labelled stub pages will hold those tab slots and the build will not be filing-ready.</p>
+      </Modal>
       <Modal open={!!sourcePreview} size="2xl" breadcrumbs={[sourcePreview?.name ?? "Source PDF"]}
         className="h-[min(900px,calc(100dvh-2rem))] [&_.modal-body]:p-0"
         onClose={() => { previewRequest.current += 1; setSourcePreview(undefined); }}
@@ -986,9 +955,10 @@ function DraftsPanel({ drafts, loading, busy, onOpen }: { drafts: WorkProductMet
   const pages = Math.max(1, Math.ceil(drafts.length / 8));
   const [requestedPage, setPage] = useState(1), page = Math.min(requestedPage, pages);
   return <section className="overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
-    <div className="flex items-center gap-3 border-b border-gray-200 p-4 sm:p-5">
-      <History className="h-5 w-5 shrink-0 text-red-700" /><div className="min-w-0"><h2 className="font-semibold text-gray-950">Saved drafts</h2>
-      <p className="text-sm text-gray-600">Reopen, edit, and build again.</p></div></div>
+    <div className="flex min-h-12 items-center gap-2 border-b border-gray-200 px-4">
+      <History className="h-4 w-4 shrink-0 text-red-700" />
+      <h2 className="font-semibold text-gray-950">Saved drafts</h2>
+      <span className="ms-auto text-sm tabular-nums text-gray-500">{drafts.length}</span></div>
     <div className="h-[28rem] overflow-y-auto">
       {loading ? <div className="grid h-full place-items-center px-4 py-12 text-sm text-gray-500"
         role="status"><span className="inline-flex items-center"><Loader2
@@ -1002,7 +972,7 @@ function DraftsPanel({ drafts, loading, busy, onOpen }: { drafts: WorkProductMet
       {!loading && !drafts.length && <p className="grid h-full place-items-center px-4 py-12 text-center text-sm text-gray-500">No saved drafts yet.</p>}
     </div>
     {!loading && !!drafts.length && <Pagination page={page} pages={pages}
-      label={`${drafts.length} authorities drafts`} disabled={busy} onPage={setPage} />}
+      label="Saved drafts" disabled={busy} onPage={setPage} />}
   </section>;
 }
 
@@ -1046,47 +1016,34 @@ function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder }: {
 }
 
 function CitationReview({ occurrences, units, selected, authorities, discrepancies, onSelect,
-  onAction, onReview, onBeginLink, busy, linkingId, focusRequest, onCancelLink,
-  onFocusChange }: {
+  onAction, onReview, busy, onFocusChange }: {
   occurrences: AuthorityOccurrence[]; selected?: AuthorityOccurrence;
   units: AuthoritiesProduct["state"]["units"]; authorities: AuthorityIdentity[];
-  discrepancies: AuthoritiesDiscrepancy[]; busy: boolean; linkingId: string;
-  focusRequest: number;
+  discrepancies: AuthoritiesDiscrepancy[]; busy: boolean;
   onSelect: (id: string) => void; onAction: ActionHandler;
   onFocusChange?: (focus?: WorkProductFocus) => void;
   onReview: (id: string) => void;
-  onBeginLink: (id: string) => void; onCancelLink: () => void;
 }) {
-  const options = useRef<Array<HTMLButtonElement | null>>([]), previousLink = useRef("");
-  useLayoutEffect(() => {
-    if (linkingId || previousLink.current) {
-      options.current[occurrences.findIndex(({ id }) => id === selected?.id)]?.focus();
-    }
-    previousLink.current = linkingId;
-  }, [linkingId, occurrences, selected?.id, focusRequest]);
+  const options = useRef<Array<HTMLButtonElement | null>>([]);
   if (!occurrences.length) return <div className="grid h-80 place-items-center text-sm text-gray-500">No citations found.</div>;
   const unit = units.find(({ id }) => id === selected?.unitId), unitText = unit?.text ?? selected?.text ?? "";
   const authorityById = new Map(authorities.map((item) => [item.id, item]));
   const findingByOccurrence = new Map(discrepancies.map((item) => [item.occurrenceId, item]));
-  return <div className="authorities-review grid min-h-0 grid-rows-[14rem_auto] overflow-hidden @min-[35rem]:h-80 @min-[35rem]:grid-cols-[18rem_minmax(0,1fr)]! @min-[35rem]:grid-rows-1">
-    <div className="overflow-y-auto border-b border-gray-200 [scrollbar-width:thin] @min-[35rem]:border-b-0 @min-[35rem]:border-e" role="listbox"
-      aria-label="Citations" aria-describedby={linkingId ? "authority-link-instruction" : undefined}>
+  return <div className="authorities-review grid min-h-80 grid-rows-[14rem_auto] @min-[35rem]:grid-cols-[18rem_minmax(0,1fr)]! @min-[35rem]:grid-rows-1">
+    <div className="min-h-0 overflow-y-auto border-b border-gray-200 [scrollbar-width:thin] @min-[35rem]:border-b-0 @min-[35rem]:border-e" role="listbox"
+      aria-label="Citations">
       {occurrences.map((item, index) => {
         const authority = item.authorityId ? authorityById.get(item.authorityId) : undefined;
         const finding = findingByOccurrence.get(item.id);
         return <button key={item.id} ref={(node) => { options.current[index] = node; }}
           type="button" role="option" aria-selected={item.id === selected?.id}
-          aria-disabled={busy && !!linkingId || undefined}
           tabIndex={item.id === selected?.id ? 0 : -1} onClick={() => onSelect(item.id)}
           onKeyDown={(event) => {
-            if (event.key === "Escape" && linkingId) {
-              event.preventDefault(); if (!busy) onCancelLink(); return;
-            }
             if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
             event.preventDefault();
             const next = event.key === "Home" ? 0 : event.key === "End" ? occurrences.length - 1
               : (index + (event.key === "ArrowDown" ? 1 : -1) + occurrences.length) % occurrences.length;
-            if (!linkingId) onSelect(occurrences[next].id);
+            onSelect(occurrences[next].id);
             options.current[next]?.focus();
           }} className={cn("block min-h-[3.6rem] w-full border-b border-s-4 border-gray-100 px-3 py-2 text-left outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600", item.id === selected?.id ? "border-s-red-700 bg-red-50" : "border-s-transparent hover:bg-red-50")}>
           <span className="flex min-w-0 items-center gap-2 text-xs text-gray-500">
@@ -1101,24 +1058,21 @@ function CitationReview({ occurrences, units, selected, authorities, discrepanci
     </div>
     {selected && <CitationEditor key={selected.id} selected={selected} unitText={unitText}
       footnote={unit?.kind === "footnote"} canMerge={(unit?.occurrenceIds.indexOf(selected.id) ?? 0) > 0}
-      authorities={authorities} busy={busy} linking={linkingId === selected.id}
-      finding={findingByOccurrence.get(selected.id)}
-      onFocusChange={onFocusChange}
-      onAction={onAction} onReview={onReview}
-      onBeginLink={onBeginLink} onCancelLink={onCancelLink} />}
+      authorities={authorities} busy={busy} finding={findingByOccurrence.get(selected.id)}
+      onFocusChange={onFocusChange} onAction={onAction} onReview={onReview} />}
   </div>;
 }
 
 function CitationEditor({ selected, unitText, footnote, canMerge, authorities, finding, onAction,
-  onReview, onBeginLink, busy, linking, onCancelLink, onFocusChange }: {
+  onReview, busy, onFocusChange }: {
   selected: AuthorityOccurrence; unitText: string; footnote: boolean; canMerge: boolean;
-  authorities: AuthorityIdentity[]; onAction: ActionHandler; busy: boolean; linking: boolean;
+  authorities: AuthorityIdentity[]; onAction: ActionHandler; busy: boolean;
   finding?: AuthoritiesDiscrepancy;
   onReview: (id: string) => void;
   onFocusChange?: (focus?: WorkProductFocus) => void;
-  onBeginLink: (id: string) => void; onCancelLink: () => void;
 }) {
   const surface = useRef<HTMLDivElement>(null);
+  const [linkOpen, setLinkOpen] = useState(false);
   const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
   const linked = authorities.find(({ id }) => id === selected.reference?.targetAuthorityId);
   const rememberSelection = () => setSelection(selectionRange(surface.current));
@@ -1144,7 +1098,7 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
     window.getSelection()?.removeAllRanges(); setSelection(null);
   });
   const actionClass = "h-auto min-h-10 min-w-0 whitespace-normal px-2 py-1.5 text-xs leading-tight @min-[35rem]:min-h-9 @min-[35rem]:whitespace-nowrap";
-  return <div className="min-h-0 min-w-0 overflow-y-auto p-3 [scrollbar-gutter:stable]">
+  return <div className="min-w-0 p-3">
     {finding && <div className="mb-2 flex min-h-8 items-center">
       <Button type="button" variant="outline" className="h-8 border-red-300 px-2 text-xs text-red-800"
         onClick={() => onReview(finding.id)}>Review quotation</Button>
@@ -1180,23 +1134,24 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
           occurrenceId: selected.id })}>Not a citation</Button>
     </div>
     {selected.kind === "reference" && <div className="mt-2 grid min-h-16 grid-cols-2 items-center gap-2 border-t border-gray-200 pt-2 @min-[35rem]:flex @min-[35rem]:min-h-12">
-      <span id={linking ? "authority-link-instruction" : undefined}
-        className="col-span-2 min-w-0 truncate text-xs text-gray-500 @min-[35rem]:flex-1">
-        {linking ? "Choose the full citation this cross-reference points to."
-          : linked ? `Linked to ${authorityLabel(linked)}` : "Not linked"}
-      </span>
-      {linking ? <Button type="button" variant="outline"
-        className="col-span-2 h-9 text-xs @min-[35rem]:col-span-1" disabled={busy}
-        onClick={onCancelLink}>Cancel</Button> : <>
-        <Button type="button" variant="outline" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs leading-tight"
-          disabled={busy} onClick={() => onBeginLink(selected.id)}>
-          <Link2 /> Link to authority</Button>
-        <Button type="button" variant="ghost" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs leading-tight" disabled={busy || !selected.reference}
-          onClick={() => submit({ type: "set-reference", occurrenceId: selected.id,
-            reference: null })}>Clear link</Button>
-      </>}
+      <span className="col-span-2 min-w-0 truncate text-xs text-gray-500 @min-[35rem]:flex-1">
+        {linked ? `Linked to ${authorityLabel(linked)}` : "Not linked"}</span>
+      <Button type="button" variant="outline" className="h-9 min-w-0 px-2 text-xs"
+        disabled={busy} onClick={() => setLinkOpen(true)}><Link2 /> Link to authority</Button>
+      <Button type="button" variant="ghost" className="h-9 min-w-0 px-2 text-xs"
+        disabled={busy || !selected.reference}
+        onClick={() => submit({ type: "set-reference", occurrenceId: selected.id,
+          reference: null })}>Clear link</Button>
+      <SearchableChoiceModal open={linkOpen} title="Link to authority" size="md"
+        searchLabel="Search authorities" value={selected.reference?.targetAuthorityId ?? null}
+        className="!h-fit max-h-[calc(100dvh-2rem)]"
+        options={authorities.map((item) => ({ value: item.id, label: authorityLabel(item) }))}
+        onClose={() => setLinkOpen(false)} onChange={(id) => {
+          setLinkOpen(false);
+          if (id) submit({ type: "set-reference", occurrenceId: selected.id, reference: {
+            kind: /\bibid\b/iu.test(selected.text) ? "ibid" : "supra", targetAuthorityId: id } });
+        }} />
     </div>}
-
   </div>;
 }
 
@@ -1217,10 +1172,8 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
 }) {
   const [coverOpen, setCoverOpen] = useState(false);
   const profile = authoritiesProfile(draft.state.settings.profileId);
-  const lockedOutput = !!profile.locked?.outputMode;
   const manual = draft.state.import.kind === "manual";
   const book = draft.state.outputMode !== "table";
-  const completeBook = book && !!profile.requirements?.completeBookSources;
   const filingMedia = profile.options?.filingMedium;
   const bookRoles = profile.options?.bookRole;
   const generatedFederalCover = book && !!profile.requirements?.federalFormatting &&
@@ -1231,10 +1184,8 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
   const previousOutput = outputFreshness === "stale";
   const missingText = !coverDetailsReady ? "Add cover details before building."
     : !filingRoleReady ? "Choose who is filing before building."
-    : missing && draft.state.settings.allowIncomplete ? `${missing} missing PDF${missing === 1 ? "" : "s"}: draft stub pages will keep their tab slots. Not filing-ready.`
-    : missing ? completeBook || lockedOutput
-    ? `${missing} source PDF${missing === 1 ? " is" : "s are"} required before building.`
-    : "Return to Sources to add the missing PDFs or explicitly continue with stubs."
+    : missing ? `${missing} missing PDF${missing === 1 ? "" : "s"}${draft.state.settings.allowIncomplete
+      ? ": stub pages will keep their tab slots. Not filing-ready." : "."}`
     : "";
   return <section className="mt-3 rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
     <h2 className="font-semibold text-gray-950">Build outputs</h2>
@@ -1244,7 +1195,8 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
       <AuthoritiesCourtField value={draft.state.settings.profileId} disabled={busy}
         preferredKeys={jurisdictionOrder} bookOnly={manual}
         onChange={(profileId) => onAction({ type: "set-profile", profileId })} />
-      {!manual && <SelectField label="Create" value={draft.state.outputMode} disabled={busy || lockedOutput}
+      {!manual && <SelectField label="Create" value={draft.state.outputMode}
+        disabled={busy || !!profile.locked?.outputMode}
         onChange={(outputMode) => onAction({ type: "set-output-mode", outputMode })}
         options={[{ value: "book", label: "Book of Authorities" },
           { value: "table", label: "Table of Authorities" }, { value: "both", label: "Book and Table" }]} />}
@@ -1555,7 +1507,7 @@ function OptionCards<T extends string>({ legend, value, options, onChange, colum
   onChange: (value: T) => void; columns?: boolean; disabled?: boolean; className?: string }) {
   return <fieldset className={className} disabled={disabled}>
     <legend className="mb-2 text-sm font-semibold text-gray-950">{legend}</legend>
-    <div className={cn("grid gap-2", columns && "sm:grid-cols-2")}>
+    <div className={cn("grid auto-rows-fr gap-2", columns && "sm:grid-cols-2")}>
       {options.map((option) => <label key={option.value}
         className="grid min-h-16 cursor-pointer grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-3 rounded-lg border border-gray-300 p-3 has-[:checked]:border-red-600 has-[:checked]:bg-red-50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-red-600 has-[:disabled]:cursor-default has-[:disabled]:opacity-60">
         <input type="radio" name={`authorities-${legend}`} value={option.value}
@@ -1642,6 +1594,11 @@ const withProfile = (value: StartPreferences, profileId: AuthoritiesProfileId): 
   ({ ...value, profileId, passageMarking: authoritiesProfile(profileId).requirements?.markedPassages &&
     value.passageMarking === "none" ? "margin" : value.passageMarking });
 
+function missingSources(draft: AuthoritiesProduct) {
+  return planAuthorities(draft).map(({ id }) => draft.state.authorities[id])
+    .filter((item) => !item.excluded &&
+      missingSource(draft.state, item, draft.state.stage !== "citations"));
+}
 function orderedOccurrences(draft?: AuthoritiesProduct) {
   if (!draft) return [];
   return draft.state.units.flatMap((unit) => unit.occurrenceIds

@@ -9,7 +9,7 @@ const api = vi.hoisted(() => ({
   getWorkProductResolution: vi.fn(), downloadDocument: vi.fn(),
   listAuthorities: vi.fn(), listWorkProductMetadata: vi.fn(), refreshAuthorities: vi.fn(), updateWorkProduct: vi.fn(),
   prepareAuthoritiesSources: vi.fn(), refreshAuthoritiesInput: vi.fn(),
-  replaceAuthoritiesSource: vi.fn(), reviewAuthorities: vi.fn(),
+  reviewAuthorities: vi.fn(),
   resolveAuthoritiesDiscrepancy: vi.fn(), uploadAuthoritiesDocument: vi.fn(),
 }));
 vi.mock("@/app/lib/api/authorities", () => ({
@@ -22,7 +22,6 @@ vi.mock("@/app/lib/api/authorities", () => ({
   refreshAuthorities: api.refreshAuthorities,
   prepareAuthoritiesSources: api.prepareAuthoritiesSources,
   refreshAuthoritiesInput: api.refreshAuthoritiesInput,
-  replaceAuthoritiesSource: api.replaceAuthoritiesSource,
   reviewAuthorities: api.reviewAuthorities,
   resolveAuthoritiesDiscrepancy: api.resolveAuthoritiesDiscrepancy,
   uploadAuthoritiesDocument: api.uploadAuthoritiesDocument
