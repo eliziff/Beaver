@@ -24,6 +24,7 @@ import { parseResourceReference } from "./resourceReferences";
 import { resolveResearchArrangement } from "./tabular/researchArrangement";
 import { researchImportCatalog, defaultResearchImport, researchImportPlan,
   type ResearchImportInput, type ResearchImportDesign } from "./tabular/researchImport";
+import { researchLabelPlan, type ResearchLabelDesign } from "./researchLabelDesign";
 import type { TabularApplication } from "./tabular/application";
 import { tabularSubjectId, type TabularCellContent, type TabularColumn,
   type TabularRepository, type TabularReview } from "./tabularStore";
@@ -39,6 +40,7 @@ type FindingsPage = { items: ResearchFinding[]; total: number; next_offset: numb
 type TableInput = { tableId?: string; chatId?: string; messageIds?: string[];
   selection?: ResearchSelection; findingRefs?: ResearchFindingReference[];
   fingerprint?: string; design?: ResearchImportDesign; request?: string; model?: string } & Partial<ResearchImportInput>;
+type LabelInput = Omit<TableInput, "design"> & { design?: ResearchLabelDesign };
 
 /** The Sources workspace use cases share the existing document, chat and table persistence ports. */
 export function createSourceWorkspaceApplication(documents: DocumentStore, dependencies: {
@@ -310,7 +312,7 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
         research_file_id: detail.review.scope_config?.research_file_id }); }
     return { chats, tables };
   }
-  async function importCatalog(scope: Scope, id: string, input: TableInput) {
+  async function importCatalog(scope: Scope, id: string, input: Omit<TableInput, "design">) {
     const file = await required(scope, id);
     const refs = input.findingRefs ?? input.selection?.findingRefs;
     const selected = refs
@@ -352,6 +354,24 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
       : input.design ?? defaultResearchImport(catalog);
     const { arrangement: _arrangement, columns_config: _columns, ...preview } = researchImportPlan(catalog, design);
     return preview;
+  }
+  /** The chat-to-workspace organizing step: one model-proposed ontology, reviewed before it becomes research operations. */
+  async function previewLabels(scope: Scope, id: string, input: LabelInput, signal?: AbortSignal) {
+    const { file, catalog } = await importCatalog(scope, id, input);
+    const target = input.rows ?? "sources";
+    const design = input.design ?? await (await dependencies.tabular()).designLabels(scope, catalog, file, target,
+      input.request ?? fail(400, "Describe the label set you want"), { model: input.model, signal });
+    const { actions: _actions, ...plan } = researchLabelPlan(file, catalog, design, target);
+    return { ...plan, design, fingerprint: catalog.fingerprint };
+  }
+  async function applyLabels(scope: Scope, id: string, input: LabelInput, actor?: Operation): Promise<ResearchFile> {
+    const { file, catalog } = await importCatalog(scope, id, input);
+    if (input.fingerprint !== catalog.fingerprint)
+      return conflict("This research changed after the proposal. Review the refreshed proposal before applying it.");
+    const { title, propose, actions } = researchLabelPlan(file, catalog,
+      input.design ?? fail(400, "Propose a label set before applying it"), input.rows ?? "sources");
+    return await commitResearchFile(documents, scope, file, { type: "batch", title, actions, ...(propose ? { propose } : {}) },
+      undefined, operation(actor)) ?? conflict("The workspace changed. Reload it before editing.");
   }
   async function table(scope: Scope, id: string, input: TableInput = {}, actor?: Operation): Promise<TabularReview> {
     if (input.tableId) { await bind(scope, id, { tableId: input.tableId, selection: input.selection }, actor);
@@ -438,7 +458,7 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
   }
 
   return { get, create, update, query, collect, observe, revision, items, citation, bind, ensure, selection,
-    context, finding, findings, views, table, previewTable, saveFindings, columnLabels };
+    context, finding, findings, views, table, previewTable, previewLabels, applyLabels, saveFindings, columnLabels };
 }
 
 export type SourceWorkspaceApplication = ReturnType<typeof createSourceWorkspaceApplication>;

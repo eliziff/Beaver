@@ -6,13 +6,14 @@ import { ImportResearchSet } from "../tabular/ImportResearchSet";
 
 export function ChatResearchSave({ chatId, projectId }: { chatId: string; projectId?: string }) {
   const workspace = useSourcesWorkspace(), navigate = useNavigate();
-  const [importing, setImporting] = useState<string | null>(null);
-  async function open(view: "workspace" | "table") {
+  const [importing, setImporting] = useState<{ id: string; mode: "table" | "labels"; title: string } | null>(null);
+  async function open(mode: "table" | "labels" | "plain") {
     const file = await workspace.ensure({ chatId, projectId });
-    if (view === "workspace") navigate(`/sources?research_file=${encodeURIComponent(file.document.id)}`);
-    else setImporting(file.document.id);
+    if (mode === "plain") navigate(`/sources?research_file=${encodeURIComponent(file.document.id)}`);
+    else setImporting({ id: file.document.id, mode,
+      title: (file.document.filename ?? "").replace(/\.research\.md$/iu, "") });
   }
-  return <><ResearchViews workspace={() => open("workspace")} table={() => open("table")} />
-    <ImportResearchSet open={!!importing} onClose={() => setImporting(null)} fileId={importing ?? undefined}
-      chatId={chatId} projectId={projectId} onOpen={navigate} /></>;
+  return <><ResearchViews workspace={() => open("labels")} table={() => open("table")} plain={() => open("plain")} />
+    <ImportResearchSet open={!!importing} onClose={() => setImporting(null)} fileId={importing?.id}
+      mode={importing?.mode} defaultRequest={importing?.title} chatId={chatId} projectId={projectId} onOpen={navigate} /></>;
 }

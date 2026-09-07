@@ -1,13 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Citation } from "@/app/lib/citations";
 import { errorMessage } from "@/app/lib/utils";
 import { ResearchViews } from "../shared/ResearchViews";
 import { SearchableChoiceModal } from "../modals/ModalSelect";
-import { GroundedAnswerContent } from "../shared/GroundedAnswerContent";
-import { Button } from "../ui/button";
 import { ImportResearchSet } from "../tabular/ImportResearchSet";
-import { SaveFindingHighlights } from "./SaveFindingHighlights";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 
 export function ResearchWorkspaceViews() {
@@ -32,22 +28,5 @@ export function ResearchWorkspaceViews() {
       onChange={(id) => { if (!id) return;
         void workspace.chat(id === "new" ? undefined : id).then(({ path }) => { navigate(path); setChoices(null); })
           .catch((reason) => setError(errorMessage(reason, "Could not open chat"))); }} />
-  </>;
-}
-
-export function ResearchSourceAnswers({ sourceId, onCitation }: { sourceId: string; onCitation: (citation: Citation) => void }) {
-  const { findings } = useSourcesWorkspace(), page = findings.chains[sourceId];
-  useEffect(() => { if (!page) void findings.fetchPage(sourceId, null, false); }, [page, sourceId, findings.fetchPage]);
-  return <>
-    {page?.items.map(({ reference, question, answer, evidence }) => <details key={JSON.stringify(reference)} className="border-s-2 border-gray-200 ps-3">
-      <summary className="cursor-pointer text-sm font-medium text-gray-900">{question.title}</summary>
-      <div className="pt-2"><GroundedAnswerContent answer={{ ...answer, evidence }} column={question} onCitation={onCitation} />
-        {answer.claims.some(({ evidence_ids }) => evidence_ids.length > 0) && <SaveFindingHighlights references={[reference]} />}
-      </div>
-    </details>)}
-    {page?.loading && !page.items.length && <p role="status" className="text-sm text-gray-500">Loading answers…</p>}
-    {!!page?.error && <Button size="compact" variant="outline" onClick={() => void findings.fetchPage(sourceId, null, false)}>Retry answers</Button>}
-    {page?.nextCursor && <Button size="compact" variant="outline" disabled={page.loading}
-      onClick={() => void findings.fetchPage(sourceId, page.nextCursor, true)}>More answers</Button>}
   </>;
 }
