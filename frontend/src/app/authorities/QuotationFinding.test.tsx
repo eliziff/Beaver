@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { quotationDiff, readableLocator } from "./QuotationFinding";
+import { quotationAlignment, quotationDiff, readableLocator } from "./QuotationFinding";
 
 describe("quotation comparison presentation", () => {
   it("preserves both original passages and marks only their changed words", () => {
@@ -20,5 +20,25 @@ describe("quotation comparison presentation", () => {
     expect(readableLocator("paragraph", "par2")).toBe("para 2");
     expect(readableLocator("paragraph", "para 17")).toBe("para 17");
     expect(readableLocator("page", "page 9")).toBe("p 9");
+  });
+  it("accepts a recognisable passage with a substantive wording difference", () => {
+    const alignment = quotationAlignment(
+      "The deadline is seven business days.",
+      "The deadline is five business days.",
+    );
+    expect(alignment.credible).toBe(true);
+    expect(alignment.coverage).toBeGreaterThan(0.6);
+  });
+  it("does not turn an unrelated source passage into a quotation mismatch", () => {
+    const alignment = quotationAlignment(
+      "The deadline is seven business days.",
+      "The appeal concerns whether a municipality owed a private law duty of care.",
+    );
+    expect(alignment.credible).toBe(false);
+    expect(alignment.matchedWords).toBeLessThan(3);
+  });
+  it("is conservative about short quotations", () => {
+    expect(quotationAlignment("good faith", "good faith").credible).toBe(true);
+    expect(quotationAlignment("good faith", "bad faith").credible).toBe(false);
   });
 });
