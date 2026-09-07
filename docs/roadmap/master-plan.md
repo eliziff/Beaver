@@ -15,6 +15,11 @@ Implementation present, focused validation and release readiness are distinct.
 | 4 | [Legal work products](legal-work-products.md) | Authorities uses the TypeScript core in embedded/standalone hosts, with review and editable highlights. Close reference parity, durable binding/reopen and exact court-output/browser gates; do not claim all profiles filing-ready. |
 | 5 | [Saved research](research-sets.md) | Research-file foundations, the current Sources/Memo/Table UI and conversion routes are present. Remaining work is end-to-end round trips, configured live layout quality, scale/performance and Library polish—not recreating the historical overhaul. |
 
+**Bootstrap blocker:** public upstream does not serve the pinned `mike-workflows`
+commit. Publish that history or explicitly gate a replacement; the
+[repository guide](../current/local-subrepositories.md#fresh-checkout) records the
+exact pin and failure. A passing documentation check is not bootstrap certification.
+
 The current [Authorities contract](../current/authorities.md) replaces the old
 Python integration/hosted-pilot assumptions. CanLII remains a manual navigation
 and attachment handoff; a Downloads-folder watcher is not a planned substitute.
