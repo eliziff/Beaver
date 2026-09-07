@@ -1095,7 +1095,7 @@ export function legalEvidenceCitationPlan(state: LegalEvidenceTurnState): {
       const kinds = new Set(members.flatMap(({ receipt }) =>
         receipt.locator.kind === "document" ? [] : [receipt.locator.kind]));
       const kind = kinds.size === 1 ? [...kinds][0] : "document";
-      const labels = members.flatMap(({ receipt }) =>
+      const labels = kind === "document" ? [] : members.flatMap(({ receipt }) =>
         receipt.locator.kind === kind ? [receipt.locator.label] : []);
       const locatorLabels = collapseProvisionLabels(labels, kind) ?? [...new Set(labels)];
       const key = [source, kind, locatorLabels.join("")].join(" ");
