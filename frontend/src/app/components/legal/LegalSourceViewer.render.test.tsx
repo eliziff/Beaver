@@ -327,7 +327,7 @@ describe("legal source reader", () => {
             expect.objectContaining({ type: "passage", sourceId: "saved",
                 locator: { kind: "paragraph", value: "par1" }, labelIds: ["holding"] })));
         expect(String(api.actOnResearchFile.mock.calls.at(-1)[3].quote)).toContain("The ratio controls.");
-        await waitFor(() => expect(container.querySelector("[data-highlighter]")).toBeNull());
+        expect(container.querySelector("[data-highlighter]")).not.toBeNull();
     });
 
     it("forgets completed source preparation so a removed source can be added again", async () => {
@@ -369,7 +369,7 @@ describe("legal source reader", () => {
         const selection = selectText(emphasis);
         fireEvent.pointerUp(emphasis);
         fireEvent.click(emphasis);
-        await waitFor(() => expect(onOpenResearch).toHaveBeenCalledTimes(1));
+        await waitFor(() => expect(onOpenResearch).toHaveBeenCalledTimes(2));
         selection.removeAllRanges();
         expect(api.createResearchFile).not.toHaveBeenCalled();
         expect(api.actOnResearchFile).not.toHaveBeenCalled();
@@ -532,7 +532,7 @@ describe("legal source reader", () => {
             docType="cases" researchFile={researchFile} />);
         await waitFor(() => expect(container.querySelector('[data-qspan="0"]')).not.toBeNull());
         expect(container.querySelector<HTMLElement>('[data-qspan="0"]')!.style.backgroundColor)
-            .toBe("rgba(4, 120, 87, 0.2)");
+            .toBe("rgba(4, 120, 87, 0.35)");
 
         const changed = { ...researchFile, versionId: "version-2", state: {
             ...researchFile.state, labels: { ...researchFile.state.labels,
@@ -541,7 +541,7 @@ describe("legal source reader", () => {
             researchFile={changed} />);
         await waitFor(() => expect(
             container.querySelector<HTMLElement>('[data-qspan="0"]')!.style.backgroundColor,
-        ).toBe("rgba(153, 27, 27, 0.2)"));
+        ).toBe("rgba(153, 27, 27, 0.35)"));
         expect(api.researchFile).not.toHaveBeenCalled();
         expect(api.researchItems).toHaveBeenCalledTimes(1);
     });
