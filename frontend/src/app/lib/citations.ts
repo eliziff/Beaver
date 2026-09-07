@@ -11,7 +11,6 @@ type DocumentCitationQuote = {
   cell?: string;
 };
 type CitationDisplay = {
-  display_form?: "full" | "pinpoint" | "supra";
   source_class?: "case" | "legislation" | "commentary";
   external_url?: string | null;
   authority?: string;

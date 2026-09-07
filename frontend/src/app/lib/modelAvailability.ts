@@ -37,10 +37,13 @@ function isProviderAvailable(
     provider: ModelProvider,
     apiKeys: ApiKeyState,
 ): boolean {
+    // Subscription lanes carry their own credential, so the catalog being
+    // non-empty is the availability signal rather than a pasted key.
     if (
         provider === "claude-p" ||
         provider === "codex" ||
-        provider === "ollama"
+        provider === "ollama" ||
+        provider === "opencode-go"
     )
         return true;
     return !!apiKeys[provider]?.configured;

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import express from "express";
 import helmet from "helmet";
@@ -12,15 +12,21 @@ const frontend = path.resolve(__dirname, "../../frontend/dist");
 const config = publicRuntimeConfig();
 const cloudOrigin = config.mode === "cloud" ? publicOrigin() : null;
 const connectSrc = ["'self'"];
-let appHtml: string | undefined;
+let appHtml: { stamp: number; html: string } | undefined;
 
 function sendApp(_req: express.Request, res: express.Response) {
-  appHtml ??= readFileSync(path.join(frontend, "index.html"), "utf8").replace(
-    "__BEAVER_RUNTIME_CONFIG__",
-    encodeURIComponent(JSON.stringify(config)),
-  );
+  // The shell names content-hashed assets, so a rebuild under a running server
+  // invalidates it; key the cache on the file itself rather than on boot.
+  const file = path.join(frontend, "index.html");
+  const stamp = statSync(file).mtimeMs;
+  if (appHtml?.stamp !== stamp) {
+    appHtml = { stamp, html: readFileSync(file, "utf8").replace(
+      "__BEAVER_RUNTIME_CONFIG__",
+      encodeURIComponent(JSON.stringify(config)),
+    ) };
+  }
   res.setHeader("Cache-Control", "no-store");
-  res.type("html").send(appHtml);
+  res.type("html").send(appHtml.html);
 }
 
 export const server = express();
