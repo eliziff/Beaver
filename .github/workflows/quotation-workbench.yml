@@ -31,7 +31,7 @@ jobs:
           git apply scripts/quotation-native.patch
           git rm scripts/quotation-native.patch
           git add native/legal-structure-node/src/lib.rs
-          git -c user.name='Eli Ziff' -c user.email='eliasziff@gmail.com' commit -m 'fix: resolve printed paragraph labels to full native extents'
+          git -c user.name='Eli Ziff' -c user.email='eliasziff@gmail.com' commit -m 'fix: include heading-classified native paragraph owners'
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           echo "::add-mask::$auth"
           git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/fix/quotation-differences-review
@@ -45,7 +45,7 @@ jobs:
       - run: cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
       - uses: actions/upload-artifact@v4
         with:
-          name: quotation-native-fixed
+          name: quotation-native-complete
           path: native/legal-structure-node/target/release/liblegal_structure_node.so
           retention-days: 1
       - uses: actions/setup-node@v4
