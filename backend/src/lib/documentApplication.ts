@@ -591,8 +591,10 @@ export function createDocumentApplication(repository: DocumentRepository,
     },
 
     async projectionSource(scope, documentId, versionId) {
-      const version = await repository.version(scope, documentId, versionId);
-      if (!version) return null;
+      const stored = await repository.version(scope, documentId, versionId);
+      if (!stored) return null;
+      const version = { ...stored };
+      const readerScope = { ...scope };
       return {
         documentId,
         versionId: version.id,
@@ -600,6 +602,14 @@ export function createDocumentApplication(repository: DocumentRepository,
         sourceSha256: version.sourceSha256,
         ...(version.pdfProfile ? { pdfProfile: version.pdfProfile } : {}),
         ...(version.provenance ? { provenance: version.provenance } : {}),
+        assertAvailable: async () => {
+          const current = await repository.version(readerScope, documentId, version.id);
+          if (!current) throw new ApplicationError(404, "Document source is unavailable");
+          if (current.sourceSha256 !== version.sourceSha256 || current.fileType !== version.fileType ||
+              current.blobKey !== version.blobKey || current.sizeBytes !== version.sizeBytes ||
+              current.workingRevision !== version.workingRevision)
+            throw new ApplicationError(409, "Document source changed; acquire its current version");
+        },
         readBytes: async () => {
           const bytes = await checkedBytes(version);
           if (!bytes) throw new Error("Document source is unavailable");

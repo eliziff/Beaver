@@ -50,6 +50,9 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
   const passages = usePagedChains<ResearchPageItem>((sourceId, cursor, signal) => getResearchItems(file!.document.id,
     { kind: "passages", sourceId, cursor, limit: 50 }, signal), [file?.document.id], "passages", false,
     Object.fromEntries(Object.values(sources).map((source) => [source.id, source.passages?.sha256 ?? ""])));
+  const evidence = usePagedChains<ResearchPageItem>((sourceId, cursor, signal) => getResearchItems(file!.document.id,
+    { kind: "evidence", sourceId, cursor, limit: 50 }, signal), [file?.document.id], "evidence", false,
+    Object.fromEntries(Object.values(sources).map((source) => [source.id, source.passages?.sha256 ?? ""])));
   const [running, setRunning] = useState(false);
   const [findingsRevision, setFindingsRevision] = useState(0);
   const findings = usePagedChains<ResearchFinding>(async (sourceId, cursor, signal) => {
@@ -64,7 +67,12 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
   }, [file, memoryKey]);
   useEffect(() => { if (supplied !== undefined) accept(supplied); }, [supplied, accept]);
   const selectionKey = JSON.stringify(suppliedSelection ?? ALL_SOURCES);
-  useEffect(() => { setSelection(JSON.parse(selectionKey) as ResearchSelection); }, [selectionKey]);
+  const previousSelectionKey = useRef(selectionKey);
+  useEffect(() => {
+    if (previousSelectionKey.current === selectionKey) return;
+    previousSelectionKey.current = selectionKey;
+    setSelection(JSON.parse(selectionKey) as ResearchSelection);
+  }, [selectionKey]);
 
   const open = useCallback(async (id: string) => {
     const run = ++generation.current;
@@ -169,7 +177,7 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
       : Object.values(labels).filter(({ scope }) => scope === "highlight").sort((a, b) => a.order - b.order)[0]?.id;
     if (!active) {
       active = crypto.randomUUID();
-      await act({ type: "label", id: active, name: "Highlight", parentId: null, scope: "highlight", color: "#eab308" });
+      await act({ type: "label", id: active, name: "Highlight", parentId: null, scope: "highlight", color: "#d6b85a" });
     }
     if (active !== penId.current) { penId.current = active; setPen(active); }
     await act({ type: "passage", sourceId, locator: picked.locator, quote: picked.quote, labelIds: [active] });
@@ -180,7 +188,7 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
   const highlight = { pen, setPen, armed, arm: setArmed, run: runHighlight,
     registerReader: useCallback((next: (() => HighlightCapture | null) | null) => { capture.current = next; }, []) };
 
-  return { file, selection, setSelection, accept, open, refresh, loading, error, mutations, passages, findings,
+  return { file, selection, setSelection, accept, open, refresh, loading, error, mutations, passages, evidence, findings,
     ensure, bind, table, chat, highlight, views: () => getWorkspaceViews(requireFile().document.id), retry: restore };
 }
 

@@ -48,45 +48,75 @@ pagination or downloading.
 
 ## Sources workspace
 
-- Labels, Search, and Memo are the three workspace tabs. Labels shows the
-  nested label organizer (labels and passage categories together) above one
-  source list; selecting a label or category scopes that list, and one options
-  menu holds sort and facet filters. Search runs against the same list: a query
-  with an optional passage extent (match, sentence or paragraph, around, before
-  or after the phrase) returns matches inline, matched passages can be selected
-  and saved under a category, and earlier searches stay collapsed with Run again
-  and View matches. Capture rules remain a model-facing query capability.
-- Source and passage actions use compact controls that appear on hover. Cite
-  opens the memo; the memo and its autosave remain mounted across tab changes.
-- Open as connects Chat, Workspace and the existing Tabular Review. Views reuse
-  original supporting evidence and refer to canonical answers and label assignments.
-  An existing arrangement opens directly. Organizing across forms goes through one
-  composer on the workspace and the table: the request is the user's own words or
-  the visible default, it runs as a visible turn in the bound chat, and it lands
-  either as an undoable change (with an inline Undo strip) or, when the user
-  chooses Propose, as a proposal for review. No hidden prompt is sent.
-- Organization follows the task: arbitrary nested or overlapping labels, passage
-  sets, question columns, and combinations remain first-class. The human or model
-  chooses rows, columns and grouping; chat turns never dictate table columns.
-  Separate supported branches of one source can occupy separate rows.
-- Source and passage selections are resolved before bulk labelling or extraction.
-  Human highlights, assistant reads and extracted supports use the same receipt
-  identity; actor and model provenance remain separate audit metadata.
-- Bound chats collect completed and interrupted research into their workspace.
-  Workspace and table results remain available through the existing scoped
-  application operations, in both local and cloud modes.
-- One labels ontology serves Library and project tables: rows carry label dots
-  and a workspace count with label/workspace filtering and Label and
-  Add to workspace actions. Document readers expose the Highlight tool with
-  the current pen; saved passages appear as quotes.
-- Human and assistant edits have the same reversible change history. Undo checks
-  affected values and reverses one change without overwriting unrelated later work.
-  The assistant applies reversible work within the request. Suggestions and changes
-  needing a user decision are proposals; pending changes stay out of active scopes.
-- Interrupted memo saves retain the draft, reconcile the saved text before
-  retrying, and never overwrite another writer's changes. Automatic retries are
-  bounded; Retry save remains available. Replacing a conflicting draft with the
-  saved memo requires an explicit discard.
+- Research sets own source membership, source labels and highlight types. A source
+  label classifies a whole source; a highlight type is one name, colour and
+  optional parent. Source labels may overlap. A highlight has exactly one type;
+  choosing another type replaces the old one. No separate pen palette, colour
+  override or implicit source-label-to-highlight relationship exists.
+- Library files and folders have no primary research workspace or global research
+  labels. Library offers Add to research with an explicit destination choice;
+  browsing or previewing a Library document neither creates a research set nor
+  writes an assignment. Research-file previews show collected sources and saved
+  highlights, not everything encountered during research.
+- Research, Search and Memo share the existing right-hand dock. Source labels are
+  virtual folders above one source list: All sources includes unlabelled sources;
+  selecting a parent includes descendants and never duplicates a source with
+  multiple labels. Nest/reorder by dragging or keyboard; source drops add a label
+  without removing other classifications. No Unsorted pseudo-folder exists.
+- The compact highlight picker opens the type hierarchy only when needed. Naming
+  a type creates it once with a muted colour; cancelling creates nothing. Children,
+  renaming, recolouring and reordering use the same label operations. Choosing the
+  drawing type does not filter the source list. Optional source/highlight filters
+  narrow the existing list and preserve any narrower carried evidence scope.
+- Highlights stay under their source with brief quoted previews and exact
+  pinpoints. Opening a passage keeps its evidence ID and pinned source version.
+  Reader marks remain editable; saved marks load progressively without a second
+  previous/next paragraph navigation strip. Full findings and notes remain
+  available inside the expanded source.
+- Read/search receipts are background evidence, not highlights or findings. A
+  bound chat retains all receipts and queries but collects only explicitly saved
+  or grounded-answer sources. Grounded support is not automatically highlighted.
+  Chat conversion reuses actual passed claims; uncited reads never become a
+  synthetic answer. Interrupted reads remain recoverable as provenance.
+- The existing evidence part retains exact source/version/locator identities.
+  Its passage endpoint and default passage selection expose deliberate highlights;
+  the evidence endpoint also exposes background receipts. Search matches can be
+  explicitly saved under a highlight type. Capture rules without a type preview
+  matches; typed rules save them. Conflicting types for one captured receipt are
+  reported, never silently combined. Missing classifications remain predicates,
+  not persisted labels.
+- Deleting a highlight clears its annotation, not the receipt backing citations.
+  Re-reading it does not recreate the highlight. Deleting a highlight type keeps
+  its passages under the ordinary Highlight type. Renaming, recolouring or moving
+  a type preserves evidence IDs and citation targets.
+- Open as connects Chat, Workspace and Tabular Review through existing operations.
+  Findings refer to original grounded answers and supporting evidence. Importing
+  highlights excludes raw reads. Source/passage selections are resolved before
+  bulk labelling or extraction; scoped reads cannot reveal unrelated evidence
+  through memo, query or undo payloads.
+- Human and assistant edits use the same reversible history. A highlight-type
+  change is atomic; undo preserves unrelated later edits. Pending proposals do
+  not affect active classifications or extraction scopes.
+- Memo autosave remains mounted across tabs. Interrupted saves retain the draft,
+  reconcile before retrying and do not overwrite another writer. Citations render
+  as ordinary linked text, not Cite chips; insertion and dragging preserve exact
+  internal evidence targets. The citation picker lists collected sources, not
+  background reads. Existing formatting and Markdown round-tripping remain.
+
+## Tabular Review
+
+- The review title has its own wrapping row above compact actions (Docs, Sources,
+  + Column). Column names use the full column width and wrap above their controls.
+  Format icons are neutral; categorical values use muted fills. The existing
+  table selection, prompts, proposals, generation, cancellation and export remain.
+- The cell inspector is a viewport-bounded dialog with fixed header and regenerate
+  footer, and one keyboard-scrollable result region. Answer, supporting evidence
+  and explanation share one presentation; raw receipts, query IDs and the prompt
+  remain under collapsed More details. There is no duplicate Cited strip.
+- Evidence is deduplicated by receipt ID, not by source: different pinpoints remain
+  separate. Open evidence follows the cited source and original version, which may
+  differ from the table row's document. Missing support and partial coverage are
+  visible. Failed regeneration retains the answer and offers retry.
 
 ## Documents and versions
 

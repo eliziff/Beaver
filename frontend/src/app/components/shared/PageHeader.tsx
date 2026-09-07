@@ -51,6 +51,7 @@ export function PageHeader({
     children,
     actions,
     shrink = false,
+    stacked = false,
     breadcrumbs,
     loading = false,
     className,
@@ -58,6 +59,7 @@ export function PageHeader({
     children?: ReactNode;
     actions?: OptionalAction[];
     shrink?: boolean;
+    stacked?: boolean;
     breadcrumbs?: PageHeaderBreadcrumb[];
     loading?: boolean;
     className?: string;
@@ -75,11 +77,12 @@ export function PageHeader({
             className={cn(
                 "mx-4 flex min-h-14 min-w-0 flex-row flex-wrap items-center justify-between gap-3 py-2 md:mx-6 lg:min-h-[max(76px,4.625rem)] lg:flex-nowrap lg:gap-4 lg:pb-4 lg:pt-5.5",
                 shrink && "shrink-0",
+                stacked && "flex-col items-stretch lg:flex-col lg:items-stretch",
                 className,
             )}
         >
             {breadcrumbs?.length ? (
-                <Breadcrumbs items={breadcrumbs} />
+                <Breadcrumbs items={breadcrumbs} stacked={stacked} />
             ) : (
                 children
             )}
@@ -88,6 +91,7 @@ export function PageHeader({
                     "flex min-w-0 items-center justify-end gap-2 md:shrink-0",
                     wideMobileActions ? "w-full md:w-auto" : "shrink-0",
                     stackActions && "w-full flex-wrap sm:w-auto sm:flex-nowrap",
+                    stacked && "w-full justify-start sm:w-full sm:flex-wrap md:w-full",
                 )}>
                     {items.map((action, index) => (
                         <Action
@@ -203,7 +207,21 @@ function ActionButton({
     );
 }
 
-function Breadcrumbs({ items }: { items: PageHeaderBreadcrumb[] }) {
+function Breadcrumbs({ items, stacked }: { items: PageHeaderBreadcrumb[]; stacked: boolean }) {
+    if (stacked) {
+        const current = items.at(-1)!;
+        return <div className="w-full min-w-0">
+            {items.length > 1 && <nav aria-label="Breadcrumb" className="mb-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+                {items.slice(0, -1).map((item, index) => <span key={index} className="inline-flex items-center gap-1.5">
+                    {index > 0 && <span aria-hidden>›</span>}
+                    {item.onClick ? <button type="button" onClick={item.onClick} className="hover:text-gray-800">{item.label}</button> : item.label}
+                </span>)}
+            </nav>}
+            <h1 className="font-serif text-2xl font-medium leading-snug text-gray-900 [overflow-wrap:anywhere]">
+                {current.loading ? <span className="block h-7 w-48 rounded bg-gray-100" /> : current.label}
+            </h1>
+        </div>;
+    }
     const parent = [...items]
         .slice(0, -1)
         .reverse()
