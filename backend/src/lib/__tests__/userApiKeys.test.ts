@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
     getEnvironmentApiKeyStatus,
     hasEnvApiKey,
@@ -9,6 +9,7 @@ describe("hasEnvApiKey", () => {
         "CLAUDE_API_KEY",
         "OPENAI_API_KEY",
         "GEMINI_API_KEY",
+        "META_API_KEY",
         "DEEPSEEK_API_KEY",
         "DEEPSEEK_OCR_KEY",
         "OPENROUTER_API_KEY",
@@ -16,41 +17,36 @@ describe("hasEnvApiKey", () => {
         "COURTLISTENER_API_TOKEN",
     ];
 
-    // Clear before AND after each test so keys exported in the developer's
-    // shell (or CI) can't leak into assertions.
     beforeEach(() => {
-        for (const v of envVars) delete process.env[v];
+        for (const key of envVars) vi.stubEnv(key, undefined);
     });
-
-    afterEach(() => {
-        for (const v of envVars) delete process.env[v];
-    });
+    afterEach(() => vi.unstubAllEnvs());
 
     it("returns true for claude when ANTHROPIC_API_KEY is set", () => {
-        process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+        vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test");
         expect(hasEnvApiKey("claude")).toBe(true);
     });
 
     it("ignores noncanonical Claude environment aliases", () => {
-        process.env.CLAUDE_API_KEY = "sk-claude-test";
+        vi.stubEnv("CLAUDE_API_KEY", "sk-claude-test");
         expect(hasEnvApiKey("claude")).toBe(false);
     });
 
     it("returns true for openai when OPENAI_API_KEY is set", () => {
-        process.env.OPENAI_API_KEY = "sk-openai-test";
+        vi.stubEnv("OPENAI_API_KEY", "sk-openai-test");
         expect(hasEnvApiKey("openai")).toBe(true);
     });
 
     it("returns true for gemini when GEMINI_API_KEY is set", () => {
-        process.env.GEMINI_API_KEY = "gemini-key-test";
+        vi.stubEnv("GEMINI_API_KEY", "gemini-key-test");
         expect(hasEnvApiKey("gemini")).toBe(true);
     });
 
     it("uses only the canonical DeepSeek key", () => {
-        process.env.DEEPSEEK_API_KEY = "sk-deepseek-test";
+        vi.stubEnv("DEEPSEEK_API_KEY", "sk-deepseek-test");
         expect(hasEnvApiKey("deepseek")).toBe(true);
-        delete process.env.DEEPSEEK_API_KEY;
-        process.env.DEEPSEEK_OCR_KEY = "sk-deepseek-local-test";
+        vi.stubEnv("DEEPSEEK_API_KEY", undefined);
+        vi.stubEnv("DEEPSEEK_OCR_KEY", "sk-deepseek-local-test");
         expect(hasEnvApiKey("deepseek")).toBe(false);
     });
 
@@ -62,12 +58,12 @@ describe("hasEnvApiKey", () => {
     });
 
     it("ignores whitespace-only env values", () => {
-        process.env.ANTHROPIC_API_KEY = "   ";
+        vi.stubEnv("ANTHROPIC_API_KEY", "   ");
         expect(hasEnvApiKey("claude")).toBe(false);
     });
 
     it("returns an environment-only status map without a database", () => {
-        process.env.DEEPSEEK_API_KEY = "configured";
+        vi.stubEnv("DEEPSEEK_API_KEY", "configured");
         expect(getEnvironmentApiKeyStatus()).toEqual({
             claude: false,
             gemini: false,
