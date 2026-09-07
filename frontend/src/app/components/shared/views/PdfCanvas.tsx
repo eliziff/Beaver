@@ -20,7 +20,12 @@ import { createPdfPageCache, pageAt } from "./pdfPageCache";
 import { matchesQuoteText, quoteSegments } from "./quoteText";
 import { attachPdfAnnotationLayer, focusPdfAnnotation, type PdfAnnotationEditorPort } from "./pdfAnnotationLayer";
 
+export type PdfByteSource = (signal: AbortSignal, onError: (error: Error) => void) => Promise<
+    { data: Uint8Array } | { range: import("pdfjs-dist").PDFDataRangeTransport;
+        rangeChunkSize: number; disableStream: true; disableAutoFetch: true }>;
+
 export interface PdfCanvasProps {
+    source?: PdfByteSource;
     annotationEditor?: PdfAnnotationEditorPort;
     bytes?: Uint8Array;
     loading?: boolean;
@@ -78,6 +83,7 @@ function scrollToHighlight(
 export function PdfCanvas({
     annotationEditor,
     bytes,
+    source,
     loading = false,
     error,
     quotes,
@@ -534,7 +540,8 @@ export function PdfCanvas({
             notifyUnavailable();
             return;
         }
-        if (!bytes) return;
+        if (!bytes && !source) return;
+        const controller = new AbortController();
         pagesRef.current = [];
         quotesRef.current = quoteList;
         zoomRef.current = 1;
@@ -543,22 +550,38 @@ export function PdfCanvas({
         let loadingTask: import("pdfjs-dist").PDFDocumentLoadingTask | null = null;
         queueMicrotask(() => {
             if (cancelled) return;
+            setPreparing(true);
             setZoom(1);
             setCurrentPage(1);
             setNumPages(0);
             setViewerError(null);
         });
+        const unavailable = (cause: unknown) => {
+            if (cancelled || controller.signal.aborted) return;
+            console.error("PDF render error", cause);
+            controller.abort();
+            generationRef.current += 1;
+            taskRef.current?.cancel(); scheduleRef.current = null;
+            pdfRef.current = null; pageCacheRef.current = null; pagesRef.current = [];
+            searchRef.current = null; preparePageRef.current = null;
+            quoteGenerationRef.current += 1; navigationRef.current += 1;
+            containerRef.current?.replaceChildren();
+            setNumPages(0); setPreparing(false); setViewerError(PDF_VIEWER_ERROR);
+            if (loadingTask) void loadingTask.destroy().catch(() => undefined);
+            notifyUnavailable();
+        };
         void (async () => {
-            const lib = await getPdfJs();
-            if (cancelled) return;
+            const [lib, input] = await Promise.all([getPdfJs(), source
+                ? source(controller.signal, unavailable) : Promise.resolve({ data: bytes!.slice() })]);
+            if (cancelled || controller.signal.aborted) return;
             loadingTask = lib.getDocument({
-                data: bytes.slice(),
+                ...input,
                 isEvalSupported: false,
                 maxImageSize: MAX_PDF_IMAGE_PIXELS,
                 standardFontDataUrl: STANDARD_FONT_DATA_URL,
             });
             const pdf = await loadingTask.promise;
-            if (cancelled) return void pdf.destroy();
+            if (cancelled || controller.signal.aborted) return void pdf.destroy().catch(() => undefined);
             if (!Number.isSafeInteger(pdf.numPages) || pdf.numPages < 1 ||
                 pdf.numPages > MAX_PDF_PAGES) {
                 await pdf.destroy();
@@ -568,16 +591,9 @@ export function PdfCanvas({
             pdfRef.current = pdf;
             setNumPages(pdf.numPages);
             await renderPdf(quotesRef.current);
-        })().catch((cause) => {
-            if (cancelled) return;
-            console.error("PDF render error", cause);
-            setNumPages(0);
-            setPreparing(false);
-            setViewerError(PDF_VIEWER_ERROR);
-            notifyUnavailable();
-        });
+        })().catch(unavailable);
         return () => {
-            cancelled = true;
+            cancelled = true; controller.abort();
             generationRef.current += 1;
             taskRef.current?.cancel();
             scheduleRef.current = null;
@@ -589,10 +605,10 @@ export function PdfCanvas({
             containerRef.current?.replaceChildren();
             const pdf = pdfRef.current;
             pdfRef.current = null;
-            if (loadingTask) void loadingTask.destroy();
-            else void pdf?.destroy();
+            if (loadingTask) void loadingTask.destroy().catch(() => undefined);
+            else void pdf?.destroy().catch(() => undefined);
         };
-    }, [bytes, error, renderPdf]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [bytes, source, error, renderPdf]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         quotesRef.current = quoteList;
