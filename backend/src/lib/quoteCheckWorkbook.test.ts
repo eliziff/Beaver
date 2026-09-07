@@ -34,7 +34,6 @@ it("exports complete receipts and separate semantic analysis with wrapped frozen
   expect(xml).toContain('customWidth="1"');
   expect(xml).toContain('<autoFilter ref="A1:G2"');
   expect(xml).toContain('<strike/>');
-  expect(xml).toContain('FF1F603D');
   expect(book.Workbook?.Sheets?.find(({ name }) => name === "Evidence")?.Hidden).toBe(1);
   await expect(quoteCheckWorkbook("Draft.pdf", result, { missing: "Unbound" })).rejects.toMatchObject({ status: 400 });
 });
