@@ -157,20 +157,24 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
         else if((event.key==='Delete'||event.key==='Backspace')&&selectedId) {event.preventDefault();remove(selectedId);}
         else if(event.key==='Escape'&&selectedId) {event.preventDefault();event.stopPropagation();setSelectedId(null);}
       }}>
-        <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 p-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-gray-300 bg-gray-50 p-2">
           <label className="min-w-48 flex-1"><span className="sr-only">Authority PDF</span>
             <select aria-label="Authority PDF" value={role} disabled={saving||loading}
               onChange={event=>setRole(event.target.value)} className="h-9 w-full min-w-0 rounded-md border border-gray-400 bg-white px-2 text-sm">
               {choices.map(choice=><option key={choice.bindingRole} value={choice.bindingRole}>{choice.title}</option>)}
             </select></label>
-          {([{value:'select',label:'Select',Icon:MousePointer2},{value:'highlight',label:'Highlight text',Icon:Highlighter},
-            {value:'draw',label:'Draw highlight',Icon:Pencil}] as const).map(({value,label,Icon})=><Button key={value}
-              type="button" variant={tool===value?'default':'outline'} aria-pressed={tool===value} disabled={disabled}
-              onClick={()=>setTool(value)} className="h-9"><Icon />{label}</Button>)}
-          <Button type="button" variant="outline" size="icon-sm" aria-label="Delete selected highlight"
-            disabled={disabled || !selectedId} onClick={() => selectedId && remove(selectedId)}><Trash2 /></Button>
-          <Button type="button" variant="outline" size="icon-sm" aria-label="Undo" disabled={disabled||!current?.position} onClick={undo}><Undo2 /></Button>
-          <Button type="button" variant="outline" size="icon-sm" aria-label="Redo" disabled={disabled||current.position>=current.history.length-1} onClick={redo}><Redo2 /></Button>
+          <div role="group" aria-label="Highlight tool" className="flex items-center gap-1 rounded-md border border-gray-300 bg-white p-1">
+            {([{value:'select',label:'Select',Icon:MousePointer2},{value:'highlight',label:'Highlight text',Icon:Highlighter},
+              {value:'draw',label:'Draw highlight',Icon:Pencil}] as const).map(({value,label,Icon})=><Button key={value}
+                type="button" variant={tool===value?'default':'ghost'} aria-pressed={tool===value} disabled={disabled}
+                onClick={()=>setTool(value)} className="h-8"><Icon />{label}</Button>)}
+          </div>
+          <div className="flex items-center gap-1 border-gray-300 md:border-s md:ps-3">
+            <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Delete selected highlight"
+              disabled={disabled || !selectedId} onClick={() => selectedId && remove(selectedId)}><Trash2 /></Button>
+            <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Undo" disabled={disabled||!current?.position} onClick={undo}><Undo2 /></Button>
+            <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Redo" disabled={disabled||current.position>=current.history.length-1} onClick={redo}><Redo2 /></Button>
+          </div>
         </div>
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(16rem,1fr)_minmax(8rem,.45fr)] md:grid-cols-[minmax(0,1fr)_19rem] md:grid-rows-1">
           <div className="mt-3 flex min-h-0 min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-gray-100 md:mr-3">
@@ -192,8 +196,8 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
               className={cn('flex rounded-md border',mark.id===selectedId?'border-red-700 bg-red-50':'border-gray-200 bg-white hover:border-gray-400')}>
               <button type="button" aria-pressed={mark.id===selectedId} className="min-w-0 flex-1 px-2.5 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-red-600"
                 onClick={()=>{setSelectedId(mark.id);setFocus(value=>({id:mark.id,request:(value?.request??0)+1}));}}>
-                <span className="flex items-center justify-between gap-2 text-xs font-medium">{mark.label}<span className="shrink-0 text-gray-500">p {mark.fragments.map(f=>f.pageNumber).join(", ")}</span></span>
-                {mark.excerpt && <span className="mt-1 line-clamp-2 text-xs leading-5 text-gray-700">{mark.excerpt}</span>}
+                <span className="flex items-baseline justify-between gap-2 text-sm font-medium text-gray-950">{mark.label}<span className="shrink-0 text-xs font-normal text-gray-500">p {mark.fragments.map(f=>f.pageNumber).join(", ")}</span></span>
+                {mark.excerpt && <span className="mt-0.5 line-clamp-2 text-xs leading-5 text-gray-600">{mark.excerpt}</span>}
               </button>
               <Button type="button" variant="ghost" size="icon-sm" className="m-1 shrink-0" disabled={disabled}
                 aria-label={`Delete ${mark.label}`} onClick={()=>remove(mark.id)}><Trash2 /></Button>
