@@ -198,12 +198,13 @@ describe("AssistantMessage activity", () => {
                 name: "Reading agent completed: Distinct Canadian lane one",
             }),
         ).toBeInTheDocument();
-        const citationPill = screen.getByRole("link", {
+        const citationPill = screen.getByRole("button", {
             name: "R. v. Example, 2020 BCSC 1",
         });
-        expect(citationPill).toHaveAttribute("href", "https://example.test/case");
-        expect(citationPill).toHaveAttribute("target", "_blank");
         expect(onCitationClick).not.toHaveBeenCalled();
+        // The chip opens the source in the reader rather than a browser tab.
+        await userEvent.click(citationPill);
+        expect(onCitationClick).toHaveBeenCalledOnce();
 
         await userEvent.click(
             screen.getByRole("button", {
