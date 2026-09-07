@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { assistantIntent } from "../assistant/assistantIntent";
 import { createPortal } from "react-dom";
 import { Ellipsis, FilePlus2, FolderKanban, FolderPlus } from "lucide-react";
 import { Modal } from "../modals/Modal";
@@ -15,7 +17,7 @@ const fileTitle = (file: ResearchFile | null) => file?.document.filename
   .replace(/\.research\.md$/iu, "") ?? "Workspace";
 
 export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projectId?: string; rail?: HTMLElement | null; onHistory: () => void }) {
-  const workspace = useSourcesWorkspace(), { file } = workspace;
+  const workspace = useSourcesWorkspace(), { file } = workspace, navigate = useNavigate();
   const [open, setOpen] = useState(false), [selectedDocuments, setSelectedDocuments] = useState<Document[]>([]);
   const [createOpen, setCreateOpen] = useState(false), [renameOpen, setRenameOpen] = useState(false);
   const [folderOpen, setFolderOpen] = useState(false), [projectOpen, setProjectOpen] = useState(false),
@@ -59,6 +61,11 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
     <ActionMenu label="Workspace options" className="shrink-0" items={[
     { label: "Rename", onSelect: () => setRenameOpen(true) },
     { label: "History", onSelect: onHistory },
+    { label: "Suggest organization…", onSelect: () => {
+      setStatus(""); void workspace.chat().then(({ path }) => navigate(path, { state: { assistantIntent: assistantIntent(
+        "Suggest a simpler organization of this research using its existing sources and saved highlights. Keep whole-source labels separate from highlight types. Present the changes as a proposal for me to approve; do not apply them or save additional passages.") } }))
+        .catch((reason) => setStatus(errorMessage(reason, "Could not open research chat")));
+    } },
     { label: "Open another", onSelect: () => setOpen(true) },
     { label: "New workspace", onSelect: () => { returnToPicker.current = false; newWorkspace(); } },
   ]} triggerClassName="grid size-8 place-items-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">

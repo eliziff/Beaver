@@ -96,7 +96,7 @@ export function LegalLibraryPage(props: LibraryProps) {
     </SourcesWorkspace>;
 }
 function LegalLibraryContent({ embedded = false, projectId, onOpenSource, researchFileId }: LibraryProps) {
-    const { file: researchFile, mutations } = useSourcesWorkspace();
+    const { file: researchFile, mutations, selection } = useSourcesWorkspace();
     const [results, setResults] = useState<LegalSourceSearchResult[]>([]);
     const [searched, setSearched] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
@@ -144,7 +144,9 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
         if (!file) throw new Error("Choose or create a workspace first");
         setResearchBusy(true);
         try {
-            const next = await mutations.act({ type: "source", reference: researchReference(result) });
+            const next = await mutations.act({ type: "source", reference: researchReference(result),
+                labelIds: [...new Set([...(sourceInFile(result, file)?.labelIds ?? []),
+                    ...(selection.labelIds ?? []).filter((id) => file.state.labels[id]?.scope === "source")])] });
             if (!next.sourceId) throw new Error("Saved source was not returned");
             return { file: next, itemId: next.sourceId };
         } finally { setResearchBusy(false); }
