@@ -8,8 +8,8 @@ import type { AuthoritiesBuildInput, AuthoritiesBuildResult,
 import { createAuthoritiesDraft, reduceAuthoritiesDraft,
   type AuthoritiesDraft } from "./authoritiesDomain";
 import type { AuthoritiesDiscrepancy } from "./authoritiesDiscrepancy";
-import { applyAuthoritiesUserAction,
-  createAuthoritiesWorkspaceApplication } from "./authoritiesWorkspaceApplication";
+import { applyAuthoritiesUserAction } from "./authoritiesActions";
+import { createAuthoritiesWorkspaceApplication } from "./authoritiesWorkspaceApplication";
 import { createTnaEvidence } from "./chat/legalEvidence";
 import type { DocumentFile, DocumentParseState, DocumentStore,
   DocumentVersion } from "./documentStore";
