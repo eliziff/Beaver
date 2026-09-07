@@ -2,9 +2,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { errorMessage } from "@/app/lib/utils";
-import { type ResearchFile, type ResearchLabel,
+import { researchLabelPath, type ResearchFile, type ResearchLabel,
   type ResearchSourceReference } from "@/app/lib/researchFiles";
-import { researchLabelColor, ResearchLabelCircle } from "./ResearchLabelCircle";
+import { ResearchLabelFolder, ResearchLabelMarker } from "./ResearchLabelMarker";
 import type { ResearchFileMutations } from "./useResearchFileMutations";
 
 export const RESEARCH_SOURCE_DRAG = "application/x-beaver-research-source";
@@ -44,7 +44,7 @@ export function ResearchLabelPicker({ file, kind, itemId, sourceId, labelIds, no
       aria-label={`Label ${title}${labelNames.length ? `: ${labelNames.join(", ")}` : ""}`}
       title={labelNames.join(" · ") || "Add labels and note"}
       className="inline-flex min-h-6 min-w-0 max-w-full shrink-0 items-center justify-self-start justify-center gap-1 rounded-md text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:opacity-40">
-      <ResearchLabelCircle labels={file?.state.labels ?? {}} labelIds={previewLabelIds} size={size ?? (kind === "source" ? "md" : "sm")} />
+      <ResearchLabelMarker labels={file?.state.labels ?? {}} labelIds={previewLabelIds} size={size ?? (kind === "source" ? "md" : "sm")} />
     </button>
     {target && createPortal(<ResearchLabelEditor target={target} mutations={mutations} onError={onError}
       onClose={() => setTarget(null)} onPreview={setPreviewLabelIds} />,
@@ -52,14 +52,16 @@ export function ResearchLabelPicker({ file, kind, itemId, sourceId, labelIds, no
   </>;
 }
 
-const Dot = ({ file, id, active, onClick }: { file: ResearchFile; id: string;
-  active: boolean; onClick: () => void }) => <button type="button" onClick={onClick}
-  aria-pressed={active} title={file.state.labels[id].name}
-  className={`flex min-h-8 w-full items-center gap-1.5 rounded-md px-1.5 text-start text-sm ${active
-    ? "bg-gray-200 text-gray-900 ring-1 ring-inset ring-gray-500" : "bg-gray-50 text-gray-700 hover:bg-gray-100"}`}>
-  <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: researchLabelColor(file.state.labels[id]) }} />
-  <span className="min-w-0 break-words">{file.state.labels[id].name}</span>
-</button>;
+/** One rung of the waterfall: the folders available at this depth, chosen in one click. */
+const Rung = ({ labels, items, activeId, onChoose }: { labels: Record<string, ResearchLabel>;
+  items: ResearchLabel[]; activeId: string | null; onChoose: (id: string) => void }) =>
+  <div className="flex flex-wrap gap-1">{items.map((label) => <button key={label.id} type="button"
+    onClick={() => onChoose(label.id)} aria-pressed={activeId === label.id} title={label.name}
+    className={`flex h-7 min-w-0 max-w-full items-center gap-1.5 rounded-md border px-1.5 text-sm ${activeId === label.id
+      ? "border-gray-500 bg-gray-100 font-medium text-gray-900" : "border-gray-200 text-gray-700 hover:bg-gray-50"}`}>
+    <ResearchLabelFolder labels={labels} labelId={label.id} />
+    <span className="truncate">{label.name}</span>
+  </button>)}</div>;
 
 export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutations }: {
   target: ResearchLabelTarget; onClose: () => void; mutations: ResearchFileMutations;
@@ -68,7 +70,7 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
   const popover = useRef<HTMLDivElement>(null), [slots, setSlots] = useState<string[]>(
     target.kind === "evidence" ? target.labelIds.slice(0, 1) : target.labelIds);
   const [note, setNote] = useState(target.note ?? ""), [file, setFile] = useState(target.file),
-    [search, setSearch] = useState("");
+    [activeSlot, setActiveSlot] = useState(0);
   const itemId = useRef(target.itemId), sourceId = useRef(target.sourceId), preparing = useRef<Promise<Ready> | null>(null),
     confirmed = useRef(target.file), saveNumber = useRef(0), close = useRef(onClose),
     lastSaved = useRef(JSON.stringify([target.labelIds, target.note ?? ""]));
@@ -79,8 +81,6 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
       .forEach((label) => { const values = map.get(label.parentId) ?? []; values.push(label); map.set(label.parentId, values); });
     return map; }, [labels, scope]);
   const roots = tree.get(null) ?? [];
-  const visible = (items: ResearchLabel[]): ResearchLabel[] => !search ? items : items.filter((label) =>
-    label.name.toLowerCase().includes(search.toLowerCase()) || visible(tree.get(label.id) ?? []).length);
   useLayoutEffect(() => {
     const node = popover.current, anchor = target.anchor; if (!node) return;
     if (typeof node.showPopover === "function") try { node.showPopover(); }
@@ -127,20 +127,14 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
       (target.returnFocus ?? (anchor instanceof HTMLElement ? anchor : null))?.focus();
     };
   }, [target.anchor, target.returnFocus]);
-  const choose = (id: string) => {
-    const next = scope === "highlight" ? [id] : slots.includes(id)
-      ? slots.filter((value) => value !== id) : [...slots, id];
+  const ancestry = (id: string | null) => id && labels[id] ? researchLabelPath(labels, id) : [];
+  const slot = slots[activeSlot] ?? null, path = ancestry(slot);
+  const put = (id: string | null) => {
+    const next = scope === "highlight" ? (id ? [id] : [])
+      : [...slots.slice(0, activeSlot), ...(id ? [id] : []), ...slots.slice(activeSlot + 1)]
+        .filter((value, index, all) => all.indexOf(value) === index);
     setSlots(next); persist(next, note);
   };
-  const clear = () => { setSlots([]); persist([], note); };
-  function choices(items: ResearchLabel[]) {
-    return visible(items).map((label) => <div key={label.id}>
-      <Dot file={file} id={label.id} active={slots.includes(label.id)} onClick={() => choose(label.id)} />
-      {!!tree.get(label.id)?.length && <div className="ms-3 border-s border-gray-100 ps-2">
-        {choices(tree.get(label.id)!)}
-      </div>}
-    </div>);
-  }
   function persist(nextSlots: string[], nextNote: string) {
     const snapshot = JSON.stringify([nextSlots.filter(Boolean), nextNote]);
     if (snapshot === lastSaved.current) return;
@@ -179,23 +173,30 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
     <button type="button" onClick={() => close.current()} aria-label="Close label palette"
       className="grid size-8 shrink-0 place-items-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"><X className="size-4" aria-hidden="true" /></button>
     </header>
+    {scope === "source" && <div aria-label="Filed under" className="flex items-end gap-2 overflow-x-auto border-b border-gray-100 py-2">
+      {[...slots, ""].map((id, index) => <button key={`${id}:${index}`} type="button" onClick={() => setActiveSlot(index)}
+        aria-pressed={index === activeSlot} aria-label={id ? `Label slot ${index + 1}: ${labels[id]?.name ?? ""}` : "Add a label"}
+        className={`flex w-14 shrink-0 flex-col items-center gap-1 rounded-md p-1 ${index === activeSlot ? "bg-gray-100 ring-1 ring-gray-400" : "hover:bg-gray-50"}`}>
+        <ResearchLabelFolder labels={labels} labelId={id || null} size="lg" />
+        <span className="w-full truncate text-center text-[10px] leading-3 text-gray-600">{id ? labels[id]?.name ?? "" : "Add"}</span>
+      </button>)}
+    </div>}
     {!tree.size ? <p className="my-3 text-sm text-gray-500">
       No {scope === "source" ? "labels" : "highlight types"} yet.
-    </p> : <div className="mt-2 grid gap-1 border-b border-gray-200 pb-2">
-      {Object.values(labels).filter((label) => label.scope === scope).length > 6 && <input type="search" autoComplete="off" value={search} onChange={(event) => setSearch(event.target.value)}
-        aria-label={`Search ${scope === "source" ? "labels" : "highlight types"}`} placeholder="Search"
-        className="h-8 min-w-0 rounded-md border border-gray-300 px-2 text-sm" />}
-      {choices(roots)}
-      {scope === "source" && slots.length > 0 && <button type="button" onClick={clear}
-        className="justify-self-start px-1.5 py-1 text-xs text-gray-500 underline">Clear labels</button>}
+    </p> : <div className="grid min-h-28 content-start gap-1.5 border-b border-gray-200 py-2">
+      <div className="flex flex-wrap gap-1">
+        {scope === "source" && <button type="button" onClick={() => put(null)} aria-pressed={!slot}
+          className={`flex h-7 items-center gap-1.5 rounded-md border px-1.5 text-sm ${slot ? "border-gray-200 text-gray-700 hover:bg-gray-50" : "border-gray-500 bg-gray-100 font-medium text-gray-900"}`}>
+          <ResearchLabelFolder labels={labels} labelId={null} />None</button>}
+        <Rung labels={labels} items={roots} activeId={path[0]?.id ?? null} onChoose={put} />
+      </div>
+      {!!path[0] && !!tree.get(path[0].id)?.length && <div className="ms-3 border-s border-gray-200 ps-2">
+        <Rung labels={labels} items={tree.get(path[0].id)!} activeId={path[1]?.id ?? null} onChoose={put} /></div>}
+      {!!path[1] && !!tree.get(path[1].id)?.length && <div className="ms-6 border-s border-gray-200 ps-2">
+        <Rung labels={labels} items={tree.get(path[1].id)!} activeId={path[2]?.id ?? null} onChoose={put} /></div>}
     </div>}
-    <label className="mt-2 grid gap-1 text-sm font-medium text-gray-700">Note
-      <textarea value={note} onChange={(event) => setNote(event.target.value)} onBlur={() => persist(slots, note)} aria-label="Item note"
-        placeholder="Add a note" className="min-h-16 w-full rounded-md border border-gray-300 p-2 text-sm font-normal" />
-    </label>
-    <div className="mt-2 flex items-center justify-end gap-2">
-      {error && <span role="status" className="me-auto text-xs text-red-700">{error}</span>}
-      <button type="button" onClick={() => close.current()} className="h-8 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50">Done</button>
-    </div>
+    <textarea value={note} onChange={(event) => setNote(event.target.value)} onBlur={() => persist(slots, note)} aria-label="Item note"
+      placeholder="Note" className="mt-2 min-h-14 w-full rounded-md border border-gray-300 p-2 text-sm" />
+    {error && <p role="status" className="mt-1 text-xs text-red-700">{error}</p>}
   </div>;
 }
