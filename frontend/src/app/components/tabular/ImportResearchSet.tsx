@@ -84,7 +84,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                 multiple={false} noun="research sets" documentFilter={isResearchDocument} onChange={(next) => { setTypeId(""); setPicked(next); }}
                 initialLocation={projectId ? { projectId } : { library: "files" }} /></div>
             : <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-5 overflow-y-auto">
-                <p className="shrink-0 text-sm text-gray-700">{labelling
+                <p className="min-w-0 shrink-0 text-pretty break-words text-sm text-gray-700">{labelling
                     ? "Every source in this research is filed under the labels you propose below."
                     : <><span className="font-semibold text-gray-900">{plural(count, "source")}</span> as rows,{" "}
                         <span className="font-semibold text-gray-900">{plural(columns.length, "column")}</span> from your labels,
@@ -118,7 +118,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                             onChange={(event) => editColumn(column.index, { name: event.target.value })} />
                         <input aria-label={`Column question ${column.index + 1}`} value={column.prompt} className={`mt-1 ${FIELD} text-sm text-gray-700`}
                             onChange={(event) => editColumn(column.index, { prompt: event.target.value })} />
-                        <p className={`mt-2 ${META}`}>{preview?.samples.find((cell) => cell.columnIndex === column.index)?.text
+                        <p className={`mt-2 line-clamp-2 whitespace-normal ${META}`}>{preview?.samples.find((cell) => cell.columnIndex === column.index)?.text
                             ? `e.g. ${preview.samples.find((cell) => cell.columnIndex === column.index)!.text}` : "Extracted for every source"}</p>
                     </li>)}</ul></div>}
             </div>}
