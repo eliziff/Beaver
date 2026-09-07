@@ -3,6 +3,14 @@ import { initializeRuntimeConfig } from "@/app/lib/runtimeConfig";
 import { createRoot } from "react-dom/client";
 import { Router } from "@/app/router";
 
+// A tab opened before a rebuild references chunk names that no longer exist;
+// reload once instead of surfacing "Failed to fetch" on the next screen.
+window.addEventListener("vite:preloadError", (event) => {
+    const key = "beaver:chunk-reload";
+    if (sessionStorage.getItem(key) === location.href) return;
+    sessionStorage.setItem(key, location.href); event.preventDefault(); location.reload();
+});
+
 const container = document.getElementById("root");
 if (!container) throw new Error("Missing Beaver application root");
 const root = createRoot(container);
