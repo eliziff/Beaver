@@ -17,7 +17,6 @@ export function QuoteReviewModal({ workflow, documents, onClose, onAssistantSele
         ...variants.map((variant) => ({ id: variant.id, label: "Quotations and legal support", description:
             "Use AI to assess wording, source support, and misleading characterizations. Start with a prose critique in chat. Reports and edits are available on request." }))];
     return <Modal open onClose={onClose} size="xl" breadcrumbs={["Review quotations"]}
-        className={checking ? undefined : "h-fit max-h-[calc(100dvh-2rem)]"}
         secondaryAction={checking ? { label: "Change review type", onClick: () => setChecking(false) } : undefined}
         primaryAction={checking ? undefined : { label: mode === "mechanical" ? "Continue" : "Open chat",
             disabled: mode !== "mechanical" && !onAssistantSelect,
