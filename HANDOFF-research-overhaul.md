@@ -1,12 +1,12 @@
 # Handoff — research sets / Sources workspace / Tabular Review overhaul (2026-09-06)
 
-> **Superseded by the agreed PR sequence:** A–F were subsequently pushed. The
-> foundation PR removes the Library/project ontology workspace, keeps source
-> labels research-set-local, and makes one highlight type (name, colour, parent)
-> the sole classification of a saved passage. Read receipts remain background
-> evidence; they are not highlights or synthetic findings. Do not reimplement
-> the Phase E ontology brief below. The updated sequence is in
-> `docs/roadmap/research-sets.md#pr-sequence-after-the-af-handoff`.
+> **Historical handoff, superseded:** A–F were subsequently pushed and the
+> research foundation, Sources/Table cleanup and conversion work replace the
+> design below. Read the [current research contract](docs/current/behavior-contracts.md#research-interoperability)
+> and [remaining validation gates](docs/roadmap/research-sets.md). Do not recreate
+> the obsolete Library ontology, primary-workspace pointers or uncited-read
+> findings. Phase statuses and uncommitted-work statements below describe the
+> original session only, not the current repository.
 
 
 Session ran out of usage mid-orchestration. Nothing is committed. All work is

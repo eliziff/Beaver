@@ -73,7 +73,9 @@ export type ResearchAction =
   | { type: "passage"; sourceId: string; locator: PassageLocator; quote: string; labelIds?: string[] }
   | ({ type: "label-selection"; assign: string[]; mode: "add" | "remove" | "replace" } & ResearchSelection)
   | { type: "accept" | "reject" | "undo"; changeId: string }
-  | { type: "note"; markdown: string; expectedMarkdown?: string };
+  | { type: "note"; markdown: string; expectedMarkdown?: string }
+  /** One atomic research change: all of it commits, or none of it does. */
+  | { type: "batch"; title: string; propose?: boolean; actions: ResearchAction[] };
 
 /** Receipt inventory counts are not highlight counts. */
 export const researchHighlightCount = (source: ResearchSource) =>

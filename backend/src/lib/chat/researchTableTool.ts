@@ -96,7 +96,10 @@ export async function readResearchFindings(dependencies: { sources: SourceWorksp
         if (size + length + bytes > 50_000) unreturned.add(receipt.evidence_id);
         else { evidence.set(receipt.evidence_id, receipt); size += bytes; }
       }
-    claims.push({ claim_index: cursor++, ...shown, evidence_ids: claim.evidence_ids }); size += length;
+    // A narrowed selection still reports the claim's original index.
+    const originalIndex = finding.reference.kind === "answer" ? finding.reference.claimIndices?.[cursor] : undefined;
+    claims.push({ claim_index: originalIndex ?? cursor, ...shown, evidence_ids: claim.evidence_ids });
+    cursor++; size += length;
   }
   return { result: toolText({ ok: true, research_file_id: workspaceId, ...metadata(finding), question,
     result: { ...fields, flag: finding.answer.flag, outcome: finding.answer.outcome, coverage: finding.answer.coverage },

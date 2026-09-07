@@ -790,7 +790,7 @@ describe("structural parse state", () => {
 });
 
 describe("research-scoped Library actions", () => {
-    const workspace = (): ResearchFile => ({ document: { id: "research-1", filename: "Contract research.research.md" },
+    const workspace = (): ResearchFile => ({ document: { id: "research-1", filename: "Contract research.research.md", file_type: "md" },
         versionId: "v1", workingRevision: 1, state: { ...newResearchState(),
             labels: { "label-1": { id: "label-1", name: "Contract", parentId: null,
                 color: "#aabbaa", order: 0, scope: "source" } }, sources: {
@@ -818,9 +818,12 @@ describe("research-scoped Library actions", () => {
         render(<Harness />);
         fireEvent.click(within(documentRow()).getByRole("button", { name: "More actions" }));
         fireEvent.click(screen.getByRole("menuitem", { name: "Add to research…" }));
-        const choice = await screen.findByRole("button", { name: "Contract research" });
+        const choice = await screen.findByRole("radio", { name: "Select Contract research" });
         expect(researchApi.act).not.toHaveBeenCalled();
         fireEvent.click(choice);
+        await screen.findByLabelText("Destination source label");
+        fireEvent.change(screen.getByLabelText("Destination source label"), { target: { value: "label-1" } });
+        fireEvent.click(screen.getByRole("button", { name: "Add", exact: true }));
         await waitFor(() => expect(researchApi.act).toHaveBeenCalledWith("research-1", "v1", 1,
             expect.objectContaining({ type: "source", reference: expect.objectContaining({
                 provider: "library", kind: "document", id: "document-1", versionId: "version-1" }) })));

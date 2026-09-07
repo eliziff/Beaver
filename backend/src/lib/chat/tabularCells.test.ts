@@ -190,3 +190,14 @@ it("pages all cells within the tool budget and references complete large answers
   }
   expect(rows).toEqual(Array.from({ length: 65 }, (_, index) => index));
 });
+
+it("carries only the explicitly selected cell references into chat, not every cell in those rows", () => {
+  const receipt = createLibraryEvidence({ documentId: "doc", versionId: "v1", filename: "Case", sourceText: "Text", spanText: "Text", start: 0, end: 4 });
+  const content = { summary: "Chosen finding", claims: [{ text: "Chosen finding", evidence_ids: [receipt.evidence_id] }], evidence: [receipt], resource: "document://doc/version/v1" };
+  const detail = table({ review_id: "review", columns: [{ index: 0, name: "Holding" }, { index: 5, name: "Reason" }], documents: [{ id: "row", filename: "Case" }],
+    cells: new Map([["0:row", { status: "done", content: { ...content, summary: "Excluded finding" } }], ["5:row", { status: "done", content }]]) });
+  const ref = { kind: "cell" as const, reviewId: "review", rowId: "row", columnIndex: 5 };
+  const read = readCurrentCells(detail, undefined, undefined, { context: { subjects: [], findingRefs: [ref] } });
+  expect(JSON.parse(read.content).cells).toMatchObject([{ col_index: 1, summary: "Chosen finding" }]);
+  expect(read.content).not.toContain("Excluded finding"); expect(read.evidence).toEqual([receipt]);
+});
