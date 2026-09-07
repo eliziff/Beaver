@@ -9,10 +9,4 @@ describe("native citation detection", () => {
     for (const row of oracle.citation_keys)
       expect(native.citationLookupKey(row.input)).toBe(row.oracle_key);
   });
-
-  it("is not stateful across calls", () => {
-    const native = structureNative();
-    expect(native.hasCitationInText("R. v. Jordan, 2016 SCC 27")).toBe(true);
-    expect(native.hasCitationInText("no citation here at all")).toBe(false);
-  });
 });

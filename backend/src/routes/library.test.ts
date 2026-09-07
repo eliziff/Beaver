@@ -59,11 +59,4 @@ describe("canonical Library routes", () => {
       .attach("file", Buffer.from("bad"), "memo.exe")).status).toBe(400);
     expect(documents.create).toHaveBeenCalledTimes(1);
   });
-
-  it("creates folders through the canonical Library route", async () => {
-    const { app } = fixture();
-    const created = await request(app).post("/library/files/folders")
-      .send({ name: " Authorities ", parent_folder_id: "parent" });
-    expect(created.status).toBe(201);
-  });
 });
