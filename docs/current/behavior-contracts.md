@@ -62,8 +62,15 @@ pagination or downloading.
   tree: source labels are nested folders, and every source hangs inline under each
   label it carries, with unlabelled sources at the root. Nest/reorder by dragging
   or keyboard; source drops add a label without removing other classifications.
-  No Unsorted pseudo-folder exists. Switching tabs mounts no new pane and shows no
-  loading placeholder.
+  No Unsorted pseudo-folder exists. Switching tabs mounts no new pane, shows no
+  loading placeholder and moves nothing: the toolbar and tab strip keep their box.
+  Every row is one shape — chevron, marker, name, actions, number — so counts share
+  one right-aligned column and a label counts each distinct source under it once.
+  A source marker is a coloured folder whose tab and band carry its sublabels; it
+  opens the label picker, and dragging it files the source. Touching a row selects
+  or expands it; opening a source or passage is the explicit Open control. Sources
+  enter a set from search results, Library Add to research or a drop, never from an
+  Add button under the tree, and New label sits in the toolbar above it.
 - The compact highlight picker opens the type hierarchy only when needed. Naming
   a type creates it once with a muted colour; cancelling creates nothing. Children,
   renaming, recolouring and reordering use the same label operations. Choosing the
@@ -81,8 +88,11 @@ pagination or downloading.
   synthetic answer. Interrupted reads remain recoverable as provenance.
 - The existing evidence part retains exact source/version/locator identities.
   Its passage endpoint and default passage selection expose deliberate highlights;
-  the evidence endpoint also exposes background receipts. Search matches can be
-  explicitly saved under a highlight type. Capture rules without a type preview
+  the evidence endpoint also exposes background receipts. Search takes one phrase
+  and an optional collapsed capture rule, groups its matches under each source as
+  windowed passages with the phrase marked, and saves one or all of them under the
+  drawing type; earlier searches stay collapsed and rerun from their own row, with
+  the searched-source ledger a nested aid. Capture rules without a type preview
   matches; typed rules save them. Conflicting types for one captured receipt are
   reported, never silently combined. Missing classifications remain predicates,
   not persisted labels.

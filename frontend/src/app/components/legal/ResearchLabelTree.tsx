@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, Plus } from "lucide-react";
 import { buttonClassName } from "../ui/button";
 import { FolderSvgIcon } from "../shared/FolderSvgIcon";
@@ -6,23 +6,27 @@ import { InlineNameInput } from "../shared/InlineNameInput";
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { researchLabelPath, type ResearchAction, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
 import { errorMessage } from "@/app/lib/utils";
-import { researchLabelColor } from "./ResearchLabelCircle";
+import { researchLabelColor } from "./ResearchLabelMarker";
 import { RESEARCH_SOURCE_DRAG, RESEARCH_SOURCE_REFERENCE_DRAG } from "./ResearchLabelPicker";
-import type { ResearchRemoval, ResearchTreePreview } from "./ResearchTree";
+import { ROW, ROW_ACTIONS, ROW_COUNT, type ResearchRemoval, type ResearchTreePreview } from "./ResearchTree";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 
 const LABEL_DRAG = "application/x-beaver-research-label";
+const NOUN = { source: "label", highlight: "highlight type" } as const;
 const COLOURS = ["#d6b85a", "#8aa8c7", "#90ac99", "#bda0b5", "#b4ab91", "#9fa7bf"];
 
 /** The same small hierarchy editor serves source folders and the highlight-type picker. */
-export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, onRemove, onStatus, preview, renderSources }: {
+export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, onRemove, onStatus, preview, renderSources, addSignal }: {
   scope: ResearchLabel["scope"]; sources?: ResearchSource[]; selectedId: string | null;
+  /** Bumped by a toolbar control that owns "new label"; when given, the tree grows no button of its own. */
+  addSignal?: number;
   onSelect: (id: string | null) => void; onRemove: (removal: ResearchRemoval) => void;
   onStatus: (message: string) => void; preview?: ResearchTreePreview;
   /** Sources carried by a label render inline beneath it; `null` covers the unlabelled ones. */
   renderSources?: (labelId: string | null) => React.ReactNode;
 }) {
   const { file, mutations } = useSourcesWorkspace();
+  const noun = (shape: string) => shape.replace("{x}", NOUN[scope]).replace(/^./, (first) => first.toUpperCase());
   const labels = preview?.labels ?? file?.state.labels ?? {};
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -40,6 +44,8 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
     for (const source of sources) source.labelIds.forEach((id) => result.add(id));
     return result;
   }, [sources]);
+  useEffect(() => { if (addSignal) setAdding(null); }, [addSignal]);
+  /** A source filed in two places is one source: every count is a count of distinct sources. */
   const counts = useMemo(() => {
     const result = new Map<string, number>();
     for (const source of sources) {
@@ -82,7 +88,7 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
     } finally { setBusy(false); }
   }
   const addField = (parentId: string | null) => adding === parentId && <div className="flex h-8 items-center px-2">
-    <InlineNameInput kind="new-folder" label={scope === "source" ? "Label name" : "Highlight type name"}
+    <InlineNameInput kind="new-folder" label={noun("{x} name")}
       onCancel={() => setAdding(undefined)} onCommit={(name) => void add(name)} />
   </div>;
   function branch(parentId: string | null): React.ReactNode {
@@ -113,7 +119,7 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
             void move(event.dataTransfer.getData(LABEL_DRAG), mode === "inside" ? label.id : label.parentId,
               mode === "inside" ? children.get(label.id)?.length ?? 0 : label.order + (mode === "before" ? -.5 : .5));
           }}
-          className={`group flex min-h-8 min-w-0 items-center gap-1 rounded px-1 ${drop?.id === label.id ? drop.mode === "inside" ? "ring-1 ring-gray-400" : drop.mode === "before" ? "border-t-2 border-gray-500" : "border-b-2 border-gray-500" : selectedId === label.id ? "bg-gray-100" : "hover:bg-gray-50"}`}>
+          className={`${ROW} ${drop?.id === label.id ? drop.mode === "inside" ? "ring-1 ring-gray-400" : drop.mode === "before" ? "border-t-2 border-gray-500" : "border-b-2 border-gray-500" : selectedId === label.id ? "bg-gray-100" : "hover:bg-gray-50"}`}>
           {hasChildren ? <button type="button" aria-label={`${open ? "Collapse" : "Expand"} ${label.name}`} onClick={() => toggle(label.id)} className="grid size-6 shrink-0 place-items-center rounded">
             <ChevronRight aria-hidden className={`size-3.5 text-gray-500 ${open ? "rotate-90" : ""}`} /></button> : <span className="w-6 shrink-0" />}
           <label className="relative grid size-5 shrink-0 place-items-center rounded text-gray-500 focus-within:outline focus-within:outline-2" title={`${label.name} colour`}>
@@ -121,22 +127,23 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
             {!preview && <input type="color" disabled={busy} aria-label={`${label.name} colour`} value={researchLabelColor(label)}
               onChange={(event) => void act({ type: "label", ...label, color: event.target.value })} className="absolute inset-0 size-5 cursor-pointer opacity-0" />}
           </label>
-          {renaming === label.id ? <InlineNameInput kind="folder" value={label.name} label={scope === "source" ? "Label name" : "Highlight type name"}
+          {renaming === label.id ? <InlineNameInput kind="folder" value={label.name} label={noun("{x} name")}
             onCancel={() => setRenaming(null)} onCommit={(name) => { setRenaming(null); if (name.trim() && name !== label.name) void act({ type: "label", ...label, name: name.trim() }); }} />
             : <button type="button" data-label-select={label.id} aria-pressed={selectedId === label.id} onClick={() => onSelect(label.id)}
               title={researchLabelPath(labels, label.id).map(({ name }) => name).join(" / ")}
               className="min-w-0 flex-1 truncate py-1 text-start text-sm text-gray-700 aria-pressed:font-semibold"
               data-mark={preview?.marks[label.id]}>{label.name}</button>}
-          {scope === "source" && <span className="text-xs tabular-nums text-gray-500">{counts.get(label.id) ?? 0}</span>}
-          {!preview && <span className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
-            <MoreActionsMenu label={`${label.name} options`} items={[
+          <span className={ROW_ACTIONS}>
+            {!preview && <MoreActionsMenu label={`${label.name} options`} items={[
               { label: "Rename", onSelect: () => setRenaming(label.id) },
-              { label: "Add child", onSelect: () => { expand(label.id); setAdding(label.id); } },
+              { label: noun("New {x} inside"), onSelect: () => { expand(label.id); setAdding(label.id); } },
               { label: "Move up", onSelect: () => moveKey(label, "ArrowUp"), disabled: (children.get(label.parentId) ?? [])[0]?.id === label.id },
               { label: "Move down", onSelect: () => moveKey(label, "ArrowDown"), disabled: (children.get(label.parentId) ?? []).at(-1)?.id === label.id },
               ...(label.parentId ? [{ label: "Move out", onSelect: () => moveKey(label, "ArrowLeft") }] : []),
               { label: "Delete", onSelect: () => onRemove({ kind: "label", id: label.id, name: label.name }) },
-            ]} /></span>}
+            ]} />}
+          </span>
+          <span className={ROW_COUNT}>{scope === "source" ? counts.get(label.id) || "" : ""}</span>
         </div>
         {open && <div role={hasChildren ? "group" : undefined} className="ms-4">{branch(label.id)}{renderSources?.(label.id)}{addField(label.id)}</div>}
       </div>;
@@ -160,16 +167,17 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
       buttons[Math.max(0, Math.min(buttons.length - 1, target))]?.focus();
     }}>
     {scope === "source" && <div role="treeitem" aria-selected={selectedId === null}>
-      <button type="button" data-label-select="" aria-pressed={selectedId === null} onClick={() => onSelect(null)}
-        className="flex h-8 w-full items-center justify-between rounded px-2 text-sm text-gray-700 aria-pressed:bg-gray-100 aria-pressed:font-semibold">
-        All sources<span className="text-xs tabular-nums text-gray-500">{sources.length}</span>
+      <button type="button" data-label-select="" data-tree-drop-root aria-pressed={selectedId === null} onClick={() => onSelect(null)}
+        onDragOver={(event) => { if (canMove(dragged.current ?? "", null)) event.preventDefault(); }}
+        onDrop={(event) => { event.preventDefault(); void move(event.dataTransfer.getData(LABEL_DRAG), null, children.get(null)?.length ?? 0); setDrop(null); }}
+        className={`${ROW} w-full text-sm text-gray-700 aria-pressed:bg-gray-100 aria-pressed:font-semibold`}>
+        <span className="size-6 shrink-0" /><span className="min-w-0 flex-1 truncate text-start">All sources</span>
+        <span className={ROW_ACTIONS} /><span className={ROW_COUNT}>{sources.length}</span>
       </button></div>}
     {branch(null)}{renderSources?.(null)}{addField(null)}
-    {!preview && <button type="button" disabled={busy} data-tree-drop-root onClick={() => setAdding(null)}
-      onDragOver={(event) => { if (canMove(dragged.current ?? "", null)) event.preventDefault(); }}
-      onDrop={(event) => { event.preventDefault(); void move(event.dataTransfer.getData(LABEL_DRAG), null, children.get(null)?.length ?? 0); setDrop(null); }}
+    {!preview && addSignal === undefined && <button type="button" disabled={busy} data-tree-drop-root onClick={() => setAdding(null)}
       className={buttonClassName({ variant: "outline", size: "compact", className: "mt-1 gap-1" })}>
-      <Plus aria-hidden className="size-3" />{scope === "source" ? "Label" : "Highlight type"}
+      <Plus aria-hidden className="size-3" />{noun("New {x}")}
     </button>}
   </div>;
 }

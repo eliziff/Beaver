@@ -44,7 +44,7 @@ import { formatBytes } from "@/app/lib/utils";
 import { SUPPORTED_DOCUMENT_ACCEPT } from "@/app/lib/documentUploadValidation";
 
 import { getResearchFile, getResearchItems } from "@/app/lib/api/researchFiles";
-import { ResearchLabelCircle } from "@/app/components/legal/ResearchLabelCircle";
+import { ResearchLabelMarker } from "@/app/components/legal/ResearchLabelMarker";
 import { useSourcesWorkspaceOrNull } from "@/app/components/legal/SourcesWorkspace";
 import { useLibraryReaderCapture } from "@/app/components/shared/useLibraryReaderCapture";
 import type { CitationQuote } from "@/app/lib/citations";
@@ -153,7 +153,7 @@ function ResearchFilePreview({ documentId }: { documentId: string }) {
                     const path = researchLabelPath(labels, label.id);
                     return <li key={label.id} className="flex min-h-9 items-center gap-2 rounded-md bg-white px-2.5 py-1.5"
                         style={{ paddingInlineStart: `${10 + (path.length - 1) * 14}px` }}>
-                        <ResearchLabelCircle labels={labels} labelIds={[label.id]} size="sm" />
+                        <ResearchLabelMarker labels={labels} labelIds={[label.id]} size="sm" />
                         <span className="min-w-0 truncate font-medium text-gray-800">{label.name}</span>
                         <span className="ms-auto text-xs text-gray-500">{label.scope === "source" ? "Source" : "Highlight"}</span>
                     </li>;
@@ -170,7 +170,7 @@ function ResearchFilePreview({ documentId }: { documentId: string }) {
                     return <li key={source.id} className="rounded-lg border border-gray-200 bg-white p-3">
                         <article>
                             <header className="flex items-start gap-2">
-                                <ResearchLabelCircle labels={labels} labelIds={source.labelIds} size="sm" />
+                                <ResearchLabelMarker labels={labels} labelIds={source.labelIds} size="sm" />
                                 <div className="min-w-0 flex-1">
                                     <h3 className="break-words font-semibold leading-5 text-gray-900">{title}</h3>
                                     {source.reference.citation && source.reference.citation !== title && <p className="text-[13px] text-gray-500">{source.reference.citation}</p>}
