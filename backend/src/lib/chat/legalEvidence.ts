@@ -999,15 +999,16 @@ type CitationEntry = RegisteredEvidence & { ref: number };
 export type LegalEvidenceCitationGroup = {
   ref: number;
   members: CitationEntry[];
+  locatorKind: LegalEvidenceReceipt["locator"]["kind"];
   locatorLabels: string[];
 };
 
-function citationSourceKey({ receipt }: RegisteredEvidence) {
-  if (receipt.provider === "library") {
-    return [receipt.provider, receipt.stable_source_id, receipt.version].join("\u0000");
-  }
-  return [receipt.provider, receipt.citation, receipt.name, receipt.dataset,
-    receipt.source_class].join("\u0000");
+// One authority, one identity: read from A2AJ and attested by the citator is
+// one authority, so provider and dataset stay out of the key.
+function sourceKey(receipt: LegalEvidenceReceipt) {
+  return receipt.provider === "library"
+    ? ["library", receipt.stable_source_id, receipt.version].join("\u0000")
+    : [receipt.citation, receipt.name, receipt.source_class].join("\u0000");
 }
 
 export function legalEvidenceCitationGroupsFromEntries(
@@ -1015,20 +1016,30 @@ export function legalEvidenceCitationGroupsFromEntries(
 ): LegalEvidenceCitationGroup[] {
   const groups: LegalEvidenceCitationGroup[] = [];
   const grouped = new Map<string, LegalEvidenceCitationGroup>();
+  const pinpoints = new Map<string, Set<LegalEvidenceReceipt["locator"]["kind"]>>();
+  for (const { receipt } of entries) if (receipt.locator.kind !== "document")
+    pinpoints.set(sourceKey(receipt),
+      (pinpoints.get(sourceKey(receipt)) ?? new Set()).add(receipt.locator.kind));
   for (const raw of entries) {
-    const key = `${citationSourceKey(raw)}\u0000${raw.receipt.locator.kind}`;
+    const source = sourceKey(raw.receipt), kinds = pinpoints.get(source);
+    // An unpinpointed passage has no locator system of its own, so it joins its
+    // authority's pinpointed chip rather than standing up a locator-less twin.
+    const kind = raw.receipt.locator.kind !== "document" ? raw.receipt.locator.kind
+      : kinds?.size === 1 ? [...kinds][0] : "document";
+    const key = `${source}\u0000${kind}`;
     let group = grouped.get(key);
     if (!group) {
-      group = { ref: groups.length + 1, members: [], locatorLabels: [] };
+      group = { ref: groups.length + 1, members: [], locatorKind: kind, locatorLabels: [] };
       grouped.set(key, group);
       groups.push(group);
     }
     group.members.push({ ...raw, ref: group.ref });
   }
   for (const group of groups) {
-    const { kind } = group.members[0].receipt.locator;
-    const labels = group.members.map(({ receipt }) => receipt.locator.label);
-    group.locatorLabels = collapseProvisionLabels(labels, kind) ?? [...new Set(labels)];
+    const labels = group.members.flatMap(({ receipt }) =>
+      receipt.locator.kind === group.locatorKind ? [receipt.locator.label] : []);
+    group.locatorLabels = collapseProvisionLabels(labels, group.locatorKind)
+      ?? [...new Set(labels)];
   }
   return groups;
 }
@@ -1036,11 +1047,7 @@ export function legalEvidenceCitationGroupsFromEntries(
 export function legalEvidenceCitationGroups(
   state: LegalEvidenceTurnState,
 ): LegalEvidenceCitationGroup[] {
-  return legalEvidenceCitationEntries(state).map((entry, index) => ({
-    ref: index + 1,
-    members: [{ ...entry, ref: index + 1 }],
-    locatorLabels: [entry.receipt.locator.label],
-  }));
+  return legalEvidenceCitationGroupsFromEntries(legalEvidenceCitationEntries(state));
 }
 
 export function legalEvidenceCitationEntries(
@@ -1052,11 +1059,11 @@ export function legalEvidenceCitationEntries(
     const claimEntries = claim.evidence_ids.flatMap((id) => state.evidence.get(id) ?? []);
     const pinpointed = new Set(claimEntries
       .filter(({ receipt }) => receipt.locator.kind !== "document")
-      .map(citationSourceKey));
+      .map(({ receipt }) => sourceKey(receipt)));
     for (const entry of claimEntries) {
       const { evidence_id, locator, span_text } = entry.receipt;
       if (!span_text || seen.has(evidence_id) ||
-          (locator.kind === "document" && pinpointed.has(citationSourceKey(entry)))) continue;
+          (locator.kind === "document" && pinpointed.has(sourceKey(entry.receipt)))) continue;
       seen.add(evidence_id);
       entries.push({ ...entry, ref: entries.length + 1 });
     }

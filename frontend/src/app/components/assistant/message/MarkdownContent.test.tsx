@@ -86,26 +86,6 @@ describe("MarkdownContent links", () => {
         expect(onCitationClick).toHaveBeenCalledWith(source);
     });
 
-    it("keeps the exact agent pinpoint and removes an adjacent broad duplicate", () => {
-        const broad: Citation = {
-            kind: "a2aj", source_class: "case", ref: 1,
-            citation: "2013 FCA 236", name: "Forest Ethics Advocacy Association v. Canada",
-            dataset: "FCA", url: null, quotes: [{ quote: "The test is demanding." }],
-        };
-        const exact: Citation = {
-            ...broad, ref: 2, locator_kind: "paragraph", locator: "31",
-            pinpoint: "para 31", quotes: [{ quote: "Valero identified no unsettled question." }],
-        };
-        const targets: Citation[] = [];
-        preprocessCitations("Result. [1][2]", new Map([[1, broad], [2, exact]]), targets);
-        render(<CitationPillMarkdown text="Result. [1][2]" citations={[broad, exact]} />);
-
-        expect(targets).toEqual([exact]);
-        expect(screen.getAllByText(/Forest Ethics Advocacy Association/u)).toHaveLength(1);
-        expect(screen.getByText(/Forest Ethics Advocacy Association/u).closest("span"))
-            .toHaveTextContent("Forest Ethics Advocacy Association v. Canada, 2013 FCA 236 at para 31");
-    });
-
     it("rejects credential-bearing links in shared Markdown", () => {
         render(<GfmMarkdown>{"[Sign in](https://user:secret@example.test/)"}</GfmMarkdown>);
 

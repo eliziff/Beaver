@@ -128,9 +128,13 @@ describe("production legal evidence", () => {
       { text: "| The appeal is allowed. | |", evidence_ids: [second.evidence_id] },
       { text: "The appeal is allowed.", evidence_ids: [second.evidence_id] },
     ] }, state)).toEqual({ ok: true, terminal: true });
+    // One chip per authority and locator system: both paragraphs of the same
+    // decision share it, and the chip carries the collapsed pinpoint.
     expect(renderLegalEvidenceAnswer(state)).toBe(
-      "The appeal is allowed. [1]\n\n| Outcome | Source |\n| --- | --- |\n| The appeal is allowed. | [1] |\n| The appeal is allowed. | [2] |\n\nThe appeal is allowed. [2]",
+      "The appeal is allowed. [1]\n\n| Outcome | Source |\n| --- | --- |\n| The appeal is allowed. | [1] |\n| The appeal is allowed. | [1] |\n\nThe appeal is allowed. [1]",
     );
+    expect(createLegalEvidenceCitations(state).map(({ pinpoint }) => pinpoint))
+      .toEqual(["paras 12\u201313"]);
   });
 
   it("persists a query-only turn as an auditable research receipt", () => {
@@ -186,7 +190,7 @@ describe("production legal evidence", () => {
     );
   });
 
-  it("keeps final provision citations exact while compacting the tool-call view", () => {
+  it("collapses one provision family into a single chip in both views", () => {
     const state = createLegalEvidenceTurnState("citation_structure");
     const ids = ["sec50(1)", "sec50(1)(a)", "sec50(1)(b)", "sec50(1)(c)"].map(
       (label) => {
@@ -215,23 +219,20 @@ describe("production legal evidence", () => {
     expect(renderLegalEvidenceAnswer(state)).toBe(
       [
         "First clause proposition. [1]",
-        "Second clause proposition. [2]",
-        "Third clause proposition. [3]",
-        "Fourth clause proposition. [4]",
+        "Second clause proposition. [1]",
+        "Third clause proposition. [1]",
+        "Fourth clause proposition. [1]",
       ].join("\n\n"),
     );
     const citations = createLegalEvidenceCitations(state);
-    expect(citations.map(({ pinpoint }) => pinpoint)).toEqual([
-      "s 50(1)", "s 50(1)(a)", "s 50(1)(b)", "s 50(1)(c)",
-    ]);
+    expect(citations.map(({ pinpoint }) => pinpoint)).toEqual(["s 50(1)"]);
+    // The chat message and the tool-call view present the same one citation.
     expect(createLegalEvidenceCitationsFromEntries(
       legalEvidenceCitationEntries(state),
-    )).toEqual([expect.objectContaining({
-      pinpoint: "s 50(1)", quotes: expect.any(Array),
-    })]);
+    )).toEqual(citations);
   });
 
-  it("keeps final sibling provisions separate while compacting the tool-call view", () => {
+  it("keeps sibling provision receipts separate under one collapsed chip", () => {
     const state = createLegalEvidenceTurnState("citation_structure");
     const ids = ["sec49(2)(a)", "sec49(2)(b)"].map((label) => {
       const evidence = {
@@ -253,15 +254,69 @@ describe("production legal evidence", () => {
     }] }, state);
 
     const citations = createLegalEvidenceCitations(state);
-    expect(renderLegalEvidenceAnswer(state)).toBe("Both clauses matter. [1][2]");
-    expect(citations.map(({ pinpoint }) => pinpoint)).toEqual([
-      "s 49(2)(a)", "s 49(2)(b)",
-    ]);
+    expect(renderLegalEvidenceAnswer(state)).toBe("Both clauses matter. [1]");
+    expect(citations.map(({ pinpoint }) => pinpoint))
+      .toEqual(["s 49(2)(a)\u2013(b)"]);
+    // Both receipts survive in the evidence store behind that one chip.
+    expect(legalEvidenceCitationEntries(state).map(
+      ({ receipt }) => receipt.locator.label)).toEqual(ids.map(() => expect.any(String)));
     expect(createLegalEvidenceCitationsFromEntries(
       legalEvidenceCitationEntries(state),
-    )).toEqual([expect.objectContaining({
-      pinpoint: "s 49(2)(a)\u2013(b)",
+    )).toEqual(citations);
+  });
+
+  // Replays two turns from the local transcript store (chat_messages
+  // 8f391c98 and b0fdad8d), which showed one chip per paragraph of the same
+  // decision and a further chip with a highlight but no pinpoint at all.
+  it("gives one authority one chip carrying every selected pinpoint", () => {
+    const state = createLegalEvidenceTurnState("citation_structure");
+    const ids = ["par1", "par3", "par4", "par69", "par70", "par78", "par80", "par81"]
+      .map((label) => {
+        const evidence = { ...passage(label), citation: "[1986] 1 SCR 103",
+          name: "R. v. Oakes" };
+        registerLegalEvidence(state, evidence);
+        return evidence.evidence_id;
+      });
+    submitLegalEvidenceAnswer({ claims: ids.map((id, index) => (
+      { text: `Oakes proposition ${index + 1}.`, evidence_ids: [id] })) }, state);
+
+    expect(createLegalEvidenceCitations(state)).toEqual([expect.objectContaining({
+      ref: 1, authority: "R. v. Oakes, [1986] 1 SCR 103", locator_kind: "paragraph",
+      pinpoint: "paras 1, 3\u20134, 69\u201370, 78, 80\u201381",
     })]);
+    expect(renderLegalEvidenceAnswer(state)).not.toContain("[2]");
+  });
+
+  it("keeps an unpinpointed passage inside its authority's pinpointed chip", () => {
+    const state = createLegalEvidenceTurnState("citation_structure");
+    // An A2AJ headnote sits outside every native paragraph of a
+    // paragraph-numbered decision, so the read can only address it by
+    // character range; the citator attests the same authority as a document.
+    const unpinpointed = ["characters 1963\u20132391", "2019 SCC 34"].map((label, index) => {
+      const evidence = createTnaEvidence({
+        jurisdiction: "CA", sourceClass: "case", stableSourceId: `le-${index}`,
+        sourceText: `Le passage ${index}.`, spanText: `Le passage ${index}.`,
+        citation: "2019 SCC 34", name: "R. v. Le", dataset: `dataset-${index}`,
+        locatorKind: "document", locatorLabel: label });
+      registerLegalEvidence(state, evidence);
+      return evidence.evidence_id;
+    });
+    const paragraphs = ["par1", "par5", "par9", "par14"].map((label) => {
+      const evidence = { ...passage(label), citation: "2019 SCC 34", name: "R. v. Le" };
+      registerLegalEvidence(state, evidence);
+      return evidence.evidence_id;
+    });
+    submitLegalEvidenceAnswer({ claims: [...unpinpointed, ...paragraphs].map(
+      (id, index) => ({ text: `Le proposition ${index}.`, evidence_ids: [id] })) }, state);
+
+    const citations = createLegalEvidenceCitations(state);
+    expect(citations).toEqual([expect.objectContaining({
+      authority: "R. v. Le, 2019 SCC 34", locator_kind: "paragraph",
+      pinpoint: "paras 1, 5, 9, 14",
+    })]);
+    // Every passage keeps its highlight under that one chip.
+    expect(citations[0].quotes).toHaveLength(6);
+    expect(renderLegalEvidenceAnswer(state)).not.toContain("[2]");
   });
 
   it("exposes the approved quotation policy once through the grounding tool", () => {
@@ -513,10 +568,10 @@ describe("production legal evidence", () => {
     }] }, state);
 
     const rendered = renderLegalEvidenceAnswer(state)!;
-    expect(rendered).toBe("The court allowed the appeal. [1][2]");
+    expect(rendered).toBe("The court allowed the appeal. [1]");
     expect(rendered).not.toContain("http");
     expect(createLegalEvidenceCitations(state).map(({ pinpoint }) => pinpoint))
-      .toEqual(["para 12", "para 13"]);
+      .toEqual(["paras 12\u201313"]);
   });
 
   it("drops a broad authority receipt when the same claim has an exact pinpoint", () => {
@@ -570,7 +625,7 @@ describe("production legal evidence", () => {
     );
   });
 
-  it("keeps final journal pages exact while compacting the tool-call view", () => {
+  it("collapses one article's pages into a single journal chip", () => {
     const state = createLegalEvidenceTurnState("citation_structure");
     const citation = "Gordon F. Henderson, “Problems Involved in the Assignment of Patents and Patent Rights” (1966) 1:1 Ottawa L Rev 36";
     const evidence = [60, 61, 62, 63].map((page) =>
@@ -591,10 +646,10 @@ describe("production legal evidence", () => {
     }] }, state);
 
     expect(renderLegalEvidenceAnswer(state)).toBe(
-      "The article discusses assignments. [1][2][3][4]",
+      "The article discusses assignments. [1]",
     );
     expect(createLegalEvidenceCitations(state).map(({ pinpoint }) => pinpoint))
-      .toEqual(["60", "61", "62", "63"]);
+      .toEqual(["60\u201363"]);
     expect(createLegalEvidenceCitationsFromEntries(
       legalEvidenceCitationEntries(state),
     )).toEqual([expect.objectContaining({
