@@ -1,6 +1,6 @@
 import { attachAuthoritySource, attachedAuthoritySources,
   authoritiesBookPdfs, removeUnusedBinding, replaceSource } from "mike/shared/authorities-sources.mjs";
-import type { AuthoritySourceLanguage, AttachedAuthoritySource, AuthoritySourceDecision,
+import type { AuthoritySourceLanguage, AuthoritySourceDecision,
   AuthoritiesBoundPdf, AuthoritiesBookSupplement, AuthoritiesBookParts } from "mike/shared/authorities-sources.mjs";
 export { attachedAuthoritySources, hasBilingualAuthoritySource, authoritiesBookPdfs } from
   "mike/shared/authorities-sources.mjs";
