@@ -58,6 +58,13 @@ def main() -> None:
                 page.goto(origin, wait_until="networkidle")
                 dialog = page.get_by_role("dialog", name="Review this research", exact=True)
                 expect(dialog.get_by_text("4 rows · 12 populated cells · 0 unanswered")).to_be_visible()
+                preview_region = dialog.get_by_role("region", name="Existing research preview")
+                def assert_preview_height() -> None:
+                    box = preview_region.bounding_box()
+                    last_row = preview_region.locator("tbody tr").last.bounding_box()
+                    assert box and last_row and box["height"] > 100
+                    assert last_row["y"] + last_row["height"] <= box["y"] + box["height"] + 1, "Preview rows were vertically clipped"
+                assert_preview_height()
                 page.screenshot(path=str(output / "conversion-desktop.png"))
                 assert not page.evaluate('globalThis.__interopRequests.some(r => r.path.endsWith("/table"))')
                 dialog.get_by_label("What would you like to compare?").fill("Also compare costs")
@@ -70,6 +77,9 @@ def main() -> None:
                 expect(dialog.get_by_role("button", name="Open review")).to_be_in_viewport()
                 assert dialog.bounding_box()["width"] <= 390
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+                assert_preview_height()
+                preview_region.scroll_into_view_if_needed()
+                expect(preview_region).to_be_in_viewport()
                 page.screenshot(path=str(output / "conversion-mobile.png"))
                 dialog.get_by_role("button", name="Open review").click()
                 expect(dialog).to_have_count(0)
@@ -85,7 +95,7 @@ def main() -> None:
                 page.screenshot(path=str(output / "saved-highlights-mobile.png"))
                 assert not errors, errors
                 (output / "report.json").write_text(json.dumps({"browser": browser.version, "viewports": ["1440x900", "390x844"],
-                    "preview": "existing classifications, excerpts and answers; unanswered new column",
+                    "preview": "existing classifications, excerpts and answers; unanswered new column; preview rows not vertically clipped",
                     "acceptance": "no automatic writes; exact reviewed mapping and fingerprint submitted",
                     "highlight": "explicit chosen type and original finding reference", "pageErrors": errors}, indent=2))
                 browser.close()
