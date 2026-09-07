@@ -62,6 +62,19 @@ describe("authorities discrepancy review", () => {
     )).toEqual([]);
   });
 
+  it("does not report a quotation the cited passage already contains verbatim", () => {
+    // Owner's report: trailing punctuation belongs to the sentence, not to the source.
+    const cited = "The Court held that this is a regime of strict liability for example, " +
+      "and the appellant cannot escape it.";
+    expect(findAuthoritiesDiscrepancies(
+      draft('It imposes "a regime of strict liability," on the operator.'), source(cited))).toEqual([]);
+    // Diacritics, case, curly quotes and dashes are not wording differences.
+    expect(findAuthoritiesDiscrepancies(
+      draft('The court wrote “Le défendeur a agi de bonne foi — sans erreur”.'),
+      source("Au paragraphe 12: le defendeur a agi de bonne foi - sans erreur, dit la Cour."),
+    )).toEqual([]);
+  });
+
   it("does not flag nested quotation marks, marked omissions or bracketed edits", () => {
     const wording = "An individual’s reputation is not to be treated as regrettable but unavoidable road kill on the highway of public controversy, but nor should an overly solicitous regard for personal reputation be permitted to ‘chill’ freewheeling debate on matters of public interest.";
     const original = wording.replace("‘chill’", "“chill”");

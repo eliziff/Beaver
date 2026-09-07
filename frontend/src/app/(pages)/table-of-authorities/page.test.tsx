@@ -866,7 +866,7 @@ describe("Authorities UI contracts", () => {
     expect(screen.getByText((_text, node) => node?.tagName === "P" && node.textContent === "the authored words")).toBeVisible();
     expect(screen.getByText((_text, node) => node?.tagName === "P" && node.textContent === "the source words")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Use source wording" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("radio", { name: "Mark edits with brackets and ellipses" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Mark edits with brackets and ellipses (edits your .docx)" }));
     await userEvent.click(screen.getByRole("button", { name: "Apply correction" }));
     await waitFor(() => expect(api.resolveAuthoritiesDiscrepancy).toHaveBeenCalledWith(
       "draft-1", { id: findingId, action: "quote_editorial", revision: 1 }));
