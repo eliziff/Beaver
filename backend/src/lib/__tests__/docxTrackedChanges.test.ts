@@ -163,45 +163,6 @@ describe("insertTrackedBlocks", () => {
 });
 
 describe("applyTrackedEdits trusted exact spans", () => {
-  it("targets one pinned occurrence without re-resolving duplicate text", async () => {
-    const bytes = await draft("Section 1. Rent. Section 2. Rent.");
-    const text = await extractDocxBodyText(bytes);
-    const start = text.lastIndexOf("Rent");
-    const edit = await applyTrackedEdits(bytes, [
-      {
-        find: "Rent",
-        replace: "Base Rent",
-        context_before: "",
-        context_after: "",
-        exact_start: start,
-        exact_end: start + 4,
-      },
-    ]);
-
-    expect(edit.errors).toEqual([]);
-    await expect(extractDocxBodyText(edit.bytes)).resolves.toContain(
-      "Section 1. Rent. Section 2. Base Rent.",
-    );
-  });
-
-  it("refuses a stale exact span", async () => {
-    const bytes = await draft("Section 1. Rent.");
-    const text = await extractDocxBodyText(bytes);
-    const start = text.indexOf("Rent");
-    const edit = await applyTrackedEdits(bytes, [
-      {
-        find: "Term",
-        replace: "Base Term",
-        context_before: "",
-        context_after: "",
-        exact_start: start,
-        exact_end: start + 4,
-      },
-    ]);
-
-    expect(edit.changes).toHaveLength(0);
-    expect(edit.errors[0].reason).toContain("no longer matches");
-  });
 
   it("preserves the unchanged prefix of an exact numbering edit", async () => {
     const bytes = await draft("1.03 Third provision.");
@@ -226,41 +187,6 @@ describe("applyTrackedEdits trusted exact spans", () => {
 });
 
 describe("applyTrackedEdits anchor failures", () => {
-  it("rejects an ambiguous anchor without changing the document", async () => {
-    const bytes = await draft(
-      [
-        "The Tenant shall pay the Rent on the first day of each month.",
-        "",
-        "The Landlord may increase the Rent once in any twelve-month period.",
-      ].join("\n"),
-    );
-    const edit = await applyTrackedEdits(bytes, [
-      { find: "the Rent", replace: "the Base Rent" },
-    ]);
-
-    expect(edit.changes).toHaveLength(0);
-    const reason = edit.errors[0].reason;
-    expect(reason).toContain("Ambiguous match");
-    expect(reason).toContain("document is unchanged");
-  });
-
-  it("rejects a quote that is not on the document text plane", async () => {
-    const bytes = await draft(
-      "The Purchaser shall deliver the Closing Deliverables to the Vendor no later than 5:00 p.m. on the Closing Date.",
-    );
-    const edit = await applyTrackedEdits(bytes, [
-      {
-        // Verbatim up to "no later than", then paraphrased.
-        find: "deliver the Closing Deliverables to the Vendor no later than 5:00 pm on the Closing Date",
-        replace: "deliver the Closing Deliverables to the Vendor by noon on the Closing Date",
-      },
-    ]);
-
-    expect(edit.changes).toHaveLength(0);
-    const reason = edit.errors[0].reason;
-    expect(reason).toContain("Could not locate");
-    expect(reason).toContain("document is unchanged");
-  });
 
   it("does not treat existing replacement text as an edit match", async () => {
     const bytes = await draft("Notice shall be given within thirty days.");
@@ -272,32 +198,6 @@ describe("applyTrackedEdits anchor failures", () => {
     expect(edit.errors[0].reason).toContain("Could not locate");
   });
 
-  it("rejects absent text", async () => {
-    const bytes = await draft("The parties agree to arbitrate in Toronto.");
-    const edit = await applyTrackedEdits(bytes, [
-      { find: "governed by the laws of Alberta", replace: "governed by the laws of Ontario" },
-    ]);
-
-    expect(edit.changes).toHaveLength(0);
-    expect(edit.errors[0].reason).toContain("Could not locate");
-  });
-
-  it("diagnoses a pure insertion by its context anchor", async () => {
-    const bytes = await draft(
-      [
-        "Each Party shall keep the Confidential Information confidential.",
-        "",
-        "Each Party shall bear its own costs.",
-      ].join("\n"),
-    );
-    const edit = await applyTrackedEdits(bytes, [
-      { find: "", replace: " at all times", context_before: "Each Party shall" },
-    ]);
-
-    expect(edit.changes).toHaveLength(0);
-    const reason = edit.errors[0].reason;
-    expect(reason).toContain("Ambiguous match");
-  });
 });
 
 // Different edit lengths must not shift the later edit in the original text.

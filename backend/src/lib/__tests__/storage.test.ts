@@ -47,6 +47,9 @@ describe("object storage contract", () => {
   it("runs the common contract against filesystem and configured MinIO", async () => {
     for (const store of stores) {
       const objects = scopeObjectStorage(store.value, `contract-${randomUUID()}`);
+      // Concurrent first operations also exercise the S3 adapter's lazy initialization.
+      expect(await Promise.all(["missing-a.bin", "missing-b.bin"].map(key => objects.get(key))))
+        .toEqual([null, null]);
       await objects.remove("missing.bin");
       await objects.put("pages/a.txt", Buffer.from("alpha"), "text/plain",
         { expectedSha256: sha256(Buffer.from("alpha")) });
@@ -72,6 +75,13 @@ describe("object storage contract", () => {
       expect(concurrent.map(([result]) => result).sort()).toEqual(["created", "exists"]);
       expect(concurrent.find(([result]) => result === "exists")?.[1]).toBe(sharedDigest);
       expect((await objects.get("pages/a.txt"))?.toString()).toBe("alpha");
+      const file = path.join(temporaryRoot, `${randomUUID()}.txt`), fileBytes = Buffer.from("Résumé 李");
+      await writeFile(file, fileBytes);
+      for (const result of ["created", "exists"]) await expect(objects.put("file.txt",
+        { path: file, sizeBytes: fileBytes.byteLength }, "text/plain",
+        { expectedSha256: sha256(fileBytes) })).resolves.toBe(result);
+      expect(await objects.get("file.txt")).toEqual(fileBytes);
+      await objects.remove("file.txt");
       const changed = path.join(temporaryRoot, `${randomUUID()}.txt`);
       await writeFile(changed, "bravo");
       await expect(objects.put("changed.txt", { path: changed, sizeBytes: 5 }, "text/plain",

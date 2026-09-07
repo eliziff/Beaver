@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -47,6 +47,8 @@ for (const file of walk(docs).filter(file => /\.(?:md|json)$/i.test(file))) {
 }
 
 const markdown = [
+  ...["README.md", "CONTRIBUTING.md", "AGENTS.md", "CLAUDE.md", "SECURITY.md"]
+    .map(name => path.join(root, name)),
   ...walk(docs).filter(file => file.endsWith(".md")),
   path.join(root, "benchmarks/harvey-labs/README.md"),
   path.join(root, "benchmarks/harvey-labs/CONTRIBUTING.md"),

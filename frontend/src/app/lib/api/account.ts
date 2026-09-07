@@ -1,3 +1,8 @@
+import type { UserPreferences } from "../../../../../shared/user-preferences.mjs";
+export type { DraftingDocumentType, CitationPlacement as DraftingCitationPlacement,
+  DraftingStyleSettings, FilingContact, WorkflowFileTarget,
+  WorkflowFileTargets } from "../../../../../shared/user-preferences.mjs";
+
 import {
   remove,
   apiBlobRequest,
@@ -37,49 +42,12 @@ export const getAuditHistory = (query: AuditHistoryQuery, signal?: AbortSignal) 
   );
 export const exportAuditHistory = (query: AuditHistoryQuery) =>
   apiBlobRequest(pagePath("/audit/export", query));
-export type DraftingDocumentType = "memo" | "factum" | "letter" | "other";
-export type DraftingCitationPlacement =
-  | "footnotes"
-  | "inline"
-  | "after-paragraph"
-  | "none";
-export interface DraftingStyleSettings {
-  version: 1;
-  documents: Record<DraftingDocumentType, {
-    citationPlacement: DraftingCitationPlacement;
-    citationHyperlinks: boolean;
-    numberHeadings: boolean | "auto";
-  }>;
-  memoHeader: { to: string; from: string };
-}
-export interface UserProfile {
-  displayName: string | null; organisation: string | null;
-  practiceSetting: string | null; professionalTitle: string | null;
-  practiceAreas: string[];
-  jurisdictionPreference: {
-    mode: "ask" | "presume"; jurisdictions: string[];
-  };
-  onboardingCompleted: boolean;
-  titleModel: string; tabularModel: string;
-  lastSelectedChatModel: string | null;
-  lastSelectedReasoningEffort: string | null;
-  mfaOnLogin: boolean; legalResearchUs: boolean;
-  features: { authorities: boolean };
-  workflowFileTargets: WorkflowFileTargets;
-  filingContact: FilingContact;
-  draftingStyle: DraftingStyleSettings;
+export interface UserProfile extends UserPreferences {
+  titleModel: string;
+  tabularModel: string;
+  mfaOnLogin: boolean;
   apiKeyStatus: ApiKeyStatus;
 }
-export type FilingContact = {
-  name: string; address: string; phone: string; fax: string; email: string;
-};
-export type WorkflowFileTarget =
-  | { kind: "library"; folderId: string }
-  | { kind: "project"; projectId: string; folderId: string };
-export type WorkflowFileTargets = {
-  "court-records": WorkflowFileTarget | null;
-  authorities: WorkflowFileTarget | null;
-};
 export interface UserLookupResult {
   exists: boolean; email: string; display_name: string | null;
 }
@@ -107,12 +75,7 @@ export const getUserProfile = () => apiRequest<UserProfile>("/user/profile");
 export const lookupUserByEmail = (email: string) =>
   apiRequest<UserLookupResult>(`/user/lookup?email=${segment(email)}`);
 export const updateUserProfile = (
-  payload: Partial<Pick<UserProfile,
-    "displayName" | "organisation" | "practiceSetting" | "professionalTitle" |
-    "practiceAreas" | "jurisdictionPreference" | "onboardingCompleted" |
-    "titleModel" | "tabularModel" | "lastSelectedChatModel" |
-    "lastSelectedReasoningEffort" | "legalResearchUs" | "features" |
-    "workflowFileTargets" | "filingContact" | "draftingStyle">>,
+  payload: Partial<Pick<UserProfile, keyof UserPreferences>>,
 ) => patch<UserProfile>("/user/profile", payload);
 export const updateUserMfaOnLogin = (enabled: boolean) =>
   patch<UserProfile>("/user/security/mfa-login", { enabled });

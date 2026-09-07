@@ -43,41 +43,12 @@ function applyRaw(state: AssistantSessionState, raw: unknown) {
   });
 }
 
-const supportedEvents: [string, Record<string, unknown>][] = [
-  ["queued turn", { type: "turn_queued", jobId: "job-1" }],
-  ["client tool", { type: "client_tool_call", callId: "call-1", name: "save", input: {} }],
-  ["chat id", { type: "chat_id", chatId: "chat-1", transcriptVersion: 2 }],
-  ["transcript version", { type: "transcript_version", transcriptVersion: 3 }],
-  ["content final", { type: "content_final", text: "a", citations: [] }],
-  ["durable content", { type: "content", text: "a" }],
-  ["reasoning delta", { type: "reasoning_delta", text: "thinking" }],
-  ["durable reasoning", { type: "reasoning", text: "thought through" }],
-  ["reasoning end", { type: "reasoning_block_end" }],
-  ["error", { type: "error", message: "provider details", retryable: true }],
-  ["turn status", { type: "turn_status", status: "cancelled" }],
-  ["steering", { type: "steering", id: "s1", text: "Focus on Alberta" }],
-  ["ask inputs", { type: "ask_inputs", items: [{ id: "q1", kind: "choice", question: "Which?", options: [{ value: "A" }] }] }],
-  ["ask response", { type: "ask_inputs_response", responses: [{ id: "q1", kind: "choice", answer: "A" }] }],
-  ["tool activity", { type: "tool_activity", id: "tool-1", tool: "search", label: "Searching", status: "running" }],
-  ["workflow run", { type: "workflow_run", id: "run-1", tool: "create_table_of_authorities", status: "running", stage: "Scanning" }],
-  ["work-product run", { type: "workflow_run", id: "run-2", tool: "update_work_product",
-    status: "complete", stage: "Update work product", work_product: {
-      kind: "court-record", id: "draft-1", revision: 3 }, requested_action: "build" }],
-  ["reader", { type: "subagent_run", id: "reader-1", task: "Read", status: "running", activities: [], citations: [] }],
-  ["context usage", { type: "context_usage", used_tokens: 10, window_tokens: 100 }],
-  ["compaction", { type: "compaction", status: "completed" }],
-  ["document artifact", { type: "document_artifact", action: "created", filename: "result.docx", document_id: "d1", version_id: "v1", version_number: 1, download_url: "/documents/d1/download" }],
-];
-
 describe("assistant protocol validation", () => {
   it("accepts the public events replayed by the backend job transport", () => {
     for (const event of backendEvents) {
       expect(parseAssistantProtocolEvent(JSON.parse(JSON.stringify(event))).ok,
         event.type).toBe(true);
     }
-  });
-  it.each(supportedEvents)("accepts the supported %s event", (_name, event) => {
-    expect(parseAssistantProtocolEvent(event).ok).toBe(true);
   });
 
   it("rejects unknown, malformed, and prototype-polluting state mutations", () => {
