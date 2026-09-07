@@ -168,6 +168,21 @@ const reference = (result: TnaSearchResult) => ({
   url: result.url,
 }) satisfies LegalSourceReference;
 
+/**
+ * Judgment metadata, official PDF, and full text for one UK neutral citation.
+ * Find Case Law publishes every judgment rendition under its neutral-citation
+ * URI, so the PDF is addressed directly rather than discovered.
+ */
+export async function tnaCaseSource(citation: string, signal?: AbortSignal) {
+  const result = await searchTnaCase(citation, signal);
+  if (!result) return null;
+  const document = await fetchTnaCase(result, signal);
+  return { id: result.citation.toLowerCase(), citation: result.citation, date: null,
+    url: document.url, title: document.title,
+    pdfUrl: `${document.url.replace(/\/+$/u, "")}/data.pdf`,
+    text: structureNative().documentText(document.native) };
+}
+
 export const tnaLegalSourceProvider: RemoteLegalSourceProvider = {
   id: "tna",
   canResolve: ({ kind, text }) => kind === "case" && !!citationFrom(text),

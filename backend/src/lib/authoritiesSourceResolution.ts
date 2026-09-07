@@ -5,16 +5,47 @@ import { attachedAuthoritySources, authorityCitationForms, authoritiesProfile,
   federalEnactmentCitation, hasBilingualAuthoritySource,
   type AuthoritiesDraft, type AuthorityIdentity } from "./authoritiesDomain";
 import { buildCanliiCaseUrlFromCitation, buildCanliiPdfUrl } from "./canliiUrls";
-import { sha256 } from "./hash";
+import { canonicalJsonSha256, sha256 } from "./hash";
 import { a2ajLegalSourceProvider, stableA2AJSourceId } from "./legalSources/a2aj";
+import { courtlistenerLegalSourceProvider } from "./legalSources/courtlistener";
+import { tnaCaseSource, tnaLegalSourceProvider } from "./legalSources/tna";
 import { downloadProviderOriginalPdf } from "./providerPdfLibraryBridge";
 import { structureNative } from "./structureNative";
+
+/**
+ * Case providers for citations the Canadian corpus does not hold: UK neutral
+ * citations through the National Archives, US reporter citations through the
+ * local CourtListener bulk index. Each claims only what its own citation
+ * grammar matches exactly and returns nothing when the match is ambiguous.
+ */
+const foreignProviders = [
+  { id: "tna", claims: tnaLegalSourceProvider, source: tnaCaseSource },
+  { id: "courtlistener", claims: courtlistenerLegalSourceProvider,
+    source: courtlistenerLegalSourceProvider.caseSource },
+] as const;
+
+/** Resolves the first citation form a provider matches; never a best guess. */
+async function resolveForeignAuthoritySource(citations: readonly string[], signal?: AbortSignal) {
+  for (const citation of citations.map((value) => value.trim()).filter(Boolean)) {
+    signal?.throwIfAborted();
+    for (const { id, claims, source } of foreignProviders) {
+      if (!claims.canResolve?.({ text: citation, kind: "case" })) continue;
+      let found: Awaited<ReturnType<typeof source>> = null;
+      try { found = await source(citation, signal); } catch { signal?.throwIfAborted(); }
+      if (!found || (!found.pdfUrl && !found.text.trim())) continue;
+      return { ...found, provider: id, name: found.title, stableSourceId: `${id}:${found.id}`,
+        sourceSha256: canonicalJsonSha256({ provider: id, id: found.id, text: found.text }) };
+    }
+  }
+  return null;
+}
 
 export const authoritySourceServices = {
   resolve: (citation: string, kind: "case" | "legislation", signal?: AbortSignal,
     language?: "en" | "fr") =>
     a2ajLegalSourceProvider.document({ citation,
     docType: kind === "case" ? "cases" : "laws", language, signal }),
+  resolveForeign: resolveForeignAuthoritySource,
   download: downloadProviderOriginalPdf,
   ...authorityCitationServices,
   revision: (document: Parameters<ReturnType<typeof structureNative>["documentRevision"]>[0]) =>
@@ -101,7 +132,9 @@ export async function resolveAuthoritiesSources(
     } catch { signal?.throwIfAborted(); unavailable = true; }
     return unavailable ? { unavailable: true as const } : { source: null };
   });
-  type ResolvedSource = NonNullable<Awaited<ReturnType<SourceServices["resolve"]>>>;
+  type ResolvedSource = Pick<NonNullable<Awaited<ReturnType<SourceServices["resolve"]>>>,
+    "citation" | "alternateCitation" | "name" | "date" | "url" | "dataset" | "language" |
+    "searchText" | "verifiedPdf"> & { provider?: string; identity?: string };
   const resolvedSources = new Map<string, ResolvedSource>();
   for (let index = 0; index < candidates.length; index += 1) {
     signal?.throwIfAborted();
@@ -120,33 +153,33 @@ export async function resolveAuthoritiesSources(
       source: { provider: "a2aj", stableSourceId: stableA2AJSourceId(source),
         sourceSha256: resolved.revision, version: source.date, externalUrl: source.url } });
   }
+  // Authorities the Canadian corpus does not hold: US reporter and UK neutral
+  // citations resolve through their own providers into the same source pipeline.
+  const foreign = await concurrentMap(candidates.flatMap(({ id, authority }, index) =>
+    authority.kind === "case" && !authority.sourceIdentity &&
+      !("mismatch" in resolutions[index]) && !resolutions[index].source &&
+      draft.authorities[id]?.source.kind === "unresolved" ? [id] : []), async (id) => {
+    signal?.throwIfAborted();
+    try { return [id, await sources.resolveForeign(authorityCitationForms(draft, id), signal)] as const; }
+    catch { signal?.throwIfAborted(); return [id, null] as const; }
+  });
+  for (const [id, found] of foreign) {
+    if (!found) continue;
+    resolvedSources.set(found.stableSourceId, { ...found, identity: found.stableSourceId,
+      alternateCitation: null, dataset: found.provider, language: "en",
+      searchText: found.text, verifiedPdf: found.pdfUrl
+        ? { url: found.pdfUrl, pdfOnly: true } : null });
+    draft = update(draft, { type: "resolve-authority", authorityId: id,
+      citation: found.citation, name: found.name,
+      source: { provider: found.provider, stableSourceId: found.stableSourceId,
+        sourceSha256: found.sourceSha256, version: found.date, externalUrl: found.url } });
+  }
   if (!needsPdf) return { draft, attachments };
-  for (const id of draft.authorityOrder) {
-    const authority = draft.authorities[id], identity = authority?.sourceIdentity;
-    if (authority?.kind === "case" && authority.source.kind === "resolved" &&
-        identity?.provider !== "a2aj" && identity?.externalUrl &&
-        buildCanliiPdfUrl(identity.externalUrl)) {
-      draft = update(draft, { type: "begin-canlii-handoff", authorityId: id,
-        pageUrl: identity.externalUrl });
-    }
-  }
-  for (let index = 0; index < candidates.length; index += 1) {
-    const { id, authority } = candidates[index], current = draft.authorities[id],
-      resolution = resolutions[index];
-    if (!current || "mismatch" in resolution ||
-        ("source" in resolution && resolution.source !== null) ||
-        current.source.kind !== "unresolved") continue;
-    const pageUrl = authority.kind === "case"
-      ? buildCanliiCaseUrlFromCitation(authorityCitationForms(draft, id)) : null;
-    if (pageUrl) draft = update(draft,
-      { type: "begin-canlii-handoff", authorityId: id, pageUrl });
-  }
   const unique = new Map<string, { authorityId: string; authority: AuthorityIdentity;
     source: ResolvedSource }>();
   for (const id of draft.authorityOrder) {
     const authority = draft.authorities[id], identity = authority?.sourceIdentity;
-    const source = identity?.provider === "a2aj"
-      ? resolvedSources.get(identity.stableSourceId) : undefined;
+    const source = identity ? resolvedSources.get(identity.stableSourceId) : undefined;
     if (authority && ["resolved", "attached"].includes(authority.source.kind) && source &&
         !unique.has(identity!.stableSourceId)) {
       unique.set(identity!.stableSourceId, { authorityId: id, authority, source });
@@ -178,11 +211,12 @@ export async function resolveAuthoritiesSources(
     const pdfUrl = source.verifiedPdf && !isCanliiUrl(source.verifiedPdf.url)
       ? source.verifiedPdf.url : null;
     const sourceUrl = source.url && !isCanliiUrl(source.url) ? source.url : null;
+    const provider = source.provider ?? "a2aj";
     let original: Awaited<ReturnType<SourceServices["download"]>> | undefined;
     if (originals && (pdfUrl || sourceUrl)) try {
-      original = await sources.download({ provider: "a2aj",
-        identity: stableA2AJSourceId(source), sourceUrl, pdfUrl,
-        source: { provider: "a2aj", id: source.citation, kind: authority.kind as "case" | "legislation",
+      original = await sources.download({ provider,
+        identity: source.identity ?? stableA2AJSourceId(source), sourceUrl, pdfUrl,
+        source: { provider, id: source.citation, kind: authority.kind as "case" | "legislation",
           citation: source.citation, alternateCitation: source.alternateCitation,
           title: source.name, date: source.date, collection: source.dataset,
           language: source.language, url: source.url },
@@ -200,23 +234,29 @@ export async function resolveAuthoritiesSources(
     } catch { signal?.throwIfAborted(); }
     return { ...item, original, bytes: original?.bytes ?? reconstructed };
   });
-  for (const { authorityId, authority, source, paired, original, bytes } of prepared) {
-    if (!bytes) {
-      const pageUrl = authority.kind === "case" && source.url && buildCanliiPdfUrl(source.url)
-        ? source.url : authority.kind === "case" ? buildCanliiCaseUrlFromCitation([
-          source.citation, source.alternateCitation,
-          ...authorityCitationForms(draft, authorityId),
-        ], source.language) : null;
-      if (pageUrl) draft = update(draft,
-        { type: "begin-canlii-handoff", authorityId, pageUrl });
-      continue;
-    }
+  for (const { authorityId, source, paired, original, bytes } of prepared) {
+    if (!bytes) continue;
     attachments.push({ authorityId,
       filename: pdfFilename(`${source.name ?? source.citation}${paired
         ? ` (${source.language === "en" ? "English" : "French"})` : ""}`), bytes,
       sourceSha256: sha256(bytes), sourceUrl: original
         ? original.url ?? source.verifiedPdf?.url ?? source.url : source.url ?? null,
       origin: original ? "original" : "reconstructed", language: source.language });
+  }
+  // One CanLII handoff rule for every case left without bytes, whichever
+  // provider identified it: the publisher's own page when it has one, else the
+  // page CanLII publishes for the citation.
+  const attached = new Set(attachments.map(({ authorityId }) => authorityId));
+  for (const id of draft.authorityOrder) {
+    const authority = draft.authorities[id];
+    if (authority?.kind !== "case" || attached.has(id) ||
+        authority.source.kind === "attached") continue;
+    const source = resolvedSources.get(authority.sourceIdentity?.stableSourceId ?? "");
+    const external = authority.sourceIdentity?.externalUrl;
+    const pageUrl = external && buildCanliiPdfUrl(external) ? external
+      : buildCanliiCaseUrlFromCitation([source?.citation, source?.alternateCitation,
+        ...authorityCitationForms(draft, id)].filter((value) => !!value), source?.language);
+    if (pageUrl) draft = update(draft, { type: "begin-canlii-handoff", authorityId: id, pageUrl });
   }
   return { draft, attachments };
 }
