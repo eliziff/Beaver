@@ -377,6 +377,46 @@ export function createDocumentApplication(repository: DocumentRepository,
     return result === "created" ? version : null;
   };
 
+  const forkVersion = async (scope: DocumentScope, documentId: string,
+    expectedCurrentVersionId: string, expectedCurrentWorkingRevision: number,
+    comment?: string | null, restoreVersionId?: string) => {
+    const [aggregate, history, pendingEdits] = await Promise.all([
+      repository.head(scope, documentId), repository.history(scope, documentId, true),
+      repository.hasPendingEdits(scope, documentId, restoreVersionId === undefined
+        ? [expectedCurrentVersionId] : [expectedCurrentVersionId, restoreVersionId]),
+    ]);
+    const current = aggregate && activeVersion(aggregate);
+    const source = restoreVersionId === undefined ? current
+      : history?.versions.find(({ id }) => id === restoreVersionId);
+    if (!aggregate || !current || !source) return { status: "missing" as const };
+    if (current.id !== expectedCurrentVersionId ||
+        current.workingRevision !== expectedCurrentWorkingRevision ||
+        restoreVersionId !== undefined && source.id === current.id)
+      return { status: "conflict" as const };
+    if (pendingEdits) return { status: "pending-edits" as const };
+    if (!history || !await blobsAvailable(source,
+      (history.parts ?? []).filter(({ versionId }) => versionId === source.id)))
+      return { status: "missing" as const };
+    if (restoreVersionId === undefined && current.workingRevision === 0)
+      throw new ApplicationError(409, "There are no changes to save as a new version");
+    const version: StoredDocumentVersion = { ...source, id: randomUUID(),
+      parentVersionId: current.id, versionNumber: current.versionNumber + 1,
+      workingRevision: 0, source: restoreVersionId === undefined ? "snapshot" : "restore",
+      createdBy: scope.userId,
+      ...(scope.userEmail ? { authorEmail: scope.userEmail } : { authorEmail: undefined }),
+      comment: safeComment(comment), createdAt: new Date().toISOString(),
+      provenance: source.provenance?.actor === "assistant"
+        ? { ...source.provenance, turnId: undefined } : source.provenance };
+    const result = await repository.insertVersion(scope, documentId, {
+      expectedCurrentVersionId, expectedCurrentWorkingRevision,
+      expectedProjectId: aggregate.document.projectId,
+      expectedFolderId: aggregate.document.folderId, version,
+      clonePartsFromVersionId: source.id });
+    return result === "created"
+      ? { status: "created" as const, version: responseVersion(version) }
+      : { status: result as "missing" | "conflict" };
+  };
+
   const replace = async (scope: DocumentScope, documentId: string,
     owner: Readonly<{ userId: string; projectId: string | null }>,
     current: StoredDocumentVersion, input: DocumentFile & {
@@ -780,81 +820,12 @@ export function createDocumentApplication(repository: DocumentRepository,
 
     async restoreVersion(scope, documentId, versionId, expectedCurrentVersionId,
       expectedCurrentWorkingRevision, comment) {
-      const [aggregate, history, pendingEdits] = await Promise.all([
-        repository.head(scope, documentId), repository.history(scope, documentId, true),
-        repository.hasPendingEdits(scope, documentId, [expectedCurrentVersionId, versionId]),
-      ]);
-      const source = history?.versions.find(({ id }) => id === versionId);
-      const current = aggregate && activeVersion(aggregate);
-      if (!aggregate || !source || !current) return { status: "missing" as const };
-      if (current.id !== expectedCurrentVersionId ||
-          current.workingRevision !== expectedCurrentWorkingRevision)
-        return { status: "conflict" as const };
-      if (source.id === current.id) return { status: "conflict" as const };
-      if (pendingEdits) return { status: "pending-edits" as const };
-      if (!await blobsAvailable(source,
-        (history?.parts ?? []).filter(({ versionId }) => versionId === source.id)))
-        return { status: "missing" as const };
-      const restored: StoredDocumentVersion = {
-        ...source,
-        id: randomUUID(),
-        parentVersionId: current.id,
-        versionNumber: current.versionNumber + 1,
-        workingRevision: 0,
-        source: "restore",
-        createdBy: scope.userId,
-        ...(scope.userEmail ? { authorEmail: scope.userEmail } : { authorEmail: undefined }),
-        comment: safeComment(comment),
-        createdAt: new Date().toISOString(),
-        provenance: source.provenance?.actor === "assistant"
-          ? { ...source.provenance, turnId: undefined } : source.provenance,
-      };
-      const result = await repository.insertVersion(scope, documentId, {
-        expectedCurrentVersionId,
-        expectedCurrentWorkingRevision: current.workingRevision,
-        expectedProjectId: aggregate.document.projectId,
-        expectedFolderId: aggregate.document.folderId,
-        version: restored, clonePartsFromVersionId: source.id,
-      });
-      return result === "created"
-        ? { status: "restored" as const, version: responseVersion(restored) }
-        : { status: result as "missing" | "conflict" };
+      const result = await forkVersion(scope, documentId, expectedCurrentVersionId,
+        expectedCurrentWorkingRevision, comment, versionId);
+      return result.status === "created" ? { ...result, status: "restored" as const } : result;
     },
 
-    async checkpointVersion(scope, documentId, expectedCurrentVersionId,
-      expectedCurrentWorkingRevision, comment) {
-      const [aggregate, pendingEdits, history] = await Promise.all([
-        repository.head(scope, documentId),
-        repository.hasPendingEdits(scope, documentId, [expectedCurrentVersionId]),
-        repository.history(scope, documentId, true),
-      ]);
-      const current = aggregate && activeVersion(aggregate);
-      if (!aggregate || !current) return { status: "missing" as const };
-      if (current.id !== expectedCurrentVersionId ||
-          current.workingRevision !== expectedCurrentWorkingRevision)
-        return { status: "conflict" as const };
-      if (pendingEdits) return { status: "pending-edits" as const };
-      if (!history || !await blobsAvailable(current,
-        (history.parts ?? []).filter(({ versionId }) => versionId === current.id)))
-        return { status: "missing" as const };
-      if (current.workingRevision === 0)
-        throw new ApplicationError(409, "There are no changes to save as a new version");
-      const version: StoredDocumentVersion = { ...current, id: randomUUID(),
-        parentVersionId: current.id, versionNumber: current.versionNumber + 1,
-        workingRevision: 0, source: "snapshot", createdBy: scope.userId,
-        ...(scope.userEmail ? { authorEmail: scope.userEmail } : { authorEmail: undefined }),
-        comment: safeComment(comment), createdAt: new Date().toISOString(),
-        provenance: current.provenance?.actor === "assistant"
-          ? { ...current.provenance, turnId: undefined } : current.provenance };
-      const result = await repository.insertVersion(scope, documentId, {
-        expectedCurrentVersionId, expectedCurrentWorkingRevision,
-        expectedProjectId: aggregate.document.projectId,
-        expectedFolderId: aggregate.document.folderId, version,
-        clonePartsFromVersionId: current.id });
-      return result === "created"
-        ? { status: "created" as const, version: responseVersion(version) }
-        : { status: result as "missing" | "conflict" };
-    },
+    checkpointVersion: forkVersion,
 
     async compareVersions(scope, documentId, baselineVersionId, versionId) {
       if (baselineVersionId === versionId) return { status: "same" as const };
