@@ -259,7 +259,7 @@ it("fills the form from a proposed design and revises it", async () => {
         [expect.objectContaining({ name: "Deadline" }), expect.objectContaining({ name: "Penalty" })], undefined));
 });
 
-it("imports a research set as passage rows and opens the created review", async () => {
+it("imports a research set and opens the created review", async () => {
     const set = { id: "set-1", filename: "Appeal.research.md", file_type: "md", project_id: null } as Document;
     mocks.listDirectory.mockResolvedValue({ items: [{ kind: "document", document: set }], next_cursor: null });
     mocks.getResearchFile.mockResolvedValue({ document: set, versionId: "v1", workingRevision: 0, state: {
@@ -275,11 +275,9 @@ it("imports a research set as passage rows and opens the created review", async 
     fireEvent.click(screen.getByRole("button", { name: "Create custom" }));
     fireEvent.click(screen.getByRole("button", { name: "Import a Research set" }));
     fireEvent.click(await screen.findByRole("radio", { name: "Select Appeal" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Next" }));
-    fireEvent.click(await screen.findByRole("button", { name: /Saved passages/ }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Next" })).toBeEnabled());
-    fireEvent.click(screen.getByRole("button", { name: "Next" })); fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    fireEvent.click(screen.getByRole("button", { name: "Create review" }));
+    const create = () => screen.getByRole("button", { name: "Create table" });
+    await waitFor(() => expect(create()).toBeEnabled());
+    fireEvent.click(create());
     await waitFor(() => expect(onOpen).toHaveBeenCalledWith("/tabular-reviews/review-9"));
-    expect(mocks.openWorkspaceTable).toHaveBeenCalledWith("set-1", { rows: "passages", design: preview.design, fingerprint: preview.fingerprint });
+    expect(mocks.openWorkspaceTable).toHaveBeenCalledWith("set-1", { design: preview.design, fingerprint: preview.fingerprint });
 });

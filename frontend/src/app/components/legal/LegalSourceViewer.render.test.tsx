@@ -287,9 +287,11 @@ describe("legal source reader", () => {
         render(<LegalSourceViewer citation="2099 SCC 1" docType="cases" researchFile={blank} />);
         const selection = selectText(await screen.findByText("ratio"));
         fireEvent.click(screen.getByRole("button", { name: "Highlight" }));
+        const canonical = viewerPayload().slices[0].text;
         await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", 0,
-            { type: "passage", sourceId: "saved", locator: { kind: "paragraph", value: "par1" },
-                quote: "ratio", labelIds: ["holding"] }));
+            { type: "passage", sourceId: "saved", revision: "a".repeat(64),
+                start: canonical.indexOf("ratio"), end: canonical.indexOf("ratio") + "ratio".length,
+                labelIds: ["holding"] }));
         expect(api.actOnResearchFile.mock.calls.map(([, , , action]) => action.type)).toEqual(["source", "passage"]);
         expect(screen.queryByRole("button", { name: "Save highlight" })).not.toBeInTheDocument();
         expect(screen.queryByRole("dialog", { name: "Labels and note" })).not.toBeInTheDocument();
@@ -325,8 +327,10 @@ describe("legal source reader", () => {
         fireEvent.click(screen.getByText("ratio"));
         await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", 0,
             expect.objectContaining({ type: "passage", sourceId: "saved",
-                locator: { kind: "paragraph", value: "par1" }, labelIds: ["holding"] })));
-        expect(String(api.actOnResearchFile.mock.calls.at(-1)[3].quote)).toContain("The ratio controls.");
+                revision: "a".repeat(64), labelIds: ["holding"] })));
+        const clicked = api.actOnResearchFile.mock.calls.at(-1)[3] as { start: number; end: number };
+        expect(viewerPayload().slices[0].text.slice(clicked.start, clicked.end))
+            .toContain("The *ratio* controls.");
         expect(container.querySelector("[data-highlighter]")).not.toBeNull();
     });
 

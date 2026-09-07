@@ -1,5 +1,6 @@
-import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { CircleHelp } from "lucide-react";
+import { useAnchoredPopover } from "@/app/hooks/useAnchoredPopover";
 import { cn } from "@/app/lib/utils";
 
 export function HelpPopover({ label, children, className }: {
@@ -7,25 +8,9 @@ export function HelpPopover({ label, children, className }: {
 }) {
     const [open, setOpen] = useState(false);
     const button = useRef<HTMLButtonElement>(null);
-    const tooltip = useRef<HTMLSpanElement>(null);
     const id = useId();
-    useLayoutEffect(() => {
-        const trigger = button.current, popup = tooltip.current;
-        if (!open || !trigger || !popup) return;
-        if (popup.showPopover) popup.showPopover(); else popup.removeAttribute("popover");
-        const place = () => {
-            const anchor = trigger.getBoundingClientRect(), box = popup.getBoundingClientRect();
-            const maxLeft = Math.max(8, innerWidth - box.width - 8);
-            popup.style.left = `${Math.min(maxLeft, Math.max(8, anchor.right - box.width))}px`;
-            popup.style.top = `${anchor.bottom + box.height + 14 <= innerHeight
-                ? anchor.bottom + 6 : Math.max(8, anchor.top - box.height - 6)}px`;
-        };
-        place(); addEventListener("resize", place); addEventListener("scroll", place, true);
-        return () => {
-            removeEventListener("resize", place); removeEventListener("scroll", place, true);
-            popup.hidePopover?.();
-        };
-    }, [open]);
+    const tooltip = useAnchoredPopover<HTMLSpanElement>({ anchor: button.current, open, below: true,
+        onDismiss: () => setOpen(false) });
     return <span className={cn("inline-flex", className)}
         onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
         <button ref={button} type="button" aria-label={label} aria-expanded={open}
