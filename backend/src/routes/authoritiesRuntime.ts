@@ -217,6 +217,7 @@ export function createAuthoritiesRuntimeRouter(
     const fresh = await importStandaloneAuthoritiesFile({ filename, fileType: "docx", bytes,
       modified: 0, sourceMode: current.settings.sourceMode });
     const state = reduceAuthoritiesDraft(decided, { type: "refresh", review: authoritiesReview(fresh) });
+    state.stage = current.stage === "citations" ? "citations" : "sources";
     await sendMultipart(res, { draft: state }, [{ role: "source", filename: "source.docx",
       mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", bytes }]);
   }));

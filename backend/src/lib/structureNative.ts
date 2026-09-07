@@ -82,10 +82,11 @@ export type NativePdfPassageGeometry = {
     status: PassageStatus;
     pages: Array<{
       pageNumber: number; width: number; height: number;
-      source: "native" | "unavailable"; passageRects: Rect[];
+      source: "native" | "unavailable"; passageRects: Rect[]; text?: string;
     }>;
     quotes: Array<{
       text: string; status: PassageStatus; pageNumber?: number; rects: Rect[];
+      fragments?: Array<{ pageNumber: number; rects: Rect[] }>;
     }>;
   }>;
 };
@@ -330,7 +331,7 @@ export function structureNative() {
 const normalizedWords = (text: string) =>
   (text.normalize("NFKC").toLowerCase()
     .match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) ?? [])
-    .map((word) => word.replace(/['’]/g, ""));
+    .map((word) => word.replace(/’/g, "'"));
 
 function unionRects(rects: Rect[]) {
   return rects.slice(1).reduce<Rect>((box, rect) => [
@@ -343,22 +344,26 @@ function exactQuote(target: NativePdfPassagePages["targets"][number], text: stri
   if (target.status !== "found") return { text, status: target.status, rects: [] };
   const needle = normalizedWords(text);
   if (needle.length < 2) return { text, status: "invalid" as const, rects: [] };
-  const hits = target.pages.flatMap((page) => {
-    if (page.source !== "native") return [];
-    const words = page.lines.flatMap((line) => line.words.flatMap((word) =>
-      normalizedWords(word.text).map((value) => ({ value, line: line.id, rect: word.rect }))));
-    return words.flatMap((_, start) =>
-      needle.every((word, offset) => words[start + offset]?.value === word)
-        ? [{ pageNumber: page.pageNumber, words: words.slice(start, start + needle.length) }]
-        : []);
-  });
+  const words = target.pages.flatMap(page => page.source !== "native" ? [] :
+    page.lines.flatMap(line => line.words.flatMap(word => normalizedWords(word.text)
+      .map(value => ({ value, pageNumber: page.pageNumber, line: line.id, rect: word.rect })))));
+  const hits = words.flatMap((_, start) => needle.every((word, offset) => {
+    const current = words[start + offset], prior = words[start + offset - 1];
+    return current?.value === word && (!offset || current.pageNumber <= prior.pageNumber + 1);
+  }) ? [words.slice(start, start + needle.length)] : []);
   if (hits.length !== 1) return {
     text, status: (hits.length ? "ambiguous" : "not_found") as PassageStatus, rects: [],
   };
-  const lines = new Map<string, Rect[]>();
-  hits[0].words.forEach((word) => lines.set(word.line, [...(lines.get(word.line) ?? []), word.rect]));
-  return { text, status: "found" as const, pageNumber: hits[0].pageNumber,
-    rects: [...lines.values()].map(unionRects) };
+  const pages = new Map<number, Map<string, Rect[]>>();
+  for (const word of hits[0]) {
+    const lines = pages.get(word.pageNumber) ?? new Map<string, Rect[]>();
+    lines.set(word.line, [...(lines.get(word.line) ?? []), word.rect]); pages.set(word.pageNumber, lines);
+  }
+  const fragments = [...pages].map(([pageNumber, lines]) => ({ pageNumber,
+    rects: [...lines.values()].map(unionRects) }));
+  // One quotation can span pages; keep it one editable mark with several fragments.
+  return { text, status: "found" as const, ...fragments[0], fragments };
+
 }
 
 export async function pdfPassageGeometry(
@@ -389,6 +394,7 @@ export async function pdfPassageGeometry(
       return { id: target.id, locatorKind: request.locatorKind, locator: request.locator, status,
         pages: target.pages.map((page) => ({
         pageNumber: page.pageNumber, width: page.width, height: page.height, source: page.source,
+        text: page.lines.flatMap(line => line.words.map(word => word.text)).join(" ").slice(0, 2_000),
         passageRects: request.locatorKind === "page" || !page.lines.length
           ? [] : [unionRects(page.lines.map((line) => line.rect))],
         })),

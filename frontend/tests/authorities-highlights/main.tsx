@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PDFDocument, StandardFonts, degrees } from 'pdf-lib';
+import { QuotationReview } from '../../src/app/authorities/QuotationFinding';
+import type { AuthoritiesDiscrepancy } from '../../src/app/authorities/types';
 import { AuthoritiesHighlights } from '../../src/app/authorities/AuthoritiesHighlightEditor';
 import type { AuthoritiesHost } from '../../src/app/authorities/host';
 import type { AuthoritiesProduct } from '../../src/app/authorities/types';
@@ -14,6 +16,7 @@ for(let number=1;number<=12;number++) {
   if(number===2) {
     page.drawText('[42] First independent quote',{x:72,y:650,size:12,font});
     page.drawText('Second independent quote',{x:72,y:610,size:12,font});
+    page.drawText('[43] A different paragraph begins.',{x:72,y:570,size:12,font});
   }
   if(number===6) {page.setCropBox(24,20,550,720);page.setRotation(degrees(90));}
 }
@@ -29,7 +32,7 @@ const hashes=Object.fromEntries(await Promise.all(Object.entries(files).map(asyn
 const initial:AuthoritiesProduct={id:'browser-test',kind:'authorities',title:'Browser annotation test',revision:1,projectId:null,
   createdAt:'2026-09-06',updatedAt:'2026-09-06',outputs:{},state:{schemaVersion:'beaver.authorities-draft.v1',import:{kind:'manual'},
     outputMode:'book',insertIntoDocument:false,settings:{profileId:'general',sourceMode:'automatic',tabStyle:'numeric',tableOrder:'first-reference',
-      tableDelivery:'native-append',tableLocation:'pages',passageMarking:'text',scannedPdfPolicy:'page-margin',missingSourcePolicy:'placeholder'},
+      tableDelivery:'native-append',tableLocation:'pages',passageMarking:'margin',scannedPdfPolicy:'page-margin',missingSourcePolicy:'placeholder'},
     cover:{courtFileNumber:'',partyGroups:[],applicationUnder:'',title:''},bookParts:{cover:null,index:null,supplements:[]},
     ledger:null,units:[],occurrences:{},discrepancyDecisions:{},authorityOrder:['text','scan'],
     bindings:Object.fromEntries(Object.entries(files).map(([role,bytes])=>[role,{kind:'local-file',handleId:role,
@@ -45,6 +48,16 @@ const post=async(path:string,body:unknown)=>{
 };
 function App() {
   const [product,setProduct]=useState(initial),[error,setError]=useState('');
+  const [reviewOpen,setReviewOpen]=useState(false),[rechecking,setRechecking]=useState(false);
+  const [findings,setFindings]=useState<AuthoritiesDiscrepancy[]>([
+    { id:'wording',kind:'quote_mismatch',actions:['ignore','quote_exact'],occurrenceId:'quote',authorityId:'text',
+      footnoteId:1,citation:'2024 SCC 1',proposition:'Quoted rule',authoredQuote:'The deadline is seven business days.',
+      authoredPinpoint:{kind:'paragraph',text:'42'},cited:{locator:{kind:'paragraph',label:'42'},text:'The deadline is five business days.'},
+      found:{locator:{kind:'paragraph',label:'42'},text:'The deadline is five business days.'}},
+    { id:'unlocated',kind:'quote_unlocated',actions:['ignore'],occurrenceId:'other',authorityId:'text',
+      footnoteId:2,citation:'2024 SCC 1',proposition:'Unlocated quotation',authoredQuote:'An unrelated quoted passage.',
+      authoredPinpoint:{kind:'paragraph',text:'43'},cited:{locator:{kind:'paragraph',label:'43'},text:'A different paragraph begins.'},found:null}
+  ]);
   const host={readSource:async(_product:AuthoritiesProduct,role:string)=>new Blob([files[role].slice().buffer],{type:'application/pdf'}),
     prepareAnnotations:async(value:AuthoritiesProduct,authorityId:string,bindingRole:string)=>
       (await post('prepare',{product:value,authorityId,bindingRole,bytes:base64(files[bindingRole])})).json(),
@@ -61,6 +74,11 @@ function App() {
   }
   return <div className="mx-auto max-w-4xl p-6">
     <AuthoritiesHighlights product={product} tabs={new Map([['text','Tab 1'],['scan','Tab 2']])} host={host} busy={false} onSaved={setProduct}/>
+    <button className="m-4 border p-2" onClick={()=>setReviewOpen(true)}>Review test quotations</button>
+    {reviewOpen && <QuotationReview initialId="wording" items={rechecking ? undefined : findings} busy={rechecking}
+      onClose={()=>setReviewOpen(false)} onResolve={(finding,_action,done)=>{
+        setRechecking(true);setTimeout(()=>{setFindings(values=>values.filter(value=>value.id!==finding.id));setRechecking(false);done();},100);
+      }}/>}
     <button className="m-4 border p-2" onClick={()=>void build()}>Build test book</button>
     <button className="m-4 border p-2" onClick={()=>setProduct({...initial,state:{...initial.state,
       settings:{...initial.state.settings,passageMarking:'none'}}})}>Start with no automatic highlights</button>

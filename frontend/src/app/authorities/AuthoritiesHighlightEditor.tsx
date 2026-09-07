@@ -1,21 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import { Highlighter, MousePointer2, Pencil, Redo2, RotateCcw, Trash2, Undo2 } from 'lucide-react';
+import { Highlighter, MousePointer2, Pencil, Redo2, Trash2, Undo2 } from 'lucide-react';
 import { Modal } from '@/app/components/modals/Modal';
 import { Button } from '@/app/components/ui/button';
 import { PdfView } from '@/app/components/shared/views/PdfView';
 import type { AnnotationTool } from '@/app/components/shared/views/pdfAnnotationLayer';
 import { cn, errorMessage } from '@/app/lib/utils';
-import { decodeAnnotationSet, emptyAnnotationSet, eraseAnnotations,
+import { decodeAnnotationSet, emptyAnnotationSet,
   type PdfAnnotation, type PdfAnnotationSet } from '../../../../shared/pdf-annotations.mjs';
 import type { AuthoritiesHost } from './host';
 import type { AuthoritiesAction, AuthoritiesProduct } from './types';
-import { annotationExcerpts } from './annotationExcerpts';
 
 type Entry = Extract<AuthoritiesAction, { type: 'set-annotations' }>['entries'][number];
 type Choice = { authorityId: string; bindingRole: string; sourceSha256: string; title: string };
 type OpenPdf = {
   bytes: Uint8Array; set: PdfAnnotationSet; history: PdfAnnotation[][]; position: number;
-  unresolved: Array<{ label: string; excerpt: string }>; warning: string; stale: boolean;
+  warning: string;
 };
 const choicesFor = (product: AuthoritiesProduct, tabs: ReadonlyMap<string,string>): Choice[] =>
   product.state.authorityOrder.flatMap(id => {
@@ -28,9 +27,9 @@ const choicesFor = (product: AuthoritiesProduct, tabs: ReadonlyMap<string,string
         ...(sources.length > 1 ? [source.language === 'fr' ? 'French' : 'English'] : [])].filter(Boolean).join(' — ') }));
   });
 
-export function AuthoritiesHighlights({ product, tabs, host, busy, onSaved }: {
+export function AuthoritiesHighlights({ product, tabs, host, busy, onSaved, prepared }: {
   product: AuthoritiesProduct; tabs: ReadonlyMap<string,string>; host: AuthoritiesHost; busy: boolean;
-  onSaved(product: AuthoritiesProduct): void;
+  onSaved(product: AuthoritiesProduct): void; prepared?: Record<string, PdfAnnotationSet>;
 }) {
   const [open, setOpen] = useState(false);
   const choices = choicesFor(product, tabs);
@@ -40,13 +39,13 @@ export function AuthoritiesHighlights({ product, tabs, host, busy, onSaved }: {
     <Button type="button" variant="outline" disabled={busy || !host.readSource}
       onClick={() => setOpen(true)}><Highlighter /> Edit in PDF</Button>
     {open && <AuthoritiesHighlightEditor product={product} choices={choices} host={host}
-      onClose={() => setOpen(false)} onSaved={onSaved} />}
+      onClose={() => setOpen(false)} onSaved={onSaved} prepared={prepared} />}
   </section>;
 }
 
-function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, onClose, onSaved }: {
+function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, onClose, onSaved, prepared }: {
   product: AuthoritiesProduct; choices: Choice[]; host: AuthoritiesHost;
-  onClose(): void; onSaved(product: AuthoritiesProduct): void;
+  onClose(): void; onSaved(product: AuthoritiesProduct): void; prepared?: Record<string, PdfAnnotationSet>;
 }) {
   // A review edits one known revision; a concurrent write must not be silently overwritten.
   const [base] = useState(product);
@@ -58,13 +57,13 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
   const [focus, setFocus] = useState<{ id: string; request: number }>();
   const [loading, setLoading] = useState(false), [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [confirmation, setConfirmation] = useState<'discard'|'regenerate'|null>(null);
+  const [confirmation, setConfirmation] = useState(false);
   const request = useRef<AbortController|null>(null);
   const cardRefs = useRef(new Map<string,HTMLLIElement>());
   const source = choices.find(choice => choice.bindingRole === role)!;
   const current = documents[role], marks = current?.history[current.position] ?? [];
   const dirty = Object.values(documents).some(document => document.position !== 0);
-  const disabled = saving || loading || !current || current.stale;
+  const disabled = saving || loading || !current;
   const changeDocument = (update: (document: OpenPdf) => OpenPdf) => setDocuments(values => {
     const document = values[role]; return document ? { ...values, [role]: update(document) } : values;
   });
@@ -79,11 +78,11 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
   const undo = () => { if (!disabled) changeDocument(document => ({...document,position:Math.max(0,document.position-1)})); };
   const redo = () => { if (!disabled) changeDocument(document => ({...document,position:Math.min(document.history.length-1,document.position+1)})); };
   const remove = (id: string) => { edit(marks.filter(mark => mark.id !== id)); if (selectedId===id) setSelectedId(null); };
-  const close = () => { if (!saving) { if (dirty) setConfirmation('discard'); else onClose(); } };
+  const close = () => { if (!saving) { if (dirty) setConfirmation(true); else onClose(); } };
 
   useEffect(() => {
     setSelectedId(null); setFocus(undefined); setError('');
-    if (documents[role]) return;
+    if (documents[role]) { setLoading(false); return; }
     const abort = new AbortController(); request.current?.abort(); request.current=abort; setLoading(true);
     void (async () => {
       if (!host.readSource) throw new Error('This source cannot be opened.');
@@ -93,24 +92,23 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
         .map(value => value.toString(16).padStart(2,'0')).join('');
       if (hash !== source.sourceSha256) throw new Error('This PDF changed. Relink the source before editing highlights.');
       const saved = base.state.authorities[source.authorityId].annotations?.[role];
-      const stale = !!saved && saved.sourceSha256 !== hash;
-      let set = saved && !stale ? decodeAnnotationSet(saved) : emptyAnnotationSet(hash);
-      let unresolved: OpenPdf['unresolved'] = [], warning = '';
-      if (!saved && base.state.settings.passageMarking !== 'none') {
+      const replaced = !!saved && saved.sourceSha256 !== hash;
+      let set = saved && !replaced ? decodeAnnotationSet(saved) : prepared?.[role] ?? emptyAnnotationSet(hash);
+      if (set.sourceSha256 !== hash) throw new Error("The marking source does not match this PDF.");
+      let warning = replaced ? 'The PDF changed; highlights start from this version.' : '';
+      if ((!saved || replaced) && !prepared?.[role] && base.state.settings.passageMarking !== 'none') {
         try {
           if (!host.prepareAnnotations) throw new Error('Automatic marking is unavailable.');
           const prepared = await host.prepareAnnotations(base,source.authorityId,role,blob,abort.signal);
-          set=prepared.annotations; unresolved=prepared.unresolved;
+          set=prepared.annotations;
           if(set.sourceSha256!==hash) throw new Error('The marking source does not match this PDF.');
         } catch (cause) {
           abort.signal.throwIfAborted(); set=emptyAnnotationSet(hash);
           warning=`Automatic highlights could not be prepared. You can mark this PDF manually. ${errorMessage(cause)}`;
         }
       }
-      try { if(!saved) set={...set,marks:await annotationExcerpts(bytes,set.marks,abort.signal)}; }
-      catch { abort.signal.throwIfAborted(); }
       abort.signal.throwIfAborted();
-      setDocuments(values => ({...values,[role]:{bytes,set,history:[set.marks],position:0,unresolved,warning,stale}}));
+      setDocuments(values => ({...values,[role]:{bytes,set,history:[set.marks],position:0,warning}}));
     })().catch(cause => { if (!abort.signal.aborted) setError(errorMessage(cause)); })
       .finally(() => { if (!abort.signal.aborted) setLoading(false); });
     return () => abort.abort();
@@ -124,27 +122,13 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
     window.addEventListener('beforeunload',guard); return ()=>window.removeEventListener('beforeunload',guard);
   },[dirty]);
 
-  async function regenerate() {
-    setConfirmation(null); if(!current || !host.prepareAnnotations) return;
-    const abort = new AbortController(); request.current?.abort(); request.current=abort; setLoading(true); setError('');
-    try {
-      const result=await host.prepareAnnotations(base,source.authorityId,role,
-        new Blob([current.bytes.slice().buffer],{type:'application/pdf'}),abort.signal);
-      if(result.annotations.sourceSha256!==source.sourceSha256) throw new Error('The source changed. Reopen this PDF.');
-      const next=[...result.annotations.marks,...(current.stale ? [] : marks.filter(mark=>mark.origin==='manual'))];
-      changeDocument(document=>({...document,set:result.annotations,history:document.stale ? [[],next]
-        : [...document.history.slice(0,document.position+1),next],position:document.stale ? 1 : document.position+1,
-        unresolved:result.unresolved,stale:false,warning:''}));
-      setSelectedId(null);
-    } catch(cause) { if(!abort.signal.aborted) setError(errorMessage(cause)); }
-    finally { if(!abort.signal.aborted) setLoading(false); }
-  }
   async function save() {
     if(saving || loading) return;
     const entries:Entry[]=choices.flatMap(choice=>{
       const document=documents[choice.bindingRole];
-      const unchanged = document?.position === 0 && base.state.authorities[choice.authorityId].annotations?.[choice.bindingRole];
-      return document && !document.stale && !unchanged ? [{authorityId:choice.authorityId,bindingRole:choice.bindingRole,
+      const prior = base.state.authorities[choice.authorityId].annotations?.[choice.bindingRole];
+      const unchanged = document?.position === 0 && prior?.sourceSha256 === choice.sourceSha256;
+      return document && !unchanged ? [{authorityId:choice.authorityId,bindingRole:choice.bindingRole,
         annotations:{...document.set,marks:document.history[document.position]}}] : [];
     });
     if(!entries.length) { onClose(); return; }
@@ -180,57 +164,43 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
             {value:'draw',label:'Draw highlight',Icon:Pencil}] as const).map(({value,label,Icon})=><Button key={value}
               type="button" variant={tool===value?'default':'outline'} aria-pressed={tool===value} disabled={disabled}
               onClick={()=>setTool(value)} className="h-9"><Icon />{label}</Button>)}
-          <label><span className="sr-only">Remove highlighting</span>
-            <select aria-label="Remove highlighting" value={tool.startsWith('erase')?tool:''} disabled={disabled}
-              onChange={event=>setTool(event.target.value as AnnotationTool)} className="h-9 rounded border border-gray-300 bg-white px-2 text-sm">
-              <option value="" disabled>Erase…</option><option value="erase-text">Erase selected text</option><option value="erase-area">Erase area</option>
-            </select></label>
+          <Button type="button" variant="outline" size="icon-sm" aria-label="Delete selected highlight"
+            disabled={disabled || !selectedId} onClick={() => selectedId && remove(selectedId)}><Trash2 /></Button>
           <Button type="button" variant="outline" size="icon-sm" aria-label="Undo" disabled={disabled||!current?.position} onClick={undo}><Undo2 /></Button>
           <Button type="button" variant="outline" size="icon-sm" aria-label="Redo" disabled={disabled||current.position>=current.history.length-1} onClick={redo}><Redo2 /></Button>
         </div>
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(16rem,1fr)_minmax(8rem,.45fr)] md:grid-cols-[minmax(0,1fr)_19rem] md:grid-rows-1">
           <div className="flex min-h-0 min-w-0 pt-3 md:pr-3">
             {current ? <PdfView key={role} doc={null} bytes={current.bytes} rounded={false} ariaLabel="Authority PDF editor"
-              annotationEditor={{marks:current.stale?[]:marks,tool,selectedId,focus,disabled,
+              annotationEditor={{marks,tool,selectedId,focus,disabled,
                 onSelect:setSelectedId,onCreate:(fragments,text)=>{
                   const id=crypto.randomUUID();edit([...marks,{id,kind:'highlight',origin:'manual',label:'Custom highlight',excerpt:text,
                     rgb:[1,.92,.6],opacity:.45,fragments}]);setSelectedId(id);
-                },onErase:fragments=>{edit(eraseAnnotations(marks,fragments));setSelectedId(null);}}} />
+                }}} />
               : <div className="grid min-h-48 flex-1 place-items-center bg-gray-100 text-sm text-gray-600" role="status">{loading?'Preparing PDF…':'PDF unavailable'}</div>}
           </div>
           <aside aria-label="Highlights" className="min-h-0 overflow-y-auto border-t border-gray-200 py-3 md:border-l md:border-t-0 md:pl-3">
-            {current?.stale && <p role="alert" className="mb-3 text-sm text-red-800">This PDF was replaced. Reset its highlights before editing; the old coordinates cannot be reused safely.</p>}
             {current?.warning && <p role="alert" className="mb-3 text-sm text-amber-900">{current.warning}</p>}
-            <ul className="space-y-2">{!current?.stale && marks.map(mark=><li key={mark.id}
+            <ul className="space-y-1">{marks.map(mark=><li key={mark.id}
               ref={node=>{if(node)cardRefs.current.set(mark.id,node);else cardRefs.current.delete(mark.id);}}
-              className={cn('flex min-h-24 rounded border',mark.id===selectedId?'border-red-700 bg-red-50':'border-gray-200 bg-white')}>
-              <button type="button" aria-pressed={mark.id===selectedId} className="min-w-0 flex-1 p-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+              className={cn('flex rounded border',mark.id===selectedId?'border-red-700 bg-red-50':'border-gray-200 bg-white')}>
+              <button type="button" aria-pressed={mark.id===selectedId} className="min-w-0 flex-1 px-2.5 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-red-600"
                 onClick={()=>{setSelectedId(mark.id);setFocus(value=>({id:mark.id,request:(value?.request??0)+1}));}}>
-                <span className="block text-sm font-medium">{mark.label}</span>
-                {mark.excerpt && <span className="mt-1 line-clamp-2 text-sm text-gray-700">{mark.excerpt}</span>}
-                <span className="mt-1 block text-xs text-gray-500">PDF page {mark.fragments.map(f=>f.pageNumber).join(', ')}</span>
+                <span className="flex items-center justify-between gap-2 text-xs font-medium">{mark.label}<span className="shrink-0 text-gray-500">p {mark.fragments.map(f=>f.pageNumber).join(", ")}</span></span>
+                {mark.excerpt && <span className="mt-1 line-clamp-2 text-xs leading-5 text-gray-700">{mark.excerpt}</span>}
               </button>
               <Button type="button" variant="ghost" size="icon-sm" className="m-1 shrink-0" disabled={disabled}
                 aria-label={`Delete ${mark.label}`} onClick={()=>remove(mark.id)}><Trash2 /></Button>
             </li>)}</ul>
-            {!marks.length && current && !current.stale && <p className="py-4 text-sm text-gray-500">No highlights. Select text or draw on the PDF to add one.</p>}
-            {!!current?.unresolved.length && <details className="mt-4 border-t border-gray-200 pt-3">
-              <summary className="cursor-pointer text-sm text-amber-900">Not located automatically ({current.unresolved.length})</summary>
-              {current.unresolved.map((item,index)=><p key={index} className="mt-2 text-sm"><strong>{item.label}</strong>{item.excerpt&&` — ${item.excerpt}`}</p>)}
-            </details>}
-            {current && <Button type="button" variant="ghost" className="mt-4 h-auto whitespace-normal text-xs" disabled={saving||loading||!host.prepareAnnotations}
-              onClick={()=>setConfirmation('regenerate')}><RotateCcw />{current.stale?'Reset for this PDF':'Regenerate automatic highlights'}</Button>}
+            {!marks.length && current && <p className="py-4 text-sm text-gray-500">No highlights. Select text or draw on the PDF to add one.</p>}
           </aside>
         </div>
       </div>
     </Modal>
-    <Modal open={!!confirmation} onClose={()=>setConfirmation(null)} breadcrumbs={[confirmation==='discard'?'Discard changes?':'Regenerate highlights?']}
-      className="h-auto max-h-[calc(100dvh-2rem)]" cancelAction={{label:'Cancel',onClick:()=>setConfirmation(null)}}
-      primaryAction={{label:confirmation==='discard'?'Discard':'Regenerate',onClick:()=>{
-        if(confirmation==='discard')onClose();else void regenerate();}}}>
-      <p className="pb-4 text-sm text-gray-700">{confirmation==='discard'?'Your unsaved highlight edits will be discarded.':current?.stale
-        ?'The old highlight positions belong to a different PDF. Start again on this version.'
-        :'This replaces the automatic highlights, including edits to them. Custom highlights are kept.'}</p>
+    <Modal open={confirmation} onClose={()=>setConfirmation(false)} breadcrumbs={['Discard changes?']}
+      className="h-auto max-h-[calc(100dvh-2rem)]" cancelAction={{label:'Cancel',onClick:()=>setConfirmation(false)}}
+      primaryAction={{label:'Discard',onClick:onClose}}>
+      <p className="pb-4 text-sm text-gray-700">Your unsaved highlight edits will be discarded.</p>
     </Modal>
   </>;
 }
