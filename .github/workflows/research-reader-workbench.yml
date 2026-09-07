@@ -19,21 +19,10 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: npm, cache-dependency-path: backend/package-lock.json }
       - run: npm ci --prefix backend --no-audit --no-fund
-      - name: Focused baseline
-        continue-on-error: true
+      - name: Export exact checkout
         run: |
-          cd backend
-          npx vitest run src/lib/__tests__/researchChat.test.ts src/lib/__tests__/researchInterop.test.ts src/lib/__tests__/researchViews.test.ts src/lib/__tests__/sourceWorkspaces.test.ts src/lib/tabular --reporter=verbose > /tmp/research-baseline.log 2>&1
-      - name: Baseline output and fixtures
-        if: always()
-        run: |
-          cat /tmp/research-baseline.log
-          for file in backend/src/lib/__tests__/researchChat.test.ts backend/src/lib/__tests__/researchInterop.test.ts backend/src/lib/chatStore.ts backend/vitest.config.ts; do
-            echo "=== $file ==="
-            sed -n '1,180p' "$file"
-          done
-      - name: Export checkout for focused development
-        run: |
-          tar -czf /tmp/research-checkout.tgz --exclude=backend/dist backend/src backend/node_modules backend/package.json backend/package-lock.json backend/tsconfig.json backend/vitest.config.ts shared packages native scripts/check-source-boundaries.mjs scripts/check-typescript-surface.mjs subrepos.lock.json tsconfig.json package.json AGENTS.md
+          git ls-files '*research*test*' '*sourceWorkspace*test*' '*vitest*'
+          find backend/src -iname '*research*test*' -o -iname '*sourceWorkspace*test*'
+          tar -czf /tmp/research-checkout.tgz --exclude=backend/dist --exclude=backend/.cache backend shared packages native scripts subrepos.lock.json tsconfig.json package.json AGENTS.md
       - uses: actions/upload-artifact@v4
         with: { name: research-checkout, path: /tmp/research-checkout.tgz, retention-days: 1 }
