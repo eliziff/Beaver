@@ -1,79 +1,48 @@
 import { describe, expect, it } from "vitest";
-import {
-  pageRequest,
-  pageResponse,
-  PageCursorError,
-} from "../pagination";
+import { pageRequest, pageResponse, PageCursorError, type CursorFilters } from "../pagination";
+
+const filters = { scope: "mine", q: "lease" };
+const after = ["2026-08-12T10:00:00.000Z", "project-2"];
+const cursor = pageResponse("projects", filters, { items: [], nextAfter: after }).next_cursor;
+const read = (value: unknown, resource = "projects", scope: CursorFilters = filters) =>
+  pageRequest({ cursor: value }, resource, scope, ["string", "string"]);
 
 describe("pagination", () => {
   it("round-trips a resource-bound cursor with normalized filters", () => {
-    const cursor = pageResponse(
-      "projects",
-      { scope: "mine", q: "lease" },
-      { items: [], nextAfter: ["2026-08-12T10:00:00.000Z", "project-2"] },
-    ).next_cursor;
-
-    expect(
-      pageRequest(
-        { cursor },
-        "projects",
-        { q: "lease", scope: "mine" },
-        ["string", "string"],
-      ).after,
-    ).toEqual(["2026-08-12T10:00:00.000Z", "project-2"]);
+    expect(read(cursor, "projects", { q: "lease", scope: "mine" })).toEqual({ limit: 50, after });
+    expect(pageResponse("projects", filters, { items: [{ id: "project-2" }], nextAfter: null }))
+      .toEqual({ items: [{ id: "project-2" }], next_cursor: null });
   });
 
   it.each([
     ["wrong resource", "workflows", { q: "lease", scope: "mine" }],
     ["changed filter", "projects", { q: "other", scope: "mine" }],
-  ])("rejects a cursor with %s", (_label, resource, filters) => {
-    const cursor = pageResponse(
-      "projects",
-      { q: "lease", scope: "mine" },
-      { items: [], nextAfter: ["2026-08-12T10:00:00.000Z", "project-2"] },
-    ).next_cursor;
-    expect(() =>
-      pageRequest({ cursor }, resource, filters, ["string", "string"]),
-    ).toThrow(PageCursorError);
+  ])("rejects a cursor with %s", (_label, resource, scope) => {
+    expect(() => read(cursor, resource, scope)).toThrow(PageCursorError);
   });
 
   it.each([
     "not base64!",
     Buffer.from("not json").toString("base64url"),
     Buffer.from(JSON.stringify({ v: 1 })).toString("base64url"),
-    Buffer.from(
-      JSON.stringify({
-        v: 1,
-        resource: "projects",
-        filters: {},
-        after: ["one"],
-        extra: true,
-      }),
-    ).toString("base64url"),
-  ])("rejects malformed cursor %s", (cursor) => {
-    expect(() =>
-      pageRequest({ cursor }, "projects", {}, ["string", "string"]),
-    ).toThrow(PageCursorError);
+    Buffer.from(JSON.stringify({ v: 1, resource: "projects", filters: {}, after: ["one"], extra: true }))
+      .toString("base64url"),
+  ])("rejects malformed cursor %s", (value) => {
+    expect(() => read(value, "projects", {})).toThrow(PageCursorError);
   });
 
   it("rejects a cursor with the wrong tuple shape", () => {
-    const cursor = pageResponse(
-      "projects", {}, { items: [], nextAfter: [1, "project-2"] },
-    ).next_cursor;
-    expect(() =>
-      pageRequest({ cursor }, "projects", {}, ["string", "string"]),
-    ).toThrow(PageCursorError);
+    const wrong = pageResponse("projects", filters, { items: [], nextAfter: [1, "project-2"] }).next_cursor;
+    expect(() => read(wrong)).toThrow(PageCursorError);
   });
 
   it("parses bounded limits", () => {
-    const limit = (value: unknown) => pageRequest(
-      { limit: value }, "test", {}, [],
-    ).limit;
-    expect(limit(undefined)).toBe(50);
-    expect(limit("1")).toBe(1);
-    expect(limit("200")).toBe(200);
+    const request = (limit: unknown) => pageRequest({ limit }, "test", {}, []);
+    expect(request(undefined)).toEqual({ limit: 50, after: null });
+    expect(request("1")).toEqual({ limit: 1, after: null });
+    expect(request("200")).toEqual({ limit: 200, after: null });
     for (const invalid of ["0", "201", "2.5", "x", ["20"]]) {
-      expect(() => limit(invalid)).toThrow(PageCursorError);
+      expect(() => request(invalid)).toThrow(PageCursorError);
     }
   });
 });
