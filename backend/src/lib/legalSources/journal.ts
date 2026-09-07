@@ -5,7 +5,7 @@ import {
   statSync,
 } from "node:fs";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { legalProviderDatabase } from "../legalDataPath";
 import { positiveInteger as integer } from "../value";
 import {
@@ -52,27 +52,61 @@ export type JournalArticleDocument = {
   language: "en";
 };
 
-const databases = new Map<
-  string,
-  { connection: DatabaseSync; sourceSignature: string }
->();
-const searchDatabases = new Map<
-  string,
-  { connection: DatabaseSync; sourceSignature: string }
->();
-const finalContractDatabases = new Map<
-  string,
-  { connection: DatabaseSync; sourceSignature: string }
->();
 const documents = new Map<string, JournalArticleDocument>();
 const MAX_DOCUMENT_CACHE = 16;
 
-function closeDatabases() {
-  for (const cache of [databases, searchDatabases, finalContractDatabases]) {
-    for (const { connection } of cache.values()) connection.close();
-    cache.clear();
+/** Each database family retains its own snapshot key and invalidation policy. */
+function databaseCache(invalidate?: (filename: string) => void) {
+  const entries = new Map<string, { connection: DatabaseSync; signature: string }>();
+  return {
+    open(filename: string, signature: string, validate: (connection: DatabaseSync) => boolean) {
+      const cached = entries.get(filename);
+      if (cached?.signature === signature) return cached.connection;
+      if (cached) {
+        cached.connection.close();
+        entries.delete(filename);
+        invalidate?.(filename);
+      }
+      const connection = new DatabaseSync(filename, { readOnly: true });
+      let retained = false;
+      try {
+        if (!validate(connection)) return null;
+        entries.set(filename, { connection, signature });
+        retained = true;
+        return connection;
+      } finally {
+        if (!retained) connection.close();
+      }
+    },
+    close() {
+      for (const { connection } of entries.values()) connection.close();
+      entries.clear();
+    },
+  };
+}
+
+const databases = databaseCache((filename) => {
+  for (const key of documents.keys()) {
+    if (key.startsWith(`${filename}:`)) documents.delete(key);
   }
+});
+const searchDatabases = databaseCache();
+const finalContractDatabases = databaseCache(() => documents.clear());
+
+function closeDatabases() {
+  for (const cache of [databases, searchDatabases, finalContractDatabases]) cache.close();
   documents.clear();
+}
+
+function snapshotSignature(filename: string, source = statSync(filename)) {
+  return `${path.resolve(filename)}:${source.size}:${Math.trunc(source.mtimeMs)}`;
+}
+
+function metadata(connection: DatabaseSync, table: "meta" | "export_metadata") {
+  const values = connection.prepare(`SELECT key, value FROM ${table}`).all() as Array<{
+    key: string; value: string;
+  }>;
+  return Object.fromEntries(values.map(({ key, value }) => [key, value]));
 }
 
 function string(row: Row, name: string) {
@@ -131,29 +165,12 @@ function database() {
       `Journal article database not found: ${filename}. Set MIKE_PUBLIC_ENDPOINT_DB or place public_endpoint.db in the shared journals provider directory.`,
     );
   }
-  const source = statSync(filename);
-  const sourceSignature = `${path.resolve(filename)}:${source.size}:${Math.trunc(source.mtimeMs)}`;
-  const cached = databases.get(filename);
-  if (cached?.sourceSignature === sourceSignature) return cached.connection;
-  if (cached) {
-    cached.connection.close();
-    databases.delete(filename);
-    for (const key of documents.keys()) {
-      if (key.startsWith(`${filename}:`)) documents.delete(key);
-    }
-  }
-  const connection = new DatabaseSync(filename, { readOnly: true });
-  const schema = connection
-    .prepare(
+  return databases.open(filename, snapshotSignature(filename), (connection) => {
+    if (!connection.prepare(
       "SELECT 1 FROM sqlite_master WHERE type='table' AND name='articles'",
-    )
-    .get();
-  if (!schema) {
-    connection.close();
-    throw new Error("Unsupported public_endpoint.db schema");
-  }
-  databases.set(filename, { connection, sourceSignature });
-  return connection;
+    ).get()) throw new Error("Unsupported public_endpoint.db schema");
+    return true;
+  })!;
 }
 
 function searchDatabase() {
@@ -166,51 +183,23 @@ function searchDatabase() {
   } catch {
     return null;
   }
-  const sourceSignature = `${sourcePath}:${source.size}:${Math.trunc(source.mtimeMs)}`;
-  const cached = searchDatabases.get(filename);
-  if (cached?.sourceSignature === sourceSignature) return cached.connection;
-  if (cached) {
-    cached.connection.close();
-    searchDatabases.delete(filename);
-  }
-  const connection = new DatabaseSync(filename, { readOnly: true });
-  try {
-    const metadata = Object.fromEntries(
-      (
-        connection.prepare("SELECT key, value FROM meta").all() as Array<{
-          key: string;
-          value: string;
-        }>
-      ).map(({ key, value }) => [key, value]),
-    );
-    const sourceMetadata = Object.fromEntries(
-      (
-        database()
-          .prepare("SELECT key, value FROM export_metadata")
-          .all() as Array<{ key: string; value: string }>
-      ).map(({ key, value }) => [key, value]),
-    );
-    const expectedSource = path.resolve(metadata.source_path ?? ""), actualSource = path.resolve(sourcePath);
-    const matchesSource = process.platform === "win32"
-      ? expectedSource.toLocaleLowerCase() === actualSource.toLocaleLowerCase() : expectedSource === actualSource;
-    if (
-      metadata.schema_version !== "2" ||
-      metadata.source_size !== String(source.size) ||
-      metadata.source_mtime_ms !== String(Math.trunc(source.mtimeMs)) ||
-      !matchesSource ||
-      metadata.source_schema_version !==
-        (sourceMetadata.schema_version ?? "") ||
-      metadata.source_created_at !== (sourceMetadata.created_at ?? "")
-    ) {
-      connection.close();
-      return null;
+  return searchDatabases.open(filename, snapshotSignature(sourcePath, source), (connection) => {
+    try {
+      const indexed = metadata(connection, "meta");
+      const sourceMetadata = metadata(database(), "export_metadata");
+      const expectedSource = path.resolve(indexed.source_path ?? "");
+      const matchesSource = process.platform === "win32"
+        ? expectedSource.toLocaleLowerCase() === sourcePath.toLocaleLowerCase()
+        : expectedSource === sourcePath;
+      return indexed.schema_version === "2" &&
+        indexed.source_size === String(source.size) &&
+        indexed.source_mtime_ms === String(Math.trunc(source.mtimeMs)) && matchesSource &&
+        indexed.source_schema_version === (sourceMetadata.schema_version ?? "") &&
+        indexed.source_created_at === (sourceMetadata.created_at ?? "");
+    } catch {
+      return false;
     }
-  } catch {
-    connection.close();
-    return null;
-  }
-  searchDatabases.set(filename, { connection, sourceSignature });
-  return connection;
+  });
 }
 
 function finalContractDatabase() {
@@ -218,29 +207,9 @@ function finalContractDatabase() {
   const filename = configured ? path.resolve(configured)
     : legalProviderDatabase("journals", "journals.db");
   if (!existsSync(filename)) return null;
-  const source = statSync(filename);
-  const sourceSignature = `${path.resolve(filename)}:${source.size}:${Math.trunc(source.mtimeMs)}`;
-  const cached = finalContractDatabases.get(filename);
-  if (cached?.sourceSignature === sourceSignature) {
-    return { connection: cached.connection, filename };
-  }
-  if (cached) {
-    cached.connection.close();
-    finalContractDatabases.delete(filename);
-    documents.clear();
-  }
-  const connection = new DatabaseSync(filename, { readOnly: true });
-  const schema = connection
-    .prepare(
-      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='article_final_contracts'",
-    )
-    .get();
-  if (!schema) {
-    connection.close();
-    return null;
-  }
-  finalContractDatabases.set(filename, { connection, sourceSignature });
-  return { connection, filename };
+  const connection = finalContractDatabases.open(filename, snapshotSignature(filename), (db) =>
+    !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='article_final_contracts'").get());
+  return connection ? { connection, filename } : null;
 }
 
 function displayCitation(row: Row) {
@@ -295,6 +264,10 @@ function result(row: Row, query: string): JournalArticleSearchResult {
   };
 }
 
+const SEARCH_COLUMNS = `article_id, dataset, citation_en, name_en, authors,
+  document_date_en, volume, issue, first_page, journal_name,
+  journal_abbrev, galley_url, url_en, abstract`;
+
 function findArticles(
   query: string,
   size = 10,
@@ -313,10 +286,7 @@ function findArticles(
   if (directId) {
     const row = database()
       .prepare(
-        `SELECT article_id, dataset, citation_en, name_en, authors,
-                document_date_en, volume, issue, first_page, journal_name,
-                journal_abbrev, galley_url, url_en, abstract
-         FROM articles
+        `SELECT ${SEARCH_COLUMNS} FROM articles
          WHERE article_id = ? AND text IS NOT NULL AND length(text) > 0`,
       )
       .get(Number(directId)) as Row | undefined;
@@ -326,6 +296,20 @@ function findArticles(
   const tokens = queryTokens(query);
   if (!tokens.length) return [];
   const wanted = Math.min(Math.max(Math.trunc(size), 1), 25);
+  const select = (predicate: string, values: SQLInputValue[],
+    suffix = "", trailing: SQLInputValue[] = []) => {
+    const filters: Array<[string, string]> = [];
+    if (options.author) filters.push(["LOWER(authors) LIKE ?", `%${options.author.toLocaleLowerCase()}%`]);
+    if (options.journal) filters.push([
+      "LOWER(COALESCE(journal_name, '') || ' ' || COALESCE(journal_abbrev, '')) LIKE ?",
+      `%${options.journal.toLocaleLowerCase()}%`,
+    ]);
+    if (options.startDate) filters.push(["document_date_en >= ?", options.startDate]);
+    if (options.endDate) filters.push(["document_date_en <= ?", options.endDate]);
+    return database().prepare(`SELECT ${SEARCH_COLUMNS} FROM articles WHERE ${predicate}
+      ${filters.map(([condition]) => `AND ${condition}`).join(" ")} ${suffix}`)
+      .all(...values, ...filters.map(([, value]) => value), ...trailing) as Row[];
+  };
   const search = searchDatabase();
   if (search) {
     const ftsQuery =
@@ -350,24 +334,7 @@ function findArticles(
         .all(ftsQuery, candidateLimit) as Array<{ article_id: number }>
     ).map(({ article_id }) => article_id);
     if (!ids.length) return [];
-    const rows = database()
-      .prepare(
-        `SELECT article_id, dataset, citation_en, name_en, authors,
-                document_date_en, volume, issue, first_page, journal_name,
-                journal_abbrev, galley_url, url_en, abstract
-         FROM articles WHERE article_id IN (${ids.map(() => "?").join(",")})
-           ${options.author ? "AND LOWER(authors) LIKE ?" : ""}
-           ${options.journal ? "AND LOWER(COALESCE(journal_name, '') || ' ' || COALESCE(journal_abbrev, '')) LIKE ?" : ""}
-           ${options.startDate ? "AND document_date_en >= ?" : ""}
-           ${options.endDate ? "AND document_date_en <= ?" : ""}`,
-      )
-      .all(
-        ...ids,
-        ...(options.author ? [`%${options.author.toLocaleLowerCase()}%`] : []),
-        ...(options.journal ? [`%${options.journal.toLocaleLowerCase()}%`] : []),
-        ...(options.startDate ? [options.startDate] : []),
-        ...(options.endDate ? [options.endDate] : []),
-      ) as Row[];
+    const rows = select(`article_id IN (${ids.map(() => "?").join(",")})`, ids);
     const byId = new Map(rows.map((row) => [integer(row.article_id), row]));
     const found = ids.flatMap((id) => {
       const row = byId.get(id);
@@ -392,36 +359,16 @@ function findArticles(
     COALESCE(authors, '') || ' ' || COALESCE(journal_name, '') || ' ' ||
     COALESCE(journal_abbrev, '')
   )`;
-  const rows = database()
-    .prepare(
-      `SELECT article_id, dataset, citation_en, name_en, authors,
-                document_date_en, volume, issue, first_page, journal_name,
-              journal_abbrev, galley_url, url_en, abstract
-       FROM articles
-       WHERE text IS NOT NULL AND length(text) > 0
-         AND ${tokens.map(() => `${haystack} LIKE ?`).join(" AND ")}
-         ${options.author ? "AND LOWER(authors) LIKE ?" : ""}
-         ${options.journal ? "AND LOWER(COALESCE(journal_name, '') || ' ' || COALESCE(journal_abbrev, '')) LIKE ?" : ""}
-         ${options.startDate ? "AND document_date_en >= ?" : ""}
-         ${options.endDate ? "AND document_date_en <= ?" : ""}
-       ORDER BY ${options.sortResults === "newest_first"
-         ? "document_date_en DESC, article_id"
-         : options.sortResults === "oldest_first"
-           ? "document_date_en ASC, article_id"
-           : "CASE WHEN LOWER(name_en) = LOWER(?) THEN 0 ELSE 1 END, article_id"}
-       LIMIT ?`,
-    )
-    .all(
-      ...tokens.map((token) => `%${token}%`),
-      ...(options.author ? [`%${options.author.toLocaleLowerCase()}%`] : []),
-      ...(options.journal ? [`%${options.journal.toLocaleLowerCase()}%`] : []),
-      ...(options.startDate ? [options.startDate] : []),
-      ...(options.endDate ? [options.endDate] : []),
-      ...(options.sortResults === "newest_first" || options.sortResults === "oldest_first"
-        ? []
-        : [query]),
-      wanted,
-    ) as Row[];
+  const rows = select(
+    `text IS NOT NULL AND length(text) > 0 AND ${tokens.map(() => `${haystack} LIKE ?`).join(" AND ")}`,
+    tokens.map((token) => `%${token}%`),
+    `ORDER BY ${options.sortResults === "newest_first"
+      ? "document_date_en DESC, article_id"
+      : options.sortResults === "oldest_first"
+        ? "document_date_en ASC, article_id"
+        : "CASE WHEN LOWER(name_en) = LOWER(?) THEN 0 ELSE 1 END, article_id"} LIMIT ?`,
+    [...(options.sortResults === "newest_first" || options.sortResults === "oldest_first" ? [] : [query]), wanted],
+  );
   return rows.map((row) => result(row, query));
 }
 
@@ -474,8 +421,7 @@ function finalContractPages(articleId: number): FinalContractPages | null {
   const sourceDir = string(row, "source_dir");
   const filename = sourceDir ? registeredPages(registered.filename, sourceDir) : null;
   if (!filename) return null;
-  const source = statSync(filename);
-  return { filename, signature: `${filename}:${source.size}:${Math.trunc(source.mtimeMs)}` };
+  return { filename, signature: snapshotSignature(filename) };
 }
 
 function finalContractSource(
