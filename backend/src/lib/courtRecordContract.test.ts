@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COURT_RECORD_PROFILE_BY_ID, decodeCourtRecordDraftState } from "./courtRecordContract";
+import { decodeCourtRecordDraftState } from "./courtRecordContract";
 
 const sourceSha256 = "a".repeat(64);
 const state = () => ({
