@@ -3,6 +3,7 @@ import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { DocumentStore } from "./documentStore";
 import { documentProjectionService } from "./documentProjectionService";
 import { parseResourceReference, resourceReference } from "./resourceReferences";
+import { provenBlockLocator } from "./documentLocators";
 import { structureNative, type NativeDocument, type NativeDocumentBlock } from "./structureNative";
 import { legalSourceOperations } from "./legalSourceApplication";
 import type { LegalSourcePassage, LegalSourceReference } from "./legalSources";
@@ -268,6 +269,17 @@ const boundedRow = (row: ReturnType<ReturnType<typeof structureNative>["readDocu
     truncatedEnd: row.truncatedEnd || text.length < row.text.length };
 };
 
+/** The addressable range of a source, so a pinpoint read need not be guessed. */
+function sourceExtent(artifact: NativeDocument) {
+  const anchors = structureNative().documentAnchors(artifact);
+  for (const kind of ["paragraph", "section", "page"] as const) {
+    const labels = anchors.flatMap((anchor) => anchor.kind === kind ? [anchor.label] : []);
+    if (labels.length) return { locator_kind: kind, first: labels[0], last: labels[labels.length - 1],
+      count: labels.length };
+  }
+  return null;
+}
+
 /** The same native window and receipt identities serve chat and extraction. */
 export function readLibraryResearchWindow(input: { documentId: string; versionId: string;
   filename: string; document: NativeDocument; offset?: number; start_char?: number; limit?: number }): ResearchRead {
@@ -291,13 +303,14 @@ export function readLibraryResearchWindow(input: { documentId: string; versionId
       break;
     }
     const block = native.smallestContainingDocumentBlock(input.document, row.span[0], row.span[1]),
-      kind = block?.kind as LegalEvidenceReceipt["locator"]["kind"],
       selected = cells.filter((cell) => cell.start < row.span[1] && cell.end > row.span[0]);
     for (const span of selected.length ? selected.map((cell) => ({ start: Math.max(cell.start, row.span[0]),
       end: Math.min(cell.end, row.span[1]), locator: { kind: "cell" as const,
         label: `${cell.tableName}!${cell.address}`, sheet: cell.tableName, cells: cell.address } }))
-      : [{ start: row.span[0], end: row.span[1], ...(block && ["page", "paragraph", "section", "footnote"].includes(kind)
-        ? { locator: { kind, label: block.label } } : {}) }])
+      : [{ start: row.span[0], end: row.span[1], ...(() => {
+        const locator = provenBlockLocator(input.document, block, { start: row.span[0], end: row.span[1] });
+        return locator ? { locator } : {};
+      })() }])
       if (span.end > span.start) {
         const receipt = createLibraryEvidence({ documentId: input.documentId,
           versionId: input.versionId, filename: input.filename, sourceSha256, ...span,
@@ -589,7 +602,9 @@ export async function readLegalSourceResource(
         opinion = source.part && Array.isArray(objectRecord(opinions)?.opinions)
           ? (objectRecord(opinions)!.opinions as unknown[]).map(objectRecord).find((value) =>
               String(value?.opinionId ?? value?.id ?? value?.opinion_id) === source.part) : null;
+      const extent = sourceExtent(passage.documentArtifact);
       return [resource, { resource, title: source.title, citation: source.citation,
+        ...(extent ? { extent } : {}),
         ...(source.date ? { date: source.date } : {}),
         ...(source.collection ? { collection: source.collection } : {}),
         ...(source.language ? { language: source.language } : {}),
