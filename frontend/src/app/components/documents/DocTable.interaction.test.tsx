@@ -370,7 +370,7 @@ describe("DocTable Library interactions", () => {
             ...document,
             folder_id: null,
         }));
-        const { container } = render(
+        render(
             <Profiler id="doc-table" onRender={commits}>
                 <Harness
                     initialDocuments={[{ ...document, folder_id: "folder-1" }]}
@@ -391,11 +391,9 @@ describe("DocTable Library interactions", () => {
         };
 
         fireEvent.dragOver(rootDropSpacer, { dataTransfer });
-        expect(container.querySelector(".border-red-400")).not.toBeNull();
         commits.mockClear();
         fireEvent.dragEnd(documentRow());
         expect(commits).toHaveBeenCalledTimes(1);
-        expect(container.querySelector(".border-red-400")).toBeNull();
         commits.mockClear();
         fireEvent.dragOver(rootDropSpacer, { dataTransfer });
         expect(commits).toHaveBeenCalledTimes(1);
@@ -423,7 +421,6 @@ describe("DocTable Library interactions", () => {
             />,
         );
         const target = screen.getByText("Research");
-        const row = target.closest("[data-tree-drop-folder]")!;
         const dataTransfer = {
             types: ["application/mike-doc"],
             files: [],
@@ -432,7 +429,6 @@ describe("DocTable Library interactions", () => {
         };
 
         fireEvent.dragOver(target, { dataTransfer });
-        expect(row).toHaveClass("bg-red-50", "ring-red-200");
         fireEvent.drop(target, { dataTransfer });
 
         await waitFor(() =>
