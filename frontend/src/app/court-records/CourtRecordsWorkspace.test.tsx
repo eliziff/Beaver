@@ -186,9 +186,9 @@ describe("CourtRecordsWorkspace", () => {
     expect(draft.state).toMatchObject({ profileId: "fc-application-record-applicant",
       entries: [{ id: "notice", kindId: "unassigned" }], bindings: { notice: binding } });
     expect(consumed).toHaveBeenCalledOnce();
-    expect(await screen.findByRole("region", { name: "Files to assign" })).toBeVisible();
+    expect(await screen.findByRole("region", { name: "Files" })).toBeVisible();
     await act(async () => finishListing([]));
-    expect(screen.getByRole("region", { name: "Files to assign" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Files" })).toBeVisible();
     expect(screen.queryByLabelText(/Court file number/iu)).not.toBeInTheDocument();
     const kind = COURT_PROFILE_BY_ID.get("fc-application-record-applicant")!
       .documentKinds.find(({ id }) => id === "notice-application")!;
@@ -318,7 +318,7 @@ describe("CourtRecordsWorkspace", () => {
       .getByRole("button", { name: "Affidavit" }));
     await waitFor(() => expect(screen.getByRole("status", { name: "Route" }))
       .toHaveTextContent("?draft=new"));
-    expect(await screen.findByRole("region", { name: "Files to assign" })).toHaveTextContent("Notice.pdf");
+    expect(await screen.findByRole("region", { name: "Files" })).toHaveTextContent("Notice.pdf");
   });
 
   it("does not open a routed draft from another project", async () => {
@@ -828,7 +828,7 @@ describe("CourtRecordsWorkspace", () => {
     fireEvent.change(document.getElementById("court-record-exhibit-file")!, {
       target: { files: exhibits },
     });
-    const pool = screen.getByText("Unassigned files").parentElement!;
+    const pool = screen.getByRole("heading", { name: /^Files/ }).closest("div")!.parentElement!;
     await waitFor(() => expect(within(screen.getByRole("region", { name: "Exhibit A slot" }))
       .getByText("source-labelled.pdf")).toBeVisible());
     expect(within(pool).queryByText("source-labelled.pdf")).toBeNull();

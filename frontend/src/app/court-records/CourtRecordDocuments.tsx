@@ -6,7 +6,6 @@ import {
   ScanText,
   Trash2,
 } from "lucide-react";
-import { Fragment } from "react";
 import { CourtRecordStepHeading, RequiredBadge } from "./CourtRecordStepHeading";
 import { Button, buttonClassName } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
@@ -47,8 +46,7 @@ export function CourtRecordDocuments(props: Props) {
   const permitted = props.profile.documentKinds
     .filter((kind) => kind.requirement !== "forbidden" &&
       !hiddenAlternatives.has(kind.id) && (!props.kindIds || props.kindIds.includes(kind.id)))
-    .sort((left, right) => Number(right.requirement === "required") -
-      Number(left.requirement === "required") || left.order - right.order);
+    .sort((left, right) => left.order - right.order);
   const headingId = props.kindIds ? `record-documents-${props.kindIds.join("-")}-heading` : "record-documents-heading";
   const exhibitPool = props.profile.family === "affidavit" &&
     props.kindIds?.includes("exhibit") && permitted.find((kind) => kind.id === "exhibit");
@@ -58,10 +56,6 @@ export function CourtRecordDocuments(props: Props) {
     ? props.entries.filter((entry) => !knownKinds.has(entry.kindId)) : [];
   const notes = unassigned.filter(({ descriptionOnly }) => descriptionOnly);
   const files = unassigned.filter(({ descriptionOnly }) => !descriptionOnly);
-  const groups = [
-    ["Required documents", shown.filter((kind) => kind.requirement === "required")],
-    ["Other documents", shown.filter((kind) => kind.requirement !== "required")],
-  ] as const;
   const single = shown.length === 1 && !exhibitPool ? shown[0] : undefined;
   const singleFilled = single && props.entries.some((entry) => entry.kindId === single.id);
   return (
@@ -80,34 +74,29 @@ export function CourtRecordDocuments(props: Props) {
         <CourtRecordStepHeading id={headingId} step={props.step} required={single?.requirement === "required" && !singleFilled && !single.generated}>
           {single ? singleFilled ? single.label : `Add the ${single.label.toLowerCase()}` : props.heading ?? "Documents"}
         </CourtRecordStepHeading>
-        {exhibitPool && <ExhibitActions {...props} kind={exhibitPool} />}
         {single && !single.descriptionOnly && <DocumentActions {...props} kind={single} />}
       </div>
 
       {(!single || singleFilled || notes.length > 0 || files.length > 0) && <div className="mt-3 space-y-4">
         {!!notes.length && <PendingNotes notes={notes} {...props} />}
         {!!files.length && <PendingFiles pending={files} {...props} />}
-        {groups.map(([label, kinds], index) => <Fragment key={label}>
-          {!!kinds.length && <section aria-label={label}>
-            <div className="space-y-1.5">
-              {kinds.map((kind) => <DocumentSlot key={kind.id} kind={kind} {...props} hideLabel={!!single} />)}
-            </div>
-          </section>}
-          {index === 0 && exhibitPool && <ExhibitPool kind={exhibitPool} {...props} />}
-        </Fragment>)}
+        {exhibitPool && <ExhibitPool kind={exhibitPool} {...props} />}
+        {!!shown.length && <div className="space-y-1.5">
+          {shown.map((kind) => <DocumentSlot key={kind.id} kind={kind} {...props} hideLabel={!!single} />)}
+        </div>}
       </div>}
     </section>
   );
 }
 
 function PendingNotes({ notes, onEntry, onRemove }: Props & { notes: RecordEntry[] }) {
-  return <section aria-label="Unassigned notes" className="rounded-lg bg-gray-50 p-2.5">
+  return <section aria-label="Notes" className="rounded-lg bg-gray-50 p-2.5">
     <h3 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-gray-600">
-      Unassigned notes
+      Notes
     </h3>
     <div className="space-y-2">{notes.map((entry) => <div key={entry.id}
       className="flex items-center gap-2">
-      <Input value={entry.title} aria-label="Unassigned note"
+      <Input value={entry.title} aria-label="Note"
         onChange={(event) => onEntry(entry.id, { title: event.target.value })}
         className="h-9 border-gray-400 bg-white md:text-base" />
       <Button type="button" variant="ghost" className="size-9 shrink-0 px-0"
@@ -126,9 +115,9 @@ function PendingFiles(props: Props & { pending: RecordEntry[] }) {
       .sort((left, right) => Number(right.requirement === "required") -
         Number(left.requirement === "required") || left.order - right.order);
   };
-  return <section aria-label="Files to assign" className="rounded-lg bg-gray-50 p-2.5">
+  return <section aria-label="Files" className="rounded-lg bg-gray-50 p-2.5">
     <h3 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-gray-600">
-      Files to assign
+      Files
     </h3>
     <div className="space-y-2">{props.pending.map((entry) => <EntryRow key={entry.id}
       {...props} entry={entry} kind={undefined} busy={props.busyEntryId === entry.id}
@@ -242,18 +231,8 @@ function DocumentActions({ kind, entries, onDescription, ...sources }:
   </div>;
 }
 
-function ExhibitActions(props: Props & { kind: DocumentKind }) {
-  const slots = sourceExhibitSlots(props.entries);
-  return <div className="flex flex-wrap gap-2">
-    {slots && slots.labels.length < 702 && props.onAddExhibit && <Button type="button"
-      variant="outline" className="h-9 border-gray-500/80 px-3"
-      onClick={props.onAddExhibit}><FilePlus2 /> Add exhibit</Button>}
-    <AddFileControls {...props} label="Add files" />
-  </div>;
-}
-
 function ExhibitPool(props: Props & { kind: DocumentKind }) {
-  const { kind, entries, onFiles, onAssign } = props;
+  const { kind, entries, onFiles, onAssign, onAddExhibit } = props;
   const exhibits = entries.filter((entry) => entry.kindId === kind.id);
   const slots = sourceExhibitSlots(entries);
   const labels = slots?.labels ?? [];
@@ -266,7 +245,31 @@ function ExhibitPool(props: Props & { kind: DocumentKind }) {
     else pool.push(entry);
   }
   return <section data-kind-id="exhibit" aria-label="Exhibits">
-    {!!labels.length && <div className="divide-y divide-gray-200">
+    <div className="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-3"
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => {
+        const id = event.dataTransfer.getData("text/x-court-record-entry");
+        if (id) { event.preventDefault(); onAssign(id); }
+        else if (event.dataTransfer.files.length) onFiles(kind.id, [...event.dataTransfer.files]);
+      }}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="text-sm font-semibold text-gray-950">Files
+          <span className="ms-2 font-normal text-gray-600">
+            {pool.length} file{pool.length === 1 ? "" : "s"}
+          </span>
+        </h4>
+        <AddFileControls {...props} label="Add files" />
+      </div>
+      <p className="mt-1 text-xs leading-5 text-gray-600">
+        Drop exhibit files here. Drag an assigned exhibit back to unassign it.
+      </p>
+      {!!pool.length && <div className="mt-2 divide-y divide-gray-200">{pool.map((entry) =>
+        <EntryRow key={entry.id} {...props} entry={entry}
+          busy={props.busyEntryId === entry.id} findings={props.entryFindings.get(entry.id) ?? []}
+          dateRequired={false} descriptionLabel="Contents description"
+          assignmentLabels={labels} dragEnabled />)}</div>}
+    </div>
+    {!!labels.length && <div className="mt-3 divide-y divide-gray-200">
       {labels.map((label) => {
         const entry = assigned.get(label);
         return <section key={label} aria-label={`Exhibit ${label} slot`}
@@ -292,22 +295,10 @@ function ExhibitPool(props: Props & { kind: DocumentKind }) {
         </section>;
       })}
     </div>}
-    <div className={cn("mt-3", pool.length ? "py-2" : "rounded-lg border border-dashed border-gray-300 px-3 py-4")}
-      onDragOver={(event) => event.preventDefault()}
-      onDrop={(event) => {
-        const id = event.dataTransfer.getData("text/x-court-record-entry");
-        if (id) { event.preventDefault(); onAssign(id); }
-        else if (event.dataTransfer.files.length) onFiles(kind.id, [...event.dataTransfer.files]);
-      }}>
-      <h4 className="text-sm font-medium text-gray-500">
-        Unassigned files
-      </h4>
-      {!!pool.length && <div className="divide-y divide-gray-100">{pool.map((entry) =>
-        <EntryRow key={entry.id} {...props} entry={entry}
-          busy={props.busyEntryId === entry.id} findings={props.entryFindings.get(entry.id) ?? []}
-          dateRequired={false} descriptionLabel="Contents description"
-          assignmentLabels={labels} dragEnabled />)}</div>}
-    </div>
+    {slots && labels.length < 702 && onAddExhibit && <Button type="button" variant="outline"
+      className="mt-3 h-9 border-gray-500/80 px-3" onClick={onAddExhibit}>
+      <FilePlus2 /> Add exhibit
+    </Button>}
   </section>;
 }
 
