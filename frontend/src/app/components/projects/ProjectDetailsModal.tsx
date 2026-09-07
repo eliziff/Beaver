@@ -63,7 +63,7 @@ export function ProjectDetailsModal({
         <Modal
             open={open}
             onClose={onClose}
-            className="!h-fit max-h-[calc(100dvh-2rem)]"
+            fit
             breadcrumbs={["Projects", project.name, "Details"]}
             secondaryAction={
                 onShareProject

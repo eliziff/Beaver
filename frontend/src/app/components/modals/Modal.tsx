@@ -23,6 +23,7 @@ interface ModalProps {
     headerStart?: ReactNode;
     size?: ModalSize;
     className?: string;
+    fit?: boolean;
     footerStatus?: ReactNode;
     primaryAction?: ModalAction;
     secondaryAction?: ModalAction;
@@ -47,6 +48,7 @@ export function Modal({
     headerStart,
     size = "lg",
     className,
+    fit = false,
     footerStatus,
     primaryAction,
     secondaryAction,
@@ -114,7 +116,10 @@ export function Modal({
                 pointerStartedOnBackdrop.current = false;
             }}
             className={cn(
-                "m-auto h-[min(600px,calc(100dvh-2rem))] w-[calc(100%-2rem)] flex-col overflow-hidden rounded-lg p-0 backdrop:bg-gray-950/20",
+                "m-auto w-[calc(100%-2rem)] flex-col overflow-hidden rounded-lg p-0 backdrop:bg-gray-950/20",
+                fit
+                    ? "h-fit max-h-[calc(100dvh-2rem)]"
+                    : "h-[min(600px,calc(100dvh-2rem))]",
                 open && "flex",
                 sizeClassName[size],
                 "border border-gray-300 bg-white",

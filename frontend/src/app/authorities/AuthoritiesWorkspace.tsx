@@ -811,7 +811,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         onError={(caught) => setError(errorText(caught))}
         onSelect={chooseLibrary} onClose={() => setLibraryTarget(undefined)} />}
       <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} size="xl"
-        breadcrumbs={["Settings"]} className="h-fit max-h-[calc(100dvh-2rem)]"
+        breadcrumbs={["Settings"]} fit
         primaryAction={{ label: "Done", onClick: () => setSettingsOpen(false) }}>
         <p className="mb-4 text-sm text-gray-600">Defaults for new authorities drafts.</p>
         <AuthoritiesSetupFields value={preferences} onChange={setPreferences}
@@ -846,7 +846,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         onClose={() => setScanReview(undefined)} onPreview={openSource}
         onContinue={finishSourceReview} />}
       <Modal open={stubWarning} onClose={() => setStubWarning(false)} size="md"
-        breadcrumbs={["Missing PDFs"]} className="!h-fit max-h-[calc(100dvh-2rem)]"
+        breadcrumbs={["Missing PDFs"]} fit
         cancelAction={{ label: "Cancel", onClick: () => setStubWarning(false) }}
         primaryAction={{ label: "Build anyway", disabled: busy, onClick: () => {
           setStubWarning(false);
@@ -909,7 +909,7 @@ function ImportSetup({ pending, busy, status, jurisdictionOrder, onChange, onClo
 }) {
   const value = pending?.preferences ?? DEFAULTS;
   return <Modal open={!!pending} onClose={onClose} size="xl" breadcrumbs={["Import options"]}
-    className="h-fit max-h-[calc(100dvh-2rem)]"
+    className="!h-[min(32rem,calc(100dvh-2rem))]"
     footerStatus={status && <span className="text-sm text-red-800" role="status">{status}</span>}
     cancelAction={{ label: "Cancel", disabled: busy, onClick: onClose }}
     primaryAction={{ label: busy ? "Finding citations" : "Import and review", disabled: busy,
@@ -1144,7 +1144,7 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
           reference: null })}>Clear link</Button>
       <SearchableChoiceModal open={linkOpen} title="Link to authority" size="md"
         searchLabel="Search authorities" value={selected.reference?.targetAuthorityId ?? null}
-        className="!h-fit max-h-[calc(100dvh-2rem)]"
+        className="!h-[min(28rem,calc(100dvh-2rem))]"
         options={authorities.map((item) => ({ value: item.id, label: authorityLabel(item) }))}
         onClose={() => setLinkOpen(false)} onChange={(id) => {
           setLinkOpen(false);
@@ -1483,7 +1483,7 @@ function AuthorityDetailsModal({ open, busy, authority, onClose, onSave }: {
   const action = authority ? "Save" : "Add";
   return <Modal open={open} onClose={onClose} size="md"
     breadcrumbs={[authority ? "Edit authority" : "Add authority"]}
-    className="!h-fit max-h-[calc(100dvh-2rem)]" cancelAction={{ label: "Cancel", onClick: onClose }}
+    fit cancelAction={{ label: "Cancel", onClick: onClose }}
     primaryAction={{ label: action, disabled: busy || !citation.trim(), onClick: submit }}>
     <div className="grid gap-4 pb-5">
       <SelectField label="Type" value={kind} onChange={setKind}

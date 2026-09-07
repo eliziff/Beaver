@@ -19,7 +19,7 @@ export function SourceOcrModal({ files, policy, busy, onClose, onContinue, onPre
 }) {
   const [selected, setSelected] = useState(policy);
   return <Modal open onClose={() => { if (!busy) onClose(); }} size="xl" breadcrumbs={["Scanned source PDFs"]}
-    className="h-fit max-h-[calc(100dvh-2rem)]"
+    fit
     cancelAction={{ label: "Back to sources", disabled: busy, onClick: onClose }}
     primaryAction={{ label: "Continue to highlights", disabled: busy, onClick: () => onContinue(selected) }}>
     <p className="mb-3 text-sm leading-6 text-gray-600">Some pages have no selectable text. They may be scans or blank pages. OCR estimates words from the image; the original page appearance is preserved.</p>

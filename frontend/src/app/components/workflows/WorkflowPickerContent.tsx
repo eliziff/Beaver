@@ -238,7 +238,7 @@ function WorkflowInfoModal({ info, onClose, onSelect, disabledItem }: {
         ["Contributors", workflow.metadata.contributors.map(({ name }) => name).join(", ")],
     ].filter((entry): entry is [string, string] => Boolean(entry[1]));
     return <Modal open onClose={onClose} size="xl" breadcrumbs={[<span className="block whitespace-normal text-xl font-semibold leading-tight">{info.label}</span>]}
-        className="h-fit max-h-[calc(100dvh-2rem)]"
+        fit
         footerStatus={(detailed.length ? detailed : [undefined]).map((variant) => {
             const [destination, Icon] = workflowDestination(workflow, variant);
             return <ActionButton key={variant?.id ?? workflow.id} Icon={Icon}
