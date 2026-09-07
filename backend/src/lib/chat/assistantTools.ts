@@ -121,7 +121,7 @@ import {
 } from "./toolRegistry";
 import { tabularTool, type ResearchTableResolver } from "./tabularCells";
 import { readResearchFindings } from "./researchTableTool";
-import { researchFindingReferenceSchema } from "../researchChat";
+import { researchFindingReferenceSchema } from "../researchFindingReference";
 import type { DocIndex, WorkflowStore } from "./types";
 import type { SourceWorkspaceApplication } from "../sourceWorkspaceApplication";
 import type { ResearchOperationContext } from "../researchProvenance";
@@ -1917,6 +1917,7 @@ export function assistantTools<Context extends {
       const reference = args.section ? researchFindingReferenceSchema.parse(JSON.parse(String(args.section))) : undefined,
         offset = Math.max(0, Math.trunc(Number(args.offset) || 1) - 1), limit = Math.max(1, Math.trunc(Number(args.limit) || (reference ? 1 : 20)));
       return readResearchFindings({ sources, scope, workspaceId: researchContext.workspace.documentId,
+        findingRefs: researchContext.findingRefs,
         ...(researchContext.restricted ? { subjects: researchContext.subjects ?? [] } : {}) }, {
         reference, ...(args.pattern ? { evidence_id: String(args.pattern) } : {}),
         ...(reference ? { claim_offset: offset, claim_limit: Math.min(10, limit), text_offset: Number(args.start_char) || 0 }

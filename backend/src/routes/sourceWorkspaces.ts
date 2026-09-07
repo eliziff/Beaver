@@ -8,8 +8,10 @@ import { requestAbortController } from "../lib/httpStreaming";
 import { researchFileActionSchema } from "../lib/researchFile";
 import { researchCaptureRuleSchema } from "../lib/researchFileQuery";
 import { researchSelectionSchema } from "../lib/researchSelection";
-import { researchFindingReferenceSchema } from "../lib/researchChat";
+import { researchFindingReferenceSchema } from "../lib/researchFindingReference";
 import type { SourceWorkspaceApplication } from "../lib/sourceWorkspaceApplication";
+
+import { researchImportDesignSchema } from "../lib/tabular/researchImport";
 
 const id = z.string().trim().min(1).max(200), revision = z.number().int().nonnegative();
 const page = { offset: z.coerce.number().int().nonnegative().default(0),
@@ -21,11 +23,20 @@ const query = z.object({ version_id: id, working_revision: revision,
   syntax: z.enum(["literal", "terms"]), target: z.enum(["sources", "passages"]),
   sourceIds: z.array(id).max(10_000).optional(), labelIds: z.array(id).max(1_000).optional(),
   evidenceIds: researchSelectionSchema.shape.evidenceIds, members: researchSelectionSchema.shape.members,
+  findingRefs: researchSelectionSchema.shape.findingRefs,
   unlabelled: z.boolean().optional(), rules: z.array(researchCaptureRuleSchema).max(50).optional(),
   conflict: z.enum(["prompt", "first", "longer", "shorter", "append"]).optional(),
   after: z.string().max(4096).optional(), limit: z.number().int().min(1).max(5_000).optional(),
 }).strict().refine((input) => Boolean(input.text) !== Boolean(input.rules?.length),
   "Supply either text or capture rules");
+
+const tableInput = z.object({ selection: researchSelectionSchema.optional(), tableId: id.optional(),
+  chatId: id.optional(), messageIds: z.array(id).min(1).max(100).optional(),
+  rows: z.enum(["sources", "passages"]).optional(), labelId: id.optional(),
+  findingRefs: z.array(researchFindingReferenceSchema).min(1).max(10_000).optional(),
+  design: researchImportDesignSchema.optional(), fingerprint: z.string().regex(/^[a-f0-9]{64}$/u).optional(),
+  request: z.string().trim().min(1).max(4_000).optional(),
+}).strict().refine((input) => !input.messageIds || !!input.chatId, "Select a chat for the chosen messages");
 
 export function createSourceWorkspacesRouter(app: SourceWorkspaceApplication) {
   const router = Router(), scope = applicationScope;
@@ -88,15 +99,22 @@ export function createSourceWorkspacesRouter(app: SourceWorkspaceApplication) {
       .refine(({ chatId, tableId }) => Boolean(chatId) !== Boolean(tableId), "Choose a chat or table").parse(req.body);
     res.json(await app.bind(scope(res), id.parse(req.params.id), input, { executor: "human" }));
   }));
+  router.post("/:id/table/preview", asyncRoute(async (req, res) => {
+    res.json(await app.previewTable(scope(res), id.parse(req.params.id), tableInput.parse(req.body ?? {}),
+      requestAbortController(req, res).signal));
+  }));
   router.post("/:id/table", asyncRoute(async (req, res) => {
-    const input = z.object({ selection: researchSelectionSchema.optional(), tableId: id.optional(),
-      chatId: id.optional(), messageIds: z.array(id).min(1).max(100).optional(),
-      rows: z.enum(["sources", "passages"]).optional(), labelId: id.optional(),
-      findingRefs: z.array(researchFindingReferenceSchema).min(1).max(10_000).optional() }).strict().parse(req.body ?? {});
+    const input = tableInput.parse(req.body ?? {});
+    if (input.request) reject(400, "Preview an assisted layout before creating it");
     res.json(await app.table(scope(res), id.parse(req.params.id), input, { executor: "human" }));
   }));
+  router.post("/:id/save-findings", asyncRoute(async (req, res) => {
+    const input = z.object({ references: z.array(researchFindingReferenceSchema).min(1).max(500),
+      typeId: id.optional(), versionId: id, workingRevision: revision }).strict().parse(req.body);
+    res.json(await app.saveFindings(scope(res), id.parse(req.params.id), input, { executor: "human" }));
+  }));
   router.post("/:id/column-labels", asyncRoute(async (req, res) => {
-    const input = z.object({ reviewId: id, columnIndex: z.number().int().min(0).max(10_000) }).strict().parse(req.body);
+    const input = z.object({ reviewId: id, columnIndex: z.number().int().min(0).max(10_000), rowIds: z.array(z.string().min(1).max(4_000)).min(1).max(10_000).optional() }).strict().parse(req.body);
     res.json(await app.columnLabels(scope(res), id.parse(req.params.id), input, { executor: "human" }));
   }));
   return router;
