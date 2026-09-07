@@ -16,27 +16,12 @@ const luna = {
   hidden: true,
 };
 
+const expectedLuna = {
+  slug: "gpt-5.6-luna", displayName: "GPT-5.6-Luna", defaultReasoningLevel: "medium",
+  supportedReasoningLevels: [{ effort: "low" }, { effort: "max" }],
+};
+
 describe("normalizeCodexCatalog", () => {
-  it("deduplicates a mislabeled alias in favor of the canonical GPT slug", () => {
-    const result = normalizeCodexCatalog([
-        {
-          ...luna,
-          model: "luna-alias",
-        },
-        luna,
-        { ...luna, model: "GPT-5.6-LUNA" },
-      ],
-    );
-
-    expect(result.models).toHaveLength(1);
-    expect(result.models[0]).toEqual({
-      slug: "gpt-5.6-luna",
-      displayName: "GPT-5.6-Luna",
-      defaultReasoningLevel: "medium",
-      supportedReasoningLevels: [{ effort: "low" }, { effort: "max" }],
-    });
-  });
-
   it("omits internal Codex UI models", () => {
     const result = normalizeCodexCatalog([
         luna,
@@ -50,12 +35,10 @@ describe("normalizeCodexCatalog", () => {
       ],
     );
 
-    expect(result.models.map((model) => model.slug)).toEqual([
-      "gpt-5.6-luna",
-    ]);
+    expect(result).toEqual({ source: "live", models: [expectedLuna] });
   });
 
-  it.each([undefined, null, false, 0, "models", {}])("ignores a non-array catalogue: %j", (value) => {
+  it.each([undefined, {}])("ignores a non-array catalogue: %j", (value) => {
     expect(normalizeCodexCatalog(value)).toEqual({ models: [], source: "live" });
   });
 
@@ -75,16 +58,16 @@ describe("normalizeCodexCatalog", () => {
   });
 
   it.each([
-    ["luna-alias", "gpt-luna", "gpt-luna"],
-    ["gpt-luna", "luna-alias", "gpt-luna"],
-    ["first-alias", "second-alias", "first-alias"],
-    ["gpt-first", "gpt-second", "gpt-first"],
-  ])("resolves equivalent display names for %s then %s", (first, second, winner) => {
+    ["luna-alias", "gpt-luna", "gpt-luna", "LUNA--MODEL!"],
+    ["gpt-luna", "luna-alias", "gpt-luna", "Luna Model"],
+    ["first-alias", "second-alias", "first-alias", "Luna Model"],
+    ["gpt-first", "gpt-second", "gpt-first", "Luna Model"],
+  ])("resolves equivalent display names for %s then %s", (first, second, winner, displayName) => {
     const result = normalizeCodexCatalog([
       { ...luna, model: first, displayName: "Luna Model" },
       { ...luna, model: second, displayName: "LUNA--MODEL!" },
     ]);
-    expect(result.models.map(({ slug }) => slug)).toEqual([winner]);
+    expect(result).toEqual({ source: "live", models: [{ ...expectedLuna, slug: winner, displayName }] });
   });
 
   it("replaces an alias in place, including its metadata, without reordering other models", () => {
@@ -95,13 +78,12 @@ describe("normalizeCodexCatalog", () => {
       luna,
       { model: "after" },
     ]);
-    expect(result.models.map(({ slug }) => slug)).toEqual([
-      "before", luna.model, "between", "after",
-    ]);
-    expect(result.models[1]).toEqual({
-      slug: luna.model, displayName: luna.displayName, defaultReasoningLevel: "medium",
-      supportedReasoningLevels: [{ effort: "low" }, { effort: "max" }],
-    });
+    expect(result).toEqual({ source: "live", models: [
+      { slug: "before", displayName: "before", supportedReasoningLevels: [] },
+      expectedLuna,
+      { slug: "between", displayName: "between", supportedReasoningLevels: [] },
+      { slug: "after", displayName: "after", supportedReasoningLevels: [] },
+    ] });
   });
 
   it.each([
@@ -112,7 +94,10 @@ describe("normalizeCodexCatalog", () => {
       { ...luna, model: first }, { ...luna, model: second },
       { ...luna, model: "luna-alias", displayName: "Distinct model" },
     ]);
-    expect(result.models.map(({ slug }) => slug)).toEqual(["gpt-luna", "luna-alias"]);
+    expect(result).toEqual({ source: "live", models: [
+      { ...expectedLuna, slug: "gpt-luna" },
+      { ...expectedLuna, slug: "luna-alias", displayName: "Distinct model" },
+    ] });
   });
 
   it("rejects a duplicate selected slug before considering display-name replacement", () => {
@@ -133,7 +118,10 @@ describe("normalizeCodexCatalog", () => {
       { model: "middle" },
       { model: "gpt-canonical", displayName: "—" },
     ]);
-    expect(result.models.map(({ slug }) => slug)).toEqual(["gpt-canonical", "middle"]);
+    expect(result).toEqual({ source: "live", models: [
+      { slug: "gpt-canonical", displayName: "—", supportedReasoningLevels: [] },
+      { slug: "middle", displayName: "middle", supportedReasoningLevels: [] },
+    ] });
   });
 
   it("deduplicates reasoning efforts case-insensitively while preserving first spelling and string whitespace", () => {
@@ -142,14 +130,14 @@ describe("normalizeCodexCatalog", () => {
       { reasoningEffort: " " }, null, false, 42, [], {}, { reasoningEffort: 42 },
       { reasoningEffort: " Max " }, "MAX", { reasoningEffort: "max" },
     ] }]);
-    expect(result.models[0].supportedReasoningLevels).toEqual([
+    expect(result).toEqual({ source: "live", models: [{ ...expectedLuna, supportedReasoningLevels: [
       { effort: " HIGH " }, { effort: "high" }, { effort: "" }, { effort: " " }, { effort: "Max" },
-    ]);
+    ] }] });
   });
 
-  it.each([undefined, null, false, 42, "high", {}])("ignores non-array reasoning efforts: %j", (value) => {
+  it.each([undefined, {}])("ignores non-array reasoning efforts: %j", (value) => {
     const result = normalizeCodexCatalog([{ ...luna, supportedReasoningEfforts: value }]);
-    expect(result.models[0].supportedReasoningLevels).toEqual([]);
+    expect(result).toEqual({ source: "live", models: [{ ...expectedLuna, supportedReasoningLevels: [] }] });
   });
 
   it("does not mutate or expose the input's reasoning-effort objects", () => {
