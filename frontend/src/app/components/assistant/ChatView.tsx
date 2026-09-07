@@ -635,7 +635,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         <div className="flex min-h-9 shrink-0 items-center justify-end gap-2 px-4 pe-12">
             {chatId && researchSaveEnabled && hasResearchSources &&
                 <ChatResearchSave chatId={chatId} projectId={projectId}
-                    question={messages.find((message) => message.role === "user")?.content} />}
+                    question={messages.findLast((message) => message.role === "user")?.content} />}
             {onProjectClick ? <button
                 type="button"
                 onClick={onProjectClick}
