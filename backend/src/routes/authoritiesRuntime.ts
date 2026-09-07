@@ -3,18 +3,17 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { reject } from "../lib/applicationError";
-import { authorityPassageTargets, authoritiesTextRoles, buildAuthorities, prepareAuthorityAnnotations } from
+import { authorityPassageTargets, buildAuthorities, prepareAuthorityAnnotations, type AuthoritiesBuildInput } from
   "../lib/authoritiesBuild";
 import { attachedAuthoritySources, createAuthoritiesDraft, decodeAuthoritiesDraft,
   reduceAuthoritiesDraft, type AuthoritiesDraft } from "../lib/authoritiesDomain";
 import { importStandaloneAuthoritiesFile } from "../lib/authoritiesImport";
 import { authorityPdfText } from "../lib/authorityPdfText";
-import { authoritiesDiscrepancyCorrection, reviewAuthoritiesDiscrepancies } from
-  "../lib/authoritiesDiscrepancy";
-import { applyAuthorityDiscrepancyCorrection } from "../lib/docxOperations";
-import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
-  resolveAuthoritiesSources, type PreparedAuthoritySource } from
-  "../lib/authoritiesWorkspaceApplication";
+import { reviewAuthoritiesDiscrepancies } from "../lib/authoritiesDiscrepancy";
+import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction, attachAuthorityPdf,
+  attachAuthoritiesBookPdf, authoritiesReview } from "../lib/authoritiesActions";
+import { resolveAuthoritiesSources, type PreparedAuthoritySource } from "../lib/authoritiesSourceResolution";
+import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "../lib/authoritiesPreparation";
 import { asyncRoute } from "../lib/asyncRoute";
 import { sha256 } from "../lib/hash";
 import { multipleFileUpload, singleFileUpload } from "../lib/upload";
@@ -54,16 +53,12 @@ function attachPreparedSources(state: AuthoritiesDraft, attachments: PreparedAut
     if (sha256(attachment.bytes) !== attachment.sourceSha256) {
       reject(500, "Prepared authority source hash is invalid");
     }
-    const role = `authority:${sha256(draft.authorities[attachment.authorityId].key)
-      .slice(0, 24)}:${attachment.language}`;
-    draft = reduceAuthoritiesDraft(draft, { type: "attach-source",
-      authorityId: attachment.authorityId, bindingRole: role,
-      binding: { kind: "local-file", handleId: `stored:${attachment.sourceSha256}`,
+    draft = attachAuthorityPdf(draft, draft.authorities[attachment.authorityId],
+      { kind: "local-file", handleId: `stored:${attachment.sourceSha256}`,
         lastSeen: { name: attachment.filename, size: attachment.bytes.length,
           modified: 0, sha256: attachment.sourceSha256 } },
-      filename: attachment.filename, sourceSha256: attachment.sourceSha256,
-      sourceUrl: attachment.sourceUrl, origin: attachment.origin,
-      language: attachment.language });
+      attachment.filename, attachment.sourceSha256, attachment.language,
+      attachment.origin, attachment.sourceUrl);
   }
   return draft;
 }
@@ -187,11 +182,7 @@ export function createAuthoritiesRuntimeRouter(
     const freshSource = freshInput?.kind === "local-file" ? freshInput
       : reject(400, "The imported source binding is invalid");
     fresh.bindings.source = { ...freshSource, handleId: currentSource.handleId };
-    await sendDraft(res, reduceAuthoritiesDraft(current, { type: "refresh", review: {
-      import: fresh.import, bindings: fresh.bindings, cover: fresh.cover, units: fresh.units,
-      occurrences: fresh.occurrences, authorities: fresh.authorities,
-      authorityOrder: fresh.authorityOrder,
-    } }), []);
+    await sendDraft(res, reduceAuthoritiesDraft(current, { type: "refresh", review: authoritiesReview(fresh) }), []);
   }));
   router.post("/action", asyncRoute(async (req, res) => {
     const current = draft(req.body?.draft);
@@ -212,35 +203,20 @@ export function createAuthoritiesRuntimeRouter(
       ? json(req.body.draft, "draft") : req.body?.draft);
     const input = decodeAuthoritiesDiscrepancyAction(typeof req.body?.request === "string"
       ? json(req.body.request, "request") : req.body?.request);
-    const finding = (await reviewDiscrepancies(current, review.signal))
-      .find(({ id }) => id === input.id) ?? reject(409,
-        "This discrepancy is no longer present. Review the document again.");
-    if (!finding.actions.includes(input.action))
-      reject(400, "That correction is not available for this discrepancy");
-    const decided = reduceAuthoritiesDraft(current,
-      { type: "resolve-discrepancy", id: finding.id, action: input.action });
-    if (input.action === "ignore") return sendDraft(res, decided, []);
-    const imported = current.import.kind === "document" && current.import.fileType === "docx"
-      ? current.import : reject(409, "Source corrections require an imported Word document");
-    const source = await standaloneSource(req), binding = current.bindings[imported.bindingRole];
-    if (source.fileType !== "docx" || binding?.kind !== "local-file" ||
-        binding.lastSeen.sha256 !== sha256(source.bytes)) {
-      reject(409, "The imported Word document changed. Refresh first.");
-    }
-    const correction = authoritiesDiscrepancyCorrection(current, finding, input.action) ??
-      reject(409, "The correction cannot be mapped to the reviewed Word document");
-    const bytes = await applyAuthorityDiscrepancyCorrection(source.bytes, current.units, correction)
-      .catch((error) => reject(409, error instanceof Error ? error.message
-        : "The Word correction could not be applied"));
-    review.signal.throwIfAborted();
-    const filename = imported.filename.replace(/(?: corrected)?\.docx$/iu, " corrected.docx");
+    const prepared = await prepareAuthoritiesCorrection(current, input, async (imported) => {
+      const source = await standaloneSource(req), binding = current.bindings[imported.bindingRole];
+      if (source.fileType !== "docx" || binding?.kind !== "local-file" ||
+          binding.lastSeen.sha256 !== sha256(source.bytes)) {
+        reject(409, "The imported Word document changed. Refresh first.");
+      }
+      return { ...source, filename: imported.filename };
+    }, reviewDiscrepancies, review.signal);
+    if (prepared.kind === "ignored") return sendDraft(res, prepared.draft, []);
+    const { bytes, draft: decided } = prepared;
+    const filename = prepared.source.filename.replace(/(?: corrected)?\.docx$/iu, " corrected.docx");
     const fresh = await importStandaloneAuthoritiesFile({ filename, fileType: "docx", bytes,
       modified: 0, sourceMode: current.settings.sourceMode });
-    const state = reduceAuthoritiesDraft(decided, { type: "refresh", review: {
-      import: fresh.import, bindings: fresh.bindings, cover: fresh.cover, units: fresh.units,
-      occurrences: fresh.occurrences, authorities: fresh.authorities,
-      authorityOrder: fresh.authorityOrder,
-    } });
+    const state = reduceAuthoritiesDraft(decided, { type: "refresh", review: authoritiesReview(fresh) });
     await sendMultipart(res, { draft: state }, [{ role: "source", filename: "source.docx",
       mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", bytes }]);
   }));
@@ -260,21 +236,10 @@ export function createAuthoritiesRuntimeRouter(
         !Number.isSafeInteger(modified) || modified < 0) reject(400, "Add a PDF file");
     const bytes = await readFile(file.path);
     if (bytes.subarray(0, 5).toString("ascii") !== "%PDF-") reject(400, "Add a valid PDF");
-    const sourceSha256 = sha256(bytes), id = slot === "supplemental"
-      ? supplementId ?? randomUUID() : slot;
-    const existing = slot === "supplemental"
-      ? supplementId
-        ? current.bookParts.supplements.find((part) => part.id === supplementId) ??
-          reject(409, "This book PDF is no longer in the draft")
-        : null
-      : current.bookParts[slot];
-    const bindingRole = existing?.bindingRole ?? `book:${slot}:${id}`;
+    const sourceSha256 = sha256(bytes);
     const binding = { kind: "local-file" as const, handleId: "standalone",
       lastSeen: { name: filename, size: bytes.length, modified, sha256: sourceSha256 } };
-    const pdf = { bindingRole, filename, sourceSha256 };
-    res.json(reduceAuthoritiesDraft(current, slot === "supplemental"
-      ? { type: "set-book-supplement", supplement: { ...pdf, id }, binding }
-      : { type: "set-book-part", slot, pdf, binding }));
+    res.json(attachAuthoritiesBookPdf(current, { slot, supplementId }, binding, filename, sourceSha256));
   }));
   router.post(["/build", "/prepare-highlights"], multipleFileUpload("files", 100), asyncRoute(async (req, res) => {
     const build = new AbortController();
@@ -294,9 +259,8 @@ export function createAuthoritiesRuntimeRouter(
     const title = String(req.body?.title ?? "").trim();
     if (!id || !title || title.length > 300 || !Number.isSafeInteger(revision) || revision < 1)
       reject(400, "Authorities build identity is invalid");
-    const textRoles = authoritiesTextRoles(state);
-    const sources: Record<string, { bytes: Buffer; pageTextByPage?: string[];
-      ocrTextByPage?: string[]; passageGeometry?: Awaited<ReturnType<typeof authorityPdfText>>["passageGeometry"] }> = {};
+    const preparation = createAuthoritiesPreparation(state);
+    const sources: NonNullable<AuthoritiesBuildInput["sources"]> = {};
     for (let index = 0; index < files.length; index += 1) {
       const role = roleNames[index], bytes = await readFile(files[index].path);
       build.signal.throwIfAborted();
@@ -304,26 +268,16 @@ export function createAuthoritiesRuntimeRouter(
       const expectedHash = binding?.kind === "local-file" ? binding.lastSeen.sha256
         : binding?.kind === "document" && binding.version !== "latest" ? binding.version.sha256 : null;
       if (!expectedHash || sha256(bytes) !== expectedHash) reject(409, "An attached PDF changed. Add the current file before continuing.");
-      const authority = Object.values(state.authorities).find(({ source }) =>
-        attachedAuthoritySources(source).some(({ bindingRole }) => bindingRole === role));
-      const text = textRoles.has(role)
-        ? await authorityPdfText({ bytes, signal: build.signal,
-          scannedPdfPolicy: state.settings.scannedPdfPolicy,
-          ocrTargets: authority ? authorityPassageTargets(state, authority.id) : [],
-          passageTargets: state.settings.passageMarking === "none" || !authority
-            ? [] : authorityPassageTargets(state, authority.id) }).catch((error) => {
+      sources[role] = { bytes, ...await preparation.prepareText(role, { bytes, signal: build.signal })
+        .catch((error) => {
           if (build.signal.aborted) throw error;
           return reject(409, error instanceof Error
             ? `Could not read ${files[index].originalname}: ${error.message}`
             : `Could not read ${files[index].originalname}`);
-        }) : null;
-      sources[role] = { bytes,
-        ...(text ? { pageTextByPage: text.pageTextByPage } : {}),
-        ...(text?.ocrTextByPage.some(Boolean) ? { ocrTextByPage: text.ocrTextByPage } : {}),
-        ...(text?.passageGeometry ? { passageGeometry: text.passageGeometry } : {}) };
+        }) };
     }
     if (req.path === "/prepare-highlights") {
-      const missing = [...textRoles].filter((role) => !sources[role]);
+      const missing = [...preparation.textRoles].filter((role) => !sources[role]);
       if (missing.length) reject(400, "Some source PDFs were not supplied for highlight preparation");
       res.json({ prepared: true }); return;
     }
