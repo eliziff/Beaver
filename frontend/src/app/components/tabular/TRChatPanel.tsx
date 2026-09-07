@@ -18,6 +18,7 @@ interface Props {
     searchMessageId?: string | null;
     initialIntent?: AssistantIntent;
     workspaceReady?: boolean;
+    scopeLabel?: string;
     onIntentSent?: () => void;
     onUpdated?: () => void;
 }
@@ -28,7 +29,7 @@ export function TRChatPanel({
     reviewId,
     onCitationClick,
     chatId: currentChatId = null,
-    onChatIdChange, searchMessageId, initialIntent, workspaceReady = true, onIntentSent, onUpdated,
+    onChatIdChange, searchMessageId, initialIntent, workspaceReady = true, scopeLabel, onIntentSent, onUpdated,
 }: Props) {
     const [chats, setChats] = useState<Chat[]>([]);
     const [historyOpen, setHistoryOpen] = useState(false);
@@ -113,6 +114,7 @@ export function TRChatPanel({
                     )}
                 </div>
             </div>
+            {scopeLabel && <span className="pointer-events-none absolute right-3 top-12 z-30 text-xs text-gray-500">{scopeLabel}</span>}
             <ChatView
                 chatId={assistant.state.chatId}
                 ready={workspaceReady && assistant.chatLoad.status === "loaded"}

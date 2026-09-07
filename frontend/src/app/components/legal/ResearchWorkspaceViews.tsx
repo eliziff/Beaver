@@ -24,7 +24,7 @@ export function ResearchWorkspaceViews() {
   return <>
     <ResearchViews table={() => choose("Table")} chat={() => choose("Chat")} />
     <ImportResearchSet open={importing} onClose={() => setImporting(false)} fileId={workspace.file?.document.id}
-      projectId={workspace.file?.document.project_id} onOpen={navigate} />
+      projectId={workspace.file?.document.project_id} selection={workspace.selection} onOpen={navigate} />
     <SearchableChoiceModal open={!!choices} onClose={() => setChoices(null)} title="Open chat"
       value={null} options={[...(choices?.items ?? []), { value: "new", label: "New chat" }]}
       footer={error && <p role="alert" className="text-sm text-red-700">{error}</p>} closeOnSelect={false}

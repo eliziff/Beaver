@@ -1,3 +1,4 @@
+import type { ResearchFindingReference } from "./api/researchFiles";
 import type { Document } from "@/app/lib/api/documents";
 import type { GroundedEvidence } from "@/app/lib/groundedAnswers";
 
@@ -47,7 +48,7 @@ export type ResearchPageItem = { kind: "passage" | "evidence"; index: number; va
   | { kind: "query"; index: number; value: ResearchQueryReceipt }
   | { kind: "change"; index: number; value: ResearchChange };
 export type ResearchActionResult = ResearchFile & { sourceId?: string; evidenceId?: string; receipt?: ResearchEvidenceReceipt };
-export type ResearchSelection = { target: "sources" | "passages"; sourceIds?: string[];
+export type ResearchSelection = { findingRefs?: ResearchFindingReference[]; target: "sources" | "passages"; sourceIds?: string[];
   evidenceIds?: string[]; labelIds?: string[]; unlabelled?: boolean;
   members?: { sourceId: string; evidenceIds?: string[] }[] };
 export type ResearchQueryInput = ResearchSelection & { text?: string; after?: string; syntax: "literal" | "terms";
@@ -58,7 +59,7 @@ export type ResearchQueryInput = ResearchSelection & { text?: string; after?: st
 /** Library readers without block anchors address the whole projection with kind `document`. */
 export type PassageLocator = { kind: "paragraph" | "section" | "page" | "footnote" | "document";
   value: string; endValue?: string };
-export type ResearchAction =
+export type ResearchMutation =
   | { type: "label"; id?: string; name: string; parentId?: string | null;
       color?: string | null; order?: number; scope?: "source" | "highlight" }
   | { type: "remove"; kind: "label" | "source"; id: string }
@@ -73,6 +74,9 @@ export type ResearchAction =
   | ({ type: "label-selection"; assign: string[]; mode: "add" | "remove" | "replace" } & ResearchSelection)
   | { type: "accept" | "reject" | "undo"; changeId: string }
   | { type: "note"; markdown: string; expectedMarkdown?: string };
+
+export type ResearchAction = ResearchMutation | { type: "batch"; title: string; propose?: boolean;
+  actions: Extract<ResearchMutation, { type: "source" | "label" | "annotate" | "label-selection" | "remove" }>[] };
 
 /** Receipt inventory counts are not highlight counts. */
 export const researchHighlightCount = (source: ResearchSource) =>

@@ -34,19 +34,18 @@ async function fixture(answered = true) {
   const { api } = await import("../api"), { runtime } = await import("../runtime");
   close = () => runtime.shutdown();
   const research = await import("../lib/researchFile"), evidence = await import("../lib/chat/legalEvidence"),
-    { readResearchResource } = await import("../lib/researchReader"),
     { resourceReference } = await import("../lib/resourceReferences"),
     documents = await runtime.documents(), chats = await runtime.chats(),
     bytes = Buffer.from("The agreed interest rate is five percent."),
     source = await documents.create(owner, { filename: "Agreement.txt", fileType: "txt", bytes }),
     resource = resourceReference.document(source.id, source.current_version_id),
-    read = await readResearchResource(documents, owner, { resource }),
-    library = read.evidence![0],
+    library = evidence.createLibraryEvidence({ documentId: source.id, versionId: source.current_version_id,
+      filename: source.filename, sourceText: bytes.toString(), spanText: bytes.toString(), start: 0, end: bytes.length }),
     external = evidence.createTnaEvidence({ jurisdiction: "UK", sourceClass: "case", stableSourceId: "ewca/civ/2024/1:",
       sourceReference: { id: "ewca/civ/2024/1" }, sourceText: "The appeal is allowed.", spanText: "The appeal is allowed.",
       span: { start: 0, end: 22 }, citation: "[2024] EWCA Civ 1", dataset: "tna", locatorLabel: "1" }),
     state = evidence.createLegalEvidenceTurnState();
-  evidence.registerLegalEvidence(state, library, read.evidenceSources!.get(library.evidence_id));
+  evidence.registerLegalEvidence(state, library);
   evidence.registerLegalEvidence(state, external);
   const claims = [{ text: "Interest is five percent.", evidence_ids: [library.evidence_id] },
     { text: "The appeal was allowed.", evidence_ids: [external.evidence_id] }];
@@ -86,8 +85,8 @@ it("reuses stored chat answers and their original Library/public evidence across
   };
   const first = await request(f.api).post(tablePath).send(input);
   expect(first.status).toBe(200);
-  expect(first.body.columns_config.map(({ name }: { name: string }) => name).slice(0, 2)).toEqual(["Labels", "Note"]);
-  expect((await request(f.api).post(tablePath).send(input)).body.id).toBe(first.body.id);
+  expect(first.body.columns_config.map(({ name }: { name: string }) => name)).toEqual(["What did the materials establish?"]);
+  // Creating another view is explicit; merely reading this one never creates or refreshes it.
   const table = await arrange(f, first.body.id);
   expect(table.status).toBe(200);
   expect(table.body.cells).toHaveLength(2);
@@ -100,7 +99,7 @@ it("reuses stored chat answers and their original Library/public evidence across
     .toContain(f.resource);
   const { tabularRepository } = await import("../lib/relationalTabularRepository");
   expect((await tabularRepository.detail(owner, first.body.id))?.cells.every(({ status, content }) =>
-    status === "pending" && content === null)).toBe(true);
+    status === "done" && content !== null)).toBe(true);
   expect(table.body.documents.map(({ filename }: { filename: string }) => filename)).toEqual(["Chosen row 1", "Chosen row 2"]);
   expect((await request(f.api).post('/source-workspaces/ensure').send({ tableId: first.body.id })).body.document.id)
     .toBe(f.workspace.id);
@@ -196,10 +195,10 @@ it("proposes column labels within the chosen research set without a Library onto
   await act({ type: "label", id: labelId, name: "Leases", scope: "source" });
   await act({ type: "annotate", kind: "source", id: sourceId, labelIds: [labelId] });
   const review = await sources.table(owner, f.workspace.id, { chatId: f.chat.id });
-  expect(review.columns_config.map(({ name }) => name).slice(0, 2)).toEqual(["Labels", "Note"]);
+  expect(review.columns_config.map(({ name }) => name)).toEqual(["Leases", "What did the materials establish?"]);
   await tables.update(owner, review.id, { expected_version: review.updated_at,
     columns_config: review.columns_config.map((column) => column.index === 0
-      ? { ...column, name: "Topic", format: "tag" } : column) });
+      ? { ...column, name: "Topic" } : column) });
   const proposal = await request(f.api).post(`/source-workspaces/${f.workspace.id}/column-labels`)
     .send({ reviewId: review.id, columnIndex: 0 });
   expect(proposal.status).toBe(200);
@@ -215,3 +214,167 @@ it("proposes column labels within the chosen research set without a Library onto
     id === sourceId && field.startsWith("labelIds.") && after === true)).toBe(true);
   expect(model).not.toHaveBeenCalled();
 }, 60_000);
+
+async function mutate(f: Awaited<ReturnType<typeof fixture>>, action: unknown) {
+  const file = (await f.research.readResearchFile(f.documents, owner, f.workspace.id))!;
+  const response = await request(f.api).post(`/source-workspaces/${f.workspace.id}/actions`).send({
+    version_id: file.versionId, working_revision: file.workingRevision, action });
+  expect(response.status, JSON.stringify(response.body)).toBe(200); return response.body;
+}
+
+it("previews reused and unrun cells, rejects stale previews, and refreshes snapshots only through accepted undoable changes", async () => {
+  const f = await fixture(), sources = await f.runtime.sources(), tables = await f.runtime.tabular();
+  const finding = (await sources.findings(owner, f.workspace.id, { offset: 0, limit: 20 })).items.find(({ resource }) => resource === f.resource)!;
+  const labelId = randomUUID();
+  await mutate(f, { type: "label", id: labelId, name: "Applicable", scope: "source" });
+  await mutate(f, { type: "annotate", kind: "source", id: finding.sourceId, labelIds: [labelId] });
+  const selection = { target: "sources" as const, sourceIds: [finding.sourceId] };
+  const draft = await sources.tablePlan(owner, f.workspace.id, { selection });
+  const columns = [...draft.columns, { index: 20, name: "Exceptions", prompt: "What exceptions apply?", format: "text", fieldIds: [] }];
+  const plan = await sources.tablePlan(owner, f.workspace.id, { selection, columns });
+  expect(plan.preview[0].values).toEqual(["Applicable", "Interest is five percent.", ""]);
+  expect(plan.reuse.map(({ reused, unrun }) => [reused, unrun])).toEqual([[1, 0], [1, 0], [0, 1]]);
+  await mutate(f, { type: "label", id: labelId, name: "Directly applicable", scope: "source" });
+  await expect(sources.table(owner, f.workspace.id, { selection, columns, basis: plan.basis })).rejects.toMatchObject({ status: 409 });
+  const ready = await sources.tablePlan(owner, f.workspace.id, { selection, columns });
+  const review = await sources.table(owner, f.workspace.id, { selection, columns, basis: ready.basis });
+  const before = await tables.detail(owner, review.id);
+  expect(before.cells.find(({ column_index }) => column_index === 20)).toMatchObject({ status: "pending", content: null });
+  expect(before.cells.find(({ column_index }) => column_index === 0)?.content?.summary).toBe("Directly applicable");
+  await mutate(f, { type: "label", id: labelId, name: "Analogous", scope: "source" });
+  expect((await tables.detail(owner, review.id)).cells).toEqual(before.cells);
+  const renamed = await tables.update(owner, review.id, { expected_version: before.review.updated_at, title: "Keep my work" });
+  expect((await tables.detail(owner, review.id)).cells).toEqual(before.cells);
+  const fresh = await sources.tablePlan(owner, f.workspace.id, { selection, columns, replaceTableId: review.id });
+  const proposed = await sources.table(owner, f.workspace.id, { selection, columns, replaceTableId: review.id,
+    expectedVersion: renamed.updated_at, basis: fresh.basis });
+  expect((await tables.detail(owner, review.id)).cells).toEqual(before.cells);
+  const history = await tables.history(owner, review.id, { offset: 0, limit: 50 });
+  const change = history.items.find(({ status }) => status === "pending")!;
+  expect(change.title).toBe("Refresh from research");
+  const accepted = await tables.change(owner, review.id, { id: change.id, action: "accept", expected_version: proposed.updated_at });
+  expect((await tables.detail(owner, review.id)).cells.find(({ column_index }) => column_index === 0)?.content?.summary).toBe("Analogous");
+  await tables.change(owner, review.id, { id: change.id, action: "undo", expected_version: accepted.updated_at });
+  expect((await tables.detail(owner, review.id)).cells.map(({ content }) => content)).toEqual(before.cells.map(({ content }) => content));
+  expect(model).not.toHaveBeenCalled();
+});
+
+it("promotes only explicitly selected grounded support, preserves IDs through table/chat/highlight round trips, and never resurrects deleted marks", async () => {
+  const f = await fixture(), sources = await f.runtime.sources(), tables = await f.runtime.tabular();
+  const review = await sources.table(owner, f.workspace.id, { chatId: f.chat.id });
+  const detail = await tables.detail(owner, review.id), row = detail.cells.find(({ content }) => content?.resource === f.resource)!;
+  const ref = { kind: "cell" as const, reviewId: review.id, rowId: row.document_id, columnIndex: row.column_index };
+  let file = (await sources.get(owner, f.workspace.id))!;
+  expect((await sources.items(owner, f.workspace.id, { kind: "passages", offset: 0, limit: 50 })).total).toBe(0);
+  await expect(sources.saveHighlights(owner, f.workspace.id, { references: [ref], evidenceIds: [f.receipts[1].evidence_id],
+    versionId: file.versionId, workingRevision: file.workingRevision })).rejects.toMatchObject({ status: 400 });
+  const typeId = randomUUID();
+  await mutate(f, { type: "label", id: typeId, name: "Application", scope: "highlight" });
+  file = (await sources.get(owner, f.workspace.id))!;
+  const saved = await sources.saveHighlights(owner, f.workspace.id, { references: [ref], evidenceIds: [f.receipts[0].evidence_id], typeId,
+    versionId: file.versionId, workingRevision: file.workingRevision });
+  const highlights = await sources.items(owner, f.workspace.id, { kind: "passages", offset: 0, limit: 50 });
+  expect(highlights.items).toMatchObject([{ value: { receipt: f.receipts[0], labelIds: [typeId] } }]);
+  const finding = (await sources.finding(owner, f.workspace.id, ref))!;
+  const context = await sources.context(owner, f.workspace.id, { target: "sources", sourceIds: [finding.sourceId], findingRefs: [ref] });
+  expect(context.findingRefs).toEqual([ref]);
+  expect((await sources.findings(owner, f.workspace.id, { references: context.findingRefs, subjects: context.subjects, offset: 0, limit: 10 })).items[0].evidence).toEqual([f.receipts[0]]);
+  await mutate(f, { type: "remove", kind: "evidence", id: f.receipts[0].evidence_id, sourceId: finding.sourceId });
+  await sources.bind(owner, f.workspace.id, { chatId: f.chat.id });
+  expect((await sources.items(owner, f.workspace.id, { kind: "passages", offset: 0, limit: 50 })).total).toBe(0);
+  expect((await sources.finding(owner, f.workspace.id, ref))?.evidence).toEqual([f.receipts[0]]);
+  expect((await sources.items(owner, f.workspace.id, { kind: "evidence", offset: 0, limit: 50 })).total).toBe(2);
+  expect(saved.state.sources[finding.sourceId].reference).toMatchObject({ id: f.source.id, versionId: f.source.current_version_id });
+  expect(model).not.toHaveBeenCalled();
+});
+
+it("maps free text explicitly, keeps existing source labels, and proposes changes without mutating Library metadata", async () => {
+  const f = await fixture(), sources = await f.runtime.sources(), tables = await f.runtime.tabular();
+  const review = await sources.table(owner, f.workspace.id, { chatId: f.chat.id });
+  const original = await f.documents.metadata(owner, f.source.id);
+  const input = { reviewId: review.id, columnIndex: 0 };
+  const plan = await sources.columnLabelPlan(owner, f.workspace.id, input);
+  expect(plan.mapping.map(({ value }) => value)).toEqual(expect.arrayContaining(f.claims.map(({ text }) => text)));
+  await expect(sources.columnLabels(owner, f.workspace.id, { ...input, basis: plan.basis, mapping: [] })).rejects.toMatchObject({ status: 400 });
+  const proposal = await sources.columnLabels(owner, f.workspace.id, { ...input, basis: plan.basis,
+    mapping: plan.mapping.map(({ value }) => ({ value, label: "Useful" })) });
+  expect(Object.values(proposal.state.labels)).toEqual([]);
+  const pending = proposal.state.proposals![0];
+  const accepted = await mutate(f, { type: "accept", changeId: pending.id });
+  expect(Object.values(accepted.state.labels).map((label) => (label as { name: string }).name)).toContain("Useful");
+  expect(await f.documents.metadata(owner, f.source.id)).toEqual(original);
+  expect((await tables.detail(owner, review.id)).cells.flatMap(({ content }) => content?.claims ?? [])).toEqual(expect.arrayContaining(f.claims));
+  await mutate(f, { type: "undo", changeId: pending.id });
+  expect(Object.values((await sources.get(owner, f.workspace.id))!.state.labels)).toEqual([]);
+  expect(model).not.toHaveBeenCalled();
+});
+
+it("adds a source to a snapshot without replacing existing rows or their completed results", async () => {
+  const f = await fixture(), sources = await f.runtime.sources(), tables = await f.runtime.tabular();
+  const first = (await sources.findings(owner, f.workspace.id, { offset: 0, limit: 20 })).items.find(({ resource }) => resource === f.resource)!;
+  const review = await sources.table(owner, f.workspace.id, { selection: { target: "sources", sourceIds: [first.sourceId] } });
+  const before = await tables.detail(owner, review.id), ids = Object.keys((await sources.get(owner, f.workspace.id))!.state.sources);
+  await tables.update(owner, review.id, { expected_version: review.updated_at, research_selection: { target: "sources", sourceIds: ids } });
+  const after = await tables.detail(owner, review.id);
+  expect(after.review.document_ids).toContain(before.review.document_ids[0]);
+  expect(after.cells.find(({ document_id }) => document_id === before.review.document_ids[0])).toEqual(before.cells[0]);
+  expect(after.review.document_ids).toHaveLength(2);
+  expect(after.cells.filter(({ status }) => status === "pending")).toHaveLength(1);
+});
+
+it("converts a selected later answer using earlier reads, in question order even when turns share a clock tick", async () => {
+  const f = await fixture(false), sources = await f.runtime.sources();
+  const { legalEvidenceReceiptEvent, createLegalEvidenceTurnState, registerLegalEvidence } = await import("../lib/chat/legalEvidence");
+  const state = createLegalEvidenceTurnState(); registerLegalEvidence(state, f.receipts[0]); state.priorEvidenceIds.add(f.receipts[0].evidence_id);
+  state.answer = [{ text: "Five percent.", evidence_ids: [f.receipts[0].evidence_id] }];
+  const messageId = randomUUID(), event = legalEvidenceReceiptEvent(state)!;
+  event.evidence = []; // Stored later turns may reference earlier receipts without repeating them.
+  const chat = (await f.chats.get(owner, f.chat.id))!;
+  await f.chats.commitTurn(owner, chat.id, { expectedVersion: chat.transcript_version,
+    userMessage: { id: randomUUID(), content: "What interest rate?" }, assistantMessage: { id: messageId, content: [event] } });
+  const plan = await sources.tablePlan(owner, f.workspace.id, { chatId: chat.id, messageIds: [messageId] });
+  expect(plan.columns.map(({ name }) => name)).toEqual(["What interest rate?"]);
+  expect(plan.arrangement.rows).toHaveLength(1);
+  const review = await sources.table(owner, f.workspace.id, { chatId: chat.id, messageIds: [messageId], columns: plan.columns, basis: plan.basis });
+  const tables = await f.runtime.tabular();
+  expect((await tables.detail(owner, review.id)).cells[0].content?.evidence).toEqual([f.receipts[0]]);
+  expect((await sources.items(owner, f.workspace.id, { kind: "passages", offset: 0, limit: 50 })).total).toBe(0);
+});
+
+it("keeps multi-document Library collection atomic when a selected pinned version is unavailable", async () => {
+  const f = await fixture(), sources = await f.runtime.sources(), current = (await sources.get(owner, f.workspace.id))!;
+  const response = await request(f.api).post(`/source-workspaces/${f.workspace.id}/actions`).send({ version_id: current.versionId,
+    working_revision: current.workingRevision, action: { type: "batch", title: "Add Library sources", actions: [
+      { type: "source", reference: { provider: "library", kind: "document", id: f.source.id, versionId: f.source.current_version_id }, note: "Must not partially save" },
+      { type: "source", reference: { provider: "library", kind: "document", id: randomUUID(), versionId: randomUUID() } },
+    ] } });
+  expect(response.status).toBe(404);
+  expect(await sources.get(owner, f.workspace.id)).toEqual(current);
+});
+
+it("keeps selected claim IDs and their original support scoped across Chat finding reads", async () => {
+  const f = await fixture(), sources = await f.runtime.sources(),
+    { readResearchFindings } = await import("../lib/chat/researchTableTool"),
+    { createLegalEvidenceTurnState, registerLegalEvidence, legalEvidenceReceiptEvent } = await import("../lib/chat/legalEvidence");
+  const state = createLegalEvidenceTurnState(); f.receipts.forEach((receipt) => registerLegalEvidence(state, receipt));
+  state.answer = [{ text: "A cross-source observation.", evidence_ids: f.receipts.map(({ evidence_id }) => evidence_id) },
+    { text: "A separate interest observation.", evidence_ids: [f.receipts[0].evidence_id] }];
+  const chat = (await f.chats.get(owner, f.chat.id))!, messageId = randomUUID();
+  await f.chats.commitTurn(owner, chat.id, { expectedVersion: chat.transcript_version,
+    userMessage: { id: randomUUID(), content: "Compare these points" },
+    assistantMessage: { id: messageId, content: [legalEvidenceReceiptEvent(state)!] } });
+  await sources.bind(owner, f.workspace.id, { chatId: chat.id });
+  const original = (await sources.findings(owner, f.workspace.id, { chatId: chat.id, messageIds: [messageId], offset: 0, limit: 20 }))
+    .items.find(({ resource }) => resource === f.resource)!;
+  const reference = { ...original.reference, claimIndices: [1] }, selected = await sources.context(owner, f.workspace.id,
+    { target: "sources", sourceIds: [original.sourceId], findingRefs: [reference] });
+  const dependencies = { sources, scope: owner, workspaceId: f.workspace.id, subjects: selected.subjects, findingRefs: [reference] };
+  const result = await readResearchFindings(dependencies, { reference });
+  const content = JSON.parse((result.result.content[0] as { text: string }).text);
+  expect(content.claims).toEqual([expect.objectContaining({ claim_index: 1, text: "A separate interest observation." })]);
+  expect(result.evidence).toEqual([f.receipts[0]]);
+  await expect(readResearchFindings(dependencies, { reference: original.reference })).rejects.toMatchObject({ status: 400 });
+  await expect(readResearchFindings(dependencies, { reference: { ...original.reference, claimIndices: [0] } })).rejects.toMatchObject({ status: 400 });
+  expect((await sources.items(owner, f.workspace.id, { kind: "passages", offset: 0, limit: 50 })).total).toBe(0);
+  expect(model).not.toHaveBeenCalled();
+});

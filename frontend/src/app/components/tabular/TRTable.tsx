@@ -51,6 +51,7 @@ interface Props {
     onClearColumn?: (col: ColumnConfig) => void;
     onDeleteColumn?: (col: ColumnConfig) => void;
     onColumnLabels?: (col: ColumnConfig) => void;
+    onAskColumn?: (col: ColumnConfig) => void;
     onAddColumns?: () => void;
     onAddDocuments?: () => void;
 }
@@ -58,7 +59,7 @@ export function TRTable({
     loading, columns, documents, cells, savingColumnsConfig, selectedDocIds,
     uploadingFilenames = [], dragOverFiles = false, highlightedCell, running = false,
     onSelectionChange, onExpand, onCitationClick, onEditColumn, onRerunColumn, onClearColumn, onDeleteColumn,
-    onColumnLabels, onAddColumns, onAddDocuments,
+    onColumnLabels, onAskColumn, onAddColumns, onAddDocuments,
 }: Props) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.index - b.index), [columns]);
@@ -101,7 +102,7 @@ export function TRTable({
                     </TableHeaderCell>
                     : <ColumnHeader key={col.index} column={col} disabled={savingColumnsConfig} running={running || !documents.length}
                         onEdit={onEditColumn} onRerun={onRerunColumn} onClear={onClearColumn} onDelete={onDeleteColumn}
-                        onLabels={onColumnLabels} />)}
+                        onLabels={onColumnLabels} onAsk={onAskColumn} />)}
                 <div className={FILLER} />
             </TableHeaderRow>}
         >
@@ -166,11 +167,12 @@ export function TRTable({
     );
 }
 
-function ColumnHeader({ column, disabled, running, onEdit, onRerun, onClear, onDelete, onLabels }: {
+function ColumnHeader({ column, disabled, running, onEdit, onRerun, onClear, onDelete, onLabels, onAsk }: {
     column: ColumnConfig; disabled: boolean; running: boolean;
     onEdit: (col: ColumnConfig) => void; onRerun?: (col: ColumnConfig) => void;
     onClear?: (col: ColumnConfig) => void; onDelete?: (col: ColumnConfig) => void;
     onLabels?: (col: ColumnConfig) => void;
+    onAsk?: (col: ColumnConfig) => void;
 }) {
     const format = FORMAT_OPTIONS.find(({ value }) => value === (column.format ?? "text")) ?? FORMAT_OPTIONS[0]!;
     const Icon = format.icon;
@@ -185,8 +187,9 @@ function ColumnHeader({ column, disabled, running, onEdit, onRerun, onClear, onD
                     { label: "Edit", disabled, onSelect: () => onEdit(column) },
                     ...(onRerun ? [{ label: "Rerun column", disabled: disabled || running, onSelect: () => onRerun(column) }] : []),
                     ...(onClear ? [{ label: "Clear column", disabled: disabled || running, onSelect: () => onClear(column) }] : []),
-                    ...(onLabels && (column.format === "tag" || column.format === "yes_no")
+                    ...(onLabels
                         ? [{ label: "Labels from this column", disabled, onSelect: () => onLabels(column) }] : []),
+                    ...(onAsk ? [{ label: "Ask about this column", disabled, onSelect: () => onAsk(column) }] : []),
                     ...(onDelete ? [{ label: "Delete", disabled, onSelect: () => onDelete(column) }] : []),
                 ]} />
         </span>
