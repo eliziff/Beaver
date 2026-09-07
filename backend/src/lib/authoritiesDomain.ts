@@ -1,6 +1,23 @@
+import type {
+  AuthorityKind, AuthoritiesOutputMode, AuthoritiesSourceMode, AuthoritiesProfileId, AuthoritiesBookRole,
+  AuthoritiesBuildSettings, AuthoritiesSettings, AuthoritiesDocumentSnapshot, AuthoritiesImport,
+  AuthoritiesCover, AuthoritySourceIdentity, AuthorityHighlightExclusion,
+  AuthorityIdentity as SharedAuthorityIdentity, AuthoritiesReviewUnit, AuthorityTextSpan,
+  AuthorityOccurrence, AuthoritiesDiscrepancyAction,
+} from "mike/shared/authorities-contract.d.ts";
+export type {
+  AuthorityKind, AuthoritiesOutputMode, AuthoritiesSourceMode, AuthoritiesProfileId, AuthoritiesBookRole,
+  AuthoritiesBuildSettings, AuthoritiesSettings, AuthoritiesDocumentSnapshot, AuthoritiesImport,
+  AuthoritiesCover, AuthoritySourceIdentity, AuthorityHighlightExclusion,
+  AuthoritiesReviewUnit, AuthorityTextSpan, AuthorityOccurrence, AuthoritiesDiscrepancyAction,
+};
+
+// Import provenance is reducer-private; it is not part of the browser contract.
+export type AuthorityIdentity = SharedAuthorityIdentity & { scanOnly?: true };
+
 import { attachAuthoritySource, attachedAuthoritySources,
   authoritiesBookPdfs, removeUnusedBinding, replaceSource } from "mike/shared/authorities-sources.mjs";
-import type { AuthoritySourceLanguage, AuthoritySourceDecision,
+import type { AuthoritySourceLanguage,
   AuthoritiesBoundPdf, AuthoritiesBookSupplement, AuthoritiesBookParts } from "mike/shared/authorities-sources.mjs";
 export { attachedAuthoritySources, hasBilingualAuthoritySource, authoritiesBookPdfs } from
   "mike/shared/authorities-sources.mjs";
@@ -13,34 +30,8 @@ import { decodeWorkProductBindings, type WorkProductInput,
   type WorkProductState } from "./workProduct";
 import profileValues from "mike/shared/authorities-profiles.json";
 
-export type AuthorityKind = "case" | "legislation" | "commentary" | "other";
-export type AuthoritiesOutputMode = "table" | "book" | "both";
-export type AuthoritiesSourceMode = "automatic" | "manual-originals" | "render";
-export type AuthoritiesProfileId = string;
 export const AUTHORITIES_BOOK_ROLES = ["applicant", "respondent", "joint", "appellant",
   "intervener", "plaintiff", "defendant", "moving-party", "responding-party"] as const;
-export type AuthoritiesBookRole = (typeof AUTHORITIES_BOOK_ROLES)[number];
-export type AuthoritiesBuildSettings = {
-  sourceMode: AuthoritiesSourceMode;
-  tabStyle: "numeric" | "alpha" | "lower-alpha" | "roman" | "lower-roman";
-  tabStart?: number;
-  tabPrefix?: string;
-  tabLabels?: string[];
-  /** Explicit draft export only; never a representation of filing completeness. */
-  allowIncomplete?: boolean;
-  tableOrder: "first-reference" | "alphabetical";
-  tableDelivery: "native-marks" | "native-append" | "linked-append";
-  tableLocation: "pages" | "pinpoints" | "combined";
-  passageMarking: "none" | "margin" | "paragraph" | "text" | "sidelined";
-  scannedPdfPolicy: "page-margin" | "cited-pages" | "full";
-  missingSourcePolicy: "placeholder" | "omit";
-  filingMedium?: "electronic" | "paper";
-  bookRole?: AuthoritiesBookRole;
-};
-export type AuthoritiesSettings = AuthoritiesBuildSettings & {
-  profileId: AuthoritiesProfileId;
-};
-
 type AuthoritiesProfile = {
   id: AuthoritiesProfileId;
   label: string;
@@ -75,49 +66,21 @@ export function authoritiesProfile(id: AuthoritiesProfileId) {
 export const federalEnactmentCitation = (citation: string) =>
   /\b(?:R\.?S\.?C\.?|S\.?C\.?|C\.?R\.?C\.?|SOR|SI|DORS|TR)\b/iu.test(citation);
 
-export type AuthoritiesDocumentSnapshot = {
-  documentId: string;
-  versionId: string;
-  sha256: string;
-};
-
-export type AuthoritiesImport =
-  | { kind: "manual" }
-  | { kind: "document"; bindingRole: "source"; filename: string;
-      fileType: "docx" | "pdf"; snapshot: AuthoritiesDocumentSnapshot | null };
-
-export type AuthoritiesCover = {
-  courtFileNumber: string;
-  partyGroups: Array<{ role: string; parties: string[] }>;
-  applicationUnder: string;
-  title: string;
-};
-
-export type AuthoritySeed = {
+export type AuthoritySeed = AuthoritySourceIdentity & {
   key: string;
   kind: AuthorityKind;
-  provider: string;
-  stableSourceId: string;
-  sourceSha256: string;
   citation: string;
   name: string | null;
-  version: string | null;
-  externalUrl: string | null;
   evidenceIds: string[];
   locators: Array<{ kind: string; label: string }>;
 };
-
-export type AuthoritySourceIdentity = Pick<AuthoritySeed,
-  "provider" | "stableSourceId" | "sourceSha256" | "version" | "externalUrl">;
 
 export type AuthoritiesLedgerOccurrence = {
   id: string;
   markerId: string;
   targetId: string;
   authorityKey: string;
-  unit: { id: string; kind: "body" | "footnote"; ordinal: number;
-    footnoteId: number | null; footnoteRefs: Array<[number, number]>;
-    pageNumbers: number[]; text: string; sourceTextSha256: string };
+  unit: Omit<AuthoritiesReviewUnit, "occurrenceIds"> & { sourceTextSha256: string };
   start: number;
   end: number;
   text: string;
@@ -134,63 +97,7 @@ export type AuthorityCitationLedger = {
   occurrences: AuthoritiesLedgerOccurrence[];
 };
 
-export type AuthorityTextSpan = { start: number; end: number; text: string };
-
-import { decodeAnnotationSet, type PdfAnnotationSets, type PdfAnnotationSet } from "mike/shared/pdf-annotations.mjs";
-
-export type AuthorityHighlightExclusion = { kind: string; label: string };
-
-export type AuthorityIdentity = {
-  id: string;
-  key: string;
-  kind: AuthorityKind;
-  citation: string;
-  name: string | null;
-  displayName: string | null;
-  evidenceIds: string[];
-  locators: Array<{ kind: string; label: string }>;
-  sourceIdentity: AuthoritySourceIdentity | null;
-  excluded: boolean;
-  source: AuthoritySourceDecision;
-  highlightExclusions?: AuthorityHighlightExclusion[];
-  annotations?: PdfAnnotationSets;
-  scanOnly?: true;
-  userAdded?: true;
-};
-
-export type AuthoritiesReviewUnit = {
-  id: string;
-  kind: "body" | "footnote";
-  ordinal: number;
-  footnoteId: number | null;
-  footnoteRefs: Array<[number, number]>;
-  pageNumbers: number[];
-  text: string;
-  occurrenceIds: string[];
-};
-
-export type AuthorityOccurrence = {
-  id: string;
-  unitId: string;
-  start: number;
-  end: number;
-  text: string;
-  authoritySpan: AuthorityTextSpan;
-  coreSpan: AuthorityTextSpan;
-  pinpointSpan: AuthorityTextSpan | null;
-  kind: AuthorityKind | "reference";
-  citation: string;
-  authorityId: string | null;
-  reference: { kind: "supra" | "ibid"; targetAuthorityId: string } | null;
-  pinpoints: Array<{ kind: "paragraph" | "section" | "page"; text: string }>;
-  evidenceIds: string[];
-  sourceTextSha256: string;
-  localOrdinal: number;
-  reviewed: boolean;
-};
-
-export type AuthoritiesDiscrepancyAction =
-  "ignore" | "pinpoint" | "quote_exact" | "quote_editorial";
+import { decodeAnnotationSet, type PdfAnnotationSet } from "mike/shared/pdf-annotations.mjs";
 
 export type AuthoritiesDraft = WorkProductState & {
   schemaVersion: "beaver.authorities-draft.v1";
