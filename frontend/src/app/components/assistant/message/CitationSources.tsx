@@ -82,6 +82,7 @@ export function citationPillParts(annotation: Citation, sourceOnly = false): {
 }
 export function citationTooltip(annotation: Citation): string {
     const locator = citationPillLabel(annotation) || formatCitationPage(annotation);
-    const quote = displayCitationQuote(annotation);
+    const full = displayCitationQuote(annotation).replace(/\s+/gu, " ").trim();
+    const quote = full.length > 200 ? `${full.slice(0, 200)}…` : full;
     return quote ? locator ? `${locator}: "${quote}"` : `"${quote}"` : locator;
 }
