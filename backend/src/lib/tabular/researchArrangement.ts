@@ -53,8 +53,8 @@ export async function resolveResearchArrangement(input: {
 }) {
   const { documents, scope, file, columns, storedCells } = input,
     arrangement = researchArrangementSchema.parse(input.arrangement),
-    rowIds = new Set(arrangement.rows.map(({ id }) => id));
-  if (rowIds.size !== arrangement.rows.length) throw new ApplicationError(400, "Row IDs must be unique");
+    rowsById = new Map(arrangement.rows.map((row) => [row.id, row])), columnIds = new Set(columns.map(({ index }) => index));
+  if (rowsById.size !== arrangement.rows.length) throw new ApplicationError(400, "Row IDs must be unique");
   const selection = await resolveResearchSelection(documents, scope, { researchFileId: file.document.id,
     target: "sources", sourceIds: [...new Set(arrangement.rows.map(({ sourceId }) => sourceId))]
       .filter((id) => input.strict || file.state.sources[id]) }, file, { availableOnly: !input.strict }),
@@ -76,9 +76,9 @@ export async function resolveResearchArrangement(input: {
   const cells = new Map(storedCells.map((cell) => [`${cell.document_id}:${cell.column_index}`, cell])),
     assigned = new Set<string>();
   for (const mapping of arrangement.cells) {
-    const row = arrangement.rows.find(({ id }) => id === mapping.rowId),
+    const row = rowsById.get(mapping.rowId),
       key = `${mapping.rowId}:${mapping.columnIndex}`;
-    if (!row || !columns.some(({ index }) => index === mapping.columnIndex) || assigned.has(key))
+    if (!row || !columnIds.has(mapping.columnIndex) || assigned.has(key))
       throw new ApplicationError(400, "Each mapped cell needs a unique existing row and column");
     assigned.add(key);
     if (!mapping.items.length) continue;

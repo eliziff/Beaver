@@ -1,0 +1,57 @@
+[
+  {
+    "name": "single",
+    "rows": 1,
+    "columns": 1,
+    "firstMs": 2.6206059999999525,
+    "medianMs": 0.995017999999618,
+    "workspaceReads": 1,
+    "tableLoads": 1,
+    "transcriptLoads": 0,
+    "sampledBytes": 147864
+  },
+  {
+    "name": "selected-100",
+    "rows": 100,
+    "columns": 1,
+    "firstMs": 140.9402439999999,
+    "medianMs": 148.05131100000017,
+    "workspaceReads": 102,
+    "tableLoads": 100,
+    "transcriptLoads": 0,
+    "sampledBytes": 61458016
+  },
+  {
+    "name": "listing-2000",
+    "rows": 100,
+    "columns": 20,
+    "firstMs": 81.93585900000016,
+    "medianMs": 60.384446000000025,
+    "workspaceReads": 1,
+    "tableLoads": 1,
+    "transcriptLoads": 0,
+    "sampledBytes": 21899408
+  },
+  {
+    "name": "listing-10000",
+    "rows": 500,
+    "columns": 20,
+    "firstMs": 590.2580619999999,
+    "medianMs": 608.855305000001,
+    "workspaceReads": 1,
+    "tableLoads": 1,
+    "transcriptLoads": 0,
+    "sampledBytes": 102598424
+  },
+  {
+    "name": "chat-50",
+    "rows": 1,
+    "columns": 1,
+    "firstMs": 155.2143530000012,
+    "medianMs": 151.22825399999965,
+    "workspaceReads": 102,
+    "tableLoads": 0,
+    "transcriptLoads": 50,
+    "sampledBytes": 84138704
+  }
+]
