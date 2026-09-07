@@ -1,3 +1,7 @@
+import type { AuthoritySourceDecision, AuthoritiesBookParts } from
+  "../../../../shared/authorities-sources.mjs";
+export type { AuthoritySourceLanguage, AttachedAuthoritySource, AuthoritiesBoundPdf,
+  AuthoritiesBookSupplement } from "../../../../shared/authorities-sources.mjs";
 import type { PdfAnnotationSet, PdfAnnotationSets } from "../../../../shared/pdf-annotations.mjs";
 import type { WorkProduct, WorkProductInput } from "@/app/lib/workProducts";
 
@@ -25,18 +29,12 @@ export type AuthoritiesBuildSettings = {
   filingMedium?: "electronic" | "paper";
   bookRole?: AuthoritiesBookRole;
 };
-export type AuthoritiesBoundPdf = {
-  bindingRole: string;
-  filename: string;
-  sourceSha256: string;
-};
 export type AuthoritiesCover = {
   courtFileNumber: string;
   partyGroups: Array<{ role: string; parties: string[] }>;
   applicationUnder: string;
   title: string;
 };
-export type AuthoritiesBookSupplement = AuthoritiesBoundPdf & { id: string };
 type AuthoritySourceIdentity = {
   provider: string;
   stableSourceId: string;
@@ -44,21 +42,6 @@ type AuthoritySourceIdentity = {
   version: string | null;
   externalUrl: string | null;
 };
-
-export type AuthoritySourceLanguage = "en" | "fr" | "bilingual";
-export type AttachedAuthoritySource = {
-  bindingRole: string;
-  filename: string;
-  sourceSha256: string;
-  sourceUrl: string | null;
-  origin: "manual" | "original" | "reconstructed";
-  language: AuthoritySourceLanguage;
-};
-type AuthoritySource =
-  | { kind: "unresolved" }
-  | { kind: "resolved" }
-  | { kind: "attached"; sources: AttachedAuthoritySource[] }
-  | { kind: "pending-canlii"; authorityKey: string; pageUrl: string; pdfUrl: string };
 
 export type AuthorityIdentity = {
   id: string;
@@ -71,7 +54,7 @@ export type AuthorityIdentity = {
   locators: Array<{ kind: string; label: string }>;
   sourceIdentity: AuthoritySourceIdentity | null;
   excluded: boolean;
-  source: AuthoritySource;
+  source: AuthoritySourceDecision;
   highlightExclusions?: Array<{ kind: string; label: string }>;
   annotations?: PdfAnnotationSets;
   userAdded?: true;
@@ -109,11 +92,7 @@ export type AuthoritiesDraft = {
   outputMode: AuthoritiesOutputMode;
   settings: AuthoritiesBuildSettings & { profileId: AuthoritiesProfileId };
   cover: AuthoritiesCover;
-  bookParts: {
-    cover: AuthoritiesBoundPdf | null;
-    index: AuthoritiesBoundPdf | null;
-    supplements: AuthoritiesBookSupplement[];
-  };
+  bookParts: AuthoritiesBookParts;
   insertIntoDocument: boolean;
   ledger: unknown | null;
   units: Array<{ id: string; kind: "body" | "footnote"; ordinal: number;

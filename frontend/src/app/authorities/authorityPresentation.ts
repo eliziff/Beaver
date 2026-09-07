@@ -1,3 +1,4 @@
+import { hasBilingualAuthoritySource } from "../../../../shared/authorities-sources.mjs";
 import type { AuthorityIdentity, AuthorityOccurrence, AuthoritiesProduct, AuthoritySourceLanguage } from "./types";
 import type { AuthoritiesSourceIssue } from "./host";
 import { authoritiesProfile } from "./profiles";
@@ -21,9 +22,7 @@ export function requiresBilingualSources(state: AuthoritiesProduct["state"], ite
 }
 export function hasRequiredSources(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
   if (item.source.kind !== "attached" || !item.source.sources.length) return false;
-  if (!requiresBilingualSources(state, item)) return true;
-  const languages = new Set(item.source.sources.map(({ language }) => language));
-  return languages.has("bilingual") || languages.has("en") && languages.has("fr");
+  return !requiresBilingualSources(state, item) || hasBilingualAuthoritySource(item.source);
 }
 export function sourceLanguageLabel(language: AuthoritySourceLanguage) {
   return language === "en" ? "English" : language === "fr" ? "French" : "English and French";

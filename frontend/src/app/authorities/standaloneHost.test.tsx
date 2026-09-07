@@ -147,6 +147,7 @@ describe("standalone Authorities sources", () => {
 
   it("keeps English and French PDFs on one authority and lets a bilingual PDF replace them", async () => {
     let saved = product(input("0".repeat(64)));
+    saved.state.stage = "build";
     saved.state.authorityOrder = ["case"];
     saved.state.authorities.case = { id: "case", key: "case", kind: "legislation",
       citation: "RSC 1985, c C-46", name: "Criminal Code", displayName: null,
@@ -181,6 +182,8 @@ describe("standalone Authorities sources", () => {
     ] });
     expect(Object.keys(saved.state.bindings).filter((role) => role.startsWith("authority:")))
       .toHaveLength(1);
+    expect(saved.state.stage).toBe("sources");
+    expect(mocks.apiResponse).not.toHaveBeenCalled();
   });
 
   it("relinks a missing imported source and refreshes its review once", async () => {
