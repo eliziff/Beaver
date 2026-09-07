@@ -866,8 +866,32 @@ function provider(
   };
 }
 
+/**
+ * Cluster metadata, PDF, and full opinion text for one US reporter citation.
+ * A single cluster is this provider's uniqueness rule: a citation matching
+ * several clusters, or none, is refused rather than picked between.
+ */
+async function caseSource(citation: string, signal?: AbortSignal) {
+  const matches = await provider().resolve!({ text: citation, kind: "case", signal });
+  const clusterId = matches.length === 1 ? Number(matches[0].id) : Number.NaN;
+  if (!Number.isSafeInteger(clusterId) || clusterId <= 0) return null;
+  const record = await caseOpinions({ clusterId, signal }) as JsonRecord;
+  const opinions = (Array.isArray(record.opinions) ? record.opinions : []) as JsonRecord[];
+  return {
+    id: String(clusterId), date: asString(record.dateFiled),
+    url: asString(record.url), title: asString(record.caseName),
+    pdfUrl: asString(record.pdfUrl) ??
+      uniqueOpinionPdfUrl(opinions.map((one) => ({ pdfUrl: asString(one.pdfUrl) }))),
+    citation: (Array.isArray(record.citations) ? record.citations : [])
+      .flatMap((value: unknown) => citationLabel(value) ?? [])[0] ?? citation,
+    text: opinions.flatMap((one) => opinionDocument(one) ?? [])
+      .map((document) => structureNative().documentText(document)).join("\n\n"),
+  };
+}
+
 export const courtlistenerLegalSourceProvider = Object.assign(provider(), {
   configured: provider,
   caseOpinions,
+  caseSource,
   hasNativeOpinionStructure,
 });

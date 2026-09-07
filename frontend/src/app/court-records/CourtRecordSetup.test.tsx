@@ -151,7 +151,7 @@ it("picks a court record in one jurisdiction-first dialog", async () => {
   const user = userEvent.setup();
   render(<Chooser />);
 
-  await user.click(screen.getByRole("button", { name: /^Change format:/u }));
+  await user.click(screen.getByRole("button", { name: /^Change document:/u }));
   const dialog = screen.getByRole("dialog", { name: "Choose document" });
   const jurisdictions = within(within(dialog).getByRole("group", { name: "Jurisdiction" }));
   expect(jurisdictions.getByRole("button", { name: "Alberta" })).toBeVisible();
@@ -162,7 +162,7 @@ it("picks a court record in one jurisdiction-first dialog", async () => {
   expect(screen.getByRole("dialog", { name: "Choose document" })).toBe(dialog);
   const documents = within(within(dialog).getByRole("group", { name: "Choose document" }));
   expect(documents.getByText("Trial")).toBeVisible();
-  expect(documents.getAllByRole("button", { name: /Motion reply/u })[0]).toBeVisible();
+  expect(documents.getAllByRole("button", { name: /^Motion record$/u })[0]).toBeVisible();
   await user.click(documents.getByRole("button", { name: "Informal motion letter" }));
 
   expect(screen.getByText("fca-informal-motion-letter")).toBeInTheDocument();
@@ -173,7 +173,7 @@ it("shows the configured jurisdictions first and keeps the rest listed", async (
   const user = userEvent.setup();
   render(<Chooser order={["ca-ab"]} />);
 
-  await user.click(screen.getByRole("button", { name: /^Change format:/u }));
+  await user.click(screen.getByRole("button", { name: /^Change document:/u }));
   const jurisdictions = within(screen.getByRole("group", { name: "Jurisdiction" }))
     .getAllByRole("button").map((button) => button.textContent);
   expect(jurisdictions[0]).toBe("Alberta");
@@ -185,12 +185,12 @@ it("discards an abandoned jurisdiction before reopening on the current court", a
   const user = userEvent.setup();
   render(<Chooser initial="fc-motion-record-moving" />);
 
-  await user.click(screen.getByRole("button", { name: /^Change format:/u }));
+  await user.click(screen.getByRole("button", { name: /^Change document:/u }));
   await user.click(within(screen.getByRole("group", { name: "Jurisdiction" }))
     .getByRole("button", { name: "Alberta" }));
   await user.click(within(screen.getByRole("dialog", { name: "Choose document" }))
     .getByRole("button", { name: "Close" }));
-  await user.click(screen.getByRole("button", { name: /^Change format:/u }));
+  await user.click(screen.getByRole("button", { name: /^Change document:/u }));
 
   expect(within(screen.getByRole("group", { name: "Jurisdiction" }))
     .getByRole("button", { name: "Federal courts" })).toHaveAttribute("aria-pressed", "true");

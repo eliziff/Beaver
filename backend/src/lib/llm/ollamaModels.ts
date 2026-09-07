@@ -1,4 +1,4 @@
-import { bufferRemoteResponse } from "../remoteUrlSafety";
+import { createCatalogCache, fetchCatalogJson } from "../catalogCache";
 
 const DEFAULT_URL = "http://127.0.0.1:11434";
 
@@ -30,32 +30,26 @@ export function ollamaBaseUrl() {
   return url.toString().replace(/\/$/u, "");
 }
 
-export async function getOllamaModelCatalog(): Promise<OllamaModelCatalog> {
-  try {
-    const response = await fetch(`${ollamaBaseUrl()}/api/tags`, {
-      headers: process.env.OLLAMA_HOST_HEADER ? { Host: process.env.OLLAMA_HOST_HEADER } : undefined,
-      signal: AbortSignal.timeout(Number(process.env.OLLAMA_CATALOG_TIMEOUT_MS) || 750),
-    });
-    if (!response.ok) {
-      await response.body?.cancel().catch(() => undefined);
-      throw new Error(`Ollama model listing failed (HTTP ${response.status}).`);
-    }
-    const bounded = await bufferRemoteResponse(response, {
-      label: "Ollama model listing",
-      maxBytes: 1024 * 1024,
-      contentTypes: ["application/json"],
-    });
-    const payload = await bounded.json() as {
-      models?: { name?: unknown; model?: unknown; capabilities?: unknown }[];
-    };
-    const models = (payload.models ?? []).flatMap(({ name, model, capabilities }) => {
-      const id = typeof name === "string" ? name : typeof model === "string" ? model : "";
-      return id ? [{
-        name: id,
-        displayName: label(id),
-        supportsThinking: Array.isArray(capabilities) && capabilities.includes("thinking"),
-      }] : [];
-    }).sort((left, right) => left.name.localeCompare(right.name));
-    return { source: "live", models };
-  } catch { return { source: "unavailable", models: [] }; }
+async function probeOllama(): Promise<OllamaModelCatalog> {
+  const payload = await fetchCatalogJson<{
+    models?: { name?: unknown; model?: unknown; capabilities?: unknown }[];
+  }>(`${ollamaBaseUrl()}/api/tags`, {
+    label: "Ollama model listing",
+    timeoutMs: Number(process.env.OLLAMA_CATALOG_TIMEOUT_MS) || 750,
+    ...(process.env.OLLAMA_HOST_HEADER && { headers: { Host: process.env.OLLAMA_HOST_HEADER } }),
+  });
+  const models = (payload.models ?? []).flatMap(({ name, model, capabilities }) => {
+    const id = typeof name === "string" ? name : typeof model === "string" ? model : "";
+    return id ? [{
+      name: id,
+      displayName: label(id),
+      supportsThinking: Array.isArray(capabilities) && capabilities.includes("thinking"),
+    }] : [];
+  }).sort((left, right) => left.name.localeCompare(right.name));
+  return { source: "live", models };
 }
+
+const cache = createCatalogCache<OllamaModelCatalog>(probeOllama, {
+  source: "unavailable", models: [],
+});
+export const ollamaModelCatalogSnapshot = () => cache.snapshot();

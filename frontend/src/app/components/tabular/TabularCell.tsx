@@ -39,9 +39,8 @@ export const TabularCell = memo(function TabularCell({ cell, column, onExpand, o
                     {answer.flag && <FlagDot flag={answer.flag} />}
                     {!!citations.length && <button type="button" onClick={() => onCitationClick(cell, citations[0]!)}
                         aria-label={`${citations.length} citation${citations.length === 1 ? "" : "s"}`}
-                        title={`${citations.length} citation${citations.length === 1 ? "" : "s"}${answer.coverage === "partial" ? " · partial coverage" : ""}`}
-                        className={cn("min-w-5 rounded border px-1 text-[10px] font-medium leading-4 tabular-nums hover:bg-white",
-                            answer.coverage === "partial" ? "border-amber-300 bg-amber-50 text-amber-800" : "border-gray-300 bg-gray-50 text-gray-600")}>
+                        title={`${citations.length} citation${citations.length === 1 ? "" : "s"}`}
+                        className="min-w-5 rounded border border-gray-300 bg-gray-50 px-1 text-[10px] font-medium leading-4 tabular-nums text-gray-600 hover:bg-white">
                         {citations.length}
                     </button>}
                 </span>}

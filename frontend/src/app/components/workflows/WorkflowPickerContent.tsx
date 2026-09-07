@@ -115,14 +115,14 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
         onAudienceChange(value as AudienceFilter)}
         options={AUDIENCE_TABS.map(({ id, label }) => ({ value: id, label }))}
         ariaLabel="Workflow audience" variant={audienceTabVariant}
-        railClassName="px-0 @max-[30rem]:flex-wrap [&_.tab-list]:flex-initial [&_[role=tab]]:h-8 [&_[role=tab]]:px-2 [&_[role=tab]]:text-xs [&_[data-tabs-actions]]:min-w-0 [&_[data-tabs-actions]]:flex-[1_0_7rem] @max-[30rem]:[&_[data-tabs-actions]]:basis-full"
+        railClassName="px-0 @max-[30rem]:flex-wrap [&_.tab-list]:flex-initial [&_[role=tab]]:h-9 [&_[role=tab]]:px-3 [&_[role=tab]]:text-sm [&_[data-tabs-actions]]:min-w-0 [&_[data-tabs-actions]]:flex-[1_0_7rem] @max-[30rem]:[&_[data-tabs-actions]]:basis-full"
         actions={<><SearchBar value={search} onValueChange={onSearchChange}
             wrapperClassName="h-10 flex-1" placeholder="Search" aria-label="Search workflows" />{searchAction}</>}
         className={`min-w-0 flex-1 ${audienceTabVariant === "dock" ? "max-[40rem]:flex-none" : ""}`}>
         <div className={`flex min-h-0 flex-1 flex-col pt-1 ${audienceTabVariant === "dock" ? "max-[40rem]:flex-none" : ""}`}>
             {!execution && <TabList value={launchFilter} onValueChange={setLaunchFilter}
                 ariaLabel="Workflow launch type" variant="segmented"
-                className="max-w-full self-start rounded-lg bg-gray-200/70 [&_.tab-list]:bg-transparent [&_[role=tab]]:h-7 [&_[role=tab]]:px-3 [&_[role=tab]]:text-xs" options={[
+                className="max-w-full self-start rounded-lg bg-gray-200/70 [&_.tab-list]:bg-transparent [&_[role=tab]]:h-8 [&_[role=tab]]:px-3.5 [&_[role=tab]]:text-sm" options={[
                     { value: "all", label: "All" }, { value: "assistant", label: "Chat" },
                     { value: "tabular", label: "Tabular" }, { value: "other", label: "Other" },
                 ]} />}
@@ -238,7 +238,7 @@ function WorkflowInfoModal({ info, onClose, onSelect, disabledItem }: {
         ["Contributors", workflow.metadata.contributors.map(({ name }) => name).join(", ")],
     ].filter((entry): entry is [string, string] => Boolean(entry[1]));
     return <Modal open onClose={onClose} size="xl" breadcrumbs={[<span className="block whitespace-normal text-xl font-semibold leading-tight">{info.label}</span>]}
-        className="h-fit max-h-[calc(100dvh-2rem)]"
+        fit
         footerStatus={(detailed.length ? detailed : [undefined]).map((variant) => {
             const [destination, Icon] = workflowDestination(workflow, variant);
             return <ActionButton key={variant?.id ?? workflow.id} Icon={Icon}

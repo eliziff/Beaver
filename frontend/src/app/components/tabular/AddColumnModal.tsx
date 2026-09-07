@@ -39,7 +39,6 @@ function ColumnForm({ existingCount, onClose, onAdd, editingColumn, onSave, onDe
         primaryAction={{ label: submitting ? "Saving…" : editingColumn ? "Save changes" : "Add columns",
             type: "submit", form: "add-column-modal-form",
             disabled: submitting || columns.some((column) => !column.name.trim() || !column.prompt.trim()) }}
-        cancelAction={{ label: "Cancel", onClick: onClose, disabled: submitting }}
         secondaryAction={editingColumn && onDelete ? { label: "Delete", variant: "danger",
             onClick: () => void save(true), disabled: submitting } : undefined}>
         <form id="add-column-modal-form" onSubmit={(event) => { event.preventDefault(); void save(); }} className="space-y-4 pb-4">
