@@ -51,7 +51,8 @@ describe("Sources workspace routes", () => {
       sourceText: "holding", spanText: "holding", start: 0, end: 7, externalUrl: null,
       sourceClass: "case", sourceReference: { id: "case-1" } });
     state.sources[sourceId] = { id: sourceId, reference: { provider: "a2aj", id: "case-1",
-      kind: "case" }, labelIds: [], badge: "", note: "", passages: null };
+      kind: "case" }, labelIds: [],
+      note: "", passages: null };
     saved(documents, state);
     vi.mocked(verifyResearchPassage).mockResolvedValueOnce({ type: "merge", evidence: [receipt], labels: { [receipt.evidence_id]: [] } });
     const response = await request(app).post("/source-workspaces/d1/actions").send({
@@ -107,7 +108,8 @@ describe("Sources workspace routes", () => {
           schemaVersion: "beaver.research-source.v1", sourceId, evidence })),
       state = createResearchFileState();
     state.sources[sourceId] = { id: sourceId, reference: { provider: "a2aj", id: "case-1",
-      kind: "case", citation: "Example" }, labelIds: [], badge: "", note: "",
+      kind: "case", citation: "Example" }, labelIds: [],
+      note: "",
       passages: { count: 3, sha256: sha256(part), labelCounts: {}, unlabelledCount: 3 } };
     saved(documents, state);
     vi.mocked(documents.readParts).mockImplementation(async (_scope, _id, _version, names) =>

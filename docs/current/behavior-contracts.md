@@ -58,11 +58,12 @@ pagination or downloading.
   browsing or previewing a Library document neither creates a research set nor
   writes an assignment. Research-file previews show collected sources and saved
   highlights, not everything encountered during research.
-- Research, Search and Memo share the existing right-hand dock. Source labels are
-  virtual folders above one source list: All sources includes unlabelled sources;
-  selecting a parent includes descendants and never duplicates a source with
-  multiple labels. Nest/reorder by dragging or keyboard; source drops add a label
-  without removing other classifications. No Unsorted pseudo-folder exists.
+- Research, Search and Memo share the existing right-hand dock. Research is one
+  tree: source labels are nested folders, and every source hangs inline under each
+  label it carries, with unlabelled sources at the root. Nest/reorder by dragging
+  or keyboard; source drops add a label without removing other classifications.
+  No Unsorted pseudo-folder exists. Switching tabs mounts no new pane and shows no
+  loading placeholder.
 - The compact highlight picker opens the type hierarchy only when needed. Naming
   a type creates it once with a muted colour; cancelling creates nothing. Children,
   renaming, recolouring and reordering use the same label operations. Choosing the

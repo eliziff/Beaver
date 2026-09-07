@@ -490,8 +490,8 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                             <div className="flex min-w-0 flex-1 items-start gap-3">
                                                 <ResearchLabelPicker file={researchFile}
                                                     kind="source" itemId={saved?.id}
-                                                    labelIds={saved?.labelIds ?? []} badge={saved?.badge} badgeColor={saved?.badgeColor} note={saved?.note}
-                                                    title={result.name || result.citation} buttonLabel={saved?.badge}
+                                                    labelIds={saved?.labelIds ?? []} note={saved?.note}
+                                                    title={result.name || result.citation}
                                                     disabled={researchBusy}
                                                     mutations={mutations} onError={setError} sourceReference={researchReference(result)}
                                                     onSourceDrag={() => { setResearchOpen(true); setSourceDropNonce((value) => value + 1); }}

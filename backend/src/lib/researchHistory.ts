@@ -76,8 +76,8 @@ export function researchStateChanges(before: ResearchFileState, after: ResearchF
         for (const labelId of new Set([...previousLabels, ...nextLabels]))
           add(identity, `labelIds.${labelId}`, previousLabels.has(labelId), nextLabels.has(labelId));
       }
-      if (previous) fields(identity, previous, next, target === "source" ? ["note", "badge", "badgeColor"] : ["note"]);
-      else for (const field of target === "source" ? ["note", "badge"] : ["note"])
+      if (previous) fields(identity, previous, next, ["note"]);
+      else for (const field of ["note"])
         if ((next as Record<string, unknown> | undefined)?.[field]) add(identity, field, "", (next as Record<string, unknown>)[field]);
     }
   };

@@ -13,15 +13,15 @@ const MODAL_BOUNDARY = 'dialog,[role="dialog"],[data-assistant-dock]';
 
 type Ready = { file: ResearchFile; itemId: string; sourceId?: string };
 export type ResearchLabelTarget = Ready & { kind: "source" | "evidence"; labelIds: string[];
-  badge?: string; badgeColor?: string; note?: string; title: string;
+  note?: string; title: string;
   anchor?: HTMLElement | DOMRect; returnFocus?: HTMLElement;
   prepare?: (file: ResearchFile) => Promise<Ready> };
 
 export function ResearchLabelPicker({ file, kind, itemId, sourceId, labelIds, note, title,
-  badge, badgeColor, buttonLabel, size, disabled, mutations, prepare,
+  size, disabled, mutations, prepare,
   onError, onNeedFile, onSourceDrag, sourceReference }: { file: ResearchFile | null;
   kind: ResearchLabelTarget["kind"]; itemId?: string; sourceId?: string; labelIds: string[]; note?: string;
-  title: string; disabled?: boolean; badge?: string; badgeColor?: string; buttonLabel?: string; size?: "sm" | "md";
+  title: string; disabled?: boolean; size?: "sm" | "md";
   prepare?: (file: ResearchFile) => Promise<Ready>; mutations: ResearchFileMutations;
   onError?: (message: string) => void; onNeedFile?: () => void; onSourceDrag?: () => void;
   sourceReference?: ResearchSourceReference }) {
@@ -29,8 +29,7 @@ export function ResearchLabelPicker({ file, kind, itemId, sourceId, labelIds, no
     [previewLabelIds, setPreviewLabelIds] = useState(labelIds);
   const editing = useRef(false); editing.current = !!target;
   useEffect(() => { if (!editing.current) setPreviewLabelIds(labelIds); }, [labelIds]);
-  const visibleBadge = badge?.trim() ? buttonLabel ?? badge : "",
-    labelNames = previewLabelIds.map((id) => file?.state.labels[id]?.name).filter(Boolean);
+  const labelNames = previewLabelIds.map((id) => file?.state.labels[id]?.name).filter(Boolean);
   return <>
     <button type="button" draggable={kind === "source" && !!(itemId || sourceReference)} onDragStart={(event) => {
       onSourceDrag?.();
@@ -41,15 +40,11 @@ export function ResearchLabelPicker({ file, kind, itemId, sourceId, labelIds, no
       event.stopPropagation(); const anchor = event.currentTarget;
       if (!file) { onNeedFile?.(); return; }
       setTarget({ file, kind, itemId: itemId ?? "", sourceId, labelIds: previewLabelIds,
-        badge, badgeColor, note, title, prepare, anchor }); }}
+        note, title, prepare, anchor }); }}
       aria-label={`Label ${title}${labelNames.length ? `: ${labelNames.join(", ")}` : ""}`}
-      title={[...labelNames, badge?.trim()].filter(Boolean).join(" · ") || "Add labels and note"}
+      title={labelNames.join(" · ") || "Add labels and note"}
       className="inline-flex min-h-6 min-w-0 max-w-full shrink-0 items-center justify-self-start justify-center gap-1 rounded-md text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:opacity-40">
       <ResearchLabelCircle labels={file?.state.labels ?? {}} labelIds={previewLabelIds} size={size ?? (kind === "source" ? "md" : "sm")} />
-      {visibleBadge && <span className="max-w-24 truncate rounded px-1.5 py-0.5 text-xs leading-4 text-white"
-        style={{ backgroundColor: badgeColor ?? "#666666" }}>
-        {visibleBadge}
-      </span>}
     </button>
     {target && createPortal(<ResearchLabelEditor target={target} mutations={mutations} onError={onError}
       onClose={() => setTarget(null)} onPreview={setPreviewLabelIds} />,
@@ -73,12 +68,10 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
   const popover = useRef<HTMLDivElement>(null), [slots, setSlots] = useState<string[]>(
     target.kind === "evidence" ? target.labelIds.slice(0, 1) : target.labelIds);
   const [note, setNote] = useState(target.note ?? ""), [file, setFile] = useState(target.file),
-    [search, setSearch] = useState(""), [badge, setBadge] = useState(target.badge ?? ""),
-    [badgeColor, setBadgeColor] = useState(target.badgeColor ?? "#666666");
+    [search, setSearch] = useState("");
   const itemId = useRef(target.itemId), sourceId = useRef(target.sourceId), preparing = useRef<Promise<Ready> | null>(null),
     confirmed = useRef(target.file), saveNumber = useRef(0), close = useRef(onClose),
-    lastSaved = useRef(JSON.stringify([target.labelIds, target.note ?? "",
-      target.badge?.trim().slice(0, 19) ?? "", target.badgeColor ?? "#666666"]));
+    lastSaved = useRef(JSON.stringify([target.labelIds, target.note ?? ""]));
   const [error, setError] = useState(""), labels = file.state.labels;
   const scope = target.kind === "source" ? "source" : "highlight";
   const tree = useMemo(() => { const map = new Map<string | null, ResearchLabel[]>();
@@ -137,9 +130,9 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
   const choose = (id: string) => {
     const next = scope === "highlight" ? [id] : slots.includes(id)
       ? slots.filter((value) => value !== id) : [...slots, id];
-    setSlots(next); persist(next, note, badge, badgeColor);
+    setSlots(next); persist(next, note);
   };
-  const clear = () => { setSlots([]); persist([], note, badge, badgeColor); };
+  const clear = () => { setSlots([]); persist([], note); };
   function choices(items: ResearchLabel[]) {
     return visible(items).map((label) => <div key={label.id}>
       <Dot file={file} id={label.id} active={slots.includes(label.id)} onClick={() => choose(label.id)} />
@@ -148,9 +141,8 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
       </div>}
     </div>);
   }
-  function persist(nextSlots: string[], nextNote: string, nextBadge: string, nextBadgeColor: string) {
-    const savedBadge = nextBadge.trim().slice(0, 19),
-      snapshot = JSON.stringify([nextSlots.filter(Boolean), nextNote, savedBadge, nextBadgeColor]);
+  function persist(nextSlots: string[], nextNote: string) {
+    const snapshot = JSON.stringify([nextSlots.filter(Boolean), nextNote]);
     if (snapshot === lastSaved.current) return;
     lastSaved.current = snapshot;
     setError(""); onPreview?.(nextSlots.filter(Boolean));
@@ -166,8 +158,7 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
       }
       if (target.kind === "evidence" && !sourceId.current) throw new Error("The saved source is unavailable");
       const action = target.kind === "source" ? { type: "annotate" as const, kind: "source" as const,
-        id: itemId.current, labelIds: nextSlots.filter(Boolean), badge: savedBadge,
-        badgeColor: nextBadgeColor, note: nextNote }
+        id: itemId.current, labelIds: nextSlots.filter(Boolean), note: nextNote }
         : { type: "annotate" as const, kind: "evidence" as const, id: itemId.current,
           sourceId: sourceId.current!, labelIds: nextSlots.filter(Boolean), note: nextNote };
       const next = await mutations.act(action); confirmed.current = next;
@@ -179,7 +170,7 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
         ? confirmed.current.state.sources[itemId.current]?.labelIds ?? target.labelIds : target.labelIds);
     } });
   }
-  close.current = () => { persist(slots, note, badge, badgeColor); onClose(); };
+  close.current = () => { persist(slots, note); onClose(); };
   return <div ref={popover} role="dialog" aria-label={scope === "source" ? "Labels and note" : "Highlight type and note"} popover="manual"
     className="fixed inset-auto z-[220] m-0 max-h-[min(30rem,calc(100dvh-1rem))] w-[min(420px,calc(100vw-1rem))] overflow-y-auto overscroll-contain rounded-xl border border-gray-200 bg-white p-3 shadow-xl">
     <header className="flex min-w-0 items-start gap-3 border-b border-gray-100 pb-2">
@@ -198,24 +189,8 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
       {scope === "source" && slots.length > 0 && <button type="button" onClick={clear}
         className="justify-self-start px-1.5 py-1 text-xs text-gray-500 underline">Clear labels</button>}
     </div>}
-    {target.kind === "source" && <details className="mt-2 text-sm text-gray-600"><summary className="cursor-pointer text-xs">Badge</summary><div className="mt-2 grid gap-1">
-      <label htmlFor="research-badge">Badge</label>
-      <div className="flex items-center gap-2">
-        <label title="Badge color" className="relative grid size-8 shrink-0 cursor-pointer place-items-center rounded-md border border-gray-300"
-          style={{ backgroundColor: badgeColor }}>
-          <input type="color" value={badgeColor} aria-label="Badge color" onChange={(event) => {
-            setBadgeColor(event.target.value); persist(slots, note, badge, event.target.value); }}
-            className="absolute inset-0 cursor-pointer opacity-0" />
-        </label>
-        <input id="research-badge" value={badge} maxLength={19} placeholder="Optional short badge"
-          onChange={(event) => setBadge(event.target.value)} onBlur={() => persist(slots, note, badge, badgeColor)}
-          className="h-8 min-w-0 flex-1 rounded-md border border-gray-300 px-2 text-sm font-normal text-gray-800" />
-        {badge.trim() && <span className="max-w-24 truncate rounded px-1.5 py-0.5 text-xs leading-4 text-white"
-          style={{ backgroundColor: badgeColor }}>{badge.trim()}</span>}
-      </div>
-    </div></details>}
     <label className="mt-2 grid gap-1 text-sm font-medium text-gray-700">Note
-      <textarea value={note} onChange={(event) => setNote(event.target.value)} onBlur={() => persist(slots, note, badge, badgeColor)} aria-label="Item note"
+      <textarea value={note} onChange={(event) => setNote(event.target.value)} onBlur={() => persist(slots, note)} aria-label="Item note"
         placeholder="Add a note" className="min-h-16 w-full rounded-md border border-gray-300 p-2 text-sm font-normal" />
     </label>
     <div className="mt-2 flex items-center justify-end gap-2">
