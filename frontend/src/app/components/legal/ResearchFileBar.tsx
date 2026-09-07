@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FolderPlus, Highlighter, SlidersHorizontal } from "lucide-react";
+import { FolderPlus, Highlighter } from "lucide-react";
 import { ConfirmPopup } from "../popups/ConfirmPopup";
 import { Tabs } from "../ui/tabs";
 import { Button } from "../ui/button";
@@ -11,11 +11,16 @@ import { memoCitation as parseMemoCitation } from "./researchMemo";
 import { ResearchCitationViewer } from "./ResearchCitationViewer";
 import { ResearchChanges } from "./ResearchChanges";
 import { ResearchHighlightTypes } from "./ResearchHighlightTypes";
+import { researchLabelColor } from "./ResearchLabelMarker";
 import { ResearchSearchPanel } from "./ResearchSearchPanel";
 import { ResearchTree, type ResearchRemoval } from "./ResearchTree";
 import { ResearchWorkspacePicker } from "./ResearchWorkspacePicker";
 import { sourceMatches, useSourceReader } from "./useSourceReader";
 import ResearchMemoPane from "./ResearchMemoPane";
+
+const FILTER_CHIP = "h-7 shrink-0 rounded-md border border-gray-200 px-2 text-xs text-gray-700 aria-pressed:border-gray-500 aria-pressed:bg-gray-100 aria-pressed:font-medium";
+const SOURCE_FILTERS = [{ value: "all", label: "All" }, { value: "no-labels", label: "Unfiled" },
+  { value: "highlights", label: "Highlighted" }, { value: "no-highlights", label: "Not highlighted" }];
 
 type Props = { projectId?: string;
   rail?: HTMLElement | null; sourceDropNonce?: number;
@@ -134,35 +139,25 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
           onClick={() => { setTab("labels"); setNewLabel((count) => count + 1); }} className="shrink-0">
           <FolderPlus aria-hidden className="size-3.5" />
         </Button>
-        <details className="relative" onKeyDown={(event) => { if (event.key === "Escape") event.currentTarget.open = false; }}>
-          <summary aria-label="Filter sources" title="Filter sources" className={`grid size-8 cursor-pointer list-none place-items-center rounded border border-gray-300 text-gray-600 ${selectedType || sourceFilter !== "all" ? "bg-gray-100" : ""}`}>
-            <SlidersHorizontal aria-hidden className="size-3.5" />
-          </summary>
-          <div className="absolute end-0 top-9 z-30 w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-gray-200 bg-white p-3 shadow-lg">
-            <label className="block text-xs text-gray-600">Sources
-              <select aria-label="Source filter" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} className="mt-1 h-8 w-full rounded border border-gray-300 bg-white px-2 text-sm">
-                <option value="all">All</option><option value="no-labels">No source labels</option>
-                <option value="highlights">Has highlights</option><option value="no-highlights">No highlights</option>
-              </select>
-            </label>
-            <label className="block text-xs text-gray-600">Highlight type
-              <select aria-label="Filter by highlight type" value={selectedType} onChange={(event) => setTypeId(event.target.value)} className="mt-1 h-8 w-full rounded border border-gray-300 bg-white px-2 text-sm">
-                <option value="">All highlights</option>
-                {Object.values(labels).filter(({ scope }) => scope === "highlight").map((label) => <option key={label.id} value={label.id}>{researchLabelPath(labels, label.id).map(({ name }) => name).join(" / ")}</option>)}
-              </select>
-            </label>
-            {(selectedType || sourceFilter !== "all") && <button type="button" onClick={() => { setTypeId(""); setSourceFilter("all"); }} className="text-xs text-gray-600 underline">Clear filters</button>}
-          </div>
-        </details>
+        <div role="group" aria-label="Filter sources" className="flex min-w-0 flex-wrap items-center gap-1">
+          {SOURCE_FILTERS.map(({ value, label }) => <button key={value} type="button" aria-pressed={sourceFilter === value}
+            onClick={() => setSourceFilter(value)} className={FILTER_CHIP}>{label}</button>)}
+          {Object.values(labels).filter(({ scope: kind }) => kind === "highlight").map((label) => <button key={label.id} type="button"
+            aria-pressed={selectedType === label.id} onClick={() => setTypeId(selectedType === label.id ? "" : label.id)}
+            title={researchLabelPath(labels, label.id).map(({ name }) => name).join(" / ")}
+            className={`${FILTER_CHIP} flex min-w-0 max-w-40 items-center gap-1`}>
+            <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ backgroundColor: researchLabelColor(label) }} />
+            <span className="truncate">{label.name}</span></button>)}
+        </div>
         <input type="search" autoComplete="off" aria-label="Filter" placeholder="Filter" value={filter}
           onChange={(event) => setFilter(event.target.value)}
           className="h-8 min-w-0 w-full rounded-md border border-gray-300 px-2 text-sm" />
       </div>
       <Tabs value={tab} onValueChange={setTab} ariaLabel="Workspace views" variant="subtab"
-        className="min-h-0 flex-1" options={[{ value: "labels", label: "Research" },
+        className="min-h-0 flex-1" options={[{ value: "labels", label: "Labels" },
           { value: "search", label: "Search" }, { value: "memo", label: "Memo" }]}>
         <div className={`relative min-h-0 flex-1 overflow-y-auto pt-2 ${searchOpen ? "block" : "hidden"}`}>
-          <ResearchSearchPanel active={searchOpen} onStatus={setStatus}
+          <ResearchSearchPanel active={searchOpen} onStatus={setStatus} reader={reader}
             selection={constrain({ target: selectedType || scope.target === "passages" ? "passages" : "sources",
               sourceIds: browsed.map(({ id }) => id), ...(selectedType ? { labelIds: filteredTypes } : {}) })} />
         </div>

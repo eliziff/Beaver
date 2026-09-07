@@ -164,7 +164,8 @@ export class TurnToolRegistry<Context> {
     ];
   }
   activity(call: NormalizedToolCall) {
-    return call.name === LOAD_TOOLS_NAME ? "Loading tools"
+    // Reaching for a tool is machinery, not an act the reader follows.
+    return call.name === LOAD_TOOLS_NAME ? null
       : this.#byName.get(call.name)?.tool.activity?.(call.input) ?? null;
   }
   activityCitations(call: NormalizedToolCall) {

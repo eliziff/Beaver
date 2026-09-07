@@ -697,6 +697,9 @@ export function createChatApplication(deps: Dependencies) {
           `Read this workspace for labels, sources, passages, searches, memo, and history. Read findings for saved answers and table results, then use their returned references when arranging a view. Page through Read for more results.\n` +
           `Choose useful sets, labels, question columns, and grouping for the user's task. Reuse relevant findings and request new answers where needed. Apply reversible work within the request; propose material changes beyond that scope for review.\n` +
           `Linked tables: ${(research.state.tables ?? []).join(", ") || "none"}. Use update_research_table to create or organize a table and read_table_cells to read its supported answers.` : "",
+        registeredWorkflow?.skill_md
+          ? `SELECTED WORKFLOW — follow these instructions for this turn:
+${registeredWorkflow.skill_md}` : "",
         input.work_product ? openWorkProductPrompt(input.work_product.kind) : "",
         focus.length ? `CURRENT MATTER FOCUS:\n${focus.join("\n")}` : "",
         availableDocumentsPrompt(context.docIndex, context.records, requested),
