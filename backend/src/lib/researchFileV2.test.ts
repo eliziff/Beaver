@@ -866,8 +866,8 @@ describe("Research v2 parts", () => {
             grounding: event([reader], readerClaims) }] },
       ] };
     await act(f, { type: "merge", evidence: [first, second, extra, uncited, reader], chats: ["chat-1"] });
-    const { file, findings } = await resolveChatFindings(chats as never, f.documents as never, scope,
-      { researchFileId: "doc-1", chatId: "chat-1" });
+    const file = (await readResearchFile(f.documents as never, scope, "doc-1"))!,
+      findings = resolveChatFindings(file, "chat-1", await chats.transcript() as never);
     const main = findings.filter(({ question }) => question.id === "message-1:answer:0"),
       child = findings.find(({ question }) => question.id === "message-1:reader:reader-1"),
       passages = findings.filter(({ kind }) => kind === "passages");
@@ -883,9 +883,7 @@ describe("Research v2 parts", () => {
     expect(new Set(findings.flatMap(({ evidence }) => evidence.map(({ evidence_id }) => evidence_id))).size).toBe(3);
     expect((await pageResearchItems(f.documents as never, scope, file, "passages")).total).toBe(0);
     expect((await pageResearchItems(f.documents as never, scope, file, "evidence")).total).toBe(5);
-    const reopened = await resolveChatFindings(chats as never, f.documents as never, scope,
-      { researchFileId: "doc-1", chatId: "chat-1" });
-    expect(reopened.findings).toEqual(findings);
+    expect(resolveChatFindings(file, "chat-1", await chats.transcript() as never)).toEqual(findings);
   });
 
   it("undoes passage classification and deletion with the exact original receipt", async () => {
