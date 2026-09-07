@@ -574,7 +574,7 @@ describe("standalone Authorities sources", () => {
     resolveSources(saved);
     await screen.findByRole("list", { name: "Authority tab slots" });
     expect(screen.queryByRole("heading", { name: "Build outputs" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Done — review highlights" }));
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
     await screen.findByRole("button", { name: "Done — build book" });
     expect(screen.queryByRole("heading", { name: "Build outputs" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Done — build book" }));
