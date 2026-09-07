@@ -16,9 +16,9 @@ shape. Do not split cohesive code merely for size.
    supra repair. Exact document presenters, spreadsheet reads, evidence
    verification/rehydration, download targets and queued PDF reprocessing now use
    those owners; directory and tabular consumers share batched document metadata.
-   Routes keep multipart, ETags/ranges,
-   streaming, escaping and headers—not ownership/compiler/job policy. Preserve
-   projectStore unless duplicated policy requires change. See [storage](document-versioning.md).
+   Routes keep multipart, ETags/ranges, streaming, escaping and headers—not
+   ownership/compiler/job policy. Preserve projectStore unless duplicated policy
+   requires change. See [storage](document-versioning.md).
 3. Unify enqueue/worker preflight and inject route operations. Retain the typed
    backend event owner, bounded assistantStream, separate assistantProtocol
    boundary, normalized assistantSession reducer and shared JSON contract fixtures.
@@ -53,10 +53,11 @@ files/receipts. No feature registry or portable-feature lifecycle.
 - Native loader owns no detector/semantic mirror. Rust/Python use direct bindings;
   delete the one-off JSONL bridge. Actual subprocess edges get one validated
   versioned envelope/fixture set, no generated SDK.
-- [Work products](legal-work-products.md) replace Authorities iframe/stdio/Python
-  browser/server/job/project runtime. Preserve shared Rust citation/PDF owners;
-  do not harden the displaced gateway. Word executors share document receipts,
-  not a generic plugin protocol.
+- [Authorities](../current/authorities.md) now uses the shared TypeScript application
+  in standalone and Beaver hosts. Do not recreate or harden the displaced
+  iframe/stdio/Python product gateway. Preserve Rust citation/PDF owners and close
+  the remaining [work-product parity and host gates](legal-work-products.md).
+  Word executors share document receipts, not a generic plugin protocol.
 
 ## Completion
 

@@ -1,116 +1,65 @@
-# Saved research
+# Saved research: remaining work
 
-Status/order/gates: [master plan](master-plan.md). Research is an ordinary movable
-Library file, personal or project-scoped—not another store or custom move system.
-Retain nested colour labels, versioned Library and public source references,
-exact passage/evidence receipts, notes and query receipts. Bodies remain in the
-source store/provider. Humans/models use the same selection and label operations.
-Chat evidence stays in its transcript until the user opens a workspace or table;
-that action binds the chat. Subsequent read receipts remain background provenance;
-explicitly collected or grounded-answer sources enter the research collection.
-Only an explicit save makes evidence a highlight. Chat, Workspace and Table are connected by the shared Open as menu.
+Status and priority: [master plan](master-plan.md). The research-file foundation,
+Sources/Memo/Table interaction and preview/accept conversion routes are present.
+The [current behavior contract](../current/behavior-contracts.md) is normative for
+the implemented UI; the old overhaul specification and handoff are superseded.
+This plan does not declare the remaining release gates passed.
 
-Use the main left pane for source text and the shared right-hand dock for the
-workspace. Search results occupy the main pane until a source is opened. On
-narrow screens the workspace is a collapsible overlay; opening a source reveals
-the reader. The previous four-panel UI snapshot is retained at
-`.tmp/research-four-panel-20260905.zip`; its layout is no longer an acceptance
-requirement. Preserve its capability depth: nested coloured labels/folders and
-drag/drop, saved source lists, passage highlights, notes, capture rules and
-Search Saved sources. Reading stays primary; collection interaction must work
-in full Sources and its narrow assistant placement without clipping or jumps.
-Library previews contents and offers Open in Sources, not another workspace UI.
-Library stays neutral: no canonical labels workspace, membership decoration or
-research-specific global classification. Add to research chooses a destination
-explicitly; every research set can classify the same document differently.
-A highlight type is its name, colour and optional parent, not a separate pen and
-category. One deliberate highlight has one type. Choosing a type never silently
-filters the source list. There are no Unsorted/Unclassified pseudo-folders.
-Collection selection/name/rename are cohesive; autosave, ordinary Library placement
-and existing folder interactions remain. No export concept.
+## Preserve the implemented model
 
-The entire workspace is one Beaver Library/project file. Its source references,
-verified evidence parts, source labels, highlight types, query receipts and optional Markdown
-memo move and version together. Internal parts are an implementation detail;
-creating or editing the memo must not create a second Library document.
+Research is one ordinary versioned Library file, including its optional Markdown
+memo, exact source/version references, labels, explicit highlights and receipts.
+Reading/searching a passage does not silently create a highlight. Source labels
+and highlight types solve different tasks; either, both or neither may be used.
+There is no global Library ontology, parallel research store or pseudo-Unclassified
+label. A highlight type owns its colour—no independent pen palette or overrides.
 
-Grounded answers share claims with supporting evidence IDs and an optional typed
-value. Chat answers remain in their transcripts and extraction results in their
-table cells. An editable table arrangement refers to those answers, original passages and
-label assignments. Accepted research conversions freeze resolved cell values
-alongside their original item and evidence references in the existing table store. The workspace renders the same results
-and supports. Models read them with the original evidence IDs. Generated prose
-never becomes a substitute primary source receipt.
+The current Sources UI is one nested label tree: a source can appear under each
+label it carries, with unlabelled sources at the root. Clicking expands; opening
+the reader is explicit. Do not reinstate the superseded mockup's separate label
+navigation/source-list design or its verbose inspector panels.
 
-Extraction freezes the selected source or passage membership before running.
-Nested labels, selected results and saved passage IDs use the same selector as
-bulk label operations. Library inputs pin version and source hash; public reads
-retain their component hashes and report incomplete coverage explicitly. Exact
-capture rules and semantic extraction keep their existing capabilities. Table
-formats, full explanations, flags, per-cell regeneration, missing-only runs,
-cancellation, exports and sharing remain supported.
+Human and assistant operations share the same mutation, revision and undo/history
+boundaries. A read-only preview is not acceptance. Conversions reuse saved data
+and exact provenance; they do not parse generated prose back into source facts.
 
-The existing audit store records the initiating user, human/model executor,
-model and available turn/call/job IDs, workspace revisions, source/passage IDs
-and label changes. Provenance is metadata, not extra decoration on every row.
+## Remaining validation and product work
 
-Organization follows the user's work. The model can create useful sets, nested
-labels, questions and mixed table arrangements through the same operations as the
-UI. Inputs are documents and original passages, without a decision-specific
-domain model. A chosen arrangement names rows, columns and grouping and retains
-separate supported branches of the same source. Opening an arranged table needs
-no model call; arranging unorganized research uses the existing visible table
-assistant. There is no fixed message-to-column or label-to-single-column map.
+| Gate | Required evidence |
+| --- | --- |
+| Full round trips | Launcher-owned app and real native reader: chat to research, research to table, table back to research, memo citations, save/reopen, reload and undo/redo. Exercise main and assistant-dock placements. |
+| Live layout quality | Configured, authorized model runs on representative research questions. Judge useful rows/columns and faithful assignments, not just schema validity. Record the model/provider/revision and distinguish cached or mocked checks. |
+| Scale and responsiveness | Large source sets, label hierarchies, passage pagination and conversion previews. Measure real route/UI work, cancellation and stale-response handling; reject silent truncation. |
+| Library polish | Ordinary create/open/save/history/restore behavior, discoverability and exact links without extra workspace chrome or another lifecycle. |
+| Follow-on integration | Personal annotation use in NoteUp and later explicit refresh/remapping need separate implementation and proof; no automatic synchronization is implied. |
 
-Reversibility is the default safeguard for both human and assistant changes.
-History records meaningful field changes and their actor. Undo applies an inverse
-only while the touched values still match, preserving unrelated later work.
-Reversible work within the request applies directly; suggestions or changes
-requiring a user decision use an explicit proposal. Pending proposals do not
-change active labels, assignments or extraction scopes. Workspace changes and
-table configuration/results commit their history with their own state through
-the existing persistence ports; the UI shares History, Review and Undo controls.
+## Acceptance cases that must survive
 
-Conversational readers and table extraction share the scoped reader, grounded
-answer validation and model turn loop. Keep their scheduling specific to their
-jobs: resumable conversational delegation and durable cell generation have
-different completion and retry requirements. Consolidate further only where
-the same behavior is implemented twice.
+- Exact source IDs, versions, evidence receipts and memo citation targets survive
+  every round trip. A source with labels only, highlights only, both or neither
+  remains usable. Renaming/reparenting labels does not rewrite source evidence or
+  memo citation text. Deleting a mark/type preserves backing receipts as required,
+  falls back to ordinary Highlight where applicable, and does not resurrect marks
+  on a later read.
+- Chat conversion includes materially used grounded sources, not every incidental
+  read. Selecting a table row means that row across its columns; selected sets and
+  filters are intersections, not permission to include the whole workspace.
+- Preview reuses classifications, saved evidence and grounded results, distinguishes
+  pending/missing/conflicting data, and does not equate absence with No or a quote
+  with an analytical answer. Hierarchy/layout suggestions are reviewable; exact
+  accepted operations are deterministic.
+- Model layouts may reference only real source/row/claim identities. Reject invented
+  scalars, unsupported evidence and overlapping whole-answer/claim assignments.
+  Acceptance makes no second model call, rechecks the fingerprint/version/revision,
+  and atomically freezes membership, cell values and provenance. Later label or
+  source changes cannot silently rewrite the accepted table.
+- Exercise cross-account, unavailable/deleted/revoked source, stale revision,
+  partial failure, cancellation and oversized inputs. Existing limits (500 rows,
+  25,000 items) must fail explicitly rather than truncate. Preserve completed
+  results when adding sources to an existing table.
 
-The optional memo uses normal-looking linked citations rather than Cite chips, with
-bold, italics, underline, lists, headings and tables. Sources and saved passages
-can be dragged into it. Humans and models update the same
-memo through research operations; stale memo writes must not overwrite newer text.
-Workspace navigation and memo recovery follow the
-[behavior contract](../current/behavior-contracts.md#sources-workspace).
-Queries/audit are collapsed retrieval aids
-for verification and cross-model continuation, not prominent default UI.
-Personal notes may inform NoteUp; project-only notes must not leak.
-Remaining integration gap: NoteUp does not yet read personal saved annotations.
-
-Read returns a bounded inventory; retrieve exact passages/previous searches on
-demand, with complete paged traversal for exhaustive human/model research rather
-than silently bounded analysis. Validate labels/highlights/notes/rules/query selection and memo
-citations with real clicks/screenshots in both Sources placements. An authorized
-live Luna-low research run must collect cases into nested labels, highlight
-relevant passages, draft a memo and survive reload/model-context transfer.
-
-## Remaining research-overhaul work
-
-The research foundation and combined Sources/Memo/Table surface cleanup are
-specified in the [current behavior contract](../current/behavior-contracts.md#sources-workspace).
-The interoperability contract now covers populated Sources/Chat conversion,
-optional model-suggested reference mapping, explicit reverse highlight/label
-promotion and selected Table results in Chat. See the
-[current contract](../current/behavior-contracts.md#research-interoperability).
-
-Remaining: full launcher/native-reader round trips, configured live-model quality
-validation of semantic layouts, large-workspace performance, and final thin
-Library interaction polish. The component fixture and isolated local database
-checks do not replace those full-stack gates. Changes to existing label/highlight
-hierarchies or column prompts continue through the current assistant proposal
-operations, not another organization surface.
-
-The foundation removes `library_labels_id` and uses local schema version 17.
-It follows the repository's pre-release schema replacement policy: no migration
-framework or automatic old-store reset. Validate against a fresh isolated store.
+Use disposable compatible stores for tests. Do not reset the user's data, revive
+retired global-label ownership, or invent migrations to make an old handoff run.
+Record focused checks honestly; screenshots, real-host round trips and authorized
+live quality are separate evidence, not inferred from unit tests.
