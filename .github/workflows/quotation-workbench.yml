@@ -24,7 +24,7 @@ jobs:
             git -C "$module" fetch --depth=1 origin "$sha"
             git -C "$module" checkout --detach FETCH_HEAD
           done
-      - name: Apply hash-verified changes and remove workbench staging
+      - name: Apply hash-verified application changes
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -33,9 +33,9 @@ jobs:
           from pathlib import Path
           raw = lzma.decompress(base64.b64decode(''.join(Path(f'scripts/quotation-edits-{n}.b64').read_text().strip() for n in range(3))))
           assert hashlib.sha256(raw).hexdigest() == 'a1806e7b4062c65469f0ce7907daec272a91c936f9cde37e72fe9d70be9a5e5b'
-          changes = json.loads(raw)
           prepared = []
-          for name, before, after, edits in changes:
+          for name, before, after, edits in json.loads(raw):
+              if name.startswith('.github/'): continue
               path = Path(name)
               assert not path.is_absolute() and '..' not in path.parts
               old = path.read_bytes() if path.exists() else b''
@@ -53,7 +53,7 @@ jobs:
                   path.write_bytes(result)
           PY
           sed -i 's/[[:space:]]*$//' frontend/tests/authorities-highlights/main.tsx
-          git rm scripts/quotation-edits-*.b64 .github/workflows/quotation-workbench.yml
+          git rm scripts/quotation-edits-*.b64
           git add -u
           git add backend/src/lib/authoritiesQuotations.ts scripts/test-authorities-highlights.mjs
           git diff --cached --check
