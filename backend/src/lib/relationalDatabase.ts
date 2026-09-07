@@ -1,6 +1,6 @@
 import { chmodSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { DatabaseSync, type StatementResultingChanges } from "node:sqlite";
+import { DatabaseSync, type StatementResultingChanges, type StatementSync } from "node:sqlite";
 import postgres, { type Sql as PostgresClient } from "postgres";
 import { mikeLocalDataHome } from "./legalDataPath";
 import { isLocalRuntime } from "./localMode";
@@ -18,6 +18,7 @@ const bind = (params: SqlValue[]) => Object.fromEntries(
 export class LocalDatabase implements RelationalDatabase {
   readonly engine = "sqlite" as const;
   private queue = Promise.resolve();
+  private readonly statements = new Map<string, StatementSync>();
   readonly notifications = localJobNotifications();
 
   constructor(private readonly database: DatabaseSync) {}
@@ -31,14 +32,30 @@ export class LocalDatabase implements RelationalDatabase {
   private execute<T extends Record<string, unknown>>(
     statement: SqlStatement,
   ): QueryResult<T> {
-    const prepared = this.database.prepare(statement.text);
+    // The deployed Node 22 floor has no SQLTagStore. Cache compiled statements,
+    // never query results. DDL/PRAGMA can change prepared metadata or semantics.
+    const ordinary = /^\s*(?:SELECT|INSERT|UPDATE|DELETE|WITH)\b/iu.test(statement.text);
+    if (!ordinary) this.statements.clear();
+    const prepared = this.statements.get(statement.text) ?? this.database.prepare(statement.text);
+    // Reinsert only after successful execution. Failed/oversized binds must not
+    // leave a poisoned statement or a large native parameter buffer in the LRU.
+    this.statements.delete(statement.text);
     const params = bind(statement.params);
+    let result: QueryResult<T>;
     if (prepared.columns().length) {
       const rows = prepared.all(params) as T[];
-      return { rows, changes: rows.length };
+      result = { rows, changes: rows.length };
+    } else {
+      const changed = prepared.run(params) as StatementResultingChanges;
+      result = { rows: [], changes: Number(changed.changes) };
     }
-    const result = prepared.run(params) as StatementResultingChanges;
-    return { rows: [], changes: Number(result.changes) };
+    if (ordinary && statement.text.length <= 8_192 && statement.params.reduce<number>((bytes, value) =>
+      bytes + (typeof value === "string" ? Buffer.byteLength(value)
+        : value instanceof Uint8Array ? value.byteLength : 8), 0) <= 65_536) {
+      this.statements.set(statement.text, prepared);
+      if (this.statements.size > 128) this.statements.delete(this.statements.keys().next().value!);
+    }
+    return result;
   }
 
   query<T extends Record<string, unknown>>(statement: SqlStatement) {
@@ -64,6 +81,7 @@ export class LocalDatabase implements RelationalDatabase {
         this.database.exec("COMMIT");
       } catch (error) {
         this.database.exec("ROLLBACK");
+        this.statements.clear();
         throw error;
       }
       hints.flush();
@@ -73,7 +91,7 @@ export class LocalDatabase implements RelationalDatabase {
 
   async close() {
     this.notifications.close();
-    await this.locked(() => this.database.close());
+    await this.locked(() => { this.statements.clear(); this.database.close(); });
   }
 }
 
