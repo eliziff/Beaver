@@ -56,7 +56,8 @@ const ontologyFile = (): ResearchFile => ({ document: { id: "ontology-1",
   state: { ...newResearchState(), labels: { "pen-1": { id: "pen-1", name: "Highlight",
     parentId: null, color: "#eab308", order: 0, scope: "highlight" } },
     sources: { "source-1": { id: "source-1", reference: { provider: "library", kind: "document",
-      id: "document-1", versionId: "version-1" }, labelIds: [], badge: "", note: "",
+      id: "document-1", versionId: "version-1" }, labelIds: [],
+      note: "",
       passages: { count: 0, sha256: "none", labelCounts: {}, unlabelledCount: 0 } } } } } as ResearchFile);
 
 describe("DocumentSidePanel highlight", () => {

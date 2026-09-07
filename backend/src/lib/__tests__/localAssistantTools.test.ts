@@ -1399,7 +1399,7 @@ describe("local assistant tools", () => {
         document_id: seeded.resource,
         research_action: { type: "source", reference: { provider: "a2aj",
           id: "2026 SCC 1", kind: "case", title: "Example case" },
-        labelIds: [sourceLabel], badge: "Lead",
+        labelIds: [sourceLabel],
         note: "Controls the test." } } }], { legalEvidence: evidence, documentNames, edits });
     const sourceOutput = JSON.parse(saved.content);
     expect(sourceOutput).toMatchObject({ ok: true, counts: { sources: 1 } });
@@ -1417,7 +1417,8 @@ describe("local assistant tools", () => {
     { legalEvidence: evidence, documentNames, edits });
     const file = await readResearchFile(store.localDocuments, { userId: "local-user" }, document.id);
     expect(Object.values(file!.state.sources)[0]).toMatchObject({
-      labelIds: [sourceLabel], badge: "Lead", note: "Controls the test.",
+      labelIds: [sourceLabel],
+      note: "Controls the test.",
       reference: { provider: "a2aj", id: "2026 SCC 1", title: "Example case",
         collection: "scc", language: "en" },
     });

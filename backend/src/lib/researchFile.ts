@@ -40,7 +40,7 @@ const source = z.union([legalSourceReferenceSchema, z.object({
 export { source as researchSourceReferenceSchema };
 /** Sources encountered while reading stay in the receipt registry until deliberately collected. */
 export type ResearchSource = { id: string; reference: ResearchSourceReference; collected?: boolean;
-  labelIds: string[]; badge: string; badgeColor?: string; note: string;
+  labelIds: string[]; note: string;
   passages: (ResearchPartReference & { labelCounts: Record<string, number>;
     unlabelledCount: number }) | null };
 /** No highlight label means an observation. One label means an intentional highlight of that type. */
@@ -77,11 +77,9 @@ const researchMutationSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("remove"), kind: z.enum(["label", "source", "evidence"]),
     id: text(200), sourceId: uuid.optional() }).strict(),
   z.object({ type: z.literal("source"), reference: source, labelIds: ids.optional(),
-    badge: z.string().trim().max(19).optional(), badgeColor: z.string().regex(/^#[a-f0-9]{6}$/iu).optional(),
     note: z.string().max(50_000).optional() }).strict(),
   z.object({ type: z.literal("annotate"), kind: z.enum(["source", "evidence"]), id: text(200),
-    sourceId: uuid.optional(), labelIds: ids.optional(), badge: z.string().trim().max(19).optional(),
-    badgeColor: z.string().regex(/^#[a-f0-9]{6}$/iu).optional(),
+    sourceId: uuid.optional(), labelIds: ids.optional(),
     note: z.string().max(50_000).optional() }).strict(),
   z.object({ type: z.literal("passage"), sourceId: uuid, locator,
     quote: text(50_000), labelIds: ids.optional() }).strict(),
@@ -92,9 +90,6 @@ const researchMutationSchema = z.discriminatedUnion("type", [
     mode: z.enum(["add", "remove", "replace"]) }).strict(),
   z.object({ type: z.literal("note"), markdown: z.string().max(250_000), expectedMarkdown: z.string().max(250_000).optional() }).strict(),
 ]).superRefine((action, context) => {
-  if (action.type === "annotate" && action.kind === "evidence" &&
-      (action.badge !== undefined || action.badgeColor !== undefined))
-    context.addIssue({ code: "custom", message: "Evidence annotations cannot have badges" });
   if ((action.type === "annotate" || action.type === "remove") &&
       action.kind === "evidence" && !action.sourceId)
     context.addIssue({ code: "custom", message: "Evidence changes require sourceId" });
@@ -197,7 +192,7 @@ const addSource = (state: ResearchFileState, reference: ResearchSourceReference,
     ? Object.values(state.sources).find((item) => researchSourceKey(item.reference) === key) : undefined);
   if (found) return found;
   const value: ResearchSource = { id: randomUUID(), reference: structuredClone(parsed.data),
-    labelIds: [], collected: false, badge: "", badgeColor: "#666666", note: "", passages: null };
+    labelIds: [], collected: false, note: "", passages: null };
   state.sources[value.id] = value; index?.set(key, value); return value;
 };
 
@@ -237,9 +232,7 @@ function decodeResearchFileState(value: unknown): ResearchFileState | null {
       item.id !== id || !uuid.safeParse(id).success || !source.safeParse(item.reference).success ||
       (item.collected !== undefined && typeof item.collected !== "boolean") ||
       !validLabels(item.labelIds) || (item.labelIds as string[]).some((labelId) =>
-        record(labels[labelId])?.scope !== "source") || typeof item.badge !== "string" ||
-      item.badge.length > 19 || !(item.badgeColor === undefined || typeof item.badgeColor === "string" &&
-        /^#[a-f0-9]{6}$/iu.test(item.badgeColor)) || typeof item.note !== "string" ||
+        record(labels[labelId])?.scope !== "source") || typeof item.note !== "string" ||
       item.note.length > 50_000 ||
       !(item.passages === null || validPassages(item.passages, labels));
     })) return null;
@@ -547,8 +540,6 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     ownSources(); const item = ownSource(
     addSource(state, action.reference).id); item.collected = true;
     if (action.labelIds) item.labelIds = checkedLabels(state, action.labelIds, "source");
-    if (action.badge !== undefined) item.badge = action.badge;
-    if (action.badgeColor !== undefined) item.badgeColor = action.badgeColor;
     if (action.note !== undefined) item.note = action.note;
   } else if (action.type === "label-selection") {
     const selectionDocuments = { ...documents, readParts: async (...args: Parameters<DocumentStore["readParts"]>) => {
@@ -581,8 +572,6 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
   } else if (action.type === "annotate" && action.kind === "source") {
     const item = ownSource(action.id); item.collected = true;
     if (action.labelIds) item.labelIds = checkedLabels(state, action.labelIds, "source");
-    if (action.badge !== undefined) item.badge = action.badge;
-    if (action.badgeColor !== undefined) item.badgeColor = action.badgeColor;
     if (action.note !== undefined) item.note = action.note;
   } else if ((action.type === "annotate" || action.type === "remove") && action.kind === "evidence") {
     const sourceId = action.sourceId!; get(state.sources, sourceId, "Source"); await loadSources([sourceId]);
@@ -733,8 +722,8 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
         throw new ApplicationError(409, "An affected label is unavailable");
       item.labelIds = value ? [...new Set([...item.labelIds, id])] : item.labelIds.filter((label) => label !== id);
     } else if ((change.target === "label" ? ["name", "definition", "parentId", "color", "order", "scope"]
-      : change.target === "source" ? ["note", "badge", "badgeColor", "collected"] : ["note"]).includes(field)) {
-      if (value === null && ["definition", "badgeColor"].includes(field)) delete (item as Record<string, unknown>)[field];
+      : change.target === "source" ? ["note", "collected"] : ["note"]).includes(field)) {
+      if (value === null && field === "definition") delete (item as Record<string, unknown>)[field];
       else (item as Record<string, unknown>)[field] = structuredClone(value);
     } else throw new ApplicationError(400, "Invalid research change field");
   };

@@ -794,7 +794,8 @@ describe("research-scoped Library actions", () => {
         versionId: "v1", workingRevision: 1, state: { ...newResearchState(),
             labels: { "label-1": { id: "label-1", name: "Contract", parentId: null,
                 color: "#aabbaa", order: 0, scope: "source" } }, sources: {
-            "source-1": { id: "source-1", collected: true, labelIds: ["label-1"], badge: "", note: "", passages: null,
+            "source-1": { id: "source-1", collected: true, labelIds: ["label-1"],
+      note: "", passages: null,
                 reference: { provider: "library", kind: "document", id: "document-1", versionId: "version-1" } },
         } } } as ResearchFile);
 

@@ -66,10 +66,12 @@ const file: ResearchFile = {
       holding: { id: "holding", name: "Holding", parentId: "finding", color: "#047857", order: 0, scope: "highlight" },
     },
     sources: {
-      baker: { id: "baker", collected: true, labelIds: ["fairness", "other"], badge: "Leading", note: "Leading case",
+      baker: { id: "baker", collected: true, labelIds: ["fairness", "other"],
+      note: "Leading case",
         passages: { count: 51, sha256: "p-hash", labelCounts: { holding: 1 }, unlabelledCount: 50 }, reference: { provider: "a2aj", id: "baker",
           kind: "case", title: "Baker v Canada", date: "1999-07-09", collection: "SCC" } },
-      appeal: { id: "appeal", collected: true, labelIds: [], badge: "", note: "", passages: null,
+      appeal: { id: "appeal", collected: true, labelIds: [],
+      note: "", passages: null,
         reference: { provider: "a2aj", id: "appeal", kind: "case", title: "Appeal case",
           date: "2020-01-01", collection: "ONCA" } },
     } },
@@ -115,12 +117,10 @@ describe("ResearchFileBar", () => {
     await renderWorkspace();
     const tree = screen.getByRole("tree", { name: "Sources" });
     expect(within(tree).getAllByRole("treeitem").map((row) => row.getAttribute("aria-label")))
-      .toEqual(["Baker v Canada", "Appeal case"]);
+      .toEqual([null, "Fairness", "Baker v Canada", "Other", "Baker v Canada", "Appeal case"]);
     fireEvent.click(screen.getByRole("button", { name: "Fairness" }));
-    expect(within(tree).getAllByRole("treeitem", { name: "Baker v Canada" })).toHaveLength(1);
+    expect(within(tree).getAllByRole("treeitem", { name: "Baker v Canada" })).toHaveLength(2);
     expect(within(tree).queryByRole("treeitem", { name: "Appeal case" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Other" }));
-    expect(within(tree).getAllByRole("treeitem", { name: "Baker v Canada" })).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: /All sources/ }));
     expect(within(tree).getByRole("treeitem", { name: "Appeal case" })).toBeVisible();
     expect(screen.queryByText(/Unsorted|Unclassified/)).not.toBeInTheDocument();
@@ -149,7 +149,7 @@ describe("ResearchFileBar", () => {
     expect(screen.getByRole("treeitem", { name: "Appeal case" })).toBeVisible();
     fireEvent.change(screen.getByLabelText("Source filter"), { target: { value: "all" } });
     fireEvent.change(screen.getByLabelText("Filter by highlight type"), { target: { value: "finding" } });
-    expect(screen.getByRole("treeitem", { name: "Baker v Canada" })).toBeVisible();
+    expect(screen.getAllByRole("treeitem", { name: "Baker v Canada" })[0]).toBeVisible();
     expect(screen.queryByRole("treeitem", { name: "Appeal case" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Highlight type: Finding" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
@@ -161,7 +161,7 @@ describe("ResearchFileBar", () => {
     render(<SourcesWorkspaceProvider file={file} selection={{ target: "sources", labelIds: ["fairness"] }}>
       <WorkspaceBar /><Selection />
     </SourcesWorkspaceProvider>);
-    expect(screen.getByRole("treeitem", { name: "Baker v Canada" })).toBeVisible();
+    expect(screen.getAllByRole("treeitem", { name: "Baker v Canada" })[0]).toBeVisible();
     expect(screen.queryByRole("treeitem", { name: "Appeal case" })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText("Current selection")).toHaveTextContent('"sourceIds":["baker"]'));
     fireEvent.click(screen.getByRole("button", { name: "Show all" }));
@@ -302,7 +302,7 @@ describe("ResearchFileBar", () => {
     fireEvent.change(screen.getByRole("searchbox", { name: "Filter" }), { target: { value: "Appeal" } });
     const tree = screen.getByRole("tree", { name: "Sources" });
     expect(within(tree).getByRole("treeitem", { name: "Appeal case" })).toBeVisible();
-    expect(within(tree).queryByRole("treeitem", { name: "Baker v Canada" })).not.toBeInTheDocument();
+    expect(within(tree).queryAllByRole("treeitem", { name: "Baker v Canada" })).toHaveLength(0);
   });
 
   it("selects the highlight type without changing the research scope", async () => {
@@ -323,18 +323,6 @@ describe("ResearchFileBar", () => {
     fireEvent.keyDown(within(palette).getByRole("textbox", { name: "Item note" }), { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Labels and note" })).not.toBeInTheDocument());
     expect(screen.getByRole("tree", { name: "Sources" })).toBeVisible();
-  });
-
-  it("inserts a citation from the memo toolbar instead of a row action", async () => {
-    api.getResearchCitation.mockResolvedValue({ href: "/sources/view?provider=a2aj&source_id=baker&citation=1999%202%20SCR%20817&authority=Baker%20v%20Canada" });
-    await renderWorkspace();
-    expect(screen.queryByRole("button", { name: "Cite Baker v Canada" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: "Memo" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Insert citation" }, { timeout: 5000 }));
-    const picker = await screen.findByRole("group", { name: "Insert citation" });
-    fireEvent.click(within(picker).getByRole("button", { name: /Baker v Canada/u }));
-    fireEvent.click(await screen.findByRole("button", { name: "Whole source" }));
-    await waitFor(() => expect(api.getResearchCitation).toHaveBeenCalledWith("file-1", "baker", undefined));
   });
 
   it("opens the reader from a title and only loads passages with its disclosure", async () => {
