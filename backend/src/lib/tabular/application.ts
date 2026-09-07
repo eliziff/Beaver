@@ -146,7 +146,7 @@ const modelKey = (model: string, apiKeys: UserApiKeys) => {
     `${providerLabel(provider)} API key is required to use ${model}. Add an API key or select a different tabular review model.`,
     { code: "missing_api_key", provider, model });
 };
-const json = (raw: string) => JSON.parse(raw.replace(/^```(?:json)?\s*/iu, "")
+const json = (raw: string) => JSON.parse(raw.slice(Math.max(0, raw.indexOf("{")), raw.lastIndexOf("}") + 1)
   .replace(/\s*```$/u, "").trim()) as Record<string, unknown>;
 function exportCell(cell: TabularCell | undefined) {
   if (!cell || cell.status === "pending" || cell.status === "generating") return "";
@@ -336,7 +336,8 @@ export function createTabularApplication(
       messages: [{ role: "user", content: input.user }], createTools: () => [],
       emit() {}, apiKeys: input.apiKeys, reasoningEffort: input.reasoningEffort,
       signal: input.signal, subagentMode: "none", separateContentBlocks: false,
-    });
+    }).catch((error: unknown) => fail(502, error instanceof Error && error.message
+      ? `${input.model}: ${error.message}` : `${input.model} did not answer`));
     if (result.fullText.length > MAX_MODEL_CHARS)
       return fail(502, "Model output exceeded the tabular extraction limit");
     return result.fullText;
@@ -619,7 +620,10 @@ export function createTabularApplication(
         const design = researchImportDesignSchema.parse(json(raw));
         researchImportPlan(catalog, design);
         return design;
-      } catch { return fail(502, "The suggested layout was invalid; your research was not changed"); }
+      } catch (error) {
+        console.warn("[tabular] research layout rejected", { model, error: String(error), raw: raw.slice(0, 400) });
+        return fail(502, "The suggested layout was invalid; your research was not changed");
+      }
     },
     async design(scope: TabularScope, input: z.infer<typeof tabularDtos.design>,
       signal?: AbortSignal) {
