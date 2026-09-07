@@ -21,6 +21,7 @@
 import diff from "fast-diff";
 import {
   applyTrackedEdits,
+  clusterTextChanges,
   extractDocxBodyText,
   normalizeWs,
   type EditDiffSegment,
@@ -149,89 +150,41 @@ function resolveScope(
   return [{ start: fromHit.start, end: toHit.end }];
 }
 
-/** fast-diff hunks -> minimal replacements, split at `\n` so no replacement
- *  crosses a paragraph boundary. */
-function diffToReplacements(base: number, before: string, after: string) {
+/** Convert shared old-text diff clusters into paragraph-safe, anchorable edits.
+ * Widen insertions before coalescing gaps of at most two original characters;
+ * neither operation may join changes across a paragraph boundary. */
+function textOpReplacements(
+  docText: string, base: number, before: string, after: string,
+) {
   const out: Replacement[] = [];
-  let pos = 0;
-  let pendingDel = "";
-  let pendingIns = "";
-  let pendingStart = 0;
-  const flush = () => {
-    if (!pendingDel && !pendingIns) return;
-    const delParts = pendingDel.split("\n");
-    const insParts = pendingIns.split("\n");
+  for (const { offset, deleted, inserted } of clusterTextChanges(diff(before, after), "old")) {
+    const delParts = deleted.split("\n"), insParts = inserted.split("\n");
     if (delParts.length !== insParts.length) {
       throw new Error("A text op moved a paragraph boundary");
     }
-    let at = pendingStart;
+    let at = base + offset;
     for (let i = 0; i < delParts.length; i++) {
-      if (delParts[i] || insParts[i]) {
-        out.push({
-          start: base + at,
-          end: base + at + delParts[i].length,
-          text: insParts[i],
-        });
+      let start = at, end = at + delParts[i].length, text = insParts[i];
+      at = end + 1;
+      if (start === end && !text) continue;
+      // A pure insertion borrows a neighbor from the original paragraph.
+      if (start === end) {
+        if (start > 0 && docText[start - 1] !== "\n") {
+          start -= 1;
+          text = docText[start] + text;
+        } else {
+          text += docText[end];
+          end += 1;
+        }
       }
-      at += delParts[i].length + 1;
-    }
-    pendingDel = "";
-    pendingIns = "";
-  };
-  for (const [kind, value] of diff(before, after)) {
-    if (kind === 0) {
-      flush();
-      pos += value.length;
-    } else {
-      if (!pendingDel && !pendingIns) pendingStart = pos;
-      if (kind === -1) {
-        pendingDel += value;
-        pos += value.length;
+      const prev = out[out.length - 1];
+      const gap = prev ? docText.slice(prev.end, start) : "";
+      if (prev && start - prev.end <= 2 && !gap.includes("\n")) {
+        prev.end = end;
+        prev.text += gap + text;
       } else {
-        pendingIns += value;
+        out.push({ start, end, text });
       }
-    }
-  }
-  flush();
-  return out;
-}
-
-/** Widen pure insertions to replace one neighbor character so every edit is a
- *  non-empty, context-anchorable substitution. */
-function widenInsertions(replacements: Replacement[], docText: string) {
-  return replacements.map((r) => {
-    if (r.start !== r.end) return r;
-    if (r.start > 0 && docText[r.start - 1] !== "\n") {
-      return {
-        start: r.start - 1,
-        end: r.end,
-        text: docText[r.start - 1] + r.text,
-      };
-    }
-    return { start: r.start, end: r.end + 1, text: r.text + docText[r.start] };
-  });
-}
-
-/**
- * Coalesce replacements separated by tiny unchanged gaps (a space, a letter
- * inside a word) into one change, so "governing law" -> "GOVERNING LAW" is a
- * single accept/rejectable edit instead of one per diff hunk. Never merges
- * across a paragraph boundary.
- */
-function mergeNearbyReplacements(
-  replacements: Replacement[],
-  docText: string,
-  maxGap = 2,
-) {
-  const out: Replacement[] = [];
-  for (const r of replacements) {
-    const prev = out[out.length - 1];
-    const gap = prev ? docText.slice(prev.end, r.start) : "";
-    if (prev && r.start - prev.end <= maxGap && !gap.includes("\n")) {
-      prev.end = r.end;
-      prev.text += gap + r.text;
-    } else {
-      out.push({ ...r });
     }
   }
   return out;
@@ -251,13 +204,7 @@ export async function planTextOps(
       const scoped = docText.slice(interval.start, interval.end);
       const { text, notes } = await runTextOp(request.op, scoped, request);
       report.notes.push(...notes);
-      const replacements = mergeNearbyReplacements(
-        widenInsertions(
-          diffToReplacements(interval.start, scoped, text),
-          docText,
-        ),
-        docText,
-      );
+      const replacements = textOpReplacements(docText, interval.start, scoped, text);
       report.replacements += replacements.length;
       all.push(...replacements);
     }
