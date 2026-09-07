@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useEffectEvent, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { MessageSquare, MessageSquareX, Play, Square, Upload, BookOpen } from "lucide-react";
+import { MessageSquare, MessageSquareX, Play, Square, Upload } from "lucide-react";
 import {
   clearTabularCells,
   deleteTabularReview,
@@ -35,13 +35,13 @@ import { getModelProvider, isModelAvailable, type ModelProvider } from "@/app/li
 
 
 import { assistantIntent, type AssistantIntent } from "../assistant/assistantIntent";
-import { SaveFindingHighlights } from "../legal/SaveFindingHighlights";
 import { errorMessage } from "@/app/lib/utils";
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { ResearchSelectionLabels } from "../shared/ResearchSelectionLabels";
 import { ResearchChanges } from "../legal/ResearchChanges";
 import { SourcesWorkspace, useSourcesWorkspace } from "../legal/SourcesWorkspace";
-import type { ResearchSelection } from "@/app/lib/researchFiles";
+import { ResearchCitationViewer } from "../legal/ResearchCitationViewer";
+import type { ResearchSelection, ResearchSourceReference } from "@/app/lib/researchFiles";
 import { AssistantDock } from "../assistant/AssistantDock";
 import { ResearchWorkspaceHost } from "../legal/ResearchWorkspaceHost";
 import { PageHeader, type PageHeaderAction, type PageHeaderBreadcrumb } from "../shared/PageHeader";
@@ -55,6 +55,7 @@ import { WorkflowPickerModal } from "../workflows/WorkflowPickerModal";
 import type { WorkflowSelection } from "../workflows/workflowRoutes";
 import { AddColumnModal } from "./AddColumnModal";
 import type { Citation } from "@/app/lib/citations";
+import { citedSourceReference } from "@/app/lib/groundedAnswers";
 import { TabularReviewDetailsModal } from "./TabularReviewDetailsModal";
 import { TRChatPanel } from "./TRChatPanel";
 import { TRSidePanel } from "./TRSidePanel";
@@ -62,7 +63,7 @@ import { TRTable } from "./TRTable";
 
 interface Props { reviewId: string; projectId?: string }
 type Modal = "documents" | "details" | "people" | null;
-type CellView = { cellId: string; citation?: Citation };
+type CellView = { cellId: string };
 const cellKey = (documentId: string, columnIndex: number) =>
     `${documentId}:${columnIndex}`;
 const pendingCell = (
@@ -129,8 +130,8 @@ function TRViewContent({ reviewId, projectId }: Props) {
     useEffect(() => { if (workspaceId) void workspace.open(workspaceId).catch(() => undefined); }, [workspaceId, workspace.open]);
     const project = projectId ? projects.find(({ id }) => id === projectId) ?? null : null;
     const chatOpen = chatId !== undefined;
+    const [reading, setReading] = useState<{ citation: Citation; reference?: ResearchSourceReference } | null>(null);
     const expandedCell = cells.find(({ id }) => id === cellView?.cellId);
-    const expandedCitation = cellView?.citation;
     const refreshReview = useCallback(async () => {
         const data = await getTabularReview(reviewId);
         setReview(data.review); setCells(data.cells); setDocuments(data.documents);
@@ -183,9 +184,11 @@ function TRViewContent({ reviewId, projectId }: Props) {
     }, [generating, reviewId, setUi]);
 
     const expandCell = useCallback(({ id }: TabularCell) => setUi({ cellView: { cellId: id } }), [setUi]);
-    const openCitation = useCallback((cell: TabularCell, citation: Citation) => setUi({ cellView: {
-            cellId: cell.id, citation,
-        } }), [setUi]);
+    const openCitation = useCallback((cell: TabularCell, citation: Citation) => {
+        const receipt = cell.content?.evidence.find(({ span_text }) => span_text &&
+            citation.quotes?.some(({ quote }) => quote === span_text));
+        setReading({ citation, reference: receipt ? citedSourceReference(receipt) : undefined });
+    }, []);
 
     function setChatId(next: string | null | undefined) {
         setUi({ chatId: next });
@@ -623,7 +626,6 @@ function TRViewContent({ reviewId, projectId }: Props) {
                 {generating ? "Stop" : "Run"}
             </span>,
         },
-        { onClick: () => void openSources(), disabled: loading, title: "Open Sources", icon: <BookOpen className="h-4 w-4" />, label: "Sources" },
         {
             onClick: () => {
                 if (dockTab === "chat") closeDock();
@@ -755,17 +757,14 @@ function TRViewContent({ reviewId, projectId }: Props) {
                     key={JSON.stringify(cellView)} cell={expandedCell}
                     document={expandedDocument} column={expandedColumn}
                     onDiscuss={() => void openChat({ rowId: expandedCell.document_id, columnIndex: expandedCell.column_index })}
-                    saveHighlights={expandedCell.content?.claims.some(({ evidence_ids }) => evidence_ids.length > 0)
-                      ? <SaveFindingHighlights tableId={reviewId} references={[{ kind: "cell", reviewId,
-                          rowId: expandedCell.document_id, columnIndex: expandedCell.column_index }]} /> : undefined}
+                    onCitation={(citation) => openCitation(expandedCell, citation)}
                     onClose={() => setUi({ cellView: null })}
                     onRegenerate={() => regenerateCell(
                         expandedCell.document_id, expandedCell.column_index)}
                     running={generating || !!columnRun}
-                    displayDocument={expandedCitation !== undefined}
-                    citation={expandedCitation}
                 />
             )}
+            {reading && <ResearchCitationViewer {...reading} onClose={() => setReading(null)} />}
             <AddColumnModal
                 open={columnModal !== undefined} existingCount={columns.length}
                 editingColumn={columnModal ?? undefined}

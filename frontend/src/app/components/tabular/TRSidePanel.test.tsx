@@ -5,18 +5,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import type { ColumnConfig, TabularCell } from "@/app/lib/api/tabular";
 import type { Document } from "@/app/lib/api/documents";
 import { TRSidePanel } from "./TRSidePanel";
-import type { DocumentViewerProps } from "../shared/views/DocumentViewer";
-import type { LegalSourceViewerProps } from "../legal/LegalSourceViewer";
 
-vi.mock("../shared/views/DocumentViewer", () => ({
-    DocumentViewer: (props: DocumentViewerProps) => <div data-testid="document-viewer"
-        data-document={props.documentId} data-version={props.versionId} data-kind={props.kind}
-        data-quotes={JSON.stringify(props.quotes)} data-cells={JSON.stringify(props.highlightCells)} />,
-}));
-vi.mock("../legal/LegalSourceViewer", () => ({
-    LegalSourceViewer: (props: LegalSourceViewerProps) => <div data-testid="source-viewer"
-        data-source={props.sourceId} data-language={props.language} data-locator={props.initialLocator} />,
-}));
 afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
@@ -57,45 +46,23 @@ const column = {
     prompt: "Find termination rights.",
 } satisfies ColumnConfig;
 
-it("keeps evidence controls without a resizable navigation pad", async () => {
+it("reads the result without an embedded source viewer, quote selector or highlighter", async () => {
     const onClose = vi.fn();
     const onRegenerate = vi.fn().mockResolvedValue(undefined);
-    render(
-        <TRSidePanel
-            cell={cell}
-            document={sourceDocument}
-            column={column}
-            onClose={onClose}
-            onRegenerate={onRegenerate}
-            displayDocument
-            citation={{ kind: "document", ref: 1, document_id: sourceDocument.id,
-                filename: sourceDocument.filename, version_id: "pinned-version",
-                quotes: [{ quote: "termination for convenience", page: 2 }] }}
-        />,
-    );
+    render(<TRSidePanel cell={cell} document={sourceDocument} column={column}
+        onClose={onClose} onCitation={vi.fn()} onRegenerate={onRegenerate} />);
 
     expect(screen.getByText("Termination")).toBeVisible();
     expect(screen.getByText("Because the term is express.")).toBeVisible();
-    expect(screen.getByTestId("document-viewer")).toBeVisible();
-    expect(screen.getByTestId("document-viewer")).toHaveAttribute("data-version", "pinned-version");
-    expect(screen.getByTestId("document-viewer")).toHaveAttribute("data-quotes", '[{"page":2,"quote":"termination for convenience"}]');
-    expect(
-        screen.queryByRole("button", { name: "Next column" }),
-    ).not.toBeInTheDocument();
-
-    fireEvent.click(
-        screen.getByRole("button", { name: "Collapse document pane" }),
-    );
-    expect(screen.queryByTestId("document-viewer")).not.toBeInTheDocument();
-    fireEvent.click(
-        screen.getByRole("button", { name: "Expand document pane" }),
-    );
-    expect(screen.getByTestId("document-viewer")).toBeVisible();
+    for (const name of ["Expand document pane", "Collapse document pane", "Next column", "Save highlight"])
+        expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+    expect(screen.queryByText("More details")).not.toBeInTheDocument();
+    expect(screen.queryByText(column.prompt)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTitle("Regenerate"));
     await waitFor(() => expect(onRegenerate).toHaveBeenCalledOnce());
 
-    fireEvent.pointerDown(document.body);
+    fireEvent.click(document.body);
     expect(onClose).toHaveBeenCalledOnce();
 });
 
@@ -107,7 +74,7 @@ it("uses a modal dialog on compact screens and restores its opener", async () =>
         const [open, setOpen] = useState(false);
         return <><button onClick={() => setOpen(true)}>Open result</button>{open &&
             <TRSidePanel cell={cell} document={sourceDocument} column={column}
-                onClose={() => setOpen(false)} />}</>;
+                onCitation={vi.fn()} onClose={() => setOpen(false)} />}</>;
     }
 
     render(<Example />);
@@ -122,57 +89,28 @@ it("uses a modal dialog on compact screens and restores its opener", async () =>
     await waitFor(() => expect(opener).toHaveFocus());
 });
 
-it("opens the original pinned Library version from a separately arranged row", () => {
-    render(<TRSidePanel cell={cell} document={{ ...sourceDocument, id: "delivery-passage", filename: "Delivery deadline",
-        reference: { provider: "library", kind: "document", id: "original-document", versionId: "pinned-original", title: "Agreement.pdf" } }}
-        column={column} onClose={vi.fn()} displayDocument />);
-    expect(screen.getByTestId("document-viewer")).toHaveAttribute("data-document", "original-document");
-    expect(screen.getByTestId("document-viewer")).toHaveAttribute("data-version", "pinned-original");
-    expect(screen.getByTestId("document-viewer")).toHaveAttribute("data-kind", "pdf");
-    expect(screen.getByText("Agreement.pdf")).toBeVisible();
-});
-
-it("opens provider rows with the source reader and preserves full findings and coverage", () => {
-    render(<TRSidePanel cell={{ ...cell, content: { ...cell.content!, coverage: "partial" } }}
-        document={{ ...sourceDocument, id: "source://a2aj/case", filename: "Example v Example",
-            resource: "source://a2aj/case", reference: { provider: "a2aj", id: "case", kind: "case", citation: "2026 SCC 1" } }}
-        column={column} onClose={vi.fn()} displayDocument
-        citation={{ kind: "a2aj", ref: 1, citation: "2026 SCC 1", locator: "par12",
-            quotes: [{ quote: "The hearing was required." }] }} />);
-    expect(screen.getByTestId("source-viewer")).toHaveAttribute("data-source", "case");
-    expect(screen.getByTestId("source-viewer")).toHaveAttribute("data-locator", "par12");
-    expect(screen.queryByTestId("document-viewer")).not.toBeInTheDocument();
-    expect(screen.getByText("Yes")).toBeVisible();
-    expect(screen.getByText("Because the term is express.")).toBeVisible();
-    expect(screen.getByText("Supported")).toBeVisible();
-    expect(screen.getByRole("status")).toHaveTextContent("Partial coverage");
-});
-
 it("keeps Regenerate visible but disabled while the review is running", () => {
-    render(<TRSidePanel cell={cell} document={sourceDocument} column={column} onClose={vi.fn()}
+    render(<TRSidePanel cell={cell} document={sourceDocument} column={column} onClose={vi.fn()} onCitation={vi.fn()}
         onRegenerate={vi.fn().mockResolvedValue(undefined)} running />);
     expect(screen.getByRole("button", { name: "Regenerate" })).toBeDisabled();
-    expect(screen.getByText("Find termination rights.")).not.toBeVisible();
-    fireEvent.click(screen.getByText("More details", { selector: "summary" }));
-    expect(screen.getByText("Find termination rights.")).toBeVisible();
 });
 
-it("opens evidence from its actual source rather than the current table row", () => {
+it("hands a cited passage to the shared source reader rather than opening one inside the result", () => {
+    const onCitation = vi.fn();
     const evidence = { evidence_id: "other", provider: "a2aj", stable_source_id: "other-case", source_reference: { id: "other-case" },
         source_sha256: "a".repeat(64), span_sha256: "b".repeat(64), block_id: "par7", span_text: "The court distinguished the rule.",
         citation: "2026 SCC 2", name: "Other case", external_url: null, dataset: "scc", language: "fr" as const, locator: { kind: "paragraph", label: "7" } };
     render(<TRSidePanel cell={{ ...cell, content: { ...cell.content!, evidence: [evidence], claims: [{ text: "Distinguished", evidence_ids: ["other"] }] } }}
-        document={{ ...sourceDocument, reference: { provider: "a2aj", id: "row-case", kind: "case", citation: "2026 SCC 1" } }} column={column} onClose={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Open passage 1: Other case" }));
-    expect(screen.getByTestId("source-viewer")).toHaveAttribute("data-source", "other-case");
-    expect(screen.getByTestId("source-viewer")).toHaveAttribute("data-locator", "7");
-    expect(screen.getByTestId("source-viewer")).toHaveAttribute("data-language", "fr");
+        document={{ ...sourceDocument, reference: { provider: "a2aj", id: "row-case", kind: "case", citation: "2026 SCC 1" } }}
+        column={column} onClose={vi.fn()} onCitation={onCitation} />);
+    fireEvent.click(screen.getAllByRole("button", { name: /2026 SCC 2/ })[0]!);
+    expect(onCitation).toHaveBeenCalledWith(expect.objectContaining({ kind: "a2aj", name: "Other case",
+        locator: "7", quotes: [{ quote: evidence.span_text }] }));
 });
-
 
 it("keeps the answer readable after regeneration fails and permits retry", async () => {
     const regenerate = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(undefined);
-    render(<TRSidePanel cell={cell} document={sourceDocument} column={column} onClose={vi.fn()} onRegenerate={regenerate} />);
+    render(<TRSidePanel cell={cell} document={sourceDocument} column={column} onClose={vi.fn()} onCitation={vi.fn()} onRegenerate={regenerate} />);
     fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not regenerate");
     expect(screen.getByText("Yes")).toBeVisible();
