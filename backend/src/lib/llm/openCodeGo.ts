@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { bufferRemoteResponse } from "../remoteUrlSafety";
+import { createCatalogCache, fetchCatalogJson } from "../catalogCache";
 import { createAnthropicWireAdapter } from "./anthropicWire";
 import { requireApiKey } from "./apiKeys";
 import { openCodeGoModelSlug, openCodeGoProtocol } from "./models";
@@ -69,38 +69,24 @@ export type OpenCodeGoCatalog = {
   models: { id: string; displayName: string }[];
 };
 
-export async function getOpenCodeGoModelCatalog(
-  apiKey: string | null | undefined,
-): Promise<OpenCodeGoCatalog> {
-  if (!apiKey?.trim()) return { source: "unavailable", models: [] };
-  try {
-    const response = await fetch(`${baseUrl()}/models`, {
-      headers: { Authorization: `Bearer ${apiKey.trim()}` },
-      signal: AbortSignal.timeout(
-        Number(process.env.OPENCODE_GO_CATALOG_TIMEOUT_MS) || 3_000,
-      ),
-    });
-    if (!response.ok) {
-      await response.body?.cancel().catch(() => undefined);
-      throw new Error(`OpenCode Go model listing failed (HTTP ${response.status}).`);
-    }
-    const bounded = await bufferRemoteResponse(response, {
+async function probeOpenCodeGo(apiKey: string | null | undefined): Promise<OpenCodeGoCatalog> {
+  if (!apiKey?.trim()) throw new Error(`${label} is not configured.`);
+  const payload = await fetchCatalogJson<{ data?: { id?: unknown; name?: unknown }[] }>(
+    `${baseUrl()}/models`, {
       label: "OpenCode Go model listing",
-      maxBytes: 1024 * 1024,
-      contentTypes: ["application/json"],
-    });
-    const payload = await bounded.json() as {
-      data?: { id?: unknown; name?: unknown }[];
-    };
-    const models = (payload.data ?? []).flatMap(({ id, name }) => {
-      if (typeof id !== "string" || !openCodeGoProtocol(id)) return [];
-      const displayName = typeof name === "string" && name.trim()
-        ? name.trim()
-        : id;
-      return [{ id, displayName }];
-    }).sort((left, right) => left.displayName.localeCompare(right.displayName));
-    return { source: "live", models };
-  } catch {
-    return { source: "unavailable", models: [] };
-  }
+      timeoutMs: Number(process.env.OPENCODE_GO_CATALOG_TIMEOUT_MS) || 3_000,
+      headers: { Authorization: `Bearer ${apiKey.trim()}` },
+    },
+  );
+  const models = (payload.data ?? []).flatMap(({ id, name }) => {
+    if (typeof id !== "string" || !openCodeGoProtocol(id)) return [];
+    return [{ id, displayName: typeof name === "string" && name.trim() ? name.trim() : id }];
+  }).sort((left, right) => left.displayName.localeCompare(right.displayName));
+  return { source: "live", models };
 }
+
+const cache = createCatalogCache<OpenCodeGoCatalog, string | null | undefined>(probeOpenCodeGo, {
+  source: "unavailable", models: [],
+});
+export const openCodeGoModelCatalogSnapshot = (apiKey: string | null | undefined) =>
+  cache.snapshot(apiKey);
