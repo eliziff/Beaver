@@ -18,7 +18,6 @@ import {
     elChildren,
     elName,
     getTextContent,
-    isTextNode,
     makeEl,
     makeText,
     setChildren,
@@ -392,36 +391,11 @@ function buildDelWrapper(
     date: string,
     id: string,
 ): XNode {
-    const kids: XNode[] = [];
-    if (rPr) kids.push(cloneNode(rPr));
-    let buf = "";
-    const flushBuf = () => {
-        if (buf) {
-            kids.push(
-                makeEl("w:delText", [makeText(buf)], {
-                    "xml:space": "preserve",
-                }),
-            );
-            buf = "";
-        }
-    };
-    for (const ch of deleted) {
-        if (ch === "\t") {
-            flushBuf();
-            kids.push(makeEl("w:tab", []));
-        } else if (ch === "\n") {
-            flushBuf();
-            kids.push(makeEl("w:br", []));
-        } else {
-            buf += ch;
-        }
-    }
-    flushBuf();
-    return makeEl(
-        "w:del",
-        [makeEl("w:r", kids)],
-        revisionAttrs(id, author, date),
-    );
+    const kids = deleted.split(/(\t|\n)/u).filter(Boolean).map((text) =>
+        text === "\t" ? makeEl("w:tab", []) : text === "\n" ? makeEl("w:br", [])
+            : makeEl("w:delText", [makeText(text)], { "xml:space": "preserve" }));
+    if (rPr) kids.unshift(cloneNode(rPr));
+    return makeEl("w:del", [makeEl("w:r", kids)], revisionAttrs(id, author, date));
 }
 
 interface RebuildResult {
@@ -442,173 +416,97 @@ function rebuildParagraphChildren(
     const pPr = elChildren(pNode).find((k) => elName(k) === "w:pPr");
     if (pPr) out.push(pPr);
 
-    const charRPr: (XNode | null)[] = [];
-    for (const atom of flat.atoms) {
-        if (atom.kind === "chars") {
-            for (let i = 0; i < atom.text.length; i++) charRPr.push(atom.rPr);
-        } else if (atom.kind === "tab" || atom.kind === "br") {
-            charRPr.push(atom.rPr);
+    // Deletions inherit the next textual atom's style (the last one at EOF).
+    // Both lookups and emission advance through atoms, never through characters.
+    let styleIndex = 0;
+    let styleEnd = 0;
+    let style: XNode | null = null;
+    const rPrForPos = (position: number): XNode | null => {
+        while (styleIndex < flat.atoms.length && styleEnd <= position) {
+            const atom = flat.atoms[styleIndex++];
+            if (atom.kind === "keep" || (atom.kind === "chars" && !atom.text)) continue;
+            styleEnd += atom.kind === "chars" ? atom.text.length : 1;
+            style = atom.rPr;
         }
-    }
-    const rPrForPos = (p: number): XNode | null => {
-        if (charRPr.length === 0) return null;
-        const clamped = Math.min(Math.max(p, 0), charRPr.length - 1);
-        return charRPr[clamped];
+        return style;
     };
 
-    let runOpen = false;
-    let runRPr: XNode | null = null;
-    let runKids: XNode[] = [];
-    let openIns: { clusterIdx: number; runs: XNode[] } | null = null;
-    const currentOpenIns = () => openIns;
-
-    const closeRun = () => {
-        if (!runOpen) return;
-        const kids: XNode[] = [];
-        if (runRPr) kids.push(cloneNode(runRPr));
-        kids.push(...runKids);
-        const sink = openIns ? openIns.runs : out;
-        sink.push(makeEl("w:r", kids));
-        runOpen = false;
-        runRPr = null;
-        runKids = [];
+    let run: { rPr: XNode | null; children: XNode[] } | null = null;
+    let insertion: { cluster: DiffCluster; runs: XNode[] } | null = null;
+    const closeRegion = () => {
+        run = null;
+        if (insertion) {
+            out.push(makeEl("w:ins", insertion.runs, revisionAttrs(nextId(), author, date)));
+            insertion = null;
+        }
     };
-    const closeIns = () => {
-        closeRun();
-        if (openIns) {
-            if (openIns.runs.length) {
-                out.push(
-                    makeEl(
-                        "w:ins",
-                        openIns.runs,
-                        revisionAttrs(nextId(), author, date),
-                    ),
-                );
+    const selectRegion = (cluster: DiffCluster | null) => {
+        if ((insertion?.cluster ?? null) === cluster) return;
+        closeRegion();
+        if (cluster) insertion = { cluster, runs: [] };
+    };
+    const currentInsertion = () => insertion;
+    const append = (atom: Exclude<DocxRewriteAtom, { kind: "keep" }>, text: string) => {
+        if (!run || run.rPr !== atom.rPr) {
+            const children = atom.rPr ? [cloneNode(atom.rPr)] : [];
+            (insertion ? insertion.runs : out).push(makeEl("w:r", children));
+            run = { rPr: atom.rPr, children };
+        }
+        const last = run.children[run.children.length - 1];
+        if (atom.kind === "chars" && elName(last) === "w:t") {
+            const node = elChildren(last)[0]; // Only text emitted here enters this buffer.
+            node[TEXT_KEY] = String(node[TEXT_KEY]) + text;
+        } else {
+            run.children.push(atom.kind === "chars"
+                ? makeEl("w:t", [makeText(text)], { "xml:space": "preserve" })
+                : makeEl(atom.kind === "tab" ? "w:tab" : "w:br", []));
+        }
+    };
+
+    let nextCluster = 0;
+    let active: DiffCluster | null = null;
+    const advance = (position: number) => {
+        while (nextCluster < clusters.length && clusters[nextCluster].newStart <= position) {
+            const cluster = clusters[nextCluster++];
+            if (cluster.deleted) {
+                closeRegion();
+                out.push(buildDelWrapper(cluster.deleted, rPrForPos(cluster.newStart),
+                    author, date, nextId()));
             }
-            openIns = null;
+            active = cluster;
         }
-    };
-    const ensureRegion = (clusterIdx: number | null) => {
-        if (clusterIdx === null) {
-            if (openIns) closeIns();
-            return;
-        }
-        if (openIns && openIns.clusterIdx !== clusterIdx) closeIns();
-        if (!openIns) {
-            closeRun();
-            openIns = { clusterIdx, runs: [] };
-        }
-    };
-    const appendToRun = (rPr: XNode | null, node: XNode) => {
-        if (!runOpen || runRPr !== rPr) {
-            closeRun();
-            runOpen = true;
-            runRPr = rPr;
-            runKids = [];
-        }
-        runKids.push(node);
-    };
-    const appendTextToRun = (rPr: XNode | null, text: string) => {
-        if (runOpen && runRPr === rPr && runKids.length > 0) {
-            const last = runKids[runKids.length - 1];
-            if (elName(last) === "w:t") {
-                const kids = elChildren(last);
-                if (kids.length === 1 && isTextNode(kids[0])) {
-                    kids[0][TEXT_KEY] = String(kids[0][TEXT_KEY]) + text;
-                    return;
-                }
-            }
-        }
-        appendToRun(
-            rPr,
-            makeEl("w:t", [makeText(text)], { "xml:space": "preserve" }),
-        );
+        if (active && active.newEnd <= position) active = null;
+        return active;
     };
 
-    let delIdx = 0;
-    const emitDelsThrough = (p: number) => {
-        while (delIdx < clusters.length && clusters[delIdx].newStart <= p) {
-            const c = clusters[delIdx];
-            if (c.deleted) {
-                closeIns();
-                closeRun();
-                out.push(
-                    buildDelWrapper(
-                        c.deleted,
-                        rPrForPos(c.newStart),
-                        author,
-                        date,
-                        nextId(),
-                    ),
-                );
-            }
-            delIdx++;
-        }
-    };
-
-    let regionPtr = 0;
-    const regionOf = (p: number): number | null => {
-        while (
-            regionPtr < clusters.length &&
-            clusters[regionPtr].newEnd <= p
-        )
-            regionPtr++;
-        const c = clusters[regionPtr];
-        return c && c.newStart <= p && p < c.newEnd ? regionPtr : null;
-    };
-    const nextBoundary = (p: number): number => {
-        for (let k = regionPtr; k < clusters.length; k++) {
-            if (clusters[k].newStart > p) return clusters[k].newStart;
-        }
-        return Infinity;
-    };
-
-    let pos = 0;
+    let position = 0;
     for (const atom of flat.atoms) {
         if (atom.kind === "keep") {
-            emitDelsThrough(pos);
-            const ins = currentOpenIns();
-            if (ins) {
-                const c = clusters[ins.clusterIdx];
-                if (c && c.newStart < pos && pos < c.newEnd) {
-                    notes.push(
-                        "inline_object_in_inserted_range: an inline object " +
-                            "inside inserted text was preserved but not " +
-                            "itself marked as inserted",
-                    );
-                }
-                closeIns();
-            } else {
-                closeRun();
+            advance(position);
+            const inserted = currentInsertion();
+            if (inserted && inserted.cluster.newStart < position && position < inserted.cluster.newEnd) {
+                notes.push("inline_object_in_inserted_range: an inline object " +
+                    "inside inserted text was preserved but not itself marked as inserted");
             }
+            closeRegion();
             out.push(atom.node);
             continue;
         }
-        const text =
-            atom.kind === "chars" ? atom.text : atom.kind === "tab" ? "\t" : "\n";
-        let off = 0;
-        while (off < text.length) {
-            emitDelsThrough(pos);
-            const region = regionOf(pos);
-            const boundary =
-                region === null ? nextBoundary(pos) : clusters[region].newEnd;
-            const take = Math.min(text.length - off, boundary - pos);
-            ensureRegion(region);
-            if (atom.kind === "chars") {
-                appendTextToRun(atom.rPr, text.substr(off, take));
-            } else if (atom.kind === "tab") {
-                appendToRun(atom.rPr, makeEl("w:tab", []));
-            } else {
-                appendToRun(atom.rPr, makeEl("w:br", []));
-            }
-            pos += take;
-            off += take;
+        const text = atom.kind === "chars" ? atom.text : atom.kind === "tab" ? "\t" : "\n";
+        let offset = 0;
+        while (offset < text.length) {
+            const cluster = advance(position);
+            const boundary = cluster?.newEnd ?? clusters[nextCluster]?.newStart ?? Infinity;
+            const length = Math.min(text.length - offset, boundary - position);
+            selectRegion(cluster);
+            append(atom, text.slice(offset, offset + length));
+            position += length;
+            offset += length;
         }
-        if (text.length === 0) emitDelsThrough(pos);
+        if (!text.length) advance(position);
     }
-    emitDelsThrough(pos);
-    closeIns();
-    closeRun();
+    advance(position);
+    closeRegion();
     return { children: out, notes };
 }
 
