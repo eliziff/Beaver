@@ -62,7 +62,7 @@ describe("TRTable", () => {
         expect(screen.getByLabelText("Select Later amendment")).toBeVisible();
     });
 
-    it("edits, reruns and deletes a column from its header menu", () => {
+    it("routes every column header-menu action to its callback", () => {
         const column = { index: 0, name: "Parties", prompt: "Identify parties" };
         const onEditColumn = vi.fn(), onRerunColumn = vi.fn(), onClearColumn = vi.fn(), onDeleteColumn = vi.fn();
         render(<TRTable loading={false} columns={[column]} documents={[doc]} cells={[]} savingColumnsConfig={false}
@@ -70,18 +70,16 @@ describe("TRTable", () => {
             onEditColumn={onEditColumn} onRerunColumn={onRerunColumn} onClearColumn={onClearColumn} onDeleteColumn={onDeleteColumn} />);
         const open = () => fireEvent.click(screen.getByRole("button", { name: "Parties actions" }));
 
-        open();
-        fireEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
-        expect(onEditColumn).toHaveBeenCalledWith(column);
-        open();
-        fireEvent.click(screen.getByRole("menuitem", { name: "Rerun column" }));
-        expect(onRerunColumn).toHaveBeenCalledWith(column);
-        open();
-        fireEvent.click(screen.getByRole("menuitem", { name: "Clear column" }));
-        expect(onClearColumn).toHaveBeenCalledWith(column);
-        open();
-        fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
-        expect(onDeleteColumn).toHaveBeenCalledWith(column);
+        for (const [item, callback] of [
+            ["Edit", onEditColumn],
+            ["Rerun column", onRerunColumn],
+            ["Clear column", onClearColumn],
+            ["Delete", onDeleteColumn],
+        ] as const) {
+            open();
+            fireEvent.click(screen.getByRole("menuitem", { name: item }));
+            expect(callback).toHaveBeenCalledWith(column);
+        }
     });
 
     it("blocks a column rerun while the review is running", () => {

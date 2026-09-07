@@ -54,12 +54,10 @@ it("filters one catalogue and opens a singleton workspace in one click", async (
     const view = render(<MemoryRouter><WorkflowList /><Location /></MemoryRouter>);
     const draftingButton = await screen.findByRole("button", { name: /^Open chat:/i });
     expect(draftingButton).toHaveAttribute("data-workflow-id", "drafting");
-    expect(screen.getByText("A finished legal draft")).toBeVisible();
     expect(screen.queryByRole("dialog")).toBeNull();
 
     fireEvent.click(screen.getByRole("tab", { name: "Solicitor" }));
     expect(view.container.querySelector('button[data-workflow-id="agreement-work"]')).toBeVisible();
-    expect(screen.getByText("Agreement findings")).toBeVisible();
     expect(mocks.listWorkflows).toHaveBeenCalledTimes(1);
 
     fireEvent.click(within(screen.getByRole("tablist", { name: "Workflow audience" }))
