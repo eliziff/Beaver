@@ -57,7 +57,7 @@ const quotationCases = {
     'The Board explained that "the landlord may deliver a written notice to terminate the lease within seven calendar days" before any hearing may be scheduled.', '42',
     'If rent is unpaid, the landlord may deliver a written notice to terminate the lease not less than seven business days after receipt of the notice by the tenant.'),
   missingOne: quotationFindings('missing-1', 'The panel confirmed that "the deadline is seven business days" in every case.', '43',
-    'Municipal liability concerns the design and maintenance of public roads.'),
+    'A different paragraph begins.'),
   missingTwo: quotationFindings('missing-2', 'It added that "an operator bears the whole of the risk" without exception.', '44',
     'Nothing in these reasons addresses the allocation of commercial risk between parties.'),
 };
@@ -149,28 +149,36 @@ try {
   assert.deepEqual(quotationCases.ownerComma, [], 'A quote the cited passage contains is not a finding');
   assert.deepEqual(quotationCases.diacritics, [], 'Diacritics, case and dashes are not differences');
   assert.equal(quotationCases.difference.length, 1);
-  // Same dialog element survives asynchronous review and completion.
+  // The review is an inline step: the same section element survives recheck and completion.
   await page.getByRole('button', { name: 'Review test quotations' }).click();
-  const dialog = page.getByRole('dialog'); await dialog.evaluate(node => { node.dataset.reviewIdentity = 'same-dialog'; });
-  await expect(dialog.getByText('1 / 2')).toBeVisible();
-  await expect(dialog.getByText(/The Board explained that/)).toBeVisible();
-  const compact = await dialog.boundingBox();
-  assert.ok(compact.height < 480, `Dialog is content-sized, not a fixed slab (${compact.height}px)`);
+  const panel = page.getByRole('region', { name: 'Check quotations' });
+  assert.equal(await page.getByRole('dialog').count(), 0, 'The review is a step, not a modal');
+  await panel.evaluate(node => { node.dataset.reviewIdentity = 'same-section'; });
+  await expect(panel.getByText('1 / 2')).toBeVisible();
+  await expect(panel.getByText(/The Board explained that/)).toBeVisible();
   await page.screenshot({ path: path.join(output, 'quotation-desktop.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: path.join(output, 'quotation-mobile.png') });
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole('radio', { name: 'Use the source wording (edits your .docx)' }).check();
   await page.getByRole('button', { name: 'Apply correction' }).click();
   // The two quotations that were not found are one batch, with no per-quote decision.
-  await expect(dialog.getByRole('list').locator('li')).toHaveCount(2);
-  assert.equal(await dialog.getByRole('radio').count(), 0, 'No adjudication for unfound quotations');
-  assert.equal(await dialog.locator('ins,del').count(), 0);
-  await expect(dialog).toHaveAttribute('data-review-identity', 'same-dialog');
+  await expect(panel.getByRole('list').locator('li')).toHaveCount(2);
+  assert.equal(await panel.getByRole('radio').count(), 0, 'No adjudication for unfound quotations');
+  assert.equal(await panel.locator('ins,del').count(), 0);
+  await expect(panel).toHaveAttribute('data-review-identity', 'same-section');
   await page.screenshot({ path: path.join(output, 'quotation-unlocated.png') });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.screenshot({ path: path.join(output, 'quotation-mobile.png') });
-  const footer = await page.getByRole('button', { name: 'Done', exact: true }).boundingBox();
-  assert.ok(footer.y + footer.height < 844 && footer.y > 0, 'Footer stays inside the viewport');
+  // Open source is a button, and it lands the PDF on the paragraph the quotation is missing from.
+  await panel.getByRole('button', { name: 'Open source' }).first().click();
+  const preview = page.getByRole('region', { name: 'Source PDF' });
+  await expect(preview.locator('.pdf-text-highlight').first()).toBeVisible({ timeout: 30_000 });
+  await expect(preview.locator('.pdf-text-highlight').first()).toContainText('A different paragraph');
+  await preview.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: path.join(output, 'quotation-open-source.png') });
+  // Exactly one exit control, in the header.
+  assert.equal(await panel.getByRole('button', { name: 'Done', exact: true }).count(), 1);
   await page.getByRole('button', { name: 'Done', exact: true }).click();
-  await expect(dialog).toHaveCount(0);
+  await expect(panel).toHaveCount(0);
   assert.deepEqual(errors, []);
   await writeFile(path.join(output, 'result.json'), JSON.stringify({ passed: true, preparations, assertions: [
     'left full-paragraph geometry', 'compact excerpts', 'HiDPI raster', 'click-delete-undo-redo',
