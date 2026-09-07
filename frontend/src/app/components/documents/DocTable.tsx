@@ -904,10 +904,6 @@ export function DocTable({
         set("selectedDocIds", [doc.id]);
         openDocument(doc);
     }
-    function handleDocumentRowClick(event: React.MouseEvent<HTMLDivElement>, doc: Document) {
-        if (selectionFirst) selection.select(doc.id, event.shiftKey);
-        else openDocument(doc);
-    }
     function handleDocumentRowDoubleClick(event: React.MouseEvent<HTMLDivElement>,
         doc: Document) {
         if (!selectionFirst || (event.target instanceof Element &&
@@ -1095,7 +1091,7 @@ export function DocTable({
                             onDragOver={(event) => handleDocumentVersionDragOver(event, doc.id)}
                             onDragLeave={handleDocumentVersionDragLeave}
                             onDrop={(event) => handleDocumentVersionDrop(event, doc)}
-                            onClick={(event) => handleDocumentRowClick(event, doc)}
+                            onClick={selectionFirst ? undefined : () => openDocument(doc)}
                             onDoubleClick={(event) => handleDocumentRowDoubleClick(event, doc)}
                             onKeyDown={(event) => handleDocumentRowKeyDown(event, doc)}
                             tabIndex={selectionFirst ? 0 : undefined}
