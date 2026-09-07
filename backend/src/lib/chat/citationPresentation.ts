@@ -41,10 +41,14 @@ function presentLegalEvidenceLocator(
 
 export function presentLegalEvidence(
   entry: RegisteredEvidence,
-  quotes: string[] = entry.receipt.span_text ? [entry.receipt.span_text] : [],
+  allQuotes: string[] = entry.receipt.span_text ? [entry.receipt.span_text] : [],
   locatorLabels: readonly string[] = [entry.receipt.locator.label],
 ): CitationPresentation {
   const { receipt, document } = entry;
+  // Citation groups merge sibling receipts, so `allQuotes` can carry passages
+  // from other blocks. The fragment is planned inside this entry's block, and
+  // a quote that is not in it cannot be located there.
+  const quotes = allQuotes.filter((quote) => receipt.span_text?.includes(quote));
   const source = entry.source ?? document?.native ?? null;
   const retrievedSourceUrl = document?.url ?? receipt.external_url;
   // The ordinary authority link may use CanLII. Passage links must stay on the
@@ -87,7 +91,11 @@ export function presentLegalEvidence(
         )
       : null
     : null;
-  const passageUrl = fragmentSourceUrl && receipt.span_text
+  // A fragment is only ever built against the document whose text verified
+  // the quote. Without it the directive would be spelled blind and paint
+  // whichever passage happens to match first, so fall back to the plain
+  // authority link instead.
+  const passageUrl = fragmentSourceUrl && receipt.span_text && source
     ? rangeUrl ?? a2ajUrl ?? buildLegalSourcePinpointUrl(
           {
             url: fragmentSourceUrl,
@@ -99,7 +107,7 @@ export function presentLegalEvidence(
                 )
               : undefined,
             blockText: receipt.span_text,
-            ...(source && { documentText: source }),
+            documentText: source,
           },
           quotes,
         )
