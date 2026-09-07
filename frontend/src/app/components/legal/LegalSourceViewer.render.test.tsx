@@ -351,7 +351,7 @@ describe("legal source reader", () => {
             fireEvent.blur(screen.getByRole("textbox", { name: "Item note" }));
             await waitFor(() => expect(api.actOnResearchFile.mock.calls.filter(([, , , action]) => action.type === "source"))
                 .toHaveLength(revision > 1 ? 2 : 1));
-            fireEvent.click(screen.getByRole("button", { name: "Done" }));
+            fireEvent.click(screen.getByRole("button", { name: "Close label palette" }));
         }
     });
 
