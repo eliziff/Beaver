@@ -2,6 +2,7 @@ import type { DocumentStore } from "./documentStore";
 import {
   enqueueJob,
   interruptJobs,
+  requestGroupCancellation,
   PermanentJobError,
   type ApplicationJob,
   type JobHandler,
@@ -15,6 +16,9 @@ import { pdfLifecycleMark, pdfLifecyclePhase } from "./pdfLifecycleDiagnostics";
 const SHA256 = /^[a-f0-9]{64}$/u;
 const groupKey = (documentId: string, versionId: string, sourceSha256: string) =>
   `pdf:${documentId}:${versionId}:${sourceSha256}`;
+type PdfSource = { documentId: string; versionId: string; sourceSha256: string };
+export const pdfGroupKey = (input: PdfSource) =>
+  groupKey(input.documentId, input.versionId, input.sourceSha256);
 
 function documentPayload(job: ApplicationJob) {
   const value = job.payload;
@@ -39,7 +43,11 @@ function reprocessPayload(job: ApplicationJob) {
   if (value.layout === null) layout = null;
   else if (value.layout === "local") layout = true;
   else if (value.layout !== undefined) throw new Error("InvalidPdfJob");
-  return { ...base, ocrProvider, layout };
+  // The engine numbers requested pages from one; an empty list means the whole PDF.
+  if (value.pages !== undefined && (!Array.isArray(value.pages) || value.pages.length > 5_000 ||
+      value.pages.some((page) => !Number.isSafeInteger(page) || Number(page) < 1)))
+    throw new Error("InvalidPdfJob");
+  return { ...base, ocrProvider, layout, pages: value.pages as number[] | undefined };
 }
 
 async function preparePdf(
@@ -74,8 +82,12 @@ export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHand
       bytes: content.bytes,
       ...input,
       signal: context.signal,
-      progress: (value: PdfPreparationProgress) => context.progress(value),
+      progress: (value: PdfPreparationProgress) => context.progress(
+        input.ocrProvider ? { ...value, phase: "ocr" } : value),
     });
+    // A page-limited run recognizes a slice for the workspace cache; the document
+    // profile must keep describing the whole PDF.
+    if (input.pages?.length) return { recognized: input.pages.length } as Record<string, number>;
     if (!await documents.recordPdfPreparation({ userId: job.userId }, documentId, {
       versionId: documentVersionId,
       sourceSha256: summary.sourceSha256,
@@ -110,6 +122,28 @@ export function enqueuePdfPreparation(input: {
   }, database);
 }
 
+/** Recognize the pages carrying cited passages before the rest of the scan. */
+export async function enqueueAuthorityOcr(input: PdfSource & {
+  userId: string; citedPages: number[];
+}) {
+  const group = pdfGroupKey(input);
+  const cited = [...new Set(input.citedPages)].filter((page) => page >= 1).sort((a, b) => a - b);
+  const settings = { sourceSha256: input.sourceSha256, ocrProvider: "kraken-lite" as const };
+  const reference = { userId: input.userId, documentId: input.documentId,
+    documentVersionId: input.versionId, groupKey: group, kind: "pdf.reprocess" };
+  if (cited.length) await enqueueJob({ ...reference, priority: 60,
+    dedupeKey: `${group}:ocr:cited:${sha256(JSON.stringify(cited))}`,
+    payload: { ...settings, pages: cited } });
+  const whole = await enqueueJob({ ...reference, priority: 40,
+    dedupeKey: `${group}:ocr:full`, payload: settings });
+  await interruptJobs(group, 40);
+  return { id: whole.id, citedPages: cited.length };
+}
+
+export async function cancelPdfJobs(input: PdfSource & { userId: string }) {
+  return requestGroupCancellation(pdfGroupKey(input), input.userId);
+}
+
 export async function enqueuePdfReprocess(input: {
   userId: string;
   documentId: string;
@@ -125,7 +159,7 @@ export async function enqueuePdfReprocess(input: {
       layout: input.layout ? "local" : null,
     } : {}),
   };
-  const group = groupKey(input.documentId, input.versionId, input.sourceSha256);
+  const group = pdfGroupKey(input);
   const queued = await enqueueJob({
     kind: "pdf.reprocess",
     dedupeKey: `${group}:reprocess:${sha256(JSON.stringify(settings))}`,
