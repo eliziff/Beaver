@@ -292,7 +292,7 @@ it("reuses a canonical typed table result across arrangements without copying it
   const other = await f.createWorkspace("Other analysis");
   await f.sources.bind(owner, other.document.id, { tableId: linked.id });
   const crossReference = { kind: "cell" as const, reviewId: linked.id, rowId: "payment", columnIndex: 0 },
-    imported = await f.sources.finding(owner, other.document.id, crossReference);
+    imported = await (await f.sources.readFindings(owner, other.document.id)).resolve(crossReference);
   expect(imported).toMatchObject({ sourceId: Object.keys(other.state.sources)[0], answer: {
     value: 30, flag: "green", reasoning: "Confirmed from the payment clause." }, evidence: [f.receipt] });
   expect((await f.application.detail(owner, linked.id)).review.scope_config?.research_file_id)

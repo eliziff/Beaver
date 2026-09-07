@@ -1,11 +1,10 @@
-import { ApplicationError, type ApplicationScope } from "./applicationError";
+import { ApplicationError } from "./applicationError";
 import type { ResearchFindingReference } from "./researchFindingReference";
-import type { ChatStore } from "./chatStore";
-import type { DocumentStore } from "./documentStore";
+import type { ChatMessageRecord } from "./chatStore";
 import type { GroundedAnswer, GroundedResult } from "./groundedAnswer";
 import { legalEvidenceResourceReference, priorLegalEvidenceReceipts,
   type LegalEvidenceReceipt } from "./chat/legalEvidence";
-import { readResearchFile, researchSourceResource } from "./researchFile";
+import { type ResearchFile, researchSourceResource } from "./researchFile";
 
 export type ResearchFinding = { reference: ResearchFindingReference; kind: "answer" | "result";
   sourceId: string; resource: string; question: { id: string; title: string; prompt: string; format?: string; tags?: string[] };
@@ -24,19 +23,10 @@ export function selectFindingClaims(finding: ResearchFinding, ref: ResearchFindi
     evidence: finding.evidence.filter(({ evidence_id }) => ids.has(evidence_id)) };
 }
 
-export async function resolveChatFindings(chats: ChatStore, documents: DocumentStore, scope: ApplicationScope,
-  input: { researchFileId: string; chatId: string; messageIds?: string[] }) {
-  const [chat, rows, current] = await Promise.all([chats.get(scope, input.chatId),
-    chats.transcript(scope, input.chatId), readResearchFile(documents, scope, input.researchFileId)]);
-  if (!chat || !rows) throw new ApplicationError(404, "Chat not found");
-  if (!current || !current.state.chats?.includes(chat.id))
-    throw new ApplicationError(400, "This chat has not been saved in the workspace");
-  const file = current,
-    sources = new Map(Object.values(file.state.sources).map((source) => [researchSourceResource(source.reference), source.id])),
-    requested = input.messageIds && new Set(input.messageIds), found = new Set<string>(),
-    findings: Array<{ reference: Extract<ResearchFindingReference, { kind: "answer" }>; kind: "answer";
-      sourceId: string; resource: string; question: { id: string; title: string; prompt: string };
-      answer: GroundedAnswer; evidence: LegalEvidenceReceipt[]; origin: { chatId: string; messageId: string; subagentId?: string } }> = [];
+/** Interpret an authorized transcript against the operation's already-loaded workspace. */
+export function resolveChatFindings(file: ResearchFile, chatId: string, rows: ChatMessageRecord[]) {
+  const sources = new Map(Object.values(file.state.sources).map((source) => [researchSourceResource(source.reference), source.id])),
+    findings: ResearchFinding[] = [];
   // A committed turn may store its user and assistant messages at the same timestamp.
   // Tie ordering must not attach an answer to the previous question.
   const userPrompts = rows.filter((row) => row.role === "user" && typeof row.content === "string"),
@@ -48,7 +38,6 @@ export async function resolveChatFindings(chats: ChatStore, documents: DocumentS
     if (!Array.isArray(row.content)) continue;
     // Earlier reads are reusable support, never findings in their own right.
     for (const receipt of priorLegalEvidenceReceipts(row.content)) byId.set(receipt.evidence_id, receipt);
-    if (requested && !requested.has(row.id)) continue;
     const simultaneous = row.created_at ? userPrompts.filter((user) => user.created_at === row.created_at) : [];
     const questionPrompt = (row.turn_id ? byTurn.get(row.turn_id) : undefined) ??
       (simultaneous.length === 1 ? simultaneous[0].content as string : prompt);
@@ -63,14 +52,13 @@ export async function resolveChatFindings(chats: ChatStore, documents: DocumentS
         const selected = claims.filter((claim) => claim.evidence_ids.some((id) =>
           legalEvidenceResourceReference(byId.get(id)!) === resource)),
           selectedIds = [...new Set(selected.flatMap(({ evidence_ids }) => evidence_ids))];
-        findings.push({ reference: { kind: "answer", chatId: chat.id, answerId, resource },
+        findings.push({ reference: { kind: "answer", chatId, answerId, resource },
           kind, sourceId, resource, question: { id: answerId,
           title: question.slice(0, 100), prompt: question },
           answer: { claims: selected.map(({ text, evidence_ids }) => ({ text, evidence_ids })) },
-          evidence: selectedIds.map((id) => byId.get(id)!), origin: { chatId: chat.id, messageId: row.id,
+          evidence: selectedIds.map((id) => byId.get(id)!), origin: { chatId, messageId: row.id,
             ...(subagentId && { subagentId }) } });
       }
-      found.add(row.id);
     };
     for (const event of row.content) {
       if (event.type === "legal_evidence_receipt" && event.status === "passed" && event.claims.length)
@@ -80,7 +68,5 @@ export async function resolveChatFindings(chats: ChatStore, documents: DocumentS
         append("answer", `${row.id}:reader:${event.id}`, event.task, event.grounding.claims, event.id);
     }
   }
-  if (requested && [...requested].some((id) => !found.has(id)))
-    throw new ApplicationError(400, "A selected message has no recorded grounded answer");
-  return { file, findings };
+  return findings;
 }
