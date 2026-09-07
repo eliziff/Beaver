@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { pageRequest, pageResponse, PageCursorError, type CursorFilters } from "../pagination";
 
 const filters = { scope: "mine", q: "lease" };
-const after = ["2026-08-12T10:00:00.000Z", "project-2"];
+const after = Object.freeze(["2026-08-12T10:00:00.000Z", "project-2"]);
 const cursor = pageResponse("projects", filters, { items: [], nextAfter: after }).next_cursor;
 const read = (value: unknown, resource = "projects", scope: CursorFilters = filters) =>
   pageRequest({ cursor: value }, resource, scope, ["string", "string"]);
