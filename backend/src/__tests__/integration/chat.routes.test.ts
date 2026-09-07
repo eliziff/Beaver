@@ -15,6 +15,10 @@ vi.mock("../../middleware/auth", () => ({
 }));
 
 const CHAT_ID = "10000000-0000-4000-8000-000000000001";
+const contexts = [
+  { kind: "standalone", project_id: undefined },
+  { kind: "project", project_id: "20000000-0000-4000-8000-000000000001" },
+];
 const runTurn = vi.fn();
 let failStream = false;
 
@@ -53,19 +57,20 @@ describe("POST /chat — canonical streaming endpoint", () => {
     failStream = false;
   });
 
-  it("streams one terminal frame after the application claims the turn", async () => {
-    const res = await request(app).post("/chat").send({ ...VALID_BODY, edit_mode: "auto" });
+  it.each(contexts)("streams one terminal frame for a $kind chat", async ({ project_id }) => {
+    const res = await request(app).post("/chat").send({ ...VALID_BODY, project_id, edit_mode: "auto" });
 
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("text/event-stream");
     expect(res.text).toContain('"type":"chat_id"');
     expect(res.text.match(/"type":"transcript_version"/gu)).toHaveLength(1);
     expect(res.text.match(/data: \[DONE\]/gu)).toHaveLength(1);
+    expect(runTurn.mock.calls[0][0].project_id).toBe(project_id);
   });
 
-  it("surfaces a post-header operation failure in-stream with one DONE", async () => {
+  it.each(contexts)("surfaces a $kind chat failure in-stream with one DONE", async ({ project_id }) => {
     failStream = true;
-    const res = await request(app).post("/chat").send(VALID_BODY);
+    const res = await request(app).post("/chat").send({ ...VALID_BODY, project_id });
 
     expect(res.status).toBe(200);
     expect(res.text).toContain('"type":"error"');
