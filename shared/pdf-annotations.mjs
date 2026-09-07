@@ -40,34 +40,8 @@ export function annotationSetForSource(sets, role, sourceSha256) {
   if (!sets || !Object.hasOwn(sets, role)) return undefined;
   const value = decodeAnnotationSet(sets[role]);
   if (value.sourceSha256 !== sourceSha256)
-    throw new Error('This PDF changed. Open Highlights and reset or relocate its annotations before building.');
+    throw new Error('This PDF changed. Return to Sources to review highlights for the replacement PDF before building.');
   return value;
-}
-export function subtractRect(rect, cut) {
-  const [x0,y0,x1,y1] = rect;
-  const left=Math.max(x0,cut[0]), top=Math.max(y0,cut[1]), right=Math.min(x1,cut[2]), bottom=Math.min(y1,cut[3]);
-  if(left>=right || top>=bottom) return [rect];
-  return [[x0,y0,x1,top],[x0,bottom,x1,y1],[x0,top,left,bottom],[right,top,x1,bottom]].filter(validRect);
-}
-export function eraseAnnotations(marks, cuts) {
-  let changed = false;
-  const next = marks.flatMap(mark => {
-    let edited = false;
-    const fragments = mark.fragments.flatMap(fragment => {
-      let rects=fragment.rects;
-      for(const cut of cuts.filter(c => c.pageNumber===fragment.pageNumber)) for(const region of cut.rects)
-        rects=rects.flatMap(rect => {
-          const rest=subtractRect(rect,region);
-          if(rest.length!==1 || rest[0]!==rect) edited=true;
-          return rest;
-        });
-      return rects.length ? [{...fragment,rects}] : [];
-    });
-    if(!edited) return [mark]; changed=true;
-    // Keep the locator but do not misrepresent erased words as part of the remaining quotation.
-    return fragments.length ? [{...mark,excerpt:'',fragments}] : [];
-  });
-  return changed ? next : marks;
 }
 export function markContains(mark, pageNumber, x, y) {
   return mark.fragments.some(f => f.pageNumber===pageNumber &&

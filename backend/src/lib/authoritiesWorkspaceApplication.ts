@@ -973,6 +973,7 @@ export function createAuthoritiesWorkspaceApplication(
           documentId: binding.documentId,
           version: { versionId: version.id, sha256: version.source_sha256 } });
         const state = update(decided, { type: "refresh", review: review(fresh) });
+        state.stage = draft.stage === "citations" ? "citations" : "sources";
         return workProducts.save(scope, id, { revision: input.revision, state });
       }, "The accepted Authorities correction could not be saved");
     },
