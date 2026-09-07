@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Highlighter, MousePointer2, Pencil, Redo2, Trash2, Undo2 } from 'lucide-react';
 import { Modal } from '@/app/components/modals/Modal';
 import { Button } from '@/app/components/ui/button';
+import { StepSection } from './StepSection';
 import { PdfView } from '@/app/components/shared/views/PdfView';
 import type { AnnotationTool } from '@/app/components/shared/views/pdfAnnotationLayer';
 import { cn, errorMessage } from '@/app/lib/utils';
@@ -34,13 +35,13 @@ export function AuthoritiesHighlights({ product, tabs, host, busy, onSaved, prep
   const [open, setOpen] = useState(false);
   const choices = choicesFor(product, tabs);
   if (product.state.outputMode === 'table' || !choices.length) return null;
-  return <section className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-gray-300 bg-white px-4 py-3">
-    <h2 className="font-semibold text-gray-950">Highlights</h2>
-    <Button type="button" variant="outline" disabled={busy || !host.readSource}
-      onClick={() => setOpen(true)}><Highlighter /> Edit in PDF</Button>
+  return <><StepSection title="Highlights" className="mt-3"
+    subtitle={`${choices.length} PDF${choices.length === 1 ? '' : 's'} marked for the passages you cited`}
+    actions={<Button type="button" variant="outline" className="h-9 border-gray-400"
+      disabled={busy || !host.readSource} onClick={() => setOpen(true)}><Highlighter /> Edit in PDF</Button>} />
     {open && <AuthoritiesHighlightEditor product={product} choices={choices} host={host}
       onClose={() => setOpen(false)} onSaved={onSaved} prepared={prepared} />}
-  </section>;
+  </>;
 }
 
 function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, onClose, onSaved, prepared }: {
@@ -154,23 +155,27 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
         else if((event.key==='Delete'||event.key==='Backspace')&&selectedId) {event.preventDefault();remove(selectedId);}
         else if(event.key==='Escape'&&selectedId) {event.preventDefault();event.stopPropagation();setSelectedId(null);}
       }}>
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-gray-200 pb-3">
+        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-gray-300 bg-gray-50 p-2">
           <label className="min-w-48 flex-1"><span className="sr-only">Authority PDF</span>
             <select aria-label="Authority PDF" value={role} disabled={saving||loading}
-              onChange={event=>setRole(event.target.value)} className="h-9 w-full min-w-0 rounded border border-gray-300 bg-white px-2 text-sm">
+              onChange={event=>setRole(event.target.value)} className="h-9 w-full min-w-0 rounded-md border border-gray-400 bg-white px-2 text-sm">
               {choices.map(choice=><option key={choice.bindingRole} value={choice.bindingRole}>{choice.title}</option>)}
             </select></label>
-          {([{value:'select',label:'Select',Icon:MousePointer2},{value:'highlight',label:'Highlight text',Icon:Highlighter},
-            {value:'draw',label:'Draw highlight',Icon:Pencil}] as const).map(({value,label,Icon})=><Button key={value}
-              type="button" variant={tool===value?'default':'outline'} aria-pressed={tool===value} disabled={disabled}
-              onClick={()=>setTool(value)} className="h-9"><Icon />{label}</Button>)}
-          <Button type="button" variant="outline" size="icon-sm" aria-label="Delete selected highlight"
-            disabled={disabled || !selectedId} onClick={() => selectedId && remove(selectedId)}><Trash2 /></Button>
-          <Button type="button" variant="outline" size="icon-sm" aria-label="Undo" disabled={disabled||!current?.position} onClick={undo}><Undo2 /></Button>
-          <Button type="button" variant="outline" size="icon-sm" aria-label="Redo" disabled={disabled||current.position>=current.history.length-1} onClick={redo}><Redo2 /></Button>
+          <div role="group" aria-label="Highlight tool" className="flex items-center gap-1 rounded-md border border-gray-300 bg-white p-1">
+            {([{value:'select',label:'Select',Icon:MousePointer2},{value:'highlight',label:'Highlight text',Icon:Highlighter},
+              {value:'draw',label:'Draw highlight',Icon:Pencil}] as const).map(({value,label,Icon})=><Button key={value}
+                type="button" variant={tool===value?'default':'ghost'} aria-pressed={tool===value} disabled={disabled}
+                onClick={()=>setTool(value)} className="h-8"><Icon />{label}</Button>)}
+          </div>
+          <div className="flex items-center gap-1 border-gray-300 md:border-s md:ps-3">
+            <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Delete selected highlight"
+              disabled={disabled || !selectedId} onClick={() => selectedId && remove(selectedId)}><Trash2 /></Button>
+            <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Undo" disabled={disabled||!current?.position} onClick={undo}><Undo2 /></Button>
+            <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Redo" disabled={disabled||current.position>=current.history.length-1} onClick={redo}><Redo2 /></Button>
+          </div>
         </div>
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(16rem,1fr)_minmax(8rem,.45fr)] md:grid-cols-[minmax(0,1fr)_19rem] md:grid-rows-1">
-          <div className="flex min-h-0 min-w-0 pt-3 md:pr-3">
+          <div className="mt-3 flex min-h-0 min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-gray-100 md:mr-3">
             {current ? <PdfView key={role} doc={null} bytes={current.bytes} rounded={false} ariaLabel="Authority PDF editor"
               annotationEditor={{marks,tool,selectedId,focus,disabled,
                 onSelect:setSelectedId,onCreate:(fragments,text)=>{
@@ -179,20 +184,24 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
                 }}} />
               : <div className="grid min-h-48 flex-1 place-items-center bg-gray-100 text-sm text-gray-600" role="status">{loading?'Preparing PDF…':'PDF unavailable'}</div>}
           </div>
-          <aside aria-label="Highlights" className="min-h-0 overflow-y-auto border-t border-gray-200 py-3 md:border-l md:border-t-0 md:pl-3">
-            {current?.warning && <p role="alert" className="mb-3 text-sm text-amber-900">{current.warning}</p>}
+          <aside aria-label="Highlights" className="mt-3 flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-300">
+            <h3 className="flex items-baseline justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-950">
+              Highlights<span className="text-xs font-normal text-gray-600">{marks.length}</span></h3>
+            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+            {current?.warning && <p role="alert" className="mb-2 rounded-md border border-gray-300 bg-gray-50 px-2.5 py-2 text-sm text-red-800">{current.warning}</p>}
             <ul className="space-y-1">{marks.map(mark=><li key={mark.id}
               ref={node=>{if(node)cardRefs.current.set(mark.id,node);else cardRefs.current.delete(mark.id);}}
-              className={cn('flex rounded border',mark.id===selectedId?'border-red-700 bg-red-50':'border-gray-200 bg-white')}>
+              className={cn('flex rounded-md border',mark.id===selectedId?'border-red-700 bg-red-50':'border-gray-200 bg-white hover:border-gray-400')}>
               <button type="button" aria-pressed={mark.id===selectedId} className="min-w-0 flex-1 px-2.5 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-red-600"
                 onClick={()=>{setSelectedId(mark.id);setFocus(value=>({id:mark.id,request:(value?.request??0)+1}));}}>
-                <span className="flex items-center justify-between gap-2 text-xs font-medium">{mark.label}<span className="shrink-0 text-gray-500">p {mark.fragments.map(f=>f.pageNumber).join(", ")}</span></span>
-                {mark.excerpt && <span className="mt-1 line-clamp-2 text-xs leading-5 text-gray-700">{mark.excerpt}</span>}
+                <span className="flex items-baseline justify-between gap-2 text-sm font-medium text-gray-950">{mark.label}<span className="shrink-0 text-xs font-normal text-gray-500">p {mark.fragments.map(f=>f.pageNumber).join(", ")}</span></span>
+                {mark.excerpt && <span className="mt-0.5 line-clamp-2 text-xs leading-5 text-gray-600">{mark.excerpt}</span>}
               </button>
               <Button type="button" variant="ghost" size="icon-sm" className="m-1 shrink-0" disabled={disabled}
                 aria-label={`Delete ${mark.label}`} onClick={()=>remove(mark.id)}><Trash2 /></Button>
             </li>)}</ul>
-            {!marks.length && current && <p className="py-4 text-sm text-gray-500">No highlights. Select text or draw on the PDF to add one.</p>}
+            {!marks.length && current && <p className="px-1 py-4 text-sm text-gray-500">No highlights. Select text or draw on the PDF to add one.</p>}
+            </div>
           </aside>
         </div>
       </div>
