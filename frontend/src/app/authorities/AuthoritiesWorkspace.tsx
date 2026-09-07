@@ -847,7 +847,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         onContinue={finishSourceReview} />}
       <Modal open={stubWarning} onClose={() => setStubWarning(false)} size="md"
         breadcrumbs={["Missing PDFs"]} fit
-        secondaryAction={{ label: "Back", onClick: () => setStubWarning(false) }}
+        secondaryAction={{ label: "Cancel", onClick: () => setStubWarning(false) }}
         primaryAction={{ label: "Build anyway", disabled: busy, onClick: () => {
           setStubWarning(false);
           act({ type: "set-settings", settings: { allowIncomplete: true } },
