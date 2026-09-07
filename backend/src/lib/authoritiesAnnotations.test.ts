@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFNumber, StandardFonts, degrees } from 'pdf-lib';
 import * as pdf from 'pdf-lib';
 import { ANNOTATION_SCHEMA, annotationSetForSource, decodeAnnotationSet, emptyAnnotationSet,
-  eraseAnnotations, rectToPdfQuad, subtractRect, type PdfAnnotation, type PdfAnnotationSet } from 'mike/shared/pdf-annotations.mjs';
+  rectToPdfQuad, type PdfAnnotation, type PdfAnnotationSet } from 'mike/shared/pdf-annotations.mjs';
 import { initialAuthorityAnnotations, writeAuthorityAnnotations } from './authoritiesAnnotations';
 import { buildAuthorities, prepareAuthorityAnnotations } from './authoritiesBuild';
 import { createAuthoritiesDraft, decodeAuthoritiesDraft, reduceAuthoritiesDraft, type AuthoritiesDraft } from './authoritiesDomain';
@@ -80,16 +80,7 @@ describe('persistent visual PDF annotations',()=>{
     expect(()=>reduceAuthoritiesDraft(edited,action(set('f'.repeat(64))))).toThrow(/changed/);
     expect(edited.authorities.case.annotations?.['case-en'].sourceSha256).toBe(hash);
   });
-  it('erases part of a paragraph, preserves untouched highlights, and leaves an undoable original',()=>{
-    const before=[mark(),{...mark('two'),fragments:[{pageNumber:2,rects:[[.1,.2,.9,.4] as [number,number,number,number]]}]}];
-    const next=eraseAnnotations(before,[{pageNumber:1,rects:[[.1,.3,.9,.4]]}]);
-    expect(next[0].fragments[0].rects).toEqual([[.1,.2,.9,.3]]);expect(next[0].excerpt).toBe('');
-    expect(next[1]).toBe(before[1]);expect(before[0]).toEqual(mark());
-    expect(eraseAnnotations([mark()],[{pageNumber:1,rects:[[0,0,1,1]]}])).toEqual([]);
-  });
-  it('subtracts area without covering a hole and preserves quad corners for every crop rotation',()=>{
-    const parts=subtractRect([0,0,1,1],[.2,.3,.8,.7]);
-    expect(parts.reduce((area,[x0,y0,x1,y1])=>area+(x1-x0)*(y1-y0),0)).toBeCloseTo(.76);
+  it('preserves quad corners for every crop rotation',()=>{
     const crop={x:10,y:20,width:400,height:600},r:[number,number,number,number]=[.1,.2,.3,.4];
     expect(rectToPdfQuad(r,crop,0)).toEqual([50,500,130,500,50,380,130,380]);
     expect(rectToPdfQuad(r,crop,90)).toEqual([90,80,90,200,170,80,170,200]);
@@ -133,4 +124,33 @@ describe('persistent visual PDF annotations',()=>{
     const value=mark();value.fragments[0].pageNumber=2;
     expect(()=>writeAuthorityAnnotations(pdf,document,set('a'.repeat(64),[value]),'source')).toThrow(/missing PDF page/);
   });
+});
+
+it('places one paragraph line to the left of its complete extent', () => {
+  const hash = 'a'.repeat(64), input = geometry(hash);
+  input.targets[0].pages[0].passageRects = [[40, 40, 320, 60], [50, 65, 300, 110], [50, 115, 300, 180]];
+  const result = initialAuthorityAnnotations({ sourceSha256: hash, style: 'margin', geometry: input,
+    pages: [{ width: 400, height: 500 }], citedPages: new Set() });
+  const lines = result.annotations.marks.filter(mark => mark.kind === 'margin');
+  expect(lines).toHaveLength(1);
+  expect(lines[0].fragments).toHaveLength(1);
+  lines[0].fragments[0].rects[0].forEach((value, i) => expect(value).toBeCloseTo([33/400, 40/500, 35/400, 180/500][i]));
+});
+
+it('populates compact paragraph cards directly from prepared PDF text', () => {
+  const source = geometry('a'.repeat(64)); source.targets[0].pages[0].text = '[42] First sentence. Second sentence.';
+  const result = initialAuthorityAnnotations({sourceSha256: source.sourceSha256, style:'margin', geometry:source,
+    pages:[{width:400,height:500}], citedPages:new Set()});
+  expect(result.annotations.marks[0].excerpt).toBe('[42] First sentence. Second sentence.');
+});
+it('keeps a cross-page quotation as a single editable mark', () => {
+  const source = geometry('a'.repeat(64));
+  source.targets[0].pages.push({...source.targets[0].pages[0],pageNumber:2});
+  source.targets[0].quotes = [{text:'A quotation across pages',status:'found',rects:[],
+    fragments:[{pageNumber:1,rects:[[50,400,200,415]]},{pageNumber:2,rects:[[50,40,200,55]]}]}];
+  const result = initialAuthorityAnnotations({sourceSha256:source.sourceSha256,style:'text',geometry:source,
+    pages:[{width:400,height:500},{width:400,height:500}],citedPages:new Set()});
+  expect(result.annotations.marks).toHaveLength(1);
+  expect(result.annotations.marks[0].fragments.map(f=>f.pageNumber)).toEqual([1,2]);
+  expect(result.unresolved).toEqual([]);
 });

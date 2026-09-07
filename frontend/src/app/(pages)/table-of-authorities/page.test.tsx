@@ -366,7 +366,7 @@ describe("Authorities UI contracts", () => {
       route={workspaceRoute()} /></MemoryRouter>);
 
     await userEvent.click(screen.getByRole("button", { name: "Settings" }));
-    expect(screen.getByRole("radio", { name: /Right-margin marker and exact quote/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /Paragraph line and exact quote/ })).toBeChecked();
     expect(screen.queryByRole("radio", { name: /No passage marks/ })).not.toBeInTheDocument();
   });
 
@@ -861,13 +861,13 @@ describe("Authorities UI contracts", () => {
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
 
-    expect(await screen.findByText("Quotation difference")).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: "Review quotation difference" }));
+    expect(await screen.findByText("Check quotation")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Review quotation" }));
     expect(screen.getByText((_text, node) => node?.tagName === "P" && node.textContent === "the authored words")).toBeVisible();
     expect(screen.getByText((_text, node) => node?.tagName === "P" && node.textContent === "the source words")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Use source wording" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("radio", { name: "Mark the quotation’s edits with brackets and ellipses" }));
-    await userEvent.click(screen.getByRole("button", { name: "Apply choice" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Mark edits with brackets and ellipses" }));
+    await userEvent.click(screen.getByRole("button", { name: "Apply correction" }));
     await waitFor(() => expect(api.resolveAuthoritiesDiscrepancy).toHaveBeenCalledWith(
       "draft-1", { id: findingId, action: "quote_editorial", revision: 1 }));
     expect(await screen.findByText("Source corrected and draft refreshed")).toBeVisible();
@@ -1533,4 +1533,32 @@ describe("Authorities UI contracts", () => {
     expect(screen.getByRole("complementary", { name: "Assistant dock" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Assistant" })).toBeEnabled();
   });
+});
+
+it("reviews missing highlight locations before opening the editor without saving guessed or unreviewed marks", async () => {
+  let current = draft(); current.state.stage = "sources"; current.state.outputMode = "book";
+  add(current, authority("case", "Example", attachedSource("case-en", "case.pdf", "a", null, "reconstructed")));
+  api.getWorkProduct.mockResolvedValue(current);
+  const host = { ...beaverAuthoritiesHost,
+    readSource: vi.fn(async () => new Blob(["synthetic source"])),
+    prepareHighlights: vi.fn(async () => undefined),
+    prepareAnnotations: vi.fn(async () => ({ annotations: { schemaVersion: "beaver.pdf-annotations.v1" as const,
+      sourceSha256: "a".repeat(64), marks: [] }, unresolved: [{ label: "para 42 · Quote", excerpt: "Unlocated quoted words" }] })),
+    act: vi.fn(async (_id: string, _revision: number, action: import("@/app/authorities/types").AuthoritiesAction) => {
+      current = structuredClone(current); current.revision++;
+      if (action.type === "set-settings") Object.assign(current.state.settings, action.settings);
+      if (action.type === "set-stage") current.state.stage = action.stage;
+      return current;
+    }),
+  };
+  render(<MemoryRouter><AuthoritiesWorkspace host={host} route={workspaceRoute("draft-1")} /></MemoryRouter>);
+  await userEvent.click(await screen.findByRole("button", { name: "Done — review highlights" }));
+  expect(await screen.findByText("Unlocated quoted words")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Edit in PDF" })).not.toBeInTheDocument();
+  expect(current.state.stage).toBe("sources");
+  expect(current.state.authorities.case.annotations).toBeUndefined();
+  await userEvent.click(screen.getByRole("button", { name: "Continue to highlights" }));
+  expect(await screen.findByRole("button", { name: "Edit in PDF" })).toBeVisible();
+  expect(current.state.stage).toBe("highlights");
+  expect(host.act.mock.calls.some(([, , action]) => action.type === "set-annotations")).toBe(false);
 });

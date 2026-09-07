@@ -119,6 +119,7 @@ describe("standalone Authorities runtime", () => {
         sourceTextSha256: sha256(Buffer.from(fresh.units[1].text)) });
       return fresh;
     });
+    state.stage = "sources";
     const correctionApp = express(); correctionApp.use(express.json());
     correctionApp.use("/authorities-runtime", createAuthoritiesRuntimeRouter((_req, _res, next) => next(),
       resolveSources, async () => [finding]));
@@ -141,6 +142,7 @@ describe("standalone Authorities runtime", () => {
     const refreshed = JSON.parse(String(form.get("draft"))) as AuthoritiesDraft;
 
     expect(xml).toContain("at para 20");
+    expect(refreshed.stage).toBe("sources");
     expect(refreshed.import).toMatchObject({ filename: "Factum corrected.docx" });
     expect(refreshed.discrepancyDecisions).toEqual({ [id]: "pinpoint" });
     expect(refreshed.bindings.source).toMatchObject({ kind: "local-file",

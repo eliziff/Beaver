@@ -241,6 +241,7 @@ export function createAuthoritiesRuntimeRouter(
       occurrences: fresh.occurrences, authorities: fresh.authorities,
       authorityOrder: fresh.authorityOrder,
     } });
+    state.stage = current.stage === "citations" ? "citations" : "sources";
     await sendMultipart(res, { draft: state }, [{ role: "source", filename: "source.docx",
       mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", bytes }]);
   }));
