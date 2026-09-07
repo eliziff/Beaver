@@ -1,4 +1,6 @@
 import { footnotePropositions, markedQuotations, singleSourceFootnote } from "./authoritiesQuotations";
+import { legalSourceLocatorAnchor, sourceUrl as legalSourceUrl } from "./legalSourceLinks";
+import type { A2AJLocatorKind } from "./legalSources/a2aj";
 import {
   authoritiesBookPdfs,
   attachedAuthoritySources,
@@ -223,8 +225,17 @@ function authoritySourceUrl(authority: AuthorityIdentity) {
     ? authority.source.sources.find(({ sourceUrl }) => sourceUrl)?.sourceUrl ?? null
     : authority.source.kind === "pending-canlii" ? authority.source.pageUrl
       : authority.sourceIdentity?.externalUrl ?? null;
-  try { return value && ["http:", "https:"].includes(new URL(value).protocol) ? value : null; }
-  catch { return null; }
+  if (!value) return null;
+  // Same canonicalization every other legal link gets: the Decisia iframe and
+  // mobile parameters without which the document text never renders, the
+  // CanLII PDF and Justice Laws path rewrites, and the pinpoint anchor when
+  // the authority cites exactly one.
+  const [locator] = authority.locators;
+  const only = authority.locators.length === 1 && locator &&
+    ["paragraph", "page", "section"].includes(locator.kind)
+    ? legalSourceLocatorAnchor(value, locator.kind as A2AJLocatorKind, locator.label)
+    : undefined;
+  return legalSourceUrl(value, only);
 }
 
 function freePublicDatabaseReference(authority: AuthorityIdentity) {
