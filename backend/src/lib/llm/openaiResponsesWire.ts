@@ -15,6 +15,7 @@ type OpenAIClient = {
 };
 type OpenAIConstructor = new (options: {
   apiKey: string; baseURL: string; maxRetries: number;
+  defaultHeaders?: Record<string, string>;
 }) => OpenAIClient;
 const openAI = runtimeConstructor<OpenAIConstructor>("openai");
 
@@ -25,6 +26,7 @@ type ResponsesWireConfig = {
   provider: string;
   persistent: boolean;
   promptCacheKey: string;
+  headers?: Record<string, string>;
   reasoningSummary?: boolean;
   serviceTier?: string;
   nativeCompaction?: boolean;
@@ -101,7 +103,8 @@ export function createResponsesWireAdapter(
   config: ResponsesWireConfig,
 ): ProviderAdapter {
   const client = openAI.then((OpenAI) =>
-    new OpenAI({ apiKey: config.apiKey, baseURL: config.baseURL, maxRetries: 0 }));
+    new OpenAI({ apiKey: config.apiKey, baseURL: config.baseURL, maxRetries: 0,
+      defaultHeaders: config.headers }));
   const initial = input(params.messages);
   return {
     provider: config.provider,

@@ -24,6 +24,7 @@ type AnthropicClient = {
 };
 type AnthropicConstructor = new (options: {
   apiKey: string; baseURL: string; maxRetries: number;
+  defaultHeaders?: Record<string, string>;
 }) => AnthropicClient;
 const anthropic = runtimeConstructor<AnthropicConstructor>("@anthropic-ai/sdk");
 
@@ -69,6 +70,7 @@ type AnthropicWireConfig = {
   model?: string;
   provider?: string;
   adaptiveThinking?: boolean;
+  headers?: Record<string, string>;
 };
 
 export function createAnthropicWireAdapter(
@@ -83,6 +85,7 @@ export function createAnthropicWireAdapter(
       apiKey,
       baseURL: config.baseURL ?? "https://api.anthropic.com",
       maxRetries: 0,
+      defaultHeaders: config.headers,
     }));
   const initial = messages(params.messages, nativeCompaction);
   return {

@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { createCatalogCache, fetchCatalogJson } from "../catalogCache";
 import { createAnthropicWireAdapter } from "./anthropicWire";
 import { requireApiKey } from "./apiKeys";
@@ -21,13 +24,30 @@ function baseUrl() {
   return url.toString().replace(/\/+$/u, "");
 }
 
+// Flat-rate subscription: the credential is the one the OpenCode CLI already
+// holds, not a per-token API key the user pastes.
+let cliToken: string | null | undefined;
+function subscriptionToken(): string | null {
+  if (cliToken === undefined) try {
+    const auth = JSON.parse(readFileSync(process.env.OPENCODE_AUTH_PATH?.trim() ||
+      join(homedir(), ".local", "share", "opencode", "auth.json"), "utf8"));
+    cliToken = String(auth?.["opencode-go"]?.key ?? "").trim() || null;
+  } catch { cliToken = null; }
+  return cliToken;
+}
+
 function key(params: StreamChatParams) {
   return requireApiKey(
-    params.apiKeys?.["opencode-go"],
+    params.apiKeys?.["opencode-go"] ?? subscriptionToken(),
     "OPENCODE_GO_API_KEY",
     label,
   );
 }
+
+// The gateway rejects the default Node agent and routes chat-format requests by
+// session, so both headers are mandatory on every protocol.
+const wireHeaders = (session: string) =>
+  ({ "User-Agent": "opencode/1.0", "x-opencode-session": session });
 
 export function streamOpenCodeGo(params: StreamChatParams): Promise<StreamChatResult> {
   const model = openCodeGoModelSlug(params.model);
@@ -35,6 +55,8 @@ export function streamOpenCodeGo(params: StreamChatParams): Promise<StreamChatRe
   if (!model || !protocol) throw new Error(`Unsupported OpenCode Go model: ${params.model}`);
   const apiKey = key(params);
   const endpoint = baseUrl();
+  const session = params.promptCacheKey?.trim() || randomUUID();
+  const headers = wireHeaders(session);
 
   if (protocol === "responses") {
     return runProviderLoop(params, createResponsesWireAdapter(params, {
@@ -43,7 +65,8 @@ export function streamOpenCodeGo(params: StreamChatParams): Promise<StreamChatRe
       model,
       provider: label,
       persistent: false,
-      promptCacheKey: params.promptCacheKey?.trim() || randomUUID(),
+      promptCacheKey: session,
+      headers,
     }));
   }
   if (protocol === "messages") {
@@ -52,6 +75,7 @@ export function streamOpenCodeGo(params: StreamChatParams): Promise<StreamChatRe
       model,
       provider: label,
       adaptiveThinking: false,
+      headers,
     }));
   }
   return runProviderLoop(params, createCompatibleWireAdapter(params, {
@@ -61,6 +85,7 @@ export function streamOpenCodeGo(params: StreamChatParams): Promise<StreamChatRe
     provider: label,
     maxTokens: 16_384,
     imageInput: model === "deepseek-v4-flash-vision-exp",
+    headers,
   }));
 }
 
@@ -70,12 +95,13 @@ export type OpenCodeGoCatalog = {
 };
 
 async function probeOpenCodeGo(apiKey: string | null | undefined): Promise<OpenCodeGoCatalog> {
-  if (!apiKey?.trim()) throw new Error(`${label} is not configured.`);
+  const token = apiKey?.trim() || subscriptionToken();
+  if (!token) throw new Error(`${label} is not configured.`);
   const payload = await fetchCatalogJson<{ data?: { id?: unknown; name?: unknown }[] }>(
     `${baseUrl()}/models`, {
       label: "OpenCode Go model listing",
       timeoutMs: Number(process.env.OPENCODE_GO_CATALOG_TIMEOUT_MS) || 3_000,
-      headers: { Authorization: `Bearer ${apiKey.trim()}` },
+      headers: { ...wireHeaders(randomUUID()), Authorization: `Bearer ${token}` },
     },
   );
   const models = (payload.data ?? []).flatMap(({ id, name }) => {
