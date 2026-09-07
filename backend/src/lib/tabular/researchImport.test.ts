@@ -32,7 +32,8 @@ function fixture() {
   state.labels = Object.fromEntries([[topic, "Contract", null, "source"], [notice, "Notice", null, "highlight"],
     [payment, "Payment", null, "highlight"]].map(([id, name, parentId, scope]) => [id,
       { id, name, parentId, order: 0, color: null, scope }])) as typeof state.labels;
-  state.sources[sourceId] = { id: sourceId, reference, labelIds: [topic], badge: "", note: "Master agreement",
+  state.sources[sourceId] = { id: sourceId, reference, labelIds: [topic],
+      note: "Master agreement",
     passages: { count: 2, sha256: sha256(bytes), labelCounts: { [notice]: 1, [payment]: 1 }, unlabelledCount: 0 } };
   const file = { document: { id: "workspace" }, state, versionId: "v1", workingRevision: 0 } as ResearchFile,
     documents = { readParts: async () => [{ name: `source.${sourceId}.json`, bytes, sha256: sha256(bytes) }] } as unknown as DocumentStore,
@@ -76,7 +77,8 @@ it("never silently drops rows when a conversion exceeds its bound", () => {
   const f = fixture(), subjects = Array.from({ length: 500 }, (_, index) => {
     const id = `s${index}`;
     f.file.state.sources[id] = { id, reference: { provider: "a2aj", id: `case-${index}`, kind: "case",
-      citation: `Case ${index}` }, labelIds: [], badge: "", note: "", passages: null };
+      citation: `Case ${index}` }, labelIds: [],
+      note: "", passages: null };
     return { sourceId: id, resource: `source://a2aj/${index}`, reference: f.file.state.sources[id].reference };
   });
   const result = researchTableArrangement(f.file, subjects, new Map(), [], { rows: "sources" });

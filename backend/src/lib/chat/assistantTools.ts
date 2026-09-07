@@ -224,8 +224,8 @@ const documentOperationTool = (research = true): Tool & BeaverToolPolicy => ({
       "query may instead use rules:[{phrase,direction:'before'|'after'|'around',unit:'sentence'|'line'|'paragraph'|'chars',chars?,slot}] where slot is a returned highlight label_id, and conflict; rules also support after; incomplete coverage is never exhaustive; " +
       "{type:'label',name,definition?,parentId?,color?:'#RRGGBB',order?,scope:'source'|'highlight'} creates a label: omit id, " +
       "then use returned label_id for child parentId and later labelIds; supply id only to edit; " +
-      "{type:'source',reference:{provider,id,kind,...},labelIds?,badge?,note?} for a current search result returns source_id; " +
-      "{type:'annotate',kind:'source',id,labelIds?,badge?,note?} or " +
+      "{type:'source',reference:{provider,id,kind,...},labelIds?,note?} for a current search result returns source_id; " +
+      "{type:'annotate',kind:'source',id,labelIds?,note?} or " +
       "{type:'annotate',kind:'evidence',id,sourceId,labelIds?,note?}; " +
       "{type:'label-selection',target:'sources'|'passages',sourceIds?,evidenceIds?,labelIds?,unlabelled?,assign:[labelId],mode:'add'|'remove'|'replace'} labels a selected group; " +
       "{type:'remove',kind:'label'|'source',id} or {type:'remove',kind:'evidence',id,sourceId}; " +
