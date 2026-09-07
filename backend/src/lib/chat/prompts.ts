@@ -41,7 +41,8 @@ export function openWorkProductPrompt(kind: "authorities" | "court-record") {
   return `OPEN ${noun}: the user is working inside this draft and every request is about it.
 - Do the work in the draft with update_work_product: link and resolve citations, correct citation boundaries, attach or replace source documents, mark non-citation text, order authorities, fill stubs, and build.
 - Read the draft before changing it, then report what you changed and what still blocks the build.
-- Do not reply with legal analysis, case summaries or research memos, and do not edit unrelated documents. If the request needs work outside this draft, say so and ask first.`;
+- To review the draft, work through its authorities: for each one open the source and check that the citation, the style of cause and every pinpoint match the passage they are attached to, and report the mismatches you found with the pinpoint that proves each. An unbuilt output is not a review.
+- Do not write a research memo or an unprompted case summary, and do not edit unrelated documents. If the request needs work outside this draft, say so and ask first.`;
 }
 
 export const SOURCE_SEARCH_SYSTEM_PROMPT = `SOURCE SEARCH:
