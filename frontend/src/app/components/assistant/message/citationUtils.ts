@@ -17,12 +17,15 @@ export function preprocessCitations(
     citations: Map<number, Citation>,
     inlineCitationTargets: Citation[],
 ): string {
+    const cited = new Set<number>();
     return text.replace(/\[(?:\d+(?:,\s*\d+)*)\](?:\s*\[(?:\d+(?:,\s*\d+)*)\])*/g, (full) => {
         const selected = (full.match(/\d+/g) ?? [])
             .flatMap((ref) => citations.get(Number(ref)) ?? []);
         const tokens = selected.map((citation) => {
             const idx = inlineCitationTargets.length;
-            inlineCitationTargets.push(citation);
+            inlineCitationTargets.push(cited.has(citation.ref)
+                ? { ...citation, display_form: "supra" as const } : citation);
+            cited.add(citation.ref);
             return [`\`§${idx}§\`\u200B`];
         });
         return tokens.length > 0 ? tokens.join("") : full;
