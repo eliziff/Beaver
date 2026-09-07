@@ -179,7 +179,7 @@ export async function readResearchWorkspace(documents: DocumentStore, scope: App
       if (category === 5) return { kind, change_index: index + 1, ...changes.get(index) };
       if (category === 2) { const source = sources[index]; return { kind, source_index: index + 1,
         sourceId: source.id, resource: researchSourceResource(source.reference), reference: source.reference,
-        labelIds: source.labelIds, badge: source.badge, ...(source.badgeColor ? { badgeColor: source.badgeColor } : {}), note: source.note }; }
+        labelIds: source.labelIds, note: source.note }; }
       if (category === 3) { const query = queries.get(index)!; return { kind, search_index: index + 1,
         query_id: query.query_id, executed_at: query.executed_at, tool: query.tool, input: query.input,
         results: query.results, [query.tool === "search_sources" ? "result_source_ids" : "attempted_source_ids"]: query.sourceIds,

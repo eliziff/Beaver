@@ -95,7 +95,7 @@ describe("DocumentSidePanel document removal", () => {
         },
         sources: { baker: { id: "baker", collected: true, reference: { provider: "canlii",
           id: "1999canlii699", kind: "case", title: "Baker v Canada",
-          citation: "[1999] 2 SCR 817" }, labelIds: ["hearing"], badge: "",
+          citation: "[1999] 2 SCR 817" }, labelIds: ["hearing"],
           note: "Leading procedural fairness authority.",
           passages: { count: 1, sha256: "a".repeat(64), labelCounts: {}, unlabelledCount: 1 } } },
         queries: { count: 1, sha256: "b".repeat(64) },
@@ -157,7 +157,8 @@ describe("DocumentSidePanel document removal", () => {
     ])), sources = Object.fromEntries(Array.from({ length: 41 }, (_, index) => [
       `source-${index}`, { id: `source-${index}`, collected: true, reference: { provider: "canlii",
         id: `case-${index}`, kind: "case", title: `Source ${index}` },
-        labelIds: index ? [] : ["label-0"], badge: "", note: index ? "" : `Source note ${long} SOURCE_NOTE_TAIL`,
+        labelIds: index ? [] : ["label-0"],
+      note: index ? "" : `Source note ${long} SOURCE_NOTE_TAIL`,
         passages: index ? null : { count: 41, sha256: "c".repeat(64), labelCounts: { "label-21": 41 }, unlabelledCount: 0 } },
     ]));
     api.getResearchFile.mockResolvedValue({ document: researchDocument,

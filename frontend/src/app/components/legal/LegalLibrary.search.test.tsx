@@ -216,7 +216,7 @@ describe("LegalLibraryPage search", () => {
             state: { schemaVersion: "beaver.research.v2", labels: {
                 key: { id: "key", name: "Key authority", parentId: null,
                     color: "#1d4ed8", order: 0, scope: "source" },
-            }, sources: { saved: { id: "saved", labelIds: ["key"], badge: "Key",
+            }, sources: { saved: { id: "saved", labelIds: ["key"],
                 note: "", reference: { provider: "a2aj", id: "2024-scc-1",
                     kind: "case", title: "Example v Test", citation: "2024 SCC 1",
                     collection: "SCC", language: "en" }, passages: null } },

@@ -79,7 +79,7 @@ the same behavior is implemented twice.
 
 The optional memo uses normal-looking linked citations rather than Cite chips, with
 bold, italics, underline, lists, headings and tables. Sources and saved passages
-can be dragged into it or inserted with Insert citation. Humans and models update the same
+can be dragged into it. Humans and models update the same
 memo through research operations; stale memo writes must not overwrite newer text.
 Workspace navigation and memo recovery follow the
 [behavior contract](../current/behavior-contracts.md#sources-workspace).

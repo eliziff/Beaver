@@ -23,7 +23,8 @@ function fixture() {
   state.labels = Object.fromEntries([[root, "Obligations", null], [first, "Notice", root],
     [second, "Payment", root]].map(([id, name, parentId]) => [id, { id, name, parentId,
       order: 0, color: null, scope: "highlight" }])) as typeof state.labels;
-  state.sources[sourceId] = { id: sourceId, reference, labelIds: [], badge: "", note: "",
+  state.sources[sourceId] = { id: sourceId, reference, labelIds: [],
+      note: "",
     passages: { count: 2, sha256: sha256(bytes), labelCounts: { [first]: 1, [second]: 1 }, unlabelledCount: 0 } };
   state.chats = ["chat-1"];
   const file = { document: { id: "workspace" }, state, versionId: "v1", workingRevision: 0 } as ResearchFile,
