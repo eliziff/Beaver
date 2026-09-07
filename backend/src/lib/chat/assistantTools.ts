@@ -2672,8 +2672,7 @@ export function assistantTools<Context extends {
       } else issues.push({ role, status: item.status, reason: item.reason,
         work_product_id: item.workProductId, refreshable: false });
     }
-    // Freshness is the built output's, not the draft's: as "freshness:
-    // unbuilt" it was read back to the user as an absent draft.
+    // Freshness is the output's, not the draft's: as "unbuilt" it read back as an absent draft.
     return { output_freshness: resolution.freshness, input_issue_count: issues.length,
       input_issues: issues.slice(0, 50), input_issues_truncated: issues.length > 50 };
   };
