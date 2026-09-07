@@ -10,6 +10,7 @@
         "audit:court-output-sources": "node scripts/audit-court-output-sources.mjs",
         "test:court-output-audit": "node --test scripts/audit-court-output-sources.test.mjs",
         "test:authorities-package": "node --test scripts/authorities-package/bundle.test.mjs",
+        "test:authorities:highlights": "node scripts/test-authorities-highlights.mjs",
         "test:authorities:browser": "node scripts/test-authorities-standalone.mjs",
         "dev:authorities": "node scripts/authorities-dev.mjs",
         "package:authorities": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-authorities.ps1",

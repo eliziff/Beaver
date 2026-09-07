@@ -111,7 +111,7 @@ export type AuthoritiesDiscrepancyAction =
 export type AuthoritiesDiscrepancy = {
   id: string;
   actions: AuthoritiesDiscrepancyAction[];
-  kind: "quote_mismatch" | "wrong_pinpoint";
+  kind: "quote_mismatch" | "wrong_pinpoint" | "quote_unlocated";
   occurrenceId: string;
   authorityId: string;
   footnoteId: number;

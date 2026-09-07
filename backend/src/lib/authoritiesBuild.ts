@@ -1,3 +1,4 @@
+import { footnotePropositions, markedQuotations, singleSourceFootnote } from "./authoritiesQuotations";
 import {
   authoritiesBookPdfs,
   attachedAuthoritySources,
@@ -79,39 +80,9 @@ export type AuthorityPassageRequest = {
   exactQuotes: string[];
 };
 
-function footnoteQuotes(draft: AuthoritiesDraft) {
-  const units = draft.units.filter(({ kind }) => kind === "body")
-    .sort((left, right) => left.ordinal - right.ordinal || left.id.localeCompare(right.id));
-  const anchors: Array<{ footnoteId: number; position: number }> = [];
-  let text = "";
-  for (const unit of units) {
-    unit.footnoteRefs.forEach(([footnoteId, offset]) => {
-      if (Number.isSafeInteger(footnoteId) && footnoteId > 0 &&
-          Number.isSafeInteger(offset) && offset >= 0 && offset <= unit.text.length) {
-        anchors.push({ footnoteId, position: text.length + offset });
-      }
-    });
-    text += `${unit.text}\n`;
-  }
-  anchors.sort((left, right) => left.position - right.position || left.footnoteId - right.footnoteId);
-  const result = new Map<number, string[]>(), seen = new Set<number>();
-  let previous = 0;
-  for (const { footnoteId, position } of anchors) {
-    if (seen.has(footnoteId)) continue;
-    seen.add(footnoteId);
-    const proposition = text.slice(previous, position).replace(/\s+/gu, " ").trim();
-    previous = position;
-    const quotes = [...proposition.matchAll(/\u201c([^\u201d\n]+)\u201d|"([^"\n]+)"/gu)]
-      .map((match) => (match[1] ?? match[2]).replace(/\s+/gu, " ").trim())
-      .filter((quote, index, values) => quote.length >= 8 && values.indexOf(quote) === index);
-    result.set(footnoteId, quotes);
-  }
-  return result;
-}
-
 /** Explicit source locators and exact quoted passages tied to each citation context. */
 export function authorityPassageRequests(draft: AuthoritiesDraft, authorityId: string) {
-  const quoteByFootnote = footnoteQuotes(draft), requests: AuthorityPassageRequest[] = [];
+  const quoteByFootnote = footnotePropositions(draft.units), requests: AuthorityPassageRequest[] = [];
   const valid = (locator: { kind: string; label: string }): locator is AuthorityPassageRequest["locators"][number] =>
     ["paragraph", "section", "page"].includes(locator.kind) && !!locator.label.trim();
   const authority = draft.authorities[authorityId];
@@ -123,8 +94,8 @@ export function authorityPassageRequests(draft: AuthoritiesDraft, authorityId: s
       .filter(valid);
     if (!locators.length) continue;
     const unit = draft.units.find(({ id }) => id === occurrence.unitId);
-    requests.push({ locators, exactQuotes: unit?.footnoteId
-      ? quoteByFootnote.get(unit.footnoteId) ?? [] : [] });
+    requests.push({ locators, exactQuotes: unit?.footnoteId && singleSourceFootnote(draft, unit)?.id === occurrence.id
+      ? markedQuotations(quoteByFootnote.get(unit.footnoteId)?.text ?? "") : [] });
   }
   return requests;
 }
