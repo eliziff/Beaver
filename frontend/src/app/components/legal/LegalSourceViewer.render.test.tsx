@@ -436,7 +436,7 @@ describe("legal source reader", () => {
         expect(highlight).toHaveAccessibleName("Holding saved highlight. Edit labels and note.");
         expect(highlight).toHaveAttribute("title", expect.stringContaining("Holding"));
         expect(screen.queryByRole("button", { name: /^Label par/iu })).not.toBeInTheDocument();
-        expect(screen.getByRole("navigation", { name: "Saved highlights" })).toBeInTheDocument();
+        expect(screen.queryByRole("navigation", { name: "Saved highlights" })).not.toBeInTheDocument();
         expect(onResearchFileChange).toHaveBeenCalledWith(researchFile);
 
         fireEvent.click(highlight);
@@ -455,7 +455,7 @@ describe("legal source reader", () => {
         expect(screen.getByRole("button", { name: "Label Fixture v. Test" })).toBeEnabled();
     });
 
-    it("navigates saved highlights in document order", async () => {
+    it("keeps all saved marks editable without adding paragraph navigation controls", async () => {
         api.direct.mockResolvedValue(multiSlicePayload());
         const later = { ...savedEvidence,
             receipt: { ...savedEvidence.receipt,
@@ -463,26 +463,16 @@ describe("legal source reader", () => {
                 span_text: "Third proposition.", locator: { kind: "paragraph", label: "par3" } } };
         const reversed = { ...researchFile, state: { ...researchFile.state,
             sources: { saved: { ...researchFile.state.sources.saved,
-                passages: { count: 2, sha256: "d".repeat(64), labelCounts: {}, unlabelledCount: 2 } } } } };
+                passages: { count: 2, sha256: "d".repeat(64), labelCounts: { holding: 2 }, unlabelledCount: 0 } } } } };
         api.researchItems.mockResolvedValue(researchPage(later, savedEvidence));
-        const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect")
-            .mockImplementation(function () {
-                const top = this.classList.contains("docx-text-highlight")
-                    ? this.textContent?.includes("Third") ? 500 : 200 : 100;
-                return { top } as DOMRect;
-            });
         const { container } = render(<LegalSourceViewer citation="2099 SCC 1"
             docType="cases" researchFile={reversed} />);
-
-        await waitFor(() => expect(
-            container.querySelectorAll("[data-research-evidence]"),
-        ).toHaveLength(2));
-        const reader = container.querySelector<HTMLElement>(".overflow-y-auto")!;
-        fireEvent.click(screen.getByRole("button", { name: "Next saved highlight" }));
-        await waitFor(() => expect(reader.scrollTop).toBe(68));
-        fireEvent.click(screen.getByRole("button", { name: "Next saved highlight" }));
-        await waitFor(() => expect(reader.scrollTop).toBe(436));
-        rect.mockRestore();
+        await waitFor(() => expect(container.querySelectorAll("[data-research-evidence]")).toHaveLength(2));
+        expect(screen.queryByRole("navigation", { name: "Saved highlights" })).not.toBeInTheDocument();
+        const marks = [...container.querySelectorAll<HTMLElement>("[data-research-evidence]")];
+        expect(marks.map((mark) => mark.textContent)).toEqual(["First proposition.", "Third proposition."]);
+        fireEvent.click(marks[1]);
+        expect(await screen.findByRole("dialog", { name: "Labels and note" })).toHaveTextContent("par3");
     });
 
     it("locates identical saved quotes by receipt locator", async () => {

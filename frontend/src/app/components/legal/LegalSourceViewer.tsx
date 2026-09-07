@@ -139,11 +139,8 @@ const HEADING_CLASSES = {
   5: "mb-2 mt-6 text-sm font-semibold uppercase leading-snug tracking-[0.08em] text-gray-800 first:mt-0",
 } as const;
 
-function LegalMarkdown({ children }: { children: string }) {
-  return (
-    <GfmMarkdown
-      skipHtml
-      components={{
+// Keep reader DOM/selection stable when the workspace changes its active type.
+const LEGAL_MARKDOWN_COMPONENTS: React.ComponentProps<typeof GfmMarkdown>["components"] = {
         h1: ({ children }) => <h2 className={HEADING_CLASSES[2]}>{children}</h2>,
         h2: ({ children }) => <h2 className={HEADING_CLASSES[2]}>{children}</h2>,
         h3: ({ children }) => <h3 className={HEADING_CLASSES[3]}>{children}</h3>,
@@ -185,11 +182,9 @@ function LegalMarkdown({ children }: { children: string }) {
             </a>
           );
         },
-      }}
-    >
-      {children}
-    </GfmMarkdown>
-  );
+      };
+function LegalMarkdown({ children }: { children: string }) {
+  return <GfmMarkdown skipHtml components={LEGAL_MARKDOWN_COMPONENTS}>{children}</GfmMarkdown>;
 }
 
 function viewerMarkdown(
@@ -275,7 +270,6 @@ function LegalSourceViewerContent({
   const payload = current && !(current instanceof Error) ? current : null;
   const error = current instanceof Error ? current.message : null;
   const [quoteIndex, setQuoteIndex] = useState(0);
-  const [savedNavigation, setSavedNavigation] = useState<number | null>(null);
   const [localResearchError, setResearchError] = useState("");
   const researchError = localResearchError || workspaceError;
   const [labelTarget, setLabelTarget] = useState<ResearchLabelTarget | null>(null);
@@ -329,16 +323,6 @@ function LegalSourceViewerContent({
     if (passagePage?.error) setResearchError(errorMessage(
       passagePage.error, "Could not load saved highlights"));
   }, [passagePage?.error]);
-  const orderedSavedPassages = useMemo(() => {
-    const order = new Map<string, number>();
-    payload?.slices.forEach((slice, index) => [slice.primary, ...slice.anchors]
-      .forEach((anchor) => { if (anchor) order.set(anchor.label, index); }));
-    const position = ({ receipt }: typeof savedPassages[number]) =>
-      order.get(receipt.locator.label) ?? order.get(receipt.block_id) ?? Number.MAX_SAFE_INTEGER;
-    return [...savedPassages].sort((left, right) => position(left) - position(right));
-  }, [payload, savedPassages]);
-  const activeSavedIndex = savedNavigation === null || !orderedSavedPassages.length
-    ? 0 : savedNavigation % orderedSavedPassages.length;
   useLayoutEffect(() => {
     if (!root.current || !payload) return;
     const quoteTexts = quotes.map(({ quote }) => quote);
@@ -364,15 +348,9 @@ function LegalSourceViewerContent({
   }, [payload, quotes, researchLabels, savedPassages]);
   useLayoutEffect(() => {
     if (!root.current || !payload) return;
-    const quoteCount = quotes.length;
-    const selected = savedNavigation === null ? null : orderedSavedPassages[activeSavedIndex];
-    const selectedIndex = selected ? savedPassages.indexOf(selected) : -1;
-    const match = savedNavigation === null
-      ? quoteCount ? highlightMatches.current[quoteIndex] : null
-      : selectedIndex >= 0 ? highlightMatches.current[quoteCount + selectedIndex] : null;
+    const match = quotes.length ? highlightMatches.current[quoteIndex] : null;
     if (match) scrollTo(root.current, match);
-  }, [activeSavedIndex, orderedSavedPassages, payload, quoteIndex, quotes.length,
-    savedNavigation, savedPassages]);
+  }, [payload, quoteIndex, quotes, savedPassages]);
 
   const consumed = useRef(false), wholeBlock = useRef<HTMLElement | null>(null);
   const capture = useRef<() => HighlightCapture | null>(() => null);
@@ -486,10 +464,7 @@ function LegalSourceViewerContent({
       quote: saved.receipt.span_text ?? "" }, saved, mark, mark);
     return true;
   }
-  const navigateSaved = (offset: number) => setSavedNavigation((current) => {
-    const start = current ?? (offset > 0 ? -1 : 0);
-    return (start + offset + orderedSavedPassages.length) % orderedSavedPassages.length;
-  });
+
 
   return (
     <div ref={readerRoot} data-reader-view {...readerExpansion.dialogProps}
@@ -554,21 +529,7 @@ function LegalSourceViewerContent({
         This unusually long source is displayed through the first five million characters.
       </p>}
       <div className="relative min-h-0 flex-1">
-      {!!orderedSavedPassages.length && <nav aria-label="Saved highlights"
-        className="absolute end-2 top-2 z-10 inline-flex items-center rounded border border-gray-300 bg-white/95 text-xs text-gray-600 shadow-sm backdrop-blur">
-        <button type="button" disabled={orderedSavedPassages.length < 2} onClick={() => navigateSaved(-1)}
-          aria-label="Previous saved highlight" className="size-7 rounded-s hover:bg-gray-100 disabled:opacity-40">↑</button>
-        <span className="min-w-10 text-center tabular-nums" aria-live="polite">
-          {activeSavedIndex + 1}/{orderedSavedPassages.length}
-        </span>
-        <button type="button" disabled={orderedSavedPassages.length < 2} onClick={() => navigateSaved(1)}
-          aria-label="Next saved highlight" className="size-7 rounded-e hover:bg-gray-100 disabled:opacity-40">↓</button>
-        {passagePage?.nextCursor && activeResearchSourceId && <button type="button" disabled={passagePage.loading}
-          onClick={() => void passages.fetchPage(activeResearchSourceId, passagePage.nextCursor, true)} aria-label="Load more saved highlights"
-          className="h-7 border-s border-gray-200 px-2 hover:bg-gray-100 disabled:opacity-40">
-          More
-        </button>}
-      </nav>}
+
       <div ref={root} data-highlighter={highlight.armed ? "" : undefined}
         onPointerDown={() => { consumed.current = false; }}
         onPointerUp={() => { if (!highlight.armed || window.getSelection()?.isCollapsed !== false) return;

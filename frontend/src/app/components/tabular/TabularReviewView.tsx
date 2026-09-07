@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useEffectEvent, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { MessageSquare, MessageSquareX, Play, Plus, Square, Upload } from "lucide-react";
+import { MessageSquare, MessageSquareX, Play, Plus, Square, Files, BookOpen } from "lucide-react";
 import {
   clearTabularCells,
   deleteTabularReview,
@@ -35,7 +35,6 @@ import { getModelProvider, isModelAvailable, type ModelProvider } from "@/app/li
 
 
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
-import { ResearchViews } from "../shared/ResearchViews";
 import { ResearchSelectionLabels } from "../shared/ResearchSelectionLabels";
 import { ResearchChanges } from "../legal/ResearchChanges";
 import { SourcesWorkspace, useSourcesWorkspace } from "../legal/SourcesWorkspace";
@@ -489,24 +488,32 @@ function TRViewContent({ reviewId, projectId }: Props) {
     useEffect(() => {
         if (chatOpen && review && !workspaceId) prepareChatWorkspace();
     }, [chatOpen, !!review, workspaceId]);
+    const [dockError, setDockError] = useState("");
     async function openChat() {
-        await prepareRows();
-        setSidebarOpen(false);
-        setUi({ dockTab: "chat" });
-        if (!chatOpen) setChatId(null);
+        setDockError("");
+        try {
+            await prepareRows();
+            setSidebarOpen(false);
+            setUi({ dockTab: "chat" });
+            if (!chatOpen) setChatId(null);
+        } catch { setDockError("Could not open research chat. Try again."); }
     }
     async function openSources() {
-        await prepareRows();
-        setUi({ dockTab: "sources" });
+        setDockError("");
+        try { await prepareRows(); setUi({ dockTab: "sources" }); }
+        catch { setDockError("Could not open research sources. Try again."); }
     }
     function closeDock() {
         setUi({ dockTab: null });
         setChatId(undefined);
     }
     async function labelsFromColumn({ index }: ColumnConfig) {
-        const { file } = await prepareRows();
-        workspace.accept(await proposeColumnLabels(file.document.id, reviewId, index));
-        setUi({ dockTab: "sources" });
+        setDockError("");
+        try {
+            const { file } = await prepareRows();
+            workspace.accept(await proposeColumnLabels(file.document.id, reviewId, index));
+            setUi({ dockTab: "sources" });
+        } catch { setDockError("Could not create labels from this column. Try again."); }
     }
     const rowMembers = rowSelection(documents).members ?? [];
     const workspaceSources = Object.values(workspace.file?.state.sources ?? {}).filter(isResearchSource)
@@ -590,14 +597,14 @@ function TRViewContent({ reviewId, projectId }: Props) {
         {
             onClick: () => setUi({ modal: "documents" }),
             disabled: loading, title: "Add documents",
-            icon: <Upload className="h-4 w-4" />,
-            label: <span className="hidden sm:inline">Documents</span>,
+            icon: <Files className="h-4 w-4" />,
+            label: <span>Docs</span>,
         },
         {
             onClick: () => setUi({ columnModal: null }),
-            disabled: loading, title: "Add columns",
+            disabled: loading, title: "Add column",
             icon: <Plus className="h-4 w-4" />,
-            label: <span className="hidden sm:inline">Add columns</span>,
+            label: <span>Column</span>,
         },
         {
             onClick: generating ? stopGeneration : generate, disabled: !hasTable,
@@ -608,7 +615,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
                 {generating ? "Stop" : "Run"}
             </span>,
         },
-        { type: "custom", render: <ResearchViews workspace={() => openSources()} chat={() => openChat()} /> },
+        { onClick: () => void openSources(), disabled: loading, title: "Open sources", icon: <BookOpen className="h-4 w-4" />, label: <span>Sources</span> },
         { type: "custom",
             render: <MoreActionsMenu items={menuItems} />,
         },
@@ -628,11 +635,12 @@ function TRViewContent({ reviewId, projectId }: Props) {
 
     return (
         <div className="flex h-full overflow-hidden">
-            <div className="flex flex-1 flex-col overflow-hidden">
-                <PageHeader shrink breadcrumbs={breadcrumbs} actions={headerActions} />
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                <PageHeader shrink titleOnOwnLine breadcrumbs={breadcrumbs} actions={headerActions} />
+                {dockError && <p role="alert" className="mx-4 mb-2 text-sm text-red-700 md:mx-6">{dockError}</p>}
                 {review && <ResearchChanges review={review} documents={documents} onChanged={refreshReview}
                     historyOpen={ui.historyOpen} onCloseHistory={() => setUi({ historyOpen: false })} />}
-                <div className="flex flex-1 overflow-hidden">
+                <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
                     <div className={`flex flex-1 flex-col overflow-hidden ${
                         dockTab ? "max-md:hidden" : ""
                     }`}>

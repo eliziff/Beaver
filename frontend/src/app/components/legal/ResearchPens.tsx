@@ -1,54 +1,43 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
-import { InlineNameInput } from "../shared/InlineNameInput";
-import { MoreActionsMenu } from "../shared/MoreActionsMenu";
-import type { ResearchAction, ResearchLabel } from "@/app/lib/researchFiles";
-import { errorMessage } from "@/app/lib/utils";
+import { ChevronDown } from "lucide-react";
+import { ActionMenu } from "../ui/action-menu";
+import { Modal } from "../modals/Modal";
+import { researchLabelPath } from "@/app/lib/researchFiles";
 import { researchLabelColor } from "./ResearchLabelCircle";
+import { ResearchHierarchy } from "./ResearchHierarchy";
 import type { ResearchRemoval } from "./ResearchTree";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 
-/** Each highlight type is its own pen: a name, colour and optional parent. */
+/** Selecting a type selects its colour and meaning together. Editing is disclosed on demand. */
 export function ResearchPens({ onRemove, onStatus }: {
-  onRemove: (removal: ResearchRemoval) => void; onStatus: (message: string) => void }) {
-  const { file, mutations: commit, highlight } = useSourcesWorkspace();
-  const [renaming, setRenaming] = useState<string | null>(null), [coloring, setColoring] = useState<string | null>(null);
-  const pens = Object.values(file?.state.labels ?? {}).filter(({ scope }) => scope === "highlight")
-    .sort((a, b) => a.order - b.order);
-  async function act(action: ResearchAction) {
-    try { return await commit.act(action); }
-    catch (reason) { onStatus(errorMessage(reason, "Could not update highlight types")); return null; }
-  }
-  const add = async () => { const id = crypto.randomUUID();
-    if (await act({ type: "label", id, name: "New highlight type", parentId: null, scope: "highlight", color: "#d6b656" })) {
-      highlight.setPen(id); setRenaming(id); } };
+  onRemove: (removal: ResearchRemoval) => void; onStatus: (message: string) => void;
+}) {
+  const { file, highlight } = useSourcesWorkspace();
+  const [editing, setEditing] = useState(false);
+  const labels = file?.state.labels ?? {};
+  const path = (id: string) => researchLabelPath(labels, id).map(({ name }) => name).join(" › ");
+  const types = Object.values(labels).filter(({ scope }) => scope === "highlight");
+  // Compare ancestry order, so descendants immediately follow their parent.
+  types.sort((a, b) => {
+    const left = researchLabelPath(labels, a.id), right = researchLabelPath(labels, b.id);
+    for (let i = 0; i < Math.min(left.length, right.length); i++) {
+      if (left[i].id !== right[i].id) return left[i].order - right[i].order || left[i].id.localeCompare(right[i].id);
+    }
+    return left.length - right.length;
+  });
+  const active = types.find(({ id }) => id === highlight.pen) ?? types[0];
   if (!file) return null;
-  return <div role="group" aria-label="Highlight types" className="flex min-w-0 flex-wrap items-center gap-1">
-    {pens.map((pen: ResearchLabel) => renaming === pen.id
-      ? <span key={pen.id} className="inline-flex h-7 min-w-24 items-center rounded-md border border-gray-300 px-1.5">
-        <InlineNameInput kind="folder" value={pen.name} label="Highlight type name" onCancel={() => setRenaming(null)}
-          onCommit={(value) => { setRenaming(null);
-            if (value.trim() && value !== pen.name) void act({ type: "label", ...pen, name: value.trim() }); }} />
-      </span>
-      : <span key={pen.id} className="inline-flex h-7 min-w-0 items-center gap-1 rounded-md border border-gray-300 ps-1.5">
-        <button type="button" aria-pressed={highlight.pen === pen.id}
-          onClick={() => highlight.setPen(pen.id)}
-          className="inline-flex min-w-0 items-center gap-1 text-xs aria-pressed:font-semibold">
-          {coloring === pen.id
-            ? <input type="color" autoFocus aria-label={`${pen.name} colour`} value={researchLabelColor(pen)}
-              onBlur={() => setColoring(null)} onChange={(event) => void act({ type: "label", ...pen, color: event.target.value })}
-              className="size-4 cursor-pointer border-0 bg-transparent p-0" />
-            : <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: researchLabelColor(pen) }} />}
-          <span className="max-w-24 truncate">{pen.name}</span>
-        </button>
-        <MoreActionsMenu label={`${pen.name} options`} triggerClassName="grid size-6 shrink-0 place-items-center rounded text-gray-500 hover:text-gray-900"
-          items={[{ label: "Rename", onSelect: () => setRenaming(pen.id) },
-            { label: "Colour", onSelect: () => setColoring(pen.id) },
-            { label: "Delete", onSelect: () => onRemove({ kind: "label", id: pen.id, name: pen.name }) }]} />
-      </span>)}
-    <button type="button" aria-label="Add highlight type" onClick={() => void add()}
-      className="grid size-7 shrink-0 place-items-center rounded-md border border-dashed border-gray-300 text-gray-500 hover:border-gray-500 hover:text-gray-800">
-      <Plus aria-hidden="true" className="size-3.5" />
-    </button>
-  </div>;
+  return <>
+    <ActionMenu label="Choose highlight type" className="min-w-0 max-w-full shrink" triggerClassName="h-8 min-w-0 max-w-full items-center gap-1.5 rounded px-2 text-xs text-gray-700 hover:bg-gray-100"
+      items={[...types.map((type) => ({ label: path(type.id), icon: <span className="size-2.5 rounded-full" style={{ backgroundColor: researchLabelColor(type) }} />, checked: active?.id === type.id, onSelect: () => highlight.setPen(type.id) })),
+        { label: "Edit highlight types…", onSelect: () => setEditing(true) }]}>
+      <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: active ? researchLabelColor(active) : "#d6b656" }} />
+      <span className="max-w-48 truncate">{active ? path(active.id) : "Highlight"}</span><ChevronDown className="size-3 shrink-0" aria-hidden="true" />
+    </ActionMenu>
+    <Modal open={editing} onClose={() => setEditing(false)} size="sm" breadcrumbs={["Highlight types"]}
+      cancelAction={{ label: "Done", onClick: () => setEditing(false) }}>
+      <ResearchHierarchy scope="highlight" selectedId={active?.id} onSelect={(id) => highlight.setPen(id)}
+        onStatus={onStatus} onRemove={(removal) => { setEditing(false); onRemove(removal); }} />
+    </Modal>
+  </>;
 }

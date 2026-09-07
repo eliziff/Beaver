@@ -288,7 +288,7 @@ it("offers only curated workspace sources that are not rows yet", async () => {
     render(<TRView reviewId="review-1" />);
     await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
 
-    fireEvent.click(screen.getByRole("button", { name: "Documents" }));
+    fireEvent.click(screen.getByRole("button", { name: "Docs" }));
     expect(await screen.findByRole("button", { name: "Add Ruling" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Add Unused read" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Add Ruling" }));

@@ -188,11 +188,9 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
 }
 
 export function SourcesWorkspaceProvider(props: Options) {
-  const nested = !!useContext(Context);
   const controller = useWorkspaceController(props);
   const { run } = controller.highlight;
   useEffect(() => {
-    if (nested) return;
     const pressed = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== "h") return;
       event.preventDefault();
@@ -200,7 +198,7 @@ export function SourcesWorkspaceProvider(props: Options) {
     };
     document.addEventListener("keydown", pressed);
     return () => document.removeEventListener("keydown", pressed);
-  }, [nested, run]);
+  }, [run]);
   return <Context value={controller}>{props.children}</Context>;
 }
 

@@ -14,6 +14,7 @@ const MODAL_BOUNDARY = 'dialog,[role="dialog"],[data-assistant-dock]';
 
 export type ActionMenuItem = {
     label: string;
+    icon?: ReactNode;
     onSelect: () => void;
     disabled?: boolean;
     checked?: boolean;
@@ -170,6 +171,7 @@ export function ActionMenu({
                             className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-sm text-gray-800 hover:bg-gray-100 focus-visible:bg-gray-100 focus-visible:outline-none disabled:cursor-default disabled:text-gray-400"
                         >
                             {item.checked !== undefined && <span className="me-2 w-3" aria-hidden="true">{item.checked ? "✓" : ""}</span>}
+                            {item.icon && <span aria-hidden="true" className="me-2 flex shrink-0 items-center">{item.icon}</span>}
                             {item.label}
                         </button>
                     ))}

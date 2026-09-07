@@ -51,6 +51,7 @@ export function PageHeader({
     children,
     actions,
     shrink = false,
+    titleOnOwnLine = false,
     breadcrumbs,
     loading = false,
     className,
@@ -58,6 +59,7 @@ export function PageHeader({
     children?: ReactNode;
     actions?: OptionalAction[];
     shrink?: boolean;
+    titleOnOwnLine?: boolean;
     breadcrumbs?: PageHeaderBreadcrumb[];
     loading?: boolean;
     className?: string;
@@ -75,11 +77,21 @@ export function PageHeader({
             className={cn(
                 "mx-4 flex min-h-14 min-w-0 flex-row flex-wrap items-center justify-between gap-3 py-2 md:mx-6 lg:min-h-[max(76px,4.625rem)] lg:flex-nowrap lg:gap-4 lg:pb-4 lg:pt-5.5",
                 shrink && "shrink-0",
+                titleOnOwnLine && "flex-col items-stretch lg:flex-col lg:items-stretch",
                 className,
             )}
         >
             {breadcrumbs?.length ? (
-                <Breadcrumbs items={breadcrumbs} />
+                titleOnOwnLine ? <div className="min-w-0">
+                    {breadcrumbs.length > 1 && <nav aria-label="Breadcrumb" className="mb-1 flex flex-wrap gap-2 text-xs text-gray-500">
+                        {breadcrumbs.slice(0, -1).map((item, index) => item.onClick
+                            ? <button key={index} onClick={item.onClick} className="hover:underline">{item.label}</button>
+                            : <span key={index}>{item.label}</span>)}
+                    </nav>}
+                    <h1 className="font-serif text-2xl font-medium leading-snug text-gray-900 [overflow-wrap:anywhere]">
+                        {breadcrumbs.at(-1)?.loading ? <span className="block h-7 w-40 rounded bg-gray-100" /> : breadcrumbs.at(-1)?.label}
+                    </h1>
+                </div> : <Breadcrumbs items={breadcrumbs} />
             ) : (
                 children
             )}
@@ -88,6 +100,7 @@ export function PageHeader({
                     "flex min-w-0 items-center justify-end gap-2 md:shrink-0",
                     wideMobileActions ? "w-full md:w-auto" : "shrink-0",
                     stackActions && "w-full flex-wrap sm:w-auto sm:flex-nowrap",
+                    titleOnOwnLine && "w-full flex-wrap justify-start md:w-full sm:flex-wrap",
                 )}>
                     {items.map((action, index) => (
                         <Action

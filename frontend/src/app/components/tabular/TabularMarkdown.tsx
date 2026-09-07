@@ -80,7 +80,7 @@ export function TabularMarkdown({
                     <a
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-600 underline hover:text-blue-700"
+                        className="text-gray-700 underline decoration-gray-400 hover:decoration-gray-800"
                         {...props}
                     />
                 ),

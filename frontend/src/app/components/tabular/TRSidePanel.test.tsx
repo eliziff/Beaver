@@ -13,9 +13,6 @@ vi.mock("../shared/views/DocumentViewer", () => ({
         data-document={props.documentId} data-version={props.versionId} data-kind={props.kind}
         data-quotes={JSON.stringify(props.quotes)} data-cells={JSON.stringify(props.highlightCells)} />,
 }));
-vi.mock("../assistant/CitationQuotesHeader", () => ({
-    CitationQuotesHeader: () => <div>Citation</div>,
-}));
 vi.mock("../legal/LegalSourceViewer", () => ({
     LegalSourceViewer: (props: LegalSourceViewerProps) => <div data-testid="source-viewer"
         data-source={props.sourceId} data-locator={props.initialLocator} />,
@@ -147,6 +144,8 @@ it("opens provider rows with the source reader and preserves full findings and c
     expect(screen.queryByTestId("document-viewer")).not.toBeInTheDocument();
     expect(screen.getByText("Yes")).toBeVisible();
     expect(screen.getByText("Because the term is express.")).toBeVisible();
+    expect(screen.getByText("Supported")).not.toBeVisible();
+    fireEvent.click(screen.getByText("More details", { selector: "summary" }));
     expect(screen.getByText("Supported")).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent("Partial coverage");
 });
@@ -155,5 +154,70 @@ it("keeps Regenerate visible but disabled while the review is running", () => {
     render(<TRSidePanel cell={cell} document={sourceDocument} column={column} onClose={vi.fn()}
         onRegenerate={vi.fn().mockResolvedValue(undefined)} running />);
     expect(screen.getByRole("button", { name: "Regenerate" })).toBeDisabled();
+    expect(screen.getByText("Find termination rights.")).not.toBeVisible();
+    fireEvent.click(screen.getByText("More details", { selector: "summary" }));
     expect(screen.getByText("Find termination rights.")).toBeVisible();
+});
+
+const support = {
+    evidence_id: "e_support", provider: "library", stable_source_id: "supporting-document",
+    version: "supporting-version", source_sha256: "a".repeat(64), span_sha256: "b".repeat(64),
+    block_id: "paragraph:7", span_text: "The supporting passage is in a different document.",
+    name: "Supporting.docx", citation: "Supporting.docx", external_url: null,
+    locator: { kind: "paragraph", label: "para 7" },
+};
+const supportedCell: TabularCell = { ...cell, content: { ...cell.content!,
+    claims: [{ text: "Because the term is express.", evidence_ids: [support.evidence_id] }],
+    evidence: [support, { ...support, evidence_id: "e_read", span_text: "An unrelated read, not cited support." }],
+} };
+
+it("shows cited support once and keeps unrelated reads behind receipt details", () => {
+    render(<TRSidePanel cell={supportedCell} document={sourceDocument} column={column} onClose={vi.fn()} />);
+    expect(screen.getAllByText(support.span_text)).toHaveLength(1);
+    expect(screen.queryByText("An unrelated read, not cited support.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cited", { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "[1] Supporting.docx · para 7" })).toBeVisible();
+    expect(screen.getAllByText("Because the term is express.")).toHaveLength(1);
+    fireEvent.click(screen.getByText("More details", { selector: "summary" }));
+    expect(screen.getAllByText(/Receipt · Supporting.docx/)).toHaveLength(2);
+});
+
+it("opens a cited document's exact version rather than the row's document", () => {
+    render(<TRSidePanel cell={supportedCell} document={{ ...sourceDocument,
+        reference: { provider: "library", kind: "document", id: "row-document", versionId: "row-version" } }}
+        column={column} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "[1] Supporting.docx · para 7" }));
+    expect(screen.getByTestId("document-viewer")).toHaveAttribute("data-document", "supporting-document");
+    expect(screen.getByTestId("document-viewer")).toHaveAttribute("data-version", "supporting-version");
+    expect(screen.getByTestId("document-viewer")).toHaveAttribute("data-kind", "docx");
+});
+
+it("honours a cross-source citation opened directly from a table cell", async () => {
+    const { evidenceCitation } = await import("@/app/lib/groundedAnswers");
+    const receipt = { ...support, provider: "a2aj", source_reference: { id: "supporting-case" },
+        citation: "2099 EXAMPLE 2", name: "Other case", version: null };
+    render(<TRSidePanel cell={{ ...supportedCell, content: { ...supportedCell.content!, evidence: [receipt] } }}
+        document={{ ...sourceDocument, reference: { provider: "a2aj", kind: "case", id: "row-case", citation: "2099 EXAMPLE 1" } }}
+        citation={evidenceCitation(receipt, 1)!} displayDocument column={column} onClose={vi.fn()} />);
+    expect(screen.getByTestId("source-viewer")).toHaveAttribute("data-source", "supporting-case");
+    expect(screen.getByTestId("source-viewer")).toHaveAttribute("data-locator", "para 7");
+});
+
+it("renders claims as the answer when there is no summary or scalar value", () => {
+    render(<TRSidePanel cell={{ ...supportedCell, content: { ...supportedCell.content!, summary: "", value: null } }}
+        document={sourceDocument} column={column} onClose={vi.fn()} />);
+    expect(screen.getByRole("region", { name: "Answer" })).toHaveTextContent("Because the term is express.");
+    expect(screen.queryByRole("region", { name: "Explanation" })).not.toBeInTheDocument();
+});
+
+it("shows unavailable support explicitly and recovers after a regeneration error", async () => {
+    const regenerate = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(undefined);
+    render(<TRSidePanel cell={{ ...supportedCell, content: { ...supportedCell.content!, evidence: [] } }}
+        document={sourceDocument} column={column} onClose={vi.fn()} onRegenerate={regenerate} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Supporting passage unavailable");
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Could not regenerate"));
+    expect(screen.getByRole("button", { name: "Regenerate" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
 });

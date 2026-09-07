@@ -98,9 +98,11 @@ PR 1 establishes neutral Library storage, read/highlight/grounded-support bounda
 one highlight type per mark, and removal of synthetic Unsorted labels. Source and
 evidence IDs are preserved; a read is not upgraded by switching views.
 
-PR 2 simplifies the existing Sources dock into virtual-folder browsing and a
-canonical source list, with a small nested highlight-type editor and normal-looking
-memo citations. PR 3 cleans Tabular Review controls and its scrolling inspector.
+PRs 2 and 3 are combined: virtual-folder navigation over one source list, a
+single highlight-type picker with a nested editor, ordinary memo citation links,
+and compact Tabular Review controls with a bounded evidence inspector. Shipped
+interaction details belong in the behavior contract; full native/launcher smoke
+remains a separate validation gate.
 PR 4 reuses existing classifications, highlights and findings in meaningful table
 arrangements and supports explicit return of results to Sources. PR 5 adds richer
 grounded Chat conversion and semantic proposals. PR 6 finishes Library flows and

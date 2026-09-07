@@ -74,8 +74,20 @@ pagination or downloading.
   highlight removes the mark, not the receipt needed by existing citations or
   answers. Ambiguous capture assignments retain their candidate types in the
   query receipt rather than assigning several types to one highlight.
-- Labels, Search and Memo remain in the existing right-hand workspace dock.
-  Search matches can be highlighted deliberately; earlier searches are collapsed.
+- Research, Search and Memo remain in the existing right-hand workspace dock.
+  Source labels are virtual folders above one canonical source list: selecting a
+  parent includes descendants, without repeating multiply-labelled sources.
+  Drag/drop assigns sources or nests/reorders labels; menus and Alt+arrow controls
+  offer keyboard equivalents. All sources is the root; missing labels are a filter.
+- The active highlight-type picker selects one name/colour object, without changing
+  browsing scope. Its editor supports creation, renaming/recolouring, nesting,
+  ordering and deletion with the existing label operations. The default view has
+  no permanent second taxonomy or pen strip. A separate optional type filter reveals
+  matching passages and intersects (never replaces) a supplied passage scope.
+- Saved passages appear under their source. Clicking a quote opens its original
+  locator/evidence; the reader has no saved-paragraph up/down navigation pad.
+  Stable Markdown component identities preserve active text selections on updates.
+- Search matches can be highlighted deliberately; earlier searches are collapsed.
   Source/passages, memo citations and table arrangements reuse original evidence.
   Raw query/run metadata is not another research classification system.
 - Source and passage selections are resolved before bulk labelling or extraction.
@@ -87,7 +99,30 @@ pagination or downloading.
   classifications or extraction scopes until accepted.
 - Memo autosave stays mounted across tabs. Interrupted saves retain the draft,
   reconcile before retrying, and never overwrite another writer's changes.
-  Replacing a conflicting draft requires an explicit discard.
+  Replacing a conflicting draft requires an explicit discard. Citations are normal
+  linked text, not Cite chips; their original source/version/evidence bindings and
+  formatting round-trip through Markdown unchanged.
+
+## Tabular Review
+
+- The review title has its own wrapping line above compact Docs, Sources and
+  + Column controls. Column titles wrap above their format/actions row rather than
+  being truncated to fit alongside it. Neutral icon/tag colours do not compete
+  with the evidence or meaningful highlight colours.
+- Sources and Chat use the existing assistant dock. There is no separate Organize
+  panel. Existing proposal review, column editing/reordering, regeneration, run
+  cancellation, export and sharing remain available through their existing actions.
+- A cell inspector is viewport-bounded, with a keyboard/wheel-scrollable result
+  body and fixed close/regenerate/reader controls. On compact screens it is a modal
+  dialog, restores its opener, and does not add page-level horizontal scrolling.
+- The result order is Answer, cited Evidence, Explanation, then collapsed More
+  details. The latter retains question, assessment, coverage and raw query/receipt
+  data. Uncited reads are not presented as supporting evidence; missing support and
+  partial coverage remain explicit. Duplicate Cited headers and repeated reasoning
+  are removed without dropping the underlying receipts.
+- Evidence opens its own source and pinned version even when it differs from the
+  table row's source. The component browser fixture uses synthetic transport and
+  real UI components; it is separate from launcher/native/live-model smoke.
 
 ## Documents and versions
 

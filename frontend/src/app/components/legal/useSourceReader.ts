@@ -21,13 +21,13 @@ export function useSourceReader({ file, passagePages, onReadSource, onStatus }: 
   passagePages: PassagePages; onReadSource?: ReadSource; onStatus: (message: string) => void }) {
   const [reading, setReading] = useState<Reading | null>(null);
   const sources = Object.values(file?.state.sources ?? {});
-  function sourceHref(source: ResearchSource, locator?: string) {
+  function sourceHref(source: ResearchSource, locator?: string, evidenceId?: string) {
     if (source.reference.kind === "document") return `/library?${new URLSearchParams({ document_id: source.reference.id,
-      version_id: source.reference.versionId, ...(locator ? { locator } : {}) })}`;
+      version_id: source.reference.versionId, ...(locator ? { locator } : {}), ...(evidenceId ? { evidence_id: evidenceId } : {}) })}`;
     if (source.reference.provider !== "a2aj" && source.reference.provider !== "journal")
       return safeAssistantUrl(source.reference.url, { relative: false });
     const href = legalSourceViewerHref(source.reference, file ? { fileId: file.document.id, sourceId: source.id } : undefined);
-    return locator ? `${href}&locator=${encodeURIComponent(locator)}` : href;
+    return `${href}${locator ? `&locator=${encodeURIComponent(locator)}` : ""}${evidenceId ? `&evidence_id=${encodeURIComponent(evidenceId)}` : ""}`;
   }
   const canRead = (source: ResearchSource) => source.reference.kind === "document" ||
     !!onReadSource && (source.reference.provider === "a2aj" || source.reference.provider === "journal");
