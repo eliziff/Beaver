@@ -837,6 +837,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       </main>
       {draft && findingId && <QuotationReview initialId={findingId} items={currentReview?.items}
         busy={busy || !currentReview} error={error || currentReview?.error}
+        sourceUrl={({ authorityId }) => draft.state.authorities[authorityId]?.sourceIdentity?.externalUrl ?? undefined}
         onResolve={host.resolveDiscrepancy ? resolveDiscrepancy : undefined}
         onClose={() => setFindingId("")} />}
       {LibraryPicker && <LibraryPicker open={!!libraryTarget}

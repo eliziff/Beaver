@@ -49,8 +49,17 @@ const sameLocator = (left: AuthoritiesSourcePassage, right: AuthoritiesSourcePas
   left.locator.kind === right.locator.kind && JSON.stringify(sourceLocator({ kind: left.locator.kind, text: left.locator.label })) ===
     JSON.stringify(sourceLocator({ kind: right.locator.kind, text: right.locator.label }));
 
+/** Only substantive wording is a difference: case, diacritics, quote/dash variants and
+ * compatibility width are noise, and the authored quote's edge punctuation is the author's. */
+const foldForComparison = (value: string) => normalizeWhitespace(value)
+  .normalize("NFKD").replace(/\p{M}+/gu, "")
+  .replace(/["“”«»„]/gu, '"').replace(/['‘’‚`´]/gu, "'").replace(/[‐‑‒–—―−]/gu, "-").toLowerCase();
+const trimEdgePunctuation = (value: string) =>
+  value.replace(/^[^\p{L}\p{N}]+/u, "").replace(/[^\p{L}\p{N}]+$/u, "");
+
 function exactCount(text: string, quote: string) {
-  text = normalizeWhitespace(text).normalize("NFKC"); quote = normalizeWhitespace(quote).normalize("NFKC");
+  text = foldForComparison(text); quote = trimEdgePunctuation(foldForComparison(quote));
+  if (!quote) return 0;
   let count = 0;
   for (let at = text.indexOf(quote); at >= 0; at = text.indexOf(quote, at + quote.length)) {
     if (++count === 2) break;
@@ -60,7 +69,7 @@ function exactCount(text: string, quote: string) {
 
 const escapePattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 const comparisonWords = (text: string) => [...text.matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu)];
-const wordKey = (word: string) => word.normalize("NFKC").toLowerCase().replace(/’/gu, "'");
+const wordKey = foldForComparison;
 function verbatimRepair(authored: string, source: string) {
   const before = comparisonWords(authored), after = comparisonWords(source);
   if (!before.length || !after.length) return null;
@@ -126,6 +135,8 @@ export function findAuthoritiesDiscrepancies(
     if (occurrence.unitId !== unit.id || occurrence.pinpoints.length !== 1 ||
         !source?.cited.text.trim() || !proposition) continue;
     for (const authoredQuote of markedQuotations(proposition)) {
+      // Contained in the cited passage means verbatim; there is nothing to report.
+      if (exactCount(source.cited.text, authoredQuote)) continue;
       const evidenceId = "authorities-source";
       if (!native.groundedProseErrors(`\u201c${authoredQuote}\u201d`, [evidenceId], [{
         evidenceId, text: source.cited.text, labels: [],
@@ -182,10 +193,9 @@ function tokens(value: string) {
 const equivalent = (value: string) => {
   if ('"“”«»„'.includes(value)) return '"';
   if ("'‘’‚".includes(value)) return "'";
-  const normalized = value.replace(/[‐‑‒–—―−]/gu, "-").replace(/[‘’]/gu, "'");
-  const initial = /^\[([A-Za-z])\]([A-Za-z]+)$/u.exec(normalized);
-  const plain = initial ? initial[1] + initial[2] : normalized;
-  return word.test(plain) ? plain.toLowerCase() : plain;
+  const normalized = foldForComparison(value);
+  const initial = /^\[([a-z])\]([a-z]+)$/u.exec(normalized);
+  return initial ? initial[1] + initial[2] : normalized;
 };
 function joinTokens(values: string[]) {
   let result = "", previous = "", openDouble = false, openSingle = false, priorRole = "";

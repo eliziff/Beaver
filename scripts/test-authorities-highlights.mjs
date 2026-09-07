@@ -27,6 +27,42 @@ api.post('/prepare', async (req, res, next) => {
     res.json(prepareAuthorityAnnotations(pdf, document, product.state, authority, source, { passageGeometry }, true));
   } catch (error) { next(error); }
 });
+// Real deterministic findings, so the dialog can only show what the backend actually produces.
+const { findAuthoritiesDiscrepancies } = require('../backend/dist/lib/authoritiesDiscrepancy');
+function quotationFindings(id, body, pinpoint, cited) {
+  const note = `2024 SCC 1 at para ${pinpoint}`;
+  const occurrence = { id, unitId: 'footnote:1', start: 0, end: note.length, text: note,
+    authoritySpan: { start: 0, end: note.length, text: note },
+    coreSpan: { start: 0, end: 10, text: '2024 SCC 1' },
+    pinpointSpan: { start: note.indexOf(pinpoint), end: note.length, text: pinpoint },
+    kind: 'case', citation: '2024 SCC 1', authorityId: 'text', reference: null,
+    pinpoints: [{ kind: 'paragraph', text: pinpoint }], evidenceIds: [],
+    sourceTextSha256: 'a'.repeat(64), localOrdinal: 0, reviewed: true };
+  const draft = { occurrences: { [id]: occurrence }, units: [
+    { id: 'body:1', kind: 'body', ordinal: 1, footnoteId: null, footnoteRefs: [[1, body.length]],
+      pageNumbers: [], text: body, occurrenceIds: [] },
+    { id: 'footnote:1', kind: 'footnote', ordinal: 1, footnoteId: 1, footnoteRefs: [],
+      pageNumbers: [], text: note, occurrenceIds: [id] }] };
+  const locator = { kind: 'paragraph', label: pinpoint };
+  return findAuthoritiesDiscrepancies(draft, [{ occurrenceId: id, sourceVersion: 'b'.repeat(64),
+    cited: { locator, text: cited }, alternatives: [{ locator, text: cited }] }]);
+}
+const quotationCases = {
+  // The owner's report: the authored trailing comma is not a wording difference.
+  ownerComma: quotationFindings('owner', 'It imposes "a regime of strict liability," on the operator.', '65',
+    'The Court held that this is a regime of strict liability for example, and the appellant cannot escape it.'),
+  diacritics: quotationFindings('accents', 'The court wrote “Le défendeur a agi de bonne foi — sans erreur”.', '12',
+    'Au paragraphe 12: le defendeur a agi de bonne foi - sans erreur, dit la Cour.'),
+  difference: quotationFindings('wording',
+    'The Board explained that "the landlord may deliver a written notice to terminate the lease within seven calendar days" before any hearing may be scheduled.', '42',
+    'If rent is unpaid, the landlord may deliver a written notice to terminate the lease not less than seven business days after receipt of the notice by the tenant.'),
+  missingOne: quotationFindings('missing-1', 'The panel confirmed that "the deadline is seven business days" in every case.', '43',
+    'Municipal liability concerns the design and maintenance of public roads.'),
+  missingTwo: quotationFindings('missing-2', 'It added that "an operator bears the whole of the risk" without exception.', '44',
+    'Nothing in these reasons addresses the allocation of commercial risk between parties.'),
+};
+api.get('/discrepancies', (_req, res) => res.json([...quotationCases.difference,
+  ...quotationCases.missingOne, ...quotationCases.missingTwo]));
 api.post('/save', (req, res, next) => {
   try {
     const { product, action, revision } = req.body;
@@ -109,29 +145,36 @@ try {
   await page.getByRole('button', { name: 'Edit in PDF' }).click(); await expect(cards).toHaveCount(0);
   assert.equal(preparations, beforeReopen, 'A deliberately empty set stays empty');
   await page.getByRole('button', { name: 'Save and close' }).click();
+  // Meaningless differences never reach the dialog at all.
+  assert.deepEqual(quotationCases.ownerComma, [], 'A quote the cited passage contains is not a finding');
+  assert.deepEqual(quotationCases.diacritics, [], 'Diacritics, case and dashes are not differences');
+  assert.equal(quotationCases.difference.length, 1);
   // Same dialog element survives asynchronous review and completion.
   await page.getByRole('button', { name: 'Review test quotations' }).click();
   const dialog = page.getByRole('dialog'); await dialog.evaluate(node => { node.dataset.reviewIdentity = 'same-dialog'; });
+  await expect(dialog.getByText('1 / 2')).toBeVisible();
+  await expect(dialog.getByText(/The Board explained that/)).toBeVisible();
+  const compact = await dialog.boundingBox();
+  assert.ok(compact.height < 480, `Dialog is content-sized, not a fixed slab (${compact.height}px)`);
   await page.screenshot({ path: path.join(output, 'quotation-desktop.png') });
-  await page.getByRole('radio', { name: 'Use the source wording' }).check();
+  await page.getByRole('radio', { name: 'Use the source wording (edits your .docx)' }).check();
   await page.getByRole('button', { name: 'Apply correction' }).click();
-  await expect(page.getByText(/Quotation not located/)).toBeVisible();
-  await expect(dialog).toHaveAttribute('data-review-identity', 'same-dialog');
+  // The two quotations that were not found are one batch, with no per-quote decision.
+  await expect(dialog.getByRole('list').locator('li')).toHaveCount(2);
+  assert.equal(await dialog.getByRole('radio').count(), 0, 'No adjudication for unfound quotations');
   assert.equal(await dialog.locator('ins,del').count(), 0);
+  await expect(dialog).toHaveAttribute('data-review-identity', 'same-dialog');
+  await page.screenshot({ path: path.join(output, 'quotation-unlocated.png') });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: path.join(output, 'quotation-mobile.png') });
   const footer = await page.getByRole('button', { name: 'Done', exact: true }).boundingBox();
   assert.ok(footer.y + footer.height < 844 && footer.y > 0, 'Footer stays inside the viewport');
-  await page.getByRole('radio', { name: 'Keep as written' }).check();
-  await page.getByRole('button', { name: 'Keep as written' }).click();
-  await expect(page.getByText('No quotations left to review.')).toBeVisible();
-  await expect(dialog).toHaveAttribute('data-review-identity', 'same-dialog');
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   assert.deepEqual(errors, []);
   await writeFile(path.join(output, 'result.json'), JSON.stringify({ passed: true, preparations, assertions: [
     'left full-paragraph geometry', 'compact excerpts', 'HiDPI raster', 'click-delete-undo-redo',
-    'text selection', 'scan drawing', 'persisted deletion', 'editable PDF export', 'stable quotation review', 'mobile footer'
+    'text selection', 'scan drawing', 'persisted deletion', 'editable PDF export', 'stable quotation review', 'unlocated batch', 'mobile footer'
   ] }, null, 2));
   console.log(`Authorities highlight browser checks passed: ${output}`);
 } catch (error) {
