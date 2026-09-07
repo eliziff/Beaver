@@ -270,7 +270,7 @@ it("imports a research set as passage rows and opens the created review", async 
     fireEvent.click(screen.getByRole("button", { name: "Create custom" }));
     fireEvent.click(screen.getByRole("button", { name: "Import a Research set" }));
     fireEvent.click(await screen.findByRole("radio", { name: "Select Appeal" }));
-    expect(await screen.findByLabelText("Pen")).toBeVisible();
+    expect(await screen.findByLabelText("Highlight type")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Passages" }));
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
