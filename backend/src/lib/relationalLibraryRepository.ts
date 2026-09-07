@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { LibraryFolder, LibraryRepository, LibraryScope } from "./libraryStore";
 import { relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
-import { changes, deleteDocumentRows, now, one, rows, type Row } from "./relationalRepositorySupport";
-import { searchFilter } from "./searchQuery";
+import { changes, deleteDocumentRows, directoryPage, now, one, rows, type Row } from "./relationalRepositorySupport";
 
 const libraryFolder = (row: Row): LibraryFolder => ({ ...row,
   id: String(row.id), name: String(row.name), parent_folder_id: row.parent_folder_id ?? null });
@@ -19,29 +18,12 @@ async function lockLibrary(scope: LibraryScope, db: RelationalDatabase) {
 }
 export const libraryRepository: LibraryRepository = {
   async page(scope, options) {
-    const after = options.after;
-    const seek = after ? sql`AND (bucket>${after[0]} OR (bucket=${after[0]} AND
-      (sort_name>${after[1]} OR (sort_name=${after[1]} AND id>${after[2]}))))` : sql.raw("");
-    const filter = options.q || options.documentsOnly
-      ? sql`SELECT 'document' kind,id,1 bucket,lower(filename) sort_name,NULL name,
-          NULL parent_folder_id,NULL created_at,NULL updated_at FROM documents
-        WHERE user_id=${scope.userId} AND project_id IS NULL AND library_kind=${scope.kind}
-          ${options.q ? sql`AND ${searchFilter(sql`lower(filename)`, options.q)}` : sql.raw("")}`
-      : sql`SELECT 'folder' kind,id,0 bucket,lower(name) sort_name,name,
-          parent_folder_id,created_at,updated_at FROM library_folders
-        WHERE user_id=${scope.userId} AND library_kind=${scope.kind}
-          AND COALESCE(parent_folder_id,'')=${options.parentFolderId ?? ""}
-        UNION ALL SELECT 'document',id,1,lower(filename),NULL,NULL,NULL,NULL FROM documents
-        WHERE user_id=${scope.userId} AND project_id IS NULL AND library_kind=${scope.kind}
-          AND COALESCE(library_folder_id,'')=${options.parentFolderId ?? ""}`;
-    const result = await rows(sql`SELECT * FROM (${filter}) entries WHERE 1=1 ${seek}
-      ORDER BY bucket,sort_name,id LIMIT ${options.limit + 1}`);
-    const page = result.slice(0, options.limit), last = page.at(-1);
-    return { items: page.map((row) => row.kind === "folder"
-      ? { kind: "folder" as const, folder: libraryFolder(row) }
-      : { kind: "document" as const, id: String(row.id) }),
-    nextAfter: result.length > options.limit && last
-      ? [Number(last.bucket), String(last.sort_name), String(last.id)] : null };
+    return directoryPage(options, {
+      folders: sql`SELECT * FROM library_folders
+        WHERE user_id=${scope.userId} AND library_kind=${scope.kind}`,
+      documents: sql`SELECT id,filename,library_folder_id parent_folder_id FROM documents
+        WHERE user_id=${scope.userId} AND project_id IS NULL AND library_kind=${scope.kind}`,
+    }, libraryFolder);
   },
   folder: findLibraryFolder,
   async createFolder(scope, name, parentId, stableId) {
