@@ -76,9 +76,9 @@ jobs: resumable conversational delegation and durable cell generation have
 different completion and retry requirements. Consolidate further only where
 the same behavior is implemented twice.
 
-The optional memo should use normal-looking citations rather than Cite chips, with
+The optional memo uses normal-looking linked citations rather than Cite chips, with
 bold, italics, underline, lists, headings and tables. Sources and saved passages
-can be dragged into it or inserted with Cite. Humans and models update the same
+can be dragged into it or inserted with Insert citation. Humans and models update the same
 memo through research operations; stale memo writes must not overwrite newer text.
 Workspace navigation and memo recovery follow the
 [behavior contract](../current/behavior-contracts.md#sources-workspace).
@@ -94,14 +94,12 @@ citations with real clicks/screenshots in both Sources placements. An authorized
 live Luna-low research run must collect cases into nested labels, highlight
 relevant passages, draft a memo and survive reload/model-context transfer.
 
-## PR sequence after the A–F handoff
+## Remaining research-overhaul work
 
-1. Research semantics: neutral Library; one highlight type per saved passage;
-   background receipts separate from highlights and grounded findings; stable
-   evidence IDs; no automatic promotion of reads. This is the foundation PR.
-2. Sources UI: virtual-folder navigation over one source list, compact type
-   hierarchy editing and normal-looking memo citations.
-3. Tabular Review UI: quiet toolbar, full-width title and bounded evidence inspector.
+The research foundation and combined Sources/Memo/Table surface cleanup are
+specified in the [current behavior contract](../current/behavior-contracts.md#sources-workspace).
+These surfaces do not yet implement all the semantic conversions below.
+
 4. Sources/Table reuse: carry classifications, saved evidence and grounded findings
    into meaningful pre-populated reviews; explicit reverse promotion.
 5. Chat conversion: preserve grounded intellectual work, propose semantic mappings

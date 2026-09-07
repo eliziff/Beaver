@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Loader2, PanelLeft, RefreshCw, X } from "lucide-react";
+import { BookOpen, FileText, Loader2, PanelLeft, RefreshCw, X } from "lucide-react";
 import type { ColumnConfig, TabularCell, TabularDocument } from "@/app/lib/api/tabular";
-import { type Citation, expandCitationToEntries, citationPinpoint } from "@/app/lib/citations";
+import { type Citation } from "@/app/lib/citations";
+import { evidenceCitation } from "@/app/lib/groundedAnswers";
+import type { ResearchSourceReference } from "@/app/lib/researchFiles";
 import { ResearchCitationContent } from "../legal/ResearchCitationViewer";
-import { GroundedAnswerContent } from "../shared/GroundedAnswerContent";
-import { FileTypeIcon } from "../shared/FileTypeIcon";
-import { CitationQuotesHeader } from "../assistant/CitationQuotesHeader";
+import { TabularResultDetails } from "./TabularResultDetails";
 import { Button } from "../ui/button";
 import { cn } from "@/app/lib/utils";
 import { LIQUID_PANEL_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
@@ -32,6 +32,7 @@ export function TRSidePanel({
     citation,
 }: Props) {
     const [regenerating, setRegenerating] = useState(false);
+    const [error, setError] = useState("");
     const panelRef = useRef<HTMLDialogElement>(null);
     const closeRef = useRef<HTMLButtonElement>(null);
     const openerRef = useRef(
@@ -87,11 +88,18 @@ export function TRSidePanel({
         setDocCitation(citation);
         setDocumentPaneOpen(true);
     }
-    const source = doc.reference;
-    const citationLocation = docCitation ? citationPinpoint(docCitation) : "";
-    const citationText = `${doc.filename}, ${citationLocation}`;
-    const quoteEntries = docCitation?.kind === "document" ? expandCitationToEntries(docCitation) : docCitation?.quotes ?? [];
-    const prompt = column.prompt && column.prompt !== column.name ? column.prompt : "";
+    const receipt = docCitation && cell.content?.evidence.find((item) => {
+        const candidate = evidenceCitation(item, docCitation.ref);
+        return candidate && JSON.stringify(candidate) === JSON.stringify(docCitation);
+    });
+    const citedReference: ResearchSourceReference | undefined = receipt && receipt.provider !== "library" && receipt.source_reference
+        ? { provider: receipt.provider, id: receipt.source_reference.id, part: receipt.source_reference.part,
+            family: receipt.source_reference.family, kind: receipt.source_class === "legislation" ? "legislation" : receipt.provider === "journal" ? "journal" : receipt.provider === "hansard" ? "hansard" : "case",
+            citation: receipt.citation, title: receipt.name, collection: receipt.dataset, language: receipt.language, url: receipt.external_url }
+        : undefined;
+    const source = citedReference ?? doc.reference;
+    const SourceIcon = source && source.kind !== "document" && docCitation?.kind !== "document" ? BookOpen : FileText;
+    const sourceTitle = docCitation?.kind === "document" ? docCitation.filename : source?.title ?? source?.citation ?? doc.filename;
     return (
         <dialog
             ref={panelRef}
@@ -101,7 +109,7 @@ export function TRSidePanel({
                 onClose();
             }}
             className={cn(
-                "fixed bottom-3 left-auto right-3 top-3 z-100 m-0 flex max-w-[calc(100vw-1.5rem)] overflow-hidden p-0 text-inherit backdrop:bg-gray-950/20",
+                "fixed h-[calc(100dvh-1.5rem)] max-h-[calc(100dvh-1.5rem)] min-h-0 bottom-3 left-auto right-3 top-3 z-100 m-0 flex max-w-[calc(100vw-1.5rem)] overflow-hidden p-0 text-inherit backdrop:bg-gray-950/20",
                 LIQUID_PANEL_SURFACE_CLASS,
                 documentPaneOpen
                     ? "w-[1040px] flex-col md:flex-row"
@@ -114,32 +122,17 @@ export function TRSidePanel({
                     className="relative flex min-h-0 min-w-0 flex-1 flex-col border-b border-white/30 px-3 pb-3 md:border-b-0 md:border-r"
                 >
                     <div className="flex min-h-11 shrink-0 items-center gap-2">
-                        <FileTypeIcon fileType={doc.file_type ?? doc.filename} className="h-4 w-4" />
-                        <div className="min-w-0 truncate text-sm font-medium text-gray-700" title={source?.title ?? doc.filename}>
-                            {source?.title ?? doc.filename}
+                        <SourceIcon aria-hidden className="h-4 w-4 text-gray-500" />
+                        <div className="min-w-0 truncate text-sm font-medium text-gray-700" title={sourceTitle}>
+                            {sourceTitle}
                         </div>
                     </div>
-                    {!!quoteEntries.length && (
-                        <div className="-mx-3 shrink-0 py-2">
-                            <CitationQuotesHeader
-                                quotes={quoteEntries.map(({ quote }, index) => ({
-                                        id: `${cell.id}:${docCitation?.ref}:${index}`,
-                                        quote,
-                                        inlineDetail: citationLocation,
-                                        citationText,
-                                    }))}
-                                activeQuoteId={`${cell.id}:${docCitation?.ref}:0`}
-                                citationRef={docCitation?.ref}
-                                citationText={citationText}
-                            />
-                        </div>
-                    )}
                     <ResearchCitationContent document={doc} reference={source} citation={docCitation} />
                 </div>
             )}
             <div
                 className={cn(
-                    "flex w-full shrink-0 flex-col overflow-hidden",
+                    "flex min-h-0 w-full shrink-0 flex-col overflow-hidden",
                     documentPaneOpen
                         ? "h-[min(360px,45%)] md:h-auto md:w-[360px]"
                         : "h-full",
@@ -153,46 +146,33 @@ export function TRSidePanel({
                         aria-pressed={documentPaneOpen}>
                         <PanelLeft className="h-4 w-4" />
                     </Button>
-                    {onRegenerate && (
-                        <Button variant="ghost" size="icon-sm" className={ICON_BUTTON}
-                            onClick={async () => {
-                                setRegenerating(true);
-                                try {
-                                    await onRegenerate();
-                                } finally {
-                                    setRegenerating(false);
-                                }
-                            }}
-                            disabled={regenerating || running}
-                            aria-label="Regenerate"
-                            title={running ? "Wait for the current run to finish" : "Regenerate"}
-                        >
-                            {regenerating ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <RefreshCw className="h-4 w-4" />
-                            )}
-                        </Button>
-                    )}
                     <Button ref={closeRef} variant="ghost" size="icon-sm" className={ICON_BUTTON} onClick={onClose} aria-label="Close">
                         <X className="h-4 w-4" />
                     </Button>
                 </div>
-                <div className="flex-1 overflow-y-auto">
+                <div role="region" aria-label="Result details" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                     <div className="px-5 pb-3">
                         {!documentPaneOpen && <div className="mb-1 flex items-center gap-1.5 text-xs text-gray-600">
-                            <FileTypeIcon fileType={doc.file_type ?? doc.filename} className="h-3.5 w-3.5" />
+                            <SourceIcon aria-hidden className="h-3.5 w-3.5 text-gray-500" />
                             <span className="truncate" title={doc.filename}>{doc.filename}</span>
                         </div>}
                         <h2 className="text-sm font-semibold leading-5 text-gray-900 [overflow-wrap:anywhere]">{column.name}</h2>
-                        {prompt && <p className="mt-1 whitespace-pre-wrap text-xs leading-4 text-gray-500 [overflow-wrap:anywhere]">{prompt}</p>}
                         <div className="mt-3">
-                            {cell.content && <GroundedAnswerContent answer={cell.content} column={column} onCitation={handleCitationOpen} />}
+                            {cell.content && <TabularResultDetails answer={cell.content} column={column} onCitation={handleCitationOpen} />}
                             {!cell.content && <p role="status" className="text-sm text-gray-500">{cell.status === "error" ? "This result failed. Regenerate to try again."
                                 : cell.status === "generating" ? "Running…" : "This question has not run yet."}</p>}
                         </div>
                     </div>
                 </div>
+                {onRegenerate && <div className="flex shrink-0 items-center justify-between gap-2 border-t border-gray-200 px-3 py-2">
+                    {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
+                    <Button variant="outline" size="compact" disabled={regenerating || running} aria-label="Regenerate" title="Regenerate"
+                        onClick={async () => { setRegenerating(true); setError("");
+                            try { await onRegenerate(); } catch { setError("Could not regenerate. Try again."); }
+                            finally { setRegenerating(false); } }}>
+                        {regenerating ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}Regenerate
+                    </Button>
+                </div>}
             </div>
         </dialog>
     );
