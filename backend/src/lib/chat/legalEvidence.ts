@@ -1033,38 +1033,15 @@ function sourceKey(receipt: LegalEvidenceReceipt) {
     : [receipt.citation, receipt.name, receipt.source_class].join("\u0000");
 }
 
+/** A bare passage list has no claims to divide, so it reads as one claim. */
 export function legalEvidenceCitationGroupsFromEntries(
   entries: readonly RegisteredEvidence[],
 ): LegalEvidenceCitationGroup[] {
-  const groups: LegalEvidenceCitationGroup[] = [];
-  const grouped = new Map<string, LegalEvidenceCitationGroup>();
-  const pinpoints = new Map<string, Set<LegalEvidenceReceipt["locator"]["kind"]>>();
-  for (const { receipt } of entries) if (receipt.locator.kind !== "document")
-    pinpoints.set(sourceKey(receipt),
-      (pinpoints.get(sourceKey(receipt)) ?? new Set()).add(receipt.locator.kind));
-  for (const raw of entries) {
-    const source = sourceKey(raw.receipt), kinds = pinpoints.get(source);
-    // An unpinpointed passage has no locator system of its own, so it joins its
-    // authority's pinpointed chip rather than standing up a locator-less twin.
-    const kind = raw.receipt.locator.kind !== "document" ? raw.receipt.locator.kind
-      : kinds?.size === 1 ? [...kinds][0] : "document";
-    const key = `${source}\u0000${kind}`;
-    let group = grouped.get(key);
-    if (!group) {
-      group = { ref: groups.length + 1, members: [], locatorKind: kind, locatorLabels: [],
-        shortForm: false };
-      grouped.set(key, group);
-      groups.push(group);
-    }
-    group.members.push({ ...raw, ref: group.ref });
-  }
-  for (const group of groups) {
-    const labels = group.members.flatMap(({ receipt }) =>
-      receipt.locator.kind === group.locatorKind ? [receipt.locator.label] : []);
-    group.locatorLabels = collapseProvisionLabels(labels, group.locatorKind)
-      ?? [...new Set(labels)];
-  }
-  return groups;
+  const ids = entries.map(({ receipt }) => receipt.evidence_id);
+  return ids.length ? legalEvidenceCitationPlan({
+    answer: [{ text: "", evidence_ids: ids }],
+    evidence: new Map(entries.map((entry) => [entry.receipt.evidence_id, entry])),
+  } as LegalEvidenceTurnState).groups : [];
 }
 
 /**
