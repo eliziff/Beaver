@@ -131,11 +131,11 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
         className="h-8 min-w-0 border-gray-400 text-sm" />
       <Button type="submit" className="h-8" disabled={busy}>Save</Button>
     </form> : <div className="flex min-w-0 items-center gap-2">
+      {!!loaded && <span role="img" aria-label="PDF loaded" className="shrink-0 text-green-700"
+        title={sources.map(({ filename }) => filename).join("\n")}><FileCheck2 className="h-4 w-4" /></span>}
       <h3 className="truncate text-sm font-medium text-gray-950" title={title}>{title}</h3>
       {!!citationLine && <span className="hidden shrink truncate text-xs text-gray-500 sm:block"
         title={citationLine}>{citationLine}</span>}
-      {!!loaded && <span role="img" aria-label="PDF loaded" className="shrink-0 text-green-700"
-        title={sources.map(({ filename }) => filename).join("\n")}><FileCheck2 className="h-4 w-4" /></span>}
     </div>}
     <div className="col-span-2 flex items-center justify-end gap-1 sm:col-span-1">
       {needsPdf && (authority.source.kind === "pending-canlii"
