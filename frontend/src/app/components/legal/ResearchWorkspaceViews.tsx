@@ -7,6 +7,7 @@ import { SearchableChoiceModal } from "../modals/ModalSelect";
 import { GroundedAnswerContent } from "../shared/GroundedAnswerContent";
 import { Button } from "../ui/button";
 import { ImportResearchSet } from "../tabular/ImportResearchSet";
+import { SaveFindingHighlights } from "./SaveFindingHighlights";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 
 export function ResearchWorkspaceViews() {
@@ -24,7 +25,7 @@ export function ResearchWorkspaceViews() {
   return <>
     <ResearchViews table={() => choose("Table")} chat={() => choose("Chat")} />
     <ImportResearchSet open={importing} onClose={() => setImporting(false)} fileId={workspace.file?.document.id}
-      projectId={workspace.file?.document.project_id} onOpen={navigate} />
+      selection={workspace.selection} projectId={workspace.file?.document.project_id} onOpen={navigate} />
     <SearchableChoiceModal open={!!choices} onClose={() => setChoices(null)} title="Open chat"
       value={null} options={[...(choices?.items ?? []), { value: "new", label: "New chat" }]}
       footer={error && <p role="alert" className="text-sm text-red-700">{error}</p>} closeOnSelect={false}
@@ -40,7 +41,9 @@ export function ResearchSourceAnswers({ sourceId, onCitation }: { sourceId: stri
   return <>
     {page?.items.map(({ reference, question, answer, evidence }) => <details key={JSON.stringify(reference)} className="border-s-2 border-gray-200 ps-3">
       <summary className="cursor-pointer text-sm font-medium text-gray-900">{question.title}</summary>
-      <div className="pt-2"><GroundedAnswerContent answer={{ ...answer, evidence }} column={question} onCitation={onCitation} /></div>
+      <div className="pt-2"><GroundedAnswerContent answer={{ ...answer, evidence }} column={question} onCitation={onCitation} />
+        {answer.claims.some(({ evidence_ids }) => evidence_ids.length > 0) && <SaveFindingHighlights references={[reference]} />}
+      </div>
     </details>)}
     {page?.loading && !page.items.length && <p role="status" className="text-sm text-gray-500">Loading answers…</p>}
     {!!page?.error && <Button size="compact" variant="outline" onClick={() => void findings.fetchPage(sourceId, null, false)}>Retry answers</Button>}

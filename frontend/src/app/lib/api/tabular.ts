@@ -119,9 +119,9 @@ export const designTabularReview = (payload: {
   current?: ColumnConfig[];
   documentNames?: string[];
 }) => post<{ title: string; columns_config: ColumnConfig[] }>("/tabular-review/design", payload);
-export const proposeColumnLabels = (fileId: string, reviewId: string, columnIndex: number) =>
+export const proposeColumnLabels = (fileId: string, reviewId: string, columnIndex: number, rowIds?: string[]) =>
   post<ResearchFile>(`/source-workspaces/${segment(fileId)}/column-labels`, {
-    reviewId, columnIndex,
+    reviewId, columnIndex, ...(rowIds ? { rowIds } : {}),
   });
 export const generateTabularColumnPrompt = (
   title: string,
