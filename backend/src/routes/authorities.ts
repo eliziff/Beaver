@@ -148,6 +148,13 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
         file: uploadedDocument(file),
       }));
     }));
+  router.post("/:id/source-ocr", asyncRoute(async (req, res) => {
+    const body = object(req.body), roles: unknown = body.roles;
+    if (!Array.isArray(roles) || !roles.length || roles.length > 200)
+      reject(400, "roles must contain 1 to 200 binding roles");
+    res.json(await application.sourceOcr(applicationScope(res), text(req.params.id),
+      (roles as unknown[]).map((role) => text(role)), body.cancel === true));
+  }));
   router.post("/:id/prepare-highlights", asyncRoute(async (req, res) => {
     const preparation = new AbortController();
     res.once("close", () => preparation.abort());

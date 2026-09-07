@@ -27,8 +27,7 @@ import type { WorkProductFocus, WorkProductMetadata,
   WorkProductRefresh } from "@/app/lib/workProducts";
 import { ManualDraft, Sources } from "./AuthoritySources";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
-import { inspectPdf } from "@/app/lib/inspectPdf";
-import { SourceOcrModal, type ScannedAuthorityPdf } from "./SourceOcrModal";
+import { useScannedSources, useSourceOcr } from "./sourceOcr";
 import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesHost,
   AuthoritiesLibraryPdfTarget,
   AuthoritiesSourceIssue } from "./host";
@@ -138,7 +137,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const [editingAuthority, setEditingAuthority] = useState<AuthorityIdentity>();
   const [sourcePreview, setSourcePreview] = useState<{ role: string; name: string;
     quote?: string; bytes?: Uint8Array; error?: string }>();
-  const [scanReview, setScanReview] = useState<ScannedAuthorityPdf[]>();
+  const ocr = useSourceOcr(host, draft?.id);
   const [stubWarning, setStubWarning] = useState(false);
   const scanRequest = useRef<AbortController | null>(null);
   const previewRequest = useRef(0);
@@ -163,7 +162,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const display = useCallback((next?: AuthoritiesProduct, preserveTab = false) => {
     reviewRequest.current?.abort(); reviewRequest.current = null; setReview(undefined);
     setFindingId(""); setQuotationsDone(false); setHighlightWarnings(undefined);
-    scanRequest.current?.abort(); setScanReview(undefined);
+    scanRequest.current?.abort(); ocr.reset();
     previewRequest.current += 1; setSourcePreview(undefined);
     draftRef.current = next; setDraft(next); setSelectedId(orderedOccurrences(next)[0]?.id ?? "");
     if (next) {
@@ -258,6 +257,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   }, []);
   const draftId = draft?.id;
   const sourceKey = sourceIssueKey(draft);
+  const scannedSources = useScannedSources(host, draft, `${draftId}:${sourceKey}`,
+    draft?.state.stage === "sources" || draft?.state.stage === undefined);
   const sameDraft = draft && sourceIssueState.draftId === draft.id;
   const sourceIssues = sameDraft && sourceIssueState.sourceKey === sourceKey
     ? sourceIssueState.issues : {};
@@ -620,48 +621,17 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     return items.length ? current : host.act(current.id, current.revision, { type: "set-stage", stage: "highlights" });
   }
 
-  function finishSourceReview(policy: AuthoritiesBuildSettings["scannedPdfPolicy"]) {
-    const current = draftRef.current;
-    if (!current) return;
-    const request = new AbortController(); scanRequest.current?.abort(); scanRequest.current = request;
-    void run(async () => {
-      const configured = await host.act(current.id, current.revision, {
-        type: "set-settings", settings: { scannedPdfPolicy: policy },
-      });
-      remember(configured);
-      return prepareHighlightReview(configured, request.signal);
-    }, (next) => { remember(next); setScanReview(undefined); }, "", "Preparing highlight review")
-      .finally(() => { if (scanRequest.current === request) scanRequest.current = null; });
-  }
   function finishSources() {
     const current = draftRef.current;
     if (!current || busy) return;
     const request = new AbortController(); scanRequest.current?.abort(); scanRequest.current = request;
     void run(async () => {
-      const files: ScannedAuthorityPdf[] = [];
-      for (const id of current.state.authorityOrder) {
-        const authority = current.state.authorities[id];
-        if (authority.excluded || authority.source.kind !== "attached") continue;
-        for (const source of authority.source.sources) {
-          if (source.origin === "reconstructed" || !host.readSource) continue;
-          request.signal.throwIfAborted();
-          setMessage(`Checking pages in ${authorityName(authority)}`);
-          const blob = await host.readSource(current, source.bindingRole);
-          const inspected = await inspectPdf(new File([blob], source.filename,
-            { type: "application/pdf" }), undefined, request.signal);
-          if (!inspected.pageCount) throw new Error(`Unlock the PDF for ${authorityName(authority)} before continuing.`);
-          if (inspected.textlessPages.length) files.push({ role: source.bindingRole,
-            name: authorityName(authority), pageCount: inspected.pageCount,
-            textlessPages: inspected.textlessPages });
-        }
-      }
+      // Recognition is queued the moment a scan is found and watched in the Sources
+      // list; how much of it reaches the book stays the scanned-PDF setting.
+      void ocr.begin(await scannedSources(current, setMessage));
       request.signal.throwIfAborted();
-      if (files.length) return { files, next: undefined };
-      return { files, next: await prepareHighlightReview(current, request.signal) };
-    }, ({ files, next }) => {
-      setMessage("");
-      if (next) remember(next); else setScanReview(files);
-    }, "", "Checking source PDFs").finally(() => {
+      return prepareHighlightReview(current, request.signal);
+    }, remember, "", "Preparing highlight review").finally(() => {
       if (scanRequest.current === request) scanRequest.current = null;
     });
   }
@@ -793,7 +763,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                       onFocusChange={onFocusChange} onReview={setFindingId} />}
                   </StepSection>
                   {stage !== "citations" && <Sources key={draft.id} draft={draft} occurrences={occurrences}
-                    {...authorityPanelProps}
+                    {...authorityPanelProps} ocr={ocr}
                     forceOpen={sourceIntervention === sourceKey} />}
                   {quotationReview}
                   {sourcesContinue}
@@ -846,10 +816,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
           act({ type: "edit-authority", authorityId: editingAuthority.id, kind, citation, name });
           setEditingAuthority(undefined);
         }} />}
-      {scanReview && <SourceOcrModal files={scanReview} busy={busy}
-        policy={draft?.state.settings.scannedPdfPolicy ?? "page-margin"}
-        onClose={() => setScanReview(undefined)} onPreview={openSource}
-        onContinue={finishSourceReview} />}
       <Modal open={stubWarning} onClose={() => setStubWarning(false)} size="md"
         breadcrumbs={["Missing PDFs"]} fit
         secondaryAction={{ label: "Cancel", onClick: () => setStubWarning(false) }}

@@ -7,6 +7,7 @@ import {
   createAuthorities,
   refreshAuthorities,
   prepareAuthoritiesSources,
+  authoritiesSourceOcr,
   prepareAuthoritiesHighlights,
   refreshAuthoritiesInput,
   reviewAuthorities,
@@ -24,7 +25,7 @@ import {
   updateWorkProduct,
 } from "@/app/lib/api/workProducts";
 import { directoryResource, downloadDocument } from "@/app/lib/api/documents";
-import { waitForPdfPreparation } from "@/app/lib/pdfPreparation";
+import { pdfProgress, waitForPdfPreparation } from "@/app/lib/pdfPreparation";
 import type { WorkProductStore } from "@/app/lib/workProducts";
 import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
 import { prepareAnnotations } from "./annotationPreparation";
@@ -91,6 +92,9 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
     if (!resolved || resolved.kind === "local-file") throw new Error("This source is unavailable.");
     return downloadDocument(resolved.documentId, resolved.versionId).then(({ blob }) => blob);
   },
+  sourceOcr: { progress: pdfProgress,
+    start: (id, roles) => authoritiesSourceOcr(id, roles),
+    cancel: (id, roles) => authoritiesSourceOcr(id, roles, true) },
   async prepareHighlights(draft, progress, signal) {
     await prepareSourcePdfs(draft, progress, signal);
     progress?.("Preparing highlight review");
