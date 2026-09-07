@@ -1,149 +1,174 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
-import { ActionMenu } from "../ui/action-menu";
+import { ChevronRight } from "lucide-react";
 import { Button } from "../ui/button";
 import { usePagedChains } from "@/app/hooks/usePagedChains";
 import { getResearchItems } from "@/app/lib/api/researchFiles";
-import { researchLabelPath, type ResearchLabel, type ResearchPageItem, type ResearchQueryInput, type ResearchQueryCoverage, type ResearchSelection } from "@/app/lib/researchFiles";
+import { researchLabelPath, type ResearchPageItem, type ResearchQueryInput,
+  type ResearchQueryReceipt, type ResearchSelection } from "@/app/lib/researchFiles";
 import { errorMessage } from "@/app/lib/utils";
+import { researchLabelColor } from "./ResearchLabelMarker";
 import { sourceName } from "./useSourceReader";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 
 const PAGE_SIZE = 50;
 type Rule = NonNullable<ResearchQueryInput["rules"]>[number];
-type Extent = "match" | `${Rule["direction"]}:${"sentence" | "paragraph"}`;
-/** How much text each match carries; anything beyond the match reuses the capture-rule machinery. */
-const EXTENTS: readonly { value: Extent; label: string }[] = [
-  { value: "match", label: "Match" },
-  { value: "around:sentence", label: "Sentence" }, { value: "around:paragraph", label: "Paragraph" },
-  { value: "after:sentence", label: "Sentence after" }, { value: "before:sentence", label: "Sentence before" },
-  { value: "after:paragraph", label: "Paragraph after" }, { value: "before:paragraph", label: "Paragraph before" },
-];
-const queryText = (input: Record<string, unknown>) => Array.isArray(input.rules)
+const UNITS: readonly { value: Rule["unit"] | "match"; label: string }[] = [{ value: "match", label: "the match" },
+  { value: "sentence", label: "its sentence" }, { value: "paragraph", label: "its paragraph" }];
+const DIRECTIONS: readonly { value: Rule["direction"]; label: string }[] = [{ value: "around", label: "around" },
+  { value: "after", label: "after" }, { value: "before", label: "before" }];
+const queryPhrase = (input: Record<string, unknown>) => Array.isArray(input.rules)
   ? input.rules.map((rule) => String((rule as { phrase?: unknown }).phrase ?? "")).filter(Boolean).join("; ")
-  : String(input.pattern ?? input.query ?? "Search");
-const queryRules = (input: Record<string, unknown>) => Array.isArray(input.rules) ? input.rules as Rule[] : [];
-const receiptLabel = (labels: Record<string, ResearchLabel>, id: string, paths: Record<string, string> = {}) => paths[id] ??
-  (researchLabelPath(labels, id).map(({ name }) => name).join(" / ") || id);
-const slotSummary = (slots: Record<string, string[]>, labels: Record<string, ResearchLabel>, paths: Record<string, string> = {}) => {
-  const counts = new Map<string, number>();
-  Object.values(slots).forEach((ids) => ids.forEach((id) => { const name = receiptLabel(labels, id, paths);
-    counts.set(name, (counts.get(name) ?? 0) + 1); }));
-  return [...counts].map(([name, count]) => `${name}${count > 1 ? ` × ${count}` : ""}`).join(", ");
-};
-const ruleText = (labels: Record<string, ResearchLabel>, rule: Rule, paths?: Record<string, string>) =>
-  `${rule.phrase} → ${rule.direction} ${rule.unit}${rule.unit === "chars" ? ` (${rule.chars ?? 100})` : ""}${rule.slot ? ` → ${receiptLabel(labels, rule.slot, paths)}` : ""}`;
+  : String(input.text ?? input.pattern ?? input.query ?? "Search");
 
-function ChoiceMenu<T extends string>({ label, value, options, onChange, disabled }: { label: string; value: T;
-  options: readonly { value: T; label: string }[]; onChange: (value: T) => void; disabled?: boolean }) {
-  return <ActionMenu label={label} className="min-w-0" items={options.map((option) => ({
-    label: option.label, checked: option.value === value, onSelect: () => onChange(option.value) }))}
-    triggerClassName={`h-8 w-full min-w-0 items-center justify-between gap-1 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-800 hover:border-gray-500 ${disabled ? "pointer-events-none opacity-40" : ""}`}>
-    <span className="truncate">{options.find((option) => option.value === value)?.label}</span><ChevronDown aria-hidden="true" className="size-3.5 shrink-0" />
-  </ActionMenu>;
+const WINDOW = 90;
+/** A match is read around its phrase, not as a whole paragraph: window it, then mark it. */
+function marked(text: string, phrase: string) {
+  const at = phrase ? text.toLowerCase().indexOf(phrase.toLowerCase()) : -1;
+  if (at < 0) return text.length > WINDOW * 2 ? `${text.slice(0, WINDOW * 2).trimEnd()}…` : text;
+  const from = Math.max(0, at - WINDOW), to = Math.min(text.length, at + phrase.length + WINDOW);
+  return <>{from ? "…" : ""}{text.slice(from, at)}
+    <mark className="rounded-sm bg-amber-100 text-gray-900">{text.slice(at, at + phrase.length)}</mark>
+    {text.slice(at + phrase.length, to)}{to < text.length ? "…" : ""}</>;
 }
 
-export function ResearchSearchPanel({ active, selection, matches, onMatches, onStatus: setStatus }: {
-  active: boolean; selection: ResearchSelection;
-  matches: { evidence: Set<string>; sources: Set<string> } | null;
-  onMatches: (evidenceIds: string[], sourceIds: string[]) => void; onStatus: (message: string) => void;
+export function ResearchSearchPanel({ active, selection, onStatus: setStatus }: {
+  active: boolean; selection: ResearchSelection; onStatus: (message: string) => void;
 }) {
-  const { file, mutations: commit } = useSourcesWorkspace(), labels = file?.state.labels ?? {};
-  const [text, setText] = useState(""), [syntax, setSyntax] = useState<"literal" | "terms">("literal"),
-    [extent, setExtent] = useState<Extent>("match"), [historyOpen, setHistoryOpen] = useState(false),
-    [openQueries, setOpenQueries] = useState<Set<string>>(() => new Set());
-  const [searchResult, setSearchResult] = useState<{ input: ResearchQueryInput; coverage: ResearchQueryCoverage } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const extentAllowed = syntax === "literal";
-  const toggleQuery = (id: string) => setOpenQueries((values) => { const next = new Set(values);
-    if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const { file, mutations: commit, evidence, highlight } = useSourcesWorkspace();
+  const labels = file?.state.labels ?? {};
+  const [phrase, setPhrase] = useState(""), [direction, setDirection] = useState<Rule["direction"]>("around"),
+    [unit, setUnit] = useState<Rule["unit"] | "match">("match");
+  const [busy, setBusy] = useState(false), [historyOpen, setHistoryOpen] = useState(false);
+  const [result, setResult] = useState<{ phrase: string; matches: Set<string>; sourceIds: string[] } | null>(null);
+  const [more, setMore] = useState<{ input: ResearchQueryInput; phrase: string } | null>(null);
+  const pen = (labels[highlight.pen ?? ""]?.scope === "highlight" ? labels[highlight.pen!] : undefined)
+    ?? Object.values(labels).filter((label) => label.scope === "highlight").sort((a, b) => a.order - b.order)[0];
+  const penName = pen ? researchLabelPath(labels, pen.id).map(({ name }) => name).join(" / ") : "Highlight";
   const queryPages = usePagedChains<ResearchPageItem>((_key, cursor, signal) => getResearchItems(file!.document.id,
     { kind: "queries", cursor, limit: PAGE_SIZE }, signal), [file?.document.id],
     "queries", !!file && historyOpen && active, { queries: file?.state.queries?.sha256 ?? "" });
-  const queryCount = file?.state.queries?.count ?? 0;
-  useEffect(() => { if (!matches) setSearchResult(null); }, [matches]);
-  async function query(input: ResearchQueryInput, continuing = false) {
+  const history = queryPages.chains.queries?.items.flatMap((item) => item.kind === "query" ? [item.value] : []) ?? [];
+  /** A match can sit on any page of a source's evidence; keep paging until it is on screen. */
+  useEffect(() => {
+    for (const id of result?.sourceIds ?? []) {
+      const page = evidence.chains[id];
+      if (!page) void evidence.fetchPage(id, null, false);
+      else if (!page.loading && !page.error && page.nextCursor && !page.items.some((item) =>
+        (item.kind === "passage" || item.kind === "evidence") && result!.matches.has(item.value.receipt.evidence_id)))
+        void evidence.fetchPage(id, page.nextCursor, true);
+    }
+  }, [result, evidence.chains, evidence.fetchPage]);
+
+  async function run(input: ResearchQueryInput, text: string, continuing = false) {
     if (!file) return;
-    if (!continuing && selection.sourceIds?.length === 0) return setStatus("No sources selected");
+    if (!continuing && selection.sourceIds?.length === 0) return setStatus("No sources to search");
     setBusy(true); setStatus("");
-    try { const request = continuing ? input : { ...input, ...selection };
-      const result = await commit.query(request);
-      const limited = result.receipt.failures.some(({ code }) => code.endsWith("_limit")), failed =
-        new Set(result.receipt.failures.filter(({ code }) => !code.endsWith("_limit")).map(({ sourceId }) => sourceId)).size;
-      onMatches([...new Set([...(continuing ? matches?.evidence ?? [] : []), ...result.receipt.evidenceIds])],
-        [...new Set([...(continuing ? matches?.sources ?? [] : []), ...result.receipt.matchedSourceIds])]);
-      setSearchResult(result.coverage ? { input: request, coverage: result.coverage } : null);
-      setStatus([`${result.receipt.evidenceIds.length} matches`, limited && "limit reached",
-        failed && `${failed} source failure${failed === 1 ? "" : "s"}`].filter(Boolean).join(" · ")); }
-    catch (reason) { setStatus(errorMessage(reason, "Search failed")); }
+    try {
+      const request = continuing ? input : { ...input, ...selection };
+      const { receipt, coverage } = await commit.query(request);
+      setResult((current) => ({ phrase: text,
+        matches: new Set([...(continuing ? current?.matches ?? [] : []), ...receipt.evidenceIds]),
+        sourceIds: [...new Set([...(continuing ? current?.sourceIds ?? [] : []), ...receipt.matchedSourceIds])] }));
+      setMore(coverage?.next_after ? { input: { ...request, after: coverage.next_after }, phrase: text } : null);
+      if (!receipt.evidenceIds.length) setStatus("No matches");
+    } catch (reason) { setStatus(errorMessage(reason, "Search failed")); }
     finally { setBusy(false); }
   }
   function find(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const phrase = text.trim(); if (!phrase) return;
-    const [direction, unit] = extent.split(":") as [Rule["direction"], Rule["unit"]];
-    void query(extentAllowed && extent !== "match"
-      ? { syntax: "literal", target: "sources", rules: [{ phrase, direction, unit }], conflict: "append" }
-      : { text: phrase, syntax, target: "sources" });
+    event.preventDefault(); const text = phrase.trim(); if (!text) return;
+    void run(unit === "match" ? { text, syntax: "literal", target: "sources" }
+      : { syntax: "literal", target: "sources", rules: [{ phrase: text, direction, unit }], conflict: "append" }, text);
   }
-  const rerun = (input: Record<string, unknown>) => { const rules = queryRules(input);
-    void query(rules.length ? { syntax: "literal", target: "sources", rules, conflict: "append" }
-      : { text: queryText(input), syntax: input.syntax === "terms" ? "terms" : "literal", target: "sources" }); };
-  const queryChain = queryPages.chains.queries, history = queryChain?.items.flatMap((item) => item.kind === "query" ? [item.value] : []) ?? [];
-  if (!file) return <p className="p-2 text-xs text-gray-500">Open or create a workspace to search saved sources.</p>;
-  return <>
-    <form onSubmit={find} className="mb-2 grid grid-cols-2 gap-1.5 border-b border-gray-200 pb-2">
-      <input required autoComplete="off" value={text} onChange={(event) => setText(event.target.value)} aria-label="Search saved source text"
-        placeholder="Find in saved text" className="col-span-2 h-8 min-w-0 rounded-md border border-gray-300 px-2 text-sm" />
-      <ChoiceMenu label="Search syntax" value={syntax} onChange={setSyntax}
-        options={[{ value: "literal", label: "Exact" }, { value: "terms", label: "All terms" }]} />
-      <ChoiceMenu label="Passage extent" value={extentAllowed ? extent : "match"} disabled={!extentAllowed} onChange={setExtent} options={EXTENTS} />
-      <Button type="submit" size="compact" disabled={busy} className="col-span-2">Find passages</Button>
+  function rerun(receipt: ResearchQueryReceipt) {
+    const rules = Array.isArray(receipt.input.rules) ? receipt.input.rules as Rule[] : [];
+    const text = queryPhrase(receipt.input);
+    setPhrase(text);
+    void run(rules.length ? { syntax: "literal", target: "sources", rules, conflict: "append" }
+      : { text, syntax: receipt.input.syntax === "terms" ? "terms" : "literal", target: "sources" }, text);
+  }
+  async function save(sourceIds: string[], evidenceIds: string[]) {
+    if (!file || !evidenceIds.length) return;
+    setStatus("");
+    try {
+      let target = pen?.id;
+      if (!target) { target = crypto.randomUUID();
+        await commit.act({ type: "label", id: target, name: "Highlight", parentId: null, scope: "highlight", color: "#d6b85a" });
+        highlight.setPen(target); }
+      await commit.act({ type: "label-selection", target: "passages", sourceIds, evidenceIds, assign: [target], mode: "replace" });
+      setStatus(`Saved ${evidenceIds.length} under ${penName}`);
+    } catch (reason) { setStatus(errorMessage(reason, "Could not save these matches")); }
+  }
+  const rows = (sourceId: string) => (evidence.chains[sourceId]?.items ?? []).flatMap((item) =>
+    (item.kind === "passage" || item.kind === "evidence") && result?.matches.has(item.value.receipt.evidence_id) ? [item.value] : []);
+  const found = result?.sourceIds.filter((id) => file?.state.sources[id] && rows(id).length) ?? [];
+  const pending = (result?.sourceIds.length ?? 0) - found.length;
+  if (!file) return <p className="p-2 text-xs text-gray-500">Open a workspace to search its saved sources.</p>;
+  return <div className="grid content-start gap-2">
+    <form onSubmit={find} className="flex min-w-0 items-center gap-1.5">
+      <input required autoComplete="off" value={phrase} onChange={(event) => setPhrase(event.target.value)}
+        aria-label="Phrase to find in saved sources" placeholder="Find a phrase in saved sources"
+        className="h-8 min-w-0 flex-1 rounded-md border border-gray-300 px-2 text-sm" />
+      <Button type="submit" size="compact" disabled={busy}>{busy ? "Finding…" : "Find"}</Button>
     </form>
-    {searchResult && <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-gray-600">
-      <p>{searchResult.coverage.complete ? "Search complete" : "Partial search"} · {searchResult.coverage.attempted_sources} of {searchResult.coverage.selected_sources} sources searched</p>
-      {searchResult.coverage.next_after && <Button variant="outline" size="compact" disabled={busy}
-        onClick={() => void query({ ...searchResult.input, after: searchResult.coverage.next_after! }, true)}>{busy ? "Searching…" : "Continue search"}</Button>}
-    </div>}
-    {!!queryCount && <details open={historyOpen} className="group/history mb-2 overflow-hidden rounded-md border border-gray-200 text-xs text-gray-600">
-      <summary onClick={(event) => { event.preventDefault(); setHistoryOpen((open) => !open); }} className="flex h-8 cursor-pointer list-none items-center gap-1.5 bg-gray-50 px-2 font-medium text-gray-800">
-        <ChevronRight className="size-3.5 group-open/history:rotate-90" aria-hidden="true" />Searches
-        <span className="ms-auto tabular-nums text-gray-500">{queryCount}</span>
-      </summary>{historyOpen && <div className="space-y-1.5 border-t border-gray-200 p-2">
-      <ol className="space-y-1">{history.map((item) => { const openQuery = openQueries.has(item.query_id), saved = openQuery ? queryRules(item.input) : [],
-          scopeLabels = openQuery && Array.isArray(item.input.label_ids)
-            ? item.input.label_ids.map((id) => receiptLabel(labels, String(id), item.labelPaths)) : [],
-          failures = new Map(item.failures.map((value) => [value.sourceId, value.code])),
-          searched = openQuery ? item.sourceIds.map((id) => { const source = file.state.sources[id],
-            reference = source?.reference ?? item.sourceReferences?.[id], failure = failures.get(id);
-            return `${source ? sourceName(source) : reference?.title || reference?.citation || reference?.id || id}${failure ? ` · ${failure}` : ""}`; }).join("\n") : "",
-          audit = openQuery ? item.sourceIds.map((id) => { const hashes = item.sourceFingerprints?.[id], failure = failures.get(id);
-            return `[${id}]${hashes?.length ? ` · ${hashes.join(", ")}` : ""}${failure ? ` · ${failure}` : ""}`; }).join("\n") : "";
-        return <li key={item.query_id}>
-        <details open={openQuery} className="group/query rounded-md border border-gray-200 bg-white"><summary
-          onClick={(event) => { event.preventDefault(); toggleQuery(item.query_id); }} className="flex cursor-pointer list-none items-center gap-1.5 px-2 py-1.5">
-          <ChevronRight className="size-3 group-open/query:rotate-90" aria-hidden="true" />
-          <span className="min-w-0 flex-1 truncate font-medium text-gray-800">{queryText(item.input)}</span>
-          <span className="shrink-0 tabular-nums text-gray-500">{item.evidenceIds.length} matches</span></summary>
-          {openQuery && <div className="space-y-1 border-t border-gray-100 px-2 py-1.5 leading-4">
-          <p>{saved.length ? saved.map((rule) => ruleText(labels, rule, item.labelPaths)).join("; ") : `${String(item.input.syntax ?? "literal")} · ${String(item.input.target ?? "sources")}`}</p>
-          <p className="text-gray-500">{new Date(item.executed_at).toLocaleString()} · {item.model || "human"} · {item.sourceIds.length} sources · {item.failures.length} failures</p>
-          {!!scopeLabels.length && <p>Scope: {scopeLabels.join(", ")}</p>}
-          {searched && <p aria-label="Sources searched" className="whitespace-pre-wrap">{searched}</p>}
-          {!!Object.keys(item.slots).length && <p>Slots: {slotSummary(item.slots, labels, item.labelPaths)}</p>}
-          {audit && <details className="rounded bg-gray-50"><summary className="cursor-pointer px-1.5 py-1 font-medium">Technical details</summary>
-            <pre aria-label="Search fingerprints" className="max-h-28 overflow-y-auto whitespace-pre-wrap break-all px-1.5 pb-1.5 text-xs">{audit}</pre>
-          </details>}
-          <div className="mt-1 flex flex-wrap gap-1">
-            <Button variant="outline" size="compact" disabled={busy} onClick={() => rerun(item.input)}>Run again</Button>
-            {!!item.evidenceIds.length && <Button variant="outline" size="compact" onClick={() => { setSearchResult(null); onMatches(item.evidenceIds, item.matchedSourceIds); }}>View matches</Button>}
-          </div>
-          </div>}</details></li>; })}</ol>
-      {queryChain?.loading && !queryChain.items.length && <p role="status">Loading searches…</p>}
-      {!!queryChain?.error && <button type="button" onClick={() => void queryPages.fetchPage("queries", null, false)}
-        className="w-full rounded py-1 text-sm font-medium text-red-700">Retry searches</button>}
-      {queryChain?.nextCursor && <button type="button" disabled={queryChain.loading}
-        onClick={() => void queryPages.fetchPage("queries", queryChain.nextCursor, true)}
-        className="w-full rounded py-1 font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40">Load earlier searches</button>}
-      </div>}</details>}
-  </>;
+    <details className="group/rule text-xs text-gray-600">
+      <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-gray-700">
+        <ChevronRight aria-hidden className="size-3 group-open/rule:rotate-90" />Capture rule — {unit === "match" ? "the match" : `${DIRECTIONS.find(({ value }) => value === direction)?.label} ${UNITS.find(({ value }) => value === unit)?.label}`}
+      </summary>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        {UNITS.map((option) => <button key={option.value} type="button" onClick={() => setUnit(option.value)}
+          aria-pressed={unit === option.value}
+          className="h-7 rounded-md border border-gray-200 px-2 text-xs text-gray-700 aria-pressed:border-gray-500 aria-pressed:bg-gray-100 aria-pressed:font-medium">
+          {option.label}</button>)}
+        {unit !== "match" && DIRECTIONS.map((option) => <button key={option.value} type="button" onClick={() => setDirection(option.value)}
+          aria-pressed={direction === option.value} aria-label={`${option.label} the phrase`}
+          className="h-7 rounded-md border border-gray-200 px-2 text-xs text-gray-700 aria-pressed:border-gray-500 aria-pressed:bg-gray-100 aria-pressed:font-medium">
+          {option.label}</button>)}
+      </div>
+    </details>
+    {!!result && <section aria-label="Matches" className="grid gap-2 border-t border-gray-200 pt-2">
+      {!!result.matches.size && <div className="flex items-center gap-2">
+        <span aria-hidden className="size-2.5 rounded-full" style={{ backgroundColor: pen ? researchLabelColor(pen) : "#d6b85a" }} />
+        <span className="min-w-0 flex-1 truncate text-xs text-gray-600">{penName}</span>
+        <Button size="compact" variant="outline"
+          onClick={() => void save(result.sourceIds, [...result.matches])}>Save all {result.matches.size}</Button>
+      </div>}
+      {found.map((sourceId) => <div key={sourceId} className="min-w-0">
+        <h3 className="truncate text-xs font-semibold text-gray-800">{sourceName(file.state.sources[sourceId])}</h3>
+        <ul className="mt-1 grid gap-1">{rows(sourceId).map(({ receipt }) => <li key={receipt.evidence_id}
+          className="flex min-w-0 items-start gap-2 rounded border-s-2 border-gray-200 ps-2">
+          <span className="line-clamp-4 min-w-0 flex-1 text-xs leading-5 text-gray-700 [overflow-wrap:anywhere]">
+            <span className="me-1 font-medium text-gray-500">{receipt.locator.label}</span>
+            {marked(receipt.span_text ?? "", result.phrase)}
+          </span>
+          <Button size="compact" variant="outline" className="mt-0.5 w-12 shrink-0 justify-center"
+            onClick={() => void save([sourceId], [receipt.evidence_id])}>Save</Button>
+        </li>)}</ul>
+      </div>)}
+      {!!pending && <p role="status" className="text-xs text-gray-500">Loading {pending} more source{pending === 1 ? "" : "s"}…</p>}
+      {!found.length && !pending && <p className="text-xs text-gray-500">Nothing matched “{result.phrase}”.</p>}
+      {!!more && <Button size="compact" variant="outline" disabled={busy} className="justify-self-start"
+        onClick={() => void run(more.input, more.phrase, true)}>Continue searching</Button>}
+    </section>}
+    {!!(file.state.queries?.count ?? 0) && <details open={historyOpen} className="group/history border-t border-gray-200 pt-2 text-xs">
+      <summary onClick={(event) => { event.preventDefault(); setHistoryOpen((open) => !open); }}
+        className="inline-flex cursor-pointer list-none items-center gap-1 text-gray-700">
+        <ChevronRight aria-hidden className="size-3 group-open/history:rotate-90" />Previous searches
+      </summary>
+      {historyOpen && <ol className="mt-1.5 grid gap-1">{history.map((item) => <li key={item.query_id}
+        className="flex min-w-0 items-center gap-2">
+        <button type="button" disabled={busy} onClick={() => rerun(item)}
+          className="min-w-0 flex-1 truncate rounded px-1 py-0.5 text-start text-gray-700 hover:bg-gray-50">
+          {queryPhrase(item.input)}
+          <span className="ms-1.5 tabular-nums text-gray-500">{item.evidenceIds.length}</span>
+        </button>
+        <details className="shrink-0 text-gray-500"><summary className="cursor-pointer list-none px-1">ledger</summary>
+          <p aria-label="Sources searched" className="whitespace-pre-wrap px-1 py-0.5 leading-4">{item.sourceIds.map((id) => {
+            const source = file.state.sources[id], reference = source?.reference ?? item.sourceReferences?.[id];
+            const failure = item.failures.find((value) => value.sourceId === id)?.code;
+            return `${source ? sourceName(source) : reference?.title || reference?.citation || id}${failure ? ` · ${failure}` : ""}`;
+          }).join("\n")}</p></details>
+      </li>)}</ol>}
+    </details>}
+  </div>;
 }
+
