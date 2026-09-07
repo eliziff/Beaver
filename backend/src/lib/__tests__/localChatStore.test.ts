@@ -14,10 +14,10 @@ async function closeDatabase() {
 }
 
 async function loadStore() {
-  const [{ createChatStore }, { chatRepository }, { generateChatTitle }] = await Promise.all([
-    import("../chatStore"), import("../relationalChatRepository"), import("../chatTitle"),
+  const [{ createChatStore }, { chatRepository }] = await Promise.all([
+    import("../chatStore"), import("../relationalChatRepository"),
   ]);
-  return createChatStore(chatRepository, generateChatTitle, {
+  return createChatStore(chatRepository, async () => { throw new Error("Unexpected title generation"); }, {
     project: async () => false, review: async () => false,
   });
 }
@@ -44,7 +44,7 @@ afterEach(async () => {
 });
 
 describe("local chat store", () => {
-  it("reopens ordered messages from application.sqlite", async () => {
+  it("reopens the transcript and resumes only its matching provider session", async () => {
     vi.useFakeTimers();
     vi.setSystemTime("2026-07-26T12:00:00.000Z");
     let store = await loadStore();
@@ -62,12 +62,29 @@ describe("local chat store", () => {
       },
     });
 
+    let sessions = await import("../providerSessionStore");
+    const session = { userId: owner, chatId: chat.id, projectId: null,
+      continuationId: randomUUID(), compatibilityKey: "a".repeat(64), transcriptVersion: 2 };
+    await sessions.writeProviderSession(session);
+
     store = await reopenStore();
+    sessions = await import("../providerSessionStore");
     expect(await store.transcript(scope(), chat.id)).toMatchObject([
       { role: "user", content: "Question" },
       { role: "assistant", content: [{ type: "content", text: "Answer" }] },
     ]);
     expect(await store.get(scope(), chat.id)).toMatchObject({ transcript_version: 2 });
+    const persisted = await sessions.readProviderSession(owner, chat.id);
+    expect(persisted).toMatchObject({ continuation_id: session.continuationId, transcript_version: 2 });
+    expect(await sessions.matchingProviderSession(session)).toEqual(persisted);
+    for (const mismatch of [
+      { userId: otherOwner }, { chatId: randomUUID() }, { projectId: randomUUID() },
+      { compatibilityKey: "b".repeat(64) }, { transcriptVersion: 1 },
+    ]) {
+      expect(await sessions.matchingProviderSession({ ...session, ...mismatch }),
+        `Must refuse mismatched ${Object.keys(mismatch)[0]}`).toBeNull();
+    }
+    expect(await sessions.readProviderSession(owner, chat.id)).toEqual(persisted);
   });
 
   it("atomically rejects two writers at the same transcript version", async () => {
