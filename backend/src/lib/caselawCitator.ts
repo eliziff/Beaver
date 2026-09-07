@@ -416,6 +416,16 @@ function journalCommentaryPath() {
   return path.join(path.dirname(citatorDatabasePath()), "journal_commentary.sqlite");
 }
 
+/** Bibliographic form for an article row without a stored citation: byline, title, year, journal. */
+function articleCitation(row: Row): string | null {
+  const authors = String(row.authors ?? "").split(/\s*;\s*/u).filter(Boolean);
+  const byline = authors.length > 3 ? `${authors[0]} et al` : authors.join(" & ");
+  const year = String(row.date ?? "").match(/\d{4}/u)?.[0];
+  const parts = [row.name && `“${row.name}”`, year && `(${year})`, row.journal_name]
+    .filter(Boolean).join(" ");
+  return parts ? byline ? `${byline}, ${parts}` : parts : null;
+}
+
 /**
  * Commentary candidates for a set of citation keys: rank-1 (primary
  * authority) citations of PAIRED notes whose proposition sentence
@@ -434,7 +444,7 @@ function commentaryCandidates(keys: string[], citedParagraph: number | null): {
     const rows = database
       .prepare(
         `SELECT note.proposition, note.ref_page_label AS page_label,
-                article.citation, article.name,
+                article.citation, article.name, article.authors,
                 article.date, article.journal_name, article.article_id,
                 article.url
          FROM note_citation
@@ -476,7 +486,7 @@ function commentaryCandidates(keys: string[], citedParagraph: number | null): {
         journalName: (row.journal_name as string | null) ?? null,
         text: proposition,
         excerptKind: verdict.kind,
-        citingCitation: (row.citation as string | null) ?? null,
+        citingCitation: (row.citation as string | null) ?? articleCitation(row),
         citingName: (row.name as string | null) ?? null,
         citingCourt: null,
         citingLevel: null,
