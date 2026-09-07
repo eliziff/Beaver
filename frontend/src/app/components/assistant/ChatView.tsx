@@ -110,7 +110,7 @@ function isDocumentTab(
     return "documentId" in tab;
 }
 type LegalTab = Extract<AssistantSidePanelTab, { kind: "legal" }>;
-function legalCitationTab(
+export function legalCitationTab(
     citation: Citation,
     showQuotes: boolean,
 ): LegalTab | null {
