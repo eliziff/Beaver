@@ -94,6 +94,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
             {children(label.key).length > 0 && <ul>{children(label.key).map((child) => branch(child, depth + 1))}</ul>}
         </li>;
     return <Modal open onClose={onClose} size="2xl" breadcrumbs={[labelling ? "Organize this research" : "Review this research"]}
+        className={labelling && !plan ? "!h-fit [&_.modal-scroll-body]:flex-none" : undefined}
         footerStatus={error && <p role="alert" className="text-sm text-red-700">{error}</p>}
         primaryAction={labelling && !plan
             ? { label: busy ? "Working…" : "Propose labels", onClick: () => void suggest(), disabled: busy || loading || !request.trim() }
