@@ -61,6 +61,8 @@ export function readTabularCells(
   let total = 0, size = 1_000, limitReached = false;
   for (const { column, col_index } of columns) {
     for (const { document, row_index } of documents) {
+      if (options.context?.findingRefs && !options.context.findingRefs.some((ref) =>
+          ref.kind === "cell" && ref.reviewId === detail.review.id && ref.rowId === document.id && ref.columnIndex === column.index)) continue;
       const cell = stored.get(`${column.index}:${document.id}`);
       const subject = subjects.get(document.id), resource = cell?.content?.resource ?? subject?.resource ?? document.resource ?? "";
       if (!inScope({ resource, evidence: cell?.content?.evidence ?? subject?.evidence })) continue;

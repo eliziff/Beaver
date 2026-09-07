@@ -1,100 +1,170 @@
+import { z } from "zod";
+import { ApplicationError } from "../applicationError";
+import { sha256 } from "../hash";
 import { researchLabelPath, type ResearchEvidence, type ResearchFile } from "../researchFile";
 import type { ResearchFinding } from "../researchChat";
 import { researchSelectionLabels, type ResearchSubject } from "../researchSelection";
 import type { TabularColumn } from "../tabularStore";
 import type { ResearchArrangement } from "./researchArrangement";
 
-const MAX_ROWS = 400, MAX_COLUMNS = 100;
 export type ResearchImportInput = { rows: "sources" | "passages"; labelId?: string };
 type Item = ResearchArrangement["cells"][number]["items"][number];
-type Row = ResearchArrangement["rows"][number];
-type ImportColumn = TabularColumn & { items(row: Row): Item[] };
-type ImportChat = { title: string; findings: ResearchFinding[] };
+type Kind = "classification" | "passages" | "note" | "answer";
+type Entry = { id: string; rowId: string; reference: Item; kind: Kind; text: string;
+  columnKey: string; column: TabularColumn; evidenceIds: string[]; default: boolean };
+export type ResearchImportCatalog = { title: string; fingerprint: string;
+  rows: ResearchArrangement["rows"]; entries: Entry[] };
+const id = z.string().min(1).max(200);
+export const researchImportDesignSchema = z.object({
+  title: z.string().trim().min(1).max(300),
+  columns: z.array(z.object({ index: z.number().int().min(0).max(10_000),
+    name: z.string().trim().min(1).max(200), prompt: z.string().trim().min(1).max(20_000),
+    format: z.enum(["text", "bulleted_list", "number", "currency", "yes_no", "date", "tag", "percentage", "monetary_amount"]).optional(),
+    tags: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
+  }).strict()).min(1).max(100),
+  cells: z.array(z.object({ rowId: id, columnIndex: z.number().int().min(0).max(10_000),
+    itemIds: z.array(id).min(1).max(500) }).strict()).max(50_000),
+}).strict();
+export type ResearchImportDesign = z.infer<typeof researchImportDesignSchema>;
+const clip = (value: string, max = 200) => value.replace(/\s+/gu, " ").trim().slice(0, max);
+const key = (value: unknown) => sha256(JSON.stringify(value)).slice(0, 24);
 
-const clip = (value: string, max: number) => value.replace(/\s+/gu, " ").trim().slice(0, max);
-const sourceName = (file: ResearchFile, sourceId: string) => {
-  const reference = file.state.sources[sourceId]?.reference;
-  return clip(reference?.title || reference?.citation || sourceId, 300) || sourceId;
-};
-const passageName = (receipt: ResearchEvidence["receipt"]) =>
-  clip(receipt.locator.label && receipt.locator.kind !== "document"
-    ? `${receipt.locator.kind} ${receipt.locator.label}`
-    : receipt.span_text ?? receipt.evidence_id, 180);
-
-/**
- * Turn saved research into a table without a model: every cell references the workspace
- * item it displays, so the review reads the originals instead of copying them.
- */
-export function researchTableArrangement(file: ResearchFile, subjects: ResearchSubject[],
-  parts: Map<string, Record<string, ResearchEvidence>>, chats: ImportChat[],
-  input: ResearchImportInput): { columns_config: TabularColumn[]; arrangement: ResearchArrangement } {
-  const pen = input.labelId ? researchSelectionLabels(file.state, [input.labelId]) : null,
-    inPen = (item: ResearchEvidence) => item.labelIds.length > 0 && (!pen || item.labelIds.some((id) => pen.has(id)));
-  const sourceIds = [...new Set(subjects.map(({ sourceId }) => sourceId))]
-    .filter((id) => file.state.sources[id]);
+/** Inventory original work, not inferred answers. Model designs can only reference these items. */
+export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubject[],
+  parts: Map<string, Record<string, ResearchEvidence>>, findings: ResearchFinding[], input: ResearchImportInput): ResearchImportCatalog {
+  if (input.labelId && file.state.labels[input.labelId]?.scope !== "highlight")
+    throw new ApplicationError(400, "Choose a highlight type");
+  const types = input.labelId ? researchSelectionLabels(file.state, [input.labelId]) : null;
   const allowed = new Map<string, Set<string> | null>();
   for (const subject of subjects) {
-    const previous = allowed.get(subject.sourceId);
-    if (!subject.evidence || previous === null) { allowed.set(subject.sourceId, null); continue; }
-    const chosen = previous ?? new Set<string>();
-    subject.evidence.forEach(({ evidence_id }) => chosen.add(evidence_id));
-    allowed.set(subject.sourceId, chosen);
+    if (!subject.evidence || allowed.get(subject.sourceId) === null) allowed.set(subject.sourceId, null);
+    else allowed.set(subject.sourceId, new Set([...(allowed.get(subject.sourceId) ?? []), ...subject.evidence.map(({ evidence_id }) => evidence_id)]));
   }
-  const scoped = new Map(sourceIds.map((sourceId) => { const limit = allowed.get(sourceId) ?? null;
-    return [sourceId, Object.values(parts.get(sourceId) ?? {}).filter((item) =>
-      inPen(item) && (!limit || limit.has(item.receipt.evidence_id)))]; }));
-
-  const rows: ResearchArrangement["rows"] = [];
-  for (const sourceId of sourceIds) {
-    if (rows.length >= MAX_ROWS) break;
-    if (input.rows === "sources") {
-      if (pen && !scoped.get(sourceId)!.length) continue;
-      rows.push({ id: sourceId, title: sourceName(file, sourceId), sourceId,
-        ...(file.state.sources[sourceId].labelIds.length ? { group: [...file.state.sources[sourceId].labelIds] } : {}) });
-      continue;
-    }
-    for (const item of scoped.get(sourceId)!) {
-      if (rows.length >= MAX_ROWS) break;
-      rows.push({ id: `${sourceId}:${item.receipt.evidence_id}`,
-        title: `${sourceName(file, sourceId)} · ${passageName(item.receipt)}`,
-        sourceId, evidenceIds: [item.receipt.evidence_id] });
-    }
-  }
-  const rowEvidence = new Map(rows.map((row) => [row.id, row.evidenceIds?.[0]]));
-  const passagesOf = (row: Row) => {
-    const values = scoped.get(row.sourceId) ?? [], only = rowEvidence.get(row.id);
-    return only ? values.filter(({ receipt }) => receipt.evidence_id === only) : values;
+  const rows: ResearchArrangement["rows"] = [], entries: Entry[] = [];
+  const add = (rowId: string, reference: Item, kind: Kind, text: string, columnKey: string,
+    column: Omit<TabularColumn, "index">, evidenceIds: string[] = [], use = true) => {
+    entries.push({ id: key([rowId, reference]), rowId, reference, kind, text, columnKey,
+      column: { ...column, index: 0 }, evidenceIds, default: use });
   };
+  for (const [sourceId, permitted] of allowed) {
+    const source = file.state.sources[sourceId];
+    if (!source) throw new ApplicationError(409, "A selected source is unavailable");
+    const saved = Object.values(parts.get(sourceId) ?? {}).filter(({ receipt, labelIds }) =>
+      labelIds.length && (!types || labelIds.some((id) => types.has(id))) && (!permitted || permitted.has(receipt.evidence_id)));
+    if (types && !saved.length) continue;
+    const selected = input.rows === "passages" ? saved.map(({ receipt }) => [receipt.evidence_id])
+      : [permitted ? [...permitted] : undefined];
+    for (const evidenceIds of selected) {
+      const rowId = input.rows === "sources" ? sourceId : `${sourceId}:${evidenceIds![0]}`,
+        rowPassages = evidenceIds ? saved.filter(({ receipt }) => evidenceIds.includes(receipt.evidence_id)) : saved,
+        title = clip(source.reference.title || source.reference.citation || sourceId, 300);
+      rows.push({ id: rowId, sourceId, title: input.rows === "passages"
+        ? `${title} · ${clip(rowPassages[0].receipt.locator.label, 180)}` : title,
+        ...(evidenceIds ? { evidenceIds } : {}) });
+      for (const labelId of source.labelIds) {
+        let root = file.state.labels[labelId];
+        if (root?.scope !== "source") continue;
+        while (root.parentId) root = file.state.labels[root.parentId];
+        add(rowId, { kind: "label", sourceId, labelId, display: "path" }, "classification",
+          researchLabelPath(file.state, labelId), Object.values(file.state.labels).some(({ parentId }) => parentId === root.id) ? `label:${root.id}` : "labels",
+          { name: Object.values(file.state.labels).some(({ parentId }) => parentId === root.id) ? root.name : "Classification",
+            prompt: `Recorded source classifications; preserve their full paths.`, format: "text" });
+      }
+      if (source.note && input.rows === "sources") add(rowId, { kind: "note", sourceId }, "note", source.note,
+        "note", { name: "Research note", prompt: "The note retained for this source.", format: "text" });
+      for (const passage of rowPassages) {
+        const typeId = passage.labelIds[0], path = researchLabelPath(file.state, typeId);
+        add(rowId, { kind: "passage", sourceId, evidenceId: passage.receipt.evidence_id }, "passages",
+          passage.receipt.span_text ?? "", `highlight:${typeId}`, { name: clip(path),
+            prompt: `Saved passages: ${path}.`, format: "text" }, [passage.receipt.evidence_id]);
+        if (input.rows === "passages" && passage.note) add(rowId, { kind: "note", sourceId,
+          evidenceId: passage.receipt.evidence_id }, "note", passage.note, "note",
+          { name: "Research note", prompt: "The note retained for this passage.", format: "text" });
+      }
+      for (const finding of findings.filter((value) => value.sourceId === sourceId)) {
+        const relevant = finding.answer.claims.map((claim, index) => ({ claim, index })).filter(({ claim }) =>
+          !evidenceIds || !!claim.evidence_ids.length && claim.evidence_ids.every((id) => evidenceIds.includes(id)));
+        if (evidenceIds && !relevant.length) continue;
+        const question = { name: clip(finding.question.title) || "Finding", prompt: finding.question.prompt || "Recorded finding",
+          format: finding.question.format ?? "text", ...(finding.question.tags ? { tags: finding.question.tags } : {}) },
+          columnKey = `question:${key([question.prompt, question.format, question.tags])}`;
+        const complete = relevant.length === finding.answer.claims.length;
+        if (complete) add(rowId, finding.reference, "answer", finding.answer.summary ?? (finding.answer.value == null ? finding.answer.claims.map(({ text }) => text).join("\n\n") :
+          Array.isArray(finding.answer.value) ? finding.answer.value.join("\n") : String(finding.answer.value)), columnKey, question,
+          [...new Set(finding.answer.claims.flatMap(({ evidence_ids }) => evidence_ids))]);
+        // A semantic layout may put separate claims from one Chat answer in different columns.
+        // Their references still resolve the original text/support, never model-written substitutes.
+        if (finding.reference.kind === "answer" && (!complete || finding.answer.claims.length > 1)) for (const { claim, index } of relevant)
+          add(rowId, { ...finding.reference, claimIndices: [finding.reference.claimIndices?.[index] ?? index] }, "answer", claim.text, columnKey, question,
+            claim.evidence_ids, !complete);
+      }
+    }
+  }
+  if (rows.length > 500 || entries.length > 25_000)
+    throw new ApplicationError(413, "Narrow this research selection before converting it; no rows were dropped");
+  const title = clip((file.document.filename ?? "Research").replace(/\.research\.md$/iu, ""), 300) || "Research";
+  return { title, rows, entries, fingerprint: sha256(JSON.stringify([file.document.id, file.versionId,
+    file.workingRevision, subjects, rows, entries, findings])) };
+}
 
-  const pens = [...new Set(rows.flatMap((row) => passagesOf(row).flatMap(({ labelIds }) => labelIds)))]
-    .filter((id) => file.state.labels[id]?.scope === "highlight")
-    .sort((a, b) => researchLabelPath(file.state, a).localeCompare(researchLabelPath(file.state, b)));
-  const bound = chats.filter(({ findings }) => findings.some(({ sourceId }) =>
-    rows.some((row) => row.sourceId === sourceId)));
+export function defaultResearchImport(catalog: ResearchImportCatalog): ResearchImportDesign {
+  const columns = new Map<string, TabularColumn>(), cells = new Map<string, ResearchImportDesign["cells"][number]>();
+  for (const entry of catalog.entries.filter((entry) => entry.default)) {
+    if (!columns.has(entry.columnKey)) columns.set(entry.columnKey, { ...entry.column, index: columns.size });
+    const columnIndex = columns.get(entry.columnKey)!.index, cellKey = `${entry.rowId}:${columnIndex}`,
+      cell = cells.get(cellKey) ?? { rowId: entry.rowId, columnIndex, itemIds: [] };
+    cell.itemIds.push(entry.id); cells.set(cellKey, cell);
+    // Several prior answers can disagree. Preserve them as text, not a fabricated single scalar.
+    if (cell.itemIds.length > 1) columns.get(entry.columnKey)!.format = "text";
+  }
+  if (columns.size > 100) throw new ApplicationError(413, "This selection needs more than 100 columns; narrow it before converting");
+  if (!columns.size) columns.set("question", { index: 0, name: "Research question",
+    prompt: "What does this source establish about the research question?", format: "text" });
+  return researchImportDesignSchema.parse({ title: catalog.title, columns: [...columns.values()], cells: [...cells.values()] });
+}
 
-  const passageItems = (row: Row, values: ResearchEvidence[]): Item[] => values.map(({ receipt }) =>
-    ({ kind: "passage", sourceId: row.sourceId, evidenceId: receipt.evidence_id }));
-  const declared: ImportColumn[] = [
-    { index: 0, name: "Labels", prompt: "Labels carried by this source in the workspace.", format: "text",
-      items: (row) => file.state.sources[row.sourceId].labelIds.map((labelId) =>
-        ({ kind: "label", labelId, sourceId: row.sourceId, display: "path" })) },
-    { index: 0, name: "Note", prompt: "The note saved on this row in the workspace.", format: "text",
-      items: (row) => [{ kind: "note", sourceId: row.sourceId,
-        ...(rowEvidence.get(row.id) ? { evidenceId: rowEvidence.get(row.id)! } : {}) }] },
-    ...(input.rows === "passages" ? [{ index: 0, name: "Passage",
-      prompt: "The highlighted text saved for this row.", format: "text",
-      items: (row: Row) => passageItems(row, passagesOf(row)) }] : []),
-    ...pens.map((labelId): ImportColumn => ({ index: 0, name: clip(file.state.labels[labelId].name, 200),
-      prompt: `Passages highlighted with ${clip(researchLabelPath(file.state, labelId), 200)}.`, format: "text",
-      items: (row) => passageItems(row, passagesOf(row).filter(({ labelIds }) => labelIds.includes(labelId))) })),
-    ...bound.map((chat): ImportColumn => ({ index: 0, name: clip(chat.title, 200) || "Chat answers",
-      prompt: `Answers saved from the ${clip(chat.title, 200) || "linked"} chat.`, format: "text",
-      items: (row) => chat.findings.flatMap((finding) => finding.sourceId === row.sourceId &&
-        finding.reference.kind === "answer" ? [finding.reference] : []) })),
-  ];
-  const columns = declared.slice(0, MAX_COLUMNS).map((column, index) => ({ ...column, index }));
-
-  return { columns_config: columns.map(({ items: _items, ...column }) => column),
-    arrangement: { rows, cells: rows.flatMap((row) => columns.map((column) =>
-      ({ rowId: row.id, columnIndex: column.index, items: column.items(row) }))) } };
+/** Resolve reviewed mappings against the current inventory. Unknown or cross-row references fail closed. */
+export function researchImportPlan(catalog: ResearchImportCatalog, value: ResearchImportDesign) {
+  const design = researchImportDesignSchema.parse(value), byId = new Map(catalog.entries.map((item) => [item.id, item])),
+    rowIds = new Set(catalog.rows.map(({ id }) => id)), columnIds = new Set(design.columns.map(({ index }) => index)),
+    seen = new Set<string>();
+  if (columnIds.size !== design.columns.length) throw new ApplicationError(400, "Column indices must be unique");
+  const stats = design.columns.map((column) => ({ index: column.index, reused: 0,
+    kinds: [] as Kind[], evidence: 0 }));
+  const samples: Array<{ rowId: string; columnIndex: number; text: string; kinds: Kind[] }> = [];
+  const cells = design.cells.map((cell) => {
+    const cellKey = `${cell.rowId}:${cell.columnIndex}`;
+    if (!rowIds.has(cell.rowId) || !columnIds.has(cell.columnIndex) || seen.has(cellKey))
+      throw new ApplicationError(400, "Each mapping must identify one selected row and column");
+    seen.add(cellKey);
+    const items = [...new Set(cell.itemIds)].map((id) => {
+      const entry = byId.get(id);
+      if (!entry || entry.rowId !== cell.rowId) throw new ApplicationError(400, "A mapping refers to work outside this row's selection");
+      return entry;
+    });
+    const column = design.columns.find(({ index }) => index === cell.columnIndex)!, format = column.format ?? "text";
+    if (format !== "text" && format !== "bulleted_list" && (items.length !== 1 || items[0].kind !== "answer" ||
+        items[0].reference.kind === "answer" && items[0].reference.claimIndices ||
+        (items[0].column.format ?? "text") !== format ||
+        JSON.stringify(column.tags ?? []) !== JSON.stringify(items[0].column.tags ?? [])))
+      throw new ApplicationError(400, "Only a compatible existing answer can populate a typed value; keep excerpts as text");
+    const claimSelections = new Map<string, Set<number> | null>();
+    for (const { reference } of items) if (reference.kind === "answer") {
+      const id = key([reference.chatId, reference.answerId, reference.resource]);
+      if (claimSelections.has(id)) {
+        const previous = claimSelections.get(id);
+        if (!previous || !reference.claimIndices || reference.claimIndices.some((index) => previous.has(index)))
+          throw new ApplicationError(400, "This mapping repeats overlapping Chat claims");
+        reference.claimIndices.forEach((index) => previous.add(index));
+      } else claimSelections.set(id, reference.claimIndices ? new Set(reference.claimIndices) : null);
+    }
+    const stat = stats.find(({ index }) => index === cell.columnIndex)!;
+    stat.reused++; stat.kinds = [...new Set([...stat.kinds, ...items.map(({ kind }) => kind)])];
+    stat.evidence += new Set(items.flatMap(({ evidenceIds }) => evidenceIds)).size;
+    if (catalog.rows.slice(0, 3).some(({ id }) => id === cell.rowId)) samples.push({ rowId: cell.rowId,
+      columnIndex: cell.columnIndex, text: clip(items.map(({ text }) => text).join("\n\n"), 300), kinds: [...new Set(items.map(({ kind }) => kind))] });
+    return { rowId: cell.rowId, columnIndex: cell.columnIndex, items: items.map(({ reference }) => reference) };
+  });
+  return { design, fingerprint: catalog.fingerprint, rows: catalog.rows, stats, samples,
+    columns_config: design.columns as TabularColumn[], arrangement: { rows: catalog.rows, cells } };
 }

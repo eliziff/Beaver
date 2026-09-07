@@ -5,7 +5,7 @@ import { parseResourceReference } from "./resourceReferences";
 import type { ResearchChange, ResearchChangeSummary } from "./researchHistory";
 import type { ResearchArrangement } from "./tabular/researchArrangement";
 import type { ResearchSelection, ResearchSubject } from "./researchSelection";
-import type { ResearchFindingReference } from "./researchChat";
+import type { ResearchFindingReference } from "./researchFindingReference";
 
 export type TabularScope = ApplicationScope;
 
@@ -15,10 +15,12 @@ export type TabularCellContent = GroundedResult & {
   summary: string; flag?: GroundedAnswerFlag; reasoning?: string;
   evidence: LegalEvidenceReceipt[]; query_ids?: string[]; outcome: "answered" | "not_found";
   coverage: "complete" | "partial"; resource: string;
-  origin?: { chatId: string; messageId: string };
+  origin?: { chatId?: string; messageId?: string; researchFileId?: string; versionId?: string;
+    workingRevision?: number; items?: ResearchArrangement["cells"][number]["items"] };
 };
 export type TabularSelection = { research_file_id?: string; versionId?: string;
   workingRevision?: number; subjects: ResearchSubject[]; arrangement?: ResearchArrangement;
+  frozen?: boolean;
   selection?: ResearchSelection;
   findings?: { chatId?: string; answerIds?: string[]; sourceIds: string[]; references?: ResearchFindingReference[] } };
 export const tabularSubjectId = (subject: Pick<ResearchSubject, "resource" | "rowId">) => {
@@ -49,7 +51,8 @@ export type TabularOperation = { executor: "human" | "assistant"; model?: string
 
 export type ReviewInput = { title?: string | null; projectId?: string | null;
   columns?: TabularColumn[]; documentIds?: string[]; workflowId?: string | null;
-  sharedWith?: string[]; scopeConfig?: TabularSelection; operation?: TabularOperation };
+  sharedWith?: string[]; scopeConfig?: TabularSelection; operation?: TabularOperation;
+  seedCells?: Pick<TabularCell, "document_id" | "column_index" | "content" | "status">[] };
 
 export type TabularRepository = {
   page(scope: TabularScope, options: {
