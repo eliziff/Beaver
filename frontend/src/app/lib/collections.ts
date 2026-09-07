@@ -23,6 +23,7 @@ export class PagedCollection<T> {
     private queued = false;
     private dirty = false;
     private disposed = false;
+    private prefetchedUntil = 0;
     lastUsed = Date.now();
     order = ++accessOrder;
     constructor(readonly spec?: CollectionSpec, private changed: () => void = () => {},
@@ -52,7 +53,11 @@ export class PagedCollection<T> {
         this.lastUsed = Date.now(); this.order = ++accessOrder;
         // Revalidate on every activation, without clearing the last usable rows.
         // A second simultaneous view joins the existing work instead of restarting it.
-        if (first && automatic) this.refresh();
+        if (first && automatic) {
+            const handoff = this.prefetchedUntil > Date.now() && !this.dirty && this.state[initialKey]?.loaded;
+            this.prefetchedUntil = 0;
+            if (!handoff) this.refresh();
+        }
         else if (automatic && !this.state[initialKey]) void this.fetchPage(initialKey, null, false);
         return () => {
             this.consumers.delete(id);
@@ -84,6 +89,7 @@ export class PagedCollection<T> {
         });
     }
     invalidate() {
+        this.prefetchedUntil = 0;
         this.abort();
         this.dirty = true;
         if (!this.active) this.publish({});
@@ -100,16 +106,19 @@ export class PagedCollection<T> {
         }
     }
     clear() {
+        this.prefetchedUntil = 0;
         this.abort();
         this.dirty = false;
         this.publish({});
     }
     dispose() { this.disposed = true; this.clear(); }
     rejectAccess(error: unknown) {
+        this.prefetchedUntil = 0;
         this.abort(); this.dirty = false;
         this.publish({ [this.initialKey]: { items: [], nextCursor: null, loading: false, loaded: false, error } });
     }
     setChains = (update: Update<T>) => {
+        this.prefetchedUntil = 0;
         if (this.disposed) return;
         let next = typeof update === "function" ? update(this.state) : update;
         let interrupted = false;
@@ -122,8 +131,19 @@ export class PagedCollection<T> {
         this.publish(next);
         if (interrupted) { this.dirty = true; this.scheduleRefresh(); }
     };
-    fetchPage = (key: string, cursor: string | null, append: boolean, force = false): Promise<void> => {
-        const load = [...this.consumers.values()].at(-1);
+    prefetch(load: CollectionLoader<T>, initialKey: string): Promise<void> {
+        if (this.active || this.disposed || this.state[initialKey]?.loaded || this.requests.size) return Promise.resolve();
+        this.initialKey = initialKey;
+        this.lastUsed = Date.now(); this.order = ++accessOrder;
+        return this.fetchPage(initialKey, null, false, false, load).then(() => {
+            // A one-use handoff for the imminent navigation, not a general stale TTL.
+            if (!this.active && !this.disposed && !this.dirty && this.state[initialKey]?.loaded && !this.state[initialKey]?.error)
+                this.prefetchedUntil = Date.now() + 1_000;
+        });
+    }
+    fetchPage = (key: string, cursor: string | null, append: boolean, force = false,
+        prefetchedLoader?: CollectionLoader<T>): Promise<void> => {
+        const load = [...this.consumers.values()].at(-1) ?? prefetchedLoader;
         if (!load || this.disposed) return Promise.resolve();
         const pending = this.requests.get(key);
         if (pending && !force) return !append && pending.append
@@ -178,6 +198,7 @@ export class PagedCollection<T> {
 export class CollectionCache {
     private entries = new Map<string, PagedCollection<unknown>>();
     private trimming = false;
+    private prefetching = 0;
     constructor(private limits = { entries: 32, items: 8_000, bytes: 8 * 1024 * 1024, idleMs: 5 * 60_000 }) {}
     get<T>(spec: CollectionSpec): PagedCollection<T> {
         const [resource, query = ""] = spec.key.split("?");
@@ -199,6 +220,12 @@ export class CollectionCache {
             queueMicrotask(() => this.trim());
         }
         return entry as PagedCollection<T>;
+    }
+    prefetch<T>(spec: CollectionSpec, load: CollectionLoader<T>, initialKey = "query") {
+        // Never queue a hover backlog behind real work; at most two speculative reads.
+        if (this.prefetching >= 2) return Promise.resolve();
+        this.prefetching += 1;
+        return this.get<T>(spec).prefetch(load, initialKey).finally(() => { this.prefetching -= 1; });
     }
     private trim() {
         if (this.trimming) return;

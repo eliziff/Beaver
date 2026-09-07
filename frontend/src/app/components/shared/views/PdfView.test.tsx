@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+    sourceError: null as ((error: Error) => void) | null,
     cancelled: 0,
     rendered: [] as number[],
     textRequests: [] as number[],
@@ -24,14 +25,16 @@ const mocks = vi.hoisted(() => ({
 }));
 
 let fileResult: { type: "pdf"; buffer: ArrayBuffer } | null;
-vi.mock("@/app/hooks/useDocumentFile", () => ({
-    useDocumentFile: () => {
+vi.mock("@/app/lib/pdfDocumentSource", () => ({
+    createPdfDocumentSource: () => async (signal: AbortSignal, onError: (error: Error) => void) => {
+        mocks.sourceError = onError;
         mocks.hookCalls += 1;
-        return {
-            result: fileResult,
-            loading: false,
-            error: null,
-        };
+        if (!fileResult) return new Promise<never>((_resolve, reject) => {
+            const abort = () => reject(signal.reason);
+            signal.addEventListener("abort", abort, { once: true });
+            if (signal.aborted) abort();
+        });
+        return { data: new Uint8Array(fileResult.buffer.slice(0)) };
     },
 }));
 
@@ -39,7 +42,7 @@ vi.mock("./highlightQuote", async (importOriginal) => {
     const actual = await importOriginal<typeof import("./highlightQuote")>();
     const pdf = {
         get numPages() { return mocks.numPages; },
-        destroy: vi.fn(),
+        destroy: vi.fn().mockResolvedValue(undefined),
         getPage: async (pageNumber: number) => {
             mocks.pageRequests.push(pageNumber);
             await mocks.pageGates.get(pageNumber);
@@ -117,7 +120,7 @@ vi.mock("./highlightQuote", async (importOriginal) => {
                 mocks.standardFontDataUrl = standardFontDataUrl;
                 structuredClone(data.buffer, { transfer: [data.buffer] });
                 return {
-                    destroy: vi.fn(),
+                    destroy: vi.fn().mockResolvedValue(undefined),
                     promise: mocks.documentError
                         ? Promise.reject(mocks.documentError)
                         : Promise.resolve(pdf),
@@ -140,6 +143,7 @@ class ResizeObserverMock {
 
 describe("PdfView", () => {
     beforeEach(() => {
+        mocks.sourceError = null;
         mocks.cancelled = 0;
         mocks.rendered = [];
         mocks.textRequests = []; mocks.textLayers = []; mocks.textError = false; mocks.textDelay = 0;
@@ -457,4 +461,20 @@ describe("PdfView", () => {
         expect(container.querySelector('[data-page-number="2"]')).toHaveAttribute('data-geometry-ready', 'false');
     });
 
+
+    it("clears a failed range viewer and cannot repaint it through resize or quote focus", async () => {
+        mocks.numPages = 1;
+        vi.spyOn(console, "error").mockImplementation(() => undefined);
+        const unavailable = vi.fn(), doc = { document_id: "doc" };
+        const { container, rerender } = render(<PdfView doc={doc} onUnavailable={unavailable} />);
+        await waitFor(() => expect(container.querySelector("[data-page-number] canvas")).not.toBeNull());
+        await act(async () => mocks.sourceError!(new Error("Access revoked")));
+        expect(container.querySelector("[data-page-number]")).toBeNull();
+        expect(unavailable).toHaveBeenCalledOnce();
+        rerender(<PdfView doc={doc} onUnavailable={unavailable} quotes={[{ quote: "obsolete", page: 1 }]} />);
+        mocks.clientWidth = 520;
+        await act(async () => mocks.resize?.([], {} as ResizeObserver));
+        expect(container.querySelector("[data-page-number]")).toBeNull();
+        expect(container.querySelector('[role="alert"]')).not.toBeNull();
+    });
 });

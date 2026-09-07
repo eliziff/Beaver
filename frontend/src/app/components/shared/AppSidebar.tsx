@@ -1,3 +1,4 @@
+import { useNavigationPrefetch } from "@/app/hooks/useNavigationPrefetch";
 import {
   useEffect,
   useRef,
@@ -76,6 +77,7 @@ export function AppSidebar({
   const search = historySearch.trim();
   const searchedChats = useChatSearch({ search }, !!search && historyTab === "assistant");
   const { pathname } = useLocation();
+  const prefetch = useNavigationPrefetch();
   const navigate = useNavigate();
   useEffect(() => {
     if (pathname.startsWith("/tabular-reviews")) setHistoryTab("reviews");
@@ -222,6 +224,7 @@ export function AppSidebar({
   const navLinks = (items: typeof NAV_ITEMS) => items.map(({ href, label, icon: Icon }) => {
     const active = pathname === href || pathname.startsWith(`${href}/`);
     return <Link key={href} to={href} onClick={closeNavigation}
+      onPointerEnter={event => { if (event.pointerType !== "touch") prefetch(href); }} onFocus={() => prefetch(href)}
       aria-current={active ? "page" : undefined}
       className={cn("flex min-h-8 shrink-0 items-center gap-2 rounded-md px-2 py-1 text-sm font-medium [@media(max-height:500px)]:min-h-7 [@media(max-height:500px)]:py-0",
         active ? APP_SURFACE_ACTIVE_CLASS : APP_SURFACE_HOVER_CLASS)}>
