@@ -26,7 +26,15 @@ jobs:
           conflicts = subprocess.check_output(['git','diff','--name-only','--diff-filter=U'],text=True).splitlines()
           print('Conflicts:', conflicts)
           target = 'frontend/src/app/components/shared/views/PdfCanvas.tsx'
-          assert set(conflicts) <= {target}, conflicts
+          runtime = 'backend/src/routes/authoritiesRuntime.ts'
+          assert set(conflicts) <= {target, runtime}, conflicts
+          if runtime in conflicts:
+              s = subprocess.check_output(['git','show',f':3:{runtime}'],text=True)
+              before = '    const state = reduceAuthoritiesDraft(decided, { type: "refresh", review: authoritiesReview(fresh) });'
+              assert s.count(before) == 1
+              s = s.replace(before, before + '\n    state.stage = current.stage === "citations" ? "citations" : "sources";')
+              Path(runtime).write_text(s)
+              subprocess.run(['git','add',runtime],check=True)
           if target in conflicts:
               s = subprocess.check_output(['git','show',f':3:{target}'],text=True)
               replacements = [
