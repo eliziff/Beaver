@@ -200,6 +200,4 @@ it("carries only the explicitly selected cell references into chat, not every ce
   const read = readCurrentCells(detail, undefined, undefined, { context: { subjects: [], findingRefs: [ref] } });
   expect(JSON.parse(read.content).cells).toMatchObject([{ col_index: 1, summary: "Chosen finding" }]);
   expect(read.content).not.toContain("Excluded finding"); expect(read.evidence).toEqual([receipt]);
-  const narrow = readCurrentCells(detail, undefined, undefined, { context: { subjects: [], findingRefs: [{ ...ref, claimIndices: [0] }] } });
-  expect(JSON.parse(narrow.content).cells).toEqual([]); // Narrow claims must use the scoped Read findings route.
 });

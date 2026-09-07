@@ -220,10 +220,13 @@ it("adds a source to a snapshot without replacing existing rows or their complet
   const f = await fixture(), sources = await f.runtime.sources(), tables = await f.runtime.tabular();
   const first = (await sources.findings(owner, f.workspace.id, { offset: 0, limit: 20 }))
     .items.find(({ resource }) => resource === f.resource)!;
-  const review = await sources.table(owner, f.workspace.id, { selection: { target: "sources", sourceIds: [first.sourceId] } });
-  const before = await tables.detail(owner, review.id),
-    ids = Object.keys((await sources.get(owner, f.workspace.id))!.state.sources);
+  const created = await sources.table(owner, f.workspace.id, { selection: { target: "sources", sourceIds: [first.sourceId] } });
+  const ids = Object.keys((await sources.get(owner, f.workspace.id))!.state.sources);
   expect(ids).toHaveLength(2);
+  const review = await tables.update(owner, created.id, { expected_version: created.updated_at,
+    research_selection: { target: "sources", sourceIds: [first.sourceId] } });
+  const before = await tables.detail(owner, review.id);
+  expect(before.review.document_ids).toHaveLength(1);
   await tables.update(owner, review.id, { expected_version: review.updated_at,
     research_selection: { target: "sources", sourceIds: ids } });
   const after = await tables.detail(owner, review.id);
@@ -270,22 +273,33 @@ it("converts a selected later answer using earlier reads, in question order even
 
 it("keeps selected claim IDs and their original support scoped across Chat finding reads", async () => {
   const f = await fixture(), sources = await f.runtime.sources(),
-    { readResearchFindings } = await import("../lib/chat/researchTableTool");
-  const page = await sources.findings(owner, f.workspace.id,
-    { chatId: f.chat.id, messageIds: [f.assistantId], offset: 0, limit: 20 });
-  const external = page.items.find(({ resource }) => resource !== f.resource)!,
-    library = page.items.find(({ resource }) => resource === f.resource)!;
-  const reference = { ...external.reference, claimIndices: [1] };
+    { readResearchFindings } = await import("../lib/chat/researchTableTool"),
+    { legalEvidenceReceiptEvent, createLegalEvidenceTurnState,
+      registerLegalEvidence } = await import("../lib/chat/legalEvidence");
+  // Two claims on one source, so a narrowed selection has a claim index of its own.
+  const state = createLegalEvidenceTurnState();
+  registerLegalEvidence(state, f.receipts[0]);
+  state.answer = [{ text: "Interest is charged.", evidence_ids: [f.receipts[0].evidence_id] },
+    { text: "The rate is five percent.", evidence_ids: [f.receipts[0].evidence_id] }];
+  const chat = (await f.chats.get(owner, f.chat.id))!, messageId = randomUUID();
+  await f.chats.commitTurn(owner, chat.id, { expectedVersion: chat.transcript_version,
+    userMessage: { id: randomUUID(), content: "What does the agreement say about interest?" },
+    assistantMessage: { id: messageId, content: [legalEvidenceReceiptEvent(state)!] } });
+  const original = (await sources.findings(owner, f.workspace.id,
+    { chatId: chat.id, messageIds: [messageId], offset: 0, limit: 20 })).items[0];
+  expect(original.answer.claims).toHaveLength(2);
+  const reference = { ...original.reference, claimIndices: [1] };
   const selected = await sources.context(owner, f.workspace.id,
-    { target: "sources", sourceIds: [external.sourceId], findingRefs: [reference] });
+    { target: "sources", sourceIds: [original.sourceId], findingRefs: [reference] });
   const dependencies = { sources, scope: owner, workspaceId: f.workspace.id,
     subjects: selected.subjects, findingRefs: [reference] };
   const result = await readResearchFindings(dependencies, { reference });
   const content = JSON.parse((result.result.content[0] as { text: string }).text);
   // The reported claim index stays the original one, never the index inside the narrowed selection.
-  expect(content.claims).toEqual([expect.objectContaining({ claim_index: 1, text: "The appeal was allowed." })]);
-  expect(result.evidence).toEqual([f.receipts[1]]);
-  await expect(readResearchFindings(dependencies, { reference: library.reference })).rejects.toMatchObject({ status: 400 });
+  expect(content.claims).toEqual([expect.objectContaining({ claim_index: 1, text: "The rate is five percent." })]);
+  expect(result.evidence).toEqual([f.receipts[0]]);
+  // A narrow claim scope cannot read the broader finding it was taken from.
+  await expect(readResearchFindings(dependencies, { reference: original.reference })).rejects.toMatchObject({ status: 400 });
   expect((await sources.items(owner, f.workspace.id, { kind: "passages", offset: 0, limit: 50 })).total).toBe(0);
   expect(model).not.toHaveBeenCalled();
 });
