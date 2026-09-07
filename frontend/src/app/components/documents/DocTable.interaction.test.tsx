@@ -165,6 +165,10 @@ function documentRow() {
     return rowFor("Brief.pdf");
 }
 
+function selectRow(filename: string) {
+    fireEvent.click(within(rowFor(filename)).getByRole("checkbox"));
+}
+
 function rowFor(filename: string) {
     return screen
         .getAllByText(filename)
@@ -483,7 +487,7 @@ describe("DocTable Library interactions", () => {
         await waitFor(() => expect(moveFolder).toHaveBeenCalledWith(source.id, target.id));
     });
 
-    it("selects on click without opening and keeps View visible", () => {
+    it("does not select on a row click, only via the checkbox", () => {
         render(<Harness />);
         const row = documentRow();
         const view = screen.getByRole("button", {
@@ -491,10 +495,12 @@ describe("DocTable Library interactions", () => {
         });
 
         fireEvent.click(row);
+        expect(row).toHaveAttribute("aria-selected", "false");
+        expect(screen.queryByTestId("document-view")).not.toBeInTheDocument();
 
+        fireEvent.click(screen.getByRole("checkbox", { name: "Select Brief.pdf" }));
         expect(row).toHaveAttribute("aria-selected", "true");
         expect(view).toBeVisible();
-        expect(screen.queryByTestId("document-view")).not.toBeInTheDocument();
     });
 
     it("opens on double-click", async () => {
@@ -536,7 +542,7 @@ describe("DocTable Library interactions", () => {
     it("opens the selected row with Enter", async () => {
         render(<Harness />);
         const row = documentRow();
-        fireEvent.click(row);
+        selectRow("Brief.pdf");
 
         fireEvent.keyDown(row, { key: "Enter" });
 
@@ -591,28 +597,20 @@ describe("DocTable Library interactions", () => {
             }),
         ).toBeNull();
 
-        fireEvent.click(rowFor("Submissions.docx"));
+        selectRow("Submissions.docx");
         await waitFor(() => expect(screen.getByRole("button", { name: "Workflows" })).toBeEnabled());
         expect(screen.getByText("Name")).toBeVisible();
 
-        fireEvent.click(
-            within(rowFor("Brief.pdf")).getByRole("checkbox"),
-        );
+        selectRow("Brief.pdf");
         expect(screen.getAllByRole("button", { name: "Workflows" })).toHaveLength(1);
-
-        fireEvent.click(rowFor("Submissions.docx"));
-        expect(screen.getByRole("button", { name: "Workflows" })).toBeEnabled();
-
-        fireEvent.click(rowFor("Brief.pdf"));
-        expect(screen.getByRole("button", { name: "Workflows" })).toBeEnabled();
     });
 
     it("hands the full selection to an existing workflow dock", async () => {
         const onOpenWorkflows = vi.fn();
         render(<Harness initialDocuments={[document, wordDocument]}
             onOpenWorkflows={onOpenWorkflows} />);
-        fireEvent.click(rowFor("Brief.pdf"));
-        fireEvent.click(within(rowFor("Submissions.docx")).getByRole("checkbox"));
+        selectRow("Brief.pdf");
+        selectRow("Submissions.docx");
 
         await waitFor(() => expect(screen.getByRole("button", { name: "Workflows" })).toBeEnabled());
         fireEvent.click(screen.getByRole("button", { name: "Workflows" }));
@@ -663,7 +661,7 @@ describe("DocTable Library interactions", () => {
 
             fireEvent.mouseEnter(row);
             fireEvent.focus(row);
-            fireEvent.click(row);
+            fireEvent.click(within(row).getByRole("checkbox"));
 
             expect(documentRow()).toBe(row);
             expect([...row.children]).toEqual(nodes);
