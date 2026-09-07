@@ -269,6 +269,17 @@ const boundedRow = (row: ReturnType<ReturnType<typeof structureNative>["readDocu
     truncatedEnd: row.truncatedEnd || text.length < row.text.length };
 };
 
+/** The addressable range of a source, so a pinpoint read need not be guessed. */
+function sourceExtent(artifact: NativeDocument) {
+  const anchors = structureNative().documentAnchors(artifact);
+  for (const kind of ["paragraph", "section", "page"] as const) {
+    const labels = anchors.flatMap((anchor) => anchor.kind === kind ? [anchor.label] : []);
+    if (labels.length) return { locator_kind: kind, first: labels[0], last: labels[labels.length - 1],
+      count: labels.length };
+  }
+  return null;
+}
+
 /** The same native window and receipt identities serve chat and extraction. */
 export function readLibraryResearchWindow(input: { documentId: string; versionId: string;
   filename: string; document: NativeDocument; offset?: number; start_char?: number; limit?: number }): ResearchRead {
@@ -591,7 +602,9 @@ export async function readLegalSourceResource(
         opinion = source.part && Array.isArray(objectRecord(opinions)?.opinions)
           ? (objectRecord(opinions)!.opinions as unknown[]).map(objectRecord).find((value) =>
               String(value?.opinionId ?? value?.id ?? value?.opinion_id) === source.part) : null;
+      const extent = sourceExtent(passage.documentArtifact);
       return [resource, { resource, title: source.title, citation: source.citation,
+        ...(extent ? { extent } : {}),
         ...(source.date ? { date: source.date } : {}),
         ...(source.collection ? { collection: source.collection } : {}),
         ...(source.language ? { language: source.language } : {}),

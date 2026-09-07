@@ -976,6 +976,17 @@ export function finalizeLegalEvidence(
     state.failure = "The model did not submit a grounded answer.";
     return false;
   }
+  // Naming a decision while citing only the document under review leaves the
+  // reader with the document's own account of the law and nothing to check it
+  // against. The authority the answer relies on has to be retrieved too.
+  const cited = new Set(state.answer.flatMap(({ evidence_ids }) => evidence_ids));
+  const providers = [...cited].flatMap((id) => state.evidence.get(id)?.receipt.provider ?? []);
+  if ((namesAuthority || citesAuthority) && providers.length &&
+      providers.every((provider) => provider === "library")) {
+    state.failure = "The answer named legal authorities but cited only the documents under review. " +
+      "Retrieve the authority itself and bind the claim to its passage.";
+    return false;
+  }
   return true;
 }
 
