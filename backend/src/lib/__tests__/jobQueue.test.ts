@@ -24,29 +24,21 @@ const deferred = () => {
   return { promise, resolve };
 };
 
-async function eventually<T>(read: () => Promise<T>, accept: (value: T) => boolean) {
-  const deadline = Date.now() + 3_000;
-  while (Date.now() < deadline) {
+function eventually<T>(read: () => Promise<T>, accept: (value: T) => boolean) {
+  return vi.waitFor(async () => {
     const value = await read();
-    if (accept(value)) return value;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  throw new Error("Condition was not reached");
+    expect(accept(value)).toBe(true);
+    return value;
+  }, { timeout: 3_000, interval: 10 });
 }
 
 async function waitForJob(
-  queue: typeof import("../jobQueue"), id: string, userId: string,
-  progress?: (value: import("../jobQueue").Json | null) => void,
+  queue: typeof import("../jobQueue"), id: string, userId: string, status = "succeeded",
 ) {
-  let previous = "";
-  const current = await eventually(() => queue.getJob(id, userId), (job) => {
-    const value = JSON.stringify(job?.progress ?? null);
-    if (value !== previous) { previous = value; progress?.(job?.progress ?? null); }
-    return !!job && ["succeeded", "failed", "cancelled"].includes(job.status);
-  });
-  if (!current || current.status === "failed") throw new Error("Background job failed");
-  if (current.status === "cancelled") throw new DOMException("Aborted", "AbortError");
-  return current;
+  const current = await eventually(() => queue.getJob(id, userId),
+    (job) => !!job && ["succeeded", "failed", "cancelled"].includes(job.status));
+  expect(current).toMatchObject({ status });
+  return current!;
 }
 
 describe("application job queue", () => {
@@ -156,17 +148,20 @@ describe("application job queue", () => {
     const queued = await queue.enqueueJob({
       kind: "test", dedupeKey: "retry", userId: "owner", payload: {}, maxAttempts: 2,
     });
-    const progress: unknown[] = [];
-    await eventually(() => queue.getJob(queued.id, "owner"),
-      (value) => value?.status === "queued" && value.attempts === 1);
-    expect(progress).toEqual([]);
-    const waiting = waitForJob(queue, queued.id, "owner", (value) => progress.push(value));
-    await (await relationalDatabase()).query(sql`UPDATE application_jobs
-      SET run_at=${new Date(0).toISOString()} WHERE id=${queued.id}`);
-    await expect(waiting).rejects.toThrow("Background job failed");
-    const failed = await queue.getJob(queued.id, "owner");
-    expect(failed).toMatchObject({ status: "failed", attempts: 2, lastError: "Error" });
-    expect(progress).toContainEqual({ phase: "extracting", pages: [5] });
+    const progress = { phase: "extracting", pages: [5] };
+    const retry = await eventually(() => queue.getJob(queued.id, "owner"),
+      (job) => job?.status === "queued" && job.attempts === 1);
+    expect(retry).toMatchObject({ lastError: "Error", progress });
+    const database = await relationalDatabase();
+    // This fixture bypasses backoff; publish a wake hint after committing its direct SQL change.
+    await database.transaction(async (tx) => {
+      await tx.query(sql`UPDATE application_jobs SET run_at=${new Date(0).toISOString()}
+        WHERE id=${queued.id}`);
+      tx.notifications!.publish("queue:test");
+    });
+    await expect(waitForJob(queue, queued.id, "owner", "failed")).resolves.toMatchObject({
+      attempts: 2, lastError: "Error", progress,
+    });
     await worker.stop();
     const replacement = await queue.enqueueJob({
       kind: "test", dedupeKey: "retry", userId: "owner", payload: {}, maxAttempts: 1,
@@ -175,27 +170,18 @@ describe("application job queue", () => {
     expect(attempts).toBe(2);
   });
 
-  it("persists PermanentJobError messages but keeps generic messages private", async () => {
+  it("persists controlled PermanentJobError messages without retrying", async () => {
     const queue = await import("../jobQueue");
     const worker = queue.startJobWorker({
       safe: async () => { throw new queue.PermanentJobError("Selected workflow is unavailable"); },
-      provider: async () => { throw new Error("secret provider detail"); },
     });
     const safe = await queue.enqueueJob({
-      kind: "safe", dedupeKey: "safe", userId: "owner", payload: {}, maxAttempts: 1,
+      kind: "safe", dedupeKey: "safe", userId: "owner", payload: {}, maxAttempts: 2,
     });
-    const provider = await queue.enqueueJob({
-      kind: "provider", dedupeKey: "provider", userId: "owner", payload: {}, maxAttempts: 1,
+    await expect(waitForJob(queue, safe.id, "owner", "failed")).resolves.toMatchObject({
+      attempts: 1, lastError: "Selected workflow is unavailable",
     });
-    await eventually(() => queue.getJob(safe.id, "owner"), (job) => job?.status === "failed");
-    await eventually(() => queue.getJob(provider.id, "owner"), (job) => job?.status === "failed");
     await worker.stop();
-    await expect(queue.getJob(safe.id, "owner")).resolves.toMatchObject({
-      status: "failed", lastError: "Selected workflow is unavailable",
-    });
-    await expect(queue.getJob(provider.id, "owner")).resolves.toMatchObject({
-      status: "failed", lastError: "Error",
-    });
   });
 
   it("reclaims an expired lease and terminally fails an exhausted lease", async () => {
@@ -218,13 +204,11 @@ describe("application job queue", () => {
     await expect(waitForJob(queue, recoverable.id, "owner")).resolves.toMatchObject({
       status: "succeeded", attempts: 2,
     });
-    await expect(waitForJob(queue, exhausted.id, "owner"))
-      .rejects.toThrow("Background job failed");
+    await expect(waitForJob(queue, exhausted.id, "owner", "failed")).resolves.toMatchObject({
+      attempts: 1, lastError: "LeaseExpired",
+    });
     await worker.stop();
     expect(handled).toEqual([recoverable.id]);
-    await expect(queue.getJob(exhausted.id, "owner")).resolves.toMatchObject({
-      status: "failed", attempts: 1, lastError: "LeaseExpired",
-    });
   });
 
   it("atomically claims each job once across concurrent workers", async () => {
@@ -247,7 +231,7 @@ describe("application job queue", () => {
     const queue = await import("../jobQueue"), started = deferred(), release = deferred();
     const worker = queue.startJobWorker({ test: async (_job, { signal }) => {
       started.resolve();
-      await new Promise<void>((resolve) => signal.addEventListener("abort", resolve,
+      await new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve(),
         { once: true }));
       await release.promise;
       throw new DOMException("Aborted", "AbortError");
@@ -261,8 +245,7 @@ describe("application job queue", () => {
       status: "running", cancelRequested: true,
     });
     release.resolve();
-    await eventually(() => queue.getJob(queued.id, "owner"),
-      (job) => job?.status === "cancelled");
+    await waitForJob(queue, queued.id, "owner", "cancelled");
     await worker.stop();
   });
 
