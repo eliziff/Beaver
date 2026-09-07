@@ -1,108 +1,94 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createClient } from "@supabase/supabase-js";
+import { describe, expect, it, vi } from "vitest";
 import type { DocumentStore } from "../documentStore";
 import { deleteUserAccountData } from "../userDataCleanup";
 
-type Row = Record<string, unknown>;
+type RequestRecord = { method: string; table: string; filters: Record<string, string>;
+  body: unknown };
+const ownedTables = ["tabular_reviews", "chats", "project_subfolders", "workflows",
+  "work_products", "audit_events", "user_preferences", "projects"];
 
-function database(seed: Record<string, Row[]>, failures: Record<string, string> = {}) {
-  const tables = Object.fromEntries(Object.entries(seed)
-    .map(([name, rows]) => [name, rows.map((row) => ({ ...row }))]));
-  const db = { from(table: string) {
-    const rows = () => tables[table] ?? (tables[table] = []);
-    let mode: "select" | "delete" | "update" = "select", patch: Row = {};
-    let matches = (_row: Row) => true;
-    const narrow = (test: (row: Row) => boolean) => {
-      const previous = matches;
-      matches = (row) => previous(row) && test(row);
-    };
-    const query: any = {
-      select: () => query,
-      delete: () => (mode = "delete", query),
-      update: (value: Row) => (mode = "update", patch = value, query),
-      eq: (column: string, value: unknown) => (narrow((row) => row[column] === value), query),
-      in: (column: string, values: unknown[]) =>
-        (narrow((row) => values.includes(row[column])), query),
-      filter: (column: string, _operator: string, value: string) => {
-        const expected = (JSON.parse(value) as string[]).map((item) => item.toLowerCase());
-        narrow((row) => Array.isArray(row[column]) && expected.every((item) =>
-          (row[column] as unknown[]).some((actual) =>
-            String(actual).trim().toLowerCase() === item)));
-        return query;
-      },
-      then(resolve: (value: { data: Row[] | null; error: unknown }) => unknown,
-        reject?: (reason: unknown) => unknown) {
-        let result: { data: Row[] | null; error: unknown };
-        if (mode === "delete" && failures[table]) {
-          result = { data: null, error: { message: failures[table] } };
-        } else if (mode === "delete") {
-          tables[table] = rows().filter((row) => !matches(row));
-          result = { data: null, error: null };
-        } else if (mode === "update") {
-          rows().filter(matches).forEach((row) => Object.assign(row, patch));
-          result = { data: null, error: null };
-        } else {
-          result = { data: rows().filter(matches).map((row) => ({ ...row })), error: null };
-        }
-        return Promise.resolve(result).then(resolve, reject);
-      },
-    };
-    return query;
-  } };
-  return { db: db as any, tables };
+function setup(failure?: string) {
+  const requests: RequestRecord[] = [];
+  const documents = { deleteUserDocuments: vi.fn(async () => 0) };
+  // Exercise the real SDK; only HTTP responses are supplied, not a second query engine.
+  const db = createClient("https://cleanup.example.test", "test-key", {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { fetch: async (input, init) => {
+      const request = new Request(input, init), url = new URL(request.url);
+      const table = url.pathname.split("/").at(-1)!;
+      url.searchParams.delete("select");
+      requests.push({ method: request.method, table,
+        filters: Object.fromEntries(url.searchParams),
+        body: request.method === "PATCH" ? await request.json() : null });
+      if (`${request.method} ${table}` === failure)
+        return Response.json({ message: "fixture failure" }, { status: 400 });
+      if (request.method !== "GET") return new Response(null, { status: 204 });
+      return Response.json(url.searchParams.has("user_id") ? [{ id: "owned-project" }] : [
+        { id: `${table}-shared`, shared_with: table === "projects"
+          ? ["u1@example.com", " U1@EXAMPLE.COM ", "keep@example.com"] : ["u1@example.com"] },
+      ]);
+    } },
+  });
+  return { requests, documents, run: (email?: string | null) => deleteUserAccountData(
+    db, documents as unknown as DocumentStore, "u1", email) };
 }
 
-const documents = {
-  deleteUserDocuments: vi.fn(async () => 0),
-} as unknown as DocumentStore;
-const ids = (rows: Row[] | undefined) => (rows ?? []).map(({ id }) => id);
-
-beforeEach(() => vi.mocked(documents.deleteUserDocuments).mockReset().mockResolvedValue(0));
+const sorted = <T>(values: T[]) => values.sort((a, b) =>
+  JSON.stringify(a).localeCompare(JSON.stringify(b)));
+const operations = (requests: RequestRecord[], method: string) => requests
+  .filter((request) => request.method === method)
+  .map(({ table, filters }) => [table, filters]);
 
 describe("user data cleanup", () => {
-  it("preserves metadata when required object cleanup fails", async () => {
-    const { db, tables } = database({
-      projects: [{ id: "mine", user_id: "u1" }],
+  it.each([undefined, null, "", " U1@Example.com "])(
+    "scopes every deletion and preserves other shared access (email: %s)", async (email) => {
+      const { run, documents, requests } = setup();
+      await run(email);
+      expect(documents.deleteUserDocuments).toHaveBeenCalledExactlyOnceWith(
+        { userId: "u1", userEmail: email ?? undefined },
+        { projectIds: ["owned-project"], includeOwned: true });
+      expect(sorted(operations(requests, "DELETE"))).toEqual(sorted([
+        ...ownedTables.map((table) => [table, { user_id: "eq.u1" }]),
+        ["workflow_open_source_submissions", { submitted_by_user_id: "eq.u1" }],
+        ["workflow_shares", { shared_by_user_id: "eq.u1" }],
+        ...(email ? [["workflow_shares", { shared_with_email: "eq.u1@example.com" }]] : []),
+      ]));
+      expect(sorted(operations(requests, "GET"))).toEqual(sorted([
+        ["projects", { user_id: "eq.u1" }],
+        ...(email ? ["projects", "tabular_reviews"].map((table) =>
+          [table, { shared_with: 'cs.["u1@example.com"]' }]) : []),
+      ]));
+      expect(sorted(requests.filter(({ method }) => method === "PATCH"))).toEqual(sorted(email
+        ? ["projects", "tabular_reviews"].map((table) => ({ method: "PATCH", table,
+          filters: { id: `eq.${table}-shared`, shared_with: 'cs.["u1@example.com"]' },
+          body: { shared_with: table === "projects" ? ["keep@example.com"] : [] } })) : []));
     });
-    vi.mocked(documents.deleteUserDocuments).mockRejectedValueOnce(
-      new Error("storage unavailable"),
-    );
 
-    await expect(deleteUserAccountData(db, documents, "u1"))
-      .rejects.toThrow("storage unavailable");
-    expect(ids(tables.projects)).toEqual(["mine"]);
+  it("waits for object cleanup to finish before deleting metadata", async () => {
+    const { run, documents, requests } = setup();
+    let release!: (value: number) => void;
+    documents.deleteUserDocuments.mockReturnValueOnce(new Promise((resolve) => { release = resolve; }));
+    const pending = run();
+    try {
+      await vi.waitFor(() => expect(documents.deleteUserDocuments).toHaveBeenCalledOnce());
+      expect(operations(requests, "DELETE")).toEqual([]);
+    } finally { release(0); await pending; }
+    expect(operations(requests, "DELETE")).toHaveLength(10);
   });
 
-  it("purges account objects before metadata and removes shared email access", async () => {
-    const { db, tables } = database({
-      projects: [
-        { id: "mine", user_id: "u1", shared_with: [] },
-        { id: "shared", user_id: "u2", shared_with: ["U1@example.com", "keep@example.com"] },
-      ],
-      tabular_reviews: [
-        { id: "mine-r", user_id: "u1", shared_with: [] },
-        { id: "shared-r", user_id: "u2", shared_with: ["u1@example.com"] },
-      ],
-      chats: [{ id: "mine-c", user_id: "u1" }], project_subfolders: [],
-      workflow_open_source_submissions: [],
-      workflow_shares: [
-        { id: "by", shared_by_user_id: "u1", shared_with_email: "x@example.com" },
-        { id: "to", shared_by_user_id: "u2", shared_with_email: "u1@example.com" },
-        { id: "keep", shared_by_user_id: "u2", shared_with_email: "keep@example.com" },
-      ],
-      workflows: [{ id: "mine-w", user_id: "u1" }, { id: "other-w", user_id: "u2" }],
-      work_products: [{ id: "mine-d", user_id: "u1" },
-        { id: "other-d", user_id: "u2" }],
-      audit_events: [], object_cleanup: [],
-    });
-    await deleteUserAccountData(db, documents, "u1", " U1@Example.com ");
-    expect(documents.deleteUserDocuments).toHaveBeenCalledWith(
-      { userId: "u1", userEmail: " U1@Example.com " },
-      { projectIds: ["mine"], includeOwned: true },
-    );
-    expect(ids(tables.projects)).toEqual(["shared"]);
-    expect(tables.projects[0].shared_with).toEqual(["keep@example.com"]);
-    expect(ids(tables.workflow_shares)).toEqual(["keep"]);
-    expect(ids(tables.workflows)).toEqual(["other-w"]);
-    expect(ids(tables.work_products)).toEqual(["other-d"]);
+  it("does not delete metadata when required object cleanup fails", async () => {
+    const { run, documents, requests } = setup();
+    documents.deleteUserDocuments.mockRejectedValueOnce(new Error("storage unavailable"));
+    await expect(run("u1@example.com")).rejects.toThrow("storage unavailable");
+    expect(operations(requests, "DELETE")).toEqual([]);
+  });
+
+  it.each(["GET projects", "GET tabular_reviews", "PATCH projects",
+    "PATCH tabular_reviews", "DELETE projects"])("propagates %s failures", async (failure) => {
+    const { run, documents, requests } = setup(failure);
+    await expect(run("u1@example.com")).rejects.toThrow("fixture failure");
+    expect(documents.deleteUserDocuments).toHaveBeenCalledTimes(failure.startsWith("DELETE") ? 1 : 0);
+    if (!failure.startsWith("DELETE")) expect(operations(requests, "DELETE")).toEqual([]);
   });
 });
