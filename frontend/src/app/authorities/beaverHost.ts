@@ -24,9 +24,8 @@ import {
   listWorkProducts,
   updateWorkProduct,
 } from "@/app/lib/api/workProducts";
-import { directoryResource, downloadDocument,
-  getDocumentParseStates } from "@/app/lib/api/documents";
-import { waitForPdfPreparation } from "@/app/lib/pdfPreparation";
+import { directoryResource, downloadDocument } from "@/app/lib/api/documents";
+import { pdfProgress, waitForPdfPreparation } from "@/app/lib/pdfPreparation";
 import type { WorkProductStore } from "@/app/lib/workProducts";
 import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
 import { prepareAnnotations } from "./annotationPreparation";
@@ -93,18 +92,9 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
     if (!resolved || resolved.kind === "local-file") throw new Error("This source is unavailable.");
     return downloadDocument(resolved.documentId, resolved.versionId).then(({ blob }) => blob);
   },
-  sourceOcr: {
+  sourceOcr: { progress: pdfProgress,
     start: (id, roles) => authoritiesSourceOcr(id, roles),
-    cancel: (id, roles) => authoritiesSourceOcr(id, roles, true),
-    async progress(documentIds) {
-      return (await getDocumentParseStates(documentIds)).map(({ id, parse_state: state }) => ({
-        id, done: state?.status === "ready" || state?.status === "degraded",
-        running: state?.status === "queued" || state?.status === "parsing",
-        ...(state?.phase === "ocr" && state.pages?.length ? { page: state.pages[0] } : {}),
-        ...(state?.error ? { error: state.error } : {}),
-      }));
-    },
-  },
+    cancel: (id, roles) => authoritiesSourceOcr(id, roles, true) },
   async prepareHighlights(draft, progress, signal) {
     await prepareSourcePdfs(draft, progress, signal);
     progress?.("Preparing highlight review");

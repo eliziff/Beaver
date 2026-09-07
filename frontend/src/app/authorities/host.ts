@@ -4,6 +4,7 @@ import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesBuildSettin
   AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction, AuthoritiesOutputMode, AuthoritiesProduct,
   AuthoritiesProfileId, AuthoritySourceLanguage } from "./types";
 import type { OutputFolderPort } from "@/app/components/shared/OutputFolderSetting";
+import type { PdfProgress } from "@/app/lib/pdfPreparation";
 
 export type AuthoritiesFile = { file: File; input?: WorkProductInput };
 export type AuthoritiesFilePick = { multiple: boolean; accept: "source" | "pdf" };
@@ -18,8 +19,7 @@ export type AuthoritiesSourceIssue =
 export type AuthoritiesOcrPort = {
   start(id: string, roles: string[]): Promise<Array<{ role: string; documentId?: string }>>;
   cancel(id: string, roles: string[]): Promise<unknown>;
-  progress(documentIds: string[]): Promise<Array<{ id: string; done: boolean;
-    running: boolean; page?: number; error?: string }>>;
+  progress(documentIds: string[]): Promise<PdfProgress[]>;
 };
 export type AuthoritiesDraftInspection = {
   sourceIssues: Record<string, AuthoritiesSourceIssue>;

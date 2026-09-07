@@ -26,7 +26,6 @@ import type { WorkProductFocus, WorkProductMetadata,
   WorkProductRefresh } from "@/app/lib/workProducts";
 import { ManualDraft, Sources } from "./AuthoritySources";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
-import { SourceOcrModal, type ScannedAuthorityPdf } from "./SourceOcrModal";
 import { useScannedSources, useSourceOcr } from "./sourceOcr";
 import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesHost,
   AuthoritiesLibraryPdfTarget,
@@ -136,7 +135,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const [editingAuthority, setEditingAuthority] = useState<AuthorityIdentity>();
   const [sourcePreview, setSourcePreview] = useState<{ role: string; name: string;
     bytes?: Uint8Array; error?: string }>();
-  const [scanReview, setScanReview] = useState<ScannedAuthorityPdf[]>();
   const ocr = useSourceOcr(host, draft?.id);
   const [stubWarning, setStubWarning] = useState(false);
   const scanRequest = useRef<AbortController | null>(null);
@@ -162,7 +160,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const display = useCallback((next?: AuthoritiesProduct, preserveTab = false) => {
     reviewRequest.current?.abort(); reviewRequest.current = null; setReview(undefined);
     setFindingId(""); setHighlightWarnings(undefined);
-    scanRequest.current?.abort(); setScanReview(undefined);
+    scanRequest.current?.abort(); ocr.reset();
     previewRequest.current += 1; setSourcePreview(undefined);
     draftRef.current = next; setDraft(next); setSelectedId(orderedOccurrences(next)[0]?.id ?? "");
     if (next) {
@@ -612,36 +610,17 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     return items.length ? current : host.act(current.id, current.revision, { type: "set-stage", stage: "highlights" });
   }
 
-  function finishSourceReview(policy: AuthoritiesBuildSettings["scannedPdfPolicy"]) {
-    const current = draftRef.current;
-    if (!current) return;
-    if (policy === "page-margin") void ocr.stop(Object.keys(ocr.tracked), false);
-    const request = new AbortController(); scanRequest.current?.abort(); scanRequest.current = request;
-    void run(async () => {
-      const configured = await host.act(current.id, current.revision, {
-        type: "set-settings", settings: { scannedPdfPolicy: policy },
-      });
-      remember(configured);
-      return prepareHighlightReview(configured, request.signal);
-    }, (next) => { remember(next); setScanReview(undefined); }, "", "Preparing highlight review")
-      .finally(() => { if (scanRequest.current === request) scanRequest.current = null; });
-  }
   function finishSources() {
     const current = draftRef.current;
     if (!current || busy) return;
     const request = new AbortController(); scanRequest.current?.abort(); scanRequest.current = request;
     void run(async () => {
-      const files = await scannedSources(current, setMessage, request.signal);
+      // Recognition is queued the moment a scan is found and watched in the Sources
+      // list; how much of it reaches the book stays the scanned-PDF setting.
+      void ocr.begin(await scannedSources(current, setMessage));
       request.signal.throwIfAborted();
-      if (files.length) return { files, next: undefined };
-      return { files, next: await prepareHighlightReview(current, request.signal) };
-    }, ({ files, next }) => {
-      setMessage("");
-      // Recognition is queued as soon as a scan is found; the choice below only
-      // decides how much of it reaches the exported book.
-      if (files.length) void ocr.begin(files);
-      if (next) remember(next); else setScanReview(files);
-    }, "", "Checking source PDFs").finally(() => {
+      return prepareHighlightReview(current, request.signal);
+    }, remember, "", "Preparing highlight review").finally(() => {
       if (scanRequest.current === request) scanRequest.current = null;
     });
   }
@@ -774,10 +753,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                       onFocusChange={onFocusChange} onReview={setFindingId} />}
                   </section>
                   {stage !== "citations" && <Sources key={draft.id} draft={draft} occurrences={occurrences}
-                    {...authorityPanelProps} onRetry={findSources} ocr={ocr.tracked}
-                    onOcrPause={(role) => void ocr.stop([role], true)}
-                    onOcrResume={(role) => void ocr.begin([ocr.tracked[role]])}
-                    onOcrCancel={(role) => void ocr.stop([role], false)}
+                    {...authorityPanelProps} onRetry={findSources} ocr={ocr}
                     forceOpen={sourceIntervention === sourceKey} />}
                   {quotationReview}
                   {sourcesContinue}
@@ -835,10 +811,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
           act({ type: "edit-authority", authorityId: editingAuthority.id, kind, citation, name });
           setEditingAuthority(undefined);
         }} />}
-      {scanReview && <SourceOcrModal files={scanReview} busy={busy}
-        policy={draft?.state.settings.scannedPdfPolicy ?? "page-margin"}
-        onClose={() => setScanReview(undefined)} onPreview={openSource}
-        onContinue={finishSourceReview} />}
       <Modal open={stubWarning} onClose={() => setStubWarning(false)} size="md"
         breadcrumbs={["Missing PDFs"]} className="!h-fit max-h-[calc(100dvh-2rem)]"
         cancelAction={{ label: "Cancel", onClick: () => setStubWarning(false) }}
