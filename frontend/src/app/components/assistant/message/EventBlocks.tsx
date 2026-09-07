@@ -138,8 +138,7 @@ export function collapseActivities(activities: readonly AssistantActivity[]): As
                 label: count ? `${activity.label} — ${count} citing source${count === 1 ? "" : "s"}` : activity.label });
             continue;
         }
-        // Windows of one source are one act however they interleave with reads
-        // of another, so a row merges into its source's row wherever it sits.
+        // Windows of one source are one act however they interleave with another's.
         const index = activity.tool !== "Read" ? -1 : rows.findLastIndex((row) =>
             row.tool === "Read" && activitySource(row) === activitySource(activity));
         const previous = index < 0 ? undefined : rows[index];
