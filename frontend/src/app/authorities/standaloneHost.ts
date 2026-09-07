@@ -312,18 +312,6 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     return save(id, revision, imported
       ? await refreshImported(state, resolved.file) : state);
   },
-  async replaceSource(id, revision, selected) {
-    const product = await currentProduct(id, revision);
-    if (product.state.import.kind !== "document") {
-      throw new Error("Only an imported document can be replaced.");
-    }
-    const extension = selected.file.name.split(".").at(-1)?.toLowerCase();
-    if (extension !== "pdf" && extension !== "docx") throw new Error("Add a PDF or Word document.");
-    const binding = await bindStandaloneFile(selected.file, selected.input);
-    const state = await refreshImported(product.state, selected.file, true);
-    state.bindings[state.import.kind === "document" ? state.import.bindingRole : "source"] = binding;
-    return save(id, revision, state);
-  },
   outputFolder: {
     get: getStandaloneOutputFolder,
     choose: chooseStandaloneOutputFolder,

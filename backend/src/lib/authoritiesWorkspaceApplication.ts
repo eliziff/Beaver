@@ -405,26 +405,6 @@ export function createAuthoritiesWorkspaceApplication(
       const state = adoptCurrentPdf(draft, input.role, binding, version);
       return workProducts.save(scope, id, { revision: input.revision, state });
     },
-    async replaceSource(scope: ApplicationScope, id: string, input: {
-      revision: number; file: DocumentFile;
-    }) {
-      const fileType = input.file.fileType.toLowerCase();
-      if (!["pdf", "docx"].includes(fileType)) {
-        throw new ApplicationError(400, "Add a PDF or Word document");
-      }
-      const { product, draft } = await edit(scope, id, input.revision);
-      if (draft.import.kind !== "document") {
-        throw new ApplicationError(409, "Only an imported document can be replaced");
-      }
-      const created = await files.create(scope, "authorities", input.file,
-        { projectId: product.projectId });
-      return withRollback(scope, [createdDocumentRollback(created)], async () => {
-        const fresh = await importer.draft(scope, { kind: "document",
-          documentId: created.id, version: "latest" });
-        return workProducts.save(scope, id, { revision: input.revision,
-          state: update(draft, { type: "refresh", review: review(fresh) }) });
-      }, "Replacing the source could not be completed");
-    },
     async attachPdf(scope: ApplicationScope, id: string, input: {
       revision: number; authorityId: string; file: DocumentFile;
       language: AuthoritySourceLanguage;
