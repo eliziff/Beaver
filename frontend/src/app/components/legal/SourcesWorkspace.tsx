@@ -150,7 +150,7 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
     return { id, path: `${source.document.project_id ? `/projects/${source.document.project_id}` : ""}/assistant/chat/${id}` };
   }
 
-  const [pen, setPenState] = useState<string | null>(null), [armed, setArmed] = useState(false);
+  const [pen, setPenState] = useState<string | null>(null), [armed, setArmed] = useState(true);
   const capture = useRef<(() => HighlightCapture | null) | null>(null);
   const penFile = useRef(file?.document.id); penFile.current = file?.document.id;
   const penId = useRef(pen); penId.current = pen;
@@ -161,11 +161,10 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
     if (id) localStorage.setItem(`${PEN_KEY}:${key}`, id); else localStorage.removeItem(`${PEN_KEY}:${key}`);
   }, []);
   const { act } = mutations;
-  /** One deliberate write: prepare the source, ensure a pen, save the passage with it. */
-  const runHighlight = useCallback(async (): Promise<"saved" | "armed" | "none"> => {
-    if (!capture.current) return "none";
-    const picked = capture.current();
-    if (!picked) { setArmed(true); return "armed"; }
+  /** One deliberate write: prepare the source, ensure a pen, save the passage with it. The pen stays active. */
+  const runHighlight = useCallback(async (): Promise<"saved" | "none"> => {
+    const picked = capture.current?.();
+    if (!picked) return "none";
     const base = current.current;
     if (!base) throw new Error("Open a workspace first");
     const key = researchSourceKey(picked.reference);
@@ -182,7 +181,6 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
     if (active !== penId.current) { penId.current = active; setPen(active); }
     await act({ type: "passage", sourceId, locator: picked.locator, quote: picked.quote, labelIds: [active] });
     window.getSelection()?.removeAllRanges();
-    setArmed(false);
     return "saved";
   }, [act, setPen]);
   const highlight = { pen, setPen, armed, arm: setArmed, run: runHighlight,
