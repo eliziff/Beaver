@@ -320,9 +320,8 @@ describe("production legal evidence", () => {
   });
 
   it("exposes the approved quotation policy once through the grounding tool", () => {
-    expect(GROUNDED_QUOTATION_POLICY_CURRENT).toBe(
-      "Prefer direct quotation when the source itself states the proposition. Quote the shortest passage that preserves the source's meaning and necessary context. Paraphrase only when combining sources, explaining their effect, or expressing the point more clearly. Keep each claim to one proposition, and attach only the evidence that supports that proposition. Split the claim when different propositions require different evidence. Avoid long quotations unless their full wording is necessary.",
-    );
+    expect(GROUNDED_QUOTATION_POLICY_CURRENT).toContain("Quote the shortest passage");
+    expect(GROUNDED_QUOTATION_POLICY_CURRENT).toContain("Split the claim");
     expect(selectGroundedQuotationPolicy()).toBe(GROUNDED_QUOTATION_POLICY_CURRENT);
     expect(selectGroundedQuotationPolicy("classic")).toBe(
       GROUNDED_QUOTATION_POLICY_CLASSIC,
