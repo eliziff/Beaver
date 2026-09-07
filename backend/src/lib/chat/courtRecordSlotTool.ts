@@ -1,9 +1,9 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { acceptsWorkProductOutput } from "mike/shared/court-record-work-products.mjs";
 import type { ApplicationScope } from "../applicationError";
-import { COURT_RECORD_PROFILES, COURT_RECORD_PROFILE_BY_ID,
-  COURT_RECORD_PARTY_CONTACT_FIELDS,
-  type CourtRecordProfileContract } from "../courtRecordContract";
+import { COURT_PROFILES, COURT_PROFILE_BY_ID, type CourtProfile }
+  from "mike/shared/court-record-profiles.mjs";
+import { COURT_RECORD_PARTY_CONTACT_FIELDS } from "../courtRecordContract";
 import type { CourtRecordsApplication } from "../courtRecordsApplication";
 import { contentTypeForDocumentType } from "../documentTypes";
 import type { LibraryStore } from "../libraryStore";
@@ -14,16 +14,17 @@ import type { WorkProductApplication } from "../workProductApplication";
 import { workProductEvent, workProductResult } from "./localWorkflowRun";
 import { toolText, type BeaverTool, type BeaverToolPolicy } from "./toolRegistry";
 
-const selectableProfiles = COURT_RECORD_PROFILES.filter((profile) =>
+const selectableProfiles = COURT_PROFILES.filter((profile) =>
   profile.selectable !== false);
 const profileIds = selectableProfiles.map(({ id }) => id);
-const coverFields = [...new Set(selectableProfiles.flatMap(({ coverFields: fields }) => fields))];
-const partyStyleIds = [...new Set(selectableProfiles.flatMap(({ partyStyles }) =>
+const coverFields = [...new Set(selectableProfiles.flatMap(({ cover }) =>
+  cover.fields.map(({ id }) => id)))];
+const partyStyleIds = [...new Set(selectableProfiles.flatMap(({ cover: { partyStyles } }) =>
   partyStyles?.map(({ id }) => id) ?? []))];
-const partyGroupIds = [...new Set(selectableProfiles.flatMap(({ partyStyles }) =>
+const partyGroupIds = [...new Set(selectableProfiles.flatMap(({ cover: { partyStyles } }) =>
   partyStyles?.flatMap(({ groups }) => groups.map(({ id }) => id)) ?? []))];
-const slotIds = [...new Set(selectableProfiles.flatMap(({ slots }) => slots.flatMap((slot) =>
-  slot.requirement === "forbidden" || slot.generated ? [] : [slot.id])))];
+const slotIds = [...new Set(selectableProfiles.flatMap(({ documentKinds }) =>
+  documentKinds.flatMap((slot) => slot.requirement === "forbidden" || slot.generated ? [] : [slot.id])))];
 const textField = (maxLength: number) => ({ type: "string", minLength: 1, maxLength });
 const partyContact = { type: "object", description: "Contact for a non-filing AP-5 party.",
   properties: Object.fromEntries(COURT_RECORD_PARTY_CONTACT_FIELDS.map((field) =>
@@ -90,7 +91,7 @@ type Dependencies = {
 
 const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
 const draftOutputChoices = async (dependencies: Dependencies,
-  profile: CourtRecordProfileContract) =>
+  profile: CourtProfile) =>
   (await dependencies.workProducts.list(dependencies.scope, {
     limit: 100, metadata: false,
   })).flatMap((product) => {
@@ -103,7 +104,7 @@ const draftOutputChoices = async (dependencies: Dependencies,
       const fileType = (["pdf", "docx"] as const).find((type) =>
         output.mimeType === contentTypeForDocumentType(type));
       const source = { kind: product.kind, profileId, role };
-      return fileType && profile.slots.some((slot) => acceptsWorkProductOutput(slot, source) &&
+      return fileType && profile.documentKinds.some((slot) => acceptsWorkProductOutput(slot, source) &&
         (slot.acceptedFormats ?? ["pdf", "docx"]).includes(fileType)) ? [role] : [];
     }).sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
     return roles.length ? [{ child_draft_id: product.id, title: product.title,
@@ -114,20 +115,20 @@ type CourtRecordProduct = Awaited<ReturnType<Dependencies["workProducts"]["get"]
 export function courtRecordResult(product: CourtRecordProduct,
   values: Record<string, unknown> = {}) {
   const profile = product.kind === "court-record"
-    ? COURT_RECORD_PROFILE_BY_ID.get(String(product.state.profileId)) : undefined;
+    ? COURT_PROFILE_BY_ID.get(String(product.state.profileId)) : undefined;
   const currentStyleId = String((product.state.cover as Record<string, unknown> | undefined)
     ?.partyStyleId ?? "");
   return workProductResult(product, { draft: product.state,
     ...(profile && { profile: { id: profile.id, label: profile.label,
-      cover_fields: profile.coverFields,
-      ...(profile.partyStyles?.length && {
-        party_styles: profile.partyStyles,
-        ...(profile.partyStyles.some(({ id }) => id === currentStyleId) &&
+      cover_fields: profile.cover.fields.map(({ id }) => id),
+      ...(profile.cover.partyStyles?.length && {
+        party_styles: profile.cover.partyStyles,
+        ...(profile.cover.partyStyles.some(({ id }) => id === currentStyleId) &&
           { active_party_style_id: currentStyleId }),
-        ...(profile.filingGroupId && { filing_group_id: profile.filingGroupId }),
+        ...(profile.cover.filingGroupId && { filing_group_id: profile.cover.filingGroupId }),
       }),
       ...(profile.oneOf?.length && { one_of: profile.oneOf }),
-      slots: profile.slots.filter((slot) =>
+      slots: profile.documentKinds.filter((slot) =>
         slot.requirement !== "forbidden" && !slot.generated) } }),
     presets: selectableProfiles.map(({ id, label }) => ({ id, label })), ...values });
 }
@@ -151,7 +152,7 @@ export function courtRecordSlotTool<Context>(dependencies: Dependencies): Beaver
         if (input.action === "read") {
           const result = payload(product, {
             draft_outputs: await draftOutputChoices(dependencies,
-              COURT_RECORD_PROFILE_BY_ID.get(String(product.state.profileId))!),
+              COURT_PROFILE_BY_ID.get(String(product.state.profileId))!),
           });
           return { result: toolText(result), events: [workProductEvent(result, call.id)!] };
         }
