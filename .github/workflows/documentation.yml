@@ -1,0 +1,53 @@
+name: Documentation
+
+on:
+  pull_request:
+    paths:
+      - '*.md'
+      - 'docs/**'
+      - '.gitmodules'
+      - 'subrepos.lock.json'
+      - 'subrepos/**'
+      - 'legal-structure'
+      - 'legal-pdf-parser'
+      - 'legal-browser-ocr'
+      - 'mike-workflows'
+      - '.github/workflows/documentation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  documentation:
+    runs-on: ubuntu-latest
+    steps:
+      # checkout's recursive credential cleanup rejects the bundle-only gitlink.
+      # Fetch the exact PR merge with a command-local, read-only credential instead.
+      - name: Check out the exact pull-request merge
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git init .
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          git -c "http.extraheader=AUTHORIZATION: basic $auth" fetch --no-tags --no-recurse-submodules --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: node --test docs/scripts/check-docs.test.mjs
+      - name: Restore documentation-linked source repositories
+        shell: bash
+        run: |
+          git submodule update --init --depth 1 --recursive -- legal-structure legal-pdf-parser legal-browser-ocr
+          git clone subrepos/OpenLegalData.bundle OpenLegalData
+          git -C OpenLegalData checkout --detach "$(node -p "require('./subrepos.lock.json').repositories.OpenLegalData.commit")"
+          test "$(git -C OpenLegalData rev-parse HEAD)" = "$(git ls-tree HEAD OpenLegalData | awk '{print $3}')"
+      # This is a docs gate, not application bootstrap certification. The unavailable
+      # upstream mike-workflows pin is recorded in the repository guide/master plan;
+      # do not replace it with mutable upstream main just to make a check pass.
+      - run: node docs/scripts/check-docs.mjs
+        if: success() || failure()

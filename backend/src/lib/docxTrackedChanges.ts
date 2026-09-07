@@ -189,119 +189,99 @@ function minimalTextEdit(
     };
 }
 
-/**
- * Given a paragraph's children and a sorted, non-overlapping list of
- * `PlannedChange`s that fall within it, return a new children array with
- * tracked changes inserted.
- */
+/** First interval ending after position. Empty runs/text nodes are skipped. */
+function spanAt(spans: readonly { end: number }[], position: number): number {
+    let low = 0;
+    let high = spans.length;
+    while (low < high) {
+        const middle = (low + high) >>> 1;
+        if (spans[middle].end <= position) low = middle + 1;
+        else high = middle;
+    }
+    return low;
+}
+
+/** Rewrite only the runs touched by sorted, non-overlapping changes. */
 function reconstructParagraph(
-    paraChildren: XNode[],
     flat: DocxParagraphIndex,
     plan: PlannedChange[],
     now: string,
     author: string,
 ): XNode[] {
-    if (plan.length === 0 || flat.acceptedText.length === 0) return paraChildren;
-
-    // The character index is ordered, so each change's endpoints bound its runs.
-    // An insertion at paragraph end inherits the preceding run.
-    const lastCharacter = flat.acceptedText.length - 1;
-    let firstRunIdx = flat.editRuns.length;
-    let lastRunIdx = -1;
+    if (plan.length === 0 || flat.acceptedText.length === 0) return flat.children;
+    // An insertion at paragraph end inherits the preceding nonempty run.
+    const runAt = (position: number) => spanAt(flat.editRuns,
+        Math.min(Math.max(position, 0), flat.acceptedText.length - 1));
+    const firstRunIdx = runAt(plan[0].deleteStart);
+    let lastRunIdx = firstRunIdx;
     for (const change of plan) {
-        const start = Math.min(change.deleteStart, lastCharacter);
-        const end = Math.min(Math.max(change.deleteStart, change.deleteEnd - 1), lastCharacter);
-        firstRunIdx = Math.min(firstRunIdx, flat.charRun[start]);
-        lastRunIdx = Math.max(lastRunIdx, flat.charRun[end]);
+        lastRunIdx = Math.max(lastRunIdx,
+            runAt(Math.max(change.deleteStart, change.deleteEnd - 1)));
     }
-
-    const startChildIdx = flat.editRuns[firstRunIdx].childIndex;
-    const endChildIdx = flat.editRuns[lastRunIdx].childIndex;
-
     const firstRun = flat.editRuns[firstRunIdx];
     const lastRun = flat.editRuns[lastRunIdx];
-    const spanStart =
-        firstRun.textNodes.length > 0 ? firstRun.textNodes[0].paraStart : 0;
-    const spanEnd =
-        lastRun.textNodes.length > 0
-            ? lastRun.textNodes[lastRun.textNodes.length - 1].paraEnd
-            : spanStart;
-
     const newRunGroup: XNode[] = [];
-
-    const rPrForPos = (pos: number): XNode | null => {
-        if (pos < 0) pos = 0;
-        if (pos >= flat.acceptedText.length) pos = flat.acceptedText.length - 1;
-        if (pos < 0) return firstRun.rPr;
-        return flat.editRuns[flat.charRun[pos]].rPr;
-    };
-
-    const emitText = (a: number, b: number, deletionId?: string) => {
-        if (a >= b) return;
-        const deleting = deletionId !== undefined;
-        const output = deleting ? [] : newRunGroup;
-        let i = a;
-        while (i < b) {
-            const run = flat.editRuns[flat.charRun[i]];
-            // Reuse the indexed text-node boundary instead of rediscovering it
-            // character by character in separate normal/deletion emitters.
-            const j = Math.min(b, run.textNodes[flat.charTextNode[i]].paraEnd);
-            output.push(buildRun(run.rPr, flat.acceptedText.slice(i, j),
-                deleting ? "w:delText" : "w:t"));
-            i = j;
+    const emitText = (start: number, end: number, deletionId?: string) => {
+        if (start >= end) return;
+        const output = deletionId === undefined ? newRunGroup : [];
+        for (let index = spanAt(flat.editRuns, start); index <= lastRunIdx; index++) {
+            const run = flat.editRuns[index];
+            if (run.start >= end) break;
+            for (let n = spanAt(run.textNodes, start); n < run.textNodes.length; n++) {
+                const node = run.textNodes[n];
+                if (node.start >= end) break;
+                const a = Math.max(start, node.start);
+                const b = Math.min(end, node.end);
+                if (a < b) output.push(buildRun(run.rPr, flat.acceptedText.slice(a, b),
+                    deletionId === undefined ? "w:t" : "w:delText"));
+            }
         }
-        if (deleting) newRunGroup.push(
+        if (deletionId !== undefined) newRunGroup.push(
             makeEl("w:del", output, revisionAttrs(deletionId, author, now)),
         );
     };
 
-    const emitIns = (pos: number, text: string, wId: string) => {
-        if (!text) return;
-        const rPr = rPrForPos(pos === spanEnd ? pos - 1 : pos);
-        const run = buildRun(rPr, text, "w:t");
-        newRunGroup.push(
-            makeEl("w:ins", [run], revisionAttrs(wId, author, now)),
-        );
-    };
-
-    let cursor = spanStart;
-    for (const p of plan) {
-        emitText(cursor, p.deleteStart);
-        if (p.insertedText) emitIns(p.deleteStart, p.insertedText, p.insWId!);
-        if (p.deleteEnd > p.deleteStart)
-            emitText(p.deleteStart, p.deleteEnd, p.delWId!);
-        cursor = p.deleteEnd;
-    }
-    emitText(cursor, spanEnd);
-
-    const droppedChildIdx = new Set<number>();
-    for (let r = firstRunIdx; r <= lastRunIdx; r++) {
-        droppedChildIdx.add(flat.editRuns[r].childIndex);
-    }
-    for (let i = startChildIdx; i <= endChildIdx; i++) {
-        if (elName(paraChildren[i]) === "w:del") droppedChildIdx.add(i);
-    }
-    const firstDroppedIdx = startChildIdx;
-    const out: XNode[] = [];
-    for (let i = 0; i < paraChildren.length; i++) {
-        if (i === firstDroppedIdx) {
-            for (const n of newRunGroup) out.push(n);
+    let cursor = firstRun.start;
+    for (const change of plan) {
+        emitText(cursor, change.deleteStart);
+        if (change.insertedText) {
+            const position = change.deleteStart === lastRun.end
+                ? change.deleteStart - 1 : change.deleteStart;
+            newRunGroup.push(makeEl("w:ins", [buildRun(
+                flat.editRuns[runAt(position)].rPr, change.insertedText, "w:t",
+            )], revisionAttrs(change.insWId!, author, now)));
         }
-        if (droppedChildIdx.has(i)) continue;
-        out.push(paraChildren[i]);
+        if (change.deleteEnd > change.deleteStart)
+            emitText(change.deleteStart, change.deleteEnd, change.delWId!);
+        cursor = change.deleteEnd;
     }
-    return out;
+    emitText(cursor, lastRun.end);
+
+    const dropped = new Set(flat.editRuns.slice(firstRunIdx, lastRunIdx + 1)
+        .map((run) => run.childIndex));
+    for (let index = firstRun.childIndex; index <= lastRun.childIndex; index++) {
+        if (elName(flat.children[index]) === "w:del") dropped.add(index);
+    }
+    return flat.children.flatMap((child, index) =>
+        index === firstRun.childIndex ? newRunGroup : dropped.has(index) ? [] : [child]);
 }
 
-interface ParagraphRef {
-    paraNode: XNode;
-    paraChildren: XNode[];
-    flat: DocxParagraphIndex;
-    globalStart: number; // where this paragraph starts in the full doc text
+function touchesContentControl(flat: DocxParagraphIndex, start: number, end: number): boolean {
+    // At an insertion boundary either adjoining character can belong to a control.
+    if (start === end) {
+        start--;
+        end++;
+    }
+    for (let index = spanAt(flat.editRuns, start); index < flat.editRuns.length; index++) {
+        const run = flat.editRuns[index];
+        if (run.start >= end) break;
+        if (run.start < run.end && run.protectedByContentControl) return true;
+    }
+    return false;
 }
 
 function paragraphIndexForRange(
-    paragraphs: ParagraphRef[],
+    paragraphs: DocxParagraphIndex[],
     start: number,
     end: number,
 ): number {
@@ -310,7 +290,7 @@ function paragraphIndexForRange(
     while (low <= high) {
         const index = (low + high) >>> 1;
         const paragraph = paragraphs[index];
-        const paragraphEnd = paragraph.globalStart + paragraph.flat.acceptedText.length;
+        const paragraphEnd = paragraph.globalStart + paragraph.acceptedText.length;
         if (start < paragraph.globalStart) high = index - 1;
         else if (start > paragraphEnd) low = index + 1;
         else return end <= paragraphEnd ? index : -1;
@@ -440,12 +420,7 @@ export async function applyTrackedEdits(
     const document = await session.document();
     const { tree } = document;
 
-    const paragraphs: ParagraphRef[] = document.paragraphs.map((flat) => ({
-        paraNode: flat.node,
-        paraChildren: flat.children,
-        flat,
-        globalStart: flat.globalStart,
-    }));
+    const paragraphs = document.paragraphs;
 
     // Word tracks text inside paragraphs. The assistant, however, reads the
     // document on the canonical paragraph stream and may copy several adjacent
@@ -577,7 +552,7 @@ export async function applyTrackedEdits(
             findStart = exactStart - paragraph.globalStart;
             findEnd = exactEnd - paragraph.globalStart;
             if (
-                paragraph.flat.acceptedText.slice(findStart, findEnd) !== find
+                paragraph.acceptedText.slice(findStart, findEnd) !== find
             ) {
                 errors.push({
                     index: editIdx,
@@ -611,7 +586,7 @@ export async function applyTrackedEdits(
             }
         }
 
-        const originalFind = paragraphs[paraIdx].flat.acceptedText.slice(
+        const originalFind = paragraphs[paraIdx].acceptedText.slice(
             findStart,
             findEnd,
         );
@@ -626,22 +601,10 @@ export async function applyTrackedEdits(
             });
             continue;
         }
-        const protectedAt = (position: number) =>
-            position >= 0 &&
-            position < paragraphs[paraIdx].flat.acceptedText.length &&
-            paragraphs[paraIdx].flat.editRuns[
-                paragraphs[paraIdx].flat.charRun[position]
-            ]?.protectedByContentControl;
-        const clusterTouchesControl = (start: number, end: number) => {
-            if (start === end)
-                return Boolean(protectedAt(start) || protectedAt(start - 1));
-            for (let position = start; position < end; position += 1)
-                if (protectedAt(position)) return true;
-            return false;
-        };
         if (
             clusters.some((cluster) =>
-                clusterTouchesControl(
+                touchesContentControl(
+                    paragraphs[paraIdx],
                     findStart + cluster.offset,
                     findStart + cluster.offset + cluster.deleted.length,
                 ),
@@ -722,15 +685,8 @@ export async function applyTrackedEdits(
     }
 
     for (const [paraIdx, plan] of plansPerParagraph) {
-        const p = paragraphs[paraIdx];
-        const newKids = reconstructParagraph(
-            p.paraChildren,
-            p.flat,
-            plan,
-            now,
-            author,
-        );
-        setChildren(p.paraNode, newKids);
+        const paragraph = paragraphs[paraIdx];
+        setChildren(paragraph.node, reconstructParagraph(paragraph, plan, now, author));
     }
 
     session.writeDocument(tree);

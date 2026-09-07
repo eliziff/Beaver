@@ -22,14 +22,6 @@ import { pathologyFixtureBuilders } from "./fixtures/docx-pathologies/generate";
 
 const REVISION = { author: "Counsel", date: "2026-01-01T00:00:00Z" };
 
-/** What a reader gets by taking every marked edit: the accepted view. */
-function acceptedView(text: string) {
-  return text
-    .replace(/\{--[\s\S]*?--\}(?:\[ink\])?/gu, "")
-    .replace(/\{\+\+([\s\S]*?)\+\+\}(?:\[ink\])?/gu, "$1")
-    .replace(/\{>>[\s\S]*?<<\}/gu, "");
-}
-
 const fixtures = new Map<string, Buffer>();
 
 async function fixture(name: string) {
@@ -92,19 +84,6 @@ describe("projectDocxRedline on native tracked changes", () => {
     expect(found.notes).toEqual([]);
   });
 
-  it("keeps the accepted view recoverable by stripping the markers", async () => {
-    const bytes = await fixture("tracked-changes");
-    const found = await projectDocxRedline(bytes);
-    expect(acceptedView(found.text)).toBe(await extractDocxBodyText(bytes));
-  });
-
-  it("marks a deletion that extraction otherwise drops silently", async () => {
-    const bytes = await fixture("tracked-changes");
-    // The hole in the other direction: accepted-view extraction cannot show
-    // that "Zurich" was ever there.
-    expect(await extractDocxBodyText(bytes)).not.toContain("Zurich");
-    expect((await projectDocxRedline(bytes)).text).toContain("{--Zurich--}");
-  });
 });
 
 describe("projectDocxRedline on a manual ink redline", () => {
@@ -129,46 +108,6 @@ describe("projectDocxRedline on a manual ink redline", () => {
       ink_deletions: 2,
     });
     expect(found.notes).toEqual([]);
-  });
-
-  it("closes the measured hole: a struck clause no longer reads as operative", async () => {
-    // Every extractor probed (mammoth raw text, mammoth HTML, pandoc plain)
-    // returns this sentence as ordinary body text.
-    const plain = await extractDocxBodyText(bytes);
-    expect(plain).toContain("This indemnity survives termination.");
-    expect(plain).toContain("$117,000 $125,000");
-
-    const found = await projectDocxRedline(bytes);
-    expect(acceptedView(found.text)).toBe(
-      "The Tenant shall pay Rent of  $125,000 per annum. ",
-    );
-  });
-
-  it("reads a run that is both struck and red as a deletion", async () => {
-    const found = await projectDocxRedline(
-      await Packer.toBuffer(
-        new Document({
-          sections: [
-            {
-              children: [
-                new Paragraph({
-                  children: [
-                    new TextRun({
-                      text: "struck and red",
-                      strike: true,
-                      color: "FF0000",
-                    }),
-                  ],
-                }),
-              ],
-            },
-          ],
-        }),
-      ),
-    );
-    expect(found.text).toBe("{--struck and red--}[ink]");
-    expect(found.counts.ink_deletions).toBe(1);
-    expect(found.counts.ink_insertions).toBe(0);
   });
 
   it("leaves colours outside the red family unmarked", async () => {

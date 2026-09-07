@@ -2,18 +2,16 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import JSZip from "jszip";
 import { Document, Packer, Paragraph, TextRun } from "docx";
 import { PDFDocument } from "pdf-lib";
 import { createDocumentApplication } from "../documentApplication";
 import { MAX_DRAFTING_DOCX_BYTES } from "../docx/core";
 import { sha256 } from "../hash";
-import type {
-  CreateDocumentMetadata,
-  DocumentAggregate,
-  DocumentRepository,
-} from "../documentRepository";
+import { documentRepository as repository } from "../relationalDocumentRepository";
+import { projectRepository } from "../relationalProjectRepository";
+import { closeRelationalDatabase, relationalDatabase, sql } from "../relationalDatabase";
 import type { DocumentScope } from "../documentStore";
 import { createFilesystemObjectStorage, createS3ObjectStorage, documentBlobKey, readS3Configuration,
   scopeObjectStorage, type ObjectStorage } from "../storage";
@@ -35,206 +33,37 @@ const pdf = async (text: string) => {
   return Buffer.from(await value.save());
 };
 
-function memoryRepository(readable: (scope: DocumentScope, value: DocumentAggregate) => boolean =
-  (scope, value) => value.document.userId === scope.userId) {
-  const values = new Map<string, DocumentAggregate>();
-  const orphans = new Set<string>();
-  const keys = (version: DocumentAggregate["versions"][number]) =>
-    [version.blobKey, version.pdfBlobKey].filter((key): key is string => !!key);
-  const retain = (version: DocumentAggregate["versions"][number]) =>
-    keys(version).forEach((key) => orphans.delete(key));
-  const repository: DocumentRepository = {
-    async authorizeCreate() { return "ok"; },
-    async create(_scope, input: CreateDocumentMetadata) {
-      values.set(input.document.id, {
-        document: input.document, versions: [input.version], edits: [],
-      });
-      retain(input.version);
-      return true;
-    },
-    async get(scope, id) {
-      const value = values.get(id);
-      return value && readable(scope, value) ? value : null;
-    },
-    async head(scope, id) {
-      const value = await repository.get(scope, id);
-      const version = value?.versions.find(({ id }) => id === value.document.currentVersionId);
-      return value && version ? { document: value.document, versions: [version] } : null;
-    },
-    async heads(scope, ids) {
-      return (await Promise.all(ids.map((id) => repository.head(scope, id))))
-        .flatMap((head) => head ?? []);
-    },
-    async version(scope, id, versionId) {
-      const value = values.get(id);
-      return value && readable(scope, value)
-        ? value.versions.find((version) => version.id ===
-          (versionId ?? value.document.currentVersionId)) ?? null
-        : null;
-    },
-    async currentVersions(scope, ids) {
-      return [...values.values()].flatMap((value) => {
-        const version = value.versions.find(({ id }) => id === value.document.currentVersionId);
-        return version && ids.includes(value.document.id) && readable(scope, value) ? [version] : [];
-      });
-    },
-    async parts() { return []; },
-    async hasPendingEdits(scope, id, versionIds) {
-      const value = await repository.get(scope, id);
-      return !!value?.edits.some((edit) => versionIds.includes(edit.versionId) &&
-        edit.status === "pending");
-    },
-    async history(scope, id) {
-      const value = await repository.get(scope, id);
-      return value && { currentVersionId: value.document.currentVersionId,
-        versions: [...value.versions].reverse() };
-    },
-    async parseStates(scope, ids) {
-      return ids.flatMap((id) => {
-        const value = values.get(id);
-        return value && readable(scope, value)
-          ? [{ id, parseState: value.document.parseState ?? null }] : [];
-      });
-    },
-    async insertVersion(scope, id, input) {
-      const value = await repository.get(scope, id);
-      if (!value) return "missing";
-      if (value.document.currentVersionId !== input.expectedCurrentVersionId ||
-          value.versions.find(({ id }) => id === value.document.currentVersionId)
-            ?.workingRevision !== input.expectedCurrentWorkingRevision ||
-          input.expectedProjectId !== undefined &&
-            value.document.projectId !== input.expectedProjectId ||
-          input.expectedFolderId !== undefined &&
-            value.document.folderId !== input.expectedFolderId ||
-          input.version.versionNumber !== value.versions.length + 1 ||
-          input.version.parentVersionId !== input.expectedCurrentVersionId) return "conflict";
-      value.versions.push(input.version);
-      value.document.currentVersionId = input.version.id;
-      retain(input.version);
-      value.edits.push(...(input.edits ?? []).map((edit) => ({
-        ...edit, versionId: input.version.id,
-      })));
-      return "created";
-    },
-    async updateVersion(scope, id, input) {
-      const value = await repository.get(scope, id);
-      const version = value?.versions.find(({ id: versionId }) => versionId === input.versionId);
-      if (!version) return "missing";
-      if (version.blobKey !== input.expectedBlobKey ||
-          input.expectedPdfBlobKey !== undefined &&
-          version.pdfBlobKey !== input.expectedPdfBlobKey ||
-          version.workingRevision !== input.expectedWorkingRevision ||
-          input.expectedCurrentVersionId &&
-          value?.document.currentVersionId !== input.expectedCurrentVersionId) return "conflict";
-      const oldKeys = keys(version);
-      const update = input.update;
-      for (const key of ["filename", "fileType", "sizeBytes", "pageCount", "sourceSha256",
-        "blobKey", "pdfBlobKey", "createdAt"] as const) {
-        if (update[key] !== undefined) (version as any)[key] = update[key];
-      }
-      if (update.provenance === null) delete version.provenance;
-      else if (update.provenance !== undefined) version.provenance = update.provenance;
-      if (input.bumpWorkingRevision !== false) version.workingRevision++;
-      value!.edits.push(...(input.edits ?? []).map((edit) => ({ ...edit, versionId: version.id })));
-      const edits = input.resolveEdits?.ids.map((id) =>
-        value!.edits.find(({ id: editId }) => editId === id));
-      if (edits?.some((edit) => !edit)) return "conflict";
-      edits?.forEach((edit) => edit!.status = input.resolveEdits!.status);
-      const retained = new Set(keys(version));
-      oldKeys.filter((key) => !retained.has(key)).forEach((key) => orphans.add(key));
-      retain(version);
-      return "updated";
-    },
-    async deleteVersion(scope, id, input) {
-      const value = await repository.get(scope, id);
-      if (!value) return false;
-      const version = value.versions.find(({ id }) => id === input.versionId);
-      if (!version || value.document.currentVersionId !== input.expectedCurrentVersionId ||
-          input.versionId !== input.expectedCurrentVersionId ||
-          version.parentVersionId !== input.nextCurrentVersionId ||
-          version.blobKey !== input.expectedBlobKey ||
-          version.pdfBlobKey !== input.expectedPdfBlobKey ||
-          version.workingRevision !== input.expectedWorkingRevision ||
-          value.document.projectId !== input.expectedProjectId ||
-          value.document.folderId !== input.expectedFolderId) return false;
-      value.versions = value.versions.filter(({ id }) => id !== input.versionId);
-      value.document.currentVersionId = input.nextCurrentVersionId;
-      keys(version).forEach((key) => orphans.add(key));
-      return true;
-    },
-    async deleteDocument(scope, id, _owner, expected) {
-      const value = await repository.get(scope, id);
-      if (!value) return false;
-      const current = value.versions.find(({ id }) => id === value.document.currentVersionId);
-      if (expected && (!current || current.id !== expected.versionId ||
-          current.workingRevision !== expected.workingRevision ||
-          value.document.projectId !== expected.projectId ||
-          value.document.folderId !== expected.folderId)) return false;
-      value.versions.flatMap(keys).forEach((key) => orphans.add(key));
-      return values.delete(id);
-    },
-    async deleteDocuments(scope, projectIds, includeOwned) {
-      const ids = [...values.values()].filter(({ document }) =>
-        includeOwned && document.userId === scope.userId ||
-        !!document.projectId && projectIds.includes(document.projectId)).map(({ document }) =>
-        document.id);
-      let deleted = 0;
-      for (const id of ids) if (await repository.deleteDocument(scope, id, false)) deleted++;
-      return deleted;
-    },
-    async relocate(scope, id, input) {
-      const value = await repository.get(scope, id, input.owner);
-      if (!value) return "missing";
-      if (value.document.projectId !== input.expectedProjectId ||
-          value.document.folderId !== input.expectedFolderId) return "conflict";
-      const rewrites = new Map(input.versions.map((version) => [version.versionId, version]));
-      if (value.document.projectId !== input.projectId &&
-          (rewrites.size !== input.versions.length || value.versions.length !== rewrites.size ||
-          value.versions.some((version) => {
-            const rewrite = rewrites.get(version.id);
-            return !rewrite || rewrite.expectedBlobKey !== version.blobKey ||
-              rewrite.expectedPdfBlobKey !== version.pdfBlobKey;
-          })) || value.document.projectId === input.projectId && rewrites.size) return "conflict";
-      const oldKeys = value.versions.flatMap(keys);
-      value.versions.forEach((version) => {
-        const rewrite = rewrites.get(version.id);
-        if (rewrite) Object.assign(version, { blobKey: rewrite.blobKey,
-          pdfBlobKey: rewrite.pdfBlobKey });
-        retain(version);
-      });
-      value.document.projectId = input.projectId;
-      value.document.folderId = input.folderId;
-      const referenced = new Set([...values.values()].flatMap((item) => item.versions.flatMap(keys)));
-      oldKeys.filter((key) => !referenced.has(key)).forEach((key) => orphans.add(key));
-      return { document: value.document,
-        versions: [value.versions.find(({ id }) => id === value.document.currentVersionId)!] };
-    },
-    async recordOrphans(keys) { keys.forEach((key) => orphans.add(key)); return "staged"; },
-    async removeOrphan(key, _claimId, remove) {
-      if (!orphans.has(key)) return false;
-      await remove(); return orphans.delete(key);
-    },
-    async pendingOrphans() {
-      const referenced = new Set([...values.values()].flatMap((value) =>
-        value.versions.flatMap(keys)));
-      referenced.forEach((key) => orphans.delete(key));
-      return [...orphans].map((key) => ({ key, claimId: "claim" }));
-    },
-  };
-  return { repository, values, orphans };
+let root: string;
+beforeEach(async () => {
+  root = await mkdtemp(path.join(os.tmpdir(), "beaver-documents-"));
+  vi.stubEnv("AUTH_MODE", "local");
+  vi.stubEnv("MIKE_LOCAL_DATA_DIR", root);
+});
+afterEach(async () => {
+  vi.restoreAllMocks();
+  await closeRelationalDatabase();
+  vi.unstubAllEnvs();
+  await rm(root, { recursive: true, force: true });
+});
+
+const project = (scope: DocumentScope, sharedWith: string[] = []) =>
+  projectRepository.create(scope, { name: "Matter", cmNumber: null, practice: null, sharedWith });
+async function projectFolders(scope: DocumentScope) {
+  const { id: projectId } = await project(scope);
+  const [drafts, filed] = await Promise.all(["Drafts", "Filed"].map((name) =>
+    projectRepository.createFolder(scope, projectId, { name, parentFolderId: null })));
+  return { projectId, folderId: drafts!.id, filedId: filed!.id };
 }
 
-let root: string;
-beforeAll(async () => { root = await mkdtemp(path.join(os.tmpdir(), "beaver-documents-")); });
-afterAll(async () => { await rm(root, { recursive: true, force: true }); });
-
-function modes() {
-  const filesystem = createFilesystemObjectStorage(root);
-  const signedGet = vi.fn(async (key: string,
-    options: { filename: string; contentType: string }): Promise<string | null> =>
-    `https://storage.test/${encodeURIComponent(key)}?filename=${encodeURIComponent(options.filename)}`);
-  const cloud = { ...filesystem, kind: "s3" as const, signedGet } satisfies ObjectStorage;
-  return [{ name: "local", objects: filesystem }, { name: "cloud", objects: cloud, signedGet }];
+async function orphanKeys() {
+  const { rows } = await (await relationalDatabase()).query<{ storage_path: string }>(
+    sql`SELECT storage_path FROM object_cleanup ORDER BY storage_path`);
+  return rows.map(({ storage_path }) => storage_path);
+}
+// Age only disposable cleanup rows; do not wait for the production grace period.
+async function ageOrphans() {
+  await (await relationalDatabase()).query(sql`UPDATE object_cleanup
+    SET created_at=${"2000-01-01T00:00:00.000Z"}`);
 }
 
 describe("shared document application", () => {
@@ -246,8 +75,8 @@ describe("shared document application", () => {
       await new Promise((resolve) => setTimeout(resolve, 5));
       try { return await base.get(key, options); } finally { active--; }
     } };
-    const state = memoryRepository(), bulk = vi.spyOn(state.repository, "currentVersions");
-    const documents = createDocumentApplication(state.repository, objects), scope = { userId: "bulk" };
+    const bulk = vi.spyOn(repository, "currentVersions");
+    const documents = createDocumentApplication(repository, objects), scope = { userId: "bulk" };
     const created = [];
     for (let index = 0; index < 6; index++) created.push(await documents.create(scope, {
       filename: `${index}.md`, fileType: "md", bytes: Buffer.from(`body ${index}`),
@@ -266,37 +95,41 @@ describe("shared document application", () => {
     const archive = new JSZip();
     for (let index = 0; index <= 4_096; index += 1) archive.file(`word/${index}.xml`, "x");
     const bytes = await archive.generateAsync({ type: "nodebuffer" });
-    const state = memoryRepository();
-    const documents = createDocumentApplication(state.repository, createFilesystemObjectStorage(root));
+    const objects = createFilesystemObjectStorage(root), put = vi.spyOn(objects, "put");
+    const documents = createDocumentApplication(repository, objects);
     await expect(documents.create({ userId: "owner" }, {
       filename: "corrupt.docx", fileType: "docx", bytes: Buffer.from("PK\x03\x04not-a-zip"),
     })).rejects.toMatchObject({ status: 400, message: expect.stringContaining("extraction limits") });
     await expect(documents.create({ userId: "owner" }, {
       filename: "bomb.docx", fileType: "docx", bytes,
     })).rejects.toMatchObject({ status: 400, message: expect.stringContaining("extraction limits") });
-    expect([state.values.size, state.orphans.size]).toEqual([0, 0]);
+    expect(put).not.toHaveBeenCalled();
+    expect((await (await relationalDatabase()).query(sql`SELECT id FROM documents`)).rows).toEqual([]);
+    expect(await orphanKeys()).toEqual([]);
   });
 
   it("rejects output bytes that do not match their build receipt before storing them", async () => {
     const objects = createFilesystemObjectStorage(root);
-    const state = memoryRepository();
-    const documents = createDocumentApplication(state.repository, objects);
+    const documents = createDocumentApplication(repository, objects);
     const scope = { userId: "receipt-owner" };
     const created = await documents.create(scope, {
       filename: "Record.docx", fileType: "docx", bytes: await docx("first"),
     });
+    const put = vi.spyOn(objects, "put");
     await expect(documents.addVersion(scope, created.id, {
       filename: "Record.docx", fileType: "docx", bytes: await docx("second"),
       expectedSha256: "0".repeat(64),
     })).rejects.toMatchObject({ status: 409 });
+    expect(put).not.toHaveBeenCalled();
     expect((await documents.read(scope, created.id, null, false))?.version.id)
       .toBe(created.current_version_id);
-    expect([state.values.get(created.id)?.versions.length, state.orphans.size]).toEqual([1, 0]);
+    expect((await documents.versions(scope, created.id))?.versions).toHaveLength(1);
+    expect(await orphanKeys()).toEqual([]);
     await documents.deleteDocument(scope, created.id);
   });
 
   it("rejects a version whose expected parent is stale", async () => {
-    const documents = createDocumentApplication(memoryRepository().repository,
+    const documents = createDocumentApplication(repository,
       createFilesystemObjectStorage(root));
     const scope = { userId: "version-owner" };
     const created = await documents.create(scope, {
@@ -322,10 +155,11 @@ describe("shared document application", () => {
   });
 
   it("does not roll back a version changed after its creation snapshot", async () => {
-    const state = memoryRepository(), documents = createDocumentApplication(state.repository,
+    const documents = createDocumentApplication(repository,
       createFilesystemObjectStorage(root)), scope = { userId: "rollback-owner" };
+    const { projectId, folderId, filedId } = await projectFolders(scope);
     const created = await documents.create(scope, { filename: "notes.md", fileType: "md",
-      bytes: Buffer.from("one"), projectId: "matter", folderId: "drafts" });
+      bytes: Buffer.from("one"), projectId, folderId });
     const version = (await documents.addVersion(scope, created.id, {
       filename: "notes.md", fileType: "md", bytes: Buffer.from("two"),
     }))!;
@@ -336,44 +170,48 @@ describe("shared document application", () => {
     await expect(documents.deleteVersion(scope, created.id, version.id, expected))
       .resolves.toEqual({ status: "missing" });
     expect((await documents.read(scope, created.id, null, false))?.filename).toBe("renamed.md");
-    state.values.get(created.id)!.document.folderId = "filed";
+    expect(await documents.relocate(scope, created.id, { expectedProjectId: projectId,
+      expectedFolderId: folderId, projectId, folderId: filedId, owner: true }))
+      .toMatchObject({ status: "moved" });
     await expect(documents.deleteVersion(scope, created.id, version.id, {
       ...expected, workingRevision: expected.workingRevision + 1,
     })).resolves.toEqual({ status: "missing" });
-    expect(state.values.get(created.id)?.versions).toHaveLength(2);
+    expect((await documents.versions(scope, created.id))?.versions).toHaveLength(2);
   });
 
   it("lets an authorized project collaborator roll back its unchanged version", async () => {
     const member = { userId: "member", userEmail: "member@example.test" };
-    const state = memoryRepository((scope, value) => value.document.userId === scope.userId ||
-      value.document.projectId === "matter" && scope.userEmail === member.userEmail);
-    const documents = createDocumentApplication(state.repository,
+    const documents = createDocumentApplication(repository,
       createFilesystemObjectStorage(root));
     const owner = { userId: "owner", userEmail: "owner@example.test" };
+    const { id: projectId } = await project(owner, [member.userEmail]);
     const created = await documents.create(owner, { filename: "notes.md", fileType: "md",
-      bytes: Buffer.from("one"), projectId: "matter" });
+      bytes: Buffer.from("one"), projectId });
     const version = (await documents.addVersion(member, created.id, {
       filename: "notes.md", fileType: "md", bytes: Buffer.from("two"),
     }))!;
     await expect(documents.deleteVersion(member, created.id, version.id, {
       versionId: version.id, workingRevision: version.working_revision,
-      projectId: "matter", folderId: null,
+      projectId, folderId: null,
     })).resolves.toEqual({ status: "deleted", currentVersionId: created.current_version_id });
     expect((await documents.read(member, created.id, null, false))?.bytes.toString()).toBe("one");
   });
 
   it("does not remove a created document after its head or location changes", async () => {
-    const state = memoryRepository(), documents = createDocumentApplication(state.repository,
+    const documents = createDocumentApplication(repository,
       createFilesystemObjectStorage(root)), scope = { userId: "created-rollback-owner" };
+    const { projectId, folderId, filedId } = await projectFolders(scope);
     const created = await documents.create(scope, { filename: "draft.md", fileType: "md",
-      bytes: Buffer.from("one"), projectId: "matter", folderId: "drafts" });
+      bytes: Buffer.from("one"), projectId, folderId });
     const expected = { versionId: created.current_version_id,
       workingRevision: created.current_working_revision,
       projectId: created.project_id, folderId: created.folder_id };
     await documents.replaceVersion(scope, created.id, created.current_version_id,
       created.current_working_revision,
       { filename: "filed.md", fileType: "md", bytes: Buffer.from("two") });
-    state.values.get(created.id)!.document.folderId = "filed";
+    expect(await documents.relocate(scope, created.id, { expectedProjectId: projectId,
+      expectedFolderId: folderId, projectId, folderId: filedId, owner: true }))
+      .toMatchObject({ status: "moved" });
     await expect(documents.deleteDocument(scope, created.id, true, expected)).resolves.toBe(false);
     await expect(documents.read(scope, created.id, null, false)).resolves.toMatchObject({
       filename: "filed.md", bytes: Buffer.from("two"),
@@ -381,7 +219,7 @@ describe("shared document application", () => {
   });
 
   it("coalesces one assistant turn and parents the next turn to it", async () => {
-    const state = memoryRepository(), documents = createDocumentApplication(state.repository,
+    const documents = createDocumentApplication(repository,
       createFilesystemObjectStorage(root)), scope = { userId: "research-owner" };
     const created = await documents.create(scope, {
       filename: "Cases.research.md", fileType: "md", bytes: Buffer.from("one"),
@@ -407,7 +245,7 @@ describe("shared document application", () => {
       turnId: "turn-1",
     });
     expect(second.status).toBe("committed");
-    expect(state.values.get(created.id)?.versions).toHaveLength(2);
+    expect((await documents.versions(scope, created.id))?.versions).toHaveLength(2);
     if (second.status !== "committed") return;
     const retried = await documents.commitAssistantVersion(scope, created.id, {
       sourceVersionId: second.version.id,
@@ -416,7 +254,7 @@ describe("shared document application", () => {
       edits: [], status: "pending", turnId: "turn-1",
     });
     expect(retried.status).toBe("committed");
-    expect(state.values.get(created.id)?.versions).toHaveLength(2);
+    expect((await documents.versions(scope, created.id))?.versions).toHaveLength(2);
     if (retried.status !== "committed") return;
     const nextTurn = await documents.commitAssistantVersion(scope, created.id, {
       sourceVersionId: retried.version.id,
@@ -426,13 +264,13 @@ describe("shared document application", () => {
     });
     expect(nextTurn).toMatchObject({ status: "committed",
       version: { parent_version_id: retried.version.id } });
-    expect(state.values.get(created.id)?.versions).toHaveLength(3);
+    expect((await documents.versions(scope, created.id))?.versions).toHaveLength(3);
     expect((await documents.read(scope, created.id, null, false))?.bytes.toString()).toBe("five");
     await documents.deleteDocument(scope, created.id);
   });
 
   it("rejects a stale same-version research autosave", async () => {
-    const documents = createDocumentApplication(memoryRepository().repository,
+    const documents = createDocumentApplication(repository,
       createFilesystemObjectStorage(root)), scope = { userId: "research-human" };
     const created = await documents.create(scope, { filename: "Cases.research.md",
       fileType: "md", bytes: Buffer.from(researchFileMarkdown(
@@ -449,7 +287,7 @@ describe("shared document application", () => {
   });
 
   it("retains provenance through revisions, checkpoints and restores, but not uploaded replacement", async () => {
-    const state = memoryRepository(), documents = createDocumentApplication(state.repository,
+    const documents = createDocumentApplication(repository,
       createFilesystemObjectStorage(root)), scope = { userId: "provenance-owner" };
     const created = await documents.create(scope, { filename: "memo.md", fileType: "md",
       bytes: Buffer.from("one"), provenance: { schemaVersion: 1, actor: "assistant",
@@ -466,22 +304,24 @@ describe("shared document application", () => {
     const checkpoint = await documents.checkpointVersion(scope, created.id, revised.version.id, 1);
     expect(checkpoint.status).toBe("created");
     if (checkpoint.status !== "created") return;
-    expect((await documents.projectionSource(scope, created.id, null))?.provenance)
-      .toMatchObject({ actor: "assistant", action: "revised", turnId: undefined });
+    const checkpointProvenance = (await documents.projectionSource(scope, created.id, null))?.provenance;
+    expect(checkpointProvenance).toMatchObject({ actor: "assistant", action: "revised" });
+    expect(checkpointProvenance).not.toHaveProperty("turnId");
     const restored = await documents.restoreVersion(scope, created.id, created.current_version_id,
       checkpoint.version.id, 0);
     expect(restored.status).toBe("restored");
     if (restored.status !== "restored") return;
-    expect((await documents.projectionSource(scope, created.id, null))?.provenance)
-      .toMatchObject({ actor: "assistant", action: "created", turnId: undefined });
+    const restoredProvenance = (await documents.projectionSource(scope, created.id, null))?.provenance;
+    expect(restoredProvenance).toMatchObject({ actor: "assistant", action: "created" });
+    expect(restoredProvenance).not.toHaveProperty("turnId");
     await documents.replaceVersion(scope, created.id, restored.version.id, 0,
       { filename: "memo.md", fileType: "md", bytes: Buffer.from("unrelated upload") });
     expect((await documents.projectionSource(scope, created.id, null))?.provenance).toBeUndefined();
   });
 
   it("restores an immutable version as a zero-copy descendant", async () => {
-    const state = memoryRepository(), objects = createFilesystemObjectStorage(root);
-    const documents = createDocumentApplication(state.repository, objects);
+    const objects = createFilesystemObjectStorage(root);
+    const documents = createDocumentApplication(repository, objects);
     const scope = { userId: "restore-owner" };
     const created = await documents.create(scope, {
       filename: "notes.md", fileType: "md", bytes: Buffer.from("one"),
@@ -510,18 +350,19 @@ describe("shared document application", () => {
       third!.id, second!.id, created.current_version_id, null,
     ]);
     expect(restored.version.source_sha256).toBe(created.source_sha256);
-    expect(new Set(state.values.get(created.id)?.versions.map(({ blobKey }) => blobKey)).size)
+    expect(new Set((await repository.history(scope, created.id))?.versions.map(({ blobKey }) => blobKey)).size)
       .toBe(3);
     expect((await documents.read(scope, created.id, null, false))?.bytes.toString()).toBe("one");
     expect((await documents.read(scope, created.id, second!.id, false))?.bytes.toString()).toBe("two");
     await documents.deleteDocument(scope, created.id);
+    await ageOrphans();
     await documents.resumeCleanup();
-    expect(state.orphans.size).toBe(0);
+    expect(await orphanKeys()).toEqual([]);
   });
 
   it("never restores missing or corrupt historical bytes", async () => {
-    const state = memoryRepository(), objects = createFilesystemObjectStorage(root);
-    const documents = createDocumentApplication(state.repository, objects);
+    const objects = createFilesystemObjectStorage(root);
+    const documents = createDocumentApplication(repository, objects);
     const scope = { userId: "damaged-restore-owner" };
     const created = await documents.create(scope, {
       filename: "notes.md", fileType: "md", bytes: Buffer.from("one"),
@@ -529,10 +370,11 @@ describe("shared document application", () => {
     const second = await documents.addVersion(scope, created.id, {
       filename: "notes.md", fileType: "md", bytes: Buffer.from("two"),
     });
-    const source = state.values.get(created.id)!.versions
-      .find(({ id }) => id === created.current_version_id)!;
+    const source = (await repository.version(scope, created.id, created.current_version_id))!;
     const rendition = Buffer.from("pdf rendition"), pdfDigest = sha256(rendition);
     source.pdfBlobKey = documentBlobKey({ userId: scope.userId, projectId: null }, pdfDigest);
+    await (await relationalDatabase()).query(sql`UPDATE document_versions
+      SET pdf_storage_path=${source.pdfBlobKey} WHERE id=${source.id}`);
     await objects.put(source.pdfBlobKey, rendition, "application/pdf",
       { expectedSha256: pdfDigest });
     await objects.remove(source.pdfBlobKey);
@@ -555,8 +397,8 @@ describe("shared document application", () => {
   });
 
   it("checkpoints a working revision without copying its blob", async () => {
-    const state = memoryRepository(), objects = createFilesystemObjectStorage(root);
-    const documents = createDocumentApplication(state.repository, objects);
+    const objects = createFilesystemObjectStorage(root);
+    const documents = createDocumentApplication(repository, objects);
     const scope = { userId: "checkpoint-owner", userEmail: "owner@example.test" };
     const created = await documents.create(scope, {
       filename: "notes.md", fileType: "md", bytes: Buffer.from("one"),
@@ -577,16 +419,17 @@ describe("shared document application", () => {
     expect(await documents.checkpointVersion(
       scope, created.id, checkpoint.status === "created" ? checkpoint.version.id : "", 1,
     )).toEqual({ status: "conflict" });
-    await objects.remove(state.values.get(created.id)!.versions.at(-1)!.blobKey);
+    if (checkpoint.status !== "created") throw new Error("Expected a checkpoint");
+    await objects.remove((await repository.version(scope, created.id, checkpoint.version.id))!.blobKey);
     expect(await documents.checkpointVersion(scope, created.id, checkpoint.version.id, 0))
       .toEqual({ status: "missing" });
-    expect(new Set(state.values.get(created.id)?.versions.map(({ blobKey }) => blobKey)).size)
+    expect(new Set((await repository.history(scope, created.id))?.versions.map(({ blobKey }) => blobKey)).size)
       .toBe(1);
   });
 
   it("reserves deduplicated scope-move targets in one batch", async () => {
-    const state = memoryRepository(), objects = createFilesystemObjectStorage(root);
-    const documents = createDocumentApplication(state.repository, objects);
+    const objects = createFilesystemObjectStorage(root);
+    const documents = createDocumentApplication(repository, objects);
     const scope = { userId: "move-owner" };
     const created = await documents.create(scope, {
       filename: "notes.md", fileType: "md", bytes: Buffer.from("one"),
@@ -594,11 +437,12 @@ describe("shared document application", () => {
     await documents.addVersion(scope, created.id, {
       filename: "notes.md", fileType: "md", bytes: Buffer.from("one"),
     });
-    const reserve = vi.spyOn(state.repository, "recordOrphans");
+    const { id: projectId } = await project(scope);
+    const reserve = vi.spyOn(repository, "recordOrphans");
     const put = vi.spyOn(objects, "put");
     await expect(documents.relocate(scope, created.id, {
       expectedProjectId: null, expectedFolderId: null,
-      projectId: "matter", folderId: null, owner: true,
+      projectId, folderId: null, owner: true,
     })).resolves.toMatchObject({ status: "moved" });
     expect(reserve).toHaveBeenCalledTimes(1);
     expect(reserve.mock.calls[0][0]).toHaveLength(1);
@@ -606,22 +450,22 @@ describe("shared document application", () => {
   });
 
   it("does not copy a document before authorizing its destination", async () => {
-    const state = memoryRepository(), objects = createFilesystemObjectStorage(root);
-    const documents = createDocumentApplication(state.repository, objects);
+    const objects = createFilesystemObjectStorage(root);
+    const documents = createDocumentApplication(repository, objects);
     const scope = { userId: "move-owner" }, created = await documents.create(scope, {
       filename: "notes.md", fileType: "md", bytes: Buffer.from("one"),
     });
-    state.repository.authorizeCreate = async () => "project-missing";
+    const { id: forbidden } = await project({ userId: "another-owner" });
     const put = vi.spyOn(objects, "put");
     await expect(documents.relocate(scope, created.id, {
       expectedProjectId: null, expectedFolderId: null,
-      projectId: "forbidden", folderId: null, owner: true,
+      projectId: forbidden, folderId: null, owner: true,
     })).resolves.toEqual({ status: "missing" });
     expect(put).not.toHaveBeenCalled();
   });
 
   it("preserves pending markers when a later same-turn write adds no edits", async () => {
-    const state = memoryRepository(), documents = createDocumentApplication(state.repository,
+    const documents = createDocumentApplication(repository,
       createFilesystemObjectStorage(root)), scope = { userId: "tracked-owner" };
     const original = await validDocx("one"), applied = await applyTextOpsToDocx(original,
       [{ op: "uppercase", scope: { kind: "find_text", text: "one" } }]);
@@ -641,19 +485,17 @@ describe("shared document application", () => {
       filename: created.filename, fileType: "docx", bytes: applied.bytes,
       edits: [], status: "pending",
     })).resolves.toMatchObject({ status: "committed" });
-    expect(state.values.get(created.id)).toMatchObject({
-      versions: [{}, {}], edits: [{ status: "pending" }],
-    });
+    expect((await repository.get(scope, created.id))?.edits).toMatchObject([{ status: "pending" }]);
     await expect(documents.commitAssistantVersion(scope, created.id, {
       sourceVersionId: first.version.id, expectedWorkingRevision: 1,
       filename: created.filename, fileType: "docx", bytes: applied.bytes,
       edits: [], status: "pending",
     })).rejects.toThrow("Accept or reject pending tracked changes");
-    expect(state.values.get(created.id)?.versions).toHaveLength(2);
+    expect((await documents.versions(scope, created.id))?.versions).toHaveLength(2);
   });
 
   it("does not checkpoint or restore pending tracked changes", async () => {
-    const state = memoryRepository(), documents = createDocumentApplication(state.repository,
+    const documents = createDocumentApplication(repository,
       createFilesystemObjectStorage(root)), scope = { userId: "pending-owner" };
     const created = await documents.create(scope, {
       filename: "Brief.docx", fileType: "docx", bytes: await docx("one"),
@@ -667,10 +509,10 @@ describe("shared document application", () => {
     });
     expect(pending.status).toBe("committed");
     if (pending.status !== "committed") return;
-    expect(state.values.get(created.id)?.versions.at(-1)?.provenance).toEqual({
+    expect((await documents.projectionSource(scope, created.id, null))?.provenance).toEqual({
       schemaVersion: 1, actor: "assistant", action: "revised", changeCount: 1,
     });
-    expect(state.values.get(created.id)?.edits).toHaveLength(1);
+    expect((await repository.get(scope, created.id))?.edits).toHaveLength(1);
     expect(await documents.checkpointVersion(scope, created.id, pending.version.id, 0))
       .toEqual({ status: "pending-edits" });
     expect(await documents.restoreVersion(
@@ -686,7 +528,7 @@ describe("shared document application", () => {
   });
 
   it("reads a historical PDF rendition instead of assuming the head", async () => {
-    const documents = createDocumentApplication(memoryRepository().repository,
+    const documents = createDocumentApplication(repository,
       createFilesystemObjectStorage(root));
     const scope = { userId: "history-owner" }, firstBytes = await pdf("first");
     const created = await documents.create(scope, {
@@ -700,8 +542,8 @@ describe("shared document application", () => {
   });
 
   it("compares DOCX versions without creating another version", async () => {
-    const state = memoryRepository(), documents = createDocumentApplication(
-      state.repository, createFilesystemObjectStorage(root));
+    const documents = createDocumentApplication(
+      repository, createFilesystemObjectStorage(root));
     const scope = { userId: "compare-owner" };
     const created = await documents.create(scope, {
       filename: "brief.docx", fileType: "docx", bytes: await validDocx("First sentence."),
@@ -713,33 +555,34 @@ describe("shared document application", () => {
       scope, created.id, created.current_version_id, second!.id,
     );
     expect(compared).toMatchObject({ status: "compared", filename: "brief (changes).docx" });
-    expect(state.values.get(created.id)?.versions).toHaveLength(2);
-    state.values.get(created.id)!.versions[0]!.sizeBytes = MAX_DRAFTING_DOCX_BYTES + 1;
+    expect((await documents.versions(scope, created.id))?.versions).toHaveLength(2);
+    await (await relationalDatabase()).query(sql`UPDATE document_versions
+      SET size_bytes=${MAX_DRAFTING_DOCX_BYTES + 1} WHERE id=${created.current_version_id}`);
     await expect(documents.compareVersions(
       scope, created.id, created.current_version_id, second!.id,
     )).rejects.toMatchObject({ status: 413 });
   });
 
   it("rejects source metadata that disagrees with its content-addressed key", async () => {
-    const state = memoryRepository(), documents = createDocumentApplication(state.repository,
+    const documents = createDocumentApplication(repository,
       createFilesystemObjectStorage(root)), scope = { userId: "descriptor-owner" };
     const created = await documents.create(scope, {
       filename: "notes.md", fileType: "md", bytes: Buffer.from("trusted"),
     });
-    state.values.get(created.id)!.versions[0].sourceSha256 = "0".repeat(64);
+    await (await relationalDatabase()).query(sql`UPDATE document_versions
+      SET source_sha256=${"0".repeat(64)} WHERE id=${created.current_version_id}`);
     await expect(documents.read(scope, created.id, null, false))
-      .rejects.toThrow("integrity check");
-    await expect((await documents.projectionSource(scope, created.id, null))!.readBytes())
-      .rejects.toThrow("integrity check");
+      .rejects.toThrow(/storage scope|integrity check/);
+    await expect(documents.projectionSource(scope, created.id, null).then((source) => source?.readBytes()))
+      .rejects.toThrow(/storage scope|integrity check/);
   });
 
   it.skipIf(process.env.S3_CONTRACT_TEST !== "true")(
     "runs the document lifecycle through configured S3 storage",
     async () => {
-      const state = memoryRepository();
       const objects = scopeObjectStorage(createS3ObjectStorage(readS3Configuration()),
         `document-application-${randomUUID()}`);
-      const documents = createDocumentApplication(state.repository, objects);
+      const documents = createDocumentApplication(repository, objects);
       const scope = { userId: "s3-lifecycle-owner" }, bytes = Buffer.from("shared");
       const created = await documents.create(scope, {
         filename: "notes.md", fileType: "md", bytes,
@@ -750,7 +593,7 @@ describe("shared document application", () => {
       const changed = await documents.addVersion(scope, created.id, {
         filename: "notes.md", fileType: "md", bytes: Buffer.from("changed"),
       });
-      expect(new Set(state.values.get(created.id)!.versions.map(({ blobKey }) => blobKey)).size)
+      expect(new Set((await repository.history(scope, created.id))!.versions.map(({ blobKey }) => blobKey)).size)
         .toBe(2);
       await expect(documents.restoreVersion(scope, created.id, created.current_version_id,
         changed!.id, changed!.working_revision)).resolves.toMatchObject({ status: "restored" });
@@ -758,82 +601,83 @@ describe("shared document application", () => {
       const libraryCopy = await documents.create(scope, {
         filename: "copy.md", fileType: "md", bytes,
       });
-      const project = await documents.create(scope, {
-        filename: "project.md", fileType: "md", bytes, projectId: "matter",
+      const { id: projectId } = await project(scope);
+      const { id: otherProjectId } = await project(scope);
+      const projectDocument = await documents.create(scope, {
+        filename: "project.md", fileType: "md", bytes, projectId,
       });
       const projectCopy = await documents.create(scope, {
-        filename: "project-copy.md", fileType: "md", bytes, projectId: "matter",
+        filename: "project-copy.md", fileType: "md", bytes, projectId,
       });
       const isolated = await documents.create(scope, {
-        filename: "isolated.md", fileType: "md", bytes, projectId: "other-matter",
+        filename: "isolated.md", fileType: "md", bytes, projectId: otherProjectId,
       });
-      const key = (id: string) => state.values.get(id)!.versions[0].blobKey;
-      expect(key(libraryCopy.id)).toBe(key(created.id));
-      expect(key(projectCopy.id)).toBe(key(project.id));
-      expect(new Set([key(created.id), key(project.id), key(isolated.id)]).size).toBe(3);
-      const keys = new Set([...state.values.values()].flatMap((value) =>
-        value.versions.map(({ blobKey }) => blobKey)));
+      const ids = [created.id, libraryCopy.id, projectDocument.id, projectCopy.id, isolated.id];
+      const records = await Promise.all(ids.map((id) => repository.history(scope, id)));
+      const keys = records.map((value) => value!.versions[0].blobKey);
+      expect(keys[1]).toBe(keys[0]);
+      expect(keys[3]).toBe(keys[2]);
+      expect(new Set([keys[0], keys[2], keys[4]]).size).toBe(3);
+      const allKeys = new Set(records.flatMap((value) => value!.versions.map(({ blobKey }) => blobKey)));
       expect(duplicate?.source_sha256).toBe(created.source_sha256);
-      for (const id of [created.id, libraryCopy.id, project.id, projectCopy.id, isolated.id])
+      for (const id of ids)
         await documents.deleteDocument(scope, id);
+      await ageOrphans();
       await documents.resumeCleanup();
-      for (const key of keys) await expect(objects.get(key)).resolves.toBeNull();
+      for (const key of allKeys) await expect(objects.get(key)).resolves.toBeNull();
     },
   );
 
   it("signs only after authorization and resumes failed compensation cleanup", async () => {
-    const mode = modes()[1];
-    const state = memoryRepository();
-    const documents = createDocumentApplication(state.repository, mode.objects);
+    const signedGet = vi.fn(async (): Promise<string | null> => "https://storage.test/signed-document");
+    // Keep a double only for the external signing boundary; bytes and metadata are real.
+    const objects: ObjectStorage = { ...createFilesystemObjectStorage(root), signedGet };
+    const documents = createDocumentApplication(repository, objects);
     const created = await documents.create({ userId: "owner" }, {
       filename: "Brief.docx", fileType: "docx", bytes: await docx("private"),
     });
     expect(await documents.download({ userId: "other" }, created.id, null, { preferPdf: false, disposition: "attachment" }))
       .toBeNull();
-    expect(mode.signedGet).not.toHaveBeenCalled();
+    expect(signedGet).not.toHaveBeenCalled();
     expect(await documents.download({ userId: "owner" }, created.id, null, { preferPdf: false, disposition: "attachment" }))
       .toMatchObject({ kind: "redirect" });
-    const stored = state.values.get(created.id)!.versions[0];
-    expect(mode.signedGet).toHaveBeenCalledWith(stored.blobKey, expect.objectContaining({
+    const stored = (await repository.version({ userId: "owner" }, created.id, null))!;
+    expect(signedGet).toHaveBeenCalledWith(stored.blobKey, expect.objectContaining({
       expectedSha256: stored.sourceSha256, sizeBytes: stored.sizeBytes,
       contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       disposition: "attachment",
     }));
-    mode.signedGet!.mockResolvedValueOnce(null);
+    signedGet.mockResolvedValueOnce(null);
     expect(await documents.download({ userId: "owner" }, created.id, null, { preferPdf: false, disposition: "attachment" }))
       .toBeNull();
 
-    const put = mode.objects.put;
-    mode.objects.put = async () => { throw new Error("provider object not found"); };
+    vi.spyOn(objects, "put").mockRejectedValueOnce(new Error("provider object not found"));
     await expect(documents.addVersion({ userId: "owner" }, created.id, {
       filename: "Brief.docx", fileType: "docx", bytes: await docx("next"),
     })).rejects.toThrow("provider object not found");
-    mode.objects.put = put;
 
-    state.repository.create = async () => { throw new Error("metadata unavailable"); };
+    vi.spyOn(repository, "create").mockRejectedValueOnce(new Error("metadata unavailable"));
     await expect(documents.create({ userId: "owner" }, {
       filename: "Orphan.docx", fileType: "docx", bytes: await docx("orphan"),
     })).rejects.toThrow("metadata unavailable");
-    expect(state.orphans.size).toBe(2);
-    const remove = mode.objects.remove;
-    const pending = state.repository.pendingOrphans.bind(state.repository);
-    let failedKey: string | undefined, firstSweep = true;
-    mode.objects.remove = async (key) => {
-      if (!failedKey && await mode.objects.get(key)) {
+    expect(await orphanKeys()).toHaveLength(2);
+    const remove = objects.remove;
+    let failedKey: string | undefined;
+    objects.remove = async (key) => {
+      if (!failedKey && await objects.get(key)) {
         failedKey = key; throw new Error("storage unavailable");
       }
       await remove(key);
     };
-    state.repository.pendingOrphans = (limit) => firstSweep
-      ? (firstSweep = false, pending(limit)) : Promise.resolve([]);
+    await ageOrphans();
     await documents.resumeCleanup();
-    expect((await pending()).map((item) => item.key)).toEqual([failedKey]);
-    await expect(mode.objects.get(failedKey!)).resolves.not.toBeNull();
+    expect(await orphanKeys()).toEqual([failedKey]);
+    await expect(objects.get(failedKey!)).resolves.not.toBeNull();
 
-    state.repository.pendingOrphans = pending;
-    mode.objects.remove = remove;
+    objects.remove = remove;
+    await ageOrphans();
     await documents.resumeCleanup();
-    expect(state.orphans.size).toBe(0);
-    await expect(mode.objects.get(failedKey!)).resolves.toBeNull();
+    expect(await orphanKeys()).toEqual([]);
+    await expect(objects.get(failedKey!)).resolves.toBeNull();
   });
 });
