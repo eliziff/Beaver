@@ -10,7 +10,7 @@ describe("open work-product scoping", () => {
     for (const kind of ["authorities", "court-record"] as const) {
       const prompt = openWorkProductPrompt(kind);
       expect(prompt).toContain("update_work_product");
-      expect(prompt).toContain("Do not reply with legal analysis");
+      expect(prompt).toContain("Do not write a research memo");
       expect(prompt).toContain("do not edit unrelated documents");
     }
   });
