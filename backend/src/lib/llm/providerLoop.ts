@@ -122,17 +122,12 @@ export async function runProviderLoop(
       let contextUsed: number | undefined;
       let done = false;
       let visible = false;
-      let reasoningBlock: string | number | undefined;
-      let reasoningOpen = false;
-      let contentBlock: string | number | undefined;
-      let contentOpen = false;
-      const closeReasoning = () => {
-        if (reasoningOpen) callbacks.onReasoningBlockEnd?.();
-        reasoningOpen = false; reasoningBlock = undefined;
-      };
-      const closeContent = () => {
-        if (contentOpen) callbacks.onContentBlockEnd?.();
-        contentOpen = false; contentBlock = undefined;
+      // A stream has at most one open content/reasoning block, even without an ID.
+      let activeBlock: { type: "text_delta" | "reasoning_delta"; block?: string | number } | undefined;
+      const closeBlock = () => {
+        if (activeBlock?.type === "reasoning_delta") callbacks.onReasoningBlockEnd?.();
+        else if (activeBlock?.type === "text_delta") callbacks.onContentBlockEnd?.();
+        activeBlock = undefined;
       };
 
       for (let attempt = 1; attempt <= maxProviderAttempts; attempt += 1) {
@@ -158,37 +153,26 @@ export async function runProviderLoop(
             const item = await nextEvent(iterator, params.abortSignal);
             if (item.done) break;
             const event = item.value;
-            if (event.type === "reasoning_delta") {
+            if (event.type === "reasoning_delta" || event.type === "text_delta") {
               if (!event.text) continue;
               streamedBytes += Buffer.byteLength(event.text);
               if (streamedBytes > MAX_PROVIDER_STREAM_BYTES)
                 throw new Error("Provider stream exceeded the output limit");
-              closeContent();
-              if (reasoningOpen && event.block !== reasoningBlock) closeReasoning();
-              reasoningOpen = true;
-              reasoningBlock = event.block;
+              if (activeBlock && (activeBlock.type !== event.type || activeBlock.block !== event.block))
+                closeBlock();
+              activeBlock ??= { type: event.type, block: event.block };
               visible = true;
-              callbacks.onReasoningDelta?.(event.text);
-            } else if (event.type === "text_delta") {
-              if (!event.text) continue;
-              streamedBytes += Buffer.byteLength(event.text);
-              if (streamedBytes > MAX_PROVIDER_STREAM_BYTES)
-                throw new Error("Provider stream exceeded the output limit");
-              closeReasoning();
-              if (contentOpen && event.block !== contentBlock) closeContent();
-              contentOpen = true;
-              contentBlock = event.block;
-              visible = true;
-              fullText += event.text;
-              callbacks.onContentDelta?.(event.text);
+              if (event.type === "text_delta") {
+                fullText += event.text;
+                callbacks.onContentDelta?.(event.text);
+              } else callbacks.onReasoningDelta?.(event.text);
             } else if (event.type === "tool_call") {
               providerToolCalls += 1;
               providerToolArgumentBytes += Buffer.byteLength(JSON.stringify(event.call.input));
               if (providerToolCalls > MAX_PROVIDER_TOOL_CALLS ||
                   providerToolArgumentBytes > MAX_PROVIDER_TOOL_ARGUMENT_BYTES)
                 throw new Error("Provider tool calls exceeded the input limit");
-              closeReasoning();
-              closeContent();
+              closeBlock();
               visible = true;
               toolCalls.push(event.call);
               callbacks.onToolCallStart?.(event.call);
@@ -205,15 +189,13 @@ export async function runProviderLoop(
               if (event.public) callbacks.onContextCheckpoint?.(event.public);
             } else {
               done = true;
-              closeReasoning();
-              closeContent();
+              closeBlock();
             }
           }
           if (!done) throw new Error(`${adapter.provider} stream ended without a done event`);
           break;
         } catch (error) {
-          closeReasoning();
-          closeContent();
+          closeBlock();
           if (params.abortSignal?.aborted) {
             void iterator?.return?.().catch(() => undefined);
             throw abortError();

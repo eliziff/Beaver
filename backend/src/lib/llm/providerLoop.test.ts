@@ -226,3 +226,88 @@ describe("provider loop", () => {
     ]);
   });
 });
+
+
+describe("provider stream block boundaries", () => {
+  const types = ["text_delta", "reasoning_delta"] as const;
+  const variants = types.flatMap((type) => [undefined, 0, "0", ""].map((block) => ({ type, block })));
+  const recording = () => {
+    const trace: string[] = [];
+    return { trace, callbacks: {
+      onContentDelta: (text: string) => { trace.push(`text_delta:${text}`); },
+      onContentBlockEnd: () => { trace.push("text_delta:end"); },
+      onReasoningDelta: (text: string) => { trace.push(`reasoning_delta:${text}`); },
+      onReasoningBlockEnd: () => { trace.push("reasoning_delta:end"); },
+      onToolCallStart: () => { trace.push("tool"); },
+    } };
+  };
+
+  it.each(variants.flatMap((first) => variants.map((second) => [first, second] as const)))(
+    "preserves boundaries from %j to %j", async (first, second) => {
+      const { trace, callbacks } = recording();
+      const result = await runProviderLoop(params({ callbacks }), adapter(() => [
+        { ...first, text: "a" },
+        { type: first.type === "text_delta" ? "reasoning_delta" : "text_delta", text: "", block: "ignored" },
+        { type: "usage", usage: { inputTokens: 1, outputTokens: null, reasoningTokens: null,
+          cacheReadInputTokens: null, cacheWriteInputTokens: null } },
+        { type: "opaque_checkpoint", checkpoint: "private" },
+        { ...second, text: "b" }, done, done,
+      ]));
+      const changed = first.type !== second.type || first.block !== second.block;
+      expect(trace).toEqual([`${first.type}:a`, ...(changed ? [`${first.type}:end`] : []),
+        `${second.type}:b`, `${second.type}:end`]);
+      expect(result.fullText).toBe((first.type === "text_delta" ? "a" : "") +
+        (second.type === "text_delta" ? "b" : ""));
+    },
+  );
+
+  it.each(types)("closes %s before a tool and reopens the same unidentified block", async (type) => {
+    const { trace, callbacks } = recording();
+    const result = await runProviderLoop(params({ callbacks }), adapter(() => [
+      { type, text: "a" }, { type: "tool_call", call: { id: "1", name: "finish", input: {} } },
+      { type, text: "b" }, done,
+    ]));
+    expect(trace).toEqual([`${type}:a`, `${type}:end`, "tool", `${type}:b`, `${type}:end`]);
+    expect(result.fullText).toBe(type === "text_delta" ? "ab" : "");
+  });
+
+  it.each(types.flatMap((type) => (["error", "eof", "abort"] as const).map((end) => [type, end] as const)))(
+    "closes partial %s on %s without retrying visible output", async (type, end) => {
+      const { trace, callbacks } = recording();
+      const controller = new AbortController();
+      let attempts = 0;
+      const stream: ProviderAdapter = { provider: "fake", async *events() {
+        attempts += 1;
+        yield { type, text: "partial" };
+        if (end === "error") throw new Error("server_is_overloaded");
+        if (end === "abort") {
+          controller.abort();
+          await new Promise(() => undefined);
+        }
+      } };
+      const run = runProviderLoop(params({ callbacks, abortSignal: controller.signal }), stream);
+      await expect(run).rejects.toMatchObject(end === "abort" ? { name: "AbortError" } : {
+        message: end === "error" ? "server_is_overloaded" : "fake stream ended without a done event",
+      });
+      expect(trace).toEqual([`${type}:partial`, `${type}:end`]);
+      expect(attempts).toBe(1);
+    },
+  );
+
+  it.each(types)("counts UTF-8 bytes across channels, starting with %s", async (type) => {
+    const content = vi.fn(), reasoning = vi.fn(), contentEnd = vi.fn(), reasoningEnd = vi.fn();
+    const first = "é".repeat(MAX_PROVIDER_STREAM_BYTES / 2);
+    await expect(runProviderLoop(params({ callbacks: {
+      onContentDelta: content, onReasoningDelta: reasoning,
+      onContentBlockEnd: contentEnd, onReasoningBlockEnd: reasoningEnd,
+    } }), adapter(() => [
+      { type, text: first },
+      { type: type === "text_delta" ? "reasoning_delta" : "text_delta", text: "x" }, done,
+    ]))).rejects.toThrow("output limit");
+    const textFirst = type === "text_delta";
+    expect((textFirst ? content : reasoning).mock.calls).toEqual([[first]]);
+    expect(textFirst ? reasoning : content).not.toHaveBeenCalled();
+    expect(textFirst ? contentEnd : reasoningEnd).toHaveBeenCalledOnce();
+    expect(textFirst ? reasoningEnd : contentEnd).not.toHaveBeenCalled();
+  });
+});
