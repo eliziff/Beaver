@@ -33,7 +33,7 @@ import type { TabularAgents, TabularAgentSnapshot } from "./agents";
 import type { SourceWorkspaceApplication } from "../sourceWorkspaceApplication";
 import type { AuditStore } from "../audit";
 import type { ResearchOperationContext } from "../researchProvenance";
-import { researchArrangementSchema, resolveResearchArrangement, type ResearchArrangement } from "./researchArrangement";
+import { researchArrangementSchema, type ResearchArrangement } from "./researchArrangement";
 
 import { researchImportDesignSchema, researchImportPlan, type ResearchImportCatalog } from "./researchImport";
 import { legalEvidenceResourceReference } from "../chat/legalEvidence";
@@ -223,10 +223,8 @@ export function createTabularApplication(
       arrangement = input.arrangement === undefined ? previous?.arrangement : input.arrangement;
     if ((input.research_selection || arrangement) && !fileId) fail(400, "Sources workspace is required");
     if (arrangement && fileId) {
-      const sources = await dependencies.sources(), file = await sources.get(scope, fileId);
-      if (!file) return fail(404, "Sources workspace not found");
-      const resolved = await resolveResearchArrangement({ documents, scope, file, arrangement, columns,
-        storedCells: [], strict: true, resolveFinding: (reference) => sources.finding(scope, fileId, reference) });
+      const read = await (await dependencies.sources()).readFindings(scope, fileId), { file } = read;
+      const resolved = await read.arrange({ arrangement, columns, storedCells: [], strict: true });
       return placement(scope, arrangement.rows.map(({ id }) => id), projectId, {
         research_file_id: fileId, versionId: file.versionId, workingRevision: file.workingRevision,
         subjects: resolved.subjects, arrangement,
@@ -284,11 +282,9 @@ export function createTabularApplication(
       }
       return detail;
     }
-    const sources = await dependencies.sources(), file = await sources.get(scope, config.research_file_id);
-    if (!file) return fail(404, "Sources workspace not found");
-    const resolved = config.arrangement ? await resolveResearchArrangement({ documents, scope, file,
-      arrangement: config.arrangement, columns: detail.review.columns_config, storedCells: detail.cells,
-      resolveFinding: (reference) => sources.finding(scope, file.document.id, reference) })
+    const sources = await dependencies.sources(), read = await sources.readFindings(scope, config.research_file_id), { file } = read;
+    const resolved = config.arrangement ? await read.arrange({
+      arrangement: config.arrangement, columns: detail.review.columns_config, storedCells: detail.cells })
       : await sources.selection(scope, file.document.id, config.selection ?? { target: "sources" }, { availableOnly: true });
     const subjects = resolved.subjects, rowIds = subjects.map(tabularSubjectId),
       stored = new Map(("cells" in resolved ? resolved.cells : detail.cells).map((cell) => [`${cell.document_id}:${cell.column_index}`, cell])),
@@ -300,15 +296,14 @@ export function createTabularApplication(
   };
   async function snapshotCells(scope: TabularScope, config: TabularSelection, columns: TabularColumn[],
     resolveFinding?: (ref: ResearchFindingReference) => Promise<ResearchFinding | null>) {
-    const sources = await dependencies.sources(), file = await sources.get(scope, config.research_file_id!);
-    if (!file) return fail(404, "Sources workspace not found");
+    const read = await (await dependencies.sources()).readFindings(scope, config.research_file_id!), { file } = read;
     if (file.versionId !== config.versionId || file.workingRevision !== config.workingRevision)
       return fail(409, "Research changed while importing it; refresh the preview");
-    const resolved = await resolveResearchArrangement({ documents, scope, file, arrangement: config.arrangement!,
-      columns, storedCells: [], strict: true, resolveFinding: resolveFinding ?? ((ref) => sources.finding(scope, file.document.id, ref)) });
+    const resolved = await read.arrange({ arrangement: config.arrangement!, columns, storedCells: [], strict: true, resolveFinding }),
+      mappings = new Map(config.arrangement!.cells.map((mapping) => [`${mapping.rowId}:${mapping.columnIndex}`, mapping.items]));
     return resolved.cells.map((cell) => ({ ...cell, content: cell.content && { ...cell.content,
       origin: { researchFileId: file.document.id, versionId: file.versionId, workingRevision: file.workingRevision,
-        items: config.arrangement!.cells.find((mapping) => mapping.rowId === cell.document_id && mapping.columnIndex === cell.column_index)!.items } } }));
+        items: mappings.get(`${cell.document_id}:${cell.column_index}`)! } } }));
   }
   const materialize = async (scope: TabularScope, reviewId: string) => {
     const current = await store.detail(scope, reviewId);

@@ -65,7 +65,7 @@ async function fixture(answered = true) {
 
 async function arrange(f: Awaited<ReturnType<typeof fixture>>, id: string, answered = true) {
   const answers = await request(f.api).get(`/source-workspaces/${f.workspace.id}/findings`),
-    findings = (answers.body.items as Awaited<ReturnType<typeof import("../lib/researchChat").resolveChatFindings>>["findings"])
+    findings = (answers.body.items as ReturnType<typeof import("../lib/researchChat").resolveChatFindings>)
       .filter(({ reference }) => reference.kind === "answer"),
     current = await request(f.api).get(`/tabular-review/${id}`), rows = findings.map((finding, index) => ({
       id: `branch-${index}`, title: `Chosen row ${index + 1}`, sourceId: finding.sourceId }));
