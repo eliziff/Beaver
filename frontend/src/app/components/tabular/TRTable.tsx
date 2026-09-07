@@ -77,13 +77,13 @@ export function TRTable({
             targetColumn.offsetLeft + targetColumn.offsetWidth / 2 - (container.clientWidth + documentWidth) / 2);
     }, [highlightedCell]);
     const dragOverlay = dragOverFiles && (
-        <div className="pointer-events-none absolute inset-0 z-20 border-2 border-dashed border-blue-400 bg-blue-50/50" />
+        <div className="pointer-events-none absolute inset-0 z-20 border-2 border-dashed border-gray-400 bg-gray-50/50" />
     );
     const headerColumns = loading ? Array.from({ length: SKELETON_COLS }, (_, index) => ({ index, name: "", prompt: "" })) : sortedColumns;
     const noRows = !documents.length && !uploadingFilenames.length;
     return (
         <TableScrollArea horizontal scrollRef={scrollContainerRef}
-            header={<TableHeaderRow className="h-9 w-max min-w-full pr-0 text-xs font-medium text-gray-500">
+            header={<TableHeaderRow className="h-auto min-h-14 w-max min-w-full items-stretch pr-0 text-xs font-medium text-gray-500">
                 <TableStickyCell header className={`${STICKY} justify-between pr-1`}>
                     <span className="flex min-w-0 items-center">
                         <TableSelectionCheckbox loading={loading || noRows} aria-label="Select loaded documents"
@@ -114,7 +114,7 @@ export function TRTable({
                 <TableEmptyState className="py-16">
                     <p className="text-sm text-gray-600">{sortedColumns.length ? "No documents yet." : "Nothing to review yet."}</p>
                     <div className="mt-4 flex gap-2">
-                        {!sortedColumns.length && <Button variant="outline" size="compact" onClick={onAddColumns}>Add columns</Button>}
+                        {!sortedColumns.length && <Button variant="outline" size="compact" onClick={onAddColumns}>+ Column</Button>}
                         <Button variant="outline" size="compact" onClick={onAddDocuments}>Add documents</Button>
                     </div>
                 </TableEmptyState>
@@ -175,10 +175,10 @@ function ColumnHeader({ column, disabled, running, onEdit, onRerun, onClear, onD
     const format = FORMAT_OPTIONS.find(({ value }) => value === (column.format ?? "text")) ?? FORMAT_OPTIONS[0]!;
     const Icon = format.icon;
     const prompt = column.prompt && column.prompt !== column.name ? column.prompt : "";
-    return <TableHeaderCell data-tr-col-header className={`group/head ${COLUMN_WIDTH} ${GRID_LINE} h-full justify-start gap-1.5 pl-2.5 pr-1 text-left`}>
-        <Icon aria-hidden="true" className={`size-3.5 shrink-0 ${format.iconClassName}`} />
-        <span className="min-w-0 flex-1 truncate text-gray-700" title={column.name}>{column.name}</span>
-        <span className="flex shrink-0 items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover/head:opacity-100 [&:has([aria-expanded=true])]:opacity-100">
+    return <TableHeaderCell data-tr-col-header className={`group/head ${COLUMN_WIDTH} ${GRID_LINE} h-auto flex-col items-stretch justify-start gap-1 px-2.5 py-2 text-left`}>
+        <span className="block whitespace-normal text-sm font-medium leading-5 text-gray-700 [overflow-wrap:anywhere]">{column.name}</span>
+        <span className="mt-auto flex min-h-6 items-center justify-end gap-1 text-gray-500">
+            <Icon aria-hidden="true" className="mr-auto size-3.5 shrink-0" />
             {prompt && <HelpPopover label={`${column.name} prompt`}><span className="whitespace-pre-wrap">{prompt}</span></HelpPopover>}
             <MoreActionsMenu label={`${column.name} actions`} triggerClassName="h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-800"
                 items={[

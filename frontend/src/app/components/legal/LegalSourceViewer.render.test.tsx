@@ -438,7 +438,7 @@ describe("legal source reader", () => {
         expect(highlight).toHaveAccessibleName("Holding saved highlight. Edit type and note.");
         expect(highlight).toHaveAttribute("title", expect.stringContaining("Holding"));
         expect(screen.queryByRole("button", { name: /^Label par/iu })).not.toBeInTheDocument();
-        expect(screen.getByRole("navigation", { name: "Saved highlights" })).toBeInTheDocument();
+        expect(screen.queryByRole("navigation", { name: "Saved highlights" })).not.toBeInTheDocument();
         expect(onResearchFileChange).toHaveBeenCalledWith(researchFile);
 
         fireEvent.click(highlight);
@@ -457,7 +457,7 @@ describe("legal source reader", () => {
         expect(screen.getByRole("button", { name: "Label Fixture v. Test" })).toBeEnabled();
     });
 
-    it("navigates saved highlights in document order", async () => {
+    it("keeps saved marks directly editable without a duplicate paragraph navigation strip", async () => {
         api.direct.mockResolvedValue(multiSlicePayload());
         const later = { ...savedEvidence,
             receipt: { ...savedEvidence.receipt,
@@ -467,24 +467,30 @@ describe("legal source reader", () => {
             sources: { saved: { ...researchFile.state.sources.saved,
                 passages: { count: 2, sha256: "d".repeat(64), labelCounts: {}, unlabelledCount: 2 } } } } };
         api.researchItems.mockResolvedValue(researchPage(later, savedEvidence));
-        const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect")
-            .mockImplementation(function () {
-                const top = this.classList.contains("docx-text-highlight")
-                    ? this.textContent?.includes("Third") ? 500 : 200 : 100;
-                return { top } as DOMRect;
-            });
         const { container } = render(<LegalSourceViewer citation="2099 SCC 1"
             docType="cases" researchFile={reversed} />);
 
         await waitFor(() => expect(
             container.querySelectorAll("[data-research-evidence]"),
         ).toHaveLength(2));
-        const reader = container.querySelector<HTMLElement>(".overflow-y-auto")!;
-        fireEvent.click(screen.getByRole("button", { name: "Next saved highlight" }));
-        await waitFor(() => expect(reader.scrollTop).toBe(68));
-        fireEvent.click(screen.getByRole("button", { name: "Next saved highlight" }));
-        await waitFor(() => expect(reader.scrollTop).toBe(436));
-        rect.mockRestore();
+        expect(screen.queryByRole("button", { name: /saved highlight$/ })).not.toBeInTheDocument();
+        const laterMark = container.querySelector<HTMLElement>('[data-research-evidence="later"]')!;
+        expect(laterMark).toHaveTextContent("Third proposition.");
+        fireEvent.click(laterMark);
+        expect(await screen.findByRole("dialog", { name: "Highlight type and note" })).toBeVisible();
+        expect(api.actOnResearchFile).not.toHaveBeenCalled();
+    });
+
+    it("loads later saved-highlight pages without a separate reader navigation strip", async () => {
+        api.direct.mockResolvedValue(multiSlicePayload());
+        const later = { ...savedEvidence, receipt: { ...savedEvidence.receipt, evidence_id: "later",
+            span_text: "Third proposition.", locator: { kind: "paragraph", label: "par3" } } };
+        api.researchItems.mockResolvedValueOnce({ ...researchPage(savedEvidence), next_cursor: "next", total: 2 })
+            .mockResolvedValueOnce(researchPage(later));
+        const { container } = render(<LegalSourceViewer citation="2099 SCC 1" docType="cases" researchFile={researchFile} />);
+        await waitFor(() => expect(container.querySelector('[data-research-evidence="later"]')).toHaveTextContent("Third proposition."));
+        expect(api.researchItems).toHaveBeenCalledTimes(2);
+        expect(api.researchItems.mock.calls[1][1]).toMatchObject({ cursor: "next", sourceId: "saved" });
     });
 
     it("locates identical saved quotes by receipt locator", async () => {

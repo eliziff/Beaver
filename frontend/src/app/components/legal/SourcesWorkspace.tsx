@@ -67,7 +67,12 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
   }, [file, memoryKey]);
   useEffect(() => { if (supplied !== undefined) accept(supplied); }, [supplied, accept]);
   const selectionKey = JSON.stringify(suppliedSelection ?? ALL_SOURCES);
-  useEffect(() => { setSelection(JSON.parse(selectionKey) as ResearchSelection); }, [selectionKey]);
+  const previousSelectionKey = useRef(selectionKey);
+  useEffect(() => {
+    if (previousSelectionKey.current === selectionKey) return;
+    previousSelectionKey.current = selectionKey;
+    setSelection(JSON.parse(selectionKey) as ResearchSelection);
+  }, [selectionKey]);
 
   const open = useCallback(async (id: string) => {
     const run = ++generation.current;
