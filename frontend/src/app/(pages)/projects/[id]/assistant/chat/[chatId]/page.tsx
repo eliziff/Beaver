@@ -270,7 +270,7 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
         open={renameOpen}
         onClose={() => { if (!chatActionBusy) setRenameOpen(false); }}
         size="sm"
-        className="!h-fit"
+        fit
         breadcrumbs={["Rename chat"]}
         cancelAction={{
           label: "Cancel",

@@ -32,7 +32,7 @@ export function AdvancedHistorySearch({ initialQuery, initialContext, onClose }:
     const page = useChatSearch({ search: query.trim(), search_scope: scope,
         search_context: context, sort, created_from: dateBoundary(from), created_to: dateBoundary(through, true) }, !invalidDates);
     return <Modal open onClose={onClose} breadcrumbs={["Advanced search"]} size="xl"
-        className="!h-[min(600px,calc(100dvh-2rem))]">
+        >
         <SearchBar autoFocus aria-label="Search conversations" value={query} onValueChange={setQuery}
             placeholder={scope === "all" ? "Search conversations" : `Search ${scope}`} maxLength={200} wrapperClassName="shrink-0" />
         <div className="my-3 grid shrink-0 grid-cols-2 gap-x-3 gap-y-2 border-b border-gray-200 pb-3 sm:grid-cols-3">

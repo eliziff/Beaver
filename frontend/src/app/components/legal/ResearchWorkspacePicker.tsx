@@ -108,7 +108,7 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
           onCancel: () => setCreateOpen(false) } : undefined} />
       </div>
     </Modal>
-    <Modal open={renameOpen} onClose={() => setRenameOpen(false)} size="sm" className="!h-fit [&_.modal-scroll-body]:flex-none"
+    <Modal open={renameOpen} onClose={() => setRenameOpen(false)} size="sm" fit
       breadcrumbs={["Workspace", "Rename"]} cancelAction={{ label: "Cancel", onClick: () => setRenameOpen(false) }}
       primaryAction={{ label: busy ? "Renaming..." : "Rename", type: "submit", form: "research-rename", disabled: busy }}>
       <form id="research-rename" onSubmit={rename} className="pb-5">
@@ -117,7 +117,7 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
         </label>
       </form>
     </Modal>
-    <Modal open={folderOpen} onClose={closeFolder} size="sm" className="!h-fit [&_.modal-scroll-body]:flex-none"
+    <Modal open={folderOpen} onClose={closeFolder} size="sm" className="!h-[min(15rem,calc(100dvh-2rem))]"
       breadcrumbs={["projectId" in openLocation ? "Projects" : "Library", "New folder"]}
       cancelAction={{ label: "Cancel", onClick: closeFolder }}
       primaryAction={{ label: busy ? "Creating..." : "Create folder", type: "submit", form: "research-new-folder",
