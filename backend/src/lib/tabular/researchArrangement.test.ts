@@ -105,3 +105,12 @@ it("reads the live note on a source without copying it into the cell", async () 
   expect(note((await resolveResearchArrangement({ ...input, strict: true })).cells)?.value).toBe("Renewed");
   expect(input.arrangement.cells.at(-1)!.items[0]).toEqual({ kind: "note", sourceId });
 });
+
+it("retains duplicate and missing row/column validation after indexing", async () => {
+  const input = fixture(), row = input.arrangement.rows[0], cell = input.arrangement.cells[0];
+  await expect(resolveResearchArrangement({ ...input, arrangement: { ...input.arrangement,
+    rows: [...input.arrangement.rows, row] } })).rejects.toMatchObject({ status: 400 });
+  for (const invalid of [cell, { ...cell, rowId: "missing" }, { ...cell, columnIndex: 999 }])
+    await expect(resolveResearchArrangement({ ...input, arrangement: { ...input.arrangement,
+      cells: [...input.arrangement.cells, invalid] } })).rejects.toMatchObject({ status: 400 });
+});

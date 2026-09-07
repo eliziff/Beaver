@@ -142,7 +142,7 @@ it("keeps accepted highlight promotions reversible without altering the grounded
   const saved = await f.sources.saveFindings(owner, current.document.id, { references: [ref], typeId: f.typeId,
     versionId: current.versionId, workingRevision: current.workingRevision });
   await f.act({ type: "remove", kind: "evidence", sourceId: f.sourceId, id: f.receipts[1].evidence_id });
-  const finding = await f.sources.finding(owner, current.document.id, ref);
+  const finding = await (await f.sources.readFindings(owner, current.document.id)).resolve(ref);
   expect(finding?.evidence).toEqual([f.receipts[1]]);
   expect(finding?.answer.claims[0].text).toBe("Prior reasoning.");
   expect(saved.saved).toBe(1);
@@ -208,4 +208,213 @@ it("exposes reviewed conversions and explicit evidence saving through the authen
     versionId: current.versionId, workingRevision: current.workingRevision });
   expect(saved.status).toBe(200); expect(saved.body.saved).toBe(1);
   expect((await request(app).post(`${url}/table/preview`).send({ messageIds: ["missing-chat"] })).status).toBe(400);
+});
+
+// Real repository fixtures: instrumentation observes I/O, not replacement return values.
+async function seededFindings(f: Awaited<ReturnType<typeof fixture>>, rows = 100, columns = 1) {
+  const { tabularRepository: repository } = await import("./relationalTabularRepository"),
+    file = f.file(), source = file.state.sources[f.sourceId], resource = f.research.researchSourceResource(source.reference),
+    rowIds = Array.from({ length: rows }, (_, index) => `row:${index}`),
+    fields = Array.from({ length: columns }, (_, index) => ({ index, name: `Question ${index}`, prompt: `Question ${index}`, format: "text" })),
+    references = rowIds.flatMap((rowId) => fields.map(({ index }) => ({ kind: "cell" as const, reviewId: "", rowId, columnIndex: index }))),
+    result = await repository.create(owner, { projectId: null, title: "Recorded findings", documentIds: rowIds, columns: fields,
+      scopeConfig: { research_file_id: file.document.id, frozen: true,
+        subjects: rowIds.map((rowId) => ({ rowId, sourceId: source.id, reference: source.reference, resource })) },
+      seedCells: references.map((ref) => ({ document_id: ref.rowId, column_index: ref.columnIndex, status: "done", content: {
+        summary: `${ref.rowId}/${ref.columnIndex}`, value: `${ref.rowId}/${ref.columnIndex}`, resource,
+        claims: [{ text: `${ref.rowId}/${ref.columnIndex}`, evidence_ids: [f.receipts[0].evidence_id] }],
+        evidence: [f.receipts[0]], outcome: "answered", coverage: "complete",
+      } })) });
+  if (result.status !== "committed") throw new Error("Could not seed findings");
+  references.forEach((ref) => { ref.reviewId = result.value.id; });
+  await f.sources.collect(owner, file.document.id, { tables: [result.value.id] });
+  return { repository, review: result.value, references, resource };
+}
+
+it("previews 100 selected stored cells with one workspace read and one shared table load", async () => {
+  const f = await fixture(), seeded = await seededFindings(f), read = vi.spyOn(f.documents, "read"),
+    detail = vi.spyOn(seeded.repository, "detail");
+  const preview = await f.sources.previewTable(owner, f.file().document.id, { findingRefs: seeded.references });
+  expect(preview.design.cells.some(({ itemIds }) => itemIds.length === 100)).toBe(true);
+  expect(preview.samples.some(({ text }) => text.includes("row:0/0"))).toBe(true);
+  expect(read.mock.calls.filter(([, id]) => id === f.file().document.id)).toHaveLength(1);
+  expect(detail.mock.calls.filter(([, id]) => id === seeded.review.id)).toHaveLength(1);
+});
+
+it("shares indexed lookups across concurrent reads and preserves row/column order, pagination and missing results", async () => {
+  const f = await fixture(), seeded = await seededFindings(f, 8, 3), detail = vi.spyOn(seeded.repository, "detail"),
+    reader = await f.sources.readFindings(owner, f.file().document.id);
+  const selected = await Promise.all([...seeded.references].reverse().map((ref) => reader.resolve(ref)));
+  expect(selected.map((item) => item?.reference)).toEqual([...seeded.references].reverse());
+  expect(selected.every((item) => JSON.stringify(item?.evidence) === JSON.stringify([f.receipts[0]]))).toBe(true);
+  const page = await reader.list({ offset: 5, limit: 7 });
+  expect(page).toMatchObject({ total: 24, next_offset: 12, is_running: false });
+  expect(page.items.map(({ reference }) => reference)).toEqual(seeded.references.slice(5, 12));
+  expect((await reader.list({ offset: 24, limit: 7 })).items).toEqual([]);
+  expect(await reader.resolve({ ...seeded.references[0], rowId: "missing" })).toBeNull();
+  expect(await reader.resolve({ ...seeded.references[0], columnIndex: 999 })).toBeNull();
+  expect(detail.mock.calls.filter(([, id]) => id === seeded.review.id)).toHaveLength(1);
+});
+
+it("extracts a chat once while retaining selected later questions and their earlier supporting reads", async () => {
+  const f = await fixture(); await f.turn("Earlier question", "Earlier answer");
+  const selectedMessage = await f.turn("Later question", "Later answer", f.receipts[0], []),
+    transcript = vi.spyOn(f.chats, "transcript"), read = vi.spyOn(f.documents, "read"),
+    reader = await f.sources.readFindings(owner, f.file().document.id),
+    page = await reader.list({ chatId: f.chat.id, messageIds: [selectedMessage], offset: 0, limit: 10 });
+  expect(page.items).toHaveLength(1);
+  expect(page.items[0]).toMatchObject({ question: { prompt: "Later question" },
+    answer: { claims: [{ text: "Later answer" }] }, evidence: [f.receipts[0]] });
+  const reference = page.items[0].reference;
+  const narrowed = await Promise.all(Array.from({ length: 20 }, () => reader.resolve({ ...reference, claimIndices: [0] })));
+  expect(narrowed.every((item) => item?.answer.claims.length === 1)).toBe(true);
+  await expect(reader.resolve({ ...reference, claimIndices: [1] })).rejects.toMatchObject({ status: 409 });
+  expect(transcript).toHaveBeenCalledTimes(1);
+  expect(read.mock.calls.filter(([, id]) => id === f.file().document.id)).toHaveLength(1);
+});
+
+it("keeps authorization operation-local and refuses unavailable pinned supporting documents", async () => {
+  const f = await fixture(), text = "Pinned support", document = await f.documents.create(owner, {
+    filename: "support.txt", fileType: "txt", bytes: Buffer.from(text) }), metadata = (await f.documents.metadata(owner, document.id))!,
+    receipt = f.legal.createLibraryEvidence({ documentId: document.id, versionId: metadata.current_version_id!,
+      filename: "support.txt", sourceSha256: metadata.source_sha256!, start: 0, end: text.length, spanText: text });
+  await f.turn("What was recorded?", "The pinned answer", receipt, [receipt]);
+  const workspace = f.file().document.id, reader = await f.sources.readFindings(owner, workspace),
+    findings = await reader.list({ chatId: f.chat.id, offset: 0, limit: 10 });
+  expect(findings.items[0].evidence).toEqual([receipt]);
+  await expect(f.sources.readFindings({ userId: randomUUID() }, workspace)).rejects.toMatchObject({ status: 404 });
+  const other = await f.sources.create(owner, { title: "Unrelated workspace" });
+  await expect((await f.sources.readFindings(owner, other.document.id)).resolve(findings.items[0].reference))
+    .rejects.toMatchObject({ status: 404 });
+  await f.documents.deleteDocument(owner, document.id, true);
+  await expect((await f.sources.readFindings(owner, workspace)).resolve(findings.items[0].reference))
+    .rejects.toThrow("supporting document is unavailable");
+});
+
+it("uses the fingerprinted findings even if their original cell regenerates inside table creation", async () => {
+  const f = await fixture(), seeded = await seededFindings(f, 1), input = { findingRefs: seeded.references },
+    preview = await f.sources.previewTable(owner, f.file().document.id, input), create = f.tables.create.bind(f.tables);
+  vi.spyOn(f.tables, "create").mockImplementationOnce(async (...args) => {
+    const detail = (await seeded.repository.detail(owner, seeded.review.id))!, cell = detail.cells[0];
+    expect((await seeded.repository.setCell(owner, { reviewId: seeded.review.id, documentId: cell.document_id,
+      columnIndex: cell.column_index, expected: cell, status: "done", content: { ...cell.content!, summary: "Regenerated", value: "Regenerated",
+        claims: [{ text: "Regenerated", evidence_ids: [f.receipts[0].evidence_id] }] } })).status).toBe("committed");
+    return create(...args);
+  });
+  const created = await f.sources.table(owner, f.file().document.id, { ...input, design: preview.design, fingerprint: preview.fingerprint }),
+    result = await f.tables.detail(owner, created.id);
+  expect(result.cells.some(({ content }) => content?.summary === "row:0/0")).toBe(true);
+  expect(result.cells.some(({ content }) => content?.summary === "Regenerated")).toBe(false);
+  expect((await seeded.repository.detail(owner, seeded.review.id))!.cells[0].content?.summary).toBe("Regenerated");
+  await expect(f.sources.table(owner, f.file().document.id, { ...input, design: preview.design, fingerprint: preview.fingerprint }))
+    .rejects.toMatchObject({ status: 409 });
+});
+
+it("shares raw loads through foreign owning workspaces without caching recursive resolution", async () => {
+  const f = await fixture(), seeded = await seededFindings(f, 1), original = f.file().document.id,
+    foreign = await f.sources.create(owner, { title: "Owning workspace" }),
+    populated = await f.sources.collect(owner, foreign.document.id, {
+      sources: [f.file().state.sources[f.sourceId].reference], tables: [seeded.review.id] }),
+    sourceId = Object.keys(populated.state.sources)[0],
+    columns = [{ index: 0, name: "Answer", prompt: "Original answer", format: "text" }];
+  const make = (rowId: string) => f.tables.create(owner, { research_file_id: foreign.document.id,
+    columns_config: columns, arrangement: { rows: [{ id: rowId, title: rowId, sourceId }],
+      cells: [{ rowId, columnIndex: 0, items: [seeded.references[0]] }] } });
+  const a = await make("a"), b = await make("b"), refs = [a, b].map((review, index) => ({
+    kind: "cell" as const, reviewId: review.id, rowId: index ? "b" : "a", columnIndex: 0 }));
+  await f.sources.collect(owner, original, { tables: [a.id, b.id] });
+  const detail = vi.spyOn(seeded.repository, "detail"), read = vi.spyOn(f.documents, "read"),
+    reader = await f.sources.readFindings(owner, original), result = await Promise.all(refs.map((ref) => reader.resolve(ref)));
+  expect(result.map((item) => item?.answer.value)).toEqual(["row:0/0", "row:0/0"]);
+  expect(result.every((item) => item?.sourceId === f.sourceId)).toBe(true);
+  for (const reviewId of [a.id, b.id, seeded.review.id])
+    expect(detail.mock.calls.filter(([, id]) => id === reviewId)).toHaveLength(1);
+  for (const workspace of [original, foreign.document.id])
+    expect(read.mock.calls.filter(([, id]) => id === workspace)).toHaveLength(1);
+  // Create a cycle through the persistence port, not through recursive mocks.
+  for (const [index, review] of [a, b].entries()) {
+    const current = (await seeded.repository.detail(owner, review.id))!.review,
+      config = current.scope_config!, arrangement = config.arrangement!;
+    expect((await seeded.repository.update(owner, review.id, current.updated_at, { scopeConfig: { ...config,
+      arrangement: { ...arrangement, cells: [{ ...arrangement.cells[0], items: [refs[1 - index]] }] } } })).status).toBe("committed");
+  }
+  const cyclic = await f.sources.readFindings(owner, original);
+  expect(await cyclic.resolve(refs[0])).toBeNull();
+  expect(await cyclic.resolve(seeded.references[0])).toMatchObject({ answer: { value: "row:0/0" } });
+});
+
+it("never borrows another claim's permission and does not retain a trashed chat in a later operation", async () => {
+  const f = await fixture(); await f.turn("Question", "Answer");
+  const workspace = f.file().document.id, reader = await f.sources.readFindings(owner, workspace),
+    ref = (await reader.list({ offset: 0, limit: 10 })).items[0].reference;
+  await expect(reader.list({ offset: 0, limit: 10, reference: { ...ref, claimIndices: [1] },
+    references: [{ ...ref, claimIndices: [0] }] })).rejects.toMatchObject({ status: 400 });
+  await f.chats.trash(owner, f.chat.id);
+  const reopened = await f.sources.readFindings(owner, workspace);
+  expect((await reopened.list({ offset: 0, limit: 10 })).items).toEqual([]);
+  await expect(reopened.resolve(ref)).rejects.toMatchObject({ status: 404 });
+});
+
+// Opt-in, deterministic I/O/performance fixture. No timing thresholds in the normal suite.
+it.skipIf(!process.env.BEAVER_FINDINGS_BENCHMARK)("benchmarks research findings through the real SQLite repository", async () => {
+  const { Session } = await import("node:inspector/promises"), { writeFile } = await import("node:fs/promises"),
+    results: Record<string, unknown>[] = [];
+  for (const [name, rows, columns] of [["single", 1, 1], ["selected-100", 100, 1],
+    ["listing-2000", 100, 20], ["listing-10000", 500, 20], ["chat-50", 1, 1]] as const) {
+    const f = await fixture(), seeded = await seededFindings(f, rows, columns), workspace = f.file().document.id;
+    if (name === "chat-50") for (let index = 0; index < 50; index++) await f.turn(`Question ${index}`, `Answer ${index}`);
+    const refs = name === "chat-50" ? (await f.sources.findings(owner, workspace,
+      { chatId: f.chat.id, offset: 0, limit: 100 })).items.map(({ reference }) => reference) : seeded.references,
+      read = vi.spyOn(f.documents, "read"), detail = vi.spyOn(seeded.repository, "detail"), transcript = vi.spyOn(f.chats, "transcript"),
+      times: number[] = [];
+    const operation = async () => {
+      if (name.startsWith("listing")) {
+        const result = await f.sources.findings(owner, workspace, { offset: 0, limit: 50 });
+        expect(result.total).toBe(rows * columns);
+        expect(result.items.map(({ reference }) => reference)).toEqual(refs.slice(0, 50));
+      } else if (name === "single") {
+        const result = await f.sources.findings(owner, workspace, { reference: refs[0], offset: 0, limit: 1 });
+        expect(result.items[0].answer.value).toBe("row:0/0");
+      } else {
+        const result = await f.sources.previewTable(owner, workspace, { findingRefs: refs });
+        expect(result.design.cells.flatMap(({ itemIds }) => itemIds).length).toBeGreaterThanOrEqual(refs.length);
+      }
+    };
+    for (let iteration = 0; iteration < (name === "single" ? 51 : 8); iteration++) {
+      read.mockClear(); detail.mockClear(); transcript.mockClear();
+      const start = performance.now(); await operation(); times.push(performance.now() - start);
+    }
+    const counts = { workspaceReads: read.mock.calls.filter(([, id]) => id === workspace).length,
+      tableLoads: detail.mock.calls.length, transcriptLoads: transcript.mock.calls.length }, session = new Session();
+    session.connect();
+    let sampledBytes: number;
+    try {
+      await session.post("HeapProfiler.startSampling", { samplingInterval: 16384,
+        includeObjectsCollectedByMajorGC: true, includeObjectsCollectedByMinorGC: true });
+      await operation();
+      const { profile } = await session.post("HeapProfiler.stopSampling");
+      const sum = (node: typeof profile.head): number => node.selfSize + node.children.reduce((total, child) => total + sum(child), 0);
+      sampledBytes = sum(profile.head);
+    } finally { session.disconnect(); }
+    results.push({ name, rows, columns, firstMs: times[0], medianMs: times.slice(1).sort((a, b) => a - b)[Math.floor((times.length - 1) / 2)],
+      ...counts, sampledBytes });
+  }
+  await writeFile(process.env.BEAVER_FINDINGS_BENCHMARK!, JSON.stringify(results, null, 2));
+  console.log("FINDINGS_BENCHMARK", JSON.stringify(results));
+}, 120_000);
+
+it("shares a failed raw read only within its operation and excludes unfinished cells from listings", async () => {
+  const f = await fixture(), seeded = await seededFindings(f, 2),
+    detail = vi.spyOn(seeded.repository, "detail").mockRejectedValueOnce(new Error("Read interrupted")),
+    failed = await f.sources.readFindings(owner, f.file().document.id);
+  const outcomes = await Promise.allSettled(seeded.references.map((ref) => failed.resolve(ref)));
+  expect(outcomes.map(({ status }) => status)).toEqual(["rejected", "rejected"]);
+  expect(detail).toHaveBeenCalledTimes(1);
+  const cells = (await seeded.repository.detail(owner, seeded.review.id))!.cells;
+  expect((await seeded.repository.setCell(owner, { reviewId: seeded.review.id, documentId: cells[1].document_id,
+    columnIndex: cells[1].column_index, expected: cells[1], content: null, status: "pending" })).status).toBe("committed");
+  const reader = await f.sources.readFindings(owner, f.file().document.id), page = await reader.list({ offset: 0, limit: 10 });
+  expect(page).toMatchObject({ total: 1, next_offset: null });
+  expect(page.items[0].answer.value).toBe("row:0/0");
+  expect(await reader.resolve(seeded.references[1])).toBeNull();
 });
