@@ -12,6 +12,7 @@ import { researchFindingReferenceSchema } from "../lib/researchFindingReference"
 import type { SourceWorkspaceApplication } from "../lib/sourceWorkspaceApplication";
 
 import { researchImportDesignSchema } from "../lib/tabular/researchImport";
+import { researchLabelDesignSchema } from "../lib/researchLabelDesign";
 
 const id = z.string().trim().min(1).max(200), revision = z.number().int().nonnegative();
 const page = { offset: z.coerce.number().int().nonnegative().default(0),
@@ -37,6 +38,10 @@ const tableInput = z.object({ selection: researchSelectionSchema.optional(), tab
   design: researchImportDesignSchema.optional(), fingerprint: z.string().regex(/^[a-f0-9]{64}$/u).optional(),
   request: z.string().trim().min(1).max(4_000).optional(), model: z.string().trim().min(1).max(200).optional(),
 }).strict().refine((input) => !input.messageIds || !!input.chatId, "Select a chat for the chosen messages");
+const labelInput = tableInput.innerType().omit({ design: true, tableId: true })
+  .extend({ design: researchLabelDesignSchema.optional() }).strict()
+  .refine((input) => !input.messageIds || !!input.chatId, "Select a chat for the chosen messages")
+  .refine((input) => Boolean(input.request) !== Boolean(input.design), "Describe a label set or apply a proposed one");
 
 export function createSourceWorkspacesRouter(app: SourceWorkspaceApplication) {
   const router = Router(), scope = applicationScope;
@@ -107,6 +112,15 @@ export function createSourceWorkspacesRouter(app: SourceWorkspaceApplication) {
     const input = tableInput.parse(req.body ?? {});
     if (input.request) reject(400, "Preview an assisted layout before creating it");
     res.json(await app.table(scope(res), id.parse(req.params.id), input, { executor: "human" }));
+  }));
+  router.post("/:id/labels/preview", asyncRoute(async (req, res) => {
+    res.json(await app.previewLabels(scope(res), id.parse(req.params.id), labelInput.parse(req.body ?? {}),
+      requestAbortController(req, res).signal));
+  }));
+  router.post("/:id/labels", asyncRoute(async (req, res) => {
+    const input = labelInput.parse(req.body ?? {});
+    if (!input.design) reject(400, "Review a proposed label set before applying it");
+    res.json(await app.applyLabels(scope(res), id.parse(req.params.id), input, { executor: "human" }));
   }));
   router.post("/:id/save-findings", asyncRoute(async (req, res) => {
     const input = z.object({ references: z.array(researchFindingReferenceSchema).min(1).max(500),
