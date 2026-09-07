@@ -23,31 +23,13 @@ jobs:
             git -C "$module" fetch --depth=1 origin "$sha"
             git -C "$module" checkout --detach FETCH_HEAD
           done
-      - name: Source snapshot
-        run: tar --exclude=.git --exclude=node_modules --exclude=target --exclude='*.onnx' --exclude='*.zip' --exclude='*.parquet' -czf /tmp/quotation-source.tgz .
+      - name: Bound source snapshot
+        run: |
+          du -sh * | sort -h
+          find . -type d \( -name .git -o -name node_modules -o -name target \) -prune -o -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.mjs' -o -name '*.mts' -o -name '*.js' -o -name '*.json' -o -name '*.css' -o -name '*.rs' -o -name '*.toml' -o -name '*.lock' -o -name 'AGENTS.md' -o -name '*.yml' -o -name '*.html' -o -name '.gitmodules' -o -name '.gitignore' \) -size -5M -print0 > /tmp/sources
+          tar --null -T /tmp/sources -czf /tmp/quotation-source-code.tgz
       - uses: actions/upload-artifact@v4
         with:
-          name: quotation-source
-          path: /tmp/quotation-source.tgz
-          retention-days: 1
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: |
-          npm ci --ignore-scripts
-          npm ci --ignore-scripts --prefix frontend
-          npm ci --ignore-scripts --prefix backend
-      - name: Test dependencies
-        run: tar -czf /tmp/quotation-node.tgz node_modules frontend/node_modules backend/node_modules
-      - uses: actions/upload-artifact@v4
-        with:
-          name: quotation-node
-          path: /tmp/quotation-node.tgz
-          retention-days: 1
-      - run: cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
-      - uses: actions/upload-artifact@v4
-        with:
-          name: quotation-native
-          path: native/legal-structure-node/target/release/liblegal_structure_node.so
+          name: quotation-source-code
+          path: /tmp/quotation-source-code.tgz
           retention-days: 1
