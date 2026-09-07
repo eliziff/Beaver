@@ -7,6 +7,7 @@ import { researchHighlightCount, type ResearchEvidence, type ResearchLabel, type
 import { researchLabelColor, ResearchSourceKindIcon } from "./ResearchLabelMarker";
 import { ResearchLabelEditor, RESEARCH_SOURCE_DRAG, type ResearchLabelTarget } from "./ResearchLabelPicker";
 import { ResearchLabelTree } from "./ResearchLabelTree";
+import { passageLabel, trimPassageMarker } from "@/app/lib/researchPassage";
 import { RESEARCH_PASSAGE_DRAG } from "./researchMemo";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 import { sourceName, type SourceReader } from "./useSourceReader";
@@ -42,11 +43,11 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
     aria-label={label} aria-expanded={open} onClick={onClick} className="grid size-6 shrink-0 place-items-center rounded">
     <ChevronRight aria-hidden className={`size-3.5 text-gray-500 ${open ? "rotate-90" : ""}`} /></button>;
   /** Opening is always a deliberate control, never a side effect of touching the row. */
-  function openControl(source: ResearchSource, name: string, locator?: string, evidenceId?: string) {
+  function openControl(source: ResearchSource, name: string, locator?: string, evidenceId?: string, spoken?: string) {
     if (preview) return null;
     const href = reader?.sourceHref(source, locator),
       className = "hidden size-6 shrink-0 place-items-center rounded text-gray-500 hover:bg-gray-200 @[22rem]:grid",
-      inner = <BookOpen aria-hidden className="size-3.5" />, label = `Open ${locator ?? name}`;
+      inner = <BookOpen aria-hidden className="size-3.5" />, label = `Open ${spoken ?? locator ?? name}`;
     if (reader?.canRead(source)) return <button type="button" aria-label={label} title="Open" className={className}
       onClick={() => void reader.readSource(source, locator, evidenceId)}>{inner}</button>;
     if (!href) return null;
@@ -76,7 +77,7 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
   }
 
   function passageRow(source: ResearchSource, item: ResearchEvidence) {
-    const locator = item.receipt.locator.label;
+    const locator = passageLabel(item.receipt.locator);
     const color = item.labelIds[0] ? researchLabelColor(labels[item.labelIds[0]]) : "#d1d5db";
     return <div draggable onDragStart={(event) => event.dataTransfer.setData(RESEARCH_PASSAGE_DRAG, JSON.stringify(item))}
       className={`${ROW} items-start py-1 hover:bg-gray-50`}>
@@ -84,11 +85,11 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
       <span className="mt-1 h-4 w-1 shrink-0 rounded-full" style={{ backgroundColor: color }} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-xs font-medium text-gray-700">{locator}</span>
-        <span className="line-clamp-2 text-xs text-gray-600 [overflow-wrap:anywhere]">{item.receipt.span_text}</span>
+        <span className="line-clamp-2 text-xs text-gray-600 [overflow-wrap:anywhere]">{trimPassageMarker(item.receipt.span_text ?? "", item.receipt.locator)}</span>
         {item.note && <span className="block text-xs text-gray-700 [overflow-wrap:anywhere]">{item.note}</span>}
       </span>
       <span className={ROW_ACTIONS}>
-        {openControl(source, sourceName(source), locator, item.receipt.evidence_id)}
+        {openControl(source, sourceName(source), item.receipt.locator.label, item.receipt.evidence_id, locator)}
         <MoreActionsMenu label={`${locator} options`} items={[
           { label: "Highlight type", onSelect: () => setLabelTarget({ file: file!, kind: "evidence", itemId: item.receipt.evidence_id,
             sourceId: source.id, labelIds: item.labelIds, note: item.note, title: locator }) },
