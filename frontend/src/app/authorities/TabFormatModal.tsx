@@ -19,7 +19,7 @@ export function TabFormatModal({ settings, busy, onSave, onClose }: {
     tabLabels: labels ? labels.split("\n").map((label) => label.trim()) : [] };
   const submit = () => { if (valid && !busy) { onSave(next); onClose(); } };
   return <Modal open onClose={onClose} size="lg" breadcrumbs={["Tab labels"]}
-    className="!h-fit max-h-[calc(100dvh-2rem)]"
+    fit
     secondaryAction={{ label: "Cancel", onClick: onClose }}
     primaryAction={{ label: "Apply", disabled: busy || !valid, onClick: submit }}>
     <form onSubmit={(event) => { event.preventDefault(); submit(); }} className="space-y-4 pb-4">

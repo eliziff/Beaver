@@ -18,10 +18,9 @@ export function ConfirmPopup({ open, title, message, confirmLabel = "Confirm",
     </span>;
     return (
         <Modal open={open} onClose={confirmBusy ? () => undefined : onCancel}
-            role="alertdialog" size="sm"
-            className={`!h-fit max-h-[calc(100dvh-2rem)] ${className ?? ""}`}
+            role="alertdialog" size="sm" fit className={className}
             breadcrumbs={[title ?? "Confirm"]}
-            cancelAction={{ label: cancelLabel, onClick: onCancel, disabled: confirmBusy }}
+            secondaryAction={{ label: cancelLabel, onClick: onCancel, disabled: confirmBusy }}
             primaryAction={{ label: resolvedConfirmLabel, onClick: onConfirm,
                 disabled: confirmStatus !== "idle",
                 variant: isDeleteAction ? "danger" : "primary", "aria-busy": confirmBusy }}>

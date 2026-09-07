@@ -1,38 +1,43 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { applyWorkspaceLabels, getResearchFile, openWorkspaceTable, previewWorkspaceLabels, previewWorkspaceTable,
     type ResearchLabelProposal, type ResearchTablePreview, type ResearchTableInput } from "@/app/lib/api/researchFiles";
 import { isResearchDocument, researchLabelPath, type ResearchFile, type ResearchSelection } from "@/app/lib/researchFiles";
 import type { Document } from "@/app/lib/api/documents";
 import { errorMessage } from "@/app/lib/utils";
 import { Modal } from "../modals/Modal";
-import { FormField } from "../modals/ModalFieldLabel";
-import { ModalSelect } from "../modals/ModalSelect";
 import { FileDirectory } from "../shared/FileDirectory";
 import { Button } from "../ui/button";
 import { tabularReviewPath } from "./tabularReviewRoute";
 import { useSelectedModel } from "@/app/hooks/useSelectedModel";
 
+const HEAD = "text-sm font-semibold text-gray-900", META = "text-xs text-gray-500";
+const CARD = "min-w-0 break-words rounded-lg border border-gray-200 p-4", PICKED = "border-red-700 bg-red-50/60";
+const PANE = "flex min-h-0 w-full min-w-0 flex-1 flex-col gap-6 overflow-y-auto";
+const FIELD = "block w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-0.5 hover:border-gray-200";
+const ROWS = [["sources", "Sources", "One row for each source in this research."],
+    ["passages", "Saved passages", "One row for each passage you highlighted."]] as const;
 type Props = { open: boolean; onClose: () => void; fileId?: string; projectId?: string | null; mode?: "table" | "labels";
     selection?: ResearchSelection; chatId?: string; messageIds?: string[]; defaultRequest?: string; onOpen: (path: string) => void };
-export function ImportResearchSet({ open, ...props }: Props) {
-    return open ? <OpenImportResearchSet {...props} /> : null;
-}
+export const ImportResearchSet = ({ open, ...props }: Props) => open ? <OpenImportResearchSet {...props} /> : null;
 function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, messageIds, onOpen,
     mode = "table", defaultRequest = "" }: Omit<Props, "open">) {
     const labelling = mode === "labels";
     const [picked, setPicked] = useState<Document[]>([]), [file, setFile] = useState<ResearchFile | null>(null);
     const [rows, setRows] = useState<"sources" | "passages">("sources"), [typeId, setTypeId] = useState("");
     const [preview, setPreview] = useState<ResearchTablePreview | null>(null), [request, setRequest] = useState(defaultRequest);
-    const [plan, setPlan] = useState<ResearchLabelProposal | null>(null);
+    const [plan, setPlan] = useState<ResearchLabelProposal | null>(null), [at, setAt] = useState(0);
     const [busy, setBusy] = useState(false), [loading, setLoading] = useState(false), [error, setError] = useState("");
     const generation = useRef(0), activeId = fileId ?? picked[0]?.id, [model] = useSelectedModel();
+    const steps = [...(fileId ? [] : ["Choose research"]), "What to include",
+        labelling ? "What to sort by" : "Shape the table", labelling ? "Review labels" : "Review"], step = steps[at];
+    const last = at === steps.length - 1;
     const input: ResearchTableInput = { rows, ...(typeId ? { labelId: typeId } : {}),
         ...(selection ? { selection } : {}), ...(chatId ? { chatId, messageIds } : {}) };
     const inputKey = JSON.stringify(input);
     useEffect(() => {
         const run = ++generation.current;
         setPreview(null); setPlan(null); setFile((file) => file?.document.id === activeId ? file : null); setError("");
-        if (!activeId) { setLoading(false); return; }
+        if (!activeId) return void setLoading(false);
         setLoading(true);
         void Promise.all([getResearchFile(activeId), labelling ? null : previewWorkspaceTable(activeId, JSON.parse(inputKey))])
             .then(([file, result]) => { if (run === generation.current) { setFile(file); setPreview(result); } })
@@ -41,121 +46,107 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
         return () => { generation.current++; };
     }, [activeId, inputKey, labelling]);
     async function suggest() {
-        if (!activeId || busy || !request.trim()) return;
-        const run = generation.current;
-        setBusy(true); setError("");
+        if (!activeId || busy || !request.trim()) return false;
+        const run = generation.current; setBusy(true); setError("");
         try {
-            if (labelling) { const next = await previewWorkspaceLabels(activeId, { ...input, request: request.trim(), model });
-                if (run === generation.current) setPlan(next); }
-            else { const next = await previewWorkspaceTable(activeId, { ...input, request: request.trim(), model });
-                if (run === generation.current) setPreview(next); }
+            const body = { ...input, request: request.trim(), model };
+            const next = await (labelling ? previewWorkspaceLabels(activeId, body) : previewWorkspaceTable(activeId, body));
+            if (run !== generation.current) return false;
+            if (labelling) setPlan(next as ResearchLabelProposal); else setPreview(next as ResearchTablePreview);
+            return true;
         } catch (reason) { if (run === generation.current) setError(errorMessage(reason,
-            labelling ? "Could not propose labels; nothing was changed" : "Could not suggest a layout; the current preview is unchanged")); }
+            labelling ? "Could not propose labels; nothing was changed" : "Could not suggest a layout; the current preview is unchanged"));
+            return false; }
         finally { setBusy(false); }
     }
     async function create() {
-        if (!activeId || busy || loading) return;
+        if (!activeId || busy || loading || (labelling ? !plan : !preview)) return;
         setBusy(true); setError("");
         try {
-            if (labelling) {
-                if (!plan) return;
-                await applyWorkspaceLabels(activeId, { ...input, fingerprint: plan.fingerprint, design: plan.design });
-                onOpen(`/sources?research_file=${encodeURIComponent(activeId)}`); onClose();
-            } else {
-                if (!preview) return;
-                const review = await openWorkspaceTable(activeId, { ...input, fingerprint: preview.fingerprint, design: preview.design });
-                onOpen(tabularReviewPath(review)); onClose();
-            }
+            if (labelling) { await applyWorkspaceLabels(activeId, { ...input, fingerprint: plan!.fingerprint, design: plan!.design });
+                onOpen(`/sources?research_file=${encodeURIComponent(activeId)}`);
+            } else onOpen(tabularReviewPath(await openWorkspaceTable(activeId,
+                { ...input, fingerprint: preview!.fingerprint, design: preview!.design })));
+            onClose();
         } catch (reason) { setError(errorMessage(reason, labelling
             ? "Could not apply these labels. Propose them again before trying."
             : "Could not create the review. Refresh the preview before trying again.")); }
         finally { setBusy(false); }
     }
+    async function advance() {
+        if (last) return void create();
+        if (!labelling || step !== "What to sort by" || await suggest()) setAt(at + 1);
+    }
     const types = Object.values(file?.state.labels ?? {}).filter(({ scope }) => scope === "highlight");
-    const reused = preview?.stats.reduce((sum, { reused }) => sum + reused, 0) ?? 0;
-    const parentOf = (label: ResearchLabelProposal["labels"][number]) =>
-        label.parentKey && plan!.labels.some(({ key }) => key === label.parentKey) ? label.parentKey : null;
-    const children = (key: string | null) => plan?.labels.filter((label) => parentOf(label) === key) ?? [];
-    const branch = (label: ResearchLabelProposal["labels"][number], depth: number): ReactNode =>
-        <li key={label.key} style={{ marginInlineStart: depth * 14 }}>
-            <div className="flex flex-wrap items-baseline gap-2 py-0.5">
-                <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: label.color ?? "#cbd5e1" }} />
-                <span className="text-sm font-medium text-gray-900">{label.name}</span>
-                <span className="text-xs text-gray-500">{label.rows.length} {plan!.target === "passages" ? "passages" : "sources"}
-                    {label.existing ? " · existing label" : ""}</span>
-            </div>
-            {!!label.definition && <p className="ms-4 text-xs text-gray-600">{label.definition}</p>}
-            {!!label.rows.length && <ul className="ms-4 border-s border-gray-200 ps-2">
-                {label.rows.map((row) => <li key={row.id} className="py-0.5 text-xs text-gray-700">
-                    {row.support.length ? <details><summary className="cursor-pointer">{row.title}</summary>
-                        {row.support.map((text, index) => <p key={index} className="mt-1 border-s-2 border-gray-200 ps-2 text-gray-600">{text}</p>)}
-                    </details> : row.title}</li>)}
-            </ul>}
-            {children(label.key).length > 0 && <ul>{children(label.key).map((child) => branch(child, depth + 1))}</ul>}
-        </li>;
-    return <Modal open onClose={onClose} size="2xl" breadcrumbs={[labelling ? "Organize this research" : "Review this research"]}
+    const setName = (file?.document.filename ?? picked[0]?.filename ?? "").replace(/\.research\.md$/iu, "");
+    const columns = preview?.design.columns ?? [];
+    const editColumn = (index: number, patch: { name?: string; prompt?: string }) => setPreview((current) => current && ({ ...current,
+        design: { ...current.design, columns: current.design.columns.map((c) => c.index === index ? { ...c, ...patch } : c) } }));
+    const ready = step === "Choose research" ? !!activeId : step === "What to include" ? labelling || !!preview
+        : step === "What to sort by" ? !!request.trim() : labelling ? !!plan : !!preview;
+    return <Modal open onClose={onClose} size="lg" breadcrumbs={[...(setName ? [setName] : []),
+        labelling ? "Organize this research" : "Review this research"]}
         footerStatus={error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-        primaryAction={labelling && !plan
-            ? { label: busy ? "Working…" : "Propose labels", onClick: () => void suggest(), disabled: busy || loading || !request.trim() }
-            : { label: busy ? "Working…" : labelling ? "Apply labels" : "Open review",
-                onClick: () => void create(), disabled: (labelling ? !plan : !preview) || busy || loading }}>
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pb-3">
-            {!fileId && <div className="min-h-40"><FileDirectory selectedDocuments={picked} onChange={(next) => { setTypeId(""); setPicked(next); }}
-                showTabs multiple={false} noun="research sets" documentFilter={isResearchDocument}
-                initialLocation={projectId ? { projectId } : { library: "files" }} /></div>}
-            {activeId && <>
-                <div className="flex flex-wrap items-end gap-3">
-                    <FormField label={labelling ? "Classify" : "Rows"} htmlFor="import-rows"><ModalSelect id="import-rows" value={rows} disabled={busy}
-                        options={[{ value: "sources", label: "Sources" }, { value: "passages", label: "Saved passages" }]}
-                        onChange={(value) => setRows(value as typeof rows)} /></FormField>
-                    {!!types.length && <FormField label="Highlight type" htmlFor="import-type"><ModalSelect id="import-type" value={typeId} disabled={busy}
-                        options={[{ value: "", label: "All types" }, ...types.map(({ id }) => ({ value: id,
-                            label: researchLabelPath(file!.state.labels, id).map(({ name }) => name).join(" › ") }))]}
-                        onChange={setTypeId} /></FormField>}
-                </div>
-                {loading && <p role="status" className="text-sm text-gray-500">Preparing existing research…</p>}
-                {plan && <>
-                    <p className="text-sm text-gray-600">{plan.labels.length} labels · {plan.labels.reduce((sum, { rows }) => sum + rows.length, 0)} classified · {plan.unassigned.length} left as they are</p>
-                    <div role="region" aria-label="Proposed labels" tabIndex={0} className="rounded border border-gray-200 p-3">
-                        <ul>{children(null).map((label) => branch(label, 0))}</ul>
-                    </div>
-                    <p className="text-xs text-gray-500">{plan.propose
-                        ? "This adds members to labels you already made, so it arrives as one change to review in the workspace."
-                        : "This arrives as one change you can undo from the workspace's History."}</p>
-                </>}
-                {preview && <>
-                    <p className="text-sm text-gray-600">{preview.rows.length} rows · {reused} populated cells · {preview.rows.length * preview.design.columns.length - reused} unanswered</p>
-                    <div role="region" aria-label="Existing research preview" tabIndex={0}
-                        className="shrink-0 overflow-x-auto rounded border border-gray-200">
-                        <table aria-label="Conversion preview" className="w-full text-left text-xs">
-                            <thead><tr><th className="min-w-40 p-2">Source</th>{preview.design.columns.map((column) => {
-                                const stat = preview.stats.find(({ index }) => index === column.index)!;
-                                return <th key={column.index} className="min-w-44 p-2 align-top"><details><summary className="cursor-pointer">{column.name}</summary><p className="mt-1 max-w-72 whitespace-normal font-normal text-gray-600">{column.prompt}</p></details>
-                                    <span className="mt-1 block font-normal text-gray-500">{stat.reused ? `${stat.reused} reused · ${stat.kinds.join(", ")}` : "New question"}</span></th>;
-                            })}</tr></thead>
-                            <tbody>{preview.rows.slice(0, 3).map((row) => <tr key={row.id} className="border-t border-gray-200">
-                                <th className="p-2 align-top font-medium">{row.title}</th>{preview.design.columns.map(({ index }) => <td key={index} className="p-2 align-top">
-                                    {preview.samples.find((cell) => cell.rowId === row.id && cell.columnIndex === index)?.text || <span className="text-gray-400">Not answered</span>}
-                                </td>)}</tr>)}</tbody>
-                        </table>
-                    </div>
-                    {preview.rows.length > 3 && <p className="text-xs text-gray-500">Showing 3 of {preview.rows.length} rows. All are included.</p>}
-                    <p className="text-xs text-gray-500">Reused passages stay excerpts; new questions still need extraction. Later research edits will not rewrite this review.</p>
-                </>}
-                <FormField label={labelling ? "What should these be sorted into?" : "What would you like to compare?"} htmlFor="import-question">
-                    <textarea id="import-question" value={request} rows={2}
+        cancelAction={at > 0 && { label: "Back", disabled: busy, onClick: () => setAt(at - 1) }}
+        primaryAction={{ label: busy ? "Working…" : last ? (labelling ? "Apply labels" : "Create review") : "Next",
+            onClick: () => void advance(), disabled: busy || loading || !ready }}>
+        <div className="flex min-h-0 flex-1 flex-col gap-6 py-4">
+            <div className="flex shrink-0 items-center gap-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-700">{step}</p>
+                <span aria-hidden className="flex flex-1 gap-1">{steps.map((name, index) => <span key={name}
+                    className={`h-0.5 flex-1 rounded-full ${index <= at ? "bg-red-700" : "bg-gray-200"}`} />)}</span></div>
+            {step === "Choose research" ? <div className="min-h-0 flex-1"><FileDirectory selectedDocuments={picked} showTabs
+                multiple={false} noun="research sets" documentFilter={isResearchDocument} onChange={(next) => { setTypeId(""); setPicked(next); }}
+                initialLocation={projectId ? { projectId } : { library: "files" }} /></div>
+            : step === "What to include" ? <div className={PANE}>
+                {ROWS.map(([value, title, hint]) => <button key={value} type="button" aria-pressed={rows === value} disabled={busy}
+                    onClick={() => setRows(value)} className={`${CARD} text-left ${rows === value ? PICKED : "hover:border-gray-300"}`}>
+                    <span className={`block ${HEAD}`}>{title}</span><span className={`mt-1 block ${META}`}>{hint}</span></button>)}
+                {!!types.length && <div className="flex flex-col gap-4"><p className={HEAD}>Highlight types</p>
+                    <div className="flex flex-wrap gap-2">{[{ id: "", name: "All types" }, ...types.map(({ id }) =>
+                        ({ id, name: researchLabelPath(file!.state.labels, id).map(({ name }) => name).join(" › ") }))].map(({ id, name }) =>
+                        <button key={id} type="button" aria-pressed={typeId === id} disabled={busy} onClick={() => setTypeId(id)}
+                            className={`rounded-full border px-3 py-1 text-sm ${typeId === id ? `${PICKED} text-red-800` : "border-gray-200 text-gray-700"}`}>{name}</button>)}</div>
+                </div>}
+                {loading && <p role="status" className={META}>Preparing existing research…</p>}
+            </div>
+            : !last ? <div className={PANE}>
+                <div className="flex min-w-0 flex-col gap-4">
+                    <label className={HEAD} htmlFor="import-question">{labelling
+                        ? "What should these be sorted into?" : "What would you like to compare?"}</label>
+                    <textarea id="import-question" value={request} rows={3} disabled={busy}
                         onChange={(event) => { setRequest(event.target.value); setPlan(null); }}
-                        className="w-full rounded border border-gray-300 bg-white p-2 text-sm"
+                        className="w-full min-w-0 rounded-lg border border-gray-300 bg-white p-3 text-sm text-gray-900"
                         placeholder={labelling ? "The cases that state the test, grouped by how they applied it."
-                            : "Compare the outcome, reasons, and wording that mattered."} /></FormField>
-                {!labelling && <div className="flex gap-2"><Button size="compact" variant="outline" onClick={() => void suggest()} disabled={busy || loading || !request.trim()}>
-                    Suggest layout</Button><Button size="compact" variant="ghost" disabled={busy || loading} onClick={() => {
-                        const run = ++generation.current; setLoading(true); setError("");
-                        void previewWorkspaceTable(activeId, input).then((next) => { if (run === generation.current) setPreview(next); })
-                            .catch((reason) => { if (run === generation.current) setError(errorMessage(reason, "Could not refresh the preview")); })
-                            .finally(() => { if (run === generation.current) setLoading(false); });
-                    }}>Refresh preview</Button></div>}
-            </>}
+                            : "Compare the outcome, reasons, and wording that mattered."} />
+                    {!labelling && <div className="flex justify-end"><Button size="compact" variant="outline"
+                        onClick={() => void suggest()} disabled={busy || loading || !request.trim()}>Suggest layout</Button></div>}
+                </div>
+                {!labelling && <div className="flex min-w-0 flex-col gap-4"><p className={HEAD}>Columns</p>
+                    <ul className="flex min-w-0 flex-col gap-4">{columns.map((column) => <li key={column.index} className={CARD}>
+                        <input aria-label={`Column name ${column.index + 1}`} value={column.name} className={`${FIELD} ${HEAD}`}
+                            onChange={(event) => editColumn(column.index, { name: event.target.value })} />
+                        <input aria-label={`Column question ${column.index + 1}`} value={column.prompt} className={`mt-1 ${FIELD} text-sm text-gray-700`}
+                            onChange={(event) => editColumn(column.index, { prompt: event.target.value })} />
+                    </li>)}</ul></div>}
+            </div>
+            : <ul className={`${PANE} gap-4`}>
+                {labelling ? plan?.labels.map((label) => <li key={label.key} className={CARD}>
+                    <p className={HEAD}><span aria-hidden className="me-2 inline-block size-2.5 rounded-full"
+                        style={{ background: label.color ?? "#cbd5e1" }} />{label.path}</p>
+                    {!!label.definition && <p className="mt-1 text-sm text-gray-700">{label.definition}</p>}
+                    <ul className="mt-3 space-y-1">{label.rows.map((row) => <li key={row.id} className="text-sm text-gray-700">{row.title}
+                        {row.support.map((text, index) => <span key={index} className={`mt-1 block border-s-2 border-gray-200 ps-2 ${META}`}>{text}</span>)}</li>)}</ul>
+                </li>)
+                : preview?.rows.map((row) => <li key={row.id} className={CARD}>
+                    <p className={HEAD}>{row.title}</p>
+                    <dl className="mt-3 flex min-w-0 flex-col gap-3">{columns.map((column) => <div key={column.index} className="min-w-0">
+                        <dt className="text-xs font-medium uppercase tracking-wide text-gray-400">{column.name}</dt>
+                        <dd className="mt-1 text-sm text-gray-700">{preview.samples.find((cell) =>
+                            cell.rowId === row.id && cell.columnIndex === column.index)?.text
+                            || <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">will be extracted</span>}</dd>
+                    </div>)}</dl></li>)}
+            </ul>}
         </div>
     </Modal>;
 }

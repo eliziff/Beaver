@@ -131,12 +131,12 @@ try {
   await expect(slots).toHaveCount(3);
   for (let i = 0; i < 3; i++) await expect(slots.nth(i)).toContainText(`Tab ${i + 1}`);
   await expect(page.getByRole("heading", { name: "Build outputs", exact: true })).toHaveCount(0);
-  const handoff = slots.first().getByRole("link", { name: "Get from CanLII", exact: true });
+  const handoff = slots.first().getByRole("link", { name: "CanLII", exact: true });
   await expect(handoff).toHaveAttribute("href", /canlii\.org\/.*\.pdf$/);
   await expect(handoff).toHaveAttribute("target", "_blank");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await screenshot("03-manual-handoff");
-  await slots.first().getByRole("button", { name: /^Add PDF for/ }).click();
+  await slots.first().getByRole("button", { name: /^Upload for/ }).click();
   await selectFile(page.getByRole("menuitem", { name: "Upload from computer", exact: true }), sourcePdf);
   await idle();
   await expect(handoff).toHaveCount(0);
@@ -145,7 +145,7 @@ try {
   await expect(page.getByRole("dialog").locator("canvas").first()).toBeVisible({ timeout: 30_000 });
   await screenshot("04-in-app-viewer");
   await page.keyboard.press("Escape");
-  await slots.nth(1).getByRole("button", { name: /^Add PDF for/ }).click();
+  await slots.nth(1).getByRole("button", { name: /^Upload for/ }).click();
   await selectFile(page.getByRole("menuitem", { name: "Upload from computer", exact: true }), scanPdf);
   await idle();
   await page.getByRole("button", { name: "Tab labels", exact: true }).click();
@@ -161,12 +161,12 @@ try {
   await noOverflow(); await screenshot("05-source-slots");
   await page.setViewportSize({ width: 390, height: 844 }); await noOverflow(); await screenshot("06-source-slots-mobile");
   await page.setViewportSize({ width: 1280, height: 1000 });
-  await page.getByRole("button", { name: "Done — review highlights", exact: true }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   const ocr = page.getByRole("dialog", { name: "Scanned source PDFs", exact: true });
   await expect(ocr).toBeVisible({ timeout: 30_000 });
   await ocr.getByRole("radio", { name: /Keep the original pages/ }).check();
   await screenshot("07-ocr-choice");
-  await ocr.getByRole("button", { name: "Continue to highlights", exact: true }).click();
+  await ocr.getByRole("button", { name: "Done", exact: true }).click();
   await idle();
   await expect(page.getByRole("heading", { name: "Build outputs", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Done — build book", exact: true }).click(); await idle();

@@ -250,7 +250,6 @@ function MoveDialog({ title, list, createFolder, rootLabel, disabledIds, canMove
             className={error ? "text-sm text-red-700" : "text-sm text-gray-500"}>
             {error || `Destination: ${destination?.name ?? rootLabel}`}
         </span>}
-        cancelAction={{ label: "Cancel", onClick: close, disabled: moving }}
         primaryAction={{ label: moving ? "Moving…" : "Move here",
             onClick: () => void move(), disabled: moving || !canMove(destinationId) }}>
         <FolderBrowser list={list} createFolder={createFolder} rootLabel={rootLabel} onSelect={(folder) => {

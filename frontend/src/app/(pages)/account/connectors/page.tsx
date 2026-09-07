@@ -476,15 +476,6 @@ export default function ConnectorsPage() {
                                   addBusy,
                           }
                 }
-                cancelAction={
-                    addBusy
-                        ? false
-                        : {
-                              label:
-                                  addSuccess ? "Done" : "Cancel",
-                              onClick: closeAddModal,
-                          }
-                }
                 footerStatus={
                     add?.error ? (
                         <div className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm text-red-600 shadow-sm">
