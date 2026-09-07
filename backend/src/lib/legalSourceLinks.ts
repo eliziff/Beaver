@@ -25,8 +25,12 @@ export type LegalSourceEvidence = {
   anchor?: string;
   /** The passage the quote must appear in. */
   blockText: string;
-  /** The corpus the fragment must be unique in. */
-  documentText?: NativeDocument;
+  /**
+   * The corpus the fragment must be unique in. Required: without it a
+   * directive can only be spelled blind, and Chrome then paints the first
+   * matching text anywhere in the document rather than the cited passage.
+   */
+  documentText: NativeDocument;
   pageScoped?: boolean;
 };
 
@@ -531,21 +535,16 @@ export function buildLegalSourcePinpoint(
   if (!baseUrl) return null;
   if (!evidence.blockText) return { target: baseUrl, plan: null };
   const plan = (url: string, pdf: boolean) => {
-    const fragmentPlan = (splitHtmlSourceBlocks: boolean) => {
-      const args = [evidence.blockText, quotes, pdf,
-        publisherMayAnnotateLegalReference(url), splitHtmlSourceBlocks] as const;
-      return evidence.documentText
-        ? structureNative().textFragmentPlan(...args, evidence.documentText)
-        : structureNative().textFragmentPlanStandalone(...args);
-    };
+    const fragmentPlan = (splitHtmlSourceBlocks: boolean) =>
+      structureNative().textFragmentPlan(evidence.blockText, quotes, pdf,
+        publisherMayAnnotateLegalReference(url), splitHtmlSourceBlocks,
+        evidence.documentText);
     const base = fragmentPlan(false);
     const [directive] = base.directives;
     const value = directive?.slice("text=".length) ?? "";
     const simpleRange = base.directives.length === 1 && value.split(",").length === 2 &&
       !value.includes("-,") && !value.includes(",-");
-    if (!preferIndependentHtmlBlocks || pdf || !simpleRange || !evidence.documentText) {
-      return base;
-    }
+    if (!preferIndependentHtmlBlocks || pdf || !simpleRange) return base;
     const blocks = fragmentPlan(true);
     const fullText = normalizedFragmentText(
       structureNative().documentText(evidence.documentText),
@@ -576,7 +575,7 @@ export function buildLegalSourcePinpoint(
     }
   }
   const target = appendDirectives(targetUrl, selected.directives);
-  const preferred = evidence.docType && evidence.documentText
+  const preferred = evidence.docType
     ? preferredPublisherPdfTarget(
         evidence.docType,
         target,

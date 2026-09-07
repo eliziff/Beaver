@@ -430,7 +430,10 @@ describe("production legal evidence", () => {
         ref: 1,
         provider: "tna",
         identifier: "uksc/2026/1:page-3",
-        url: expect.stringContaining("judgment.pdf#page=3:~:text="),
+        // No source document was loaded, so the citation keeps the page
+        // anchor and no text directive: a blind directive would paint
+        // whichever passage matched first rather than the cited one.
+        url: "https://example.test/judgment.pdf#page=3",
       }),
     ]);
   });
