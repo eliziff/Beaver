@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronRight, ExternalLink, Eye, FileCheck2,
-  FilePlus2, FolderSearch, Plus, Upload } from "lucide-react";
+import { ChevronRight, ExternalLink, Eye, FileCheck2, FilePlus2, FileType2,
+  FolderSearch, Pencil, Plus, Upload } from "lucide-react";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import { ActionMenu } from "@/app/components/ui/action-menu";
 import { Button } from "@/app/components/ui/button";
@@ -76,6 +76,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           needsPdf={!authority.excluded && requiresPdf(state, authority)}
           requireLanguages={requiresBilingualSources(state, authority)} sourceIssues={sourceIssues}
           editableIdentity={state.import.kind === "manual" || !!authority.userAdded}
+          rebuildsFromText={state.settings.sourceMode !== "manual-originals"}
           removable={!occurrences.some(({ authorityId }) => authorityId === authority.id)}
           onAction={onAction} onPick={onPick ? () => onPick(authority.id) : undefined}
           onLibrary={onLibrary ? () => onLibrary(authority.id) : undefined} sourceLabel={sourceLabel}
@@ -91,28 +92,40 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
 }
 
 function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLanguages, sourceIssues,
-  editableIdentity, removable, sourceLabel, onAction, onPick, onLibrary, onAttach, onRelink,
-  onOpen, onEditIdentity }: {
+  editableIdentity, rebuildsFromText, removable, sourceLabel, onAction, onPick, onLibrary, onAttach,
+  onRelink, onOpen, onEditIdentity }: {
   authority: AuthorityIdentity; tab?: string; citations: string[]; busy: boolean; needsPdf: boolean;
   requireLanguages: boolean; sourceIssues: Record<string, AuthoritiesSourceIssue>;
-  editableIdentity: boolean; removable: boolean; sourceLabel: string;
+  editableIdentity: boolean; rebuildsFromText: boolean; removable: boolean; sourceLabel: string;
   onAction: (action: AuthoritiesAction) => void; onPick?: () => void; onLibrary?: () => void;
   onAttach: (file?: File) => void; onRelink: (role: string) => void;
   onOpen?: (role: string) => void; onEditIdentity: () => void;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
+  const styleOfCause = authority.displayName || authority.name || "";
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(authorityName(authority));
+  const [name, setName] = useState(styleOfCause);
+  const cancelled = useRef(false);
   const sources = authority.source.kind === "attached" ? authority.source.sources : [];
   const title = authorityName(authority), citationLine = citations.filter((citation) =>
-    !title.toLocaleLowerCase().includes(citation.toLocaleLowerCase())).join("; ");
+    !styleOfCause.toLocaleLowerCase().includes(citation.toLocaleLowerCase())).join("; ");
   const pick = () => { if (onPick) onPick(); else fileInput.current?.click(); };
   const replacement = sources.length && !requireLanguages ? "Replace" : "Upload";
   const rowControl = cn(control, "w-28 justify-center");
   const issue = sources.find(({ bindingRole }) => relinkable(sourceIssues[bindingRole]));
   const loaded = sources.length && sources.every(({ bindingRole }) => !sourceIssues[bindingRole]);
+  const fromText = sources.length ? sources.every(({ origin }) => origin === "reconstructed")
+    : rebuildsFromText && authority.source.kind === "resolved";
+  const mark = fromText ? { Icon: FileType2, tone: "text-indigo-700",
+      label: loaded ? "Built from source text" : "Will be built from source text" }
+    : loaded ? { Icon: FileCheck2, tone: "text-green-700",
+      label: sources.map(({ filename }) => filename).join("\n") || "PDF loaded" } : null;
+  const edit = () => { cancelled.current = false; setName(styleOfCause); setEditing(true); };
+  const save = () => { if (cancelled.current) return; cancelled.current = true; setEditing(false);
+    if (name.trim() !== styleOfCause) onAction({ type: "rename-authority",
+      authorityId: authority.id, displayName: name.trim() || null }); };
   return <article role="listitem" data-authority-id={authority.id}
-    className={cn("grid min-h-12 min-w-0 grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 px-2 py-1.5 sm:grid-cols-[5.5rem_minmax(0,1fr)_auto]",
+    className={cn("group/row grid min-h-12 min-w-0 grid-cols-[2.25rem_1.25rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 px-2 py-1.5 sm:grid-cols-[2.75rem_1.25rem_minmax(0,1fr)_11rem_16.5rem]",
       authority.excluded && "opacity-65")}
     onDragOver={(event) => { if (!busy && needsPdf && event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
     onDrop={(event) => {
@@ -121,29 +134,34 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       if (!busy && needsPdf) onAttach(event.dataTransfer.files[0]);
     }}>
     <span className="truncate text-xs font-semibold text-gray-600" title={tab}>{tab}</span>
-    {editing ? <form onSubmit={(event) => {
-      event.preventDefault(); onAction({ type: "rename-authority", authorityId: authority.id,
-        displayName: name.trim() || null }); setEditing(false);
-    }} className="flex min-w-0 gap-1">
-      <Input autoFocus aria-label="Authority title" value={name} onChange={(event) => setName(event.target.value)}
-        className="h-8 min-w-0 border-gray-400 text-sm" />
-      <Button type="submit" className="h-8" disabled={busy}>Save</Button>
-    </form> : <div className="flex min-w-0 items-center gap-2">
-      {!!loaded && <span role="img" aria-label="PDF loaded" className="shrink-0 text-green-700"
-        title={sources.map(({ filename }) => filename).join("\n")}><FileCheck2 className="h-4 w-4" /></span>}
-      <h3 className="truncate text-sm font-medium text-gray-950" title={title}>{title}</h3>
-      {!!citationLine && <span className="hidden shrink truncate text-xs text-gray-500 sm:block"
-        title={citationLine}>{citationLine}</span>}
-    </div>}
-    <div className="col-span-2 flex items-center justify-end gap-1 sm:col-span-1">
+    <span className="flex h-4 w-4 items-center justify-center">
+      {mark && <mark.Icon role="img" aria-label={mark.label} className={cn("h-4 w-4", mark.tone)}>
+        <title>{mark.label}</title></mark.Icon>}
+    </span>
+    {editing ? <Input autoFocus aria-label="Style of cause" placeholder="Add style of cause" value={name}
+      onChange={(event) => setName(event.target.value)} onBlur={save}
+      onKeyDown={(event) => { if (event.key === "Enter") save();
+        if (event.key === "Escape") { cancelled.current = true; setEditing(false); } }}
+      className="col-span-1 h-8 min-w-0 border-gray-400 text-sm sm:col-span-2" /> : <>
+      <div className="flex min-w-0 items-center gap-1">
+        {styleOfCause ? <h3 className="truncate text-sm font-medium text-gray-950" title={title}>{styleOfCause}</h3>
+          : <span className="truncate text-sm italic text-gray-500">Add style of cause</span>}
+        <button type="button" disabled={busy} onClick={edit} aria-label={`Edit style of cause for ${title}`}
+          className={cn("shrink-0 rounded p-1 text-gray-500 hover:bg-gray-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-red-600 group-hover/row:opacity-100",
+            styleOfCause && "opacity-0")}><Pencil className="h-3.5 w-3.5" /></button>
+      </div>
+      <span className="hidden truncate text-xs font-normal text-gray-500 sm:block"
+        title={citationLine}>{citationLine}</span>
+    </>}
+    <div className="col-span-3 flex items-center justify-end gap-1 sm:col-span-1">
       {needsPdf && (authority.source.kind === "pending-canlii"
         ? <a href={authority.source.pdfUrl} target="_blank" rel="noopener noreferrer"
             className={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-red-800 outline-none hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-600")}>
-            <ExternalLink className="h-3.5 w-3.5" />Get from CanLII</a>
-        : issue ? <Button type="button" variant="outline" className={cn(control, "text-red-800")}
+            <ExternalLink className="h-3.5 w-3.5" />CanLII</a>
+        : issue ? <Button type="button" variant="outline" className={cn(rowControl, "text-red-800")}
             disabled={busy} onClick={() => onRelink(issue.bindingRole)}><FilePlus2 />
             <span className="truncate">{sourceAction(sourceIssues[issue.bindingRole], "PDF")}</span></Button>
-        : sources.length && !loaded ? <span className="text-xs text-red-800">PDF unavailable</span>
+        : sources.length && !loaded ? <span className={cn(rowControl, "grid place-items-center text-red-800")}>PDF unavailable</span>
         : sources.length && onOpen ? (sources.length === 1
           ? <Button type="button" variant="outline" className={rowControl} disabled={busy || !loaded}
               aria-label={`View PDF for ${title}`} onClick={() => onOpen(sources[0].bindingRole)}><Eye /> View</Button>
@@ -151,7 +169,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
               items={sources.map((source) => ({ label: sourceLanguageLabel(source.language),
                 disabled: busy || !!sourceIssues[source.bindingRole], onSelect: () => onOpen(source.bindingRole) }))}>
               <Eye className="h-3.5 w-3.5" /> View</ActionMenu>)
-        : null)}
+        : <span className="w-28" />)}
       {needsPdf && <ActionMenu label={`${replacement} for ${title}`}
         triggerClassName={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600")}
         items={[{ label: "Upload from computer", disabled: busy, onSelect: pick },
@@ -159,7 +177,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
         <Upload className="h-3.5 w-3.5" />{replacement}</ActionMenu>}
       <MoreActionsMenu label={`Options for ${title}`} triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600"
         items={[{ label: editableIdentity ? "Edit details" : "Edit title", disabled: busy,
-          onSelect: () => { if (editableIdentity) onEditIdentity(); else { setName(title); setEditing(true); } } },
+          onSelect: () => { if (editableIdentity) onEditIdentity(); else edit(); } },
           ...(sources.length ? [{ label: sources.length === 1 ? "Remove PDF" : "Remove PDFs", disabled: busy,
             onSelect: () => onAction({ type: "clear-authority-source", authorityId: authority.id }) }] : []),
           { label: authority.excluded ? "Include in book" : "Leave out of book", disabled: busy,
