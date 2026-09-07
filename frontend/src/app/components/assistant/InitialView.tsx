@@ -258,7 +258,6 @@ export function InitialView({
                     open
                     onClose={() => setModal(null)}
                     breadcrumbs={["Assistant", "Edit shortcuts"]}
-                    cancelAction={false}
                     primaryAction={{
                         label: "Done",
                         onClick: () => setModal(null),

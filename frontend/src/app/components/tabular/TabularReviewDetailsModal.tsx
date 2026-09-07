@@ -98,7 +98,6 @@ export function TabularReviewDetailsModal({
                       }
                     : undefined
             }
-            cancelAction={canEdit ? undefined : false}
         >
             <div className="space-y-6">
                 <FormField label="Review name" htmlFor="tabular-review-details-title">

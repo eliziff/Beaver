@@ -83,11 +83,6 @@ export function MfaVerificationPopup({
             breadcrumbs={[title]}
             size="sm"
             className="h-auto min-h-[310px] max-h-[min(92vh,400px)]"
-            cancelAction={{
-                label: "Cancel",
-                onClick: onCancel,
-                disabled: verifying,
-            }}
             primaryAction={{
                 label: verifying ? (
                     <span className="inline-flex items-center gap-1.5">
