@@ -27,8 +27,7 @@ function shortCaseName(value: string): string {
 }
 function citationSourceLabel(annotation: Citation, sourceOnly = false): string {
     const authority = annotation.authority?.trim();
-    // A repeat cite is a short form carrying the new pinpoint, never the full
-    // citation again: "Grant at para 44" after "R. v. Grant, 2009 SCC 32".
+    // A repeat cite carries the new pinpoint in short form: "Grant at para 44".
     const style = caseName(annotation);
     if (!sourceOnly && annotation.short_form)
         return style ? shortCaseName(style) : annotation.short_authority?.trim() || authority || "";
