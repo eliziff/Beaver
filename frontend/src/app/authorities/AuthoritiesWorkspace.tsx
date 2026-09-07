@@ -1,4 +1,4 @@
-import { SourceFinding } from "./QuotationFinding";
+import { QuotationReview } from "./QuotationFinding";
 import { FileInputButton } from "./FileInputButton";
 import { authorityName, authorityLabel,
   requiresBilingualSources, hasRequiredSources,
@@ -37,6 +37,7 @@ import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesProduct,
   AuthorityIdentity, AuthorityKind, AuthorityOccurrence, AuthoritySourceLanguage } from "./types";
 import { deriveAuthorityProcedure, tabLabel } from "../../../../shared/authorities-order.mjs";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
+import { emptyAnnotationSet, type PdfAnnotationSet } from "../../../../shared/pdf-annotations.mjs";
 
 import { AuthoritiesHighlights } from "./AuthoritiesHighlightEditor";
 
@@ -131,6 +132,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const [linkingId, setLinkingId] = useState("");
   const [focusRequest, setFocusRequest] = useState(0);
   const [findingId, setFindingId] = useState("");
+  const [highlightWarnings, setHighlightWarnings] = useState<{ key: string;
+    items: Array<{ label: string; excerpt: string }>; sets: Record<string, PdfAnnotationSet> }>();
   const [editingAuthority, setEditingAuthority] = useState<AuthorityIdentity>();
   const [sourcePreview, setSourcePreview] = useState<{ role: string; name: string;
     bytes?: Uint8Array; error?: string }>();
@@ -157,6 +160,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
 
   const display = useCallback((next?: AuthoritiesProduct, preserveTab = false) => {
     reviewRequest.current?.abort(); reviewRequest.current = null; setReview(undefined);
+    setFindingId(""); setHighlightWarnings(undefined);
     scanRequest.current?.abort(); setScanReview(undefined);
     previewRequest.current += 1; setSourcePreview(undefined);
     draftRef.current = next; setDraft(next); setSelectedId(orderedOccurrences(next)[0]?.id ?? "");
@@ -584,6 +588,38 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       if (scanRequest.current === request) scanRequest.current = null;
     });
   }
+  async function prepareHighlightReview(current: AuthoritiesProduct, signal: AbortSignal) {
+    await host.prepareHighlights?.(current, setMessage, signal);
+    const sets: Record<string, PdfAnnotationSet> = {};
+    const items: Array<{ label: string; excerpt: string }> = [];
+    if (host.prepareAnnotations && host.readSource && current.state.settings.passageMarking !== "none") {
+      for (const authority of Object.values(current.state.authorities)) {
+        if (authority.excluded || authority.source.kind !== "attached") continue;
+        for (const source of authority.source.sources) {
+          signal.throwIfAborted();
+          if (authority.annotations?.[source.bindingRole]?.sourceSha256 === source.sourceSha256) continue;
+          setMessage(`Preparing highlights in ${authorityName(authority)}`);
+          try {
+            const blob = await host.readSource(current, source.bindingRole);
+            const result = await host.prepareAnnotations(current, authority.id, source.bindingRole, blob, signal);
+            sets[source.bindingRole] = result.annotations;
+            items.push(...result.unresolved.map(item => ({ ...item,
+              label: `${authorityName(authority)} · ${item.label}` })));
+          } catch (caught) {
+            signal.throwIfAborted();
+            sets[source.bindingRole] = emptyAnnotationSet(source.sourceSha256);
+            items.push({ label: authorityName(authority), excerpt: errorText(caught) });
+          }
+        }
+      }
+    }
+    signal.throwIfAborted();
+    // Preparation is not an edit. Persist only when the user saves their review;
+    // otherwise a reload must not mistake an unacknowledged failure for a reviewed PDF.
+    setHighlightWarnings({ key: highlightPreparationKey(current), items, sets });
+    return items.length ? current : host.act(current.id, current.revision, { type: "set-stage", stage: "highlights" });
+  }
+
   function finishSourceReview(policy: AuthoritiesBuildSettings["scannedPdfPolicy"], withStubs: boolean) {
     const current = draftRef.current;
     if (!current) return;
@@ -593,9 +629,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         type: "set-settings", settings: { scannedPdfPolicy: policy, allowIncomplete: withStubs },
       });
       remember(configured);
-      await host.prepareHighlights?.(configured, setMessage, request.signal);
-      request.signal.throwIfAborted();
-      return host.act(configured.id, configured.revision, { type: "set-stage", stage: "highlights" });
+      return prepareHighlightReview(configured, request.signal);
     }, (next) => { remember(next); setScanReview(undefined); }, "", "Preparing highlight review")
       .finally(() => { if (scanRequest.current === request) scanRequest.current = null; });
   }
@@ -627,10 +661,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         type: "set-settings", settings: { allowIncomplete: withStubs },
       });
       remember(configured);
-      await host.prepareHighlights?.(configured, setMessage, request.signal);
-      request.signal.throwIfAborted();
-      return { files, next: await host.act(configured.id, configured.revision,
-        { type: "set-stage", stage: "highlights" }) };
+      return { files, next: await prepareHighlightReview(configured, request.signal) };
     }, ({ files, next }) => {
       setMessage("");
       if (next) remember(next); else setScanReview({ files, withStubs });
@@ -666,23 +697,29 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       ? (slot, supplementId) => openLibrary({ kind: "book", slot, supplementId }) : undefined}
     sourceLabel={sourceLabel} onBuild={build} onCancel={() => buildRequest.current?.abort()}
     onDownload={download} />;
-  const highlightPanel = draft && <AuthoritiesHighlights product={draft} tabs={authorityTabs}
-    busy={busy} host={host} onSaved={remember} />;
+  const preparedHighlights = highlightWarnings?.key === highlightPreparationKey(draft) ? highlightWarnings : undefined;
+  const highlightPanel = draft && (stage === "highlights" || stage === "build") && <AuthoritiesHighlights product={draft} tabs={authorityTabs}
+    busy={busy} host={host} onSaved={remember} prepared={preparedHighlights?.sets} />;
   const quotationReview = draft && stage !== "citations" && discrepancies.length > 0 && <section className="mt-3 rounded-lg border border-amber-300 bg-amber-50/30 p-3">
     <div className="flex items-center justify-between gap-3"><span className="text-sm text-gray-800">
-      {discrepancies.length} quotation difference{discrepancies.length === 1 ? "" : "s"} to review</span>
+      {discrepancies.length} quotation check{discrepancies.length === 1 ? "" : "s"} to review</span>
       <Button variant="outline" className="h-8 border-amber-500 px-3 text-xs" disabled={busy}
         onClick={() => setFindingId(discrepancies[0].id)}>Review</Button></div>
-    {discrepancies.find(({ id }) => id === findingId) && <SourceFinding open busy={busy}
-      finding={discrepancies.find(({ id }) => id === findingId)!}
-      onResolve={host.resolveDiscrepancy ? resolveDiscrepancy : undefined}
-      onClose={() => setFindingId("")} />}
   </section>;
+  const markingIssues = preparedHighlights?.items.length ? preparedHighlights.items : undefined;
   const sourcesContinue = draft && stage === "sources" && <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
     {missingPdfs.length > 0 && <p className="mr-auto text-sm text-gray-600">
       {missingPdfs.length} missing PDF{missingPdfs.length === 1 ? "" : "s"}</p>}
-    <Button disabled={busy} onClick={() => finishSources(missingPdfs.length > 0)}>
-      {missingPdfs.length ? "Continue with stubs" : "Done — review highlights"}<ChevronRight /></Button>
+    {markingIssues && <details open className="w-full rounded border border-amber-300 p-3 text-sm">
+      <summary className="cursor-pointer text-amber-900">{markingIssues.length} passages need manual highlighting</summary>
+      <p className="mt-2 text-gray-600">Check these citations or mark the passages in the PDF. No guessed highlights were added.</p>
+      <ul className="mt-2 max-h-40 space-y-2 overflow-y-auto">{markingIssues.map((item, index) =>
+        <li key={index}><span className="font-medium">{item.label}</span>
+          {item.excerpt && <p className="line-clamp-2 text-xs text-gray-600">{item.excerpt}</p>}</li>)}</ul>
+    </details>}
+    <Button disabled={busy} onClick={() => markingIssues
+      ? act({ type: "set-stage", stage: "highlights" }) : finishSources(missingPdfs.length > 0)}>
+      {markingIssues ? "Continue to highlights" : missingPdfs.length ? "Continue with stubs" : "Done — review highlights"}<ChevronRight /></Button>
   </div>;
   const authorityPanelProps = { authorities, tabs: authorityTabs, busy, sourceIssues,
     onAction: act, onEditIdentity: setEditingAuthority,
@@ -783,7 +820,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                       onCancelLink={() => setLinkingId("")}
                       onSelect={selectOccurrence} onAction={act}
                       onFocusChange={onFocusChange}
-                      onResolve={host.resolveDiscrepancy ? resolveDiscrepancy : undefined}
+                      onReview={setFindingId}
                       onBeginLink={(id) => { setError(""); setLinkingId(id); }} />}
                   </section>
                   {stage !== "citations" && <Sources key={draft.id} draft={draft} occurrences={occurrences}
@@ -798,6 +835,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                   {buildPanel}</>}
         </div>
       </main>
+      {draft && findingId && <QuotationReview initialId={findingId} items={currentReview?.items}
+        busy={busy || !currentReview} error={error || currentReview?.error}
+        onResolve={host.resolveDiscrepancy ? resolveDiscrepancy : undefined}
+        onClose={() => setFindingId("")} />}
       {LibraryPicker && <LibraryPicker open={!!libraryTarget}
         key={`${draft?.id}:${draft?.projectId ?? projectId}:${libraryTarget?.kind}`}
         title={libraryTitle(libraryTarget, sourceLabel)}
@@ -1007,84 +1048,8 @@ function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder }: {
   </>;
 }
 
-function passageShortLabel(kind: string, label: string) {
-  return `${kind === "paragraph" ? "para" : kind === "section" ? "s" : "p"} ${label}`;
-}
-
-function highlightPassages(state: AuthoritiesProduct["state"]) {
-  if (state.outputMode === "table") return [];
-  const grouped = new Map<string, Map<string, { kind: string; label: string }>>();
-  const add = (authorityId: string, kind: string, label: string) => {
-    const cleanKind = kind.trim(), cleanLabel = label.trim();
-    if (!cleanKind || !cleanLabel ||
-        !["paragraph", "section", "page"].includes(cleanKind)) return;
-    if (!grouped.has(authorityId)) grouped.set(authorityId, new Map());
-    grouped.get(authorityId)!.set(`${cleanKind}\0${cleanLabel}`,
-      { kind: cleanKind, label: cleanLabel });
-  };
-  for (const id of state.authorityOrder) {
-    const authority = state.authorities[id];
-    if (!authority || authority.excluded || authority.source.kind !== "attached") continue;
-    authority.locators.forEach(({ kind, label }) => add(id, kind, label));
-  }
-  for (const occurrence of Object.values(state.occurrences)) {
-    if (!occurrence.authorityId || occurrence.kind === "reference") continue;
-    const authority = state.authorities[occurrence.authorityId];
-    if (!authority || authority.excluded || authority.source.kind !== "attached") continue;
-    occurrence.pinpoints.forEach(({ kind, text }) => add(authority.id, kind, text));
-  }
-  return state.authorityOrder.flatMap((id) => {
-    const authority = state.authorities[id], passages = grouped.get(id);
-    if (!authority || !passages?.size) return [];
-    const off = new Set((authority.highlightExclusions ?? [])
-      .map(({ kind, label }) => `${kind}\0${label}`));
-    return [{ authority, passages: [...passages.values()].map((passage) => ({ ...passage,
-      excluded: off.has(`${passage.kind}\0${passage.label}`) })) }];
-  });
-}
-
-function HighlightReview({ draft, tabs, busy, onAction }: {
-  draft: AuthoritiesProduct; tabs: ReadonlyMap<string, string>; busy: boolean;
-  onAction: ActionHandler;
-}) {
-  const rows = useMemo(() => highlightPassages(draft.state), [draft]);
-  if (draft.state.settings.passageMarking === "none" || !rows.length) return null;
-  const total = rows.reduce((count, { passages }) => count + passages.length, 0);
-  const off = rows.reduce((count, { passages }) => count +
-    passages.filter(({ excluded }) => excluded).length, 0);
-  return <details
-    className="group mt-3 overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
-    <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-4 outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600 [&::-webkit-details-marker]:hidden">
-      <ChevronRight className="h-4 w-4 shrink-0 text-red-700 transition-transform group-open:rotate-90 motion-reduce:transition-none" />
-      <h2 className="font-semibold text-gray-950">Highlights</h2>
-      <span className="ms-auto text-sm tabular-nums text-gray-500">
-        {off ? `${off} off` : total}</span>
-    </summary>
-    <ul className="space-y-1.5 border-t border-gray-200 px-4 pb-4 pt-3">
-      {rows.map(({ authority, passages }) => <li key={authority.id}
-        className="rounded-lg border border-gray-200 px-3 py-2">
-        <p className="truncate text-sm font-medium text-gray-950"
-          title={authorityLabel(authority)}>
-          <span className="mr-2 text-[11px] font-semibold uppercase tabular-nums text-gray-500">
-            {tabs.get(authority.id) ?? ""}</span>{authorityLabel(authority)}</p>
-        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
-          {passages.map(({ kind, label, excluded }) => <label key={`${kind}\0${label}`}
-            className="inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm text-gray-800 has-[:disabled]:cursor-default">
-            <input type="checkbox" className="h-4 w-4 accent-red-700" disabled={busy}
-              checked={!excluded} onChange={(event) => onAction({
-                type: "set-highlight-exclusion", authorityId: authority.id,
-                locator: { kind, label }, excluded: !event.target.checked })}
-              aria-label={`${passageShortLabel(kind, label)} in ${authorityLabel(authority)}`} />
-            {passageShortLabel(kind, label)}
-          </label>)}
-        </div>
-      </li>)}
-    </ul>
-  </details>;
-}
-
 function CitationReview({ occurrences, units, selected, authorities, discrepancies, onSelect,
-  onAction, onResolve, onBeginLink, busy, linkingId, focusRequest, onCancelLink,
+  onAction, onReview, onBeginLink, busy, linkingId, focusRequest, onCancelLink,
   onFocusChange }: {
   occurrences: AuthorityOccurrence[]; selected?: AuthorityOccurrence;
   units: AuthoritiesProduct["state"]["units"]; authorities: AuthorityIdentity[];
@@ -1092,7 +1057,7 @@ function CitationReview({ occurrences, units, selected, authorities, discrepanci
   focusRequest: number;
   onSelect: (id: string) => void; onAction: ActionHandler;
   onFocusChange?: (focus?: WorkProductFocus) => void;
-  onResolve?: DiscrepancyHandler;
+  onReview: (id: string) => void;
   onBeginLink: (id: string) => void; onCancelLink: () => void;
 }) {
   const options = useRef<Array<HTMLButtonElement | null>>([]), previousLink = useRef("");
@@ -1129,7 +1094,7 @@ function CitationReview({ occurrences, units, selected, authorities, discrepanci
           }} className={cn("block min-h-[3.6rem] w-full border-b border-s-4 border-gray-100 px-3 py-2 text-left outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600", item.id === selected?.id ? "border-s-red-700 bg-red-50" : "border-s-transparent hover:bg-red-50")}>
           <span className="flex min-w-0 items-center gap-2 text-xs text-gray-500">
             <span className="min-w-0 flex-1 truncate">{location(item, index, occurrences, units)}</span>
-            {finding && <span className="shrink-0 font-medium text-red-800">Quotation difference</span>}
+            {finding && <span className="shrink-0 font-medium text-red-800">Check quotation</span>}
           </span>
           {authority && authorityName(authority) !== authority.citation &&
             <span className="block truncate text-sm font-semibold text-gray-900">{authorityName(authority)}</span>}
@@ -1142,23 +1107,22 @@ function CitationReview({ occurrences, units, selected, authorities, discrepanci
       authorities={authorities} busy={busy} linking={linkingId === selected.id}
       finding={findingByOccurrence.get(selected.id)}
       onFocusChange={onFocusChange}
-      onAction={onAction} onResolve={onResolve}
+      onAction={onAction} onReview={onReview}
       onBeginLink={onBeginLink} onCancelLink={onCancelLink} />}
   </div>;
 }
 
 function CitationEditor({ selected, unitText, footnote, canMerge, authorities, finding, onAction,
-  onResolve, onBeginLink, busy, linking, onCancelLink, onFocusChange }: {
+  onReview, onBeginLink, busy, linking, onCancelLink, onFocusChange }: {
   selected: AuthorityOccurrence; unitText: string; footnote: boolean; canMerge: boolean;
   authorities: AuthorityIdentity[]; onAction: ActionHandler; busy: boolean; linking: boolean;
   finding?: AuthoritiesDiscrepancy;
-  onResolve?: DiscrepancyHandler;
+  onReview: (id: string) => void;
   onFocusChange?: (focus?: WorkProductFocus) => void;
   onBeginLink: (id: string) => void; onCancelLink: () => void;
 }) {
   const surface = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
-  const [findingOpen, setFindingOpen] = useState(false);
   const linked = authorities.find(({ id }) => id === selected.reference?.targetAuthorityId);
   const rememberSelection = () => setSelection(selectionRange(surface.current));
   useEffect(() => onFocusChange?.({ itemId: selected.id,
@@ -1186,7 +1150,7 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
   return <div className="min-h-0 min-w-0 overflow-y-auto p-3 [scrollbar-gutter:stable]">
     {finding && <div className="mb-2 flex min-h-8 items-center">
       <Button type="button" variant="outline" className="h-8 border-red-300 px-2 text-xs text-red-800"
-        onClick={() => setFindingOpen(true)}>Review quotation difference</Button>
+        onClick={() => onReview(finding.id)}>Review quotation</Button>
     </div>}
     <div ref={surface} contentEditable suppressContentEditableWarning role="textbox" aria-readonly="true"
       aria-multiline="true"
@@ -1235,9 +1199,7 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
             reference: null })}>Clear link</Button>
       </>}
     </div>}
-    {finding && <SourceFinding open={findingOpen} finding={finding} busy={busy}
-      onResolve={onResolve}
-      onClose={() => setFindingOpen(false)} />}
+
   </div>;
 }
 
@@ -1616,8 +1578,8 @@ function OptionCards<T extends string>({ legend, value, options, onChange, colum
 function MarkPreview({ type }: { type: AuthoritiesBuildSettings["passageMarking"] }) {
   return <span aria-hidden="true" className={cn(
     "relative block h-9 w-14 shrink-0 overflow-hidden rounded border border-gray-400 bg-white",
-    type === "margin" && "border-r-[3px] border-r-red-700",
-    type === "sidelined" && "border-r-[3px] border-r-gray-950",
+    type === "margin" && "border-l-[3px] border-l-red-700",
+    type === "sidelined" && "border-l-[3px] border-l-gray-950",
   )}>
     {type === "paragraph" && <span className="absolute inset-x-1.5 top-2.5 h-4 bg-red-100" />}
     {(type === "margin" || type === "text") &&
@@ -1665,7 +1627,7 @@ const SOURCE_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["sourceM
     detail: "Create consistent pages from the available source text." },
 ];
 const PASSAGE_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["passageMarking"]>> = [
-  { value: "margin", label: "Right-margin marker and exact quote", preview: "margin",
+  { value: "margin", label: "Paragraph line and exact quote", preview: "margin",
     detail: "Mark the cited paragraph at the margin and highlight matching quoted words." },
   { value: "sidelined", label: "Black paragraph line", preview: "sidelined",
     detail: "Add a vertical line beside the cited paragraph." },
@@ -1687,6 +1649,11 @@ function orderedOccurrences(draft?: AuthoritiesProduct) {
   if (!draft) return [];
   return draft.state.units.flatMap((unit) => unit.occurrenceIds
     .flatMap((id) => draft.state.occurrences[id] ? [draft.state.occurrences[id]] : []));
+}
+function highlightPreparationKey(draft?: AuthoritiesProduct) {
+  return draft ? canonicalJson([draft.id, draft.state.units, draft.state.occurrences, draft.state.bindings,
+    draft.state.settings.passageMarking, draft.state.settings.scannedPdfPolicy,
+    Object.values(draft.state.authorities).map(({ id, locators, highlightExclusions }) => [id, locators, highlightExclusions])]) : "";
 }
 function discrepancyKey(draft?: AuthoritiesProduct) {
   if (!draft || draft.state.import.kind !== "document") return "";

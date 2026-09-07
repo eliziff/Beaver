@@ -1,6 +1,7 @@
 import { useState, type ComponentType } from "react";
 import {
   createBrowserRouter,
+  matchRoutes,
   Navigate,
   RouterProvider,
   useMatch,
@@ -207,6 +208,16 @@ function routes(LoginGate?: LoginGate): RouteObject[] {
     route("*", page(() => import("@/app/not-found"))),
   ],
 }];
+}
+
+const preloaded = new WeakSet<RouteObject>();
+export async function preloadAppRoute(pathname: string) {
+  await Promise.all((matchRoutes(appRoutes, pathname) ?? []).map(async ({ route }) => {
+    if (typeof route.lazy !== "function" || preloaded.has(route)) return;
+    preloaded.add(route);
+    try { await route.lazy(); }
+    catch { preloaded.delete(route); } // Actual navigation still owns its error UI/retry.
+  }));
 }
 
 export function Router({ LoginGate }: { LoginGate?: LoginGate }) {

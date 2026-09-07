@@ -5,15 +5,20 @@ on:
       - 'frontend/src/app/authorities/**'
       - 'frontend/src/app/(pages)/table-of-authorities/**'
       - 'frontend/src/app/standalone.css'
+      - 'frontend/src/app/base.css'
       - 'frontend/src/app/components/shared/views/**'
       - 'backend/src/lib/authorit*'
+      - 'backend/src/lib/structureNative.ts'
+      - 'backend/src/lib/__tests__/structureNativeAuthorityTextUnits.test.ts'
       - 'backend/src/lib/chat/__tests__/quoteRepair.test.ts'
       - 'backend/src/routes/authorities*'
       - 'backend/src/authorities*'
       - 'shared/authorities*'
+      - 'shared/pdf-annotations*'
       - 'shared/sequence-diff*'
       - 'scripts/*authorities*'
       - 'scripts/authorities-package/**'
+      - 'native/legal-structure-node/**'
       - 'legal-structure'
       - '.github/workflows/authorities-parity.yml'
   workflow_dispatch:
@@ -62,8 +67,8 @@ jobs:
       - name: Verify shared behavior and deployment boundaries
         run: |
           npm run check:source-boundaries
-          (cd backend && npx vitest run authorities authorityPdfText a2aj.test quoteRepair --maxWorkers=2)
-          (cd frontend && npx vitest run authorities PdfView inspectPdf prepareDeviceFile table-of-authorities --maxWorkers=2)
+          (cd backend && npx vitest run authorities authorityPdfText a2aj.test quoteRepair structureNativeAuthorityTextUnits --maxWorkers=2)
+          (cd frontend && npx vitest run authorities PdfView pdfAnnotations inspectPdf prepareDeviceFile table-of-authorities --maxWorkers=2)
           npm run test:authorities-package
       - name: Install browser
         run: npx playwright install --with-deps chromium
@@ -71,6 +76,10 @@ jobs:
         env:
           AUTHORITIES_SMOKE_OUTPUT: authorities-browser-results
         run: npm run test:authorities:browser
+      - name: Verify visual quotation review and editable PDF highlights
+        env:
+          AUTHORITIES_HIGHLIGHT_OUTPUT: authorities-browser-results/highlights
+        run: npm run test:authorities:highlights
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

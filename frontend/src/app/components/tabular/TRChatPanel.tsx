@@ -18,7 +18,7 @@ interface Props {
     searchMessageId?: string | null;
     initialIntent?: AssistantIntent;
     workspaceReady?: boolean;
-    scopeLabel?: string;
+    scopeLabel?: string; onClearScope?: () => void;
     onIntentSent?: () => void;
     onUpdated?: () => void;
 }
@@ -29,7 +29,7 @@ export function TRChatPanel({
     reviewId,
     onCitationClick,
     chatId: currentChatId = null,
-    onChatIdChange, searchMessageId, initialIntent, workspaceReady = true, scopeLabel, onIntentSent, onUpdated,
+    onChatIdChange, searchMessageId, initialIntent, workspaceReady = true, scopeLabel, onClearScope, onIntentSent, onUpdated,
 }: Props) {
     const [chats, setChats] = useState<Chat[]>([]);
     const [historyOpen, setHistoryOpen] = useState(false);
@@ -114,7 +114,10 @@ export function TRChatPanel({
                     )}
                 </div>
             </div>
-            {scopeLabel && <span className="pointer-events-none absolute right-3 top-12 z-30 text-xs text-gray-500">{scopeLabel}</span>}
+            {scopeLabel && <div className="mt-11 flex shrink-0 items-center gap-2 border-b border-gray-200 px-3 py-1 text-xs text-gray-600">
+                <span className="min-w-0 flex-1 truncate" title={scopeLabel}>{scopeLabel}</span>
+                <button type="button" onClick={onClearScope} aria-label="Discuss all columns" className="shrink-0 underline">All columns</button>
+            </div>}
             <ChatView
                 chatId={assistant.state.chatId}
                 ready={workspaceReady && assistant.chatLoad.status === "loaded"}

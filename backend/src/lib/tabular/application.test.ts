@@ -283,31 +283,3 @@ describe("TabularApplication", () => {
     expect(cells.every(({ status, content }) => status === "pending" && content === null)).toBe(true);
   });
 });
-
-it("validates assistant-selected reusable fields instead of accepting authored replacement answers", async () => {
-  const runTurn = vi.fn<typeof runChatTurn>(async () => ({ status: "complete", fullText: JSON.stringify({ title: "Clause review",
-    columns: [{ name: "Reason", prompt: "Why was this clause invalid?", format: "text", fieldIds: ["claim:reason"] },
-      { name: "Remedy", prompt: "What remedy was granted?", format: "text", fieldIds: [] }] }), citations: [], events: [], evidence: createLegalEvidenceTurnState() }));
-  const app = createTabularApplication(port(), documentStore(), projects, { settings, sources, runTurn });
-  const fields = [{ id: "claim:reason", name: "The two provisions were read together.", prompt: "Why?", kind: "claim" as const,
-    rows: 1, samples: ["The two provisions were read together."] }];
-  const plan = await app.design(scope, { request: "Compare reasons and remedies" }, undefined, fields);
-  expect(plan.mappings).toEqual([{ index: 0, fieldIds: ["claim:reason"] }, { index: 1, fieldIds: [] }]);
-  runTurn.mockResolvedValueOnce({ status: "complete", fullText: JSON.stringify({ title: "Bad",
-    columns: [{ name: "Outcome", prompt: "Outcome?", fieldIds: ["invented"] }] }), citations: [], events: [], evidence: createLegalEvidenceTurnState() });
-  await expect(app.design(scope, { request: "Compare outcomes" }, undefined, fields)).rejects.toMatchObject({ status: 502 });
-});
-
-it("requires complete exact-value coverage for assistant label consolidation, allowing explicit skips", async () => {
-  const runTurn = vi.fn<typeof runChatTurn>(async () => ({ status: "complete", fullText: JSON.stringify({ mapping: [
-    { value: "Narrowly applicable", label: "Applicable" }, { value: "Useful analogy", label: "Applicable" }, { value: "Unrelated", label: null },
-  ] }), citations: [], events: [], evidence: createLegalEvidenceTurnState() }));
-  const app = createTabularApplication(port(), documentStore(), projects, { settings, sources, runTurn });
-  const input = { request: "Group relevant cases", column: "Relevance", values: ["Narrowly applicable", "Useful analogy", "Unrelated"] };
-  expect(await app.labelMapping(scope, input)).toEqual([
-    { value: "Narrowly applicable", label: "Applicable" }, { value: "Useful analogy", label: "Applicable" }, { value: "Unrelated", label: null },
-  ]);
-  runTurn.mockResolvedValueOnce({ status: "complete", fullText: JSON.stringify({ mapping: [{ value: "Narrowly applicable", label: "Applicable" }] }),
-    citations: [], events: [], evidence: createLegalEvidenceTurnState() });
-  await expect(app.labelMapping(scope, input)).rejects.toMatchObject({ status: 502 });
-});

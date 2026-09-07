@@ -3,7 +3,7 @@ import { ApplicationError, type ApplicationScope } from "../applicationError";
 import type { DocumentStore } from "../documentStore";
 import { researchLabelPath, researchSourceResource, visitResearchEvidenceParts,
   type ResearchEvidence, type ResearchFile } from "../researchFile";
-import type { ResearchFinding } from "../researchChat";
+import { type ResearchFinding } from "../researchChat";
 import { researchFindingReferenceSchema, type ResearchFindingReference } from "../researchFindingReference";
 import { resolveResearchSelection, researchSelectionLabels, type ResearchSubject } from "../researchSelection";
 import type { TabularCell, TabularCellContent, TabularColumn } from "../tabularStore";
@@ -26,7 +26,7 @@ export type ResearchArrangement = z.infer<typeof researchArrangementSchema>;
 const string = { type: "string" }, strings = { type: "array", items: string };
 export const researchArrangementToolSchema = {
   type: "object", required: ["rows", "cells"], additionalProperties: false,
-  description: "Arrange existing research by reference. Choose rows, named columns and grouping for the task. Values are snapshotted from canonical research; references retain provenance. Later label or answer changes do not silently rewrite existing cells. Each row may represent a distinct passage or branch of one source.",
+  description: "Arrange existing research by reference. Choose rows, named columns and grouping for the task. Labels and saved answers stay linked to their originals. Each row may represent a distinct passage or branch of one source.",
   properties: {
     rows: { type: "array", items: { type: "object", required: ["id", "title", "sourceId"],
       additionalProperties: false, properties: { id: string, title: string, sourceId: string,
@@ -37,14 +37,14 @@ export const researchArrangementToolSchema = {
           properties: { kind: { type: "string", enum: ["label", "passage", "note", "answer", "cell"] }, labelId: string,
             sourceId: string, evidenceId: string, chatId: string, answerId: string, resource: string,
             display: { type: "string", enum: ["name", "path"] }, reviewId: string, rowId: string,
-            columnIndex: { type: "integer" }, claimIndices: { type: "array", items: { type: "integer", minimum: 0 } } },
-          description: "label: labelId,sourceId,evidenceId?,display? (name by default); passage: sourceId,evidenceId; note: sourceId,evidenceId? (the saved note on that source or passage); answer: chatId,answerId,resource; cell: reviewId,rowId,columnIndex; answer/cell optionally use claimIndices to reuse selected original claims" } } } } },
+            columnIndex: { type: "integer" }, claimIndices: { type: "array", items: { type: "integer", minimum: 0 }, minItems: 1, maxItems: 500 } },
+          description: "label: labelId,sourceId,evidenceId?,display? (name by default); passage: sourceId,evidenceId; note: sourceId,evidenceId? (the saved note on that source or passage); answer: chatId,answerId,resource,claimIndices? (original zero-based claim indices); cell: reviewId,rowId,columnIndex" } } } } },
   },
 };
 
 function missing(message: string): never { throw new ApplicationError(409, message); }
 
-/** Resolve a chosen arrangement from canonical research, for preview or an explicitly requested snapshot. */
+/** Resolve a chosen arrangement from canonical research, without storing a second answer or ontology. */
 export async function resolveResearchArrangement(input: {
   documents: DocumentStore; scope: ApplicationScope; file: ResearchFile;
   arrangement: ResearchArrangement; columns: TabularColumn[]; storedCells: TabularCell[];
@@ -81,6 +81,7 @@ export async function resolveResearchArrangement(input: {
     if (!row || !columns.some(({ index }) => index === mapping.columnIndex) || assigned.has(key))
       throw new ApplicationError(400, "Each mapped cell needs a unique existing row and column");
     assigned.add(key);
+    if (!mapping.items.length) continue;
     const previous = cells.get(key), identity = { ...previous, id: previous?.id ?? `reference:${key}`,
       review_id: previous?.review_id ?? "", document_id: mapping.rowId, column_index: mapping.columnIndex };
     try {
@@ -88,24 +89,21 @@ export async function resolveResearchArrangement(input: {
       const resource = researchSourceResource(file.state.sources[row.sourceId].reference),
         values: string[] = [], claims: TabularCellContent["claims"] = [],
         receipts = new Map<string, TabularCellContent["evidence"][number]>();
-      let partial = false, allNotFound = mapping.items.length > 0;
-      let singleFinding: ResearchFinding | undefined;
+      let singleFinding: ResearchFinding | undefined, partial = false;
       for (const reference of mapping.items) {
         if (reference.kind === "answer" || reference.kind === "cell") {
           const answer = await input.resolveFinding?.(reference);
           if (!answer || answer.resource !== resource) missing("The referenced answer is unavailable for this row");
-          if (row.evidenceIds && !answer.evidence.some(({ evidence_id }) => row.evidenceIds!.includes(evidence_id)))
-            throw new ApplicationError(400, "A referenced finding is outside the selected row passages");
-          partial ||= answer.answer.coverage !== "complete";
-          allNotFound &&= answer.answer.outcome === "not_found";
+          if (row.evidenceIds && answer.answer.claims.some((claim) => !claim.evidence_ids.some((id) => row.evidenceIds!.includes(id))))
+            throw new ApplicationError(400, "An answer includes claims outside the selected row scope");
           if (mapping.items.length === 1) singleFinding = answer;
+          partial ||= answer.answer.coverage === "partial";
           values.push(answer.answer.summary ?? (answer.answer.value == null ? answer.answer.claims.map(({ text }) => text).join("\n\n")
             : Array.isArray(answer.answer.value) ? answer.answer.value.join("\n") : String(answer.answer.value)));
           claims.push(...answer.answer.claims);
           answer.evidence.forEach((receipt) => receipts.set(receipt.evidence_id, receipt));
           continue;
         }
-        allNotFound = false;
         if (reference.sourceId !== row.sourceId) throw new ApplicationError(400, "A cell reference belongs to another row source");
         const evidence = reference.evidenceId ? passage(reference.sourceId, reference.evidenceId) : undefined;
         if (evidence && row.evidenceIds && !row.evidenceIds.includes(evidence.receipt.evidence_id))
@@ -129,7 +127,7 @@ export async function resolveResearchArrangement(input: {
       cells.set(key, { ...identity, status: "done", content: {
           summary: values.join("\n\n"), value: values.length === 1 ? values[0] : values,
           claims: [...new Map(claims.map((claim) => [JSON.stringify(claim), claim])).values()],
-          evidence: [...receipts.values()], resource, outcome: allNotFound ? "not_found" : "answered", coverage: partial ? "partial" : "complete",
+          evidence: [...receipts.values()], resource, outcome: "answered", coverage: partial ? "partial" : "complete",
           ...(singleFinding ? { ...singleFinding.answer,
             summary: singleFinding.answer.summary ?? values.join("\n\n"),
             outcome: singleFinding.answer.outcome ?? "answered", coverage: singleFinding.answer.coverage ?? "partial" } : {}),
