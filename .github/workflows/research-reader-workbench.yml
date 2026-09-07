@@ -1,0 +1,45 @@
+name: Research reader workbench
+on:
+  push:
+    branches: [codex/research-findings-reader]
+    paths:
+      - '.github/workflows/research-reader-workbench.yml'
+      - '.research-reader/**'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: research-reader-workbench
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Inspect relevant boundaries
+        run: |
+          git ls-files '*AGENTS.md' 'backend/*vitest*' 'backend/*research*test*' 'backend/*sourceWorkspace*' 'backend/*tabular*test*' 'benchmarks/*' 'scripts/*source*'
+          for file in backend/AGENTS.md backend/src/AGENTS.md backend/src/lib/tabular/AGENTS.md backend/vitest.config.mts; do
+            if test -f "$file"; then echo "=== $file ==="; cat "$file"; fi
+          done
+          grep -R -n -E 'resolveChatFindings|sources\.finding\(|\.findings\(' backend/src --include='*.ts' | head -100
+      - run: npm ci --prefix backend --no-audit --no-fund
+      - name: Baseline focused tests
+        run: |
+          cd backend
+          npx vitest run src/lib/researchChat src/lib/sourceWorkspace src/lib/researchInterop src/lib/researchViews src/lib/tabular src/routes/sourceWorkspaces --reporter=verbose > /tmp/research-baseline.log 2>&1
+        continue-on-error: true
+      - name: Baseline results
+        if: always()
+        run: tail -180 /tmp/research-baseline.log
+      - name: Baseline typecheck
+        run: npm run build --prefix backend
+        continue-on-error: true
