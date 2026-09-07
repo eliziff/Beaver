@@ -12,6 +12,7 @@ import { commitResearchFile, readResearchFile,
   type PublicResearchFileAction,
   type ResearchFile, type ResearchFileAction, type ResearchFileState,
   type ResearchQueryReceipt } from "./researchFile";
+import { provenBlockLocator } from "./documentLocators";
 import { structureNative } from "./structureNative";
 import { escapeRegExp } from "./text";
 import { sha256 } from "./hash";
@@ -94,8 +95,8 @@ export async function verifyResearchPassage(file: ResearchFile, action: PublicRe
     return labelled(createLibraryEvidence({ documentId: source.id,
       versionId: source.versionId, filename: source.title ?? source.id,
       sourceSha256: native.documentRevision(document), start, end: stop, spanText: match[0],
-      ...(whole ? block && pinpoint.has(block.kind)
-        ? { locator: { kind: block.kind as LegalEvidenceReceipt["locator"]["kind"], label: block.label } } : {}
+      ...(whole ? ((locator) => locator ? { locator } : {})(
+          provenBlockLocator(document, block, { start, end: stop }))
         : { locator: { kind: action.locator.kind, label: action.locator.endValue
           ? `${action.locator.value}-${action.locator.endValue}` : action.locator.value } }) }));
   }
@@ -367,10 +368,9 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
               const value = text.slice(span.start, span.end), block = adapter.smallestContainingDocumentBlock(
                 passage.documentArtifact, span.start, span.end), receipt = passage.evidence(
                   { ...span, text: value,
-                ...(block && pinpoint.has(block.kind) ? {
-                  blockId: `${block.kind}:${block.label}:${span.start}:${span.end}`,
-                  locator: { kind: block.kind as LegalEvidenceReceipt["locator"]["kind"],
-                    label: block.label } } : {}) });
+                ...((locator) => locator ? {
+                  blockId: `${locator.kind}:${locator.label}:${span.start}:${span.end}`,
+                  locator } : {})(provenBlockLocator(passage.documentArtifact, block, span)) });
               if (!receipt || !afterCursor(source.id, receipt)) continue;
               if (length > MAX_CAPTURE_CHARS) { sizeLimited = true; continue; }
               if (foundChars + length > MAX_CAPTURE_CHARS)
