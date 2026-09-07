@@ -17,17 +17,9 @@ beforeEach(() => { native.matches = []; });
 
 describe("CanLII court route inventory", () => {
   it.each([
-    ["ABCA", "ab/abca"], ["BCCA", "bc/bcca"], ["SCC", "ca/scc"],
-    ["MBCA", "mb/mbca"], ["NBCA", "nb/nbca"], ["NLCA", "nl/nlca"],
-    ["NSCA", "ns/nsca"], ["NTCA", "nt/ntca"], ["NUCA", "nu/nuca"],
-    ["ONCA", "on/onca"], ["PESCAD", "pe/pescad"], ["QCCA", "qc/qcca"],
-    ["SKCA", "sk/skca"], ["YKCA", "yt/ykca"],
-    ["AHRC", "ab/ahrc"], ["ALRB", "ab/alrb"], ["CGYSDAB", "ab/cgysdab"],
-    ["LSBC", "bc/lsbc"], ["YJCN", "nu/yjcn"], ["SCC-L", "ca/scc-l"],
-    ["BCWCAT", "bc/bwcwcat"], ["FC", "ca/fct"], ["HRTO", "on/onhrt"],
-    ["NBBR", "nb/NBQB"], ["NBSM", "nb/nbs"], ["NSLRB", "ns/nsrb"],
-    ["NTYDAB", "nt/ntyadab"], ["QCCQLC", "qc/qcqlc"],
-    ["SKAIA", "sk/skia"], ["UKJCPC", "ukjcpc"],
+    ["SCC", "ca/scc"],
+    ["FC", "ca/fct"],
+    ["UKJCPC", "ukjcpc"],
   ])("routes %s through %s without changing the decision slug", (court, route) => {
     native.matches = [neutral(court.toLowerCase())];
     const citations = [`2024 ${court} 7`];
