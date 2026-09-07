@@ -2,71 +2,58 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { inspectPdf } from "@/app/lib/inspectPdf";
 import { authorityName } from "./authorityPresentation";
 import type { AuthoritiesHost } from "./host";
-import type { ScannedAuthorityPdf } from "./SourceOcrModal";
 import type { AuthoritiesProduct } from "./types";
 
-export type SourceOcrStatus = ScannedAuthorityPdf & {
-  documentId?: string; state: "running" | "paused" | "done" | "failed";
-  page?: number; error?: string;
-};
+type ScannedPdf = { role: string; name: string; textlessPages: number[] };
+export type SourceOcrStatus = ScannedPdf & { documentId?: string; page?: number;
+  error?: string; state: "running" | "paused" | "done" | "failed" };
 
 /**
- * Scanned source PDFs are recognized by the durable PDF queue, cited pages first.
- * The workspace watches that queue rather than holding recognition in a request.
+ * Scanned source PDFs are recognized by the durable PDF queue, cited pages first,
+ * and the workspace watches that queue instead of holding recognition in a request.
  */
 export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
   const [tracked, setTracked] = useState<Record<string, SourceOcrStatus>>({});
   const port = host.sourceOcr;
-  const patch = useCallback((role: string, update: Partial<SourceOcrStatus>) =>
-    setTracked((current) => current[role]
-      ? { ...current, [role]: { ...current[role], ...update } } : current), []);
+  const merge = useCallback((updates: Record<string, Partial<SourceOcrStatus>>) =>
+    setTracked((current) => Object.fromEntries(Object.entries(current).map(([role, item]) =>
+      [role, updates[role] ? { ...item, ...updates[role] } : item]))), []);
 
-  const begin = useCallback(async (files: ScannedAuthorityPdf[]) => {
+  const begin = useCallback(async (files: ScannedPdf[]) => {
     if (!port || !draftId || !files.length) return;
-    setTracked((current) => ({ ...current,
-      ...Object.fromEntries(files.map((file) => [file.role,
-        { ...file, ...current[file.role], state: "running" as const, error: undefined }])) }));
-    try {
-      for (const started of await port.start(draftId, files.map(({ role }) => role)))
-        patch(started.role, { documentId: started.documentId });
-    } catch (error) {
-      for (const { role } of files)
-        patch(role, { state: "failed", error: (error as Error).message });
-    }
-  }, [draftId, patch, port]);
+    setTracked((current) => ({ ...current, ...Object.fromEntries(files.map((file) =>
+      [file.role, { ...file, state: "running" as const, error: undefined }])) }));
+    await port.start(draftId, files.map(({ role }) => role))
+      .then((started) => merge(Object.fromEntries(started.map((item) => [item.role, item]))))
+      .catch((error: Error) => merge(Object.fromEntries(files.map(({ role }) =>
+        [role, { state: "failed" as const, error: error.message }]))));
+  }, [draftId, merge, port]);
 
   const stop = useCallback(async (roles: string[], paused: boolean) => {
     if (!port || !draftId || !roles.length) return;
-    if (paused) for (const role of roles) patch(role, { state: "paused" });
+    if (paused) merge(Object.fromEntries(roles.map((role) => [role, { state: "paused" as const }])));
     else setTracked((current) => Object.fromEntries(
       Object.entries(current).filter(([role]) => !roles.includes(role))));
     await port.cancel(draftId, roles).catch(() => undefined);
-  }, [draftId, patch, port]);
+  }, [draftId, merge, port]);
 
   const watching = Object.values(tracked)
-    .filter(({ state, documentId }) => state === "running" && documentId)
-    .map(({ documentId }) => documentId).sort().join(",");
+    .flatMap(({ state, documentId }) => state === "running" && documentId ? [documentId] : [])
+    .sort().join(",");
   useEffect(() => {
     if (!port || !watching) return;
-    let live = true;
     const poll = async () => {
-      const states = await port.progress(watching.split(",")).catch(() => []);
-      if (!live) return;
-      setTracked((current) => {
-        const byDocument = new Map(states.map((state) => [state.id, state]));
-        return Object.fromEntries(Object.entries(current).map(([role, item]) => {
-          const state = item.documentId && item.state === "running"
-            ? byDocument.get(item.documentId) : undefined;
-          if (!state) return [role, item];
-          return [role, { ...item, page: state.page,
-            state: state.done ? "done" : state.error ? "failed" : "running",
-            ...(state.error ? { error: state.error } : {}) }];
-        }));
-      });
+      const states = new Map((await port.progress(watching.split(",")).catch(() => []))
+        .map((state) => [state.id, state]));
+      setTracked((current) => Object.fromEntries(Object.entries(current).map(([role, item]) => {
+        const state = item.state === "running" && item.documentId
+          ? states.get(item.documentId) : undefined;
+        return [role, state ? { ...item, page: state.page, error: state.error,
+          state: state.done ? "done" : state.error ? "failed" : "running" } : item];
+      })));
     };
     const timer = setInterval(() => void poll(), 1_200);
-    void poll();
-    return () => { live = false; clearInterval(timer); };
+    return () => clearInterval(timer);
   }, [port, watching]);
 
   return { tracked: port ? tracked : {}, begin, stop,
@@ -74,50 +61,43 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
 }
 
 async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct,
-  report: (message: string) => void, signal: AbortSignal) {
-  const files: ScannedAuthorityPdf[] = [];
+  report: (message: string) => void) {
+  const files: ScannedPdf[] = [];
   for (const id of draft.state.authorityOrder) {
     const authority = draft.state.authorities[id];
     if (authority.excluded || authority.source.kind !== "attached") continue;
     for (const source of authority.source.sources) {
       if (source.origin === "reconstructed" || !host.readSource) continue;
-      signal.throwIfAborted();
       report(`Checking pages in ${authorityName(authority)}`);
       const blob = await host.readSource(draft, source.bindingRole);
       const inspected = await inspectPdf(new File([blob], source.filename,
-        { type: "application/pdf" }), undefined, signal);
+        { type: "application/pdf" }));
       if (!inspected.pageCount) throw new Error(`Unlock the PDF for ${authorityName(authority)} before continuing.`);
       if (inspected.textlessPages.length) files.push({ role: source.bindingRole,
-        name: authorityName(authority), pageCount: inspected.pageCount,
-        textlessPages: inspected.textlessPages });
+        name: authorityName(authority), textlessPages: inspected.textlessPages });
     }
   }
   return files;
 }
 
 /**
- * Which source PDFs are scans is settled in the background while the Sources list
- * is already on screen, so continuing does not pay for the whole check at once.
+ * Which sources are scans is settled in the background while the Sources list is
+ * already on screen, so continuing does not pay for the whole check at once.
  */
 export function useScannedSources(host: AuthoritiesHost, draft: AuthoritiesProduct | undefined,
   key: string, active: boolean) {
-  const cached = useRef<{ key: string; result: Promise<ScannedAuthorityPdf[]> }>(undefined);
-  const ensure = useCallback((current: AuthoritiesProduct,
-    report: (message: string) => void, signal: AbortSignal) => {
+  const cached = useRef<{ key: string; result: Promise<ScannedPdf[]> }>(undefined);
+  const ensure = useCallback((current: AuthoritiesProduct, report: (message: string) => void) => {
     if (cached.current?.key !== key) {
-      cached.current = { key, result: inspectSources(host, current, report,
-        new AbortController().signal) };
+      cached.current = { key, result: inspectSources(host, current, report) };
       cached.current.result.catch(() => undefined);
     }
-    signal.throwIfAborted();
     return cached.current.result;
   }, [host, key]);
   useEffect(() => {
     if (!active || !draft || !host.readSource) return;
-    // Defer past the first paint of the Sources list.
-    const timer = setTimeout(() => {
-      void ensure(draft, () => undefined, new AbortController().signal).catch(() => undefined);
-    }, 400);
+    const timer = setTimeout(() => void ensure(draft, () => undefined)
+      .catch(() => undefined), 400);
     return () => clearTimeout(timer);
   }, [active, draft, ensure, host]);
   return ensure;
