@@ -3,6 +3,7 @@ import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { DocumentStore } from "./documentStore";
 import { documentProjectionService } from "./documentProjectionService";
 import { parseResourceReference, resourceReference } from "./resourceReferences";
+import { provenBlockLocator } from "./documentLocators";
 import { structureNative, type NativeDocument, type NativeDocumentBlock } from "./structureNative";
 import { legalSourceOperations } from "./legalSourceApplication";
 import type { LegalSourcePassage, LegalSourceReference } from "./legalSources";
@@ -291,13 +292,14 @@ export function readLibraryResearchWindow(input: { documentId: string; versionId
       break;
     }
     const block = native.smallestContainingDocumentBlock(input.document, row.span[0], row.span[1]),
-      kind = block?.kind as LegalEvidenceReceipt["locator"]["kind"],
       selected = cells.filter((cell) => cell.start < row.span[1] && cell.end > row.span[0]);
     for (const span of selected.length ? selected.map((cell) => ({ start: Math.max(cell.start, row.span[0]),
       end: Math.min(cell.end, row.span[1]), locator: { kind: "cell" as const,
         label: `${cell.tableName}!${cell.address}`, sheet: cell.tableName, cells: cell.address } }))
-      : [{ start: row.span[0], end: row.span[1], ...(block && ["page", "paragraph", "section", "footnote"].includes(kind)
-        ? { locator: { kind, label: block.label } } : {}) }])
+      : [{ start: row.span[0], end: row.span[1], ...(() => {
+        const locator = provenBlockLocator(input.document, block, { start: row.span[0], end: row.span[1] });
+        return locator ? { locator } : {};
+      })() }])
       if (span.end > span.start) {
         const receipt = createLibraryEvidence({ documentId: input.documentId,
           versionId: input.versionId, filename: input.filename, sourceSha256, ...span,
