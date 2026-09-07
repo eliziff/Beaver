@@ -86,5 +86,3 @@ export async function completeText(params: {
   ).fullText;
 }
 
-export const getOllamaModelCatalog = async () =>
-  (await import("./ollamaModels")).getOllamaModelCatalog();
