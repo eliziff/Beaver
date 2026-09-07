@@ -481,11 +481,16 @@ export function createAuthoritiesWorkspaceApplication(
           const reference = { userId: scope.userId, documentId: resolved.documentId,
             versionId: resolved.versionId, sourceSha256: resolved.sourceSha256 };
           if (cancel) return { role: source.bindingRole, cancelled: await cancelPdfJobs(reference) };
+          // Page pinpoints are printed page numbers. They address physical pages only
+          // where the scan is numbered from its first page, so they are clamped to the
+          // PDF and treated as a priority hint: the whole-PDF job follows either way
+          // and is the one that records the document profile.
+          const pageCount = (await documents.metadata(scope, binding.documentId))?.page_count ?? 0;
           const citedPages = authorityPassageTargets(draft, authority.id)
             .flatMap(({ locatorKind, locator }) => locatorKind === "page" && /^\d+$/u.test(locator)
-              ? [Number(locator)] : []);
-          return { role: source.bindingRole, documentId: resolved.documentId,
-            ...await enqueueAuthorityOcr({ ...reference, citedPages }) };
+              && Number(locator) <= pageCount ? [Number(locator)] : []);
+          await enqueueAuthorityOcr({ ...reference, citedPages });
+          return { role: source.bindingRole, documentId: resolved.documentId };
         }));
     },
     async prepareHighlights(scope: ApplicationScope, id: string, revision: number, signal?: AbortSignal) {

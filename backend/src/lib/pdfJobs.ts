@@ -126,40 +126,29 @@ export function enqueuePdfPreparation(input: {
 export async function enqueueAuthorityOcr(input: PdfSource & {
   userId: string; citedPages: number[];
 }) {
-  const group = pdfGroupKey(input);
-  const cited = [...new Set(input.citedPages)].filter((page) => page >= 1).sort((a, b) => a - b);
-  const settings = { sourceSha256: input.sourceSha256, ocrProvider: "kraken-lite" as const };
-  const reference = { userId: input.userId, documentId: input.documentId,
-    documentVersionId: input.versionId, groupKey: group, kind: "pdf.reprocess" };
-  if (cited.length) await enqueueJob({ ...reference, priority: 60,
-    dedupeKey: `${group}:ocr:cited:${sha256(JSON.stringify(cited))}`,
-    payload: { ...settings, pages: cited } });
-  const whole = await enqueueJob({ ...reference, priority: 40,
-    dedupeKey: `${group}:ocr:full`, payload: settings });
-  await interruptJobs(group, 40);
-  return { id: whole.id, citedPages: cited.length };
+  const cited = [...new Set(input.citedPages)].sort((a, b) => a - b);
+  const settings = { ...input, ocrProvider: "kraken-lite" as const };
+  if (cited.length) await enqueuePdfReprocess({ ...settings, pages: cited, priority: 60 });
+  return enqueuePdfReprocess({ ...settings, priority: 40 });
 }
 
-export async function cancelPdfJobs(input: PdfSource & { userId: string }) {
-  return requestGroupCancellation(pdfGroupKey(input), input.userId);
-}
+export const cancelPdfJobs = (input: PdfSource & { userId: string }) =>
+  requestGroupCancellation(pdfGroupKey(input), input.userId);
 
-export async function enqueuePdfReprocess(input: {
+export async function enqueuePdfReprocess(input: PdfSource & {
   userId: string;
-  documentId: string;
-  versionId: string;
-  sourceSha256: string;
   ocrProvider?: PdfOcrProvider | null;
   layout?: boolean | null;
+  pages?: number[];
+  priority?: number;
 }) {
   const settings = {
     sourceSha256: input.sourceSha256,
     ...(input.ocrProvider !== undefined ? { ocrProvider: input.ocrProvider } : {}),
-    ...(input.layout !== undefined ? {
-      layout: input.layout ? "local" : null,
-    } : {}),
+    ...(input.layout !== undefined ? { layout: input.layout ? "local" : null } : {}),
+    ...(input.pages?.length ? { pages: input.pages } : {}),
   };
-  const group = pdfGroupKey(input);
+  const group = pdfGroupKey(input), priority = input.priority ?? 50;
   const queued = await enqueueJob({
     kind: "pdf.reprocess",
     dedupeKey: `${group}:reprocess:${sha256(JSON.stringify(settings))}`,
@@ -168,8 +157,8 @@ export async function enqueuePdfReprocess(input: {
     documentId: input.documentId,
     documentVersionId: input.versionId,
     payload: settings,
-    priority: 50,
+    priority,
   });
-  await interruptJobs(group, 50);
+  await interruptJobs(group, priority);
   return queued;
 }

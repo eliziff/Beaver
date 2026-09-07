@@ -50,7 +50,7 @@ export const attachAuthoritiesBookPdf = (id: string, revision: number,
     { fields: { revision: String(revision), ...(supplementId ? { supplement_id: supplementId } : {}) } },
   );
 export const authoritiesSourceOcr = (id: string, roles: string[], cancel = false) =>
-  post<Array<{ role: string; documentId?: string; citedPages?: number }>>(
+  post<Array<{ role: string; documentId?: string }>>(
     `/authorities/${segment(id)}/source-ocr`, { roles, cancel });
 export const prepareAuthoritiesHighlights = (id: string, revision: number, signal?: AbortSignal) =>
   apiRequest<AuthoritiesProduct>(`/authorities/${segment(id)}/prepare-highlights`,
