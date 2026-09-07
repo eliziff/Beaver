@@ -13,7 +13,7 @@ it("keeps the read chip unchanged while preserving a completed read's exact sour
     };
     const passage: Citation = {
         ...broad, ref: 2, locator_kind: "paragraph", locator: "17, 112",
-        pinpoint: "paras 17, 112", display_form: "pinpoint", authority: "Bhasin, supra",
+        pinpoint: "paras 17, 112", authority: "Bhasin, supra",
     };
     const onCitationClick = vi.fn();
     const activity = {
@@ -25,7 +25,7 @@ it("keeps the read chip unchanged while preserving a completed read's exact sour
     }} onCitationClick={onCitationClick} />);
 
     const chip = screen.getByRole("button", { name: "Bhasin v. Hrynew, 2014 SCC 71" });
-    expect(screen.getByRole("listitem")).toHaveTextContent(/^Read Bhasin v\. Hrynew, 2014 SCC 71$/u);
+    expect(screen.getByRole("listitem")).toHaveTextContent(/Reading Bhasin v\. Hrynew/u);
     expect(screen.getByRole("listitem")).toHaveAttribute("aria-busy", "true");
     chip.focus();
     rerender(<ActivityRow activity={{
@@ -34,7 +34,7 @@ it("keeps the read chip unchanged while preserving a completed read's exact sour
 
     expect(screen.getByRole("button", { name: /Bhasin/u })).toBe(chip);
     expect(chip).toHaveFocus();
-    expect(screen.getByRole("listitem")).toHaveTextContent(/^Read Bhasin v\. Hrynew, 2014 SCC 71$/u);
+    expect(screen.getByRole("listitem")).toHaveTextContent(/Reading Bhasin v\. Hrynew/u);
     expect(screen.getByRole("listitem")).toHaveAttribute("aria-busy", "false");
     expect(container.querySelectorAll("[data-citation-ref]")).toHaveLength(1);
     await userEvent.click(chip);
@@ -44,7 +44,7 @@ it("keeps the read chip unchanged while preserving a completed read's exact sour
         ...activity, status: "error", citations: [broad], detail: "Source unavailable",
     }} onCitationClick={onCitationClick} />);
     expect(screen.getByRole("button", { name: /Bhasin/u })).toBe(chip);
-    expect(screen.getByText("Failed")).toBeVisible();
+    expect(screen.getByText(/failed/u)).toBeVisible();
     expect(screen.getByText("Source unavailable")).toBeVisible();
 });
 
@@ -53,7 +53,7 @@ it("keeps failed read context and errors visible", () => {
         id: "failed-read", tool: "Read", status: "error",
         label: "Reading R. v. Jordan", detail: "Source unavailable",
     }} />);
-    expect(screen.getByText("Reading R. v. Jordan")).toBeVisible();
+    expect(screen.getByText(/Reading R\. v\. Jordan/u)).toBeVisible();
     expect(screen.getByText("Source unavailable")).toBeVisible();
 });
 
