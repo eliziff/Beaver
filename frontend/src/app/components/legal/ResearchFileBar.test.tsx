@@ -231,27 +231,6 @@ describe("ResearchFileBar", () => {
       { type: "annotate", kind: "source", id: "appeal", labelIds: ["other"] }));
   });
 
-  it("shows current table findings and opens their original pinned document", async () => {
-    const reference = { provider: "library" as const, kind: "document" as const, id: "agreement", versionId: "original-version", title: "Agreement.pdf" };
-    const saved = { ...file, state: { ...file.state, tables: ["table-1"], sources: {
-      agreement: { ...file.state.sources.appeal, id: "agreement", reference } } } };
-    api.getWorkspaceFindings.mockResolvedValue({ total: 1, next_offset: null, items: [{
-      reference: { kind: "cell", reviewId: "table-1", rowId: "agreement", columnIndex: 0 },
-      question: { title: "Termination", format: "yes_no", prompt: "Find termination" },
-      answer: { value: true, summary: "Yes", flag: "green", coverage: "partial", outcome: "answered",
-          claims: [{ text: "Termination is permitted on notice.", evidence_ids: ["original"] }] }, evidence: [{ ...evidence.receipt,
-            evidence_id: "original", provider: "library", stable_source_id: "agreement", name: "Agreement.pdf", version: "original-version",
-            locator: { kind: "page", label: "2" } }] }] });
-    render(<ResearchFileBar file={saved} onChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Passages in Agreement.pdf" }));
-    fireEvent.click(await screen.findByText("Termination"));
-    expect(screen.getByText("Yes")).toBeVisible();
-    expect(screen.getByText(/Termination is permitted on notice/)).toBeVisible();
-    expect(screen.getByText("Partial coverage")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Agreement.pdf, p. 2" }));
-    expect(await screen.findByLabelText("Original document")).toHaveTextContent("agreement:original-version");
-  });
-
   it("refreshes passages in an open source after an autosave", async () => {
     const view = await renderWorkspace();
     openBaker();

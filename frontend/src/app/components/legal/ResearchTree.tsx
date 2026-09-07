@@ -8,7 +8,6 @@ import { researchLabelColor } from "./ResearchLabelCircle";
 import { ResearchLabelEditor, RESEARCH_SOURCE_DRAG, type ResearchLabelTarget } from "./ResearchLabelPicker";
 import { ResearchLabelTree } from "./ResearchLabelTree";
 import { RESEARCH_PASSAGE_DRAG } from "./researchMemo";
-import { ResearchSourceAnswers } from "./ResearchWorkspaceViews";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 import { sourceName, type SourceReader } from "./useSourceReader";
 
@@ -114,7 +113,6 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
       {page?.nextCursor && <Button variant="outline" size="compact" disabled={page.loading}
         aria-label={`Show more passages from ${sourceName(source)}`}
         onClick={() => void passagePages.fetchPage(source.id, page.nextCursor, true)}>Show more</Button>}
-      {reader && <ResearchSourceAnswers sourceId={source.id} onCitation={reader.openAnswerCitation} />}
     </div>;
   }
 
