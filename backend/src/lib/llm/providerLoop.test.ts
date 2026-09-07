@@ -229,8 +229,6 @@ describe("provider loop", () => {
 
 
 describe("provider stream block boundaries", () => {
-  const types = ["text_delta", "reasoning_delta"] as const;
-  const variants = types.flatMap((type) => [undefined, 0, "0", ""].map((block) => ({ type, block })));
   const recording = () => {
     const trace: string[] = [];
     return { trace, callbacks: {
@@ -242,37 +240,58 @@ describe("provider stream block boundaries", () => {
     } };
   };
 
-  it.each(variants.flatMap((first) => variants.map((second) => [first, second] as const)))(
-    "preserves boundaries from %j to %j", async (first, second) => {
+  describe.each([
+    ["text_delta", "reasoning_delta", "ab"],
+    ["reasoning_delta", "text_delta", ""],
+  ] as const)("%s", (type, otherType, fullText) => {
+    // Literal oracles, not a second implementation of the block-change predicate.
+    // Keep every same-channel ID pair; channel changes are checked separately below.
+    it.each<[string | number | undefined, string | number | undefined, string[]]>([
+      [undefined, undefined, ["a", "b", "end"]],
+      [undefined, 0, ["a", "end", "b", "end"]],
+      [undefined, "0", ["a", "end", "b", "end"]],
+      [undefined, "", ["a", "end", "b", "end"]],
+      [0, undefined, ["a", "end", "b", "end"]],
+      [0, 0, ["a", "b", "end"]],
+      [0, "0", ["a", "end", "b", "end"]],
+      [0, "", ["a", "end", "b", "end"]],
+      ["0", undefined, ["a", "end", "b", "end"]],
+      ["0", 0, ["a", "end", "b", "end"]],
+      ["0", "0", ["a", "b", "end"]],
+      ["0", "", ["a", "end", "b", "end"]],
+      ["", undefined, ["a", "end", "b", "end"]],
+      ["", 0, ["a", "end", "b", "end"]],
+      ["", "0", ["a", "end", "b", "end"]],
+      ["", "", ["a", "b", "end"]],
+    ])("preserves block identity from %j to %j", async (first, second, expected) => {
       const { trace, callbacks } = recording();
       const result = await runProviderLoop(params({ callbacks }), adapter(() => [
-        { ...first, text: "a" },
-        { type: first.type === "text_delta" ? "reasoning_delta" : "text_delta", text: "", block: "ignored" },
+        { type, text: "a", block: first },
+        { type: otherType, text: "", block: "ignored" },
         { type: "usage", usage: { inputTokens: 1, outputTokens: null, reasoningTokens: null,
           cacheReadInputTokens: null, cacheWriteInputTokens: null } },
         { type: "opaque_checkpoint", checkpoint: "private" },
-        { ...second, text: "b" }, done, done,
+        { type, text: "b", block: second }, done, done,
       ]));
-      const changed = first.type !== second.type || first.block !== second.block;
-      expect(trace).toEqual([`${first.type}:a`, ...(changed ? [`${first.type}:end`] : []),
-        `${second.type}:b`, `${second.type}:end`]);
-      expect(result.fullText).toBe((first.type === "text_delta" ? "a" : "") +
-        (second.type === "text_delta" ? "b" : ""));
-    },
-  );
+      expect(trace).toEqual(expected.map((event) => `${type}:${event}`));
+      expect(result.fullText).toBe(fullText);
+    });
 
-  it.each(types)("closes %s before a tool and reopens the same unidentified block", async (type) => {
-    const { trace, callbacks } = recording();
-    const result = await runProviderLoop(params({ callbacks }), adapter(() => [
-      { type, text: "a" }, { type: "tool_call", call: { id: "1", name: "finish", input: {} } },
-      { type, text: "b" }, done,
-    ]));
-    expect(trace).toEqual([`${type}:a`, `${type}:end`, "tool", `${type}:b`, `${type}:end`]);
-    expect(result.fullText).toBe(type === "text_delta" ? "ab" : "");
-  });
+    it("closes before a tool and reopens the same unidentified block", async () => {
+      const { trace, callbacks } = recording();
+      const result = await runProviderLoop(params({ callbacks }), adapter(() => [
+        { type, text: "a" }, { type: "tool_call", call: { id: "1", name: "finish", input: {} } },
+        { type, text: "b" }, done,
+      ]));
+      expect(trace).toEqual([`${type}:a`, `${type}:end`, "tool", `${type}:b`, `${type}:end`]);
+      expect(result.fullText).toBe(fullText);
+    });
 
-  it.each(types.flatMap((type) => (["error", "eof", "abort"] as const).map((end) => [type, end] as const)))(
-    "closes partial %s on %s without retrying visible output", async (type, end) => {
+    it.each([
+      ["error", { message: "server_is_overloaded" }],
+      ["eof", { message: "fake stream ended without a done event" }],
+      ["abort", { name: "AbortError" }],
+    ] as const)("closes partial output on %s without retrying it", async (end, error) => {
       const { trace, callbacks } = recording();
       const controller = new AbortController();
       let attempts = 0;
@@ -285,29 +304,36 @@ describe("provider stream block boundaries", () => {
           await new Promise(() => undefined);
         }
       } };
-      const run = runProviderLoop(params({ callbacks, abortSignal: controller.signal }), stream);
-      await expect(run).rejects.toMatchObject(end === "abort" ? { name: "AbortError" } : {
-        message: end === "error" ? "server_is_overloaded" : "fake stream ended without a done event",
-      });
+      await expect(runProviderLoop(params({ callbacks, abortSignal: controller.signal }), stream))
+        .rejects.toMatchObject(error);
       expect(trace).toEqual([`${type}:partial`, `${type}:end`]);
       expect(attempts).toBe(1);
-    },
-  );
+    });
 
-  it.each(types)("counts UTF-8 bytes across channels, starting with %s", async (type) => {
-    const content = vi.fn(), reasoning = vi.fn(), contentEnd = vi.fn(), reasoningEnd = vi.fn();
-    const first = "é".repeat(MAX_PROVIDER_STREAM_BYTES / 2);
-    await expect(runProviderLoop(params({ callbacks: {
-      onContentDelta: content, onReasoningDelta: reasoning,
-      onContentBlockEnd: contentEnd, onReasoningBlockEnd: reasoningEnd,
-    } }), adapter(() => [
-      { type, text: first },
-      { type: type === "text_delta" ? "reasoning_delta" : "text_delta", text: "x" }, done,
-    ]))).rejects.toThrow("output limit");
-    const textFirst = type === "text_delta";
-    expect((textFirst ? content : reasoning).mock.calls).toEqual([[first]]);
-    expect(textFirst ? reasoning : content).not.toHaveBeenCalled();
-    expect(textFirst ? contentEnd : reasoningEnd).toHaveBeenCalledOnce();
-    expect(textFirst ? reasoningEnd : contentEnd).not.toHaveBeenCalled();
+    it("shares the UTF-8 output budget with the other channel", async () => {
+      const { trace, callbacks } = recording();
+      callbacks.onContentDelta = (text) => { trace.push(`text_delta:${text.length}`); };
+      callbacks.onReasoningDelta = (text) => { trace.push(`reasoning_delta:${text.length}`); };
+      const first = "é".repeat(MAX_PROVIDER_STREAM_BYTES / 2);
+      await expect(runProviderLoop(params({ callbacks }), adapter(() => [
+        { type, text: first }, { type: otherType, text: "x" }, done,
+      ]))).rejects.toThrow("output limit");
+      expect(trace).toEqual([`${type}:${first.length}`, `${type}:end`]);
+    });
+  });
+
+  it.each([undefined, 0, "0", ""])("closes channel changes with shared and distinct IDs (%j)", async (block) => {
+    const { trace, callbacks } = recording();
+    const result = await runProviderLoop(params({ callbacks }), adapter(() => [
+      { type: "text_delta", text: "a", block },
+      { type: "reasoning_delta", text: "b", block },
+      { type: "text_delta", text: "c", block: "next" },
+      { type: "reasoning_delta", text: "d", block }, done,
+    ]));
+    expect(trace).toEqual([
+      "text_delta:a", "text_delta:end", "reasoning_delta:b", "reasoning_delta:end",
+      "text_delta:c", "text_delta:end", "reasoning_delta:d", "reasoning_delta:end",
+    ]);
+    expect(result.fullText).toBe("ac");
   });
 });
