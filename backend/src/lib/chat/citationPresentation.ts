@@ -123,7 +123,10 @@ export function presentLegalEvidence(
       : citation || name || "Source";
   return {
     authority: plainInlineText(authority),
-    shortAuthority: plainInlineText(name || citation || "Source"),
+    shortAuthority: plainInlineText(
+      receipt.provider === "journal" ? citation.split(/, “/u)[0] || name || "Source"
+        : name || citation || "Source",
+    ),
     locator: presentLegalEvidenceLocator(locatorKind, locatorLabels),
     sourceUrl: citationUrl,
     passageUrl,
