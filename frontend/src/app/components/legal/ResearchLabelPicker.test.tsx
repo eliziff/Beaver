@@ -36,7 +36,7 @@ describe("ResearchLabelPicker", () => {
     await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({
       type: "annotate", kind: "source", id: "source-1", labelIds: ["a", "b", "c"], note: "Note",
     })));
-    fireEvent.click(screen.getByRole("button", { name: "Label slot 1: A" }));
+    fireEvent.click(screen.getByRole("button", { name: "Filed under A" }));
     fireEvent.click(screen.getByRole("button", { name: "None" }));
     await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ labelIds: ["b", "c"] })));
     expect(screen.getByRole("button", { name: "A" })).toHaveAttribute("aria-pressed", "false");
