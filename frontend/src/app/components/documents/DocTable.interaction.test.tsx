@@ -16,18 +16,14 @@ vi.mock("@/app/contexts/AuthContext", () => ({
 }));
 vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
 
-const { listVersions, uploadVersion } = vi.hoisted(() => ({
-    listVersions: vi.fn(), uploadVersion: vi.fn(),
+const { listVersions, uploadVersion, researchDirectory } = vi.hoisted(() => ({
+    listVersions: vi.fn(), uploadVersion: vi.fn(), researchDirectory: vi.fn(),
 }));
 vi.mock("@/app/lib/api/documents", async (original) => ({
   ...await original<typeof import("@/app/lib/api/documents")>(),
   listDocumentVersions: listVersions,
+  directoryResource: () => ({ list: researchDirectory }),
   uploadDocumentVersion: uploadVersion
-}));
-const ontologyApi = vi.hoisted(() => ({ membership: vi.fn(), ensure: vi.fn() }));
-vi.mock("@/app/lib/api/ontology", () => ({
-  getWorkspaceMembership: ontologyApi.membership,
-  ensureOntologyWorkspace: ontologyApi.ensure,
 }));
 const researchApi = vi.hoisted(() => ({ act: vi.fn(), getFile: vi.fn() }));
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({
@@ -96,7 +92,6 @@ function Harness({
     onOpenInChat,
     list,
     search = "",
-    ontology,
     workspaceFile,
 }: {
     selectionFirst?: boolean;
@@ -122,7 +117,6 @@ function Harness({
         next_cursor: string | null;
     }>;
     search?: string;
-    ontology?: { projectId?: string | null };
     workspaceFile?: ResearchFile | null;
 }) {
     const [selection, setSelection] = useState<DocumentSelectionActions | null>(null);
@@ -157,12 +151,11 @@ function Harness({
             onSelectionActionsChange={setSelection}
             onOpenInChat={onOpenInChat}
             onOpenWorkflows={onOpenWorkflows}
-            ontology={ontology}
         />);
     return (
         <><DirectoryActions actions={null} onCreateFolder={null} selection={selection}
             onOpenWorkflows={onOpenWorkflows} />
-        {workspaceFile || ontology
+        {workspaceFile
             ? <SourcesWorkspaceProvider file={workspaceFile ?? undefined}>{table}</SourcesWorkspaceProvider>
             : table}</>
     );
@@ -796,44 +789,41 @@ describe("structural parse state", () => {
     });
 });
 
-describe("ontology labels", () => {
-    const ontologyFile = (): ResearchFile => ({ document: { id: "ontology-1",
-        filename: "Labels.research.md" }, versionId: "v1", workingRevision: 1,
-        state: { ...newResearchState(), labels: { "label-1": { id: "label-1", name: "Contract",
-            parentId: null, color: "#ff0000", order: 0, scope: "source" } }, sources: {} } } as ResearchFile);
-    const membership = { "document-1": { workspaces: [{ id: "ws-1", title: "Matter", sourceId: "s1" }],
-        labels: [{ id: "label-1", name: "Contract", color: "#ff0000", workspaceId: "ontology-1" }] } };
+describe("research-scoped Library actions", () => {
+    const workspace = (): ResearchFile => ({ document: { id: "research-1", filename: "Contract research.research.md" },
+        versionId: "v1", workingRevision: 1, state: { ...newResearchState(),
+            labels: { "label-1": { id: "label-1", name: "Contract", parentId: null,
+                color: "#aabbaa", order: 0, scope: "source" } }, sources: {
+            "source-1": { id: "source-1", collected: true, labelIds: ["label-1"], badge: "", note: "", passages: null,
+                reference: { provider: "library", kind: "document", id: "document-1", versionId: "version-1" } },
+        } } } as ResearchFile);
 
-    it("shows membership labels from the ontology workspace", async () => {
-        ontologyApi.membership.mockResolvedValue(membership);
-        render(<Harness ontology={{ projectId: null }} workspaceFile={ontologyFile()} />);
-        const row = documentRow();
-        expect(await within(row).findByText("Contract")).toBeVisible();
-        expect(within(row).getByText("in 1 workspace")).toBeVisible();
-        expect(ontologyApi.membership).toHaveBeenCalledWith(["document-1"], null);
+    it("does not expose research labels or perform research writes merely by opening Library", () => {
+        researchApi.act.mockClear(); researchDirectory.mockClear();
+        render(<Harness workspaceFile={workspace()} />);
+        expect(within(documentRow()).queryByText("Contract")).not.toBeInTheDocument();
+        expect(within(documentRow()).queryByText(/in \d+ workspace/)).not.toBeInTheDocument();
+        fireEvent.click(within(documentRow()).getByRole("button", { name: "More actions" }));
+        expect(screen.queryByRole("menuitem", { name: "Label" })).not.toBeInTheDocument();
+        expect(screen.getByRole("menuitem", { name: "Add to research…" })).toBeVisible();
+        expect(researchApi.act).not.toHaveBeenCalled();
+        expect(researchDirectory).not.toHaveBeenCalled();
     });
 
-    it("creates the ontology once and adds the source when labelling", async () => {
-        ontologyApi.membership.mockResolvedValue({});
-        ontologyApi.ensure.mockResolvedValue(ontologyFile());
-        researchApi.getFile.mockResolvedValue(ontologyFile());
-        researchApi.act.mockImplementation(async (id: string, versionId: string, revision: number, action: { type: string }) => {
-            if (action.type === "source") return { ...ontologyFile(), sourceId: "source-1" };
-            return ontologyFile();
-        });
-        render(<Harness ontology={{ projectId: null }} />);
+    it("adds a pinned document only to the research set explicitly chosen by the user", async () => {
+        researchApi.act.mockClear();
+        researchDirectory.mockResolvedValue({ items: [{ kind: "document", document: workspace().document }], next_cursor: null });
+        researchApi.getFile.mockResolvedValue(workspace());
+        researchApi.act.mockResolvedValue({ ...workspace(), sourceId: "source-1" });
+        render(<Harness />);
         fireEvent.click(within(documentRow()).getByRole("button", { name: "More actions" }));
-        fireEvent.click(screen.getByRole("menuitem", { name: "Label" }));
-        fireEvent.click(await screen.findByRole("button", { name: "Contract" }));
-        await waitFor(() => expect(researchApi.act).toHaveBeenCalledWith("ontology-1", "v1", 1,
-            expect.objectContaining({ type: "source",
-                reference: expect.objectContaining({ provider: "library", kind: "document",
-                    id: "document-1", versionId: "version-1" }) })));
-        expect(ontologyApi.ensure).toHaveBeenCalledTimes(1);
-        fireEvent.click(screen.getByRole("button", { name: "Close label palette" }));
-        fireEvent.click(within(documentRow()).getByRole("button", { name: "More actions" }));
-        fireEvent.click(screen.getByRole("menuitem", { name: "Label" }));
-        await screen.findByRole("dialog", { name: "Labels and note" });
-        expect(ontologyApi.ensure).toHaveBeenCalledTimes(1);
+        fireEvent.click(screen.getByRole("menuitem", { name: "Add to research…" }));
+        const choice = await screen.findByRole("button", { name: "Contract research" });
+        expect(researchApi.act).not.toHaveBeenCalled();
+        fireEvent.click(choice);
+        await waitFor(() => expect(researchApi.act).toHaveBeenCalledWith("research-1", "v1", 1,
+            expect.objectContaining({ type: "source", reference: expect.objectContaining({
+                provider: "library", kind: "document", id: "document-1", versionId: "version-1" }) })));
+        expect(researchApi.act).toHaveBeenCalledTimes(1);
     });
 });

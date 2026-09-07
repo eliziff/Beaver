@@ -4,8 +4,6 @@ import {
 } from "react";
 import { AddDocumentsModal } from "@/app/components/modals/AddDocumentsModal";
 import { DocTable } from "@/app/components/documents/DocTable";
-import { SourcesWorkspace } from "@/app/components/legal/SourcesWorkspace";
-import { useOntologyWorkspace } from "@/app/hooks/useOntologyWorkspace";
 import { DirectoryActions, type DocumentSelectionActions,
     type UploadActions } from "@/app/components/documents/UploadAction";
 import { projectBreadcrumbLabel } from "./ProjectPageParts";
@@ -49,10 +47,8 @@ export function ProjectDocumentsView() {
             onOpenSelectionInChat={(documents) => { void createChat(documents); }}
             onAssistantWorkflowSelect={openAssistantWorkflow} />
         : null;
-    const { ontologyId } = useOntologyWorkspace(projectId);
     return (
         <ProjectSectionTabs actions={toolbarActions}>
-            <SourcesWorkspace fileId={ontologyId} projectId={projectId}>
             <DocTable
                 scopeKey={projectId}
                 documents={documents}
@@ -60,7 +56,6 @@ export function ProjectDocumentsView() {
                 loading={projectLoading || files.loading}
                 search={search}
                 operations={operations}
-                ontology={{ projectId }}
                 onUploadActionsChange={handleUploadActionsChange}
                 onCreateFolderActionChange={handleCreateFolderActionChange}
                 onSelectionActionsChange={setSelectionActions}
@@ -87,7 +82,6 @@ export function ProjectDocumentsView() {
                 onFolderExpanded={files.onFolderExpanded}
                 onLoadMore={files.onLoadMore}
             />
-            </SourcesWorkspace>
         </ProjectSectionTabs>
     );
 }

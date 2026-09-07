@@ -6,8 +6,9 @@ Retain nested colour labels, versioned Library and public source references,
 exact passage/evidence receipts, notes and query receipts. Bodies remain in the
 source store/provider. Humans/models use the same selection and label operations.
 Chat evidence stays in its transcript until the user opens a workspace or table;
-that action binds the chat, and subsequent reads are collected into the same
-workspace. Chat, Workspace and Table are connected by the shared Open as menu.
+that action binds the chat. Subsequent read receipts remain background provenance;
+explicitly collected or grounded-answer sources enter the research collection.
+Only an explicit save makes evidence a highlight. Chat, Workspace and Table are connected by the shared Open as menu.
 
 Use the main left pane for source text and the shared right-hand dock for the
 workspace. Search results occupy the main pane until a source is opened. On
@@ -19,16 +20,17 @@ drag/drop, saved source lists, passage highlights, notes, capture rules and
 Search Saved sources. Reading stays primary; collection interaction must work
 in full Sources and its narrow assistant placement without clipping or jumps.
 Library previews contents and offers Open in Sources, not another workspace UI.
-Library and project tables share one labels ontology per scope: document rows
-show their label dots and workspace count, filter by label or workspace, and
-offer Label and Add to workspace row actions. The document panel's Highlight
-tool (or Ctrl+Shift+H) saves the selection with the current pen; pens live in
-the research rail beside the workspace tree.
+Library stays neutral: no canonical labels workspace, membership decoration or
+research-specific global classification. Add to research chooses a destination
+explicitly; every research set can classify the same document differently.
+A highlight type is its name, colour and optional parent, not a separate pen and
+category. One deliberate highlight has one type. Choosing a type never silently
+filters the source list. There are no Unsorted/Unclassified pseudo-folders.
 Collection selection/name/rename are cohesive; autosave, ordinary Library placement
 and existing folder interactions remain. No export concept.
 
 The entire workspace is one Beaver Library/project file. Its source references,
-verified passage parts, label ontologies, query receipts and optional Markdown
+verified evidence parts, source labels, highlight types, query receipts and optional Markdown
 memo move and version together. Internal parts are an implementation detail;
 creating or editing the memo must not create a second Library document.
 
@@ -57,7 +59,7 @@ UI. Inputs are documents and original passages, without a decision-specific
 domain model. A chosen arrangement names rows, columns and grouping and retains
 separate supported branches of the same source. Opening an arranged table needs
 no model call; arranging unorganized research uses the existing visible table
-assistant. There is no fixed message-to-column or ontology-to-single-column map.
+assistant. There is no fixed message-to-column or label-to-single-column map.
 
 Reversibility is the default safeguard for both human and assistant changes.
 History records meaningful field changes and their actor. Undo applies an inverse
@@ -74,7 +76,7 @@ jobs: resumable conversational delegation and durable cell generation have
 different completion and retry requirements. Consolidate further only where
 the same behavior is implemented twice.
 
-The optional memo supports formatted editing with inline assistant citation pills,
+The optional memo should use normal-looking citations rather than Cite chips, with
 bold, italics, underline, lists, headings and tables. Sources and saved passages
 can be dragged into it or inserted with Cite. Humans and models update the same
 memo through research operations; stale memo writes must not overwrite newer text.
@@ -91,3 +93,21 @@ than silently bounded analysis. Validate labels/highlights/notes/rules/query sel
 citations with real clicks/screenshots in both Sources placements. An authorized
 live Luna-low research run must collect cases into nested labels, highlight
 relevant passages, draft a memo and survive reload/model-context transfer.
+
+## PR sequence after the A–F handoff
+
+1. Research semantics: neutral Library; one highlight type per saved passage;
+   background receipts separate from highlights and grounded findings; stable
+   evidence IDs; no automatic promotion of reads. This is the foundation PR.
+2. Sources UI: virtual-folder navigation over one source list, compact type
+   hierarchy editing and normal-looking memo citations.
+3. Tabular Review UI: quiet toolbar, full-width title and bounded evidence inspector.
+4. Sources/Table reuse: carry classifications, saved evidence and grounded findings
+   into meaningful pre-populated reviews; explicit reverse promotion.
+5. Chat conversion: preserve grounded intellectual work, propose semantic mappings
+   where needed and carry exact scopes between surfaces.
+6. Minimal Library integration and complete round-trip browser validation.
+
+The foundation removes `library_labels_id` and uses local schema version 17.
+It follows the repository's pre-release schema replacement policy: no migration
+framework or automatic old-store reset. Validate against a fresh isolated store.

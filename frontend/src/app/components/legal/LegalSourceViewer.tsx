@@ -350,14 +350,14 @@ function LegalSourceViewerContent({
       const item = savedPassages[Number(span.dataset.qspan) - quoteTexts.length];
       if (!item) return;
       const color = researchLabels?.[item.labelIds[0]]?.color ?? "#eab308";
-      const category = researchLabels?.[item.labelIds[0]]?.name ?? "Unclassified";
+      const category = researchLabels?.[item.labelIds[0]]?.name ?? "Highlight";
       span.style.setProperty("background-color", /^#[\da-f]{6}$/iu.test(color)
         ? `${color}33` : color, "important");
       span.style.setProperty("border-bottom", `3px solid ${color}`);
       span.dataset.researchEvidence = item.receipt.evidence_id;
       span.tabIndex = 0;
       span.setAttribute("role", "button");
-      span.setAttribute("aria-label", `${category} saved highlight. Edit labels and note.`);
+      span.setAttribute("aria-label", `${category} saved highlight. Edit type and note.`);
       span.title = `${category} saved highlight - activate to edit`;
       span.classList.add("cursor-pointer", "focus-visible:outline", "focus-visible:outline-2",
         "focus-visible:outline-offset-2", "focus-visible:outline-gray-900");
