@@ -15,7 +15,7 @@ import {
 import { MarkdownContent } from "./message/MarkdownContent";
 import { EditCardsSection } from "./message/EditCardsSection";
 import { WorkflowRunButton, workflowRunKey } from "./WorkflowRun";
-import { ActivityDisclosure, ActivityRow, DocDownloadBlock } from "./message/EventBlocks";
+import { ActivityDisclosure, ActivityRow, collapseActivities, DocDownloadBlock } from "./message/EventBlocks";
 
 interface Props {
     message: AssistantMessageState;
@@ -249,7 +249,7 @@ export function AssistantMessage({
                                 isStreaming={activityBusy}
                                 label={message.activities.at(-1)?.label ?? "Thinking"}
                             >
-                                {message.activities.map((activity) => (
+                                {collapseActivities(message.activities).map((activity) => (
                                     <ActivityRow
                                         key={activity.id}
                                         activity={activity}

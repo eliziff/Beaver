@@ -114,6 +114,49 @@ export function ActivityDisclosure({
     );
 }
 
+const LOCATOR_NOUNS = new Set(["para", "paras", "page", "pages", "s", "ss", "n", "nn",
+    "section", "sections", "line", "lines"]);
+const READ_LABEL = /^Reading (\S+) (.+) of (.+)$/u;
+
+const activitySource = (activity: AssistantActivity) => {
+    const citation = activity.citations?.[0];
+    return citation ? citationSourceKey(citation) : `label:${activity.label}`;
+};
+
+/**
+ * A windowed read arrives as one call per window and a note-up returns every
+ * citing source, so the feed grows a row per page and a chip per result. The
+ * reader wants the act, once: the source read and how far, the decision noted
+ * up and how much cites it.
+ */
+export function collapseActivities(activities: readonly AssistantActivity[]): AssistantActivity[] {
+    const rows: AssistantActivity[] = [];
+    for (const activity of activities) {
+        if (activity.tool === "note_up") {
+            const count = activity.citations?.length ?? 0;
+            rows.push({ ...activity, citations: [],
+                label: count ? `${activity.label} — ${count} citing source${count === 1 ? "" : "s"}` : activity.label });
+            continue;
+        }
+        const previous = rows.at(-1);
+        if (!previous || previous.tool !== "Read" || activity.tool !== "Read" ||
+            activitySource(previous) !== activitySource(activity)) {
+            rows.push(activity);
+            continue;
+        }
+        const before = READ_LABEL.exec(previous.label), next = READ_LABEL.exec(activity.label);
+        const merged = before && next && before[3] === next[3] &&
+            LOCATOR_NOUNS.has(before[1]) && LOCATOR_NOUNS.has(next[1])
+            ? `Reading ${next[1]} ${[...new Set([...before[2].split(", "), ...next[2].split(", ")])].join(", ")} of ${next[3]}`
+            : activity.label;
+        rows[rows.length - 1] = { ...previous, label: merged, status: activity.status,
+            citations: [...(previous.citations ?? []), ...(activity.citations ?? [])]
+                .filter((citation, index, all) =>
+                    all.findIndex((other) => citationSourceKey(other) === citationSourceKey(citation)) === index) };
+    }
+    return rows;
+}
+
 export function ActivityRow({
     activity,
     onClick,
@@ -138,9 +181,8 @@ export function ActivityRow({
     const citations = activity.tool === "search_sources" || activity.tool === "Grep"
         ? [] : activity.citations ?? [];
     const compactRead = activity.tool === "Read" && !markdown && citations.length > 0;
-    const label = compactRead
-        ? { running: "Read", completed: "Read", error: "Failed", interrupted: "Stopped" }[activity.status]
-        : `${activity.label}${busy && !activity.markdown ? "..." : ""}`;
+    const label = `${activity.label}${{ running: busy && !activity.markdown ? "..." : "",
+        completed: "", error: " — failed", interrupted: " — stopped" }[activity.status]}`;
     const labelNode = onClick ? (
         <button
             type="button"
@@ -170,7 +212,7 @@ export function ActivityRow({
                 )}
             </span>
             <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
-                <div title={compactRead ? activity.label : undefined}>
+                <div>
                     {labelNode}{" "}
                     {!markdown && citations.length > 0 && (
                         <span className={compactRead ? "inline" : "mt-1 flex flex-wrap gap-1.5"}>
