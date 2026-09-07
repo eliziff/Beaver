@@ -136,7 +136,7 @@ try {
   await expect(handoff).toHaveAttribute("target", "_blank");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await screenshot("03-manual-handoff");
-  await slots.first().getByRole("button", { name: /^Add PDF for/ }).click();
+  await slots.first().getByRole("button", { name: /^Upload for/ }).click();
   await selectFile(page.getByRole("menuitem", { name: "Upload from computer", exact: true }), sourcePdf);
   await idle();
   await expect(handoff).toHaveCount(0);
@@ -145,7 +145,7 @@ try {
   await expect(page.getByRole("dialog").locator("canvas").first()).toBeVisible({ timeout: 30_000 });
   await screenshot("04-in-app-viewer");
   await page.keyboard.press("Escape");
-  await slots.nth(1).getByRole("button", { name: /^Add PDF for/ }).click();
+  await slots.nth(1).getByRole("button", { name: /^Upload for/ }).click();
   await selectFile(page.getByRole("menuitem", { name: "Upload from computer", exact: true }), scanPdf);
   await idle();
   await page.getByRole("button", { name: "Tab labels", exact: true }).click();
