@@ -2,7 +2,7 @@ import { useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, X } from "lucide-react";
 import { researchLabelPath } from "@/app/lib/researchFiles";
-import { researchLabelColor } from "./ResearchLabelCircle";
+import { researchLabelColor } from "./ResearchLabelMarker";
 import { ResearchLabelTree } from "./ResearchLabelTree";
 import type { ResearchRemoval } from "./ResearchTree";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
