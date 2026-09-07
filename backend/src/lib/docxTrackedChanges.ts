@@ -196,28 +196,18 @@ function reconstructParagraph(
     now: string,
     author: string,
 ): XNode[] {
-    if (plan.length === 0) return paraChildren;
+    if (plan.length === 0 || flat.acceptedText.length === 0) return paraChildren;
 
+    // The character index is ordered, so each change's endpoints bound its runs.
+    // An insertion at paragraph end inherits the preceding run.
+    const lastCharacter = flat.acceptedText.length - 1;
     let firstRunIdx = flat.editRuns.length;
     let lastRunIdx = -1;
-    for (const p of plan) {
-        for (let pos = p.deleteStart; pos < p.deleteEnd; pos++) {
-            const r = flat.charRun[pos];
-            if (r < firstRunIdx) firstRunIdx = r;
-            if (r > lastRunIdx) lastRunIdx = r;
-        }
-        if (p.deleteStart === p.deleteEnd && p.deleteStart < flat.acceptedText.length) {
-            const r = flat.charRun[p.deleteStart];
-            if (r < firstRunIdx) firstRunIdx = r;
-            if (r > lastRunIdx) lastRunIdx = r;
-        } else if (p.deleteStart === p.deleteEnd && p.deleteStart > 0) {
-            const r = flat.charRun[p.deleteStart - 1];
-            if (r < firstRunIdx) firstRunIdx = r;
-            if (r > lastRunIdx) lastRunIdx = r;
-        }
-    }
-    if (firstRunIdx > lastRunIdx) {
-        return paraChildren;
+    for (const change of plan) {
+        const start = Math.min(change.deleteStart, lastCharacter);
+        const end = Math.min(Math.max(change.deleteStart, change.deleteEnd - 1), lastCharacter);
+        firstRunIdx = Math.min(firstRunIdx, flat.charRun[start]);
+        lastRunIdx = Math.max(lastRunIdx, flat.charRun[end]);
     }
 
     const startChildIdx = flat.editRuns[firstRunIdx].childIndex;
@@ -241,50 +231,22 @@ function reconstructParagraph(
         return flat.editRuns[flat.charRun[pos]].rPr;
     };
 
-    const emitNormal = (a: number, b: number) => {
+    const emitText = (a: number, b: number, deletionId?: string) => {
         if (a >= b) return;
+        const deleting = deletionId !== undefined;
+        const output = deleting ? [] : newRunGroup;
         let i = a;
         while (i < b) {
-            const runIdx = flat.charRun[i];
-            const tnIdx = flat.charTextNode[i];
-            let j = i + 1;
-            while (
-                j < b &&
-                flat.charRun[j] === runIdx &&
-                flat.charTextNode[j] === tnIdx
-            ) {
-                j++;
-            }
-            const slot = flat.editRuns[runIdx];
-            const rPr = slot.rPr;
-            const slice = flat.acceptedText.slice(i, j);
-            newRunGroup.push(buildRun(rPr, slice, "w:t"));
+            const run = flat.editRuns[flat.charRun[i]];
+            // Reuse the indexed text-node boundary instead of rediscovering it
+            // character by character in separate normal/deletion emitters.
+            const j = Math.min(b, run.textNodes[flat.charTextNode[i]].paraEnd);
+            output.push(buildRun(run.rPr, flat.acceptedText.slice(i, j),
+                deleting ? "w:delText" : "w:t"));
             i = j;
         }
-    };
-
-    const emitDel = (a: number, b: number, wId: string) => {
-        if (a >= b) return;
-        const inner: XNode[] = [];
-        let i = a;
-        while (i < b) {
-            const runIdx = flat.charRun[i];
-            const tnIdx = flat.charTextNode[i];
-            let j = i + 1;
-            while (
-                j < b &&
-                flat.charRun[j] === runIdx &&
-                flat.charTextNode[j] === tnIdx
-            ) {
-                j++;
-            }
-            const slot = flat.editRuns[runIdx];
-            const slice = flat.acceptedText.slice(i, j);
-            inner.push(buildRun(slot.rPr, slice, "w:delText"));
-            i = j;
-        }
-        newRunGroup.push(
-            makeEl("w:del", inner, revisionAttrs(wId, author, now)),
+        if (deleting) newRunGroup.push(
+            makeEl("w:del", output, revisionAttrs(deletionId, author, now)),
         );
     };
 
@@ -299,13 +261,13 @@ function reconstructParagraph(
 
     let cursor = spanStart;
     for (const p of plan) {
-        emitNormal(cursor, p.deleteStart);
+        emitText(cursor, p.deleteStart);
         if (p.insertedText) emitIns(p.deleteStart, p.insertedText, p.insWId!);
         if (p.deleteEnd > p.deleteStart)
-            emitDel(p.deleteStart, p.deleteEnd, p.delWId!);
+            emitText(p.deleteStart, p.deleteEnd, p.delWId!);
         cursor = p.deleteEnd;
     }
-    emitNormal(cursor, spanEnd);
+    emitText(cursor, spanEnd);
 
     const droppedChildIdx = new Set<number>();
     for (let r = firstRunIdx; r <= lastRunIdx; r++) {
