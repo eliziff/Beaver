@@ -35,7 +35,7 @@ const tableInput = z.object({ selection: researchSelectionSchema.optional(), tab
   rows: z.enum(["sources", "passages"]).optional(), labelId: id.optional(),
   findingRefs: z.array(researchFindingReferenceSchema).min(1).max(10_000).optional(),
   design: researchImportDesignSchema.optional(), fingerprint: z.string().regex(/^[a-f0-9]{64}$/u).optional(),
-  request: z.string().trim().min(1).max(4_000).optional(),
+  request: z.string().trim().min(1).max(4_000).optional(), model: z.string().trim().min(1).max(200).optional(),
 }).strict().refine((input) => !input.messageIds || !!input.chatId, "Select a chat for the chosen messages");
 
 export function createSourceWorkspacesRouter(app: SourceWorkspaceApplication) {

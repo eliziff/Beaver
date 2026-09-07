@@ -38,7 +38,7 @@ type FindingsInput = { sourceIds?: string[]; reference?: ResearchFindingReferenc
 type FindingsPage = { items: ResearchFinding[]; total: number; next_offset: number | null; is_running: boolean };
 type TableInput = { tableId?: string; chatId?: string; messageIds?: string[];
   selection?: ResearchSelection; findingRefs?: ResearchFindingReference[];
-  fingerprint?: string; design?: ResearchImportDesign; request?: string } & Partial<ResearchImportInput>;
+  fingerprint?: string; design?: ResearchImportDesign; request?: string; model?: string } & Partial<ResearchImportInput>;
 
 /** The Sources workspace use cases share the existing document, chat and table persistence ports. */
 export function createSourceWorkspaceApplication(documents: DocumentStore, dependencies: {
@@ -348,7 +348,7 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
   }
   async function previewTable(scope: Scope, id: string, input: TableInput, signal?: AbortSignal) {
     const { catalog } = await importCatalog(scope, id, input);
-    const design = input.request ? await (await dependencies.tabular()).designResearch(scope, catalog, input.request, signal)
+    const design = input.request ? await (await dependencies.tabular()).designResearch(scope, catalog, input.request, { model: input.model, signal })
       : input.design ?? defaultResearchImport(catalog);
     const { arrangement: _arrangement, columns_config: _columns, ...preview } = researchImportPlan(catalog, design);
     return preview;
