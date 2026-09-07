@@ -9,6 +9,7 @@ import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRe
   type ComponentType, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
 import { ChoiceModalButton } from "@/app/components/modals/ChoiceModalButton";
+import { CourtChoiceModal } from "@/app/components/modals/CourtChoiceModal";
 import { ModalSelect, SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
 import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { OutputFolderSetting } from "@/app/components/shared/OutputFolderSetting";
@@ -1011,23 +1012,18 @@ function AuthoritiesCourtField({ value, disabled, preferredKeys, onChange, class
 }) {
   const current = authoritiesProfile(value);
   const [open, setOpen] = useState(false);
-  const rank = (jurisdiction: typeof current.jurisdiction) => {
-    const index = preferredKeys.indexOf(jurisdiction.preferenceKey ?? jurisdiction.id);
-    return index < 0 ? preferredKeys.length : index;
-  };
-  const available = AUTHORITIES_PROFILES.filter((item) => !bookOnly || item.locked?.outputMode !== "table")
-    .sort((a, b) => rank(a.jurisdiction) - rank(b.jurisdiction) || a.jurisdiction.order - b.jurisdiction.order);
+  const available = AUTHORITIES_PROFILES
+    .filter((item) => !bookOnly || item.locked?.outputMode !== "table");
 
   return <div className={className}>
     <ChoiceModalButton icon={<Scale aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-500" />}
       label="Court" value={current.label} disabled={disabled} className="w-full"
       onClick={() => setOpen(true)} />
-    <SearchableChoiceModal open={open} title="Choose court" searchLabel="Search courts"
-      value={value} searchable={available.length > 8} size="lg"
-      className="!h-fit max-h-[calc(100dvh-2rem)]"
-      options={available.map(({ id, label, jurisdiction }) => ({ value: id, label,
-        group: jurisdiction.id === "general" ? undefined : jurisdiction.label }))}
-      onChange={(id) => { if (id) onChange(id); }} onClose={() => setOpen(false)} />
+    <CourtChoiceModal open={open} title="Choose court" searchLabel="Search courts"
+      value={value} preferredKeys={preferredKeys}
+      options={available.map(({ id, label, court, jurisdiction }) => ({ value: id, label,
+        jurisdictionId: jurisdiction.id, keywords: court.abbreviation }))}
+      onChange={(id) => onChange(id as AuthoritiesProfileId)} onClose={() => setOpen(false)} />
   </div>;
 }
 

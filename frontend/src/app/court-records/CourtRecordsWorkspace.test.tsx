@@ -180,11 +180,9 @@ describe("CourtRecordsWorkspace", () => {
       initialDocuments={[{ id: "notice", filename: file.name }]}
       onDocumentsConsumed={consumed} />);
 
-    await user.selectOptions(await screen.findByRole("combobox", { name: "Jurisdiction" }), "ca");
+    await user.click(await screen.findByRole("button", { name: "Federal courts" }));
     await user.click(within(screen.getByRole("dialog", { name: "Choose document" }))
-      .getByRole("button", { name: "Application record" }));
-    await user.click(within(screen.getByRole("group", { name: "Application record format" }))
-      .getByRole("button", { name: "Application record — applicant" }));
+      .getAllByRole("button", { name: /Application record — applicant/u })[0]);
     expect(draft.state).toMatchObject({ profileId: "fc-application-record-applicant",
       entries: [{ id: "notice", kindId: "unassigned" }], bindings: { notice: binding } });
     expect(consumed).toHaveBeenCalledOnce();
@@ -235,11 +233,9 @@ describe("CourtRecordsWorkspace", () => {
     expect(store.create).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Open saved record" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "New court record" }));
-    await user.selectOptions(screen.getByRole("combobox", { name: "Jurisdiction" }), "ca");
+    await user.click(screen.getByRole("button", { name: "Federal courts" }));
     await user.click(within(screen.getByRole("dialog", { name: "Choose document" }))
-      .getByRole("button", { name: "Motion record" }));
-    await user.click(within(screen.getByRole("group", { name: "Motion record format" }))
-      .getByRole("button", { name: "Motion record — moving" }));
+      .getAllByRole("button", { name: /Motion record — moving/u })[0]);
 
     expect(store.list).toHaveBeenCalledWith("court-record", "matter-1");
     expect(store.create).toHaveBeenCalledWith({ kind: "court-record",
@@ -262,12 +258,12 @@ describe("CourtRecordsWorkspace", () => {
     render(<CourtRecordsWorkspace host={host}
       initialDocuments={[{ id: "notice", filename: "Notice.pdf" }]}
       onDocumentsConsumed={consumed} />);
-    await screen.findByRole("combobox", { name: "Jurisdiction" });
+    await screen.findByRole("dialog", { name: "Choose document" });
     await userEvent.keyboard("{Escape}");
     expect(create).not.toHaveBeenCalled();
     expect(consumed).toHaveBeenCalledOnce();
     await userEvent.click(screen.getByRole("button", { name: "New court record" }));
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Jurisdiction" }), "ab");
+    await userEvent.click(screen.getByRole("button", { name: "Alberta" }));
     await userEvent.click(within(screen.getByRole("dialog", { name: "Choose document" }))
       .getByRole("button", { name: "Affidavit" }));
     expect(create.mock.calls[0][0].state).toMatchObject({
@@ -317,7 +313,7 @@ describe("CourtRecordsWorkspace", () => {
     await waitFor(() => expect(finishSave).toBeTypeOf("function"));
     expect(screen.getByRole("status", { name: "Route" })).not.toHaveTextContent("old");
     await act(async () => finishSave());
-    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Jurisdiction" }), "ab");
+    await userEvent.click(await screen.findByRole("button", { name: "Alberta" }));
     await userEvent.click(within(screen.getByRole("dialog", { name: "Choose document" }))
       .getByRole("button", { name: "Affidavit" }));
     await waitFor(() => expect(screen.getByRole("status", { name: "Route" }))
@@ -355,7 +351,7 @@ describe("CourtRecordsWorkspace", () => {
     const user = userEvent.setup();
     render(<CourtRecordsWorkspace host={host} />);
     await user.click(await screen.findByRole("button", { name: "New court record" }));
-    await user.selectOptions(screen.getByRole("combobox", { name: "Jurisdiction" }), "ab");
+    await user.click(screen.getByRole("button", { name: "Alberta" }));
     await user.click(within(screen.getByRole("dialog", { name: "Choose document" }))
       .getByRole("button", { name: "Affidavit" }));
 
@@ -919,13 +915,12 @@ describe("CourtRecordsWorkspace", () => {
     await user.click(await screen.findByRole("button", {
       name: /^Change format:/u,
     }));
-    await user.selectOptions(screen.getByRole("combobox", { name: "Jurisdiction" }), "ca");
+    await user.click(screen.getByRole("button", { name: "Federal courts" }));
     const documents = within(screen.getByRole("dialog", { name: "Choose document" }));
-    expect(documents.getByRole("tab", { name: "Trial" })).toBeVisible();
-    expect(documents.getByRole("tab", { name: "Appeal" })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Application record" }));
-    await user.click(within(screen.getByRole("group", { name: "Application record format" }))
-      .getByRole("button", { name: "Application record — applicant" }));
+    expect(documents.getByText("Trial")).toBeVisible();
+    expect(documents.getByText("Appeal")).toBeVisible();
+    await user.click(documents.getAllByRole("button",
+      { name: /Application record — applicant/u })[0]);
 
     fireEvent.change(document.getElementById("court-record-notice-application-file")!, {
       target: { files: [new File(["source"], "Notice.pdf", { type: "application/pdf" })] },
