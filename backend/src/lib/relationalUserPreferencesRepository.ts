@@ -69,7 +69,6 @@ export function createUserPreferencesRepository(
       lastSelectedChatModel: text(row.last_selected_chat_model),
       lastSelectedReasoningEffort: text(row.last_selected_reasoning_effort),
       legalResearchUs: Number(row.legal_research_us) !== 0,
-      libraryLabelsId: text(row.library_labels_id),
       features: features(row.features),
       workflowFileTargets: workflowFileTargets(row.workflow_file_targets),
       filingContact: filingContact(row.filing_contact),
@@ -102,7 +101,6 @@ export function createUserPreferencesRepository(
       add("lastSelectedReasoningEffort", "last_selected_reasoning_effort",
         patch.lastSelectedReasoningEffort?.trim() || null);
       add("legalResearchUs", "legal_research_us", patch.legalResearchUs === false ? 0 : 1);
-      add("libraryLabelsId", "library_labels_id", patch.libraryLabelsId?.trim() || null);
       add("features", "features", encodeJson({
         ...DEFAULT_USER_PREFERENCES.features,
         ...patch.features,

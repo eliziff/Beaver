@@ -93,7 +93,7 @@ describe("DocumentSidePanel document removal", () => {
           hearing: { id: "hearing", name: "Right to a hearing", parentId: "fairness",
             color: "#1d4ed8", order: 1, scope: "source" },
         },
-        sources: { baker: { id: "baker", reference: { provider: "canlii",
+        sources: { baker: { id: "baker", collected: true, reference: { provider: "canlii",
           id: "1999canlii699", kind: "case", title: "Baker v Canada",
           citation: "[1999] 2 SCR 817" }, labelIds: ["hearing"], badge: "",
           note: "Leading procedural fairness authority.",
@@ -117,7 +117,7 @@ describe("DocumentSidePanel document removal", () => {
     expect(screen.getByText("Authorities on procedural fairness.")).toBeInTheDocument();
     expect(screen.getByText("Leading procedural fairness authority.")).toBeInTheDocument();
     expect(screen.getByLabelText("Workspace contents")).toHaveTextContent(
-      "1 source · 1 highlight · 2 labels · 1 search",
+      "1 source · 0 highlights · 2 labels · 1 search",
     );
     expect(screen.queryByText(/values underlying/u)).toBeNull();
     expect(screen.queryByLabelText("Research panels")).toBeNull();
@@ -155,10 +155,10 @@ describe("DocumentSidePanel document removal", () => {
       `label-${index}`, { id: `label-${index}`, name: `Label ${index}`, parentId: index ? null : "label-20",
         color: "#991b1b", order: index === 20 ? 0 : index, scope: index > 20 ? "highlight" as const : "source" as const },
     ])), sources = Object.fromEntries(Array.from({ length: 41 }, (_, index) => [
-      `source-${index}`, { id: `source-${index}`, reference: { provider: "canlii",
+      `source-${index}`, { id: `source-${index}`, collected: true, reference: { provider: "canlii",
         id: `case-${index}`, kind: "case", title: `Source ${index}` },
         labelIds: index ? [] : ["label-0"], badge: "", note: index ? "" : `Source note ${long} SOURCE_NOTE_TAIL`,
-        passages: index ? null : { count: 41, sha256: "c".repeat(64) } },
+        passages: index ? null : { count: 41, sha256: "c".repeat(64), labelCounts: { "label-21": 41 }, unlabelledCount: 0 } },
     ]));
     api.getResearchFile.mockResolvedValue({ document: researchDocument,
       versionId: researchVersion.id, workingRevision: 0,

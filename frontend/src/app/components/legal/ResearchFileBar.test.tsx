@@ -66,10 +66,10 @@ const file: ResearchFile = {
       holding: { id: "holding", name: "Holding", parentId: "finding", color: "#047857", order: 0, scope: "highlight" },
     },
     sources: {
-      baker: { id: "baker", labelIds: ["fairness", "other"], badge: "Leading", note: "Leading case",
+      baker: { id: "baker", collected: true, labelIds: ["fairness", "other"], badge: "Leading", note: "Leading case",
         passages: { count: 51, sha256: "p-hash", labelCounts: { holding: 1 }, unlabelledCount: 50 }, reference: { provider: "a2aj", id: "baker",
           kind: "case", title: "Baker v Canada", date: "1999-07-09", collection: "SCC" } },
-      appeal: { id: "appeal", labelIds: [], badge: "", note: "", passages: null,
+      appeal: { id: "appeal", collected: true, labelIds: [], badge: "", note: "", passages: null,
         reference: { provider: "a2aj", id: "appeal", kind: "case", title: "Appeal case",
           date: "2020-01-01", collection: "ONCA" } },
     } },
@@ -111,12 +111,12 @@ describe("ResearchFileBar", () => {
     });
   });
 
-  it("nests a source under every label it carries and leaves unlabelled sources in Unsorted", async () => {
+  it("nests a source under every label it carries and leaves unlabelled sources at the root without a pseudo-folder", async () => {
     await renderWorkspace();
     const tree = screen.getByRole("tree", { name: "Labels and sources" });
     const names = within(tree).getAllByRole("treeitem").map((row) => row.getAttribute("aria-label"));
     expect(names).toEqual(["Fairness, 1 sources", "Baker v Canada", "Other, 1 sources", "Baker v Canada",
-      "Unsorted, 1 sources", "Appeal case"]);
+      "Appeal case"]);
     expect(screen.queryByRole("complementary", { name: "Label organizer" })).not.toBeInTheDocument();
   });
 
@@ -195,7 +195,7 @@ describe("ResearchFileBar", () => {
     expect(screen.getByRole("tree", { name: "Labels and sources" })).toBeVisible();
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Labels", "Search", "Memo"]);
     expect(screen.queryByRole("textbox", { name: "Search saved source text" })).not.toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Pens" })).toBeVisible();
+    expect(screen.getByRole("group", { name: "Highlight types" })).toBeVisible();
     expect(screen.getByRole("searchbox", { name: "Filter" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "List options" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Organize" })).not.toBeInTheDocument();
@@ -213,12 +213,12 @@ describe("ResearchFileBar", () => {
     expect(within(tree).queryByRole("treeitem", { name: "Baker v Canada" })).not.toBeInTheDocument();
   });
 
-  it("filters the tree to sources highlighted with the selected pen", async () => {
+  it("selects the highlight type without changing the research scope", async () => {
     await renderWorkspace();
     fireEvent.click(screen.getByRole("button", { name: "Holding" }));
     const tree = screen.getByRole("tree", { name: "Labels and sources" });
     expect(within(tree).getAllByRole("treeitem", { name: "Baker v Canada" })[0]).toBeVisible();
-    expect(within(tree).queryByRole("treeitem", { name: "Appeal case" })).not.toBeInTheDocument();
+    expect(within(tree).getByRole("treeitem", { name: "Appeal case" })).toBeVisible();
     expect(api.getResearchItems.mock.calls.some(([, input]) => input.kind === "passages")).toBe(false);
   });
 
@@ -314,7 +314,7 @@ describe("ResearchFileBar", () => {
     menu("Holding options");
     fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
     dialog = screen.getByRole("alertdialog", { name: "Delete label?" });
-    expect(dialog).toHaveTextContent("Saved passages using it will lose it.");
+    expect(dialog).toHaveTextContent("Its highlights will be kept under Highlight.");
     expect(dialog).not.toHaveTextContent(/\d+ saved source/u);
   });
 
@@ -365,7 +365,7 @@ describe("ResearchFileBar", () => {
     await waitFor(() => expect(api.runResearchFileQuery).toHaveBeenCalledTimes(2));
     expect(api.runResearchFileQuery).toHaveBeenLastCalledWith("file-1", expect.objectContaining({
       syntax: "literal", target: "sources", conflict: "append",
-      rules: [{ phrase: "natural justice", direction: "after", unit: "sentence", slot: "Unclassified" }],
+      rules: [{ phrase: "natural justice", direction: "after", unit: "sentence" }],
     }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
