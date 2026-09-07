@@ -2542,6 +2542,11 @@ export function assistantTools<Context extends {
       Math.trunc(Number(input.occurrence_offset) || 0));
     const occurrenceLimit = Math.max(1, Math.min(25,
       Math.trunc(Number(input.occurrence_limit) || 25)));
+    const boundResource = (bindingRole: string) => {
+      const binding = draft.bindings[bindingRole];
+      return binding?.kind === "document" && typeof binding.version === "object"
+        ? resourceReference.document(binding.documentId, binding.version.versionId) : null;
+    };
     const authority = (id: string) => {
       const item = draft.authorities[id];
       if (!item) return null;
@@ -2552,6 +2557,7 @@ export function assistantTools<Context extends {
           ...(source.kind === "attached" ? { pdf_count: source.sources.length,
             pdfs: source.sources.map(({ bindingRole, filename, language }) => ({
               binding_role: bindingRole, filename: clip(filename, 300), language,
+              ...((resource) => resource ? { resource } : {})(boundResource(bindingRole)),
             })) } : {}),
           ...(source.kind === "pending-canlii" ? { page_url: clip(source.pageUrl, 1_000) } : {}) } };
     };
@@ -2561,6 +2567,7 @@ export function assistantTools<Context extends {
     const source = draft.import.kind === "document" ? {
       kind: draft.import.kind, filename: clip(draft.import.filename, 300),
       file_type: draft.import.fileType, binding_role: draft.import.bindingRole,
+      ...((resource) => resource ? { resource } : {})(boundResource(draft.import.bindingRole)),
     } : { kind: draft.import.kind };
     const summary: Record<string, unknown> = { ...(!targeted && {
       source,
