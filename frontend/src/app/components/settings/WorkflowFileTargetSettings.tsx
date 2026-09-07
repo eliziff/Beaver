@@ -95,7 +95,6 @@ function TargetPicker({ title, current, onClose, onSave }: {
     return <Modal open onClose={onClose} breadcrumbs={["Settings", title, "File location"]}
         size="md" className="!h-[min(32rem,calc(100dvh-2rem))]"
         footerStatus={<span role="status" className="text-sm text-red-700">{error}</span>}
-        cancelAction={{ label: "Cancel", onClick: onClose }}
         primaryAction={{ label: "Use folder", onClick: () => void choose(),
             disabled: !folder || saving }}>
         <fieldset className="mb-3 shrink-0">

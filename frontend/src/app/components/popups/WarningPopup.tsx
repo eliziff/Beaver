@@ -15,7 +15,7 @@ export function WarningPopup({ open, onClose, title, message, children, icon,
             {icon ?? <AlertCircle aria-hidden className="size-4 text-red-600" />}
             {title ?? "Warning"}
         </span>]}
-        primaryAction={primaryAction} secondaryAction={secondaryAction} cancelAction={false}>
+        primaryAction={primaryAction} secondaryAction={secondaryAction}>
         <div className="pb-5 text-sm text-gray-700">
             {message && <div>{message}</div>}
             {children}

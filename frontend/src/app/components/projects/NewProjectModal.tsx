@@ -119,7 +119,7 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
             files: () => fileInput.current?.click(),
             folder: () => folderInput.current?.click(),
         }} /> : undefined}
-        cancelAction={step === "documents"
+        secondaryAction={step === "documents"
             ? { label: "Back", onClick: () => setStep("details"), disabled: loading } : undefined}
         primaryAction={{ label: step === "details" ? "Next" : loading ? "Creating…" : "Create project",
             type: "submit", form: formId, disabled: loading }}>
