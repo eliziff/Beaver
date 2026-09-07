@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown, CircleStop, LoaderCircle } from "lucide-react";
 import type { AssistantReaderRun } from "@/app/lib/assistantSession";
 import type { Citation } from "@/app/lib/citations";
-import { ActivityDisclosure, ActivityRow } from "./message/EventBlocks";
+import { ActivityDisclosure, ActivityRow, collapseActivities } from "./message/EventBlocks";
 import { CitationPillMarkdown } from "./message/MarkdownContent";
 
 export type ReadSubagentPanel = AssistantReaderRun;
@@ -80,7 +80,7 @@ export function ReadSubagentDock({
                                             isStreaming={panel.status === "running"}
                                             label={panel.activities.at(-1)?.label ?? "Reading sources"}
                                         >
-                                            {panel.activities.map((activity) => <ActivityRow key={activity.id} activity={activity} onCitationClick={onCitationClick} />)}
+                                            {collapseActivities(panel.activities).map((activity) => <ActivityRow key={activity.id} activity={activity} onCitationClick={onCitationClick} />)}
                                             {panel.status === "running" && !panel.activities.some(({ status }) => status === "running") && <div role="status" className="flex items-center gap-2 text-xs text-gray-600"><LoaderCircle className="size-3 motion-safe:animate-spin" aria-hidden="true" />Thinking</div>}
                                         </ActivityDisclosure>
                                     </div>
