@@ -25,7 +25,6 @@ export const META_MAIN_MODELS = ["meta/muse-spark-1.1"] as const;
  * nowhere near client documents.
  */
 const META_DIRECT_MODELS = [
-    "muse-spark-1.3-contributor",
     "muse-spark-1.2",
     "muse-spark-1.1",
     "muse-spark-1.2-contributor",

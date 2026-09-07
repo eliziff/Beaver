@@ -42,11 +42,6 @@ export const SETTINGS_MODELS: ModelOption[] = [
     // Contributor tier trades ~12x cheaper tokens for Meta training on the
     // prompts and completions, so it stays out of the default picker.
     {
-        id: "muse-spark-1.3-contributor",
-        label: "Muse Spark 1.3 (contributor · trains on input)",
-        group: "Meta",
-    },
-    {
         id: "muse-spark-1.2-contributor",
         label: "Muse Spark 1.2 (contributor · trains on input)",
         group: "Meta",
