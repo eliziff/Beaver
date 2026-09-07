@@ -1,56 +1,15 @@
+import { WORK_PRODUCT_KINDS, type WorkProductKind, type WorkProductInput,
+  type WorkProductState, type WorkProductMetadata, type WorkProductBuildReceipt, type WorkProductOutputRef,
+  type WorkProduct as Product, type WorkProductResolution as Resolution,
+} from "mike/shared/work-products.mjs";
 import type { ApplicationScope } from "./applicationError";
+import { jsonRecord as record } from "./value";
 
-export const WORK_PRODUCT_KINDS = ["court-record", "authorities"] as const;
-export type WorkProductKind = typeof WORK_PRODUCT_KINDS[number];
+export { WORK_PRODUCT_KINDS };
+export type { WorkProductKind, WorkProductInput, WorkProductState, WorkProductOutput,
+  WorkProductOutputRef, ResolvedWorkProductInput, WorkProductBuildReceipt,
+  WorkProductMetadata, WorkProductInputResolution } from "mike/shared/work-products.mjs";
 
-export type WorkProductInput =
-  | { kind: "local-file"; handleId: string; lastSeen: {
-      name: string; size: number; modified: number; sha256?: string;
-    } }
-  | { kind: "document"; documentId: string;
-      version: "latest" | { versionId: string; sha256: string } }
-  | { kind: "work-product-output"; workProductId: string; role: string };
-
-export type WorkProductState = Record<string, unknown> & {
-  bindings?: Record<string, WorkProductInput>;
-};
-
-export type WorkProductOutput = {
-  documentId: string;
-  versionId: string;
-  sha256: string;
-  filename: string;
-  mimeType: string;
-  pageCount: number | null;
-};
-export type WorkProductOutputRef = Pick<WorkProductOutput, "documentId" | "versionId">;
-
-export type ResolvedWorkProductInput =
-  | { kind: "local-file"; handleId: string; filename: string; size: number;
-      modified: number; sha256: string }
-  | { kind: "document"; documentId: string; versionId: string; filename: string;
-      sha256: string }
-  | { kind: "work-product-output"; workProductId: string; role: string;
-      documentId: string; versionId: string; filename: string; sha256: string };
-
-export type WorkProductBuildReceipt = {
-  schemaVersion: "beaver.work-product-build.v2";
-  builtAt: string;
-  workProduct: { id: string; kind: WorkProductKind; revision: number };
-  inputs: Array<{ role: string; resolved: ResolvedWorkProductInput }>;
-  settings: { profileId: string | null; outputMode: string; stateSha256: string;
-    settingsSha256: string; sourceReceiptIds: string[]; audit: {
-      effective: { from: string; to: string | null } | null;
-      valuesJson: string;
-    } };
-  steps: string[];
-  output: { role: string; filename: string; mimeType: string;
-    pageCount: number | null; sha256: string };
-};
-
-const record = (value: unknown): Record<string, unknown> | null =>
-  value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown> : null;
 const closed = (value: unknown, keys: string[], optional: string[] = []) => {
   const item = record(value);
   return item && Object.keys(item).every((key) => keys.includes(key) || optional.includes(key)) &&
@@ -148,7 +107,7 @@ export function decodeWorkProductBuildReceipt(value: unknown): WorkProductBuildR
       !text(settings.outputMode, 100) || !digest(settings.stateSha256) ||
       !digest(settings.settingsSha256) ||
       !list(settings.sourceReceiptIds, 500, (id) => text(id, 200)) ||
-      !audit || !(effective === null || effective &&
+      !audit || !(audit.effective === null || effective &&
         text(effective.from, 50) && (effective.to === null || text(effective.to, 50))) ||
       typeof audit.valuesJson !== "string" || audit.valuesJson.length > 250_000 ||
       !record((() => { try { return JSON.parse(audit.valuesJson); } catch { return null; } })()) ||
@@ -159,39 +118,14 @@ export function decodeWorkProductBuildReceipt(value: unknown): WorkProductBuildR
   return receipt as unknown as WorkProductBuildReceipt;
 }
 
-type Product<K extends WorkProductKind> = {
-  id: string;
-  kind: K;
-  title: string;
-  projectId: string | null;
-  revision: number;
-  state: WorkProductState;
-  outputs: Record<string, WorkProductOutput>;
-  createdAt: string;
-  updatedAt: string;
-};
-export type WorkProduct = Product<"court-record"> | Product<"authorities">;
+export type WorkProduct = Product<WorkProductState, "court-record"> |
+  Product<WorkProductState, "authorities">;
 export type WorkProductReference = Pick<WorkProduct, "id" | "kind" | "revision">;
-export type WorkProductMetadata = Omit<WorkProduct, "state"> & { profileId?: string };
-
+export type WorkProductResolution = Omit<Resolution<WorkProductState>, "product"> & {
+  product: WorkProduct;
+};
 export const workProductInputs = (state: WorkProductState) =>
   Object.values(state.bindings ?? {});
-
-export type WorkProductInputResolution =
-  | { status: "ready"; input: WorkProductInput; resolved: ResolvedWorkProductInput }
-  | { status: "changed"; input: WorkProductInput; previous: ResolvedWorkProductInput;
-      current: ResolvedWorkProductInput }
-  | { status: "missing"; input: WorkProductInput; reason: "deleted" | "unavailable";
-      resource: "document" | "work-product" | "output"; id: string }
-  | { status: "review"; input: WorkProductInput; reason: "nested-draft-stale";
-      workProductId: string; resolved: ResolvedWorkProductInput };
-
-export type WorkProductResolution = {
-  product: WorkProduct;
-  freshness: "unbuilt" | "current" | "stale";
-  inputs: Record<string, WorkProductInputResolution>;
-  dependencies: string[];
-};
 
 export type WorkProductFailure =
   | { status: "missing"; resource: "project" | "document" | "work-product" | "output";
