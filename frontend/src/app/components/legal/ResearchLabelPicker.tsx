@@ -1,6 +1,7 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { useAnchoredPopover } from "@/app/hooks/useAnchoredPopover";
 import { errorMessage } from "@/app/lib/utils";
 import { researchLabelPath, type ResearchFile, type ResearchLabel,
   type ResearchSourceReference } from "@/app/lib/researchFiles";
@@ -96,7 +97,7 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
   target: ResearchLabelTarget; onClose: () => void; mutations: ResearchFileMutations;
   onPreview?: (labelIds: string[]) => void; onError?: (message: string) => void;
 }) {
-  const popover = useRef<HTMLDivElement>(null), [slots, setSlots] = useState<string[]>(
+  const [slots, setSlots] = useState<string[]>(
     target.kind === "evidence" ? target.labelIds.slice(0, 1) : target.labelIds);
   const [note, setNote] = useState(target.note ?? ""), [file, setFile] = useState(target.file),
     [activeSlot, setActiveSlot] = useState(0);
@@ -105,52 +106,9 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
     lastSaved = useRef(JSON.stringify([target.labelIds, target.note ?? ""]));
   const [error, setError] = useState(""), labels = file.state.labels;
   const scope = target.kind === "source" ? "source" : "highlight";
-  useLayoutEffect(() => {
-    const node = popover.current, anchor = target.anchor; if (!node) return;
-    if (typeof node.showPopover === "function") try { node.showPopover(); }
-    catch { node.removeAttribute("popover"); }
-    else node.removeAttribute("popover");
-    let frame = 0;
-    const place = () => {
-      const box = node.getBoundingClientRect(), rect = anchor instanceof HTMLElement
-        ? anchor.getBoundingClientRect() : anchor;
-      const dock = [...document.querySelectorAll<HTMLElement>("[data-assistant-dock]")]
-        .map((element) => element.getBoundingClientRect())
-        .filter((candidate) => candidate.width > 200 && (!rect || candidate.left > rect.left))
-        .sort((left, right) => left.left - right.left)[0];
-      const right = dock && rect && rect.left < dock.left ? dock.left - 8 : innerWidth - 8,
-        maxLeft = Math.max(8, right - box.width), beside = rect?.right && rect.right + box.width + 8 <= right
-          ? rect.right + 8 : rect && rect.left - box.width - 8 >= 8 ? rect.left - box.width - 8
-            : (innerWidth - box.width) / 2;
-      node.style.left = `${Math.max(8, Math.min(beside, maxLeft))}px`;
-      node.style.top = `${Math.max(8, Math.min(rect?.top ?? (innerHeight - box.height) / 2,
-        Math.max(8, innerHeight - box.height - 8)))}px`;
-    };
-    const reclamp = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(place); };
-    place();
-    node.querySelector<HTMLElement>("button")?.focus();
-    const dismiss = (event: PointerEvent) => {
-      if (!node.contains(event.target as Node) &&
-          !(anchor instanceof HTMLElement && anchor.contains(event.target as Node))) close.current();
-    };
-    const keydown = (event: KeyboardEvent) => { if (event.key === "Escape") {
-      event.preventDefault(); event.stopPropagation(); close.current(); } };
-    const observer = globalThis.ResizeObserver ? new ResizeObserver(reclamp) : null;
-    observer?.observe(node);
-    document.addEventListener("pointerdown", dismiss);
-    node.addEventListener("keydown", keydown);
-    window.addEventListener("resize", reclamp);
-    window.addEventListener("scroll", reclamp, true);
-    return () => {
-      cancelAnimationFrame(frame); observer?.disconnect();
-      document.removeEventListener("pointerdown", dismiss);
-      node.removeEventListener("keydown", keydown);
-      window.removeEventListener("resize", reclamp);
-      window.removeEventListener("scroll", reclamp, true);
-      try { node.hidePopover?.(); } catch { /* Already closed or unsupported. */ }
-      (target.returnFocus ?? (anchor instanceof HTMLElement ? anchor : null))?.focus();
-    };
-  }, [target.anchor, target.returnFocus]);
+  const popover = useAnchoredPopover({ anchor: target.anchor, onDismiss: () => close.current() });
+  useEffect(() => () => (target.returnFocus ?? (target.anchor instanceof HTMLElement ? target.anchor : null))?.focus(),
+    [target.anchor, target.returnFocus]);
   const slot = slots[activeSlot] ?? null;
   /** The slot the user is filling always wins: a repeat leaves the other slot, never strands this one. */
   const put = (id: string | null) => {
