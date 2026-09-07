@@ -78,6 +78,130 @@ const removeUserData = async (userId: string) => {
 export function relationalRepositoryContract(
   prepareScopes: (scopes: TestScope[]) => Promise<void> = async () => undefined,
 ) {
+  // Seed stored state directly: these read contracts must not depend on JSON write serialization.
+  const peopleResource = async (kind: "project" | "review", owner: TestScope, shared: string[],
+    projectId: string | null = null) => {
+    const [{ relationalDatabase, sql }, { replaceMembers }] = await Promise.all([
+      import("../../relationalDatabase"), import("../../relationalRepositorySupport"),
+    ]);
+    const db = await relationalDatabase(), id = randomUUID(), created = new Date().toISOString();
+    const table = sql.raw(kind === "project" ? "projects" : "tabular_reviews");
+    if (kind === "project") await db.query(sql`INSERT INTO projects(id,user_id,name,created_at,updated_at)
+      VALUES(${id},${owner.userId},'People',${created},${created})`);
+    else await db.query(sql`INSERT INTO tabular_reviews(id,user_id,project_id,created_at,updated_at)
+      VALUES(${id},${owner.userId},${projectId},${created},${created})`);
+    const share = async (emails: string[]) => {
+      const text = JSON.stringify(emails), value = db.engine === "postgres"
+        ? sql`CAST(CAST(${text} AS text) AS jsonb)` : sql`${text}`;
+      await db.transaction(async tx => {
+        await tx.query(sql`UPDATE ${table} SET shared_with=${value} WHERE id=${id}`);
+        await replaceMembers(tx, kind === "project" ? "project_members" : "tabular_review_members", id, emails);
+      });
+    };
+    await share(shared);
+    return { id, share, cleanup: () => db.query(sql`DELETE FROM ${table} WHERE id=${id}`) };
+  };
+
+  const peopleFixture = async (kind: "project" | "review") => {
+    const [{ projectRepository: projects }, { tabularRepository: reviews }, { relationalDatabase, sql }] =
+      await Promise.all([import("../../relationalProjectRepository"), import("../../relationalTabularRepository"),
+        import("../../relationalDatabase")]);
+    const owner = scope("people-owner"), member = scope("people-member"), unnamed = scope("people-unnamed"),
+      stranger = scope("people-stranger"), missing = scope("people-missing");
+    await prepareScopes([owner, member, unnamed, stranger]);
+    const db = await relationalDatabase(), cloud = db.engine === "postgres";
+    for (const [user, name] of [[owner, "Élodie"], [member, "Researcher 李"], [stranger, "Private"]] as const)
+      await db.query(sql`INSERT INTO user_preferences(user_id,display_name,updated_at)
+        VALUES(${user.userId},${name},${new Date().toISOString()})
+        ON CONFLICT(user_id) DO UPDATE SET display_name=excluded.display_name`);
+    await db.query(sql`DELETE FROM user_preferences WHERE user_id=${unnamed.userId}`);
+    if (cloud) for (const user of [owner, member]) await db.query(sql`UPDATE user_profiles
+      SET email=${user.userEmail.toUpperCase()} WHERE user_id=${user.userId}`);
+    const shared = [unnamed.userEmail, missing.userEmail, member.userEmail, member.userEmail];
+    const { id, share, cleanup } = await peopleResource(kind, owner, shared);
+    const people = (viewer = owner, resourceId = id) => kind === "project"
+      ? projects.people(viewer, resourceId) : reviews.people(viewer, resourceId);
+    return { owner, member, unnamed, stranger, missing, db, sql, cloud, people, share, cleanup };
+  };
+
+  for (const kind of ["project", "review"] as const) {
+    it(`${kind} people directory retains owner identity, ordered members and missing profile fallbacks`, async () => {
+      const f = await peopleFixture(kind);
+      try {
+        const expected = { owner: { user_id: f.owner.userId,
+          email: f.cloud ? f.owner.userEmail.toUpperCase() : null, display_name: f.cloud ? "Élodie" : null },
+        members: [f.unnamed, f.missing, f.member, f.member].map(user => ({ email: user.userEmail,
+          display_name: f.cloud && user === f.member ? "Researcher 李" : null })) };
+        expect(await f.people()).toEqual(expected);
+        // The viewer is a member, not the owner; local mode must not query cloud profiles.
+        expect(await f.people(f.member)).toEqual(expected);
+      } finally { await f.cleanup(); }
+    });
+
+    it(`${kind} people directory refuses strangers, anonymous outsiders and missing resources`, async () => {
+      const f = await peopleFixture(kind);
+      try {
+        expect(await f.people(f.stranger)).toBeNull();
+        expect(await f.people({ ...f.stranger, userEmail: "" })).toBeNull();
+        expect(await f.people(f.owner, randomUUID())).toBeNull();
+        expect(await f.people({ ...f.member, userEmail: `  ${f.member.userEmail.toUpperCase()}  ` }))
+          .toEqual(await f.people());
+      } finally { await f.cleanup(); }
+    });
+
+    it(`${kind} people directory reflects profile updates and sharing revocation on the next read`, async () => {
+      const f = await peopleFixture(kind);
+      try {
+        const before = await f.people(f.member);
+        await f.db.query(f.sql`UPDATE user_preferences SET display_name='Updated' WHERE user_id=${f.member.userId}`);
+        expect((await f.people(f.member))?.members.at(-1)?.display_name).toBe(f.cloud ? "Updated" : null);
+        expect(before?.members.at(-1)?.display_name).toBe(f.cloud ? "Researcher 李" : null);
+        await f.share([f.stranger.userEmail]);
+        expect(await f.people(f.member)).toBeNull();
+        expect((await f.people(f.stranger))?.members).toEqual([
+          { email: f.stranger.userEmail, display_name: f.cloud ? "Private" : null },
+        ]);
+      } finally { await f.cleanup(); }
+    });
+
+    it(`${kind} people directory handles an empty membership and an absent owner profile`, async () => {
+      const f = await peopleFixture(kind);
+      try {
+        await f.share([]);
+        expect((await f.people())?.members).toEqual([]);
+        if (f.cloud) {
+          await f.db.query(f.sql`UPDATE user_profiles SET email=NULL WHERE user_id=${f.owner.userId}`);
+          expect((await f.people())?.owner).toEqual({ user_id: f.owner.userId, email: null, display_name: "Élodie" });
+          await f.db.query(f.sql`DELETE FROM user_profiles WHERE user_id=${f.owner.userId}`);
+        }
+        expect(await f.people()).toEqual({ owner: { user_id: f.owner.userId,
+          email: null, display_name: null }, members: [] });
+      } finally { await f.cleanup(); }
+    });
+  }
+
+  it("review people directory preserves inherited project access without conflating membership or owners", async () => {
+    const [{ projectRepository: projects }, { tabularRepository: reviews }] = await Promise.all([
+      import("../../relationalProjectRepository"), import("../../relationalTabularRepository"),
+    ]);
+    const parentOwner = scope("parent-owner"), reviewOwner = scope("review-owner"),
+      inherited = scope("project-reader"), direct = scope("review-reader"), stranger = scope("stranger");
+    await prepareScopes([parentOwner, reviewOwner, inherited, direct, stranger]);
+    const project = await peopleResource("project", parentOwner, [reviewOwner.userEmail, inherited.userEmail]);
+    try {
+      const { id } = await peopleResource("review", reviewOwner, [direct.userEmail], project.id);
+      const expected = await reviews.people(reviewOwner, id);
+      expect(expected?.owner.user_id).toBe(reviewOwner.userId);
+      expect(expected?.members.map(member => member.email)).toEqual([direct.userEmail]);
+      for (const viewer of [parentOwner, inherited, direct]) expect(await reviews.people(viewer, id)).toEqual(expected);
+      expect(await reviews.people(stranger, id)).toBeNull();
+      expect(await projects.people(direct, project.id)).toBeNull();
+      await project.share([reviewOwner.userEmail]);
+      expect(await reviews.people(inherited, id)).toBeNull();
+      expect(await reviews.people(direct, id)).toEqual(expected);
+    } finally { await project.cleanup(); }
+  });
+
   it("round-trips legal receipts and resume state while exposing only public transcript fields", async () => {
     const [{ chatRepository }, { relationalDatabase, sql }, evidence, { visibleChatMessages }] = await Promise.all([
       import("../../relationalChatRepository"), import("../../relationalDatabase"),

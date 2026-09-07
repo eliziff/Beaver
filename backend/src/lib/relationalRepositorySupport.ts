@@ -98,6 +98,20 @@ export const chatAccess = (scope: ApplicationScope, owner = false) => owner
       SELECT 1 FROM tabular_reviews r WHERE r.id=c.tabular_review_id
         AND ${reviewAccess(scope)}))`;
 
+// Callers must authorize the resource before hydrating its owner and direct members.
+export async function resourcePeople(db: RelationalDatabase, ownerId: string, shared: string[]) {
+  const profiles = db.engine === "postgres" ? await rows<{ user_id: string; email: string | null;
+    display_name: string | null }>(sql`SELECT p.user_id,p.email,u.display_name
+    FROM user_profiles p LEFT JOIN user_preferences u ON u.user_id=p.user_id
+    WHERE p.user_id=${ownerId} OR lower(p.email) IN(${sql.join(shared)})`, db) : [];
+  const owner = profiles.find(({ user_id }) => user_id === ownerId);
+  const byEmail = new Map(profiles.flatMap((profile) => profile.email
+    ? [[profile.email.toLowerCase(), profile.display_name] as const] : []));
+  return { owner: { user_id: ownerId, email: owner?.email ?? null,
+    display_name: owner?.display_name ?? null }, members: shared.map((value) => ({
+      email: value, display_name: byEmail.get(value) ?? null })) };
+}
+
 export async function missingProfileEmail(db: RelationalDatabase, emails: string[]) {
   if (db.engine === "sqlite") return emails[0] ?? null;
   const normalized = [...new Set(emails.map((value) => value.trim().toLowerCase()))];
