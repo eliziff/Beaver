@@ -30,6 +30,7 @@ type Stored = { id: string; projectId: string | null; folderId: string | null;
 function harness(options: {
   draft?: AuthoritiesDraft;
   resolve?: (...args: unknown[]) => Promise<unknown>;
+  resolveForeign?: (...args: unknown[]) => Promise<unknown>;
   download?: (...args: unknown[]) => Promise<{
     bytes: Buffer; sourceSha256: string; url?: string } | null>;
   builder?: (...args: never[]) => Promise<AuthoritiesBuildResult>;
@@ -153,6 +154,7 @@ function harness(options: {
     structuredClone(options.draft ?? createAuthoritiesDraft({ kind: "manual" }))) };
   const sources = {
     resolve: vi.fn(options.resolve ?? (async () => null)),
+    resolveForeign: vi.fn(options.resolveForeign ?? (async () => null)),
     download: vi.fn(options.download ?? (async () => Promise.reject(new Error("unused")))),
     key: vi.fn(options.key ?? (() => "canonical-key")),
     occurrences: vi.fn(options.occurrences ?? (() => [])),
@@ -696,6 +698,52 @@ describe("Authorities workspace application", () => {
       expect(runtime.sources.download).not.toHaveBeenCalled();
       expect(fetch).not.toHaveBeenCalled();
     } finally { fetch.mockRestore(); }
+  });
+
+  it("attaches a US opinion PDF the Canadian corpus does not hold", async () => {
+    const draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
+      type: "add-authority", authority: { id: "sullivan", key: "sullivan", kind: "case",
+        citation: "376 US 254", name: "New York Times Co v Sullivan", displayName: null,
+        excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
+        source: { kind: "unresolved" } },
+    });
+    const bytes = Buffer.from("%PDF-1.4 opinion");
+    const runtime = harness({ draft,
+      resolveForeign: async () => ({ provider: "courtlistener",
+        stableSourceId: "courtlistener:106761", citation: "376 U.S. 254",
+        name: "New York Times Co. v. Sullivan", date: "1964-03-09",
+        url: "https://www.courtlistener.com/opinion/106761/new-york-times-co-v-sullivan/",
+        pdfUrl: "https://storage.courtlistener.com/harvard_pdf/106761.pdf",
+        text: "", sourceSha256: "b".repeat(64) }),
+      download: async () => ({ bytes, sourceSha256: sha256(bytes),
+        url: "https://storage.courtlistener.com/harvard_pdf/106761.pdf" }) });
+    const imported = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
+
+    const product = await prepareSources(runtime, imported);
+
+    const authority = (product.state as AuthoritiesDraft).authorities.sullivan;
+    expect(authority.sourceIdentity).toMatchObject({ provider: "courtlistener",
+      stableSourceId: "courtlistener:106761" });
+    expect(authority.source).toMatchObject({ kind: "attached",
+      sources: [{ origin: "original",
+        sourceUrl: "https://storage.courtlistener.com/harvard_pdf/106761.pdf" }] });
+  });
+
+  it("leaves a citation no provider claims on manual upload", async () => {
+    const draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
+      type: "add-authority", authority: { id: "manock", key: "manock", kind: "case",
+        citation: "[2007] HCA 60", name: "Channel Seven Adelaide Pty Ltd v Manock",
+        displayName: null, excluded: false, evidenceIds: [], locators: [],
+        sourceIdentity: null, source: { kind: "unresolved" } },
+    });
+    const runtime = harness({ draft });
+    const imported = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
+
+    const product = await prepareSources(runtime, imported);
+
+    expect((product.state as AuthoritiesDraft).authorities.manock)
+      .toMatchObject({ sourceIdentity: null, source: { kind: "unresolved" } });
+    expect(runtime.sources.download).not.toHaveBeenCalled();
   });
 
   it("uses A2AJ's exact CanLII page for a reporter-only manual handoff", async () => {
