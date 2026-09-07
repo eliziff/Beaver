@@ -3,12 +3,12 @@ import { validateDocumentFile } from "../documentTypes";
 
 describe("document upload signatures", () => {
   it.each([
-    ["brief.pdf", Buffer.from("%PDF-1.7\n")],
-    ["brief.docx", Buffer.from([0x50, 0x4b, 0x03, 0x04])],
-    ["brief.doc", Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])],
-    ["brief.doc", Buffer.from("{\\rtf1")],
-  ])("accepts matching %s content", (filename, bytes) => {
-    expect(validateDocumentFile(filename, bytes).ok).toBe(true);
+    ["brief.pdf", Buffer.from("%PDF-1.7\n"), "pdf"],
+    ["brief.docx", Buffer.from([0x50, 0x4b, 0x03, 0x04]), "docx"],
+    ["brief.doc", Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]), "doc"],
+    ["brief.doc", Buffer.from("{\\rtf1"), "doc"],
+  ])("accepts matching %s content", (filename, bytes, fileType) => {
+    expect(validateDocumentFile(filename, bytes)).toEqual({ ok: true, fileType });
   });
 
   it.each(["pdf", "docx", "xlsx", "pptx", "doc", "xls", "ppt"])(
