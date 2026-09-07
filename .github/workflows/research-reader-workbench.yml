@@ -2,7 +2,7 @@ name: Research reader workbench
 on:
   push:
     branches: [codex/research-findings-reader]
-    paths: ['.github/workflows/research-reader-workbench.yml', '.research-reader/**']
+    paths: ['.github/workflows/research-reader-workbench.yml']
   workflow_dispatch:
 permissions:
   contents: write
@@ -15,14 +15,90 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 2 }
+        with: { fetch-depth: 12 }
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: npm, cache-dependency-path: backend/package-lock.json }
       - run: npm ci --prefix backend --no-audit --no-fund
-      - name: Export exact checkout
+      - name: Validate patch and retain baseline
         run: |
-          git ls-files '*research*test*' '*sourceWorkspace*test*' '*vitest*'
-          find backend/src -iname '*research*test*' -o -iname '*sourceWorkspace*test*'
-          tar -czf /tmp/research-checkout.tgz --exclude=backend/dist --exclude=backend/.cache backend shared packages native scripts subrepos.lock.json tsconfig.json package.json AGENTS.md
+          mkdir -p /tmp/research-proof
+          cat .research-reader-patch-1.b64 .research-reader-patch-2.b64 | base64 -d | gzip -d > /tmp/research.patch
+          echo '0d8f85399f0db4e4e1576fcd6a45a9a12552f704c926fa475c126e77e07f047c  /tmp/research.patch' | sha256sum -c -
+          git apply --check /tmp/research.patch
+          git fetch origin 6852d6d4f353c4ec53f11ace3cdba5a5f2d0b1c6
+          git diff --exit-code 6852d6d4f353c4ec53f11ace3cdba5a5f2d0b1c6 -- backend/src
+          cp backend/src/lib/researchInterop.test.ts /tmp/original-interop.ts
+      - name: Baseline build and focused tests
+        run: |
+          npm run build --prefix backend > /tmp/research-proof/build-before.log 2>&1
+          cd backend
+          node node_modules/vitest/vitest.mjs run src/lib/researchInterop.test.ts src/lib/researchFileV2.test.ts src/routes/researchViews.test.ts src/routes/sourceWorkspaces.test.ts src/lib/tabular src/lib/chat/researchTableTool.test.ts --reporter=json --outputFile=/tmp/research-proof/before.json > /tmp/research-proof/tests-before.log 2>&1 || true
+      - name: Baseline boundaries
+        run: |
+          node scripts/check-source-boundaries.mjs > /tmp/research-proof/boundaries-before.log 2>&1 || true
+          node scripts/check-typescript-surface.mjs > /tmp/research-proof/surface-before.json 2>&1 || true
+      - name: Apply exact locally validated patch
+        run: git apply /tmp/research.patch
+      - name: Candidate build and focused tests
+        run: |
+          npm run build --prefix backend > /tmp/research-proof/build-after.log 2>&1
+          cd backend
+          node node_modules/vitest/vitest.mjs run src/lib/researchInterop.test.ts src/lib/researchFileV2.test.ts src/routes/researchViews.test.ts src/routes/sourceWorkspaces.test.ts src/lib/tabular src/lib/chat/researchTableTool.test.ts --reporter=json --outputFile=/tmp/research-proof/after.json > /tmp/research-proof/tests-after.log 2>&1 || true
+      - name: Candidate boundaries and regression gate
+        run: |
+          node scripts/check-source-boundaries.mjs > /tmp/research-proof/boundaries-after.log 2>&1 || true
+          node scripts/check-typescript-surface.mjs > /tmp/research-proof/surface-after.json 2>&1 || true
+          python3 - <<'PY'
+          import json, pathlib
+          root = pathlib.Path('/tmp/research-proof')
+          before, after = [json.loads((root / name).read_text()) for name in ('before.json', 'after.json')]
+          def failures(result):
+              return {test['fullName'] for suite in result['testResults'] for test in suite['assertionResults'] if test['status'] == 'failed'}
+          report = {'before': {key: before[key] for key in ('numPassedTests', 'numFailedTests', 'numPendingTests')}, 'after': {key: after[key] for key in ('numPassedTests', 'numFailedTests', 'numPendingTests')}, 'new_failures': sorted(failures(after) - failures(before))}
+          (root / 'comparison.json').write_text(json.dumps(report, indent=2))
+          print(json.dumps(report, indent=2))
+          assert not report['new_failures'], 'New failing tests'
+          assert after['numPassedTests'] >= before['numPassedTests'] + 9, 'Missing regression coverage'
+          assert after['numPendingTests'] == 1, 'Only the opt-in benchmark may be skipped'
+          assert (root / 'boundaries-before.log').read_text() == (root / 'boundaries-after.log').read_text(), 'Source boundary regression'
+          surface = json.loads((root / 'surface-after.json').read_text())
+          assert not surface['productionDead'] and not surface['productionPrivateOnly'], surface
+          print((root / 'boundaries-after.log').read_text())
+          print(json.dumps(surface, indent=2))
+          PY
+      - name: Reproduce performance with the same repository fixture
+        run: |
+          (cd backend && BEAVER_FINDINGS_BENCHMARK=/tmp/research-proof/benchmark-after.json node node_modules/vitest/vitest.mjs run src/lib/researchInterop.test.ts -t 'benchmarks research findings')
+          git worktree add --detach /tmp/research-baseline 6852d6d4f353c4ec53f11ace3cdba5a5f2d0b1c6
+          ln -s "$GITHUB_WORKSPACE/backend/node_modules" /tmp/research-baseline/backend/node_modules
+          cp backend/src/lib/researchInterop.test.ts /tmp/research-baseline/backend/src/lib/researchInterop.test.ts
+          (cd /tmp/research-baseline/backend && BEAVER_FINDINGS_BENCHMARK=/tmp/research-proof/benchmark-before.json node node_modules/vitest/vitest.mjs run src/lib/researchInterop.test.ts -t 'benchmarks research findings')
+      - name: Verify size and publish without staging files
+        run: |
+          git add backend/src benchmarks/research-findings
+          git diff --cached --numstat > /tmp/research-proof/numstat.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          stats = [line.split('\t') for line in Path('/tmp/research-proof/numstat.txt').read_text().splitlines()]
+          prod = [(int(a),int(d),p) for a,d,p in stats if p.startswith('backend/src/') and '.test.' not in p]
+          print('Production changes:', prod)
+          assert len(prod) == 4 and sum(a-d for a,d,p in prod) < 0, prod
+          PY
+          git diff --cached --stat
+          git diff --cached --check
+          git diff --cached --name-only | xargs sha256sum > /tmp/research-proof/files.sha256
+          git rm .research-reader-patch-1.b64 .research-reader-patch-2.b64 .github/workflows/research-reader-workbench.yml
+          git config user.name 'Eli Ziff'
+          git config user.email 'eliasziff@gmail.com'
+          git commit -m 'Refactor research findings into one indexed reader per operation'
+          git push origin HEAD:codex/research-findings-reader
+          git rev-parse HEAD > /tmp/research-proof/published-commit.txt
+      - name: Show validation results
+        if: always()
+        run: |
+          for file in /tmp/research-proof/comparison.json /tmp/research-proof/build-after.log /tmp/research-proof/boundaries-after.log /tmp/research-proof/published-commit.txt; do
+            if test -f "$file"; then echo "=== $file ==="; cat "$file"; fi
+          done
       - uses: actions/upload-artifact@v4
-        with: { name: research-checkout, path: /tmp/research-checkout.tgz, retention-days: 1 }
+        if: always()
+        with: { name: research-reader-validation, path: /tmp/research-proof, retention-days: 7 }
