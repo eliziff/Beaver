@@ -15,6 +15,8 @@ type CitationDisplay = {
   external_url?: string | null;
   authority?: string;
   short_authority?: string;
+  /** A subsequent reference to an authority already cited above. */
+  short_form?: boolean;
   locator_separator?: " at " | ", ";
 };
 export type DocumentCitation = CitationDisplay & {

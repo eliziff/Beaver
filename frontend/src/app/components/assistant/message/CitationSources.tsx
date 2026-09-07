@@ -27,6 +27,10 @@ function shortCaseName(value: string): string {
 }
 function citationSourceLabel(annotation: Citation, sourceOnly = false): string {
     const authority = annotation.authority?.trim();
+    // A repeat cite carries the new pinpoint in short form: "Grant at para 44".
+    const style = caseName(annotation);
+    if (!sourceOnly && annotation.short_form)
+        return style ? shortCaseName(style) : annotation.short_authority?.trim() || authority || "";
     if (!sourceOnly && authority) return authority;
     if (annotation.kind === "a2aj") {
         const name = annotation.name?.trim();
@@ -64,7 +68,8 @@ export function citationPillParts(annotation: Citation, sourceOnly = false): {
     rest: string;
 } {
     const label = citationPillLabel(annotation, sourceOnly);
-    const style = caseName(annotation);
+    const full = caseName(annotation);
+    const style = full && !sourceOnly && annotation.short_form ? shortCaseName(full) : full;
     if (!style) return { styleOfCause: null, rest: label };
     return {
         styleOfCause: style,
