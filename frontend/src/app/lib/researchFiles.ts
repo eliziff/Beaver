@@ -1,3 +1,4 @@
+import type { ResearchFindingReference } from "@/app/lib/api/researchFiles";
 import type { Document } from "@/app/lib/api/documents";
 import type { GroundedEvidence } from "@/app/lib/groundedAnswers";
 
@@ -49,7 +50,7 @@ export type ResearchPageItem = { kind: "passage" | "evidence"; index: number; va
 export type ResearchActionResult = ResearchFile & { sourceId?: string; evidenceId?: string; receipt?: ResearchEvidenceReceipt };
 export type ResearchSelection = { target: "sources" | "passages"; sourceIds?: string[];
   evidenceIds?: string[]; labelIds?: string[]; unlabelled?: boolean;
-  members?: { sourceId: string; evidenceIds?: string[] }[] };
+  members?: { sourceId: string; evidenceIds?: string[] }[]; findingRefs?: ResearchFindingReference[] };
 export type ResearchQueryInput = ResearchSelection & { text?: string; after?: string; syntax: "literal" | "terms";
   limit?: number;
   rules?: Array<{ phrase: string; direction: "before" | "after" | "around";

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { BookOpen, FileText, Loader2, PanelLeft, RefreshCw, X } from "lucide-react";
 import type { ColumnConfig, TabularCell, TabularDocument } from "@/app/lib/api/tabular";
 import { type Citation } from "@/app/lib/citations";
@@ -15,6 +15,8 @@ interface Props {
     column: ColumnConfig;
     onClose: () => void;
     onRegenerate?: () => Promise<void>;
+    onDiscuss?: () => void;
+    saveHighlights?: ReactNode;
     running?: boolean;
     displayDocument?: boolean;
     citation?: Citation;
@@ -26,7 +28,7 @@ export function TRSidePanel({
     document: doc,
     column,
     onClose,
-    onRegenerate,
+    onRegenerate, onDiscuss, saveHighlights,
     running = false,
     displayDocument = false,
     citation,
@@ -158,20 +160,22 @@ export function TRSidePanel({
                         </div>}
                         <h2 className="text-sm font-semibold leading-5 text-gray-900 [overflow-wrap:anywhere]">{column.name}</h2>
                         <div className="mt-3">
-                            {cell.content && <TabularResultDetails answer={cell.content} column={column} onCitation={handleCitationOpen} />}
+                            {cell.content && <><TabularResultDetails answer={cell.content} column={column} onCitation={handleCitationOpen} />
+                              {saveHighlights}</>}
                             {!cell.content && <p role="status" className="text-sm text-gray-500">{cell.status === "error" ? "This result failed. Regenerate to try again."
                                 : cell.status === "generating" ? "Running…" : "This question has not run yet."}</p>}
                         </div>
                     </div>
                 </div>
-                {onRegenerate && <div className="flex shrink-0 items-center justify-between gap-2 border-t border-gray-200 px-3 py-2">
+                {(onRegenerate || onDiscuss) && <div className="flex shrink-0 items-center justify-between gap-2 border-t border-gray-200 px-3 py-2">
                     {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
-                    <Button variant="outline" size="compact" disabled={regenerating || running} aria-label="Regenerate" title="Regenerate"
+                    {onDiscuss && <Button variant="ghost" size="compact" onClick={onDiscuss}>Discuss</Button>}
+                    {onRegenerate && <Button variant="outline" size="compact" disabled={regenerating || running} aria-label="Regenerate" title="Regenerate"
                         onClick={async () => { setRegenerating(true); setError("");
                             try { await onRegenerate(); } catch { setError("Could not regenerate. Try again."); }
                             finally { setRegenerating(false); } }}>
                         {regenerating ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}Regenerate
-                    </Button>
+                    </Button>}
                 </div>}
             </div>
         </dialog>

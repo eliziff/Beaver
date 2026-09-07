@@ -36,8 +36,9 @@ creating or editing the memo must not create a second Library document.
 
 Grounded answers share claims with supporting evidence IDs and an optional typed
 value. Chat answers remain in their transcripts and extraction results in their
-table cells. A table arrangement refers to those answers, original passages and
-label assignments instead of copying them. The workspace renders the same results
+table cells. An editable table arrangement refers to those answers, original passages and
+label assignments. Accepted research conversions freeze resolved cell values
+alongside their original item and evidence references in the existing table store. The workspace renders the same results
 and supports. Models read them with the original evidence IDs. Generated prose
 never becomes a substitute primary source receipt.
 
@@ -98,13 +99,17 @@ relevant passages, draft a memo and survive reload/model-context transfer.
 
 The research foundation and combined Sources/Memo/Table surface cleanup are
 specified in the [current behavior contract](../current/behavior-contracts.md#sources-workspace).
-These surfaces do not yet implement all the semantic conversions below.
+The interoperability contract now covers populated Sources/Chat conversion,
+optional model-suggested reference mapping, explicit reverse highlight/label
+promotion and selected Table results in Chat. See the
+[current contract](../current/behavior-contracts.md#research-interoperability).
 
-4. Sources/Table reuse: carry classifications, saved evidence and grounded findings
-   into meaningful pre-populated reviews; explicit reverse promotion.
-5. Chat conversion: preserve grounded intellectual work, propose semantic mappings
-   where needed and carry exact scopes between surfaces.
-6. Minimal Library integration and complete round-trip browser validation.
+Remaining: full launcher/native-reader round trips, configured live-model quality
+validation of semantic layouts, large-workspace performance, and final thin
+Library interaction polish. The component fixture and isolated local database
+checks do not replace those full-stack gates. Changes to existing label/highlight
+hierarchies or column prompts continue through the current assistant proposal
+operations, not another organization surface.
 
 The foundation removes `library_labels_id` and uses local schema version 17.
 It follows the repository's pre-release schema replacement policy: no migration

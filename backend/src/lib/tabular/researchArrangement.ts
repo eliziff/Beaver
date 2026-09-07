@@ -3,7 +3,8 @@ import { ApplicationError, type ApplicationScope } from "../applicationError";
 import type { DocumentStore } from "../documentStore";
 import { researchLabelPath, researchSourceResource, visitResearchEvidenceParts,
   type ResearchEvidence, type ResearchFile } from "../researchFile";
-import { researchFindingReferenceSchema, type ResearchFinding, type ResearchFindingReference } from "../researchChat";
+import { type ResearchFinding } from "../researchChat";
+import { researchFindingReferenceSchema, type ResearchFindingReference } from "../researchFindingReference";
 import { resolveResearchSelection, researchSelectionLabels, type ResearchSubject } from "../researchSelection";
 import type { TabularCell, TabularCellContent, TabularColumn } from "../tabularStore";
 
@@ -36,8 +37,8 @@ export const researchArrangementToolSchema = {
           properties: { kind: { type: "string", enum: ["label", "passage", "note", "answer", "cell"] }, labelId: string,
             sourceId: string, evidenceId: string, chatId: string, answerId: string, resource: string,
             display: { type: "string", enum: ["name", "path"] }, reviewId: string, rowId: string,
-            columnIndex: { type: "integer" } },
-          description: "label: labelId,sourceId,evidenceId?,display? (name by default); passage: sourceId,evidenceId; note: sourceId,evidenceId? (the saved note on that source or passage); answer: chatId,answerId,resource; cell: reviewId,rowId,columnIndex" } } } } },
+            columnIndex: { type: "integer" }, claimIndices: { type: "array", items: { type: "integer", minimum: 0 }, minItems: 1, maxItems: 500 } },
+          description: "label: labelId,sourceId,evidenceId?,display? (name by default); passage: sourceId,evidenceId; note: sourceId,evidenceId? (the saved note on that source or passage); answer: chatId,answerId,resource,claimIndices? (original zero-based claim indices); cell: reviewId,rowId,columnIndex" } } } } },
   },
 };
 
@@ -80,6 +81,7 @@ export async function resolveResearchArrangement(input: {
     if (!row || !columns.some(({ index }) => index === mapping.columnIndex) || assigned.has(key))
       throw new ApplicationError(400, "Each mapped cell needs a unique existing row and column");
     assigned.add(key);
+    if (!mapping.items.length) continue;
     const previous = cells.get(key), identity = { ...previous, id: previous?.id ?? `reference:${key}`,
       review_id: previous?.review_id ?? "", document_id: mapping.rowId, column_index: mapping.columnIndex };
     try {
@@ -87,12 +89,15 @@ export async function resolveResearchArrangement(input: {
       const resource = researchSourceResource(file.state.sources[row.sourceId].reference),
         values: string[] = [], claims: TabularCellContent["claims"] = [],
         receipts = new Map<string, TabularCellContent["evidence"][number]>();
-      let singleFinding: ResearchFinding | undefined;
+      let singleFinding: ResearchFinding | undefined, partial = false;
       for (const reference of mapping.items) {
         if (reference.kind === "answer" || reference.kind === "cell") {
           const answer = await input.resolveFinding?.(reference);
           if (!answer || answer.resource !== resource) missing("The referenced answer is unavailable for this row");
+          if (row.evidenceIds && answer.answer.claims.some((claim) => !claim.evidence_ids.some((id) => row.evidenceIds!.includes(id))))
+            throw new ApplicationError(400, "An answer includes claims outside the selected row scope");
           if (mapping.items.length === 1) singleFinding = answer;
+          partial ||= answer.answer.coverage === "partial";
           values.push(answer.answer.summary ?? (answer.answer.value == null ? answer.answer.claims.map(({ text }) => text).join("\n\n")
             : Array.isArray(answer.answer.value) ? answer.answer.value.join("\n") : String(answer.answer.value)));
           claims.push(...answer.answer.claims);
@@ -122,7 +127,7 @@ export async function resolveResearchArrangement(input: {
       cells.set(key, { ...identity, status: "done", content: {
           summary: values.join("\n\n"), value: values.length === 1 ? values[0] : values,
           claims: [...new Map(claims.map((claim) => [JSON.stringify(claim), claim])).values()],
-          evidence: [...receipts.values()], resource, outcome: "answered", coverage: "complete",
+          evidence: [...receipts.values()], resource, outcome: "answered", coverage: partial ? "partial" : "complete",
           ...(singleFinding ? { ...singleFinding.answer,
             summary: singleFinding.answer.summary ?? values.join("\n\n"),
             outcome: singleFinding.answer.outcome ?? "answered", coverage: singleFinding.answer.coverage ?? "partial" } : {}),

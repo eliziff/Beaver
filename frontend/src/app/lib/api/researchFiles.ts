@@ -28,7 +28,7 @@ export const runResearchFileQuery = (id: string,
     ...input, version_id: input.versionId, working_revision: input.workingRevision,
     versionId: undefined, workingRevision: undefined,
   });
-export type ResearchFindingReference = { kind: "answer"; chatId: string; answerId: string; resource: string }
+export type ResearchFindingReference = { kind: "answer"; chatId: string; answerId: string; resource: string; claimIndices?: number[] }
   | { kind: "cell"; reviewId: string; rowId: string; columnIndex: number };
 export type ResearchFinding = {
   reference: ResearchFindingReference;
@@ -48,7 +48,20 @@ export const ensureSourcesWorkspace = (input: { chatId?: string; tableId?: strin
   post<ResearchFile>("/source-workspaces/ensure", input);
 export const bindWorkspaceView = (id: string, input: { chatId?: string; tableId?: string; selection?: ResearchSelection }) =>
   post<ResearchFile>(`/source-workspaces/${segment(id)}/bind`, input);
-export const openWorkspaceTable = (id: string, input: { rows?: "sources" | "passages"; labelId?: string;
+export type ResearchTableInput = { rows?: "sources" | "passages"; labelId?: string;
   selection?: ResearchSelection; findingRefs?: ResearchFindingReference[];
-  chatId?: string; messageIds?: string[]; tableId?: string }) =>
+  chatId?: string; messageIds?: string[]; tableId?: string; fingerprint?: string; design?: ResearchTableDesign; request?: string };
+export type ResearchTableDesign = { title: string; columns: ColumnConfig[];
+  cells: { rowId: string; columnIndex: number; itemIds: string[] }[] };
+export type ResearchTablePreview = { fingerprint: string; design: ResearchTableDesign;
+  rows: { id: string; title: string; sourceId: string; evidenceIds?: string[] }[];
+  stats: { index: number; reused: number; kinds: string[]; evidence: number }[];
+  samples: { rowId: string; columnIndex: number; text: string; kinds: string[] }[] };
+export const previewWorkspaceTable = (id: string, input: ResearchTableInput) =>
+  post<ResearchTablePreview>(`/source-workspaces/${segment(id)}/table/preview`, input);
+export const openWorkspaceTable = (id: string, input: ResearchTableInput) =>
   post<TabularReview>(`/source-workspaces/${segment(id)}/table`, input);
+export const saveFindingHighlights = (file: ResearchFile, references: ResearchFindingReference[], typeId?: string) =>
+  post<{ file: ResearchFile; saved: number }>(`/source-workspaces/${segment(file.document.id)}/save-findings`, {
+    references, typeId, versionId: file.versionId, workingRevision: file.workingRevision,
+  });

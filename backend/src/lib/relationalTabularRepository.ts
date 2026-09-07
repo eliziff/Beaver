@@ -93,13 +93,29 @@ function updatedState(current: TableState, input: ReviewInput): TableState {
     format: column.format ?? "text", tags: column.tags ?? [] });
   const changedColumns = new Set(review.columns_config.filter((column) => !sameResearchValue(question(column),
     question(current.review.columns_config.find(({ index }) => index === column.index)))).map(({ index }) => index));
+  const changedMappings = new Set<string>();
+  if (input.scopeConfig?.frozen && input.scopeConfig.arrangement) {
+    const previous = new Map(current.review.scope_config?.arrangement?.cells.map((cell) => [`${cell.rowId}:${cell.columnIndex}`, cell.items]));
+    const next = new Map(input.scopeConfig.arrangement.cells.map((cell) => [`${cell.rowId}:${cell.columnIndex}`, cell.items]));
+    for (const key of new Set([...previous.keys(), ...next.keys()]))
+      if (!sameResearchValue(previous.get(key), next.get(key))) changedMappings.add(key);
+  }
   const existing = new Map(current.cells.map((cell) => [`${cell.document_id}:${cell.column_index}`, cell]));
   const cells = review.document_ids.flatMap((documentId) => review.columns_config.map((column): TabularCell => {
     const previous = existing.get(`${documentId}:${column.index}`);
-    return previous ? { ...previous, ...(changedRows.has(documentId) || changedColumns.has(column.index)
+    return previous ? { ...previous, ...(changedRows.has(documentId) || changedColumns.has(column.index) || changedMappings.has(`${documentId}:${column.index}`)
       ? { status: "pending", content: null } : {}) } : { id: randomUUID(), review_id: review.id,
       document_id: documentId, column_index: column.index, status: "pending", content: null };
   }));
+  const seeded = new Set<string>();
+  for (const seed of input.seedCells ?? []) {
+    const key = `${seed.document_id}:${seed.column_index}`;
+    if (seeded.has(key)) throw new ApplicationError(400, "An imported cell is duplicated");
+    seeded.add(key);
+    const cell = cells.find((cell) => cell.document_id === seed.document_id && cell.column_index === seed.column_index);
+    if (!cell) throw new ApplicationError(400, "An imported cell is outside this review");
+    cell.status = seed.status; cell.content = seed.content;
+  }
   return { review, cells };
 }
 
@@ -187,6 +203,16 @@ export const tabularRepository: TabularRepository = {
         ${created},${created})`, tx);
       await replaceMembers(tx, "tabular_review_members", id, shared);
       await syncCells(tx, id, input.documentIds, input.columns);
+      const seen = new Set<string>();
+      for (const seed of input.seedCells ?? []) {
+        const key = `${seed.document_id}:${seed.column_index}`;
+        if (seen.has(key) || !input.documentIds.includes(seed.document_id) ||
+            !input.columns.some(({ index }) => index === seed.column_index))
+          throw new ApplicationError(400, "An imported cell is outside this review or duplicated");
+        seen.add(key);
+        await changes(sql`UPDATE tabular_cells SET content=${seed.content ? encode(seed.content) : null},status=${seed.status}
+          WHERE review_id=${id} AND document_id=${seed.document_id} AND column_index=${seed.column_index}`, tx);
+      }
       const review = (await findReview(scope, id, true, tx))!;
       await recordChange(tx, scope, review, tableChanges({ review: { ...review, columns_config: [],
         document_ids: [], scope_config: { subjects: [] } }, cells: [] },
