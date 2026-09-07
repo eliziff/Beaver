@@ -6,7 +6,12 @@ import { createResearchFileState, researchReferenceFromEvidence, researchSourceR
 import type { ResearchSubject } from "../researchSelection";
 import { sha256 } from "../hash";
 import { resolveResearchArrangement } from "./researchArrangement";
-import { researchTableArrangement } from "./researchImport";
+import { researchImportCatalog, defaultResearchImport, researchImportPlan } from "./researchImport";
+import type { ResearchFinding } from "../researchChat";
+const researchTableArrangement = (...[file, subjects, parts, chats, input]: [ResearchFile, ResearchSubject[], Map<string, Record<string, ResearchEvidence>>, Array<{ title: string; findings: ResearchFinding[] }>, { rows: "sources" | "passages"; labelId?: string }]) => {
+  const catalog = researchImportCatalog(file, subjects, parts, chats.flatMap(({ findings }) => findings), input);
+  return researchImportPlan(catalog, defaultResearchImport(catalog));
+};
 
 const sourceId = "11111111-1111-4111-8111-111111111111",
   topic = "22222222-2222-4222-8222-222222222222",
@@ -39,11 +44,11 @@ function fixture() {
 const mapped = (result: ReturnType<typeof researchTableArrangement>) =>
   new Set(result.arrangement.cells.map(({ rowId, columnIndex }) => `${rowId}:${columnIndex}`));
 
-it("imports one row per source with its labels, note and pen columns, and maps every cell", async () => {
+it("imports one row per source with its classifications, note and highlight columns with their original evidence", async () => {
   const f = fixture(), result = researchTableArrangement(f.file, f.subjects, f.parts, [], { rows: "sources" });
-  expect(result.columns_config.map(({ name }) => name)).toEqual(["Labels", "Note", "Notice", "Payment"]);
+  expect(result.columns_config.map(({ name }) => name)).toEqual(["Classification", "Research note", "Notice", "Payment"]);
   expect(result.columns_config.map(({ index }) => index)).toEqual([0, 1, 2, 3]);
-  expect(result.arrangement.rows).toEqual([{ id: sourceId, title: "Agreement", sourceId, group: [topic] }]);
+  expect(result.arrangement.rows).toEqual([{ id: sourceId, title: "Agreement", sourceId }]);
   expect(mapped(result).size).toBe(4);
   const resolved = await resolveResearchArrangement({ documents: f.documents, scope: { userId: "user-1" },
     file: f.file, columns: result.columns_config, arrangement: result.arrangement, storedCells: [], strict: true });
@@ -52,22 +57,22 @@ it("imports one row per source with its labels, note and pen columns, and maps e
     f.receipts[0].span_text, f.receipts[1].span_text]);
 });
 
-it("imports one row per passage, adds a Passage column and narrows rows to the chosen pen", async () => {
+it("imports each passage once under its type without inventing answers in missing cells", async () => {
   const f = fixture(), all = researchTableArrangement(f.file, f.subjects, f.parts, [], { rows: "passages" });
-  expect(all.columns_config.map(({ name }) => name)).toEqual(["Labels", "Note", "Passage", "Notice", "Payment"]);
+  expect(all.columns_config.map(({ name }) => name)).toEqual(["Classification", "Notice", "Research note", "Payment"]);
   expect(all.arrangement.rows.map(({ id, title }) => ({ id, title }))).toEqual(f.receipts.map((receipt) =>
-    ({ id: `${sourceId}:${receipt.evidence_id}`, title: `Agreement · ${receipt.span_text}` })));
-  expect(mapped(all).size).toBe(10);
+    ({ id: `${sourceId}:${receipt.evidence_id}`, title: `Agreement · ${receipt.locator.label}` })));
+  expect(mapped(all).size).toBe(5);
   const penned = researchTableArrangement(f.file, f.subjects, f.parts, [], { rows: "passages", labelId: notice });
   expect(penned.arrangement.rows.map(({ id }) => id)).toEqual([`${sourceId}:${f.receipts[0].evidence_id}`]);
-  expect(penned.columns_config.map(({ name }) => name)).toEqual(["Labels", "Note", "Passage", "Notice"]);
+  expect(penned.columns_config.map(({ name }) => name)).toEqual(["Classification", "Notice", "Research note"]);
   const resolved = await resolveResearchArrangement({ documents: f.documents, scope: { userId: "user-1" },
     file: f.file, columns: penned.columns_config, arrangement: penned.arrangement, storedCells: [], strict: true });
   expect(resolved.cells.map(({ content }) => content?.summary))
-    .toEqual(["Contract", "Confirm the address", f.receipts[0].span_text, f.receipts[0].span_text]);
+    .toEqual(["Contract", f.receipts[0].span_text, "Confirm the address"]);
 });
 
-it("caps an oversized workspace at the arrangement row limit", () => {
+it("never silently drops rows when a conversion exceeds its bound", () => {
   const f = fixture(), subjects = Array.from({ length: 500 }, (_, index) => {
     const id = `s${index}`;
     f.file.state.sources[id] = { id, reference: { provider: "a2aj", id: `case-${index}`, kind: "case",
@@ -75,8 +80,11 @@ it("caps an oversized workspace at the arrangement row limit", () => {
     return { sourceId: id, resource: `source://a2aj/${index}`, reference: f.file.state.sources[id].reference };
   });
   const result = researchTableArrangement(f.file, subjects, new Map(), [], { rows: "sources" });
-  expect(result.arrangement.rows).toHaveLength(400);
-  expect(result.arrangement.cells).toHaveLength(400 * result.columns_config.length);
+  expect(result.arrangement.rows).toHaveLength(500);
+  expect(result.arrangement.cells).toHaveLength(0);
+  const extra = { ...subjects[0], sourceId: "extra" };
+  f.file.state.sources.extra = { ...f.file.state.sources.s0, id: "extra" };
+  expect(() => researchTableArrangement(f.file, [...subjects, extra], new Map(), [], { rows: "sources" })).toThrow(/no rows were dropped/);
 });
 
 
@@ -85,5 +93,83 @@ it("does not seed highlight rows or highlight columns from background reads", ()
   for (const item of Object.values(values)) item.labelIds = [];
   expect(researchTableArrangement(f.file, f.subjects, f.parts, [], { rows: "passages" }).arrangement.rows).toEqual([]);
   const sourceRows = researchTableArrangement(f.file, f.subjects, f.parts, [], { rows: "sources" });
-  expect(sourceRows.columns_config.map(({ name }) => name)).toEqual(["Labels", "Note"]);
+  expect(sourceRows.columns_config.map(({ name }) => name)).toEqual(["Classification", "Research note"]);
+});
+
+function finding(f: ReturnType<typeof fixture>, question: string, texts = ["Existing answer"], format = "text"): ResearchFinding {
+  const resource = f.subjects[0].resource;
+  return { reference: { kind: "answer", chatId: "chat", answerId: question, resource }, kind: "answer", sourceId, resource,
+    question: { id: question, title: question, prompt: question, format },
+    answer: { claims: texts.map((text, index) => ({ text, evidence_ids: [f.receipts[index % 2].evidence_id] })) },
+    evidence: f.receipts, origin: { chatId: "chat", messageId: question } };
+}
+it("groups by actual question, not an entire chat, and offers individual original claims for semantic layouts", () => {
+  const f = fixture(), first = finding(f, "Why invalid?", ["First reason", "Second reason"]),
+    second = finding(f, "What wording?", ["Exact wording"]),
+    catalog = researchImportCatalog(f.file, f.subjects, f.parts, [first, second], { rows: "sources" }),
+    design = defaultResearchImport(catalog);
+  expect(design.columns.slice(-2).map(({ name }) => name)).toEqual(["Why invalid?", "What wording?"]);
+  expect(catalog.entries.filter(({ reference }) => reference.kind === "answer" && reference.claimIndices).map(({ text }) => text))
+    .toEqual(["First reason", "Second reason"]);
+  const claim = catalog.entries.find(({ text }) => text === "Second reason")!;
+  const plan = researchImportPlan(catalog, { title: "Reasons", columns: [{ index: 4, name: "Second reason", prompt: "Second reason?" }],
+    cells: [{ rowId: sourceId, columnIndex: 4, itemIds: [claim.id] }] });
+  expect(plan.arrangement.cells[0].items).toEqual([{ ...first.reference, claimIndices: [1] }]);
+  expect(plan.samples[0].text).toBe("Second reason");
+});
+it("keeps narrowed answer claim indices and row support rather than re-indexing the original answer", () => {
+  const f = fixture(), answer = finding(f, "Why?", ["Only selected claim"]);
+  answer.reference = { ...answer.reference, claimIndices: [7] } as typeof answer.reference;
+  const catalog = researchImportCatalog(f.file, f.subjects, f.parts, [answer], { rows: "sources" }),
+    entry = catalog.entries.find(({ kind }) => kind === "answer")!;
+  expect(entry.reference).toMatchObject({ claimIndices: [7] });
+  expect(catalog.entries.filter(({ kind }) => kind === "answer")).toHaveLength(1);
+});
+it("rejects fabricated items, cross-row mappings, overlapping claims and incompatible typed answers", () => {
+  const f = fixture(), answer = finding(f, "Why?", ["One", "Two"]),
+    catalog = researchImportCatalog(f.file, f.subjects, f.parts, [answer], { rows: "sources" }),
+    entry = catalog.entries.find(({ kind }) => kind === "passages")!,
+    design = { title: "Review", columns: [{ index: 1, name: "Question", prompt: "Question?" }],
+      cells: [{ rowId: sourceId, columnIndex: 1, itemIds: [entry.id] }] };
+  expect(() => researchImportPlan(catalog, { ...design, cells: [{ ...design.cells[0], itemIds: ["fabricated"] }] })).toThrow(/outside/);
+  expect(() => researchImportPlan(catalog, { ...design, cells: [{ ...design.cells[0], rowId: "other" }] })).toThrow(/selected row/);
+  expect(() => researchImportPlan(catalog, { ...design, columns: [{ ...design.columns[0], format: "yes_no" }] })).toThrow(/compatible/);
+  const original = catalog.entries.filter(({ kind }) => kind === "answer");
+  expect(() => researchImportPlan(catalog, { ...design, cells: [{ ...design.cells[0], itemIds: original.map(({ id }) => id) }] })).toThrow(/overlapping/);
+});
+it("leaves absence unanswered and preserves distinct scalar findings without choosing a winner", () => {
+  const f = fixture(), a = finding(f, "Relevant?", ["Yes"], "yes_no"), b = finding(f, "Relevant?", ["No"], "yes_no");
+  b.reference = { ...b.reference, answerId: "later" } as typeof b.reference;
+  a.answer.value = true; b.answer.value = false;
+  const catalog = researchImportCatalog(f.file, f.subjects, f.parts, [a, b], { rows: "sources" }), design = defaultResearchImport(catalog);
+  expect(design.columns.at(-1)?.format).toBe("text");
+  expect(design.cells.at(-1)?.itemIds).toHaveLength(2);
+  const plan = researchImportPlan(catalog, { ...design, columns: [...design.columns, { index: 8, name: "Not researched", prompt: "New question?" }] });
+  expect(plan.stats.at(-1)).toMatchObject({ reused: 0, evidence: 0 });
+  expect(plan.arrangement.cells.some(({ columnIndex }) => columnIndex === 8)).toBe(false);
+});
+it("changes the preview fingerprint when original findings or classifications change", () => {
+  const f = fixture(), answer = finding(f, "Why?");
+  const catalog = () => researchImportCatalog(f.file, f.subjects, f.parts, [answer], { rows: "sources" });
+  const original = catalog().fingerprint;
+  answer.answer.claims[0].text = "Changed answer";
+  expect(catalog().fingerprint).not.toBe(original);
+  const changed = catalog().fingerprint;
+  f.file.state.labels[topic].name = "Changed category";
+  expect(catalog().fingerprint).not.toBe(changed);
+});
+it("uses the configured model only for a requested design and validates its returned references", async () => {
+  const f = fixture(), catalog = researchImportCatalog(f.file, f.subjects, f.parts, [], { rows: "sources" });
+  const { createTabularApplication } = await import("./application");
+  let response = JSON.stringify(defaultResearchImport(catalog));
+  const model = (await import("vitest")).vi.fn(async () => ({ fullText: response, status: "complete", events: [], citations: [] }));
+  const app = createTabularApplication({} as never, {} as never, {} as never, { sources: async () => ({} as never),
+    settings: async () => ({ title_model: "codex:gpt-5.6", api_keys: {} } as never), runTurn: model as never });
+  const accepted = await app.designResearch({ userId: "owner" }, catalog, "Compare notice and payment");
+  expect(accepted).toEqual(defaultResearchImport(catalog));
+  expect(model.mock.calls).toHaveLength(1);
+  response = JSON.stringify({ ...accepted, cells: [{ ...accepted.cells[0], itemIds: ["invented"] }] });
+  await expect(app.designResearch({ userId: "owner" }, catalog, "Compare terms")).rejects.toMatchObject({ status: 502 });
+  response = "Not valid JSON";
+  await expect(app.designResearch({ userId: "owner" }, catalog, "Compare terms")).rejects.toMatchObject({ status: 502 });
 });

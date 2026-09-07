@@ -34,6 +34,9 @@ import { getModelProvider, isModelAvailable, type ModelProvider } from "@/app/li
 
 
 
+import { assistantIntent, type AssistantIntent } from "../assistant/assistantIntent";
+import { SaveFindingHighlights } from "../legal/SaveFindingHighlights";
+import { errorMessage } from "@/app/lib/utils";
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { ResearchSelectionLabels } from "../shared/ResearchSelectionLabels";
 import { ResearchChanges } from "../legal/ResearchChanges";
@@ -465,11 +468,18 @@ function TRViewContent({ reviewId, projectId }: Props) {
         filename.toLowerCase().includes(search.toLowerCase()));
     const addedDocumentIds = new Set(documents.map(({ id }) => id));
     const selected = !!selectedIds.length;
+    const [discussion, setDiscussion] = useState<{ columnIndex: number; rowId?: string; intent?: AssistantIntent } | null>(null);
+    const [interopError, setInteropError] = useState("");
     const rowSelection = (rows: TabularDocument[]): ResearchSelection => ({ target: "sources", members: rows.flatMap(({ selection }) =>
         selection?.members ?? selection?.sourceIds?.map((sourceId) => ({ sourceId,
             ...(selection.target === "passages" ? { evidenceIds: selection.evidenceIds ?? [] } : {}) })) ?? []) });
     const scopedRows = selected ? filteredDocuments.filter(({ id }) => selectedIds.includes(id)) : filteredDocuments;
-    const selectedScopeKey = JSON.stringify(rowSelection(scopedRows));
+    const discussedRows = discussion?.rowId ? scopedRows.filter(({ id }) => id === discussion.rowId) : scopedRows;
+    const chatSelection = (rows: TabularDocument[]): ResearchSelection => ({ ...rowSelection(rows),
+      findingRefs: rows.flatMap(({ id }) => cells.filter((cell) => cell.document_id === id &&
+        (!discussion || cell.column_index === discussion.columnIndex) && cell.status === "done" && cell.content)
+        .map((cell) => ({ kind: "cell" as const, reviewId, rowId: id, columnIndex: cell.column_index }))) });
+    const selectedScopeKey = JSON.stringify(chatSelection(discussedRows));
     useEffect(() => {
         if (workspaceId && workspace.file?.document.id === workspaceId)
             workspace.setSelection(JSON.parse(selectedScopeKey) as ResearchSelection);
@@ -480,7 +490,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
         setReview(data.review); setCells(data.cells); setDocuments(data.documents);
         const ids = new Set(scopedRows.map(({ id }) => id));
         const rows = data.documents.filter(({ id }) => ids.has(id));
-        const selection = rowSelection(rows);
+        const selection = chatSelection(discussion?.rowId ? rows.filter(({ id }) => id === discussion.rowId) : rows);
         workspace.setSelection(selection);
         return { file, selection, rows };
     }
@@ -488,8 +498,11 @@ function TRViewContent({ reviewId, projectId }: Props) {
     useEffect(() => {
         if (chatOpen && review && !workspaceId) prepareChatWorkspace();
     }, [chatOpen, !!review, workspaceId]);
-    async function openChat() {
-        await prepareRows();
+    async function openChat(focus?: { columnIndex: number; rowId?: string; text?: string }) {
+        setInteropError("");
+        try { await prepareRows(); } catch (reason) { setInteropError(errorMessage(reason, "Could not open research")); return; }
+        setDiscussion(focus ? { ...focus, intent: focus.text ? assistantIntent(focus.text) : undefined } : null);
+        setUi({ cellView: null });
         setSidebarOpen(false);
         setUi({ dockTab: "chat" });
         if (!chatOpen) setChatId(null);
@@ -502,10 +515,14 @@ function TRViewContent({ reviewId, projectId }: Props) {
         setUi({ dockTab: null });
         setChatId(undefined);
     }
-    async function labelsFromColumn({ index }: ColumnConfig) {
-        const { file } = await prepareRows();
-        workspace.accept(await proposeColumnLabels(file.document.id, reviewId, index));
-        setUi({ dockTab: "sources" });
+    async function labelsFromColumn(column: ColumnConfig) {
+        if (column.format !== "tag" && column.format !== "yes_no") return openChat({ columnIndex: column.index,
+          text: `Propose a small source-label hierarchy from the selected ${column.name} results. Reuse the existing classifications where appropriate, explain ambiguous mappings, and submit a proposal for review rather than applying it.` });
+        setInteropError("");
+        try { const { file } = await prepareRows();
+          workspace.accept(await proposeColumnLabels(file.document.id, reviewId, column.index, scopedRows.map(({ id }) => id)));
+          setUi({ dockTab: "sources" });
+        } catch (reason) { setInteropError(errorMessage(reason, "Could not propose labels")); }
     }
     const rowMembers = rowSelection(documents).members ?? [];
     const workspaceSources = Object.values(workspace.file?.state.sources ?? {})
@@ -699,6 +716,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
                                 onAddColumns={() => setUi({ columnModal: null })}
                                 onAddDocuments={() => setUi({ modal: "documents" })}
                                 onColumnLabels={(column) => void labelsFromColumn(column)}
+                                onColumnDiscuss={(column) => void openChat({ columnIndex: column.index })}
                             />
                         </div>
                     </div>
@@ -713,8 +731,11 @@ function TRViewContent({ reviewId, projectId }: Props) {
                             { id: "chat", label: "Chat", icon: <MessageSquare aria-hidden className="size-4" />, content: chatOpen && <TRChatPanel
                                 reviewId={reviewId} chatId={chatId ?? null}
                                 workspaceReady={!!workspaceId && workspace.file?.document.id === workspaceId && JSON.stringify(workspace.selection) === selectedScopeKey}
-                                initialIntent={location.state?.assistantIntent}
-                                onIntentSent={() => navigate(`${location.pathname}${location.search}`, { replace: true, state: null })}
+                                initialIntent={discussion?.intent ?? location.state?.assistantIntent}
+                                scopeLabel={discussion ? `${columns.find(({ index }) => index === discussion.columnIndex)?.name ?? "Results"} · ${discussedRows.length} row${discussedRows.length === 1 ? "" : "s"}` : undefined}
+                                onClearScope={() => setDiscussion(null)}
+                                onIntentSent={() => { setDiscussion((current) => current ? { ...current, intent: undefined } : null);
+                                  navigate(`${location.pathname}${location.search}`, { replace: true, state: null }); }}
                                 onUpdated={() => void Promise.all([refreshReview(), workspace.refresh()]).catch(() => undefined)}
                                 searchMessageId={searchParams.get("message")}
                                 onCitationClick={(colIdx, rowIdx) => {
@@ -728,10 +749,15 @@ function TRViewContent({ reviewId, projectId }: Props) {
                         ]} />}
                 </div>
             </div>
+            {interopError && <p role="alert" className="px-4 py-2 text-sm text-red-700">{interopError}</p>}
             {expandedCell && expandedDocument && expandedColumn && (
                 <TRSidePanel
                     key={JSON.stringify(cellView)} cell={expandedCell}
                     document={expandedDocument} column={expandedColumn}
+                    onDiscuss={() => void openChat({ rowId: expandedCell.document_id, columnIndex: expandedCell.column_index })}
+                    saveHighlights={expandedCell.content?.claims.some(({ evidence_ids }) => evidence_ids.length > 0)
+                      ? <SaveFindingHighlights tableId={reviewId} references={[{ kind: "cell", reviewId,
+                          rowId: expandedCell.document_id, columnIndex: expandedCell.column_index }]} /> : undefined}
                     onClose={() => setUi({ cellView: null })}
                     onRegenerate={() => regenerateCell(
                         expandedCell.document_id, expandedCell.column_index)}

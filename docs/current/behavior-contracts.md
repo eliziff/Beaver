@@ -118,6 +118,45 @@ pagination or downloading.
   differ from the table row's document. Missing support and partial coverage are
   visible. Failed regeneration retains the answer and offers retry.
 
+## Research interoperability
+
+- Sources and Chat Open as Table use a read-only conversion preview. Source label
+  branches, intentionally saved highlight types, notes and original grounded
+  questions supply populated columns. Flat source classifications share a column;
+  separate Chat questions remain distinct. Cases/passages are exact selected rows.
+- Preview shows existing work, its kind and unanswered cells. Excerpts are not
+  new analytical answers. No absent classification is inferred as No/Not found.
+  The visible samples cover three rows; counts describe the complete selection.
+- Suggest layout is optional and uses the configured model. It receives a bounded
+  inventory and can map only original item/row IDs, including individual Chat
+  claims. Invalid/cross-row/overlapping mappings fail without writes. New questions
+  stay pending. Accepting never performs another model call.
+- Open review rechecks the preview fingerprint and source revision. Stale previews
+  require review again. Accepted inputs and cell answers are persisted together
+  through the normal table repository, preserving source versions, receipts and
+  origin references. Later research relabelling, recolouring or changes to a
+  prior answer do not silently rewrite that table. Explicit remapping is separate;
+  changed prompts or removed mappings clear affected cells for extraction.
+- Chat conversion includes only grounded findings and materially used sources,
+  not every document read. Selected-message requests reuse earlier read receipts
+  without promoting those reads. A turn's answer retains its own question even
+  when user/assistant timestamps match. Missing support fails explicitly.
+- A result's Save highlights explicitly saves just its supporting receipts in one
+  selected highlight type, preserving original evidence IDs. It never promotes
+  every incidental read. Existing source labels and other highlights are untouched.
+- Categorical columns propose source labels for the chosen rows through the
+  existing reversible research changes. Not-found results supply no labels.
+  Ambiguous text columns open scoped Chat for a reviewed semantic proposal.
+- Discuss column / Discuss result carries selected completed cell references plus
+  original support into Chat. All columns still means the selected rows of this
+  table, not every workspace finding. Read findings and read_table_cells honor
+  that result selection; original document reads remain available within source
+  scope when further context is needed.
+- Conversion refuses oversized selections (500 rows / 25,000 inventory entries)
+  rather than silently dropping work. Assisted inventory is bounded separately.
+  Existing Library placement, sharing, table history and regeneration remain the
+  owners; no new ontology or synchronization service is introduced.
+
 ## Documents and versions
 
 - Original document bytes and immutable versions are authoritative.
