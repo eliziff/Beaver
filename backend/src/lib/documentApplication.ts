@@ -1,3 +1,4 @@
+import { verifiedDownloadCache } from "./verifiedDownloadCache";
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -304,6 +305,8 @@ export function createDocumentApplication(repository: DocumentRepository,
     return { version, key: usePdf ? version.pdfBlobKey! : version.blobKey,
       fileType: usePdf ? "pdf" : version.fileType, filename: editedFilename(version) };
   };
+
+  const retainedDownloads = verifiedDownloadCache();
 
   const checkedBlob = async (key: string, digest: string, sizeBytes?: number) => {
     if (documentBlobDigest(key) !== digest)
@@ -648,9 +651,28 @@ export function createDocumentApplication(repository: DocumentRepository,
         pageNumbers: receipt.link.page_numbers, pages: receipt.pages };
     },
 
-    async download(scope, documentId, versionId, { preferPdf, disposition, evidence }) {
+    async download(scope, documentId, versionId, { preferPdf, disposition, evidence, range }) {
       const selected = await select(scope, documentId, versionId, preferPdf);
       if (!selected) return null;
+      if (range && !evidence && selected.fileType === "pdf") {
+        // Read and verify the entire source before releasing even its first range.
+        // Subsequent ranges share those immutable bytes, but recheck access/version.
+        const digest = selected.key === selected.version.blobKey
+          ? selected.version.sourceSha256 : documentBlobDigest(selected.key) ?? "";
+        if (documentBlobDigest(selected.key) !== digest) throw new Error("Stored document failed its integrity check");
+        const bytes = await retainedDownloads(selected.key, () => checkedBlob(selected.key, digest));
+        if (!bytes) return null;
+        const current = await repository.version(scope, documentId, versionId);
+        if (!current) return null;
+        if (current.id !== selected.version.id || current.sourceSha256 !== selected.version.sourceSha256 ||
+            current.fileType !== selected.version.fileType || current.blobKey !== selected.version.blobKey ||
+            current.pdfBlobKey !== selected.version.pdfBlobKey ||
+            current.workingRevision !== selected.version.workingRevision)
+          throw new ApplicationError(409, "Document changed while it was loading");
+        return { kind: "bytes", content: { bytes, sha256: digest,
+          version: responseVersion(current), filename: selected.filename,
+          fileType: selected.fileType, hasPdfRendition: !!current.pdfBlobKey } };
+      }
       if (!evidence && objects.signedGet && selected.key === selected.version.blobKey) {
         if (documentBlobDigest(selected.key) !== selected.version.sourceSha256)
           throw new Error("Stored document failed its integrity check");
