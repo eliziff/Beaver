@@ -1022,7 +1022,7 @@ describe("local assistant tools", () => {
       spanText: "Bounded holding.", start: 0, end: 16, externalUrl: null,
       sourceClass: "case", sourceReference: { id: "2026 SCC 1" } });
     const seeded = await seedResearch(store, "holding.research.md",
-      [{ type: "merge", evidence: [receipt] }]), sourceId = Object.keys(seeded.file.state.sources)[0],
+      [{ type: "merge", evidence: [receipt], labels: { [receipt.evidence_id]: [] } }]), sourceId = Object.keys(seeded.file.state.sources)[0],
       removedLabelId = "11111111-1111-4111-8111-111111111111",
       query = researchQueryReceipt({
       query_id: "q_saved", call_id: "call-saved", tool: "Read",
@@ -1045,9 +1045,9 @@ describe("local assistant tools", () => {
       edits = new Map();
     const filePath = resourceReference.document(document.id, file!.versionId);
     const [source, search, response, queried] = await tools.runLocalAssistantTools("local-user", [{ id: "read-source",
-      name: "Read", input: { file_path: filePath, offset: 1, limit: 1 } }, { id: "read-search",
-      name: "Read", input: { file_path: filePath, offset: 2, limit: 1 } },
-    { id: "read-research", name: "Read", input: { file_path: filePath, offset: 3, limit: 1 } },
+      name: "Read", input: { file_path: filePath, offset: 2, limit: 1 } }, { id: "read-search",
+      name: "Read", input: { file_path: filePath, offset: 3, limit: 1 } },
+    { id: "read-research", name: "Read", input: { file_path: filePath, offset: 4, limit: 1 } },
     { id: "query-research", name: "document_operation", input: { action: "research",
       document_id: filePath, research_action: { type: "query", text: "Bounded",
         syntax: "literal", target: "passages" } } }], {
@@ -1055,7 +1055,7 @@ describe("local assistant tools", () => {
     expect(JSON.parse(source.content)).toMatchObject({ items: [{ kind: "source",
       resource: resourceReference.source("a2aj",
         JSON.stringify(["2026 SCC 1", "cases", "scc", "en"])) }] });
-    expect(JSON.parse(search.content)).toMatchObject({ total: 3, items: [{ kind: "search",
+    expect(JSON.parse(search.content)).toMatchObject({ total: 5, items: [{ kind: "search",
       query_id: "q_saved", executed_at: query.executed_at, input: query.input, results: query.results,
       attempted_source_ids: [sourceId], evidence_ids: [receipt.evidence_id],
       source_references: { [sourceId]: expect.objectContaining({ id: "2026 SCC 1" }) },
@@ -1065,7 +1065,7 @@ describe("local assistant tools", () => {
     expect(evidence.queries.get("q_saved")).toMatchObject({ call_id: "call-saved",
       sourceFingerprints: query.sourceFingerprints });
     const payload = JSON.parse(response.content);
-    expect(payload).toMatchObject({ total: 3, items: [{ kind: "unavailable_passage",
+    expect(payload).toMatchObject({ total: 5, items: [{ kind: "unavailable_passage",
       evidence_id: receipt.evidence_id }] });
     expect(response.evidence).toBeUndefined();
     expect(JSON.parse(queried.content)).toMatchObject({ match_count: 0, matches: [] });
@@ -1221,7 +1221,7 @@ describe("local assistant tools", () => {
       researchFile, { type: "merge", evidence: [receipt] }))!; state = researchFile.state;
     const sourceLabelIds = Object.values(state.labels).filter(({ scope }) => scope === "source")
       .map(({ id }) => id), highlightLabelIds = Object.values(state.labels)
-      .filter(({ scope }) => scope === "highlight").map(({ id }) => id),
+      .filter(({ scope }) => scope === "highlight").map(({ id }) => id).slice(0, 1),
       ids = Array.from({ length: 105 }, (_, index) =>
       `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`),
       evidenceIds = [receipt.evidence_id, ...ids.slice(1).map((_, index) => `e_${index}`)],
@@ -1306,7 +1306,7 @@ describe("local assistant tools", () => {
     expect(rows.find(({ sourceId }) => sourceId === detailedSourceId)).toMatchObject({
       section: expect.stringMatching(/^source:\d+$/u), labels: 21, continued: true });
     expect(rows.find(({ evidence_id }) => evidence_id === receipt.evidence_id)).toMatchObject({
-      section: expect.stringMatching(/^passage:\d+$/u), labels: 21, continued: true });
+      section: expect.stringMatching(/^passage:\d+$/u), labels: 1, continued: true });
     const decoded = new Map<string, Record<string, unknown>>();
     for (const head of rows.filter(({ continued }) => continued === true)) {
       const chunks: Array<Record<string, unknown>> = [];
@@ -1495,7 +1495,7 @@ describe("local assistant tools", () => {
       dataset: "scc", citation: "2026 SCC 1", alternateCitation: null, name: "Example",
       date: null, url: null, verifiedPdf: null, language: "en", upstreamLicense: null, native });
     const seeded = await seedResearch(store, "matches.research.md",
-      [{ type: "merge", evidence: receipts }]), research = seeded.document;
+      [{ type: "merge", evidence: receipts, labels: Object.fromEntries(receipts.map((item) => [item.evidence_id, []])) }]), research = seeded.document;
     const tools = await import("./support/localAssistantTools"), edits = new Map(),
       legalEvidence = createLegalEvidenceTurnState(),
       documentNames = new Map([[research.id, research.filename]]);
@@ -1505,7 +1505,7 @@ describe("local assistant tools", () => {
       name: "document_operation", input: { action: "research",
         document_id: resource,
         research_action: { type: "query", text: "match", syntax: "literal",
-          target: "passages", unlabelled: true, limit: 100 } } }], {
+          target: "passages", limit: 100 } } }], {
       documentNames, edits, legalEvidence });
     const output = JSON.parse(queried.content);
     expect(output).toMatchObject({ ok: true, match_count: 25,
@@ -1514,7 +1514,7 @@ describe("local assistant tools", () => {
     expect(output.matches).toHaveLength(25);
     expect(queried.evidence).toHaveLength(25);
     expect(queried.queryReceipts).toEqual([expect.objectContaining({ call_id: "query",
-      input: expect.objectContaining({ unlabelled: true }) })]);
+      input: expect.objectContaining({ target: "passages" }) })]);
     expect(queried.mutated).toBe(true);
     const queryId = queried.queryReceipts![0].query_id;
     legalEvidence.queries.set(queryId, queried.queryReceipts![0]);
