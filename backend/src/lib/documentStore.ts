@@ -69,6 +69,9 @@ export type DocumentProjectionSource = Readonly<{
   documentId: string; versionId: string; fileType: string; sourceSha256: string;
   pdfProfile?: PdfProfileSelection; provenance?: DocumentProvenance;
   readBytes: () => Buffer | Promise<Buffer>;
+  // Repository-backed sources may avoid rereading an already verified blob only
+  // after rechecking access and the exact captured version. Raw sources omit this.
+  assertAvailable?: () => Promise<void>;
 }>;
 export type DocumentContent = { bytes: Buffer; version: DocumentVersion; filename: string;
   fileType: string; hasPdfRendition: boolean; pdfProfile?: PdfProfileSelection };

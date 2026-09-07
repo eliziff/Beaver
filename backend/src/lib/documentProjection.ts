@@ -38,6 +38,20 @@ export function projectionDirectory(format: string, key: string) {
   return path.join(projectionRoot(), format, key.slice(0, 2), key);
 }
 
+// Process-memory only: the loaded compilers cannot change within this cache's
+// lifetime. Bump the contract when extraction semantics/options change; persisted
+// projections would additionally need the actual compiler build fingerprints.
+export function textProjectionKey(input: {
+  documentId: string; versionId: string; sourceSha256: string; fileType: string;
+}, options: { drafting?: boolean; limit?: number }) {
+  return projectionDirectory("document-text", sha256(JSON.stringify([
+    "beaver.document-text.v1", input.documentId, input.versionId, input.sourceSha256,
+    input.fileType, input.fileType === "docx" && !!options.drafting,
+    // Other formats extract the full text and apply the caller's limit afterwards.
+    input.fileType === "docx" ? options.limit ?? null : null,
+  ])));
+}
+
 export function pdfContentPath(sourceSha256: string) {
   if (!/^[a-f0-9]{64}$/u.test(sourceSha256))
     throw new Error("PDF content SHA is invalid");
