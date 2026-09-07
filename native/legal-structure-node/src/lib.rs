@@ -559,56 +559,54 @@ mod legalpdf_exports {
         status: legalpdf::PdfLookupStatus,
         pages: Vec<u32>,
         lines: Vec<String>,
+        paragraph: Option<String>,
     }
 
-    // A citation's printed [29] is not necessarily the parser's 29th paragraph.
-    // Resolve it to complete native prose nodes, including continuation nodes, not
-    // just the line bearing the number. Never choose among duplicate printed labels.
-    fn printed_paragraph_plan(document: &legalpdf::PdfDocument, locator: &str)
-        -> Option<(legalpdf::PdfLookupStatus, Vec<String>, Vec<u32>)>
-    {
-        use legal_structure::{NodeKind, ScalarText};
-        let text = ScalarText::new(document.structure().query_text());
-        let nodes = document.structure().nodes.iter()
-            .filter(|node| matches!(node.kind, NodeKind::Prose | NodeKind::Heading) && !node.line_ids.is_empty())
-            .collect::<Vec<_>>();
-        let labels = nodes.iter().enumerate().filter_map(|(index, node)| {
-            let range = node.rendered_range?;
-            let value = text.slice_utf16(range.start..range.end)?.trim_start();
-            let (number, rest) = value.strip_prefix('[')?.split_once(']')?;
-            if !rest.starts_with(char::is_whitespace) || !number.chars().all(|c| c.is_ascii_digit()) { return None; }
+    // Printed paragraph numbers are addresses, not structural ordinal positions.
+    // Split on the actual native lines: a prose node can contain several numbered
+    // paragraphs, and one printed paragraph can contain several prose nodes.
+    fn printed_paragraph_plan<'a>(
+        lines: &[(&'a str, &'a str)],
+        paragraphs: &[Vec<String>],
+        locator: &str,
+    ) -> Option<(legalpdf::PdfLookupStatus, HashSet<&'a str>)> {
+        use legalpdf::PdfLookupStatus as Status;
+        let labels = lines.iter().enumerate().filter_map(|(index, (_, text))| {
+            let (number, rest) = text.trim_start().strip_prefix('[')?.split_once(']')?;
+            if (!rest.is_empty() && !rest.starts_with(char::is_whitespace)) ||
+                !number.chars().all(|c| c.is_ascii_digit()) { return None; }
             Some((number.parse::<usize>().ok()?, index))
         }).collect::<Vec<_>>();
         if labels.is_empty() { return None; }
         let range = legal_pdf_support::numeric_range("paragraph", locator)
             .or_else(|| legal_pdf_support::parse_ordinal("paragraph", locator).map(|n| (n, n)));
         let Some((from, to)) = range.filter(|(a, b)| a <= b && b - a < 100) else {
-            return Some((legalpdf::PdfLookupStatus::Invalid, vec![], vec![]));
+            return Some((Status::Invalid, HashSet::new()));
         };
-        let mut lines = Vec::new();
-        let mut pages = Vec::new();
+        let mut selected = HashSet::new();
         for number in from..=to {
             let hits = labels.iter().filter(|(label, _)| *label == number).collect::<Vec<_>>();
             if hits.len() != 1 {
-                return Some((if hits.is_empty() { legalpdf::PdfLookupStatus::NotFound }
-                    else { legalpdf::PdfLookupStatus::Ambiguous }, vec![], vec![]));
+                return Some((if hits.is_empty() { Status::NotFound } else { Status::Ambiguous }, HashSet::new()));
             }
             let start = hits[0].1;
-            // A following printed paragraph is an explicit end boundary. At EOF,
-            // retain only the native paragraph rather than swallowing unnumbered end matter.
-            let end = labels.iter().find(|(_, index)| *index > start).map_or(start + 1, |(_, index)| *index);
-            for node in &nodes[start..end] {
-                lines.extend(node.line_ids.iter().cloned());
-                pages.extend(node.page_indexes.iter().map(|index| *index as u32 + 1));
+            if let Some((_, end)) = labels.iter().find(|(_, index)| *index > start) {
+                selected.extend(lines[start..*end].iter().map(|(id, _)| *id));
+            } else {
+                // At EOF use the native owner, not unbounded end matter.
+                let owner = paragraphs.iter().find(|ids| ids.iter().any(|id| id == lines[start].0));
+                selected.extend(lines[start..].iter().filter(|(id, _)|
+                    owner.is_some_and(|ids| ids.iter().any(|value| value == id))).map(|(id, _)| *id));
             }
         }
-        Some((legalpdf::PdfLookupStatus::Found, lines, pages))
+        Some((Status::Found, selected))
     }
 
     pub struct PdfPassagePagesTask {
         bytes: Buffer,
         summary: legalpdf::PdfSummary,
         plans: Option<Vec<PassagePlan>>,
+        paragraphs: Vec<Vec<String>>,
     }
 
     impl Task for PdfPassagePagesTask {
@@ -625,17 +623,21 @@ mod legalpdf_exports {
                 .copied()
                 .chain(pdf.metadata.ocr_routed_pages.iter().copied())
                 .collect::<HashSet<_>>();
+            let prose_ids = self.paragraphs.iter().flatten().map(String::as_str).collect::<HashSet<_>>();
+            let prose_lines = pdf.pages.iter().flat_map(|page| page.lines.iter())
+                .filter(|line| prose_ids.contains(line.id.as_str()))
+                .map(|line| (line.id.as_str(), line.text.as_str())).collect::<Vec<_>>();
             let targets = self
                 .plans
                 .take()
                 .unwrap()
                 .into_iter()
                 .map(|plan| {
-                    let selected = plan
-                        .lines
-                        .iter()
-                        .map(String::as_str)
-                        .collect::<HashSet<_>>();
+                    let printed = plan.paragraph.as_ref().and_then(|locator|
+                        printed_paragraph_plan(&prose_lines, &self.paragraphs, locator));
+                    let structural = printed.is_none();
+                    let (status, selected) = printed.unwrap_or_else(|| (plan.status,
+                        plan.lines.iter().map(String::as_str).collect::<HashSet<_>>()));
                     let selected_pages = pdf
                         .pages
                         .iter()
@@ -650,7 +652,7 @@ mod legalpdf_exports {
                         .pages
                         .iter()
                         .filter(|page| {
-                            plan.pages.contains(&page.number)
+                            (structural && plan.pages.contains(&page.number))
                                 || selected_pages.contains(&page.number)
                         })
                         .map(|page| {
@@ -679,7 +681,7 @@ mod legalpdf_exports {
                             })
                         })
                         .collect::<Vec<_>>();
-                    serde_json::json!({ "id": plan.id, "status": plan.status, "pages": pages })
+                    serde_json::json!({ "id": plan.id, "status": status, "pages": pages })
                 })
                 .collect::<Vec<_>>();
             Ok(serde_json::json!({
@@ -714,11 +716,6 @@ mod legalpdf_exports {
         let plans = targets
             .into_iter()
             .map(|target| {
-                if target.locator_kind == "paragraph" {
-                    if let Some((status, lines, pages)) = printed_paragraph_plan(document, &target.locator) {
-                        return PassagePlan { id: target.id, page: false, status, pages, lines };
-                    }
-                }
                 let lookup = document.lookup(&legalpdf::PdfLookupRequest::new(
                     &target.locator_kind,
                     &target.locator,
@@ -753,6 +750,7 @@ mod legalpdf_exports {
                     status: lookup.status,
                     pages,
                     lines,
+                    paragraph: (target.locator_kind == "paragraph").then_some(target.locator),
                 }
             })
             .collect();
@@ -760,6 +758,9 @@ mod legalpdf_exports {
             bytes,
             summary: document.summary().clone(),
             plans: Some(plans),
+            paragraphs: document.structure().nodes.iter().filter(|node|
+                matches!(node.kind, legal_structure::NodeKind::Prose | legal_structure::NodeKind::Heading))
+                .map(|node| node.line_ids.clone()).collect(),
         }))
     }
 }
