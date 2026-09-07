@@ -146,9 +146,7 @@ function DocumentMetadataCells({ doc, onOpen }: { doc: Document; onOpen: () => v
                     className={`flex h-8 min-w-8 items-center justify-center rounded-md px-2 ${APP_SURFACE_HOVER_CLASS}`}
                     title="Open version history"
                     aria-label={`Open version history for ${doc.filename}`}>{version}</button>
-            ) : (
-                <span className="text-gray-300">—</span>
-            ),
+            ) : EMPTY_METADATA_VALUE,
         Created: doc.created_at ? formatDate(doc.created_at) : EMPTY_METADATA_VALUE,
         Updated: doc.updated_at ? formatDate(doc.updated_at) : EMPTY_METADATA_VALUE,
     };
@@ -412,15 +410,11 @@ export function DocTable({
             set("loadingVersionDocIds", (prev) => without(prev, [docId]));
         }
     };
-    function cachedVersion(docId: string, versionId: string) {
-        const version = versionsByDocId.get(docId)?.versions.find(({ id }) => id === versionId);
-        if (!version) throw new Error("Document history is not loaded");
-        return version;
-    }
     function cachedHead(docId: string) {
-        const current = versionsByDocId.get(docId)?.currentVersionId;
-        if (!current) throw new Error("Document history is not loaded");
-        return cachedVersion(docId, current);
+        const history = versionsByDocId.get(docId);
+        const head = history?.versions.find(({ id }) => id === history.currentVersionId);
+        if (!head) throw new Error("Document history is not loaded");
+        return head;
     }
     function documentHead(doc: Document) {
         if (!doc.current_version_id || doc.current_working_revision == null)
@@ -532,7 +526,6 @@ export function DocTable({
     const tree = buildDocumentTree(
         documents, folders, expandedFolderIds, newFolderParentId, search,
         false, hasMoreParents);
-    const filteredDocs = tree.visibleDocuments;
     const docsById = useMemo(() =>
         new Map(documents.map((doc) => [doc.id, doc])), [documents]);
     function removeDocument(doc: Document) {
@@ -541,7 +534,7 @@ export function DocTable({
     const foldersById = tree.folderById;
     const foldersByParent = tree.foldersByParent;
     const selection = useTableSelection(
-        filteredDocs, selectedDocIds, (ids) => set("selectedDocIds", ids));
+        tree.visibleDocuments, selectedDocIds, (ids) => set("selectedDocIds", ids));
     const refreshParents = useCallback((...parents: (string | null | undefined)[]) =>
         Promise.all([...new Set(parents.map((id) => id ?? null))]
             .map(refreshCollection)), [refreshCollection]);
@@ -760,9 +753,6 @@ export function DocTable({
             deleting: false,
         });
     }
-    function hasMovePayload(dt: DataTransfer): boolean {
-        return hasDocumentTreeDrag(dt);
-    }
     function hasFilePayload(dt: DataTransfer): boolean {
         return dt.types.includes("Files");
     }
@@ -847,7 +837,7 @@ export function DocTable({
         void handleDropDocumentVersions(doc, Array.from(e.dataTransfer.files));
     }
     async function handleDropOnFolder(targetFolderId: string | null, dt: DataTransfer) {
-        if (!hasMovePayload(dt)) return;
+        if (!hasDocumentTreeDrag(dt)) return;
         const docId = dt.getData(DOCUMENT_DRAG_TYPE);
         const subFolderId = dt.getData(FOLDER_DRAG_TYPE);
         if (docId) {
@@ -938,7 +928,7 @@ export function DocTable({
         if (hasFilePayload(event.dataTransfer)) {
             event.preventDefault();
             event.dataTransfer.dropEffect = "copy";
-        } else if (hasMovePayload(event.dataTransfer)) {
+        } else if (hasDocumentTreeDrag(event.dataTransfer)) {
             event.preventDefault();
             const folderId = documentTreeDropFolder(event.target);
             set("dragOverFolderId", folderId);
@@ -953,7 +943,7 @@ export function DocTable({
         if (hasFilePayload(event.dataTransfer)) {
             event.preventDefault();
             void handleDropCollectionFiles(Array.from(event.dataTransfer.files));
-        } else if (hasMovePayload(event.dataTransfer)) {
+        } else if (hasDocumentTreeDrag(event.dataTransfer)) {
             event.preventDefault();
             const folderId = documentTreeDropFolder(event.target);
             clearDragOver();
@@ -1222,40 +1212,28 @@ export function DocTable({
         }
     }
     const sidePanelDoc = viewingDoc ? docsById.get(viewingDoc.id) ?? viewingDoc : null;
-    const selectionHandlers = useRef({
-        refreshDocumentVersionState, handleDownloadSelectedDocs, requestDeleteSelectedDocs,
-    });
-    selectionHandlers.current = {
-        refreshDocumentVersionState, handleDownloadSelectedDocs, requestDeleteSelectedDocs,
-    };
+    const sidePanelHistory = sidePanelDoc ? versionsByDocId.get(sidePanelDoc.id) : undefined;
     const selectionActions = useMemo<DocumentSelectionActions | null>(() => {
         if (selectedDocIds.length === 0) return null;
         return {
             documents: selectedDocIds
                 .map((id) => docsById.get(id))
                 .filter((document): document is Document => !!document),
-            onDownload: () => selectionHandlers.current.handleDownloadSelectedDocs(),
+            onDownload: handleDownloadSelectedDocs,
             onMove: () => set("pendingMove", { documentIds: selectedDocIds }),
-            onRemove: () => selectionHandlers.current.requestDeleteSelectedDocs(),
+            onRemove: requestDeleteSelectedDocs,
             removeLabel: detachesDocument ? "Remove" : "Delete",
         };
-    }, [detachesDocument, docsById, selectedDocIds]);
+    }, [detachesDocument, docsById, selectedDocIds,
+        handleDownloadSelectedDocs, requestDeleteSelectedDocs]);
     useEffect(() => onSelectionActionsChange?.(selectionActions),
         [onSelectionActionsChange, selectionActions]);
     useEffect(() => () => onSelectionActionsChange?.(null), [onSelectionActionsChange]);
-    const pendingDeleteDoc =
-        pendingDocumentRemoval && !pendingDocumentRemoval.fromSelection
-            ? pendingDocumentRemoval.documents[0]
-            : null;
-    const pendingDeleteDocVersionCount = pendingDeleteDoc
-        ? versionsByDocId
-              .get(pendingDeleteDoc.id)
-              ?.versions.length
-        : undefined;
     const pendingDeleteMessage = documentRemovalMessage(
-        pendingDocumentRemoval,
-        detachesDocument,
-        pendingDeleteDocVersionCount,
+        pendingDocumentRemoval, detachesDocument,
+        pendingDocumentRemoval && !pendingDocumentRemoval.fromSelection
+            ? versionsByDocId.get(pendingDocumentRemoval.documents[0].id)?.versions.length
+            : undefined,
     );
     const pendingDeleteFolderMessage = pendingDeleteFolder ? <p>
         Permanently delete {emphasis(pendingDeleteFolder.folder.name)} and everything inside it?
@@ -1273,6 +1251,8 @@ export function DocTable({
                 !disabledMoveFolders?.has(destinationId ?? "")
             : pendingMove.documentIds.some((id) =>
                 (docsById.get(id)?.folder_id ?? null) !== destinationId));
+    const isEmptyCollection = documents.length === 0 && folders.length === 0 &&
+        newFolderParentId === undefined && uploadingDroppedFilenames.length === 0;
     const rootLabel = scopeKey === "templates" ? "Templates"
         : scopeKey === "files" ? "Library" : "Project";
     return (
@@ -1362,52 +1342,41 @@ export function DocTable({
                     <TableHeaderCell className="w-8" />
                 </TableHeaderRow>}
             >
-                    {loading && documents.length === 0 && folders.length === 0 &&
-                    newFolderParentId === undefined && uploadingDroppedFilenames.length === 0
-                        ? PROJECT_TABLE_LOADING : (
-                        <div className="flex-1 flex flex-col min-h-0">
-                            <div className="flex-1 flex flex-col min-h-0 relative">
-                                {dragOverSurface === "root" && dragOverFolderId === null && (
-                                    <div className="pointer-events-none absolute inset-0 z-[80] border-2 border-red-400" />
-                                )}
-                                {documents.length === 0 &&
-                                folders.length === 0 &&
-                                newFolderParentId === undefined &&
-                                uploadingDroppedFilenames.length === 0 ? (
-                                    <button type="button" onClick={openAddDocuments}
-                                        onDragOver={handleCollectionDragOver}
-                                        onDragLeave={handleCollectionDragLeave}
-                                        onDrop={(event) => void handleCollectionDrop(event)}
-                                        className="flex w-full flex-1 cursor-pointer flex-col items-center justify-center py-24 text-center">
-                                        <FolderSvgIcon className="mb-3 h-8 w-8 text-gray-700" />
-                                        <p className="text-sm text-gray-400">{emptyDropLabel}</p>
-                                    </button>
-                                ) : (
-                                    <div className="flex-1 flex flex-col"
-                                        onDragOver={handleCollectionDragOver}
-                                        onDragLeave={handleCollectionDragLeave}
-                                        onDrop={(event) => void handleCollectionDrop(event)}>
-                                        {renderRows()}
-                                        <div className="flex-1 min-h-16" />
-                                    </div>
-                                )}
+                {loading && isEmptyCollection ? PROJECT_TABLE_LOADING : (
+                    <div className="relative flex min-h-0 flex-1 flex-col">
+                        {dragOverSurface === "root" && dragOverFolderId === null && (
+                            <div className="pointer-events-none absolute inset-0 z-[80] border-2 border-red-400" />
+                        )}
+                        {isEmptyCollection ? (
+                            <button type="button" onClick={openAddDocuments}
+                                onDragOver={handleCollectionDragOver}
+                                onDragLeave={handleCollectionDragLeave}
+                                onDrop={(event) => void handleCollectionDrop(event)}
+                                className="flex w-full flex-1 cursor-pointer flex-col items-center justify-center py-24 text-center">
+                                <FolderSvgIcon className="mb-3 h-8 w-8 text-gray-700" />
+                                <p className="text-sm text-gray-400">{emptyDropLabel}</p>
+                            </button>
+                        ) : (
+                            <div className="flex flex-1 flex-col"
+                                onDragOver={handleCollectionDragOver}
+                                onDragLeave={handleCollectionDragLeave}
+                                onDrop={(event) => void handleCollectionDrop(event)}>
+                                {renderRows()}
+                                <div className="min-h-16 flex-1" />
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
+                )}
             </TableScrollArea>
             {renderAddDocumentsModal?.(addDocsOpen,
                 () => set("addDocsOpen", false), handleDocsSelected)}
             <DocumentSidePanel
                 doc={sidePanelDoc}
                 versionId={viewingDocVersionId}
-                currentVersionId={sidePanelDoc
-                    ? versionsByDocId.get(sidePanelDoc.id)?.currentVersionId ?? null : null}
-                versions={sidePanelDoc
-                    ? versionsByDocId.get(sidePanelDoc.id)?.versions ?? [] : []}
-                versionsLoading={sidePanelDoc
-                    ? loadingVersionDocIds.has(sidePanelDoc.id) : false}
-                versionsError={sidePanelDoc
-                    ? versionErrorDocIds.has(sidePanelDoc.id) : false}
+                currentVersionId={sidePanelHistory?.currentVersionId ?? null}
+                versions={sidePanelHistory?.versions ?? []}
+                versionsLoading={!!sidePanelDoc && loadingVersionDocIds.has(sidePanelDoc.id)}
+                versionsError={!!sidePanelDoc && versionErrorDocIds.has(sidePanelDoc.id)}
                 onClose={() => {
                     set("viewingDoc", null);
                     set("viewingDocVersionId", null);

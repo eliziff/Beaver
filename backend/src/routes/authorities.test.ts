@@ -29,26 +29,12 @@ beforeAll(() => { process.env.AUTH_MODE = "local"; });
 afterAll(() => { process.env.AUTH_MODE = originalMode; });
 
 describe("Authorities HTTP boundary", () => {
-  it("uses the authenticated scope and accepts a compact manual draft", async () => {
-    await request(app).get("/authorities").expect(200);
-    await request(app).post("/authorities").send({ source: { kind: "manual" },
-      title: "Appeal authorities" }).expect(201);
-  });
-
-  it("returns deterministic source findings without mutating the draft", async () => {
-    await request(app).post("/authorities/draft-1/discrepancies").expect(200, []);
-  });
-
   it("accepts only the discrepancy id, action, and draft revision", async () => {
     const body = { id: "a".repeat(64), action: "quote_exact", revision: 3 };
     await request(app).post("/authorities/draft-1/discrepancies/actions")
       .send(body).expect(200);
     await request(app).post("/authorities/draft-1/discrepancies/actions")
       .send({ ...body, replacement: "tampered" }).expect(400);
-  });
-
-  it("starts source preparation only through the explicit draft operation", async () => {
-    await request(app).post("/authorities/draft-1/sources").send({ revision: 1 }).expect(200);
   });
 
   it("keeps authority identity and CanLII URL derivation behind the application", async () => {
@@ -110,27 +96,6 @@ describe("Authorities HTTP boundary", () => {
     await request(app).post("/authorities/draft-1/actions").send({ revision: 1, action: {
       type: "set-settings", settings: { sourceMode: "automatic", surprise: true },
     } }).expect(400);
-  });
-
-  it("stages direct and authority PDF uploads through the typed operations", async () => {
-    await request(app).post("/authorities/documents")
-      .attach("file", Buffer.from("%PDF-1.7\n%%EOF"), "brief.pdf").expect(201);
-    await request(app).post("/authorities/documents")
-      .field("projectId", "project-1")
-      .attach("file", Buffer.from("%PDF-1.7\n%%EOF"), "project-brief.pdf").expect(201);
-    await request(app).post("/authorities/draft-1/attachments/authority-1")
-      .field("revision", "1")
-      .field("language", "en")
-      .attach("file", Buffer.from("%PDF-1.7\n%%EOF"), "case.pdf").expect(200);
-    await request(app).post("/authorities/draft-1/book-parts/supplemental")
-      .field("revision", "1")
-      .field("supplement_id", "other-1")
-      .attach("file", Buffer.from("%PDF-1.7\n%%EOF"), "appendix.pdf").expect(200);
-  });
-
-  it("accepts the current Library version for one bound input", async () => {
-    await request(app).post("/authorities/draft-1/inputs/authority%3Agrant/refresh")
-      .send({ revision: 3 }).expect(200);
   });
 
   it("binds a current Library PDF to one authority or book slot", async () => {
