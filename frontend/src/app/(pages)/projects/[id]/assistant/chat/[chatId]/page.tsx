@@ -272,11 +272,6 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
         size="sm"
         fit
         breadcrumbs={["Rename chat"]}
-        cancelAction={{
-          label: "Cancel",
-          onClick: () => setRenameOpen(false),
-          disabled: chatActionBusy,
-        }}
         primaryAction={{
           label: chatActionBusy ? "Saving…" : "Save",
           onClick: () => void submitRename(),
