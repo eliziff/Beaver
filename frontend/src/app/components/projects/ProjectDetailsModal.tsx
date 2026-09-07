@@ -92,7 +92,6 @@ export function ProjectDetailsModal({
                       }
                     : undefined
             }
-            cancelAction={canEdit ? undefined : false}
         >
             <div className="flex min-h-0 flex-1 flex-col gap-6 py-1">
                 <FormField label="Project name" htmlFor="project-details-name">

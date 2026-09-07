@@ -142,7 +142,6 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
     <Modal open onClose={close} breadcrumbs={['Highlights']} size="2xl"
       className="h-[calc(100dvh-2rem)] max-w-[96rem]"
       primaryAction={{label:saving?'Saving…':'Save and close',disabled:saving||loading,onClick:()=>void save()}}
-      cancelAction={{label:'Cancel',disabled:saving,onClick:close}}
       footerStatus={<span role={error?'alert':'status'} className={cn('text-sm',error?'text-red-800':'text-gray-500')}>
         {error || (loading?'Preparing PDF…':dirty?'Unsaved changes':'')}</span>}>
       <div className="flex min-h-0 flex-1 flex-col" onKeyDown={event=>{
@@ -198,7 +197,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
       </div>
     </Modal>
     <Modal open={confirmation} onClose={()=>setConfirmation(false)} breadcrumbs={['Discard changes?']}
-      className="h-auto max-h-[calc(100dvh-2rem)]" cancelAction={{label:'Cancel',onClick:()=>setConfirmation(false)}}
+      className="h-auto max-h-[calc(100dvh-2rem)]" secondaryAction={{label:'Keep editing',onClick:()=>setConfirmation(false)}}
       primaryAction={{label:'Discard',onClick:onClose}}>
       <p className="pb-4 text-sm text-gray-700">Your unsaved highlight edits will be discarded.</p>
     </Modal>

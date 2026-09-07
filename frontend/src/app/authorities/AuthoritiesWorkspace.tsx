@@ -847,7 +847,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         onContinue={finishSourceReview} />}
       <Modal open={stubWarning} onClose={() => setStubWarning(false)} size="md"
         breadcrumbs={["Missing PDFs"]} fit
-        cancelAction={{ label: "Cancel", onClick: () => setStubWarning(false) }}
+        secondaryAction={{ label: "Back", onClick: () => setStubWarning(false) }}
         primaryAction={{ label: "Build anyway", disabled: busy, onClick: () => {
           setStubWarning(false);
           act({ type: "set-settings", settings: { allowIncomplete: true } },
@@ -858,8 +858,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       </Modal>
       <Modal open={!!sourcePreview} size="2xl" breadcrumbs={[sourcePreview?.name ?? "Source PDF"]}
         className="h-[min(900px,calc(100dvh-2rem))] [&_.modal-body]:p-0"
-        onClose={() => { previewRequest.current += 1; setSourcePreview(undefined); }}
-        secondaryAction={{ label: "Close", onClick: () => { previewRequest.current += 1; setSourcePreview(undefined); } }}>
+        onClose={() => { previewRequest.current += 1; setSourcePreview(undefined); }}>
         <div className="h-[min(70dvh,750px)] min-h-60">
           <PdfCanvas bytes={sourcePreview?.bytes} loading={!!sourcePreview && !sourcePreview.bytes && !sourcePreview.error}
             error={sourcePreview?.error} />
@@ -911,7 +910,6 @@ function ImportSetup({ pending, busy, status, jurisdictionOrder, onChange, onClo
   return <Modal open={!!pending} onClose={onClose} size="xl" breadcrumbs={["Import options"]}
     className="!h-[min(32rem,calc(100dvh-2rem))]"
     footerStatus={status && <span className="text-sm text-red-800" role="status">{status}</span>}
-    cancelAction={{ label: "Cancel", disabled: busy, onClick: onClose }}
     primaryAction={{ label: busy ? "Finding citations" : "Import and review", disabled: busy,
       icon: busy ? <Loader2 className="motion-safe:animate-spin" /> : undefined,
       onClick: onImport }}>
@@ -1313,7 +1311,7 @@ function FederalCoverModal({ cover, profileId, busy, onClose, onSave }: {
       position === index ? { ...item, ...patch } : item) }));
   return <Modal open onClose={onClose} breadcrumbs={["Cover details"]} size="xl"
     primaryAction={{ label: "Save cover", type: "submit", form: "authorities-cover-form",
-      disabled: busy }} cancelAction={{ label: "Cancel", onClick: onClose, disabled: busy }}>
+      disabled: busy }}>
     <form id="authorities-cover-form" className="grid gap-4 pb-5" onSubmit={(event) => {
       event.preventDefault(); onSave({ ...value,
         courtFileNumber: value.courtFileNumber.trim(),
@@ -1483,7 +1481,7 @@ function AuthorityDetailsModal({ open, busy, authority, onClose, onSave }: {
   const action = authority ? "Save" : "Add";
   return <Modal open={open} onClose={onClose} size="md"
     breadcrumbs={[authority ? "Edit authority" : "Add authority"]}
-    fit cancelAction={{ label: "Cancel", onClick: onClose }}
+    fit
     primaryAction={{ label: action, disabled: busy || !citation.trim(), onClick: submit }}>
     <div className="grid gap-4 pb-5">
       <SelectField label="Type" value={kind} onChange={setKind}
