@@ -9,7 +9,7 @@ import {
   type PdfLocatorKind,
   type PdfLookupInput,
 } from "./documentProjectionPdf";
-import { projectionDirectory } from "./documentProjection";
+import { projectionDirectory, textProjectionKey } from "./documentProjection";
 import { spreadsheetToLLMStructure, spreadsheetToLLMText } from "./spreadsheet";
 import {
   pdfPassageGeometry as nativePdfPassageGeometry,
@@ -339,8 +339,11 @@ async function preparePdf(input: PdfOpenInput) {
 const MAX_DOCUMENT_INPUT_BYTES = 100 * 1024 * 1024;
 const MAX_COMPRESSED_PACKAGE_BYTES = 50 * 1024 * 1024;
 const MAX_PROJECTION_OUTPUT_BYTES = 64 * 1024 * 1024;
-const projectionLoads = new Map<string, Promise<NativeDocument>>();
-const projectionMemory = new Map<string, WeakRef<NativeDocument>>();
+type ProjectionValue = NativeDocument | string;
+const MAX_RETAINED_TEXT_BYTES = 8 * 1024 * 1024;
+const projectionLoads = new Map<string, Promise<ProjectionValue>>();
+// Share the existing eight-entry working set; native documents stay weakly held.
+const projectionMemory = new Map<string, WeakRef<NativeDocument> | string>();
 const projectionKey = (input: ProjectionReference) =>
   `${input.documentId}\0${input.versionId}\0${input.sourceSha256}\0${input.cacheKey ?? ""}`;
 
@@ -373,27 +376,55 @@ async function extractedText(source: Awaited<ReturnType<typeof boundedSource>>) 
   return null;
 }
 
-function existingProjection(key: string) {
-  const projection = projectionMemory.get(key)?.deref();
-  if (!projection) projectionMemory.delete(key);
-  return projection ? Promise.resolve(projection) : projectionLoads.get(key);
+function existingProjection<T extends ProjectionValue = NativeDocument>(key: string): Promise<T> | undefined {
+  const entry = projectionMemory.get(key);
+  const projection = typeof entry === "string" ? entry : entry?.deref();
+  projectionMemory.delete(key);
+  if (projection !== undefined) {
+    projectionMemory.set(key, entry!);
+    return Promise.resolve(projection as T);
+  }
+  return projectionLoads.get(key) as Promise<T> | undefined;
 }
 
-function projectionFor(key: string, load: () => Promise<NativeDocument>) {
-  const existing = existingProjection(key);
+function projectionFor<T extends ProjectionValue>(key: string, load: () => Promise<T>,
+  retain = () => true): Promise<T> {
+  const existing = existingProjection<T>(key);
   if (existing) return existing;
   const pending = load().then((projection) => {
+    if (!retain() || typeof projection === "string" && projection.length * 2 > MAX_RETAINED_TEXT_BYTES)
+      return projection;
     for (const [cachedKey, cached] of projectionMemory)
-      if (!cached.deref()) projectionMemory.delete(cachedKey);
-    if (projectionMemory.size >= 8)
+      if (typeof cached !== "string" && !cached.deref()) projectionMemory.delete(cachedKey);
+    projectionMemory.set(key, typeof projection === "string" ? projection : new WeakRef(projection as NativeDocument));
+    const textBytes = () => [...projectionMemory.values()].reduce((bytes, value) =>
+      bytes + (typeof value === "string" ? value.length * 2 : 0), 0);
+    while (projectionMemory.size > 8 || textBytes() > MAX_RETAINED_TEXT_BYTES)
       projectionMemory.delete(projectionMemory.keys().next().value!);
-    projectionMemory.set(key, new WeakRef(projection));
     return projection;
   }).finally(() => {
     projectionLoads.delete(key);
   });
   projectionLoads.set(key, pending);
   return pending;
+}
+
+// An abandoned reader must neither wait for shared extraction nor cancel it for
+// another reader. Both settlement handlers stay attached after cancellation.
+function waitForProjection<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return pending;
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => { signal.removeEventListener("abort", abort); reject(signal.reason); };
+    if (signal.aborted) abort();
+    else signal.addEventListener("abort", abort, { once: true });
+    void pending.then(value => {
+      signal.removeEventListener("abort", abort);
+      resolve(value);
+    }, error => {
+      signal.removeEventListener("abort", abort);
+      reject(error);
+    });
+  });
 }
 
 async function compileReadProjection(
@@ -486,29 +517,47 @@ async function text(input: DocumentProjectionSource, options: {
     options.signal?.throwIfAborted();
     return structureNative().documentText(document, options.limit);
   }
-  const source = await boundedSource(input);
-  options.signal?.throwIfAborted();
-  let result: string | null;
-  if (fileType === "docx") {
-    try {
-      result = await structureNative().docxText(source.bytes, options.drafting, options.limit);
-    } catch (error) {
-      if (!options.drafting) throw error;
-      options.signal?.throwIfAborted();
-      result = await structureNative().docxText(source.bytes, false, options.limit);
-    }
-  } else if (isSpreadsheetDocumentType(fileType)) {
-    result = await spreadsheetToLLMText(source.bytes, fileType);
-  } else {
-    result = await extractedText(source);
-  }
-  if (result === null)
-    throw new Error(`Document type ${fileType} has no text projection`);
-  if (Buffer.byteLength(result) > MAX_PROJECTION_OUTPUT_BYTES)
-    throw new Error("Document projection output exceeds the read limit");
-  options.signal?.throwIfAborted();
-  return options.limit === undefined || fileType === "docx"
-    ? result : utf16PrefixCeil(result, options.limit);
+  if (options.limit !== undefined && (!Number.isSafeInteger(options.limit) || options.limit < 0))
+    throw new RangeError("Document text limit must be a nonnegative safe integer");
+  const sourceInput = { ...input, fileType }, settings = { ...options };
+  const pending = (async () => {
+    // Each reader checks its own authority, including hits and shared loads. A
+    // raw caller has no repository validator, so must still supply verified bytes.
+    await sourceInput.assertAvailable?.();
+    const supplied = sourceInput.assertAvailable ? undefined : await boundedSource(sourceInput);
+    settings.signal?.throwIfAborted();
+    let reusable = true;
+    const result = await projectionFor(textProjectionKey(sourceInput, settings), async () => {
+      const source = supplied ?? await boundedSource(sourceInput);
+      let result: string | null;
+      if (fileType === "docx") {
+        try {
+          result = await structureNative().docxText(source.bytes, settings.drafting, settings.limit);
+        } catch (error) {
+          if (!settings.drafting) throw error;
+          // Preserve fallback behavior, but retry drafting next time rather than
+          // freezing a transient plain-text fallback under the drafting identity.
+          reusable = false;
+          result = await structureNative().docxText(source.bytes, false, settings.limit);
+        }
+      } else if (isSpreadsheetDocumentType(fileType)) {
+        result = await spreadsheetToLLMText(source.bytes, fileType);
+      } else {
+        result = await extractedText(source);
+      }
+      if (result === null)
+        throw new Error(`Document type ${fileType} has no text projection`);
+      if (Buffer.byteLength(result) > MAX_PROJECTION_OUTPUT_BYTES)
+        throw new Error("Document projection output exceeds the read limit");
+      return result;
+    }, () => reusable);
+    settings.signal?.throwIfAborted();
+    await sourceInput.assertAvailable?.();
+    settings.signal?.throwIfAborted();
+    return settings.limit === undefined || fileType === "docx"
+      ? result : utf16PrefixCeil(result, settings.limit);
+  })();
+  return waitForProjection(pending, settings.signal);
 }
 
 type PdfSourceOptions = {
