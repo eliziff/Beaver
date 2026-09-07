@@ -62,7 +62,7 @@ describe("Court Record documents", () => {
     fireEvent.click(details.querySelector("summary")!);
     expect(details).toHaveAttribute("open");
     expect(within(slotC).getByText("The reply is also attached as Exhibit C.")).toBeVisible();
-    expect(screen.getByText("Unassigned files")).toBeVisible();
+    expect(screen.getByRole("heading", { name: /^Files/ })).toBeVisible();
     expect(screen.queryByRole("button", { name: /Move .* (?:up|down)/ })).toBeNull();
     fireEvent.change(screen.getByLabelText("Assign letter.pdf to an exhibit"), {
       target: { value: "B" },
@@ -170,17 +170,19 @@ describe("Court Record documents", () => {
     for (const date of dates) expect(date).toBeRequired();
   });
 
-  it("groups required slots before visible optional slots", () => {
+  it("shows every slot in filing order, marking only the mandatory ones", () => {
     render(<CourtRecordDocuments {...required}
       profile={COURT_PROFILE_BY_ID.get("fc-application-record-applicant")!} />);
 
-    const requiredGroup = screen.getByRole("region", { name: "Required documents" });
-    const otherGroup = screen.getByRole("region", { name: "Other documents" });
-    expect(within(requiredGroup).getByRole("heading", { name: /Notice of application/ })).toBeVisible();
-    expect(within(requiredGroup).getByRole("heading", { name: /Memorandum of fact and law/ })).toBeVisible();
-    expect(within(otherGroup).getByText("Supporting affidavit and exhibits")).toBeVisible();
-    expect(requiredGroup.compareDocumentPosition(otherGroup) & Node.DOCUMENT_POSITION_FOLLOWING)
+    const notice = screen.getByRole("heading", { name: /Notice of application/ });
+    const affidavit = screen.getByRole("heading", { name: /Supporting affidavit and exhibits/ });
+    const memorandum = screen.getByRole("heading", { name: /Memorandum of fact and law/ });
+    expect(notice.compareDocumentPosition(affidavit) & Node.DOCUMENT_POSITION_FOLLOWING)
       .toBeTruthy();
+    expect(affidavit.compareDocumentPosition(memorandum) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    expect(within(notice).getByText("Required")).toBeVisible();
+    expect(within(affidavit).queryByText("Required")).toBeNull();
   });
 
   it("asks for the Rule 70 count only when excluded sections can affect the limit", () => {
@@ -210,7 +212,7 @@ describe("Court Record documents", () => {
     expect(screen.queryByRole("spinbutton", { name: "Pages in Parts I–IV" })).toBeNull();
   });
 
-  it("keeps the required affidavit slot before its exhibit pool", () => {
+  it("puts the unassigned file pool above the exhibit slots", () => {
     const affidavit = { id: "affidavit", kindId: "affidavit",
       file: new File(["affidavit"], "affidavit.pdf"), title: "Affidavit", pageCount: 1,
       searchable: true, encrypted: false, sourceFields: { cover: {}, exhibitLabels: ["A"] },
@@ -219,10 +221,9 @@ describe("Court Record documents", () => {
       profile={COURT_PROFILE_BY_ID.get("ab-kb-affidavit-exhibits")!}
       kindIds={["affidavit", "exhibit"]} entries={[affidavit]} />);
 
-    const requiredGroup = screen.getByRole("region", { name: "Required documents" });
+    const pool = screen.getByRole("heading", { name: /^Files/ });
     const exhibitSlot = screen.getByRole("region", { name: "Exhibit A slot" });
-    expect(within(requiredGroup).getByRole("heading", { name: "Affidavit" })).toBeVisible();
-    expect(requiredGroup.compareDocumentPosition(exhibitSlot) & Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(pool.compareDocumentPosition(exhibitSlot) & Node.DOCUMENT_POSITION_FOLLOWING)
       .toBeTruthy();
   });
 
@@ -258,9 +259,9 @@ describe("Court Record documents", () => {
     render(<CourtRecordDocuments {...required} entries={[note]} showUnassigned
       onEntry={onEntry} onRemove={onRemove} />);
 
-    expect(screen.getByRole("region", { name: "Unassigned notes" })).toBeVisible();
-    expect(screen.queryByRole("region", { name: "Files to assign" })).toBeNull();
-    fireEvent.change(screen.getByRole("textbox", { name: "Unassigned note" }), {
+    expect(screen.getByRole("region", { name: "Notes" })).toBeVisible();
+    expect(screen.queryByRole("region", { name: "Files" })).toBeNull();
+    fireEvent.change(screen.getByRole("textbox", { name: "Note" }), {
       target: { value: "Updated object" },
     });
     expect(onEntry).toHaveBeenCalledWith("note", { title: "Updated object" });

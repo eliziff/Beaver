@@ -531,7 +531,7 @@ def exhibit_slot(driver: webdriver.Chrome, label: str):
 
 def unassigned_pool(driver: webdriver.Chrome):
     return driver.find_element(
-        By.XPATH, "//h4[normalize-space()='Unassigned files']/parent::*"
+        By.XPATH, "//h4[starts-with(normalize-space(),'Files')]/ancestor::div[1]"
     )
 
 
