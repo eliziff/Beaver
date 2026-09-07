@@ -28,7 +28,7 @@ describe("fixed authority slots", () => {
   });
   it("links straight to the CanLII PDF rather than an in-app handoff", () => {
     render(<Fixture pending />);
-    const link = screen.getByRole("link", { name: "Get from CanLII" });
+    const link = screen.getByRole("link", { name: "CanLII" });
     expect(link).toHaveAttribute("href", pageUrl.replace(/\.html$/u, ".pdf"));
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
