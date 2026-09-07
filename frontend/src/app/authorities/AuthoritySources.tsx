@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronRight, ExternalLink, Eye, FileCheck2,
-  FilePlus2, FolderSearch, Plus, RefreshCw, Upload } from "lucide-react";
+  FilePlus2, FolderSearch, Plus, Upload } from "lucide-react";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import { ActionMenu } from "@/app/components/ui/action-menu";
 import { Button } from "@/app/components/ui/button";
@@ -27,7 +27,6 @@ export type AuthorityPanelProps = {
 type PanelProps = AuthorityPanelProps & {
   state: AuthoritiesDraft; occurrences: AuthorityOccurrence[]; forceOpen?: boolean;
   onPickMany?: () => void; onLibraryAdd?: () => void; onFiles?: (files: File[]) => void;
-  onRetry?: () => void;
 };
 export function ManualDraft(props: Omit<PanelProps, "occurrences">) {
   return <SourcePanel {...props} occurrences={[]} />;
@@ -37,7 +36,7 @@ export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft
 }
 
 function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues,
-  onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onRetry, onPick, onLibrary,
+  onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onPick, onLibrary,
   sourceLabel = "Library", onAttach, onRelink, onOpenSource, onEditIdentity, forceOpen }: PanelProps) {
   const active = state.stage === "sources" || state.stage === undefined || !!forceOpen;
   const [expanded, setExpanded] = useState(active), [tabSettings, setTabSettings] = useState(false);
@@ -60,13 +59,11 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
         }
       }}>
       <div className="mb-3 flex flex-wrap justify-end gap-2">
-        {onRetry && <Button type="button" variant="outline" className={control} disabled={busy}
-          onClick={onRetry}><RefreshCw /> Find missing PDFs</Button>}
         {state.outputMode !== "table" && <Button type="button" variant="outline" className={control}
           disabled={busy} onClick={() => setTabSettings(true)}>Tab labels</Button>}
         {onFiles && (onPickMany ? <Button type="button" variant="outline" className={control}
-          disabled={busy} onClick={onPickMany}><FilePlus2 /> Add PDFs</Button>
-          : <FileInputButton multiple disabled={busy} label="Add PDFs" accept=".pdf,application/pdf"
+          disabled={busy} onClick={onPickMany}><FilePlus2 /> Upload</Button>
+          : <FileInputButton multiple disabled={busy} label="Upload" accept=".pdf,application/pdf"
             onFiles={onFiles} variant="outline" compact />)}
         {onLibraryAdd && <Button type="button" variant="outline" className={control} disabled={busy}
           onClick={onLibraryAdd}><FolderSearch /> {sourceLabel}</Button>}
@@ -110,7 +107,8 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   const title = authorityName(authority), citationLine = citations.filter((citation) =>
     !title.toLocaleLowerCase().includes(citation.toLocaleLowerCase())).join("; ");
   const pick = () => { if (onPick) onPick(); else fileInput.current?.click(); };
-  const replacement = sources.length && !requireLanguages ? "Replace" : "Add PDF";
+  const replacement = sources.length && !requireLanguages ? "Replace" : "Upload";
+  const rowControl = cn(control, "w-28 justify-center");
   const issue = sources.find(({ bindingRole }) => relinkable(sourceIssues[bindingRole]));
   const loaded = sources.length && sources.every(({ bindingRole }) => !sourceIssues[bindingRole]);
   return <article role="listitem" data-authority-id={authority.id}
@@ -140,22 +138,22 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
     <div className="col-span-2 flex items-center justify-end gap-1 sm:col-span-1">
       {needsPdf && (authority.source.kind === "pending-canlii"
         ? <a href={authority.source.pdfUrl} target="_blank" rel="noopener noreferrer"
-            className={cn(control, "inline-flex items-center gap-1 rounded-md border text-red-800 outline-none hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-600")}>
+            className={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-red-800 outline-none hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-600")}>
             <ExternalLink className="h-3.5 w-3.5" />Get from CanLII</a>
         : issue ? <Button type="button" variant="outline" className={cn(control, "text-red-800")}
             disabled={busy} onClick={() => onRelink(issue.bindingRole)}><FilePlus2 />
             <span className="truncate">{sourceAction(sourceIssues[issue.bindingRole], "PDF")}</span></Button>
         : sources.length && !loaded ? <span className="text-xs text-red-800">PDF unavailable</span>
         : sources.length && onOpen ? (sources.length === 1
-          ? <Button type="button" variant="outline" className={control} disabled={busy || !loaded}
-              aria-label={`View PDF for ${title}`} onClick={() => onOpen(sources[0].bindingRole)}><Eye /> View PDF</Button>
-          : <ActionMenu label={`View PDFs for ${title}`} triggerClassName={cn(control, "inline-flex items-center gap-1 rounded-md border")}
+          ? <Button type="button" variant="outline" className={rowControl} disabled={busy || !loaded}
+              aria-label={`View PDF for ${title}`} onClick={() => onOpen(sources[0].bindingRole)}><Eye /> View</Button>
+          : <ActionMenu label={`View PDFs for ${title}`} triggerClassName={cn(rowControl, "inline-flex items-center gap-1 rounded-md border")}
               items={sources.map((source) => ({ label: sourceLanguageLabel(source.language),
                 disabled: busy || !!sourceIssues[source.bindingRole], onSelect: () => onOpen(source.bindingRole) }))}>
-              <Eye className="h-3.5 w-3.5" /> View PDFs</ActionMenu>)
+              <Eye className="h-3.5 w-3.5" /> View</ActionMenu>)
         : null)}
       {needsPdf && <ActionMenu label={`${replacement} for ${title}`}
-        triggerClassName={cn(control, "inline-flex items-center gap-1 rounded-md border text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600")}
+        triggerClassName={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600")}
         items={[{ label: "Upload from computer", disabled: busy, onSelect: pick },
           ...(onLibrary ? [{ label: `Choose from ${sourceLabel}`, disabled: busy, onSelect: onLibrary }] : [])]}>
         <Upload className="h-3.5 w-3.5" />{replacement}</ActionMenu>}

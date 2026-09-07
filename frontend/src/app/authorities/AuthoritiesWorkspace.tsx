@@ -783,7 +783,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                       onFocusChange={onFocusChange} onReview={setFindingId} />}
                   </section>
                   {stage !== "citations" && <Sources key={draft.id} draft={draft} occurrences={occurrences}
-                    {...authorityPanelProps} onRetry={findSources}
+                    {...authorityPanelProps}
                     forceOpen={sourceIntervention === sourceKey} />}
                   {quotationReview}
                   {sourcesContinue}
