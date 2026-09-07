@@ -172,9 +172,6 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
       </button>
       {scopeLabel && <span className="text-gray-500">{scopeLabel.scope === "highlight" ? "highlighted passages" : "and everything under it"}</span>}
     </div>
-    {choosing?.kind === "scope" && <LabelChoice title="Search in" anchor={choosing.anchor} labels={labels}
-      scopes={["source", "highlight"]} noneLabel="All saved sources"
-      selectedId={scopeLabel?.id ?? null} onClose={() => setChoosing(null)} onChoose={setScopeId} />}
     <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-gray-600">
       <span className="text-gray-500">Capture</span>
       {UNITS.map((option) => <button key={option.value} type="button" onClick={() => setUnit(option.value)}
@@ -193,10 +190,6 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
           <h3 className="min-w-0 flex-1 truncate text-xs font-semibold text-gray-800">{sourceName(file.state.sources[sourceId])}</h3>
           <button type="button" onClick={opener({ kind: "file", sourceId })} className={CHOICE}>File under…</button>
         </div>
-        {choosing?.kind === "file" && choosing.sourceId === sourceId &&
-          <LabelChoice title={`File ${sourceName(file.state.sources[sourceId])} under`} anchor={choosing.anchor}
-            labels={labels} scopes={["source"]}
-            selectedId={null} onClose={() => setChoosing(null)} onChoose={(id) => void fileSource(sourceId, id)} />}
         <ul className="mt-1 grid min-w-0 gap-1">{rows(sourceId).map(({ receipt }) => <li key={receipt.evidence_id}
           className="flex min-w-0 items-start gap-1.5 rounded border-s-2 border-gray-200 ps-2">
           <span className="line-clamp-4 min-w-0 flex-1 text-xs leading-5 text-gray-700 [overflow-wrap:anywhere]">
@@ -211,16 +204,21 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
           <button type="button" className={`${CHOICE} mt-0.5 shrink-0`}
             onClick={opener({ kind: "highlight", sourceId, evidenceIds: [receipt.evidence_id] })}>Highlight</button>
         </li>)}</ul>
-        {choosing?.kind === "highlight" && choosing.sourceId === sourceId &&
-          <LabelChoice title="Highlight as" anchor={choosing.anchor} labels={labels} scopes={["highlight"]} selectedId={pen?.id ?? null}
-            onClose={() => setChoosing(null)}
-            onChoose={(id) => void markPassages([sourceId], choosing.evidenceIds, id ?? undefined)} />}
       </div>)}
       {!!pending && <p role="status" className="text-xs text-gray-500">Loading {pending} more source{pending === 1 ? "" : "s"}…</p>}
       {!found.length && !pending && <p className="text-xs text-gray-500">Nothing matched “{result.phrase}”.</p>}
       {!!more && <Button size="compact" variant="outline" disabled={busy} className="justify-self-start"
         onClick={() => void run(more.input, more.phrase, true)}>Continue searching</Button>}
     </section>}
+    {choosing && <LabelChoice anchor={choosing.anchor} labels={labels} onClose={() => setChoosing(null)}
+      {...(choosing.kind === "scope"
+        ? { title: "Search in", scopes: ["source", "highlight"] as const, noneLabel: "All saved sources",
+            selectedId: scopeLabel?.id ?? null, onChoose: setScopeId }
+        : choosing.kind === "file"
+          ? { title: `File ${sourceName(file.state.sources[choosing.sourceId])} under`, scopes: ["source"] as const,
+              selectedId: null, onChoose: (id: string | null) => void fileSource(choosing.sourceId, id) }
+          : { title: "Highlight as", scopes: ["highlight"] as const, selectedId: pen?.id ?? null,
+              onChoose: (id: string | null) => void markPassages([choosing.sourceId], choosing.evidenceIds, id ?? undefined) })} />}
     {!!(file.state.queries?.count ?? 0) && <details open={historyOpen} className="group/history border-t border-gray-200 pt-2 text-xs">
       <summary onClick={(event) => { event.preventDefault(); setHistoryOpen((open) => !open); }}
         className="inline-flex cursor-pointer list-none items-center gap-1 text-gray-700">
