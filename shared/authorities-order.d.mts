@@ -25,4 +25,25 @@ export function deriveAuthorityProcedure(input: AuthorityTabFormat & {
   tabStyle: AuthorityTabStyle;
 }): Array<{ id: string; tab: string; group: string }>;
 
+export function authorityProcedureInput<Authority extends {
+  kind: ProceduralAuthority["kind"];
+  citation: string;
+  displayName?: string | null;
+  name?: string | null;
+  excluded: boolean;
+}>(
+  state: {
+    authorityOrder: readonly string[];
+    authorities: Readonly<Record<string, Authority>>;
+    units: ReadonlyArray<{ id: string; ordinal: number; occurrenceIds: string[] }>;
+    occurrences: Readonly<Record<string, { authorityId: string | null }>>;
+    import: { kind: string };
+    settings: AuthorityTabFormat & {
+      tableOrder: "first-reference" | "alphabetical";
+      tabStyle: AuthorityTabStyle;
+    };
+  },
+  options: { purpose: "table" | "book"; reproduced: (authority: Authority) => boolean },
+): Parameters<typeof deriveAuthorityProcedure>[0];
+
 export function tabLabel(index: number, style?: AuthorityTabStyle, format?: AuthorityTabFormat): string;

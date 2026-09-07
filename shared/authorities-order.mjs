@@ -59,4 +59,22 @@ function deriveAuthorityProcedure(input) {
     group: oneGroup ? "Authorities" : groups.find(([, kind]) => kind === item.kind)[0] }));
 }
 
-export { deriveAuthorityProcedure, tabLabel };
+/** Shapes a draft's stored state into `deriveAuthorityProcedure` input; the caller
+ *  supplies the purpose and its own reproduced-in-book rule. */
+function authorityProcedureInput(state, { purpose, reproduced }) {
+  return {
+    authorities: state.authorityOrder.map((id) => {
+      const authority = state.authorities[id];
+      return { id, kind: authority.kind, citation: authority.citation,
+        sortLabel: authority.displayName || authority.name || authority.citation,
+        excluded: authority.excluded, reproduced: reproduced(authority) };
+    }),
+    units: state.units, occurrences: state.occurrences,
+    manual: state.import.kind === "manual", purpose,
+    tableOrder: state.settings.tableOrder, tabStyle: state.settings.tabStyle,
+    tabStart: state.settings.tabStart, tabPrefix: state.settings.tabPrefix,
+    tabLabels: state.settings.tabLabels,
+  };
+}
+
+export { authorityProcedureInput, deriveAuthorityProcedure, tabLabel };
