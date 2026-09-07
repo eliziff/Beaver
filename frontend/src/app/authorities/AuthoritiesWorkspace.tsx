@@ -36,7 +36,7 @@ import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesProduct,
   AuthoritiesCover,
   AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction, AuthoritiesProfileId,
   AuthorityIdentity, AuthorityKind, AuthorityOccurrence, AuthoritySourceLanguage } from "./types";
-import { deriveAuthorityProcedure, tabLabel } from "../../../../shared/authorities-order.mjs";
+import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "../../../../shared/authorities-order.mjs";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 import { emptyAnnotationSet, type PdfAnnotationSet } from "../../../../shared/pdf-annotations.mjs";
 
@@ -1635,21 +1635,11 @@ function location(item: AuthorityOccurrence, index: number, all: AuthorityOccurr
 }
 function planAuthorities(draft: AuthoritiesProduct) {
   const state = draft.state;
-  return deriveAuthorityProcedure({
-    authorities: state.authorityOrder.map((id) => {
-      const item = state.authorities[id];
-      return { id, kind: item.kind, citation: item.citation,
-        sortLabel: item.displayName || item.name || item.citation, excluded: item.excluded,
-        reproduced: !item.excluded && (item.source.kind === "attached" ||
-          state.settings.missingSourcePolicy === "placeholder") };
-    }),
-    units: state.units, occurrences: state.occurrences,
-    manual: state.import.kind === "manual",
+  return deriveAuthorityProcedure(authorityProcedureInput(state, {
     purpose: state.outputMode === "table" ? "table" : "book",
-    tableOrder: state.settings.tableOrder, tabStyle: state.settings.tabStyle,
-    tabStart: state.settings.tabStart, tabPrefix: state.settings.tabPrefix,
-    tabLabels: state.settings.tabLabels,
-  });
+    reproduced: (item) => !item.excluded && (item.source.kind === "attached" ||
+      state.settings.missingSourcePolicy === "placeholder"),
+  }));
 }
 function selectionRange(root: HTMLElement | null) {
   const selection = window.getSelection();
