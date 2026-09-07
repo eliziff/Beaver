@@ -131,11 +131,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     authorityId: string; selected: PdfChoice;
   }>();
   const [findingId, setFindingId] = useState("");
+  const [quotationsDone, setQuotationsDone] = useState(false);
   const [highlightWarnings, setHighlightWarnings] = useState<{ key: string;
     items: Array<{ label: string; excerpt: string }>; sets: Record<string, PdfAnnotationSet> }>();
   const [editingAuthority, setEditingAuthority] = useState<AuthorityIdentity>();
   const [sourcePreview, setSourcePreview] = useState<{ role: string; name: string;
-    bytes?: Uint8Array; error?: string }>();
+    quote?: string; bytes?: Uint8Array; error?: string }>();
   const [scanReview, setScanReview] = useState<ScannedAuthorityPdf[]>();
   const [stubWarning, setStubWarning] = useState(false);
   const scanRequest = useRef<AbortController | null>(null);
@@ -160,7 +161,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
 
   const display = useCallback((next?: AuthoritiesProduct, preserveTab = false) => {
     reviewRequest.current?.abort(); reviewRequest.current = null; setReview(undefined);
-    setFindingId(""); setHighlightWarnings(undefined);
+    setFindingId(""); setQuotationsDone(false); setHighlightWarnings(undefined);
     scanRequest.current?.abort(); setScanReview(undefined);
     previewRequest.current += 1; setSourcePreview(undefined);
     draftRef.current = next; setDraft(next); setSelectedId(orderedOccurrences(next)[0]?.id ?? "");
@@ -278,6 +279,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const reviewKey = useMemo(() => discrepancyKey(draft), [draft]);
   useEffect(() => {
     reviewRequest.current?.abort();
+    setQuotationsDone(false);
     if (!draftId || !host.review || !reviewKey) { setReview(undefined); return; }
     const request = new AbortController(); reviewRequest.current = request;
     const id = draftId, key = reviewKey;
@@ -549,20 +551,26 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     void host.download(documentId, versionId).then((blob) => downloadBlob(blob, filename))
       .catch((caught) => setError(errorText(caught)));
   }
-  function openSource(role: string) {
+  function openSource(role: string, quote?: string) {
     const current = draftRef.current;
     if (!current || !host.readSource) return;
     const request = ++previewRequest.current;
     const authority = Object.values(current.state.authorities).find((item) =>
       item.source.kind === "attached" && item.source.sources.some((source) => source.bindingRole === role));
     const name = authority ? authorityName(authority) : current.title;
-    setSourcePreview({ role, name });
+    setSourcePreview({ role, name, quote });
     void host.readSource(current, role).then((blob) => blob.arrayBuffer()).then((buffer) => {
       if (request === previewRequest.current && draftRef.current?.id === current.id)
-        setSourcePreview({ role, name, bytes: new Uint8Array(buffer) });
+        setSourcePreview({ role, name, quote, bytes: new Uint8Array(buffer) });
     }).catch((caught) => {
-      if (request === previewRequest.current) setSourcePreview({ role, name, error: errorText(caught) });
+      if (request === previewRequest.current) setSourcePreview({ role, name, quote, error: errorText(caught) });
     });
+  }
+  // The quotation belongs at the pinpoint the author cited, so open the PDF on that passage.
+  function openFindingSource(finding: AuthoritiesDiscrepancy) {
+    const source = draftRef.current?.state.authorities[finding.authorityId]?.source;
+    const role = source?.kind === "attached" ? source.sources[0]?.bindingRole : undefined;
+    if (role) openSource(role, (finding.found ?? finding.cited).text);
   }
   function findSources() {
     const current = draftRef.current;
@@ -671,12 +679,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const preparedHighlights = highlightWarnings?.key === highlightPreparationKey(draft) ? highlightWarnings : undefined;
   const highlightPanel = draft && (stage === "highlights" || stage === "build") && <AuthoritiesHighlights product={draft} tabs={authorityTabs}
     busy={busy} host={host} onSaved={remember} prepared={preparedHighlights?.sets} />;
-  const quotationReview = draft && stage !== "citations" && discrepancies.length > 0 && <section className="mt-3 rounded-lg border border-amber-300 bg-amber-50/30 p-3">
-    <div className="flex items-center justify-between gap-3"><span className="text-sm text-gray-800">
-      {discrepancies.length} quotation check{discrepancies.length === 1 ? "" : "s"} to review</span>
-      <Button variant="outline" className="h-8 border-amber-500 px-3 text-xs" disabled={busy}
-        onClick={() => setFindingId(discrepancies[0].id)}>Review</Button></div>
-  </section>;
+  const quotationReview = draft && stage !== "citations" && !quotationsDone && discrepancies.length > 0 &&
+    <QuotationReview items={currentReview?.items} currentId={findingId || discrepancies[0].id}
+      busy={busy || !currentReview} error={error || currentReview?.error} onSelect={setFindingId}
+      onOpenSource={host.readSource ? openFindingSource : undefined}
+      onResolve={host.resolveDiscrepancy ? resolveDiscrepancy : undefined}
+      onDone={() => setQuotationsDone(true)} />;
   const markingIssues = preparedHighlights?.items.length ? preparedHighlights.items : undefined;
   const sourcesContinue = draft && stage === "sources" && <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
     {missingPdfs.length > 0 && <p className="mr-auto text-sm text-gray-600">
@@ -794,11 +802,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                   {buildPanel}</>}
         </div>
       </main>
-      {draft && findingId && <QuotationReview initialId={findingId} items={currentReview?.items}
-        busy={busy || !currentReview} error={error || currentReview?.error}
-        sourceUrl={({ authorityId }) => draft.state.authorities[authorityId]?.sourceIdentity?.externalUrl ?? undefined}
-        onResolve={host.resolveDiscrepancy ? resolveDiscrepancy : undefined}
-        onClose={() => setFindingId("")} />}
       {LibraryPicker && <LibraryPicker open={!!libraryTarget}
         key={`${draft?.id}:${draft?.projectId ?? projectId}:${libraryTarget?.kind}`}
         title={libraryTitle(libraryTarget, sourceLabel)}
@@ -862,7 +865,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         secondaryAction={{ label: "Close", onClick: () => { previewRequest.current += 1; setSourcePreview(undefined); } }}>
         <div className="h-[min(70dvh,750px)] min-h-60">
           <PdfCanvas bytes={sourcePreview?.bytes} loading={!!sourcePreview && !sourcePreview.bytes && !sourcePreview.error}
-            error={sourcePreview?.error} />
+            error={sourcePreview?.error} quoteFocusKey={sourcePreview?.quote}
+            quotes={sourcePreview?.quote ? [{ quote: sourcePreview.quote }] : undefined} />
         </div>
       </Modal>
       <SearchableChoiceModal open={!!pendingAttachment} title="PDF language" searchable={false}
