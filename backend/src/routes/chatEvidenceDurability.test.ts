@@ -237,6 +237,34 @@ afterEach(async () => {
   });
 });
 
+describe("project chat authorization", () => {
+  it.each(["missing", "another user's"])(
+    "rejects %s projects before creating a chat or contacting the model",
+    async (kind) => {
+      const { app, projects } = await loadApp();
+      const privateProject = await projects.create({ userId: "other-user" }, {
+        name: "Private matter", cmNumber: null, practice: null, sharedWith: [],
+      });
+      const project_id = kind === "missing" ? crypto.randomUUID() : privateProject.id;
+
+      const response = await request(app).post("/chat").send({
+        project_id, expected_version: 0,
+        current_turn: { kind: "message", content: "Review this matter." },
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.text).toContain('"accepted":false');
+      expect(response.text).not.toContain('"type":"chat_id"');
+      expect(response.text).not.toContain("Private matter");
+      expect(response.text.match(/data: \[DONE\]/gu)).toHaveLength(1);
+      expect(mocks.streamChatWithTools).not.toHaveBeenCalled();
+      // History omits empty chats, so inspect durable rows, not GET /chat.
+      const { localDatabaseSync } = await import("../lib/relationalDatabase");
+      expect(localDatabaseSync().prepare("SELECT id FROM chats").all()).toEqual([]);
+    },
+  );
+});
+
 describe("chat PDF evidence durability", () => {
 
   it("promotes chat receipts as a working revision, not an assistant version", async () => {
