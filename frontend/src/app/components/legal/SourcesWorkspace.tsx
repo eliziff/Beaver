@@ -154,6 +154,8 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
   }
 
   const [pen, setPenState] = useState<string | null>(null), [armed, setArmed] = useState(true);
+  /** Only a mounted reader can capture a selection, so only it can offer highlighting. */
+  const [reading, setReading] = useState(false);
   const capture = useRef<(() => HighlightCapture | null) | null>(null);
   const penFile = useRef(file?.document.id); penFile.current = file?.document.id;
   const penId = useRef(pen); penId.current = pen;
@@ -187,8 +189,9 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
     window.getSelection()?.removeAllRanges();
     return "saved";
   }, [act, setPen]);
-  const highlight = { pen, setPen, armed, arm: setArmed, run: runHighlight,
-    registerReader: useCallback((next: (() => HighlightCapture | null) | null) => { capture.current = next; }, []) };
+  const highlight = { pen, setPen, armed, arm: setArmed, run: runHighlight, reading,
+    registerReader: useCallback((next: (() => HighlightCapture | null) | null) => {
+      capture.current = next; setReading(!!next); }, []) };
 
   return { file, selection, setSelection, accept, open, refresh, loading, error, mutations, passages, evidence, findings,
     ensure, bind, table, chat, highlight, views: () => getWorkspaceViews(requireFile().document.id), retry: restore };
