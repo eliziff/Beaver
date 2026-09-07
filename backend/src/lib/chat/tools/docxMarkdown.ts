@@ -487,22 +487,17 @@ function beginsBlock(lines: string[], index: number) {
   );
 }
 
-function mapInlineArrays(
+/** Body order is also citation order; user footnotes are traversed separately. */
+function* blockInlineArrays(
   blocks: DocxMarkdownBlock[],
-  transform: (children: DocxMarkdownInline[]) => DocxMarkdownInline[],
-) {
+): Generator<DocxMarkdownInline[]> {
   for (const block of blocks) {
-    if (
-      block.type === "heading" ||
-      block.type === "paragraph" ||
-      block.type === "blockquote"
-    ) {
-      block.children = transform(block.children);
-    } else if (block.type === "list") {
-      for (const item of block.items) item.children = transform(item.children);
+    if ("children" in block) yield block.children;
+    else if (block.type === "list") {
+      for (const item of block.items) yield item.children;
     } else if (block.type === "table") {
-      block.headers = block.headers.map(transform);
-      block.rows = block.rows.map((row) => row.map(transform));
+      yield* block.headers;
+      for (const row of block.rows) yield* row;
     }
   }
 }
@@ -664,11 +659,16 @@ export function parseDocxMarkdown(
       );
     }
   }
-  mapInlineArrays(blocks, (children) =>
-    children.filter(
-      (child) => child.type !== "footnote" || definitionIds.has(child.id),
-    ),
-  );
+  for (const children of blockInlineArrays(blocks)) {
+    // Compact these newly parsed arrays without copying or spreading an unbounded list.
+    let kept = 0;
+    for (const child of children) {
+      if (child.type !== "footnote" || definitionIds.has(child.id)) {
+        children[kept++] = child;
+      }
+    }
+    children.length = kept;
+  }
   const footnotes = definitions
     .filter(({ id }) => {
       if (state.referencedNotes.has(id)) return true;
@@ -698,45 +698,31 @@ function controlLabel(tag: string) {
   return label[0].toUpperCase() + label.slice(1);
 }
 
-function collectControlTags(document: DocxMarkdownDocument) {
-  const tags = new Set<string>();
-  const visit = (children: DocxMarkdownInline[]) => {
-    for (const child of children) {
-      if (child.type === "control") tags.add(child.tag);
+/** Facts shared by field binding, citation validation, numbering, and the evidence ledger. */
+function documentMarkers(document: DocxMarkdownDocument) {
+  const controls = new Set(
+    document.blocks.flatMap((block) => block.type === "control" ? [block.tag] : []),
+  );
+  const inlineControls = new Set<string>();
+  const citationIds = new Set<string>();
+  const collect = (groups: Iterable<DocxMarkdownInline[]>) => {
+    const citations: Extract<DocxMarkdownInline, { type: "citation" }>[] = [];
+    for (const children of groups) {
+      for (const child of children) {
+        if (child.type === "control") {
+          controls.add(child.tag);
+          inlineControls.add(child.tag);
+        } else if (child.type === "citation") {
+          citationIds.add(child.id);
+          citations.push(child);
+        }
+      }
     }
+    return citations;
   };
-  for (const block of document.blocks) {
-    if (block.type === "control") tags.add(block.tag);
-    else if ("children" in block) visit(block.children);
-    else if (block.type === "list")
-      block.items.forEach((item) => visit(item.children));
-    else if (block.type === "table") {
-      block.headers.forEach(visit);
-      block.rows.forEach((row) => row.forEach(visit));
-    }
-  }
-  document.footnotes.forEach((footnote) => visit(footnote.children));
-  return tags;
-}
-
-function collectInlineControlTags(document: DocxMarkdownDocument) {
-  const tags = new Set<string>();
-  const visit = (children: DocxMarkdownInline[]) => {
-    for (const child of children) {
-      if (child.type === "control") tags.add(child.tag);
-    }
-  };
-  for (const block of document.blocks) {
-    if ("children" in block) visit(block.children);
-    else if (block.type === "list")
-      block.items.forEach((item) => visit(item.children));
-    else if (block.type === "table") {
-      block.headers.forEach(visit);
-      block.rows.forEach((row) => row.forEach(visit));
-    }
-  }
-  document.footnotes.forEach((footnote) => visit(footnote.children));
-  return tags;
+  const body = collect(blockInlineArrays(document.blocks));
+  const footnotes = collect(document.footnotes.map((note) => note.children));
+  return { controls, inlineControls, citationIds, body, footnotes };
 }
 
 function appendXmlChild(xml: string, closingTag: string, child: string) {
@@ -798,52 +784,14 @@ async function bindContentControls(
   return session.save();
 }
 
-function collectCitationIds(document: DocxMarkdownDocument) {
-  const ids = new Set<string>();
-  const visit = (children: DocxMarkdownInline[]) => {
-    for (const child of children) {
-      if (child.type === "citation") ids.add(child.id);
-    }
-  };
-  for (const block of document.blocks) {
-    if ("children" in block) visit(block.children);
-    else if (block.type === "list")
-      block.items.forEach((item) => visit(item.children));
-    else if (block.type === "table") {
-      block.headers.forEach(visit);
-      block.rows.forEach((row) => row.forEach(visit));
-    }
-  }
-  document.footnotes.forEach((footnote) => visit(footnote.children));
-  return ids;
-}
-
-function collectCitationOccurrences(document: DocxMarkdownDocument) {
-  const occurrences: Extract<DocxMarkdownInline, { type: "citation" }>[] = [];
-  const visit = (children: DocxMarkdownInline[]) => {
-    for (const child of children) {
-      if (child.type === "citation") occurrences.push(child);
-    }
-  };
-  for (const block of document.blocks) {
-    if ("children" in block) visit(block.children);
-    else if (block.type === "list")
-      block.items.forEach((item) => visit(item.children));
-    else if (block.type === "table") {
-      block.headers.forEach(visit);
-      block.rows.forEach((row) => row.forEach(visit));
-    }
-  }
-  return occurrences;
-}
-
 export function docxMarkdownCitationMarkers(markdown: string) {
   const document = parseDocxMarkdown(markdown);
-  const markers = (children: DocxMarkdownInline[]) => children.flatMap((child) =>
-    child.type === "citation" ? [{ id: child.id, occurrence: child.occurrence }] : []);
+  const { body, footnotes } = documentMarkers(document);
+  const marker = ({ id, occurrence }: Extract<DocxMarkdownInline, { type: "citation" }>) =>
+    ({ id, occurrence });
   return {
-    body: collectCitationOccurrences(document).map(({ id, occurrence }) => ({ id, occurrence })),
-    footnotes: document.footnotes.flatMap(({ children }) => markers(children)),
+    body: body.map(marker),
+    footnotes: footnotes.map(marker),
     footnoteCount: document.footnotes.length,
   };
 }
@@ -921,8 +869,7 @@ export async function renderDocxMarkdownDocument(
   options: RenderDocxMarkdownOptions = {},
   warnings: string[] = [],
 ): Promise<Buffer> {
-  const controls = collectControlTags(document);
-  const citationIds = collectCitationIds(document);
+  const { controls, inlineControls, citationIds, body: bodyCitations } = documentMarkers(document);
   const citations = options.citations ?? {};
   const unverifiedCitations = new Set<string>();
   for (const id of citationIds) {
@@ -1021,7 +968,7 @@ export async function renderDocxMarkdownDocument(
     }
     values[tag] = value;
   }
-  for (const tag of collectInlineControlTags(document)) {
+  for (const tag of inlineControls) {
     if (/\r|\n/u.test(values[tag] ?? "")) {
       warn(
         warnings,
@@ -1119,7 +1066,7 @@ export async function renderDocxMarkdownDocument(
   );
   const citationPlacement = options.citationPlacement ?? "inline";
   const citationHyperlinks = options.citationHyperlinks !== false;
-  const citationOccurrences = collectCitationOccurrences(document).filter(
+  const citationOccurrences = bodyCitations.filter(
     ({ id }) => !unverifiedCitations.has(id),
   );
   const citationNoteNumbers = new Map<string, number>();
@@ -1367,71 +1314,33 @@ export async function renderDocxMarkdownDocument(
           ? tableWidth - columnWidth * index
           : columnWidth,
       );
-      const tableRows = [
-        new TableRow({
-          tableHeader: true,
-          children: block.headers.map(
-            (cell, index) =>
-              new TableCell({
-                width: {
-                  size: columnWidths[index],
-                  type: WidthType.DXA,
-                },
-                borders: {
-                  top: border,
-                  bottom: border,
-                  left: border,
-                  right: border,
-                },
-                shading: { fill: "EDEDED" },
-                children: [
-                  new Paragraph({
-                    style: "LegalTableText",
-                    children: inlines(
-                      cell,
-                      true,
-                      citationPlacement === "after-paragraph"
-                        ? "inline"
-                        : citationPlacement,
-                    ),
-                  }),
-                ],
-              }),
-          ),
-        }),
-        ...block.rows.map(
-          (row) =>
-            new TableRow({
-              children: row.map(
-                (cell, index) =>
-                  new TableCell({
-                    width: {
-                      size: columnWidths[index],
-                      type: WidthType.DXA,
-                    },
-                    borders: {
-                      top: border,
-                      bottom: border,
-                      left: border,
-                      right: border,
-                    },
-                    children: [
-                      new Paragraph({
-                        style: "LegalTableText",
-                        children: inlines(
-                          cell,
-                          false,
-                          citationPlacement === "after-paragraph"
-                            ? "inline"
-                            : citationPlacement,
-                        ),
-                      }),
-                    ],
-                  }),
+      const tableRows = [block.headers, ...block.rows].map((row, rowIndex) => {
+        const header = rowIndex === 0;
+        return new TableRow({
+          tableHeader: header || undefined,
+          children: row.map((cell, index) => new TableCell({
+            width: {
+              size: columnWidths[index],
+              type: WidthType.DXA,
+            },
+            borders: {
+              top: border,
+              bottom: border,
+              left: border,
+              right: border,
+            },
+            shading: header ? { fill: "EDEDED" } : undefined,
+            children: [new Paragraph({
+              style: "LegalTableText",
+              children: inlines(
+                cell,
+                header,
+                citationPlacement === "after-paragraph" ? "inline" : citationPlacement,
               ),
-            }),
-        ),
-      ];
+            })],
+          })),
+        });
+      });
       blocks.push(
         new Table({
           width: { size: tableWidth, type: WidthType.DXA },
