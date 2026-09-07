@@ -52,7 +52,7 @@ function App() {
   const [reviewOpen,setReviewOpen]=useState(false),[rechecking,setRechecking]=useState(false);
   const [currentId,setCurrentId]=useState('');
   const [preview,setPreview]=useState<{role:string;quote:string}>();
-  // Real backend findings, so the dialog can only show what the deterministic check produces.
+  // Real backend findings, so the review can only show what the deterministic check produces.
   const [findings,setFindings]=useState<AuthoritiesDiscrepancy[]>([]);
   useEffect(()=>{void fetch('/api/test-annotations/discrepancies').then(r=>r.json()).then(setFindings);},[]);
   const host={readSource:async(_product:AuthoritiesProduct,role:string)=>new Blob([files[role].slice().buffer],{type:'application/pdf'}),
