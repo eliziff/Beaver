@@ -6,7 +6,7 @@ import { runChatTurn, type ChatToolContext } from "../chat/turnEngine";
 import { createLegalEvidenceTurnState, legalEvidenceReceiptEvent, modelEvidencePreview,
   modelResearchQueryPreview, registerLegalEvidence, registerLegalResearchQueries,
   registerPriorLegalEvidence, registerPriorLegalResearchQueries,
-  validateGroundedClaims } from "../chat/legalEvidence";
+  validateGroundedClaims, type LegalEvidenceReceipt } from "../chat/legalEvidence";
 import { toolText, type BeaverTool } from "../chat/toolRegistry";
 import { readResearchContext, researchReadCursors, researchReadReceipt,
   type ResearchReadContext, type ResearchObserver } from "../researchReader";
@@ -17,7 +17,7 @@ import { throwIfAborted } from "../llm/abort";
 import type { TabularCellContent, TabularColumn } from "../tabularStore";
 import type { ResearchSubject } from "../researchSelection";
 
-type PriorResearch = { passages: ResearchEvidence[]; queries: ResearchQueryReceipt[] };
+type PriorResearch = { passages: ResearchEvidence[]; reads?: LegalEvidenceReceipt[]; queries: ResearchQueryReceipt[] };
 
 const text = z.string().trim().min(1).max(8_000);
 const date = text.regex(/^\d{4}-\d{2}-\d{2}$/u).refine((value) => {
@@ -62,6 +62,7 @@ function summary(column: TabularColumn, value: TabularCellContent["value"]) {
 function priorPrompt(prior: PriorResearch | undefined, budget = 8_000) {
   const lines: string[] = [];
   for (const value of [...prior?.passages.map(({ receipt }) => modelEvidencePreview(receipt)) ?? [],
+    ...prior?.reads?.map((receipt) => `Read (not highlighted): ${modelEvidencePreview(receipt)}`) ?? [],
     ...prior?.queries.map(modelResearchQueryPreview) ?? []]) {
     const line = JSON.stringify(value);
     if (line.length + 1 > budget) break;
@@ -83,7 +84,7 @@ export async function extractTabularAnswers(input: {
     operation: ResearchOperationContext = { ...input.operation, executor: "assistant", model: input.model },
     next = () => researchReadCursors(research);
   if (input.prior) {
-    registerPriorLegalEvidence(state, input.prior.passages.map(({ receipt }) => receipt));
+    registerPriorLegalEvidence(state, [...input.prior.passages.map(({ receipt }) => receipt), ...input.prior.reads ?? []]);
     registerPriorLegalResearchQueries(state, input.prior.queries);
   }
   // One receipt covers the whole row: it is minted before the first read so every cell can

@@ -1,5 +1,13 @@
 # Handoff — research sets / Sources workspace / Tabular Review overhaul (2026-09-06)
 
+> Superseding PR1 direction: A–F were committed and pushed in main through
+> `b979831747a5ceb678400fb0863a35b3a87e626e`. The historical Phase E ontology
+> brief below is not a requirement: Library remains neutral. Research labels
+> are set-local; highlight type means name + colour + parent; ordinary reads
+> remain background receipts, not highlights or findings. See the current
+> Sources behavior contract and the implementation sequence in
+> `docs/roadmap/research-sets.md`.
+
 Session ran out of usage mid-orchestration. Nothing is committed. All work is
 uncommitted in the working tree. Plan (approved by Eli, source of truth):
 `C:\Users\elias\.claude\plans\https-chatgpt-com-s-cx-6a9d80087ff081919-zippy-badger.md`.

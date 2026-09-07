@@ -216,7 +216,7 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
         <span className="w-full truncate text-center text-xs leading-4 text-gray-700">{id ? labels[id]?.name : "None"}</span>
         {multipleRoots && <span className="h-4 text-xs leading-4 text-gray-500">{!index && id ? "Shown" : ""}</span>}
       </button>)}
-      {slots.every(Boolean) && <button type="button" aria-label="Add label assignment" title="Add label assignment" onClick={() => {
+      {scope === "source" && slots.every(Boolean) && <button type="button" aria-label="Add label assignment" title="Add label assignment" onClick={() => {
         setSlots((values) => [...values, ""]); setActive(slots.length); }}
         className="flex w-10 shrink-0 items-center justify-center rounded-md py-1 hover:bg-gray-100">
         <ResearchLabelCircle labels={labels} labelIds={[]} size="md" />
@@ -227,15 +227,15 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
         className="h-7 rounded px-1.5 text-sm text-gray-600 hover:bg-gray-100">Show this label</button>
     </div>}
     {!tree.size ? <p className="my-3 text-center text-sm text-gray-500">
-      No {scope === "source" ? "labels" : "highlight categories"} yet.
+      No {scope === "source" ? "labels" : "highlight types"} yet.
     </p> : <div className="mt-2 grid gap-1 border-b border-gray-200 pb-2">
       {Object.values(labels).filter((label) => label.scope === scope).length > 6 && <input type="search" autoComplete="off" value={search} onChange={(event) => setSearch(event.target.value)}
-        aria-label={`Search ${scope === "source" ? "labels" : "highlight categories"}`} placeholder="Search labels"
+        aria-label={`Search ${scope === "source" ? "labels" : "highlight types"}`} placeholder="Search labels"
         className="h-8 min-w-0 rounded-md border border-gray-300 px-2 text-sm" />}
       <div className="flex min-w-0 flex-wrap gap-1">
-        <button type="button" onClick={clear} aria-label="None" aria-pressed={!selected}
+        {scope === "source" && <button type="button" onClick={clear} aria-label="None" aria-pressed={!selected}
           className={`flex min-h-7 items-center gap-1 rounded-md px-1.5 text-sm ${selected ? "bg-gray-50 text-gray-600 hover:bg-gray-100" : "bg-gray-200 ring-1 ring-inset ring-gray-500"}`}>
-          <ResearchLabelCircle labels={labels} labelIds={[]} size="sm" />None</button>
+          <ResearchLabelCircle labels={labels} labelIds={[]} size="sm" />None</button>}
         {visible(roots).map(({ id }) => <Dot key={id} file={file} id={id}
           active={path[0]?.id === id} onClick={() => choose(id)} />)}
       </div>

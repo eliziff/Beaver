@@ -244,7 +244,7 @@ export function DocumentSidePanel({
     const uploadRef = useRef<HTMLInputElement>(null);
     const deleteTarget = useRef<Document | null>(null);
     const sourcesController = useSourcesWorkspaceOrNull();
-    const highlightController = sourcesController?.highlight ?? null;
+    const highlightController = sourcesController?.file ? sourcesController.highlight : null;
     const captureReference: ResearchSourceReference | null =
         doc && (versionId ?? doc.current_version_id)
             ? { provider: "library", kind: "document", id: doc.id,
@@ -253,21 +253,21 @@ export function DocumentSidePanel({
             : null;
     useLibraryReaderCapture(readerBody, captureReference, highlightController);
     const [savedQuotes, setSavedQuotes] = useState<CitationQuote[]>([]);
-    const ontologyFile = sourcesController?.file ?? null;
+    const researchFile = sourcesController?.file ?? null;
     const captureKey = captureReference ? researchSourceKey(captureReference) : null;
     useEffect(() => {
-        if (!ontologyFile || !captureKey) { setSavedQuotes([]); return; }
-        const source = Object.values(ontologyFile.state.sources).find(({ reference }) =>
+        if (!researchFile || !captureKey) { setSavedQuotes([]); return; }
+        const source = Object.values(researchFile.state.sources).find(({ reference }) =>
             researchSourceKey(reference) === captureKey);
         if (!source) { setSavedQuotes([]); return; }
         let cancelled = false;
-        void getResearchItems(ontologyFile.document.id, { kind: "passages", sourceId: source.id }).then((page) => {
+        void getResearchItems(researchFile.document.id, { kind: "passages", sourceId: source.id }).then((page) => {
             if (cancelled) return;
             setSavedQuotes(page.items.flatMap((item) => item.kind === "passage" && item.value.receipt.span_text
                 ? [{ quote: item.value.receipt.span_text }] : []));
         }).catch(() => { if (!cancelled) setSavedQuotes([]); });
         return () => { cancelled = true; };
-    }, [ontologyFile, captureKey]);
+    }, [researchFile, captureKey]);
     const loadVersions = useEffectEvent(onLoadVersions);
     const docId = doc?.id;
 

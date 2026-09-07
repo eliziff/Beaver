@@ -42,6 +42,7 @@ export type ResearchSource = { id: string; reference: ResearchSourceReference;
   passages: (ResearchPartReference & { labelCounts: Record<string, number>;
     unlabelledCount: number }) | null };
 export type ResearchEvidence = { receipt: LegalEvidenceReceipt; sourceId: string;
+  /** Exactly one highlight-scoped label: its name and colour are the highlight type. */
   labelIds: string[]; note: string };
 export type ResearchQueryReceipt = LegalResearchQueryReceipt & { sourceIds: string[];
   matchedSourceIds: string[]; evidenceIds: string[]; failures: Array<{ sourceId: string; code: string }>;
@@ -54,11 +55,12 @@ export const researchQueryReceipt = (receipt: LegalResearchQueryReceipt): Resear
 });
 export type ResearchFileState = { schemaVersion: "beaver.research.v2";
   labels: Record<string, ResearchLabel>; sources: Record<string, ResearchSource>;
-  queries: ResearchPartReference | null; note: string; tables?: string[]; chats?: string[];
+  queries: ResearchPartReference | null; reads?: ResearchPartReference; note: string; tables?: string[]; chats?: string[];
   history?: ResearchPartReference; proposals?: ResearchChangeSummary[] };
 export type ResearchFile = { document: DocumentRecord;
   versionId: string; workingRevision: number; state: ResearchFileState };
 export type ResearchPageItem = { kind: "passage"; index: number; value: ResearchEvidence }
+  | { kind: "read"; index: number; value: LegalEvidenceReceipt }
   | { kind: "query"; index: number; value: ResearchQueryReceipt }
   | { kind: "change"; index: number; value: ResearchChange };
 
@@ -80,6 +82,8 @@ const researchMutationSchema = z.discriminatedUnion("type", [
     sourceId: uuid.optional(), labelIds: ids.optional(), badge: z.string().trim().max(19).optional(),
     badgeColor: z.string().regex(/^#[a-f0-9]{6}$/iu).optional(),
     note: z.string().max(50_000).optional() }).strict(),
+  z.object({ type: z.literal("save-highlights"), evidenceIds: z.array(text(200)).min(1).max(100_000),
+    labelId: uuid.optional() }).strict(),
   z.object({ type: z.literal("passage"), sourceId: uuid, locator,
     quote: text(50_000), labelIds: ids.optional() }).strict(),
   z.object({ type: z.literal("label-selection"), target: z.enum(["sources", "passages"]),
@@ -89,6 +93,10 @@ const researchMutationSchema = z.discriminatedUnion("type", [
     mode: z.enum(["add", "remove", "replace"]) }).strict(),
   z.object({ type: z.literal("note"), markdown: z.string().max(250_000), expectedMarkdown: z.string().max(250_000).optional() }).strict(),
 ]).superRefine((action, context) => {
+  const highlightIds = action.type === "passage" || action.type === "annotate" && action.kind === "evidence"
+    ? action.labelIds : action.type === "label-selection" && action.target === "passages" ? action.assign : undefined;
+  if (highlightIds && highlightIds.length > 1)
+    context.addIssue({ code: "custom", message: "Choose one highlight type" });
   if (action.type === "annotate" && action.kind === "evidence" &&
       (action.badge !== undefined || action.badgeColor !== undefined))
     context.addIssue({ code: "custom", message: "Evidence annotations cannot have badges" });
@@ -106,10 +114,11 @@ export const researchFileActionSchema = z.union([researchMutationSchema,
 ]);
 export type PublicResearchFileAction = z.infer<typeof researchFileActionSchema>;
 export type ResearchFileAction = PublicResearchFileAction | { type: "merge";
-  evidence?: LegalEvidenceReceipt[]; queries?: ResearchQueryReceipt[];
+  /** Evidence is an explicit save; observations belong in reads instead. */
+  evidence?: LegalEvidenceReceipt[]; reads?: LegalEvidenceReceipt[]; queries?: ResearchQueryReceipt[];
   sources?: ResearchSourceReference[]; labels?: Record<string, string[]>; tables?: string[]; chats?: string[] };
 
-const SOURCE_PART = (id: string) => `source.${id}.json`, QUERIES_PART = "queries.json";
+const SOURCE_PART = (id: string) => `source.${id}.json`, QUERIES_PART = "queries.json", READS_PART = "reads.json";
 export const researchSourceKey = (value: ResearchSourceReference) => value.kind === "document"
   ? resourceReference.document(value.id, value.versionId) : legalSourceResource(value);
 export const researchLabelPath = (state: ResearchFileState, id: string) => { const names: string[] = [], seen = new Set<string>();
@@ -178,7 +187,9 @@ const validPassages = (value: unknown, labels: Record<string, unknown>) => { con
     Number(item?.unlabelledCount) <= count; };
 const checkedLabels = (state: ResearchFileState, values: string[], scope?: ResearchLabel["scope"]) => {
   if (values.some((id) => !state.labels[id] || scope && state.labels[id].scope !== scope))
-    throw new Error("Label not found in this scope.");
+    throw new ApplicationError(400, "Label not found in this scope.");
+  if (scope === "highlight" && values.length > 1)
+    throw new ApplicationError(400, "Choose one highlight type");
   return [...new Set(values)];
 };
 const addSource = (state: ResearchFileState, reference: ResearchSourceReference,
@@ -200,6 +211,7 @@ function decodeResearchFileState(value: unknown): ResearchFileState | null {
   const state = record(value), labels = record(state?.labels), sources = record(state?.sources);
   if (state?.schemaVersion !== "beaver.research.v2" || !labels || !sources ||
       !(state.queries === null || validPart(state.queries, 10_000)) ||
+      (state.reads !== undefined && !validPart(state.reads, 100_000)) ||
       (state.tables !== undefined && !validIds(state.tables)) ||
       (state.chats !== undefined && !validIds(state.chats)) ||
       (state.history !== undefined && !validPart(state.history, 10_000)) ||
@@ -275,6 +287,7 @@ const decodeSourcePart = (bytes: Buffer, sourceId: string) => {
       Object.keys(evidence).length > 100_000 || Object.entries(evidence).some(([id, value]) => {
         const item = record(value), receipt = storedLegalEvidenceReceipt(item?.receipt); return !item ||
           !receipt || receipt.evidence_id !== id || item.sourceId !== sourceId || !validIds(item.labelIds) ||
+          (item.labelIds as string[]).length !== 1 ||
           !(item.labelIds as string[]).every((label) => uuid.safeParse(label).success) ||
           typeof item.note !== "string" || item.note.length > 50_000; })) return null;
   return evidence as Record<string, ResearchEvidence>;
@@ -383,10 +396,29 @@ export async function readResearchQueries(documents: DocumentStore, scope: Appli
   return Object.values(queries!);
 }
 
+/** Background observations retain canonical receipts without joining the curated source/highlight inventory. */
+export async function readResearchReads(documents: DocumentStore, scope: ApplicationScope, file: ResearchFile) {
+  const ref = file.state.reads;
+  if (!ref) return [];
+  const part = (await documents.readParts(scope, file.document.id, file.versionId, [READS_PART]))?.[0],
+    values = part?.sha256 === ref.sha256 ? record(parseJson(part.bytes)) : null;
+  if (!values || Object.keys(values).length !== ref.count || Object.entries(values).some(([id, value]) =>
+      storedLegalEvidenceReceipt(value)?.evidence_id !== id)) return corrupt();
+  return Object.values(values) as LegalEvidenceReceipt[];
+}
+
 export async function pageResearchItems(documents: DocumentStore, scope: ApplicationScope,
-  file: ResearchFile, kind: "passages" | "queries" | "history", offset = 0, limit = 50,
+  file: ResearchFile, kind: "passages" | "queries" | "history" | "reads", offset = 0, limit = 50,
   sourceIds?: string[]) {
   offset = Math.max(0, Math.trunc(offset)); limit = Math.max(1, Math.min(200, Math.trunc(limit)));
+  if (kind === "reads") {
+    const resources = sourceIds && new Set(sourceIds.map((id) => researchSourceResource(get(file.state.sources, id, "Source").reference))),
+      values = (await readResearchReads(documents, scope, file)).filter((receipt) =>
+        !resources || resources.has(legalEvidenceResourceReference(receipt) ?? "")).reverse(), total = values.length;
+    return { items: values.slice(offset, offset + limit).map((value, index): ResearchPageItem =>
+      ({ kind: "read", index: offset + index, value })), total,
+      nextOffset: offset + limit < total ? offset + limit : null };
+  }
   if (kind === "history") { const values = (await readResearchHistory(documents, scope, file)).reverse(), total = values.length;
     return { items: values.slice(offset, offset + limit).map((value, index): ResearchPageItem =>
       ({ kind: "change", index: offset + index, value })), total,
@@ -435,7 +467,7 @@ const applyLabel = (state: ResearchFileState, action: Extract<PublicResearchFile
     label.scope === scope && label.id !== id);
   state.labels[id] = { id, name: action.name, parentId, scope,
     definition: action.definition ?? previous?.definition ?? "",
-    color: action.color === undefined ? previous?.color ?? null : action.color,
+    color: (action.color === undefined ? previous?.color : action.color) ?? (scope === "highlight" ? "#eab308" : null),
     order: action.order ?? previous?.order ?? Math.max(-1, ...siblings.map(({ order }) => order)) + 1 };
   const normalize = (parent: string | null) => Object.values(state.labels)
     .filter((label) => label.parentId === parent && label.scope === scope)
@@ -473,11 +505,25 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
   const ownSource = (id: string) => { const sources = ownSources(), item = get(sources, id, "Source");
     if (item === current.state.sources[id]) sources[id] = { ...item, labelIds: [...item.labelIds] };
     return sources[id]; };
+  const defaultHighlight = () => {
+    const existing = Object.values(state.labels).find((label) => label.scope === "highlight" && label.name === "Highlight" && !label.parentId);
+    if (existing) return existing.id;
+    ownLabels();
+    return applyLabel(state, { type: "label", name: "Highlight", scope: "highlight", color: "#eab308" });
+  };
+  const highlightLabels = (values: string[]) => {
+    const chosen = checkedLabels(state, values, "highlight");
+    return chosen.length ? chosen : [defaultHighlight()];
+  };
+  let reads: Map<string, LegalEvidenceReceipt> | undefined;
+  const loadReads = async () => reads ??= new Map((await readResearchReads(documents, scope, current))
+    .map((receipt) => [receipt.evidence_id, receipt]));
   let passageDelta = 0;
   if (request.type === "merge" && ((request.sources?.length ?? 0) > 10_000 ||
-      (request.evidence?.length ?? 0) > 100_000 || (request.queries?.length ?? 0) > 10_000 ||
+      (request.evidence?.length ?? 0) > 100_000 || (request.reads?.length ?? 0) > 100_000 || (request.queries?.length ?? 0) > 10_000 ||
       request.sources?.some((value) => !source.safeParse(value).success) ||
-      request.evidence?.some((value) => !storedLegalEvidenceReceipt(value))))
+      request.evidence?.some((value) => !storedLegalEvidenceReceipt(value)) ||
+      request.reads?.some((value) => !storedLegalEvidenceReceipt(value))))
     throw new ApplicationError(400, "Research file limits exceeded");
   let queries: Record<string, ResearchQueryReceipt> | undefined;
   const loadQueries = async () => queries ??= Object.fromEntries((await readResearchQueries(
@@ -501,6 +547,7 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     passageDelta += count - previous;
     if (count > 100_000) throw new ApplicationError(400, "Research file limits exceeded");
     if (!count) { if (item.passages) removes.push(name); item.passages = null; return; }
+    for (const item of Object.values(evidence)) checkedLabels(state, item.labelIds, "highlight");
     const bytes = encodeSourcePart(sourceId, evidence), digest = sha256(bytes);
     if (!decodeSourcePart(bytes, sourceId)) throw new ApplicationError(400, "Invalid saved passage");
     item.passages = { count, sha256: digest, ...passageFacets(state, evidence) };
@@ -515,7 +562,23 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     if (current.state.queries?.sha256 !== digest)
       puts.push({ name: QUERIES_PART, bytes, expectedSha256: digest });
   };
-  for (const action of actions) {
+  for (const requestedAction of actions) {
+  // Selecting a search/read result is the explicit boundary at which it becomes a highlight.
+  let action: ResearchFileAction = requestedAction;
+  if (requestedAction.type === "save-highlights") {
+    const known = await loadReads(), evidence = [...new Set(requestedAction.evidenceIds)].map((id) => {
+      const receipt = known.get(id);
+      if (!receipt) throw new ApplicationError(404, "Read passage not found");
+      return receipt;
+    });
+    for (const receipt of evidence) {
+      const reference = researchReferenceFromEvidence(receipt);
+      if (reference?.kind === "document" && !await documents.projectionSource(scope, reference.id, reference.versionId))
+        throw new ApplicationError(404, "Document version not found");
+    }
+    action = { type: "merge", evidence, ...(requestedAction.labelId ? {
+      labels: Object.fromEntries(evidence.map(({ evidence_id }) => [evidence_id, [requestedAction.labelId!]])) } : {}) };
+  }
   if (action.type === "label") { ownLabels(); applyLabel(state, action); }
   else if (action.type === "note") {
     if (action.expectedMarkdown !== undefined && action.expectedMarkdown !== state.note && action.markdown !== state.note)
@@ -551,7 +614,10 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
       await loadSources(selection.subjects.map(({ sourceId }) => sourceId));
       for (const subject of selection.subjects) {
         for (const receipt of subject.evidence ?? Object.values(loaded.get(subject.sourceId)!).map(({ receipt }) => receipt)) {
-          const item = loaded.get(subject.sourceId)![receipt.evidence_id]; item.labelIds = update(item.labelIds);
+          const item = loaded.get(subject.sourceId)![receipt.evidence_id];
+          if (!item) throw new ApplicationError(400, "Save the passage as a highlight before changing its type");
+          item.labelIds = highlightLabels(action.mode === "remove" ? update(item.labelIds)
+            : assigned.length ? assigned : item.labelIds);
         }
         writeSource(subject.sourceId);
       }
@@ -566,7 +632,7 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     const sourceId = action.sourceId!; get(state.sources, sourceId, "Source"); await loadSources([sourceId]);
     const item = get(loaded.get(sourceId)!, action.id, "Evidence");
     if (action.type === "remove") delete loaded.get(sourceId)![action.id];
-    else { if (action.labelIds) item.labelIds = checkedLabels(state, action.labelIds, "highlight");
+    else { if (action.labelIds) item.labelIds = highlightLabels(action.labelIds);
       if (action.note !== undefined) item.note = action.note; }
     writeSource(sourceId);
   } else if (action.type === "remove" && action.kind === "source") {
@@ -593,7 +659,7 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
       .filter(({ passages }) => passages && Object.keys(passages.labelCounts).some((id) => removed.has(id)))
       .map(({ id }) => id); await loadSources(sourceIds);
       sourceIds.forEach((id) => { Object.values(loaded.get(id)!).forEach((item) => {
-        item.labelIds = item.labelIds.filter((labelId) => !removed.has(labelId)); }); writeSource(id); }); }
+        item.labelIds = highlightLabels(item.labelIds.filter((labelId) => !removed.has(labelId))); }); writeSource(id); }); }
     writeQueries();
   } else if (action.type === "passage") throw new Error("Passages must be verified before saving.");
   else if (action.type === "merge") {
@@ -616,12 +682,20 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
       throw new ApplicationError(400, "Research file limits exceeded");
     await loadSources(evidence.map(({ source }) => source.id));
     evidence.forEach(({ receipt, source }) => { const values = loaded.get(source.id)!,
-      previous = values[receipt.evidence_id], assigned = checkedLabels(state,
-        action.labels?.[receipt.evidence_id] ?? [], "highlight");
+      previous = values[receipt.evidence_id], assigned = highlightLabels(
+        action.labels?.[receipt.evidence_id] ?? previous?.labelIds ?? []);
       values[receipt.evidence_id] = { receipt: structuredClone(receipt), sourceId: source.id,
-        labelIds: [...assigned, ...(previous?.labelIds ?? []).filter((id) => !assigned.includes(id))],
+        labelIds: assigned,
         note: previous?.note ?? "" }; });
     [...new Set(evidence.map(({ source }) => source.id))].forEach(writeSource);
+    if (action.reads?.length) {
+      const ledger = await loadReads();
+      action.reads.forEach((receipt) => ledger.set(receipt.evidence_id, structuredClone(receipt)));
+      if (ledger.size > 100_000) throw new ApplicationError(400, "Research read history limit reached");
+      const bytes = Buffer.from(JSON.stringify(Object.fromEntries(ledger))), digest = sha256(bytes);
+      state.reads = { count: ledger.size, sha256: digest };
+      if (current.state.reads?.sha256 !== digest) puts.push({ name: READS_PART, bytes, expectedSha256: digest });
+    }
     if (action.queries?.length) { const ledger = await loadQueries();
       const evidenceSources = new Map(evidence.map(({ receipt, source }) =>
         [receipt.evidence_id, source.id]));
@@ -631,15 +705,15 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
         const mapped = new Map(query.sourceIds.map((id) => { const reference = query.sourceReferences?.[id],
           existing = state.sources[id], item = existing && (!reference || researchSourceKey(
             existing.reference) === researchSourceKey(reference)) ? existing
-            : reference ? addSource(state, reference, sourceByKey) : null;
-          if (!item) throw new ApplicationError(400, "Query belongs to another research file");
-          return [id, item.id] as const; }));
+            : reference ? sourceByKey.get(researchSourceKey(reference)) : null;
+          if (!item && !reference) throw new ApplicationError(400, "Query belongs to another research file");
+          // A historical receipt may describe an uncollected source. Preserve its reference, not membership.
+          return [id, item?.id ?? id] as const; }));
         queryLabelIds(next).forEach((id) => { const path = researchLabelPath(state, id);
           if (path) (next.labelPaths ??= {})[id] ??= path; });
-        const saved = researchQuerySources([query]).map((reference) =>
-          addSource(state, reference, sourceByKey).id), matched = [...new Set([
-            ...query.matchedSourceIds.map((id) => mapped.get(id)!),
-            ...query.evidenceIds.flatMap((id) => evidenceSources.get(id) ?? []), ...saved])];
+        const matched = [...new Set([
+          ...query.matchedSourceIds.map((id) => mapped.get(id)!),
+          ...query.evidenceIds.flatMap((id) => evidenceSources.get(id) ?? [])])];
         next.sourceReferences = next.sourceReferences && Object.fromEntries(Object.entries(
           next.sourceReferences).map(([id, reference]) => [mapped.get(id)!, reference]));
         if (next.sourceFingerprints) { const fingerprints: Record<string, string[]> = {};
@@ -698,7 +772,11 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     }
     const item = change.target === "source" ? ownSource(change.id) : values[change.id];
     if (!item) throw new ApplicationError(409, "The affected item is unavailable");
-    if (field.startsWith("labelIds.") && "labelIds" in item && typeof value === "boolean") {
+    if (change.target === "passage" && field === "labelIds" && "labelIds" in item && Array.isArray(value)) {
+      if (value.length !== 1 || !uuid.safeParse(value[0]).success)
+        throw new ApplicationError(409, "An affected highlight type is unavailable");
+      item.labelIds = [...value];
+    } else if (field.startsWith("labelIds.") && "labelIds" in item && typeof value === "boolean") {
       const id = field.slice(9);
       if (value && state.labels[id]?.scope !== (change.target === "source" ? "source" : "highlight"))
         throw new ApplicationError(409, "An affected label is unavailable");

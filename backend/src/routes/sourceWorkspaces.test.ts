@@ -28,8 +28,7 @@ function fixture() {
   const app = express();
   app.use(express.json());
   app.use("/source-workspaces", createSourceWorkspacesRouter(createSourceWorkspaceApplication(documents, {
-    chats: {} as never, tables: {} as never, projects: {} as never, library: {} as never,
-    preferences: {} as never, tabular: async () => { throw new Error("No tables in this fixture"); } })));
+    chats: {} as never, tables: {} as never, tabular: async () => { throw new Error("No tables in this fixture"); } })));
   return { app, documents };
 }
 function saved(documents: DocumentStore, state = createResearchFileState(), revision = 0) {
@@ -57,7 +56,7 @@ describe("Sources workspace routes", () => {
     const response = await request(app).post("/source-workspaces/d1/actions").send({
       version_id: "v1", working_revision: 0, action: { type: "passage", sourceId,
         locator: { kind: "paragraph", value: "1" }, quote: "holding" } });
-    expect(response.status).toBe(200);
+    expect(response.status, response.text).toBe(200);
     expect(response.body).toMatchObject({ sourceId, evidenceId: receipt.evidence_id });
     expect(documents.metadata).toHaveBeenCalledTimes(1);
     expect(documents.read).toHaveBeenCalledTimes(1);
@@ -81,13 +80,13 @@ describe("Sources workspace routes", () => {
     ]);
   });
 
-  it("passes the Unclassified scope through workspace queries", async () => {
+  it("passes the no-source-label filter through workspace queries", async () => {
     const { app, documents } = fixture();
     saved(documents);
     const response = await request(app).post("/source-workspaces/d1/query").send({
       version_id: "v1", working_revision: 0, text: "fairness", syntax: "literal",
       target: "sources", unlabelled: true });
-    expect(response.status).toBe(200);
+    expect(response.status, response.text).toBe(200);
     expect(response.body.coverage).toMatchObject({ complete: true, next_after: null,
       attempted_sources: 0, selected_sources: 0 });
     const written = vi.mocked(documents.replaceVersion).mock.calls[0][4], queryPart =
@@ -103,12 +102,13 @@ describe("Sources workspace routes", () => {
       sourceText: `holding ${index}`, spanText: `holding ${index}`, start: 0, end: 9,
       externalUrl: null, sourceClass: "case", sourceReference: { id: "case-1" } })),
       evidence = Object.fromEntries(receipts.map((receipt) => [receipt.evidence_id,
-        { receipt, sourceId, labelIds: [], note: "" }])), part = Buffer.from(JSON.stringify({
+        { receipt, sourceId, labelIds: [sourceId], note: "" }])), part = Buffer.from(JSON.stringify({
           schemaVersion: "beaver.research-source.v1", sourceId, evidence })),
       state = createResearchFileState();
+    state.labels[sourceId] = { id: sourceId, name: "Highlight", scope: "highlight", color: "#eab308", parentId: null, order: 0 };
     state.sources[sourceId] = { id: sourceId, reference: { provider: "a2aj", id: "case-1",
       kind: "case", citation: "Example" }, labelIds: [], badge: "", note: "",
-      passages: { count: 3, sha256: sha256(part), labelCounts: {}, unlabelledCount: 3 } };
+      passages: { count: 3, sha256: sha256(part), labelCounts: { [sourceId]: 3 }, unlabelledCount: 0 } };
     saved(documents, state);
     vi.mocked(documents.readParts).mockImplementation(async (_scope, _id, _version, names) =>
       names.includes(`source.${sourceId}.json`)

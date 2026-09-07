@@ -2,15 +2,12 @@ import { randomUUID } from "node:crypto";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { AuditStore } from "./audit";
 import type { ChatStore } from "./chatStore";
-import type { DocumentRecord, DocumentStore } from "./documentStore";
-import type { LibraryStore } from "./libraryStore";
-import type { ProjectStore } from "./projectStore";
-import type { UserPreferencesRepository } from "./userPreferences";
+import type { DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
 import { commitResearchFile, createResearchFileState, pageResearchItems, readResearchFile,
-  researchFileMarkdown, researchQueryReceipt, researchQuerySources, researchSourceResource,
+  researchFileMarkdown, researchQueryReceipt, researchReferenceFromEvidence, researchSourceResource,
   visitResearchEvidenceParts,
-  type ResearchEvidence, type ResearchFileAction, type ResearchFile, type ResearchFileState,
+  type ResearchEvidence, type ResearchFileAction, type ResearchFile,
   type ResearchQueryReceipt, type ResearchSourceReference } from "./researchFile";
 import { runResearchFileQuery, verifyResearchPassage, type ResearchFileQueryInput } from "./researchFileQuery";
 import { readResearchMemoCitation } from "./researchMemo";
@@ -32,7 +29,7 @@ import { tabularSubjectId, type TabularCellContent, type TabularColumn,
 
 type Scope = ApplicationScope;
 type Operation = ResearchOperationContext;
-type Observations = { evidence?: LegalEvidenceReceipt[]; queries?: Array<LegalResearchQueryReceipt | ResearchQueryReceipt>;
+type Observations = { evidence?: LegalEvidenceReceipt[]; reads?: LegalEvidenceReceipt[]; queries?: Array<LegalResearchQueryReceipt | ResearchQueryReceipt>;
   sources?: ResearchSourceReference[]; chats?: string[]; tables?: string[] };
 type Binding = { chatId?: string; tableId?: string; selection?: ResearchSelection | null };
 type FindingsInput = { sourceIds?: string[]; reference?: ResearchFindingReference; chatId?: string;
@@ -40,16 +37,11 @@ type FindingsInput = { sourceIds?: string[]; reference?: ResearchFindingReferenc
 type FindingsPage = { items: ResearchFinding[]; total: number; next_offset: number | null; is_running: boolean };
 type TableInput = { tableId?: string; chatId?: string; messageIds?: string[];
   selection?: ResearchSelection; findingRefs?: ResearchFindingReference[] } & Partial<ResearchImportInput>;
-export type WorkspaceMembership = Record<string, {
-  workspaces: Array<{ id: string; title: string; sourceId: string }>;
-  labels: Array<{ id: string; name: string; color: string | null; workspaceId: string }> }>;
-
 const workspaceTitle = (filename: string) => filename.replace(/\.research\.md$/iu, "");
 
 /** The Sources workspace use cases share the existing document, chat and table persistence ports. */
 export function createSourceWorkspaceApplication(documents: DocumentStore, dependencies: {
   chats: ChatStore; tables: TabularRepository; tabular(): Promise<TabularApplication>; audit?: AuditStore["record"];
-  projects: ProjectStore; preferences: UserPreferencesRepository; library: LibraryStore;
   isTableRunning?(reviewId: string, ownerId: string): Promise<boolean>;
 }) {
   const operation = (value?: Operation): Operation => ({ executor: "human", audit: dependencies.audit, ...value });
@@ -64,14 +56,16 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     const queries = input.queries?.map((query) => "sourceIds" in query ? query : researchQueryReceipt(query));
     for (let attempt = 0; attempt < 10; attempt++) {
       const current = await required(scope, id), saved = await commitResearchFile(documents, scope, current,
-        { type: "merge", ...input, queries,
-          sources: [...(input.sources ?? []), ...researchQuerySources(queries ?? [])] }, undefined, operation(actor));
+        { type: "merge", ...input, queries }, undefined, operation(actor));
       if (saved) return saved;
     }
     return conflict("The workspace changed. Try this operation again.");
   }
   async function observe(scope: Scope, id: string, event: LegalEvidenceReceiptEvent, actor?: Operation) {
-    return collect(scope, id, { evidence: event.evidence, queries: event.queries,
+    const supporting = new Set(event.status === "passed" ? event.claims.flatMap(({ evidence_ids }) => evidence_ids) : []);
+    return collect(scope, id, { reads: event.evidence, queries: event.queries,
+      sources: event.evidence.filter(({ evidence_id }) => supporting.has(evidence_id))
+        .flatMap((receipt) => researchReferenceFromEvidence(receipt) ?? []),
       ...(actor?.chatId ? { chats: [actor.chatId] } : {}), ...(actor?.reviewId ? { tables: [actor.reviewId] } : {}) }, actor);
   }
   async function create(scope: Scope, input: { title: string; projectId?: string | null; folderId?: string | null } & Observations,
@@ -107,20 +101,21 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
   const query = (scope: Scope, id: string, input: ResearchFileQueryInput,
     options: Parameters<typeof runResearchFileQuery>[4] = {}) => runResearchFileQuery(documents, scope, id,
       input, { ...options, operation: operation(options.operation) });
-  async function revision(scope: Scope, id: string, input: { kind: "passages" | "queries" | "history"; sourceId?: string }) {
+  async function revision(scope: Scope, id: string, input: { kind: "passages" | "queries" | "history" | "reads"; sourceId?: string }) {
     const file = await required(scope, id), source = input.sourceId && file.state.sources[input.sourceId];
     if (input.sourceId && !source) return fail(404, "Workspace source not found");
-    const contentRevision = input.kind === "history" ? file.state.history?.sha256 ?? ""
+    const contentRevision = input.kind === "reads" ? file.state.reads?.sha256 ?? ""
+      : input.kind === "history" ? file.state.history?.sha256 ?? ""
       : input.kind === "queries" ? file.state.queries?.sha256 ?? ""
         : source ? source.passages?.sha256 ?? "" : sha256(JSON.stringify(Object.values(file.state.sources)
           .map(({ id, passages }) => [id, passages?.sha256 ?? ""])));
     return { file, contentRevision };
   }
-  async function items(scope: Scope, id: string, input: { kind: "passages" | "queries" | "history";
+  async function items(scope: Scope, id: string, input: { kind: "passages" | "queries" | "history" | "reads";
     sourceId?: string; offset: number; limit: number }) {
     const { file, contentRevision } = await revision(scope, id, input);
     return { ...await pageResearchItems(documents, scope, file, input.kind, input.offset, input.limit,
-      input.sourceId && input.kind === "passages" ? [input.sourceId] : undefined), contentRevision };
+      input.sourceId && (input.kind === "passages" || input.kind === "reads") ? [input.sourceId] : undefined), contentRevision };
   }
   async function citation(scope: Scope, id: string, sourceId: string, evidenceId?: string) {
     return readResearchMemoCitation(documents, scope, await required(scope, id), sourceId, evidenceId);
@@ -140,8 +135,14 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
       const [chat, transcript] = await Promise.all([dependencies.chats.get(scope, input.chatId),
         dependencies.chats.transcript(scope, input.chatId)]);
       if (!chat || !transcript) return fail(404, "Chat not found");
-      const events = transcript.flatMap(({ content }) => Array.isArray(content) ? content : []);
-      await collect(scope, id, { chats: [chat.id], evidence: priorLegalEvidenceReceipts(events),
+      const events = transcript.flatMap(({ role, content }) => role === "assistant" && Array.isArray(content) ? content : []),
+        reads = priorLegalEvidenceReceipts(events), supporting = new Set(events.flatMap((event) =>
+          event.type === "legal_evidence_receipt" && event.status === "passed" ? event.claims
+            : event.type === "subagent_run" && event.status === "completed" && event.grounding?.status === "passed"
+              ? event.grounding.claims : []).flatMap(({ evidence_ids }) => evidence_ids));
+      await collect(scope, id, { chats: [chat.id], reads,
+        sources: reads.filter(({ evidence_id }) => supporting.has(evidence_id))
+          .flatMap((receipt) => researchReferenceFromEvidence(receipt) ?? []),
         queries: priorLegalResearchQueryReceipts(events) }, actor);
     }
     if (input.tableId) {
@@ -151,7 +152,7 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
       await collect(scope, id, { tables: [detail.review.id], sources: [...subjects.map(({ reference }) => reference),
         ...metadata.map((document) => ({ provider: "library" as const, kind: "document" as const,
           id: document.id, versionId: document.current_version_id, title: document.filename }))],
-      evidence: detail.cells.flatMap((cell) => cell.content?.evidence ?? []) }, actor);
+      reads: detail.cells.flatMap((cell) => cell.content?.evidence ?? []) }, actor);
     }
     return required(scope, id);
   }
@@ -380,74 +381,8 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     undefined, operation(actor)) ?? conflict("The workspace changed. Reload it before editing.");
   }
 
-  const pointer = async (scope: Scope, projectId: string | null) => {
-    if (!projectId) return (await dependencies.preferences.get(scope.userId)).libraryLabelsId;
-    const project = await dependencies.projects.get(scope, projectId) ?? fail(404, "Project not found"),
-      metadata = project.metadata as Record<string, unknown> | null | undefined,
-      value = metadata && typeof metadata === "object" ? metadata.labelsResearchFileId : null;
-    return typeof value === "string" && value ? value : null;
-  };
-  const setPointer = async (scope: Scope, projectId: string | null, documentId: string) => {
-    if (!projectId) { await dependencies.preferences.update(scope.userId, { libraryLabelsId: documentId }); return; }
-    const project = await dependencies.projects.get(scope, projectId) ?? fail(404, "Project not found"),
-      metadata = project.metadata && typeof project.metadata === "object" ? project.metadata as Record<string, unknown> : {};
-    await dependencies.projects.update(scope, projectId, { metadata: { ...metadata, labelsResearchFileId: documentId } });
-  };
-  async function ontology(scope: Scope, input: { projectId?: string | null; create?: boolean }): Promise<ResearchFile | null> {
-    const projectId = input.projectId ?? null;
-    const settle = async (mine: string): Promise<ResearchFile | null> => {
-      const winner = await pointer(scope, projectId);
-      if (!winner || winner === mine) return null;
-      const other = await get(scope, winner); if (!other) return null;
-      await documents.deleteDocument(scope, mine, true).catch(() => undefined);
-      return other;
-    };
-    const existing = await pointer(scope, projectId), found = existing ? await get(scope, existing) : null;
-    if (found || !input.create) return found;
-    const project = projectId ? await dependencies.projects.get(scope, projectId) : null,
-      title = project && typeof project.name === "string" && project.name.trim()
-        ? `${project.name.trim()} labels`.slice(0, 300) : "Library labels";
-    const created = await create(scope, { title, projectId }, { executor: "human" }),
-      raced = await settle(created.document.id);
-    if (raced) return raced;
-    await setPointer(scope, projectId, created.document.id);
-    return await settle(created.document.id) ?? created;
-  }
-
-  const parsed = new Map<string, ResearchFileState>();
-  async function membership(scope: Scope, input: { projectId?: string | null; documentIds: string[] }): Promise<WorkspaceMembership> {
-    const wanted = new Set(input.documentIds), result: WorkspaceMembership = {};
-    if (!wanted.size) return result;
-    const listed: DocumentRecord[] = [], projectId = input.projectId ?? null;
-    let after: [number, string, string] | null = null;
-    for (let page = 0; page < 10; page++) {
-      const options = { q: '".research.md"', parentFolderId: null, limit: 200, after, documentsOnly: true },
-        found: { items: Array<{ kind: "folder" } | { kind: "document"; document: DocumentRecord }>;
-          nextAfter: [number, string, string] | null } =
-          projectId ? await dependencies.projects.directory(scope, projectId, options)
-            : await dependencies.library.page({ ...scope, kind: "file" }, options);
-      listed.push(...found.items.flatMap((item) => item.kind === "document" ? [item.document] : []));
-      after = found.nextAfter; if (!after) break;
-    }
-    for (const document of listed) {
-      if (!document.filename?.toLowerCase().endsWith(".research.md")) continue;
-      const key = `${document.id}:${document.current_version_id}:${document.current_working_revision}`;
-      let state = parsed.get(key);
-      if (!state) { const file = await get(scope, document.id); if (!file) continue;
-        state = file.state; parsed.set(key, state);
-        if (parsed.size > 200) parsed.delete(parsed.keys().next().value!); }
-      for (const source of Object.values(state.sources)) {
-        if (source.reference.kind !== "document" || !wanted.has(source.reference.id)) continue;
-        const entry = result[source.reference.id] ??= { workspaces: [], labels: [] };
-        entry.workspaces.push({ id: document.id, title: workspaceTitle(document.filename), sourceId: source.id });
-        for (const labelId of source.labelIds) { const label = state.labels[labelId];
-          if (label) entry.labels.push({ id: label.id, name: label.name, color: label.color, workspaceId: document.id }); }
-      }
-    }
-    return result;
-  }
   return { get, create, update, query, collect, observe, revision, items, citation, bind, ensure, selection,
-    context, finding, findings, views, table, columnLabels, ontology, membership };
+    context, finding, findings, views, table, columnLabels };
 }
 
 export type SourceWorkspaceApplication = ReturnType<typeof createSourceWorkspaceApplication>;

@@ -1,8 +1,8 @@
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { DocumentStore } from "./documentStore";
 import { createLegalEvidenceCitationsFromEntries, createLegalSourceSearchCitations } from "./chat/citations";
-import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
-import { readResearchEvidenceParts, type ResearchFile, type ResearchSource } from "./researchFile";
+import { legalEvidenceResourceReference, type LegalEvidenceReceipt } from "./chat/legalEvidence";
+import { readResearchEvidenceParts, readResearchReads, researchSourceResource, type ResearchFile, type ResearchSource } from "./researchFile";
 
 /** Memo links carry the same presentation produced for assistant citations. */
 export function researchMemoCitation(file: ResearchFile, source: ResearchSource, receipt?: LegalEvidenceReceipt) {
@@ -47,6 +47,8 @@ export async function readResearchMemoCitation(documents: DocumentStore, scope: 
   if (!source) throw new ApplicationError(404, "Research source not found");
   if (!evidenceId) return researchMemoCitation(file, source);
   const evidence = (await readResearchEvidenceParts(documents, scope, file, [sourceId])).get(sourceId)?.[evidenceId];
-  if (!evidence) throw new ApplicationError(404, "Saved passage not found");
-  return researchMemoCitation(file, source, evidence.receipt);
+  const receipt = evidence?.receipt ?? (await readResearchReads(documents, scope, file)).find((item) =>
+    item.evidence_id === evidenceId && legalEvidenceResourceReference(item) === researchSourceResource(source.reference));
+  if (!receipt) throw new ApplicationError(404, "Passage not found");
+  return researchMemoCitation(file, source, receipt);
 }

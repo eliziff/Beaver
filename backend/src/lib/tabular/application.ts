@@ -345,11 +345,14 @@ export function createTabularApplication(
     let received: Set<number>;
     const fileId = selection?.research_file_id, workspace = fileId ? await dependencies.sources() : null;
     const prior = workspace && fileId ? await (async () => {
-      const [saved, queries] = await Promise.all([
+      const [saved, queries, reads] = await Promise.all([
         workspace.items(scope, fileId, { kind: "passages", sourceId: item.sourceId, offset: 0, limit: 40 }),
-        workspace.items(scope, fileId, { kind: "queries", offset: 0, limit: 50 })]);
+        workspace.items(scope, fileId, { kind: "queries", offset: 0, limit: 50 }),
+        workspace.items(scope, fileId, { kind: "reads", sourceId: item.sourceId, offset: 0, limit: 40 })]);
       const scoped = item.evidence && new Set(item.evidence.map(({ evidence_id }) => evidence_id));
-      return { passages: saved.items.flatMap((entry) => entry.kind === "passage" &&
+      return { reads: reads.items.flatMap((entry) => entry.kind === "read" &&
+          (!scoped || scoped.has(entry.value.evidence_id)) ? [entry.value] : []),
+        passages: saved.items.flatMap((entry) => entry.kind === "passage" &&
           (!scoped || scoped.has(entry.value.receipt.evidence_id)) ? [entry.value] : []),
         queries: queries.items.flatMap((entry) => entry.kind === "query" &&
           entry.value.sourceIds.includes(item.sourceId) ? [entry.value] : []) };

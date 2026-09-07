@@ -34,19 +34,19 @@ async function fixture(answered = true) {
   const { api } = await import("../api"), { runtime } = await import("../runtime");
   close = () => runtime.shutdown();
   const research = await import("../lib/researchFile"), evidence = await import("../lib/chat/legalEvidence"),
-    { readResearchResource } = await import("../lib/researchReader"),
     { resourceReference } = await import("../lib/resourceReferences"),
     documents = await runtime.documents(), chats = await runtime.chats(),
     bytes = Buffer.from("The agreed interest rate is five percent."),
     source = await documents.create(owner, { filename: "Agreement.txt", fileType: "txt", bytes }),
     resource = resourceReference.document(source.id, source.current_version_id),
-    read = await readResearchResource(documents, owner, { resource }),
-    library = read.evidence![0],
+    // The binding contract starts with a verified receipt, not with a format parser.
+    library = evidence.createLibraryEvidence({ documentId: source.id, versionId: source.current_version_id,
+      filename: source.filename, sourceSha256: source.source_sha256, spanText: bytes.toString(), start: 0, end: bytes.length }),
     external = evidence.createTnaEvidence({ jurisdiction: "UK", sourceClass: "case", stableSourceId: "ewca/civ/2024/1:",
       sourceReference: { id: "ewca/civ/2024/1" }, sourceText: "The appeal is allowed.", spanText: "The appeal is allowed.",
       span: { start: 0, end: 22 }, citation: "[2024] EWCA Civ 1", dataset: "tna", locatorLabel: "1" }),
     state = evidence.createLegalEvidenceTurnState();
-  evidence.registerLegalEvidence(state, library, read.evidenceSources!.get(library.evidence_id));
+  evidence.registerLegalEvidence(state, library);
   evidence.registerLegalEvidence(state, external);
   const claims = [{ text: "Interest is five percent.", evidence_ids: [library.evidence_id] },
     { text: "The appeal was allowed.", evidence_ids: [external.evidence_id] }];
@@ -63,7 +63,7 @@ async function fixture(answered = true) {
     workspace, claims, receipts: [library, external] };
 }
 
-async function arrange(f: Awaited<ReturnType<typeof fixture>>, id: string, answered = true) {
+async function arrange(f: Awaited<ReturnType<typeof fixture>>, id: string) {
   const answers = await request(f.api).get(`/source-workspaces/${f.workspace.id}/findings`),
     findings = (answers.body.items as Awaited<ReturnType<typeof import("../lib/researchChat").resolveChatFindings>>["findings"])
       .filter(({ reference }) => reference.kind === "answer"),
@@ -73,8 +73,7 @@ async function arrange(f: Awaited<ReturnType<typeof fixture>>, id: string, answe
     expected_version: current.body.review.updated_at,
     columns_config: [{ index: 3, name: "Finding", prompt: "Explain the finding", format: "text" }],
     arrangement: { rows, cells: findings.map((finding, index) => ({ rowId: rows[index].id, columnIndex: 3,
-      items: answered ? [{ kind: "answer", chatId: f.chat.id, answerId: finding.question.id, resource: finding.resource }]
-        : finding.evidence.map((receipt) => ({ kind: "passage", sourceId: finding.sourceId, evidenceId: receipt.evidence_id })) })) },
+      items: [{ kind: "answer", chatId: f.chat.id, answerId: finding.question.id, resource: finding.resource }] })) },
   });
   expect(arranged.status).toBe(200);
   return request(f.api).get(`/tabular-review/${id}`);
@@ -107,6 +106,8 @@ it("reuses stored chat answers and their original Library/public evidence across
   const file = (await f.research.readResearchFile(f.documents, owner, f.workspace.id))!;
   expect(file.state.tables).toEqual([first.body.id]);
   expect(file.state.chats).toEqual([f.chat.id]);
+  expect(file.state.reads?.count).toBe(2);
+  expect(Object.values(file.state.sources).every(({ passages }) => passages === null)).toBe(true);
   const answers = await request(f.api).get(`/source-workspaces/${f.workspace.id}/findings`);
   expect(answers.status).toBe(200);
   expect(answers.body.items.flatMap((finding: { answer: { claims: unknown[] } }) => finding.answer.claims))
@@ -117,13 +118,17 @@ it("reuses stored chat answers and their original Library/public evidence across
   expect(model).not.toHaveBeenCalled();
 }, 60_000);
 
-it("opens collected passages as grounded cells before a chat has a final answer", async () => {
+it("retains uncited reads as history, not highlights or findings to seed a table", async () => {
   const f = await fixture(false), response = await request(f.api).post(`/source-workspaces/${f.workspace.id}/table`)
     .send({ chatId: f.chat.id, messageIds: [f.assistantId] });
-  expect(response.status).toBe(200);
-  const table = await arrange(f, response.body.id, false);
-  expect(table.body.cells.flatMap((cell: { content: { claims: { text: string }[] } }) =>
-    cell.content.claims.map(({ text }) => text))).toEqual(expect.arrayContaining(f.receipts.map((receipt) => receipt.span_text)));
+  expect(response.status).toBe(400);
+  const file = (await f.research.readResearchFile(f.documents, owner, f.workspace.id))!;
+  expect(file.state.sources).toEqual({});
+  expect(file.state.reads?.count).toBe(2);
+  expect((await request(f.api).get(`/source-workspaces/${f.workspace.id}/findings`)).body.items).toEqual([]);
+  expect((await request(f.api).get(`/source-workspaces/${f.workspace.id}/items?kind=passages`)).body.items).toEqual([]);
+  expect((await request(f.api).get(`/source-workspaces/${f.workspace.id}/items?kind=reads`)).body.items
+    .map(({ value }: { value: unknown }) => value)).toEqual(expect.arrayContaining(f.receipts));
   expect(model).not.toHaveBeenCalled();
 });
 
@@ -183,17 +188,9 @@ it("keeps the chat and its answers when its table and Sources workspace are dele
   expect((await f.chats.transcript(owner, f.chat.id))?.some(({ id }) => id === f.assistantId)).toBe(true);
 });
 
-it("keeps one ontology set per scope, reports Library membership and proposes labels from a column", async () => {
+it("proposes labels from a column only inside its research set", async () => {
   const f = await fixture(), sources = await f.runtime.sources(), tables = await f.runtime.tabular(),
     labelId = randomUUID();
-  const created = await request(f.api).post("/source-workspaces/ontology").send({});
-  expect(created.status).toBe(200);
-  expect((await request(f.api).post("/source-workspaces/ontology").send({})).body.document.id)
-    .toBe(created.body.document.id);
-  expect((await request(f.api).get("/source-workspaces/ontology")).body.document.id).toBe(created.body.document.id);
-  expect(created.body.document.filename).toBe("Library labels.research.md");
-  expect((await request(f.api).get("/user/profile")).body.libraryLabelsId).toBe(created.body.document.id);
-
   const file = (await sources.get(owner, f.workspace.id))!, sourceId = Object.values(file.state.sources)
     .find(({ reference }) => f.research.researchSourceResource(reference) === f.resource)!.id;
   const act = async (action: unknown) => { const current = (await sources.get(owner, f.workspace.id))!;
@@ -201,13 +198,6 @@ it("keeps one ontology set per scope, reports Library membership and proposes la
       version_id: current.versionId, working_revision: current.workingRevision, action }); };
   await act({ type: "label", id: labelId, name: "Leases", scope: "source" });
   await act({ type: "annotate", kind: "source", id: sourceId, labelIds: [labelId] });
-  const membership = await request(f.api).get(`/source-workspaces/membership?document_ids=${f.source.id}`);
-  expect(membership.status).toBe(200);
-  expect(membership.body[f.source.id].workspaces)
-    .toEqual([{ id: f.workspace.id, title: "Review", sourceId }]);
-  expect(membership.body[f.source.id].labels)
-    .toEqual([{ id: labelId, name: "Leases", color: null, workspaceId: f.workspace.id }]);
-
   const review = await sources.table(owner, f.workspace.id, { chatId: f.chat.id });
   expect(review.columns_config.map(({ name }) => name).slice(0, 2)).toEqual(["Labels", "Note"]);
   await tables.update(owner, review.id, { expected_version: review.updated_at,
@@ -228,3 +218,30 @@ it("keeps one ontology set per scope, reports Library membership and proposes la
     id === sourceId && field.startsWith("labelIds.") && after === true)).toBe(true);
   expect(model).not.toHaveBeenCalled();
 }, 60_000);
+
+it("keeps each research set's labels out of Library metadata and profile state", async () => {
+  const f = await fixture(), sources = await f.runtime.sources(),
+    before = await f.documents.metadata(owner, f.source.id),
+    second = await sources.create(owner, { title: "Separate question" });
+  const first = (await sources.get(owner, f.workspace.id))!,
+    firstSource = Object.values(first.state.sources).find(({ reference }) => reference.id === f.source.id)!;
+  const { file: labelled } = await sources.update(owner, first.document.id, {
+    versionId: first.versionId, workingRevision: first.workingRevision,
+    action: { type: "label", name: "Relevant", scope: "source" },
+  });
+  const labelId = Object.keys(labelled.state.labels)[0];
+  await sources.update(owner, first.document.id, {
+    versionId: labelled.versionId, workingRevision: labelled.workingRevision,
+    action: { type: "annotate", kind: "source", id: firstSource.id, labelIds: [labelId] },
+  });
+  const { file: added } = await sources.update(owner, second.document.id, {
+    versionId: second.versionId, workingRevision: second.workingRevision,
+    action: { type: "source", reference: firstSource.reference },
+  });
+  expect(Object.values(added.state.sources)[0].labelIds).toEqual([]);
+  expect(await f.documents.metadata(owner, f.source.id)).toEqual(before);
+  expect((await request(f.api).get("/user/profile")).body).not.toHaveProperty("libraryLabelsId");
+  expect((await request(f.api).post("/source-workspaces/ontology").send({})).status).toBe(404);
+  expect((await request(f.api).get("/source-workspaces/ontology")).status).toBe(404);
+  expect(model).not.toHaveBeenCalled();
+});

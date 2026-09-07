@@ -48,45 +48,49 @@ pagination or downloading.
 
 ## Sources workspace
 
-- Labels, Search, and Memo are the three workspace tabs. Labels shows the
-  nested label organizer (labels and passage categories together) above one
-  source list; selecting a label or category scopes that list, and one options
-  menu holds sort and facet filters. Search runs against the same list: a query
-  with an optional passage extent (match, sentence or paragraph, around, before
-  or after the phrase) returns matches inline, matched passages can be selected
-  and saved under a category, and earlier searches stay collapsed with Run again
-  and View matches. Capture rules remain a model-facing query capability.
-- Source and passage actions use compact controls that appear on hover. Cite
-  opens the memo; the memo and its autosave remain mounted across tab changes.
-- Open as connects Chat, Workspace and the existing Tabular Review. Views reuse
-  original supporting evidence and refer to canonical answers and label assignments.
-  An existing arrangement opens directly. Organizing across forms goes through one
-  composer on the workspace and the table: the request is the user's own words or
-  the visible default, it runs as a visible turn in the bound chat, and it lands
-  either as an undoable change (with an inline Undo strip) or, when the user
-  chooses Propose, as a proposal for review. No hidden prompt is sent.
-- Organization follows the task: arbitrary nested or overlapping labels, passage
-  sets, question columns, and combinations remain first-class. The human or model
-  chooses rows, columns and grouping; chat turns never dictate table columns.
-  Separate supported branches of one source can occupy separate rows.
-- Source and passage selections are resolved before bulk labelling or extraction.
-  Human highlights, assistant reads and extracted supports use the same receipt
-  identity; actor and model provenance remain separate audit metadata.
-- Bound chats collect completed and interrupted research into their workspace.
-  Workspace and table results remain available through the existing scoped
-  application operations, in both local and cloud modes.
-- One labels ontology serves Library and project tables: rows carry label dots
-  and a workspace count with label/workspace filtering and Label and
-  Add to workspace actions. Document readers expose the Highlight tool with
-  the current pen; saved passages appear as quotes.
-- Human and assistant edits have the same reversible change history. Undo checks
-  affected values and reverses one change without overwriting unrelated later work.
-  The assistant applies reversible work within the request. Suggestions and changes
-  needing a user decision are proposals; pending changes stay out of active scopes.
-- Interrupted memo saves retain the draft, reconcile the saved text before
-  retrying, and never overwrite another writer's changes. Automatic retries are
-  bounded; Retry save remains available. Replacing a conflicting draft with the
-  saved memo requires an explicit discard.
+- A research set is an ordinary Library/project file. Its source labels,
+  highlight types, memo, links to grounded answers, and research history belong
+  to that file. Library documents/folders have no primary workspace or global
+  research classification. `Add to research…` requires an explicit destination;
+  it adds a version-pinned reference without modifying the Library document.
+- Source labels classify whole sources and may nest or overlap. A highlight type
+  is one name, colour, and optional parent, stored as a highlight-scoped label.
+  Every saved passage has exactly one such type. There is no independent colour
+  assignment, inheritance, or per-passage override. A normal `Highlight` type is
+  used when none is selected. Renaming/recolouring preserves passage identities;
+  deleting a type retains its passages as ordinary highlights.
+- Ordinary reads, search matches, and grounded support are not saved highlights.
+  Reads are retained in the research file's `reads.json` part and paged separately
+  from intentional passages. Repeating a read never changes a highlight's type.
+  Explicit saving, including `save-highlights` and typed capture rules, creates
+  highlights; ambiguous multi-type capture matches remain candidates for review.
+- Labels, Search, and Memo remain the existing workspace tabs in the right dock.
+  Unlabelled sources appear at the tree root, not in an Unsorted pseudo-folder.
+  No-label/has-highlight/type predicates are filters. Choosing the current
+  highlight type changes the next capture, not the current browse scope. Search
+  shows neutral matches, with an explicit action to save selected highlights.
+- Open as connects Chat, Workspace and Tabular Review. Views refer to original
+  grounded answers and evidence IDs instead of inventing findings from uncited
+  reads. Later answers may use earlier receipts, including when converting only
+  a selected later message. Missing supporting receipts are reported, not dropped.
+  Mere search/read activity does not add sources to the curated collection;
+  passed grounded support can add its sources without creating coloured marks.
+- Workspace/table scopes retain original source versions and evidence identity.
+  Saved highlights and background reads can be explicitly selected as evidence;
+  a general highlight selection includes intentional highlights only. Restricted
+  readers cannot widen a selection through read history or unrelated memo/history.
+  Memo citations can resolve grounded receipts without requiring a highlight.
+- Human and assistant changes share revision checks and reversible history.
+  Source label memberships are independently undoable; a passage's single type
+  changes atomically. Undoing a save removes the highlight, not its read receipt.
+  Pending proposals do not alter active labels or extraction scopes. Reversible
+  changes within a request may apply directly; suggestions require review.
+- Interrupted memo saves retain drafts and do not overwrite another writer.
+  Readers expose Highlight only inside an explicitly opened research set.
+
+The remaining Sources layout/memo cleanup, Tabular Review inspector cleanup,
+and richer proposed research-to-table/chat conversion are subsequent PRs, not
+implicit behavior of these foundation contracts.
 
 ## Documents and versions
 

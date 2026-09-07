@@ -17,13 +17,12 @@ import { sourceMatches, sourceName, type SourceReader } from "./useSourceReader"
 
 const LABEL_DRAG = "application/x-beaver-research-label";
 const COLLAPSED = "beaver.research.collapsed.v1";
-const UNSORTED = "__unsorted__";
 export type ResearchRemoval = { kind: "label" | "source" | "evidence"; id: string; name: string; sourceId?: string };
 /** Proposed labels and assignments rendered in place of the saved ones, marked where they differ. */
 export type ResearchTreePreview = { labels: Record<string, ResearchLabel>;
   marks: Record<string, "added" | "changed"> };
 type Row = { key: string; depth: number } & ({ kind: "label"; label: ResearchLabel; count: number }
-  | { kind: "unsorted"; count: number } | { kind: "source"; source: ResearchSource }
+  | { kind: "source"; source: ResearchSource }
   | { kind: "passage"; source: ResearchSource; item: ResearchEvidence }
   | { kind: "extra"; source: ResearchSource });
 type Drop = { id: string; mode: "before" | "inside" | "after" };
@@ -46,7 +45,8 @@ export function ResearchTree({ reader, sources, filter = "", matches = null, pic
   onRemove?: (removal: ResearchRemoval) => void; onStatus?: (message: string) => void;
   onSourceDrag?: () => void; preview?: ResearchTreePreview;
 }) {
-  const { file, mutations: commit, passages: passagePages } = useSourcesWorkspace();
+  const { file, mutations: commit, passages: passagePages, reads: readPages, highlight } = useSourcesWorkspace();
+  const pages = matches ? readPages : passagePages;
   const labels = preview?.labels ?? file?.state.labels ?? {};
   const [collapsed, setCollapsed] = useState(() => readCollapsed(file?.document.id));
   const [renaming, setRenaming] = useState<string | null>(null), [busy, setBusy] = useState(false);
@@ -106,10 +106,13 @@ export function ResearchTree({ reader, sources, filter = "", matches = null, pic
   function pushSource(source: ResearchSource, parent: string, depth: number) {
     rows.push({ key: `${parent}:${source.id}`, depth, kind: "source", source });
     if (!opened.has(source.id) || preview) return;
-    const page = passagePages.chains[source.id];
-    page?.items.forEach((item) => { if (item.kind === "passage" && passageVisible(item.value))
-      rows.push({ key: `${parent}:${source.id}:${item.value.receipt.evidence_id}`, depth: depth + 1,
-        kind: "passage", source, item: item.value }); });
+    const page = pages.chains[source.id];
+    page?.items.forEach((entry) => {
+      const item: ResearchEvidence | null = entry.kind === "passage" ? entry.value
+        : entry.kind === "read" ? { receipt: entry.value, sourceId: source.id, labelIds: [], note: "" } : null;
+      if (item && passageVisible(item)) rows.push({ key: `${parent}:${source.id}:${item.receipt.evidence_id}`,
+        depth: depth + 1, kind: "passage", source, item });
+    });
     rows.push({ key: `${parent}:${source.id}:extra`, depth: depth + 1, kind: "extra", source });
   }
   function pushLabels(parentId: string | null, depth: number, matched: boolean) {
@@ -124,12 +127,8 @@ export function ResearchTree({ reader, sources, filter = "", matches = null, pic
     }
   }
   pushLabels(null, 0, false);
-  const unsorted = sources.filter(({ labelIds }) => !labelIds.some((id) => labels[id]?.scope === "source"));
-  const shownUnsorted = unsorted.filter((source) => sourceMatches(source, needle));
-  if (shownUnsorted.length || (!needle && !preview)) {
-    rows.push({ key: UNSORTED, depth: 0, kind: "unsorted", count: unsorted.length });
-    if (!collapsed.has(UNSORTED)) for (const source of shownUnsorted) pushSource(source, UNSORTED, 1);
-  }
+  for (const source of sources) if (!source.labelIds.some((id) => labels[id]?.scope === "source") &&
+    sourceMatches(source, needle)) pushSource(source, "root", 0);
 
   if (!file) return null;
   const mark = (id: string) => preview?.marks[id];
@@ -247,7 +246,7 @@ export function ResearchTree({ reader, sources, filter = "", matches = null, pic
 
   function passageRow(row: Extract<Row, { kind: "passage" }>) {
     const { source, item } = row, locator = item.receipt.locator.label;
-    const color = researchLabelColor(labels[item.labelIds[0]] ?? { color: null, scope: "highlight" } as ResearchLabel);
+    const color = matches ? "#d1d5db" : researchLabelColor(labels[item.labelIds[0]] ?? { color: null, scope: "highlight" } as ResearchLabel);
     return <div draggable onDragStart={(event) => event.dataTransfer.setData(RESEARCH_PASSAGE_DRAG, JSON.stringify(item))}
       className={`${rowClass(false)} !h-auto items-start py-1`} style={{ paddingInlineStart: 4 + row.depth * 16 }}>
       {onPick ? <input type="checkbox" aria-label={`Select ${locator}`} checked={picked?.has(item.receipt.evidence_id) ?? false}
@@ -258,8 +257,9 @@ export function ResearchTree({ reader, sources, filter = "", matches = null, pic
         {item.note && <span className="block text-xs text-gray-700 [overflow-wrap:anywhere]">{item.note}</span>}
       </span>
       <span className="opacity-0 focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
-        <MoreActionsMenu label={`${locator} options`} items={[
-          { label: "Labels", onSelect: () => setLabelTarget({ file: file!, kind: "evidence", itemId: item.receipt.evidence_id,
+        <MoreActionsMenu label={`${locator} options`} items={matches ? [{ label: "Save highlight", onSelect: () => void act({ type: "save-highlights",
+          evidenceIds: [item.receipt.evidence_id], labelId: highlight.pen && labels[highlight.pen]?.scope === "highlight" ? highlight.pen : undefined }) }] : [
+          { label: "Highlight type", onSelect: () => setLabelTarget({ file: file!, kind: "evidence", itemId: item.receipt.evidence_id,
             sourceId: source.id, labelIds: item.labelIds, note: item.note, title: locator }) },
           { label: "Delete", onSelect: () => onRemove({ kind: "evidence", id: item.receipt.evidence_id, sourceId: source.id, name: locator }) },
         ]} /></span>
@@ -267,29 +267,21 @@ export function ResearchTree({ reader, sources, filter = "", matches = null, pic
   }
 
   function extraRow(row: Extract<Row, { kind: "extra" }>) {
-    const { source } = row, page = passagePages.chains[source.id];
+    const { source } = row, page = pages.chains[source.id];
     return <div className="space-y-1 py-1" style={{ paddingInlineStart: 4 + row.depth * 16 }}>
       {page?.loading && !page.items.length && <p role="status" className="text-xs text-gray-500">Loading passages…</p>}
-      {!!page?.error && <Button variant="outline" size="compact" onClick={() => void passagePages.fetchPage(source.id, null, false)}>Retry passages</Button>}
+      {!!page?.error && <Button variant="outline" size="compact" onClick={() => void pages.fetchPage(source.id, null, false)}>Retry passages</Button>}
       {page?.nextCursor && <Button variant="outline" size="compact" disabled={page.loading}
         aria-label={`Show more passages from ${sourceName(source)}`}
-        onClick={() => void passagePages.fetchPage(source.id, page.nextCursor, true)}>Show more</Button>}
-      {reader && <ResearchSourceAnswers sourceId={source.id} onCitation={reader.openAnswerCitation} />}
+        onClick={() => void pages.fetchPage(source.id, page.nextCursor, true)}>Show more</Button>}
+      {reader && !matches && <ResearchSourceAnswers sourceId={source.id} onCitation={reader.openAnswerCitation} />}
     </div>;
   }
 
   const body: ReactNode[] = rows.map((row) => {
     const content = row.kind === "label" ? labelRow(row) : row.kind === "source" ? sourceRow(row)
-      : row.kind === "passage" ? passageRow(row) : row.kind === "extra" ? extraRow(row)
-      : <div className={rowClass(false, UNSORTED)} style={{ paddingInlineStart: 4 + row.depth * 16 }}>
-        {row.count ? chevron(!collapsed.has(UNSORTED), `${collapsed.has(UNSORTED) ? "Expand" : "Collapse"} Unsorted`,
-          () => toggle(UNSORTED)) : spacer}
-        <Circle aria-hidden="true" className="size-3 shrink-0 text-gray-400" />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-500">Unsorted</span>
-        <span className="ms-auto shrink-0 tabular-nums text-xs text-gray-500">{row.count}</span>
-      </div>;
+      : row.kind === "passage" ? passageRow(row) : extraRow(row);
     const name = row.kind === "label" ? `${row.label.name}, ${row.count} sources`
-      : row.kind === "unsorted" ? `Unsorted, ${row.count} sources`
       : row.kind === "source" ? sourceName(row.source) : row.kind === "passage" ? row.item.receipt.locator.label : undefined;
     return <div key={row.key} role={row.kind === "extra" ? undefined : "treeitem"} aria-label={name} aria-level={row.depth + 1}
       aria-expanded={row.kind === "label" ? !collapsed.has(row.label.id) : row.kind === "source" ? opened.has(row.source.id) : undefined}

@@ -152,24 +152,29 @@ export async function readResearchWorkspace(documents: DocumentStore, scope: App
   const chunk = 6000, labels = Object.values(saved.state.labels).sort((a, b) => a.order - b.order),
     sources = Object.values(saved.state.sources), counts = [Math.ceil(saved.state.note.length / chunk),
       labels.length, sources.length, saved.state.queries?.count ?? 0,
-      sources.reduce((sum, source) => sum + (source.passages?.count ?? 0), 0), saved.state.history?.count ?? 0],
-    names = ["notes", "labels", "sources", "searches", "passages", "history"],
-    kinds = ["note", "label", "source", "search", "passage", "change"],
+      sources.reduce((sum, source) => sum + (source.passages?.count ?? 0), 0), saved.state.history?.count ?? 0, saved.state.reads?.count ?? 0],
+    names = ["notes", "labels", "sources", "searches", "passages", "history", "reads"],
+    kinds = ["note", "label", "source", "search", "passage", "change", "read"],
     offset = Math.max(0, Math.trunc(Number(args.offset) || 1) - 1),
     limit = Math.max(1, Math.min(20, Math.trunc(Number(args.limit) || 20))),
     queries = new Map<number, ResearchQueryReceipt>(), passages = new Map<number, ResearchEvidence>(),
-    changes = new Map<number, ResearchChange>(),
+    changes = new Map<number, ResearchChange>(), reads = new Map<number, LegalEvidenceReceipt>(),
     header = { document_id: saved.document.id, filename: saved.document.filename,
       resource: resourceReference.document(saved.document.id, saved.versionId) };
   const rows = async (category: number, start: number, count: number): Promise<Record<string, unknown>[]> => {
     if (category >= 3) for (const item of (await pageResearchItems(documents, scope, saved,
-      category === 3 ? "queries" : category === 4 ? "passages" : "history", start, count)).items) {
+      category === 3 ? "queries" : category === 4 ? "passages" : category === 5 ? "history" : "reads", start, count)).items) {
       if (item.kind === "query") queries.set(item.index, item.value);
       else if (item.kind === "passage") passages.set(item.index, item.value);
       else if (item.kind === "change") changes.set(item.index, item.value);
+      else if (item.kind === "read") reads.set(item.index, item.value);
     }
     return Array.from({ length: count }, (_, position) => {
       const index = start + position, kind = kinds[category];
+      if (category === 6) { const receipt = reads.get(index)!;
+        return { kind, read_index: index + 1, evidence_id: receipt.evidence_id,
+          resource: legalEvidenceResourceReference(receipt), citation: receipt.citation,
+          locator: receipt.locator, exact_passage: receipt.span_text }; }
       if (category === 0) return { kind, markdown: saved.state.note.slice(index * chunk, (index + 1) * chunk) };
       if (category === 1) return { kind, ...labels[index] };
       if (category === 5) return { kind, change_index: index + 1, ...changes.get(index) };
@@ -190,22 +195,27 @@ export async function readResearchWorkspace(documents: DocumentStore, scope: App
   };
   const register = async (items: Record<string, unknown>[]) => {
     const inScope = researchResultFilter(context);
-    items = items.filter((item) => { if (item.kind !== "passage") return true;
-      const receipt = passages.get(Number(item.passage_index) - 1)!.receipt;
-      return inScope({ resource: legalEvidenceResourceReference(receipt) ?? "", evidence: [receipt] }); });
+    const receiptFor = (item: Record<string, unknown>) => item.kind === "read"
+      ? reads.get(Number(item.read_index) - 1) : item.kind === "passage" ? passages.get(Number(item.passage_index) - 1)?.receipt : undefined;
+    items = items.filter((item) => {
+      if (context?.restricted && ["note", "change", "search"].includes(String(item.kind))) return false;
+      if (item.kind === "source") return inScope({ resource: String(item.resource) });
+      const receipt = receiptFor(item);
+      return !receipt || inScope({ resource: legalEvidenceResourceReference(receipt) ?? "", evidence: [receipt] });
+    });
     for (const item of items) if (item.kind === "search") {
       const query = queries.get(Number(item.search_index) - 1)!;
       state?.queries.set(query.query_id, query); state?.priorQueryIds.add(query.query_id);
     }
     const restored = await restoreResearchEvidence(documents, scope, items.flatMap((item) =>
-      item.kind === "passage" ? [passages.get(Number(item.passage_index) - 1)!.receipt] : []), signal),
+      receiptFor(item) ? [receiptFor(item)!] : []), signal),
       verified = new Set(restored.map(({ receipt }) => receipt.evidence_id));
-    return { items: items.map((item) => { if (item.kind !== "passage" || verified.has(String(item.evidence_id))) return item;
-      const { exact_passage: _text, ...summary } = item; return { ...summary, kind: "unavailable_passage" }; }),
+    return { items: items.map((item) => { if (!receiptFor(item) || verified.has(String(item.evidence_id))) return item;
+      const { exact_passage: _text, ...summary } = item; return { ...summary, kind: item.kind === "read" ? "unavailable_read" : "unavailable_passage" }; }),
       evidence: restored.map(({ receipt }) => receipt),
       evidenceSources: new Map(restored.map(({ receipt, ...source }) => [receipt.evidence_id, source])) };
   };
-  const section = /^(search|source|passage|change):(\d+)$/u.exec(trimmed(args.section));
+  const section = /^(search|source|passage|change|read):(\d+)$/u.exec(trimmed(args.section));
   if (args.section && !section) return fail("Research section not found");
   if (section) {
     const category = kinds.indexOf(section[1]), index = Number(section[2]) - 1;
@@ -238,7 +248,8 @@ export async function readResearchWorkspace(documents: DocumentStore, scope: App
       if (kind === "search") Object.assign(summary, text.length <= 500 ? { text } : { text_chars: text.length });
       else if (kind === "change") Object.assign(summary, { id: item.id, title: item.title, status: item.status,
         executor: item.executor, createdAt: item.createdAt, counts: item.counts });
-      else Object.assign(summary, { labels: (item.labelIds as string[]).length, note_chars: String(item.note).length },
+      else Object.assign(summary, { ...(Array.isArray(item.labelIds) ? { labels: item.labelIds.length } : {}),
+        note_chars: String(item.note ?? "").length },
         kind === "source" ? name.length <= 500 ? { name } : {} : { passage_chars: String(item.exact_passage ?? "").length });
       page.push(summary);
     }

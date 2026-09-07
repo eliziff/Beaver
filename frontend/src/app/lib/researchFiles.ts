@@ -36,7 +36,7 @@ export type ResearchChange = { id: string; title: string; createdAt: string;
 export type ResearchProposal = Pick<ResearchChange, "id" | "title" | "createdAt" | "executor" | "model" | "counts">;
 export type ResearchFileState = { schemaVersion: "beaver.research.v2";
   labels: Record<string, ResearchLabel>; sources: Record<string, ResearchSource>;
-  queries: ResearchPartReference | null; note: string; tables?: string[]; chats?: string[];
+  queries: ResearchPartReference | null; reads?: ResearchPartReference; note: string; tables?: string[]; chats?: string[];
   proposals?: ResearchProposal[]; history?: ResearchPartReference };
 export type ResearchFile = { document: Document; versionId: string;
   workingRevision: number; state: ResearchFileState };
@@ -44,6 +44,7 @@ export type ResearchQueryCoverage = { complete: boolean; next_after: string | nu
   attempted_sources: number; selected_sources: number };
 export type ResearchQueryResult = { file: ResearchFile; receipt: ResearchQueryReceipt; coverage: ResearchQueryCoverage };
 export type ResearchPageItem = { kind: "passage"; index: number; value: ResearchEvidence }
+  | { kind: "read"; index: number; value: ResearchEvidenceReceipt }
   | { kind: "query"; index: number; value: ResearchQueryReceipt }
   | { kind: "change"; index: number; value: ResearchChange };
 export type ResearchActionResult = ResearchFile & { sourceId?: string; evidenceId?: string; receipt?: ResearchEvidenceReceipt };
@@ -54,7 +55,7 @@ export type ResearchQueryInput = ResearchSelection & { text?: string; after?: st
   limit?: number;
   rules?: Array<{ phrase: string; direction: "before" | "after" | "around";
     unit: "sentence" | "line" | "paragraph" | "chars"; chars?: number;
-    slot: string }>; conflict?: "prompt" | "first" | "longer" | "shorter" | "append" };
+    slot?: string }>; conflict?: "prompt" | "first" | "longer" | "shorter" | "append" };
 /** Library readers without block anchors address the whole projection with kind `document`. */
 export type PassageLocator = { kind: "paragraph" | "section" | "page" | "footnote" | "document";
   value: string; endValue?: string };
@@ -69,6 +70,7 @@ export type ResearchAction =
       badge?: string; badgeColor?: string; note?: string }
   | { type: "annotate"; kind: "evidence"; id: string; sourceId: string;
       labelIds?: string[]; note?: string }
+  | { type: "save-highlights"; evidenceIds: string[]; labelId?: string }
   | { type: "passage"; sourceId: string; locator: PassageLocator; quote: string; labelIds?: string[] }
   | ({ type: "label-selection"; assign: string[]; mode: "add" | "remove" | "replace" } & ResearchSelection)
   | { type: "accept" | "reject" | "undo"; changeId: string }

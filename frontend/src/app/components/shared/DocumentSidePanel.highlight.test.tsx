@@ -51,7 +51,7 @@ const version: DocumentVersion = {
   comment: null,
   parent_version_id: null,
 };
-const ontologyFile = (): ResearchFile => ({ document: { id: "ontology-1",
+const researchFile = (): ResearchFile => ({ document: { id: "research-1",
   filename: "Labels.research.md" }, versionId: "v1", workingRevision: 1,
   state: { ...newResearchState(), labels: { "pen-1": { id: "pen-1", name: "Highlight",
     parentId: null, color: "#eab308", order: 0, scope: "highlight" } },
@@ -60,11 +60,18 @@ const ontologyFile = (): ResearchFile => ({ document: { id: "ontology-1",
       passages: { count: 0, sha256: "none", labelCounts: {}, unlabelledCount: 0 } } } } } as ResearchFile);
 
 describe("DocumentSidePanel highlight", () => {
+  it("does not offer an implicit Library-wide highlight destination", () => {
+    render(<SourcesWorkspaceProvider>
+      <DocumentSidePanel doc={document} versions={[version]} versionsLoading={false}
+        onClose={vi.fn()} onLoadVersions={vi.fn(async () => {})} />
+    </SourcesWorkspaceProvider>);
+    expect(screen.queryByRole("button", { name: "Highlight" })).not.toBeInTheDocument();
+  });
   it("saves a PDF page selection with the current pen in one request", async () => {
     api.items.mockResolvedValue({ items: [], next_cursor: null });
     api.act.mockImplementation(async (id: string, versionId: string, revision: number, action: { type: string }) =>
-      ({ ...ontologyFile(), versionId, workingRevision: revision + 1, action }));
-    render(<SourcesWorkspaceProvider file={ontologyFile()}>
+      ({ ...researchFile(), versionId, workingRevision: revision + 1, action }));
+    render(<SourcesWorkspaceProvider file={researchFile()}>
       <DocumentSidePanel doc={document} versions={[version]} versionsLoading={false}
         onClose={vi.fn()} onLoadVersions={vi.fn(async () => {})} />
     </SourcesWorkspaceProvider>);
@@ -78,7 +85,7 @@ describe("DocumentSidePanel highlight", () => {
     selection.addRange(range);
     fireEvent.click(highlight);
     await waitFor(() => expect(api.act).toHaveBeenCalledTimes(1));
-    expect(api.act).toHaveBeenCalledWith("ontology-1", "v1", 1, expect.objectContaining({
+    expect(api.act).toHaveBeenCalledWith("research-1", "v1", 1, expect.objectContaining({
       type: "passage", sourceId: "source-1",
       locator: { kind: "page", value: "1" }, quote: "quoted words here", labelIds: ["pen-1"],
     }));

@@ -1,8 +1,8 @@
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { z } from "zod";
 import type { DocumentStore } from "./documentStore";
-import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
-import { readResearchFile, visitResearchEvidenceParts, researchSourceResource,
+import { legalEvidenceResourceReference, type LegalEvidenceReceipt } from "./chat/legalEvidence";
+import { readResearchFile, readResearchReads, visitResearchEvidenceParts, researchSourceResource,
   type ResearchFile, type ResearchFileState, type ResearchEvidence, type ResearchSourceReference } from "./researchFile";
 
 const selectionIds = z.array(z.string().min(1).max(200)).max(100_000)
@@ -94,10 +94,17 @@ export async function resolveResearchSelection(documents: DocumentStore, scope: 
     found = new Set<string>();
   if (input.target === "passages" || selectedEvidence) await visitResearchEvidenceParts(documents, scope,
     file, sources.map(({ id }) => id), (batch) => { batch.forEach((value, key) => parts.set(key, value)); });
+  // Explicitly selected receipts may scope a chat/table without being saved as highlights.
+  // Ordinary passage/type browsing still traverses saved highlights only.
+  const reads = selectedEvidence?.size ? (await readResearchReads(documents, scope, file))
+    .filter(({ evidence_id }) => selectedEvidence.has(evidence_id)) : [];
   const subjects: ResearchSubject[] = [];
   for (const source of sources) {
     if (input.target === "sources" && !matches(source.labelIds)) continue;
-    const evidence = Object.values(parts.get(source.id) ?? {}).filter((item) => {
+    const saved = parts.get(source.id) ?? {}, observed = reads.filter((receipt) =>
+      !saved[receipt.evidence_id] && legalEvidenceResourceReference(receipt) === researchSourceResource(source.reference))
+      .map((receipt) => ({ receipt, sourceId: source.id, labelIds: [] as string[], note: "" }));
+    const evidence = [...Object.values(saved), ...observed].filter((item) => {
       if (selectedEvidence && !selectedEvidence.has(item.receipt.evidence_id)) return false;
       if (input.target === "passages" && !matches(item.labelIds) && !source.labelIds.some((id) => labels.has(id))) return false;
       found.add(item.receipt.evidence_id); return true;

@@ -1,10 +1,11 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Highlighter } from "lucide-react";
+import { Highlighter, SlidersHorizontal } from "lucide-react";
 import { ConfirmPopup } from "../popups/ConfirmPopup";
 import { ResearchSelectionLabels } from "../shared/ResearchSelectionLabels";
+import { ActionMenu } from "../ui/action-menu";
 import { Tabs } from "../ui/tabs";
 import { Button } from "../ui/button";
-import { type ResearchAction, type ResearchEvidence, type ResearchLabel, type ResearchSelection,
+import { researchLabelPath, type ResearchAction, type ResearchEvidence, type ResearchLabel, type ResearchSelection,
   type ResearchSource } from "@/app/lib/researchFiles";
 import { errorMessage } from "@/app/lib/utils";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
@@ -12,7 +13,7 @@ import { memoCitation as parseMemoCitation } from "./researchMemo";
 import { researchLabelColor } from "./ResearchLabelCircle";
 import { ResearchCitationViewer } from "./ResearchCitationViewer";
 import { ResearchChanges } from "./ResearchChanges";
-import { ResearchPens } from "./ResearchPens";
+import { ResearchHighlightTypes } from "./ResearchHighlightTypes";
 import { ResearchSearchPanel } from "./ResearchSearchPanel";
 import { ResearchTree, type ResearchRemoval } from "./ResearchTree";
 import { ResearchWorkspacePicker } from "./ResearchWorkspacePicker";
@@ -29,10 +30,11 @@ export function ResearchFileBar(props: Props) {
 }
 function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource, selectedSourceId }: Props) {
   const { file, mutations: commit, selection: workspaceSelection, setSelection,
-    passages: passagePages, highlight } = useSourcesWorkspace();
+    passages: passagePages, reads: readPages, highlight } = useSourcesWorkspace();
   const [scope, setScope] = useState<ResearchSelection>(() => workspaceSelection);
   const [tab, setTab] = useState<"labels" | "search" | "memo">("labels");
   const searchOpen = tab === "search", noteOpen = tab === "memo";
+  const [sourceFilter, setSourceFilter] = useState("all");
   const [changesOpen, setChangesOpen] = useState(false), [filter, setFilter] = useState("");
   const [matches, setMatches] = useState<{ evidence: Set<string>; sources: Set<string> } | null>(null),
     [picked, setPicked] = useState<Set<string>>(() => new Set());
@@ -47,34 +49,42 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
   const activePen = pen ? labels[pen] : Object.values(labels).filter(({ scope }) => scope === "highlight")
     .sort((a, b) => a.order - b.order)[0];
 
+  const filterTypes = useMemo(() => new Set(Object.values(labels).filter((label) =>
+    label.scope === "highlight" && researchLabelPath(labels, label.id).some(({ id }) => id === sourceFilter))
+    .map(({ id }) => id)), [labels, sourceFilter]);
+  const pages = matches ? readPages : passagePages;
   const passageVisible = useCallback((item: ResearchEvidence) =>
     (!scope.evidenceIds || scope.evidenceIds.includes(item.receipt.evidence_id)) &&
     (!scope.members || scope.members.some((member) => member.sourceId === item.sourceId &&
       (!member.evidenceIds || member.evidenceIds.includes(item.receipt.evidence_id)))) &&
-    (!pen || item.labelIds.includes(pen)) &&
-    (matches === null || matches.evidence.has(item.receipt.evidence_id)), [scope, pen, matches]);
+    (matches !== null || !filterTypes.size || item.labelIds.some((id) => filterTypes.has(id))) &&
+    (matches === null || matches.evidence.has(item.receipt.evidence_id)), [scope, filterTypes, matches]);
   useEffect(() => {
     for (const id of openedSources) {
-      const page = passagePages.chains[id];
-      if (!page) void passagePages.fetchPage(id, null, false);
+      const page = pages.chains[id];
+      if (!page) void pages.fetchPage(id, null, false);
       else if (!page.loading && !page.error && page.nextCursor &&
-        !page.items.some((item) => item.kind === "passage" && passageVisible(item.value)))
-        void passagePages.fetchPage(id, page.nextCursor, true);
+        !page.items.some((item) => item.kind === "read" ? matches?.evidence.has(item.value.evidence_id)
+          : item.kind === "passage" && passageVisible(item.value)))
+        void pages.fetchPage(id, page.nextCursor, true);
     }
-  }, [openedSources, passageVisible, passagePages.chains, passagePages.fetchPage]);
+  }, [openedSources, passageVisible, pages.chains, pages.fetchPage, matches]);
 
   const named = useMemo(() => allSources.filter((source) =>
     (!scope.sourceIds || scope.sourceIds.includes(source.id)) &&
     (!scope.members || scope.members.some(({ sourceId }) => sourceId === source.id)) &&
-    (!pen || (source.passages?.labelCounts[pen] ?? 0) > 0) &&
-    sourceMatches(source, filter)), [allSources, scope, pen, filter]);
+    (!filterTypes.size || [...filterTypes].some((id) => (source.passages?.labelCounts[id] ?? 0) > 0)) &&
+    (sourceFilter !== "no-labels" || !source.labelIds.length) &&
+    (sourceFilter !== "with-highlights" || !!source.passages?.count) &&
+    (sourceFilter !== "without-highlights" || !source.passages?.count) &&
+    sourceMatches(source, filter)), [allSources, scope, sourceFilter, filterTypes, filter]);
   const list = useMemo(() => named.filter((source) => matches === null || matches.sources.has(source.id)),
     [named, matches]);
   const constrain = (selection: ResearchSelection): ResearchSelection => ({ ...scope, ...selection,
     ...(scope.members ? { members: scope.members.filter(({ sourceId }) => selection.sourceIds?.includes(sourceId)), sourceIds: undefined } : {}),
     ...(scope.evidenceIds ? { evidenceIds: selection.evidenceIds ? selection.evidenceIds.filter((id) => scope.evidenceIds!.includes(id)) : scope.evidenceIds } : {}) });
-  const viewSelection = constrain({ target: scope.target === "passages" || pen || matches ? "passages" : "sources",
-    sourceIds: list.map(({ id }) => id), ...(pen ? { labelIds: [pen] } : {}),
+  const viewSelection = constrain({ target: scope.target === "passages" || filterTypes.size || matches ? "passages" : "sources",
+    sourceIds: list.map(({ id }) => id), ...(filterTypes.size && !matches ? { labelIds: [...filterTypes] } : {}),
     ...(matches ? { evidenceIds: [...matches.evidence] } : {}) });
   const selectionKey = JSON.stringify(viewSelection);
   useEffect(() => { setSelection(JSON.parse(selectionKey) as ResearchSelection); }, [selectionKey, setSelection]);
@@ -96,13 +106,7 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
     catch (reason) { setStatus(errorMessage(reason, "Could not save this highlight")); }
   }
   async function highlightPicked() {
-    const evidenceIds = [...picked], sourceIds = allSources.filter(({ id }) => passagePages.chains[id]?.items
-      .some((item) => item.kind === "passage" && picked.has(item.value.receipt.evidence_id))).map(({ id }) => id);
-    let target = activePen?.id;
-    if (!target) { target = crypto.randomUUID();
-      if (!await act({ type: "label", id: target, name: "Highlight", parentId: null, scope: "highlight", color: "#eab308" })) return;
-      highlight.setPen(target); }
-    if (await act({ type: "label-selection", target: "passages", sourceIds, evidenceIds, assign: [target], mode: "add" }))
+    if (await act({ type: "save-highlights", evidenceIds: [...picked], labelId: activePen?.id }))
       setPicked(new Set());
   }
   const handedOff = !!(scope.members || scope.sourceIds || scope.evidenceIds);
@@ -115,7 +119,7 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
     if (removing.kind === "evidence") return `Delete the saved passage at ${removing.name}?`;
     const ids = descendants(removing.id), prefix =
       `Delete “${removing.name}”${ids.size > 1 ? ` and ${ids.size - 1} nested label${ids.size === 2 ? "" : "s"}` : ""}?`;
-    if (labels[removing.id]?.scope === "highlight") return `${prefix} Saved passages using it will lose it.`;
+    if (labels[removing.id]?.scope === "highlight") return `${prefix} Its passages will be kept as ordinary highlights.`;
     const affected = allSources.filter((item) => item.labelIds.some((id) => ids.has(id))).length;
     return `${prefix} ${affected} saved source${affected === 1 ? "" : "s"} will lose ${ids.size === 1 ? "this label" : "these labels"}.`;
   })();
@@ -132,10 +136,19 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
             style={{ backgroundColor: activePen ? researchLabelColor(activePen) : "#eab308" }} />
           <Highlighter aria-hidden="true" className="size-3.5" />
         </Button>
-        <ResearchPens onRemove={setRemoving} onStatus={setStatus} />
+        <ResearchHighlightTypes onRemove={setRemoving} onStatus={setStatus} />
         <input type="search" autoComplete="off" aria-label="Filter" placeholder="Filter" value={filter}
           onChange={(event) => setFilter(event.target.value)}
           className="h-8 min-w-0 flex-1 basis-32 rounded-md border border-gray-300 px-2 text-sm" />
+        <ActionMenu label="Source filters" triggerClassName="grid size-8 place-items-center rounded-md border border-gray-300 text-gray-600"
+          items={[...[ ["all", "All sources"], ["no-labels", "No source labels"],
+            ["with-highlights", "Has highlights"], ["without-highlights", "No highlights"] ].map(([id, name]) => ({
+              label: name, checked: sourceFilter === id, onSelect: () => setSourceFilter(id) })),
+            ...Object.values(labels).filter(({ scope }) => scope === "highlight").map(({ id }) => ({
+              label: `Highlights: ${researchLabelPath(labels, id).map(({ name }) => name).join(" / ")}`,
+              checked: sourceFilter === id, onSelect: () => setSourceFilter(id) }))]}>
+          <SlidersHorizontal aria-hidden="true" className="size-3.5" />
+        </ActionMenu>
       </div>
       <Tabs value={tab} onValueChange={setTab} ariaLabel="Workspace views" variant="subtab"
         className="min-h-0 flex-1" options={[{ value: "labels", label: "Labels" },
@@ -152,7 +165,7 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
                   onChange={(event) => setPicked(event.target.checked ? new Set(matches.evidence) : new Set())} />All matches</label>
               {picked.size > 0 && <Button size="compact" onClick={() => void highlightPicked()}>
                 Highlight {picked.size} as {penLabel(activePen)}</Button>}
-              <ResearchSelectionLabels label="Label sources" />
+              <ResearchSelectionLabels label="Label sources" prepare={() => ({ target: "sources", sourceIds: list.map(({ id }) => id) })} />
             </>}
             <span className="ms-auto flex flex-wrap items-center justify-end gap-1.5">
               {handedOff && <Button size="compact" variant="outline" onClick={() => setScope({ target: "sources" })}>Show all</Button>}

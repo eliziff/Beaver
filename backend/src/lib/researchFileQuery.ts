@@ -22,7 +22,7 @@ import type { ResearchReadContext } from "./researchReader";
 
 export const researchCaptureRuleSchema = z.object({ phrase: z.string().trim().min(1).max(500),
   direction: z.enum(["before", "after", "around"]), unit: z.enum(["sentence", "line", "paragraph", "chars"]),
-  chars: z.number().int().min(1).max(50_000).optional(), slot: z.string().trim().min(1).max(200) }).strict();
+  chars: z.number().int().min(1).max(50_000).optional(), slot: z.string().uuid().optional() }).strict();
 export type ResearchCaptureRule = z.infer<typeof researchCaptureRuleSchema>;
 export type ResearchFileQueryInput = ResearchSelection & { versionId: string; workingRevision: number; text?: string;
   syntax: "literal" | "terms"; limit?: number; after?: string; rules?: ResearchCaptureRule[];
@@ -117,7 +117,7 @@ export async function verifyResearchPassage(file: ResearchFile, action: PublicRe
   return labelled(evidence);
 }
 
-type Capture = { start: number; end: number; slot: string; order: number; assign: boolean };
+type Capture = { start: number; end: number; slot?: string; order: number; assign: boolean };
 const overlap = (left: Capture, right: Capture) => left.start < right.end && right.start < left.end;
 const resolveCaptures = (values: Capture[], conflict: ResearchFileQueryInput["conflict"]) => {
   if (conflict === "append") return values;
@@ -176,9 +176,9 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
   catch { throw new ApplicationError(400, "Capture rules are invalid"); }
   if ((!query && !rules.length) || !!query === !!rules.length || query.length > 10_000)
     throw new ApplicationError(400, "Query text is invalid");
-  if (rules.some(({ slot }) => slot !== "Unclassified" &&
+  if (rules.some(({ slot }) => slot !== undefined &&
       state.labels[slot]?.scope !== "highlight"))
-    throw new ApplicationError(400, "Capture slots must use a highlight label or Unclassified");
+    throw new ApplicationError(400, "Capture rules must name an existing highlight type");
   const needles = [...new Set((input.syntax === "literal" ? [query] : query.split(/\s+/u))
     .filter(Boolean).map((term) => term.toLowerCase()))];
   if (needles.length > 100) throw new ApplicationError(400, "Query has too many terms");
@@ -247,8 +247,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
       captureFull = captured === MAX_CAPTURE_CHARS; }
     if (slot) {
       const names = slots[found.evidence_id] ??= []; if (!names.includes(slot)) names.push(slot);
-      if (slot !== "Unclassified" && assign) { const ids = labelsByEvidence[found.evidence_id] ??= [];
-        if (!ids.includes(slot)) ids.push(slot); }
+      if (assign && !labelsByEvidence[found.evidence_id]) labelsByEvidence[found.evidence_id] = [slot];
     }
   };
   const afterCursor = (sourceId: string, found: LegalEvidenceReceipt | undefined) => {
@@ -262,7 +261,6 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
     if (cursor?.[0] === sourceId && cursor[2] !== sha256(JSON.stringify([...new Set(hashes)].sort())))
       throw new ApplicationError(409, "Research source changed. Restart the search.");
   };
-  const native = structureNative();
   const scan = async (savedSource: ResearchFileState["sources"][string]): Promise<{ sourceId: string;
     sourceSha256s?: string[]; failure?: string; found: Array<{ span: string;
       receipt: LegalEvidenceReceipt | undefined; slot?: string; assign?: boolean }> }> => {
@@ -273,6 +271,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
         subjects = options.context?.restricted ? intersectResearchSubjects(resolved.subjects, options.context.subjects ?? []) : resolved.subjects,
         subject = subjects[0];
       if (!subject) return { sourceId, found: [] };
+      const native = structureNative();
       const source = { ...savedSource, evidence: subject.evidence }, boundaries = options.context?.restricted
         ? options.context.subjects?.filter(({ resource }) => resource === subject.resource) ?? [] : [];
       if (source.evidence && !rules.length) {
@@ -451,11 +450,14 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
     sourceReferences: Object.fromEntries(attempted.map((id) =>
       [id, structuredClone(state.sources[id].reference)])),
     labelPaths: Object.fromEntries([...new Set([...(input.labelIds ?? []), ...rules.flatMap(
-      ({ slot }) => slot === "Unclassified" ? [] : [slot])])].flatMap((id) => {
+      ({ slot }) => slot ? [slot] : [])])].flatMap((id) => {
       const path = researchLabelPath(state, id); return path ? [[id, path]] : []; })) };
+  for (const [id, matchedTypes] of Object.entries(slots))
+    if (matchedTypes.length > 1) delete labelsByEvidence[id];
   const checkpointed = !!options.assistant;
   const updated = await commitResearchFile(documents, scope, file,
-      { type: "merge", evidence, queries: [receipt], labels: labelsByEvidence }, options.assistant, options.operation);
+      { type: "merge", reads: evidence, evidence: evidence.filter(({ evidence_id }) => labelsByEvidence[evidence_id]?.length),
+        queries: [receipt], labels: labelsByEvidence }, options.assistant, options.operation);
   if (!updated) throw new ApplicationError(409, "This research file changed. Reload it.",
     { code: "revision_conflict" });
   return { file: updated, receipt, evidence, checkpointed, coverage };

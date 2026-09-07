@@ -67,7 +67,14 @@ export function researchStateChanges(before: ResearchFileState, after: ResearchF
     for (const id of new Set([...Object.keys(left), ...Object.keys(right)])) {
       const previous = left[id], next = right[id], item = previous ?? next,
         identity = { target, id, ...("sourceId" in item ? { sourceId: item.sourceId } : {}) };
-      if (previous && !next) { add(identity, "$", previous, null); continue; }
+      if (previous && !next || target === "passage" && !previous) {
+        add(identity, "$", previous, next); continue;
+      }
+      if (target === "passage") {
+        add(identity, "labelIds", previous?.labelIds, next?.labelIds);
+        fields(identity, previous, next, ["note"]);
+        continue;
+      }
       const previousLabels = new Set(previous?.labelIds), nextLabels = new Set(next?.labelIds);
       for (const labelId of new Set([...previousLabels, ...nextLabels]))
         add(identity, `labelIds.${labelId}`, previousLabels.has(labelId), nextLabels.has(labelId));

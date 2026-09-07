@@ -139,11 +139,11 @@ import { COURT_RECORD_PROFILE_BY_ID } from "../courtRecordContract";
 import type { FeaturePreferences } from "../userPreferences";
 import type { WorkProductApplication } from "../workProductApplication";
 import { WORK_PRODUCT_KINDS, type WorkProductKind } from "../workProduct";
-import { readResearchEvidenceParts,
+import { readResearchEvidenceParts, readResearchReads,
   researchFileActionSchema, researchReferenceFromEvidence,
   researchQueryReceipt, researchQuerySources,
   researchSourceFromResource, researchSourceKey, researchSourceResource,
-  type ResearchEvidence, type ResearchFile, type ResearchFileAction, type ResearchQueryReceipt } from "../researchFile";
+  type ResearchFile, type ResearchFileAction, type ResearchQueryReceipt } from "../researchFile";
 import { researchCaptureRuleSchema, runResearchFileQuery } from "../researchFileQuery";
 import { COURT_RECORD_TOOL_PROPERTIES, courtRecordResult,
   courtRecordSlotTool } from "./courtRecordSlotTool";
@@ -217,9 +217,10 @@ const documentOperationTool = (research = true): Tool & BeaverToolPolicy => ({
     research_action: { type: "object", description:
       "Use {type:'create',title} without document_id, then reuse its returned resource as document_id. " +
       "Read an existing research file before changing it. " +
-      "{type:'save'} with top-level evidence_ids/query_ids saves verified evidence and returns " +
+      "{type:'save',labelId?} with top-level evidence_ids explicitly saves highlights and returns " +
       "saved:[{evidence_id,source_id}] for annotation; " +
-      "Workspace queries save automatically; use save for search_sources query_ids. " +
+      "Reads and searches remain background history, not highlights. query_ids saves search history. " +
+      "A highlight type is one name/colour/parent; passages have exactly one type. " +
       "{type:'query',text,syntax:'literal'|'terms',target:'sources'|'passages',sourceIds?,labelIds?,evidenceIds?,members?,unlabelled?,limit?,after?}; members are {sourceId,evidenceIds?}, refined by other filters. Follow coverage.next_after with the same query until null; limit is 25 unless rules capture results into the file; " +
       "query may instead use rules:[{phrase,direction:'before'|'after'|'around',unit:'sentence'|'line'|'paragraph'|'chars',chars?,slot}] where slot is a returned highlight label_id, and conflict; rules also support after; incomplete coverage is never exhaustive; " +
       "{type:'label',name,definition?,parentId?,color?:'#RRGGBB',order?,scope:'source'|'highlight'} creates a label: omit id, " +
@@ -2279,22 +2280,28 @@ export function assistantTools<Context extends {
             reference = receipt && researchReferenceFromEvidence(receipt);
           return reference ? [sourceByKey.get(researchSourceKey(reference))?.id].filter(
             (value): value is string => !!value) : []; }))],
-        savedEvidence = new Map<string, ResearchEvidence>();
+        savedEvidence = new Map<string, { receipt: LegalEvidenceReceipt; sourceId: string }>();
       for (let offset = 0; offset < sourceIds.length; offset += 100)
         [...(await readResearchEvidenceParts(documents, scope, research,
           sourceIds.slice(offset, offset + 100))).values()].flatMap(Object.values)
           .forEach((item) => { if (wanted.has(item.receipt.evidence_id))
             savedEvidence.set(item.receipt.evidence_id, item); });
+      for (const receipt of await readResearchReads(documents, scope, research)) {
+        if (!wanted.has(receipt.evidence_id) || savedEvidence.has(receipt.evidence_id)) continue;
+        const reference = researchReferenceFromEvidence(receipt),
+          source = reference && sourceByKey.get(researchSourceKey(reference));
+        if (source) savedEvidence.set(receipt.evidence_id, { receipt, sourceId: source.id });
+      }
       const citations = ids.map((id) => {
           const saved = legalEvidenceState?.evidence.has(id) ? savedEvidence.get(id) : undefined,
             receipt = saved?.receipt, source = saved && research.state.sources[saved.sourceId];
           if (!receipt || !source) return null;
           return researchMemoCitation(research, source, receipt).markdown;
         });
-      if (citations.some((citation) => citation === null)) return fail("Unknown or unsaved evidence ID");
+      if (citations.some((citation) => citation === null)) return fail("Unknown or unavailable evidence ID");
       const links = new Map(ids.map((id, index) => [id, citations[index]!]));
       if ([...markdown.matchAll(/\[@([^\]\n]+)\]/gu)].some((match) => !links.has(match[1])))
-        return fail("Use saved evidence IDs in inline citations: [@evidence_id]");
+        return fail("Use verified evidence IDs in inline citations: [@evidence_id]");
       const body = markdown.replace(/^#\s+[^\r\n]*(?:\r?\n)+/u, "")
         .replace(/\[@([^\]\n]+)\]/gu, (_marker, id: string) => links.get(id)!);
       const memo = `${command.mode === "append" && research.state.note ? `${research.state.note}\n\n` : ""}` +
@@ -2355,6 +2362,7 @@ export function assistantTools<Context extends {
         if (!evidence.length && !queries.length) throw new Error("Select evidence_ids or query_ids");
         action = { type: "merge" as const,
           evidence: evidence.filter((item): item is LegalEvidenceReceipt => !!item),
+          ...(command.labelId ? { labels: Object.fromEntries([...evidenceIds].map((id) => [id, [trimmed(command.labelId)]])) } : {}),
           queries: queries.filter(Boolean).map((receipt) => researchQueryReceipt(receipt!)) };
       } else {
         action = researchFileActionSchema.parse(command);

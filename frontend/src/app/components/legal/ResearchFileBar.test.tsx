@@ -103,7 +103,9 @@ describe("ResearchFileBar", () => {
     api.getResearchItems.mockImplementation(async (_id: string, input: { kind: string; sourceId?: string }) => {
       const items = input.kind === "queries"
         ? [{ kind: "query" as const, index: 0, value: receipt }]
-        : input.sourceId === "appeal" ? [] : [{ kind: "passage" as const, index: 0, value: evidence }];
+        : input.sourceId === "appeal" ? [] : input.kind === "reads"
+          ? [{ kind: "read" as const, index: 0, value: evidence.receipt }]
+          : [{ kind: "passage" as const, index: 0, value: evidence }];
       return { items, next_cursor: null, total: items.length };
     });
     api.runResearchFileQuery.mockResolvedValue({
@@ -111,12 +113,12 @@ describe("ResearchFileBar", () => {
     });
   });
 
-  it("nests a source under every label it carries and leaves unlabelled sources in Unsorted", async () => {
+  it("nests a source under every label it carries and leaves unlabelled sources accessible at the root without a pseudo-label", async () => {
     await renderWorkspace();
     const tree = screen.getByRole("tree", { name: "Labels and sources" });
     const names = within(tree).getAllByRole("treeitem").map((row) => row.getAttribute("aria-label"));
     expect(names).toEqual(["Fairness, 1 sources", "Baker v Canada", "Other, 1 sources", "Baker v Canada",
-      "Unsorted, 1 sources", "Appeal case"]);
+      "Appeal case"]);
     expect(screen.queryByRole("complementary", { name: "Label organizer" })).not.toBeInTheDocument();
   });
 
@@ -195,7 +197,7 @@ describe("ResearchFileBar", () => {
     expect(screen.getByRole("tree", { name: "Labels and sources" })).toBeVisible();
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Labels", "Search", "Memo"]);
     expect(screen.queryByRole("textbox", { name: "Search saved source text" })).not.toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Pens" })).toBeVisible();
+    expect(screen.getByRole("group", { name: "Highlight types" })).toBeVisible();
     expect(screen.getByRole("searchbox", { name: "Filter" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "List options" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Organize" })).not.toBeInTheDocument();
@@ -213,11 +215,14 @@ describe("ResearchFileBar", () => {
     expect(within(tree).queryByRole("treeitem", { name: "Baker v Canada" })).not.toBeInTheDocument();
   });
 
-  it("filters the tree to sources highlighted with the selected pen", async () => {
+  it("does not confuse choosing a highlight type with filtering existing research", async () => {
     await renderWorkspace();
-    fireEvent.click(screen.getByRole("button", { name: "Holding" }));
+    fireEvent.click(screen.getByRole("button", { name: "Finding / Holding" }));
     const tree = screen.getByRole("tree", { name: "Labels and sources" });
     expect(within(tree).getAllByRole("treeitem", { name: "Baker v Canada" })[0]).toBeVisible();
+    expect(within(tree).getByRole("treeitem", { name: "Appeal case" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Source filters" }));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Highlights: Finding / Holding" }));
     expect(within(tree).queryByRole("treeitem", { name: "Appeal case" })).not.toBeInTheDocument();
     expect(api.getResearchItems.mock.calls.some(([, input]) => input.kind === "passages")).toBe(false);
   });
@@ -314,7 +319,7 @@ describe("ResearchFileBar", () => {
     menu("Holding options");
     fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
     dialog = screen.getByRole("alertdialog", { name: "Delete label?" });
-    expect(dialog).toHaveTextContent("Saved passages using it will lose it.");
+    expect(dialog).toHaveTextContent("Its passages will be kept as ordinary highlights.");
     expect(dialog).not.toHaveTextContent(/\d+ saved source/u);
   });
 
@@ -365,20 +370,21 @@ describe("ResearchFileBar", () => {
     await waitFor(() => expect(api.runResearchFileQuery).toHaveBeenCalledTimes(2));
     expect(api.runResearchFileQuery).toHaveBeenLastCalledWith("file-1", expect.objectContaining({
       syntax: "literal", target: "sources", conflict: "append",
-      rules: [{ phrase: "natural justice", direction: "after", unit: "sentence", slot: "Unclassified" }],
+      rules: [{ phrase: "natural justice", direction: "after", unit: "sentence" }],
     }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("highlights matched passages with the active pen", async () => {
+  it("only promotes search results when the user explicitly highlights them", async () => {
     await renderWorkspace(); openSearch();
     fireEvent.change(screen.getByRole("textbox", { name: "Search saved source text" }), { target: { value: "duty" } });
     fireEvent.click(screen.getByRole("button", { name: "Find passages" }));
     fireEvent.click(await screen.findByRole("checkbox", { name: "Select all matches" }));
-    fireEvent.click(screen.getByRole("button", { name: "Holding" }));
+    expect(api.actOnResearchFile).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Finding / Holding" }));
     fireEvent.click(screen.getByRole("button", { name: "Highlight 1 as Holding" }));
     await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", 0,
-      { type: "label-selection", target: "passages", sourceIds: ["baker"], evidenceIds: ["e_1"], assign: ["holding"], mode: "add" }));
+      { type: "save-highlights", evidenceIds: ["e_1"], labelId: "holding" }));
   });
 
   it("loads receipt history only when opened and returns to sources for its matches", async () => {
