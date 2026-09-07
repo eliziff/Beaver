@@ -275,11 +275,11 @@ it("imports a research set as passage rows and opens the created review", async 
     fireEvent.click(screen.getByRole("button", { name: "Create custom" }));
     fireEvent.click(screen.getByRole("button", { name: "Import a Research set" }));
     fireEvent.click(await screen.findByRole("radio", { name: "Select Appeal" }));
-    expect(await screen.findByLabelText("Highlight type")).toBeVisible();
-    fireEvent.change(screen.getByLabelText("Rows"), { target: { value: "passages" } });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Open review" })).toBeEnabled());
-    fireEvent.click(screen.getByRole("button", { name: "Open review" }));
-
+    fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Saved passages/ }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Next" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Next" })); fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create review" }));
     await waitFor(() => expect(onOpen).toHaveBeenCalledWith("/tabular-reviews/review-9"));
     expect(mocks.openWorkspaceTable).toHaveBeenCalledWith("set-1", { rows: "passages", design: preview.design, fingerprint: preview.fingerprint });
 });
