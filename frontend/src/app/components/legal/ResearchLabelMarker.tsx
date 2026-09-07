@@ -30,16 +30,16 @@ export function ResearchLabelFolder({ labels, labelId, size = "md" }: {
   </span>;
 }
 
-/** A source's filing at a glance: its folders, in a slot that never changes width. */
+/** A source's filing at a glance: ONE binder — never two folders beside each other — and a count
+ *  of the other places it is filed. The tooltip names them all. */
 export function ResearchLabelMarker({ labels, labelIds, size = "md" }: {
   labels: Record<string, ResearchLabel>; labelIds: string[]; size?: keyof typeof BOX }) {
   const applied = labelIds.filter((id) => labels[id]);
   const names = applied.map((id) => researchLabelPath(labels, id).map(({ name }) => name).join(" / "));
   return <span role="group" aria-label={names.length ? `Labels: ${names.join(", ")}` : "No labels"}
     title={names.join(" · ") || undefined} data-empty={applied.length ? undefined : "true"}
-    className={`inline-flex shrink-0 items-center gap-0.5 ${size === "sm" ? "w-11" : size === "md" ? "w-13" : ""}`}>
-    {applied.length ? applied.slice(0, 2).map((id) => <ResearchLabelFolder key={id} labels={labels} labelId={id} size={size} />)
-      : <ResearchLabelFolder labels={labels} labelId={null} size={size} />}
-    {applied.length > 2 && <span className="text-[10px] leading-none text-gray-500">+{applied.length - 2}</span>}
+    className={`inline-flex shrink-0 items-center gap-0.5 ${size === "sm" ? "w-8" : size === "md" ? "w-9" : ""}`}>
+    <ResearchLabelFolder labels={labels} labelId={applied[0] ?? null} size={size} />
+    {applied.length > 1 && <span className="text-[10px] leading-none text-gray-500">+{applied.length - 1}</span>}
   </span>;
 }
