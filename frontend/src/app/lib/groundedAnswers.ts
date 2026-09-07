@@ -6,6 +6,7 @@ export type GroundedAnswer = {
 };
 export type GroundedEvidence = {
   evidence_id: string;
+  scope?: "document" | "passage";
   provider: string;
   stable_source_id: string;
   source_reference?: { id: string; family?: string; part?: string };

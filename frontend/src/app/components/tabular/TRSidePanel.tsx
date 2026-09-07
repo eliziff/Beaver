@@ -6,6 +6,7 @@ import { evidenceCitation } from "@/app/lib/groundedAnswers";
 import type { ResearchSourceReference } from "@/app/lib/researchFiles";
 import { ResearchCitationContent } from "../legal/ResearchCitationViewer";
 import { TabularResultDetails } from "./TabularResultDetails";
+import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { Button } from "../ui/button";
 import { cn } from "@/app/lib/utils";
 import { LIQUID_PANEL_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
@@ -15,6 +16,8 @@ interface Props {
     column: ColumnConfig;
     onClose: () => void;
     onRegenerate?: () => Promise<void>;
+    onAsk?: () => void;
+    onSaveEvidence?: () => void;
     running?: boolean;
     displayDocument?: boolean;
     citation?: Citation;
@@ -26,7 +29,7 @@ export function TRSidePanel({
     document: doc,
     column,
     onClose,
-    onRegenerate,
+    onRegenerate, onAsk, onSaveEvidence,
     running = false,
     displayDocument = false,
     citation,
@@ -146,6 +149,10 @@ export function TRSidePanel({
                         aria-pressed={documentPaneOpen}>
                         <PanelLeft className="h-4 w-4" />
                     </Button>
+                    {(onAsk || onSaveEvidence) && <MoreActionsMenu label="Result actions" items={[
+                        ...(onAsk ? [{ label: "Ask about this result", onSelect: onAsk }] : []),
+                        ...(onSaveEvidence ? [{ label: "Save supporting passages…", onSelect: onSaveEvidence }] : []),
+                    ]} />}
                     <Button ref={closeRef} variant="ghost" size="icon-sm" className={ICON_BUTTON} onClick={onClose} aria-label="Close">
                         <X className="h-4 w-4" />
                     </Button>

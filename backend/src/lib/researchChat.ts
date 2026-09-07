@@ -1,5 +1,5 @@
 import { ApplicationError, type ApplicationScope } from "./applicationError";
-import { z } from "zod";
+import type { ResearchFindingReference } from "./researchFindingReference";
 import type { ChatStore } from "./chatStore";
 import type { DocumentStore } from "./documentStore";
 import type { GroundedAnswer, GroundedResult } from "./groundedAnswer";
@@ -7,18 +7,24 @@ import { legalEvidenceResourceReference, priorLegalEvidenceReceipts,
   type LegalEvidenceReceipt } from "./chat/legalEvidence";
 import { readResearchFile, researchSourceResource } from "./researchFile";
 
-const findingId = z.string().min(1).max(200);
-export const researchFindingReferenceSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("answer"), chatId: findingId, answerId: findingId,
-    resource: z.string().min(1).max(4_000) }).strict(),
-  z.object({ kind: z.literal("cell"), reviewId: findingId, rowId: z.string().min(1).max(4_000),
-    columnIndex: z.number().int().min(0).max(10_000) }).strict(),
-]);
-export type ResearchFindingReference = z.infer<typeof researchFindingReferenceSchema>;
 export type ResearchFinding = { reference: ResearchFindingReference; kind: "answer" | "result";
   sourceId: string; resource: string; question: { id: string; title: string; prompt: string; format?: string; tags?: string[] };
   answer: GroundedResult; evidence: LegalEvidenceReceipt[];
   origin: { chatId?: string; messageId?: string; subagentId?: string; reviewId?: string; rowId?: string; columnIndex?: number } };
+
+/** Select original claim indices without rewriting their wording or manufacturing support. */
+export function selectFindingClaims(finding: ResearchFinding, reference: ResearchFindingReference): ResearchFinding {
+  if (!reference.claimIndices) return finding;
+  const claims = reference.claimIndices.map((index) => {
+    const at = finding.reference.claimIndices ? finding.reference.claimIndices.indexOf(index) : index;
+    const claim = finding.answer.claims[at];
+    if (!claim) throw new ApplicationError(400, "A selected claim is outside this finding");
+    return claim;
+  }), ids = new Set(claims.flatMap(({ evidence_ids }) => evidence_ids));
+  return { ...finding, reference, question: { ...finding.question, format: "text", tags: undefined },
+    answer: { claims, summary: claims.map(({ text }) => text).join("\n\n"),
+      coverage: finding.answer.coverage }, evidence: finding.evidence.filter(({ evidence_id }) => ids.has(evidence_id)) };
+}
 
 export async function resolveChatFindings(chats: ChatStore, documents: DocumentStore, scope: ApplicationScope,
   input: { researchFileId: string; chatId: string; messageIds?: string[] }) {
@@ -33,12 +39,15 @@ export async function resolveChatFindings(chats: ChatStore, documents: DocumentS
     findings: Array<{ reference: Extract<ResearchFindingReference, { kind: "answer" }>; kind: "answer";
       sourceId: string; resource: string; question: { id: string; title: string; prompt: string };
       answer: GroundedAnswer; evidence: LegalEvidenceReceipt[]; origin: { chatId: string; messageId: string; subagentId?: string } }> = [];
+  const byId = new Map<string, LegalEvidenceReceipt>();
   let prompt = "Recorded answer";
   for (const row of rows) {
     if (row.role === "user") { if (typeof row.content === "string") prompt = row.content; continue; }
-    if (requested && !requested.has(row.id) || !Array.isArray(row.content)) continue;
-    const evidence = priorLegalEvidenceReceipts(row.content), byId = new Map(evidence.map((item) => [item.evidence_id, item]));
-    if (!evidence.length) continue;
+    if (!Array.isArray(row.content)) continue;
+    // A later answer may cite an earlier read. Selection limits answers, not their
+    // original supporting receipts; future messages must never repair past claims.
+    for (const receipt of priorLegalEvidenceReceipts(row.content)) byId.set(receipt.evidence_id, receipt);
+    if (requested && !requested.has(row.id)) continue;
     let ordinal = 0;
     const append = (kind: "answer", answerId: string, question: string,
       claims: GroundedAnswer["claims"], subagentId?: string) => {

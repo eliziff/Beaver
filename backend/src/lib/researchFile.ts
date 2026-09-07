@@ -101,8 +101,8 @@ const researchMutationSchema = z.discriminatedUnion("type", [
 export const researchFileActionSchema = z.union([researchMutationSchema,
   z.object({ type: z.literal("batch"), title: text(200), propose: z.boolean().optional(),
     actions: z.array(researchMutationSchema.refine((action) =>
-      action.type === "label" || action.type === "annotate" || action.type === "label-selection" ||
-      action.type === "remove" && action.kind === "label", "Batch changes organize labels and assignments"))
+      action.type === "source" || action.type === "label" || action.type === "annotate" || action.type === "label-selection" ||
+      action.type === "remove" && action.kind === "label", "Batch changes collect sources or organize labels and assignments"))
       .min(1).max(100) }).strict(),
   z.object({ type: z.enum(["accept", "reject", "undo"]), changeId: uuid }).strict(),
 ]);

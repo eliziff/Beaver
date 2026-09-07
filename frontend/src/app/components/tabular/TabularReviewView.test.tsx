@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
     regenerateCell: vi.fn(),
     uploadDocument: vi.fn(),
     updateReview: vi.fn(),
-    proposeColumnLabels: vi.fn(),
+    previewColumnLabels: vi.fn(), applyColumnLabels: vi.fn(),
     getResearchFile: vi.fn(),
     ensureWorkspace: vi.fn(),
 }));
@@ -61,9 +61,9 @@ vi.mock("@/app/lib/api/tabular", () => ({
   startTabularGeneration: mocks.startGeneration,
   stopTabularGeneration: vi.fn(),
   updateTabularReview: mocks.updateReview,
-  proposeColumnLabels: mocks.proposeColumnLabels
 }));
 vi.mock("@/app/lib/api/researchFiles", () => ({
+  previewColumnLabels: mocks.previewColumnLabels, applyColumnLabels: mocks.applyColumnLabels,
   getResearchFile: mocks.getResearchFile,
   ensureSourcesWorkspace: mocks.ensureWorkspace,
   actOnResearchFile: vi.fn(),
@@ -299,11 +299,16 @@ it("proposes labels from a tag column into the review's workspace", async () => 
     const file = workspaceFile({});
     mocks.getResearchFile.mockResolvedValue(file);
     mocks.ensureWorkspace.mockResolvedValue(file);
-    mocks.proposeColumnLabels.mockResolvedValue(file);
+    mocks.previewColumnLabels.mockResolvedValue({ title: "Outcome", basis: "basis", mapping: [{ value: "Granted", label: "Granted", sources: 1 }] });
+    mocks.applyColumnLabels.mockResolvedValue(file);
     render(<TRView reviewId="review-1" />);
     await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
 
     fireEvent.click(screen.getByRole("button", { name: "Labels from first column" }));
-    await waitFor(() => expect(mocks.proposeColumnLabels).toHaveBeenCalledWith("workspace-1", "review-1", 3));
+    await waitFor(() => expect(mocks.previewColumnLabels).toHaveBeenCalledWith("workspace-1", expect.objectContaining({ reviewId: "review-1", columnIndex: 3 }), expect.any(AbortSignal)));
+    expect(mocks.applyColumnLabels).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Propose labels" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Propose labels" }));
+    await waitFor(() => expect(mocks.applyColumnLabels).toHaveBeenCalledWith("workspace-1", expect.objectContaining({ reviewId: "review-1", columnIndex: 3, basis: "basis" })));
     expect(await screen.findByText("Sources workspace")).toBeVisible();
 });
