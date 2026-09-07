@@ -1216,8 +1216,8 @@ describe("Authorities UI contracts", () => {
 
     const known = (await screen.findByRole("heading", { name: "R v Oakes" })).closest("article")!;
     const unknown = screen.getByRole("heading", { name: "Unresolved case" }).closest("article")!;
-    expect(within(unknown).queryByRole("link", { name: "Get from CanLII" })).toBeNull();
-    const handoff = within(known).getByRole("link", { name: "Get from CanLII" });
+    expect(within(unknown).queryByRole("link", { name: "CanLII" })).toBeNull();
+    const handoff = within(known).getByRole("link", { name: "CanLII" });
     expect(handoff).toHaveAttribute("href", pdfUrl);
     expect(handoff).toHaveAttribute("target", "_blank");
     expect(handoff).toHaveAttribute("rel", "noopener noreferrer");
@@ -1253,7 +1253,7 @@ describe("Authorities UI contracts", () => {
 
     await waitFor(() => expect(api.prepareAuthoritiesSources)
       .toHaveBeenCalledWith("draft-1", 2, undefined));
-    expect(await screen.findByRole("link", { name: "Get from CanLII" })).toBeVisible();
+    expect(await screen.findByRole("link", { name: "CanLII" })).toBeVisible();
     const row = screen.getByRole("heading", { name: "R v Jordan" }).closest("article")!;
     await userEvent.click(within(row).getByRole("button", { name: "Options for R v Jordan" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Edit details" }));
