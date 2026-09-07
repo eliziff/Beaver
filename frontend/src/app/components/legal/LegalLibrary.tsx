@@ -86,12 +86,16 @@ type LibraryProps = {
     onOpenSource?: (tab: LegalSourceTab) => void;
 };
 export function LegalLibraryPage(props: LibraryProps) {
-    const [params] = useSearchParams();
+    const [params, setParams] = useSearchParams();
     const location = useLocation();
     const id = props.researchFileId ?? (props.embedded ? null : params.get("research_file"));
+    // The full page keeps the open workspace in the URL so a reload or a shared link lands on it.
+    const changed = (file: ResearchFile | null) => { props.onResearchFileChange?.(file);
+        if (!props.embedded && file && params.get("research_file") !== file.document.id)
+            setParams({ research_file: file.document.id }, { replace: true }); };
     return <SourcesWorkspace fileId={id} projectId={props.projectId} restoreLast={!id}
         selection={props.embedded ? undefined : location.state?.researchSelection}
-        refreshKey={props.researchRefreshKey} onChange={props.onResearchFileChange}>
+        refreshKey={props.researchRefreshKey} onChange={changed}>
         <LegalLibraryContent {...props} researchFileId={id} />
     </SourcesWorkspace>;
 }
