@@ -540,7 +540,9 @@ export async function readLegalSourceResource(
     const pattern = trimmed(args.pattern), next: Array<{
       file_path: string; offset: number; start_char: number;
     }> = [], unclassified = new Set<string>();
-    let remaining = Math.min(2_000, Math.max(1, Math.trunc(Number(args.limit) || 20))), chars = 0;
+    // Without an explicit limit the character budget is the real constraint; a
+    // twenty-block default made the model page a judgment it could read at once.
+    let remaining = Math.min(2_000, Math.max(1, Math.trunc(Number(args.limit) || 2_000))), chars = 0;
     const registered = read.values.flatMap((passage) => {
       if (locator || pattern) return [{ passage, receipt: legalSourceEvidence(passage),
         source: legalEvidenceSource(passage) }];

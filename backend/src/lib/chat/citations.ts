@@ -56,6 +56,7 @@ function citationsFromGroups(
       const display = {
         authority: presentation.authority,
         short_authority: presentation.shortAuthority,
+        ...(group.shortForm && { short_form: true }),
         ...(presentation.locator && {
           locator_separator: presentation.locator.separator,
         }),
