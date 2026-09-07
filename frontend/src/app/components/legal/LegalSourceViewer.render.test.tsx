@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LegalSourceViewerPayload } from "@/app/lib/api/legalSources";
 import { highlightDocxQuotes } from "@/app/components/shared/views/highlightDocxQuote";
@@ -141,10 +141,10 @@ const researchFile = {
             source: { id: "source", name: "Key", parentId: null, color: "#1d4ed8", order: 0, scope: "source" },
             holding: { id: "holding", name: "Holding", parentId: null, color: "#047857", order: 0, scope: "highlight" },
         },
-        sources: { saved: { id: "saved", labelIds: ["source"], badge: "Key", note: "",
+        sources: { saved: { id: "saved", collected: true, labelIds: ["source"], badge: "Key", note: "",
             reference: { provider: "a2aj", id: "2099-scc-1", kind: "case" as const,
                 title: "Fixture v. Test", citation: "2099 SCC 1", collection: "SCC", language: "en" },
-            passages: { count: 1, sha256: "c".repeat(64), labelCounts: {}, unlabelledCount: 1 } } },
+            passages: { count: 1, sha256: "c".repeat(64), labelCounts: { holding: 1 }, unlabelledCount: 0 } } },
         queries: null, note: "" },
 };
 
@@ -303,7 +303,9 @@ describe("legal source reader", () => {
         api.researchItems.mockResolvedValue(researchPage());
         api.actOnResearchFile.mockResolvedValue({ ...pens, sourceId: "saved", evidenceId: "evidence" });
         render(<LegalSourceViewer citation="2099 SCC 1" docType="cases" researchFile={pens} />);
-        const selection = selectText(await screen.findByText("ratio"));
+        await screen.findByText("ratio");
+        await act(async () => {});
+        const selection = selectText(screen.getByText("ratio"));
         fireEvent.keyDown(document, { key: "H", ctrlKey: true, shiftKey: true });
         await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", 0,
             expect.objectContaining({ type: "passage", labelIds: ["contrary"] })));
@@ -433,14 +435,14 @@ describe("legal source reader", () => {
         expect(highlight.style.getPropertyPriority("background-color")).toBe("important");
         expect(highlight.style.borderBottom).toContain("solid");
         expect(highlight).toHaveAttribute("role", "button");
-        expect(highlight).toHaveAccessibleName("Holding saved highlight. Edit labels and note.");
+        expect(highlight).toHaveAccessibleName("Holding saved highlight. Edit type and note.");
         expect(highlight).toHaveAttribute("title", expect.stringContaining("Holding"));
         expect(screen.queryByRole("button", { name: /^Label par/iu })).not.toBeInTheDocument();
-        expect(screen.getByRole("navigation", { name: "Saved highlights" })).toBeInTheDocument();
+        expect(screen.queryByRole("navigation", { name: "Saved highlights" })).not.toBeInTheDocument();
         expect(onResearchFileChange).toHaveBeenCalledWith(researchFile);
 
         fireEvent.click(highlight);
-        expect(await screen.findByRole("dialog", { name: "Labels and note" })).toBeInTheDocument();
+        expect(await screen.findByRole("dialog", { name: "Highlight type and note" })).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Holding" })).toBeInTheDocument();
         expect(api.actOnResearchFile).not.toHaveBeenCalled();
     });
@@ -455,7 +457,7 @@ describe("legal source reader", () => {
         expect(screen.getByRole("button", { name: "Label Fixture v. Test" })).toBeEnabled();
     });
 
-    it("navigates saved highlights in document order", async () => {
+    it("keeps saved marks directly editable without a duplicate paragraph navigation strip", async () => {
         api.direct.mockResolvedValue(multiSlicePayload());
         const later = { ...savedEvidence,
             receipt: { ...savedEvidence.receipt,
@@ -465,24 +467,30 @@ describe("legal source reader", () => {
             sources: { saved: { ...researchFile.state.sources.saved,
                 passages: { count: 2, sha256: "d".repeat(64), labelCounts: {}, unlabelledCount: 2 } } } } };
         api.researchItems.mockResolvedValue(researchPage(later, savedEvidence));
-        const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect")
-            .mockImplementation(function () {
-                const top = this.classList.contains("docx-text-highlight")
-                    ? this.textContent?.includes("Third") ? 500 : 200 : 100;
-                return { top } as DOMRect;
-            });
         const { container } = render(<LegalSourceViewer citation="2099 SCC 1"
             docType="cases" researchFile={reversed} />);
 
         await waitFor(() => expect(
             container.querySelectorAll("[data-research-evidence]"),
         ).toHaveLength(2));
-        const reader = container.querySelector<HTMLElement>(".overflow-y-auto")!;
-        fireEvent.click(screen.getByRole("button", { name: "Next saved highlight" }));
-        await waitFor(() => expect(reader.scrollTop).toBe(68));
-        fireEvent.click(screen.getByRole("button", { name: "Next saved highlight" }));
-        await waitFor(() => expect(reader.scrollTop).toBe(436));
-        rect.mockRestore();
+        expect(screen.queryByRole("button", { name: /saved highlight$/ })).not.toBeInTheDocument();
+        const laterMark = container.querySelector<HTMLElement>('[data-research-evidence="later"]')!;
+        expect(laterMark).toHaveTextContent("Third proposition.");
+        fireEvent.click(laterMark);
+        expect(await screen.findByRole("dialog", { name: "Highlight type and note" })).toBeVisible();
+        expect(api.actOnResearchFile).not.toHaveBeenCalled();
+    });
+
+    it("loads later saved-highlight pages without a separate reader navigation strip", async () => {
+        api.direct.mockResolvedValue(multiSlicePayload());
+        const later = { ...savedEvidence, receipt: { ...savedEvidence.receipt, evidence_id: "later",
+            span_text: "Third proposition.", locator: { kind: "paragraph", label: "par3" } } };
+        api.researchItems.mockResolvedValueOnce({ ...researchPage(savedEvidence), next_cursor: "next", total: 2 })
+            .mockResolvedValueOnce(researchPage(later));
+        const { container } = render(<LegalSourceViewer citation="2099 SCC 1" docType="cases" researchFile={researchFile} />);
+        await waitFor(() => expect(container.querySelector('[data-research-evidence="later"]')).toHaveTextContent("Third proposition."));
+        expect(api.researchItems).toHaveBeenCalledTimes(2);
+        expect(api.researchItems.mock.calls[1][1]).toMatchObject({ cursor: "next", sourceId: "saved" });
     });
 
     it("locates identical saved quotes by receipt locator", async () => {

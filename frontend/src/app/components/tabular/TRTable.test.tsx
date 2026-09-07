@@ -98,7 +98,7 @@ describe("TRTable", () => {
         render(<TRTable loading={false} columns={[]} documents={[]} cells={[]} savingColumnsConfig={false} selectedDocIds={[]}
             onSelectionChange={vi.fn()} onExpand={vi.fn()} onCitationClick={vi.fn()} onEditColumn={vi.fn()}
             onAddColumns={onAddColumns} onAddDocuments={onAddDocuments} />);
-        fireEvent.click(screen.getByRole("button", { name: "Add columns" }));
+        fireEvent.click(screen.getByRole("button", { name: "+ Column" }));
         fireEvent.click(screen.getByRole("button", { name: "Add documents" }));
         expect(onAddColumns).toHaveBeenCalledOnce();
         expect(onAddDocuments).toHaveBeenCalledOnce();

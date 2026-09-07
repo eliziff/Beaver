@@ -10,3 +10,10 @@ export function strippedToOriginal(text: string, position: number) {
     }
     return text.length;
 }
+
+/** Keep quote-search eligibility identical to the existing DOM highlighter. */
+export const quoteSegments = (quote: string) => quote.split(/\.{3}|\u2026/u)
+    .map(normalizeQuoteText).filter(Boolean);
+
+export const matchesQuoteText = (normalized: string, quote: string) =>
+    quoteSegments(quote).some(segment => normalized.includes(segment.slice(0, 30)));

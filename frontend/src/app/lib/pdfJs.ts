@@ -1,11 +1,11 @@
-let pdfjsLib: typeof import("pdfjs-dist") | null = null;
+let pending: Promise<typeof import("pdfjs-dist")> | null = null;
 
-export async function getPdfJs() {
-  if (pdfjsLib) return pdfjsLib;
-  pdfjsLib = await import("pdfjs-dist");
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/build/pdf.worker.min.mjs",
-    import.meta.url,
-  ).toString();
-  return pdfjsLib;
+export function getPdfJs() {
+  return pending ??= import("pdfjs-dist").then((lib) => {
+    lib.GlobalWorkerOptions.workerSrc = new URL(
+      "pdfjs-dist/build/pdf.worker.min.mjs",
+      import.meta.url,
+    ).toString();
+    return lib;
+  }).catch((error: unknown) => { pending = null; throw error; });
 }

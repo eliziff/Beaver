@@ -1,5 +1,14 @@
 # Handoff — research sets / Sources workspace / Tabular Review overhaul (2026-09-06)
 
+> **Superseded by the agreed PR sequence:** A–F were subsequently pushed. The
+> foundation PR removes the Library/project ontology workspace, keeps source
+> labels research-set-local, and makes one highlight type (name, colour, parent)
+> the sole classification of a saved passage. Read receipts remain background
+> evidence; they are not highlights or synthetic findings. Do not reimplement
+> the Phase E ontology brief below. The updated sequence is in
+> `docs/roadmap/research-sets.md#pr-sequence-after-the-af-handoff`.
+
+
 Session ran out of usage mid-orchestration. Nothing is committed. All work is
 uncommitted in the working tree. Plan (approved by Eli, source of truth):
 `C:\Users\elias\.claude\plans\https-chatgpt-com-s-cx-6a9d80087ff081919-zippy-badger.md`.

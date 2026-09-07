@@ -33,16 +33,16 @@ export function useSourceReader({ file, passagePages, onReadSource, onStatus }: 
     !!onReadSource && (source.reference.provider === "a2aj" || source.reference.provider === "journal");
   async function readSource(source: ResearchSource, locator?: string, evidenceId?: string) {
     if (source.reference.kind !== "document") { onReadSource?.(source, locator); return; }
-    let items = passagePages.chains[source.id]?.items ?? [], receipt = items.find((item) => item.kind === "passage" &&
+    let items = passagePages.chains[source.id]?.items ?? [], receipt = items.find((item) => (item.kind === "passage" || item.kind === "evidence") &&
       (evidenceId ? item.value.receipt.evidence_id === evidenceId : item.value.receipt.locator.label === locator));
     try {
       if (evidenceId && !receipt && file) { let cursor: string | null = null;
-        do { const page = await getResearchItems(file.document.id, { kind: "passages", sourceId: source.id, cursor, limit: 200 });
-          items = page.items; receipt = items.find((item) => item.kind === "passage" && item.value.receipt.evidence_id === evidenceId); cursor = page.next_cursor;
+        do { const page = await getResearchItems(file.document.id, { kind: "evidence", sourceId: source.id, cursor, limit: 200 });
+          items = page.items; receipt = items.find((item) => (item.kind === "passage" || item.kind === "evidence") && item.value.receipt.evidence_id === evidenceId); cursor = page.next_cursor;
         } while (!receipt && cursor);
         if (!receipt) throw new Error("The original saved passage is unavailable");
       }
-      const citation = receipt?.kind === "passage" ? evidenceCitation(receipt.value.receipt, 1) : null;
+      const citation = receipt && (receipt.kind === "passage" || receipt.kind === "evidence") ? evidenceCitation(receipt.value.receipt, 1) : null;
       setReading({ reference: source.reference, citation: citation ?? { kind: "document", ref: 1,
         document_id: source.reference.id, version_id: source.reference.versionId, filename: sourceName(source), quotes: [] } });
     } catch (reason) { onStatus(errorMessage(reason, "Could not open saved passage")); }

@@ -64,7 +64,6 @@ export interface UserProfile {
   lastSelectedChatModel: string | null;
   lastSelectedReasoningEffort: string | null;
   mfaOnLogin: boolean; legalResearchUs: boolean;
-  libraryLabelsId: string | null;
   features: { authorities: boolean };
   workflowFileTargets: WorkflowFileTargets;
   filingContact: FilingContact;

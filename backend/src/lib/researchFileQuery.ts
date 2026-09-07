@@ -22,7 +22,7 @@ import type { ResearchReadContext } from "./researchReader";
 
 export const researchCaptureRuleSchema = z.object({ phrase: z.string().trim().min(1).max(500),
   direction: z.enum(["before", "after", "around"]), unit: z.enum(["sentence", "line", "paragraph", "chars"]),
-  chars: z.number().int().min(1).max(50_000).optional(), slot: z.string().trim().min(1).max(200) }).strict();
+  chars: z.number().int().min(1).max(50_000).optional(), slot: z.string().trim().min(1).max(200).optional() }).strict();
 export type ResearchCaptureRule = z.infer<typeof researchCaptureRuleSchema>;
 export type ResearchFileQueryInput = ResearchSelection & { versionId: string; workingRevision: number; text?: string;
   syntax: "literal" | "terms"; limit?: number; after?: string; rules?: ResearchCaptureRule[];
@@ -74,7 +74,7 @@ export async function verifyResearchPassage(file: ResearchFile, action: PublicRe
   const source = file.state.sources[action.sourceId]?.reference;
   if (!source) throw new ApplicationError(400, "Research source not found");
   const labelled = (evidence: LegalEvidenceReceipt): ResearchFileAction => ({ type: "merge", evidence: [evidence],
-    ...(action.labelIds?.length ? { labels: { [evidence.evidence_id]: action.labelIds } } : {}) });
+    labels: { [evidence.evidence_id]: action.labelIds ?? [] } });
   if (source.kind === "document") {
     const projection = context && await context.documents.projectionSource(context.scope, source.id, source.versionId);
     if (!projection) throw new ApplicationError(404, "Document version not found");
@@ -176,9 +176,9 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
   catch { throw new ApplicationError(400, "Capture rules are invalid"); }
   if ((!query && !rules.length) || !!query === !!rules.length || query.length > 10_000)
     throw new ApplicationError(400, "Query text is invalid");
-  if (rules.some(({ slot }) => slot !== "Unclassified" &&
+  if (rules.some(({ slot }) => slot !== undefined &&
       state.labels[slot]?.scope !== "highlight"))
-    throw new ApplicationError(400, "Capture slots must use a highlight label or Unclassified");
+    throw new ApplicationError(400, "Choose an existing highlight type for a capture");
   const needles = [...new Set((input.syntax === "literal" ? [query] : query.split(/\s+/u))
     .filter(Boolean).map((term) => term.toLowerCase()))];
   if (needles.length > 100) throw new ApplicationError(400, "Query has too many terms");
@@ -188,8 +188,10 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
     evidenceIds: input.evidenceIds, members: input.members, labelIds: input.labelIds, unlabelled: input.unlabelled }),
     labels = researchSelectionLabels(state, input.labelIds ?? []),
     limit = Math.max(1, Math.min(5_000, input.limit ?? 500)),
-    baseline = input.members?.map(({ sourceId }) => sourceId) ?? input.sourceIds ?? Object.keys(state.sources),
     contextResources = options.context?.restricted && new Set(options.context.subjects?.map(({ resource }) => resource)),
+    baseline = input.members?.map(({ sourceId }) => sourceId) ?? input.sourceIds ?? Object.values(state.sources)
+      .filter((source) => source.collected || input.evidenceIds !== undefined ||
+        contextResources && contextResources.has(researchSourceResource(source.reference))).map(({ id }) => id),
     requested = [...new Set(baseline)].filter((id) => {
       if (!state.sources[id]) throw new ApplicationError(400, "Invalid source selection");
       return (!input.sourceIds || input.sourceIds.includes(id)) &&
@@ -220,6 +222,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
   const evidence: LegalEvidenceReceipt[] = [], seen = new Set<string>(), failures: Array<{
     sourceId: string; code: string }> = [], attempted: string[] = [];
   const matched = new Set<string>();
+  const ambiguousTypes = new Set<string>();
   const slots: Record<string, string[]> = {}, labelsByEvidence: Record<string, string[]> = {},
     sourceFingerprints: Record<string, string[]> = {}, fingerprintSets = new Map<string, Set<string>>();
   let captured = 0, captureFull = false;
@@ -247,8 +250,13 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
       captureFull = captured === MAX_CAPTURE_CHARS; }
     if (slot) {
       const names = slots[found.evidence_id] ??= []; if (!names.includes(slot)) names.push(slot);
-      if (slot !== "Unclassified" && assign) { const ids = labelsByEvidence[found.evidence_id] ??= [];
-        if (!ids.includes(slot)) ids.push(slot); }
+      if (assign && !ambiguousTypes.has(found.evidence_id)) {
+        const previous = labelsByEvidence[found.evidence_id]?.[0];
+        if (previous && previous !== slot) {
+          delete labelsByEvidence[found.evidence_id]; ambiguousTypes.add(found.evidence_id);
+          fail(sourceId, "highlight_type_conflict");
+        } else labelsByEvidence[found.evidence_id] = [slot];
+      }
     }
   };
   const afterCursor = (sourceId: string, found: LegalEvidenceReceipt | undefined) => {
@@ -262,7 +270,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
     if (cursor?.[0] === sourceId && cursor[2] !== sha256(JSON.stringify([...new Set(hashes)].sort())))
       throw new ApplicationError(409, "Research source changed. Restart the search.");
   };
-  const native = structureNative();
+  let native: ReturnType<typeof structureNative> | undefined;
   const scan = async (savedSource: ResearchFileState["sources"][string]): Promise<{ sourceId: string;
     sourceSha256s?: string[]; failure?: string; found: Array<{ span: string;
       receipt: LegalEvidenceReceipt | undefined; slot?: string; assign?: boolean }> }> => {
@@ -286,6 +294,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
         }
         return { sourceId: source.id, sourceSha256s, found };
       }
+      native ??= structureNative();
       const reference = source.reference, passages: Array<{ documentArtifact: Parameters<ReturnType<typeof structureNative>["documentText"]>[0];
         evidence: (span: LegalEvidenceSpan) => LegalEvidenceReceipt | undefined }> = [];
       if (reference.kind === "document") {
@@ -344,7 +353,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
                 captureKeys.add(key);
                 // ponytail: hostile-input ceiling; paginate if 50k captures/source becomes a real need.
                 if (candidates++ === MAX_CAPTURE_CANDIDATES) { truncated = true; break captureRules; }
-                captures.push({ start: span.start, end: span.end, slot: rule.slot,
+                captures.push({ start: span.start, end: span.end, slot: rule.slot ?? "",
                   order: captures.length, assign: true });
               }
             }
@@ -451,7 +460,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
     sourceReferences: Object.fromEntries(attempted.map((id) =>
       [id, structuredClone(state.sources[id].reference)])),
     labelPaths: Object.fromEntries([...new Set([...(input.labelIds ?? []), ...rules.flatMap(
-      ({ slot }) => slot === "Unclassified" ? [] : [slot])])].flatMap((id) => {
+      ({ slot }) => slot ? [slot] : [])])].flatMap((id) => {
       const path = researchLabelPath(state, id); return path ? [[id, path]] : []; })) };
   const checkpointed = !!options.assistant;
   const updated = await commitResearchFile(documents, scope, file,

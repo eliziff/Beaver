@@ -4,11 +4,12 @@ import { createA2AJPassageEvidence, createPublicJournalPassageEvidence, createLi
   createLegalEvidenceTurnState, legalEvidenceReceiptEvent, registerLegalEvidence,
   type LegalEvidenceReceipt } from "./chat/legalEvidence";
 import type { GroundedAnswer } from "./groundedAnswer";
+import { createSourceWorkspaceApplication } from "./sourceWorkspaceApplication";
 import { resolveChatFindings } from "./researchChat";
 import { sha256 } from "./hash";
 import { commitResearchFile, createResearchFileState, pageResearchItems, parseResearchFile,
   readResearchFile, researchFileActionSchema, researchFileMarkdown, researchQueryReceipt,
-  readResearchHistory, saveResearchFile,
+  readResearchHistory, saveResearchFile, researchHighlightCount,
   researchSourceFromResource, researchSourceResource, type ResearchFileAction } from "./researchFile";
 import { runResearchFileQuery, verifyResearchPassage } from "./researchFileQuery";
 import type { ResearchOperationContext } from "./researchProvenance";
@@ -27,6 +28,7 @@ vi.mock("./structureNative", () => ({ structureNative: () => ({
     start: number, end: number) => document.blocks.find((block) =>
       block.start <= start && block.end >= end) ?? null,
   legalSourceViewer: () => ({ slices: [] }),
+  providerCitationsInText: () => [],
 }) }));
 
 const sourceLabel = "11111111-1111-4111-8111-111111111111";
@@ -86,7 +88,7 @@ describe("Research v2 parts", () => {
     const f = fixture(), passages = ["First", "Second"].map((text, index) => createLibraryEvidence({
       documentId: "library-doc", versionId: "revision-1", filename: "Notes.txt", sourceText: "FirstSecond",
       spanText: text, start: index ? 5 : 0, end: index ? 11 : 5 })),
-      saved = await act(f, { type: "merge", evidence: passages }),
+      saved = await act(f, { type: "merge", evidence: passages, labels: Object.fromEntries(passages.map((item) => [item.evidence_id, []])) }),
       source = Object.values(saved.state.sources)[0], context: ResearchReadContext = { restricted: true, subjects: [{
         sourceId: source.id, reference: source.reference, resource: researchSourceResource(source.reference), evidence: [passages[1]] }] },
       documents = { ...f.documents, projectionSource: async () => null },
@@ -130,8 +132,8 @@ describe("Research v2 parts", () => {
         source_sha256: passage.source_sha256 }] });
     expect(events[1].detail.changes).toEqual([]);
     expect(events[2].detail).toMatchObject({ turn_id: "turn-1", call_id: "call-1", subagent_id: "child-1",
-      changes: [{ target: "passage", id: passage.evidence_id, sourceId,
-        field: `labelIds.${highlightLabel}`, before: false, after: true }],
+      changes: [{ target: "source", id: sourceId, field: "collected", before: false, after: true },
+        { target: "passage", id: passage.evidence_id, sourceId, field: "labelIds", before: [], after: [highlightLabel] }],
       passages: [{ evidence_id: passage.evidence_id, labelIds: [highlightLabel], source_sha256: passage.source_sha256 }] });
     const page = await pageResearchItems(f.documents as never, { userId: "user-1" },
       (await readResearchFile(f.documents as never, { userId: "user-1" }, "doc-1"))!, "passages", 0, 10);
@@ -202,8 +204,8 @@ describe("Research v2 parts", () => {
       .toEqual(saved.state);
     expect(f.documents.readParts).not.toHaveBeenCalled();
     const page = await pageResearchItems(f.documents as never, { userId: "user-1" }, saved,
-      "passages", 0, 20);
-    expect(page.items[0]).toMatchObject({ kind: "passage",
+      "evidence", 0, 20);
+    expect(page.items[0]).toMatchObject({ kind: "evidence",
       value: { receipt: { span_text: "holding case-a" } } });
     expect(f.documents.readParts).toHaveBeenLastCalledWith(expect.anything(), "doc-1",
       saved.versionId, [partName]);
@@ -220,16 +222,18 @@ describe("Research v2 parts", () => {
       id: page.items[0].value.receipt.evidence_id });
     expect((await pageResearchItems(f.documents as never, { userId: "user-1" }, removed,
       "passages")).total).toBe(0);
-    expect(f.parts.has(partName)).toBe(false);
+    expect(f.parts.has(partName)).toBe(true);
+    expect((await pageResearchItems(f.documents as never, { userId: "user-1" }, removed, "evidence")).items[0])
+      .toMatchObject({ value: { receipt: page.items[0].value.receipt, labelIds: [] } });
   });
 
-  it("indexes labels beyond the first passage page and prunes them from the source part", async () => {
+  it("indexes highlights beyond a read page and preserves them when their type is deleted", async () => {
     const f = fixture();
     await act(f, { type: "label", id: highlightLabel, name: "Holding", scope: "highlight" });
     let saved = await act(f, { type: "merge", evidence: Array.from({ length: 51 }, (_, index) =>
       receipt("case-page", `holding ${index}`)) }), sourceId = Object.keys(saved.state.sources)[0],
       partName = `source.${sourceId}.json`, secondPage = await pageResearchItems(
-        f.documents as never, { userId: "user-1" }, saved, "passages", 50, 1);
+        f.documents as never, { userId: "user-1" }, saved, "evidence", 50, 1);
     saved = await act(f, { type: "annotate", kind: "evidence", sourceId,
       id: secondPage.items[0].value.receipt.evidence_id, labelIds: [highlightLabel] });
     expect(saved.state.sources[sourceId].passages).toMatchObject({ count: 51,
@@ -237,10 +241,12 @@ describe("Research v2 parts", () => {
     const previous = f.parts.get(partName);
     saved = await act(f, { type: "remove", kind: "label", id: highlightLabel });
     expect(saved.state.sources[sourceId].passages).toMatchObject({ count: 51,
-      labelCounts: {}, unlabelledCount: 51 });
+      unlabelledCount: 50 });
+    const fallback = Object.values(saved.state.labels).find(({ name }) => name === "Highlight")!;
+    expect(saved.state.sources[sourceId].passages!.labelCounts).toEqual({ [fallback.id]: 1 });
     expect(f.parts.get(partName)).not.toBe(previous);
     expect((await pageResearchItems(f.documents as never, { userId: "user-1" }, saved,
-      "passages", 50, 1)).items[0]).toMatchObject({ value: { labelIds: [] } });
+      "evidence", 50, 1)).items[0]).toMatchObject({ value: { labelIds: [fallback.id] } });
   });
 
   it("allows arbitrary label nesting and rejects cycles", async () => {
@@ -264,7 +270,7 @@ describe("Research v2 parts", () => {
     await act(f, { type: "label", id: highlightLabel, name: "Holding", scope: "highlight" });
     let saved = await act(f, { type: "merge", evidence: [receipt("case-b")] });
     const sourceId = Object.keys(saved.state.sources)[0], evidence = (await pageResearchItems(
-      f.documents as never, { userId: "user-1" }, saved, "passages")).items[0].value.receipt,
+      f.documents as never, { userId: "user-1" }, saved, "evidence")).items[0].value.receipt,
       query = researchQueryReceipt({ query_id: "q_saved", call_id: "call", tool: "Read",
         executed_at: "2026-09-04T00:00:00.000Z", model: "human",
         executor_version: "legal-source-pattern-v1", input: { pattern: "holding",
@@ -278,7 +284,10 @@ describe("Research v2 parts", () => {
     saved = await act(f, { type: "remove", kind: "label", id: sourceLabel });
     f.documents.readParts.mockClear();
     saved = await act(f, { type: "remove", kind: "source", id: sourceId });
-    expect(f.parts.has(`source.${sourceId}.json`)).toBe(false);
+    expect(f.parts.has(`source.${sourceId}.json`)).toBe(true);
+    expect(saved.state.sources[sourceId].collected).toBe(false);
+    expect((await pageResearchItems(f.documents as never, { userId: "user-1" }, saved, "evidence")).items[0])
+      .toMatchObject({ value: { receipt: evidence } });
     const ledger = await pageResearchItems(f.documents as never, { userId: "user-1" }, saved,
       "queries", 0, 20);
     expect(ledger.items.map(({ value }) => value.query_id)).toEqual(["q_new", "q_saved"]);
@@ -287,7 +296,7 @@ describe("Research v2 parts", () => {
         [sourceId]: { id: "case-b" } } } });
   });
 
-  it("queries literal or terms in caller source order and respects saved label scope", async () => {
+  it("queries explicitly selected read receipts in caller order without promoting them to highlights", async () => {
     const f = fixture();
     await act(f, { type: "label", id: sourceLabel, name: "Filed", scope: "source" });
     await act(f, { type: "label", id: highlightLabel, name: "Holding", scope: "highlight" });
@@ -295,7 +304,7 @@ describe("Research v2 parts", () => {
       receipt("case-b", "alpha beta labelled"), receipt("case-c", "alpha beta")] });
     const byReference = Object.fromEntries(Object.values(saved.state.sources)
       .map((source) => [source.reference.id, source.id])), passages = (await pageResearchItems(
-        f.documents as never, { userId: "user-1" }, saved, "passages")).items;
+        f.documents as never, { userId: "user-1" }, saved, "evidence")).items;
     saved = await act(f, { type: "annotate", kind: "source", id: byReference["case-a"],
       labelIds: [sourceLabel] });
     saved = await act(f, { type: "annotate", kind: "evidence", sourceId: byReference["case-b"],
@@ -305,7 +314,7 @@ describe("Research v2 parts", () => {
       run = async (input: Partial<Parameters<typeof runResearchFileQuery>[3]>) => {
         const result = await runResearchFileQuery(f.documents as never, { userId: "user-1" },
           "doc-1", { versionId: saved.versionId, workingRevision: saved.workingRevision,
-            text: "alpha beta", syntax: "terms", target: "passages", sourceIds: ordered,
+            text: "alpha beta", syntax: "terms", target: "passages", sourceIds: ordered, evidenceIds: passages.map(({ value }) => value.receipt.evidence_id),
             limit: 10, ...input });
         saved = result.file; return result;
       }, ids = (result: Awaited<ReturnType<typeof run>>) => result.evidence.map((item) =>
@@ -391,7 +400,7 @@ describe("Research v2 parts", () => {
       const result = await runResearchFileQuery(documents as never, { userId: "user-1" }, "doc-1", {
         versionId: saved.versionId, workingRevision: saved.workingRevision, syntax: "literal", target: "passages",
         members: [{ sourceId, evidenceIds: [selected.evidence_id] }], conflict: "append",
-        rules: [{ phrase: "needle", direction: "around", unit, slot: "Unclassified" }] });
+        rules: [{ phrase: "needle", direction: "around", unit }] });
       saved = result.file;
       return result.evidence.map(({ span_text }) => span_text);
     };
@@ -409,7 +418,7 @@ describe("Research v2 parts", () => {
     let saved = await act(f, { type: "merge", evidence: [selected] });
     const sourceId = Object.keys(saved.state.sources)[0], input = { syntax: "literal" as const,
       target: "passages" as const, members: [{ sourceId, evidenceIds: [selected.evidence_id] }], limit: 1,
-      rules: [{ phrase: "needle", direction: "after" as const, unit: "line" as const, slot: "Unclassified" }] },
+      rules: [{ phrase: "needle", direction: "after" as const, unit: "line" as const }] },
       run = async (after?: string) => {
         const result = await runResearchFileQuery(documents as never, { userId: "user-1" }, "doc-1", {
           versionId: saved.versionId, workingRevision: saved.workingRevision, ...input, after });
@@ -438,7 +447,7 @@ describe("Research v2 parts", () => {
           text, documentArtifact: { text, blocks: [block] }, blockArtifact: block }] })), base = {
         versionId: saved.versionId, workingRevision: saved.workingRevision, syntax: "literal" as const,
         target: "sources" as const, sourceIds: [sourceId], rules: [{ phrase: "needle",
-          direction: "after" as const, unit: "chars" as const, chars: 8, slot: "Unclassified" }] };
+          direction: "after" as const, unit: "chars" as const, chars: 8 }] };
     const result = await runResearchFileQuery(f.documents as never, { userId: "user-1" },
       "doc-1", base, { reader: reader as never }); saved = result.file;
     expect(result.evidence[0].span_text).toBe("captured");
@@ -496,6 +505,9 @@ describe("Research v2 parts", () => {
       if (!after) expect(result.coverage.complete).toBe(true);
     }
     expect(after).toBeNull(); expect(ids).toHaveLength(33); expect(new Set(ids).size).toBe(33);
+    expect((await run(undefined, "passages")).evidence).toEqual([]);
+    await act(f, { type: "label", id: highlightLabel, name: "Matches", scope: "highlight" });
+    await act(f, { type: "label-selection", target: "passages", evidenceIds: ids, assign: [highlightLabel], mode: "replace" });
     const savedIds: string[] = []; after = null;
     do { const result = await run(after ?? undefined, "passages");
       savedIds.push(...result.evidence.map(({ evidence_id }) => evidence_id));
@@ -517,7 +529,7 @@ describe("Research v2 parts", () => {
     expect(partial.coverage).toMatchObject({ next_after: null, complete: false });
   });
 
-  it("continues bounded rule capture without duplicate passages or lost overlapping label assignments", async () => {
+  it("retains conflicting capture candidates without assigning two types to one highlight", async () => {
     const f = fixture();
     for (const id of [sourceLabel, highlightLabel]) await act(f,
       { type: "label", id, name: id, scope: "highlight" });
@@ -544,7 +556,9 @@ describe("Research v2 parts", () => {
         locator: { requested: null, label: "document" }, text,
         documentArtifact: { text, blocks: [block] }, blockArtifact: block }] })) as never });
     expect(next.evidence.map(({ span_text }) => span_text)).toEqual(["Carol"]);
-    expect(next.coverage).toMatchObject({ complete: true, next_after: null });
+    expect(next.coverage).toMatchObject({ complete: false, next_after: null });
+    expect(next.receipt.failures).toContainEqual(expect.objectContaining({ code: "highlight_type_conflict" }));
+    expect((await pageResearchItems(f.documents as never, { userId: "user-1" }, next.file, "passages")).total).toBe(0);
     for (const labels of [...Object.values(result.receipt.slots), ...Object.values(next.receipt.slots)])
       expect(labels).toEqual([sourceLabel, highlightLabel]);
   });
@@ -600,7 +614,7 @@ describe("Research v2 parts", () => {
     f.limitPartReads(50);
     f.documents.readParts.mockClear();
     const page = await pageResearchItems(f.documents as never, { userId: "user-1" }, saved,
-      "passages", 0, 200);
+      "evidence", 0, 200);
     expect(page.items).toHaveLength(200);
     expect(f.documents.readParts).toHaveBeenCalledTimes(6);
     expect(f.documents.readParts.mock.calls.every((call) => call[3].length <= 100)).toBe(true);
@@ -613,7 +627,7 @@ describe("Research v2 parts", () => {
         Object.keys(initial.state.sources);
     let saved = await act(f, { type: "label", id: highlightLabel, name: "Holding", scope: "highlight" });
     const first = (await pageResearchItems(f.documents as never, { userId: "user-1" }, saved,
-      "passages")).items.find(({ value }) => value.sourceId === sourceIds[0])!.value;
+      "evidence")).items.find(({ value }) => value.sourceId === sourceIds[0])!.value;
     saved = await act(f, { type: "annotate", kind: "evidence", sourceId: sourceIds[0],
       id: first.receipt.evidence_id, labelIds: [highlightLabel] });
     f.documents.readParts.mockClear();
@@ -666,15 +680,14 @@ describe("Research v2 parts", () => {
     const result = await runResearchFileQuery(f.documents as never, { userId: "user-1" }, "doc-1",
       { versionId: saved.versionId, workingRevision: saved.workingRevision, syntax: "literal",
         target: "sources", rules: [{ phrase: "needle", direction: "after", unit: "chars",
-          chars: 50_000, slot: "Unclassified" }] }, { reader: reader as never });
+          chars: 50_000 }] }, { reader: reader as never });
     expect(result.evidence).toHaveLength(20);
     expect(result.receipt.failures.filter(({ code }) => code === "result_limit")).toHaveLength(4);
     expect(reader).toHaveBeenCalledTimes(24);
     const continued = await runResearchFileQuery(f.documents as never, { userId: "user-1" }, "doc-1",
       { versionId: result.file.versionId, workingRevision: result.file.workingRevision,
         after: result.coverage.next_after!, syntax: "literal", target: "sources",
-        rules: [{ phrase: "needle", direction: "after", unit: "chars", chars: 50_000,
-          slot: "Unclassified" }] }, { reader: reader as never });
+        rules: [{ phrase: "needle", direction: "after", unit: "chars", chars: 50_000 }] }, { reader: reader as never });
     expect(continued.evidence).toHaveLength(5);
     expect(new Set([...result.evidence, ...continued.evidence].map(({ evidence_id }) => evidence_id)).size)
       .toBe(25);
@@ -828,16 +841,16 @@ describe("Research v2 parts", () => {
     ] }, undefined, model), history = await readResearchHistory(f.documents as never, scope, classified);
     expect(classified.state.proposals).toEqual([]);
     expect((await pageResearchItems(f.documents as never, scope, classified, "passages")).items)
-      .toMatchObject([{ value: { receipt: passage, labelIds: [sourceLabel, highlightLabel] } }]);
+      .toMatchObject([{ value: { receipt: passage, labelIds: [highlightLabel] } }]);
     expect(history.at(-1)).toMatchObject({ title: "Organize selected passages", status: "applied",
-      counts: { labels: 2, sources: 0, passages: 1 }, executor: "assistant", model: "model-a" });
+      counts: { labels: 2, sources: 1, passages: 1 }, executor: "assistant", model: "model-a" });
     const undone = await act(f, { type: "undo", changeId: history.at(-1)!.id });
     expect(undone.state.labels).toEqual({});
-    expect((await pageResearchItems(f.documents as never, scope, undone, "passages")).items)
+    expect((await pageResearchItems(f.documents as never, scope, undone, "evidence")).items)
       .toMatchObject([{ value: { receipt: passage, labelIds: [] } }]);
   });
 
-  it("preserves main and reader answers and every uncited passage when opening chat findings", async () => {
+  it("preserves grounded main and reader answers without turning uncited reads into findings or highlights", async () => {
     const f = fixture(), scope = { userId: "user-1" }, first = receipt("a", "First holding"),
       reader = receipt("a", "Reader holding"), extra = receipt("a", "Additional passage"),
       second = receipt("b", "Second source"), uncited = receipt("c", "Uncited source"),
@@ -866,9 +879,10 @@ describe("Research v2 parts", () => {
     }
     expect(child).toMatchObject({ kind: "answer", answer: { claims: readerClaims }, evidence: [reader],
       question: { prompt: "Examine the first case" }, origin: { messageId: "message-1", subagentId: "reader-1" } });
-    expect(passages.flatMap(({ evidence }) => evidence)).toEqual([extra, uncited]);
-    expect(new Set(findings.flatMap(({ evidence }) => evidence.map(({ evidence_id }) => evidence_id))).size).toBe(5);
-    expect((await pageResearchItems(f.documents as never, scope, file, "passages")).total).toBe(5);
+    expect(passages).toEqual([]);
+    expect(new Set(findings.flatMap(({ evidence }) => evidence.map(({ evidence_id }) => evidence_id))).size).toBe(3);
+    expect((await pageResearchItems(f.documents as never, scope, file, "passages")).total).toBe(0);
+    expect((await pageResearchItems(f.documents as never, scope, file, "evidence")).total).toBe(5);
     const reopened = await resolveChatFindings(chats as never, f.documents as never, scope,
       { researchFileId: "doc-1", chatId: "chat-1" });
     expect(reopened.findings).toEqual(findings);
@@ -889,8 +903,71 @@ describe("Research v2 parts", () => {
       { value: { receipt: passage, labelIds: [highlightLabel] } },
     ]);
     const unclassified = await act(f, { type: "undo", changeId: classification.id });
-    expect((await pageResearchItems(f.documents as never, scope, unclassified, "passages")).items).toMatchObject([
+    expect((await pageResearchItems(f.documents as never, scope, unclassified, "evidence")).items).toMatchObject([
       { value: { receipt: passage, labelIds: [] } },
     ]);
   });
+
+  it("keeps automatic reads and grounded support distinct from deliberate highlights", async () => {
+    const f = fixture(), scope = { userId: "user-1" }, first = receipt("a"), second = receipt("b"),
+      application = createSourceWorkspaceApplication(f.documents as never, { chats: {} as never, tables: {} as never,
+        tabular: async () => { throw new Error("No table work in this test"); } }), turn = createLegalEvidenceTurnState();
+    [first, second].forEach((item) => registerLegalEvidence(turn, item));
+    let file = await application.observe(scope, "doc-1", legalEvidenceReceiptEvent(turn)!);
+    expect(Object.values(file.state.sources).filter((source) => source.collected)).toEqual([]);
+    expect((await pageResearchItems(f.documents as never, scope, file, "passages")).total).toBe(0);
+    expect((await pageResearchItems(f.documents as never, scope, file, "evidence")).total).toBe(2);
+    turn.answer = [{ text: "A grounded finding", evidence_ids: [first.evidence_id] }];
+    file = await application.observe(scope, "doc-1", legalEvidenceReceiptEvent(turn)!);
+    expect(Object.values(file.state.sources).filter((source) => source.collected).map(({ reference }) => reference.id)).toEqual(["a"]);
+    expect((await pageResearchItems(f.documents as never, scope, file, "passages")).total).toBe(0);
+    const source = Object.values(file.state.sources).find(({ reference }) => reference.id === "a")!;
+    file = await act(f, { type: "merge", evidence: [first], labels: { [first.evidence_id]: [] } });
+    const type = Object.values(file.state.labels).find(({ name }) => name === "Highlight")!;
+    expect(type).toMatchObject({ scope: "highlight", color: "#d6b85a", parentId: null });
+    expect(researchHighlightCount(file.state.sources[source.id])).toBe(1);
+    file = await application.observe(scope, "doc-1", legalEvidenceReceiptEvent(turn)!);
+    expect((await pageResearchItems(f.documents as never, scope, file, "passages")).items)
+      .toMatchObject([{ value: { receipt: first, labelIds: [type.id] } }]);
+    expect((await pageResearchItems(f.documents as never, scope, file, "evidence")).total).toBe(2);
+  });
+
+  it("changes one highlight type atomically without changing its evidence or source labels", async () => {
+    const f = fixture(), scope = { userId: "user-1" }, passage = receipt("a"), other = "33333333-3333-4333-8333-333333333333";
+    await act(f, { type: "label", id: sourceLabel, name: "Relevant", scope: "source" });
+    await act(f, { type: "label", id: highlightLabel, name: "Test", scope: "highlight", color: "#d6b85a" });
+    await act(f, { type: "label", id: other, name: "Application", scope: "highlight", color: "#86a5b6" });
+    const initial = await act(f, { type: "merge", evidence: [passage], labels: { [passage.evidence_id]: [highlightLabel] } }),
+      sourceId = Object.keys(initial.state.sources)[0];
+    await act(f, { type: "annotate", kind: "source", id: sourceId, labelIds: [sourceLabel] });
+    let file = await act(f, { type: "label-selection", target: "passages", evidenceIds: [passage.evidence_id],
+      assign: [other], mode: "add" });
+    const change = (await readResearchHistory(f.documents as never, scope, file)).at(-1)!;
+    expect((await pageResearchItems(f.documents as never, scope, file, "passages")).items)
+      .toMatchObject([{ value: { receipt: passage, labelIds: [other] } }]);
+    expect(file.state.sources[sourceId].labelIds).toEqual([sourceLabel]);
+    await expect(act(f, { type: "annotate", kind: "evidence", sourceId, id: passage.evidence_id,
+      labelIds: [highlightLabel, other] })).rejects.toMatchObject({ status: 400 });
+    file = await act(f, { type: "label", id: other, name: "Applied test", scope: "highlight", parentId: highlightLabel, color: "#93ab87" });
+    expect((await pageResearchItems(f.documents as never, scope, file, "passages")).items[0])
+      .toMatchObject({ value: { receipt: passage, labelIds: [other] } });
+    file = await act(f, { type: "undo", changeId: change.id });
+    expect((await pageResearchItems(f.documents as never, scope, file, "passages")).items[0])
+      .toMatchObject({ value: { receipt: passage, labelIds: [highlightLabel] } });
+    expect(file.state.labels[other]).toMatchObject({ name: "Applied test", parentId: highlightLabel, color: "#93ab87" });
+  });
+
+  it("keeps a citation resolvable after its highlight is removed and prevents a reread from resurrecting it", async () => {
+    const f = fixture(), scope = { userId: "user-1" }, passage = receipt("a"),
+      saved = await act(f, { type: "merge", evidence: [passage], labels: { [passage.evidence_id]: [] } }),
+      sourceId = Object.keys(saved.state.sources)[0],
+      application = createSourceWorkspaceApplication(f.documents as never, { chats: {} as never, tables: {} as never,
+        tabular: async () => { throw new Error("No table work in this test"); } });
+    const before = await application.citation(scope, "doc-1", sourceId, passage.evidence_id);
+    await act(f, { type: "remove", kind: "evidence", sourceId, id: passage.evidence_id });
+    const file = await act(f, { type: "merge", evidence: [passage] });
+    expect((await pageResearchItems(f.documents as never, scope, file, "passages")).items).toEqual([]);
+    expect(await application.citation(scope, "doc-1", sourceId, passage.evidence_id)).toEqual(before);
+  });
+
 });

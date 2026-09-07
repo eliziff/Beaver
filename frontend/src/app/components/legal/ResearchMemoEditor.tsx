@@ -6,21 +6,19 @@ import Link from "@tiptap/extension-link";
 import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "@tiptap/markdown";
 import { Bold, Italic, Underline, List, ListOrdered, Heading2, Quote, Table2, Undo2, Redo2 } from "lucide-react";
-import { CitationPill } from "@/app/components/assistant/message/MarkdownContent";
 import { citationPillParts } from "@/app/components/assistant/message/CitationSources";
 import { ActionMenu } from "@/app/components/ui/action-menu";
 import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
-import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { RESEARCH_SOURCE_DRAG, RESEARCH_SOURCE_REFERENCE_DRAG } from "./ResearchLabelPicker";
 import { citationMarkdown, memoCitation, RESEARCH_PASSAGE_DRAG, RESEARCH_PASSAGE_REFERENCE_DRAG, type MemoSourceReference } from "./researchMemo";
 import { getResearchCitation, getResearchItems } from "@/app/lib/api/researchFiles";
-import type { ResearchEvidence, ResearchFile } from "@/app/lib/researchFiles";
+import { researchHighlightCount, type ResearchEvidence, type ResearchFile } from "@/app/lib/researchFiles";
 
 function CitationView({ node, extension }: NodeViewProps) {
   const citation = memoCitation(node.attrs.href, node.attrs.label);
-  const target = safeAssistantUrl(new URLSearchParams(String(node.attrs.href).split("?")[1]).get("external_url"), { relative: false }) ?? node.attrs.href;
   return <NodeViewWrapper as="span" className="inline" contentEditable={false}>
-    {citation ? <CitationPill citation={citation} onClick={() => extension.options.onOpen(target)} /> : node.attrs.label}
+    {citation ? <a href={node.attrs.href} data-memo-citation className="text-inherit underline decoration-gray-400 underline-offset-2 hover:decoration-gray-700"
+      onClick={(event) => { event.preventDefault(); extension.options.onOpen(node.attrs.href); }}>{node.attrs.label}</a> : node.attrs.label}
   </NodeViewWrapper>;
 }
 
@@ -132,7 +130,7 @@ export default function ResearchMemoEditor({ file, value, onChange, onOpenCitati
     return () => { live = false; };
   }, [citing?.sourceId, file.document.id, onCitationError]);
   if (!editor) return null;
-  const sources = Object.values(file.state.sources);
+  const sources = Object.values(file.state.sources).filter((source) => source.collected);
   const sourceLabel = (id: string) => { const reference = file.state.sources[id]?.reference;
     return reference?.title || reference?.citation || id; };
   const cite = async (sourceId: string, evidenceId?: string) => {
@@ -153,7 +151,7 @@ export default function ResearchMemoEditor({ file, value, onChange, onOpenCitati
         ? [{ value: "", label: "Whole source" }, ...passages.map((item) => ({ value: item.receipt.evidence_id,
             label: item.receipt.locator.label, description: item.receipt.span_text ?? undefined }))]
         : sources.map((source) => ({ value: source.id, label: sourceLabel(source.id),
-            description: source.passages?.count ? `${source.passages.count} saved` : undefined }))}
+            description: researchHighlightCount(source) ? `${researchHighlightCount(source)} highlights` : undefined }))}
       onChange={(id) => { if (id === null) return;
         if (citing?.sourceId) void cite(citing.sourceId, id || undefined);
         else setCiting({ sourceId: id }); }} />
