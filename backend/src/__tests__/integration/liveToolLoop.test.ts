@@ -320,7 +320,7 @@ describe.skipIf(!LIVE)("live tool loop (account-free, real model)", () => {
         current_turn: { kind: "message", content:
           "The selected text is the exact authority span for the focused citation, including its " +
           `parallel citation. Apply that selected span without asking me for offsets. Then find ${AUTHORITY_PDF} ` +
-          "in the Library and attach it to that authority as its English source. Do not merely explain." },
+          "in the Library and attach it to that authority as its English source." },
       });
       expect(streamed.status).toBe(200);
       const events = sseEvents(streamed.text), calls = toolCalls(events);

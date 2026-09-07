@@ -152,11 +152,14 @@ export function assistantReadEvidenceActivityLabel(
   sourceName?: string,
   args: Record<string, unknown> = {},
 ) {
-  const passages = evidence.filter(({ scope, span_text }) => scope === "passage" && span_text);
+  const read = evidence.filter(({ scope, span_text }) => scope === "passage" && span_text);
+  // "document" is the receipt's no-locator fallback, not a place in the document:
+  // naming it reads as a structure the read never used ("document through s 4(2)(b)").
+  const passages = read.filter(({ locator }) => locator.kind !== "document");
   const first = passages[0];
   const last = passages.at(-1);
-  if (!first || !last) return null;
-  const title = sourceName ?? first.name ?? first.citation;
+  const title = sourceName ?? read[0]?.name ?? read[0]?.citation;
+  if (!first || !last) return title ? `Reading ${title}` : null;
   const pattern = activityText(args.pattern, 80);
   if (pattern) return `Searching ${title} for “${pattern}”`;
   const labels = [...new Set(passages.map(({ locator }) =>

@@ -1009,6 +1009,11 @@ async function runCodingShapeCall(
         );
       }
       const block = lookup.block;
+      // A heuristic anchor is inferred from wording, not declared by the file, so in
+      // ordinary prose it is usually quoted legislation with a runaway extent.
+      const inferredSection = block.origin === "heuristic"
+        ? `\n\n[Section '${block.label}' was inferred from the wording of ${meta.filename}, not declared by it: it may be quoted legislation rather than a section of this document, and its extent may be wrong.]`
+        : "";
       if (references !== "none") {
         const scope = oneHopLegalScope(
           nativeDocument,
@@ -1041,9 +1046,9 @@ async function runCodingShapeCall(
         }
         return finish(
           candidates,
-          (_kept, truncated) => truncated
+          (_kept, truncated) => (truncated
             ? "\n(Reference read stopped at the tool-result limit; narrow the direction or read a returned section recipe.)"
-            : "",
+            : "") + inferredSection,
         );
       }
       const offset = args.offset as number | undefined;
@@ -1067,9 +1072,9 @@ async function runCodingShapeCall(
           const firstShown = candidates[0]?.lineNumber ?? startLine;
           const lastShown = kept.at(-1)?.lineNumber ?? firstShown;
           const nextOffset = truncated ? lastShown + 1 : window.nextOffset;
-          return nextOffset !== null
+          return (nextOffset !== null
             ? `\n\n[TRUNCATED: returned section lines ${firstShown}-${lastShown} of ${startLine}-${endLine}; continue with Read(file_path="${requested}", section="${block.label}", offset=${nextOffset}).${truncated ? " Tool-result limit reached." : ""}]`
-            : "";
+            : "") + inferredSection;
         },
       );
     }
