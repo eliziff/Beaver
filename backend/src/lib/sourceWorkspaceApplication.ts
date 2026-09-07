@@ -21,7 +21,7 @@ import { priorLegalEvidenceReceipts, priorLegalResearchQueryReceipts,
   type LegalEvidenceReceipt, type LegalResearchQueryReceipt } from "./chat/legalEvidence";
 import type { AssistantEvent, LegalEvidenceReceiptEvent } from "./chat/assistantEvents";
 import { parseResourceReference } from "./resourceReferences";
-import { resolveResearchArrangement } from "./tabular/researchArrangement";
+import { resolveResearchArrangement, type ResearchArrangement } from "./tabular/researchArrangement";
 import { researchImportCatalog, defaultResearchImport, researchImportPlan,
   type ResearchImportInput, type ResearchImportDesign } from "./tabular/researchImport";
 import { researchLabelPlan, type ResearchLabelDesign } from "./researchLabelDesign";
@@ -195,113 +195,128 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     return input.chatId || input.tableId ? bind(scope, file.document.id, input, actor) : file;
   }
 
-  function resolver(scope: Scope, file: ResearchFile) {
-    const chatCache = new Map<string, ReturnType<typeof resolveChatFindings>>(),
-      tableCache = new Map<string, ReturnType<TabularRepository["detail"]>>(),
-      workspaceCache = new Map<string, ReturnType<typeof required>>();
-    const checked = new Set<string>();
-    const authorize = async (evidence: LegalEvidenceReceipt[]) => {
-      for (const receipt of evidence) {
-        const resource = legalEvidenceResourceReference(receipt), parsed = resource ? parseResourceReference(resource) : null;
-        if (parsed?.kind !== "document" || checked.has(resource!)) continue;
-        if (!await documents.projectionSource(scope, parsed.documentId, parsed.versionId))
+  /** One operation owns raw reads and indexes; recursive finding promises are never cached. */
+  async function readFindings(scope: Scope, id: string) {
+    const once = <K, T>(load: (key: K) => Promise<T>) => {
+      const values = new Map<K, Promise<T>>();
+      return (key: K) => {
+        if (!values.has(key)) values.set(key, load(key));
+        return values.get(key)!;
+      };
+    };
+    const cellKey = (row: string, column: number) => JSON.stringify([row, column]);
+    const tableDetail = once(async (id: string) => {
+      const detail = await dependencies.tables.detail(scope, id);
+      if (!detail) return null;
+      const arrangement = detail.review.scope_config?.arrangement,
+        rows = new Map<string, ResearchArrangement["rows"]>(), mappings = new Map<string, ResearchArrangement["cells"]>();
+      for (const row of arrangement?.rows ?? []) rows.set(row.id, [...(rows.get(row.id) ?? []), row]);
+      for (const cell of arrangement?.cells ?? []) {
+        const key = cellKey(cell.rowId, cell.columnIndex); mappings.set(key, [...(mappings.get(key) ?? []), cell]);
+      }
+      return { ...detail, rows, mappings,
+        columns: new Map(detail.review.columns_config.map((column) => [column.index, column])),
+        byCell: new Map(detail.cells.map((cell) => [cellKey(cell.document_id, cell.column_index), cell])) };
+    });
+    const transcript = once(async (id: string) => {
+      const [chat, rows] = await Promise.all([dependencies.chats.get(scope, id), dependencies.chats.transcript(scope, id)]);
+      return chat ? rows ?? fail(404, "Chat not found") : null;
+    });
+    const open: (id: string) => Promise<ReturnType<typeof reader>> = once(async (id: string) => reader(await required(scope, id)));
+    const available = once(async (resource: string | null) => {
+      const parsed = resource ? parseResourceReference(resource) : null;
+      return parsed?.kind !== "document" || !!await documents.projectionSource(scope, parsed.documentId, parsed.versionId);
+    });
+    function reader(file: ResearchFile) {
+      const sources = new Map(Object.values(file.state.sources).map((source) => [researchSourceResource(source.reference), source])),
+        chatIds = new Set(file.state.chats), tableIds = new Set(file.state.tables);
+      const chatFindings = once(async (id: string) => {
+        if (!chatIds.has(id)) return fail(404, "Chat is outside this workspace");
+        const rows = await transcript(id);
+        if (!rows) return null;
+        const items = resolveChatFindings(file, id, rows);
+        return { items, byAnswer: new Map(items.map((item) => [JSON.stringify([item.question.id, item.resource]), item])) };
+      });
+      async function authorize(item: ResearchFinding | null): Promise<ResearchFinding | null> {
+        if (!item) return null;
+        for (const receipt of item.evidence) if (!await available(legalEvidenceResourceReference(receipt)))
           return fail(404, "An original supporting document is unavailable");
-        checked.add(resource!);
+        const source = file.state.sources[item.sourceId];
+        if (source?.reference.kind === "document" && !await available(researchSourceResource(source.reference)))
+          return fail(404, "Finding source is unavailable");
+        return item;
       }
-    };
-    const chatFindings = (id: string) => {
-      if (!chatCache.has(id)) chatCache.set(id, resolveChatFindings(dependencies.chats, documents, scope,
-        { researchFileId: file.document.id, chatId: id }));
-      return chatCache.get(id)!;
-    };
-    const tableDetail = (id: string) => {
-      if (!tableCache.has(id)) tableCache.set(id, dependencies.tables.detail(scope, id));
-      return tableCache.get(id)!;
-    };
-    async function resolve(reference: ResearchFindingReference, trail = new Set<string>()): Promise<ResearchFinding | null> {
-      const ref = researchFindingReferenceSchema.parse(reference), key = JSON.stringify(ref);
-      if (trail.has(key) || trail.size > 100) return fail(409, "The table arrangement contains a circular finding reference");
-      if (ref.kind === "answer") {
-        if (!file.state.chats?.includes(ref.chatId)) return fail(404, "Chat is outside this workspace");
-        const finding = (await chatFindings(ref.chatId)).findings.find((finding) =>
-          finding.question.id === ref.answerId && finding.resource === ref.resource);
-        if (finding) await authorize(finding.evidence);
-        const source = finding && file.state.sources[finding.sourceId];
-        if (source?.reference.kind === "document" && !await documents.projectionSource(scope,
-          source.reference.id, source.reference.versionId)) return fail(404, "Finding source is unavailable");
-        return finding ? selectFindingClaims(finding, ref) : null;
+      const arrange = (input: Omit<Parameters<typeof resolveResearchArrangement>[0], "documents" | "scope" | "file">) =>
+        resolveResearchArrangement({ ...input, documents, scope, file, resolveFinding: input.resolveFinding ?? resolve });
+      async function resolve(reference: ResearchFindingReference, trail = new Set<string>()): Promise<ResearchFinding | null> {
+        const ref = researchFindingReferenceSchema.parse(reference), key = JSON.stringify(ref);
+        if (trail.has(key) || trail.size > 100) return fail(409, "The table arrangement contains a circular finding reference");
+        if (ref.kind === "answer") {
+          const chat = await chatFindings(ref.chatId) ?? fail(404, "Chat not found"),
+            item = await authorize(chat.byAnswer.get(JSON.stringify([ref.answerId, ref.resource])) ?? null);
+          return item ? selectFindingClaims(item, ref) : null;
+        }
+        if (!tableIds.has(ref.reviewId)) return fail(404, "Table is outside this workspace");
+        const detail = await tableDetail(ref.reviewId), column = detail?.columns.get(ref.columnIndex);
+        if (!detail || !column) return null;
+        let cell = detail.byCell.get(cellKey(ref.rowId, ref.columnIndex));
+        const config = detail.review.scope_config;
+        const mappings = detail.mappings.get(cellKey(ref.rowId, ref.columnIndex));
+        if (!config?.frozen && mappings) {
+          const owner = await open(config?.research_file_id ?? file.document.id),
+            resolved = await owner.arrange({ columns: detail.review.columns_config,
+              arrangement: { rows: detail.rows.get(ref.rowId) ?? [], cells: mappings },
+              storedCells: cell ? [cell] : [], resolveFinding: (next) => owner.resolve(next, new Set([...trail, key])) });
+          cell = resolved.cells.find((cell) => cell.document_id === ref.rowId && cell.column_index === ref.columnIndex);
+        }
+        if (cell?.status !== "done" || !cell.content) return null;
+        const source = sources.get(cell.content.resource);
+        if (!source) return null;
+        const { evidence, resource, origin: _origin, ...answer } = cell.content;
+        return authorize({ reference: ref, kind: "result", sourceId: source.id, resource,
+          question: { id: `${ref.reviewId}:${column.index}`, title: column.name, prompt: column.prompt,
+            format: column.format, tags: column.tags }, answer, evidence,
+          origin: { reviewId: ref.reviewId, rowId: ref.rowId, columnIndex: ref.columnIndex } });
       }
-      if (!file.state.tables?.includes(ref.reviewId)) return fail(404, "Table is outside this workspace");
-      const detail = await tableDetail(ref.reviewId), column = detail?.review.columns_config.find(({ index }) => index === ref.columnIndex);
-      if (!detail || !column) return null;
-      let cell = detail.cells.find((cell) => cell.document_id === ref.rowId && cell.column_index === ref.columnIndex);
-      const config = detail.review.scope_config;
-      if (!config?.frozen && config?.arrangement?.cells.some((cell) => cell.rowId === ref.rowId && cell.columnIndex === ref.columnIndex)) {
-        const ownerId = config.research_file_id ?? file.document.id;
-        if (!workspaceCache.has(ownerId)) workspaceCache.set(ownerId, ownerId === file.document.id ? Promise.resolve(file) : required(scope, ownerId));
-        const owningFile = await workspaceCache.get(ownerId)!,
-          resolveOriginal = ownerId === file.document.id ? resolve : resolver(scope, owningFile).resolve,
-          resolved = await resolveResearchArrangement({ documents, scope, file: owningFile, columns: detail.review.columns_config,
-          arrangement: { rows: config.arrangement.rows.filter(({ id }) => id === ref.rowId),
-            cells: config.arrangement.cells.filter((cell) => cell.rowId === ref.rowId && cell.columnIndex === ref.columnIndex) },
-          storedCells: cell ? [cell] : [], resolveFinding: (next) => resolveOriginal(next, new Set([...trail, key])) });
-        cell = resolved.cells.find((cell) => cell.document_id === ref.rowId && cell.column_index === ref.columnIndex);
+      async function list(input: FindingsInput): Promise<FindingsPage> {
+        const found: ResearchFinding[] = [],
+          inScope = researchResultFilter(input.subjects ? { subjects: input.subjects, restricted: true } : undefined),
+          include = (value: ResearchFinding | null) => { if (value && inScope(value) &&
+            (!input.sourceIds || input.sourceIds.includes(value.sourceId))) found.push(value); };
+        if (input.reference) {
+          if (input.references && !input.references.some((ref) => {
+            const requested = researchFindingReferenceSchema.parse(input.reference), allowed = researchFindingReferenceSchema.parse(ref);
+            return requested.kind === "cell" ? JSON.stringify(requested) === JSON.stringify(allowed)
+              : allowed.kind === "answer" && requested.chatId === allowed.chatId && requested.answerId === allowed.answerId &&
+                requested.resource === allowed.resource && (!allowed.claimIndices || !!requested.claimIndices &&
+                  requested.claimIndices.every((index) => allowed.claimIndices!.includes(index)));
+          })) return fail(400, "This finding is outside the selected results");
+          include(await resolve(input.reference));
+        } else if (input.references) {
+          for (const ref of input.references) include(await resolve(ref));
+        } else {
+          for (const chatId of input.chatId ? [input.chatId] : chatIds) {
+            for (const item of (await chatFindings(chatId))?.items ?? [])
+              if (!input.messageIds || input.messageIds.includes(item.origin.messageId!)) include(await authorize(item));
+          }
+          if (!input.chatId) for (const tableId of tableIds) {
+            const detail = await tableDetail(tableId); if (!detail) continue;
+            for (const rowId of detail.review.document_ids) for (const { index } of detail.review.columns_config)
+              include(await resolve({ kind: "cell", reviewId: tableId, rowId, columnIndex: index }));
+          }
+        }
+        const is_running = (await Promise.all([...tableIds].map(async (id) => {
+          const detail = await tableDetail(id);
+          return detail && await dependencies.isTableRunning?.(id, detail.review.user_id) || false;
+        }))).some(Boolean);
+        return { items: found.slice(input.offset, input.offset + input.limit), total: found.length, is_running,
+          next_offset: input.offset + input.limit < found.length ? input.offset + input.limit : null };
       }
-      if (cell?.status !== "done" || !cell.content) return null;
-      const content = cell.content, source = Object.values(file.state.sources).find(({ reference }) =>
-        researchSourceResource(reference) === content.resource);
-      if (!source) return null;
-      await authorize(content.evidence);
-      if (source.reference.kind === "document" && !await documents.projectionSource(scope, source.reference.id,
-        source.reference.versionId)) return fail(404, "Finding source is unavailable");
-      const { evidence, resource, origin: _origin, ...answer } = content;
-      return { reference: ref, kind: "result", sourceId: source.id, resource,
-        question: { id: `${ref.reviewId}:${column.index}`, title: column.name, prompt: column.prompt,
-          format: column.format, tags: column.tags }, answer, evidence,
-        origin: { reviewId: ref.reviewId, rowId: ref.rowId, columnIndex: ref.columnIndex } };
+      return { file, resolve, arrange, list };
     }
-    return { resolve, chatFindings, tableDetail };
+    return open(id);
   }
-  async function finding(scope: Scope, id: string, reference: ResearchFindingReference): Promise<ResearchFinding | null> {
-    return resolver(scope, await required(scope, id)).resolve(reference);
-  }
-  async function findings(scope: Scope, id: string, input: FindingsInput): Promise<FindingsPage> {
-    const file = await required(scope, id), read = resolver(scope, file), found: ResearchFinding[] = [],
-      inScope = researchResultFilter(input.subjects ? { subjects: input.subjects, restricted: true } : undefined),
-      include = (value: ResearchFinding | null) => { if (value && inScope(value) &&
-        (!input.sourceIds || input.sourceIds.includes(value.sourceId))) found.push(value); };
-    if (input.reference) {
-      if (input.references && !input.references.some((ref) => {
-        const requested = researchFindingReferenceSchema.parse(input.reference), allowed = researchFindingReferenceSchema.parse(ref);
-        return requested.kind === "cell" ? JSON.stringify(requested) === JSON.stringify(allowed)
-          : allowed.kind === "answer" && requested.chatId === allowed.chatId && requested.answerId === allowed.answerId &&
-            requested.resource === allowed.resource && (!allowed.claimIndices || !!requested.claimIndices &&
-              requested.claimIndices.every((index) => allowed.claimIndices!.includes(index)));
-      }))
-        return fail(400, "This finding is outside the selected results");
-      include(await read.resolve(input.reference));
-    } else if (input.references) {
-      for (const ref of input.references) include(await read.resolve(ref));
-    } else {
-      for (const chatId of input.chatId ? [input.chatId] : file.state.chats ?? []) {
-        if (!file.state.chats?.includes(chatId)) return fail(404, "Chat is outside this workspace");
-        if (!await dependencies.chats.get(scope, chatId)) continue;
-        for (const item of (await read.chatFindings(chatId)).findings)
-          if (!input.messageIds || input.messageIds.includes(item.origin.messageId)) include(await read.resolve(item.reference));
-      }
-      if (!input.chatId) for (const tableId of file.state.tables ?? []) {
-        const detail = await read.tableDetail(tableId); if (!detail) continue;
-        for (const rowId of detail.review.document_ids) for (const { index } of detail.review.columns_config)
-          include(await read.resolve({ kind: "cell", reviewId: tableId, rowId, columnIndex: index }));
-      }
-    }
-    const is_running = (await Promise.all((file.state.tables ?? []).map(async (id) => {
-      const detail = await read.tableDetail(id);
-      return detail && await dependencies.isTableRunning?.(id, detail.review.user_id) || false;
-    }))).some(Boolean);
-    return { items: found.slice(input.offset, input.offset + input.limit), total: found.length, is_running,
-      next_offset: input.offset + input.limit < found.length ? input.offset + input.limit : null };
-  }
+  const findings = async (scope: Scope, id: string, input: FindingsInput) => (await readFindings(scope, id)).list(input);
   async function views(scope: Scope, id: string) {
     const file = await required(scope, id), chats = [], tables = [];
     for (const chatId of file.state.chats ?? []) { const chat = await dependencies.chats.get(scope, chatId);
@@ -313,18 +328,19 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     return { chats, tables };
   }
   async function importCatalog(scope: Scope, id: string, input: Omit<TableInput, "design">) {
-    const file = await required(scope, id);
+    const read = await readFindings(scope, id), { file } = read;
     const refs = input.findingRefs ?? input.selection?.findingRefs;
     const selected = refs
-      ? await Promise.all(refs.map(async (ref) => await finding(scope, id, ref) ?? fail(404, "Finding not found")))
-      : (await findings(scope, id, { chatId: input.chatId, messageIds: input.messageIds,
+      ? await Promise.all(refs.map(async (ref) => await read.resolve(ref) ?? fail(404, "Finding not found")))
+      : (await read.list({ chatId: input.chatId, messageIds: input.messageIds,
         offset: 0, limit: 100_000 })).items;
     if (input.chatId && !selected.length) return fail(400, "This chat has no grounded findings to convert");
     if (input.messageIds?.some((messageId) => !selected.some(({ origin }) => origin.messageId === messageId)))
       return fail(400, "A selected message has no grounded findings");
     const selectedSources = input.chatId || refs ? new Set(selected.map(({ sourceId }) => sourceId)) : null;
-    const resolved = await selection(scope, id, input.selection ?? { target: "sources",
-      ...(selectedSources ? { sourceIds: [...selectedSources] } : {}) });
+    const resolved = await resolveResearchSelection(documents, scope, { researchFileId: id,
+      ...researchSelectionSchema.parse(input.selection ?? { target: "sources",
+        ...(selectedSources ? { sourceIds: [...selectedSources] } : {}) }) }, file);
     const subjects = resolved.subjects.filter(({ sourceId }) => !selectedSources || selectedSources.has(sourceId));
     const parts = new Map<string, Record<string, ResearchEvidence>>();
     await visitResearchEvidenceParts(documents, scope, file, subjects.map(({ sourceId }) => sourceId),
@@ -388,12 +404,12 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
   }
   async function saveFindings(scope: Scope, id: string, input: { references: ResearchFindingReference[];
     typeId?: string; versionId: string; workingRevision: number }, actor?: Operation) {
-    const file = await required(scope, id);
+    const read = await readFindings(scope, id), { file } = read;
     if (file.versionId !== input.versionId || file.workingRevision !== input.workingRevision)
       return conflict("The research set changed. Reload before saving these highlights.");
     if (input.typeId && file.state.labels[input.typeId]?.scope !== "highlight")
       return fail(400, "Choose a highlight type from this research set");
-    const read = resolver(scope, file), evidence = new Map<string, LegalEvidenceReceipt>();
+    const evidence = new Map<string, LegalEvidenceReceipt>();
     for (const reference of input.references) {
       const item = await read.resolve(reference) ?? fail(404, "Finding not found"),
         support = new Set(item.answer.claims.flatMap(({ evidence_ids }) => evidence_ids));
@@ -458,7 +474,7 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
   }
 
   return { get, create, update, query, collect, observe, revision, items, citation, bind, ensure, selection,
-    context, finding, findings, views, table, previewTable, previewLabels, applyLabels, saveFindings, columnLabels };
+    context, readFindings, findings, views, table, previewTable, previewLabels, applyLabels, saveFindings, columnLabels };
 }
 
 export type SourceWorkspaceApplication = ReturnType<typeof createSourceWorkspaceApplication>;
