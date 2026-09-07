@@ -1,5 +1,6 @@
 import { createCatalogCache } from "./catalogCache";
 import { acquireCodexAppServer } from "./llm/codexAppServer";
+import { jsonRecord, trimmedText } from "./value";
 
 type CodexCatalogModel = {
   slug: string;
@@ -18,69 +19,41 @@ const INTERNAL_CODEX_MODELS = new Set([
 ]);
 
 export function normalizeCodexCatalog(value: unknown): CodexModelCatalog {
-  const rawModels = Array.isArray(value) ? value : [];
-  const models: CodexCatalogModel[] = [];
-  const slugIndexes = new Map<string, number>();
-  const displayIndexes = new Map<string, number>();
-  for (const raw of rawModels) {
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
-    const row = raw as Record<string, unknown>;
-    const slug =
-      typeof row.model === "string"
-        ? row.model.trim().replace(/^codex:/i, "").toLowerCase()
-        : "";
-    if (!slug || INTERNAL_CODEX_MODELS.has(slug) || slugIndexes.has(slug)) continue;
-    const levels = Array.isArray(row.supportedReasoningEfforts)
-      ? row.supportedReasoningEfforts
-          .map((level) => {
-            if (typeof level === "string") return { effort: level };
-            if (!level || typeof level !== "object" || Array.isArray(level)) {
-              return null;
-            }
-            const item = level as Record<string, unknown>;
-            return typeof item.reasoningEffort === "string" &&
-              item.reasoningEffort.trim()
-              ? {
-                  effort: item.reasoningEffort.trim(),
-                }
-              : null;
-          })
-          .filter((level): level is { effort: string } => !!level)
-          .filter(
-            (level, index, all) =>
-              all.findIndex(
-                (item) =>
-                  item.effort.toLowerCase() === level.effort.toLowerCase(),
-              ) === index,
-          )
-      : [];
+  const modelsByDisplay = new Map<string, CodexCatalogModel>();
+  const slugs = new Set<string>();
+  for (const raw of Array.isArray(value) ? value : []) {
+    const row = jsonRecord(raw);
+    if (!row) continue;
+    const slug = trimmedText(row.model).replace(/^codex:/i, "").toLowerCase();
+    if (!slug || INTERNAL_CODEX_MODELS.has(slug) || slugs.has(slug)) continue;
+    const levels = new Map<string, { effort: string }>();
+    for (const level of Array.isArray(row.supportedReasoningEfforts) ? row.supportedReasoningEfforts : []) {
+      // String-form efforts are verbatim; object-form efforts are trimmed.
+      const effort = typeof level === "string" ? level
+        : trimmedText(jsonRecord(level)?.reasoningEffort) || null;
+      if (effort === null) continue;
+      const key = effort.toLowerCase();
+      if (!levels.has(key)) levels.set(key, { effort });
+    }
     const model: CodexCatalogModel = {
       slug,
-      displayName:
-        typeof row.displayName === "string" && row.displayName.trim()
-          ? row.displayName.trim()
-          : slug,
+      displayName: trimmedText(row.displayName) || slug,
       ...(typeof row.defaultReasoningEffort === "string"
         ? { defaultReasoningLevel: row.defaultReasoningEffort }
         : {}),
-      supportedReasoningLevels: levels,
+      supportedReasoningLevels: [...levels.values()],
     };
     const displayKey = model.displayName.toLowerCase().replace(/[^a-z0-9]+/g, "");
-    const displayIndex = displayIndexes.get(displayKey);
-    if (displayIndex !== undefined) {
-      const current = models[displayIndex];
-      if (!model.slug.startsWith("gpt-") || current.slug.startsWith("gpt-")) continue;
-      slugIndexes.delete(current.slug);
-      models[displayIndex] = model;
-      slugIndexes.set(slug, displayIndex);
-      continue;
+    const current = modelsByDisplay.get(displayKey);
+    if (current) {
+      if (!slug.startsWith("gpt-") || current.slug.startsWith("gpt-")) continue;
+      slugs.delete(current.slug);
     }
-    const nextIndex = models.length;
-    models.push(model);
-    slugIndexes.set(slug, nextIndex);
-    displayIndexes.set(displayKey, nextIndex);
+    // Replacing a value retains the first display occurrence's catalogue position.
+    modelsByDisplay.set(displayKey, model);
+    slugs.add(slug);
   }
-  return { models, source: "live" };
+  return { models: [...modelsByDisplay.values()], source: "live" };
 }
 
 async function runCatalog(): Promise<CodexModelCatalog> {
