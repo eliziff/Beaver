@@ -27,7 +27,7 @@ import { applyTableOfAuthorities, type DocxAuthorityMark } from "./docxOperation
 import type { NativePdfPassageGeometry, NativePdfPassageTarget } from "./structureNative";
 import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
   WorkProductInput } from "./workProduct";
-import { deriveAuthorityProcedure, tabLabel } from "mike/shared/authorities-order.mjs";
+import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "mike/shared/authorities-order.mjs";
 
 export type AuthoritiesOutputRole = "table" | "book" | `book-${number}` |
   "annotated-document";
@@ -207,18 +207,9 @@ const reproducedInBook = (draft: AuthoritiesDraft, authority: AuthorityIdentity)
     (draft.settings.allowIncomplete || draft.settings.missingSourcePolicy === "placeholder"));
 
 const authorityProcedure = (draft: AuthoritiesDraft, purpose: "table" | "book") =>
-  deriveAuthorityProcedure({
-    authorities: draft.authorityOrder.map((id) => {
-      const authority = draft.authorities[id];
-      return { id, kind: authority.kind, citation: authority.citation,
-        sortLabel: authority.displayName || authority.name || authority.citation,
-        excluded: authority.excluded, reproduced: reproducedInBook(draft, authority) };
-    }),
-    units: draft.units, occurrences: draft.occurrences,
-    manual: draft.import.kind === "manual", purpose,
-    tableOrder: draft.settings.tableOrder, tabStyle: draft.settings.tabStyle,
-    tabStart: draft.settings.tabStart, tabPrefix: draft.settings.tabPrefix, tabLabels: draft.settings.tabLabels,
-  });
+  deriveAuthorityProcedure(authorityProcedureInput(draft, {
+    purpose, reproduced: (authority) => reproducedInBook(draft, authority),
+  }));
 
 function authoritySourceUrl(authority: AuthorityIdentity) {
   const value = authority.source.kind === "attached"
@@ -357,10 +348,12 @@ function fit(font: PdfFont, value: string, size: number, width: number) {
   return `${text}…`;
 }
 
-const pdfText = (value: string) => value.normalize("NFKC")
+const pdfNormalized = (value: string) => value.normalize("NFKC")
   .replace(/[\u2018\u2019]/gu, "'").replace(/[\u201c\u201d]/gu, '"')
-  .replace(/[\u2013\u2014]/gu, "-").replace(/\u2026/gu, "...")
-  .replace(/[^\x09\x0a\x0d\x20-\x7e\xa0-\xff]/gu, "?");
+  .replace(/[\u2013\u2014]/gu, "-").replace(/\u2026/gu, "...");
+
+const pdfText = (value: string) =>
+  pdfNormalized(value).replace(/[^\x09\x0a\x0d\x20-\x7e\xa0-\xff]/gu, "?");
 
 function wrapped(font: PdfFont, value: string, size: number, width: number) {
   const lines: string[] = [];
@@ -590,9 +583,7 @@ function drawFederalForm66Cover(page: PdfPage, regular: PdfFont, bold: PdfFont,
   color: PdfColor) {
   const margin = 99.21, { width, height } = page.getSize();
   const clean = (value: string) => {
-    const text = value.normalize("NFKC").replace(/[\u2018\u2019]/gu, "'")
-      .replace(/[\u201c\u201d]/gu, '"').replace(/[\u2013\u2014]/gu, "-")
-      .replace(/\u2026/gu, "...");
+    const text = pdfNormalized(value);
     if (/[^\x09\x0a\x0d\x20-\x7e\xa0-\xff]/u.test(text)) throw new Error(
       "The Federal cover contains characters unavailable in the prescribed court fonts.");
     return text;
@@ -1210,9 +1201,7 @@ function addDatabaseReference(pdf: PdfModule, page: PdfPage, font: PdfFont,
 
 function addOcrText(page: PdfPage, font: PdfFont, value?: string) {
   if (!value?.trim()) return;
-  const text = value.normalize("NFKC")
-    .replace(/[\u2018\u2019]/gu, "'").replace(/[\u201c\u201d]/gu, '"')
-    .replace(/[\u2013\u2014]/gu, "-").replace(/\u2026/gu, "...")
+  const text = pdfNormalized(value)
     .replace(/[^\x20-\x7e\u00a0-\u00ff\r\n]/gu, "?").slice(0, 60_000);
   for (const [index, chunk] of (text.match(/[\s\S]{1,1800}/gu) ?? []).entries()) {
     page.drawText(chunk, { x: 1, y: 1 + index % 4, size: 1, lineHeight: 1,
