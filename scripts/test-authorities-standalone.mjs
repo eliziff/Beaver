@@ -161,12 +161,12 @@ try {
   await noOverflow(); await screenshot("05-source-slots");
   await page.setViewportSize({ width: 390, height: 844 }); await noOverflow(); await screenshot("06-source-slots-mobile");
   await page.setViewportSize({ width: 1280, height: 1000 });
-  await page.getByRole("button", { name: "Done — review highlights", exact: true }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   const ocr = page.getByRole("dialog", { name: "Scanned source PDFs", exact: true });
   await expect(ocr).toBeVisible({ timeout: 30_000 });
   await ocr.getByRole("radio", { name: /Keep the original pages/ }).check();
   await screenshot("07-ocr-choice");
-  await ocr.getByRole("button", { name: "Continue to highlights", exact: true }).click();
+  await ocr.getByRole("button", { name: "Done", exact: true }).click();
   await idle();
   await expect(page.getByRole("heading", { name: "Build outputs", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Done — build book", exact: true }).click(); await idle();

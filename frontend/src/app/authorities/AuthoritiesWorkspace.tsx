@@ -690,7 +690,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     </details>}
     <Button disabled={busy} onClick={() => markingIssues
       ? act({ type: "set-stage", stage: "highlights" }) : finishSources()}>
-      {markingIssues ? "Continue to highlights" : "Done — review highlights"}<ChevronRight /></Button>
+      Done<ChevronRight /></Button>
   </div>;
   const authorityPanelProps = { authorities, tabs: authorityTabs, busy, sourceIssues,
     onAction: act, onEditIdentity: setEditingAuthority,
