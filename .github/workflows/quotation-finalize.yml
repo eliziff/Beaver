@@ -1,0 +1,70 @@
+name: Publish tested quotation integration
+on:
+  push:
+    branches: [fix/quotation-differences-review]
+    paths: [.github/workflows/quotation-finalize.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Reconstruct the exact integration already validated in run 34075706438
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git init .
+          git config user.name 'Eli Ziff'
+          git config user.email 'eliasziff@gmail.com'
+          git remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          git fetch --depth=100 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+          python - <<'PY'
+          import subprocess
+          files = subprocess.check_output(['git','diff','--name-only','d749d1ccb0fcf6e883ff7c881fc2a75b2dd9d3fe','HEAD'],text=True).splitlines()
+          allowed = {'.github/workflows/quotation-finalize.yml', 'scripts/quotation-review.part1', 'scripts/quotation-review.part2', 'scripts/quotation-review.part3'}
+          assert set(files) <= allowed, f'Concurrent changes require review: {files}'
+          PY
+          git fetch --depth=100 origin 8748904b1117c04da8697f0323664b7f66f3cb6c
+          git merge --no-commit --no-ff FETCH_HEAD || test -f .git/MERGE_HEAD
+          python - <<'PY'
+          import subprocess
+          from pathlib import Path
+          conflicts = subprocess.check_output(['git','diff','--name-only','--diff-filter=U'],text=True).splitlines()
+          target = 'frontend/src/app/components/shared/views/PdfCanvas.tsx'
+          runtime = 'backend/src/routes/authoritiesRuntime.ts'
+          assert set(conflicts) <= {target, runtime}, conflicts
+          if runtime in conflicts:
+              s = subprocess.check_output(['git','show',f':3:{runtime}'],text=True)
+              before = '    const state = reduceAuthoritiesDraft(decided, { type: "refresh", review: authoritiesReview(fresh) });'
+              assert s.count(before) == 1
+              s = s.replace(before, before + '\n    state.stage = current.stage === "citations" ? "citations" : "sources";')
+              Path(runtime).write_text(s)
+              subprocess.run(['git','add',runtime],check=True)
+          if target in conflicts:
+              s = subprocess.check_output(['git','show',f':3:{target}'],text=True)
+              replacements = [
+                  ('canvas.width = Math.ceil(viewport.width);\n                        canvas.height = Math.ceil(viewport.height);',
+                   'const outputScale = Math.min(window.devicePixelRatio || 1,\n                            Math.sqrt(MAX_PDF_IMAGE_PIXELS / (viewport.width * viewport.height)));\n                        canvas.width = Math.ceil(viewport.width * outputScale);\n                        canvas.height = Math.ceil(viewport.height * outputScale);'),
+                  ('const task = page.render({ canvasContext: context, viewport });',
+                   'const task = page.render({ canvasContext: context, viewport,\n                            transform: [outputScale, 0, 0, outputScale, 0, 0] });'),
+                  ('}, [annotationEditor, layoutRevision]);',
+                   '}, [annotationEditor?.marks, annotationEditor?.tool, annotationEditor?.selectedId, annotationEditor?.disabled, layoutRevision]); // eslint-disable-line react-hooks/exhaustive-deps'),
+                  ('<div ref={scrollRef} style={{ scrollbarGutter:',
+                   '<div ref={scrollRef} tabIndex={annotationEditor ? 0 : undefined} style={{ scrollbarGutter:')]
+              for before, after in replacements:
+                  assert s.count(before) == 1, before
+                  s = s.replace(before, after)
+              Path(target).write_text(s)
+              subprocess.run(['git','add',target],check=True)
+          PY
+          # These exact staging files are retained on backup/quotation-review-concurrent-staging.
+          git rm scripts/quotation-review.part1 scripts/quotation-review.part2 scripts/quotation-review.part3
+          git diff --cached --check
+          git commit -m 'merge: integrate validated quotation fixes with main and remove backed-up staging'
+          git rev-parse HEAD
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          # No force: an unexpected concurrent write must not be discarded.
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/fix/quotation-differences-review
