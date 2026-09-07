@@ -1,3 +1,4 @@
+import type { S3Client } from "@aws-sdk/client-s3";
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
 import { link, mkdir, readFile, rm, stat, unlink, writeFile } from "node:fs/promises";
@@ -202,73 +203,12 @@ async function boundedBody(body: unknown, maximum: number, signal: AbortSignal) 
   return bytes;
 }
 
-type S3Command<Output = unknown> = object & { readonly __output?: Output };
-type S3CommandConstructor<Input, Output = unknown> = new (input: Input) => S3Command<Output>;
-type S3ObjectInput = { Bucket: string; Key: string };
-type S3GetOutput = { ContentLength?: number; Body?: unknown };
-type S3HeadOutput = { ContentLength?: number; ChecksumSHA256?: string };
-type S3Client = {
-  send<Output>(command: S3Command<Output>, options: { abortSignal: AbortSignal }): Promise<Output>;
-};
-type S3Runtime = {
-  S3Client: new (input: {
-    region: string;
-    endpoint: string;
-    forcePathStyle: boolean;
-    maxAttempts: number;
-    credentials: { accessKeyId: string; secretAccessKey: string };
-  }) => S3Client;
-  PutObjectCommand: S3CommandConstructor<S3ObjectInput & {
-    Body: Buffer | ReturnType<typeof createReadStream>; ContentLength: number; ContentType: string;
-    IfNoneMatch?: "*"; ChecksumSHA256?: string;
-  }>;
-  HeadObjectCommand: S3CommandConstructor<
-    S3ObjectInput & { ChecksumMode: "ENABLED" }, S3HeadOutput>;
-  GetObjectCommand: S3CommandConstructor<
-    S3ObjectInput & { ResponseContentDisposition?: string; ResponseContentType?: string;
-      ResponseCacheControl?: string }, S3GetOutput
-  >;
-  DeleteObjectCommand: S3CommandConstructor<S3ObjectInput>;
-};
-type S3Signer = (
-  client: S3Client,
-  command: S3Command,
-  options: { expiresIn: number },
-) => Promise<string>;
-
-const runtimeImport = (specifier: string) =>
-  import(specifier) as Promise<Record<string, unknown>>;
-
-function checkedS3Runtime(value: Record<string, unknown>): S3Runtime {
-  const exports = [
-    "S3Client", "PutObjectCommand", "GetObjectCommand", "HeadObjectCommand",
-    "DeleteObjectCommand",
-  ];
-  if (exports.some((name) => typeof value[name] !== "function")) {
-    throw new Error("Installed S3 runtime is missing required exports");
-  }
-  return value as S3Runtime;
-}
-
 export function createS3ObjectStorage(config: S3Configuration): ObjectStorage {
-  let sdk: Promise<{
-    client: S3Client;
-    commands: S3Runtime;
-    sign: S3Signer;
-  }> | undefined;
-  const load = () => sdk ??= Promise.all([
-    runtimeImport("@aws-sdk/client-s3"),
-    runtimeImport("@aws-sdk/s3-request-presigner"),
-  ]).then(([commands, presigner]) => ({
-    commands: checkedS3Runtime(commands),
-    sign: (() => {
-      if (typeof presigner.getSignedUrl !== "function") {
-        throw new Error("Installed S3 signer is missing getSignedUrl");
-      }
-      return presigner.getSignedUrl as S3Signer;
-    })(),
-  })).then(({ commands, sign }) => ({
-    client: new commands.S3Client({
+  async function initialize() {
+    const [commands, { getSignedUrl: sign }] = await Promise.all([
+      import("@aws-sdk/client-s3"), import("@aws-sdk/s3-request-presigner"),
+    ]);
+    const client = new commands.S3Client({
       region: config.region,
       endpoint: config.endpoint,
       forcePathStyle: config.forcePathStyle,
@@ -277,11 +217,12 @@ export function createS3ObjectStorage(config: S3Configuration): ObjectStorage {
         accessKeyId: config.accessKeyId,
         secretAccessKey: config.secretAccessKey,
       },
-    }),
-    commands,
-    sign,
-  }));
-  const verify = async (client: S3Client, commands: S3Runtime, key: string,
+    });
+    return { client, commands, sign };
+  }
+  let sdk: ReturnType<typeof initialize> | undefined;
+  const load = () => sdk ??= initialize();
+  const verify = async (client: S3Client, commands: typeof import("@aws-sdk/client-s3"), key: string,
     sizeBytes: number, digest: string, signal: AbortSignal) => {
     const head = await client.send(new commands.HeadObjectCommand({
       Bucket: config.bucket, Key: key, ChecksumMode: "ENABLED",
