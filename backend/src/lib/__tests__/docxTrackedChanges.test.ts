@@ -299,3 +299,31 @@ describe("applyTrackedEdits anchor failures", () => {
     expect(reason).toContain("Ambiguous match");
   });
 });
+
+// Different edit lengths must not shift the later edit in the original text.
+describe("tracked-edit coordinates", () => {
+  it.each([
+    ["The buyer shall pay 100 and deliver ten crates.", "The supplier shall pay 2500 and deliver nine crates."],
+    ["Alpha beta gamma delta.", "Alpha new beta gamma final delta."],
+    ["Extra Alpha beta gamma end.", "Alpha beta gamma."],
+    ["The café 😀 buyer pays 100; ship by noon.", "The café 😀 seller pays 2000; ship by dusk."],
+    ["The buyer  shall pay five; delivery is early.", "The seller  shall pay seven; delivery is late."],
+  ])("accepts to the replacement and rejects to the original: %s", async (before, after) => {
+    const bytes = await draft(before);
+    const original = await extractDocxBodyText(bytes);
+    const edited = await applyTrackedEdits(bytes, [{
+      find: before, replace: after, context_before: "", context_after: "",
+    }]);
+    expect(edited.errors).toEqual([]);
+    expect(edited.changes).toHaveLength(1);
+    const parts = edited.changes[0].diff;
+    expect(parts.filter(({ kind }) => kind !== "insert").map(({ text }) => text).join("")).toBe(before);
+    expect(parts.filter(({ kind }) => kind !== "delete").map(({ text }) => text).join("")).toBe(after);
+    const ids = (await extractTrackedChangeIds(edited.bytes)).map(({ w_id }) => w_id);
+    for (const [action, expected] of [["accept", after], ["reject", before]] as const) {
+      const resolved = await resolveTrackedChange(edited.bytes, ids, action);
+      expect(resolved.found).toBe(true);
+      expect(await extractDocxBodyText(resolved.bytes)).toBe(original.replace(before, expected));
+    }
+  });
+});

@@ -241,3 +241,25 @@ describe("compareDocxVersions", () => {
     expect(xml).not.toContain("$100.00");
   });
 });
+
+describe("comparison coordinates in the retained new document", () => {
+  it.each([
+    ["The buyer shall pay five; delivery is early.", "The supplier shall pay seven; delivery is late.", "The buyer shall pay five; delivery is early."],
+    ["The buyer  shall pay five; delivery is early.", "The seller shall pay seven; delivery is late.", "The buyer shall pay five; delivery is early."],
+    ["The buyer shall pay five; delivery is early.", "The seller   shall pay seven; delivery is late.", "The buyer   shall pay five; delivery is early."],
+    ["The “buyer”—pays five; delivery is early.", 'The "seller"-pays seven; delivery is late.', 'The "buyer"-pays five; delivery is early.'],
+    ["The café 😀 buyer pays five; delivery is early.", "The café 😀 supplier pays seven; delivery is late.", "The café 😀 buyer pays five; delivery is early."],
+  ])("keeps new-side presentation without displacing later changes: %s", async (before, after, rejected) => {
+    const compared = await compareDocxVersions(await docxFrom([before]), await docxFrom([after]));
+    expect(compared.abstentions).toEqual([]);
+    expect(compared.changes.map(({ deletedText, insertedText }) => [deletedText, insertedText])).toEqual([
+      ["buyer", after.includes("supplier") ? "supplier" : "seller"], ["five", "seven"], ["early", "late"],
+    ]);
+    const ids = (await extractTrackedChangeIds(compared.bytes)).map(({ w_id }) => w_id);
+    for (const [action, expected] of [["accept", after], ["reject", rejected]] as const) {
+      const resolved = await resolveTrackedChange(compared.bytes, ids, action);
+      expect(resolved.found).toBe(true);
+      expect(await extractDocxBodyText(resolved.bytes)).toBe(expected);
+    }
+  });
+});
