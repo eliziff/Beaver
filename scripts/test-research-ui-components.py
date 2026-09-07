@@ -31,11 +31,15 @@ def main() -> None:
         shutil.copy(root / "scripts/fixtures/research-ui.tsx", probe / "main.tsx")
         (probe / "index.html").write_text('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Research UI fixture</title></head><body><div id="root"></div><script type="module" src="/main.tsx"></script></body></html>')
         (probe / "probe.css").write_text('@import "../src/app/globals.css";\n@source ".";\n@source "../src/app";\n')
+        # Match the app bootstrap: configuration precedes modules that consume it.
+        (probe / "bootstrap.ts").write_text('import { initializeRuntimeConfig } from "@/app/lib/runtimeConfig";\n'
+            'await initializeRuntimeConfig(async () => new Response(JSON.stringify({mode:"local",capabilities:{connectors:false}})));\n'
+            'await import("./main");\n')
         config = {
             "define": {"process.env.NODE_ENV": '"production"'},
             "root": str(probe), "resolve": {"alias": {"@": str(frontend / "src"), "docx-preview": str(frontend / "vendor/docx-preview/index.ts")}},
             "build": {"target": "esnext", "minify": False, "cssCodeSplit": False,
-                "lib": {"entry": str(probe / "main.tsx"), "formats": ["es"], "fileName": "fixture"},
+                "lib": {"entry": str(probe / "bootstrap.ts"), "formats": ["es"], "fileName": "fixture"},
                 "rolldownOptions": {"output": {"codeSplitting": False}}},
         }
         (probe / "vite.config.mjs").write_text('import {defineConfig} from "vite"; import react from "@vitejs/plugin-react"; export default defineConfig(' +
@@ -56,7 +60,10 @@ def main() -> None:
                 page = browser.new_page(viewport={"width": 1440, "height": 900})
                 page.set_default_timeout(15000)
                 errors: list[str] = []
-                page.on("pageerror", lambda error: errors.append(str(error)))
+                def capture_error(error):
+                    errors.append(str(error))
+                    (output / "page-errors.json").write_text(json.dumps(errors, indent=2))
+                page.on("pageerror", capture_error)
                 page.route("**/*", lambda route: route.continue_() if route.request.url.startswith(origin + "/") else route.abort())
                 page.goto(origin, wait_until="networkidle")
                 page.screenshot(path=str(output / "loaded.png"))
