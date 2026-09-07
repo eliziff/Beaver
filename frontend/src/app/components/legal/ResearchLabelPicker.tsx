@@ -52,16 +52,21 @@ export function ResearchLabelPicker({ file, kind, itemId, sourceId, labelIds, no
   </>;
 }
 
-/** One rung of the waterfall: the folders available at this depth, chosen in one click. */
-const Rung = ({ labels, items, activeId, onChoose }: { labels: Record<string, ResearchLabel>;
-  items: ResearchLabel[]; activeId: string | null; onChoose: (id: string) => void }) =>
-  <div className="flex flex-wrap gap-1">{items.map((label) => <button key={label.id} type="button"
-    onClick={() => onChoose(label.id)} aria-pressed={activeId === label.id} title={label.name}
-    className={`flex h-7 min-w-0 max-w-full items-center gap-1.5 rounded-md border px-1.5 text-sm ${activeId === label.id
-      ? "border-gray-500 bg-gray-100 font-medium text-gray-900" : "border-gray-200 text-gray-700 hover:bg-gray-50"}`}>
-    <ResearchLabelFolder labels={labels} labelId={label.id} />
-    <span className="truncate">{label.name}</span>
-  </button>)}</div>;
+/** One rung of the waterfall: every folder available under one parent, on its own full-width row.
+ *  Each rung says whose children it lists, so a child can never read as a sibling's. */
+const Rung = ({ labels, items, activeId, under, onChoose, children }: { labels: Record<string, ResearchLabel>;
+  items: ResearchLabel[]; activeId: string | null; under?: string;
+  onChoose: (id: string) => void; children?: React.ReactNode }) =>
+  <div className="grid min-w-0 gap-1">
+    {under && <p className="truncate text-[11px] leading-4 text-gray-500" title={under}>in {under}</p>}
+    <div className="flex min-w-0 flex-wrap gap-1">{children}{items.map((label) => <button key={label.id} type="button"
+      onClick={() => onChoose(label.id)} aria-pressed={activeId === label.id} title={label.name}
+      className={`flex h-7 min-w-0 max-w-full items-center gap-1.5 rounded-md border px-1.5 text-sm ${activeId === label.id
+        ? "border-gray-500 bg-gray-100 font-medium text-gray-900" : "border-gray-200 text-gray-700 hover:bg-gray-50"}`}>
+      <ResearchLabelFolder labels={labels} labelId={label.id} />
+      <span className="truncate">{label.name}</span>
+    </button>)}</div>
+  </div>;
 
 export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutations }: {
   target: ResearchLabelTarget; onClose: () => void; mutations: ResearchFileMutations;
@@ -129,10 +134,13 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
   }, [target.anchor, target.returnFocus]);
   const ancestry = (id: string | null) => id && labels[id] ? researchLabelPath(labels, id) : [];
   const slot = slots[activeSlot] ?? null, path = ancestry(slot);
+  /** The slot the user is filling always wins: a repeat leaves the other slot, never strands this one. */
   const put = (id: string | null) => {
+    const kept = slots.filter((value, index) => index !== activeSlot && value !== id),
+      at = Math.min(activeSlot, kept.length);
     const next = scope === "highlight" ? (id ? [id] : [])
-      : [...slots.slice(0, activeSlot), ...(id ? [id] : []), ...slots.slice(activeSlot + 1)]
-        .filter((value, index, all) => all.indexOf(value) === index);
+      : [...kept.slice(0, at), ...(id ? [id] : []), ...kept.slice(at)];
+    setActiveSlot(at);
     setSlots(next); persist(next, note);
   };
   function persist(nextSlots: string[], nextNote: string) {
@@ -176,6 +184,7 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
     {scope === "source" && <div aria-label="Filed under" className="flex items-end gap-2 overflow-x-auto border-b border-gray-100 py-2">
       {[...slots, ""].map((id, index) => <button key={`${id}:${index}`} type="button" onClick={() => setActiveSlot(index)}
         aria-pressed={index === activeSlot} aria-label={id ? `Label slot ${index + 1}: ${labels[id]?.name ?? ""}` : "Add a label"}
+        title={id ? researchLabelPath(labels, id).map(({ name }) => name).join(" / ") : "Add a label"}
         className={`flex w-14 shrink-0 flex-col items-center gap-1 rounded-md p-1 ${index === activeSlot ? "bg-gray-100 ring-1 ring-gray-400" : "hover:bg-gray-50"}`}>
         <ResearchLabelFolder labels={labels} labelId={id || null} size="lg" />
         <span className="w-full truncate text-center text-[10px] leading-3 text-gray-600">{id ? labels[id]?.name ?? "" : "Add"}</span>
@@ -183,17 +192,17 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
     </div>}
     {!tree.size ? <p className="my-3 text-sm text-gray-500">
       No {scope === "source" ? "labels" : "highlight types"} yet.
-    </p> : <div className="grid min-h-28 content-start gap-1.5 border-b border-gray-200 py-2">
-      <div className="flex flex-wrap gap-1">
+    </p> : <div className="grid min-h-28 min-w-0 content-start gap-2 border-b border-gray-200 py-2">
+      <Rung labels={labels} items={roots} activeId={path[0]?.id ?? null} onChoose={put}>
         {scope === "source" && <button type="button" onClick={() => put(null)} aria-pressed={!slot}
-          className={`flex h-7 items-center gap-1.5 rounded-md border px-1.5 text-sm ${slot ? "border-gray-200 text-gray-700 hover:bg-gray-50" : "border-gray-500 bg-gray-100 font-medium text-gray-900"}`}>
+          className={`flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-1.5 text-sm ${slot ? "border-gray-200 text-gray-700 hover:bg-gray-50" : "border-gray-500 bg-gray-100 font-medium text-gray-900"}`}>
           <ResearchLabelFolder labels={labels} labelId={null} />None</button>}
-        <Rung labels={labels} items={roots} activeId={path[0]?.id ?? null} onChoose={put} />
-      </div>
-      {!!path[0] && !!tree.get(path[0].id)?.length && <div className="ms-3 border-s border-gray-200 ps-2">
-        <Rung labels={labels} items={tree.get(path[0].id)!} activeId={path[1]?.id ?? null} onChoose={put} /></div>}
-      {!!path[1] && !!tree.get(path[1].id)?.length && <div className="ms-6 border-s border-gray-200 ps-2">
-        <Rung labels={labels} items={tree.get(path[1].id)!} activeId={path[2]?.id ?? null} onChoose={put} /></div>}
+      </Rung>
+      {path.flatMap((label, depth) => {
+        const items = tree.get(label.id) ?? [];
+        return items.length ? [<Rung key={label.id} labels={labels} items={items} under={label.name}
+          activeId={path[depth + 1]?.id ?? null} onChoose={put} />] : [];
+      })}
     </div>}
     <textarea value={note} onChange={(event) => setNote(event.target.value)} onBlur={() => persist(slots, note)} aria-label="Item note"
       placeholder="Note" className="mt-2 min-h-14 w-full rounded-md border border-gray-300 p-2 text-sm" />

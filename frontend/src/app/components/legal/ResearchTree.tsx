@@ -1,11 +1,11 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, ChevronRight, FileText, Scale } from "lucide-react";
+import { BookOpen, ChevronRight } from "lucide-react";
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { Button } from "../ui/button";
 import { researchHighlightCount, type ResearchEvidence, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
-import { researchLabelColor } from "./ResearchLabelMarker";
-import { ResearchLabelEditor, ResearchLabelPicker, RESEARCH_SOURCE_DRAG, type ResearchLabelTarget } from "./ResearchLabelPicker";
+import { researchLabelColor, ResearchSourceKindIcon } from "./ResearchLabelMarker";
+import { ResearchLabelEditor, RESEARCH_SOURCE_DRAG, type ResearchLabelTarget } from "./ResearchLabelPicker";
 import { ResearchLabelTree } from "./ResearchLabelTree";
 import { RESEARCH_PASSAGE_DRAG } from "./researchMemo";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
@@ -55,13 +55,10 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
   }
   function sourceRow(source: ResearchSource) {
     const name = sourceName(source), open = opened.has(source.id), count = researchHighlightCount(source);
-    const Icon = source.reference.kind === "document" ? FileText : Scale;
     return <div className={`${ROW} ${selectedSourceId === source.id ? "bg-gray-100" : "hover:bg-gray-50"}`} draggable={!preview}
       onDragStart={(event) => { onSourceDrag?.(); event.dataTransfer.setData(RESEARCH_SOURCE_DRAG, source.id); }}>
       {preview ? <span className="size-6 shrink-0" /> : chevron(open, `Passages in ${name}`, () => openSource(source.id))}
-      {preview ? <span className="grid size-5 shrink-0 place-items-center"><Icon aria-hidden className="size-3.5 text-gray-500" /></span>
-        : <ResearchLabelPicker file={file} kind="source" itemId={source.id} labelIds={source.labelIds} note={source.note}
-            title={name} size="sm" mutations={commit} onError={onStatus} onSourceDrag={onSourceDrag} />}
+      <span className="grid size-5 shrink-0 place-items-center"><ResearchSourceKindIcon reference={source.reference} /></span>
       <button type="button" disabled={!!preview} onClick={() => openSource(source.id)} title={name}
         aria-current={selectedSourceId === source.id ? "true" : undefined} data-mark={mark(source.id)}
         className={`min-w-0 flex-1 truncate text-start text-sm text-gray-700 ${mark(source.id) ? "font-semibold underline decoration-gray-400" : ""}`}>{name}</button>
