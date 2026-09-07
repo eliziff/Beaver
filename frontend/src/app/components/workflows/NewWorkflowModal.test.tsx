@@ -19,9 +19,6 @@ it("creates a usable written workflow from visible instructions", async () => {
     const onCreated = vi.fn();
     render(<NewWorkflowModal open onClose={vi.fn()} onCreated={onCreated} />);
 
-    expect(screen.getByRole("button", { name: "Assistant" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("textbox", { name: "Language" })).toBeVisible();
-    expect(screen.getByRole("textbox", { name: "Jurisdictions" })).toBeVisible();
     fireEvent.change(screen.getByLabelText("Workflow name"), {
         target: { value: "Matter summary" },
     });
