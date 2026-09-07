@@ -83,7 +83,13 @@ export function legalSourceLocatorAnchor(
     : undefined;
 }
 
-function sourceUrl(rawUrl: string, anchor?: string): string | null {
+/**
+ * Canonical publisher URL for a legal source: rejects non-http and
+ * unlinkable hosts, rewrites provider-specific paths (CanLII PDF, Justice
+ * Laws XML, BC Laws, Ontario e-Laws), applies the Decisia parameters, and
+ * resolves the anchor the target actually supports.
+ */
+export function sourceUrl(rawUrl: string, anchor?: string): string | null {
   const local =
     rawUrl.startsWith("/") &&
     !rawUrl.startsWith("//") &&

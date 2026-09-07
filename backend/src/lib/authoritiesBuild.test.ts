@@ -933,9 +933,12 @@ describe("Authorities output builder", () => {
     const annotations = book.getPage(1).node.lookup(PDFName.of("Annots"), PDFArray);
     const external = annotations.asArray().map((ref) => book.context.lookup(ref, PDFDict))
       .find((annotation) => annotation.has(PDFName.of("A")));
+    // Decisia links carry the iframe/mobile parameters the document text
+    // needs to render at all, the same as every other legal-source link.
     expect(external?.lookup(PDFName.of("A"), PDFDict)
       .lookup(PDFName.of("URI"), PDFHexString).decodeText())
-      .toBe(state.authorities.grant.source.sources[0].sourceUrl);
+      .toBe(`${state.authorities.grant.source.sources[0].sourceUrl
+        }?iframe=true&site_preference=mobile`);
     expect(book.catalog.lookup(PDFName.of("Outlines"), PDFDict)
       .lookup(PDFName.of("First"), PDFDict)
       .lookup(PDFName.of("Title"), PDFHexString).decodeText()).toBe(title);
