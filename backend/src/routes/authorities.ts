@@ -124,12 +124,6 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
       revision: revision(object(req.body).revision), role: text(req.params.role, 200),
     }));
   }));
-  router.post("/:id/source", singleFileUpload("file"), asyncRoute(async (req, res) => {
-    const file = req.file ?? reject(400, "file is required");
-    res.json(await application.replaceSource(applicationScope(res), text(req.params.id), {
-      revision: revision(req.body?.revision, true), file: uploadedDocument(file),
-    }));
-  }));
   router.post("/:id/attachments/:authorityId", singleFileUpload("file"),
     asyncRoute(async (req, res) => {
       const file = req.file ?? reject(400, "file is required");
