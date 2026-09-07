@@ -135,7 +135,7 @@ import { AUTHORITIES_SETTINGS_CHOICES, decodeAuthoritiesUserAction } from
 import { authoritiesProfileIds,
   decodeAuthoritiesDraft } from "../authoritiesDomain";
 import type { CourtRecordsApplication } from "../courtRecordsApplication";
-import { COURT_RECORD_PROFILE_BY_ID } from "../courtRecordContract";
+import { COURT_PROFILE_BY_ID } from "mike/shared/court-record-profiles.mjs";
 import type { FeaturePreferences } from "../userPreferences";
 import type { WorkProductApplication } from "../workProductApplication";
 import { WORK_PRODUCT_KINDS, type WorkProductKind } from "../workProduct";
@@ -2745,7 +2745,7 @@ export function assistantTools<Context extends {
         if (trimmed(input.draft_id)) throw new Error("create does not accept draft_id");
         if (kind === "court-record") {
           const profileId = trimmed(input.profile_id);
-          if (!COURT_RECORD_PROFILE_BY_ID.has(profileId)) {
+          if (!COURT_PROFILE_BY_ID.has(profileId)) {
             throw new Error("Select an available court record format");
           }
           const product = await workProducts.create(scope, { kind,
