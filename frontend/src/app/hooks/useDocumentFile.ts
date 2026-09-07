@@ -6,6 +6,7 @@ export type DocumentFile = {
   buffer: ArrayBuffer;
 };
 
+const sessions = new Map<AbortController, string>();
 const cache = new Map<string, DocumentFile>();
 const pending = new Map<string, { promise: Promise<DocumentFile>; controller: AbortController }>();
 const MAX_CACHE_BYTES = 64 * 1024 * 1024;
@@ -35,6 +36,8 @@ export function clearDocumentFileCache() {
   cache.clear(); cacheBytes = 0;
   for (const request of pending.values()) request.controller.abort();
   pending.clear();
+  for (const controller of sessions.keys()) controller.abort();
+  sessions.clear();
 }
 
 function keyFor(
@@ -128,6 +131,9 @@ export function useDocumentFile(
 }
 
 export function invalidateDocumentFile(documentId: string) {
+  for (const [controller, key] of sessions) if (key.startsWith(`${documentId}:`)) {
+    controller.abort(); sessions.delete(controller);
+  }
   for (const [key, request] of pending) {
     if (!key.startsWith(`${documentId}:`)) continue;
     request.controller.abort(); pending.delete(key);
@@ -135,4 +141,21 @@ export function invalidateDocumentFile(documentId: string) {
   for (const key of cache.keys()) {
     if (key.startsWith(`${documentId}:`)) evict(key);
   }
+}
+
+// A viewer owns a consumable PDF.js transport; only complete buffers enter the
+// existing cache. Auth clears and explicit document invalidation abort its reads.
+export function documentFileSession(documentId: string, versionId?: string | null,
+  revision?: string | number | null) {
+  const key = keyFor(documentId, versionId, revision, false);
+  const controller = new AbortController(), generation = cacheGeneration;
+  sessions.set(controller, key);
+  return {
+    signal: controller.signal, cached: cached(key),
+    retain(file: DocumentFile) {
+      controller.signal.throwIfAborted();
+      if (generation === cacheGeneration) retain(key, file);
+    },
+    close() { controller.abort(); sessions.delete(controller); },
+  };
 }
