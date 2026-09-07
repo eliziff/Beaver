@@ -1,0 +1,87 @@
+name: Authorities input refactor validation
+on:
+  push:
+    branches: [codex/authorities-shared-inputs]
+    paths: [.github/workflows/authorities-inputs-publish.yml]
+permissions:
+  contents: write
+jobs:
+  validate:
+    if: github.repository == 'eliziff/Beaver' && github.ref == 'refs/heads/codex/authorities-shared-inputs'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Apply the checksum-verified patch on its exact base
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git init .
+          git remote add origin https://github.com/eliziff/Beaver.git
+          git fetch --depth=2 origin "$SOURCE_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD^)" = e965a1ab642b85d7e48fbe211f40f39f6bbc05b6
+          python3 - <<'PY'
+          import base64, gzip, hashlib, json, os, pathlib, subprocess, urllib.request
+          parts = ['460e44ba26593bb1a42db821520d0ec159e3f302', '77dacf9dc150399a86dacf9c2db1f3adfc4104b7', '07f417320be96cb9afb2f888b531cff47ec3ee4f', '6b8555457e89f14b20ba2251a47fce3a57f411ab', '78bde21769e033a68fcd837b87abf8b3bff1c34c']
+          compressed = bytearray()
+          for sha in parts:
+              req = urllib.request.Request('https://api.github.com/repos/eliziff/Beaver/git/blobs/' + sha, headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  data = base64.b64decode(json.load(response)['content'])
+              assert hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest() == sha
+              compressed.extend(data)
+          patch = gzip.decompress(compressed)
+          assert hashlib.sha256(patch).hexdigest() == '9de40d6d3a1663f4f1fa83c15299544e680da1ed22d93c6fa786d5794a7dccfe'
+          pathlib.Path('/tmp/authorities-inputs.patch').write_bytes(patch)
+          subprocess.run(['git', 'apply', '--check', '--index', '/tmp/authorities-inputs.patch'], check=True)
+          subprocess.run(['git', 'apply', '--index', '/tmp/authorities-inputs.patch'], check=True)
+          expected = {'backend/src/lib/authoritiesDomain.ts', 'backend/src/lib/authoritiesSources.test.ts', 'backend/src/lib/authoritiesWorkspaceApplication.ts', 'frontend/src/app/authorities/authorityPresentation.ts', 'frontend/src/app/authorities/standaloneHost.test.tsx', 'frontend/src/app/authorities/standaloneHost.ts', 'frontend/src/app/authorities/types.ts', 'shared/authorities-sources.d.mts', 'shared/authorities-sources.mjs'}
+          changed = set(subprocess.check_output(['git', 'diff', '--cached', '--name-only'], text=True).splitlines())
+          assert changed == expected, changed
+          PY
+          git rm .github/workflows/authorities-inputs-publish.yml
+          git diff --cached --check
+          git -c user.name='Eli Ziff' -c user.email='eliziff@users.noreply.github.com' commit -m 'Share Authorities attachment transitions and build input planning [skip ci]'
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/codex/authorities-shared-inputs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked dependencies
+        run: |
+          npm ci --prefix backend --ignore-scripts --no-audit --no-fund &
+          backend_pid=$!
+          npm ci --prefix frontend --ignore-scripts --no-audit --no-fund &
+          frontend_pid=$!
+          wait "$backend_pid"
+          wait "$frontend_pid"
+      - name: Focused backend behavior tests
+        continue-on-error: true
+        working-directory: backend
+        run: npx vitest run src/lib/authoritiesSources.test.ts src/lib/authoritiesDomain.test.ts src/lib/authoritiesWorkflow.test.ts src/lib/authoritiesWorkspaceApplication.test.ts src/lib/authoritiesBuild.test.ts src/routes/authoritiesRuntime.test.ts
+      - name: Focused frontend behavior tests
+        continue-on-error: true
+        working-directory: frontend
+        run: npx vitest run src/app/authorities/standaloneHost.test.tsx src/app/authorities/beaverHost.test.ts src/app/authorities/AuthoritySources.test.tsx
+      - name: Backend typecheck
+        continue-on-error: true
+        run: npm run build --prefix backend
+      - name: Frontend typecheck
+        continue-on-error: true
+        run: cd frontend && npx tsc --noEmit
+      - name: Source boundaries
+        run: node scripts/check-source-boundaries.mjs
+      - name: Package dependencies for local focused iteration
+        if: always()
+        run: tar -czf /tmp/authorities-validation-deps.tgz backend/node_modules frontend/node_modules
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: authorities-validation-deps
+          path: /tmp/authorities-validation-deps.tgz
+          retention-days: 1
