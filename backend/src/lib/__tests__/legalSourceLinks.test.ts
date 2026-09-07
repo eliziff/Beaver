@@ -1005,4 +1005,32 @@ describe("verified legal-source links", () => {
     expect(result).not.toContain("#par17");
   });
 
+  // The regression class the differential oracle caught: a quote that also
+  // occurs verbatim earlier in the document. Planning against the whole
+  // document disambiguates it; planning against the block alone cannot, and
+  // Chrome then paints the earlier occurrence.
+  it("disambiguates a quote that repeats elsewhere in the document", async () => {
+    const repeated = "the applicant bears the burden of establishing prejudice";
+    const text = [
+      `[1] In an earlier passage the Court noted that ${repeated}.`,
+      "[2] Intervening discussion of an unrelated procedural question.",
+      `[3] For the reasons that follow, ${repeated} on this appeal.`,
+    ].join("\n\n");
+    const result = buildLegalSourcePinpointUrl(
+      {
+        url: "https://www.canlii.org/en/ca/scc/doc/2099/2099scc1/2099scc1.html",
+        blockText: `[3] For the reasons that follow, ${repeated} on this appeal.`,
+        documentText: await nativeSource(text),
+      },
+      [repeated],
+    )!;
+    // A bare `text=<quote>` would land on paragraph 1, so the plan must pin
+    // the cited occurrence with prefix (`prefix-,`) or suffix (`,-suffix`)
+    // context drawn from the surrounding source text.
+    const directives = decodeURIComponent(result.slice(result.indexOf(":~:") + 3));
+    expect(directives).toMatch(/-,|,-/u);
+    expect(directives.startsWith("text=follow,-") ||
+      directives.includes(",-on this appeal")).toBe(true);
+  });
+
 });
