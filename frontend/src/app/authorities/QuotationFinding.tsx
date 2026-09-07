@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Modal } from "@/app/components/modals/Modal";
+import { Button } from "@/app/components/ui/button";
 import { sequenceOpcodes } from "../../../../shared/sequence-diff.mjs";
 import type { AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction } from "./types";
 
-/** Presentation only: the native verifier decides whether a finding exists. */
+/** Presentation only; correction eligibility is enforced by the server. */
 export function quotationDiff(authored: string, source: string) {
   const tokens = (text: string) => text.match(/\s+|[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|[^\s]/gu) ?? [];
   const before = tokens(authored), after = tokens(source);
@@ -13,114 +14,76 @@ export function quotationDiff(authored: string, source: string) {
     source: opcodes.flatMap(([kind, , , b0, b1]) => b0 === b1 ? [] : [{ text: after.slice(b0, b1).join(""), changed: kind !== "equal" }]),
   };
 }
-
-const comparisonWords = (text: string) => text.normalize("NFKC").toLowerCase()
-  .match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu)?.map((word) =>
-    word.replace(/[‘’]/gu, "'")) ?? [];
-
-/**
- * A repair suggestion is only useful when it is recognisably the same passage.
- * The native verifier can establish that authored text is not grounded by a cited
- * passage; it cannot, by itself, make an unrelated passage a safe replacement target.
- */
-export function quotationAlignment(authored: string, source: string) {
-  const before = comparisonWords(authored), after = comparisonWords(source);
-  const shorter = Math.min(before.length, after.length);
-  if (!shorter) return { matchedWords: 0, coverage: 0, longestRun: 0, credible: false };
-  const equalRuns = sequenceOpcodes(before, after)
-    .filter(([kind]) => kind === "equal")
-    .map(([, a0, a1]) => a1 - a0);
-  const matchedWords = equalRuns.reduce((sum, count) => sum + count, 0);
-  const coverage = matchedWords / shorter;
-  const longestRun = Math.max(0, ...equalRuns);
-  const credible = shorter <= 3
-    ? matchedWords >= 2 && coverage >= 2 / 3
-    : matchedWords >= 3 && coverage >= 0.6 && longestRun >= 2;
-  return { matchedWords, coverage, longestRun, credible };
-}
-
 export function readableLocator(kind: string, label: string) {
-  const clean = label.replace(/^(?:paragraph|para?|par|page|section|sec)\s*/iu, "");
+  const clean = label.replace(/^(?:paragraphs?|paras?|par|pages?|sections?|secs?|pp?|ss?)\.?\s*/iu, "");
   return `${kind === "paragraph" ? "para" : kind === "section" ? "s" : "p"} ${clean}`;
 }
-function DiffPassage({ pieces, side }: { pieces: ReturnType<typeof quotationDiff>["authored"]; side: "authored" | "source" }) {
-  return <p className="whitespace-pre-wrap break-words text-sm leading-7 text-gray-800">
+function DiffPassage({ pieces, source = false }: {
+  pieces: ReturnType<typeof quotationDiff>["authored"]; source?: boolean;
+}) {
+  return <p className="whitespace-pre-wrap break-words text-sm leading-6 text-gray-800">
     {pieces.map(({ text, changed }, index) => !changed ? <span key={index}>{text}</span>
-      : side === "authored" ? <del key={index} className="rounded-sm bg-red-100 text-red-950 decoration-red-700 decoration-2">{text}</del>
-        : <ins key={index} className="rounded-sm bg-emerald-100 text-emerald-950 decoration-emerald-700 decoration-2">{text}</ins>)}
+      : source ? <ins key={index} className="bg-emerald-100 text-emerald-950">{text}</ins>
+        : <del key={index} className="bg-red-100 text-red-950">{text}</del>)}
   </p>;
 }
 
-const actionCopy = (action: AuthoritiesDiscrepancyAction, wrongPinpoint: boolean,
-  sourceLabel: string) => action === "pinpoint"
-  ? { title: `Change pinpoint to ${sourceLabel}`,
-    detail: "The quotation appears verbatim there, so update the citation to where it was actually found." }
-  : action === "quote_exact" ? { title: "Use the source’s exact wording",
-    detail: "Replace the quoted text with the aligned wording from the cited passage." }
-    : action === "quote_editorial" ? { title: "Keep the edit, but mark it",
-      detail: "Use brackets and ellipses so the quotation shows how it differs from the source." }
-      : { title: wrongPinpoint ? "Keep my pinpoint" : "Keep my quotation as written",
-        detail: "Dismiss this check without changing the source document." };
-
-export function SourceFinding({ finding, open, busy, onResolve, onClose }: {
-  finding: AuthoritiesDiscrepancy; open: boolean; busy: boolean;
+/** The session, not a transient finding, owns the dialog's lifetime. */
+export function QuotationReview({ items, initialId, busy, error, onResolve, onClose }: {
+  items?: AuthoritiesDiscrepancy[]; initialId: string; busy: boolean; error?: string;
   onResolve?: (finding: AuthoritiesDiscrepancy, action: AuthoritiesDiscrepancyAction, done: () => void) => void;
   onClose: () => void;
 }) {
-  const [choice, setChoice] = useState<AuthoritiesDiscrepancyAction | null>(null);
-  const wrongPinpoint = finding.kind === "wrong_pinpoint";
-  const suggested = finding.found;
-  const alignment = useMemo(() => suggested
-    ? quotationAlignment(finding.authoredQuote, suggested.text)
-    : { matchedWords: 0, coverage: 0, longestRun: 0, credible: false },
-  [finding.authoredQuote, suggested?.text]);
-  const aligned = wrongPinpoint || alignment.credible;
-  const source = aligned && suggested ? suggested : finding.cited;
-  const diff = useMemo(() => quotationDiff(finding.authoredQuote, source.text),
-    [finding.authoredQuote, source.text]);
-  const sourceLabel = readableLocator(source.locator.kind, source.locator.label);
-  const actions = aligned ? finding.actions : finding.actions.filter((action) => action === "ignore");
-  const title = wrongPinpoint ? "Check pinpoint" : aligned
-    ? "Check quoted wording" : "Quote not confidently located";
-  return <Modal open={open} onClose={onClose} size="xl"
-    breadcrumbs={[title]}
-    className="h-[min(44rem,calc(100dvh-2rem))]"
-    secondaryAction={{ label: "Done", onClick: onClose, disabled: busy }}
-    primaryAction={onResolve ? { label: choice === "ignore" ? "Dismiss check" : "Apply correction",
-      disabled: busy || !choice,
-      onClick: () => choice && onResolve(finding, choice, () => setChoice(null)) } : undefined}>
-    <div className="pb-5">
-      <p className="mb-4 text-sm leading-6 text-gray-700">{wrongPinpoint
-        ? `Beaver found this quotation verbatim at ${sourceLabel}, rather than ${readableLocator(finding.authoredPinpoint.kind, finding.authoredPinpoint.text)}.`
-        : aligned
-          ? `Beaver found the same passage at ${sourceLabel}, but the quoted wording is not verbatim. Review the highlighted differences before changing anything.`
-          : `The cited passage is too different from your quotation to treat it as the quotation’s source. Beaver will not suggest replacing your text from this passage.`}</p>
-      {!aligned && <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-5 text-amber-950">
-        This is a verification failure, not a confirmed quotation mismatch. Check the citation or source manually if the quotation matters.
-      </div>}
-      <div className="overflow-hidden rounded-lg border border-gray-300 bg-white">
-        <div className="grid sm:grid-cols-2">
-          <section className="min-w-0 border-b border-gray-200 sm:border-b-0 sm:border-r">
-            <h3 className="border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-700">Your quotation</h3>
-            <div className="max-h-72 overflow-y-auto p-4"><DiffPassage pieces={diff.authored} side="authored" /></div>
-          </section>
-          <section className="min-w-0">
-            <h3 className="border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-700">{aligned ? "Aligned source" : "Cited passage"} · {sourceLabel}</h3>
-            <div className="max-h-72 overflow-y-auto p-4"><DiffPassage pieces={diff.source} side="source" /></div>
-          </section>
-        </div>
+  const [id, setId] = useState(initialId);
+  const [choice, setChoice] = useState<{ id: string; action: AuthoritiesDiscrepancyAction }>();
+  const index = Math.max(0, items?.findIndex(finding => finding.id === id) ?? 0);
+  const finding = items?.[index];
+  const action = choice?.id === finding?.id ? choice?.action : undefined;
+  const unlocated = finding?.kind === "quote_unlocated" || finding?.found === null;
+  const source = finding && (finding.found ?? finding.cited);
+  const wrongPinpoint = finding?.kind === "wrong_pinpoint";
+  const actions = finding?.actions.filter(value => !unlocated || value === "ignore") ?? [];
+  const diff = finding && source && !unlocated ? quotationDiff(finding.authoredQuote, source.text) : null;
+  const label = (value: AuthoritiesDiscrepancyAction) => value === "pinpoint"
+    ? `Change pinpoint to ${readableLocator(source!.locator.kind, source!.locator.label)}`
+    : value === "quote_exact" ? "Use the source wording"
+      : value === "quote_editorial" ? "Mark edits with brackets and ellipses" : "Keep as written";
+  return <Modal open onClose={onClose} size="2xl" breadcrumbs={["Check quotations"]}
+    className="h-[min(42rem,calc(100dvh-2rem))]"
+    headerAction={items && items.length > 1 ? <div className="flex shrink-0 items-center gap-2 text-xs">
+      <Button variant="ghost" size="icon-sm" aria-label="Previous quotation" disabled={busy || index === 0}
+        onClick={() => setId(items[index - 1].id)}>‹</Button>
+      <span>{index + 1} / {items.length}</span>
+      <Button variant="ghost" size="icon-sm" aria-label="Next quotation" disabled={busy || index === items.length - 1}
+        onClick={() => setId(items[index + 1].id)}>›</Button>
+    </div> : undefined}
+    secondaryAction={{ label: "Done", onClick: onClose }}
+    footerStatus={error ? <span role="alert" className="text-sm text-red-800">{error}</span> : undefined}
+    primaryAction={finding && onResolve ? { label: action === "ignore" ? "Keep as written" : "Apply correction",
+      disabled: busy || !action || !actions.includes(action),
+      onClick: () => action && onResolve(finding, action, () => { setChoice(undefined); setId(items?.[index + 1]?.id ?? items?.[index - 1]?.id ?? ""); }) } : undefined}>
+    {!finding ? <p role="status" className="py-8 text-sm text-gray-600">
+      {error ? "Quotation check unavailable." : !items || busy ? "Rechecking quotations…" : "No quotations left to review."}
+    </p> : <div className="shrink-0 pb-6">
+      <p className="text-sm font-medium text-gray-900">{finding.citation} · {readableLocator(finding.authoredPinpoint.kind, finding.authoredPinpoint.text)} · Footnote {finding.footnoteId}</p>
+      <p className="mb-4 mt-2 text-sm leading-6 text-gray-600">{unlocated
+        ? "Quotation not located. Check the citation and passage; this is not a confirmed wording difference."
+        : wrongPinpoint ? `The quotation was found at ${readableLocator(source!.locator.kind, source!.locator.label)}, not the cited pinpoint.`
+          : "Compare the suggested source passage before applying a wording correction."}</p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <section className="min-w-0"><h3 className="mb-2 text-xs font-semibold text-gray-600">Your quotation</h3>
+          <DiffPassage pieces={diff?.authored ?? [{ text: finding.authoredQuote, changed: false }]} /></section>
+        <section className="min-w-0"><h3 className="mb-2 text-xs font-semibold text-gray-600">
+          {unlocated ? "Cited passage" : "Source passage"} · {readableLocator(source!.locator.kind, source!.locator.label)}</h3>
+          <DiffPassage source pieces={diff?.source ?? [{ text: source!.text, changed: false }]} /></section>
       </div>
-      {onResolve && <fieldset className="mt-5 space-y-2"><legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">What should Beaver do?</legend>
-        {actions.map((action) => {
-          const copy = actionCopy(action, wrongPinpoint, sourceLabel);
-          return <label key={action} className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 ${choice === action ? "border-red-700 bg-red-50/40" : "border-gray-200 hover:bg-gray-50"}`}>
-            <input type="radio" name={`quotation-choice-${finding.id}`} value={action} checked={choice === action}
-              disabled={busy} onChange={() => setChoice(action)} className="mt-0.5 accent-red-700" />
-            <span className="min-w-0"><span className="block text-sm font-medium text-gray-950">{copy.title}</span>
-              <span className="mt-0.5 block text-xs leading-5 text-gray-600">{copy.detail}</span></span>
-          </label>;
-        })}
+      {onResolve && <fieldset className="mt-5 space-y-2 border-t border-gray-200 pt-4">
+        <legend className="sr-only">Quotation decision</legend>
+        {actions.map(value => <label key={value} className="flex cursor-pointer items-center gap-2 text-sm text-gray-800">
+          <input type="radio" name="quotation-decision" value={value} checked={action === value} disabled={busy}
+            onChange={() => setChoice({ id: finding.id, action: value })} className="accent-red-700" />{label(value)}
+        </label>)}
       </fieldset>}
-    </div>
+    </div>}
   </Modal>;
 }

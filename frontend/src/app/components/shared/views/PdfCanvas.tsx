@@ -269,12 +269,15 @@ export function PdfCanvas({
                         const page = pdfPages[index];
                         const viewport = page.getViewport({ scale });
                         const canvas = document.createElement("canvas");
-                        canvas.width = Math.ceil(viewport.width);
-                        canvas.height = Math.ceil(viewport.height);
+                        const outputScale = Math.min(window.devicePixelRatio || 1,
+                            Math.sqrt(MAX_PDF_IMAGE_PIXELS / (viewport.width * viewport.height)));
+                        canvas.width = Math.ceil(viewport.width * outputScale);
+                        canvas.height = Math.ceil(viewport.height * outputScale);
                         Object.assign(canvas.style, { display: "block", width: "100%", height: "100%" });
                         const context = canvas.getContext("2d");
                         if (!context) { failed.add(index); continue; }
-                        const task = page.render({ canvasContext: context, viewport });
+                        const task = page.render({ canvasContext: context, viewport,
+                            transform: [outputScale, 0, 0, outputScale, 0, 0] });
                         taskRef.current = task;
                         try {
                             await task.promise;
@@ -528,7 +531,7 @@ export function PdfCanvas({
         const scroll = scrollRef.current;
         if (!annotationEditor || !scroll) return;
         return attachPdfAnnotationLayer(scroll, pagesRef.current.map(page => page.wrapper), annotationEditor);
-    }, [annotationEditor, layoutRevision]);
+    }, [annotationEditor?.marks, annotationEditor?.tool, annotationEditor?.selectedId, annotationEditor?.disabled, layoutRevision]); // eslint-disable-line react-hooks/exhaustive-deps
     useEffect(() => {
         const scroll = scrollRef.current, focus = editorRef.current?.focus;
         const mark = editorRef.current?.marks.find(mark => mark.id === focus?.id);
@@ -568,7 +571,7 @@ export function PdfCanvas({
                     <span className="sr-only">Loading PDF…</span>
                 </div>
             )}
-            <div ref={scrollRef} style={{ scrollbarGutter: "stable" }} className="min-h-0 flex-1 overflow-auto px-3 pb-3 pt-5">
+            <div ref={scrollRef} tabIndex={annotationEditor ? 0 : undefined} style={{ scrollbarGutter: "stable" }} className="min-h-0 flex-1 overflow-auto px-3 pb-3 pt-5">
                 {(error || viewerError) && (
                     <div role="alert" className="flex h-full items-center justify-center">
                         <p className="max-w-sm px-6 text-center text-sm text-red-600">

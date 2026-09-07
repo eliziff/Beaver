@@ -1,12 +1,11 @@
 import { markContains, validRect, type AnnotationFragment, type AnnotationRect,
   type PdfAnnotation } from '../../../../../../shared/pdf-annotations.mjs';
-export type AnnotationTool = 'select' | 'highlight' | 'draw' | 'erase-text' | 'erase-area';
+export type AnnotationTool = 'select' | 'highlight' | 'draw';
 export type PdfAnnotationEditorPort = {
   marks: PdfAnnotation[]; selectedId: string | null; tool: AnnotationTool; disabled?: boolean;
   focus?: { id: string; request: number };
   onSelect(id: string | null): void;
   onCreate(fragments: AnnotationFragment[], text: string): void;
-  onErase(fragments: AnnotationFragment[]): void;
 };
 const NS = 'http://www.w3.org/2000/svg';
 const clamp = (v: number) => Math.min(1, Math.max(0, v));
@@ -66,7 +65,7 @@ export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLEleme
     }
   }
   const priorCursor=scroller.style.cursor;
-  scroller.style.cursor=port.disabled ? 'default' : ['draw','erase-area'].includes(port.tool) ? 'crosshair' : 'auto';
+  scroller.style.cursor=port.disabled ? 'default' : port.tool === 'draw' ? 'crosshair' : 'auto';
   let drag: {page:HTMLElement;x:number;y:number;clientX:number;clientY:number;pointerId:number;preview?:SVGRectElement}|undefined;
   const down=(event:PointerEvent)=>{
     if(port.disabled || event.button!==0 || !event.isPrimary) return;
@@ -74,7 +73,7 @@ export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLEleme
     if(!page || !overlays.has(page)) return;
     const [x,y]=point(page,event.clientX,event.clientY);
     drag={page,x,y,clientX:event.clientX,clientY:event.clientY,pointerId:event.pointerId};
-    if(['draw','erase-area'].includes(port.tool)) {
+    if(port.tool === 'draw') {
       event.preventDefault(); window.getSelection()?.removeAllRanges(); scroller.setPointerCapture(event.pointerId);
     }
   };
@@ -83,9 +82,9 @@ export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLEleme
     return [Math.min(x,drag.x),Math.min(y,drag.y),Math.max(x,drag.x),Math.max(y,drag.y)];
   };
   const move=(event:PointerEvent)=>{
-    if(!drag || drag.pointerId!==event.pointerId || !['draw','erase-area'].includes(port.tool)) return;
+    if(!drag || drag.pointerId!==event.pointerId || port.tool !== 'draw') return;
     const rect=area(event); drag.preview?.remove();
-    if(rect && validRect(rect)) drag.preview=rectangle(overlays.get(drag.page)!,rect,port.tool==='draw'?'#ffe270':'#ef4444',.35,true);
+    if(rect && validRect(rect)) drag.preview=rectangle(overlays.get(drag.page)!,rect,'#ffe270',.35,true);
   };
   const cancel=()=>{
     if(!drag) return; drag.preview?.remove();
@@ -96,26 +95,31 @@ export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLEleme
     if(!drag || drag.pointerId!==event.pointerId) return;
     const start=drag, rect=area(event);
     const moved=Math.hypot(event.clientX-start.clientX,event.clientY-start.clientY)>3; cancel();
-    if(port.tool==='draw' || port.tool==='erase-area') {
+    if(port.tool==='draw') {
       if(!moved || !rect || !validRect(rect)) return;
       const fragments=[{pageNumber:Number(start.page.dataset.pageNumber),rects:[rect]}];
-      if(port.tool==='draw') port.onCreate(fragments,''); else port.onErase(fragments);
+      port.onCreate(fragments,'');
       return;
     }
     const selection=window.getSelection();
-    if(selection?.rangeCount && !selection.isCollapsed && ['highlight','erase-text'].includes(port.tool)) {
+    if(selection?.rangeCount && !selection.isCollapsed && port.tool==='highlight') {
       const range=selection.getRangeAt(0);
       if(!scroller.contains(range.startContainer) || !scroller.contains(range.endContainer)) return;
       const fragments=selectedPdfFragments(pages,range), text=selection.toString().replace(/\s+/gu,' ').trim().slice(0,2_000);
       selection.removeAllRanges();
       if(fragments.length) {
-        if(port.tool==='highlight') port.onCreate(fragments,text); else port.onErase(fragments);
+        port.onCreate(fragments,text);
       }
     } else if(!moved && (!selection || selection.isCollapsed)) {
       const [x,y]=point(start.page,event.clientX,event.clientY);
-      const hits=port.marks.filter(mark=>markContains(mark,Number(start.page.dataset.pageNumber),x,y));
+      const tolerance = 5 / start.page.getBoundingClientRect().width;
+      const hits=port.marks.filter(mark=>markContains(mark,Number(start.page.dataset.pageNumber),x,y) ||
+        mark.kind==='margin' && mark.fragments.some(fragment=>
+          fragment.pageNumber===Number(start.page.dataset.pageNumber) && fragment.rects.some(r=>
+            x>=r[0]-tolerance && x<=r[2]+tolerance && y>=r[1] && y<=r[3])));
       const index=hits.findIndex(mark=>mark.id===port.selectedId);
       // Cycle overlapping marks rather than making an inner quote impossible to select.
+      scroller.focus({preventScroll:true});
       port.onSelect(hits.length ? hits[(index+1)%hits.length].id : null);
     }
   };

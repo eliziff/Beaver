@@ -191,16 +191,35 @@ textarea,
 .pdf-text-layer {
     overflow: hidden;
     opacity: 1;
+    text-size-adjust: none;
+    -webkit-text-size-adjust: none;
+    forced-color-adjust: none;
     line-height: 1;
+    text-align: initial;
+    transform-origin: 0 0;
     user-select: none;
     pointer-events: none;
 }
-.pdf-text-layer > span {
+.pdf-text-layer :is(span, br) {
     color: transparent;
     position: absolute;
     white-space: pre;
     cursor: text;
     transform-origin: 0% 0%;
+}
+.pdf-text-layer span.markedContent {
+    top: 0;
+    height: 0;
+}
+.pdf-text-layer span[role="img"] {
+    user-select: none;
+    cursor: default;
+}
+.pdf-text-layer ::selection {
+    background: rgba(0, 100, 255, 0.3);
+}
+.pdf-text-layer br::selection {
+    background: transparent;
 }
 .pdf-text-layer .pdf-text-highlight {    background-color: rgba(213, 43, 30, 0.22);    border-radius: 2px;
     position: static;
