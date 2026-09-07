@@ -1,4 +1,4 @@
-import type { ParagraphChild } from "docx";
+import type { IParagraphStylePropertiesOptions, ParagraphChild } from "docx";
 import { openDocxSession } from "../../docx/session";
 import { escapeXmlText } from "../../text";
 
@@ -1066,39 +1066,28 @@ export async function renderDocxMarkdownDocument(
   );
   const citationPlacement = options.citationPlacement ?? "inline";
   const citationHyperlinks = options.citationHyperlinks !== false;
-  const citationOccurrences = bodyCitations.filter(
-    ({ id }) => !unverifiedCitations.has(id),
-  );
-  const citationNoteNumbers = new Map<string, number>();
-  const citationFootnoteForms = new Map<string, DocxCitation>();
+  const citationNotes = new Map<string, { number: number; citation: DocxCitation }>();
   if (citationPlacement === "footnotes") {
     const firstNoteBySource = new Map<string, number>();
     let previousSource: string | null = null;
-    citationOccurrences.forEach((citation, index) => {
-      const key = `${citation.id}:${citation.occurrence}`;
+    bodyCitations.filter(({ id }) => !unverifiedCitations.has(id)).forEach((citation, index) => {
       const number = document.footnotes.length + index + 1;
-      citationNoteNumbers.set(
-        key,
-        number,
-      );
-      const resolved = citations[citation.id];
-      if (resolved.sources.length !== 1) {
+      let resolved = citations[citation.id];
+      if (resolved.sources.length === 1) {
+        const source = resolved.sources[0];
+        const firstNote = firstNoteBySource.get(source.stableId);
+        const authority = previousSource === source.stableId
+          ? "Ibid"
+          : firstNote
+            ? `${source.shortAuthority}, supra note ${firstNote}`
+            : source.authority;
+        if (!firstNote) firstNoteBySource.set(source.stableId, number);
+        previousSource = source.stableId;
+        resolved = { sources: [{ ...source, authority }] };
+      } else {
         previousSource = null;
-        citationFootnoteForms.set(key, resolved);
-        return;
       }
-      const source = resolved.sources[0];
-      const firstNote = firstNoteBySource.get(source.stableId);
-      const authority = previousSource === source.stableId
-        ? "Ibid"
-        : firstNote
-          ? `${source.shortAuthority}, supra note ${firstNote}`
-          : source.authority;
-      if (!firstNote) firstNoteBySource.set(source.stableId, number);
-      previousSource = source.stableId;
-      citationFootnoteForms.set(key, {
-        sources: [{ ...source, authority }],
-      });
+      citationNotes.set(`${citation.id}:${citation.occurrence}`, { number, citation: resolved });
     });
   }
   const linkedRun = (text: string, url: string | null): ParagraphChild =>
@@ -1140,9 +1129,9 @@ export async function renderDocxMarkdownDocument(
           if (unverifiedCitations.has(child.id)) return [];
           if (placement === "none" || placement === "after-paragraph") return [];
           if (placement === "footnotes") {
-            const number = citationNoteNumbers.get(
+            const number = citationNotes.get(
               `${child.id}:${child.occurrence}`,
-            );
+            )?.number;
             return number ? [new FootnoteReferenceRun(number)] : [];
           }
           return [run(" "), ...citationRuns(citations[child.id])];
@@ -1416,26 +1405,28 @@ export async function renderDocxMarkdownDocument(
         ],
       },
     ] as const),
-    ...(citationPlacement === "footnotes"
-      ? citationOccurrences.map((citation) => [
-          String(
-            citationNoteNumbers.get(`${citation.id}:${citation.occurrence}`),
-          ),
-          {
-            children: [
-              new Paragraph({
-                style: "FootnoteText",
-                children: citationRuns(
-                  citationFootnoteForms.get(
-                    `${citation.id}:${citation.occurrence}`,
-                  ) ?? citations[citation.id],
-                ),
-              }),
-            ],
-          },
-        ] as const)
-      : []),
+    ...[...citationNotes.values()].map(({ number, citation }) => [
+      String(number),
+      {
+        children: [
+          new Paragraph({ style: "FootnoteText", children: citationRuns(citation) }),
+        ],
+      },
+    ] as const),
   ]);
+  const headingStyle = (
+    size: number,
+    spacing: { before: number; after: number },
+    alignment?: IParagraphStylePropertiesOptions["alignment"],
+  ) => ({
+    run: { font, size, bold: true, color: "000000" },
+    paragraph: {
+      ...(alignment ? { alignment } : {}),
+      spacing,
+      keepNext: true,
+      keepLines: true,
+    },
+  });
   const docx = new Document({
     title,
     creator: "Beaver",
@@ -1448,63 +1439,13 @@ export async function renderDocxMarkdownDocument(
             spacing: { line: 264, after: 80 },
           },
         },
-        title: {
-          run: { font, size: 28, bold: true, color: "000000" },
-          paragraph: {
-            alignment: AlignmentType.CENTER,
-            spacing: { before: 0, after: 240 },
-            keepNext: true,
-            keepLines: true,
-          },
-        },
-        heading1: {
-          run: { font, size: 26, bold: true, color: "000000" },
-          paragraph: {
-            spacing: { before: 240, after: 80 },
-            keepNext: true,
-            keepLines: true,
-          },
-        },
-        heading2: {
-          run: { font, size: 24, bold: true, color: "000000" },
-          paragraph: {
-            spacing: { before: 180, after: 60 },
-            keepNext: true,
-            keepLines: true,
-          },
-        },
-        heading3: {
-          run: { font, size: 22, bold: true, color: "000000" },
-          paragraph: {
-            spacing: { before: 140, after: 40 },
-            keepNext: true,
-            keepLines: true,
-          },
-        },
-        heading4: {
-          run: { font, size: 22, bold: true, color: "000000" },
-          paragraph: {
-            spacing: { before: 120, after: 40 },
-            keepNext: true,
-            keepLines: true,
-          },
-        },
-        heading5: {
-          run: { font, size: 22, bold: true, color: "000000" },
-          paragraph: {
-            spacing: { before: 100, after: 40 },
-            keepNext: true,
-            keepLines: true,
-          },
-        },
-        heading6: {
-          run: { font, size: 22, bold: true, color: "000000" },
-          paragraph: {
-            spacing: { before: 80, after: 40 },
-            keepNext: true,
-            keepLines: true,
-          },
-        },
+        title: headingStyle(28, { before: 0, after: 240 }, AlignmentType.CENTER),
+        heading1: headingStyle(26, { before: 240, after: 80 }),
+        heading2: headingStyle(24, { before: 180, after: 60 }),
+        heading3: headingStyle(22, { before: 140, after: 40 }),
+        heading4: headingStyle(22, { before: 120, after: 40 }),
+        heading5: headingStyle(22, { before: 100, after: 40 }),
+        heading6: headingStyle(22, { before: 80, after: 40 }),
         listParagraph: {
           run: { font, size, color: "000000" },
           paragraph: {
