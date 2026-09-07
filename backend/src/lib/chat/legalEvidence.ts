@@ -999,6 +999,8 @@ type CitationEntry = RegisteredEvidence & { ref: number };
 export type LegalEvidenceCitationGroup = {
   ref: number;
   members: CitationEntry[];
+  /** The group's honest pinpoint kind, or `document` when it has none. */
+  locatorKind: LegalEvidenceReceipt["locator"]["kind"];
   locatorLabels: string[];
 };
 
@@ -1015,19 +1017,33 @@ export function legalEvidenceCitationGroupsFromEntries(
 ): LegalEvidenceCitationGroup[] {
   const groups: LegalEvidenceCitationGroup[] = [];
   const grouped = new Map<string, LegalEvidenceCitationGroup>();
+  const pinpointKinds = new Map<string, Set<LegalEvidenceReceipt["locator"]["kind"]>>();
+  for (const entry of entries) {
+    const { kind } = entry.receipt.locator;
+    if (kind === "document") continue;
+    const source = citationSourceKey(entry);
+    pinpointKinds.set(source, (pinpointKinds.get(source) ?? new Set()).add(kind));
+  }
   for (const raw of entries) {
-    const key = `${citationSourceKey(raw)}\u0000${raw.receipt.locator.kind}`;
+    const source = citationSourceKey(raw), kinds = pinpointKinds.get(source);
+    // A passage the source could not pinpoint has no locator system of its own,
+    // so it joins that authority's pinpointed chip rather than becoming a
+    // second, locator-less chip for the same authority.
+    const kind = raw.receipt.locator.kind !== "document" ? raw.receipt.locator.kind
+      : kinds?.size === 1 ? [...kinds][0] : "document";
+    const key = `${source}\u0000${kind}`;
     let group = grouped.get(key);
     if (!group) {
-      group = { ref: groups.length + 1, members: [], locatorLabels: [] };
+      group = { ref: groups.length + 1, members: [], locatorKind: kind, locatorLabels: [] };
       grouped.set(key, group);
       groups.push(group);
     }
     group.members.push({ ...raw, ref: group.ref });
   }
   for (const group of groups) {
-    const { kind } = group.members[0].receipt.locator;
-    const labels = group.members.map(({ receipt }) => receipt.locator.label);
+    const kind = group.locatorKind;
+    const labels = group.members.flatMap(({ receipt }) =>
+      receipt.locator.kind === kind ? [receipt.locator.label] : []);
     group.locatorLabels = collapseProvisionLabels(labels, kind) ?? [...new Set(labels)];
   }
   return groups;
@@ -1036,11 +1052,7 @@ export function legalEvidenceCitationGroupsFromEntries(
 export function legalEvidenceCitationGroups(
   state: LegalEvidenceTurnState,
 ): LegalEvidenceCitationGroup[] {
-  return legalEvidenceCitationEntries(state).map((entry, index) => ({
-    ref: index + 1,
-    members: [{ ...entry, ref: index + 1 }],
-    locatorLabels: [entry.receipt.locator.label],
-  }));
+  return legalEvidenceCitationGroupsFromEntries(legalEvidenceCitationEntries(state));
 }
 
 export function legalEvidenceCitationEntries(
