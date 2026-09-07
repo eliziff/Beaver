@@ -559,19 +559,54 @@ mod legalpdf_exports {
         status: legalpdf::PdfLookupStatus,
         pages: Vec<u32>,
         lines: Vec<String>,
-        fallback_markers: Vec<String>,
+        paragraph: Option<String>,
     }
 
-    fn starts_with_exact_marker(text: &str, marker: &str) -> bool {
-        text.trim_start()
-            .strip_prefix(marker)
-            .is_some_and(|rest| rest.chars().next().is_none_or(char::is_whitespace))
+    // Printed paragraph numbers are addresses, not structural ordinal positions.
+    // Split on the actual native lines: a prose node can contain several numbered
+    // paragraphs, and one printed paragraph can contain several prose nodes.
+    fn printed_paragraph_plan<'a>(
+        lines: &[(&'a str, &'a str)],
+        paragraphs: &[Vec<String>],
+        locator: &str,
+    ) -> Option<(legalpdf::PdfLookupStatus, HashSet<&'a str>)> {
+        use legalpdf::PdfLookupStatus as Status;
+        let labels = lines.iter().enumerate().filter_map(|(index, (_, text))| {
+            let (number, rest) = text.trim_start().strip_prefix('[')?.split_once(']')?;
+            if (!rest.is_empty() && !rest.starts_with(char::is_whitespace)) ||
+                !number.chars().all(|c| c.is_ascii_digit()) { return None; }
+            Some((number.parse::<usize>().ok()?, index))
+        }).collect::<Vec<_>>();
+        if labels.is_empty() { return None; }
+        let range = legal_pdf_support::numeric_range("paragraph", locator)
+            .or_else(|| legal_pdf_support::parse_ordinal("paragraph", locator).map(|n| (n, n)));
+        let Some((from, to)) = range.filter(|(a, b)| a <= b && b - a < 100) else {
+            return Some((Status::Invalid, HashSet::new()));
+        };
+        let mut selected = HashSet::new();
+        for number in from..=to {
+            let hits = labels.iter().filter(|(label, _)| *label == number).collect::<Vec<_>>();
+            if hits.len() != 1 {
+                return Some((if hits.is_empty() { Status::NotFound } else { Status::Ambiguous }, HashSet::new()));
+            }
+            let start = hits[0].1;
+            if let Some((_, end)) = labels.iter().find(|(_, index)| *index > start) {
+                selected.extend(lines[start..*end].iter().map(|(id, _)| *id));
+            } else {
+                // At EOF use the native owner, not unbounded end matter.
+                let owner = paragraphs.iter().find(|ids| ids.iter().any(|id| id == lines[start].0));
+                selected.extend(lines[start..].iter().filter(|(id, _)|
+                    owner.is_some_and(|ids| ids.iter().any(|value| value == id))).map(|(id, _)| *id));
+            }
+        }
+        Some((Status::Found, selected))
     }
 
     pub struct PdfPassagePagesTask {
         bytes: Buffer,
         summary: legalpdf::PdfSummary,
         plans: Option<Vec<PassagePlan>>,
+        paragraphs: Vec<Vec<String>>,
     }
 
     impl Task for PdfPassagePagesTask {
@@ -588,62 +623,21 @@ mod legalpdf_exports {
                 .copied()
                 .chain(pdf.metadata.ocr_routed_pages.iter().copied())
                 .collect::<HashSet<_>>();
+            let prose_ids = self.paragraphs.iter().flatten().map(String::as_str).collect::<HashSet<_>>();
+            let prose_lines = pdf.pages.iter().flat_map(|page| page.lines.iter())
+                .filter(|line| prose_ids.contains(line.id.as_str()))
+                .map(|line| (line.id.as_str(), line.text.as_str())).collect::<Vec<_>>();
             let targets = self
                 .plans
                 .take()
                 .unwrap()
                 .into_iter()
                 .map(|plan| {
-                    let mut selected = plan
-                        .lines
-                        .iter()
-                        .map(String::as_str)
-                        .collect::<HashSet<_>>();
-                    let hits = pdf
-                        .pages
-                        .iter()
-                        .flat_map(|page| {
-                            page.lines
-                                .iter()
-                                .filter_map(|line| {
-                                    plan.fallback_markers
-                                        .iter()
-                                        .position(|marker| {
-                                            starts_with_exact_marker(&line.text, marker)
-                                        })
-                                        .map(|marker| (marker, page.number, line))
-                                })
-                                .collect::<Vec<_>>()
-                        })
-                        .collect::<Vec<_>>();
-                    let counts = (0..plan.fallback_markers.len())
-                        .map(|marker| hits.iter().filter(|(index, _, _)| *index == marker).count())
-                        .collect::<Vec<_>>();
-                    let exact = !counts.is_empty() && counts.iter().all(|count| *count == 1);
-                    let ambiguous = counts.iter().any(|count| *count > 1);
-                    let colocated = !counts.is_empty()
-                        && counts.iter().all(|count| *count > 0)
-                        && (0..counts.len()).all(|marker| {
-                            hits.iter()
-                                .filter(|(index, _, _)| *index == marker)
-                                .map(|(_, page, _)| page)
-                                .collect::<HashSet<_>>()
-                                .len()
-                                == 1
-                        });
-                    if exact || colocated {
-                        selected.clear();
-                        selected.extend(hits.iter().map(|(_, _, line)| line.id.as_str()));
-                    } else if ambiguous {
-                        selected.clear();
-                    }
-                    let status = if exact || colocated {
-                        legalpdf::PdfLookupStatus::Found
-                    } else if ambiguous {
-                        legalpdf::PdfLookupStatus::Ambiguous
-                    } else {
-                        plan.status
-                    };
+                    let printed = plan.paragraph.as_ref().and_then(|locator|
+                        printed_paragraph_plan(&prose_lines, &self.paragraphs, locator));
+                    let structural = printed.is_none();
+                    let (status, selected) = printed.unwrap_or_else(|| (plan.status,
+                        plan.lines.iter().map(String::as_str).collect::<HashSet<_>>()));
                     let selected_pages = pdf
                         .pages
                         .iter()
@@ -658,7 +652,7 @@ mod legalpdf_exports {
                         .pages
                         .iter()
                         .filter(|page| {
-                            (!exact && !ambiguous && plan.pages.contains(&page.number))
+                            (structural && plan.pages.contains(&page.number))
                                 || selected_pages.contains(&page.number)
                         })
                         .map(|page| {
@@ -750,28 +744,13 @@ mod legalpdf_exports {
                             .map(|page| page as u32),
                     );
                 }
-                let fallback_markers = if target.locator_kind == "paragraph" {
-                    let range = legal_pdf_support::numeric_range("paragraph", &target.locator)
-                        .or_else(|| {
-                            legal_pdf_support::parse_ordinal("paragraph", &target.locator)
-                                .map(|number| (number, number))
-                        });
-                    range
-                        .filter(|(start, end)| start <= end && end - start < 100)
-                        .map(|(start, end)| (start..=end).map(|number| format!("[{number}]")))
-                        .into_iter()
-                        .flatten()
-                        .collect()
-                } else {
-                    Vec::new()
-                };
                 PassagePlan {
                     id: target.id,
                     page: target.locator_kind == "page",
                     status: lookup.status,
                     pages,
                     lines,
-                    fallback_markers,
+                    paragraph: (target.locator_kind == "paragraph").then_some(target.locator),
                 }
             })
             .collect();
@@ -779,6 +758,9 @@ mod legalpdf_exports {
             bytes,
             summary: document.summary().clone(),
             plans: Some(plans),
+            paragraphs: document.structure().nodes.iter().filter(|node|
+                matches!(node.kind, legal_structure::NodeKind::Prose | legal_structure::NodeKind::Heading))
+                .map(|node| node.line_ids.clone()).collect(),
         }))
     }
 }

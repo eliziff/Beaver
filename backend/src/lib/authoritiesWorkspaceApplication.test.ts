@@ -311,6 +311,7 @@ describe("Authorities workspace application", () => {
         footnoteRefs: [], pageNumbers: [], text: note, occurrenceIds: [occurrence.id] },
     ];
     draft.occurrences = { [occurrence.id]: occurrence };
+    draft.stage = "sources";
     runtime.importer.draft.mockResolvedValueOnce(draft).mockImplementation(async (_scope, input) => {
       const next = structuredClone(draft), version = (input as { version: {
         versionId: string; sha256: string } }).version;
@@ -338,7 +339,7 @@ describe("Authorities workspace application", () => {
       .toContain("at para 20");
     expect(await (await JSZip.loadAsync(original.bytes)).file("word/footnotes.xml")!.async("string"))
       .toContain("at para 19");
-    expect(product.state).toMatchObject({ import: { snapshot: { versionId: current.id,
+    expect(product.state).toMatchObject({ stage: "sources", import: { snapshot: { versionId: current.id,
       sha256: current.source_sha256 } }, discrepancyDecisions: { [id]: "pinpoint" } });
     await expect(runtime.application.discrepancies(scope, product.id)).resolves.toEqual([]);
   });

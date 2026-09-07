@@ -111,3 +111,27 @@ describe("native authority text units", () => {
     }] });
   });
 });
+
+it("uses the complete printed paragraph, not just its numbered first line", async () => {
+  const bytes = sourcePdf(["[29] This paragraph starts on the first line.",
+    "The exact evidence continues on the second line.", "[30] A different paragraph follows."]);
+  const native = structureNative(), document = await native.derivePdfDocument(bytes, {});
+  const { targets: [target] } = await pdfPassageGeometry(document, bytes, [{ id: "29",
+    locatorKind: "paragraph", locator: "29", exactQuotes: ["exact evidence continues", "A different paragraph follows"] }]);
+  expect(target.status).toBe("found");
+  expect(target.quotes.map(quote => quote.status)).toEqual(["found", "not_found"]);
+  const [rect] = target.pages[0].passageRects;
+  expect(rect[3] - rect[1]).toBeGreaterThan(20);
+});
+
+it("does not invent a paragraph when printed numbering is missing or duplicated", async () => {
+  for (const [lines, status] of [
+    [["[28] First paragraph with enough text.", "[30] The next paragraph with enough text."], "not_found"],
+    [["[29] First paragraph with enough text.", "[30] Intervening paragraph with enough text.", "[29] Repeated label with enough text."], "ambiguous"],
+  ] as const) {
+    const bytes = sourcePdf([...lines]), document = await structureNative().derivePdfDocument(bytes, {});
+    const result = await pdfPassageGeometry(document, bytes, [{ id: "29", locatorKind: "paragraph", locator: "29" }]);
+    expect(result.targets[0].status).toBe(status);
+    expect(result.targets[0].pages.flatMap(page => page.passageRects)).toEqual([]);
+  }
+});

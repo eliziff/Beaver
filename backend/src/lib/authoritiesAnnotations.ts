@@ -34,6 +34,7 @@ export function initialAuthorityAnnotations(input: {
     !input.exclusions?.has(`${target.locatorKind.trim()}\0${target.locator.trim()}`));
   if (input.style !== 'none') for (const target of targets) {
     const label = labelFor(target.locatorKind, target.locator);
+    const excerpt = target.pages.map(page => page.text ?? '').join(' ').trim().slice(0, 2_000);
     const found = target.status === 'found';
     const fragments = found ? target.pages.flatMap(page => {
       if (page.source !== 'native' || !input.pages[page.pageNumber - 1] || page.width <= 0 || page.height <= 0) return [];
@@ -41,25 +42,30 @@ export function initialAuthorityAnnotations(input: {
       return rects.length ? [{ pageNumber: page.pageNumber, rects }] : [];
     }) : [];
     if (!found || !fragments.length && target.locatorKind !== 'page') unresolved.push({ label, excerpt: '' });
-    if (input.style === 'paragraph') add('highlight', label, '', fragments);
+    if (input.style === 'paragraph') add('highlight', label, excerpt, fragments);
     if (input.style === 'margin' || input.style === 'sidelined') {
-      for (const fragment of fragments) {
+      add('margin', label, excerpt, fragments.map(fragment => {
         const width = input.pages[fragment.pageNumber - 1].width;
-        add('margin', label, '', [{ ...fragment, rects: fragment.rects.map(r => {
-          const x = Math.min(1 - 4 / width, r[2] + 5 / width);
-          return [x, r[1], x + 2 / width, r[3]];
-        }) }]);
-      }
+        const x = Math.max(0, Math.min(...fragment.rects.map(r => r[0])) - 7 / width);
+        return { ...fragment, rects: [[x, Math.min(...fragment.rects.map(r => r[1])),
+          x + 2 / width, Math.max(...fragment.rects.map(r => r[3]))]] };
+      }));
     }
     if (input.style === 'text' || input.style === 'margin') for (const quote of target.quotes) {
       // Each quote is independent, even when several quotes cite the same paragraph/page.
-      const dimensions = target.pages.find(p => p.pageNumber === quote.pageNumber);
-      if (quote.status !== 'found' || !quote.pageNumber || !dimensions ||
-          !input.pages[quote.pageNumber - 1] || !quote.rects.length) {
-        unresolved.push({ label: `${label} · Quote`, excerpt: quote.text.slice(0, 2_000) }); continue;
+      const quoteFragments = (quote.fragments ?? (quote.pageNumber ? [{ pageNumber: quote.pageNumber, rects: quote.rects }] : []))
+        .flatMap(fragment => {
+          const page = target.pages.find(page => page.pageNumber === fragment.pageNumber);
+          return page && input.pages[page.pageNumber - 1] ? [{ pageNumber: page.pageNumber,
+            rects: fragment.rects.map(rect => normal(rect, page.width, page.height)).filter(validRect) }] : [];
+        });
+      if (quote.status !== 'found' || !quoteFragments.length || quoteFragments.some(f => !f.rects.length)) {
+        // A missing paragraph is one issue, not one additional failure per quote.
+        if (found && fragments.length || target.locatorKind === 'page')
+          unresolved.push({ label: `${label} · Quote`, excerpt: quote.text.slice(0, 2_000) });
+        continue;
       }
-      add('highlight', `${label} · Quote`, quote.text, [{ pageNumber: quote.pageNumber,
-        rects: quote.rects.map(r => normal(r, dimensions.width, dimensions.height)) }]);
+      add('highlight', `${label} · Quote`, quote.text, quoteFragments);
     }
   }
   // Page-only and scanned/ambiguous pinpoints have a real page anchor, not invented text geometry.
@@ -70,11 +76,13 @@ export function initialAuthorityAnnotations(input: {
       const hasMark = marks.some(mark => mark.kind === 'margin' && mark.fragments.some(f => f.pageNumber === pageNumber));
       const hasTarget = targets.some(target => target.pages.some(page => page.pageNumber === pageNumber));
       if (!hasMark && (input.citedPages.has(index) || hasTarget)) add('margin', 'Cited page', '', [{ pageNumber,
-        rects: [[1 - 9.25 / width, 18 / height, 1 - 6.75 / width, 1 - 18 / height]] }]);
+        rects: [[6.75 / width, 18 / height, 9.25 / width, 1 - 18 / height]] }]);
     }
   }
   return { annotations: decodeAnnotationSet({ schemaVersion: ANNOTATION_SCHEMA,
-    sourceSha256: input.sourceSha256, marks }), unresolved };
+    sourceSha256: input.sourceSha256, marks }),
+    unresolved: unresolved.filter((item, index) => unresolved.findIndex(other =>
+      other.label === item.label && other.excerpt === item.excerpt) === index) };
 }
 
 /** Standard editable annotations, with printable appearance streams; never alter page contents. */
@@ -85,7 +93,7 @@ export function writeAuthorityAnnotations(pdf: PdfModule, document: PdfDocument,
     if (fragment.pageNumber > document.getPageCount()) throw new Error('An annotation refers to a missing PDF page.');
     const page = document.getPage(fragment.pageNumber - 1);
     const quads = fragment.rects.map(rect => rectToPdfQuad(rect, page.getCropBox(), page.getRotation().angle));
-    // Squares cannot express disconnected geometry, so a partially erased margin has one square per remaining area.
+    // Squares cannot express disconnected geometry; use one per margin segment.
     const groups = mark.kind === 'highlight' ? [quads] : quads.map(quad => [quad]);
     for (const [part, group] of groups.entries()) {
       const [x0, y0, x1, y1] = quadBounds(group), width = x1 - x0, height = y1 - y0;
