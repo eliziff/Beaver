@@ -84,7 +84,7 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
     </div>}
     <Modal open={open} onClose={closePicker} size="lg" className="!h-[min(30rem,calc(100dvh-2rem))]" breadcrumbs={["Workspaces"]}
       footerStatus={status && <span role="alert" className="text-sm text-red-700">{status}</span>}
-      cancelAction={{ label: "Close", onClick: closePicker }} primaryAction={{ label: busy ? "Opening..." : "Open",
+      primaryAction={{ label: busy ? "Opening..." : "Open",
         onClick: () => { const document = selectedDocuments.find(isResearchDocument); if (document) void choose(document.id); },
         disabled: busy || createOpen || !selectedDocuments.some(isResearchDocument) }}>
       <div className="flex h-full min-h-0 flex-col gap-2">
@@ -109,7 +109,7 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
       </div>
     </Modal>
     <Modal open={renameOpen} onClose={() => setRenameOpen(false)} size="sm" fit
-      breadcrumbs={["Workspace", "Rename"]} cancelAction={{ label: "Cancel", onClick: () => setRenameOpen(false) }}
+      breadcrumbs={["Workspace", "Rename"]}
       primaryAction={{ label: busy ? "Renaming..." : "Rename", type: "submit", form: "research-rename", disabled: busy }}>
       <form id="research-rename" onSubmit={rename} className="pb-5">
         <label className="grid gap-1 text-xs font-medium text-gray-700">Workspace name
@@ -119,7 +119,6 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
     </Modal>
     <Modal open={folderOpen} onClose={closeFolder} size="sm" className="!h-[min(15rem,calc(100dvh-2rem))]"
       breadcrumbs={["projectId" in openLocation ? "Projects" : "Library", "New folder"]}
-      cancelAction={{ label: "Cancel", onClick: closeFolder }}
       primaryAction={{ label: busy ? "Creating..." : "Create folder", type: "submit", form: "research-new-folder",
         disabled: busy }}>
       <form id="research-new-folder" onSubmit={createLibraryFolder} className="pb-5">
