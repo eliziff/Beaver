@@ -71,14 +71,9 @@ function languageField(
   row: Row,
   field: string,
   language: Language,
-  fallback = true,
 ) {
-  return (
-    string(row, `${field}_${language}`) ??
-    (fallback
-      ? string(row, `${field}_${language === "en" ? "fr" : "en"}`)
-      : null)
-  );
+  return string(row, `${field}_${language}`) ??
+    string(row, `${field}_${language === "en" ? "fr" : "en"}`);
 }
 
 function sectionMap(row: Row, language: Language) {
@@ -98,37 +93,41 @@ function sectionMap(row: Row, language: Language) {
   }
 }
 
+function documentMetadata(row: Row, language: Language) {
+  const citation = languageField(row, "citation", language) ??
+    languageField(row, "citation2", language);
+  if (!citation) return null;
+  return {
+    dataset: string(row, "dataset") ?? "",
+    citation,
+    alternateCitation: languageField(row, "citation2", language),
+    name: languageField(row, "name", language),
+    date: languageField(row, "document_date", language),
+    url: languageField(row, "url", language),
+  };
+}
+
 function a2ajDocumentFromRow(
-  row: Record<string, unknown>, language: Language,
+  row: Row, language: Language, maxChars: number,
 ): A2AJDocument | null {
-  const requestedText = languageField(row, "unofficial_text", language, false);
+  const requestedText = string(row, `unofficial_text_${language}`);
   const actualLanguage = requestedText
     ? language
     : language === "en"
       ? "fr"
       : "en";
   const text = languageField(row, "unofficial_text", actualLanguage);
-  const citation =
-    languageField(row, "citation", actualLanguage) ??
-    languageField(row, "citation2", actualLanguage);
-  if (!text || !citation) return null;
-  const docType = string(row, "doc_type") === "laws" ? "laws" : "cases";
-  const mappedSections = sectionMap(row, actualLanguage);
-  const document: A2AJDocument = {
-    docType,
-    dataset: string(row, "dataset") ?? "",
-    citation,
-    alternateCitation: languageField(row, "citation2", actualLanguage),
-    name: languageField(row, "name", actualLanguage),
-    date: languageField(row, "document_date", actualLanguage),
-    url: languageField(row, "url", actualLanguage),
+  const metadata = documentMetadata(row, actualLanguage);
+  if (!text || !metadata) return null;
+  return {
+    ...metadata,
+    docType: string(row, "doc_type") === "laws" ? "laws" : "cases",
     verifiedPdf: null,
-    text,
+    text: text.length > maxChars ? text.slice(0, maxChars) : text,
     language: actualLanguage,
     upstreamLicense: string(row, "upstream_license"),
-    sectionMap: mappedSections ?? undefined,
+    sectionMap: sectionMap(row, actualLanguage) ?? undefined,
   };
-  return document;
 }
 
 /**
@@ -167,12 +166,8 @@ export function fetchLocalA2AJDocumentsByIds(args: {
       ).all(...chunk, docType) as Row[]).map((row) => [Number(row.id), row]));
       for (const id of chunk) {
         const row = rows.get(id);
-        const result = row ? a2ajDocumentFromRow(row, language) : null;
-        if (!result) continue;
-        if (result.text.length > maxChars) {
-          result.text = result.text.slice(0, maxChars);
-        }
-        out.set(id, result);
+        const result = row ? a2ajDocumentFromRow(row, language, maxChars) : null;
+        if (result) out.set(id, result);
       }
     }
   });
@@ -230,19 +225,8 @@ export function fetchLocalA2AJDocument(args: {
       )
       .all(...values) as Row[];
     const row = rows.length === 1 ? rows[0] : undefined;
-    const result = row
-      ? a2ajDocumentFromRow(row, args.language === "fr" ? "fr" : "en")
-      : null;
-    if (!result) return null;
-    const maxChars = boundedSize(
-      args.maxChars,
-      50_000,
-      Number.MAX_SAFE_INTEGER,
-    );
-    if (result.text.length > maxChars) {
-      result.text = result.text.slice(0, maxChars);
-    }
-    return result;
+    return row ? a2ajDocumentFromRow(row, args.language === "fr" ? "fr" : "en",
+      boundedSize(args.maxChars, 50_000, Number.MAX_SAFE_INTEGER)) : null;
   });
 }
 
@@ -257,36 +241,6 @@ function hasFts(database: DatabaseSync) {
       "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'document_search'",
     )
     .get();
-}
-
-function snippet(text: string | null, tokens: string[]) {
-  if (!text) return null;
-  const lower = text.toLocaleLowerCase();
-  const position = tokens
-    .map((token) => lower.indexOf(token.toLocaleLowerCase()))
-    .find((index) => index >= 0);
-  const start = Math.max(0, (position ?? 0) - 200);
-  return text.slice(start, start + 1_200);
-}
-
-function searchResult(
-  row: Row,
-  language: Language,
-  tokens: string[],
-): A2AJSearchResult | null {
-  const citation =
-    languageField(row, "citation", language) ??
-    languageField(row, "citation2", language);
-  if (!citation) return null;
-  return {
-    dataset: string(row, "dataset") ?? "",
-    citation,
-    alternateCitation: languageField(row, "citation2", language),
-    name: languageField(row, "name", language),
-    date: languageField(row, "document_date", language),
-    url: languageField(row, "url", language),
-    snippet: snippet(languageField(row, "unofficial_text", language), tokens),
-  };
 }
 
 export function searchLocalA2AJ(args: {
@@ -312,7 +266,12 @@ export function searchLocalA2AJ(args: {
     path.basename(searchDatabasePath(docType)) ===
     `a2aj-${docType}-fulltext.sqlite`;
   return withSearchDatabase(docType, (database) => {
-    const fts = hasFts(database);
+    if (!hasFts(database)) {
+      if (args.querySyntax === "fts5") {
+        throw new Error("Local A2AJ full-text index is unavailable");
+      }
+      return null;
+    }
     const filters = dedicatedIndex ? [] : ["document.doc_type = ?"];
     const values: Array<string | number> = dedicatedIndex ? [] : [docType];
     addDatasetFilter(filters, values, args.dataset);
@@ -326,30 +285,15 @@ export function searchLocalA2AJ(args: {
       filters.push(`${date} <= ?`);
       values.push(args.endDate.trim());
     }
-    let from = "document";
-    if (fts) {
-      from =
-        "document_search JOIN document ON document.id = document_search.rowid";
-      filters.unshift("document_search MATCH ?");
-      values.unshift(
-        args.querySyntax === "fts5"
-          ? query
-          : ftsQuery(tokens, args.searchType ?? "full_text"),
-      );
-    } else {
-      if (args.querySyntax === "fts5") {
-        throw new Error("Local A2AJ full-text index is unavailable");
-      }
-      return null;
-    }
+    filters.unshift("document_search MATCH ?");
+    values.unshift(args.querySyntax === "fts5"
+      ? query : ftsQuery(tokens, args.searchType ?? "full_text"));
     const order =
       args.sortResults === "newest_first"
         ? `${date} DESC, document.id`
         : args.sortResults === "oldest_first"
           ? `${date} ASC, document.id`
-          : fts
-            ? "rank"
-            : `${date} DESC, document.id`;
+          : "rank";
     values.push(wanted);
     return database
       .prepare(
@@ -359,13 +303,16 @@ export function searchLocalA2AJ(args: {
                 document.name_en, document.name_fr,
                 document.document_date_en, document.document_date_fr,
                 document.url_en, document.url_fr
-         FROM ${from}
+         FROM document_search JOIN document ON document.id = document_search.rowid
          WHERE ${filters.join(" AND ")}
          ORDER BY ${order}
          LIMIT ?`,
       )
       .all(...values)
-      .map((row) => searchResult(row as Row, language, tokens))
-      .filter((row): row is A2AJSearchResult => !!row);
+      .flatMap((row) => {
+        const metadata = documentMetadata(row, language);
+        // The search projection deliberately excludes full text.
+        return metadata ? [{ ...metadata, snippet: null }] : [];
+      });
   });
 }

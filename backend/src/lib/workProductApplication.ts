@@ -1,7 +1,8 @@
 import { ApplicationError, reject, type ApplicationScope } from "./applicationError";
 import { decodeAuthoritiesDraft } from "./authoritiesDomain";
 import { acceptsWorkProductOutput } from "mike/shared/court-record-work-products.mjs";
-import { COURT_RECORD_PROFILE_BY_ID, decodeCourtRecordDraftState } from "./courtRecordContract";
+import { COURT_PROFILE_BY_ID } from "mike/shared/court-record-profiles.mjs";
+import { decodeCourtRecordDraftState } from "./courtRecordContract";
 import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
   type DocumentFile, type DocumentRollback, type DocumentStore } from "./documentStore";
 import type { WorkflowFiles } from "./workflowFiles";
@@ -31,7 +32,7 @@ function state(kind: WorkProductKind, value: unknown): WorkProductState {
 
 async function validateCourtRecordOutputs(scope: ApplicationScope, draft: WorkProductState,
   repository: WorkProductRepository) {
-  const profile = COURT_RECORD_PROFILE_BY_ID.get(String(draft.profileId));
+  const profile = COURT_PROFILE_BY_ID.get(String(draft.profileId));
   const entries = new Map((draft.entries as Array<{ id: string; kindId: string }>).map(
     ({ id, kindId }) => [id, kindId]));
   const bindings = draft.bindings ?? {};
@@ -42,7 +43,7 @@ async function validateCourtRecordOutputs(scope: ApplicationScope, draft: WorkPr
   for (const [entryId, input] of Object.entries(bindings)) {
     if (input.kind !== "work-product-output") continue;
     const child = children.get(input.workProductId);
-    const slot = profile?.slots.find(({ id }) => id === entries.get(entryId));
+    const slot = profile?.documentKinds.find(({ id }) => id === entries.get(entryId));
     if (child && (!slot || !acceptsWorkProductOutput(slot, { kind: child.kind,
       profileId: child.kind === "court-record" ? String(child.state.profileId) : undefined,
       role: input.role }))) reject(400, "A saved draft output does not match this Court Record slot");

@@ -1,72 +1,11 @@
-import {
-  DEFAULT_DRAFTING_STYLE,
-  type DraftingStyleSettings,
-} from "./draftingStyle";
-
-export type FeaturePreferences = {
-  authorities: boolean;
-};
-
-export type WorkflowFileTarget =
-  | { kind: "library"; folderId: string }
-  | { kind: "project"; projectId: string; folderId: string };
-
-export type WorkflowFileTargets = {
-  "court-records": WorkflowFileTarget | null;
-  authorities: WorkflowFileTarget | null;
-};
-
-export type FilingContact = {
-  name: string;
-  address: string;
-  phone: string;
-  fax: string;
-  email: string;
-};
-
-export type UserPreferences = {
-  displayName: string | null;
-  organisation: string | null;
-  practiceSetting: string | null;
-  professionalTitle: string | null;
-  practiceAreas: string[];
-  jurisdictionPreference: { mode: "ask" | "presume"; jurisdictions: string[] };
-  onboardingCompleted: boolean;
-  titleModel: string | null;
-  tabularModel: string | null;
-  lastSelectedChatModel: string | null;
-  lastSelectedReasoningEffort: string | null;
-  legalResearchUs: boolean;
-  features: FeaturePreferences;
-  workflowFileTargets: WorkflowFileTargets;
-  filingContact: FilingContact;
-  draftingStyle: DraftingStyleSettings;
-};
-
-export type UserPreferencesPatch = Partial<UserPreferences>;
+import type { UserPreferences, UserPreferencesPatch } from "mike/shared/user-preferences.mjs";
+export { DEFAULT_USER_PREFERENCES } from "mike/shared/user-preferences.mjs";
+export type { FeaturePreferences, FilingContact, UserPreferences, UserPreferencesPatch,
+  WorkflowFileTarget, WorkflowFileTargets } from "mike/shared/user-preferences.mjs";
 
 export type UserPreferencesRepository = {
   get(userId: string): Promise<UserPreferences>;
   update(userId: string, patch: UserPreferencesPatch): Promise<UserPreferences>;
-};
-
-export const DEFAULT_USER_PREFERENCES: UserPreferences = {
-  displayName: null,
-  organisation: null,
-  practiceSetting: null,
-  professionalTitle: null,
-  practiceAreas: [],
-  jurisdictionPreference: { mode: "ask", jurisdictions: [] },
-  onboardingCompleted: false,
-  titleModel: null,
-  tabularModel: null,
-  lastSelectedChatModel: null,
-  lastSelectedReasoningEffort: null,
-  legalResearchUs: true,
-  features: { authorities: true },
-  workflowFileTargets: { "court-records": null, authorities: null },
-  filingContact: { name: "", address: "", phone: "", fax: "", email: "" },
-  draftingStyle: DEFAULT_DRAFTING_STYLE,
 };
 
 export function userPersonalisationPrompt(preferences: UserPreferences) {
