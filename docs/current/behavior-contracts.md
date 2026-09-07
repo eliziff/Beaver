@@ -151,7 +151,16 @@ pagination or downloading.
   original support into Chat. All columns still means the selected rows of this
   table, not every workspace finding. Read findings and read_table_cells honor
   that result selection; original document reads remain available within source
-  scope when further context is needed.
+  scope when further context is needed. A narrowed claim selection keeps the
+  original claim index, so a narrow scope cannot read a broader cell or finding.
+- Add source in a virtual folder uses the shared paged Library/project picker and
+  adds pinned document versions to that source label. Multi-document addition
+  commits atomically: a missing or foreign version leaves no partial collection.
+  Library Add to research likewise chooses an explicit research set and,
+  optionally, a source label within it, merging with a source's existing labels.
+  There is no global workspace assignment.
+- Adding a source to an existing table preserves existing row IDs and their
+  completed results; only the new rows are pending.
 - Conversion refuses oversized selections (500 rows / 25,000 inventory entries)
   rather than silently dropping work. Assisted inventory is bounded separately.
   Existing Library placement, sharing, table history and regeneration remain the

@@ -14,6 +14,7 @@ import { ResearchChanges } from "./ResearchChanges";
 import { ResearchHighlightTypes } from "./ResearchHighlightTypes";
 import { ResearchSearchPanel } from "./ResearchSearchPanel";
 import { ResearchTree, type ResearchRemoval } from "./ResearchTree";
+import { AddResearchSources } from "./AddResearchSources";
 import { ResearchWorkspacePicker } from "./ResearchWorkspacePicker";
 import { sourceMatches, useSourceReader } from "./useSourceReader";
 
@@ -34,6 +35,7 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
   const searchOpen = tab === "search", noteOpen = tab === "memo";
   const [labelId, setLabelId] = useState<string | null>(null);
   const [typeId, setTypeId] = useState("");
+  const [addingSources, setAddingSources] = useState(false);
   const [sourceFilter, setSourceFilter] = useState("all");
   const [changesOpen, setChangesOpen] = useState(false), [filter, setFilter] = useState("");
   const [matches, setMatches] = useState<{ evidence: Set<string>; sources: Set<string> } | null>(null),
@@ -96,7 +98,7 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
     ...(scope.evidenceIds ? { evidenceIds: selection.evidenceIds ? selection.evidenceIds.filter((id) => scope.evidenceIds!.includes(id)) : scope.evidenceIds } : {}) });
   const viewSelection = constrain({ target: scope.target === "passages" || matches || selectedType ? "passages" : "sources",
     sourceIds: list.map(({ id }) => id),
-    ...(selectedType ? { labelIds: filteredTypes } : {}),
+    ...((selectedLabel || selectedType) ? { labelIds: [...(selectedLabel ? [selectedLabel] : scopedSourceLabels), ...filteredTypes] } : {}),
     ...(matches ? { evidenceIds: [...matches.evidence] } : {}) });
   const selectionKey = JSON.stringify(viewSelection);
   useEffect(() => { setSelection(JSON.parse(selectionKey) as ResearchSelection); }, [selectionKey, setSelection]);
@@ -205,6 +207,7 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
               if (value) next.add(id); else next.delete(id); return next; }) : undefined}
             onRemove={setRemoving} onStatus={setStatus}
             onSourceDrag={() => { if (!noteOpen) requestAnimationFrame(revealLabels); }} />
+          <Button size="compact" variant="ghost" onClick={() => setAddingSources(true)}>+ Add source</Button>
         </div>
         <div className={`${noteOpen ? "flex" : "hidden"} min-h-0 flex-1 flex-col`}><Suspense fallback={<p role="status" className="py-3 text-sm text-gray-500">Opening memo…</p>}>
           <ResearchMemoPane file={file} mutations={commit}
@@ -217,6 +220,10 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
         </Suspense></div>
       </Tabs>
     </>}
+    {addingSources && file && <AddResearchSources labelId={selectedLabel ?? scopedSourceLabels[0]} onClose={() => setAddingSources(false)}
+      onAdded={(ids) => setScope((current) => ({ ...current,
+        ...(current.sourceIds ? { sourceIds: [...new Set([...current.sourceIds, ...ids])] } : {}),
+        ...(current.members ? { members: [...current.members, ...ids.filter((id) => !current.members!.some(({ sourceId }) => sourceId === id)).map((sourceId) => ({ sourceId }))] } : {}) }))} />}
     {reader.reading && <ResearchCitationViewer {...reader.reading} onClose={() => reader.setReading(null)} />}
     <ConfirmPopup open={!!removing} title={removing?.kind === "label" ? "Delete label?" : removing?.kind === "source" ? "Remove source?" : "Delete passage?"}
       message={removalMessage} confirmLabel={removing?.kind === "source" ? "Remove" : "Delete"}

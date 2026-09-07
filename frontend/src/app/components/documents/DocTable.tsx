@@ -45,8 +45,9 @@ import type { DocumentSelectionActions, UploadActions } from "./UploadAction";
 import type { WorkflowSelection } from "@/app/components/workflows/workflowRoutes";
 import { ContextualWorkflowPicker } from "@/app/components/workflows/ContextualWorkflowPicker";
 import { Modal } from "@/app/components/modals/Modal";
-import { type ResearchSourceReference } from "@/app/lib/researchFiles";
+import { isResearchDocument, researchLabelPath, type ResearchFile, type ResearchSourceReference } from "@/app/lib/researchFiles";
 import { actOnResearchFile, getResearchFile } from "@/app/lib/api/researchFiles";
+import { FileDirectory } from "../shared/FileDirectory";
 import { directoryResource } from "@/app/lib/api/documents";
 import { buildDocumentTree, CHAT_DOCUMENT_DRAG_TYPE, descendantFolderIds, DOCUMENT_DRAG_TYPE,
     documentTreeDropFolder, FOLDER_DRAG_TYPE, hasDocumentTreeDrag,
@@ -258,35 +259,29 @@ function MoveDialog({ title, list, createFolder, rootLabel, disabledIds, canMove
             disabledIds={disabledIds} />
     </Modal>;
 }
-function ResearchSetPicker({ onSelect, onClose }: {
-    onSelect: (id: string) => void; onClose: () => void;
-}) {
-    const [query, setQuery] = useState(""), [choices, setChoices] = useState<Document[] | null>(null);
+function ResearchSetPicker({ onSelect, onClose }: { onSelect: (id: string, labelId?: string) => Promise<void>; onClose: () => void }) {
+    const [picked, setPicked] = useState<Document[]>([]), [file, setFile] = useState<ResearchFile | null>(null);
+    const [labelId, setLabelId] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
+    const id = picked[0]?.id;
     useEffect(() => {
-        let cancelled = false;
-        setChoices(null);
-        void directoryResource({ library: "files" }).list({ q: query.trim() || undefined, limit: 50 }).then((page) => {
-            if (cancelled) return;
-            setChoices(page.items.flatMap((entry) => entry.kind === "document"
-                && entry.document.filename.endsWith(".research.md")
-                ? [entry.document] : []));
-        }).catch(() => { if (!cancelled) setChoices([]); });
-        return () => { cancelled = true; };
-    }, [query]);
-    return <Modal open onClose={onClose} breadcrumbs={["Add to research"]} size="md">
-        <input role="searchbox" aria-label="Filter" value={query} placeholder="Filter research sets"
-            onChange={(event) => setQuery(event.target.value)}
-            className="mb-3 h-9 w-full rounded-md border border-gray-300 px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-red-600" />
-        {choices === null ? <p role="status" className="py-6 text-center text-sm text-gray-500">Loading…</p>
-        : !choices.length ? <p className="py-6 text-center text-sm text-gray-500">No research sets found.</p>
-        : <ul aria-label="Research collection" className="max-h-80 space-y-1 overflow-y-auto">
-            {choices.map((choice) => <li key={choice.id}>
-                <button type="button" onClick={() => onSelect(choice.id)}
-                    className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-900">
-                    <span className="min-w-0 truncate">{choice.filename.replace(/\.research\.md$/iu, "")}</span>
-                </button>
-            </li>)}
-        </ul>}
+        let active = true; setFile(null); setLabelId(""); setError("");
+        if (id) void getResearchFile(id).then((next) => { if (active) setFile(next); })
+            .catch((reason) => { if (active) setError(String(reason)); });
+        return () => { active = false; };
+    }, [id]);
+    return <Modal open onClose={onClose} breadcrumbs={["Add to research"]} size="lg"
+        primaryAction={{ label: "Add", disabled: !file || busy, onClick: async () => {
+            if (!file) return; setBusy(true); setError("");
+            try { await onSelect(file.document.id, labelId || undefined); } catch (reason) { setError(String(reason)); }
+            finally { setBusy(false); }
+        } }} footerStatus={error && <p role="alert" className="text-sm text-red-700">{error}</p>}>
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+            <FileDirectory selectedDocuments={picked} onChange={setPicked} showTabs multiple={false} documentFilter={isResearchDocument} noun="research sets" initialLocation={{ library: "files" }} />
+            {file && <select aria-label="Destination source label" value={labelId} onChange={(event) => setLabelId(event.target.value)} className="w-full rounded border border-gray-300 p-2 text-sm">
+                <option value="">All sources</option>{Object.values(file.state.labels).filter(({ scope }) => scope === "source").map(({ id }) =>
+                    <option key={id} value={id}>{researchLabelPath(file.state.labels, id).map(({ name }) => name).join(" › ")}</option>)}
+            </select>}
+        </div>
     </Modal>;
 }
 interface DocTableProps {    scopeKey: string; documents: Document[]; folders: DocTableFolder[];
@@ -519,18 +514,20 @@ export function DocTable({
     function documentReference(doc: Document, versionId: string): ResearchSourceReference {
         return { provider: "library", kind: "document", id: doc.id, versionId, title: doc.filename };
     }
-    async function addDocToWorkspace(doc: Document, workspaceId: string) {
+    async function addDocToWorkspace(doc: Document, workspaceId: string, labelId?: string) {
         try {
             const target = await getResearchFile(workspaceId);
             const versionId = doc.current_version_id
                 ?? (await loadDocumentVersions(doc.id))?.currentVersionId;
             if (!versionId) throw new Error("Document revision is unavailable");
             await actOnResearchFile(target.document.id, target.versionId, target.workingRevision,
-                { type: "source", reference: documentReference(doc, versionId) });
+                { type: "source", reference: documentReference(doc, versionId), ...(labelId ? { labelIds: [...new Set([
+                    ...(Object.values(target.state.sources).find(({ reference }) => reference.kind === "document" && reference.id === doc.id && reference.versionId === versionId)?.labelIds ?? []), labelId])] } : {}) });
             setPickerDoc(null);
         } catch (reason) {
             setWarning("collection", reason instanceof Error ? reason.message
                 : "Could not add this document to the workspace");
+            throw reason;
         }
     }
     const tree = buildDocumentTree(
@@ -1353,7 +1350,7 @@ export function DocTable({
             </Modal>
             {pickerDoc && (
                 <ResearchSetPicker
-                    onSelect={(workspaceId) => void addDocToWorkspace(pickerDoc, workspaceId)}
+                    onSelect={(workspaceId, labelId) => addDocToWorkspace(pickerDoc, workspaceId, labelId)}
                     onClose={() => setPickerDoc(null)} />
             )}
             <TableScrollArea className="document-table"
