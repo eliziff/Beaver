@@ -131,6 +131,33 @@ interface PlannedChange {
     insWId?: string;              // w:id of w:ins wrapper (if insertedText non-empty)
 }
 
+/** Group adjacent edits in the character coordinates of the document being rewritten.
+ * Callers own alignment: normalized equal tokens must carry that document's text.
+ */
+export function clusterTextChanges(parts: Iterable<diff.Diff>, coordinate: "old" | "new") {
+    const clusters: { offset: number; deleted: string; inserted: string }[] = [];
+    const coordinateText = coordinate === "old" ? "deleted" : "inserted";
+    let offset = 0;
+    for (const [op, text] of parts) {
+        if (op === diff.EQUAL) {
+            offset += text.length;
+            continue;
+        }
+        const last = clusters[clusters.length - 1];
+        let cluster: { offset: number; deleted: string; inserted: string };
+        if (last && last.offset + last[coordinateText].length === offset) {
+            cluster = last;
+        } else {
+            cluster = { offset, deleted: "", inserted: "" };
+            clusters.push(cluster);
+        }
+        const field = op === diff.DELETE ? "deleted" : "inserted";
+        cluster[field] += text;
+        if (field === coordinateText) offset += text.length;
+    }
+    return clusters;
+}
+
 /**
  * Split one matched edit into its minimal change clusters using `fast-diff`
  * with semantic cleanup, so fixing "paras 332-334" is one deleted "3" — and a
@@ -147,31 +174,9 @@ function minimalTextEdit(
     clusters: { offset: number; deleted: string; inserted: string }[];
     diff: EditDiffSegment[];
 } {
-    const clusters: { offset: number; deleted: string; inserted: string }[] = [];
     const parts = diff(find, replace, undefined, true);
-    let offset = 0;
-    for (const [op, text] of parts) {
-        if (op === diff.EQUAL) {
-            offset += text.length;
-            continue;
-        }
-        const last = clusters[clusters.length - 1];
-        let cluster: { offset: number; deleted: string; inserted: string };
-        if (last && last.offset + last.deleted.length === offset) {
-            cluster = last;
-        } else {
-            cluster = { offset, deleted: "", inserted: "" };
-            clusters.push(cluster);
-        }
-        if (op === diff.DELETE) {
-            cluster.deleted += text;
-            offset += text.length;
-        } else {
-            cluster.inserted += text;
-        }
-    }
     return {
-        clusters,
+        clusters: clusterTextChanges(parts, "old"),
         diff: parts.map(([op, text]) => ({
             kind:
                 op === diff.EQUAL

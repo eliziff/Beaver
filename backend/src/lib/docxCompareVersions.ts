@@ -30,6 +30,7 @@ import {
     openDocxSession,
 } from "./docx/session";
 import {
+    clusterTextChanges,
     markParagraphRevision,
     normalizeWs,
     revisionAttrs,
@@ -323,30 +324,12 @@ function tokenizeForDiff(text: string): DiffToken[] {
     return merged;
 }
 
-function charDiffClusters(oldText: string, newText: string): DiffCluster[] {
-    const clusters: DiffCluster[] = [];
-    let newPos = 0;
-    for (const [op, text] of diff(oldText, newText, undefined, true)) {
-        if (op === diff.EQUAL) {
-            newPos += text.length;
-            continue;
-        }
-        const last = clusters[clusters.length - 1];
-        let cluster: DiffCluster;
-        if (last && last.newEnd === newPos) {
-            cluster = last;
-        } else {
-            cluster = { newStart: newPos, newEnd: newPos, deleted: "" };
-            clusters.push(cluster);
-        }
-        if (op === diff.DELETE) {
-            cluster.deleted += text;
-        } else {
-            cluster.newEnd += text.length;
-            newPos += text.length;
-        }
-    }
-    return clusters;
+function clustersInNewText(parts: Iterable<diff.Diff>): DiffCluster[] {
+    return clusterTextChanges(parts, "new").map(({ offset, deleted, inserted }) => ({
+        newStart: offset,
+        newEnd: offset + inserted.length,
+        deleted,
+    }));
 }
 
 function wordDiffClusters(oldText: string, newText: string): DiffCluster[] {
@@ -376,41 +359,22 @@ function wordDiffClusters(oldText: string, newText: string): DiffCluster[] {
     };
     const encOld = encode(oldToks);
     const encNew = overflow ? "" : encode(newToks);
-    if (overflow) return charDiffClusters(oldText, newText);
+    if (overflow) return clustersInNewText(diff(oldText, newText, undefined, true));
 
-    const clusters: DiffCluster[] = [];
+    const parts: diff.Diff[] = [];
     let oi = 0;
     let nj = 0;
-    let newPos = 0;
-    const clusterAtCursor = (): DiffCluster => {
-        const last = clusters[clusters.length - 1];
-        if (last && last.newEnd === newPos) return last;
-        const c: DiffCluster = { newStart: newPos, newEnd: newPos, deleted: "" };
-        clusters.push(c);
-        return c;
-    };
     for (const [op, encoded] of diff(encOld, encNew)) {
-        const k = encoded.length;
-        if (op === diff.EQUAL) {
-            // Equal by KEY — original text lengths may differ per side.
-            for (let x = 0; x < k; x++) newPos += newToks[nj + x].text.length;
-            oi += k;
-            nj += k;
-        } else if (op === diff.DELETE) {
-            const c = clusterAtCursor();
-            for (let x = 0; x < k; x++) c.deleted += oldToks[oi + x].text;
-            oi += k;
-        } else {
-            const c = clusterAtCursor();
-            for (let x = 0; x < k; x++) {
-                const len = newToks[nj + x].text.length;
-                c.newEnd += len;
-                newPos += len;
-            }
-            nj += k;
-        }
+        const count = encoded.length;
+        // Equal keys can have different lengths: offsets belong to the NEW text.
+        const tokens = op === diff.DELETE
+            ? oldToks.slice(oi, oi + count)
+            : newToks.slice(nj, nj + count);
+        parts.push([op, tokens.map(({ text }) => text).join("")]);
+        if (op !== diff.INSERT) oi += count;
+        if (op !== diff.DELETE) nj += count;
     }
-    return clusters;
+    return clustersInNewText(parts);
 }
 
 const KEEP_PARA_CHILDREN = new Set([
