@@ -106,18 +106,21 @@ pagination or downloading.
 
 ## Tabular Review
 
-- The review title has its own wrapping row above compact actions (Docs, Sources,
+- The review title has its own wrapping row above compact actions (Docs,
   + Column). Column names use the full column width and wrap above their controls.
   Format icons are neutral; categorical values use muted fills. The existing
   table selection, prompts, proposals, generation, cancellation and export remain.
-- The cell inspector is a viewport-bounded dialog with fixed header and regenerate
-  footer, and one keyboard-scrollable result region. Answer, supporting evidence
-  and explanation share one presentation; raw receipts, query IDs and the prompt
-  remain under collapsed More details. There is no duplicate Cited strip.
-- Evidence is deduplicated by receipt ID, not by source: different pinpoints remain
-  separate. Open evidence follows the cited source and original version, which may
-  differ from the table row's document. Missing support and partial coverage are
-  visible. Failed regeneration retains the answer and offers retry.
+- The cell inspector is a dialog below the page header, leaving the review's own
+  actions clickable, with a fixed header and regenerate footer and one
+  keyboard-scrollable result region. It shows the result text and the ordinary
+  citation pills chat uses, and nothing else: no embedded source viewer, quote
+  selector, highlighter, repeated bibliography, coverage badge or raw receipts.
+- Citation pills are deduplicated by receipt ID, not by source: different pinpoints
+  remain separate. Opening one hands the passage to the shared source reader,
+  following the cited source and original version, which may differ from the table
+  row's document. Failed regeneration retains the answer and offers retry.
+- A cell mapped from existing research is presented as that research, without
+  Answer or Explanation framing; only model-extracted cells carry it.
 
 ## Research interoperability
 
