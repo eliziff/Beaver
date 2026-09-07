@@ -73,7 +73,7 @@ export function QuotationReview({ items, currentId, busy, error, onSelect, onOpe
     : [differences.length && `${differences.length} wording difference${differences.length === 1 ? "" : "s"}`,
       missing.length && `${missing.length} not found in the passage cited`].filter(Boolean).join(" · ")
       || "Nothing left to review";
-  return <section className="mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
+  return <section aria-label="Check quotations" className="mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
     <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
       <div className="min-w-0"><h2 className="font-semibold text-gray-950">Check quotations</h2>
         <p className="truncate text-sm text-gray-600">{summary}</p></div>
