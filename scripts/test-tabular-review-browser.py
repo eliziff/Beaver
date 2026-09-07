@@ -67,7 +67,8 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
             columns = [{"index": 0, "name": "Parties", "prompt": "Identify the parties to the agreement.", "format": "text"},
                        {"index": 1, "name": "Amount", "prompt": "State the total amount payable.", "format": "monetary_amount"},
                        {"index": 2, "name": "Signed", "prompt": "Is the document signed?", "format": "yes_no"}]
-            review = request("POST", "/api/tabular-review", {"title": "Browser check",
+            title = "Contract review — comparing parties, payment obligations and execution across the selected agreements"
+            review = request("POST", "/api/tabular-review", {"title": title,
                 "document_ids": [doc["id"] for doc in documents], "columns_config": columns})
             report["reviewId"] = review["id"]
 
@@ -76,6 +77,12 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
             visible("[data-tr-col-header]")
             headers = [node.text for node in driver.find_elements(By.CSS_SELECTOR, "[data-tr-col-header]")]
             assert headers[:3] == ["Parties", "Amount", "Signed"], headers
+            heading = visible("h1")
+            assert heading.text == title
+            assert visible("button[aria-label='Add documents']").text == "Docs"
+            assert visible("button[aria-label='Add columns']").text == "+ Column"
+            assert not driver.find_elements(By.XPATH, "//button[normalize-space()='Organize']")
+            assert driver.execute_script("return arguments[0].scrollHeight <= arguments[0].clientHeight + 1", heading), "Review title is clipped"
             assert not driver.execute_script("return document.documentElement.scrollWidth>document.documentElement.clientWidth+1"), "Page scrolls horizontally"
             assert not driver.find_elements(By.XPATH, "//*[normalize-space()='Pending' or normalize-space()='Running']"), "Status words printed in cells"
             screenshot("01-table.png")
