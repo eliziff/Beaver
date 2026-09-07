@@ -1,0 +1,149 @@
+--- a/native/legal-structure-node/src/lib.rs
++++ b/native/legal-structure-node/src/lib.rs
+@@ -556,59 +556,25 @@
+     struct PassagePlan {
+         id: String,
+         page: bool,
++        paragraph: Option<(usize, usize)>,
+         status: legalpdf::PdfLookupStatus,
+         pages: Vec<u32>,
+         lines: Vec<String>,
+     }
+ 
+-    // A citation's printed [29] is not necessarily the parser's 29th paragraph.
+-    // Resolve it to complete native prose nodes, including continuation nodes, not
+-    // just the line bearing the number. Never choose among duplicate printed labels.
+-    fn printed_paragraph_plan(document: &legalpdf::PdfDocument, locator: &str)
+-        -> Option<(legalpdf::PdfLookupStatus, Vec<String>, Vec<u32>)>
+-    {
+-        use legal_structure::{NodeKind, ScalarText};
+-        let text = ScalarText::new(document.structure().query_text());
+-        let nodes = document.structure().nodes.iter()
+-            .filter(|node| matches!(node.kind, NodeKind::Prose | NodeKind::Heading) && !node.line_ids.is_empty())
+-            .collect::<Vec<_>>();
+-        let labels = nodes.iter().enumerate().filter_map(|(index, node)| {
+-            let range = node.rendered_range?;
+-            let value = text.slice_utf16(range.start..range.end)?.trim_start();
+-            let (number, rest) = value.strip_prefix('[')?.split_once(']')?;
+-            if !rest.starts_with(char::is_whitespace) || !number.chars().all(|c| c.is_ascii_digit()) { return None; }
+-            Some((number.parse::<usize>().ok()?, index))
+-        }).collect::<Vec<_>>();
+-        if labels.is_empty() { return None; }
+-        let range = legal_pdf_support::numeric_range("paragraph", locator)
+-            .or_else(|| legal_pdf_support::parse_ordinal("paragraph", locator).map(|n| (n, n)));
+-        let Some((from, to)) = range.filter(|(a, b)| a <= b && b - a < 100) else {
+-            return Some((legalpdf::PdfLookupStatus::Invalid, vec![], vec![]));
+-        };
+-        let mut lines = Vec::new();
+-        let mut pages = Vec::new();
+-        for number in from..=to {
+-            let hits = labels.iter().filter(|(label, _)| *label == number).collect::<Vec<_>>();
+-            if hits.len() != 1 {
+-                return Some((if hits.is_empty() { legalpdf::PdfLookupStatus::NotFound }
+-                    else { legalpdf::PdfLookupStatus::Ambiguous }, vec![], vec![]));
+-            }
+-            let start = hits[0].1;
+-            // A following printed paragraph is an explicit end boundary. At EOF,
+-            // retain only the native paragraph rather than swallowing unnumbered end matter.
+-            let end = labels.iter().find(|(_, index)| *index > start).map_or(start + 1, |(_, index)| *index);
+-            for node in &nodes[start..end] {
+-                lines.extend(node.line_ids.iter().cloned());
+-                pages.extend(node.page_indexes.iter().map(|index| *index as u32 + 1));
+-            }
+-        }
+-        Some((legalpdf::PdfLookupStatus::Found, lines, pages))
++    fn printed_number(text: &str) -> Option<usize> {
++        let (number, rest) = text.trim_start().strip_prefix('[')?.split_once(']')?;
++        if !rest.starts_with(char::is_whitespace) || !number.chars().all(|c| c.is_ascii_digit()) {
++            return None;
++        }
++        number.parse().ok()
+     }
+ 
+     pub struct PdfPassagePagesTask {
+         bytes: Buffer,
+         summary: legalpdf::PdfSummary,
+         plans: Option<Vec<PassagePlan>>,
++        body_owners: std::collections::HashMap<String, usize>,
+     }
+ 
+     impl Task for PdfPassagePagesTask {
+@@ -625,17 +591,43 @@
+                 .copied()
+                 .chain(pdf.metadata.ocr_routed_pages.iter().copied())
+                 .collect::<HashSet<_>>();
++            // Printed labels are line boundaries, not necessarily native-node boundaries:
++            // one node may contain several numbered paragraphs. Exclude page furniture/notes.
++            let body = pdf.pages.iter().flat_map(|page| page.lines.iter())
++                .filter(|line| self.body_owners.contains_key(&line.id)).collect::<Vec<_>>();
++            let labels = body.iter().enumerate().filter_map(|(index, line)|
++                printed_number(&line.text).map(|number| (number, index))).collect::<Vec<_>>();
+             let targets = self
+                 .plans
+                 .take()
+                 .unwrap()
+                 .into_iter()
+-                .map(|plan| {
+-                    let selected = plan
++                .map(|mut plan| {
++                    let mut selected = plan
+                         .lines
+                         .iter()
+                         .map(String::as_str)
+                         .collect::<HashSet<_>>();
++                    if let Some((from, to)) = plan.paragraph.filter(|_| !labels.is_empty()) {
++                        selected.clear();
++                        plan.pages.clear();
++                        plan.status = legalpdf::PdfLookupStatus::Found;
++                        for number in from..=to {
++                            let hits = labels.iter().filter(|(label, _)| *label == number).collect::<Vec<_>>();
++                            if hits.len() != 1 {
++                                plan.status = if hits.is_empty() { legalpdf::PdfLookupStatus::NotFound }
++                                    else { legalpdf::PdfLookupStatus::Ambiguous };
++                                selected.clear();
++                                break;
++                            }
++                            let start = hits[0].1;
++                            // At EOF use the final native owner, not unnumbered end matter.
++                            let end = labels.iter().find(|(_, index)| *index > start).map(|(_, index)| *index)
++                                .unwrap_or_else(|| start + body[start..].iter().take_while(|line|
++                                    self.body_owners.get(&line.id) == self.body_owners.get(&body[start].id)).count());
++                            selected.extend(body[start..end].iter().map(|line| line.id.as_str()));
++                        }
++                    }
+                     let selected_pages = pdf
+                         .pages
+                         .iter()
+@@ -714,11 +706,6 @@
+         let plans = targets
+             .into_iter()
+             .map(|target| {
+-                if target.locator_kind == "paragraph" {
+-                    if let Some((status, lines, pages)) = printed_paragraph_plan(document, &target.locator) {
+-                        return PassagePlan { id: target.id, page: false, status, pages, lines };
+-                    }
+-                }
+                 let lookup = document.lookup(&legalpdf::PdfLookupRequest::new(
+                     &target.locator_kind,
+                     &target.locator,
+@@ -750,6 +737,10 @@
+                 PassagePlan {
+                     id: target.id,
+                     page: target.locator_kind == "page",
++                    paragraph: (target.locator_kind == "paragraph").then(||
++                        legal_pdf_support::numeric_range("paragraph", &target.locator).or_else(||
++                            legal_pdf_support::parse_ordinal("paragraph", &target.locator).map(|n| (n, n))))
++                        .flatten().filter(|(from, to)| from <= to && to - from < 100),
+                     status: lookup.status,
+                     pages,
+                     lines,
+@@ -760,6 +751,9 @@
+             bytes,
+             summary: document.summary().clone(),
+             plans: Some(plans),
++            body_owners: document.structure().nodes.iter().enumerate().filter(|(_, node)|
++                matches!(node.kind, legal_structure::NodeKind::Prose | legal_structure::NodeKind::Heading))
++                .flat_map(|(owner, node)| node.line_ids.iter().cloned().map(move |id| (id, owner))).collect(),
+         }))
+     }
+ }
