@@ -45,6 +45,8 @@ async function serve(directory) {
             : { items: deleted ? [second] : [{ ...project, name: changed ? "Updated matter" : project.name }], next_cursor: deleted ? null : "second" });
         }
         if (path === "/api/library/files") return json({ items: [{ kind: "document", document: file }], next_cursor: null });
+        if (path === "/api/source-workspaces/ontology") return json(null);
+        if (path === "/api/source-workspaces/membership") return json({});
         if (path === "/api/user/profile") return json(profile);
         if (path === "/api/chat") return json([]);
         if (path === "/api/models") return json({ models: [] });
@@ -129,7 +131,49 @@ async function scenario(directory, label, reuse) {
       initialChatReads, afterChatReads, requests: server.requests, browserErrors: errors });
   } finally { server.release(); await context.close(); await server.close(); }
 }
+async function intentScenario(method) {
+  const server = await serve(candidate), context = await browser.newContext({ viewport: { width: 1440, height: 960 } });
+  const page = await context.newPage(), errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await context.route("**/*", route => new URL(route.request().url()).origin === server.origin ? route.continue() : route.abort());
+  const count = () => server.requests.filter(r => r.path === "/api/projects").length;
+  try {
+    await page.goto(`${server.origin}/library`);
+    await page.getByText(file.filename, { exact: true }).first().waitFor();
+    assert.equal(count(), 0, "An unvisited collection must not be fetched without intent");
+    server.hold();
+    const response = page.waitForResponse(r => new URL(r.url()).pathname === "/api/projects");
+    const request = page.waitForRequest(r => new URL(r.url()).pathname === "/api/projects");
+    const projects = page.getByRole("link", { name: "Projects", exact: true });
+    if (method === "pointer") await projects.hover();
+    else await projects.focus();
+    // Test watchdog, not a production dwell: verify request initiation before navigation.
+    await request;
+    assert.equal(new URL(page.url()).pathname, "/library");
+    // Browser initiation can precede the loopback server receiving the request.
+    const receivedBy = Date.now() + 2_000;
+    while (count() === 0 && Date.now() < receivedBy) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(count(), 1);
+    if (method === "pointer") {
+      server.release(); await response;
+      // Wait until React's fetch completion microtask has published the snapshot.
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
+    }
+    const start = Date.now();
+    if (method === "pointer") await projects.click(); else await projects.press("Enter");
+    if (method === "keyboard") server.release();
+    await page.getByRole("link", { name: project.name, exact: true }).waitFor();
+    assert.equal(count(), 1, "Navigation must hand off/join the intent request, not duplicate it");
+    assert.deepEqual(errors, []);
+    await page.screenshot({ path: `${output}/intent-${method}.png` });
+    report.scenarios.push({ label: `intent-${method}`, projectsReads: count(),
+      rowsAfterActivationMs: Date.now() - start, browserErrors: errors });
+  } finally { server.release(); await context.close(); await server.close(); }
+}
 try {
+  if (process.env.CHECK_NAVIGATION_PREFETCH) {
+    await intentScenario("pointer"); await intentScenario("keyboard");
+  }
   if (baseline) await scenario(baseline, "baseline", false);
   await scenario(candidate, "candidate", true);
   console.log(JSON.stringify(report, null, 2));

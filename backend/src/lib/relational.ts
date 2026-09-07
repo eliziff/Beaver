@@ -47,3 +47,13 @@ sql.raw = (text: string): Fragment => ({ text, params: [], [fragment]: true });
 sql.join = (values: Array<SqlValue | Fragment>): Fragment => values.length
   ? sql(["", ...Array(values.length - 1).fill(","), ""], ...values)
   : sql.raw("NULL");
+
+// A publish inside any nested transaction becomes visible only after the outer
+// commit succeeds. Transport failures never turn a committed mutation into an error.
+export function committedNotifications(target: JobNotifications) {
+  const topics = new Set<string>();
+  return {
+    notifications: { subscribe: target.subscribe, publish: (topic: string) => { topics.add(topic); } },
+    flush: () => topics.forEach((topic) => target.publish(topic)),
+  };
+}

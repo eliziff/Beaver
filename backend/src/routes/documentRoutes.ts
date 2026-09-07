@@ -1,3 +1,5 @@
+import { sendByteRange } from "../lib/httpByteRange";
+import { sha256 } from "../lib/hash";
 import { Router, type Request } from "express";
 import { pipeline } from "node:stream/promises";
 import { requireAuth } from "../middleware/auth";
@@ -169,11 +171,14 @@ export function createDocumentsRouter(
     const disposition = rendition === "pdf" ? "inline" : "attachment";
     const download = await documents.download(scope(res), req.params.documentId, versionId(req), {
       preferPdf: rendition === "pdf", disposition, evidence: handle ?? undefined,
+      ...(req.get("Range") ? { range: true } : {}),
     }) ?? reject(404, "Document not found");
     res.setHeader("Cache-Control", "private, no-store");
     if (download.kind === "redirect") return void res.redirect(302, download.url);
     res.set(downloadHeaders(contentTypeForDocumentType(download.content.fileType),
       download.content.filename, disposition));
+    if (req.get("Range")) return sendByteRange(req, res, download.content.bytes,
+      download.content.sha256 ?? sha256(download.content.bytes));
     res.send(download.content.bytes);
   }));
 
