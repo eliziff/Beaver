@@ -3,17 +3,10 @@ import { type Dispatch, type DragEvent, type ReactNode, type SetStateAction,
 import { AlertCircle, TriangleAlert, ChevronDown, ChevronRight, Eye, Loader2 }
     from "lucide-react";
 import {
-  checkpointDocumentVersion,
-  compareDocumentVersions,
   deleteDocument,
   downloadDocumentsZip,
   downloadDocument,
-  getDocument,
   listDirectoryDocuments,
-  listDocumentVersions,
-  restoreDocumentVersion,
-  uploadDocumentVersion,
-  type DocumentVersion,
   type Document,
   type Folder as ProjectFolder,
   type LibraryFolder,
@@ -41,7 +34,7 @@ import { TableHeaderCell, TableHeaderRow, TableScrollArea,
     from "@/app/components/shared/TablePrimitive";
 import { Button } from "@/app/components/ui/button";
 import { getPdfJs } from "@/app/components/shared/views/highlightQuote";
-import { DocumentSidePanel, type DocumentAction } from "@/app/components/shared/DocumentSidePanel";
+import { DocumentSidePanel } from "@/app/components/shared/DocumentSidePanel";
 import type { DocumentSelectionActions, UploadActions } from "./UploadAction";
 import type { WorkflowSelection } from "@/app/components/workflows/workflowRoutes";
 import { ContextualWorkflowPicker } from "@/app/components/workflows/ContextualWorkflowPicker";
@@ -52,6 +45,7 @@ import { FileDirectory } from "../shared/FileDirectory";
 import { CHAT_DOCUMENT_DRAG_TYPE, descendantFolderIds, DOCUMENT_DRAG_TYPE,
     documentTreeDropFolder, FOLDER_DRAG_TYPE, hasDocumentTreeDrag } from "./documentTree";
 import { useFolderInteractions } from "./useFolderInteractions";
+import { useDocumentController } from "./useDocumentController";
 export type DocTableFolder = ProjectFolder | LibraryFolder;
 const DOCUMENT_ROW_CLASS =
     "group flex h-11 min-h-11 w-full min-w-0 items-center border-b border-gray-100 pr-2 [content-visibility:auto] [contain-intrinsic-size:auto_44px]";
@@ -177,15 +171,11 @@ interface DocTableOperations {
 type PendingDocumentRemoval = { documents: Document[]; fromSelection: boolean; deleting: boolean };
 type PendingFolderDeletion = { folder: DocTableFolder; deleting: boolean };
 type PendingMove = { documentIds: string[] } | { folderId: string };
-type DocumentVersionHistory = { currentVersionId: string | null; versions: DocumentVersion[] };
 type DocTableState = {
-    addDocsOpen: boolean; viewingDoc: Document | null; viewingDocVersionId: string | null;
+    addDocsOpen: boolean;
     selectedDocIds: string[];
-    versionsByDocId: Map<string, DocumentVersionHistory>;
-    loadingVersionDocIds: Set<string>; versionErrorDocIds: Set<string>; renamingDocumentId: string | null;
+    renamingDocumentId: string | null;
     dragOverSurface: "root" | `version:${string}` | null;
-    pendingActions: Map<string, DocumentAction>; actionErrors: Map<string, string>;
-    pendingRestore: { docId: string; version: DocumentVersion } | null;
     uploadingDroppedFilenames: string[];
     deletingDocIds: Set<string>;
     warnings: Record<(typeof WARNING_KINDS)[number], string | null>;
@@ -312,10 +302,10 @@ export function DocTable({
 }: DocTableProps) {
     const { user } = useAuth();
     const [state, setState] = useState<DocTableState>(() => ({
-        addDocsOpen: false, viewingDoc: null, viewingDocVersionId: null,
-        selectedDocIds: [], versionsByDocId: new Map(), loadingVersionDocIds: new Set(), versionErrorDocIds: new Set(),
+        addDocsOpen: false,
+        selectedDocIds: [],
         renamingDocumentId: null,
-        dragOverSurface: null, pendingActions: new Map(), actionErrors: new Map(), pendingRestore: null,
+        dragOverSurface: null,
         uploadingDroppedFilenames: [], deletingDocIds: new Set(),
         warnings: { upload: null, rename: null, collection: null },
         pendingDocumentRemoval: null,
@@ -323,14 +313,6 @@ export function DocTable({
         pendingMove: null,
         folderTaskId: null, folderWorkflowDocuments: null,
     }));
-    useEffect(() => {
-        if (!initialDocument?.id) return;
-        let cancelled = false;
-        void getDocument(initialDocument.id).then((doc) => {
-            if (!cancelled) setState((state) => ({ ...state, viewingDoc: doc, viewingDocVersionId: initialDocument.versionId ?? null }));
-        }).catch((error: Error) => { if (!cancelled) setState((state) => ({ ...state, warnings: { ...state.warnings, collection: error.message } })); });
-        return () => { cancelled = true; };
-    }, [initialDocument?.id, initialDocument?.versionId]);
     function set<K extends keyof DocTableState>(key: K,
         next: DocTableState[K] | ((current: DocTableState[K]) => DocTableState[K])) {
         setState((current) => {
@@ -341,8 +323,7 @@ export function DocTable({
         });
     }
     const {
-        addDocsOpen, viewingDoc, viewingDocVersionId, selectedDocIds, versionsByDocId,
-        loadingVersionDocIds, versionErrorDocIds, renamingDocumentId, dragOverSurface, pendingActions, actionErrors, pendingRestore,
+        addDocsOpen, selectedDocIds, renamingDocumentId, dragOverSurface,
         uploadingDroppedFilenames, deletingDocIds, warnings,
         pendingDocumentRemoval, pendingDeleteFolder,
         pendingMove,
@@ -375,7 +356,9 @@ export function DocTable({
     const newFolderParentId = folderEditor?.kind === "new" ? folderEditor.parentId : undefined;
     const renamingFolderId = folderEditor?.kind === "rename" ? folderEditor.folderId : null;
     const dragOverFolderId = folderDragTarget ?? null;
-    const pendingActionIds = useRef(new Set<string>());
+    const controller = useDocumentController(documents, operations.refreshCollection,
+        (message) => setWarning("collection", message), initialDocument);
+    const { docsById, doc: viewingDoc, versionId: viewingDocVersionId, pendingRestore } = controller;
     const documentUploadInputRef = useRef<HTMLInputElement>(null);
     const directoryUploadInputRef = useRef<HTMLInputElement>(null);
     const loadingRef = useRef(loading);
@@ -413,70 +396,6 @@ export function DocTable({
         }
         documentUploadInputRef.current?.click();
     }, []);
-    const loadDocumentVersions = async (docId: string, force = false) => {
-        const cached = versionsByDocId.get(docId);
-        if (!force && cached) return cached;
-        set("loadingVersionDocIds", (prev) => new Set(prev).add(docId));
-        set("versionErrorDocIds", (prev) => without(prev, [docId]));
-        try {
-            const res = await listDocumentVersions(docId);
-            const history = {
-                currentVersionId: res.current_version_id, versions: res.versions,
-            };
-            set("versionsByDocId", (prev) => new Map(prev).set(docId, history));
-            return history;
-        } catch (e) {
-            console.error("listDocumentVersions failed", e);
-            set("versionErrorDocIds", (prev) => new Set(prev).add(docId));
-        } finally {
-            set("loadingVersionDocIds", (prev) => without(prev, [docId]));
-        }
-    };
-    function cachedHead(docId: string) {
-        const history = versionsByDocId.get(docId);
-        const head = history?.versions.find(({ id }) => id === history.currentVersionId);
-        if (!head) throw new Error("Document history is not loaded");
-        return head;
-    }
-    function documentHead(doc: Document) {
-        if (!doc.current_version_id || doc.current_working_revision == null)
-            throw new Error("Document revision is unavailable");
-        return { id: doc.current_version_id, working_revision: doc.current_working_revision };
-    }
-    async function documentAction(docId: string, action: DocumentAction,
-        mutation: () => Promise<unknown>, refresh = false): Promise<boolean> {
-        if (pendingActionIds.current.has(docId)) return false;
-        pendingActionIds.current.add(docId);
-        set("pendingActions", (prev) => new Map(prev).set(docId, action));
-        set("actionErrors", (prev) => { const next = new Map(prev); next.delete(docId); return next; });
-        try {
-            await mutation();
-            return true;
-        } catch {
-            const message = `Could not ${ { rename: "rename this document", upload: "upload the new version",
-                checkpoint: "create this version", restore: "restore this version", compare: "create the comparison",
-                download: "download this version" }[action]}.`;
-            set("actionErrors", (prev) => new Map(prev).set(docId, message));
-            setState((current) => current.viewingDoc?.id === docId ? current
-                : { ...current, warnings: { ...current.warnings, collection: message } });
-            return false;
-        } finally {
-            if (refresh) await Promise.all([loadDocumentVersions(docId, true),
-                refreshCollection(docsById.get(docId)?.folder_id)]).catch(console.error);
-            pendingActionIds.current.delete(docId);
-            set("pendingActions", (prev) => { const next = new Map(prev); next.delete(docId); return next; });
-        }
-    }
-    function selectMutatedVersion(docId: string, versionId: string) {
-        setState((current) => current.viewingDoc?.id === docId
-            ? { ...current, viewingDocVersionId: versionId } : current);
-    }
-    function downloadDocVersion(docId: string, versionId: string, filename: string) {
-        return documentAction(docId, "download", async () => {
-            const resolved = await downloadDocument(docId, versionId);
-            downloadBlob(resolved.blob, resolved.filename || filename);
-        });
-    }
     function handleUploadNewVersion(doc: Document) {
         versionUploadTargetDocRef.current = doc;
         window.setTimeout(() => versionUploadInputRef.current?.click(), 0);
@@ -488,29 +407,6 @@ export function DocTable({
         versionUploadTargetDocRef.current = null;
         if (!file || !doc) return;
         await handleDropDocumentVersions(doc, [file]);
-    }
-    async function handleRestoreVersion() {
-        if (!pendingRestore) return;
-        const { docId, version } = pendingRestore;
-        await documentAction(docId, "restore", async () => {
-            const head = cachedHead(docId);
-            const restored = await restoreDocumentVersion(docId, version.id, head.id, head.working_revision);
-            selectMutatedVersion(docId, restored.id);
-        }, true);
-        set("pendingRestore", null);
-    }
-    function handleCheckpointVersion(docId: string, comment?: string) {
-        return documentAction(docId, "checkpoint", async () => {
-            const head = cachedHead(docId);
-            const version = await checkpointDocumentVersion(docId, head.id, head.working_revision, comment);
-            selectMutatedVersion(docId, version.id);
-        }, true);
-    }
-    async function handleCompareVersions(docId: string, baselineId: string, versionId: string) {
-        await documentAction(docId, "compare", async () => {
-            const result = await compareDocumentVersions(docId, baselineId, versionId);
-            downloadBlob(result.blob, result.filename ?? "document changes.docx");
-        });
     }
     const versionUploadInputRef = useRef<HTMLInputElement>(null);
     const versionUploadTargetDocRef = useRef<Document | null>(null);
@@ -546,7 +442,7 @@ export function DocTable({
         try {
             const target = await getResearchFile(workspaceId);
             const versionId = doc.current_version_id
-                ?? (await loadDocumentVersions(doc.id))?.currentVersionId;
+                ?? (await controller.load(doc.id))?.currentVersionId;
             if (!versionId) throw new Error("Document revision is unavailable");
             await actOnResearchFile(target.document.id, target.versionId, target.workingRevision,
                 { type: "source", reference: documentReference(doc, versionId), ...(labelId ? { labelIds: [labelId] } : {}) });
@@ -557,8 +453,6 @@ export function DocTable({
             throw reason;
         }
     }
-    const docsById = useMemo(() =>
-        new Map(documents.map((doc) => [doc.id, doc])), [documents]);
     function removeDocument(doc: Document) {
         return operations.removeDocument?.(doc.id) ?? deleteDocument(doc);
     }
@@ -604,11 +498,7 @@ export function DocTable({
                 setFolderEditor(null);
             set("selectedDocIds", (prev) =>
                 prev.filter((id) => !deletedDocIds.has(id)));
-            set("versionsByDocId", (prev) => {
-                const next = new Map(prev);
-                for (const id of deletedDocIds) next.delete(id);
-                return next;
-            });
+            controller.forget(deletedDocIds);
             set("pendingDeleteFolder", null);
             await refreshCollection(pending.folder.parent_folder_id ?? null);
         } catch (err) {
@@ -654,7 +544,7 @@ export function DocTable({
             setWarning("rename", filenameExtensionChangeWarning(previous.filename));
             return false;
         }
-        const renamed = name === previous.filename || await documentAction(docId, "rename", () =>
+        const renamed = name === previous.filename || await controller.action(docId, "rename", () =>
             operations.renameDocument(docId, name), true);
         if (renamed) set("renamingDocumentId", null);
         return renamed;
@@ -693,13 +583,7 @@ export function DocTable({
             if (removedIds.size) await refreshParents(...owned
                 .filter(({ id }) => removedIds.has(id)).map(({ folder_id }) => folder_id));
             if (removedIds.size) {
-                setState((current) => current.viewingDoc && removedIds.has(current.viewingDoc.id)
-                    ? { ...current, viewingDoc: null, viewingDocVersionId: null } : current);
-                set("versionsByDocId", (prev) => {
-                    const next = new Map(prev);
-                    for (const id of removedIds) next.delete(id);
-                    return next;
-                });
+                controller.forget(removedIds);
             }
             if (!fromSelection) {
                 const failure = results.find(
@@ -784,13 +668,7 @@ export function DocTable({
     async function handleDropDocumentVersions(doc: Document, files: File[]) {
         const supported = acceptedFiles(files);
         if (supported.length === 0) return;
-        await documentAction(doc.id, "upload", async () => {
-            let head = documentHead(doc);
-            for (const file of supported) {
-                head = await uploadDocumentVersion(doc.id, file, head.id, head.working_revision);
-                selectMutatedVersion(doc.id, head.id);
-            }
-        }, true);
+        await controller.upload(doc, supported);
     }
     function handleDocumentVersionDragOver(
         e: DragEvent<HTMLDivElement>,
@@ -844,8 +722,7 @@ export function DocTable({
     }
     function openDocument(doc: Document) {
         prewarmDocumentView(doc);
-        set("viewingDocVersionId", null);
-        set("viewingDoc", doc);
+        controller.open(doc);
     }
     function selectAndOpen(doc: Document) {
         set("selectedDocIds", [doc.id]);
@@ -1017,7 +894,7 @@ export function DocTable({
                         doc.parse_state?.status === "parsing";
                     const isError = doc.parse_state?.status === "failed";
                     const isVersionDragOver = dragOverSurface === `version:${doc.id}`;
-                    const isUploadingVersion = pendingActions.get(doc.id) === "upload";
+                    const isUploadingVersion = controller.histories.get(doc.id)?.pendingAction === "upload";
                     const prewarm = () => prewarmDocumentView(doc);
                     const isSelected = selection.selected.has(doc.id);
                     const isDeletingDoc = deletingDocIds.has(doc.id);
@@ -1164,8 +1041,6 @@ export function DocTable({
             );
         }
     }
-    const sidePanelDoc = viewingDoc ? docsById.get(viewingDoc.id) ?? viewingDoc : null;
-    const sidePanelHistory = sidePanelDoc ? versionsByDocId.get(sidePanelDoc.id) : undefined;
     const selectionActions = useMemo<DocumentSelectionActions | null>(() => {
         if (selectedDocIds.length === 0) return null;
         return {
@@ -1185,7 +1060,7 @@ export function DocTable({
     const pendingDeleteMessage = documentRemovalMessage(
         pendingDocumentRemoval, detachesDocument,
         pendingDocumentRemoval && !pendingDocumentRemoval.fromSelection
-            ? versionsByDocId.get(pendingDocumentRemoval.documents[0].id)?.versions.length
+            ? controller.histories.get(pendingDocumentRemoval.documents[0].id)?.versions.length
             : undefined,
     );
     const pendingDeleteFolderMessage = pendingDeleteFolder ? <p>
@@ -1235,9 +1110,9 @@ export function DocTable({
             ))}
             <ConfirmPopup open={!!pendingRestore} title="Restore this version?"
                 message={`Version ${pendingRestore?.version.version_number} will become a new current version. Existing history will be kept.`}
-                confirmLabel="Restore" confirmStatus={pendingRestore && pendingActions.has(pendingRestore.docId) ? "loading" : "idle"}
-                onCancel={() => { if (pendingRestore && !pendingActions.has(pendingRestore.docId)) set("pendingRestore", null); }}
-                onConfirm={() => void handleRestoreVersion()} />
+                confirmLabel="Restore" confirmStatus={pendingRestore && controller.histories.get(pendingRestore.docId)?.pendingAction ? "loading" : "idle"}
+                onCancel={() => { if (pendingRestore && !controller.histories.get(pendingRestore.docId)?.pendingAction) controller.setPendingRestore(null); }}
+                onConfirm={() => void controller.restore()} />
             <ConfirmPopup open={!!pendingDocumentRemoval}
                 title={
                     detachesDocument
@@ -1328,26 +1203,9 @@ export function DocTable({
             {renderAddDocumentsModal?.(addDocsOpen,
                 () => set("addDocsOpen", false), handleDocsSelected)}
             <DocumentSidePanel
-                doc={sidePanelDoc}
-                highlightCells={sidePanelDoc?.id === initialDocument?.id && viewingDocVersionId === (initialDocument?.versionId ?? null) ? [{ sheet: initialDocument?.sheet ?? undefined, cell: initialDocument?.cell ?? undefined }] : undefined}
-                versionId={viewingDocVersionId}
-                currentVersionId={sidePanelHistory?.currentVersionId ?? null}
-                versions={sidePanelHistory?.versions ?? []}
-                versionsLoading={!!sidePanelDoc && loadingVersionDocIds.has(sidePanelDoc.id)}
-                versionsError={!!sidePanelDoc && versionErrorDocIds.has(sidePanelDoc.id)}
-                onClose={() => {
-                    set("viewingDoc", null);
-                    set("viewingDocVersionId", null);
-                }}
-                onLoadVersions={loadDocumentVersions}
-                onSelectVersion={(id) => set("viewingDocVersionId", id)}
-                pendingAction={sidePanelDoc ? pendingActions.get(sidePanelDoc.id) : undefined}
-                actionError={sidePanelDoc ? actionErrors.get(sidePanelDoc.id) : null}
-                onDownloadVersion={async (...args) => { await downloadDocVersion(...args); }}
+                controller={controller}
+                highlightCells={viewingDoc?.id === initialDocument?.id && viewingDocVersionId === (initialDocument?.versionId ?? null) ? [{ sheet: initialDocument?.sheet ?? undefined, cell: initialDocument?.cell ?? undefined }] : undefined}
                 onRenameDocument={submitDocumentRename}
-                onCheckpointVersion={handleCheckpointVersion}
-                onRestoreVersion={(docId, version) => set("pendingRestore", { docId, version })}
-                onCompareVersions={handleCompareVersions}
                 onUploadNewVersion={handleUploadNewVersion}
                 onOpenWorkflows={onOpenWorkflows}
                 onAssistantWorkflowSelect={onAssistantWorkflowSelect}
