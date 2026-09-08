@@ -1,4 +1,5 @@
-import type { LegalSourceReference } from "./legalSources";
+import type { ResearchSourceReference } from "./researchContract";
+import type { LegalSourceReference } from "./legalSources/reference";
 
 export type ResourceReference =
   | { kind: "document"; documentId: string; versionId: string }
@@ -74,3 +75,6 @@ export function parseResourceReference(raw: string): ResourceReference | null {
   }
   return null;
 }
+
+export const researchSourceKey = (value: ResearchSourceReference) => value.kind === "document"
+  ? resourceReference.document(value.id, value.versionId) : legalSourceResource(value);
