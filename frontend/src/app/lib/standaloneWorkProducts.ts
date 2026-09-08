@@ -7,7 +7,6 @@ import {
   type WorkProductMetadata,
   type WorkProductStore,
 } from "./workProducts";
-import { getWorkProduct } from "./api/workProducts";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
 const DATABASE = "beaver-work-products";
@@ -70,7 +69,7 @@ export const standaloneWorkProducts: WorkProductStore = {
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   },
   async get(id) {
-    const draft = await read<WorkProduct>(DRAFTS, id) ?? await readThroughFromServer(id);
+    const draft = await read<WorkProduct>(DRAFTS, id);
     if (!draft) throw new Error("This draft no longer exists.");
     return draft as never;
   },
@@ -258,17 +257,6 @@ export async function readStandaloneOutput(workProductId: string, role: string,
   return { product, role, output: storedOutput(saved), bytes: new Uint8Array(saved.bytes.slice(0)),
     receipt: structuredClone(saved.receipt),
     stale: saved.stateSha256 !== await digestState(product.state) };
-}
-
-/** Adopts a server-held draft so its link opens in a browser profile that never stored it. */
-async function readThroughFromServer(id: string) {
-  const draft = await getWorkProduct<unknown>(id).catch(() => undefined);
-  if (!draft) return undefined;
-  const transaction = (await openDatabase()).transaction([DRAFTS, METADATA], "readwrite");
-  transaction.objectStore(DRAFTS).put(draft);
-  transaction.objectStore(METADATA).put(draftMetadata(draft));
-  await completed(transaction);
-  return draft;
 }
 
 function draftTitle(value: string) {
