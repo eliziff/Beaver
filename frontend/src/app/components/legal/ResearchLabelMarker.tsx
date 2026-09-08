@@ -36,7 +36,8 @@ export function ResearchLabelFolder({ labels, labelId, size = "md" }: {
  *  of the other places it is filed. The tooltip names them all. */
 export function ResearchLabelMarker({ labels, labelIds, size = "md" }: {
   labels: Record<string, ResearchLabel>; labelIds: string[]; size?: keyof typeof BOX }) {
-  const applied = labelIds.filter((id) => labels[id]);
+  const applied = labelIds.filter((id) => labels[id]).sort((a, b) =>
+    researchLabelPath(labels, b).length - researchLabelPath(labels, a).length);
   const names = applied.map((id) => researchLabelPath(labels, id).map(({ name }) => name).join(" / "));
   return <span role="group" aria-label={names.length ? `Labels: ${names.join(", ")}` : "No labels"}
     title={names.join(" · ") || undefined} data-empty={applied.length ? undefined : "true"}

@@ -249,7 +249,7 @@ describe("Research v2 parts", () => {
       "evidence", 50, 1)).items[0]).toMatchObject({ value: { labelIds: [fallback.id] } });
   });
 
-  it("allows arbitrary label nesting and rejects cycles", async () => {
+  it("preserves filings at any depth on writes and loads, and rejects cycles", async () => {
     const f = fixture(), root = "30000000-0000-4000-8000-000000000001",
       child = "30000000-0000-4000-8000-000000000002",
       grandchild = "30000000-0000-4000-8000-000000000003";
@@ -261,9 +261,12 @@ describe("Research v2 parts", () => {
     const filed = await act(f, { type: "source", reference: { provider: "a2aj", kind: "case", id: "case" },
       labelIds: [root, child, grandchild] });
     const item = Object.values(filed.state.sources)[0];
-    expect(item.labelIds).toEqual([grandchild]);
-    item.labelIds = [root, child, grandchild];
-    expect(parseResearchFile(researchFileMarkdown("Cases", filed.state))!.sources[item.id].labelIds).toEqual([grandchild]);
+    expect(item.labelIds).toEqual([root, child, grandchild]);
+    expect(parseResearchFile(researchFileMarkdown("Cases", filed.state))!.sources[item.id].labelIds).toEqual([root, child, grandchild]);
+    const writes = f.documents.replaceVersion.mock.calls.length;
+    expect((await readResearchFile(f.documents as never, { userId: "user-1" }, "doc-1"))!.state.sources[item.id].labelIds)
+      .toEqual([root, child, grandchild]);
+    expect(f.documents.replaceVersion).toHaveBeenCalledTimes(writes);
     expect(Object.values(saved.state.labels).map(({ name }) => name)).toContain("Fourth level");
     await expect(commitResearchFile(f.documents as never, { userId: "user-1" }, saved,
       { type: "label", id: root, name: "Root", parentId: grandchild, scope: "source" }))
