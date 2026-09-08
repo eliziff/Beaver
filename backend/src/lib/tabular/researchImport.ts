@@ -12,7 +12,8 @@ type Item = ResearchArrangement["cells"][number]["items"][number];
 type Kind = "classification" | "passages" | "note" | "answer";
 type Entry = { id: string; rowId: string; reference: Item; kind: Kind; text: string;
   columnKey: string; column: TabularColumn; evidenceIds: string[]; default: boolean };
-export type ResearchImportCatalog = { title: string; fingerprint: string;
+export type ResearchImportCatalog = { title: string; question: string | null; fingerprint: string;
+  labels: { id: string; path: string; scope: "source" | "highlight"; definition?: string }[];
   rows: ResearchArrangement["rows"]; entries: Entry[] };
 const id = z.string().min(1).max(200);
 export const researchImportDesignSchema = z.object({
@@ -41,6 +42,8 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
     else allowed.set(subject.sourceId, new Set([...(allowed.get(subject.sourceId) ?? []), ...subject.evidence.map(({ evidence_id }) => evidence_id)]));
   }
   const rows: ResearchArrangement["rows"] = [], entries: Entry[] = [];
+  // The Chat question is the subject of the whole table, never a column of it.
+  const questions = [...new Set(findings.filter(({ reference }) => reference.kind === "answer").map(({ question }) => question.prompt))];
   // One column per distinct question, however it arose: a classification, a highlight type or a
   // recorded finding that already asked it. Re-importing research never doubles a column.
   const add = (rowId: string, reference: Item, kind: Kind, text: string,
@@ -82,7 +85,7 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
         add(rowId, { kind: "passage", sourceId, evidenceId: passage.receipt.evidence_id }, "passages",
           passage.receipt.span_text ?? "", { name: named ? clip(path) : "Saved passages",
             prompt: named ? `Saved passages: ${path}.` : "The passages saved from this source.", format: "text" },
-          [passage.receipt.evidence_id]);
+          [passage.receipt.evidence_id], named);
         if (input.rows === "passages" && passage.note) add(rowId, { kind: "note", sourceId,
           evidenceId: passage.receipt.evidence_id }, "note", passage.note,
           { name: "Research note", prompt: "The note retained for this passage.", format: "text" });
@@ -91,7 +94,8 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
         const relevant = finding.answer.claims.map((claim, index) => ({ claim, index })).filter(({ claim }) =>
           !evidenceIds || !!claim.evidence_ids.length && claim.evidence_ids.every((id) => evidenceIds.includes(id)));
         if (evidenceIds && !relevant.length) continue;
-        const question = { name: clip(finding.question.title) || "Finding", prompt: finding.question.prompt || "Recorded finding",
+        const question = { name: finding.reference.kind === "answer" && questions.length < 2 ? "Finding"
+            : clip(finding.question.title, 60) || "Finding", prompt: finding.question.prompt || "Recorded finding",
           format: finding.question.format ?? "text", ...(finding.question.tags ? { tags: finding.question.tags } : {}) };
         const complete = relevant.length === finding.answer.claims.length;
         if (complete) add(rowId, finding.reference, "answer", finding.answer.summary ?? (finding.answer.value == null ? finding.answer.claims.map(({ text }) => text).join("\n\n") :
@@ -108,8 +112,10 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
   if (rows.length > 500 || entries.length > 25_000)
     throw new ApplicationError(413, "Narrow this research selection before converting it; no rows were dropped");
   const title = clip((file.document.filename ?? "Research").replace(/\.research\.md$/iu, ""), 300) || "Research";
-  return { title, rows, entries, fingerprint: sha256(JSON.stringify([file.document.id, file.versionId,
-    file.workingRevision, subjects, rows, entries, findings])) };
+  return { title, question: questions[0] ?? null, rows, entries,
+    labels: Object.values(file.state.labels).map(({ id, scope, definition }) => ({ id, path: researchLabelPath(file.state, id), scope,
+      ...(definition ? { definition } : {}) })),
+    fingerprint: sha256(JSON.stringify([file.document.id, file.versionId, file.workingRevision, subjects, rows, entries, findings])) };
 }
 
 export function defaultResearchImport(catalog: ResearchImportCatalog): ResearchImportDesign {
@@ -123,8 +129,8 @@ export function defaultResearchImport(catalog: ResearchImportCatalog): ResearchI
     if (cell.itemIds.length > 1) columns.get(entry.columnKey)!.format = "text";
   }
   if (columns.size > 100) throw new ApplicationError(413, "This selection needs more than 100 columns; narrow it before converting");
-  if (!columns.size) columns.set("question", { index: 0, name: "Research question",
-    prompt: "What does this source establish about the research question?", format: "text" });
+  if (!columns.size) columns.set("question", { index: 0, name: "Finding", format: "text", prompt: catalog.question
+    ? `What does this source establish about: ${catalog.question}` : "What does this source establish about the research question?" });
   return researchImportDesignSchema.parse({ title: catalog.title, columns: [...columns.values()], cells: [...cells.values()] });
 }
 

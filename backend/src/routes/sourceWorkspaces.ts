@@ -37,11 +37,12 @@ const tableInput = z.object({ selection: researchSelectionSchema.optional(), tab
   findingRefs: z.array(researchFindingReferenceSchema).min(1).max(10_000).optional(),
   design: researchImportDesignSchema.optional(), fingerprint: z.string().regex(/^[a-f0-9]{64}$/u).optional(),
   request: z.string().trim().min(1).max(4_000).optional(), model: z.string().trim().min(1).max(200).optional(),
+  reasoningEffort: z.string().trim().min(1).max(20).optional(),
 }).strict().refine((input) => !input.messageIds || !!input.chatId, "Select a chat for the chosen messages");
 const labelInput = tableInput.innerType().omit({ design: true, tableId: true })
   .extend({ design: researchLabelDesignSchema.optional() }).strict()
   .refine((input) => !input.messageIds || !!input.chatId, "Select a chat for the chosen messages")
-  .refine((input) => Boolean(input.request) !== Boolean(input.design), "Describe a label set or apply a proposed one");
+  .refine((input) => !(input.request && input.design), "Describe a label set or apply a proposed one");
 
 export function createSourceWorkspacesRouter(app: SourceWorkspaceApplication) {
   const router = Router(), scope = applicationScope;
