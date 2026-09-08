@@ -81,6 +81,38 @@ const removeUserData = async (userId: string) => {
 export function relationalRepositoryContract(
   prepareScopes: (scopes: TestScope[]) => Promise<void> = async () => undefined,
 ) {
+  it("persists custom workflow instructions and enforces owner, reader and editor access", async () => {
+    const { workflowRepository } = await import("../../relationalWorkflowRepository");
+    const { relationalDatabase, sql } = await import("../../relationalDatabase");
+    const owner = scope("workflow-owner"), reader = scope("workflow-reader"), stranger = scope("workflow-stranger");
+    await prepareScopes([owner, reader, stranger]);
+    const repository = workflowRepository(owner), database = await relationalDatabase();
+    try {
+      const workflow = await repository.create({ title: "Review the agreement", execution: "assistant",
+        variantLabel: "Review", variantResult: "A summary", promptMd: "Summarize the agreement.",
+        columns: null, language: "English", category: "Document review and comparison",
+        audiences: ["general"], jurisdictions: ["General"] });
+      expect(await repository.get(workflow.id)).toMatchObject({ isOwner: true, allowEdit: true,
+        workflow: { title: workflow.title, prompt_md: "Summarize the agreement." } });
+      expect(await workflowRepository(stranger).get(workflow.id)).toBeNull();
+      await database.query(sql`INSERT INTO workflow_shares(id,workflow_id,shared_by_user_id,
+        shared_with_email,allow_edit,created_at) VALUES(${randomUUID()},${workflow.id},
+        ${owner.userId},${reader.userEmail},FALSE,${new Date().toISOString()})`);
+      const shared = workflowRepository(reader);
+      expect(await shared.get(workflow.id)).toMatchObject({ isOwner: false, allowEdit: false });
+      expect(await shared.update(workflow.id, { promptMd: "Unauthorized" })).toBeNull();
+      await database.query(sql`UPDATE workflow_shares SET allow_edit=TRUE WHERE workflow_id=${workflow.id}`);
+      expect(await shared.update(workflow.id, { promptMd: "List the key dates." }))
+        .toMatchObject({ isOwner: false, allowEdit: true });
+      expect((await repository.get(workflow.id))?.workflow.prompt_md).toBe("List the key dates.");
+      expect(await shared.remove(workflow.id)).toBe(false);
+      expect(await repository.remove(workflow.id)).toBe(true);
+      expect(await shared.get(workflow.id)).toBeNull();
+    } finally {
+      await database.query(sql`DELETE FROM workflows WHERE user_id=${owner.userId}`);
+    }
+  });
+
   // Seed stored state directly: these read contracts must not depend on JSON write serialization.
   const peopleResource = async (kind: "project" | "review", owner: TestScope, shared: string[],
     projectId: string | null = null) => {
