@@ -1625,7 +1625,7 @@ describe("local assistant tools", () => {
       versionId: document.current_version_id!, title: document.filename } }]),
       { verifyResearchPassage } = await import("../researchFileQuery"),
       highlight = await verifyResearchPassage(file, { type: "passage", sourceId: Object.keys(file.state.sources)[0],
-        locator: { kind: "page", value: "page2" }, quote: receipt!.span_text! }, undefined,
+        revision: receipt!.source_sha256!, start: receipt!.span!.start, end: receipt!.span!.end }, undefined,
       { documents: store.localDocuments, scope });
     expect(highlight.type === "merge" && highlight.evidence?.[0].evidence_id).toBe(receipt!.evidence_id);
   });
