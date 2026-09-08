@@ -127,7 +127,9 @@ export function presentLegalEvidence(
       receipt.provider === "journal" ? citation.split(/, “/u)[0] || name || "Source"
         : name || citation || "Source",
     ),
-    locator: presentLegalEvidenceLocator(locatorKind, locatorLabels),
+    locator: receipt.provider === "library" && locatorKind === "document" && receipt.locator.label !== "document"
+      ? { separator: " at ", text: receipt.locator.label, label: receipt.locator.label }
+      : presentLegalEvidenceLocator(locatorKind, locatorLabels),
     sourceUrl: citationUrl,
     passageUrl,
   };

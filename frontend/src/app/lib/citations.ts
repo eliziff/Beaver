@@ -123,7 +123,7 @@ export function formatCitationPage(a: Citation): string {
     return cells.join(", ");
   }
   const pages = Array.from(
-    new Set(quotes.map((q) => String(q.page)).filter(Boolean)),
+    new Set(quotes.flatMap((q) => q.page == null ? [] : [String(q.page)])),
   );
   if (pages.length > 1) return `Pages ${pages.join(", ")}`;
   if (pages.length === 1) return `Page ${pages[0]}`;

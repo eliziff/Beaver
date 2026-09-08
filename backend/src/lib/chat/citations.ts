@@ -42,7 +42,8 @@ function citationsFromGroups(
       // Quotes are verified source passages, never model prose. Fragments,
       // highlights, and DOCX links all derive from the same receipt span.
       const quotes = group.members.flatMap(({ receipt }) =>
-        receipt.span_text ? [{ quote: receipt.span_text }] : []);
+        receipt.span_text ? [{ quote: receipt.span_text,
+          ...(receipt.provider === "library" && receipt.locator.kind === "page" && { page: receipt.locator.label.replace(/^page\s*/iu, "") }) }] : []);
       const presentation = presentLegalEvidence(
         entry,
         quotes.map(({ quote }) => quote),
