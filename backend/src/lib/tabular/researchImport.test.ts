@@ -187,7 +187,8 @@ it("uses the configured model only for a requested design and validates its retu
   response = "Not valid JSON";
   await expect(app.designResearch({ userId: "owner" }, catalog, "Compare terms")).rejects.toMatchObject({ status: 502 });
   response = JSON.stringify({ ...accepted, columns: accepted.columns.slice(1), cells: [] });
-  await expect(app.designResearch({ userId: "owner" }, catalog, "Compare terms")).rejects.toThrow(/omitted the saved concept “Contract”/u);
+  await expect(app.designResearch({ userId: "owner" }, catalog, "Use fewer columns"))
+    .resolves.toMatchObject({ columns: accepted.columns.slice(1), cells: [] });
 });
 it("maps joint findings to each receipt's source without changing their full grounding", () => {
   const f = fixture(), other = createA2AJPassageEvidence({ citation: "Input 2", name: "Second agreement", dataset: "test", language: "en",
