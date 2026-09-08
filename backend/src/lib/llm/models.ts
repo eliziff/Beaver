@@ -1,42 +1,48 @@
 import type { Provider } from "./types";
 
-export const CLAUDE_MAIN_MODELS = [
-    "claude-fable-5",
-    "claude-opus-4-8",
-    "claude-opus-4-7",
-    "claude-sonnet-4-6",
-] as const;
-export const GEMINI_MAIN_MODELS = [
-    "gemini-3.5-flash",
-    "gemini-3.1-pro-preview",
-    "gemini-3-flash-preview",
-] as const;
-export const OPENAI_MAIN_MODELS = ["gpt-5.6-luna", "gpt-5.5", "gpt-5.4"] as const;
-export const DEEPSEEK_MAIN_MODELS = [
-    "deepseek-v4-flash",
-    "deepseek-v4-pro",
-] as const;
-/** Muse Spark reached over OpenRouter. The `meta/` prefix is OpenRouter's slug. */
-export const META_MAIN_MODELS = ["meta/muse-spark-1.1"] as const;
-/**
- * Muse Spark reached directly on Meta Model API, which uses bare model ids.
- * The `-contributor` tier is ~12x cheaper because Meta trains on the prompts
- * and completions sent to it, so it is off the default picker and belongs
- * nowhere near client documents.
- */
-const META_DIRECT_MODELS = [
-    "muse-spark-1.2",
-    "muse-spark-1.1",
-    "muse-spark-1.2-contributor",
-] as const;
+export type PickerModel = {
+    id: string; label: string; group: string; provider: Provider;
+    settingsOnly?: boolean; available?: boolean;
+    reasoningEfforts?: string[]; defaultReasoningEffort?: string;
+};
+const STATIC_MODELS = [
+    { id: "claude-fable-5", label: "Claude Fable 5", group: "Anthropic" },
+    { id: "claude-opus-4-8", label: "Claude Opus 4.8", group: "Anthropic" },
+    { id: "claude-opus-4-7", label: "Claude Opus 4.7", group: "Anthropic" },
+    { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", group: "Anthropic" },
+    { id: "gemini-3.5-flash", label: "Gemini 3.5 Flash", group: "Google" },
+    { id: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", group: "Google" },
+    { id: "gemini-3-flash-preview", label: "Gemini 3 Flash", group: "Google" },
+    { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash", group: "DeepSeek" },
+    { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro", group: "DeepSeek" },
+    { id: "muse-spark-1.2", label: "Muse Spark 1.2", group: "Meta" },
+    { id: "muse-spark-1.1", label: "Muse Spark 1.1", group: "Meta" },
+    { id: "meta/muse-spark-1.1", label: "Muse Spark 1.1 (OpenRouter)", group: "Meta" },
+    { id: "gpt-5.5", label: "GPT-5.5", group: "OpenAI", settingsOnly: true },
+    { id: "gpt-5.4", label: "GPT-5.4", group: "OpenAI", settingsOnly: true },
+    { id: "claude-haiku-4-5", label: "Claude Haiku 4.5", group: "Anthropic", settingsOnly: true },
+    { id: "gemini-3.1-flash-lite-preview", label: "Gemini 3.1 Flash Lite", group: "Google", settingsOnly: true },
+    { id: "gpt-5.4-lite", label: "GPT-5.4 Lite", group: "OpenAI", settingsOnly: true },
+    // The contributor tier trains on inputs and stays out of the chat picker.
+    { id: "muse-spark-1.2-contributor", label: "Muse Spark 1.2 (contributor · trains on input)", group: "Meta", settingsOnly: true },
+    { id: "gpt-5.6-luna", label: "GPT-5.6 Luna", group: "OpenAI", hidden: true },
+];
 
-export const CLAUDE_MID_MODELS = ["claude-sonnet-4-6"] as const;
-export const GEMINI_MID_MODELS = ["gemini-3.5-flash", "gemini-3-flash-preview"] as const;
-export const OPENAI_MID_MODELS = ["gpt-5.4"] as const;
+export function pickerModel(model: Omit<PickerModel, "provider">): PickerModel {
+    const reasoning = model.id.startsWith("deepseek-")
+        ? { reasoningEfforts: ["low", "high", "max"], defaultReasoningEffort: "high" }
+        : model.id.includes("muse-spark-")
+            ? { reasoningEfforts: ["xhigh", "high", "medium", "low", "minimal"], defaultReasoningEffort: "medium" }
+            : {};
+    return { ...reasoning, ...model, provider: providerForModel(model.id) };
+}
 
-export const CLAUDE_LOW_MODELS = ["claude-haiku-4-5"] as const;
-export const GEMINI_LOW_MODELS = ["gemini-3.1-flash-lite-preview"] as const;
-export const OPENAI_LOW_MODELS = ["gpt-5.4-lite"] as const;
+export function staticPickerModels() {
+    const models = STATIC_MODELS.filter(model => !model.hidden);
+    return [...models.map(pickerModel), ...models.filter(model => model.group === "Anthropic")
+        .map(model => pickerModel({ ...model, id: `claude-p:${model.id}`, group: "Claude Code" }))];
+}
+
 const CODEX_MODEL_PREFIX = "codex:";
 const CLAUDE_P_MODEL_PREFIX = "claude-p:";
 const OLLAMA_MODEL_PREFIX = "ollama:";
@@ -94,21 +100,7 @@ export const DEFAULT_MAIN_MODEL = "gemini-3-flash-preview";
 export const DEFAULT_TITLE_MODEL = "gemini-3.1-flash-lite-preview";
 export const DEFAULT_TABULAR_MODEL = "gemini-3-flash-preview";
 
-const ALL_MODELS = new Set<string>([
-    ...CLAUDE_MAIN_MODELS,
-    ...GEMINI_MAIN_MODELS,
-    ...OPENAI_MAIN_MODELS,
-    ...CLAUDE_MID_MODELS,
-    ...GEMINI_MID_MODELS,
-    ...OPENAI_MID_MODELS,
-    ...CLAUDE_LOW_MODELS,
-    ...GEMINI_LOW_MODELS,
-    ...OPENAI_LOW_MODELS,
-    ...DEEPSEEK_MAIN_MODELS,
-    ...META_MAIN_MODELS,
-    ...META_DIRECT_MODELS,
-]);
-
+const ALL_MODELS = new Set(STATIC_MODELS.map(model => model.id));
 
 export function providerForModel(model: string): Provider {
     if (model.startsWith(CODEX_MODEL_PREFIX)) return "codex";

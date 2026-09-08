@@ -20,13 +20,13 @@ export async function fetchCatalogJson<T>(url: string, { label, timeoutMs, heade
  * from the last known catalog and refreshes in the background, so a slow,
  * throttled, or absent provider never delays a request.
  */
-export function createCatalogCache<T, I = void>(probe: (input: I) => Promise<T>, empty: T) {
+export function createCatalogCache<T extends { source: "live" | "unavailable" }, I = void>(probe: (input: I) => Promise<T>, empty: T) {
   let known: T | undefined, checkedAt = 0, inflight: Promise<T> | null = null;
   const stale = () => Date.now() - checkedAt > TTL_MS;
   const refresh = (input: I) => {
     checkedAt = Date.now();
     return inflight ??= probe(input).then((value) => known = value)
-      .catch(() => known ?? empty).finally(() => { inflight = null; });
+      .catch(() => known = { ...(known ?? empty), source: "unavailable" }).finally(() => { inflight = null; });
   };
   return {
     snapshot: (input: I): T => { if (stale()) void refresh(input); return known ?? empty; },
