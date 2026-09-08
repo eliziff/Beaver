@@ -155,12 +155,24 @@ describe("authorities draft domain", () => {
   it("decodes canonical and rejects malformed nested durable state", () => {
     const canonical = createAuthoritiesDraft({ kind: "manual" });
     expect(decodeAuthoritiesDraft(canonical)).toEqual(canonical);
+    const text = "2009 SCC 32";
+    const current = { ...canonical,
+      units: [{ id: "footnote:1", kind: "footnote" as const, ordinal: 0, footnoteId: 1,
+        footnoteRefs: [], pageNumbers: [], text, occurrenceIds: ["o"] }],
+      occurrences: { o: occurrence("o", text, 0, text.length, null) } };
+    expect(decodeAuthoritiesDraft(current)).toEqual(current);
+    for (const field of ["authoritySpan", "coreSpan", "pinpointSpan"] as const) {
+      const oldOccurrence = structuredClone(current) as unknown as {
+        occurrences: Record<string, Partial<AuthorityOccurrence>> };
+      delete oldOccurrence.occurrences.o[field];
+      expect(decodeAuthoritiesDraft(oldOccurrence)).toBeNull();
+    }
     const oldShape = structuredClone(canonical) as Partial<AuthoritiesDraft>;
     delete oldShape.settings; delete oldShape.bookParts;
-    expect(decodeAuthoritiesDraft(oldShape)).toEqual(canonical);
+    expect(decodeAuthoritiesDraft(oldShape)).toBeNull();
     const prior = structuredClone(canonical) as Partial<AuthoritiesDraft>;
     delete prior.discrepancyDecisions;
-    expect(decodeAuthoritiesDraft(prior)).toEqual(canonical);
+    expect(decodeAuthoritiesDraft(prior)).toBeNull();
     expect(decodeAuthoritiesDraft({ ...canonical,
       discrepancyDecisions: { invalid: "quote_exact" } })).toBeNull();
 
