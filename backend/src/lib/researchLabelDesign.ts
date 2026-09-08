@@ -26,6 +26,10 @@ export type ResearchLabelPlan = {
 const PALETTE = ["#d6b85a", "#7ba7d6", "#8fbf8f", "#d68f8f", "#b08fd6", "#d6a87b", "#7bc7c7", "#c7c77b"];
 const clip = (value: string, max = 200) => value.replace(/\s+/gu, " ").trim().slice(0, max);
 const labelScope = (target: ResearchLabelTarget) => target === "sources" ? "source" as const : "highlight" as const;
+export const researchConceptKey = (name: string) => name.normalize("NFKC").toLowerCase().trim()
+  .replace(/\banalyses\b/gu, "analysis").replace(/\bcriteria\b/gu, "criterion")
+  .replace(/ies\b/gu, "y").replace(/(ch|sh|x|z)es\b/gu, "$1").replace(/(?<![sui])s\b/gu, "")
+  .replace(/\s+/gu, " ");
 
 /** Inventory the workspace's own material and ontology; a design may only reference these ids. */
 export function researchLabelInventory(catalog: ResearchImportCatalog, file: ResearchFile, target: ResearchLabelTarget) {
@@ -54,7 +58,8 @@ export function researchLabelPlan(file: ResearchFile, catalog: ResearchImportCat
     if (!proposed && !current) return bad("A proposed label names an unknown parent");
     const name = current?.name ?? proposed!.name, parentKey = current ? current.parentId : proposed?.parentKey,
       parentId = parentKey ? resolve(parentKey, kind, trail).id : null,
-      existing = current?.scope === kind ? current : Object.values(labels).find((label) => label.scope === kind && label.name === name && label.parentId === parentId),
+      existing = current?.scope === kind ? current : Object.values(labels).find((label) => label.scope === kind &&
+        researchConceptKey(label.name) === researchConceptKey(name) && label.parentId === parentId),
       label = existing ?? { id: randomUUID(), name, parentId, scope: kind, order: Object.keys(labels).length,
         color: current?.color ?? proposed?.color ?? PALETTE[Math.max(0, parsed.labels.findIndex((label) => label.key === key)) % PALETTE.length],
         definition: current?.definition ?? proposed?.definition };
