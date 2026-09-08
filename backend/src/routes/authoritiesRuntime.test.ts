@@ -2,6 +2,8 @@ import express from "express";
 import { Document, FootnoteReferenceRun, Packer, Paragraph, TextRun } from "docx";
 import JSZip from "jszip";
 import { PDFDocument } from "pdf-lib";
+import * as pdfLibrary from "pdf-lib";
+import { mapAuthorityBookBytes, renderAuthoritiesBook, type PreparedAuthoritiesBook } from "../lib/authoritiesBook";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AuthoritiesDraft } from "../lib/authoritiesDomain";
@@ -396,11 +398,24 @@ describe("standalone Authorities runtime", () => {
       filename: "Example.pdf", sourceSha256, sourceUrl: null, origin: "manual",
       language: "en" }] };
 
-    await request(app).post("/authorities-runtime/build")
+    const response = await request(app).post("/authorities-runtime/build")
       .field("draft", JSON.stringify(state)).field("roles", JSON.stringify(["source"]))
       .field("id", "draft-2").field("revision", "1").field("title", "Authorities")
-      .attach("files", bytes, "Example.pdf").expect(200);
+      .attach("files", bytes, "Example.pdf").buffer(true).parse((res, done) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => done(null, Buffer.concat(chunks)));
+      }).expect(200);
 
     expect(mocks.pdfText).not.toHaveBeenCalled();
+    const form = await new Response(response.body as Buffer, { headers: {
+      "content-type": response.headers["content-type"],
+    } }).formData();
+    const plan = await mapAuthorityBookBytes(JSON.parse(String(form.get("book"))) as PreparedAuthoritiesBook<string>,
+      async (role) => new Uint8Array(await (form.get(role) as File).arrayBuffer()));
+    expect(form.get("book-source-0")).toBeInstanceOf(File);
+    const [book] = await renderAuthoritiesBook(pdfLibrary, plan);
+    expect(book.pageCount).toBe(3);
+    expect((await PDFDocument.load(book.bytes)).getPageCount()).toBe(3);
   });
 });

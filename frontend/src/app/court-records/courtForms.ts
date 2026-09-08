@@ -1,5 +1,5 @@
 import { rgb, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
-import { courtPdfText as latin, courtPdfTextWidth, drawCourtPdfText } from "./pdfText";
+import { courtPdfText as latin, courtPdfTextWidth, drawCourtPdfText, wrapCourtPdfText } from "./pdfText";
 import { ap5BookTitle, ap5PartyGroups, ap5PartyLabel, captionPartyGroups, contactGroups, coverPartyGroups, filingPartyNames,
   groupNames, partyNames } from "./types";
 import type { CourtProfile, CoverValues } from "./types";
@@ -443,22 +443,6 @@ function rule(page: PDFPage, x1: number, y1: number, x2: number, y2: number) {
     thickness: 0.7, color: rgb(0.08, 0.08, 0.08) });
 }
 
-function wrap(text: string, font: PDFFont, size: number, maxWidth: number) {
-  const lines: string[] = [];
-  for (const paragraph of text.split(/\r?\n/u)) {
-    const words = paragraph.trim().split(/\s+/u).filter(Boolean);
-    let current = "";
-    for (const word of words) {
-      const candidate = current ? `${current} ${word}` : word;
-      if (current && courtPdfTextWidth(candidate, font, size) > maxWidth) {
-        lines.push(current);
-        current = word;
-      } else current = candidate;
-    }
-    if (current) lines.push(current);
-  }
-  return lines;
-}
 
 function legalDate(value: string) {
   const prose = value.trim().match(/^([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})$/u);
@@ -480,3 +464,6 @@ function hex(value: string): RGB {
     : normalized, 16);
   return rgb(((number >> 16) & 255) / 255, ((number >> 8) & 255) / 255, (number & 255) / 255);
 }
+
+const wrap = (text: string, font: PDFFont, size: number, maxWidth: number) =>
+  wrapCourtPdfText(text, font, size, maxWidth, true);
