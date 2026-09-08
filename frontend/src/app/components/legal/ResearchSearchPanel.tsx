@@ -164,8 +164,7 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
     const source = file?.state.sources[sourceId]; if (!source || !labelId) return;
     setStatus("");
     try {
-      await commit.act({ type: "annotate", kind: "source", id: sourceId,
-        labelIds: [...new Set([...source.labelIds, labelId])] });
+      await commit.act({ type: "annotate", kind: "source", id: sourceId, labelIds: [labelId] });
       setStatus(`Filed ${sourceName(source)} under ${researchLabelPath(labels, labelId).map(({ name }) => name).join(" / ")}`);
     } catch (reason) { setStatus(errorMessage(reason, "Could not file this source")); }
   }

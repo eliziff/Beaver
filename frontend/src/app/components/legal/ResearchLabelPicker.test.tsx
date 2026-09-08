@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { ResearchFile, ResearchLabel } from "@/app/lib/researchFiles";
+import type { ResearchAction, ResearchFile, ResearchLabel } from "@/app/lib/researchFiles";
 import { RESEARCH_SOURCE_DRAG, ResearchLabelEditor, ResearchLabelPicker } from "./ResearchLabelPicker";
 import type { ResearchFileMutations } from "./useResearchFileMutations";
 
@@ -38,7 +38,10 @@ describe("ResearchLabelPicker", () => {
     })));
     fireEvent.click(screen.getByRole("button", { name: "Filed under A" }));
     fireEvent.click(screen.getByRole("button", { name: "None" }));
-    await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ labelIds: ["b", "c"] })));
+    await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ type: "batch", actions: [
+      { type: "label-selection", target: "sources", sourceIds: ["source-1"], assign: ["a"], mode: "remove" },
+      expect.objectContaining({ labelIds: ["b", "c"] }),
+    ] })));
     expect(screen.getByRole("button", { name: "A" })).toHaveAttribute("aria-pressed", "false");
   });
 
@@ -99,21 +102,28 @@ describe("ResearchLabelPicker", () => {
   it("cascades into a branch and files an independent one without creating labels", async () => {
     const nested = { ...file, state: { ...file.state, labels: { ...labels,
       child: { ...label("child", 0), parentId: "a" }, leaf: { ...label("leaf", 0), parentId: "child" },
-    } } }, act = vi.fn().mockResolvedValue(nested);
+    } } }, filings = new Set<string>(), apply = (action: ResearchAction) => {
+      if (action.type === "batch") action.actions.forEach(apply);
+      if (action.type === "annotate") action.labelIds?.forEach((id) => filings.add(id));
+      if (action.type === "label-selection" && action.mode === "remove") action.assign.forEach((id) => filings.delete(id));
+      return nested;
+    }, act = vi.fn(async (action: ResearchAction) => apply(action));
     render(<ResearchLabelEditor target={{ file: nested, kind: "source", itemId: "source-1",
       labelIds: [], title: "Source" }} mutations={lane(act)} onClose={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "CHILD" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "A" }));
     fireEvent.click(screen.getByRole("button", { name: "CHILD" }));
     fireEvent.click(screen.getByRole("button", { name: "LEAF" }));
-    await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ labelIds: ["leaf"] })));
+    await waitFor(() => expect([...filings]).toEqual(["leaf"]));
     fireEvent.click(screen.getByRole("button", { name: "Add a label" }));
     fireEvent.click(screen.getByRole("button", { name: "A" }));
-    await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ labelIds: ["leaf", "a"] })));
+    await waitFor(() => expect([...filings]).toEqual(["leaf", "a"]));
     fireEvent.click(screen.getByRole("button", { name: "Add a label" }));
     fireEvent.click(screen.getByRole("button", { name: "B" }));
-    await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ labelIds: ["leaf", "a", "b"] })));
-    expect(act.mock.calls.every(([action]) => action.type === "annotate")).toBe(true);
+    await waitFor(() => expect([...filings]).toEqual(["leaf", "a", "b"]));
+    fireEvent.click(screen.getByRole("button", { name: "Filed under A / CHILD / LEAF" }));
+    fireEvent.click(screen.getByRole("button", { name: "D" }));
+    await waitFor(() => expect([...filings]).toEqual(["a", "b", "d"]));
   });
 
   it("keeps every generation's row reserved so revealing children moves nothing above", () => {
