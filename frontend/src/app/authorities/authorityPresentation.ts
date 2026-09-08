@@ -20,7 +20,7 @@ export function requiresBilingualSources(state: AuthoritiesProduct["state"], ite
   return !!authoritiesProfile(state.settings.profileId).requirements?.bilingualEnactments &&
     item.kind === "legislation" && /\b(?:R\.?S\.?C\.?|S\.?C\.?|C\.?R\.?C\.?|SOR|SI|DORS|TR)\b/iu.test(item.citation);
 }
-export function hasRequiredSources(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
+function hasRequiredSources(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
   if (item.source.kind !== "attached" || !item.source.sources.length) return false;
   return !requiresBilingualSources(state, item) || hasBilingualAuthoritySource(item.source);
 }

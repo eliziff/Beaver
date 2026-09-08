@@ -954,6 +954,7 @@ describe("Authorities workspace application", () => {
     expect((product.state as AuthoritiesDraft).authorities["canonical-key"].source)
       .toMatchObject({ kind: "pending-canlii",
         pdfUrl: "https://www.canlii.org/en/ab/abkb/doc/2024/2024abkb123/2024abkb123.pdf" });
+    pdfText.mockResolvedValueOnce({ pageTextByPage: ["Neutral citation: 2024 ABKB 123"], ocrTextByPage: [] });
     product = await runtime.application.attachPdf(scope, product.id, {
       revision: product.revision, authorityId: "canonical-key", language: "en",
       file: { filename: "smith.pdf", fileType: "pdf",
@@ -965,6 +966,26 @@ describe("Authorities workspace application", () => {
       revision: product.revision - 1, authorityId: "canonical-key", language: "en",
       file: { filename: "late.pdf", fileType: "pdf", bytes: Buffer.from("%PDF-") },
     })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("leaves a CanLII slot unbound for a different or unreadable citation, then accepts its PDF", async () => {
+    const runtime = harness();
+    let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
+    product = await runtime.application.act(scope, product.id, product.revision,
+      { type: "add-authority", kind: "case", citation: "2001 SCC 1", name: "R v Latimer" });
+    product = await prepareSources(runtime, product);
+    const input = { revision: product.revision, authorityId: "canonical-key", language: "en" as const,
+      file: { filename: "Latimer.pdf", fileType: "pdf", bytes: Buffer.from("%PDF-") } };
+    for (const text of ["Neutral citation: 2009 SCC 32. Reasons citing 2001 SCC 1.", ""]) {
+      pdfText.mockResolvedValueOnce({ pageTextByPage: [text], ocrTextByPage: [] });
+      await expect(runtime.application.attachPdf(scope, product.id, input)).rejects.toMatchObject({ status: 400 });
+      expect(runtime.product()).toBe(product);
+      expect(runtime.files.create).not.toHaveBeenCalled();
+    }
+    pdfText.mockResolvedValueOnce({ pageTextByPage: ["Neutral citation: 2001 SCC 1."], ocrTextByPage: [] });
+    const attached = await runtime.application.attachPdf(scope, product.id, input);
+    expect((attached.state as AuthoritiesDraft).authorities["canonical-key"].source.kind).toBe("attached");
+    expect(attached.revision).toBe(product.revision + 1);
   });
 
   it("does not invent a CanLII action when no exact neutral-citation link is derivable",

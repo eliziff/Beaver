@@ -1,4 +1,4 @@
-import { attachAuthoritySource, authoritiesInputPlan } from "../../../../shared/authorities-sources.mjs";
+import { authoritiesInputPlan } from "../../../../shared/authorities-sources.mjs";
 import type { AuthoritiesProduct } from "./types";
 import {
   bindStandaloneFile, chooseStandaloneOutputFolder, clearStandaloneOutputFolder,
@@ -11,7 +11,7 @@ import { apiResponse } from "@/app/lib/api/client";
 import type { WorkProductInput } from "@/app/lib/workProducts";
 import type { AuthoritiesAction, AuthoritiesDraft,
   AuthoritySourceLanguage } from "./types";
-import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
+import type { AuthoritiesFile, AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
 import { authoritiesProfile } from "./profiles";
 import { prepareAnnotations } from "./annotationPreparation";
 import { mapAuthorityBookBytes, renderAuthoritiesBook, type PreparedAuthoritiesBook } from
@@ -118,6 +118,23 @@ async function buildInputs(product: AuthoritiesProduct, progress?: (message: str
     return form;
 }
 
+async function attachPdf(id: string, revision: number, selected: AuthoritiesFile, fields: Record<string, string>) {
+  const product = await currentProduct(id, revision), form = new FormData();
+  form.append("draft", JSON.stringify(product.state)); form.append("file", selected.file, selected.file.name);
+  form.append("modified", String(selected.file.lastModified));
+  for (const [key, value] of Object.entries(fields)) form.append(key, value);
+  const state = await runtimeDraft("pdf", form);
+  const role = Object.keys(state.bindings).find((role) => {
+    const input = state.bindings[role]; return input.kind === "local-file" && input.handleId === "standalone";
+  });
+  const binding = await bindStandaloneFile(selected.file, selected.input);
+  if (!role || state.bindings[role].kind !== "local-file" ||
+      state.bindings[role].lastSeen.sha256 !== binding.lastSeen.sha256)
+    throw new Error("The selected PDF changed while it was being added.");
+  state.bindings[role] = binding;
+  return save(id, revision, state);
+}
+
 export const standaloneAuthoritiesHost: AuthoritiesHost = {
   prepareAnnotations,
   mode: "standalone",
@@ -204,39 +221,10 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     return JSON.stringify(prepared) === JSON.stringify(product.state)
       ? product : save(product.id, product.revision, prepared);
   },
-  async attach(id, authorityId, revision, selected, language = "en") {
-    if (!await validPdf(selected.file)) throw new Error("Add a valid PDF.");
-    const product = await currentProduct(id, revision);
-    const state = structuredClone(product.state), authority = state.authorities[authorityId];
-    if (!authority) throw new Error("This authority no longer exists.");
-    const binding = await bindStandaloneFile(selected.file, selected.input);
-    const previous = authority.source.kind === "attached" ? authority.source.sources : [];
-    const replaced = previous.find((source) => source.language === language);
-    const sourceUrl = authority.source.kind === "pending-canlii" ? authority.source.pdfUrl
-      : replaced?.sourceUrl ?? null;
-    const role = replaced?.bindingRole ?? `authority:${crypto.randomUUID()}:${language}`;
-    attachAuthoritySource(state, authority, { bindingRole: role, filename: selected.file.name,
-      sourceSha256: binding.lastSeen.sha256!, sourceUrl, origin: "manual", language }, binding);
-    return save(id, revision, state);
-  },
-  async attachBookPdf(id, revision, slot, selected, supplementId) {
-    if (!await validPdf(selected.file)) throw new Error("Add a valid PDF.");
-    const product = await currentProduct(id, revision);
-    const binding = await bindStandaloneFile(selected.file, selected.input);
-    const form = new FormData(); form.append("draft", JSON.stringify(product.state));
-    form.append("slot", slot); form.append("file", selected.file, selected.file.name);
-    if (supplementId) form.append("supplement_id", supplementId);
-    form.append("modified", String(selected.file.lastModified));
-    const state = await runtimeDraft("book-part", form);
-    const part = slot === "supplemental" ? state.bookParts.supplements.find(({ id }) =>
-      supplementId ? id === supplementId
-        : !product.state.bookParts.supplements.some((current) => current.id === id))
-      : state.bookParts[slot];
-    if (!part || part.sourceSha256 !== binding.lastSeen.sha256)
-      throw new Error("The selected PDF changed while it was being added.");
-    state.bindings[part.bindingRole] = binding;
-    return save(id, revision, state);
-  },
+  attach: (id, authorityId, revision, selected, language = "en") =>
+    attachPdf(id, revision, selected, { authority_id: authorityId, language }),
+  attachBookPdf: (id, revision, slot, selected, supplementId) =>
+    attachPdf(id, revision, selected, { slot, ...(supplementId ? { supplement_id: supplementId } : {}) }),
   async build(selected, progress, signal) {
     signal?.throwIfAborted();
     const product = await currentProduct(selected.id, selected.revision);
