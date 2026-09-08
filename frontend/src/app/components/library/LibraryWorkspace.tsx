@@ -105,6 +105,7 @@ function LibraryCollection({
     active = true,
 }: LibraryCollectionProps) {
     const navigate = useNavigate();
+    const [params] = useSearchParams(), documentId = params.get("document_id");
     const workspace = useContext(LibraryWorkspace);
     const [localSearch, setLocalSearch] = useState("");
     const search = workspace?.views[kind].search ?? localSearch;
@@ -194,6 +195,7 @@ function LibraryCollection({
                     }
                 >
                 <DocTable
+                    initialDocument={active && documentId ? { id: documentId, versionId: params.get("version_id") } : undefined}
                     scopeKey={kind}
                     documents={directory.documents}
                     folders={directory.folders as DocTableFolder[]}

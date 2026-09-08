@@ -8,6 +8,7 @@ import {
   deleteDocument,
   downloadDocumentsZip,
   downloadDocument,
+  getDocument,
   listDirectoryDocuments,
   listDocumentVersions,
   restoreDocumentVersion,
@@ -281,6 +282,7 @@ function ResearchSetPicker({ onSelect, onClose }: { onSelect: (id: string, label
     </Modal>;
 }
 interface DocTableProps {    scopeKey: string; documents: Document[]; folders: DocTableFolder[];
+    initialDocument?: { id: string; versionId?: string | null };
     loading: boolean; active?: boolean; search: string; operations: DocTableOperations; emptyDropLabel?: string;
     renderAddDocumentsModal?: (open: boolean, onClose: () => void,
         onSelect: (documents: Document[]) => void) => ReactNode;
@@ -306,7 +308,7 @@ export function DocTable({
     onOpenInChat, onAssistantWorkflowSelect, onOwnerOnlyAction,
     documentRemovalMode = "delete", selectionFirst = false, compact = false,
     hasMoreParents = new Set(), loadingParents = new Set(),
-    onFolderExpanded, onLoadMore,
+    onFolderExpanded, onLoadMore, initialDocument,
 }: DocTableProps) {
     const { user } = useAuth();
     const [state, setState] = useState<DocTableState>(() => ({
@@ -321,6 +323,14 @@ export function DocTable({
         pendingMove: null,
         folderTaskId: null, folderWorkflowDocuments: null,
     }));
+    useEffect(() => {
+        if (!initialDocument?.id) return;
+        let cancelled = false;
+        void getDocument(initialDocument.id).then((doc) => {
+            if (!cancelled) setState((state) => ({ ...state, viewingDoc: doc, viewingDocVersionId: initialDocument.versionId ?? null }));
+        }).catch((error: Error) => { if (!cancelled) setState((state) => ({ ...state, warnings: { ...state.warnings, collection: error.message } })); });
+        return () => { cancelled = true; };
+    }, [initialDocument?.id, initialDocument?.versionId]);
     function set<K extends keyof DocTableState>(key: K,
         next: DocTableState[K] | ((current: DocTableState[K]) => DocTableState[K])) {
         setState((current) => {
