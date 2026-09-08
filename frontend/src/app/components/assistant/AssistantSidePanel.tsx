@@ -191,7 +191,7 @@ function AssistantSidePanelContent({
                                 tab.kind === "workflow-run"
                                     ? "overflow-y-auto"
                                     : "flex flex-col",
-                                !isActive && "invisible pointer-events-none",
+                                !isActive && "invisible opacity-0 pointer-events-none",
                             )}
                             aria-hidden={!isActive}
                         >

@@ -16,7 +16,7 @@ export type ResearchSource = { id: string; reference: ResearchSourceReference; c
   passages: (ResearchPartReference & { labelCounts: Record<string, number>;
     unlabelledCount: number }) | null };
 export type ResearchEvidenceReceipt = GroundedEvidence;
-export type ResearchEvidence = { receipt: ResearchEvidenceReceipt; sourceId: string;
+export type ResearchEvidence = { receipt: ResearchEvidenceReceipt; sourceId: string; highlightId?: string;
   labelIds: string[]; note: string };
 export type ResearchQueryReceipt = { query_id: string; call_id: string;
   tool: "search_sources" | "Read"; executed_at: string; model: string;

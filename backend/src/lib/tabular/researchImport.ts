@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { ApplicationError } from "../applicationError";
 import { sha256 } from "../hash";
-import { researchLabelPath, type ResearchEvidence, type ResearchFile } from "../researchFile";
+import { researchLabelPath, researchSourceResource, type ResearchEvidence, type ResearchFile } from "../researchFile";
+import { legalEvidenceResourceReference } from "../chat/legalEvidence";
 import type { ResearchFinding } from "../researchChat";
 import { researchSelectionLabels, type ResearchSubject } from "../researchSelection";
 import type { TabularColumn } from "../tabularStore";
@@ -11,8 +12,9 @@ export type ResearchImportInput = { rows: "sources" | "passages"; labelId?: stri
 type Item = ResearchArrangement["cells"][number]["items"][number];
 type Kind = "classification" | "passages" | "note" | "answer";
 type Entry = { id: string; rowId: string; reference: Item; kind: Kind; text: string;
-  columnKey: string; column: TabularColumn; evidenceIds: string[]; default: boolean };
+  column: TabularColumn; evidenceIds: string[]; default: boolean };
 export type ResearchImportCatalog = { title: string; question: string | null; fingerprint: string;
+  columns?: Array<TabularColumn & { scope: "source" | "highlight" }>;
   labels: { id: string; path: string; scope: "source" | "highlight"; definition?: string }[];
   rows: ResearchArrangement["rows"]; entries: Entry[] };
 const id = z.string().min(1).max(200);
@@ -30,7 +32,6 @@ export type ResearchImportDesign = z.infer<typeof researchImportDesignSchema>;
 const clip = (value: string, max = 200) => value.replace(/\s+/gu, " ").trim().slice(0, max);
 const key = (value: unknown) => sha256(JSON.stringify(value)).slice(0, 24);
 
-/** Inventory original work, not inferred answers. Model designs can only reference these items. */
 export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubject[],
   parts: Map<string, Record<string, ResearchEvidence>>, findings: ResearchFinding[], input: ResearchImportInput): ResearchImportCatalog {
   if (input.labelId && file.state.labels[input.labelId]?.scope !== "highlight")
@@ -42,14 +43,10 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
     else allowed.set(subject.sourceId, new Set([...(allowed.get(subject.sourceId) ?? []), ...subject.evidence.map(({ evidence_id }) => evidence_id)]));
   }
   const rows: ResearchArrangement["rows"] = [], entries: Entry[] = [];
-  // The Chat question is the subject of the whole table, never a column of it.
   const questions = [...new Set(findings.filter(({ reference }) => reference.kind === "answer").map(({ question }) => question.prompt))];
-  // One column per distinct question, however it arose: a classification, a highlight type or a
-  // recorded finding that already asked it. Re-importing research never doubles a column.
   const add = (rowId: string, reference: Item, kind: Kind, text: string,
     column: Omit<TabularColumn, "index">, evidenceIds: string[] = [], use = true) => {
-    entries.push({ id: key([rowId, reference]), rowId, reference, kind, text,
-      columnKey: key([column.name, column.prompt, column.format, column.tags]),
+    entries.push({ id: `item${entries.length}`, rowId, reference, kind, text,
       column: { ...column, index: 0 }, evidenceIds, default: use });
   };
   for (const [sourceId, permitted] of allowed) {
@@ -58,7 +55,7 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
     const saved = Object.values(parts.get(sourceId) ?? {}).filter(({ receipt, labelIds }) =>
       labelIds.length && (!types || labelIds.some((id) => types.has(id))) && (!permitted || permitted.has(receipt.evidence_id)));
     if (types && !saved.length) continue;
-    const selected = input.rows === "passages" ? saved.map(({ receipt }) => [receipt.evidence_id])
+    const selected = input.rows === "passages" ? [...new Set(saved.map(({ receipt }) => receipt.evidence_id))].map((id) => [id])
       : [permitted ? [...permitted] : undefined];
     for (const evidenceIds of selected) {
       const rowId = input.rows === "sources" ? sourceId : `${sourceId}:${evidenceIds![0]}`,
@@ -68,44 +65,40 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
         ? `${title} · ${clip(rowPassages[0].receipt.locator.label, 180)}` : title,
         ...(evidenceIds ? { evidenceIds } : {}) });
       for (const labelId of source.labelIds) {
-        let root = file.state.labels[labelId];
-        if (root?.scope !== "source") continue;
-        while (root.parentId) root = file.state.labels[root.parentId];
+        const label = file.state.labels[labelId];
+        if (label?.scope !== "source") continue;
         add(rowId, { kind: "label", sourceId, labelId, display: "path" }, "classification",
           researchLabelPath(file.state, labelId),
-          { name: Object.values(file.state.labels).some(({ parentId }) => parentId === root.id) ? root.name : "Classification",
-            prompt: `Recorded source classifications; preserve their full paths.`, format: "text" });
+          { name: researchLabelPath(file.state, labelId), prompt: label.definition || `What does this source establish about ${label.name}?`, format: "text" });
       }
       if (source.note && input.rows === "sources") add(rowId, { kind: "note", sourceId }, "note", source.note,
         { name: "Research note", prompt: "The note retained for this source.", format: "text" });
       for (const passage of rowPassages) {
-        const path = researchLabelPath(file.state, passage.labelIds[0]),
-          // An unnamed default highlight type is no question; name the column for what it holds.
-          named = !/^highlights?$/iu.test(path);
-        add(rowId, { kind: "passage", sourceId, evidenceId: passage.receipt.evidence_id }, "passages",
-          passage.receipt.span_text ?? "", { name: named ? clip(path) : "Saved passages",
-            prompt: named ? `Saved passages: ${path}.` : "The passages saved from this source.", format: "text" },
-          [passage.receipt.evidence_id], named);
+        const path = researchLabelPath(file.state, passage.labelIds[0]);
+        add(rowId, { kind: "passage", sourceId, evidenceId: passage.highlightId ?? passage.receipt.evidence_id }, "passages",
+          passage.receipt.span_text ?? "", { name: path,
+            prompt: file.state.labels[passage.labelIds[0]].definition || `What does this source establish about ${path}?`, format: "text" },
+          [passage.receipt.evidence_id]);
         if (input.rows === "passages" && passage.note) add(rowId, { kind: "note", sourceId,
-          evidenceId: passage.receipt.evidence_id }, "note", passage.note,
+          evidenceId: passage.highlightId ?? passage.receipt.evidence_id }, "note", passage.note,
           { name: "Research note", prompt: "The note retained for this passage.", format: "text" });
       }
-      for (const finding of findings.filter((value) => value.sourceId === sourceId)) {
+      for (const finding of findings.filter((value) => value.sourceId === sourceId || value.reference.kind === "cell" &&
+        value.evidence.some((receipt) => legalEvidenceResourceReference(receipt) === researchSourceResource(source.reference)))) {
+        const owned = new Set(finding.evidence.filter((receipt) => legalEvidenceResourceReference(receipt) === researchSourceResource(source.reference)).map(({ evidence_id }) => evidence_id));
         const relevant = finding.answer.claims.map((claim, index) => ({ claim, index })).filter(({ claim }) =>
-          !evidenceIds || !!claim.evidence_ids.length && claim.evidence_ids.every((id) => evidenceIds.includes(id)));
+          !evidenceIds || claim.evidence_ids.some((id) => owned.has(id)) && claim.evidence_ids.filter((id) => owned.has(id)).every((id) => evidenceIds.includes(id)));
         if (evidenceIds && !relevant.length) continue;
-        const question = { name: finding.reference.kind === "answer" && questions.length < 2 ? "Finding"
-            : clip(finding.question.title, 60) || "Finding", prompt: finding.question.prompt || "Recorded finding",
+        const question = { name: finding.reference.kind === "answer" ? "Finding" : clip(finding.question.title, 60) || "Finding", prompt: finding.question.prompt || "Recorded finding",
           format: finding.question.format ?? "text", ...(finding.question.tags ? { tags: finding.question.tags } : {}) };
         const complete = relevant.length === finding.answer.claims.length;
         if (complete) add(rowId, finding.reference, "answer", finding.answer.summary ?? (finding.answer.value == null ? finding.answer.claims.map(({ text }) => text).join("\n\n") :
           Array.isArray(finding.answer.value) ? finding.answer.value.join("\n") : String(finding.answer.value)), question,
-          [...new Set(finding.answer.claims.flatMap(({ evidence_ids }) => evidence_ids))]);
+          [...new Set(finding.answer.claims.flatMap(({ evidence_ids }) => evidence_ids.filter((id) => owned.has(id))))]);
         // A semantic layout may put separate claims from one Chat answer in different columns.
-        // Their references still resolve the original text/support, never model-written substitutes.
         if (finding.reference.kind === "answer" && (!complete || finding.answer.claims.length > 1)) for (const { claim, index } of relevant)
           add(rowId, { ...finding.reference, claimIndices: [finding.reference.claimIndices?.[index] ?? index] }, "answer", claim.text, question,
-            claim.evidence_ids, !complete);
+            claim.evidence_ids.filter((id) => owned.has(id)), !complete);
       }
     }
   }
@@ -120,17 +113,19 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
 
 export function defaultResearchImport(catalog: ResearchImportCatalog): ResearchImportDesign {
   const columns = new Map<string, TabularColumn>(), cells = new Map<string, ResearchImportDesign["cells"][number]>();
-  for (const entry of catalog.entries.filter((entry) => entry.default)) {
-    if (!columns.has(entry.columnKey)) columns.set(entry.columnKey, { ...entry.column, index: columns.size });
-    const columnIndex = columns.get(entry.columnKey)!.index, cellKey = `${entry.rowId}:${columnIndex}`,
+  for (const label of catalog.labels) if (!columns.has(label.path)) columns.set(label.path,
+    { index: columns.size, name: label.path, prompt: label.definition || `What does this source establish about ${label.path}?`, format: "text" });
+  const structured = columns.size > 0;
+  if (!structured) columns.set("Finding", { index: 0, name: "Finding", format: "text",
+    prompt: catalog.question || "What does this source establish about the research question?" });
+  for (const entry of catalog.entries.filter((entry) => entry.default && entry.kind !== "classification")) {
+    const column = columns.get(structured ? entry.column.name : "Finding");
+    if (!column) continue;
+    const columnIndex = column.index, cellKey = `${entry.rowId}:${columnIndex}`,
       cell = cells.get(cellKey) ?? { rowId: entry.rowId, columnIndex, itemIds: [] };
     cell.itemIds.push(entry.id); cells.set(cellKey, cell);
-    // Several prior answers can disagree. Preserve them as text, not a fabricated single scalar.
-    if (cell.itemIds.length > 1) columns.get(entry.columnKey)!.format = "text";
   }
   if (columns.size > 100) throw new ApplicationError(413, "This selection needs more than 100 columns; narrow it before converting");
-  if (!columns.size) columns.set("question", { index: 0, name: "Finding", format: "text", prompt: catalog.question
-    ? `What does this source establish about: ${catalog.question}` : "What does this source establish about the research question?" });
   return researchImportDesignSchema.parse({ title: catalog.title, columns: [...columns.values()], cells: [...cells.values()] });
 }
 

@@ -22,10 +22,8 @@ const readInput = z.object({ column_index: z.number().int().nonnegative().option
 const findingsInput = z.object({ sourceIds: z.array(z.string()).optional(),
   reference: researchFindingReferenceSchema.optional(), chatId: tabularDtos.id.optional(), ...paging,
   evidence_id: z.string().min(1).max(200).optional(),
-  claim_offset: z.number().int().min(0).max(1_000_000).default(0),
-  claim_limit: z.number().int().min(1).max(10).default(1),
   text_offset: z.number().int().min(0).max(10_000_000).default(0),
-  text_limit: z.number().int().min(1).max(12_000).default(8_000),
+  text_limit: z.number().int().min(1).max(32_000).default(24_000),
 }).strict();
 const emptyInput = z.object({}).strict();
 const createInput = tabularDtos.create.omit({ document_ids: true, project_id: true, research_file_id: true });
@@ -41,16 +39,11 @@ export async function readResearchFindings(dependencies: { sources: SourceWorksp
     permitted = researchResultFilter({ subjects: dependencies.subjects ?? [], restricted: !!dependencies.subjects }),
     metadata = (finding: typeof page.items[number]) => ({ reference: finding.reference, kind: finding.kind,
       read: { file_path: "findings", section: JSON.stringify(finding.reference), offset: 1 },
-      sourceId: finding.sourceId, resource: finding.resource, question: { ...finding.question,
-        prompt: finding.question.prompt.slice(0, 1_000) }, claim_count: finding.answer.claims.length, origin: finding.origin });
+      sourceId: finding.sourceId, resource: finding.resource, question: finding.question.title, claim_count: finding.answer.claims.length });
   if (!options.reference) {
-    const items: Record<string, unknown>[] = []; let size = 500;
-    for (const finding of page.items) {
-      const item = { ...metadata(finding), preview: (finding.answer.summary ?? finding.answer.claims[0]?.text ?? "").slice(0, 300) },
-        length = JSON.stringify(item).length;
-      if (items.length && size + length > 50_000) break;
-      items.push(item); size += length;
-    }
+    const items = page.items.map((finding) => ({ ...metadata(finding),
+      preview: (finding.answer.summary ?? finding.answer.claims[0]?.text ?? "").slice(0, 300) }));
+    while (items.length > 1 && JSON.stringify(items).length > 48_000) items.pop();
     const next_offset = options.offset + items.length < page.total ? options.offset + items.length + 1 : null;
     return { result: toolText({ ok: true, research_file_id: workspaceId, items, total: page.total,
       is_running: page.is_running, next_offset,
@@ -67,48 +60,21 @@ export async function readResearchFindings(dependencies: { sources: SourceWorksp
       throw new ApplicationError(413, "This original supporting passage exceeds the model read limit");
     return { result: toolText(passage), evidence: [receipt] };
   }
-  const claims: Record<string, unknown>[] = [], evidence = new Map<string, LegalEvidenceReceipt>(),
-    unreturned = new Set<string>(), fields: Record<string, unknown> = {},
-    text = (value: string) => {
-      let shown = value.slice(options.text_offset, options.text_offset + options.text_limit);
-      while (JSON.stringify(shown).length > 8_000) shown = shown.slice(0, Math.ceil(shown.length / 2));
-      return { text: shown, text_offset: options.text_offset, text_length: value.length,
-        next_text_offset: options.text_offset + shown.length < value.length ? options.text_offset + shown.length : null,
-        ...(options.text_offset + shown.length < value.length ? { next_read: { file_path: "findings",
-          section: JSON.stringify(finding.reference), offset: options.claim_offset + 1,
-          limit: options.claim_limit, start_char: options.text_offset + shown.length } } : {}) };
-    };
-  for (const field of ["summary", "reasoning"] as const) if (finding.answer[field] !== undefined)
-    fields[field] = text(finding.answer[field]!);
-  const serialized = JSON.stringify(finding.answer.value);
-  if (serialized !== undefined) {
-    if (serialized.length <= 8_000) fields.value = finding.answer.value;
-    else fields.value_json = text(serialized);
+  const value = { ...metadata(finding), question: finding.question, result: finding.answer }, json = JSON.stringify(value),
+    nextRead = { file_path: "findings", section: JSON.stringify(finding.reference) }, evidence: LegalEvidenceReceipt[] = [];
+  let shown = json.slice(options.text_offset, options.text_offset + options.text_limit);
+  while (JSON.stringify(shown).length > 40_000) shown = shown.slice(0, Math.ceil(shown.length / 2));
+  const end = options.text_offset + shown.length, payload = options.text_offset === 0 && end === json.length ? value
+    : { reference: finding.reference, encoding: "json", json: shown, text_offset: options.text_offset,
+      text_length: json.length, next_read: end < json.length ? { ...nextRead, start_char: end } : null };
+  let size = JSON.stringify(payload).length + 2_000;
+  for (const receipt of finding.evidence) {
+    const length = JSON.stringify(modelEvidencePassage(receipt)).length;
+    if (size + length <= 50_000) { evidence.push(receipt); size += length; }
   }
-  const question = { ...finding.question, prompt: text(finding.question.prompt) };
-  let size = JSON.stringify({ ...metadata(finding), fields, question }).length + 2_000, cursor = options.claim_offset;
-  for (const claim of finding.answer.claims.slice(cursor, cursor + options.claim_limit)) {
-    const shown = text(claim.text), length = JSON.stringify(shown).length + JSON.stringify(claim.evidence_ids).length + 250;
-    if (claims.length && size + length > 48_000) break;
-    for (const receipt of finding.evidence.filter(({ evidence_id }) => claim.evidence_ids.includes(evidence_id)))
-      if (!evidence.has(receipt.evidence_id)) {
-        const bytes = JSON.stringify(modelEvidencePassage(receipt)).length;
-        if (size + length + bytes > 50_000) unreturned.add(receipt.evidence_id);
-        else { evidence.set(receipt.evidence_id, receipt); size += bytes; }
-      }
-    // A narrowed selection still reports the claim's original index.
-    const originalIndex = finding.reference.kind === "answer" ? finding.reference.claimIndices?.[cursor] : undefined;
-    claims.push({ claim_index: originalIndex ?? cursor, ...shown, evidence_ids: claim.evidence_ids });
-    cursor++; size += length;
-  }
-  return { result: toolText({ ok: true, research_file_id: workspaceId, ...metadata(finding), question,
-    result: { ...fields, flag: finding.answer.flag, outcome: finding.answer.outcome, coverage: finding.answer.coverage },
-    claims, next_claim_offset: cursor < finding.answer.claims.length ? cursor : null,
-    ...(cursor < finding.answer.claims.length ? { next_read: { file_path: "findings",
-      section: JSON.stringify(finding.reference), offset: cursor + 1, limit: options.claim_limit } } : {}),
-    evidence: [...evidence.values()].map(modelEvidencePassage), ...(unreturned.size ? { support_not_returned: [...unreturned],
-      next_reads: finding.evidence.filter(({ evidence_id }) => unreturned.has(evidence_id)).map((receipt) =>
-        ({ file_path: "findings", section: JSON.stringify(finding.reference), pattern: receipt.evidence_id })) } : {}) }), evidence: [...evidence.values()] };
+  return { result: toolText({ ok: true, research_file_id: workspaceId, ...payload,
+    evidence: evidence.map(modelEvidencePassage), ...(evidence.length < finding.evidence.length
+      ? { read_support: { ...nextRead, pattern: "Use an evidence_id from the answer" } } : {}) }), evidence };
 }
 
 export function createResearchTableTool<Context>(dependencies: {

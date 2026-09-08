@@ -71,11 +71,30 @@ describe("production legal evidence", () => {
     expect(createLibraryEvidence({ ...source, blockId: "pdf:page-1" }).evidence_id)
       .not.toBe(createLibraryEvidence({ ...source, blockId: "pdf:page-2" }).evidence_id);
     const sheet = createLibraryEvidence({ ...source,
-      locator: { kind: "cell", label: "Terms!B4", sheet: "Terms", cells: "B4" } });
+      locator: { kind: "cell", label: "Penalty-Summary!B4", sheet: "Penalty-Summary", cells: "B4" } });
     expect(legalEvidenceResourceReference(sheet)).toBe("document://doc/version/v1");
     expect(createLegalEvidenceCitationsFromEntries([{ receipt: sheet }])[0]).toMatchObject({
-      kind: "document", locator_kind: "cell", locator: "Terms!B4", sheet: "Terms", cells: "B4",
+      kind: "document", locator_kind: "cell", locator: "Penalty-Summary!B4", sheet: "Penalty-Summary", cells: "B4",
     });
+  });
+
+  it.each(["document", "page"] as const)("keeps distinct Library spans on the same %s separate", (kind) => {
+    const state = createLegalEvidenceTurnState();
+    const sourceText = "First obligation. Second obligation.";
+    const receipts = [[0, 17], [18, 36]].map(([start, end]) => createLibraryEvidence({
+      documentId: "doc", versionId: "v1", filename: "Terms.docx", sourceText,
+      spanText: sourceText.slice(start, end), start, end, locator: { kind, label: kind === "page" ? "page1" : "text paragraph 34" },
+    }));
+    receipts.forEach((receipt) => registerLegalEvidence(state, receipt));
+    expect(submitLegalEvidenceAnswer({ claims: [0, 1, 0].map((index) => ({
+      text: receipts[index].span_text, evidence_ids: [receipts[index].evidence_id],
+    })) }, state).ok).toBe(true);
+    expect(renderLegalEvidenceAnswer(state)).toBe("First obligation. [1]\n\nSecond obligation. [2]\n\nFirst obligation. [3]");
+    expect(createLegalEvidenceCitations(state).map(({ quotes }) => quotes)).toEqual([receipts[0], receipts[1], receipts[0]].map((receipt) => [
+      { quote: receipt.span_text, ...(kind === "page" && { page: "1" }) },
+    ]));
+    expect(submitLegalEvidenceAnswer({ claims: [{ text: "An obligation. [3]",
+      evidence_ids: [receipts[0].evidence_id] }] }, state).ok).toBe(false);
   });
 
   it("shares grounding checks without imposing chat answer limits on extraction", () => {
@@ -150,10 +169,10 @@ describe("production legal evidence", () => {
     // Each row carries the pinpoint of its own evidence, and the second
     // reference to the decision is a short form rather than the full citation.
     expect(renderLegalEvidenceAnswer(state)).toBe(
-      "The appeal is allowed. [1]\n\n| Outcome | Source |\n| --- | --- |\n| The appeal is allowed. | [1] |\n| The appeal is allowed. | [2] |\n\nThe appeal is allowed. [2]",
+      "The appeal is allowed. [1]\n\n| Outcome | Source |\n| --- | --- |\n| The appeal is allowed. | [2] |\n| The appeal is allowed. | [3] |\n\nThe appeal is allowed. [4]",
     );
     expect(createLegalEvidenceCitations(state).map(({ pinpoint, short_form }) =>
-      [pinpoint, short_form])).toEqual([["para 12", undefined], ["para 13", true]]);
+      [pinpoint, short_form])).toEqual([["para 12", undefined], ["para 12", true], ["para 13", true], ["para 13", true]]);
   });
 
   it("persists a query-only turn as an auditable research receipt", () => {
@@ -301,7 +320,7 @@ describe("production legal evidence", () => {
     });
     submitLegalEvidenceAnswer({ claims: [
       ...ids.map((id, index) => ({ text: `Oakes proposition ${index + 1}.`, evidence_ids: [id] })),
-      // A later claim on pinpoints already cited reuses that chip.
+      // Even the same receipt gets a fresh reference for a later claim.
       { text: "Oakes proposition 1 again.", evidence_ids: [ids[0]] },
     ] }, state);
 
@@ -312,11 +331,12 @@ describe("production legal evidence", () => {
       [2, "R. v. Oakes, [1986] 1 SCR 103", "para 3", true],
       [3, "R. v. Oakes, [1986] 1 SCR 103", "para 4", true],
       [4, "R. v. Oakes, [1986] 1 SCR 103", "para 69", true],
+      [5, "R. v. Oakes, [1986] 1 SCR 103", "para 1", true],
     ]);
     expect(renderLegalEvidenceAnswer(state)).toBe([
       "Oakes proposition 1. [1]", "Oakes proposition 2. [2]",
       "Oakes proposition 3. [3]", "Oakes proposition 4. [4]",
-      "Oakes proposition 1 again. [1]",
+      "Oakes proposition 1 again. [5]",
     ].join("\n\n"));
   });
 
@@ -343,14 +363,14 @@ describe("production legal evidence", () => {
       (id, index) => ({ text: `Le proposition ${index}.`, evidence_ids: [id] })) }, state);
 
     const citations = createLegalEvidenceCitations(state);
-    // The two unpinpointed claims share one locator-less chip for the
-    // authority; a claim never borrows a pinpoint from a different claim.
+    // Each unpinpointed claim owns a separate locator-less chip.
     expect(citations.map(({ locator_kind, pinpoint }) => [locator_kind, pinpoint]))
-      .toEqual([[undefined, undefined], ["paragraph", "para 1"], ["paragraph", "para 5"],
+      .toEqual([[undefined, undefined], [undefined, undefined], ["paragraph", "para 1"], ["paragraph", "para 5"],
         ["paragraph", "para 9"], ["paragraph", "para 14"]]);
-    expect(citations[0].quotes).toHaveLength(2);
+    expect(citations[0].quotes).toHaveLength(1);
+    expect(citations[1].quotes).toHaveLength(1);
     expect(citations.map(({ short_form }) => short_form))
-      .toEqual([undefined, true, true, true, true]);
+      .toEqual([undefined, true, true, true, true, true]);
   });
 
   it("exposes the approved quotation policy once through the grounding tool", () => {
@@ -573,7 +593,7 @@ describe("production legal evidence", () => {
         document_id: "document-1",
         version_id: "version-1",
         filename: "record.pdf",
-        quotes: [{ quote: "The appeal is allowed." }],
+        quotes: [{ quote: "The appeal is allowed.", page: "5" }],
       }),
     ]);
   });

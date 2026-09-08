@@ -102,6 +102,15 @@ describe("MarkdownContent links", () => {
         expect(onCitationClick).toHaveBeenLastCalledWith(source, "workspace");
     });
 
+    it("links Library references and leaves unknown references as plain text", () => {
+        const { container } = render(<CitationPillMarkdown text="Finding. [1] Another. [3]"
+            citations={[{ kind: "document", ref: 1, document_id: "doc", filename: "Terms.docx", quotes: [] }]} />);
+        expect(screen.queryByRole("button")).toBeNull();
+        expect(screen.getByRole("link")).toHaveAttribute("href", "/library?document_id=doc");
+        expect(container).toHaveTextContent("Terms.docx");
+        expect(container).toHaveTextContent("[3]");
+    });
+
     it("rejects credential-bearing links in shared Markdown", () => {
         render(<GfmMarkdown>{"[Sign in](https://user:secret@example.test/)"}</GfmMarkdown>);
 

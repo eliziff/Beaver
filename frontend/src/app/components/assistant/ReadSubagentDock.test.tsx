@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { ReadSubagentDock } from "./ReadSubagentDock";
 
@@ -56,14 +56,15 @@ it("keeps the delegated source chip unchanged and opens its exact source after c
     expect(screen.getByRole("button", {
         name: "Activity — Reading Example v. Example, 2020 BCSC 1",
     })).toBeVisible();
-    const citation = screen.getByRole("button", {
+    const citation = screen.getByRole("link", {
         name: "Example v. Example, 2020 BCSC 1",
     });
     expect(screen.getByRole("listitem")).toHaveAttribute("aria-busy", "true");
     rerender(<ReadSubagentDock panels={[completedPanel]} onCitationClick={onCitationClick} embedded />);
-    expect(screen.getByRole("button", { name: "Example v. Example, 2020 BCSC 1" })).toBe(citation);
+    expect(screen.getByRole("link", { name: "Example v. Example, 2020 BCSC 1" })).toBe(citation);
     expect(screen.getByRole("listitem")).toHaveAttribute("aria-busy", "false");
-    // The chip opens the source in the reader rather than a browser tab.
-    citation.click();
+    expect(citation).toHaveAttribute("target", "_blank");
+    fireEvent.click(screen.getByRole("button", { name: "Citation actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open in reader" }));
     expect(onCitationClick).toHaveBeenCalledTimes(1);
 });

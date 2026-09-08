@@ -26,9 +26,9 @@ export type DocumentCitation = CitationDisplay & {
   document_id: string;
   version_id?: string | null;
   version_number?: number | null;
-  filename: string;
+  filename: string; sheet?: string; cells?: string;
   quotes: DocumentCitationQuote[];
-  locator_kind?: "paragraph" | "page" | "section" | "footnote";
+  locator_kind?: "document" | "paragraph" | "page" | "section" | "footnote" | "sheet" | "cell";
   locator?: string | null;
   pinpoint?: string | null;
 };
@@ -100,7 +100,7 @@ function expandDocumentQuoteEntry(entry: DocumentCitationQuote): CitationQuote[]
 }
 export function getDocumentCitationQuotes(a: Citation): DocumentCitationQuote[] {
   return a.kind === "document"
-    ? a.quotes.filter((entry) => entry.quote.trim().length > 0)
+    ? a.quotes.filter((entry) => entry.quote.trim().length > 0).map((entry) => ({ ...entry, sheet: entry.sheet ?? a.sheet, cell: entry.cell ?? a.cells }))
     : [];
 }
 export function expandCitationToEntries(
@@ -124,7 +124,7 @@ export function formatCitationPage(a: Citation): string {
     return cells.join(", ");
   }
   const pages = Array.from(
-    new Set(quotes.map((q) => String(q.page)).filter(Boolean)),
+    new Set(quotes.flatMap((q) => q.page == null ? [] : [String(q.page)])),
   );
   if (pages.length > 1) return `Pages ${pages.join(", ")}`;
   if (pages.length === 1) return `Page ${pages[0]}`;
