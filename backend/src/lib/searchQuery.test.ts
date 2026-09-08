@@ -21,7 +21,9 @@ it("applies CanLII Boolean search safely", async () => {
     expect(await matching("permit AND hunting OR fishing")).toEqual(["permit hunting", "permit fishing"]);
     expect(await matching("permit ET (hunting OU fishing)")).toEqual(["permit hunting", "permit fishing"]);
     expect(await matching("custody -child")).toEqual([]);
-    expect(await matching("permit not fishing")).toEqual([]);
+    expect(await matching("permit not fishing")).toEqual(["permit hunting"]);
+    expect(await matching("permit AND NOT fishing")).toEqual(["permit hunting"]);
+    expect(await matching("permit ET NON fishing")).toEqual(["permit hunting"]);
     expect(await matching("%' OR 1=1 --")).toEqual([]);
 });
 
@@ -31,6 +33,7 @@ it("evaluates the same Boolean syntax in memory and refuses malformed expression
   expect(kept("permit and (hunting or fishing)")).toEqual(["permit hunting", "permit fishing"]);
   expect(kept("permit & (hunting | fishing)")).toEqual(["permit hunting", "permit fishing"]);
   expect(kept("PERMIT NOT fishing")).toEqual(["permit hunting"]);
+  expect(kept("permit and not (fishing OR child)")).toEqual(["permit hunting"]);
   expect(kept("custody -child")).toEqual([]);
   expect(kept('"city municipality"')).toEqual(["city municipality"]);
   expect(searchMatcher("permit and (hunting")).toBeNull();
@@ -50,6 +53,8 @@ it("preserves CanLII priority when compiling FTS5", () => {
   const found = db.prepare("SELECT value FROM items WHERE items MATCH ? ORDER BY rowid")
     .all(searchFts5("permit AND hunting OR fishing")) as Array<{ value: string }>;
   expect(found.map(({ value }) => value)).toEqual(["permit hunting", "permit fishing"]);
+  expect(db.prepare("SELECT value FROM items WHERE items MATCH ?").all(searchFts5("permit AND NOT fishing")))
+    .toEqual([{ value: "permit hunting" }]);
   expect(searchFts5('city OR "permit fishing"')).toContain('"permit fishing"');
   db.close();
 });

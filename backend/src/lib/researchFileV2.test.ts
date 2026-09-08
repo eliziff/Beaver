@@ -842,14 +842,19 @@ describe("Research v2 parts", () => {
     expect(history.at(-1)).toMatchObject({ status: "applied", undoOf: id, executor: "human" });
   });
 
-  it("applies reversible model edits by default and rejects stale proposals without overwriting later changes", async () => {
+  it("requires acceptance for model edits to human labels and rejects stale proposals", async () => {
     const f = fixture(), scope = { userId: "user-1" }, model = { executor: "assistant" as const };
+    await act(f, { type: "label", id: highlightLabel, name: "Model label" }, undefined, model);
+    const own = await act(f, { type: "label", id: highlightLabel, name: "Refined model label" }, undefined, model);
+    expect(own.state.labels[highlightLabel].name).toBe("Refined model label");
+    expect(own.state.proposals).toEqual([]);
     const original = await act(f, { type: "label", id: sourceLabel, name: "Original" });
     const changed = await act(f, { type: "label", ...original.state.labels[sourceLabel], name: "Model choice" }, undefined, model);
     const edit = (await readResearchHistory(f.documents as never, scope, changed)).at(-1)!;
-    expect(changed.state.labels[sourceLabel].name).toBe("Model choice");
-    expect(edit).toMatchObject({ executor: "assistant", userId: scope.userId, status: "applied" });
-    expect(changed.state.proposals).toEqual([]);
+    expect(changed.state.labels[sourceLabel].name).toBe("Original");
+    expect(edit).toMatchObject({ executor: "assistant", userId: scope.userId, status: "pending" });
+    expect(changed.state.proposals).toMatchObject([{ id: edit.id }]);
+    expect((await act(f, { type: "accept", changeId: edit.id })).state.labels[sourceLabel].name).toBe("Model choice");
     const proposed = await act(f, { type: "batch", title: "Suggested organization", propose: true,
       actions: [{ type: "label", id: sourceLabel, name: "Suggestion" }] }, undefined, model), id = proposed.state.proposals![0].id;
     const latest = await act(f, { type: "label", id: sourceLabel, name: "Later human choice" });

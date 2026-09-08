@@ -16,11 +16,11 @@ describe("a label is a concept, never a document", () => {
       design([{ key: "a", name: "R. v. Grant" }], [{ labelKey: "a", rowIds: ["r1"] }]), "sources"))
       .toThrow(/names one document/u);
   });
-  it("refuses an ontology that is one label per document", () => {
+  it("accepts distinct concepts even when each has only one supporting document", () => {
     expect(() => researchLabelPlan(file, catalog, design(
       [{ key: "a", name: "Psychological detention" }, { key: "b", name: "Arbitrariness" }, { key: "c", name: "Exclusion" }],
       [{ labelKey: "a", rowIds: ["r1"] }, { labelKey: "b", rowIds: ["r2"] }, { labelKey: "c", rowIds: ["r3"] }]), "sources"))
-      .toThrow(/single document/u);
+      .not.toThrow();
   });
   it("accepts a concept ontology with the documents filed under it", () => {
     const plan = researchLabelPlan(file, catalog, design(
