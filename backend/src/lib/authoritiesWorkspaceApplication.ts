@@ -481,14 +481,6 @@ export function createAuthoritiesWorkspaceApplication(
           return { role: source.bindingRole, documentId: resolved.documentId };
         }));
     },
-    async prepareHighlights(scope: ApplicationScope, id: string, revision: number, signal?: AbortSignal) {
-      const { product, draft } = await edit(scope, id, revision);
-      // This prepares the same source/profile cache used by the book builder.
-      // No output artifact is generated and no newer source is silently adopted.
-      await buildSources(scope, draft, signal);
-      signal?.throwIfAborted();
-      return product;
-    },
     async build(scope: ApplicationScope, id: string, revision: number, signal?: AbortSignal):
       Promise<{ product: AuthoritiesProduct; receipt: AuthoritiesBuildResult["receipt"] }> {
       const { product, draft: storedDraft } = await edit(scope, id, revision);

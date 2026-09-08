@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronRight, ExternalLink, Eye, FileCheck2, FilePlus2, FileType2,
+import { ExternalLink, Eye, FileCheck2, FilePlus2, FileType2,
   FolderSearch, Pencil, Plus, Upload } from "lucide-react";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import { ActionMenu } from "@/app/components/ui/action-menu";
@@ -26,37 +26,30 @@ export type AuthorityPanelProps = {
   onEditIdentity: (authority: AuthorityIdentity) => void;
 };
 type PanelProps = AuthorityPanelProps & {
-  state: AuthoritiesDraft; occurrences: AuthorityOccurrence[]; forceOpen?: boolean;
+  state: AuthoritiesDraft; occurrences: AuthorityOccurrence[];
   onPickMany?: () => void; onLibraryAdd?: () => void; onFiles?: (files: File[]) => void;
   ocr?: SourceOcrPanel;
   inspection?: { progress: string; error: string };
 };
-export function ManualDraft(props: Omit<PanelProps, "occurrences">) {
-  return <SourcePanel {...props} occurrences={[]} />;
-}
 export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft: AuthoritiesProduct }) {
   return <SourcePanel {...props} state={draft.state} />;
 }
 
 function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues,
   onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onPick, onLibrary,
-  sourceLabel = "Library", onAttach, onRelink, onOpenSource, onEditIdentity, forceOpen,
+  sourceLabel = "Library", onAttach, onRelink, onOpenSource, onEditIdentity,
   ocr, inspection }: PanelProps) {
-  const active = state.stage === "sources" || state.stage === undefined || !!forceOpen;
-  const [expanded, setExpanded] = useState(active), [tabSettings, setTabSettings] = useState(false);
-  useEffect(() => { setExpanded(active); }, [active]);
+  const [tabSettings, setTabSettings] = useState(false);
   const included = authorities.filter(({ excluded }) => !excluded);
   const ready = included.filter((authority) => hasRequiredSources(state, authority) && authority.source.kind === "attached" &&
     authority.source.sources.every(({ bindingRole }) => !sourceIssues[bindingRole])).length;
-  return <><details open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}
-    className="group mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
-    <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 rounded-t-xl px-4 outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600 [&::-webkit-details-marker]:hidden">
-      <ChevronRight className="h-4 w-4 text-red-700 transition-transform group-open:rotate-90 motion-reduce:transition-none" />
+  return <><section className="mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
+    <div className="flex min-h-12 items-center gap-2 px-4">
       <h2 className="font-semibold text-gray-950">Sources</h2>
       <span className="ms-auto text-sm tabular-nums text-gray-500">{ready} / {included.length} PDFs</span>
       {state.outputMode !== "table" && <Button type="button" variant="outline" className={control}
         disabled={busy} onClick={(event) => { event.preventDefault(); setTabSettings(true); }}>Tab labels</Button>}
-    </summary>
+    </div>
     <div className="border-t border-gray-200 p-3 sm:p-4"
       onDragOver={(event) => { if (!busy && onFiles && event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
       onDrop={(event) => {
@@ -93,7 +86,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
       </div>
       <Button type="button" variant="ghost" className="mt-2 h-9" disabled={busy} onClick={onAdd}><Plus /> Add authority</Button>
     </div>
-  </details>
+  </section>
   {tabSettings && <TabFormatModal settings={state.settings} busy={busy} onClose={() => setTabSettings(false)}
     onSave={(settings) => onAction({ type: "set-settings", settings })} />}</>;
 }
