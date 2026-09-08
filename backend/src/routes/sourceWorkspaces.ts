@@ -39,6 +39,7 @@ const tableInput = z.object({ selection: researchSelectionSchema.optional(), tab
   design: researchImportDesignSchema.optional(), fingerprint: z.string().regex(/^[a-f0-9]{64}$/u).optional(),
   request: z.string().trim().min(1).max(4_000).optional(), model: z.string().trim().min(1).max(200).optional(),
   reasoningEffort: z.string().trim().min(1).max(20).optional(),
+  repropose: z.boolean().optional(),
 }).strict().refine((input) => !input.messageIds || !!input.chatId, "Select a chat for the chosen messages");
 const labelInput = tableInput.innerType().omit({ design: true })
   .extend({ design: researchLabelDesignSchema.optional() }).strict()

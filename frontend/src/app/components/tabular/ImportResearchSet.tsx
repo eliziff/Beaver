@@ -31,12 +31,12 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const generation = useRef(0), activeId = fileId ?? picked[0]?.id, [model] = useSelectedModel(), [effort] = useSelectedReasoningEffort();
     const input: ResearchTableInput = { ...(selection ? { selection } : {}), ...(chatId ? { chatId, messageIds } : {}), ...(tableId ? { tableId, columnIndex } : {}) };
     const inputKey = JSON.stringify(input);
-    async function propose(instruction = "") {
+    async function propose(instruction = "", repropose = false) {
         if (!activeId) return;
         const run = ++generation.current; setBusy(true); setError(""); setNote("");
         try {
             const request = [defaultRequest.trim(), instruction.trim()].filter(Boolean).join("\n");
-            const body = { ...JSON.parse(inputKey) as ResearchTableInput, ...(request ? { request } : {}), model,
+            const body = { ...JSON.parse(inputKey) as ResearchTableInput, ...(request ? { request } : {}), ...(repropose ? { repropose } : {}), model,
                 ...(effort ? { reasoningEffort: effort } : {}) };
             const [current, next] = await Promise.all([getResearchFile(activeId),
                 labelling ? previewWorkspaceLabels(activeId, body) : previewWorkspaceTable(activeId, body)]);
@@ -84,7 +84,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const onEnter = (action: () => void) => (event: React.KeyboardEvent) => { if (event.key === "Enter") { event.preventDefault(); action(); } };
     return <Modal open onClose={onClose} size="lg" breadcrumbs={[...(setName ? [setName] : []), labelling ? "Organize this research" : "Extract a table"]}
         footerStatus={error ? <p role="alert" className="me-auto text-sm text-red-700">{error}</p> : note ? <p role="status" className={`me-auto max-h-20 overflow-y-auto ${META}`}>{note}</p> : undefined}
-        secondaryAction={activeId && !tableId ? { label: busy ? "Proposing…" : "Propose again", disabled: busy || creating, onClick: () => void propose(adjust) } : undefined}
+        secondaryAction={activeId ? { label: busy ? "Proposing…" : "Propose again", disabled: busy || creating, onClick: () => void propose(adjust, true) } : undefined}
         primaryAction={activeId ? { label: creating ? "Working…" : labelling ? "Apply labels" : "Create table",
             onClick: () => void create(), disabled: busy || creating || !valid } : undefined}>
         <div className="flex min-h-0 flex-1 flex-col gap-4 py-4">
@@ -99,7 +99,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                     </div>
                     : labelling ? plan && <ul className="flex min-w-0 flex-col gap-3">{plan.labels.map((label) => <li key={label.key} className={CARD}>
                         <p className={HEAD}><span aria-hidden className="me-2 inline-block size-2.5 rounded-full"
-                            style={{ background: label.color ?? "#cbd5e1" }} />{label.path}</p>
+                            style={{ background: label.color ?? "#cbd5e1" }} />{label.path} <span className={META}>{label.existing ? "Existing" : "New"}</span></p>
                         {!!label.definition && <p className="mt-1 text-sm text-gray-700">{label.definition}</p>}
                         <ul className="mt-2 space-y-1">{label.rows.map((row) => <li key={row.id} className="text-sm text-gray-700">{row.title}</li>)}</ul>
                     </li>)}
@@ -112,7 +112,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                                 onChange={(event) => editColumn(column.index, { name: event.target.value })} />
                             <input aria-label={`Column question ${column.index + 1}`} value={column.prompt} className={`mt-1 ${FIELD} text-sm text-gray-700`}
                                 onChange={(event) => editColumn(column.index, { prompt: event.target.value })} />
-                            <p className={`mt-2 ${META}`}>{filled(column.index)}</p>
+                            <p className={`mt-2 ${META}`}>{preview.stats.find(stat => stat.index === column.index)?.existing ? "Existing" : "New"} · {filled(column.index)}</p>
                             <Button type="button" variant="ghost" size="icon-sm" aria-label={`Remove column ${column.name || column.index + 1}`}
                                 className="absolute end-2 top-2 text-gray-500" onClick={() => removeColumn(column.index)}><X aria-hidden className="size-3.5" /></Button>
                         </li>)}</ul>
@@ -123,7 +123,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                 {!tableId && <label className="flex shrink-0 flex-col gap-1">
                     <span className={META}>Change the proposal</span>
                     <input value={adjust} disabled={busy || creating} className={INPUT} onChange={(event) => setAdjust(event.target.value)}
-                        onKeyDown={onEnter(() => void propose(adjust))}
+                        onKeyDown={onEnter(() => void propose(adjust, true))}
                         placeholder={labelling ? "e.g. group by the stage of the analysis" : "e.g. one column per Grant factor"} />
                 </label>}
             </>}

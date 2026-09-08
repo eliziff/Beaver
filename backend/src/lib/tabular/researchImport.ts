@@ -7,6 +7,7 @@ import type { ResearchFinding } from "../researchChat";
 import { researchSelectionLabels, type ResearchSubject } from "../researchSelection";
 import type { TabularColumn } from "../tabularStore";
 import type { ResearchArrangement } from "./researchArrangement";
+import { researchConceptKey } from "../researchLabelDesign";
 
 export type ResearchImportInput = { rows: "sources" | "passages"; labelId?: string };
 type Item = ResearchArrangement["cells"][number]["items"][number];
@@ -131,11 +132,14 @@ export function defaultResearchImport(catalog: ResearchImportCatalog): ResearchI
 
 /** Resolve reviewed mappings against the current inventory. Unknown or cross-row references fail closed. */
 export function researchImportPlan(catalog: ResearchImportCatalog, value: ResearchImportDesign) {
-  const design = researchImportDesignSchema.parse(value), byId = new Map(catalog.entries.map((item) => [item.id, item])),
+  const design = researchImportDesignSchema.parse(value);
+  design.columns = design.columns.map(column => ({ ...column, name: catalog.labels.find(label =>
+    researchConceptKey(label.path) === researchConceptKey(column.name))?.path ?? column.name }));
+  const byId = new Map(catalog.entries.map((item) => [item.id, item])),
     rowIds = new Set(catalog.rows.map(({ id }) => id)), columnIds = new Set(design.columns.map(({ index }) => index)),
     seen = new Set<string>();
   if (columnIds.size !== design.columns.length) throw new ApplicationError(400, "Column indices must be unique");
-  const stats = design.columns.map((column) => ({ index: column.index, reused: 0,
+  const stats = design.columns.map((column) => ({ index: column.index, reused: 0, existing: catalog.labels.some(label => label.path === column.name),
     kinds: [] as Kind[], evidence: 0 }));
   const samples: Array<{ rowId: string; columnIndex: number; text: string; kinds: Kind[] }> = [];
   const cells = design.cells.map((cell) => {
