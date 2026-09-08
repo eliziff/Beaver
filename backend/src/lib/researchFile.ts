@@ -769,7 +769,7 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
   } else changes = researchStateChanges(current.state, state, originalEvidence, allEvidence());
   if (changes.length && request.type !== "accept") {
     const history = await loadHistory();
-    pending = request.type === "batch" && request.propose === true || executor !== "human" && request.type !== "undo" &&
+    pending = executor === "human" && request.type === "batch" && request.propose === true || executor !== "human" && request.type !== "undo" &&
       changes.some((change) => change.target === "label" && current.state.labels[change.id] &&
         history.some((prior) => prior.status === "applied" && (prior.executor === "human" || prior.resolvedBy) &&
           prior.changes.some((field) => field.target === "label" && field.id === change.id)));

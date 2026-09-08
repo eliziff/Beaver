@@ -829,6 +829,10 @@ describe("Research v2 parts", () => {
     expect(accepted.state.proposals).toEqual([]);
     expect(accepted.state.labels[sourceLabel].name).toBe("Read");
     expect(accepted.state.sources[sourceId].labelIds).toEqual([added]);
+    const protectedEdit = await act(f, { type: "label", id: added, name: "Model revision" }, undefined, model);
+    expect(protectedEdit.state.labels[added].name).toBe("Follow up");
+    expect(protectedEdit.state.proposals).toHaveLength(1);
+    await act(f, { type: "reject", changeId: protectedEdit.state.proposals![0].id });
     await act(f, { type: "label", id: later, name: "Independent label" });
     await act(f, { type: "annotate", kind: "source", id: sourceId, labelIds: [added, later], note: "Keep this note" });
     const undone = await act(f, { type: "undo", changeId: id });
@@ -868,11 +872,36 @@ describe("Research v2 parts", () => {
     expect((await readResearchHistory(f.documents as never, scope, rejected)).find((entry) => entry.id === id)?.status).toBe("rejected");
   });
 
+  it("applies model additions and source filings immediately with history and undo", async () => {
+    const f = fixture(), scope = { userId: "user-1" }, model = { executor: "assistant" as const };
+    const original = await act(f, { type: "merge", evidence: [receipt("a")] });
+    const sourceId = Object.keys(original.state.sources)[0];
+    await act(f, { type: "label", id: sourceLabel, name: "Counsel review" });
+    await act(f, { type: "annotate", kind: "source", id: sourceId, labelIds: [sourceLabel] });
+    const added = await act(f, { type: "batch", title: "Add Further review", propose: true, actions: [
+      { type: "label", id: highlightLabel, name: "Further review", scope: "source" },
+      { type: "label-selection", target: "sources", sourceIds: [sourceId], assign: [highlightLabel], mode: "add" },
+    ] }, undefined, model);
+    expect(added.state.proposals).toEqual([]);
+    expect(added.state.sources[sourceId].labelIds).toEqual(expect.arrayContaining([sourceLabel, highlightLabel]));
+    const edited = await act(f, { type: "batch", title: "Refine model label", propose: true,
+      actions: [{ type: "label", id: highlightLabel, name: "Further questions" }] }, undefined, model);
+    expect(edited.state.proposals).toEqual([]);
+    expect(edited.state.labels[highlightLabel].name).toBe("Further questions");
+    const history = await readResearchHistory(f.documents as never, scope, edited);
+    expect(history.slice(-2)).toMatchObject([{ status: "applied", executor: "assistant" }, { status: "applied", executor: "assistant" }]);
+    await act(f, { type: "undo", changeId: history.at(-1)!.id });
+    const undone = await act(f, { type: "undo", changeId: history.at(-2)!.id });
+    expect(undone.state.labels[highlightLabel]).toBeUndefined();
+    expect(undone.state.labels[sourceLabel].name).toBe("Counsel review");
+    expect(undone.state.sources[sourceId].labelIds).toEqual([sourceLabel]);
+  });
+
   it("uses earlier classification edits in the same batch and undoes the group together", async () => {
     const f = fixture(), scope = { userId: "user-1" }, passage = receipt("a"),
       model = { executor: "assistant" as const, model: "model-a" };
     await act(f, { type: "merge", evidence: [passage] });
-    const classified = await act(f, { type: "batch", title: "Organize selected passages", actions: [
+    const classified = await act(f, { type: "batch", title: "Organize selected passages", propose: true, actions: [
       { type: "label", id: sourceLabel, name: "Facts", scope: "highlight" },
       { type: "label", id: highlightLabel, name: "Relevant", scope: "highlight" },
       { type: "label-selection", target: "passages", evidenceIds: [passage.evidence_id], assign: [sourceLabel], mode: "add" },
