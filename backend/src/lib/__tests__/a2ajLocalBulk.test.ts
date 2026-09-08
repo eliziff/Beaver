@@ -51,8 +51,7 @@ describe("local A2AJ bulk data", () => {
         text: "const", sectionMap: { "1": "section one" } });
       database.exec("DROP TABLE document_search");
       expect(bulk.searchLocalA2AJ({ query: "Alpha" })).toBeNull();
-      expect(() => bulk.searchLocalA2AJ({ query: "Alpha", querySyntax: "fts5" }))
-        .toThrow("Local A2AJ full-text index is unavailable");
+      expect(bulk.searchLocalA2AJ({ query: "Alpha", querySyntax: "fts5" })).toBeNull();
     } finally {
       database.close();
     }

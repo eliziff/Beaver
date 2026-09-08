@@ -177,8 +177,9 @@ export function createLegalSourceApplication(store: LegalSourceStore) {
       const { results, unavailable } = await providerCall("Legal source search unavailable", () =>
         legalSourceOperations.search({ ...query, kinds: [type.kind], providers: [type.provider],
           limit, perProviderLimit: limit }));
-      if (unavailable.length) return reject(502, "Legal source search unavailable");
-      return results;
+      if (unavailable.some(({ message }) => message !== "not_installed"))
+        return reject(502, "Legal source search unavailable");
+      return { results, status: unavailable.length ? "not_installed" as const : "available" as const };
     },
     viewer,
     async savedViewer(userId: string, id: string) {

@@ -47,7 +47,7 @@ describe("Hansard legal-source adapter", () => {
       providers: ["hansard"],
     });
     expect(reply.results).toEqual([]);
-    expect(reply.unavailable[0]).toMatchObject({ provider: "hansard" });
+    expect(reply.unavailable).toEqual([{ provider: "hansard", message: "not_installed" }]);
   });
 
   it("searches and fetches through the imported store", async () => {

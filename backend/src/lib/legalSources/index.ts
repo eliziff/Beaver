@@ -96,9 +96,10 @@ export type LegalSourceProvider<Native = unknown> = {
     request: LegalSourceResolveRequest,
   ) => Promise<readonly LegalSourceReference[]>;
   canSearch?: (request: LegalSourceSearchRequest) => boolean;
+  /** null means the optional corpus is not installed; [] means no matches. */
   search?: (
     request: LegalSourceSearchRequest,
-  ) => Promise<readonly LegalSourceSearchHit[]>;
+  ) => Promise<readonly LegalSourceSearchHit[] | null>;
   readPassage?: (
     request: LegalSourcePassageRequest,
   ) => Promise<readonly LegalSourcePassage<Native>[]>;
@@ -142,6 +143,7 @@ export function createLegalSourceRegistry<Native = unknown>(
           try {
             const hits = await provider.search!(request);
             request.signal?.throwIfAborted();
+            if (hits === null) return { provider: provider.id, error: "not_installed" };
             return { provider: provider.id, hits };
           } catch (error) {
             if (request.signal?.aborted) throw error;

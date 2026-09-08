@@ -39,6 +39,17 @@ const linked = { document: { id: "linked-file", filename: "Linked.research.md" }
         labels: {}, sources: {}, queries: null, note: "" } };
 
 describe("LegalLibraryPage search", () => {
+    it("shows a missing Hansard corpus as one sentence without an empty-results count or alert", async () => {
+        api.searchLegalSources.mockResolvedValue({ results: [], status: "not_installed" });
+        render(<MemoryRouter><LegalLibraryPage /></MemoryRouter>);
+        fireEvent.click(screen.getByRole("tab", { name: "Hansard" }));
+        fireEvent.change(screen.getByRole("searchbox", { name: "Search sources" }), { target: { value: "privacy" } });
+        fireEvent.click(screen.getByRole("button", { name: "Search" }));
+        await screen.findByText("Hansard is not installed.");
+        expect(screen.getByRole("status").parentElement?.textContent).toBe("Hansard is not installed.");
+        expect(screen.queryByText(/search results/i)).not.toBeInTheDocument();
+        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
     beforeEach(() => {
         localStorage.clear();
         vi.clearAllMocks();
@@ -60,7 +71,7 @@ describe("LegalLibraryPage search", () => {
                 description: "Alberta statutes",
             },
         ]);
-        api.searchLegalSources.mockResolvedValue([]);
+        api.searchLegalSources.mockResolvedValue({ results: [], status: "available" });
     });
 
     it("opens the research file linked from its Library preview", async () => {
@@ -153,7 +164,7 @@ describe("LegalLibraryPage search", () => {
     });
 
     it("renders provider emphasis as safe React markup", async () => {
-        api.searchLegalSources.mockResolvedValue([{
+        api.searchLegalSources.mockResolvedValue({ status: "available", results: [{
             provider: "a2aj",
             kind: "legislation",
             id: "privacy-act",
@@ -164,7 +175,7 @@ describe("LegalLibraryPage search", () => {
             date: null,
             url: "https://example.test/privacy",
             snippet: "The <em>privacy</em> of individuals",
-        }]);
+        }] });
         const { container } = render(
             <MemoryRouter><LegalLibraryPage /></MemoryRouter>,
         );
@@ -187,13 +198,13 @@ describe("LegalLibraryPage search", () => {
 
     it("does not repeat a journal title inside its displayed citation", async () => {
         const title = "The [Unwritten] Principles (Again): C++?";
-        api.searchLegalSources.mockResolvedValue([{
+        api.searchLegalSources.mockResolvedValue({ status: "available", results: [{
             provider: "journal", kind: "journal", id: "17",
             language: "en",
             collection: "Alberta Law Review",
             citation: `Example Author, “${title}” (2024) 42 Alta L Rev 1`,
             title, date: "2024-01-02", url: null, snippet: null,
-        }]);
+        }] });
         render(<MemoryRouter><LegalLibraryPage /></MemoryRouter>);
         fireEvent.click(screen.getByRole("tab", { name: "Journals" }));
         fireEvent.change(screen.getByPlaceholderText(
@@ -220,12 +231,12 @@ describe("LegalLibraryPage search", () => {
                     kind: "case", title: "Example v Test", citation: "2024 SCC 1",
                     collection: "SCC", language: "en" }, passages: null } },
             queries: null, note: "" } });
-        api.searchLegalSources.mockResolvedValue([{
+        api.searchLegalSources.mockResolvedValue({ status: "available", results: [{
             provider: "a2aj", kind: "case", id: "2024-scc-1",
             language: "en",
             collection: "SCC", citation: "2024 SCC 1", title: "Example v Test",
             date: "2024-01-01", url: null, snippet: null,
-        }]);
+        }] });
         render(<MemoryRouter><LegalLibraryPage /></MemoryRouter>);
         fireEvent.click(screen.getByRole("tab", { name: "Cases" }));
         fireEvent.change(screen.getByPlaceholderText(
@@ -242,13 +253,13 @@ describe("LegalLibraryPage search", () => {
     });
 
     it("does not render provider-controlled non-HTTP source links", async () => {
-        api.searchLegalSources.mockResolvedValue([{
+        api.searchLegalSources.mockResolvedValue({ status: "available", results: [{
             provider: "a2aj", kind: "legislation", id: "privacy-act",
             language: "en",
             collection: "federal-statutes", citation: "RSC 1985, c P-21",
             title: "Privacy Act", date: null, url: "javascript:alert(1)",
             snippet: null,
-        }]);
+        }] });
         render(<MemoryRouter><LegalLibraryPage /></MemoryRouter>);
         await waitFor(() => expect(api.getLegalSourceCoverage).toHaveBeenCalled());
         fireEvent.click(screen.getByRole("tab", { name: "Legislation" }));
@@ -263,14 +274,14 @@ describe("LegalLibraryPage search", () => {
     });
 
     it("opens the workspace chooser instead of inventing a file for a result", async () => {
-        api.searchLegalSources.mockImplementation(({ docType }) => Promise.resolve(
+        api.searchLegalSources.mockImplementation(({ docType }) => Promise.resolve({ status: "available", results:
             docType === "cases" ? [{
                 provider: "a2aj", kind: "case", id: "2024-scc-1",
                 language: "en",
                 collection: "SCC", citation: "2024 SCC 1", title: "Example v Test",
                 date: "2024-01-01", url: "https://example.test", snippet: null,
             }] : [],
-        ));
+        }));
         render(<MemoryRouter><LegalLibraryPage embedded /></MemoryRouter>);
         fireEvent.change(screen.getByPlaceholderText(
             "Search cases, legislation, journals, and Hansard",

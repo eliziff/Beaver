@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import os from "node:os";
 import path from "node:path";
+import { mkdtempSync, rmSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { guardedRemoteFetch } = vi.hoisted(() => ({
@@ -39,6 +41,27 @@ afterEach(() => {
 });
 
 describe("A2AJ client", () => {
+  it.each(["case", "legislation"] as const)("falls back for %s when the installed lookup store has no FTS", async (kind) => {
+    const folder = mkdtempSync(path.join(os.tmpdir(), "a2aj-search-"));
+    const filename = path.join(folder, "a2aj.sqlite");
+    const database = new DatabaseSync(filename);
+    database.exec("CREATE TABLE document(id INTEGER PRIMARY KEY)");
+    database.close();
+    vi.stubEnv("MIKE_A2AJ_BULK_DB", filename);
+    guardedRemoteFetch.mockResolvedValueOnce(new Response(JSON.stringify({ results: [{
+      dataset: "LEGISLATION-FED", citation_en: "RSC 1985, c P-21", name_en: "Privacy Act",
+    }] }), { status: 200 }));
+    try {
+      expect(await a2ajLegalSourceProvider.search!({ text: '"privacy"', syntax: "fts5", kinds: [kind] }))
+        .toMatchObject([{ kind, title: "Privacy Act" }]);
+      expect(guardedRemoteFetch).toHaveBeenCalledTimes(1);
+      const url = new URL(String(guardedRemoteFetch.mock.calls[0][0]));
+      expect(url.pathname).toBe("/search");
+      expect(url.searchParams.get("doc_type")).toBe(kind === "case" ? "cases" : "laws");
+      expect(url.searchParams.get("query")).toBe('"privacy"');
+    } finally { rmSync(folder, { recursive: true }); }
+  });
+
   it("maps live coverage dimensions without a reduced jurisdiction list", async () => {
     vi.stubGlobal(
       "fetch",

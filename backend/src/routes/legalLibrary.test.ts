@@ -107,6 +107,14 @@ describe("legal Library viewer responses", () => {
     expect(response.text).not.toContain("secret");
   });
 
+  it("returns an explicit uninstalled state without treating it as a failed search", async () => {
+    process.env.AUTH_MODE = "local";
+    searchLegalSources.mockResolvedValue({ results: [], unavailable: [{ provider: "hansard", message: "not_installed" }] });
+    const response = await request(app).get("/sources/search").query({ query: "privacy", doc_type: "hansard" });
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ results: [], status: "not_installed" });
+  });
+
   it("revalidates with a stable ETag without refetching the source", async () => {
     process.env.AUTH_MODE = "local";
     const fetchMock = vi.fn().mockResolvedValue({
