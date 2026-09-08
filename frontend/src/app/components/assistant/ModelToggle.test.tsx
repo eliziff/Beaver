@@ -14,13 +14,8 @@ beforeEach(() => {
   localStorage.clear();
   getCatalog.mockReset();
   getCatalog.mockResolvedValue({
-    source: "live",
-    models: [{
-      slug: "gpt-5.6-terra",
-      displayName: "GPT-5.6 Terra",
-      defaultReasoningLevel: "medium",
-      supportedReasoningLevels: [{ effort: "low" }, { effort: "medium" }],
-    }],
+    models: [{ id: "codex:gpt-5.6-terra", label: "GPT-5.6 Terra", group: "Codex",
+      available: true, reasoningEfforts: ["low", "medium"], defaultReasoningEffort: "medium" }],
   });
 });
 
@@ -44,7 +39,7 @@ it("does not start model discovery until the user opens the model selector", asy
   expect(await screen.findByRole("dialog")).toBeInTheDocument();
 });
 
-it("shows persisted and default Sol effort before lazy model discovery", () => {
+it("preserves persisted effort without guessing an undiscovered model default", () => {
   render(
     <ModelEffortToggle
       model="codex:gpt-5.6-sol"
@@ -66,8 +61,8 @@ it("shows persisted and default Sol effort before lazy model discovery", () => {
     />,
   );
 
-  expect(screen.getByRole("button", { name: /^Model:.*low/ }))
-    .toHaveTextContent("low");
+  expect(screen.getByRole("button", { name: /^Model:.*Automatic/ }))
+    .toHaveTextContent("Automatic");
   expect(getCatalog).not.toHaveBeenCalled();
 });
 
@@ -90,8 +85,8 @@ it("changes model and supported effort without leaving the picker", async () => 
 
 it("updates mounted pickers when settings refreshes the shared catalog", async () => {
   render(<ModelEffortToggle model="codex:catalog-fixture" onModelChange={vi.fn()} onEffortChange={vi.fn()} />);
-  getCatalog.mockResolvedValue({ models: [{ slug: "catalog-fixture", displayName: "Updated fixture",
-    defaultReasoningLevel: "medium", supportedReasoningLevels: [{ effort: "medium" }] }] });
+  getCatalog.mockResolvedValue({ models: [{ id: "codex:catalog-fixture", label: "Updated fixture",
+    group: "Codex", reasoningEfforts: ["medium"], defaultReasoningEffort: "medium" }] });
   const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000);
   try {
     await act(async () => { await preloadModelCatalog(); });

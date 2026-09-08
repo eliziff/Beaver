@@ -1,7 +1,6 @@
 import { ApplicationError, reject, type ApplicationScope } from "./applicationError";
 import {
-  CLAUDE_LOW_MODELS, CLAUDE_MID_MODELS, DEEPSEEK_MAIN_MODELS,
-  DEFAULT_TABULAR_MODEL, DEFAULT_TITLE_MODEL, OPENAI_LOW_MODELS,
+  DEFAULT_TABULAR_MODEL, DEFAULT_TITLE_MODEL,
   resolveModel, type UserApiKeys,
 } from "./llm";
 import type {
@@ -40,9 +39,9 @@ function availableModel(
   tabular = false,
 ) {
   if (keys.gemini) return tabular ? DEFAULT_TABULAR_MODEL : DEFAULT_TITLE_MODEL;
-  if (keys.openai) return OPENAI_LOW_MODELS[0];
-  if (keys.deepseek) return DEEPSEEK_MAIN_MODELS[0];
-  if (keys.claude) return tabular ? CLAUDE_MID_MODELS[0] : CLAUDE_LOW_MODELS[0];
+  if (keys.openai) return "gpt-5.4-lite";
+  if (keys.deepseek) return "deepseek-v4-flash";
+  if (keys.claude) return tabular ? "claude-sonnet-4-6" : "claude-haiku-4-5";
   return tabular ? DEFAULT_TABULAR_MODEL : DEFAULT_TITLE_MODEL;
 }
 
