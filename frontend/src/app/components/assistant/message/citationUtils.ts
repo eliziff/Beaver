@@ -1,4 +1,4 @@
-import { type Citation } from "@/app/lib/citations";
+import { citationPinpoint, type Citation } from "@/app/lib/citations";
 
 export function citationSourceKey(annotation: Citation): string {
     if (annotation.kind === "a2aj") {
@@ -12,6 +12,12 @@ export function citationSourceKey(annotation: Citation): string {
     return `document:${annotation.document_id}:${annotation.version_id ?? ""}`;
 }
 
+export function uniqueCitations(citations: Citation[]): Citation[] {
+    return [...new Map(citations.map((citation) => [
+        `${citationSourceKey(citation)}:${citationPinpoint(citation)}`, citation,
+    ])).values()];
+}
+
 export function preprocessCitations(
     text: string,
     citations: Map<number, Citation>,
@@ -20,7 +26,7 @@ export function preprocessCitations(
     return text.replace(/\[(?:\d+(?:,\s*\d+)*)\](?:\s*\[(?:\d+(?:,\s*\d+)*)\])*/g, (full) => {
         const selected = (full.match(/\d+/g) ?? [])
             .flatMap((ref) => citations.get(Number(ref)) ?? []);
-        const tokens = selected.map((citation) => {
+        const tokens = uniqueCitations(selected).map((citation) => {
             const idx = inlineCitationTargets.length;
             inlineCitationTargets.push(citation);
             return [`\`§${idx}§\`\u200B`];

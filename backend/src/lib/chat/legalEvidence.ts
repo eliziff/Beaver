@@ -147,6 +147,7 @@ export type LegalEvidenceTurnState = {
   priorQueryIds: Set<string>;
   documentEvidenceIds: Set<string>;
   queries: Map<string, LegalResearchQueryReceipt>;
+  reviewDocumentIds?: Set<string>;
   answer: GroundedLegalClaim[] | null;
   attempted: boolean;
   failure: string | null;
@@ -821,16 +822,6 @@ export function priorLegalEvidencePrompt(receipts: readonly LegalEvidenceReceipt
   ].join("\n");
 }
 
-/**
- * Chat claims never carry citation-handle markers: pills are derived from
- * evidence_ids at render time ([ref]), so an inline "[@handle]" can only be
- * leakage from the DOCX Write convention. Drop the tokens instead of
- * leaking raw handles into prose.
- */
-function stripCitationHandleMarkers(text: string): string {
-  return text.replace(/\s*\[@[^\][\n]{1,80}\]/gu, "");
-}
-
 export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnState,
   limits: { maxClaims?: number; maxTextLength?: number } = {}) {
   if (!Array.isArray(value) || !value.length || value.length > (limits.maxClaims ?? Infinity))
@@ -841,7 +832,7 @@ export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnS
   value.forEach((value, index) => {
     const row = object(value);
     const text = typeof row?.text === "string"
-      ? stripCitationHandleMarkers(row.text).trim()
+      ? row.text.replace(/\s*\[@[^\][\n]{1,80}\]/gu, "").trim()
       : "";
     const rawIds = row?.evidence_ids;
     const ids = Array.isArray(rawIds)
@@ -853,14 +844,19 @@ export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnS
       errors.push(`claims[${index}].text is invalid`);
     if (!ids.length || ids.length > 4 || ids.length !== (Array.isArray(rawIds) ? rawIds.length : 0) || new Set(ids).size !== ids.length)
       errors.push(`claims[${index}].evidence_ids must contain 1 to 4 unique handles`);
-    if (ids.length > 1 && /\p{Ll}{4,}[.!?]["')\]]*\s+\p{Lu}/u.test(text))
-      errors.push(`claims[${index}] must split sentences supported by different passages`);
     for (const id of ids) {
       const receipt = state.evidence.get(id)?.receipt;
       if (!receipt) errors.push(`claims[${index}] has unknown evidence_id: ${id}`);
       else if (receipt.scope !== "passage") errors.push(`claims[${index}] requires passage evidence for ${id}`);
       else if (!receipt.span_text) errors.push(`claims[${index}] requires exact passage text for ${id}`);
       else if (!readPriorLegalEvidence(state, id)) errors.push(`claims[${index}] has damaged passage evidence: ${id}`);
+    }
+    if (state.reviewDocumentIds) {
+      const passages = ids.flatMap((id) => state.evidence.get(id)?.receipt ?? [])
+        .filter((receipt) => receipt.locator.kind !== "document" && receipt.locator.label.trim());
+      if (!passages.some((r) => r.provider === "library" && state.reviewDocumentIds!.has(r.stable_source_id)) ||
+          !passages.some((r) => r.provider !== "library" && !state.reviewDocumentIds!.has(r.stable_source_id)))
+        errors.push(`claims[${index}] requires a pinpoint in the document under review and another in an external legal authority; retrieve both or omit this finding`);
     }
     claims.push({ text, evidence_ids: ids });
   });
@@ -870,12 +866,6 @@ export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnS
   return { claims, errors };
 }
 
-/**
- * Structure and work-product tools address text by internal handle — `body:12`,
- * `node:7`, `par25`, `e_<hash>`. Those are addresses into a projection, not
- * citations, and a reader cannot resolve them; claims name authorities through
- * their evidence, which renders as a chip.
- */
 const INTERNAL_HANDLE =
   /\b(?:body|node|unit|block|chars):\s*\d{1,6}\b|\bpar\d{1,5}\b|\be_[0-9a-f]{8,}\b/iu;
 
@@ -976,13 +966,8 @@ export function finalizeLegalEvidence(
     state.failure = "The model did not submit a grounded answer.";
     return false;
   }
-  // Naming a decision while citing only the document under review leaves the
-  // reader with the document's own account of the law and nothing to check it
-  // against. The authority the answer relies on has to be retrieved too.
-  const cited = new Set(state.answer.flatMap(({ evidence_ids }) => evidence_ids));
-  const providers = [...cited].flatMap((id) => state.evidence.get(id)?.receipt.provider ?? []);
-  if ((namesAuthority || citesAuthority) && providers.length &&
-      providers.every((provider) => provider === "library")) {
+  if ((namesAuthority || citesAuthority) && state.answer.every(({ evidence_ids }) =>
+      evidence_ids.every((id) => state.evidence.get(id)?.receipt.provider === "library"))) {
     state.failure = "The answer named legal authorities but cited only the documents under review. " +
       "Retrieve the authority itself and bind the claim to its passage.";
     return false;
@@ -1033,7 +1018,6 @@ function sourceKey(receipt: LegalEvidenceReceipt) {
     : [receipt.citation, receipt.name, receipt.source_class].join("\u0000");
 }
 
-/** A bare passage list has no claims to divide, so it reads as one claim. */
 export function legalEvidenceCitationGroupsFromEntries(
   entries: readonly RegisteredEvidence[],
 ): LegalEvidenceCitationGroup[] {
@@ -1044,12 +1028,7 @@ export function legalEvidenceCitationGroupsFromEntries(
   } as LegalEvidenceTurnState).groups : [];
 }
 
-/**
- * A citation belongs to the proposition it supports, not to the authority: a
- * chip carries the pinpoints of its own claim, and two claims resting on the
- * same pinpoints share one chip. The first chip for an authority is the full
- * citation; later chips are subsequent references carrying the new pinpoint.
- */
+// Group pinpoints per claim; reuse identical groups and shorten subsequent source names.
 export function legalEvidenceCitationPlan(state: LegalEvidenceTurnState): {
   groups: LegalEvidenceCitationGroup[];
   claimRefs: number[][];
