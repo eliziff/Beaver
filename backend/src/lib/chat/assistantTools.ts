@@ -231,7 +231,7 @@ const documentOperationTool = (research = true): Tool & BeaverToolPolicy => ({
       "{type:'annotate',kind:'evidence',id,sourceId,labelIds?,note?}; " +
       "{type:'label-selection',target:'sources'|'passages',sourceIds?,evidenceIds?,labelIds?,unlabelled?,assign:[labelId],mode:'add'|'remove'|'replace'} labels a selected group; " +
       "{type:'remove',kind:'label'|'source',id} or {type:'remove',kind:'evidence',id,sourceId}; " +
-      "{type:'batch',title,actions:[label/annotate/label-selection/remove-label actions],propose?:boolean} groups an organization change. Apply reversible changes within the user's request; use propose:true for suggestions or changes needing the user's decision. " +
+      "{type:'batch',title,actions:[label/annotate/label-selection/remove-label actions]} groups a change. New labels, filings and edits to model-owned labels apply immediately with History/Undo. Only edits, moves or deletions of human-created or human-approved labels require acceptance. " +
       "{type:'undo',changeId} reverses a recorded change while preserving unrelated work. Read the workspace history for change IDs; pending proposals are reviewed by the user. " +
       "{type:'note',markdown}; or " +
       "{type:'memo',title,markdown,mode?:'replace'|'append'} writes the workspace memo with " +
