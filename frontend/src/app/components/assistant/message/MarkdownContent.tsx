@@ -91,6 +91,7 @@ export function CitationPill({
     title,
     truncateStyleOfCause = false,
     sourceOnly = false,
+    workspaceAvailable = true,
     children,
 }: {
     citation: Citation;
@@ -99,6 +100,7 @@ export function CitationPill({
     title?: string;
     truncateStyleOfCause?: boolean;
     sourceOnly?: boolean;
+    workspaceAvailable?: boolean;
     children?: ReactNode;
 }) {
     const label = citationPillParts(citation, sourceOnly), target = getDocumentCitationQuotes(citation)[0];
@@ -106,18 +108,18 @@ export function CitationPill({
         <><em className={truncateStyleOfCause ? "min-w-0 max-w-56 truncate" : undefined}>{label.styleOfCause}</em><span className={truncateStyleOfCause ? "shrink-0 whitespace-nowrap" : undefined}>{label.rest}</span></>
     ) : label.rest;
     const pillClassName = `${LEGAL_CITATION_PILL} ${truncateStyleOfCause && label.styleOfCause ? "!inline-flex !whitespace-nowrap" : ""} ${className}`;
-    const href = citation.kind === "document" ? `/library?${new URLSearchParams({ document_id: citation.document_id,
+    const href = safeAssistantUrl(citation.external_url, { relative: false }) ?? (citation.kind === "document" ? `/library?${new URLSearchParams({ document_id: citation.document_id,
         ...(citation.version_id ? { version_id: citation.version_id } : {}),
         ...(target?.sheet ? { sheet: target.sheet } : {}), ...(target?.cell ? { cell: target.cell } : {}) })}`
         : citation.kind === "tabular" ? `/tabular-reviews/${encodeURIComponent(citation.review_id)}`
-        : safeAssistantUrl(citation.external_url ?? citation.url, { relative: false });
+        : safeAssistantUrl(citation.url, { relative: false }));
     return <span className="group/citation inline-flex max-w-full items-baseline" onClick={(event) => event.stopPropagation()}>
         <a href={href ?? undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!href || undefined}
             data-citation-ref={citation.ref} className={pillClassName} title={title ?? citationTooltip(citation)}>{children ?? content}</a>
         {onClick && <MoreActionsMenu label="Citation actions"
             triggerClassName="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-500 opacity-0 hover:bg-gray-100 group-hover/citation:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100"
             items={[{ label: "Open in reader", onSelect: () => onClick(citation) },
-                { label: "Open in workspace", onSelect: () => onClick(citation, "workspace") }]} />}
+                ...(workspaceAvailable ? [{ label: "Open in workspace", onSelect: () => onClick(citation, "workspace") }] : [])]} />}
     </span>;
 }
 
