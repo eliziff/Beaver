@@ -65,13 +65,30 @@ const version3: DocumentVersion = {
   parent_version_id: "version-2",
 };
 
-type PanelProps = ComponentProps<typeof DocumentSidePanel>;
-const panel = (props: Partial<PanelProps> & Pick<PanelProps, "versions">) =>
-  <DocumentSidePanel doc={document} versionsLoading={false} onClose={vi.fn()}
-    onLoadVersions={vi.fn()} onSelectVersion={vi.fn()} onDownloadVersion={vi.fn()}
-    onRenameDocument={vi.fn(async () => true)} onCheckpointVersion={vi.fn(async () => true)} onRestoreVersion={vi.fn()}
-    onCompareVersions={vi.fn()} onUploadNewVersion={vi.fn(async () => {})}
-    onDelete={vi.fn()} {...props} />;
+type PanelProps = ComponentProps<typeof DocumentSidePanel> & {
+  doc?: Document; versions: DocumentVersion[]; versionId?: string; currentVersionId?: string;
+  versionsLoading?: boolean; versionsError?: boolean; actionError?: string; onClose?: () => void;
+  onLoadVersions?: (id: string, force?: boolean) => unknown;
+  onCheckpointVersion?: (id: string, comment?: string) => unknown;
+  onCompareVersions?: (id: string, baseline: string, version: string) => unknown;
+  onRestoreVersion?: (id: string, version: DocumentVersion) => unknown;
+};
+const panel = (props: Partial<PanelProps> & Pick<PanelProps, "versions">) => {
+  const doc = props.doc ?? document, currentId = props.currentVersionId ?? doc.current_version_id ?? null;
+  const current = props.versions.find(({ id }) => id === currentId) ?? null;
+  const selected = props.versions.find(({ id }) => id === props.versionId) ?? current ?? props.versions[0] ?? null;
+  const controller = {
+    doc, versions: props.versions, currentId, current, selected, selectedId: selected?.id ?? props.versionId ?? currentId,
+    priorCurrent: current ? props.versions.find(({ version_number }) => version_number < current.version_number) ?? null : null,
+    history: { loading: props.versionsLoading, error: props.versionsError, actionError: props.actionError },
+    close: props.onClose ?? vi.fn(), load: props.onLoadVersions ?? vi.fn(), selectVersion: vi.fn(),
+    download: vi.fn(), compare: props.onCompareVersions ?? vi.fn(),
+    checkpoint: props.onCheckpointVersion ?? vi.fn(async () => true),
+    setPendingRestore: ({ docId, version }) => props.onRestoreVersion?.(docId, version),
+  } as ComponentProps<typeof DocumentSidePanel>["controller"];
+  return <DocumentSidePanel onRenameDocument={vi.fn(async () => true)}
+    onUploadNewVersion={vi.fn()} onDelete={vi.fn()} {...props} controller={controller} />;
+};
 const renderPanel = (props: Partial<PanelProps> & Pick<PanelProps, "versions">) =>
   render(panel(props));
 

@@ -73,8 +73,9 @@ describe("DocumentSidePanel highlight", () => {
     api.act.mockImplementation(async (id: string, versionId: string, revision: number, action: { type: string }) =>
       ({ ...ontologyFile(), versionId, workingRevision: revision + 1, action }));
     render(<SourcesWorkspaceProvider file={ontologyFile()}>
-      <DocumentSidePanel doc={document} versions={[version]} versionsLoading={false}
-        onClose={vi.fn()} onLoadVersions={vi.fn(async () => {})} />
+      <DocumentSidePanel controller={{ doc: document, versions: [version], currentId: version.id, current: version,
+        selected: version, selectedId: version.id, priorCurrent: null, close: vi.fn(),
+      } as import("../documents/useDocumentController").DocumentController} />
     </SourcesWorkspaceProvider>);
     const highlight = await screen.findByRole("button", { name: "Highlight" });
     await waitFor(() => expect(highlight).not.toBeDisabled());
