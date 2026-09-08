@@ -101,6 +101,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
     const { file: researchFile, mutations, selection } = useSourcesWorkspace();
     const [results, setResults] = useState<LegalSourceSearchResult[]>([]);
     const [searched, setSearched] = useState(false);
+    const [notInstalled, setNotInstalled] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [coverage, setCoverage] = useState<LegalSourceCoverage[]>([]);
     const [filters, setFilters] = useState({
@@ -172,6 +173,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
         if (!query) return;
         setSearching(true);
         setSearched(false);
+        setNotInstalled(false);
         setError(null);
         try {
             const documentTypes: LegalSearchDocumentType[] =
@@ -209,7 +211,8 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                     }),
                 ),
             );
-            const found = settled.flatMap((item) => item.status === "fulfilled" ? item.value : []);
+            const found = settled.flatMap((item) => item.status === "fulfilled" ? item.value.results : []);
+            setNotInstalled(settled.some((item) => item.status === "fulfilled" && item.value.status === "not_installed"));
             setResults(found);
             const failed = settled.filter((item) => item.status === "rejected").length;
             if (failed) setError(found.length
@@ -459,9 +462,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                     )}
                     {searched && (
                         <section>
-                            <h2 className="mb-2 text-base font-semibold text-gray-900">
-                                {results.length ? `${results.length} search results` : "No search results"}
-                            </h2>
+                            {notInstalled && <p role="status" className="text-sm text-gray-600">Hansard is not installed.</p>}
                             {results.length ? <div className="grid gap-2">
                                 {results.map((result) => {
                                     const sourceHref = safeAssistantUrl(result.url, {
@@ -548,7 +549,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                         </article>
                                     );
                                 })}
-                            </div> : <p role="status" className="rounded-md border border-dashed border-gray-300 p-6 text-center text-sm text-gray-600">
+                            </div> : !notInstalled && !error && <p role="status" className="rounded-md border border-dashed border-gray-300 p-6 text-center text-sm text-gray-600">
                                 No sources matched this search. Try fewer terms or a different source category.
                             </p>}
                         </section>

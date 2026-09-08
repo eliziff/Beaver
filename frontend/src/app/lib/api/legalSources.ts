@@ -62,9 +62,7 @@ export const searchLegalSources = async (args: {
   startDate?: string;
   endDate?: string;
   sortResults?: "default" | "newest_first" | "oldest_first";
-}): Promise<LegalSourceSearchResult[]> => {
-  return (
-    await apiRequest<{ results: LegalSourceSearchResult[] }>(
+}) => apiRequest<{ results: LegalSourceSearchResult[]; status: "available" | "not_installed" }>(
       pagePath("/sources/search", {
         query: args.query,
         doc_type: args.docType,
@@ -78,9 +76,7 @@ export const searchLegalSources = async (args: {
         sort_results:
           args.sortResults === "default" ? undefined : args.sortResults,
       }),
-    )
-  ).results;
-};
+    );
 const legalSourceDocumentRequests = new Map<
   string,
   Promise<LegalSourceViewerPayload>

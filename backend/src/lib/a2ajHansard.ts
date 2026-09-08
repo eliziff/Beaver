@@ -223,8 +223,7 @@ export const hansardLegalSourceProvider: LegalSourceProvider<HansardIntervention
             : "default",
       querySyntax: request.syntax,
     });
-    if (rows === null) throw new Error("corpus not installed");
-    return rows.map((row) => ({
+    return rows?.map((row) => ({
       provider: "hansard",
       id: row.id,
       kind: "hansard" as const,
@@ -234,7 +233,7 @@ export const hansardLegalSourceProvider: LegalSourceProvider<HansardIntervention
       url: row.sourceUrl,
       snippet: row.snippet,
       speaker: row.speaker,
-    }));
+    })) ?? null;
   },
   async readPassage(request) {
     if (request.locator) return [];
