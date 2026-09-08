@@ -49,6 +49,7 @@ import {
 import { ReadSubagentTabs, type ReadSubagentGroup } from "./ReadSubagentTabs";
 import { useAssistantPreferences } from "./assistantPreferences";
 import { ChatResearchSave } from "./ChatResearchSave";
+import { ChatFindingActions } from "./ChatFindingActions";
 import type { ResearchSelection } from "@/app/lib/researchFiles";
 import { SourcesWorkspace, useSourcesWorkspace } from "../legal/SourcesWorkspace";
 import type { AssistantIntent } from "./assistantIntent";
@@ -219,7 +220,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
     );
     const [activeAgentSlot, setActiveAgentSlot] = useState<string | null>(null);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
-    const { file: activeResearchFile, selection: researchSelection, loading: researchLoading } = useSourcesWorkspace();
+    const { file: activeResearchFile, selection: researchSelection, loading: researchLoading, accept: acceptResearchFile } = useSourcesWorkspace();
     const [workflowInitialId, setWorkflowInitialId] = useState(
         initialWorkflow?.workflow.id,
     );
@@ -663,6 +664,8 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
     return <ConversationView
         ref={conversationRef}
         chatId={chatId}
+        messageActions={activeResearchFile && chatId ? (messageId) => <ChatFindingActions
+            file={activeResearchFile} chatId={chatId} messageId={messageId} onFiled={acceptResearchFile} /> : undefined}
         session={session}
         handleChat={handleChat}
         cancel={cancel}

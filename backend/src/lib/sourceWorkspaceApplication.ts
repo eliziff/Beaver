@@ -133,9 +133,14 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
       undefined, options);
   }
   async function context(scope: Scope, id: string, selected?: ResearchSelection) {
-    const resolved = await selection(scope, id, selected, { availableOnly: true });
+    const resolved = await selection(scope, id, selected, { availableOnly: true }), file = await required(scope, id),
+      saved = new Map<string, LegalEvidenceReceipt[]>();
+    await visitResearchEvidenceParts(documents, scope, file, resolved.subjects.map(({ sourceId }) => sourceId), (parts) => {
+      parts.forEach((items, sourceId) => saved.set(sourceId, [...new Map(Object.values(items)
+        .filter(({ labelIds }) => labelIds.length).map(({ receipt }) => [receipt.evidence_id, receipt])).values()])); });
     return { workspace: { documentId: id, versionId: resolved.versionId, workingRevision: resolved.workingRevision },
-      subjects: resolved.subjects, ...(selected?.findingRefs ? { findingRefs: selected.findingRefs } : {}), ...(selected ? { restricted: true } : {}) };
+      subjects: resolved.subjects.map((subject) => ({ ...subject, savedEvidence: subject.evidence ?? saved.get(subject.sourceId) ?? [] })),
+      ...(selected?.findingRefs ? { findingRefs: selected.findingRefs } : {}), ...(selected ? { restricted: true } : {}) };
   }
   async function collectView(scope: Scope, id: string, input: Binding, actor?: Operation): Promise<ResearchFile> {
     if (input.chatId) {
@@ -384,7 +389,6 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     const { arrangement: _arrangement, columns_config: _columns, ...preview } = researchImportPlan(catalog, design);
     return { ...preview, question: catalog.question, proposed: !!proposed, fallback };
   }
-  /** The chat-to-workspace organizing step: one model-proposed ontology, reviewed before it becomes research operations. */
   async function previewLabels(scope: Scope, id: string, input: LabelInput, signal?: AbortSignal) {
     const { file, catalog, resolveFinding } = await importCatalog(scope, id, input);
     const target = input.rows ?? "sources";
@@ -418,25 +422,19 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
   }
   async function saveFindings(scope: Scope, id: string, input: { references: ResearchFindingReference[];
     typeId?: string; versionId: string; workingRevision: number }, actor?: Operation) {
-    const read = await readFindings(scope, id), { file } = read;
+    const { file, catalog } = await importCatalog(scope, id, { findingRefs: input.references }),
+      entries = catalog.entries.filter(({ kind }) => kind === "answer"), evidence = new Set(entries.flatMap(({ evidenceIds }) => evidenceIds));
     if (file.versionId !== input.versionId || file.workingRevision !== input.workingRevision)
       return conflict("The research set changed. Reload before saving these highlights.");
-    if (input.typeId && file.state.labels[input.typeId]?.scope !== "highlight")
-      return fail(400, "Choose a highlight type from this research set");
-    const evidence = new Map<string, LegalEvidenceReceipt>();
-    for (const reference of input.references) {
-      const item = await read.resolve(reference) ?? fail(404, "Finding not found"),
-        support = new Set(item.answer.claims.flatMap(({ evidence_ids }) => evidence_ids));
-      if ([...support].some((id) => !item.evidence.some(({ evidence_id }) => evidence_id === id)))
-        return fail(409, "An original supporting passage is unavailable");
-      for (const receipt of item.evidence) if (support.has(receipt.evidence_id)) {
-        if (receipt.scope !== "passage" || !receipt.span_text) return fail(400, "Highlighting requires an exact supporting passage");
-        evidence.set(receipt.evidence_id, receipt);
-      }
-    }
+    if (input.typeId && !file.state.labels[input.typeId]) return fail(400, "Choose a label from this research set");
     if (!evidence.size) return fail(400, "These findings contain no supporting passages to highlight");
-    const saved = await commitResearchFile(documents, scope, file, { type: "merge", evidence: [...evidence.values()],
-      labels: Object.fromEntries([...evidence.keys()].map((key) => [key, input.typeId ? [input.typeId] : []])) },
+    const label = input.typeId && file.state.labels[input.typeId],
+      { actions, title } = researchLabelPlan(file, { ...catalog, columns: [] }, {
+        title: label ? `File under ${label.name}` : "File passages", labels: [label ? { key: label.id, name: label.name, scope: label.scope }
+          : { key: "highlight", name: "Highlight", scope: "highlight" }],
+        assignments: [{ labelKey: label ? label.id : "highlight", rowIds: catalog.rows.map(({ id }) => id),
+          itemIds: entries.map(({ id }) => id) }] }, "sources");
+    const saved = await commitResearchFile(documents, scope, file, { type: "batch", title, actions },
     undefined, operation(actor)) ?? conflict("The research set changed. Reload before saving.");
     return { file: saved, saved: evidence.size };
   }
