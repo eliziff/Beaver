@@ -849,6 +849,8 @@ export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnS
       : [];
     if (!row || Object.keys(row).some((key) => !["text", "evidence_ids"].includes(key)))
       errors.push(`claims[${index}] has unknown fields`);
+    if (/\[\d+(?:,\s*\d+)*\]\s*$/u.test(text))
+      errors.push(`claims[${index}] must cite evidence_ids, not numeric reference markers`);
     if (!text || text.length > (limits.maxTextLength ?? Infinity))
       errors.push(`claims[${index}].text is invalid`);
     if (!ids.length || ids.length > 4 || ids.length !== (Array.isArray(rawIds) ? rawIds.length : 0) || new Set(ids).size !== ids.length)
@@ -1075,7 +1077,9 @@ export function legalEvidenceCitationPlan(state: LegalEvidenceTurnState): {
       const labels = kind === "document" ? [] : members.flatMap(({ receipt }) =>
         receipt.locator.kind === kind ? [receipt.locator.label] : []);
       const locatorLabels = collapseProvisionLabels(labels, kind) ?? [...new Set(labels)];
-      const key = [source, kind, locatorLabels.join("")].join(" ");
+      const key = [source, kind, members[0].receipt.provider === "library"
+        ? members.map(({ receipt }) => receipt.evidence_id).sort().join(",")
+        : locatorLabels.join("\u0001")].join("\u0000");
       let group = grouped.get(key);
       if (!group) {
         group = { ref: groups.length + 1, members: [], locatorKind: kind, locatorLabels,
