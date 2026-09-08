@@ -30,13 +30,15 @@ export default function ResearchMemoPane({ file, mutations, onOpenCitation }: {
   const [conflict, setConflict] = useState(false), [confirmReload, setConfirmReload] = useState(false);
   const [retry, setRetry] = useState(0), retryCount = useRef(0);
   const [addingCitation, setAddingCitation] = useState(false), [citationError, setCitationError] = useState("");
+  const [savedAt, setSavedAt] = useState<number | null>(null), [, tick] = useState(0);
   const dirty = draft.markdown !== draft.base || draft.submitted !== undefined;
   const updateDraft = useCallback((next: Draft) => {
     latest.current = next; setDraft(next);
     try { if (next.markdown === next.base && next.submitted === undefined) sessionStorage.removeItem(key);
-      else sessionStorage.setItem(key, JSON.stringify(next)); } catch { /* beforeunload still protects unsaved edits. */ }
+      else sessionStorage.setItem(key, JSON.stringify(next)); } catch { /* The in-memory draft still holds the edit. */ }
   }, [key]);
-  const change = useCallback((markdown: string) => updateDraft({ ...latest.current, markdown }), [updateDraft]);
+  const change = useCallback((markdown: string) => { updateDraft({ ...latest.current, markdown });
+    retryCount.current = 0; setError(""); setConflict(false); }, [updateDraft]);
   const save = useCallback(async () => {
     if (pending.current) return false;
     const submitted = { ...latest.current, markdown: latest.current.submitted ?? latest.current.markdown };
@@ -46,7 +48,7 @@ export default function ResearchMemoPane({ file, mutations, onOpenCitation }: {
     try {
       await mutations.act({ type: "note", markdown: submitted.markdown, expectedMarkdown: submitted.base });
       const next = { ...latest.current, base: submitted.markdown, submitted: undefined }; updateDraft(next);
-      retryCount.current = 0;
+      retryCount.current = 0; setSavedAt(Date.now());
       return next.markdown === next.base;
     } catch (reason) {
       const connection = isResearchConnectionError(reason);
@@ -74,19 +76,15 @@ export default function ResearchMemoPane({ file, mutations, onOpenCitation }: {
   }, [error, conflict, save]);
   useEffect(() => {
     if (!dirty || saving || error) return;
-    const timer = window.setTimeout(() => { void save(); }, 1000);
+    const timer = window.setTimeout(() => { void save(); }, 700);
     return () => window.clearTimeout(timer);
   }, [dirty, draft.markdown, draft.base, draft.submitted, saving, error, save]);
+  const flush = useRef(save); flush.current = save;
+  useEffect(() => { const age = window.setInterval(() => tick((c) => c + 1), 30000); return () => { window.clearInterval(age); void flush.current(); }; }, []);
   useEffect(() => {
     if (latest.current.markdown !== latest.current.base || pending.current || latest.current.submitted !== undefined) return;
     updateDraft({ markdown: file.state.note, base: file.state.note });
   }, [file.state.note, updateDraft]);
-  useEffect(() => {
-    if (!dirty) return;
-    const preventLoss = (event: BeforeUnloadEvent) => { event.preventDefault(); };
-    window.addEventListener("beforeunload", preventLoss);
-    return () => window.removeEventListener("beforeunload", preventLoss);
-  }, [dirty]);
   const reload = async () => {
     if (pending.current) return;
     pending.current = true; setSaving(true);
@@ -115,11 +113,12 @@ export default function ResearchMemoPane({ file, mutations, onOpenCitation }: {
     } catch (reason) { setCitationError(errorMessage(reason, "Could not add citation")); return null; }
     finally { setAddingCitation(false); }
   };
-  return <section aria-label="Workspace memo" className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
-    <div className="flex shrink-0 items-center justify-end gap-2 py-1">
-      <span role="status" className="text-xs text-gray-500">{addingCitation ? "Adding citation…" : saving ? "Saving…" : retry ? "Retrying…" : dirty ? "Unsaved" : "Saved"}</span>
-      <Button variant="outline" size="compact" disabled={saving || !dirty} onClick={() => { retryCount.current = 0; void save(); }}>
-        {error && !conflict ? "Retry save" : "Save"}</Button>
+  const minutes = Math.floor((Date.now() - (savedAt ?? Date.now())) / 60000);
+  const status = addingCitation ? "Adding citation…" : saving ? "Saving…" : retry ? "Retrying…" : error ? "Not saved"
+    : dirty ? "Saving…" : minutes < 1 ? "Saved" : `Saved ${minutes} min ago`;
+  return <section aria-label="Workspace memo" onBlur={() => { void save(); }} className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
+    <div className="flex shrink-0 items-center justify-end py-1">
+      <span role="status" className="text-xs text-gray-500">{status}</span>
     </div>
     {error && <div role="alert" className="flex shrink-0 flex-wrap items-center gap-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-900">
       <span className="min-w-0 flex-1">{error}</span>

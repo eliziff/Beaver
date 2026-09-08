@@ -3,7 +3,7 @@ import { bindWorkspaceView, ensureSourcesWorkspace, getResearchFile, getResearch
   getWorkspaceViews, openWorkspaceTable, type ResearchFinding } from "@/app/lib/api/researchFiles";
 import { createChat } from "@/app/lib/api/chat";
 import { BeaverApiError } from "@/app/lib/api/client";
-import { researchSourceKey, type PassageLocator, type ResearchFile, type ResearchPageItem,
+import { researchSourceKey, type PassageLocator, type ResearchActionResult, type ResearchFile, type ResearchPageItem,
   type ResearchSelection, type ResearchSourceReference } from "@/app/lib/researchFiles";
 import { usePagedChains } from "@/app/hooks/usePagedChains";
 import { errorMessage } from "@/app/lib/utils";
@@ -28,6 +28,8 @@ const PEN_KEY = "beaver.research.pen.v1";
  *  renders the original file reports the text it captured. */
 export type HighlightCapture = { reference: ResearchSourceReference }
   & ({ revision: string; start: number; end: number } | { quote: string });
+/** What a saved highlight hands back, so a reader can offer its type picker on the new passage. */
+export type SavedHighlight = { file: ResearchActionResult; sourceId: string; evidenceId?: string; labelIds: string[] };
 
 function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey, selection: suppliedSelection, restoreLast = false, onChange }: Options) {
   const memoryKey = `beaver.research.current:${projectId ?? "personal"}`;
@@ -167,9 +169,9 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
   }, []);
   const { act } = mutations;
   /** One deliberate write: prepare the source, ensure a pen, save the passage with it. The pen stays active. */
-  const runHighlight = useCallback(async (): Promise<"saved" | "none"> => {
+  const runHighlight = useCallback(async (): Promise<SavedHighlight | null> => {
     const picked = capture.current?.();
-    if (!picked) return "none";
+    if (!picked) return null;
     const base = current.current;
     if (!base) throw new Error("Open a workspace first");
     const key = researchSourceKey(picked.reference);
@@ -185,9 +187,9 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
     }
     if (active !== penId.current) { penId.current = active; setPen(active); }
     const { reference: _reference, ...span } = picked;
-    await act({ type: "passage", sourceId, ...span, labelIds: [active] });
+    const file = await act({ type: "passage", sourceId, ...span, labelIds: [active] });
     window.getSelection()?.removeAllRanges();
-    return "saved";
+    return { file, sourceId, evidenceId: file.evidenceId, labelIds: [active] };
   }, [act, setPen]);
   const highlight = { pen, setPen, armed, arm: setArmed, run: runHighlight, reading,
     registerReader: useCallback((next: (() => HighlightCapture | null) | null) => {

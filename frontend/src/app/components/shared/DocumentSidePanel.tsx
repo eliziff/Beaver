@@ -45,6 +45,8 @@ import { SUPPORTED_DOCUMENT_ACCEPT } from "@/app/lib/documentUploadValidation";
 
 import { getResearchFile, getResearchItems } from "@/app/lib/api/researchFiles";
 import { ResearchLabelMarker } from "@/app/components/legal/ResearchLabelMarker";
+import { ResearchLabelEditor, type ResearchLabelTarget } from "@/app/components/legal/ResearchLabelPicker";
+import type { SavedHighlight } from "@/app/components/legal/SourcesWorkspace";
 import { useSourcesWorkspaceOrNull } from "@/app/components/legal/SourcesWorkspace";
 import { useLibraryReaderCapture } from "@/app/components/shared/useLibraryReaderCapture";
 import type { CitationQuote } from "@/app/lib/citations";
@@ -249,7 +251,13 @@ export function DocumentSidePanel({
                 versionId: (versionId ?? doc.current_version_id) as string,
                 title: doc.filename }
             : null;
-    useLibraryReaderCapture(readerBody, captureReference, highlightController);
+    const [labelTarget, setLabelTarget] = useState<ResearchLabelTarget | null>(null);
+    const highlightButton = useRef<HTMLButtonElement>(null);
+    /** Every saved highlight offers its type, however it was made. */
+    const savedHighlight = (saved: SavedHighlight | null) => { if (saved?.evidenceId)
+        setLabelTarget({ file: saved.file, kind: "evidence", itemId: saved.evidenceId, sourceId: saved.sourceId,
+            labelIds: saved.labelIds, title: doc?.filename ?? "", anchor: highlightButton.current ?? undefined }); };
+    useLibraryReaderCapture(readerBody, captureReference, highlightController, savedHighlight);
     const [savedQuotes, setSavedQuotes] = useState<CitationQuote[]>([]);
     const workspaceFile = sourcesController?.file ?? null;
     const captureKey = captureReference ? researchSourceKey(captureReference) : null;
@@ -511,12 +519,14 @@ export function DocumentSidePanel({
                         aria-label="Highlight"
                         aria-pressed={highlightController.armed}
                         title="Highlight"
+                        ref={highlightButton}
                         onClick={() => {
                             setActionError(null);
-                            void highlightController.run().catch((reason: unknown) => {
-                                setActionError(reason instanceof Error ? reason.message
-                                    : "Could not save this highlight");
-                            });
+                            void highlightController.run().then(savedHighlight)
+                                .catch((reason: unknown) => {
+                                    setActionError(reason instanceof Error ? reason.message
+                                        : "Could not save this highlight");
+                                });
                         }}
                         className="h-8 w-8 rounded hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
                     >
@@ -764,6 +774,8 @@ export function DocumentSidePanel({
                 }}
                 onConfirm={() => void removeDocument()}
             />
+            {labelTarget && sourcesController && <ResearchLabelEditor target={labelTarget}
+                mutations={sourcesController.mutations} onError={setActionError} onClose={() => setLabelTarget(null)} />}
             </div>
         </Modal>
     );

@@ -113,4 +113,18 @@ describe("ResearchLabelPicker", () => {
     expect(act.mock.calls.every(([action]) => action.type === "annotate")).toBe(true);
   });
 
+  it("keeps every generation's row reserved so revealing children moves nothing above", () => {
+    const nested = { ...file, state: { ...file.state, labels: { ...labels,
+      child: { ...label("child", 0), parentId: "a" }, leaf: { ...label("leaf", 0), parentId: "child" },
+    } } };
+    const view = render(<ResearchLabelEditor target={{ file: nested, kind: "source", itemId: "source-1",
+      labelIds: [], title: "Source" }} mutations={lane()} onClose={vi.fn()} />);
+    const rows = () => view.container.querySelectorAll<HTMLElement>('[role="dialog"] .overflow-x-auto');
+    expect(rows()).toHaveLength(3);
+    const first = rows()[0];
+    fireEvent.click(screen.getByRole("button", { name: "A" }));
+    expect(rows()).toHaveLength(3); expect(rows()[0]).toBe(first);
+    fireEvent.click(screen.getByRole("button", { name: "CHILD" }));
+    expect(rows()).toHaveLength(3); expect(rows()[0]).toBe(first);
+  });
 });

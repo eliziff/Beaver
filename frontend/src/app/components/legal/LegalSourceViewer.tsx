@@ -75,7 +75,7 @@ export type LegalSourceViewerProps = {
 };
 
 function legalSourceAnchorId(label: string) {
-  return `legal-${label.replace(/[^a-z0-9_.-]+/giu, "-")}`;
+  return `legal-${(normalizeLegalSourceLocator(label) ?? label).replace(/[^a-z0-9_.-]+/giu, "-")}`;
 }
 
 export function legalSourceLocatorFromUrl(value: string | null | undefined) {
@@ -88,11 +88,12 @@ export function legalSourceLocatorFromUrl(value: string | null | undefined) {
   }
 }
 
+/** One pinpoint form everywhere: "para 44", "par44" and the block label "44" name the same anchor,
+ *  so a chat chip, a search result and a saved passage all land on the same place in the reader. */
 export function normalizeLegalSourceLocator(value: string | null | undefined) {
   const locator = value?.trim();
   if (!locator) return null;
-  const paragraph = locator.match(/^para(?:graph)?s?\.?\s*(\d+)/iu)?.[1];
-  return paragraph ? `par${paragraph}` : locator.match(/^par\d+/iu)?.[0] ?? locator;
+  return locator.match(/^(?:par(?:a(?:graph)?)?|sec(?:tion)?)s?\.?\s*(\d+)$/iu)?.[1] ?? locator;
 }
 
 function locatorLabel(label: string) {
