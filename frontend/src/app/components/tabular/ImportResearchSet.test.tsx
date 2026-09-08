@@ -49,8 +49,8 @@ it("shows proposed columns and marks genuinely unanswered questions", async () =
     stats: [...preview.stats, { index: 2, reused: 0, kinds: [], evidence: 0 }] });
   ask("Costs too");
   await screen.findByDisplayValue("Costs");
-  expect(api.previewWorkspaceTable).toHaveBeenLastCalledWith("workspace", { model: "model", request: "Costs too" });
-  expect(await screen.findByText(/New ? Extracted for every source/)).toBeVisible();
+  expect(api.previewWorkspaceTable).toHaveBeenLastCalledWith("workspace", { model: "model", request: "Costs too", repropose: true });
+  expect(await screen.findByText(/New · Extracted for every source/)).toBeVisible();
 });
 it("shows a stale-preview rejection without navigating away or silently reinterpreting it", async () => {
   const onOpen = vi.fn(); api.openWorkspaceTable.mockRejectedValueOnce(new Error("Research changed; refresh the preview"));
