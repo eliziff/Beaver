@@ -334,7 +334,23 @@ describe("DocTable Library interactions", () => {
         expect(documentApi.listDocumentVersions).toHaveBeenCalledTimes(1);
     });
 
+    it("keeps a late version upload scoped to its original reader", async () => {
+        let finish!: (value: { id: string; working_revision: number }) => void;
+        documentApi.uploadDocumentVersion.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+        documentApi.listDocumentVersions.mockResolvedValue({ current_version_id: "new-version", versions: [] });
+        render(<Harness initialDocuments={[document, wordDocument]} />);
+        fireEvent.click(screen.getByRole("button", { name: "View Brief.pdf" }));
+        const dt = { types: ["Files"], files: [new File(["new"], "new.pdf", { type: "application/pdf" })] };
+        fireEvent.drop(documentRow(), { dataTransfer: dt });
+        fireEvent.click(screen.getByRole("button", { name: "View Submissions.docx" }));
+        await act(async () => finish({ id: "new-version", working_revision: 0 }));
+        expect(sidePanelRender).toHaveBeenLastCalledWith(expect.objectContaining({
+            doc: wordDocument, versionId: null, pendingAction: undefined,
+        }));
+    });
+
     it("keeps inline rename geometry without per-keystroke commits", async () => {
+        documentApi.listDocumentVersions.mockResolvedValue({ current_version_id: "version-1", versions: [] });
         const commits = vi.fn();
         const renameDocument = vi.fn(async (_id: string, filename: string) => ({
             ...document,

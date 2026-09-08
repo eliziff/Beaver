@@ -390,28 +390,6 @@ const occurrence = (value: unknown) => {
     typeof item.reviewed === "boolean";
 };
 
-function deriveStoredOccurrenceSpans(value: unknown, unitText: string | undefined) {
-  const item = object(value);
-  if (!item || !unitText || Object.hasOwn(item, "authoritySpan") ||
-      !exactKeys(item, ["id", "unitId", "start", "end", "text", "kind", "citation",
-        "authorityId", "reference", "pinpoints", "evidenceIds", "sourceTextSha256",
-        "localOrdinal", "reviewed"]) || !integer(item.start) || !integer(item.end) ||
-      typeof item.citation !== "string" || !Array.isArray(item.pinpoints)) return value;
-  const start = Number(item.start), end = Number(item.end), source = unitText.slice(start, end);
-  if (source !== item.text) return value;
-  const coreAt = source.indexOf(item.citation), coreStart = coreAt < 0 ? start : start + coreAt,
-    coreEnd = coreAt < 0 ? end : coreStart + item.citation.length;
-  const pinpointText = [...item.pinpoints].reverse().map((pin) => object(pin)?.text)
-    .find((pin): pin is string => typeof pin === "string" && source.lastIndexOf(pin) >= 0);
-  const pinpointAt = pinpointText ? source.lastIndexOf(pinpointText) : -1,
-    pinpointStart = pinpointAt < 0 ? null : start + pinpointAt;
-  const authorityEnd = pinpointStart !== null && pinpointStart >= coreEnd ? pinpointStart : end;
-  return { ...item,
-    authoritySpan: { start, end: authorityEnd, text: unitText.slice(start, authorityEnd) },
-    coreSpan: { start: coreStart, end: coreEnd, text: unitText.slice(coreStart, coreEnd) },
-    pinpointSpan: pinpointStart === null ? null : { start: pinpointStart, end,
-      text: unitText.slice(pinpointStart, end) } };
-}
 const ledgerUnit = (value: unknown) => {
   const item = closed(value, ["id", "kind", "ordinal", "footnoteId", "footnoteRefs",
     "pageNumbers", "text", "sourceTextSha256"]);
@@ -440,33 +418,9 @@ export function decodeAuthoritiesDraft(value: unknown): AuthoritiesDraft | null 
     const keys = ["schemaVersion", "import", "bindings", "outputMode",
       "settings", "cover", "bookParts", "insertIntoDocument", "ledger", "units", "occurrences",
       "authorities", "authorityOrder", "discrepancyDecisions"];
-    const candidate = object(value), withoutDecisions = keys.filter((key) =>
-      key !== "discrepancyDecisions"), earlier = keys.filter((key) =>
-      key !== "settings" && key !== "bookParts"), oldest = earlier.filter((key) =>
-      key !== "discrepancyDecisions");
-    const upgraded = candidate && exactKeys(candidate, withoutDecisions, ["stage"])
-      ? { ...candidate, discrepancyDecisions: {} }
-      : candidate && (exactKeys(candidate, earlier, ["stage"]) || exactKeys(candidate, oldest, ["stage"])) ? { ...candidate,
-        settings: { profileId: "general",
-          ...structuredClone(authoritiesProfile("general").defaults.settings) },
-        bookParts: { cover: null, index: null, supplements: [] },
-        discrepancyDecisions: candidate.discrepancyDecisions ?? {},
-      } : value;
-    const upgradedRecord = object(upgraded);
-    const stored = upgradedRecord && exactKeys(upgradedRecord, keys, ["stage"])
-      ? upgradedRecord : null;
-    const unitText = new Map(Array.isArray(stored?.units) ? stored.units.flatMap((unit) => {
-      const item = object(unit);
-      return typeof item?.id === "string" && typeof item.text === "string"
-        ? [[item.id, item.text] as const] : [];
-    }) : []);
-    const storedOccurrences = object(stored?.occurrences);
-    const draft = stored && storedOccurrences ? { ...stored,
-      occurrences: Object.fromEntries(Object.entries(storedOccurrences).map(([id, item]) =>
-        [id, deriveStoredOccurrenceSpans(item, unitText.get(String(object(item)?.unitId))) ])) }
-      : stored;
-    const occurrences = object(draft?.occurrences), authorities = object(draft?.authorities);
-    const normalized = draft,
+    const candidate = object(value);
+    const normalized = candidate && exactKeys(candidate, keys, ["stage"]) ? candidate : null;
+    const occurrences = object(normalized?.occurrences), authorities = object(normalized?.authorities),
       decisions = object(normalized?.discrepancyDecisions);
     if (!normalized || normalized.schemaVersion !== "beaver.authorities-draft.v1" ||
         !importedDocument(normalized.import) || !decodeWorkProductBindings(normalized.bindings) ||

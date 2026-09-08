@@ -79,10 +79,7 @@ describe("standalone retained files", () => {
     const draft = await standaloneWorkProducts.create({ kind: "court-record", title: "Record",
       state: { bindings: {}, profileId: "ab-king-bench-motion-record" } });
     expect(memory.stores.has("legacy")).toBe(true);
-    expect(memory.stores.get("metadata")?.get("existing")).toEqual({
-      id: "existing", kind: "authorities", title: "Existing", projectId: null,
-      revision: 1, outputs: {}, createdAt: "2025-01-01", updatedAt: "2025-01-01",
-    });
+    expect(memory.stores.get("metadata")?.has("existing")).toBe(false);
     const draftReads = memory.getAllCalls.get("drafts") ?? 0;
     await expect(standaloneWorkProducts.listMetadata!("court-record")).resolves.toEqual([{
       id: draft.id, kind: draft.kind, title: draft.title, projectId: null,

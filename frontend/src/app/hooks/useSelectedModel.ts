@@ -1,15 +1,10 @@
 import { useEffect, useState } from "react";
 import {
-    ALLOWED_MODEL_IDS,
     DEFAULT_MODEL_ID,
 } from "../components/assistant/ModelToggle";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 
-const isDynamicModel = (id: string) =>
-    /^(?:codex|ollama):.+/u.test(id) || /^opencode-go\/.+/u.test(id);
-const modelOrDefault = (value: string | null | undefined) =>
-    value && (ALLOWED_MODEL_IDS.has(value) || isDynamicModel(value))
-        ? value : DEFAULT_MODEL_ID;
+const modelOrDefault = (value: string | null | undefined) => value?.trim() || DEFAULT_MODEL_ID;
 const validEffort = (value: string | null | undefined) =>
     !!value && /^[a-z0-9_-]{1,32}$/iu.test(value);
 

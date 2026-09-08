@@ -1,4 +1,3 @@
-import { SETTINGS_MODELS, type ModelOption } from "../components/assistant/ModelToggle";
 import type { ApiKeyState } from "@/app/lib/api/account";
 export type ModelProvider =
     | "claude"
@@ -12,19 +11,14 @@ export type ModelProvider =
     | "codex"
     | "ollama";
 export function getModelProvider(modelId: string): ModelProvider | null {
-    if (modelId.startsWith("claude-p:")) return "claude-p";
-    if (modelId.startsWith("codex:")) {
-        return "codex";
-    }
-    if (modelId.startsWith("ollama:")) return "ollama";
-    if (modelId.startsWith("opencode-go/")) return "opencode-go";
-    // Muse Spark ships on two transports; the bare id is the direct one and
-    // the `meta/` slug is OpenRouter, so the group alone cannot decide.
-    if (modelId.startsWith("muse-spark-")) return "meta";
-    const model = SETTINGS_MODELS.find((m) => m.id === modelId);
-    if (!model) return null;
-    return modelGroupToProvider(model.group);
+    const prefixes: [string, ModelProvider][] = [
+        ["claude-p:", "claude-p"], ["codex:", "codex"], ["ollama:", "ollama"],
+        ["opencode-go/", "opencode-go"], ["claude-", "claude"], ["gemini-", "gemini"],
+        ["gpt-", "openai"], ["deepseek-", "deepseek"], ["meta/", "openrouter"], ["muse-spark-", "meta"],
+    ];
+    return prefixes.find(([prefix]) => modelId.startsWith(prefix))?.[1] ?? null;
 }
+
 export function isModelAvailable(
     modelId: string,
     apiKeys: ApiKeyState,
@@ -59,17 +53,4 @@ export function providerLabel(provider: ModelProvider): string {
     if (provider === "codex") return "Codex";
     if (provider === "ollama") return "Desktop";
     return "Google (Gemini)";
-}
-function modelGroupToProvider(
-    group: ModelOption["group"],
-): ModelProvider {
-    if (group === "Claude Code") return "claude-p";
-    if (group === "Anthropic") return "claude";
-    if (group === "OpenAI") return "openai";
-    if (group === "DeepSeek") return "deepseek";
-    if (group === "Meta") return "openrouter";
-    if (group === "OpenCode Go") return "opencode-go";
-    if (group === "Codex") return "codex";
-    if (group === "Desktop") return "ollama";
-    return "gemini";
 }
