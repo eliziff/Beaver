@@ -181,7 +181,7 @@ function importedCover(units: NativeAuthorityTextUnit[]): AuthoritiesCover {
     .map(({ text }) => text).join("\n");
   const fields = sourceDocumentFields(opening ? [opening] : []);
   return { courtFileNumber: fields?.cover.courtFileNumber ?? "",
-    partyGroups: fields?.partyGroups ?? [],
+    partyGroups: [],
     applicationUnder: fields?.cover.applicationUnder ?? "", title: "" };
 }
 
