@@ -103,7 +103,8 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
             assert not api("GET", f"/api/source-workspaces/{research_id}")["state"]["sources"]
             dialog.find_element(By.CSS_SELECTOR, "input[aria-label='Search research sets']").send_keys(title)
             visible(driver, By.CSS_SELECTOR, f"input[aria-label='Select {title}']").click()
-            visible(driver, By.CSS_SELECTOR, "select[aria-label='Destination source label']")
+            WebDriverWait(driver, 30).until(lambda _: dialog.find_element(
+                By.XPATH, ".//button[normalize-space()='Add']").is_enabled())
             click_text(driver, "Add", dialog)
 
             def collected_source():
@@ -119,10 +120,12 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
 
             # Explicit save, not a read: default type is one ordinary Highlight.
             saved = api("GET", f"/api/source-workspaces/{research_id}")
+            reader = api("GET", f"/api/single-documents/{document['id']}/reader-text?version_id={document['current_version_id']}")
             saved = api("POST", f"/api/source-workspaces/{research_id}/actions", {
                 "version_id": saved["versionId"], "working_revision": saved["workingRevision"],
                 "action": {"type": "passage", "sourceId": source["id"],
-                    "quote": "First passage about fairness."}})
+                    "revision": reader["revision"], "start": 0,
+                    "end": len("First passage about fairness.")}})
             items = api("GET", f"/api/source-workspaces/{research_id}/items?kind=passages")["items"]
             assert len(items) == 1, items
             type_ids = items[0]["value"]["labelIds"]
