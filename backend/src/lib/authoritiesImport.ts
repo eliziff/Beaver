@@ -174,6 +174,28 @@ function scanReview(
     occurrences, authorities, authorityOrder };
 }
 
+const COVER_ROLE = /^(applicants?|respondents?|appellants?|plaintiffs?|defendants?|petitioners?|interven(?:er|or)s?|moving part(?:y|ies)|responding part(?:y|ies))\s*:?$/iu;
+/** The parties named in a filing's BETWEEN block, in the order and roles the cover prints them. */
+function coverParties(opening: string): AuthoritiesCover["partyGroups"] {
+  const lines = opening.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
+  const start = lines.findIndex((line) => /^between\s*:?$/iu.test(line));
+  if (start < 0) return [];
+  const groups: AuthoritiesCover["partyGroups"] = [];
+  let names: string[] = [];
+  for (const line of lines.slice(start + 1)) {
+    if (COVER_ROLE.test(line)) {
+      const word = line.replace(/\s*:$/u, "").toLowerCase();
+      const role = word.startsWith("interven") ? "Intervener" : word.replace(/s$|ies$/u, (end) => end === "ies" ? "y" : "")
+        .replace(/^\w|\s\w/gu, (ch) => ch.toUpperCase());
+      if (names.length) groups.push({ role, parties: names });
+      names = [];
+    } else if (/^(and|-\s*and\s*-|v\.?)$/iu.test(line)) continue;
+    else if (/^[A-Z][A-Z\s]+$/u.test(line) && line.length > 12 && !names.length && groups.length) break;
+    else names.push(line);
+  }
+  return groups;
+}
+
 function importedCover(units: NativeAuthorityTextUnit[]): AuthoritiesCover {
   const body = units.filter(({ kind }) => kind === "body");
   const firstPage = body.filter(({ page_numbers }) => page_numbers.includes(1));
@@ -181,7 +203,7 @@ function importedCover(units: NativeAuthorityTextUnit[]): AuthoritiesCover {
     .map(({ text }) => text).join("\n");
   const fields = sourceDocumentFields(opening ? [opening] : []);
   return { courtFileNumber: fields?.cover.courtFileNumber ?? "",
-    partyGroups: [],
+    partyGroups: coverParties(opening),
     applicationUnder: fields?.cover.applicationUnder ?? "", title: "" };
 }
 

@@ -17,7 +17,7 @@ export type AuthoritiesSourceIssue =
   | { status: "missing"; reason: "deleted" | "permission" | "unavailable" };
 /** Durable recognition of scanned source PDFs: start (cited pages first), stop, and watch. */
 export type AuthoritiesOcrPort = {
-  start(id: string, roles: string[]): Promise<Array<{ role: string; documentId?: string }>>;
+  start(id: string, roles: string[], pages?: number[]): Promise<Array<{ role: string; documentId?: string; done?: boolean }>>;
   cancel(id: string, roles: string[]): Promise<unknown>;
   progress(documentIds: string[]): Promise<PdfProgress[]>;
 };
@@ -41,8 +41,6 @@ export interface AuthoritiesHost {
   act(id: string, revision: number, action: AuthoritiesAction): Promise<AuthoritiesProduct>;
   refresh(id: string, revision: number): Promise<AuthoritiesProduct>;
   prepareSources(product: AuthoritiesProduct, signal?: AbortSignal): Promise<AuthoritiesProduct>;
-  prepareHighlights?(product: AuthoritiesProduct, progress?: (message: string) => void,
-    signal?: AbortSignal): Promise<void>;
   review?(id: string, signal?: AbortSignal): Promise<AuthoritiesDiscrepancy[]>;
   resolveDiscrepancy?(id: string, input: { id: string; action: AuthoritiesDiscrepancyAction;
     revision: number }): Promise<AuthoritiesProduct>;
