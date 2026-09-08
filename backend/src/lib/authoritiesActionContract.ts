@@ -3,8 +3,8 @@ import { reject } from "./applicationError";
 import type { AuthorityOccurrence,
   AuthoritiesBuildSettings, AuthoritiesCover, AuthoritiesDiscrepancyAction,
   AuthoritiesProfileId } from "./authoritiesDomain";
-import type { AuthoritiesInitialSettings, AuthoritiesUserAction } from
-  "./authoritiesActions";
+import type { AuthoritiesInitialSettings } from "./authoritiesActions";
+import type { AuthoritiesUserAction } from "../../../shared/authorities-contract.d.ts";
 import { isJsonRecord } from "./value";
 
 const bad = (): never => reject(400, "Invalid Authorities request");
