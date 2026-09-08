@@ -83,7 +83,8 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
           evidenceId: passage.highlightId ?? passage.receipt.evidence_id }, "note", passage.note,
           { name: "Research note", prompt: "The note retained for this passage.", format: "text" });
       }
-      for (const finding of findings.filter((value) => value.sourceId === sourceId)) {
+      for (const finding of findings.filter((value) => value.sourceId === sourceId || value.reference.kind === "cell" &&
+        value.evidence.some((receipt) => legalEvidenceResourceReference(receipt) === researchSourceResource(source.reference)))) {
         const owned = new Set(finding.evidence.filter((receipt) => legalEvidenceResourceReference(receipt) === researchSourceResource(source.reference)).map(({ evidence_id }) => evidence_id));
         const relevant = finding.answer.claims.map((claim, index) => ({ claim, index })).filter(({ claim }) =>
           !evidenceIds || claim.evidence_ids.some((id) => owned.has(id)) && claim.evidence_ids.filter((id) => owned.has(id)).every((id) => evidenceIds.includes(id)));
