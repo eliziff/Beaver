@@ -57,7 +57,7 @@ it("reads the stored answer and grounds chat in its original source, with cell n
   expect(renderLegalEvidenceAnswer(state)).toBe("The initial term is five years. [1]");
   expect(createLegalEvidenceCitations(state)).toEqual([expect.objectContaining({
     kind: "document", document_id: "doc-1", version_id: "v1", locator: "4",
-    quotes: [{ quote: "The initial term is five years." }],
+    quotes: [{ quote: "The initial term is five years.", page: "4" }],
   })]);
   const repeated = readTabularCells({ review_id: "review-1",
     columns: [{ index: 7, name: "Term" }, { index: 8, name: "Duration" }],
@@ -116,7 +116,7 @@ it("can cite an original passage read with a cell even when the cell did not cit
   expect(submitLegalEvidenceAnswer({ claims: [{ text, evidence_ids: [receipt.evidence_id] }] }, state))
     .toEqual({ ok: true, terminal: true });
   expect(createLegalEvidenceCitations(state)).toEqual([expect.objectContaining({
-    document_id: "doc-1", version_id: "v1", locator: "5", quotes: [{ quote: text }],
+    document_id: "doc-1", version_id: "v1", locator: "5", quotes: [{ quote: text, page: "5" }],
   })]);
 });
 
