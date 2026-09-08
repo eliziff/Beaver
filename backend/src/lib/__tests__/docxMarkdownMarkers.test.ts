@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 import {
-  docxMarkdownCitationMarkers,
+  type DocxCitationAppearance,
   parseDocxMarkdown,
   renderDocxMarkdown,
   renderDocxMarkdownDocument,
@@ -58,15 +58,13 @@ function freeze<T>(value: T): T {
 }
 
 describe("DOCX Markdown marker ownership", () => {
-  it("keeps body traversal order, repeated occurrences, and user notes separate", () => {
-    expect(docxMarkdownCitationMarkers(markdown)).toEqual({
-      body: bodyMarkers,
-      footnotes: [{ id: "shared", occurrence: 4 }],
-      footnoteCount: 1,
-    });
-    expect(docxMarkdownCitationMarkers("Plain text.")).toEqual({
-      body: [], footnotes: [], footnoteCount: 0,
-    });
+  it("reports the markers actually emitted in body order, then authored notes", async () => {
+    const appearances: DocxCitationAppearance[] = [];
+    await renderDocxMarkdown(markdown, { citations }, [], appearances);
+    expect(appearances.map(({ markerId: id, occurrence, kind }) => ({ id, occurrence, kind })))
+      .toEqual([...bodyMarkers.map((marker) => ({ ...marker, kind: "body" })),
+        { id: "shared", occurrence: 4, kind: "footnote" }]);
+    expect(appearances.at(-1)?.noteId).toBe(1);
   });
 
   it("removes missing notes from every body container without disturbing neighbours", () => {

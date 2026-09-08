@@ -2,6 +2,7 @@ import {
   normalizeDocxControlTag,
   renderDocxMarkdown,
   type RenderDocxMarkdownOptions,
+  type DocxCitationAppearance,
 } from "./docxMarkdown";
 import { isJsonRecord } from "../../value";
 
@@ -53,12 +54,13 @@ export async function renderMarkdownDocx(
   fields?: unknown,
   options?: Omit<RenderDocxMarkdownOptions, "title" | "values">,
 ) {
+  const appearances: DocxCitationAppearance[] = [];
   const bytes = await renderDocxMarkdown(markdown, {
     ...options,
     title,
     values: docxFieldValues(fields),
-  });
-  return { filename: safeGeneratedFilename(title, "docx"), bytes };
+  }, [], appearances);
+  return { filename: safeGeneratedFilename(title, "docx"), bytes, appearances };
 }
 
 export function safeGeneratedFilename(title: string, extension: string) {
