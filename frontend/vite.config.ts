@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from "node:url";
+import { realpathSync } from "node:fs";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig, searchForWorkspaceRoot } from "vite";
 import { precompressedAssets } from "./scripts/precompressed-assets.mjs";
 
 const apiOrigin = process.env.BEAVER_API_ORIGIN ?? "http://127.0.0.1:3001";
@@ -17,7 +18,16 @@ export default defineConfig(({ mode }) => {
         : mode === "authorities" ? { authorities: pages.authorities }
             : { main: pages.main, word: pages.word };
     return {
-        plugins: [react(), precompressedAssets()],
+        plugins: [react(), precompressedAssets(), {
+            name: "embedded-court-records-route",
+            configureServer(server) {
+                server.middlewares.use((request, _response, next) => {
+                    // Vite's extensionless HTML fallback otherwise selects the standalone page.
+                    request.url = request.url?.replace(/^\/court-records(?=\?|$)/u, "/index.html");
+                    next();
+                });
+            },
+        }],
         build: {
             modulePreload: { polyfill: false },
             emptyOutDir: mode === "production",
@@ -62,6 +72,8 @@ export default defineConfig(({ mode }) => {
             },
         },
         server: {
+            fs: { allow: [searchForWorkspaceRoot(process.cwd()),
+                realpathSync(new URL("./node_modules", import.meta.url))] },
             proxy: {
                 "/api": {
                     target: apiOrigin,
