@@ -37,6 +37,7 @@ beforeEach(() => {
         }
     }
     documentApi.directoryResource.mockReturnValue({ list: directoryList });
+    documentApi.listDocumentVersions.mockResolvedValue({ current_version_id: null, versions: [] });
 });
 afterEach(() => {
     vi.useRealTimers();
@@ -46,13 +47,11 @@ afterEach(() => {
 
 vi.mock("@/app/components/shared/DocumentSidePanel", () => ({
     preloadDocumentViewer: vi.fn(() => Promise.resolve()),
-    DocumentSidePanel: (props: { doc: Document | null; versionsError?: boolean;
-        currentVersionId?: string | null;
-        onLoadVersions: (id: string, force?: boolean) => Promise<unknown> | void }) => {
-        const { doc } = props;
-        sidePanelRender(props);
+    DocumentSidePanel: ({ controller, highlightCells }: { controller: import("./useDocumentController").DocumentController; highlightCells?: unknown }) => {
+        const { doc } = controller;
+        sidePanelRender({ ...controller, highlightCells });
         return doc ? (
-            <div data-testid="document-view">{doc.filename}{props.currentVersionId && <span>Current {props.currentVersionId}</span>}</div>
+            <div data-testid="document-view">{doc.filename}{controller.currentId && <span>Current {controller.currentId}</span>}</div>
         ) : null;
     },
 }));
@@ -320,6 +319,8 @@ describe("DocTable Library interactions", () => {
         vi.spyOn(console, "error").mockImplementation(() => undefined);
         render(<Harness />);
         fireEvent.click(screen.getByRole("button", { name: "View Brief.pdf" }));
+        await waitFor(() => expect(documentApi.listDocumentVersions).toHaveBeenCalledTimes(1));
+        documentApi.listDocumentVersions.mockClear();
         const row = documentRow(), dataTransfer = { types: ["Files"], files };
 
         fireEvent.drop(row, { dataTransfer });
@@ -345,7 +346,7 @@ describe("DocTable Library interactions", () => {
         fireEvent.click(screen.getByRole("button", { name: "View Submissions.docx" }));
         await act(async () => finish({ id: "new-version", working_revision: 0 }));
         expect(sidePanelRender).toHaveBeenLastCalledWith(expect.objectContaining({
-            doc: wordDocument, versionId: null, pendingAction: undefined,
+            doc: wordDocument, versionId: null,
         }));
     });
 
@@ -550,9 +551,9 @@ describe("DocTable Library interactions", () => {
         documentApi.listDocumentVersions.mockRejectedValueOnce(new Error("offline"));
         render(<Harness />);
         fireEvent.click(screen.getByRole("button", { name: "View Brief.pdf" }));
-        const load = sidePanelRender.mock.calls.at(-1)?.[0].onLoadVersions;
+        const load = sidePanelRender.mock.calls.at(-1)?.[0].load;
         await act(async () => load("document-1", true));
-        await waitFor(() => expect(sidePanelRender.mock.calls.at(-1)?.[0].versionsError).toBe(true));
+        await waitFor(() => expect(sidePanelRender.mock.calls.at(-1)?.[0].history?.error).toBe(true));
     });
 
     it("opens the selected row with Enter", async () => {
