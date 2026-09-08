@@ -3,6 +3,7 @@ import { Highlighter, MousePointer2, Pencil, Redo2, Trash2, Undo2 } from 'lucide
 import { Modal } from '@/app/components/modals/Modal';
 import { Button } from '@/app/components/ui/button';
 import { StepSection } from './StepSection';
+import { SourceOcrProgress, type SourceOcrPanel } from './AuthoritySources';
 import { PdfView } from '@/app/components/shared/views/PdfView';
 import type { AnnotationTool } from '@/app/components/shared/views/pdfAnnotationLayer';
 import { cn, errorMessage } from '@/app/lib/utils';
@@ -28,28 +29,32 @@ const choicesFor = (product: AuthoritiesProduct, tabs: ReadonlyMap<string,string
         ...(sources.length > 1 ? [source.language === 'fr' ? 'French' : 'English'] : [])].filter(Boolean).join(' — ') }));
   });
 
-export function AuthoritiesHighlights({ product, tabs, host, busy, onSaved, prepared }: {
+export function AuthoritiesHighlights({ product, tabs, host, busy, onSaved, ocr }: {
   product: AuthoritiesProduct; tabs: ReadonlyMap<string,string>; host: AuthoritiesHost; busy: boolean;
-  onSaved(product: AuthoritiesProduct): void; prepared?: Record<string, PdfAnnotationSet>;
+  onSaved(product: AuthoritiesProduct): void;
+  ocr?: SourceOcrPanel;
 }) {
   const [open, setOpen] = useState(false);
   const choices = choicesFor(product, tabs);
   if (product.state.outputMode === 'table' || !choices.length) return null;
   return <><StepSection title="Highlights" className="mt-3"
-    subtitle={`${choices.length} PDF${choices.length === 1 ? '' : 's'} marked for the passages you cited`}
+    subtitle="Review and adjust passage marks in your source PDFs."
     actions={<Button type="button" variant="outline" className="h-9 border-gray-400"
       disabled={busy || !host.readSource} onClick={() => setOpen(true)}><Highlighter /> Edit in PDF</Button>} />
     {open && <AuthoritiesHighlightEditor product={product} choices={choices} host={host}
-      onClose={() => setOpen(false)} onSaved={onSaved} prepared={prepared} />}
+      onClose={() => setOpen(false)} onSaved={onSaved} ocr={ocr} />}
   </>;
 }
 
-function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, onClose, onSaved, prepared }: {
+function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, onClose, onSaved, ocr }: {
   product: AuthoritiesProduct; choices: Choice[]; host: AuthoritiesHost;
-  onClose(): void; onSaved(product: AuthoritiesProduct): void; prepared?: Record<string, PdfAnnotationSet>;
+  onClose(): void; onSaved(product: AuthoritiesProduct): void;
+  ocr?: SourceOcrPanel;
 }) {
   // A review edits one known revision; a concurrent write must not be silently overwritten.
   const [base] = useState(product);
+  const revision = useRef(product.revision);
+  const savedMarks = useRef<Record<string, PdfAnnotation[]>>({});
   const [choices] = useState(initialChoices);
   const [role, setRole] = useState(choices[0].bindingRole);
   const [documents, setDocuments] = useState<Record<string,OpenPdf>>({});
@@ -58,12 +63,13 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
   const [focus, setFocus] = useState<{ id: string; request: number }>();
   const [loading, setLoading] = useState(false), [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [confirmation, setConfirmation] = useState(false);
+  const [ocrPages, setOcrPages] = useState('');
   const request = useRef<AbortController|null>(null);
   const cardRefs = useRef(new Map<string,HTMLLIElement>());
   const source = choices.find(choice => choice.bindingRole === role)!;
   const current = documents[role], marks = current?.history[current.position] ?? [];
-  const dirty = Object.values(documents).some(document => document.position !== 0);
+  const dirty = Object.entries(documents).some(([key, document]) =>
+    savedMarks.current[key] !== document.history[document.position]);
   const disabled = saving || loading || !current;
   const changeDocument = (update: (document: OpenPdf) => OpenPdf) => setDocuments(values => {
     const document = values[role]; return document ? { ...values, [role]: update(document) } : values;
@@ -79,7 +85,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
   const undo = () => { if (!disabled) changeDocument(document => ({...document,position:Math.max(0,document.position-1)})); };
   const redo = () => { if (!disabled) changeDocument(document => ({...document,position:Math.min(document.history.length-1,document.position+1)})); };
   const remove = (id: string) => { edit(marks.filter(mark => mark.id !== id)); if (selectedId===id) setSelectedId(null); };
-  const close = () => { if (!saving) { if (dirty) setConfirmation(true); else onClose(); } };
+  const close = () => { if (!saving && !dirty) onClose(); };
 
   useEffect(() => {
     setSelectedId(null); setFocus(undefined); setError('');
@@ -94,21 +100,24 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
       if (hash !== source.sourceSha256) throw new Error('This PDF changed. Relink the source before editing highlights.');
       const saved = base.state.authorities[source.authorityId].annotations?.[role];
       const replaced = !!saved && saved.sourceSha256 !== hash;
-      let set = saved && !replaced ? decodeAnnotationSet(saved) : prepared?.[role] ?? emptyAnnotationSet(hash);
+      let set = saved && !replaced ? decodeAnnotationSet(saved) : emptyAnnotationSet(hash);
       if (set.sourceSha256 !== hash) throw new Error("The marking source does not match this PDF.");
       let warning = replaced ? 'The PDF changed; highlights start from this version.' : '';
-      if ((!saved || replaced) && !prepared?.[role] && base.state.settings.passageMarking !== 'none') {
+      if ((!saved || replaced) && base.state.settings.passageMarking !== 'none') {
         try {
           if (!host.prepareAnnotations) throw new Error('Automatic marking is unavailable.');
           const prepared = await host.prepareAnnotations(base,source.authorityId,role,blob,abort.signal);
           set=prepared.annotations;
           if(set.sourceSha256!==hash) throw new Error('The marking source does not match this PDF.');
+          if (prepared.unresolved.length) warning = `Mark these passages manually: ${prepared.unresolved
+            .map(item => item.excerpt ? `${item.label} — ${item.excerpt}` : item.label).join('; ')}.`;
         } catch (cause) {
           abort.signal.throwIfAborted(); set=emptyAnnotationSet(hash);
           warning=`Automatic highlights could not be prepared. You can mark this PDF manually. ${errorMessage(cause)}`;
         }
       }
       abort.signal.throwIfAborted();
+      savedMarks.current[role] = set.marks;
       setDocuments(values => ({...values,[role]:{bytes,set,history:[set.marks],position:0,warning}}));
     })().catch(cause => { if (!abort.signal.aborted) setError(errorMessage(cause)); })
       .finally(() => { if (!abort.signal.aborted) setLoading(false); });
@@ -122,29 +131,31 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
     const guard=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue='';};
     window.addEventListener('beforeunload',guard); return ()=>window.removeEventListener('beforeunload',guard);
   },[dirty]);
+  useEffect(() => { if (dirty) void save(); }, [documents]);
 
   async function save() {
     if(saving || loading) return;
     const entries:Entry[]=choices.flatMap(choice=>{
       const document=documents[choice.bindingRole];
-      const prior = base.state.authorities[choice.authorityId].annotations?.[choice.bindingRole];
-      const unchanged = document?.position === 0 && prior?.sourceSha256 === choice.sourceSha256;
+      const unchanged = document && savedMarks.current[choice.bindingRole] === document.history[document.position];
       return document && !unchanged ? [{authorityId:choice.authorityId,bindingRole:choice.bindingRole,
         annotations:{...document.set,marks:document.history[document.position]}}] : [];
     });
-    if(!entries.length) { onClose(); return; }
+    if(!entries.length) return;
     setSaving(true);setError('');
     try {
-      const next=await host.act(base.id,base.revision,{type:'set-annotations',entries});
-      onSaved(next);onClose();
+      const next=await host.act(base.id,revision.current,{type:'set-annotations',entries});
+      revision.current = next.revision;
+      for (const entry of entries) savedMarks.current[entry.bindingRole] = entry.annotations.marks;
+      onSaved(next);
     } catch(cause) { setError(errorMessage(cause)); } finally { setSaving(false); }
   }
   return <>
     <Modal open onClose={close} breadcrumbs={['Highlights']} size="2xl"
       className="h-[calc(100dvh-2rem)] max-w-[96rem]"
-      primaryAction={{label:saving?'Saving…':'Save and close',disabled:saving||loading,onClick:()=>void save()}}
+      primaryAction={error && dirty ? {label:'Retry',disabled:saving,onClick:()=>void save()} : undefined}
       footerStatus={<span role={error?'alert':'status'} className={cn('text-sm',error?'text-red-800':'text-gray-500')}>
-        {error || (loading?'Preparing PDF…':dirty?'Unsaved changes':'')}</span>}>
+        {error || (loading?'Preparing PDF…':saving?'Saving…':'')}</span>}>
       <div className="flex min-h-0 flex-1 flex-col" onKeyDown={event=>{
         const input=event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable=true]');
         if(input || disabled) return;
@@ -173,6 +184,21 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
             <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Redo" disabled={disabled||current.position>=current.history.length-1} onClick={redo}><Redo2 /></Button>
           </div>
         </div>
+        {host.sourceOcr && ocr && <form className="mt-2 flex flex-wrap items-center gap-2" onSubmit={event => {
+          event.preventDefault();
+          const pages = ocrPages.split(',').map(value => Number(value.trim()));
+          if (pages.some(page => !Number.isSafeInteger(page) || page < 1)) {
+            setError('Enter page numbers separated by commas.'); return;
+          }
+          setError(''); void ocr.begin([{ role, name: source.title, sourceSha256: source.sourceSha256,
+            textlessPages: pages }], pages);
+        }}>
+          <label className="text-sm text-gray-700">Pages to recognize <input value={ocrPages}
+            onChange={event => setOcrPages(event.target.value)} placeholder="2, 4, 6" required
+            className="ms-2 h-8 w-28 rounded border border-gray-400 px-2 text-sm" /></label>
+          <Button type="submit" variant="outline" className="h-8" disabled={loading}>Recognize text</Button>
+          {ocr.tracked[role] && <SourceOcrProgress status={ocr.tracked[role]} ocr={ocr} />}
+        </form>}
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(16rem,1fr)_minmax(8rem,.45fr)] md:grid-cols-[minmax(0,1fr)_19rem] md:grid-rows-1">
           <div className="mt-3 flex min-h-0 min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-gray-100 md:mr-3">
             {current ? <PdfView key={role} doc={null} bytes={current.bytes} rounded={false} ariaLabel="Authority PDF editor"
@@ -204,11 +230,6 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
           </aside>
         </div>
       </div>
-    </Modal>
-    <Modal open={confirmation} onClose={()=>setConfirmation(false)} breadcrumbs={['Discard changes?']}
-      className="h-auto max-h-[calc(100dvh-2rem)]" secondaryAction={{label:'Keep editing',onClick:()=>setConfirmation(false)}}
-      primaryAction={{label:'Discard',onClick:onClose}}>
-      <p className="pb-4 text-sm text-gray-700">Your unsaved highlight edits will be discarded.</p>
     </Modal>
   </>;
 }

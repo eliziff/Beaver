@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronRight, ExternalLink, Eye, FileCheck2, FilePlus2, FileType2,
+import { ExternalLink, Eye, FileCheck2, FilePlus2, FileType2,
   FolderSearch, Pencil, Plus, Upload } from "lucide-react";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import { ActionMenu } from "@/app/components/ui/action-menu";
@@ -26,34 +26,30 @@ export type AuthorityPanelProps = {
   onEditIdentity: (authority: AuthorityIdentity) => void;
 };
 type PanelProps = AuthorityPanelProps & {
-  state: AuthoritiesDraft; occurrences: AuthorityOccurrence[]; forceOpen?: boolean;
+  state: AuthoritiesDraft; occurrences: AuthorityOccurrence[];
   onPickMany?: () => void; onLibraryAdd?: () => void; onFiles?: (files: File[]) => void;
   ocr?: SourceOcrPanel;
+  inspection?: { progress: string; error: string };
 };
-export function ManualDraft(props: Omit<PanelProps, "occurrences">) {
-  return <SourcePanel {...props} occurrences={[]} />;
-}
 export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft: AuthoritiesProduct }) {
   return <SourcePanel {...props} state={draft.state} />;
 }
 
 function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues,
   onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onPick, onLibrary,
-  sourceLabel = "Library", onAttach, onRelink, onOpenSource, onEditIdentity, forceOpen,
-  ocr }: PanelProps) {
-  const active = state.stage === "sources" || state.stage === undefined || !!forceOpen;
-  const [expanded, setExpanded] = useState(active), [tabSettings, setTabSettings] = useState(false);
-  useEffect(() => { setExpanded(active); }, [active]);
+  sourceLabel = "Library", onAttach, onRelink, onOpenSource, onEditIdentity,
+  ocr, inspection }: PanelProps) {
+  const [tabSettings, setTabSettings] = useState(false);
   const included = authorities.filter(({ excluded }) => !excluded);
   const ready = included.filter((authority) => hasRequiredSources(state, authority) && authority.source.kind === "attached" &&
     authority.source.sources.every(({ bindingRole }) => !sourceIssues[bindingRole])).length;
-  return <><details open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}
-    className="group mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
-    <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 rounded-t-xl px-4 outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600 [&::-webkit-details-marker]:hidden">
-      <ChevronRight className="h-4 w-4 text-red-700 transition-transform group-open:rotate-90 motion-reduce:transition-none" />
+  return <><section className="mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
+    <div className="flex min-h-12 items-center gap-2 px-4">
       <h2 className="font-semibold text-gray-950">Sources</h2>
       <span className="ms-auto text-sm tabular-nums text-gray-500">{ready} / {included.length} PDFs</span>
-    </summary>
+      {state.outputMode !== "table" && <Button type="button" variant="outline" className={control}
+        disabled={busy} onClick={(event) => { event.preventDefault(); setTabSettings(true); }}>Tab labels</Button>}
+    </div>
     <div className="border-t border-gray-200 p-3 sm:p-4"
       onDragOver={(event) => { if (!busy && onFiles && event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
       onDrop={(event) => {
@@ -61,16 +57,17 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           event.preventDefault(); onFiles(Array.from(event.dataTransfer.files));
         }
       }}>
-      <div className="mb-3 flex flex-wrap justify-end gap-2">
-        {state.outputMode !== "table" && <Button type="button" variant="outline" className={control}
-          disabled={busy} onClick={() => setTabSettings(true)}>Tab labels</Button>}
+      {(inspection?.progress || inspection?.error) && <p role={inspection.error ? "alert" : "status"}
+        className={cn("mb-2 text-sm", inspection.error ? "text-red-800" : "text-gray-600")}>
+        {inspection.error || inspection.progress}</p>}
+      {(onFiles || onLibraryAdd) && <div className="mb-3 flex flex-wrap justify-end gap-2">
         {onFiles && (onPickMany ? <Button type="button" variant="outline" className={control}
           disabled={busy} onClick={onPickMany}><FilePlus2 /> Upload</Button>
           : <FileInputButton multiple disabled={busy} label="Upload" accept=".pdf,application/pdf"
             onFiles={onFiles} variant="outline" compact />)}
         {onLibraryAdd && <Button type="button" variant="outline" className={control} disabled={busy}
           onClick={onLibraryAdd}><FolderSearch /> {sourceLabel}</Button>}
-      </div>
+      </div>}
       <div role="list" aria-label="Authority tab slots"
         className="divide-y divide-gray-200 rounded-lg border border-gray-300">
         {authorities.map((authority) => <AuthorityRow key={authority.id} authority={authority} busy={busy}
@@ -89,7 +86,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
       </div>
       <Button type="button" variant="ghost" className="mt-2 h-9" disabled={busy} onClick={onAdd}><Plus /> Add authority</Button>
     </div>
-  </details>
+  </section>
   {tabSettings && <TabFormatModal settings={state.settings} busy={busy} onClose={() => setTabSettings(false)}
     onSave={(settings) => onAction({ type: "set-settings", settings })} />}</>;
 }
@@ -107,8 +104,6 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   const fileInput = useRef<HTMLInputElement>(null);
   const styleOfCause = authority.displayName || authority.name || "";
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(styleOfCause);
-  const cancelled = useRef(false);
   const sources = authority.source.kind === "attached" ? authority.source.sources : [];
   const title = authorityName(authority), citationLine = citations.filter((citation) =>
     !styleOfCause.toLocaleLowerCase().includes(citation.toLocaleLowerCase())).join("; ");
@@ -123,8 +118,8 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       label: loaded ? "Built from source text" : "Will be built from source text" }
     : loaded ? { Icon: FileCheck2, tone: "text-green-700",
       label: sources.map(({ filename }) => filename).join("\n") || "PDF loaded" } : null;
-  const edit = () => { cancelled.current = false; setName(styleOfCause); setEditing(true); };
-  const save = () => { if (cancelled.current) return; cancelled.current = true; setEditing(false);
+  const edit = () => setEditing(true);
+  const save = (name: string) => { setEditing(false);
     if (name.trim() !== styleOfCause) onAction({ type: "rename-authority",
       authorityId: authority.id, displayName: name.trim() || null }); };
   return <article role="listitem" data-authority-id={authority.id}
@@ -141,11 +136,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       {mark && <mark.Icon role="img" aria-label={mark.label} className={cn("h-4 w-4", mark.tone)}>
         <title>{mark.label}</title></mark.Icon>}
     </span>
-    {editing ? <Input autoFocus aria-label="Style of cause" placeholder="Add style of cause" value={name}
-      onChange={(event) => setName(event.target.value)} onBlur={save}
-      onKeyDown={(event) => { if (event.key === "Enter") save();
-        if (event.key === "Escape") { cancelled.current = true; setEditing(false); } }}
-      className="col-span-1 h-8 min-w-0 border-gray-400 text-sm sm:col-span-2" /> : <>
+    {editing ? <StyleOfCause value={styleOfCause} onSave={save} onCancel={() => setEditing(false)} /> : <>
       <div className="flex min-w-0 items-center gap-1">
         {styleOfCause ? <h3 className="truncate text-sm font-medium text-gray-950" title={title}>{styleOfCause}</h3>
           : <span className="truncate text-sm italic text-gray-500">Add style of cause</span>}
@@ -198,26 +189,38 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   </article>;
 }
 
-export type SourceOcrPanel = { tracked: Record<string, SourceOcrStatus>;
-  begin(files: SourceOcrStatus[]): void; stop(roles: string[], paused: boolean): void };
+function StyleOfCause({ value, onSave, onCancel }: {
+  value: string; onSave: (value: string) => void; onCancel: () => void;
+}) {
+  const [name, setName] = useState(value), finished = useRef(false);
+  return <Input autoFocus aria-label="Style of cause" placeholder="Add style of cause" value={name}
+    onChange={(event) => setName(event.target.value)}
+    onBlur={() => { if (!finished.current) { finished.current = true; onSave(name); } }}
+    onKeyDown={(event) => {
+      if (event.key === "Enter") event.currentTarget.blur();
+      if (event.key === "Escape") { finished.current = true; onCancel(); }
+    }} className="col-span-1 h-8 min-w-0 border-gray-400 text-sm sm:col-span-2" />;
+}
+
+export type SourceOcrPanel = Pick<ReturnType<typeof import("./sourceOcr").useSourceOcr>, "tracked" | "begin" | "stop">;
 
 /** Text recognition for one scanned source, watched where the source lives. */
-function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: SourceOcrPanel }) {
-  const pages = `${status.textlessPages.length} scanned page${status.textlessPages.length === 1 ? "" : "s"}`;
+export function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: SourceOcrPanel }) {
   const action = (label: string, act: () => void) => <button type="button"
-    className="rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600"
+    className="min-h-6 rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600"
     onClick={act}>{label}</button>;
-  return <div className="col-span-2 flex items-center gap-2 ps-2 text-xs sm:col-span-3">
+  return <div className="col-span-full flex flex-wrap items-center gap-2 text-xs">
     <span className={cn("min-w-0 truncate", status.state === "done" ? "text-green-800"
       : status.state === "failed" ? "text-red-800" : "text-gray-600")}>
-      {status.state === "done" ? `Text recognized on ${pages}`
+      {status.state === "done" ? "Text recognition complete"
         : status.state === "failed" ? status.error || "Text recognition failed"
-        : status.state === "paused" ? `Recognition paused — ${pages} left`
-        : `Recognizing text on ${pages}${status.page ? `, at page ${status.page}` : ""}`}</span>
+        : status.state === "paused" ? "Text recognition paused"
+        : status.state === "cancelled" ? "Text recognition cancelled"
+        : `Recognizing text${status.page ? ` on page ${status.page}` : ""}`}</span>
     <span className="ms-auto flex shrink-0 gap-1">
       {status.state === "running" && action("Pause", () => ocr.stop([status.role], true))}
-      {status.state === "paused" && action("Resume", () => ocr.begin([status]))}
-      {status.state !== "done" && action("Stop", () => ocr.stop([status.role], false))}
+      {["paused", "failed", "cancelled"].includes(status.state) && action("Resume", () => void ocr.begin([status]))}
+      {["running", "paused"].includes(status.state) && action("Cancel", () => void ocr.stop([status.role], false))}
     </span>
   </div>;
 }

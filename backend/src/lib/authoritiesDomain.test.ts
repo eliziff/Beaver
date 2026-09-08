@@ -478,7 +478,7 @@ describe("authorities draft domain", () => {
   it("edits review state immutably with explicit identities and reference targets", () => {
     const text = "Case A; Case B";
     const base: AuthoritiesDraft = {
-      ...createAuthoritiesDraft({ kind: "manual" }),
+      ...createAuthoritiesDraft(sourceImport, sourceBindings), stage: "build",
       units: [{ id: "footnote:1", kind: "footnote", ordinal: 1, footnoteId: 1,
         footnoteRefs: [], pageNumbers: [], text, occurrenceIds: ["whole"] }],
       occurrences: { whole: occurrence("whole", text, 0, text.length, "a") },
@@ -490,6 +490,8 @@ describe("authorities draft domain", () => {
     let draft = reduceAuthoritiesDraft(base, {
       type: "split-occurrence", occurrenceId: "whole", replacements: [left, right],
     });
+    expect(draft.stage).toBe("citations");
+    expect(base.stage).toBe("build");
     draft = reduceAuthoritiesDraft(draft, {
       type: "relink-occurrence", occurrenceId: "right", authorityId: "b",
     });
@@ -567,7 +569,7 @@ describe("authorities draft domain", () => {
         "old-1": { ...occurrence("old-1", text, 0, 6, "old-a"), reviewed: true },
         "old-2": { ...occurrence("old-2", text, 8, 14, "old-a"), reviewed: true },
       },
-      authorities: { "old-a": { ...authority("old-a", "same-key"), displayName: "Grant",
+      authorities: { "old-a": { ...authority("old-a", "same-key"), name: "R. v. Grant", displayName: "Grant",
         excluded: true, evidenceIds: ["receipt-old"],
         locators: [{ kind: "paragraph", label: "12" }],
         sourceIdentity: { provider: "a2aj", stableSourceId: "grant",
@@ -580,12 +582,12 @@ describe("authorities draft domain", () => {
       units: [{ id: "footnote:1", kind: "footnote", ordinal: 1, footnoteId: 1,
         footnoteRefs: [[1, 0]], pageNumbers: [], text, occurrenceIds: ["fresh"] }],
       occurrences: { fresh: occurrence("fresh", text, 0, 6, null) },
-      authorities: { "new-a": authority("new-a", "same-key") },
+      authorities: { "new-a": { ...authority("new-a", "same-key"), name: null } },
       authorityOrder: ["new-a"],
     } });
 
     expect(refreshed.authorities["new-a"]).toMatchObject({
-      displayName: "Grant", excluded: true, evidenceIds: ["receipt-old"],
+      name: "R. v. Grant", displayName: "Grant", excluded: true, evidenceIds: ["receipt-old"],
       locators: [{ kind: "paragraph", label: "12" }],
       source: { kind: "resolved" }, sourceIdentity: { stableSourceId: "grant" },
     });
