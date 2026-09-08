@@ -96,9 +96,10 @@ export function createSourceWorkspacesRouter(app: SourceWorkspaceApplication) {
     res.json(await app.views(scope(res), id.parse(req.params.id)));
   }));
   router.get("/:id/findings", asyncRoute(async (req, res) => {
-    const { source_ids, ...input } = z.object({ ...page,
+    const { source_ids, message_id, ...input } = z.object({ ...page, chatId: id.optional(), message_id: id.optional(),
       source_ids: z.string().max(20_000).optional() }).strict().parse(req.query);
     res.json(await app.findings(scope(res), id.parse(req.params.id), { ...input,
+      ...(message_id ? { messageIds: [message_id] } : {}),
       ...(source_ids ? { sourceIds: source_ids.split(",") } : {}) }));
   }));
   router.post("/:id/bind", asyncRoute(async (req, res) => {

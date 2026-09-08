@@ -47,6 +47,7 @@ interface Props {
     editModeLabels?: { manual: string; auto: string };
     sendDisabled?: boolean;
     searchMessageId?: string | null;
+    messageActions?: (messageId: string) => ReactNode;
 }
 
 function without<T>(items: Set<T>, item: T) {
@@ -80,7 +81,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
         isDocReloading, isEditReloading, resolvedEditStatuses,
         layout = "page", gutterVisible = false, header, dock, showContextTools = true,
         onOpenWorkflows, projectName, projectCmNumber, initialDraft, initialModel, initialReasoningEffort,
-        editModeLabels, sendDisabled, searchMessageId,
+        editModeLabels, sendDisabled, searchMessageId, messageActions,
     }, ref) {
     const { messages, rejectedTurn } = session;
     const messagesContainerRef = useRef<HTMLDivElement>(null),
@@ -207,6 +208,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                                                 !!isEditReloading?.(id)}
                                             resolvedEditStatuses={mergedStatuses} />
                                     )}
+                                    {message.role === "assistant" && message.contentFinal && !session.run && messageActions?.(message.id)}
                                     {message.role === "assistant" && message.turnStatus && (
                                         <div role="status" className={`mt-2 flex items-center gap-1.5 text-xs ${message.turnStatus === "interrupted" ? "text-red-700" : "text-gray-500"}`}>
                                             <CircleStop className="size-3.5" aria-hidden="true" />

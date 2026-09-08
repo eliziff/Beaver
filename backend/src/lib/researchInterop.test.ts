@@ -27,7 +27,8 @@ async function fixture() {
     receipt = (index: number) => legal.createA2AJPassageEvidence({ citation: "Test 1", name: "Example decision", dataset: "scc", language: "en",
       sourceText: "The provisions are read together. A saving clause does not cure this problem.",
       spanText: index ? "A saving clause does not cure this problem." : "The provisions are read together.", start: index ? 33 : 0,
-      end: index ? 75 : 32, externalUrl: null, sourceClass: "case", sourceReference: { id: "test-source" } }),
+      end: index ? 75 : 32, locator: { kind: "paragraph", label: String(index + 1) },
+      externalUrl: null, sourceClass: "case", sourceReference: { id: "test-source" } }),
     receipts = [receipt(0), receipt(1)];
   let file = await sources.create(owner, { title: "Termination clauses" });
   const act = async (action: Parameters<typeof sources.update>[2]["action"]) => {
@@ -229,6 +230,37 @@ it("reviews categorical labels for selected rows in the shared proposal before a
   expect(yes).toBeDefined(); expect(accepted.state.sources[f.sourceId].labelIds).toContain(yes.id);
   expect(Object.values(accepted.state.labels).some(({ name }) => name === "No")).toBe(false);
   expect(accepted.state.sources[ids.find((id) => id !== f.sourceId)!].labelIds).toEqual([]);
+});
+it("reads saved workspace passages through their handles without fetching the source and files a finding reversibly", async () => {
+  const f = await fixture(), { runLocalAssistantTools } = await import("./__tests__/support/localAssistantTools"),
+    { a2ajLegalSourceProvider } = await import("./legalSources/a2aj"),
+    fetch = vi.spyOn(a2ajLegalSourceProvider, "document").mockRejectedValue(new Error("Source must not be fetched")),
+    context = await f.sources.context(owner, f.file().document.id, { target: "sources", labelIds: [f.labelId] }),
+    state = f.legal.createLegalEvidenceTurnState(), receipt = f.receipts[0];
+  expect(context.subjects[0].savedEvidence).toEqual([receipt]);
+  const results = await runLocalAssistantTools(owner.userId, [
+    { name: "Read", id: "inventory", input: { file_path: "selection" } },
+    { name: "Read", id: "saved", input: { file_path: receipt.evidence_id } },
+    { name: "Read", id: "pinpoint", input: { file_path: context.subjects[0].resource,
+      locator_kind: receipt.locator.kind, locator: receipt.locator.label } },
+  ], { documents: f.documents, sources: f.sources, researchContext: context, legalEvidence: state });
+  expect(JSON.parse(results[0].content).items).toContainEqual(expect.objectContaining({ evidence_id: receipt.evidence_id }));
+  for (const result of results.slice(1)) expect(JSON.parse(result.content)).toMatchObject({ exact_passage: receipt.span_text });
+  expect(fetch).not.toHaveBeenCalled();
+  await f.turn("What follows?", "Supported conclusion.");
+  const before = (await f.sources.get(owner, f.file().document.id))!, finding = (await f.sources.findings(owner,
+    before.document.id, { chatId: f.chat.id, offset: 0, limit: 10 })).items[0],
+    filed = await f.sources.saveFindings(owner, before.document.id, { references: [finding.reference], typeId: f.labelId,
+      versionId: before.versionId, workingRevision: before.workingRevision }),
+    highlights = (await f.sources.items(owner, before.document.id, { kind: "passages", offset: 0, limit: 20 })).items,
+    history = (await f.sources.items(owner, before.document.id, { kind: "history", offset: 0, limit: 1 })).items[0];
+  expect(highlights).toContainEqual(expect.objectContaining({ kind: "passage", value: expect.objectContaining({
+    receipt: f.receipts[1], labelIds: [Object.values(filed.file.state.labels).find(({ name, scope }) => name === "Integrated scheme" && scope === "highlight")!.id] }) }));
+  if (history.kind !== "change") throw new Error("Missing filing history");
+  const restored = (await f.sources.update(owner, before.document.id, { versionId: filed.file.versionId,
+    workingRevision: filed.file.workingRevision, action: { type: "undo", changeId: history.value.id } })).file;
+  expect(restored.state.sources).toEqual(before.state.sources);
+  expect(restored.state.labels).toEqual(before.state.labels);
 });
 it("round trips every table column and the same receipt under three types, then undoes all filing", async () => {
   const f = await fixture(), columns = ["Honesty", "Exclusion", "Remedy"].map((name, index) => ({ index, name, prompt: `${name}?`, format: "text" })),
