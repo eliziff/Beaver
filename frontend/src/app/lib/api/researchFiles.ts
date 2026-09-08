@@ -59,7 +59,7 @@ export type ResearchTableDesign = { title: string; columns: ColumnConfig[];
 export type ResearchTablePreview = { fingerprint: string; design: ResearchTableDesign;
   question?: string | null; proposed?: boolean; fallback?: string;
   rows: { id: string; title: string; sourceId: string; evidenceIds?: string[] }[];
-  stats: { index: number; reused: number; kinds: string[]; evidence: number }[];
+  stats: { index: number; reused: number; kinds: string[]; evidence: number; existing: boolean }[];
   samples: { rowId: string; columnIndex: number; text: string; kinds: string[] }[] };
 export const previewWorkspaceTable = (id: string, input: ResearchTableInput) =>
   post<ResearchTablePreview>(`/source-workspaces/${segment(id)}/table/preview`, input);

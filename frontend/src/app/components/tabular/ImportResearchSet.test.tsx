@@ -50,7 +50,7 @@ it("shows proposed columns and marks genuinely unanswered questions", async () =
   ask("Costs too");
   await screen.findByDisplayValue("Costs");
   expect(api.previewWorkspaceTable).toHaveBeenLastCalledWith("workspace", { model: "model", request: "Costs too" });
-  expect(await screen.findByText("Extracted for every source")).toBeVisible();
+  expect(await screen.findByText(/New ? Extracted for every source/)).toBeVisible();
 });
 it("shows a stale-preview rejection without navigating away or silently reinterpreting it", async () => {
   const onOpen = vi.fn(); api.openWorkspaceTable.mockRejectedValueOnce(new Error("Research changed; refresh the preview"));
