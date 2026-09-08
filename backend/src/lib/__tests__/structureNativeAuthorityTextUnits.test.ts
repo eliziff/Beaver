@@ -1,4 +1,6 @@
 import JSZip from "jszip";
+import { readFileSync } from "node:fs";
+import { PDFDocument, StandardFonts } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import { pdfPassageGeometry, structureNative } from "../structureNative";
 
@@ -134,4 +136,66 @@ it("does not invent a paragraph when printed numbering is missing or duplicated"
     expect(result.targets[0].status).toBe(status);
     expect(result.targets[0].pages.flatMap(page => page.passageRects)).toEqual([]);
   }
+});
+
+it("borders detached margin paragraphs across bilingual pages, excluding headers and the next heading", async () => {
+  const pdf = await PDFDocument.create(), font = await pdf.embedFont(StandardFonts.TimesRoman);
+  const page = () => {
+    const result = pdf.addPage([612, 792]);
+    result.drawText("Reporter header", { x: 72, y: 710, size: 10, font });
+    result.drawText(String(pdf.getPageCount() + 14), { x: 520, y: 710, size: 10, font });
+    return result;
+  };
+  const row = (p: ReturnType<typeof page>, y: number, text: string, label?: string) => {
+    for (const x of [84, 318]) p.drawText(text, { x, y, size: 10, font });
+    if (label) p.drawText(label, { x: 560, y: y + 2, size: 8, font });
+  };
+  const first = page();
+  row(first, 600, "Prior numbered paragraph with enough text.", "20");
+  row(first, 120, "The cited paragraph starts near the foot.", "21");
+  row(first, 108, "Its first page has a second line of evidence.");
+  const second = page();
+  row(second, 670, "The cited paragraph continues on this page.");
+  row(second, 658, "Its final line belongs inside the same border.");
+  row(second, 620, "II. Legislation");
+  row(second, 595, "The following paragraph is not cited here.", "22");
+  row(second, 400, "Another numbered paragraph precedes it.", "23");
+  row(second, 280, "The other cited paragraph starts here.", "24");
+  row(second, 268, "All of this concluding line must be bordered.");
+  row(second, 240, "IV. Issues");
+  row(second, 215, "The next paragraph must remain outside.", "25");
+  const bytes = Buffer.from(await pdf.save()), native = structureNative();
+  const document = await native.derivePdfDocument(bytes, {});
+  const { targets } = await pdfPassageGeometry(document, bytes,
+    ["21", "24"].map(locator => ({ id: locator, locatorKind: "paragraph", locator })));
+  expect(targets.map(target => target.status)).toEqual(["found", "found"]);
+  expect(targets.map(target => target.pages.map(p => p.pageNumber))).toEqual([[1, 2], [2]]);
+  const firstRect = targets[0].pages[0].passageRects[0];
+  expect(firstRect[0]).toBe(84);
+  expect(firstRect[1]).toBeLessThan(672); // Above the first drawn baseline.
+  expect(firstRect[3]).toBeGreaterThan(684); // Below the second drawn baseline.
+  expect(firstRect[3] - firstRect[1]).toBeLessThan(30);
+  for (const target of targets) {
+    expect(target.pages.map(p => p.text).join(" ")).not.toMatch(/Reporter|Legislation|Issues|following|next paragraph/);
+    expect(target.pages.every(p => p.passageRects[0][2] > 450)).toBe(true);
+  }
+  expect(targets[0].pages[1].text).toContain("final line belongs inside");
+  expect(targets[1].pages[0].text).toContain("concluding line must be bordered");
+});
+
+it.skipIf(!process.env.LEGAL_STRUCTURE_LATIMER_PDF)("resolves the original Latimer paragraphs 21 and 24 on their actual PDF pages", async () => {
+  const bytes = readFileSync(process.env.LEGAL_STRUCTURE_LATIMER_PDF!);
+  const native = structureNative(), document = await native.derivePdfDocument(bytes, {});
+  expect(native.pdfDocumentSummary(document).sha256).toBe("c693092532727c6dcef049d90489414b5efd2dffb377d1a4a2ba08da572f7d01");
+  const { targets } = await pdfPassageGeometry(document, bytes,
+    ["21", "24"].map(locator => ({ id: locator, locatorKind: "paragraph", locator })));
+  expect(targets.map(target => target.status)).toEqual(["found", "found"]);
+  expect(targets.map(target => target.pages.map(p => p.pageNumber))).toEqual([[13, 14], [15]]);
+  // Independent visual bounds: both columns, all continuation lines, no next heading.
+  const bounds = [[84, 638, 534, 674], [60, 114, 510, 161], [84, 300, 534, 496]];
+  targets.flatMap(target => target.pages).forEach((page, index) => {
+    page.passageRects[0].forEach((coordinate, axis) =>
+      expect(Math.abs(coordinate - bounds[index][axis])).toBeLessThan(2));
+    expect(page.text).not.toMatch(/Legislation|Issues|questions en litige/);
+  });
 });
