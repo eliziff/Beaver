@@ -15,8 +15,9 @@ that review before source acquisition. Show source rows after acquisition, not
 as a competing pre-import stage. Resolve source identities and attach remaining
 PDFs before proceeding to highlight review; build follows review.
 
-For scanned inputs that need text, present explicit OCR choices before highlight
-review. Physical page citations can narrow OCR; paragraph/section targets may
+After Sources, scanned inputs open the **Recognize text** modal before Highlights.
+The modal lists scanned PDFs, page choices, recognition controls and progress;
+eager recognition does not bypass it. Physical page citations can narrow OCR; paragraph/section targets may
 need broader processing. Missing runtime dependencies are actionable errors.
 Manual-only marks and margin-only workflows do not silently require full OCR.
 
