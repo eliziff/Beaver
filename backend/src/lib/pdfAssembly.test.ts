@@ -3,7 +3,15 @@ import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFNa
 import { expect, it } from "vitest";
 import * as pdf from "pdf-lib";
 import { pdfAssembly } from "./pdfAssembly";
-const { addInternalLink, applyOcrText, applyOutlines, applyPageLabels, drawPageNumber } = pdfAssembly(pdf);
+const { addInternalLink, applyOcrText, applyOutlines, applyPageLabels, drawPageNumber, assemble } = pdfAssembly(pdf);
+
+it("does not return an output when cancelled during assembly", async () => {
+  const controller = new AbortController();
+  await expect(assemble({ fonts: { regular: StandardFonts.TimesRoman }, parts: [],
+    signal: controller.signal, before: ({ document }) => {
+      document.addPage(); controller.abort();
+    } })).rejects.toHaveProperty("name", "AbortError");
+});
 
 it("keeps numbers inside rotated crop boxes and preserves navigation and hidden text on save", async () => {
   const document = await PDFDocument.create();

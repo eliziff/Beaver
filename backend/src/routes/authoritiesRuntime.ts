@@ -5,6 +5,7 @@ import { pipeline } from "node:stream/promises";
 import { reject } from "../lib/applicationError";
 import { authorityPassageTargets, buildAuthorities, prepareAuthorityAnnotations, type AuthoritiesBuildInput } from
   "../lib/authoritiesBuild";
+import { mapAuthorityBookBytes, type PreparedAuthoritiesBook } from "../lib/authoritiesBook";
 import { attachedAuthoritySources, createAuthoritiesDraft, decodeAuthoritiesDraft,
   reduceAuthoritiesDraft, type AuthoritiesDraft } from "../lib/authoritiesDomain";
 import { importStandaloneAuthoritiesFile } from "../lib/authoritiesImport";
@@ -277,13 +278,21 @@ export function createAuthoritiesRuntimeRouter(
             : `Could not read ${files[index].originalname}`);
         }) };
     }
+    let book: PreparedAuthoritiesBook | undefined;
     const built = await buildAuthorities({ draft: state, title,
-      workProduct: { id, revision }, sources, signal: build.signal }).catch((error) => {
+      workProduct: { id, revision }, sources, signal: build.signal }, async (prepared) => {
+      book = prepared; return [];
+    }).catch((error) => {
       if (build.signal.aborted) throw error;
       return reject(409, error instanceof Error ? error.message : "Authorities could not be built");
     });
-    await sendMultipart(res, { receipt: built.receipt },
-      Object.values(built.artifacts).filter((artifact) => artifact !== undefined));
+    const artifacts = Object.values(built.artifacts).filter((artifact) => artifact !== undefined);
+    const bookFiles: Array<{ role: string; mimeType: string; bytes: Buffer }> = [];
+    const prepared = book && await mapAuthorityBookBytes(book, (bytes, role) => {
+      bookFiles.push({ role, mimeType: "application/pdf", bytes: Buffer.from(bytes) }); return role;
+    });
+    await sendMultipart(res, { receipt: built.receipt, ...(prepared ? { book: prepared } : {}) },
+      [...artifacts, ...bookFiles]);
   }));
   return router;
 }
