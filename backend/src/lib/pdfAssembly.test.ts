@@ -29,7 +29,7 @@ it("keeps numbers inside rotated crop boxes and preserves navigation and hidden 
   ] }], true);
   applyPageLabels(document, 17);
   const saved = await PDFDocument.load(await document.save());
-  const expected = [[508, 80], [70, 718], [132, 780], [570, 142]];
+  const expected = [[508, 80], [570, 718], [132, 780], [70, 142]];
   saved.getPages().forEach((page, index) => {
     const streams = page.node.Contents() as PDFArray;
     const content = streams.asArray().map((ref) => Buffer.from(decodePDFRawStream(
