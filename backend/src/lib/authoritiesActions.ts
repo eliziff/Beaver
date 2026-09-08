@@ -19,18 +19,8 @@ export const authorityCitationServices = {
 };
 type CitationServices = typeof authorityCitationServices;
 
-type PublicDomainAction = Exclude<AuthoritiesAction, {
-  type: "ingest-ledger" | "add-seed" | "add-authority" | "resolve-authority" |
-    "attach-source" | "begin-canlii-handoff" | "split-occurrence" |
-    "merge-occurrences" | "replace-occurrence" | "resolve-discrepancy" | "refresh";
-}>;
-export type AuthoritiesUserAction = PublicDomainAction |
-  { type: "add-authority"; kind: AuthorityKind; citation: string; name?: string | null } |
-  { type: "begin-canlii-handoff"; authorityId: string } |
-  { type: "split-occurrence"; occurrenceId: string; cursor: number } |
-  { type: "merge-occurrence"; occurrenceId: string } |
-  { type: "set-authority-span"; occurrenceId: string; start: number; end: number } |
-  { type: "set-pinpoint-span"; occurrenceId: string; start: number; end: number };
+import type { AuthoritiesUserAction } from "../../../shared/authorities-contract.d.ts";
+export type { AuthoritiesUserAction } from "../../../shared/authorities-contract.d.ts";
 
 export type AuthoritiesInitialSettings = Partial<AuthoritiesBuildSettings> & {
   profileId?: AuthoritiesProfileId;
