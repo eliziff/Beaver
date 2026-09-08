@@ -7,13 +7,13 @@ import { CourtRecordDocuments, type OcrRun } from "./CourtRecordDocuments";
 import { buildCourtRecord } from "./assembly";
 import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { Button } from "@/app/components/ui/button";
-import { LibraryDocumentPicker } from "@/app/components/shared/LibraryDocumentPicker";
+import { AddDocumentsModal } from "@/app/components/modals/AddDocumentsModal";
 import { Pagination } from "@/app/components/shared/TablePrimitive";
 import { SearchBar } from "@/app/components/ui/search-bar";
 import { Modal } from "@/app/components/modals/Modal";
 import { OutputFolderSetting } from "@/app/components/shared/OutputFolderSetting";
 import { applySourceEntryFields, courtRecordDraft, courtRecordDraftFromDocuments, restoreCourtRecordDraft } from "./draftState";
-import { acceptedSourceFormats, sourceFormatLabel } from "./formats";
+import { sourceAccept } from "./formats";
 import { CourtRecordChooser, CourtRecordSetup } from "./CourtRecordSetup";
 import { downloadArtifact, FILING_CONTACT_FIELDS, needsOcr, type CourtRecordsHost,
   type DraftOutputChoice, type FilingContactCover, type SelectedFile } from "./host";
@@ -453,19 +453,6 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     return addSelectedFiles(kindId, files.map((file) => ({ file })), exhibitLabel);
   }
 
-  async function pickFiles(kindId: string, exhibitLabel?: string) {
-    const kind = profile.documentKinds.find((item) => item.id === kindId);
-    if (!kind || !host.pickDeviceFiles) return;
-    try {
-      await addSelectedFiles(kindId,
-        await host.pickDeviceFiles(!!kind.repeatable && !exhibitLabel), exhibitLabel);
-    } catch (caught) {
-      if (!(caught instanceof DOMException && caught.name === "AbortError")) {
-        setError(errorMessage(caught, "The file could not be selected."));
-      }
-    }
-  }
-
   async function addSelectedFiles(kindId: string, files: SelectedFile[], exhibitLabel?: string) {
     const kind = profile.documentKinds.find((item) => item.id === kindId);
     if (!kind || kind.requirement === "forbidden" || !files.length) return;
@@ -708,24 +695,17 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     } finally { setSavingFilingContact(false); }
   }
 
-  async function searchSources(query: string, signal: AbortSignal) {
-    const current = draftRef.current;
-    const kind = profile.documentKinds.find((item) => item.id === sourceKindId);
-    if (!current || !kind) return [];
-    const [library, outputs] = await Promise.all([
-      host.searchLibrary?.(query, acceptedSourceFormats(kind), current, signal) ?? [],
-      host.searchDraftOutputs?.(query, kind, current, signal) ?? [],
-    ]);
-    const results = new Map<string, Document & { draft?: DraftOutputChoice }>(
-      library.map((document) => [document.id, document]),
-    );
-    for (const draft of outputs) results.set(draft.document.id, { ...draft.document, draft });
-    return [...results.values()];
-  }
-
-  function openSource(kindId: string, exhibitLabel?: string) {
+  const [sourceOutputs, setSourceOutputs] = useState<DraftOutputChoice[]>([]);
+  async function openSource(kindId: string, exhibitLabel?: string) {
+    setSourceOutputs([]);
     setSourceKindId(kindId);
     setSourceExhibitLabel(exhibitLabel);
+    const current = draftRef.current;
+    const kind = profile.documentKinds.find((item) => item.id === kindId);
+    if (current && kind && host.searchDraftOutputs) {
+      try { setSourceOutputs(await host.searchDraftOutputs("", kind, current)); }
+      catch (caught) { setError(errorMessage(caught, "Available files could not be loaded.")); }
+    }
   }
 
   async function importSource(selected: Document & { draft?: DraftOutputChoice }) {
@@ -789,10 +769,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       heading={heading} step={step}
       onFiles={(kindId, files, exhibitLabel) => void addFiles(kindId, files, exhibitLabel)}
       onDescription={addDescription}
-      onPick={host.pickDeviceFiles
-        ? (kindId, exhibitLabel) => void pickFiles(kindId, exhibitLabel) : undefined}
-      onLibrary={host.searchLibrary || host.searchDraftOutputs ? openSource : undefined}
-      sourceLabel={host.searchLibrary ? "Library" : "Saved outputs"}
+      onChoose={(kindId, exhibitLabel) => void openSource(kindId, exhibitLabel)}
       onEntry={(id, patch) => { setEntries((current) => current.map((entry) => entry.id === id ? { ...entry, ...patch } : entry)); invalidate(); }}
       onAssign={(id, label) => { setEntries((current) => assignExhibit(current, id, label)); invalidate(); }}
       onAddExhibit={() => {
@@ -921,17 +898,22 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         onOpen={(next) => { setSavedOpen(false); void openSavedDraft(next); }}
         onClose={() => setSavedOpen(false)} />}
       {draft && sourceKindId && sourceKind && (
-        <LibraryDocumentPicker
-          open
-          title={`Choose ${sourceKind.label}`}
-          formatLabel={sourceFormatLabel(sourceKind)}
-          sourceLabel={host.searchLibrary ? "Library" : "Saved outputs"}
+        <AddDocumentsModal open
+          breadcrumb={["Court Records", `Choose ${sourceKind.label.toLowerCase()}`]}
           key={`${draft.id}:${draft.projectId}:${profile.id}:${sourceKindId}`}
-          search={searchSources}
+          accept={sourceAccept(sourceKind)}
+          multiple={false}
+          showTabs={host.mode === "beaver"}
+          documents={sourceOutputs.map(({ document }) => document)}
           busy={importingSource}
-          detail={({ draft }) => draft ? `From ${draft.workProductTitle}` : undefined}
-          onError={(caught) => setError(errorMessage(caught, "Available files could not be loaded."))}
-          onSelect={(document) => void importSource(document)}
+          onUploadFiles={host.mode === "standalone" ? async (files) => {
+            setSourceKindId(undefined);
+            await addFiles(sourceKind.id, files, sourceExhibitLabel);
+          } : undefined}
+          onSelect={async ([document]) => {
+            if (document) await importSource({ ...document,
+              draft: sourceOutputs.find((choice) => choice.document.id === document.id) });
+          }}
           onClose={() => { setSourceKindId(undefined); setSourceExhibitLabel(undefined); }}
         />
       )}

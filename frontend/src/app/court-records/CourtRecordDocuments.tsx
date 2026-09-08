@@ -5,10 +5,10 @@ import {
   Loader2,
 } from "lucide-react";
 import { CourtRecordStepHeading, RequiredBadge } from "./CourtRecordStepHeading";
-import { Button, buttonClassName } from "@/app/components/ui/button";
+import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { cn, formatBytes } from "@/app/lib/utils";
-import { acceptedSourceFormats, sourceAccept, sourceFormat } from "./formats";
+import { acceptedSourceFormats, sourceFormat } from "./formats";
 import { rule70MaximumPages, sourceExhibitSlots } from "./types";
 import type { ComplianceFinding, CourtProfile, DocumentKind, RecordEntry } from "./types";
 
@@ -21,9 +21,7 @@ type Props = {
   entryFindings: Map<string, ComplianceFinding[]>;
   onFiles: (kindId: string, files: File[], exhibitLabel?: string) => void;
   onDescription: (kindId: string, title?: string) => void;
-  onPick?: (kindId: string, exhibitLabel?: string) => void;
-  onLibrary?: (kindId: string, exhibitLabel?: string) => void;
-  sourceLabel?: string;
+  onChoose: (kindId: string, exhibitLabel?: string) => void;
   onEntry: (id: string, patch: Partial<RecordEntry>) => void;
   onRemove: (id: string) => void;
   onAssign: (id: string, label?: string) => void;
@@ -126,7 +124,7 @@ function PendingFiles(props: Props & { pending: RecordEntry[] }) {
   </section>;
 }
 
-function DocumentSlot({ profile, kind, hideLabel, entries, busyEntryId, entryFindings, onFiles, onDescription, onPick, onLibrary, sourceLabel, onEntry, onRemove, onAssign, onAssignKind, reading, onStopReading, onRelink }: Props & { kind: DocumentKind; hideLabel?: boolean }) {
+function DocumentSlot({ profile, kind, hideLabel, entries, busyEntryId, entryFindings, onFiles, onDescription, onChoose, onEntry, onRemove, onAssign, onAssignKind, reading, onStopReading, onRelink }: Props & { kind: DocumentKind; hideLabel?: boolean }) {
   const matching = entries.filter((entry) => entry.kindId === kind.id);
   if (kind.descriptionOnly) {
     const first = matching[0];
@@ -184,8 +182,7 @@ function DocumentSlot({ profile, kind, hideLabel, entries, busyEntryId, entryFin
           {kind.requirement === "required" && !kind.generated && !matching.length &&
             <span className="ms-2 inline-flex"><RequiredBadge /></span>}
         </h3>
-        <DocumentActions kind={kind} entries={entries} onFiles={onFiles} onPick={onPick}
-          onLibrary={onLibrary} sourceLabel={sourceLabel} onDescription={onDescription} />
+        <DocumentActions kind={kind} entries={entries} onChoose={onChoose} onDescription={onDescription} />
       </div>}
       {!!matching.length && (
         <div className={cn("divide-y divide-gray-100", !hideLabel && "mt-3")}>
@@ -214,7 +211,7 @@ function DocumentSlot({ profile, kind, hideLabel, entries, busyEntryId, entryFin
 }
 
 function DocumentActions({ kind, entries, onDescription, ...sources }:
-  Pick<Props, "entries" | "onFiles" | "onPick" | "onLibrary" | "sourceLabel" | "onDescription"> &
+  Pick<Props, "entries" | "onChoose" | "onDescription"> &
   { kind: DocumentKind }) {
   const count = entries.filter((entry) => entry.kindId === kind.id).length;
   const canAdd = kind.repeatable || count === 0;
@@ -321,32 +318,13 @@ function AffidavitWording({ statements = [] }: { statements?: string[] }) {
   </details>;
 }
 
-function AddFileControls({ kind, onFiles, onPick, onLibrary,
-  targetLabel, label = "Add file" }:
-  Pick<Props, "onFiles" | "onPick" | "onLibrary" | "sourceLabel"> & {
+function AddFileControls({ kind, onChoose, targetLabel, label = "Add file" }:
+  Pick<Props, "onChoose"> & {
     kind: DocumentKind; targetLabel?: string; label?: string;
   }) {
-  const multiple = !!kind.repeatable && !targetLabel;
-  const id = `court-record-${kind.id}-${targetLabel ?? "file"}`;
-  const variant = label.startsWith("Replace") ? "outline" : "default";
-  const withTarget = <T,>(callback: (kindId: string, targetLabel?: string) => T) =>
-    targetLabel ? callback(kind.id, targetLabel) : callback(kind.id);
-  return <>
-    {(onLibrary || onPick) ? <Button id={id} type="button" variant={variant} className="h-9 px-3"
-      onClick={() => withTarget((onLibrary || onPick)!)}>{label}</Button> :
-      <label className={buttonClassName({ variant,
-        className: "h-9 cursor-pointer px-3 focus-within:ring-3 focus-within:ring-ring/50" })}>
-        {label}
-        <input id={id} className="sr-only" type="file" accept={sourceAccept(kind)} multiple={multiple}
-          aria-required={(kind.requirement === "required" && !kind.generated) || undefined}
-          onChange={(event) => {
-            const files = [...(event.target.files ?? [])];
-            if (targetLabel) onFiles(kind.id, files, targetLabel);
-            else onFiles(kind.id, files);
-            event.target.value = "";
-          }} />
-      </label>}
-  </>;
+  return <Button id={`court-record-${kind.id}-${targetLabel ?? "file"}`} type="button"
+    variant={label.startsWith("Replace") ? "outline" : "default"} className="h-9 px-3"
+    onClick={() => onChoose(kind.id, targetLabel)}>{label}</Button>;
 }
 
 const pageList = (pages: number[]) => pages.length === 1 ? `page ${pages[0]}`

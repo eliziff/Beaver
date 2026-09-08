@@ -22,6 +22,7 @@ import { Modal } from "./Modal";
 interface Props {
   open: boolean;
   onClose: () => void;
+  onUploadFiles?: (files: File[]) => Promise<void>;
   onSelect: (documents: Document[], projectId?: string) => void | Promise<void>;
   breadcrumb: string[];
   initialTab?: DirectoryTab;
@@ -59,6 +60,7 @@ export function AddDocumentsModal({
   open,
   onClose,
   onSelect,
+  onUploadFiles,
   breadcrumb,
   initialTab = "files",
   projectId,
@@ -166,6 +168,11 @@ export function AddDocumentsModal({
     const unsupportedMessage = formatUnsupportedDocumentWarning(unsupported);
     setWarning(unsupportedMessage);
     if (!supported.length) return;
+    if (onUploadFiles) {
+      await onUploadFiles(supported);
+      onClose();
+      return;
+    }
     setPendingNames(supported.map(({ name }) => name));
     let added: Document[] = [], failed: File[] = [];
     if (folder && projectId) {
