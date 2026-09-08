@@ -25,7 +25,7 @@ import { downloadBlob } from "@/app/lib/download";
 import { cn, errorMessage, formatDateTime } from "@/app/lib/utils";
 import type { WorkProductFocus, WorkProductMetadata,
   WorkProductRefresh } from "@/app/lib/workProducts";
-import { Sources, type AuthorityPanelProps } from "./AuthoritySources";
+import { Sources } from "./AuthoritySources";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
 import { useScannedSources, useSourceOcr } from "./sourceOcr";
 import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesHost,
@@ -93,8 +93,7 @@ type DiscrepancyHandler = (finding: AuthoritiesDiscrepancy,
   action: AuthoritiesDiscrepancyAction, done: () => void) => void;
 
 export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
-  onFocusChange, refreshToken, locked = false, LibraryPicker, route, jurisdictionOrder = [], onOpenCitation }: {
-  onOpenCitation?: AuthorityPanelProps["onOpenCitation"];
+  onFocusChange, refreshToken, locked = false, LibraryPicker, route, jurisdictionOrder = [] }: {
   host: AuthoritiesHost;
   route: AuthoritiesRoute;
   headerActions?: ReactNode;
@@ -629,7 +628,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       onResolve={host.resolveDiscrepancy ? resolveDiscrepancy : undefined}
       onDone={() => setFindingId("")} />;
   const authorityPanelProps = { authorities, tabs: authorityTabs, busy, sourceIssues, ocr,
-    onOpenCitation,
     inspection: scannedSources,
     onAction: act, onEditIdentity: setEditingAuthority,
     onOpenSource: host.readSource ? openSource : undefined, onAdd: () => setAddOpen(true),

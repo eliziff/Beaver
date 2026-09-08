@@ -2,27 +2,6 @@ import { hasBilingualAuthoritySource } from "../../../../shared/authorities-sour
 import type { AuthorityIdentity, AuthorityOccurrence, AuthoritiesProduct, AuthoritySourceLanguage } from "./types";
 import type { AuthoritiesSourceIssue } from "./host";
 import { authoritiesProfile } from "./profiles";
-import type { Citation } from "@/app/lib/citations";
-
-export function authoritySourceCitation(state: AuthoritiesProduct["state"], item: AuthorityIdentity): Citation | null {
-  const source = item.source.kind === "attached" ? item.source.sources[0] : null,
-    binding = source && state.bindings[source.bindingRole], locator = item.locators[0] ?? Object.values(state.occurrences)
-      .find(occurrence => occurrence.authorityId === item.id && occurrence.pinpoints.length)?.pinpoints
-      .map(point => ({ kind: point.kind, label: point.text }))[0],
-    external_url = item.sourceIdentity?.externalUrl ?? (item.source.kind === "pending-canlii" ? item.source.pageUrl : source?.sourceUrl),
-    mark = source && item.annotations?.[source.bindingRole]?.marks[0];
-  if (item.sourceIdentity?.provider === "a2aj") return { kind: "a2aj", ref: 1, citation: item.citation,
-    name: authorityName(item), external_url, locator: locator?.label, quotes: [] };
-  if (binding?.kind === "document") return { kind: "document", ref: 1, document_id: binding.documentId,
-    version_id: binding.version === "latest" ? undefined : binding.version.versionId,
-    filename: authorityName(item), authority: authorityLabel(item), external_url, locator: locator?.label,
-    quotes: mark ? [{ quote: mark.excerpt, page: mark.fragments[0]?.pageNumber }]
-      : locator?.kind === "page" ? [{ quote: "", page: Number(locator.label.replace(/^page\s*/iu, "")) }] : [] };
-  const identity = item.sourceIdentity;
-  return identity && ["courtlistener", "tna", "govuk-et", "govinfo", "hansard", "journal"].includes(identity.provider)
-    ? { kind: "public_legal", ref: 1, provider: identity.provider as Extract<Citation, { kind: "public_legal" }>["provider"],
-      identifier: identity.stableSourceId, citation: item.citation, title: authorityName(item), external_url, locator: locator?.label, quotes: [] } : null;
-}
 
 export function authorityName(item: AuthorityIdentity) {
   return item.displayName || item.name || item.citation || "Untitled authority";

@@ -11,12 +11,9 @@ import { SourcesWorkspace } from "../legal/SourcesWorkspace";
 
 export function WorkProductAssistantPanel({ product, chatId, onChatIdChange, expanded = true,
   focus, onClose, synced = true, onBusyChange, onProductUpdated,
-  onTurnComplete, reader }: WorkProductAssistantProps) {
+  onTurnComplete }: WorkProductAssistantProps) {
   const [reading, setReading] = useState<Citation | null>(null), [tab, setTab] = useState("assistant"),
     [workspaceOpen, setWorkspaceOpen] = useState(false);
-  useEffect(() => { if (reader) {
-    setReading(reader.citation); setTab("reading"); setWorkspaceOpen(!!reader.workspace);
-  } }, [reader]);
   const assistant = useAssistantChat({ chatId, onChatIdChange, stayInPlace: true,
     projectId: product?.projectId ?? undefined,
     workProduct: product && { kind: product.kind, id: product.id, revision: product.revision,
