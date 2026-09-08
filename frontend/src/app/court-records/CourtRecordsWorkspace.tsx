@@ -13,7 +13,7 @@ import { SearchBar } from "@/app/components/ui/search-bar";
 import { Modal } from "@/app/components/modals/Modal";
 import { OutputFolderSetting } from "@/app/components/shared/OutputFolderSetting";
 import { applySourceEntryFields, courtRecordDraft, courtRecordDraftFromDocuments, restoreCourtRecordDraft } from "./draftState";
-import { sourceAccept } from "./formats";
+import { sourceAccept, sourceFormat } from "./formats";
 import { CourtRecordChooser, CourtRecordSetup } from "./CourtRecordSetup";
 import { downloadArtifact, FILING_CONTACT_FIELDS, needsOcr, type CourtRecordsHost,
   type DraftOutputChoice, type FilingContactCover, type SelectedFile } from "./host";
@@ -87,11 +87,18 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const profile = COURT_PROFILE_BY_ID.get(profileId) ?? COURT_PROFILE_BY_ID.get(DEFAULT_PROFILE_ID)!;
   const isAffidavit = profile.family === "affidavit";
   const hasCaseDetails = !!(profile.cover.fields.length || profile.cover.partyStyles?.length);
-  const operationBusy = draftBusy || building || saving || !!busyEntryId || importingSource;
+  const operationBusy = draftBusy || building || saving || !!busyEntryId || importingSource || !!reading;
   const openDraftEffect = useEffectEvent(openDraft);
   const saveDraftEffect = useEffectEvent(saveCurrentDraft);
   const refreshDraftEffect = useEffectEvent(refreshDraft);
   const clearDraftEffect = useEffectEvent(clearDraft);
+  const readEntryEffect = useEffectEvent(ocr);
+  useEffect(() => {
+    if (!host.runOcr || draftBusy || busyEntryId || importingSource || reading) return;
+    const next = entries.find((entry) => entry.inputStatus !== "missing" &&
+      sourceFormat(entry.file) === "pdf" && needsOcr(entry));
+    if (next) void readEntryEffect(next);
+  }, [host, entries, draftBusy, busyEntryId, importingSource, reading]);
 
   draftRef.current = draft;
   stateRef.current = courtRecordDraft(profileId, cover, entries);
@@ -173,10 +180,11 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   }, [draft?.id, refreshToken]);
 
   useEffect(() => {
-    if (!draft || operationBusy || sameState(draft.state, stateRef.current)) return;
+    if (!draft || draftBusy || building || saving || operationBusy && !reading ||
+        sameState(draft.state, stateRef.current)) return;
     const timer = window.setTimeout(() => void saveDraftEffect(), 400);
     return () => window.clearTimeout(timer);
-  }, [draft, operationBusy, profileId, cover, entries]);
+  }, [draft, operationBusy, reading, profileId, cover, entries]);
 
   const report = useMemo(() => validateCourtRecord({
     profile,
@@ -214,6 +222,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     setResult(undefined); setShowErrors(false);
     setCreating(false); setSavedOpen(false);
     setSourceKindId(undefined); setSourceExhibitLabel(undefined);
+    setReading(undefined);
     setError(undefined); setProgress(undefined); setRestoredEmpty(false);
   }
 
@@ -250,6 +259,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     const request = ++openRequest.current;
     setDraftBusy(true);
     setError(undefined);
+    setReading(undefined);
     setProgress("Opening draft");
     try {
       const definition = COURT_PROFILE_BY_ID.get(next.state.profileId);
@@ -369,25 +379,23 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     }
   }
 
-  /**
-   * Recognition starts on its own for a scanned PDF and reports against the entry it
-   * belongs to, so the page says which file it is reading and can be stopped.
-   */
   async function ocr(entry: RecordEntry) {
     if (!host.runOcr) return;
-    const controller = new AbortController();
-    setReading({ id: entry.id, controller });
+    const request = openRequest.current;
+    setReading({ id: entry.id });
+    let patch: Partial<RecordEntry>;
     try {
-      return await host.runOcr(entry, (message) => setReading((current) =>
-        current?.id === entry.id ? { ...current, message } : current), controller.signal);
-    } catch (caught) {
-      // Either way the pages have been through recognition; what it found is the
-      // entry's business to state, and repeating it would find the same.
-      return { ocrAttemptedPages: [], ...(controller.signal.aborted ? {}
-        : { inspectionError: errorMessage(caught, "The scanned pages could not be read.") }) };
-    } finally {
-      setReading((current) => current?.id === entry.id ? undefined : current);
+      patch = await host.runOcr(entry, (message) => {
+        if (request === openRequest.current) setReading({ id: entry.id, message });
+      });
+    } catch {
+      patch = { ocrAttemptedPages: [] };
     }
+    if (request !== openRequest.current || !mounted.current) return;
+    const ready = applySourceEntryFields({ ...entry, ...patch }, undefined, entry.sourceFields);
+    setEntries((current) => putPreparedEntry(current, ready, entry.exhibitLabel));
+    applySourceCover(ready);
+    setReading(undefined);
   }
 
   function chooseProfile(nextId: string) {
@@ -483,18 +491,11 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       try {
         const prepared = await host.prepareDeviceFile(file, (message) => setProgress(message),
           { workProductId: draftRef.current?.id, destination: kind });
-        let ready = applySourceEntryFields({ ...pending, ...prepared,
+        const ready = applySourceEntryFields({ ...pending, ...prepared,
           binding: prepared.binding ?? selection.input }, previous ? undefined : pending.title,
         previous?.sourceFields);
         setEntries((current) => putPreparedEntry(current, ready, exhibitLabel));
         applySourceCover(ready);
-        const patch = needsOcr(ready) ? await ocr(ready) : undefined;
-        if (patch) {
-          ready = applySourceEntryFields({ ...ready, ...patch },
-            previous ? undefined : pending.title, ready.sourceFields);
-          setEntries((current) => putPreparedEntry(current, ready, exhibitLabel));
-          applySourceCover(ready);
-        }
       } catch (caught) {
         setEntries((current) => current.map((entry) => entry.id === id
           ? previous ?? { ...entry,
@@ -549,6 +550,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         inputStatus: resolved.status,
         missingReason: undefined,
         lastSeen: undefined,
+        ocrAttemptedPages: prepared.ocrAttemptedPages,
         nonTextPagesConfirmed: undefined,
       }, undefined, entry.sourceFields);
       setEntries((current) => fillExhibitLabels(current.map((item) =>
@@ -576,12 +578,13 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       }
       const prepared = resolved.prepared ?? await host.prepareDeviceFile(resolved.file,
         (message) => setProgress(message), { workProductId: draftRef.current?.id, destination });
-      let next: RecordEntry = applySourceEntryFields({ ...entry, ...prepared,
+      const next: RecordEntry = applySourceEntryFields({ ...entry, ...prepared,
         binding: resolved.input, inputStatus: resolved.status, missingReason: undefined,
+        ocrAttemptedPages: resolved.status === "ready"
+          ? entry.ocrAttemptedPages : prepared.ocrAttemptedPages,
         nonTextPagesConfirmed: resolved.status === "ready"
           ? entry.nonTextPagesConfirmed : undefined },
       undefined, entry.sourceFields);
-      if (host.runOcr && needsOcr(next)) next = { ...next, ...await ocr(next) };
       return next;
     }));
   }
@@ -730,9 +733,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         ...(previous?.sourceExhibits ? { sourceExhibits: previous.sourceExhibits } : {}),
         ...prepared,
       };
-      setBusyEntryId(entry.id);
-      const patch = needsOcr(entry) ? await ocr(entry) : undefined;
-      const ready = applySourceEntryFields({ ...entry, ...patch },
+      const ready = applySourceEntryFields(entry,
         previous ? undefined : entry.title, previous?.sourceFields);
       setEntries((current) => putPreparedEntry(current, ready, exhibitLabel));
       applySourceCover(ready);
@@ -786,7 +787,6 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       onRemove={(id) => { setEntries((current) =>
         fillExhibitLabels(current.filter((entry) => entry.id !== id))); invalidate(); }}
       reading={reading}
-      onStopReading={() => reading?.controller.abort()}
       onRelink={host.relinkInput ? (id) => void relinkEntry(id) : undefined}
     />
   );

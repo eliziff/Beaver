@@ -361,19 +361,22 @@ export function createCourtRecordsApplication(
 async function pageText(projection: ProjectionReader, readBytes: () => Buffer | Promise<Buffer>,
   pageCount: number, options: Omit<Parameters<ProjectionReader["lookupPdf"]>[2], "pages">) {
   const text = new Map<number, string>();
-  let read = false;
-  for (let first = 1; first <= pageCount; first += 20) {
-    const last = Math.min(first + 19, pageCount);
+  async function read(first: number, last: number) {
     const lookup = await projection.lookupPdf(readBytes, { locatorKind: "page",
       locator: first === last ? `${first}` : `${first}-${last}`, contextBlocks: 0 }, options);
     if (lookup.status === "found") {
-      read = true;
       for (const page of lookup.pages) text.set(page.page_number, page.text);
-    } else if (lookup.status !== "unavailable") {
+    } else if (lookup.status === "unavailable" &&
+        lookup.error === "The requested structural unit has no exact text") {
+      // One blank page makes the entire range unavailable; retain its readable neighbours.
+      if (first !== last) for (let page = first; page <= last; page++) await read(page, page);
+    } else {
       throw new ApplicationError(409, "The prepared PDF page text is unavailable");
     }
   }
-  if (!read) throw new ApplicationError(409, "The prepared PDF page text is unavailable");
+  for (let first = 1; first <= pageCount; first += 20) {
+    await read(first, Math.min(first + 19, pageCount));
+  }
   return text;
 }
 
