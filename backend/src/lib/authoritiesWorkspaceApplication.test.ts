@@ -708,6 +708,7 @@ describe("Authorities workspace application", () => {
         source: { kind: "unresolved" } },
     });
     const bytes = Buffer.from("%PDF-1.4 opinion");
+    let unavailable = true;
     const runtime = harness({ draft,
       resolveForeign: async () => ({ provider: "courtlistener",
         stableSourceId: "courtlistener:106761", citation: "376 U.S. 254",
@@ -715,11 +716,14 @@ describe("Authorities workspace application", () => {
         url: "https://www.courtlistener.com/opinion/106761/new-york-times-co-v-sullivan/",
         pdfUrl: "https://storage.courtlistener.com/harvard_pdf/106761.pdf",
         text: "", sourceSha256: "b".repeat(64) }),
-      download: async () => ({ bytes, sourceSha256: sha256(bytes),
+      download: async () => unavailable ? null : ({ bytes, sourceSha256: sha256(bytes),
         url: "https://storage.courtlistener.com/harvard_pdf/106761.pdf" }) });
     const imported = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
 
-    const product = await prepareSources(runtime, imported);
+    const pending = await prepareSources(runtime, imported);
+    expect((pending.state as AuthoritiesDraft).authorities.sullivan.source.kind).toBe("resolved");
+    unavailable = false;
+    const product = await prepareSources(runtime, pending);
 
     const authority = (product.state as AuthoritiesDraft).authorities.sullivan;
     expect(authority.sourceIdentity).toMatchObject({ provider: "courtlistener",

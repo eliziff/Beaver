@@ -833,6 +833,7 @@ function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
         return { kind, label };
       });
       if (old.source.kind !== "unresolved") {
+        authority.name ??= old.name;
         authority.source = structuredClone(old.source);
         authority.sourceIdentity = structuredClone(old.sourceIdentity);
       }
