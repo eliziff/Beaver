@@ -43,7 +43,7 @@ interface Props {
     running?: boolean;
     onSelectionChange: (ids: string[]) => void;
     onExpand: (cell: TabularCell) => void;
-    onCitationClick: (cell: TabularCell, citation: Citation) => void;
+    onCitationClick: (cell: TabularCell, citation: Citation, action?: "workspace") => void;
     onEditColumn: (col: ColumnConfig) => void;
     onRerunColumn?: (col: ColumnConfig) => void;
     onClearColumn?: (col: ColumnConfig) => void;

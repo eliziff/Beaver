@@ -22,7 +22,7 @@ export function ResearchLabelPicker({ file, kind, itemId, sourceId, labelIds, no
   size, disabled, mutations, prepare,
   onError, onNeedFile, onSourceDrag, sourceReference }: { file: ResearchFile | null;
   kind: ResearchLabelTarget["kind"]; itemId?: string; sourceId?: string; labelIds: string[]; note?: string;
-  title: string; disabled?: boolean; size?: "sm" | "md";
+  title: string; disabled?: boolean; size?: "sm" | "md" | "lg";
   prepare?: (file: ResearchFile) => Promise<Ready>; mutations: ResearchFileMutations;
   onError?: (message: string) => void; onNeedFile?: () => void; onSourceDrag?: () => void;
   sourceReference?: ResearchSourceReference }) {
@@ -53,35 +53,33 @@ export function ResearchLabelPicker({ file, kind, itemId, sourceId, labelIds, no
   </>;
 }
 
-const CHOICE_ROW = (active: boolean) => `flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-start text-sm ${
-  active ? "bg-gray-100 font-medium text-gray-900" : "text-gray-700 hover:bg-gray-50"}`;
+const CHIP = (active: boolean) => `flex h-6 min-w-0 shrink-0 items-center gap-1 rounded border-2 px-1.5 text-xs ${
+  active ? "border-gray-800 bg-gray-200 font-medium text-gray-900" : "border-transparent bg-gray-100 text-gray-700 hover:bg-gray-200"}`;
 
-/** The waterfall: one label per row, its binder at the left, each generation indented under the one it
- *  descends from — never two folders beside each other, and a child can never read as a sibling's.
- *  One picker, everywhere. */
+/** The waterfall: one generation per row, siblings side by side and truncated, the chosen chip giving way to
+ *  its children below. Every generation the set can reach keeps its row filled or not, so a reveal shifts nothing. */
 export function ResearchLabelWaterfall({ labels, scope, selectedId, onChoose, noneLabel }: {
   labels: Record<string, ResearchLabel>; scope: ResearchLabel["scope"];
   selectedId: string | null; onChoose: (id: string | null) => void; noneLabel?: string }) {
-  const tree = useMemo(() => { const map = new Map<string | null, ResearchLabel[]>();
+  const { tree, depth } = useMemo(() => { const map = new Map<string | null, ResearchLabel[]>();
     Object.values(labels).filter((label) => label.scope === scope).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
       .forEach((label) => { const values = map.get(label.parentId) ?? []; values.push(label); map.set(label.parentId, values); });
-    return map; }, [labels, scope]);
+    const reach = (id: string | null): number => 1 + Math.max(0, ...(map.get(id) ?? []).map((label) => reach(label.id)));
+    return { tree: map, depth: map.size ? reach(null) - 1 : 0 }; }, [labels, scope]);
   const path = selectedId && labels[selectedId] ? researchLabelPath(labels, selectedId) : [];
-  if (!tree.size) return <p className="my-3 text-sm text-gray-500">No {scope === "source" ? "labels" : "highlight types"} yet.</p>;
-  const rung = (items: ResearchLabel[], activeId: string | null, depth: number) =>
-    <div key={depth} className="grid min-w-0 gap-0.5" style={{ marginInlineStart: `${depth * 14}px` }}>
-      {items.map((label) => <button key={label.id} type="button" onClick={() => onChoose(label.id)}
-        aria-pressed={activeId === label.id} title={label.name} className={CHOICE_ROW(activeId === label.id)}>
-        <ResearchLabelFolder labels={labels} labelId={label.id} />
-        <span className="min-w-0 flex-1 truncate">{label.name}</span>
-      </button>)}
-    </div>;
-  return <div className="grid min-w-0 content-start gap-0.5">
-    {noneLabel && <button type="button" onClick={() => onChoose(null)} aria-pressed={!selectedId} className={CHOICE_ROW(!selectedId)}>
-      <ResearchLabelFolder labels={labels} labelId={null} /><span className="min-w-0 flex-1 truncate">{noneLabel}</span></button>}
-    {rung(tree.get(null) ?? [], path[0]?.id ?? null, 0)}
-    {path.flatMap((label, depth) => { const items = tree.get(label.id) ?? [];
-      return items.length ? [rung(items, path[depth + 1]?.id ?? null, depth + 1)] : []; })}
+  if (!depth) return <p className="my-3 text-sm text-gray-500">No {scope === "source" ? "labels" : "highlight types"} yet.</p>;
+  return <div className="grid min-w-0 content-start">
+    {Array.from({ length: depth }, (_, row) => { const parent = row ? path[row - 1] : null,
+      items = row && !parent ? [] : tree.get(parent?.id ?? null) ?? [], active = path[row]?.id ?? null;
+      return <div key={row} style={{ marginInlineStart: row ? 8 + (row - 1) * 20 : 0 }}
+        className={`flex h-8 min-w-0 items-center gap-1 overflow-x-auto overflow-y-hidden py-1 ${row ? "border-s-2 border-gray-200 ps-3" : ""}`}>
+        {!row && noneLabel && <button type="button" onClick={() => onChoose(null)} aria-pressed={!selectedId} className={CHIP(!selectedId)}>
+          <ResearchLabelFolder labels={labels} labelId={null} size="sm" /><span className="max-w-20 truncate">{noneLabel}</span></button>}
+        {items.map((label) => <button key={label.id} type="button" onClick={() => onChoose(label.id)}
+          aria-pressed={active === label.id} title={label.name} className={CHIP(active === label.id)}>
+          <ResearchLabelFolder labels={labels} labelId={label.id} size="sm" />
+          <span className="max-w-24 truncate">{label.name}</span></button>)}
+      </div>; })}
   </div>;
 }
 
@@ -149,7 +147,7 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
     <button type="button" onClick={() => close.current()} aria-label="Close label palette"
       className="grid size-8 shrink-0 place-items-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"><X className="size-4" aria-hidden="true" /></button>
     </header>
-    {scope === "source" && <div aria-label="Filed under" className="grid gap-0.5 border-b border-gray-100 py-2">
+    {scope === "source" && <div aria-label="Filed under" className="grid h-24 content-start gap-0.5 overflow-y-auto border-b border-gray-100 py-2">
       {[...slots, ""].map((id, index) => { const name = id ? researchLabelPath(labels, id).map((label) => label.name).join(" / ") : "";
         return <button key={`${id}:${index}`} type="button" onClick={() => setActiveSlot(index)}
           aria-pressed={index === activeSlot} aria-label={id ? `Filed under ${name}` : "Add a label"} title={name || "Add a label"}

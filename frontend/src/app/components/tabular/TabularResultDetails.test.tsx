@@ -15,7 +15,7 @@ const column: ColumnConfig = { index: 0, name: "Notice", prompt: "Compare notice
 describe("tabular result inspection", () => {
   it("cites each supporting passage once as a pill and never repeats its bibliography or raw receipts", () => {
     const open = vi.fn(); render(<TabularResultDetails answer={answer} column={column} onCitation={open} />);
-    const pills = screen.getAllByRole("button", { name: /Agreement/ });
+    const pills = screen.getAllByRole("link", { name: /Agreement/ });
     expect(new Set(pills.map((pill) => pill.dataset.citationRef))).toEqual(new Set(["1"]));
     expect(screen.queryByText(receipt.span_text!)).not.toBeInTheDocument();
     expect(screen.queryByText(/Background read/)).not.toBeInTheDocument();
@@ -24,7 +24,9 @@ describe("tabular result inspection", () => {
     expect(screen.queryByText(/query-1/)).not.toBeInTheDocument();
     expect(screen.queryByText(/[Pp]artial coverage/)).not.toBeInTheDocument();
     expect(screen.getAllByText(/Notice is required\./u)).toHaveLength(1);
-    fireEvent.click(pills[0]!);
+    expect(pills[0]).toHaveAttribute("target", "_blank");
+    fireEvent.click(screen.getAllByRole("button", { name: "Citation actions" })[0]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open in reader" }));
     expect(open).toHaveBeenCalledWith(expect.objectContaining({ kind: "document", document_id: "original",
       version_id: "pinned-version", quotes: [{ quote: receipt.span_text, page: "3" }] }));
   });
@@ -36,9 +38,10 @@ describe("tabular result inspection", () => {
   it("keeps distinct pinpointed passages from the same source independently openable", () => {
     const other = { ...receipt, evidence_id: "e2", span_text: "The exception applies to cause.", locator: { kind: "page", label: "4" } }, open = vi.fn();
     render(<TabularResultDetails answer={{ ...answer, claims: [{ text: "Notice subject to an exception.", evidence_ids: ["e1", "e2"] }], evidence: [receipt, other] }} column={column} onCitation={open} />);
-    const pills = screen.getAllByRole("button", { name: /Agreement/ });
+    const pills = screen.getAllByRole("link", { name: /Agreement/ });
     expect(pills).toHaveLength(2);
-    fireEvent.click(pills[1]!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Citation actions" })[1]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open in reader" }));
     expect(open).toHaveBeenCalledWith(expect.objectContaining({ ref: 2, locator: "4", quotes: [{ quote: other.span_text, page: "4" }] }));
   });
   it("presents research reused from a research set as itself, without model answer framing", () => {

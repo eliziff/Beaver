@@ -134,12 +134,13 @@ describe("TRTable", () => {
         expect(onExpand).toHaveBeenCalledOnce();
         expect(onExpand).toHaveBeenCalledWith(cell);
 
-        fireEvent.click(screen.getByRole("button", { name: "2 citations" }));
+        fireEvent.click(screen.getAllByRole("button", { name: "Citation actions" })[0]!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open in reader" }));
         expect(onCitationClick).toHaveBeenCalledOnce();
         expect(onCitationClick).toHaveBeenCalledWith(
             cell,
             expect.objectContaining({ kind: "document", document_id: doc.id,
-                version_id: "version-page", ref: 1, quotes: [{ page: "7", quote: "page quote" }] }),
+                version_id: "version-page", ref: 1, quotes: [{ page: "7", quote: "page quote" }] }), undefined,
         );
         expect(onExpand).toHaveBeenCalledOnce();
     });

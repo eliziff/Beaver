@@ -1,6 +1,6 @@
 import { useNavigationPrefetch } from "@/app/hooks/useNavigationPrefetch";
 import {
-  useEffect,
+  lazy, Suspense, useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -24,15 +24,15 @@ import {
   APP_SURFACE_HOVER_CLASS,
 } from "@/app/components/ui/liquid-surface";
 import type { Chat } from "@/app/lib/api/chat";
-import { RecyclingBinModal } from "@/app/components/assistant/RecyclingBinModal";
-import { AppSettingsModal } from "@/app/components/settings/AppSettingsModal";
-import { SelectAssistantProjectModal } from "@/app/components/assistant/SelectAssistantProjectModal";
+const RecyclingBinModal = lazy(() => import("@/app/components/assistant/RecyclingBinModal").then(m => ({ default: m.RecyclingBinModal })));
+const AppSettingsModal = lazy(() => import("@/app/components/settings/AppSettingsModal").then(m => ({ default: m.AppSettingsModal })));
+const SelectAssistantProjectModal = lazy(() => import("@/app/components/assistant/SelectAssistantProjectModal").then(m => ({ default: m.SelectAssistantProjectModal })));
 import { SearchBar } from "@/app/components/ui/search-bar";
 import { chatSearchPath, useChatSearch } from "@/app/components/assistant/chatSearch";
 import { AdvancedHistorySearch } from "@/app/components/assistant/AdvancedHistorySearch";
 import { ChatSearchResult } from "@/app/components/assistant/ChatSearchResult";
 import { TabList } from "@/app/components/ui/tabs";
-import { SidebarReviewHistory } from "@/app/components/tabular/SidebarReviewHistory";
+const SidebarReviewHistory = lazy(() => import("@/app/components/tabular/SidebarReviewHistory").then(m => ({ default: m.SidebarReviewHistory })));
 import { CollectionState } from "./CollectionState";
 const NAV_ITEMS = [
   { href: "/projects", label: "Projects", icon: FolderSvgIcon },
@@ -314,9 +314,9 @@ export function AppSidebar({
               options={[{ value: "assistant", label: <span className="flex items-center justify-center gap-1"><ChatSkeuoIcon className="size-5 shrink-0" />Assistant</span> }, { value: "reviews", label: <span className="flex items-center justify-center gap-1"><TabularReviewSkeuoIcon className="size-5 shrink-0" />Tabular review</span> }]} />
             <div className="relative">
               <button type="button" aria-label={historyCollapsed ? "Expand history" : "Collapse history"} aria-expanded={!historyCollapsed} onClick={() => setHistoryCollapsed(!historyCollapsed)} className="absolute right-0 top-0.5 z-10 grid size-7 place-items-center rounded text-gray-500 hover:bg-gray-100"><ChevronRight className={cn("size-3.5", !historyCollapsed && "rotate-90")} /></button>
-            <div hidden={historyTab !== "reviews"}>
-              <SidebarReviewHistory collapsed={historyCollapsed} active={historyTab === "reviews"} search={search} onNavigate={() => closeNavigation?.()} />
-            </div>
+            {historyTab === "reviews" && <div>
+              <Suspense fallback={null}><SidebarReviewHistory collapsed={historyCollapsed} active={historyTab === "reviews"} search={search} onNavigate={() => closeNavigation?.()} /></Suspense>
+            </div>}
             <div hidden={historyTab !== "assistant"}>
           <section id="assistant-conversations" aria-label="Assistant conversations" className="mb-2 flex min-h-0 flex-col [@media(max-height:500px)]:mb-0">
             <Link to="/assistant" onClick={() => { setHistorySearch(""); closeNavigation?.(); }} aria-label="New chat" className="mr-8 flex h-8 shrink-0 items-center gap-2 rounded-md px-2 text-xs font-medium text-gray-800 hover:bg-gray-100"><SquarePen className="size-3.5" />New chat</Link>
@@ -457,7 +457,7 @@ export function AppSidebar({
       </aside>
         {advancedSearchOpen && <AdvancedHistorySearch initialQuery={historySearch} initialContext={historyTab === "reviews" ? "reviews" : "assistant"}
           onClose={() => setAdvancedSearchOpen(false)} />}
-        {chatProjectTarget && (
+        <Suspense fallback={null}>{chatProjectTarget && (
           <SelectAssistantProjectModal
             open
             onClose={() => setChatProjectTarget(null)}
@@ -479,7 +479,7 @@ export function AppSidebar({
             open
             onClose={() => setSettingsOpen(false)}
           />
-        )}
+        )}</Suspense>
     </>
   );
 }

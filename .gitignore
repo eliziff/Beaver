@@ -111,3 +111,4 @@ original_details.jsonl
 
 # Local standalone Authorities build and runtime artifacts
 .authorities-dev/
+.court-records-dev/

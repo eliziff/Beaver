@@ -14,6 +14,17 @@ function renderMarkdown(text: string, inlineCitationTargets: Citation[] = []) {
     );
 }
 
+it("collapses repeated adjacent citations while retaining distinct sources and pinpoints", () => {
+    const first: Citation = { kind: "document", ref: 1, document_id: "brief", filename: "Brief", pinpoint: "para 5", quotes: [] };
+    const second: Citation = { kind: "a2aj", ref: 2, citation: "2024 SCC 1", pinpoint: "para 12", quotes: [] };
+    const citations = [first, second, { ...first, ref: 3 }, { ...second, ref: 4, pinpoint: "para 13" }];
+    const targets: Citation[] = [];
+    preprocessCitations("Point [1][1][3][2][2][4]", new Map(citations.map((c) => [c.ref, c])), targets);
+    expect(targets.map((c) => c.pinpoint)).toEqual(["para 5", "para 12", "para 13"]);
+    const { container } = render(<CitationPillMarkdown text="Point [1][1][3][2][2][4]" citations={citations} />);
+    expect(container.querySelectorAll("[data-citation-ref]")).toHaveLength(3);
+});
+
 describe("MarkdownContent tables", () => {
     it.each([false, true])("renders Markdown tables (streaming: %s)", (isStreaming) => {
         render(<MarkdownContent
@@ -67,7 +78,7 @@ describe("MarkdownContent links", () => {
         const source: Citation = {
             kind: "a2aj", source_class: "case", ref: 1,
             citation: "2020 BCSC 1", name: "Example v. Example",
-            dataset: "BCSC", url: null, locator_kind: "paragraph",
+            dataset: "BCSC", url: "https://example.test/case", locator_kind: "paragraph",
             locator: "12", pinpoint: "para 12", quotes: [{ quote: "Exact passage" }],
         };
         const otherSource: Citation = { ...source, ref: 2, citation: "2021 BCSC 2" };
@@ -77,19 +88,25 @@ describe("MarkdownContent links", () => {
             citations={[otherSource, source]}
             onCitationClick={onCitationClick} />);
 
-        const chip = screen.getByRole("button", {
+        const chip = screen.getByRole("link", {
             name: "Example v. Example, 2020 BCSC 1 at para 12",
         });
         await userEvent.click(chip);
+        expect(chip).toHaveAttribute("target", "_blank");
+        expect(onCitationClick).not.toHaveBeenCalled();
+        await userEvent.click(screen.getByRole("button", { name: "Citation actions" }));
+        await userEvent.click(screen.getByRole("menuitem", { name: "Open in reader" }));
         expect(onCitationClick).toHaveBeenCalledWith(source);
+        await userEvent.click(screen.getByRole("button", { name: "Citation actions" }));
+        await userEvent.click(screen.getByRole("menuitem", { name: "Open in workspace" }));
+        expect(onCitationClick).toHaveBeenLastCalledWith(source, "workspace");
     });
 
-    it("leaves references without a reader or URL as plain text", () => {
+    it("links Library references and leaves unknown references as plain text", () => {
         const { container } = render(<CitationPillMarkdown text="Finding. [1] Another. [3]"
             citations={[{ kind: "document", ref: 1, document_id: "doc", filename: "Terms.docx", quotes: [] }]} />);
         expect(screen.queryByRole("button")).toBeNull();
-        expect(screen.queryByRole("link")).toBeNull();
-        expect(container.querySelector("[data-citation-ref]")).toBeNull();
+        expect(screen.getByRole("link")).toHaveAttribute("href", "/library?document_id=doc");
         expect(container).toHaveTextContent("Terms.docx");
         expect(container).toHaveTextContent("[3]");
     });

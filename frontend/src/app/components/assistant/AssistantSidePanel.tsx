@@ -68,9 +68,9 @@ function LegalResearchPanel({ tab, projectId, active }: { tab: LegalSourceTab;
     projectId?: string; active: boolean }) {
   const [open, setOpen] = useState(false), [sourceDropNonce, setSourceDropNonce] = useState(0);
     return <>
-        <LegalSourceViewer {...tab} compact projectId={projectId} onOpenResearch={(intent) => { setOpen(true);
+        <LegalSourceViewer {...tab} navigationRequest={tab} compact projectId={projectId} onOpenResearch={(intent) => { setOpen(true);
                 if (intent) setSourceDropNonce((value) => value + 1); }} />
-        <ResearchWorkspaceHost embedded open={open && active} onOpenChange={setOpen}
+        <ResearchWorkspaceHost embedded floating open={open && active} onOpenChange={setOpen}
             projectId={projectId} sourceDropNonce={sourceDropNonce} />
     </>;
 }

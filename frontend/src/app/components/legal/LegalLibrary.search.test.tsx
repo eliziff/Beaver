@@ -180,8 +180,7 @@ describe("LegalLibraryPage search", () => {
         await screen.findByText("Privacy Act");
         expect(screen.getByText("privacy").tagName).toBe("MARK");
         expect(container.textContent).not.toContain("<em>");
-        expect(screen.getByRole("link", { name: "View Privacy Act" }).getAttribute("href"))
-            .toContain("/sources/view");
+        expect(screen.getByRole("button", { name: "View Privacy Act" })).toBeVisible();
         expect(screen.getByRole("link", { name: "Site: View original source for Privacy Act" }))
             .toHaveAttribute("href", "https://example.test/privacy");
     });

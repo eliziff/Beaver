@@ -103,7 +103,8 @@ it("hands a cited passage to the shared source reader rather than opening one in
     render(<TRSidePanel cell={{ ...cell, content: { ...cell.content!, evidence: [evidence], claims: [{ text: "Distinguished", evidence_ids: ["other"] }] } }}
         document={{ ...sourceDocument, reference: { provider: "a2aj", id: "row-case", kind: "case", citation: "2026 SCC 1" } }}
         column={column} onClose={vi.fn()} onCitation={onCitation} />);
-    fireEvent.click(screen.getAllByRole("button", { name: /2026 SCC 2/ })[0]!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Citation actions" })[0]!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open in reader" }));
     expect(onCitation).toHaveBeenCalledWith(expect.objectContaining({ kind: "a2aj", name: "Other case",
         locator: "7", quotes: [{ quote: evidence.span_text }] }));
 });

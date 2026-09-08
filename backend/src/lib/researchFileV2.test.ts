@@ -249,7 +249,7 @@ describe("Research v2 parts", () => {
       "evidence", 50, 1)).items[0]).toMatchObject({ value: { labelIds: [fallback.id] } });
   });
 
-  it("allows arbitrary label nesting and rejects cycles", async () => {
+  it("preserves filings at any depth on writes and loads, and rejects cycles", async () => {
     const f = fixture(), root = "30000000-0000-4000-8000-000000000001",
       child = "30000000-0000-4000-8000-000000000002",
       grandchild = "30000000-0000-4000-8000-000000000003";
@@ -258,6 +258,15 @@ describe("Research v2 parts", () => {
     await act(f, { type: "label", id: grandchild, name: "Grandchild",
       parentId: child, scope: "source" });
     const saved = await act(f, { type: "label", name: "Fourth level", parentId: grandchild, scope: "source" });
+    const filed = await act(f, { type: "source", reference: { provider: "a2aj", kind: "case", id: "case" },
+      labelIds: [root, child, grandchild] });
+    const item = Object.values(filed.state.sources)[0];
+    expect(item.labelIds).toEqual([root, child, grandchild]);
+    expect(parseResearchFile(researchFileMarkdown("Cases", filed.state))!.sources[item.id].labelIds).toEqual([root, child, grandchild]);
+    const writes = f.documents.replaceVersion.mock.calls.length;
+    expect((await readResearchFile(f.documents as never, { userId: "user-1" }, "doc-1"))!.state.sources[item.id].labelIds)
+      .toEqual([root, child, grandchild]);
+    expect(f.documents.replaceVersion).toHaveBeenCalledTimes(writes);
     expect(Object.values(saved.state.labels).map(({ name }) => name)).toContain("Fourth level");
     await expect(commitResearchFile(f.documents as never, { userId: "user-1" }, saved,
       { type: "label", id: root, name: "Root", parentId: grandchild, scope: "source" }))
@@ -324,6 +333,9 @@ describe("Research v2 parts", () => {
     expect(ids(await run({ unlabelled: true }))).toEqual(["case-c", "case-a"]);
     expect(ids(await run({ labelIds: [highlightLabel] }))).toEqual(["case-b"]);
     expect(ids(await run({ labelIds: [sourceLabel] }))).toEqual(["case-a"]);
+    expect(ids(await run({ text: "alpha NOT labelled" }))).toEqual(["case-c", "case-a"]);
+    expect(ids(await run({ text: '"alpha beta" | labelled' }))).toEqual(["case-c", "case-b"]);
+    await expect(run({ text: "alpha and (beta" })).rejects.toThrow("Check the search");
   });
 
   it("resolves overlapping capture rules and assigns their slots", async () => {
@@ -342,10 +354,10 @@ describe("Research v2 parts", () => {
         chars: 10, slot: labels[0] }, { phrase: "Y", direction: "before" as const,
         unit: "chars" as const, chars: 5, slot: labels[1] }, { phrase: "Y",
         direction: "after" as const, unit: "chars" as const, chars: 2, slot: labels[2] }],
-      run = async (conflict: "first" | "append") => {
+      run = async (conflict: "first" | "append", applied = rules) => {
         const result = await runResearchFileQuery(f.documents as never, { userId: "user-1" },
           "doc-1", { versionId: saved.versionId, workingRevision: saved.workingRevision,
-            syntax: "literal", target: "sources", sourceIds: [sourceId], rules, conflict },
+            syntax: "literal", target: "sources", sourceIds: [sourceId], rules: applied, conflict },
           { reader: reader as never });
         saved = result.file; return result;
       };
@@ -354,6 +366,10 @@ describe("Research v2 parts", () => {
     const appended = await run("append"), slots = Object.fromEntries(appended.evidence.map(
       (item) => [item.span_text, appended.receipt.slots[item.evidence_id]]));
     expect(slots).toEqual({ abcdefghij: [labels[0]], fghij: [labels[1]], kl: [labels[2]] });
+    expect((await run("append", [{ phrase: "X | Y", direction: "after", unit: "chars",
+      chars: 2, slot: labels[0] }])).evidence.map(({ span_text }) => span_text)).toEqual(["ab", "kl"]);
+    await expect(run("append", [{ phrase: '"X', direction: "after", unit: "chars", chars: 2 }]))
+      .rejects.toThrow("Check the search");
   });
 
   it("queries exact and mixed subjects without widening an active reading scope", async () => {
@@ -386,6 +402,22 @@ describe("Research v2 parts", () => {
     const exact = await run({ target: "passages", evidenceIds: [evidence[1].evidence_id, evidence[2].evidence_id] });
     expect(exact.evidence.map(({ evidence_id }) => evidence_id)).toEqual([evidence[1].evidence_id, evidence[2].evidence_id]);
     expect((await run({ members: [{ sourceId: byId.c.id }] }, context)).evidence).toEqual([]);
+  });
+
+  it("applies Boolean capture rules to each passage and captures its paragraph once", async () => {
+    const f = fixture(), paragraphs = ["Arbitrary detention can be psychological or physical.",
+      "Physical restraint alone.", "Arbitrary detention is physical but justified."], text = paragraphs.join("\n\n");
+    const documents = { ...f.documents, projectionSource: async () => ({ sourceSha256: "a".repeat(64),
+      document: { text, blocks: paragraphs.map((value, index) => ({ kind: "paragraph", label: String(index + 1),
+        start: text.indexOf(value), end: text.indexOf(value) + value.length })) } }) };
+    const saved = await act(f, { type: "merge", evidence: [createLibraryEvidence({ documentId: "selected",
+      versionId: "v1", filename: "Notes.txt", sourceSha256: "a".repeat(64), start: 0, end: text.length, spanText: text })] });
+    const result = await runResearchFileQuery(documents as never, { userId: "user-1" }, "doc-1", {
+      versionId: saved.versionId, workingRevision: saved.workingRevision, syntax: "terms", target: "sources",
+      sourceIds: Object.keys(saved.state.sources),
+      rules: [{ phrase: '"arbitrary detention" AND (psychological OR physical) NOT justified',
+        direction: "around", unit: "paragraph" }] });
+    expect(result.evidence.map(({ span_text }) => span_text)).toEqual([paragraphs[0]]);
   });
 
   it("keeps the phrase inside its unit when a rule captures around it", async () => {
@@ -563,7 +595,7 @@ describe("Research v2 parts", () => {
       expect(labels).toEqual([sourceLabel, highlightLabel]);
   });
 
-  it("saves a Library highlight with its pen without inventing an unprinted paragraph pinpoint", async () => {
+  it("saves a Library highlight with its pen in one write and locates it by what the page prints", async () => {
     const f = fixture(), scope = { userId: "user-1" },
       text = "Recitals follow.\n\nThe governing law is Alberta.",
       blocks = [{ kind: "paragraph", label: "1", start: 0, end: 16, text: "Recitals follow." },
@@ -576,7 +608,7 @@ describe("Research v2 parts", () => {
     const prepared = await act(f, { type: "source", reference: library }),
       sourceId = Object.keys(prepared.state.sources)[0];
     const action = await verifyResearchPassage(prepared, { type: "passage", sourceId,
-      locator: { kind: "document", value: "document" }, quote: "governing law is Alberta",
+      revision: "a".repeat(64), start: text.indexOf("governing"), end: text.length - 1,
       labelIds: [highlightLabel] }, undefined, { documents: documents as never, scope });
     const saved = await act(f, action);
     expect(f.documents.replaceVersion).toHaveBeenCalledTimes(3);
@@ -587,7 +619,7 @@ describe("Research v2 parts", () => {
         span_text: "governing law is Alberta", locator: { kind: "document", label: "document" } } } });
   });
 
-  it("accepts only a quote verified against the selected canonical passage", async () => {
+  it("derives the quote from revision-bound offsets and refuses invalid spans", async () => {
     const f = fixture();
     const saved = await act(f, { type: "source", reference: { provider: "courtlistener",
       id: "1", kind: "case", citation: "Example" } }), sourceId = Object.keys(saved.state.sources)[0],
@@ -597,10 +629,12 @@ describe("Research v2 parts", () => {
         locator: { requested: { kind: "paragraph" as const, value: "1" }, label: "1" },
         role: "selected" as const, text, blockArtifact: block,
         documentArtifact: { text, blocks: [block] } }] })), base = { type: "passage" as const,
-        sourceId, locator: { kind: "paragraph" as const, value: "1" } };
-    await expect(verifyResearchPassage(saved, { ...base, quote: "missing" }, reader as never))
-      .rejects.toMatchObject({ status: 400 });
-    const action = await verifyResearchPassage(saved, { ...base, quote: "verified holding" },
+        sourceId, revision: "a".repeat(64), start: 4, end: 20 };
+    await expect(verifyResearchPassage(saved, { ...base, end: 200 }, reader as never))
+      .rejects.toMatchObject({ details: { code: "invalid_span" } });
+    await expect(verifyResearchPassage(saved, { ...base, revision: "b".repeat(64) }, reader as never))
+      .rejects.toThrow("This source changed");
+    const action = await verifyResearchPassage(saved, base,
       reader as never), updated = await act(f, action);
     expect((await pageResearchItems(f.documents as never, { userId: "user-1" }, updated,
       "passages")).items[0]).toMatchObject({ value: { receipt: {
@@ -841,9 +875,10 @@ describe("Research v2 parts", () => {
     ] }, undefined, model), history = await readResearchHistory(f.documents as never, scope, classified);
     expect(classified.state.proposals).toEqual([]);
     expect((await pageResearchItems(f.documents as never, scope, classified, "passages")).items)
-      .toMatchObject([{ value: { receipt: passage, labelIds: [highlightLabel] } }]);
+      .toMatchObject([{ value: { receipt: passage, labelIds: [sourceLabel] } },
+        { value: { receipt: passage, labelIds: [highlightLabel] } }]);
     expect(history.at(-1)).toMatchObject({ title: "Organize selected passages", status: "applied",
-      counts: { labels: 2, sources: 1, passages: 1 }, executor: "assistant", model: "model-a" });
+      counts: { labels: 2, sources: 1, passages: 2 }, executor: "assistant", model: "model-a" });
     const undone = await act(f, { type: "undo", changeId: history.at(-1)!.id });
     expect(undone.state.labels).toEqual({});
     expect((await pageResearchItems(f.documents as never, scope, undone, "evidence")).items)
@@ -938,8 +973,8 @@ describe("Research v2 parts", () => {
     const initial = await act(f, { type: "merge", evidence: [passage], labels: { [passage.evidence_id]: [highlightLabel] } }),
       sourceId = Object.keys(initial.state.sources)[0];
     await act(f, { type: "annotate", kind: "source", id: sourceId, labelIds: [sourceLabel] });
-    let file = await act(f, { type: "label-selection", target: "passages", evidenceIds: [passage.evidence_id],
-      assign: [other], mode: "add" });
+    let file = await act(f, { type: "annotate", kind: "evidence", sourceId, id: passage.evidence_id,
+      labelIds: [other] });
     const change = (await readResearchHistory(f.documents as never, scope, file)).at(-1)!;
     expect((await pageResearchItems(f.documents as never, scope, file, "passages")).items)
       .toMatchObject([{ value: { receipt: passage, labelIds: [other] } }]);
