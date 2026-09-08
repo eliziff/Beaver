@@ -444,6 +444,9 @@ export function createDocumentApplication(repository: DocumentRepository,
     return result === "updated" ? next : null;
   };
 
+  const cleaned = async <T>(result: T) => {
+    if (result) await application.resumeCleanup(); return result;
+  };
   const application: DocumentStore = {
     async resumeCleanup() {
       let removed = 0, batches = 0;
@@ -513,13 +516,9 @@ export function createDocumentApplication(repository: DocumentRepository,
       return responseDocument({ document, versions: [version] });
     },
 
-    async deleteDocument(scope, documentId, owner = true, expected) {
-      return repository.deleteDocument(scope, documentId, owner, expected);
-    },
-
-    async deleteUserDocuments(scope, input) {
-      return repository.deleteDocuments(scope, input.projectIds, input.includeOwned);
-    },
+    deleteDocument: (...args) => repository.deleteDocument(...args).then(cleaned),
+    deleteUserDocuments: (scope, input) =>
+      repository.deleteDocuments(scope, input.projectIds, input.includeOwned).then(cleaned),
 
     async relocate(scope, documentId, input) {
       let versions: Parameters<DocumentRepository["relocate"]>[2]["versions"] = [],
@@ -888,7 +887,7 @@ export function createDocumentApplication(repository: DocumentRepository,
           expectedWorkingRevision: expected?.workingRevision ?? target.workingRevision,
           expectedProjectId: expected?.projectId ?? aggregate.document.projectId,
           expectedFolderId: expected?.folderId ?? aggregate.document.folderId },
-      ) ? { status: "deleted" as const, currentVersionId }
+      ).then(cleaned) ? { status: "deleted" as const, currentVersionId }
         : { status: "missing" as const };
     },
 
