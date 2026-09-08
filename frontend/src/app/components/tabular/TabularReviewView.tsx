@@ -180,11 +180,11 @@ function TRViewContent({ reviewId, projectId }: Props) {
 
     const expandCell = useCallback(({ id }: TabularCell) => setUi({ cellView: { cellId: id } }), [setUi]);
     // The reader opens as a dock tab beside the table, not a modal over it.
-    const openCitation = useCallback((cell: TabularCell, citation: Citation) => {
+    const openCitation = useCallback((cell: TabularCell, citation: Citation, action?: "workspace") => {
         const receipt = cell.content?.evidence.find(({ span_text }) => span_text &&
             citation.quotes?.some(({ quote }) => quote === span_text));
         setReading({ citation, reference: receipt ? citedSourceReference(receipt) : undefined });
-        setUi({ dockTab: "reading", cellView: null });
+        setUi({ dockTab: action ? "sources" : "reading", cellView: null });
     }, [setUi]);
 
     function setChatId(next: string | null | undefined) {
@@ -745,7 +745,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
                     key={JSON.stringify(cellView)} cell={expandedCell}
                     document={expandedDocument} column={expandedColumn}
                     onDiscuss={() => void openChat({ rowId: expandedCell.document_id, columnIndex: expandedCell.column_index })}
-                    onCitation={(citation) => openCitation(expandedCell, citation)}
+                    onCitation={(citation, action) => openCitation(expandedCell, citation, action)}
                     onClose={() => setUi({ cellView: null })}
                     onRegenerate={() => regenerateCell(
                         expandedCell.document_id, expandedCell.column_index)}

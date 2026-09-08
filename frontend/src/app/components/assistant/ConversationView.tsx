@@ -1,4 +1,3 @@
-import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { forwardRef, useEffect, useImperativeHandle,
     useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, CircleStop } from "lucide-react";
@@ -31,7 +30,7 @@ interface Props {
     handleChat: (message: Message, options?: AssistantTurnOptions) => Promise<string | null>;
     cancel(): void; onSubmit?: (message: Message) => unknown;
     onRejectedTurnRestored?(): void; onRetryRejectedTurn?(): void;
-    onCitationClick?: (citation: Citation) => void; citationTitle?: (citation: Citation) => string;
+    onCitationClick?: (citation: Citation, action?: "workspace") => void; citationTitle?: (citation: Citation) => string;
     onWorkflowRunClick?: (run: WorkflowRunEvent) => void; onReaderClick?: (readerId: string) => void;
     onEditViewClick?: (annotation: EditAnnotation, filename: string, changeNumber?: number) => void;
     onOpenDocument?: OpenDocument; onEditResolveStart?: (args: EditResolveStart) => void;
@@ -55,27 +54,11 @@ function without<T>(items: Set<T>, item: T) {
     next.delete(item); return next;
 }
 
-function openUndockedCitation(citation: Citation) {
-    if (citation.kind === "tabular" || citation.kind === "document") return;
-    const internal = (citation.kind === "a2aj" && citation.citation) ||
-        (citation.kind === "public_legal" && citation.provider === "journal");
-    const exactProviderUrl = safeAssistantUrl(!(citation.kind === "public_legal" &&
-        citation.provider === "journal") && citation.url?.includes("#")
-        ? citation.url : null, { relative: false });
-    if (exactProviderUrl) {
-        window.open(exactProviderUrl, "_blank", "noopener,noreferrer");
-        return;
-    }
-    if (internal) return;
-    const href = safeAssistantUrl(citation.url, { relative: false });
-    if (href) window.open(href, "_blank", "noopener,noreferrer");
-}
-
 export const ConversationView = forwardRef<ChatInputHandle, Props>(function ConversationView(
     {
         chatId, session, handleChat, cancel, onSubmit = handleChat,
         onRejectedTurnRestored, onRetryRejectedTurn,
-        onCitationClick = openUndockedCitation, citationTitle, onWorkflowRunClick, onReaderClick,
+        onCitationClick, citationTitle, onWorkflowRunClick, onReaderClick,
         onEditViewClick, onOpenDocument, onEditResolveStart, onEditResolved, onEditError,
         isDocReloading, isEditReloading, resolvedEditStatuses,
         layout = "page", gutterVisible = false, header, dock, showContextTools = true,

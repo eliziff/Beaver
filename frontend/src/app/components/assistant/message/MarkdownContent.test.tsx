@@ -67,7 +67,7 @@ describe("MarkdownContent links", () => {
         const source: Citation = {
             kind: "a2aj", source_class: "case", ref: 1,
             citation: "2020 BCSC 1", name: "Example v. Example",
-            dataset: "BCSC", url: null, locator_kind: "paragraph",
+            dataset: "BCSC", url: "https://example.test/case", locator_kind: "paragraph",
             locator: "12", pinpoint: "para 12", quotes: [{ quote: "Exact passage" }],
         };
         const otherSource: Citation = { ...source, ref: 2, citation: "2021 BCSC 2" };
@@ -77,11 +77,18 @@ describe("MarkdownContent links", () => {
             citations={[otherSource, source]}
             onCitationClick={onCitationClick} />);
 
-        const chip = screen.getByRole("button", {
+        const chip = screen.getByRole("link", {
             name: "Example v. Example, 2020 BCSC 1 at para 12",
         });
         await userEvent.click(chip);
+        expect(chip).toHaveAttribute("target", "_blank");
+        expect(onCitationClick).not.toHaveBeenCalled();
+        await userEvent.click(screen.getByRole("button", { name: "Citation actions" }));
+        await userEvent.click(screen.getByRole("menuitem", { name: "Open in reader" }));
         expect(onCitationClick).toHaveBeenCalledWith(source);
+        await userEvent.click(screen.getByRole("button", { name: "Citation actions" }));
+        await userEvent.click(screen.getByRole("menuitem", { name: "Open in workspace" }));
+        expect(onCitationClick).toHaveBeenLastCalledWith(source, "workspace");
     });
 
     it("rejects credential-bearing links in shared Markdown", () => {
