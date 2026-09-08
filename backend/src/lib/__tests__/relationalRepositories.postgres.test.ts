@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { relationalRepositoryContract } from "./support/relationalRepositoryContract";
+import { documentBlobKey } from "../storage";
 
 const connection = process.env.SUPABASE_TEST_DB_URL;
 const suite = connection ? describe : describe.skip;
@@ -38,6 +39,17 @@ suite("PostgreSQL relational repository contract", () => {
 
   relationalRepositoryContract(provisionScopes);
 
+  it("stores encoded JSON as structured PostgreSQL values", async () => {
+    const { relationalDatabase, sql, encodeJson } = await import("../relationalDatabase");
+    const database = await relationalDatabase();
+    await expect(database.query(sql`SELECT
+      jsonb_typeof(${encodeJson({ text: "visible" })}::jsonb) AS object_type,
+      ${encodeJson({ text: "visible" })}::jsonb ->> 'text' AS text,
+      json_typeof(${encodeJson([1, 2])}::json) AS array_type`)).resolves.toMatchObject({
+      rows: [{ object_type: "object", text: "visible", array_type: "array" }],
+    });
+  });
+
   it("queues root and named-part blobs removed by an identity cascade", async () => {
     const [{ documentRepository }, { relationalDatabase, sql }] = await Promise.all([
       import("../relationalDocumentRepository"), import("../relationalDatabase"),
@@ -45,8 +57,9 @@ suite("PostgreSQL relational repository contract", () => {
     const deleted = { userId: randomUUID(),
       userEmail: `deleted-${randomUUID()}@example.test` };
     await provisionScopes([deleted]);
-    const documentId = randomUUID(), versionId = randomUUID(), key = randomUUID(),
-      partKey = randomUUID();
+    const documentId = randomUUID(), versionId = randomUUID(),
+      key = documentBlobKey({ userId: deleted.userId, projectId: null }, "a".repeat(64)),
+      partKey = documentBlobKey({ userId: deleted.userId, projectId: null }, "b".repeat(64));
     const created = new Date().toISOString(), database = await relationalDatabase();
     try {
       await documentRepository.recordOrphans([key, partKey]);
