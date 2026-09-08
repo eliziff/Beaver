@@ -1,6 +1,7 @@
+import { readDocumentProjection } from "../documentApplication";
 import { collapseProvisionLabels } from "../provisionLabels";
 import { readLegalSourceResource, readLibraryResearchWindow, readResearchWorkspace, restoreResearchEvidence,
-  oneHopLegalScope, sourceActivityCitations, readResearchContext, readResearchContextInventory, researchResultFilter,
+  sourceActivityCitations, readResearchContext, readResearchContextInventory, researchResultFilter,
   type ResearchReadContext } from "../researchReader";
 import { ApplicationError } from "../applicationError";
 import { researchMemoCitation } from "../researchMemo";
@@ -37,7 +38,6 @@ import type {
   StoredAssistantEdit,
   DocumentContent,
   DocumentProvenance,
-  DocumentProjectionSource,
   DocumentRecord,
   DocumentScope,
   DocumentStore,
@@ -50,7 +50,6 @@ import {
   structureNative,
   type NativeDocument,
 } from "../structureNative";
-import { pdfLifecyclePhase } from "../pdfLifecycleDiagnostics";
 import {
   lookupProviderPdfReference,
   rehydrateProviderPdfReference,
@@ -101,7 +100,6 @@ import {
   safeGeneratedFilename,
   workbookFromMarkdown,
 } from "./tools/documentOps";
-import { projectDocxRedline } from "../docx/redline";
 import {
   ADVANCED_DOCX_EDIT_TOOL,
   WRITE_TOOL,
@@ -547,7 +545,6 @@ const GREP_LINE_CAP = 2_000;
 type CodingOutputLine = {
   rendered: string;
   lineNumber?: number;
-  evidence?: Parameters<typeof createLibraryEvidence>[0];
 };
 
 function takeCodingOutputLines(
@@ -569,33 +566,6 @@ function takeCodingOutputLines(
 
 type TextRange = { start: number; end: number };
 
-function addCoveredRange(covered: TextRange[], added: TextRange) {
-  const ordered = [...covered, added]
-    .sort((left, right) => left.start - right.start);
-  const merged: TextRange[] = [];
-  for (const range of ordered) {
-    const last = merged.at(-1);
-    if (!last || range.start > last.end) merged.push(range);
-    else last.end = Math.max(last.end, range.end);
-  }
-  covered.splice(0, covered.length, ...merged);
-}
-
-function uncoveredRanges(range: TextRange, covered: readonly TextRange[]) {
-  let cursor = range.start;
-  const open: TextRange[] = [];
-  for (const prior of covered) {
-    if (prior.end <= cursor) continue;
-    if (prior.start >= range.end) break;
-    if (prior.start > cursor) {
-      open.push({ start: cursor, end: Math.min(prior.start, range.end) });
-    }
-    cursor = Math.max(cursor, prior.end);
-    if (cursor >= range.end) break;
-  }
-  if (cursor < range.end) open.push({ start: cursor, end: range.end });
-  return open;
-}
 
 async function activeDocument(
   documents: DocumentStore,
@@ -728,7 +698,6 @@ async function runCodingShapeCall(
   matterId?: string | null,
   turnEditState?: AssistantEditTurnState,
   turnId?: string,
-  servedDraftingCache?: Map<string, ServedDrafting>,
   workflows: WorkflowStore = new Map(),
   editMode: EditMode = "manual",
   documentNames: Map<string, string> = new Map(),
@@ -736,7 +705,6 @@ async function runCodingShapeCall(
   progress?: (label: string) => void,
   signal?: AbortSignal,
 ): Promise<AssistantOutcome> {
-  servedDraftingCache ??= new Map();
   const direct = await readNonDocumentResource(call, args, workflows, scope.userId);
   if (direct) return direct;
   const indexed = new Map(Object.values(docIndex ?? {}).map((item) =>
@@ -767,68 +735,6 @@ async function runCodingShapeCall(
   const referencedVersion = (raw: string) => {
     const reference = parseResourceReference(raw.trim());
     return reference?.kind === "document" ? reference.versionId : undefined;
-  };
-  const redlineText = async (documentId: string, versionId?: string) => {
-    const file = await documents.read(scope, documentId, versionId ?? null, false);
-    if (!file || file.fileType.toLowerCase() !== "docx") return null;
-    return { versionId: file.version.id, text: (await projectDocxRedline(file.bytes)).text };
-  };
-  const codingText = async (
-    documentId: string,
-    versionId?: string,
-    mode?: "text" | "drafting" | "redline",
-  ) => {
-    if (mode === "redline") return redlineText(documentId, versionId);
-    const source = await documents.projectionSource(scope, documentId, versionId ?? null);
-    if (!source) return null;
-    const cacheKey = `${documentId}:${source.versionId}`;
-    const cached = mode !== "text" && servedDraftingCache.get(cacheKey);
-    if (cached) return {
-      versionId: cached.versionId,
-      text: structureNative().documentText(cached.document),
-    };
-    const text = await pdfLifecyclePhase("open.text", documentId, () =>
-      documentProjectionService.text({ ...source, readBytes: () =>
-        pdfLifecyclePhase("open.source_read", documentId, source.readBytes) }, {
-        drafting: mode !== "text", signal,
-      }));
-    return { versionId: source.versionId, text };
-  };
-  const codingDocument = async (
-    documentId: string,
-    versionId?: string,
-    mode?: "text" | "drafting" | "redline",
-    materializeText = true,
-  ) => {
-    const raw = mode === "redline" ? await redlineText(documentId, versionId) : null;
-    const source = raw
-      ? null
-      : await documents.projectionSource(scope, documentId, versionId ?? null);
-    if (!raw && !source) return null;
-    if (source && mode !== "redline" && mode !== "text" &&
-        source.fileType.toLowerCase() === "docx") {
-      const drafting = await servedDraftingDocument(source, servedDraftingCache);
-      if (drafting) return materializeText
-        ? { ...drafting, text: structureNative().documentText(drafting.document) }
-        : drafting;
-    }
-    if (raw) {
-      const document = await structureNative().deriveDocumentStructure({
-        kind: "instrument",
-        id: documentId,
-        text: raw.text,
-        reconstruct_lineation: true,
-      });
-      return materializeText ? { ...raw, document } : { versionId: raw.versionId, document };
-    }
-    const projected = await loadNativeDocument(
-      documents, scope, documentId, versionId, source ?? undefined,
-    );
-    if (!projected || !materializeText) return projected;
-    return {
-      ...projected,
-      text: structureNative().documentText(projected.document),
-    };
   };
   if (call.name === "Glob") {
     const re = globRegExp(trimmed(args.pattern) || "*");
@@ -975,14 +881,10 @@ async function runCodingShapeCall(
     if (references !== "none" && !sectionArg) {
       return fail("references requires an exact section handle.");
     }
-    let document: Awaited<ReturnType<typeof codingDocument>>;
+    let document: Awaited<ReturnType<typeof readDocumentProjection>>;
     try {
-      document = await codingDocument(
-        meta.id,
-        referencedVersion(requested),
-        mode,
-        false,
-      );
+      document = await readDocumentProjection(documents, scope, meta.id,
+        referencedVersion(requested) ?? null, { mode: mode ?? "drafting", signal });
     } catch {
       return fail(
         `Could not read ${meta.filename}. The document reader failed; retrying will not help.`,
@@ -992,131 +894,18 @@ async function runCodingShapeCall(
     const nativeDocument = document.document;
     const limit = (args.limit as number | undefined) ?? 2_000;
     const startChar = (args.start_char as number | undefined) ?? 0;
-    if (!sectionArg) {
-      if (!structureNative().documentText(nativeDocument).trim()) {
-        const waiting = await textRecognitionWait(documents, scope, meta.id, meta.filename);
-        if (waiting) {
-          const { label, ...status } = waiting;
-          progress?.(label);
-          return result({ ok: false, resource: requested, ...status });
-        }
+    if (!sectionArg && !structureNative().documentText(nativeDocument).trim()) {
+      const waiting = await textRecognitionWait(documents, scope, meta.id, meta.filename);
+      if (waiting) {
+        const { label, ...status } = waiting;
+        progress?.(label);
+        return result({ ok: false, resource: requested, ...status });
       }
-      return readLibraryResearchWindow({ documentId: meta.id,
-        versionId: document.versionId, filename: meta.filename, document: nativeDocument,
-        offset: args.offset as number | undefined, start_char: startChar, limit });
     }
-    const sourceSha256 = structureNative().documentRevision(nativeDocument);
-    const source = (
-      locator?: string,
-      kind?: NonNullable<Parameters<typeof createLibraryEvidence>[0]["locator"]>["kind"],
-    ) => ({
-      documentId: meta.id,
-      versionId: document.versionId,
-      filename: meta.filename,
-      sourceSha256,
-      ...(locator && kind ? { locator: { label: locator, kind } } : {}),
-    });
-    const windowLines = (
-      rows: ReturnType<ReturnType<typeof structureNative>["readDocumentTextWindow"]>["rows"],
-      rowSource: ReturnType<typeof source>,
-    ): CodingOutputLine[] => rows.map((row) => ({
-      rendered: `${String(row.lineNumber).padStart(6, " ")}\t` +
-        `${row.truncatedStart ? "…" : ""}${row.text}${row.truncatedEnd ? "…" : ""}`,
-      lineNumber: row.lineNumber,
-      evidence: { ...rowSource, start: row.span[0], end: row.span[1], spanText: row.text },
-    }));
-    const finish = (
-      candidates: CodingOutputLine[],
-      suffix?: (kept: CodingOutputLine[], truncated: boolean) => string,
-    ) => {
-      const { kept, truncated } = takeCodingOutputLines(candidates);
-      return readTextResult(
-        kept,
-        suffix?.(kept, truncated),
-      );
-    };
-    if (sectionArg) {
-      const lookup = structureNative().lookupStructureBlock(
-        nativeDocument, sectionArg, 0);
-      if (lookup.status !== "found" || !lookup.block) {
-        return fail(
-          `Section '${sectionArg}' not found (${lookup.status}` +
-            (lookup.matches.length
-              ? `; candidates: ${lookup.matches.join(", ")}`
-              : "") +
-            "). Grep for the wording, or Read without section.",
-        );
-      }
-      const block = lookup.block;
-      // A heuristic anchor is inferred from wording, not declared by the file, so in
-      // ordinary prose it is usually quoted legislation with a runaway extent.
-      const inferredSection = block.origin === "heuristic"
-        ? `\n\n[Section '${block.label}' was inferred from the wording of ${meta.filename}, not declared by it: it may be quoted legislation rather than a section of this document, and its extent may be wrong.]`
-        : "";
-      if (references !== "none") {
-        const scope = oneHopLegalScope(
-          nativeDocument,
-          block,
-          references,
-        );
-        if (!scope) {
-          return fail(`Section '${sectionArg}' could not seed a reference scope.`);
-        }
-        const covered: TextRange[] = [];
-        const candidates: CodingOutputLine[] = [];
-        for (const [index, node] of [scope.seed, ...scope.nodes].entries()) {
-          const open = uncoveredRanges(
-            { start: node.start, end: node.end },
-            covered,
-          );
-          for (const range of open) {
-            const window = structureNative().readDocumentTextRange(
-              nativeDocument, range.start, range.end, undefined, 0xffff_ffff);
-            if (window.status !== "ready") {
-              return fail(`Section '${node.label}' has an invalid text range.`);
-            }
-            candidates.push({
-              rendered: `=== ${meta.filename} :: Read section="${node.label}" :: ${
-                index === 0 ? "target" : "direct reference"
-              } ===`,
-            }, ...windowLines(window.rows, source(node.label, "section")));
-          }
-          addCoveredRange(covered, { start: node.start, end: node.end });
-        }
-        return finish(
-          candidates,
-          (_kept, truncated) => (truncated
-            ? "\n(Reference read stopped at the tool-result limit; narrow the direction or read a returned section recipe.)"
-            : "") + inferredSection,
-        );
-      }
-      const offset = args.offset as number | undefined;
-      const window = structureNative().readDocumentTextRange(
-        nativeDocument, block.start, block.end, offset, limit);
-      const startLine = window.rangeStartLine ?? 0;
-      const endLine = window.rangeEndLine ?? 0;
-      if (window.status === "invalid_line") {
-        return fail(
-          `(offset ${offset} is outside section ${block.label}; ` +
-            `the section spans lines ${startLine}-${endLine})`,
-        );
-      }
-      if (window.status !== "ready") {
-        return fail(`Section '${block.label}' has an invalid text range.`);
-      }
-      const candidates = windowLines(window.rows, source(block.label, "section"));
-      return finish(
-        candidates,
-        (kept, truncated) => {
-          const firstShown = candidates[0]?.lineNumber ?? startLine;
-          const lastShown = kept.at(-1)?.lineNumber ?? firstShown;
-          const nextOffset = truncated ? lastShown + 1 : window.nextOffset;
-          return (nextOffset !== null
-            ? `\n\n[TRUNCATED: returned section lines ${firstShown}-${lastShown} of ${startLine}-${endLine}; continue with Read(file_path="${requested}", section="${block.label}", offset=${nextOffset}).${truncated ? " Tool-result limit reached." : ""}]`
-            : "") + inferredSection;
-        },
-      );
-    }
+    return readLibraryResearchWindow({ documentId: meta.id,
+      versionId: document.versionId, filename: meta.filename, document: nativeDocument,
+      offset: args.offset as number | undefined, start_char: startChar, limit,
+      section: sectionArg, references });
   }
 
   if (call.name === "Edit" || call.name === "edit_docx_advanced") {
@@ -1264,20 +1053,11 @@ async function runCodingShapeCall(
   const fileBuckets: CodingOutputLine[][] = [];
   let truncated = false;
   for (const meta of targets) {
-    let document;
-    let nativeDocument: NativeDocument | undefined;
-    if (grepSection) {
-      const structured = await codingDocument(
-        meta.id, targetVersionId, undefined, false,
-      );
-      document = structured && {
-        versionId: structured.versionId,
-        text: structureNative().documentText(structured.document),
-      };
-      nativeDocument = structured?.document;
-    } else {
-      document = await codingText(meta.id, targetVersionId);
-    }
+    const projected = await readDocumentProjection(documents, scope, meta.id,
+      targetVersionId ?? null, { mode: "drafting", signal });
+    const nativeDocument = projected?.document;
+    const document = projected && { versionId: projected.versionId,
+      text: structureNative().documentText(projected.document) };
     if (!document) continue;
     const resource = codingPath(meta, document.versionId);
     const lines = document.text.split(/\r?\n/u);
@@ -1374,22 +1154,6 @@ function pdfLocatorParams(args: Record<string, unknown>) {
   };
 }
 
-async function loadNativeDocument(
-  documents: DocumentStore,
-  scope: DocumentScope,
-  documentId: string,
-  versionId?: string,
-  projectionSource?: DocumentProjectionSource,
-) {
-  const source = projectionSource ??
-    await documents.projectionSource(scope, documentId, versionId ?? null);
-  if (!source) return null;
-  const document = await pdfLifecyclePhase("open.projection", documentId, () =>
-    documentProjectionService.read({ ...source, readBytes: () =>
-      pdfLifecyclePhase("open.source_read", documentId, source.readBytes) }));
-  return { versionId: source.versionId, document };
-}
-
 const result = (content: unknown): BeaverOutcome => ({ result: toolText(content, objectRecord(content)?.ok === false) });
 
 type DocumentArtifact = Extract<AssistantEvent, { type: "document_artifact" }>;
@@ -1440,23 +1204,6 @@ const withEvent = (output: AssistantOutcome, event: AssistantEvent | null | unde
   ? { ...output, events: [...(output.events ?? []), event] }
   : output;
 
-function readTextResult(
-  lines: CodingOutputLine[],
-  suffix = "",
-): BeaverOutcome {
-  const receipts = new Map<string, LegalEvidenceReceipt>();
-  const content = lines.map(({ rendered, evidence }) => {
-    if (!evidence?.spanText) return rendered;
-    const receipt = createLibraryEvidence(evidence);
-    receipts.set(receipt.evidence_id, receipt);
-    return `${receipt.evidence_id} ${rendered}`;
-  }).join("\n") + suffix;
-  const evidence = [...receipts.values()];
-  return {
-    ...result(content),
-    ...(evidence.length ? { evidence } : {}),
-  };
-}
 
 const fail = (error: string) => result({ ok: false, error });
 
@@ -1804,27 +1551,8 @@ async function runDocxWorkflow(
   });
 }
 
-type ServedDrafting = {
-  versionId: string;
-  document: NativeDocument;
-} | null;
-
 export type WorkProductFocus = { itemId: string;
   selection?: { start: number; end: number } };
-
-async function servedDraftingDocument(
-  source: DocumentProjectionSource,
-  cache?: Map<string, ServedDrafting>,
-): Promise<ServedDrafting> {
-  const cacheKey = `${source.documentId}:${source.versionId}`;
-  if (cache?.has(cacheKey)) return cache.get(cacheKey)!;
-  const document = await structureNative()
-    .deriveDocxDocument(await source.readBytes(), source.documentId, true)
-    .catch(() => null);
-  const result = document ? { versionId: source.versionId, document } : null;
-  cache?.set(cacheKey, result);
-  return result;
-}
 
 type AssistantToolsDependencies = {
   userId: string;
@@ -1858,7 +1586,6 @@ type AssistantToolsDependencies = {
   matterId?: string | null;
   legalEvidence?: LegalEvidenceTurnState;
   edits?: AssistantEditTurnState;
-  servedDraftingCache?: Map<string, ServedDrafting>;
   editMode?: EditMode;
   timeZone?: string;
   scope: "main" | "reader";
@@ -1888,7 +1615,6 @@ export function assistantTools<Context extends {
     matterId,
     legalEvidence: legalEvidenceState,
     edits: turnEditState,
-    servedDraftingCache = new Map(),
     editMode = "manual",
     timeZone,
     documents,
@@ -2045,7 +1771,6 @@ export function assistantTools<Context extends {
       matterId,
       turnEditState,
       turnId,
-      servedDraftingCache,
       availableWorkflows,
       editMode,
       knownDocumentNames,
@@ -2124,8 +1849,7 @@ export function assistantTools<Context extends {
         },
       );
       const authorityLedger = await createDocxAuthorityLedger(
-        legalEvidenceState, markdown, rendered.bytes, evidence,
-        drafting.citationPlacement,
+        legalEvidenceState, rendered.bytes, evidence, rendered.appearances,
       );
       return persistGenerated(
         filename,

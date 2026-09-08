@@ -1,43 +1,13 @@
 import { z } from "zod";
-import { WORK_PRODUCT_KINDS } from "../workProduct";
+import { activity, subagent, sharedEvents, type PublicAssistantEvent } from "./assistantWire";
+export { parsePublicAssistantEvent } from "./assistantWire";
+export type { PublicAssistantEvent, ToolActivity, AskInputItem, AskInputOption, AskInputsEvent,
+  AskInputResponseItem, AskInputsResponseRequest, WorkflowRunEvent } from "./assistantWire";
 import { researchReadContextSchema } from "../researchReader";
 import { storedLegalEvidenceReceipt, storedLegalResearchQueryReceipt,
   type LegalEvidenceReceipt, type LegalResearchQueryReceipt } from "./legalEvidence";
 
-const text = z.string(), integer = z.number().int().nonnegative();
-const citations = z.array(z.record(z.unknown()));
-const activity = z.object({ id: text, tool: text, label: text,
-  status: z.enum(["running", "completed", "error", "interrupted"]),
-  citations: citations.optional() }).strict();
-const choice = z.object({ id: text, kind: z.literal("choice"), question: text,
-  options: z.array(z.object({ value: text }).strict()) }).strict();
-const documents = z.object({ id: text, kind: z.literal("documents"),
-  document_types: z.array(text) }).strict();
-const response = z.discriminatedUnion("kind", [
-  z.object({ id: text, kind: z.literal("choice"), answer: text.optional() }).strict(),
-  z.object({ id: text, kind: z.literal("documents"), documents: z.array(
-    z.object({ document_id: text, filename: text }).strict()) }).strict(),
-]);
-const ask = z.object({ type: z.literal("ask_inputs"),
-  items: z.array(z.discriminatedUnion("kind", [choice, documents])) }).strict();
-const annotation = z.object({ edit_id: text, document_id: text, version_id: text,
-  version_number: integer.nullable().optional(), del_w_id: text.optional(), ins_w_id: text.optional(),
-  deleted_text: text, inserted_text: text, context_before: text, context_after: text,
-  reason: text.optional(), diff: z.array(z.object({
-    kind: z.enum(["equal", "delete", "insert"]), text }).strict()),
-  status: z.enum(["pending", "accepted", "rejected"]) }).strict();
-const workflow = z.object({ type: z.literal("workflow_run"), id: text,
-  tool: z.enum(["update_work_product"]), stage: text,
-  status: z.enum(["complete", "error"]), error: text.optional(),
-  counts: z.array(z.object({ label: text, value: z.number().finite() }).strict()).optional(),
-  outputs: z.array(z.object({ name: text }).strict()).optional(), app_url: text.optional(),
-  work_product: z.object({ id: text, kind: z.enum(WORK_PRODUCT_KINDS),
-    revision: integer.min(1) }).strict().optional(), requested_action: text.optional(),
-  version_number: z.number().finite().optional() }).strict();
-const subagent = z.object({ type: z.literal("subagent_run"), id: text, task: text,
-  status: z.enum(["running", "completed", "error", "cancelled", "interrupted"]),
-  activity: activity.optional(), activities: z.array(activity).optional(),
-  output: text.optional(), error: text.optional(), citations: citations.optional() }).strict();
+const text = z.string();
 const checkpoint = z.object({ type: z.literal("context_checkpoint"), schema_version: z.literal(1),
   summary: text.optional(), keep_current: z.boolean(), provider: z.enum(["claude", "openai"]).optional(),
   payload: z.record(z.unknown()).optional() }).strict();
@@ -61,35 +31,6 @@ const resume = z.object({ id: text, continuation_id: text, model: text, effort: 
 const privateSubagent = subagent.extend({ agent: z.enum(["scout", "native"]), model: text, effort: text,
   publicError: text.optional(), grounding: receipt.optional(), resume: resume.optional() });
 
-const sharedEvents = [
-  z.object({ type: z.literal("reasoning"), text }).strict(),
-  z.object({ type: z.literal("content"), text }).strict(),
-  z.object({ type: z.literal("tool_activity"), ...activity.shape }).strict(),
-  ask, z.object({ type: z.literal("ask_inputs_response"), responses: z.array(response) }).strict(),
-  z.object({ type: z.literal("document_artifact"), action: z.enum(["created", "edited"]),
-    filename: text, download_url: text, document_id: text, version_id: text,
-    version_number: integer.nullable(), edit_mode: z.enum(["manual", "auto"]).optional(),
-    annotations: z.array(annotation).optional() }).strict(),
-  workflow,
-  z.object({ type: z.literal("steering"), id: text, text }).strict(),
-  z.object({ type: z.literal("context_usage"), used_tokens: integer,
-    window_tokens: integer }).strict(),
-  z.object({ type: z.literal("compaction"), status: z.enum(["running", "completed", "failed"]) }).strict(),
-  z.object({ type: z.literal("turn_status"), status: z.literal("cancelled") }).strict(),
-  z.object({ type: z.literal("error"), message: text,
-    retryable: z.boolean().optional(), accepted: z.boolean().optional() }).strict(),
-] as const;
-const publicEvent = z.discriminatedUnion("type", [
-  ...sharedEvents, subagent,
-  z.object({ type: z.literal("turn_queued"), jobId: text }).strict(),
-  z.object({ type: z.literal("chat_id"), chatId: text, transcriptVersion: integer }).strict(),
-  z.object({ type: z.literal("transcript_version"), transcriptVersion: integer }).strict(),
-  z.object({ type: z.literal("client_tool_call"), callId: text, name: text,
-    input: z.record(z.unknown()) }).strict(),
-  z.object({ type: z.literal("reasoning_delta"), text }).strict(),
-  z.object({ type: z.literal("reasoning_block_end") }).strict(),
-  z.object({ type: z.literal("content_final"), text, citations }).strict(),
-]);
 const storedEvent = z.discriminatedUnion("type", [
   ...sharedEvents, privateSubagent, checkpoint, receipt,
   z.object({ type: z.literal("mcp_tool_call"), connector_id: text, connector_name: text,
@@ -98,19 +39,10 @@ const storedEvent = z.discriminatedUnion("type", [
   z.object({ type: z.literal("local_turn_completed"), schema_version: z.literal(1) }).strict(),
 ]);
 
-export type PublicAssistantEvent = z.infer<typeof publicEvent>;
-export const parsePublicAssistantEvent = (value: unknown): PublicAssistantEvent => publicEvent.parse(value);
 export function parseAssistantEvent(value: unknown): AssistantEvent | null {
   const parsed = storedEvent.safeParse(value);
   return parsed.success ? parsed.data : null;
 }
-export type ToolActivity = z.infer<typeof activity>;
-export type AskInputItem = z.infer<typeof choice> | z.infer<typeof documents>;
-export type AskInputOption = z.infer<typeof choice>["options"][number];
-export type AskInputsEvent = z.infer<typeof ask>;
-export type AskInputResponseItem = z.infer<typeof response>;
-export type AskInputsResponseRequest = { responses: AskInputResponseItem[] };
-export type WorkflowRunEvent = z.infer<typeof workflow>;
 export type PublicSubagentEvent = Extract<PublicAssistantEvent, { type: "subagent_run" }>;
 export type PublicTranscriptEvent = Extract<PublicAssistantEvent, { type:
   "ask_inputs" | "ask_inputs_response" | "workflow_run" | "compaction" | "content" |

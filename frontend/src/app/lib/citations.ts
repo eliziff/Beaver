@@ -5,72 +5,11 @@ export interface CitationQuote {
   page?: number;
   quote: string;
 }
-type DocumentCitationQuote = {
-  page?: number | string;
-  quote: string;
-  sheet?: string;
-  cell?: string;
-};
-type CitationDisplay = {
-  source_class?: "case" | "legislation" | "commentary";
-  external_url?: string | null;
-  authority?: string;
-  short_authority?: string;
-  /** A subsequent reference to an authority already cited above. */
-  short_form?: boolean;
-  locator_separator?: " at " | ", ";
-};
-export type DocumentCitation = CitationDisplay & {
-  kind: "document";
-  ref: number;
-  document_id: string;
-  version_id?: string | null;
-  version_number?: number | null;
-  filename: string; sheet?: string; cells?: string;
-  quotes: DocumentCitationQuote[];
-  locator_kind?: "document" | "paragraph" | "page" | "section" | "footnote" | "sheet" | "cell";
-  locator?: string | null;
-  pinpoint?: string | null;
-};
-type LegalCitationLocator = {
-  locator_kind?: "paragraph" | "page" | "section" | "footnote";
-  locator?: string | null;
-  pinpoint?: string | null;
-} & CitationDisplay;
-type A2AJCitation = LegalCitationLocator & {
-  kind: "a2aj";
-  ref: number;
-  citation?: string | null;
-  name?: string | null;
-  dataset?: string | null;
-  url?: string | null;
-  quotes: { quote: string }[];
-};
-type PublicLegalCitation = LegalCitationLocator & {
-  kind: "public_legal";
-  ref: number;
-  provider: "courtlistener" | "tna" | "govuk-et" | "govinfo" | "hansard" | "journal";
-  identifier: string;
-  title?: string | null;
-  citation?: string | null;
-  url?: string | null;
-  quotes: { quote: string }[];
-};
-export type TabularCitation = CitationDisplay & {
-  kind: "tabular";
-  ref: number;
-  review_id: string;
-  col_index: number;
-  row_index: number;
-  col_name: string;
-  doc_name: string;
-  quotes: { quote: string }[];
-};
-export type Citation =
-  | DocumentCitation
-  | A2AJCitation
-  | PublicLegalCitation
-  | TabularCitation;
+import type { AssistantCitation } from "../../../../backend/src/lib/chat/assistantWire";
+export type Citation = AssistantCitation;
+export type DocumentCitation = Extract<Citation, { kind: "document" }>;
+export type TabularCitation = Extract<Citation, { kind: "tabular" }>;
+type DocumentCitationQuote = DocumentCitation["quotes"][number];
 const PAGE_BREAK_SENTINEL = "[[PAGE_BREAK]]";
 function formatCellLocator(sheet?: string, cell?: string): string {
   if (sheet && cell) return `${sheet}!${cell}`;
