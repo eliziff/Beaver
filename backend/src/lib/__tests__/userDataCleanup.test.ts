@@ -21,7 +21,9 @@ function setup(failure?: string) {
       requests.push({ method: request.method, table,
         filters: Object.fromEntries(url.searchParams),
         body: request.method === "PATCH" ? await request.json() : null });
-      if (`${request.method} ${table}` === failure)
+      const operation = request.method === "GET" && url.searchParams.has("user_id")
+        ? "owned projects" : `${request.method} ${table}`;
+      if (operation === failure)
         return Response.json({ message: "fixture failure" }, { status: 400 });
       if (request.method !== "GET") return new Response(null, { status: 204 });
       return Response.json(url.searchParams.has("user_id") ? [{ id: "owned-project" }] : [
@@ -84,8 +86,9 @@ describe("user data cleanup", () => {
     expect(operations(requests, "DELETE")).toEqual([]);
   });
 
-  it.each(["GET projects", "GET tabular_reviews", "PATCH projects",
-    "PATCH tabular_reviews", "DELETE projects"])("propagates %s failures", async (failure) => {
+  it.each(["owned projects", "GET projects", "GET tabular_reviews", "PATCH projects",
+    "PATCH tabular_reviews", ...[...ownedTables, "workflow_open_source_submissions",
+      "workflow_shares"].map((table) => `DELETE ${table}`)])("propagates %s failures", async (failure) => {
     const { run, documents, requests } = setup(failure);
     await expect(run("u1@example.com")).rejects.toThrow("fixture failure");
     expect(documents.deleteUserDocuments).toHaveBeenCalledTimes(failure.startsWith("DELETE") ? 1 : 0);
