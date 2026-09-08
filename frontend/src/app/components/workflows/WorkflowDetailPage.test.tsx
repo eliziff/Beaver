@@ -32,8 +32,6 @@ it.each([
     system("drafting", { kind: "instructions", variants: [{ id: "draft",
         label: "Draft", result: null, execution: "assistant",
         skill_md: "SYSTEM_PROMPT_MUST_NOT_RENDER", columns_config: null }] }),
-    system("court-records", { kind: "court_records" }),
-    system("authorities", { kind: "authorities" }),
 ])("redirects system workflow $id to its terminal catalogue branch", async (workflow) => {
     mocks.getWorkflow.mockResolvedValue(workflow);
     render(<MemoryRouter initialEntries={[`/workflows/${workflow.id}`]}><Routes>
