@@ -7,7 +7,6 @@ import type { Document } from "@/app/lib/api/documents";
 import { cn } from "@/app/lib/utils";
 import { CourtRecordBuildPanel } from "./CourtRecordBuildPanel";
 import { CourtRecordDocuments, type OcrRun } from "./CourtRecordDocuments";
-import { buildCourtRecord } from "./assembly";
 import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { Button } from "@/app/components/ui/button";
 import { Pagination } from "@/app/components/shared/TablePrimitive";
@@ -618,7 +617,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         requestAnimationFrame(() => focusFinding(buildReport.blockers[0]));
         throw new Error(buildReport.blockers[0]?.title ?? "Complete the required information.");
       }
-      const built = await buildCourtRecord({
+      const built = await (await import("./assembly")).buildCourtRecord({
         profile,
         entries: buildEntries,
         cover: buildCover,
