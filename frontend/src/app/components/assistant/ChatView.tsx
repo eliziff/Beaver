@@ -93,6 +93,7 @@ interface Props {
     initialWorkflow?: AssistantWorkflowLaunch;
     sendDisabled?: boolean;
     searchMessageId?: string | null;
+    onUseAnswer?: (messageId: string) => Promise<void>;
 }
 export interface ChatViewHandle {
     attachDocument: (document: Document) => void;
@@ -198,7 +199,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         projectFileActions,
         initialDocuments,
         initialWorkflow,
-        sendDisabled, searchMessageId,
+        sendDisabled, searchMessageId, onUseAnswer,
     },
     ref,
 ) {
@@ -665,7 +666,9 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         ref={conversationRef}
         chatId={chatId}
         messageActions={activeResearchFile && chatId ? (messageId) => <ChatFindingActions
-            file={activeResearchFile} chatId={chatId} messageId={messageId} onFiled={acceptResearchFile} /> : undefined}
+            file={activeResearchFile} chatId={chatId} messageId={messageId} onFiled={acceptResearchFile}
+            onUseAnswer={onUseAnswer && messageId === session.messages.findLast(({ role }) => role === "assistant")?.id
+                ? () => onUseAnswer(messageId) : undefined} /> : undefined}
         session={session}
         handleChat={handleChat}
         cancel={cancel}

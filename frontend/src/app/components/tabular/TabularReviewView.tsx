@@ -65,17 +65,6 @@ import { ImportResearchSet } from "./ImportResearchSet";
 interface Props { reviewId: string; projectId?: string }
 type Modal = "documents" | "details" | "people" | null;
 type CellView = { cellId: string };
-const cellKey = (documentId: string, columnIndex: number) =>
-    `${documentId}:${columnIndex}`;
-const pendingCell = (
-    documentId: string, columnIndex: number,
-): TabularCell => ({
-    id: `new-${documentId}-${columnIndex}`,
-    document_id: documentId,
-    column_index: columnIndex,
-    content: null,
-    status: "pending",
-});
 
 export function TRView(props: Props) {
     return <SourcesWorkspace key={props.reviewId} projectId={props.projectId}><TRViewContent {...props} /></SourcesWorkspace>;
@@ -204,12 +193,12 @@ function TRViewContent({ reviewId, projectId }: Props) {
             current ? { ...current, columns_config: next } : current);
     }
     async function saveColumns(next: ColumnConfig[], workflowId?: string) {
-        const updated = await updateTabularReview(reviewId, {
+        await updateTabularReview(reviewId, {
             columns_config: next,
             document_ids: documents.map(({ id }) => id),
             ...(workflowId && { workflow_id: workflowId }),
         });
-        setReview({ ...updated, columns_config: updated.columns_config || next });
+        await refreshReview();
     }
     async function addDocuments(incoming: Document[]) {
         const added = incoming.filter(({ id }) =>
@@ -285,26 +274,8 @@ function TRViewContent({ reviewId, projectId }: Props) {
         if (!review || generating || !columns.length || modelUnavailable()) return;
         setUi({ generating: true });
         try {
-            const { queued } = await startTabularGeneration(
-                reviewId, { model, reasoningEffort });
-            if (!queued) {
-                setUi({ generating: false });
-                return;
-            }
-            setCells((current) => {
-                const existing = new Map(current.map((cell) =>
-                    [cellKey(cell.document_id, cell.column_index), cell]));
-                return documents.flatMap((document) => columns.map((column) => {
-                    const cell = existing.get(cellKey(
-                        document.id, column.index)) ?? {
-                        ...pendingCell(document.id, column.index),
-                        id: `${document.id}-${column.index}`,
-                    };
-                    return cell.status === "done" && cell.content
-                        ? cell
-                        : { ...cell, status: "generating", content: null };
-                }));
-            });
+            await startTabularGeneration(reviewId, { model, reasoningEffort });
+            await refreshReview();
         } catch (error) {
             if (error instanceof BeaverApiError &&
                 error.code === "missing_api_key") {
@@ -318,10 +289,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
         setUi({ columnRun: null });
         try {
             await stopTabularGeneration(reviewId);
-            const data = await getTabularReview(reviewId);
-            setReview(data.review);
-            setCells(data.cells);
-            setUi({ generating: data.review.is_running === true });
+            await refreshReview();
         } catch (error) {
             console.error("Failed to stop generation", error);
         }
@@ -329,32 +297,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
     async function addColumns(incoming: ColumnConfig[]) {
         const start = columns.reduce(
             (max, column) => Math.max(max, column.index), -1) + 1;
-        const added = incoming.map((column, index) => ({
-            ...column, index: start + index,
-        }));
-        const next = [...columns, ...added];
-        setColumns(next);
-        setCells((current) => {
-            const existing = new Set(current.map((cell) =>
-                cellKey(cell.document_id, cell.column_index)));
-            return [
-                ...current,
-                ...documents.flatMap((document) => added
-                    .filter(({ index }) =>
-                        !existing.has(cellKey(document.id, index)))
-                    .map(({ index }) =>
-                        pendingCell(document.id, index))),
-            ];
-        });
-        try {
-            await saveColumns(next);
-        } catch (error) {
-            const addedIndices = new Set(added.map(({ index }) => index));
-            setColumns(columns);
-            setCells((current) => current.filter(
-                ({ column_index }) => !addedIndices.has(column_index)));
-            console.error("Failed to save column", error);
-        }
+        await saveColumns([...columns, ...incoming.map((column, index) => ({ ...column, index: start + index }))]);
     }
     async function commitColumns(next: ColumnConfig[], message: string) {
         const previous = columns;
@@ -511,6 +454,14 @@ function TRViewContent({ reviewId, projectId }: Props) {
         setSidebarOpen(false);
         setUi({ dockTab: "chat" });
         if (!chatOpen) setChatId(null);
+    }
+    async function useChatAnswer(chatId: string, messageId: string) {
+        if (!discussion?.rowId || !review?.updated_at) return;
+        await updateTabularReview(reviewId, { expected_version: review.updated_at, cell_answer: {
+            rowId: discussion.rowId, columnIndex: discussion.columnIndex, chatId, messageId } });
+        await refreshReview();
+        const cell = cells.find((cell) => cell.document_id === discussion.rowId && cell.column_index === discussion.columnIndex);
+        if (cell) expandCell(cell);
     }
     function closeDock() {
         setUi({ dockTab: null });
@@ -716,6 +667,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
                         tabs={[
                             { id: "chat", label: "Chat", icon: <MessageSquare aria-hidden className="size-4" />, content: chatOpen && <TRChatPanel
                                 reviewId={reviewId} chatId={chatId ?? null}
+                                onUseAnswer={discussion?.rowId ? useChatAnswer : undefined}
                                 workspaceReady={!!workspaceId && workspace.file?.document.id === workspaceId && JSON.stringify(workspace.selection) === selectedScopeKey}
                                 initialIntent={discussion?.intent ?? location.state?.assistantIntent}
                                 scopeLabel={discussion ? `${columns.find(({ index }) => index === discussion.columnIndex)?.name ?? "Results"} · ${discussedRows.length} row${discussedRows.length === 1 ? "" : "s"}` : undefined}
