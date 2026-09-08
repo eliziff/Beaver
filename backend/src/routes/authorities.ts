@@ -152,14 +152,10 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
     const body = object(req.body), roles: unknown = body.roles;
     if (!Array.isArray(roles) || !roles.length || roles.length > 200)
       reject(400, "roles must contain 1 to 200 binding roles");
+    const pages = body.pages === undefined ? undefined : Array.isArray(body.pages) &&
+      body.pages.length > 0 && body.pages.length <= 2_000 ? body.pages.map((page) => integer(page, 1)) : bad();
     res.json(await application.sourceOcr(applicationScope(res), text(req.params.id),
-      (roles as unknown[]).map((role) => text(role)), body.cancel === true));
-  }));
-  router.post("/:id/prepare-highlights", asyncRoute(async (req, res) => {
-    const preparation = new AbortController();
-    res.once("close", () => preparation.abort());
-    res.json(await application.prepareHighlights(applicationScope(res), text(req.params.id),
-      revision(object(req.body).revision), preparation.signal));
+      (roles as unknown[]).map((role) => text(role)), body.cancel === true, pages));
   }));
   router.post("/:id/build", asyncRoute(async (req, res) => {
     const build = new AbortController();
