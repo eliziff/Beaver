@@ -287,14 +287,18 @@ it("reads saved workspace passages through their handles without fetching the so
   expect(restored.state.sources).toEqual(before.state.sources);
   expect(restored.state.labels).toEqual(before.state.labels);
 });
-it("round trips every table column and the same receipt under three types, then undoes all filing", async () => {
+it("round trips every table column with joint evidence outside its rows, then undoes all filing", async () => {
   const f = await fixture(), columns = ["Honesty", "Exclusion", "Remedy"].map((name, index) => ({ index, name, prompt: `${name}?`, format: "text" })),
+    other = f.legal.createA2AJPassageEvidence({ citation: "Test 2", name: "Other decision", dataset: "scc", language: "en",
+      sourceText: "A joint conclusion.", spanText: "A joint conclusion.", start: 0, end: 19,
+      locator: { kind: "paragraph", label: "2" }, externalUrl: null, sourceClass: "case", sourceReference: { id: "other-source" } }),
+    evidence = [f.receipts[0], other],
     initial = await f.sources.create(owner, { title: "Contract duties", sources: [f.file().state.sources[f.sourceId].reference], evidence: [f.receipts[0]] }),
     review = await f.tables.create(owner, { research_file_id: initial.document.id, columns_config: columns }),
     { tabularRepository } = await import("./relationalTabularRepository"), detail = await f.tables.detail(owner, review.id);
   for (const cell of detail.cells) await tabularRepository.setCell(owner, { reviewId: review.id, documentId: cell.document_id,
     columnIndex: cell.column_index, expected: cell, status: "done", content: { value: "Supported conclusion", summary: "Supported conclusion",
-      claims: [{ text: "Supported conclusion", evidence_ids: [f.receipts[0].evidence_id] }], evidence: [f.receipts[0]],
+      claims: [{ text: "Supported conclusion", evidence_ids: evidence.map(({ evidence_id }) => evidence_id) }], evidence,
       resource: detail.review.scope_config!.subjects[0].resource, coverage: "complete" } });
   const before = await f.sources.ensure(owner, { tableId: review.id }), input = { tableId: review.id },
     preview = await f.sources.previewLabels(owner, before.document.id, input);
@@ -303,9 +307,16 @@ it("round trips every table column and the same receipt under three types, then 
   const saved = await f.sources.applyLabels(owner, before.document.id, { ...input, design: preview.design, fingerprint: preview.fingerprint }),
     page = await f.sources.items(owner, saved.document.id, { kind: "passages", offset: 0, limit: 50 }),
     passages = page.items.flatMap((item) => item.kind === "passage" ? [item.value] : []);
-  expect(passages).toHaveLength(3);
-  expect(new Set(passages.map((item) => item.highlightId ?? item.receipt.evidence_id)).size).toBe(3);
-  expect(passages.every(({ receipt, labelIds }) => JSON.stringify(receipt) === JSON.stringify(f.receipts[0]) && labelIds.length === 1)).toBe(true);
+  expect(passages).toHaveLength(6);
+  expect(new Set(passages.map((item) => item.highlightId ?? item.receipt.evidence_id)).size).toBe(6);
+  for (const receipt of evidence) {
+    const copies = passages.filter((passage) => passage.receipt.evidence_id === receipt.evidence_id);
+    expect(copies).toHaveLength(3);
+    expect(copies.every((passage) => JSON.stringify(passage.receipt) === JSON.stringify(receipt) && passage.labelIds.length === 1)).toBe(true);
+    const source = Object.values(saved.state.sources).find(({ reference }) =>
+      f.research.researchSourceResource(reference) === f.legal.legalEvidenceResourceReference(receipt))!;
+    expect(Object.values(source.passages!.labelCounts)).toEqual([1, 1, 1]);
+  }
   expect(new Set(passages.map(({ labelIds }) => saved.state.labels[labelIds[0]].name))).toEqual(new Set(columns.map(({ name }) => name)));
   const returned = await f.sources.previewTable(owner, saved.document.id, {});
   expect(returned.design.columns.map(({ name, prompt }) => ({ name, prompt }))).toEqual(columns.map(({ name, prompt }) => ({ name, prompt })));
