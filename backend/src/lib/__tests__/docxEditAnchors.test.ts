@@ -117,7 +117,7 @@ describe("DOCX edit anchors", () => {
     },
     {
       name: "single-paragraph matching cannot span paragraph boundaries", text: "A\nB",
-      input: { find: "A B" }, reason: missing,
+      input: { find: "A B" }, reason: "Exact edit span must resolve inside one paragraph.",
     },
     {
       name: "ambiguous multi-paragraph replacement", text: "A\nB\nA\nB",
