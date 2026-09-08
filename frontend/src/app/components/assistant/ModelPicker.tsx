@@ -5,21 +5,8 @@ import { TabList } from "@/app/components/ui/tabs";
 import { isModelAvailable } from "@/app/lib/modelAvailability";
 import type { ApiKeyState } from "@/app/lib/api/account";
 import { cn } from "@/app/lib/utils";
-export interface ModelOption {
-    id: string;
-    label: string;
-    group:
-        | "Anthropic"
-        | "Claude Code"
-        | "Google"
-        | "OpenAI"
-        | "DeepSeek"
-        | "Meta"
-        | "OpenCode Go"
-        | "Codex"
-        | "Desktop";
-    available?: boolean;
-}
+import type { ModelOption } from "@/app/lib/api/account";
+export type { ModelOption } from "@/app/lib/api/account";
 export function ModelPicker({
     value,
     models,

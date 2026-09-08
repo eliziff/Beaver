@@ -69,7 +69,7 @@ type PanelProps = ComponentProps<typeof DocumentSidePanel>;
 const panel = (props: Partial<PanelProps> & Pick<PanelProps, "versions">) =>
   <DocumentSidePanel doc={document} versionsLoading={false} onClose={vi.fn()}
     onLoadVersions={vi.fn()} onSelectVersion={vi.fn()} onDownloadVersion={vi.fn()}
-    onRenameDocument={vi.fn()} onCheckpointVersion={vi.fn()} onRestoreVersion={vi.fn()}
+    onRenameDocument={vi.fn(async () => true)} onCheckpointVersion={vi.fn(async () => true)} onRestoreVersion={vi.fn()}
     onCompareVersions={vi.fn()} onUploadNewVersion={vi.fn(async () => {})}
     onDelete={vi.fn()} {...props} />;
 const renderPanel = (props: Partial<PanelProps> & Pick<PanelProps, "versions">) =>
@@ -139,7 +139,7 @@ describe("DocumentSidePanel document removal", () => {
     expect(editedName).toHaveValue("Authorities");
     fireEvent.change(editedName, { target: { value: "Appeal authorities" } });
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save document name" })));
-    expect(onRenameDocument).toHaveBeenCalledWith(document.id, "Appeal authorities.research.md");
+    expect(onRenameDocument).toHaveBeenCalledWith(document.id, "Appeal authorities");
   });
 
   it("bounds a large research preview until more sources are requested", async () => {
@@ -265,7 +265,7 @@ describe("DocumentSidePanel document removal", () => {
   it("keeps the document name editable while previewing history and restores or compares explicitly", async () => {
     const onRestoreVersion = vi.fn(async () => {});
     const onCompareVersions = vi.fn(async () => {});
-    const onRenameDocument = vi.fn(async () => {});
+    const onRenameDocument = vi.fn(async () => true);
     const versions = [3, 2].map((number) => ({ ...version3,
       id: `version-${number}`, version_number: number, filename: "Brief.docx",
       file_type: "docx", parent_version_id: number === 2 ? "version-1" : "version-2" }));
@@ -291,9 +291,7 @@ describe("DocumentSidePanel document removal", () => {
     fireEvent.click(screen.getByRole("button", {
       name: "Restore Version 2 as a new current version",
     }));
-    expect(screen.getByText(/become a new current version/u)).toBeInTheDocument();
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Restore" })));
-    expect(onRestoreVersion).toHaveBeenCalledWith("document-1", "version-2");
+    expect(onRestoreVersion).toHaveBeenCalledWith("document-1", versions[1]);
     expect(screen.getByRole("button", { name: "Rename document" })).toBeVisible();
   });
 
@@ -339,7 +337,7 @@ describe("DocumentSidePanel document removal", () => {
     const user = userEvent.setup();
     renderPanel({
       versions: [version3],
-      onDownloadVersion: vi.fn().mockRejectedValue(new Error("offline")),
+      actionError: "Could not download this version.",
     });
 
     await user.click(await screen.findByRole("button", {
@@ -373,51 +371,14 @@ describe("DocumentSidePanel document removal", () => {
     expect(screen.getByRole("columnheader", { name: "Date" })).toBeInTheDocument();
   });
 
-  it("counts the surviving version rows instead of the version number", async () => {
-    renderPanel({ versions: [version3] });
-
-    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
-
-    expect(
-      screen.getByText(
-        "Brief.pdf has 1 version. Deleting this document will delete all of its versions.",
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it("uses generic deletion copy until version rows are available", async () => {
-    renderPanel({ versions: [] });
-
-    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
-
-    expect(
-      screen.getByText(
-        "Delete Brief.pdf? This will delete the document and all of its versions.",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/has 3 versions/u)).not.toBeInTheDocument();
-  });
-
-  it("shows a warning when a side-panel detach fails", async () => {
-    const onDelete = vi.fn(async () => {
-      throw new Error("offline");
-    });
-    renderPanel({
-      versions: [version3],
-      onDelete,
-      documentRemovalMode: "detach",
-    });
-
-    fireEvent.click(await screen.findByRole("button", { name: "Remove" }));
-    fireEvent.click(
-      screen.getAllByRole("button", { name: "Remove" }).at(-1)!,
-    );
-
-    expect(
-      await screen.findByText(
-        "The document could not be removed from this project. Please try again.",
-      ),
-    ).toBeInTheDocument();
+  it("delegates Library and Project removal to the document owner", async () => {
+    const onDelete = vi.fn();
+    const { rerender } = renderPanel({ versions: [version3], onDelete });
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(onDelete).toHaveBeenCalledWith(document);
+    rerender(panel({ versions: [version3], onDelete, documentRemovalMode: "detach" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    expect(onDelete).toHaveBeenCalledTimes(2);
   });
 });
 

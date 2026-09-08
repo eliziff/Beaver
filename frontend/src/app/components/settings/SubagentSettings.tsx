@@ -22,12 +22,7 @@ export function SubagentSettings() {
 
     const capability = catalog?.readSubagents;
     const loading = !catalog;
-    const models = (catalog?.models ?? [])
-        .map((model) => ({
-            id: `codex:${model.slug}`,
-            label: model.displayName,
-            group: "Codex" as const,
-        }));
+    const models = (catalog?.models ?? []).filter(model => model.provider === "codex");
     const serverEnabled = capability?.serverEnabled !== false;
 
     return (

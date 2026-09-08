@@ -6,7 +6,6 @@ import {
     useLayoutEffect,
     useRef,
     useState,
-    type ChangeEvent,
     type FormEvent,
 } from "react";
 import {
@@ -24,8 +23,6 @@ import {
     Upload,
 } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
-import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
-import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { ContextualWorkflowLauncher } from "@/app/components/workflows/ContextualWorkflowPicker";
 import type { WorkflowSelection } from "@/app/components/workflows/workflowRoutes";
 import { Button } from "@/app/components/ui/button";
@@ -33,15 +30,12 @@ import type { Document, DocumentVersion } from "@/app/lib/api/documents";
 import {
   isDocxFilename,
   isSpreadsheetFilename,
-  filenameExtensionChangeWarning,
-  hasFilenameExtensionChange,
 } from "@/app/lib/documentFilename";
 import { DocumentViewer } from "@/app/components/shared/views/DocumentViewer";
 import { ReaderExpandButton } from "./ReaderExpandButton";
 import { preserveReaderScroll } from "./useReaderExpansion";
 
 import { formatBytes, formatDate } from "@/app/lib/utils";
-import { SUPPORTED_DOCUMENT_ACCEPT } from "@/app/lib/documentUploadValidation";
 
 import { getResearchFile, getResearchItems } from "@/app/lib/api/researchFiles";
 import { ResearchLabelMarker } from "@/app/components/legal/ResearchLabelMarker";
@@ -59,7 +53,10 @@ import {
 const VERSION_PAGE = 40;
 const PREVIEW_TEXT = 1_000;
 const previewText = (text: string) => text.length > PREVIEW_TEXT ? `${text.slice(0, PREVIEW_TEXT)}…` : text;
+export type DocumentAction = "rename" | "upload" | "checkpoint" | "restore" | "compare" | "download";
 interface Props {
+    pendingAction?: DocumentAction;
+    actionError?: string | null;
     doc: Document | null;
     versionId?: string | null;
     highlightCells?: { sheet?: string; cell?: string }[];
@@ -75,20 +72,18 @@ interface Props {
         versionId: string,
         filename: string,
     ) => Promise<void> | void;
-    onRenameDocument: (docId: string, filename: string) => Promise<void> | void;
-    onCheckpointVersion: (docId: string, comment?: string) => Promise<void> | void;
+    onRenameDocument: (docId: string, filename: string) => Promise<boolean>;
+    onCheckpointVersion: (docId: string, comment?: string) => Promise<boolean>;
     onRestoreVersion: (
         docId: string,
-        versionId: string,
-    ) => Promise<void> | void;
+        version: DocumentVersion,
+    ) => void;
     onCompareVersions: (
         docId: string,
         baselineVersionId: string,
         versionId: string,
     ) => Promise<void> | void;
-    onUploadNewVersion: (doc: Document, file: File) => Promise<void>;
-    canDelete?: boolean;
-    onOwnerOnlyAction?: (action: string) => void;
+    onUploadNewVersion: (doc: Document) => void;
     onDelete: (doc: Document) => Promise<void> | void;
     documentRemovalMode?: "delete" | "detach";
     onOpenWorkflows?: (documents: Document[]) => void;
@@ -208,8 +203,8 @@ export function DocumentSidePanel({
     onRestoreVersion,
     onCompareVersions,
     onUploadNewVersion,
-    canDelete = true,
-    onOwnerOnlyAction,
+    pendingAction,
+    actionError,
     onDelete,
     documentRemovalMode = "delete",
     onOpenWorkflows,
@@ -230,18 +225,7 @@ export function DocumentSidePanel({
     }, [expandedReader]);
     /** Non-null while the name is being edited; holds the draft. */
     const [nameDraft, setNameDraft] = useState<string | null>(null);
-    const [savingName, setSavingName] = useState(false);
-    const [extensionWarningOpen, setExtensionWarningOpen] = useState(false);
-    const [uploading, setUploading] = useState(false);
-    const [checkpointing, setCheckpointing] = useState(false);
-    const [actionError, setActionError] = useState<string | null>(null);
-    const [restoreTarget, setRestoreTarget] = useState<DocumentVersion | null>(null);
-    const [restoringId, setRestoringId] = useState<string | null>(null);
-    const [comparingId, setComparingId] = useState<string | null>(null);
-    const [deleteStatus, setDeleteStatus] = useState<
-        "closed" | "idle" | "deleting" | "deleted"
-    >("closed");
-    const uploadRef = useRef<HTMLInputElement>(null);
+    const [captureError, setCaptureError] = useState<string | null>(null);
     const sourcesController = useSourcesWorkspaceOrNull();
     const highlightController = sourcesController?.highlight ?? null;
     const captureReference: ResearchSourceReference | null =
@@ -250,7 +234,7 @@ export function DocumentSidePanel({
                 versionId: (versionId ?? doc.current_version_id) as string,
                 title: doc.filename }
             : null;
-    const captureReady = useReaderCapture(readerBody, captureReference, highlightController, undefined, setActionError);
+    const captureReady = useReaderCapture(readerBody, captureReference, highlightController, undefined, setCaptureError);
     const [savedQuotes, setSavedQuotes] = useState<CitationQuote[]>([]);
     const workspaceFile = sourcesController?.file ?? null;
     const captureKey = captureReference ? researchSourceKey(captureReference) : null;
@@ -273,15 +257,10 @@ export function DocumentSidePanel({
 
     useEffect(() => {
         setVisibleVersionCount(VERSION_PAGE);
-        setActionError(null);
-        setDeleteStatus("closed");
+        setCaptureError(null);
         setNameDraft(null);
         if (docId) void loadVersions(docId);
     }, [docId]);
-
-    useEffect(() => {
-        setRestoreTarget(null);
-    }, [versionId, currentVersionId]);
 
     if (!doc) return null;
 
@@ -324,96 +303,15 @@ export function DocumentSidePanel({
     async function saveName() {
         const entered = nameDraft?.trim();
         if (!entered) return;
-        const next = isResearchDocument(activeDoc)
-            ? `${entered.replace(/\.research\.md$/iu, "")}.research.md` : entered;
-        if (hasFilenameExtensionChange(activeDoc.filename, next)) {
-            return setExtensionWarningOpen(true);
-        }
-        if (next === activeDoc.filename) return setNameDraft(null);
-        setSavingName(true);
-        setActionError(null);
-        try {
-            await onRenameDocument(activeDoc.id, next);
-            setNameDraft(null);
-        } catch {
-            setActionError("Could not rename this document.");
-        } finally {
-            setSavingName(false);
-        }
-    }
-
-    async function upload(event: ChangeEvent<HTMLInputElement>) {
-        const file = event.target.files?.[0];
-        event.target.value = "";
-        if (!file) return;
-        setUploading(true);
-        setActionError(null);
-        try {
-            await onUploadNewVersion(activeDoc, file);
-        } catch {
-            setActionError("Could not upload the new version.");
-        } finally {
-            setUploading(false);
-        }
+        if (await onRenameDocument(activeDoc.id, entered)) setNameDraft(null);
     }
 
     async function checkpoint(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        if (!canCheckpoint || checkpointing) return;
+        if (!canCheckpoint || pendingAction) return;
         const form = event.currentTarget;
         const comment = String(new FormData(form).get("comment") ?? "").trim();
-        setCheckpointing(true);
-        setActionError(null);
-        try {
-            await onCheckpointVersion(activeDoc.id, comment || undefined);
-            form.reset();
-        } catch {
-            setActionError("Could not create this version.");
-        } finally {
-            setCheckpointing(false);
-        }
-    }
-
-    async function restoreVersion() {
-        if (!restoreTarget) return;
-        setRestoringId(restoreTarget.id);
-        setActionError(null);
-        try {
-            await onRestoreVersion(activeDoc.id, restoreTarget.id);
-            setRestoreTarget(null);
-        } catch {
-            setRestoreTarget(null);
-            setActionError(
-                "Could not restore this version. Review the latest history and try again.",
-            );
-        } finally {
-            setRestoringId(null);
-        }
-    }
-
-    async function compareVersions(rowId: string, baselineId: string, comparedId: string) {
-        setComparingId(rowId);
-        setActionError(null);
-        try {
-            await onCompareVersions(activeDoc.id, baselineId, comparedId);
-        } catch {
-            setActionError("Could not create the comparison.");
-        } finally {
-            setComparingId(null);
-        }
-    }
-
-    async function downloadVersion(version: DocumentVersion) {
-        setActionError(null);
-        try {
-            await onDownloadVersion(
-                activeDoc.id,
-                version.id,
-                versionFilename(version),
-            );
-        } catch {
-            setActionError("Could not download this version.");
-        }
+        if (await onCheckpointVersion(activeDoc.id, comment || undefined)) form.reset();
     }
 
     function comparison(version: DocumentVersion) {
@@ -428,47 +326,6 @@ export function DocumentSidePanel({
             label: `Download comparison: ${version.id === currentId ? "prior " : ""}${versionTitle(baseline)} to current ${versionTitle(comparisonCurrent)}`,
         };
     }
-
-    async function removeDocument() {
-        if (deleteStatus === "deleting") return;
-        setDeleteStatus("deleting");
-        setActionError(null);
-        try {
-            await onDelete(activeDoc);
-            setDeleteStatus("deleted");
-            window.setTimeout(() => {
-                setDeleteStatus("closed");
-                onClose();
-            }, 650);
-        } catch {
-            setDeleteStatus("closed");
-            setActionError(
-                documentRemovalMode === "detach"
-                    ? "The document could not be removed from this project. Please try again."
-                    : "The document could not be deleted. Please try again.",
-            );
-        }
-    }
-
-    function requestDelete() {
-        if (!canDelete) {
-            return onOwnerOnlyAction?.(
-                documentRemovalMode === "detach"
-                    ? "remove this document from the project"
-                    : "delete this document",
-            );
-        }
-        setDeleteStatus("idle");
-    }
-
-    const deleteMessage =
-        documentRemovalMode === "detach"
-            ? `Remove ${displayFilename} from this project? The Library file and its links in other projects will be kept.`
-            : versions.length > 0
-              ? `${displayFilename} has ${versions.length} ${
-                    versions.length === 1 ? "version" : "versions"
-                }. Deleting this document will delete all of its versions.`
-              : `Delete ${displayFilename}? This will delete the document and all of its versions.`;
 
     return (
         <Modal
@@ -516,10 +373,10 @@ export function DocumentSidePanel({
                         title="Highlight"
                         onPointerDown={(event) => event.preventDefault()}
                         onClick={() => {
-                            setActionError(null);
+                            setCaptureError(null);
                             void highlightController.run().then((saved) => { if (!saved) highlightController.arm(!highlightController.armed); })
                                 .catch((reason: unknown) => {
-                                    setActionError(reason instanceof Error ? reason.message
+                                    setCaptureError(reason instanceof Error ? reason.message
                                         : "Could not save this highlight");
                                 });
                         }}
@@ -532,12 +389,12 @@ export function DocumentSidePanel({
                     <button
                         type="button"
                         onClick={() => void saveName()}
-                        disabled={savingName}
+                        disabled={!!pendingAction}
                         aria-label="Save document name"
                         title="Save document name"
                         className="h-8 w-8 rounded hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
                     >
-                        {savingName ? (
+                        {pendingAction === "rename" ? (
                             <Loader2 className="mx-auto h-4 w-4 animate-spin" />
                         ) : (
                             <Check className="mx-auto h-4 w-4" />
@@ -603,23 +460,23 @@ export function DocumentSidePanel({
                     </button>
                         <h2 className="hidden text-xs font-medium text-gray-700 @min-[42rem]:block">Details</h2>
                         <div className="ml-auto flex items-center gap-1">
-                            <Button variant="ghost" size="icon-sm" disabled={!selected}
+                            <Button variant="ghost" size="icon-sm" disabled={!selected || !!pendingAction}
                                 aria-label={`Download ${versionTitle(selected)}`} title="Download selected version"
-                                onClick={() => { if (selected) void downloadVersion(selected); }}>
+                                onClick={() => { if (selected) void onDownloadVersion(activeDoc.id, selected.id, versionFilename(selected)); }}>
                                 <Download aria-hidden />
                             </Button>
                             <Button variant="ghost" size="icon-sm"
-                                disabled={!selected || selectedId === currentId || !!restoringId}
+                                disabled={!selected || selectedId === currentId || !!pendingAction}
                                 aria-label={`Restore ${versionTitle(selected)} as a new current version`} title="Restore selected version"
-                                onClick={() => setRestoreTarget(selected)}>
-                                {restoringId ? <Loader2 aria-hidden className="animate-spin" /> : <RotateCcw aria-hidden />}
+                                onClick={() => { if (selected) onRestoreVersion(activeDoc.id, selected); }}>
+                                {pendingAction === "restore" ? <Loader2 aria-hidden className="animate-spin" /> : <RotateCcw aria-hidden />}
                             </Button>
                             {comparisonCurrent && <Button variant="ghost" size="icon-sm"
-                                disabled={!selectedComparison || !!comparingId || !!restoringId}
+                                disabled={!selectedComparison || !!pendingAction}
                                 aria-label={selectedComparison?.label ?? "Download comparison"} title="Download comparison with current version"
-                                onClick={() => { if (selected && selectedComparison) void compareVersions(selected.id,
+                                onClick={() => { if (selected && selectedComparison) void onCompareVersions(activeDoc.id,
                                     selectedComparison.baselineId, selectedComparison.comparedId); }}>
-                                {comparingId ? <Loader2 aria-hidden className="animate-spin" /> : <FileDiff aria-hidden />}
+                                {pendingAction === "compare" ? <Loader2 aria-hidden className="animate-spin" /> : <FileDiff aria-hidden />}
                             </Button>}
                         </div>
                     </div>
@@ -651,7 +508,7 @@ export function DocumentSidePanel({
                                         selected={version.id === selectedId}
                                         current={version.id === currentId}
                                         onSelect={() => {
-                                            setActionError(null);
+                                            setCaptureError(null);
                                             onSelectVersion(version.id);
                                         }}
                                     />
@@ -685,37 +542,33 @@ export function DocumentSidePanel({
                             className="h-8 min-w-0 flex-1 rounded border border-gray-300 bg-white px-2 text-sm outline-none focus:ring-2 focus:ring-gray-900"
                         />
                         <Button variant="outline" size="compact" type="submit"
-                            disabled={checkpointing || versionsLoading || !current}>
-                            {checkpointing ? <Loader2 aria-hidden className="animate-spin" />
+                            disabled={!!pendingAction || versionsLoading || !current}>
+                            {pendingAction === "checkpoint" ? <Loader2 aria-hidden className="animate-spin" />
                                 : <Save aria-hidden />}
                             Save version
                         </Button>
                     </form>}
-                    {actionError && (
+                    {(actionError || captureError) && (
                         <p role="alert" className="flex items-center gap-2 py-2 text-xs text-red-700">
                             <AlertCircle aria-hidden className="h-3.5 w-3.5 shrink-0" />
-                            {actionError}
+                            {actionError || captureError}
                         </p>
                     )}
                     <div className="flex shrink-0 justify-between gap-2 pt-3">
                         <Button
                             variant="danger"
                             size="compact"
-                            onClick={requestDelete}
-                            disabled={deleteStatus === "deleting"}
+                            onClick={() => void onDelete(activeDoc)}
+                            disabled={!!pendingAction}
                         >
-                            {deleteStatus === "deleting" ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                                <Trash2 className="h-3.5 w-3.5" />
-                            )}
+                            <Trash2 className="h-3.5 w-3.5" />
                             {documentRemovalMode === "detach"
                                 ? "Remove"
                                 : "Delete"}
                         </Button>
-                        <Button size="compact" onClick={() => uploadRef.current?.click()}
-                            disabled={uploading}>
-                            {uploading ? <Loader2 aria-hidden className="animate-spin" />
+                        <Button size="compact" onClick={() => onUploadNewVersion(activeDoc)}
+                            disabled={!!pendingAction}>
+                            {pendingAction === "upload" ? <Loader2 aria-hidden className="animate-spin" />
                                 : <Upload aria-hidden />}
                             Upload new version
                         </Button>
@@ -723,52 +576,6 @@ export function DocumentSidePanel({
                     </div>
                 </aside>
             </main>
-            <input
-                ref={uploadRef}
-                type="file"
-                accept={SUPPORTED_DOCUMENT_ACCEPT}
-                className="hidden"
-                onChange={upload}
-            />
-            <WarningPopup
-                open={extensionWarningOpen}
-                onClose={() => setExtensionWarningOpen(false)}
-                message={filenameExtensionChangeWarning(activeDoc.filename)}
-            />
-            <ConfirmPopup
-                open={!!restoreTarget}
-                title="Restore this version?"
-                message={`${versionTitle(restoreTarget)} will become a new current version. Existing history will be kept.`}
-                confirmLabel="Restore"
-                confirmStatus={restoringId ? "loading" : "idle"}
-                cancelLabel="Cancel"
-                onCancel={() => { if (!restoringId) setRestoreTarget(null); }}
-                onConfirm={() => void restoreVersion()}
-            />
-            <ConfirmPopup
-                open={deleteStatus !== "closed"}
-                title={
-                    documentRemovalMode === "detach"
-                        ? "Remove from project?"
-                        : "Delete document?"
-                }
-                message={deleteMessage}
-                confirmLabel={
-                    documentRemovalMode === "detach" ? "Remove" : "Delete"
-                }
-                confirmStatus={
-                    deleteStatus === "deleting"
-                        ? "loading"
-                        : deleteStatus === "deleted"
-                          ? "complete"
-                          : "idle"
-                }
-                cancelLabel="Cancel"
-                onCancel={() => {
-                    if (deleteStatus !== "deleting") setDeleteStatus("closed");
-                }}
-                onConfirm={() => void removeDocument()}
-            />
             </div>
         </Modal>
     );

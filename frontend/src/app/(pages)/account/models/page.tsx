@@ -3,10 +3,7 @@ import { Info, Loader2 } from "lucide-react";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import type { ApiKeyState } from "@/app/lib/api/account";
 import {
-    MODELS,
     ModelToggle,
-    SETTINGS_MODELS,
-    type ModelOption,
 } from "@/app/components/assistant/ModelToggle";
 import { AccountSection } from "../AccountSection";
 type ModelPreferenceField = "titleModel" | "tabularModel";
@@ -47,7 +44,7 @@ export default function ModelPreferencesPage() {
                             profile?.titleModel ??
                             "gemini-3.1-flash-lite-preview"
                         }
-                        options={SETTINGS_MODELS}
+                        includeSettingsModels
                         apiKeys={profile?.apiKeys}
                         isSaving={savingField === "titleModel"}
                         onChange={(id) => handleModelChange("titleModel", id)}
@@ -65,7 +62,6 @@ export default function ModelPreferencesPage() {
                             profile?.tabularModel ??
                             "gemini-3-flash-preview"
                         }
-                        options={MODELS}
                         apiKeys={profile?.apiKeys}
                         isSaving={savingField === "tabularModel"}
                         onChange={(id) => handleModelChange("tabularModel", id)}
@@ -78,13 +74,13 @@ function ModelPreferenceDropdown({
     value,
     onChange,
     apiKeys,
-    options,
+    includeSettingsModels,
     isSaving,
 }: {
     value: string;
     onChange: (id: string) => void;
     apiKeys?: ApiKeyState;
-    options: ModelOption[];
+    includeSettingsModels?: boolean;
     isSaving?: boolean;
 }) {
     return (
@@ -92,7 +88,7 @@ function ModelPreferenceDropdown({
             <ModelToggle
                 value={value}
                 disabled={isSaving}
-                models={options}
+                includeSettingsModels={includeSettingsModels}
                 apiKeys={apiKeys}
                 onChange={onChange}
                 className="max-w-xs"

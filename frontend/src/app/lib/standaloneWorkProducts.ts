@@ -578,21 +578,10 @@ function openDatabase() {
   }
   return database ??= new Promise<IDBDatabase>((resolve, reject) => {
     const opening = indexedDB.open(DATABASE, 5);
-    opening.onupgradeneeded = (event) => {
+    opening.onupgradeneeded = () => {
       const names = opening.result.objectStoreNames;
-      const migrate = names.contains(DRAFTS) &&
-        (!names.contains(METADATA) || event.oldVersion < 5);
       for (const name of [DRAFTS, METADATA, HANDLES, FILES, OUTPUTS]) {
         if (!names.contains(name)) opening.result.createObjectStore(name, { keyPath: "id" });
-      }
-      if (migrate) {
-        const metadata = opening.transaction!.objectStore(METADATA);
-        const cursor = opening.transaction!.objectStore(DRAFTS).openCursor();
-        cursor.onsuccess = () => {
-          if (!cursor.result) return;
-          metadata.put(draftMetadata(cursor.result.value as WorkProduct));
-          cursor.result.continue();
-        };
       }
     };
     opening.onsuccess = () => resolve(opening.result);

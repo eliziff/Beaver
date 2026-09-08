@@ -11,9 +11,6 @@ const subscribe = (listener: () => void) => {
     return () => { listeners.delete(listener); };
 };
 export const useModelCatalog = () => useSyncExternalStore(subscribe, getSessionModelCatalog, () => null);
-const hasModels = (value: ModelCatalog) =>
-    value.models.length > 0 || !!value.ollama?.models.length ||
-    !!value.openCodeGo?.models.length;
 function readCachedCatalog() {
     if (typeof window === "undefined") return null;
     try {
@@ -21,28 +18,20 @@ function readCachedCatalog() {
             window.localStorage.getItem(STORAGE_KEY) ?? "null",
         ) as { catalog?: unknown } | null;
         const cached = value?.catalog as ModelCatalog | undefined;
-        return Array.isArray(cached?.models) &&
-            cached.models.every(
-                (model) =>
-                    typeof model?.slug === "string" &&
-                    typeof model.displayName === "string" &&
-                    Array.isArray(model.supportedReasoningLevels),
-            ) &&
-            (!cached.ollama ||
-                (Array.isArray(cached.ollama.models) &&
-                    cached.ollama.models.every(
-                        (model) =>
-                            typeof model?.name === "string" &&
-                            typeof model.displayName === "string",
-                    )))
-            ? cached
-            : null;
+        return Array.isArray(cached?.models) && cached.models.every(model =>
+            typeof model?.id === "string" && typeof model.label === "string" &&
+            typeof model.group === "string" && (model.reasoningEfforts === undefined ||
+                Array.isArray(model.reasoningEfforts) && model.reasoningEfforts.every(level => typeof level === "string")))
+            ? unavailableCatalog(cached) : null;
     } catch {
         return null;
     }
 }
+function unavailableCatalog(value: ModelCatalog): ModelCatalog {
+    return { ...value, models: value.models.map(model => ({ ...model, available: false })) };
+}
 function cacheCatalog(value: ModelCatalog) {
-    if (typeof window === "undefined" || !hasModels(value)) return;
+    if (typeof window === "undefined" || !value.models.length) return;
     try {
         window.localStorage.setItem(
             STORAGE_KEY,
@@ -53,31 +42,30 @@ function cacheCatalog(value: ModelCatalog) {
     }
 }
 function getSessionModelCatalog() {
-    return catalog;
+    return catalog ??= readCachedCatalog();
 }
 export function preloadModelCatalog() {
     catalog ??= readCachedCatalog();
     const refreshMs =
-        catalog?.ollama?.source === "unavailable" ? 5_000 : REFRESH_MS;
+        catalog?.models.some(model => model.available === false) ? 5_000 : REFRESH_MS;
     if (catalog && Date.now() - refreshedAt < refreshMs) {
         return Promise.resolve(catalog);
     }
     pending ??= getModelCatalog()
         .then((next) => {
             refreshedAt = Date.now();
-            if (hasModels(next)) {
-                catalog = next;
-                cacheCatalog(next);
-            } else {
-                catalog ??= next;
-            }
+            const unavailable = new Set<string>(next.unavailableProviders);
+            next.models = [...next.models, ...(catalog?.models ?? [])
+                .filter(model => unavailable.has(model.provider ?? "") &&
+                    !next.models.some(current => current.id === model.id))
+                .map(model => ({ ...model, available: false }))];
+            catalog = next;
+            cacheCatalog(next);
             return catalog;
         })
         .catch(() => {
             refreshedAt = Date.now();
-            catalog ??= {
-                models: [],
-            };
+            catalog = unavailableCatalog(catalog ?? { models: [] });
             return catalog;
         })
         .finally(() => {
