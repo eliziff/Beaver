@@ -125,6 +125,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const [operation, setOperation] = useState("");
   const [building, setBuilding] = useState(false);
   const [message, setMessage] = useState(""), [error, setError] = useState("");
+  const [stepFailure, setStepFailure] = useState("");
   const [libraryTarget, setLibraryTarget] = useState<LibraryTarget>(), [addOpen, setAddOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<PendingImport>();
   const [pendingAttachment, setPendingAttachment] = useState<{
@@ -317,8 +318,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     ? draft.state.import.bindingRole : undefined;
   const importedIssue = importedRole ? sourceIssues[importedRole] : undefined;
   const reviewError = !globalTab ? currentReview?.error || "" : "";
-  const status = error || message || reviewError;
-  // Work a step starts reports itself in that step; only unattached work needs the page-level line.
+  // Work a step starts reports itself in that step, and so does the reason it stopped;
+  // only unattached work needs the page-level line.
+  const stepError = error && error === stepFailure ? error : "";
+  const status = (stepError ? "" : error) || message || reviewError;
   const stepOperation = STEP_PROGRESS.has(operation) ? operation : "";
   const busyText = stepOperation ? "" : building ? "Building outputs"
     : pendingImport ? "Finding citations" : operation || "Updating authorities";
@@ -358,7 +361,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     try { const value = await operationFn(); done(value); if (success) setMessage(success); }
     catch (caught) {
       if ((caught as { name?: string })?.name === "AbortError") setMessage("Build cancelled");
-      else setError(errorText(caught));
+      else {
+        const text = errorText(caught);
+        setError(text); if (STEP_PROGRESS.has(label)) setStepFailure(text);
+      }
     }
     finally { setBusy(false); setOperation(""); }
   }
@@ -671,7 +677,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         <li key={index}><span className="font-medium">{item.label}</span>
           {item.excerpt && <p className="line-clamp-2 text-xs text-gray-600">{item.excerpt}</p>}</li>)}</ul>
     </details>}
-    <StepProgress label={stepOperation} />
+    <StepProgress label={stepOperation} error={stepError} />
     <Button disabled={busy} onClick={() => markingIssues
       ? act({ type: "set-stage", stage: "highlights" }) : finishSources()}>
       Done<ChevronRight /></Button>
@@ -754,7 +760,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                         variant="outline" className="h-9 border-gray-400" disabled={busy}
                         onClick={() => relinkSource(importedRole)}><FilePlus2 />
                         {sourceAction(importedIssue, "source")}</Button>}
-                      <StepProgress label={stepOperation} />
+                      <StepProgress label={stepOperation} error={stepError} />
                       <Button disabled={busy} className="h-9" onClick={findSources}>Done<ChevronRight /></Button></>}
                     </>}>
                     {stage === "citations" && operation !== "Finding source PDFs" && <CitationReview occurrences={occurrences} units={draft.state.units}
