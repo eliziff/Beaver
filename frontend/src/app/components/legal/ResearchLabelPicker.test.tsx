@@ -108,8 +108,11 @@ describe("ResearchLabelPicker", () => {
     fireEvent.click(screen.getByRole("button", { name: "LEAF" }));
     await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ labelIds: ["leaf"] })));
     fireEvent.click(screen.getByRole("button", { name: "Add a label" }));
+    fireEvent.click(screen.getByRole("button", { name: "A" }));
+    await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ labelIds: ["leaf", "a"] })));
+    fireEvent.click(screen.getByRole("button", { name: "Add a label" }));
     fireEvent.click(screen.getByRole("button", { name: "B" }));
-    await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ labelIds: ["leaf", "b"] })));
+    await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ labelIds: ["leaf", "a", "b"] })));
     expect(act.mock.calls.every(([action]) => action.type === "annotate")).toBe(true);
   });
 

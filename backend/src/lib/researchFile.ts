@@ -180,11 +180,7 @@ const checkedLabels = (state: ResearchFileState, values: string[], scope?: Resea
   const unique = [...new Set(values)];
   if (scope === "highlight" && unique.length > 1)
     throw new ApplicationError(400, "Choose one highlight type for a passage");
-  // One filing per branch, the deepest: a parent contains what its descendants hold, transitively.
-  const covered = new Set(unique.flatMap((id) => { const seen: string[] = [];
-    for (let next = state.labels[id]?.parentId; next && !seen.includes(next); next = state.labels[next]?.parentId) seen.push(next);
-    return seen; }));
-  return unique.filter((id) => !covered.has(id));
+  return unique;
 };
 /** The part count includes receipts; only typed selections count as saved highlights. */
 export const researchHighlightCount = (source: ResearchSource) =>
@@ -242,9 +238,6 @@ function decodeResearchFileState(value: unknown): ResearchFileState | null {
     })) return null;
   if (Object.values(sources).reduce<number>((sum, value) =>
     sum + Number(record(record(value)?.passages)?.count ?? 0), 0) > 100_000) return null;
-  Object.values(sources as Record<string, ResearchSource>).forEach((item) => {
-    item.labelIds = checkedLabels(state as ResearchFileState, item.labelIds, "source");
-  });
   return state as ResearchFileState;
 }
 

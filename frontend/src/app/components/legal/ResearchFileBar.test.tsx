@@ -133,7 +133,7 @@ describe("ResearchFileBar", () => {
       leaf: { ...file.state.labels.other, id: "leaf", name: "Leaf", parentId: "middle" },
       middle: { ...file.state.labels.other, id: "middle", name: "Middle", parentId: "fairness" },
       ...file.state.labels,
-    }, sources: { ...file.state.sources, baker: { ...file.state.sources.baker, labelIds: ["leaf"] } } } };
+    }, sources: { ...file.state.sources, baker: { ...file.state.sources.baker, labelIds: ["fairness", "leaf"] } } } };
     render(<ResearchFileBar file={nested} onChange={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Fairness" }));
     expect(screen.getAllByRole("treeitem", { name: "Baker v Canada" })).toHaveLength(1);
@@ -309,14 +309,14 @@ describe("ResearchFileBar", () => {
     expect(read).not.toHaveBeenCalled();
   });
 
-  it("opens saved passages through the app router with workspace and locator intact", async () => {
+  it("opens saved passages in the host reader without moving the workspace", async () => {
     function Location() { return <output aria-label="Location">{useLocation().pathname + useLocation().search}</output>; }
-    render(<><ResearchFileBar file={file} onChange={vi.fn()} /><Location /></>);
+    const read = vi.fn();
+    render(<><ResearchFileBar file={file} onChange={vi.fn()} onReadSource={read} /><Location /></>);
     openBaker();
-    fireEvent.click((await screen.findAllByRole("link", { name: "Open ¶ 5" }))[0]);
-    expect(screen.getByRole("status", { name: "Location" })).toHaveTextContent("/sources/view?");
-    expect(screen.getByRole("status", { name: "Location" })).toHaveTextContent("research_file=file-1");
-    expect(screen.getByRole("status", { name: "Location" })).toHaveTextContent("locator=para%205");
+    fireEvent.click((await screen.findAllByRole("button", { name: "Open ¶ 5" }))[0]);
+    expect(read).toHaveBeenCalledWith(file.state.sources.baker, "para 5");
+    expect(screen.getByRole("status", { name: "Location" })).toHaveTextContent(/^\/$/u);
   });
 
   it("reorders labels by dragging the tree", async () => {

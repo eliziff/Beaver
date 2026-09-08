@@ -102,10 +102,7 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
   const slot = slots[activeSlot] ?? null;
   /** The slot the user is filling always wins: a repeat leaves the other slot, never strands this one. */
   const put = (id: string | null) => {
-    // A source is filed at one node per branch, the deepest: choosing a child drops its ancestors here, and vice versa.
-    const branch = id ? new Set(researchLabelPath(labels, id).map((label) => label.id)) : null;
-    const kept = slots.filter((value, index) => index !== activeSlot && value !== id
-        && !(branch && (branch.has(value) || researchLabelPath(labels, value).some((label) => label.id === id)))),
+    const kept = slots.filter((value, index) => index !== activeSlot && value !== id),
       at = Math.min(activeSlot, kept.length);
     const next = scope === "highlight" ? (id ? [id] : [])
       : [...kept.slice(0, at), ...(id ? [id] : []), ...kept.slice(at)];
