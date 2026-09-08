@@ -1110,6 +1110,35 @@ describe("local assistant tools", () => {
       actor: "assistant", action: "created" } });
   });
 
+  it.each(["rename", "unfile"])("reports a protected %s as pending and distinguishes later applied additions", async (operation) => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-pending-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("./support/localDocumentFixtures"), tools = await import("./support/localAssistantTools"),
+      { readResearchFile } = await import("../researchFile"), edits = new Map(), labelId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const seeded = await seedResearch(store, "protected.research.md", [
+      { type: "label", id: labelId, name: "Counsel questions" },
+      { type: "source", reference: { provider: "a2aj", id: "2001 SCC 1", kind: "case" }, labelIds: [labelId] },
+    ]), sourceId = Object.keys(seeded.file.state.sources)[0];
+    const [, changed] = await tools.runLocalAssistantTools("local-user", [
+      { id: "read", name: "Read", input: { file_path: seeded.resource } },
+      { id: "protected-change", name: "document_operation", input: { action: "research", document_id: seeded.resource,
+        research_action: operation === "rename" ? { type: "label", id: labelId, name: "Counsel follow-up" }
+          : { type: "label-selection", target: "sources", sourceIds: [sourceId], assign: [labelId], mode: "remove" } } },
+    ], { documentNames: new Map([[seeded.document.id, seeded.document.filename]]), edits });
+    const pending = JSON.parse(changed.content);
+    expect(pending).toMatchObject({ ok: true, status: "pending", applied: false,
+      change_id: expect.any(String), message: expect.stringMatching(/waiting for acceptance/i) });
+    expect(pending.proposals).toMatchObject([{ id: pending.change_id }]);
+    const saved = await readResearchFile(store.localDocuments, { userId: "local-user" }, seeded.document.id);
+    expect(saved?.state.labels).toEqual(seeded.file.state.labels);
+    expect(saved?.state.sources).toEqual(seeded.file.state.sources);
+    const [addition] = await tools.runLocalAssistantTools("local-user", [{ id: "ordinary-addition", name: "document_operation",
+      input: { action: "research", document_id: pending.resource, research_action: { type: "label", name: "Further review" } } }], { edits });
+    expect(JSON.parse(addition.content)).toMatchObject({ ok: true, status: "applied", applied: true,
+      label_id: expect.any(String), proposals: [{ id: pending.change_id }] });
+    expect(JSON.parse(addition.content).change_id).toBeUndefined();
+  });
+
   it("omits research operations where the chat does not support them", async () => {
     const tools = await import("./support/localAssistantTools"), operation =
       tools.localAssistantToolRegistry("local-user", { includeResearchTools: false }).all()

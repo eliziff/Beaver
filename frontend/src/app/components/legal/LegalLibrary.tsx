@@ -145,8 +145,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
         setResearchBusy(true);
         try {
             const next = await mutations.act({ type: "source", reference: researchReference(result),
-                labelIds: [...new Set([...(sourceInFile(result, file)?.labelIds ?? []),
-                    ...(selection.labelIds ?? []).filter((id) => file.state.labels[id]?.scope === "source")])] });
+                labelIds: (selection.labelIds ?? []).filter((id) => file.state.labels[id]?.scope === "source") });
             if (!next.sourceId) throw new Error("Saved source was not returned");
             return { file: next, itemId: next.sourceId };
         } finally { setResearchBusy(false); }

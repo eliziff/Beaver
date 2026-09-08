@@ -50,7 +50,11 @@ pagination or downloading.
 
 - Research sets own source membership, source labels and highlight types. A source
   label classifies a whole source; a highlight type is one name, colour and
-  optional parent. Source labels may overlap. A highlight has exactly one type;
+  optional parent. Source filing is additive, retaining explicit ancestor and
+  descendant assignments without normalization. Removal names each filing explicitly;
+  assistant removal of a human-made or human-approved filing waits for acceptance.
+  Pending tool outcomes must be reported as waiting for acceptance, not completed.
+  A highlight has exactly one type;
   choosing another type replaces the old one. No separate pen palette, colour
   override or implicit source-label-to-highlight relationship exists.
 - Library files and folders have no primary research workspace or global research
