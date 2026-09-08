@@ -10,7 +10,7 @@ export function elName(node: unknown): string | null {
     key !== ATTR_KEY && key !== TEXT_KEY) ?? null;
 }
 
-export function isTextNode(node: unknown): node is { [TEXT_KEY]: string } {
+function isTextNode(node: unknown): node is { [TEXT_KEY]: string } {
   return !!node && typeof node === "object" && TEXT_KEY in node && elName(node) === null;
 }
 

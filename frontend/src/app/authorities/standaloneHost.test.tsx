@@ -1,39 +1,28 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkProductInput } from "@/app/lib/workProducts";
 import { AuthoritiesWorkspace } from "./AuthoritiesWorkspace";
 import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesDraft, AuthoritiesProduct } from "./types";
 
-const mocks = vi.hoisted(() => ({
-  apiResponse: vi.fn(), bindFile: vi.fn(), create: vi.fn(), get: vi.fn(), update: vi.fn(),
-  inspect: vi.fn(), resolve: vi.fn(), relink: vi.fn(), retainFile: vi.fn(), saveArtifacts: vi.fn(),
-  getOutputFolder: vi.fn(), chooseOutputFolder: vi.fn(), clearOutputFolder: vi.fn(),
-  writeOutputs: vi.fn(),
+const { api, fileStore, drafts, unexpected } = vi.hoisted(() => ({
+  api: { apiResponse: vi.fn() },
+  fileStore: {
+    bindStandaloneFile: vi.fn(), chooseStandaloneOutputFolder: vi.fn(), clearStandaloneOutputFolder: vi.fn(),
+    getStandaloneOutputFolder: vi.fn(), inspectStandaloneFile: vi.fn(), pickRetainedFiles: vi.fn(),
+    readStandaloneOutput: vi.fn(), resolveStandaloneFile: vi.fn(), relinkStandaloneFile: vi.fn(),
+    retainStandaloneFile: vi.fn(), saveStandaloneArtifacts: vi.fn(), writeStandaloneArtifactsToOutputFolder: vi.fn(),
+  },
+  drafts: { create: vi.fn(), duplicate: vi.fn(), get: vi.fn(), list: vi.fn(), remove: vi.fn(), update: vi.fn() },
+  unexpected: vi.fn((name: string, ..._args: unknown[]) => { throw new Error(`Unconfigured host call: ${name}`); }),
 }));
 
 vi.mock("@/app/lib/standaloneWorkProducts", () => ({
-  canRetainLocalFiles: () => true,
-  bindStandaloneFile: mocks.bindFile,
-  chooseStandaloneOutputFolder: mocks.chooseOutputFolder,
-  clearStandaloneOutputFolder: mocks.clearOutputFolder,
-  getStandaloneOutputFolder: mocks.getOutputFolder,
-  inspectStandaloneFile: mocks.inspect,
-  pickRetainedFiles: vi.fn(),
-  readStandaloneOutput: vi.fn(),
-  resolveStandaloneFile: mocks.resolve,
-  relinkStandaloneFile: mocks.relink,
-  retainStandaloneFile: mocks.retainFile,
-  saveStandaloneArtifacts: mocks.saveArtifacts,
-  writeStandaloneArtifactsToOutputFolder: mocks.writeOutputs,
-  standaloneWorkProducts: {
-    create: mocks.create, duplicate: vi.fn(), get: mocks.get, list: vi.fn(), remove: vi.fn(),
-    update: mocks.update,
-  },
+  canRetainLocalFiles: () => true, ...fileStore, standaloneWorkProducts: drafts,
 }));
-vi.mock("@/app/lib/api/client", () => ({ apiResponse: mocks.apiResponse }));
+vi.mock("@/app/lib/api/client", () => api);
 
 import { standaloneAuthoritiesHost } from "./standaloneHost";
 
@@ -52,6 +41,7 @@ function product(binding: WorkProductInput, insertIntoDocument = false): Authori
       tableOrder: "alphabetical", tableDelivery: "native-append", tableLocation: "pages",
       passageMarking: "margin", scannedPdfPolicy: "page-margin",
       missingSourcePolicy: "placeholder" },
+    cover: { courtFileNumber: "", partyGroups: [], applicationUnder: "", title: "" },
     bookParts: { cover: null, index: null, supplements: [] }, ledger: null,
     units: [{ id: "body:1", kind: "body", ordinal: 0, footnoteId: null,
       footnoteRefs: [], pageNumbers: [1], text: "2024 ABKB 1", occurrenceIds: [] }],
@@ -67,20 +57,32 @@ async function sha256(file: Blob) {
     .map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.resetAllMocks();
+  for (const group of [api, fileStore, drafts]) {
+    for (const [name, mock] of Object.entries(group)) {
+      mock.mockImplementation((...args) => unexpected(name, ...args));
+    }
+  }
+  fileStore.writeStandaloneArtifactsToOutputFolder.mockResolvedValue(null);
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+  expect(unexpected).not.toHaveBeenCalled();
+});
 
 describe("standalone Authorities sources", () => {
   it("sends initial settings with the source before import", async () => {
     const file = new File(["PK"], "Factum.docx", { lastModified: 7 }),
       binding = input("1".repeat(64));
     const saved = product(binding); let request!: FormData;
-    mocks.bindFile.mockResolvedValue(binding);
-    mocks.apiResponse.mockImplementation(async (_path, options) => {
+    fileStore.bindStandaloneFile.mockResolvedValue(binding);
+    api.apiResponse.mockImplementation(async (_path, options) => {
       request = options.body as FormData;
       return { headers: new Headers({ "content-type": "application/json" }),
         json: async () => saved.state };
     });
-    mocks.create.mockImplementation(async ({ state }) => ({ ...saved, state }));
+    drafts.create.mockImplementation(async ({ state }) => ({ ...saved, state }));
 
     await standaloneAuthoritiesHost.create({ source: { kind: "file", selected: { file } },
       title: "Factum", settings: { profileId: "federal-court",
@@ -118,22 +120,22 @@ describe("standalone Authorities sources", () => {
       sourceSha256: digests[index], language: index ? "fr" : "en" }))));
     bytes.forEach((value, index) => response.append(`file-${index}`,
       new File([value], "source.pdf", { type: "application/pdf" })));
-    mocks.get.mockResolvedValue(saved);
-    mocks.retainFile.mockImplementation(async (file: File) => state.bindings[
+    drafts.get.mockResolvedValue(saved);
+    fileStore.retainStandaloneFile.mockImplementation(async (file: File) => state.bindings[
       file.name.includes("French") ? roles[1] : roles[0]]);
-    mocks.update.mockImplementation(async (_id, patch) => ({ ...saved, revision: 2,
+    drafts.update.mockImplementation(async (_id, patch) => ({ ...saved, revision: 2,
       state: patch.state }));
-    mocks.apiResponse.mockResolvedValue({
+    api.apiResponse.mockResolvedValue({
       headers: new Headers({ "content-type": "multipart/form-data; boundary=test" }),
       formData: async () => response,
     });
 
     const changed = await standaloneAuthoritiesHost.prepareSources(saved);
 
-    expect(mocks.retainFile).toHaveBeenCalledTimes(2);
+    expect(fileStore.retainStandaloneFile).toHaveBeenCalledTimes(2);
     expect(roles.map((role) => changed.state.bindings[role]))
       .toEqual(roles.map((role) => state.bindings[role]));
-    expect(mocks.apiResponse).toHaveBeenCalledWith("/authorities-runtime/sources",
+    expect(api.apiResponse).toHaveBeenCalledWith("/authorities-runtime/sources",
       expect.objectContaining({ method: "POST" }));
   });
 
@@ -142,7 +144,7 @@ describe("standalone Authorities sources", () => {
     await expect(standaloneAuthoritiesHost.prepareSources(
       product(input("0".repeat(64))), controller.signal,
     )).rejects.toMatchObject({ name: "AbortError" });
-    expect(mocks.apiResponse).not.toHaveBeenCalled();
+    expect(api.apiResponse).not.toHaveBeenCalled();
   });
 
   it("keeps English and French PDFs on one authority and lets a bilingual PDF replace them", async () => {
@@ -158,9 +160,9 @@ describe("standalone Authorities sources", () => {
       new File(["%PDF-bi"], "Code bilingual.pdf", { type: "application/pdf" })];
     const bindings = await Promise.all(files.map(async (file, index) =>
       input(await sha256(file), file.size, `code-${index}`)));
-    mocks.get.mockImplementation(async () => saved);
-    mocks.bindFile.mockImplementation(async (file: File) => bindings[files.indexOf(file)]);
-    mocks.update.mockImplementation(async (_id, patch) => (saved = {
+    drafts.get.mockImplementation(async () => saved);
+    fileStore.bindStandaloneFile.mockImplementation(async (file: File) => bindings[files.indexOf(file)]);
+    drafts.update.mockImplementation(async (_id, patch) => (saved = {
       ...saved, revision: saved.revision + 1, state: patch.state,
     }));
 
@@ -183,21 +185,21 @@ describe("standalone Authorities sources", () => {
     expect(Object.keys(saved.state.bindings).filter((role) => role.startsWith("authority:")))
       .toHaveLength(1);
     expect(saved.state.stage).toBe("sources");
-    expect(mocks.apiResponse).not.toHaveBeenCalled();
+    expect(api.apiResponse).not.toHaveBeenCalled();
   });
 
   it("relinks a missing imported source and refreshes its review once", async () => {
     const saved = product(input("0".repeat(64)));
     const replacement = new File(["new"], "Updated.docx", { lastModified: 2 });
-    mocks.get.mockResolvedValue(saved);
-    mocks.inspect.mockResolvedValue({ status: "missing", reason: "deleted" });
-    mocks.relink.mockResolvedValue({ status: "ready", file: replacement,
+    drafts.get.mockResolvedValue(saved);
+    fileStore.inspectStandaloneFile.mockResolvedValue({ status: "missing", reason: "deleted" });
+    fileStore.relinkStandaloneFile.mockResolvedValue({ status: "ready", file: replacement,
       input: { kind: "local-file", handleId: "source-handle",
         lastSeen: { name: replacement.name, size: replacement.size, modified: 2,
           sha256: await sha256(replacement) } } });
-    mocks.update.mockImplementation(async (_id, patch) => ({ ...saved, revision: 2,
+    drafts.update.mockImplementation(async (_id, patch) => ({ ...saved, revision: 2,
       state: patch.state }));
-    mocks.apiResponse.mockImplementation(async (_path, options) => {
+    api.apiResponse.mockImplementation(async (_path, options) => {
       const state = JSON.parse(String((options.body as FormData).get("draft")));
       return { headers: new Headers({ "content-type": "application/json" }),
         json: async () => ({ ...state, units: [{ ...state.units[0],
@@ -216,8 +218,8 @@ describe("standalone Authorities sources", () => {
         sha256: await sha256(replacement) } });
     expect(relinked.state.units[0].text).toBe("2025 ABKB 2");
     expect(relinked.state.authorities).toEqual(saved.state.authorities);
-    expect(mocks.relink).toHaveBeenCalledWith(saved.state.bindings.source, true, "source");
-    expect(mocks.apiResponse).toHaveBeenCalledWith("/authorities-runtime/refresh",
+    expect(fileStore.relinkStandaloneFile).toHaveBeenCalledWith(saved.state.bindings.source, true, "source");
+    expect(api.apiResponse).toHaveBeenCalledWith("/authorities-runtime/refresh",
       expect.objectContaining({ method: "POST", body: expect.any(FormData) }));
   });
 
@@ -240,14 +242,14 @@ describe("standalone Authorities sources", () => {
       lastSeen: { name: "Case French.pdf", size: 5, modified: 1,
         sha256: "f".repeat(64) } };
     const replacement = new File(["%PDF-new"], "Case French.pdf", { lastModified: 2 });
-    mocks.get.mockResolvedValue(saved);
-    mocks.resolve.mockResolvedValue({ status: "missing", reason: "deleted" });
-    mocks.relink.mockResolvedValue({ status: "ready", file: replacement,
+    drafts.get.mockResolvedValue(saved);
+    fileStore.resolveStandaloneFile.mockResolvedValue({ status: "missing", reason: "deleted" });
+    fileStore.relinkStandaloneFile.mockResolvedValue({ status: "ready", file: replacement,
       input: { kind: "local-file", handleId: "fr-handle", lastSeen: {
         name: replacement.name, size: replacement.size, modified: 2,
         sha256: await sha256(replacement),
       } } });
-    mocks.update.mockImplementation(async (_id, patch) => ({ ...saved, revision: 2,
+    drafts.update.mockImplementation(async (_id, patch) => ({ ...saved, revision: 2,
       state: patch.state }));
 
     const relinked = await standaloneAuthoritiesHost.relinkSource!(
@@ -260,34 +262,34 @@ describe("standalone Authorities sources", () => {
         sourceSha256: await sha256(replacement) },
     ] });
     expect(relinked.state.units).toEqual(saved.state.units);
-    expect(mocks.relink).toHaveBeenCalledWith(
+    expect(fileStore.relinkStandaloneFile).toHaveBeenCalledWith(
       saved.state.bindings[frenchRole], true, "pdf",
     );
-    expect(mocks.apiResponse).not.toHaveBeenCalled();
+    expect(api.apiResponse).not.toHaveBeenCalled();
   });
 
   it("refreshes a changed imported file with its current snapshot", async () => {
     const saved = product(input("0".repeat(64), 3, "refresh-handle"));
     const changed = new File(["changed"], "Factum.docx", { lastModified: 3 });
     let submitted!: AuthoritiesDraft;
-    mocks.get.mockResolvedValue(saved);
-    mocks.resolve.mockResolvedValue({ status: "changed", file: changed,
+    drafts.get.mockResolvedValue(saved);
+    fileStore.resolveStandaloneFile.mockResolvedValue({ status: "changed", file: changed,
       input: { kind: "local-file", handleId: "refresh-handle", lastSeen: {
         name: changed.name, size: changed.size, modified: 3, sha256: await sha256(changed),
       } } });
-    mocks.apiResponse.mockImplementation(async (_path, options) => {
+    api.apiResponse.mockImplementation(async (_path, options) => {
       submitted = JSON.parse(String((options.body as FormData).get("draft")));
       return { headers: new Headers({ "content-type": "application/json" }),
         json: async () => submitted };
     });
-    mocks.update.mockImplementation(async (_id, patch) => ({ ...saved, revision: 2,
+    drafts.update.mockImplementation(async (_id, patch) => ({ ...saved, revision: 2,
       state: patch.state }));
 
     await standaloneAuthoritiesHost.refresh("draft-1", 1);
 
     expect(submitted.bindings.source).toMatchObject({ handleId: "refresh-handle",
       lastSeen: { size: changed.size, modified: 3, sha256: await sha256(changed) } });
-    expect(mocks.relink).not.toHaveBeenCalled();
+    expect(fileStore.relinkStandaloneFile).not.toHaveBeenCalled();
   });
 
   it.each(["cover", "supplemental"] as const)(
@@ -298,8 +300,8 @@ describe("standalone Authorities sources", () => {
     const digest = await sha256(file), binding = { kind: "local-file" as const,
       handleId: `${slot}-handle`, lastSeen: { name: file.name, size: file.size,
         modified: 6, sha256: digest } };
-    mocks.get.mockResolvedValue(saved); mocks.bindFile.mockResolvedValue(binding);
-    mocks.apiResponse.mockImplementation(async (_path, options) => {
+    drafts.get.mockResolvedValue(saved); fileStore.bindStandaloneFile.mockResolvedValue(binding);
+    api.apiResponse.mockImplementation(async (_path, options) => {
       const state = JSON.parse(String((options.body as FormData).get("draft")));
       const role = `book:${slot}:${slot}`;
       const part = { bindingRole: role, filename: file.name, sourceSha256: digest };
@@ -310,7 +312,7 @@ describe("standalone Authorities sources", () => {
           : { ...state.bookParts, cover: part },
       }) };
     });
-    mocks.update.mockImplementation(async (_id, patch) => ({ ...saved, revision: 2,
+    drafts.update.mockImplementation(async (_id, patch) => ({ ...saved, revision: 2,
       state: patch.state }));
 
     const changed = await standaloneAuthoritiesHost.attachBookPdf!(
@@ -321,7 +323,7 @@ describe("standalone Authorities sources", () => {
       ? changed.state.bookParts.supplements[0] : changed.state.bookParts.cover;
     expect(part?.filename).toBe(`${slot}.pdf`);
     expect(changed.state.bindings[`book:${slot}:${slot}`]).toEqual(binding);
-    const form = mocks.apiResponse.mock.calls[0][1].body as FormData;
+    const form = api.apiResponse.mock.calls[0][1].body as FormData;
     expect(form.get("slot")).toBe(slot);
     expect((form.get("file") as File).name).toBe(file.name);
   });
@@ -329,11 +331,11 @@ describe("standalone Authorities sources", () => {
   it("opens retained source bytes through the existing resolver", async () => {
     const saved = product(input("0".repeat(64)));
     const file = new File(["%PDF-1.7"], "Decision.pdf", { type: "application/pdf" });
-    mocks.resolve.mockResolvedValue({ status: "ready", file,
+    fileStore.resolveStandaloneFile.mockResolvedValue({ status: "ready", file,
       input: saved.state.bindings.source });
 
     await expect(standaloneAuthoritiesHost.readSource!(saved, "source")).resolves.toBe(file);
-    expect(mocks.resolve).toHaveBeenCalledWith(saved.state.bindings.source, true);
+    expect(fileStore.resolveStandaloneFile).toHaveBeenCalledWith(saved.state.bindings.source, true);
   });
 
   it("stores and rebinds the corrected Word copy returned by the runtime", async () => {
@@ -352,24 +354,24 @@ describe("standalone Authorities sources", () => {
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }));
     const retained = { kind: "local-file" as const, handleId: `stored:${digest}`,
       lastSeen: { name: "Factum corrected.docx", size: bytes.length, modified: 0, sha256: digest } };
-    mocks.get.mockResolvedValue(saved);
-    mocks.resolve.mockResolvedValue({ status: "ready", file: source, input: sourceBinding });
-    mocks.retainFile.mockResolvedValue(retained);
-    mocks.apiResponse.mockResolvedValue({ headers: new Headers({
+    drafts.get.mockResolvedValue(saved);
+    fileStore.resolveStandaloneFile.mockResolvedValue({ status: "ready", file: source, input: sourceBinding });
+    fileStore.retainStandaloneFile.mockResolvedValue(retained);
+    api.apiResponse.mockResolvedValue({ headers: new Headers({
       "content-type": "multipart/form-data; boundary=test" }), formData: async () => response });
-    mocks.update.mockImplementation(async (_id, patch) => ({ ...saved, revision: 2,
+    drafts.update.mockImplementation(async (_id, patch) => ({ ...saved, revision: 2,
       state: patch.state }));
 
     const changed = await standaloneAuthoritiesHost.resolveDiscrepancy!(saved.id, {
       id: "d".repeat(64), action: "quote_exact", revision: 1,
     });
 
-    const request = mocks.apiResponse.mock.calls[0][1].body as FormData;
+    const request = api.apiResponse.mock.calls[0][1].body as FormData;
     expect(JSON.parse(String(request.get("request")))).toEqual({
       id: "d".repeat(64), action: "quote_exact", revision: 1,
     });
     expect(request.get("file")).toMatchObject({ name: source.name, size: source.size });
-    expect(mocks.retainFile).toHaveBeenCalledWith(expect.objectContaining({
+    expect(fileStore.retainStandaloneFile).toHaveBeenCalledWith(expect.objectContaining({
       name: "Factum corrected.docx", lastModified: 0,
     }));
     expect(changed.state.bindings.source).toEqual(retained);
@@ -384,10 +386,10 @@ describe("standalone Authorities sources", () => {
       sourceSha256: binding.kind === "local-file" ? binding.lastSeen.sha256! : "" }];
     saved.state.bindings[role] = binding;
     let request!: FormData;
-    mocks.get.mockResolvedValue(saved);
-    mocks.resolve.mockResolvedValue({ status: "ready", file, input: binding });
-    mocks.saveArtifacts.mockResolvedValue(saved);
-    mocks.apiResponse.mockImplementation(async (_path, options) => {
+    drafts.get.mockResolvedValue(saved);
+    fileStore.resolveStandaloneFile.mockResolvedValue({ status: "ready", file, input: binding });
+    fileStore.saveStandaloneArtifacts.mockResolvedValue(saved);
+    api.apiResponse.mockImplementation(async (_path, options) => {
       request = options.body as FormData; const response = new FormData();
       response.append("receipt", JSON.stringify({ schemaVersion: "beaver.authorities-build.v1",
         builtAt: "2026-08-31T00:00:00Z", outputs: {} }));
@@ -404,11 +406,11 @@ describe("standalone Authorities sources", () => {
     const source = new File(["docx"], "Factum.docx", { lastModified: 1 });
     const saved = product(input(await sha256(source), source.size, "build-handle"), true);
     let request!: FormData;
-    mocks.get.mockResolvedValue(saved);
-    mocks.resolve.mockResolvedValue({ status: "ready", file: source,
+    drafts.get.mockResolvedValue(saved);
+    fileStore.resolveStandaloneFile.mockResolvedValue({ status: "ready", file: source,
       input: saved.state.bindings.source });
-    mocks.saveArtifacts.mockResolvedValue(saved);
-    mocks.apiResponse.mockImplementation(async (_path, options) => {
+    fileStore.saveStandaloneArtifacts.mockResolvedValue(saved);
+    api.apiResponse.mockImplementation(async (_path, options) => {
       request = options.body as FormData;
       const response = new FormData();
       response.append("receipt", JSON.stringify({
@@ -450,11 +452,11 @@ describe("standalone Authorities sources", () => {
         language: index ? "fr" as const : "en" as const })) } };
     saved.state.authorityOrder = ["case"];
     let request!: FormData;
-    mocks.get.mockResolvedValue(saved); mocks.saveArtifacts.mockResolvedValue(saved);
-    mocks.resolve.mockImplementation(async (binding) => ({ status: "ready",
+    drafts.get.mockResolvedValue(saved); fileStore.saveStandaloneArtifacts.mockResolvedValue(saved);
+    fileStore.resolveStandaloneFile.mockImplementation(async (binding) => ({ status: "ready",
       file: binding === filingBinding ? filing : authorities[authorityBindings.indexOf(binding)],
       input: binding }));
-    mocks.apiResponse.mockImplementation(async (_path, options) => {
+    api.apiResponse.mockImplementation(async (_path, options) => {
       request = options.body as FormData; const response = new FormData();
       response.append("receipt", JSON.stringify({ schemaVersion: "beaver.authorities-build.v1",
         builtAt: "2026-08-31T00:00:00Z", outputs: {} }));
@@ -477,18 +479,18 @@ describe("standalone Authorities sources", () => {
         sha256: "a".repeat(64), pageCount: null } },
     }));
     response.append("table", output);
-    mocks.get.mockResolvedValue(saved); mocks.saveArtifacts.mockResolvedValue(built);
-    mocks.writeOutputs.mockRejectedValue(new DOMException("denied", "NotAllowedError"));
-    mocks.apiResponse.mockResolvedValue({ formData: async () => response });
+    drafts.get.mockResolvedValue(saved); fileStore.saveStandaloneArtifacts.mockResolvedValue(built);
+    fileStore.writeStandaloneArtifactsToOutputFolder.mockRejectedValue(new DOMException("denied", "NotAllowedError"));
+    api.apiResponse.mockResolvedValue({ formData: async () => response });
 
     const result = await standaloneAuthoritiesHost.build(saved);
 
-    expect(mocks.saveArtifacts).toHaveBeenCalledOnce();
-    expect(mocks.writeOutputs).toHaveBeenCalledOnce();
-    expect(mocks.saveArtifacts.mock.invocationCallOrder[0])
-      .toBeLessThan(mocks.writeOutputs.mock.invocationCallOrder[0]);
+    expect(fileStore.saveStandaloneArtifacts).toHaveBeenCalledOnce();
+    expect(fileStore.writeStandaloneArtifactsToOutputFolder).toHaveBeenCalledOnce();
+    expect(fileStore.saveStandaloneArtifacts.mock.invocationCallOrder[0])
+      .toBeLessThan(fileStore.writeStandaloneArtifactsToOutputFolder.mock.invocationCallOrder[0]);
     expect(result).toMatchObject({ product: built, notice: expect.stringContaining("ready to download") });
-    mocks.getOutputFolder.mockResolvedValue("Court outputs");
+    fileStore.getStandaloneOutputFolder.mockResolvedValue("Court outputs");
     await expect(standaloneAuthoritiesHost.outputFolder!.get()).resolves.toBe("Court outputs");
   });
 
@@ -519,7 +521,7 @@ describe("standalone Authorities sources", () => {
     expect(relinkSource).toHaveBeenCalledWith("draft-1", "source", 1);
     await waitFor(() => expect(screen.queryByRole("button", { name: "Allow file access" }))
       .not.toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "Done", exact: true })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Done" })).toBeEnabled();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
@@ -565,10 +567,10 @@ describe("standalone Authorities sources", () => {
     };
     render(<MemoryRouter><AuthoritiesWorkspace host={host}
       route={{ draftId: "draft-1", replaceDraft: vi.fn() }} /></MemoryRouter>);
-    await screen.findByRole("button", { name: "Done", exact: true });
+    await screen.findByRole("button", { name: "Done" });
     expect(screen.queryByRole("list", { name: "Authority tab slots" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Build outputs" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Done", exact: true }));
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(host.prepareSources).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("list", { name: "Authority tab slots" })).not.toBeInTheDocument();
     resolveSources(saved);

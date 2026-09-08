@@ -833,6 +833,7 @@ function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
         return { kind, label };
       });
       if (old.source.kind !== "unresolved") {
+        authority.name ??= old.name;
         authority.source = structuredClone(old.source);
         authority.sourceIdentity = structuredClone(old.sourceIdentity);
       }
@@ -1195,6 +1196,8 @@ export function reduceAuthoritiesDraft(
     "edit-authority", "begin-canlii-handoff"].includes(action.type) && draft.stage !== "citations")
     draft.stage = "sources";
   if (action.type === "refresh") draft.stage = draft.import.kind === "manual" ? "sources" : "citations";
+  if (draft.import.kind === "document" && ["split-occurrence", "merge-occurrences", "replace-occurrence", "remove-occurrence",
+    "relink-occurrence", "set-reference"].includes(action.type)) draft.stage = "citations";
   const errors = validateAuthoritiesDraft(draft);
   if (errors.length) throw new AuthoritiesDomainError(errors[0]);
   return draft;

@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { AccountSection } from "@/app/(pages)/account/AccountSection";
 import { ModelPicker } from "@/app/components/assistant/ModelPicker";
 import { ReasoningEffortToggle } from "@/app/components/assistant/ModelToggle";
 import { useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";
 import {
-    getSessionModelCatalog,
+    useModelCatalog,
     preloadModelCatalog,
 } from "@/app/lib/modelCatalog";
-import type { ModelCatalog } from "@/app/lib/api/account";
 import { Switch } from "@/app/components/ui/switch";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
 
@@ -18,19 +17,8 @@ export function SubagentSettings() {
     const preference = preferences.readSubagents;
     const update = (patch: Partial<typeof preference>) =>
         savePreferences({ readSubagents: { ...preference, ...patch } });
-    const [catalog, setCatalog] = useState<ModelCatalog | null>(
-        getSessionModelCatalog,
-    );
-
-    useEffect(() => {
-        let active = true;
-        void preloadModelCatalog().then((next) => {
-            if (active) setCatalog(next);
-        });
-        return () => {
-            active = false;
-        };
-    }, []);
+    const catalog = useModelCatalog();
+    useEffect(() => { void preloadModelCatalog(); }, []);
 
     const capability = catalog?.readSubagents;
     const loading = !catalog;

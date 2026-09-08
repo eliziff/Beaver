@@ -2,7 +2,7 @@
 
 Beaver is the application and integration repository. [subrepos.lock.json](../../subrepos.lock.json)
 records repository ownership and the local-bundle strategy;
-[.gitmodules](../../.gitmodules) declares four public submodules. Public revisions
+[.gitmodules](../../.gitmodules) declares four public submodules and the bundled local repository. Public revisions
 are pinned by Git links, not by the upstream branch name or newest README.
 
 | Checkout / repository | Owner and role |
@@ -31,9 +31,10 @@ a replacement catalogue revision. Do not use `--remote` or a newer branch as an
 undocumented substitute. Existing compatible local checkouts can retain their
 pinned source while this is resolved.
 
-Do not use an unqualified `--recurse-submodules`: `OpenLegalData` is a Git link
-without a `.gitmodules` URL. Initialize the four public paths explicitly, then
-restore the bundled repository. From PowerShell:
+Initialize the four public paths explicitly, then restore the bundled repository.
+`OpenLegalData` declares its local bundle with `update = none`: Git tooling can
+identify the Git link, but ordinary submodule updates do not fetch it from a public
+remote or replace an existing local checkout. From PowerShell:
 
 ```powershell
 git clone https://github.com/eliziff/Beaver.git

@@ -17,6 +17,7 @@ import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
   type DocumentFile, type DocumentRollback, type DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
 import { cancelPdfJobs, enqueueAuthorityOcr } from "./pdfJobs";
+import { documentProjectionService } from "./documentProjectionService";
 import type { WorkProduct, WorkProductInput, WorkProductState } from "./workProduct";
 import { saveWorkProductBuild, type WorkProductApplication } from "./workProductApplication";
 import type { WorkflowFiles } from "./workflowFiles";
@@ -449,7 +450,7 @@ export function createAuthoritiesWorkspaceApplication(
             version.source_sha256) });
     },
     /** Recognition runs in the durable queue so the workspace can watch, pause, and stop it. */
-    async sourceOcr(scope: ApplicationScope, id: string, roles: string[], cancel: boolean) {
+    async sourceOcr(scope: ApplicationScope, id: string, roles: string[], cancel: boolean, pages?: number[]) {
       const { draft } = await open(scope, id);
       const plan = createAuthoritiesPreparation(draft);
       return Promise.all(plan.authoritySources
@@ -462,25 +463,23 @@ export function createAuthoritiesWorkspaceApplication(
           const reference = { userId: scope.userId, documentId: resolved.documentId,
             versionId: resolved.versionId, sourceSha256: resolved.sourceSha256 };
           if (cancel) return { role: source.bindingRole, cancelled: await cancelPdfJobs(reference) };
-          // Page pinpoints are printed page numbers. They address physical pages only
-          // where the scan is numbered from its first page, so they are clamped to the
-          // PDF and treated as a priority hint: the whole-PDF job follows either way
-          // and is the one that records the document profile.
-          const pageCount = (await documents.metadata(scope, binding.documentId))?.page_count ?? 0;
-          const citedPages = authorityPassageTargets(draft, authority.id)
-            .flatMap(({ locatorKind, locator }) => locatorKind === "page" && /^\d+$/u.test(locator)
-              && Number(locator) <= pageCount ? [Number(locator)] : []);
-          await enqueueAuthorityOcr({ ...reference, citedPages });
+          if (!pages && resolved.pdfProfile?.profile.ocr) return {
+            role: source.bindingRole, documentId: resolved.documentId, done: true };
+          const prepared = await documentProjectionService.preparePdf({ ...reference,
+            bytes: await resolved.readBytes(), ocrProvider: null });
+          if (pages?.some((page) => page > prepared.pageCount)) throw new ApplicationError(400,
+            `Choose page numbers within the PDF for ${source.filename}.`);
+          const targets = pages ? [] : authorityPassageTargets(draft, authority.id), citedPages: number[] = [];
+          for (let start = 0; start < targets.length; start += 100) {
+            const geometry = await documentProjectionService.pdfPassageGeometry(resolved.readBytes,
+              targets.slice(start, start + 100), { ...reference, cacheKey: prepared.cacheKey },
+              { pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status } });
+            citedPages.push(...geometry.targets.flatMap(target => target.status === "found"
+              ? target.pages.map(page => page.pageNumber) : []));
+          }
+          await enqueueAuthorityOcr({ ...reference, citedPages, pages });
           return { role: source.bindingRole, documentId: resolved.documentId };
         }));
-    },
-    async prepareHighlights(scope: ApplicationScope, id: string, revision: number, signal?: AbortSignal) {
-      const { product, draft } = await edit(scope, id, revision);
-      // This prepares the same source/profile cache used by the book builder.
-      // No output artifact is generated and no newer source is silently adopted.
-      await buildSources(scope, draft, signal);
-      signal?.throwIfAborted();
-      return product;
     },
     async build(scope: ApplicationScope, id: string, revision: number, signal?: AbortSignal):
       Promise<{ product: AuthoritiesProduct; receipt: AuthoritiesBuildResult["receipt"] }> {

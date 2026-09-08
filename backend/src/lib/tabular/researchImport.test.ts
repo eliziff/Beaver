@@ -128,7 +128,7 @@ it("names the default highlight type for what it holds and reimports a question 
     prompt: "Recorded source classifications; preserve their full paths." };
   const catalog = researchImportCatalog(f.file, f.subjects, f.parts, [repeat], { rows: "sources" });
   expect(defaultResearchImport(catalog).columns.map(({ name }) => name))
-    .toEqual(["Classification", "Research note", "Saved passages", "Payment"]);
+    .toEqual(["Classification", "Research note", "Payment", "Finding"]);
 });
 it("keeps narrowed answer claim indices and row support rather than re-indexing the original answer", () => {
   const f = fixture(), answer = finding(f, "Why?", ["Only selected claim"]);

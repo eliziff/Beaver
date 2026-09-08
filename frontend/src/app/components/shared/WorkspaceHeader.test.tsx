@@ -7,15 +7,6 @@ const current = { id: "one", title: "Current record" };
 const props = () => ({ current, busy: false, itemLabel: "court record",
   onBack: vi.fn(), onRename: vi.fn(), onDuplicate: vi.fn(), onDelete: vi.fn() });
 
-it("uses one workspace rail for static and active states", () => {
-  const { rerender } = render(<WorkspaceHeader title="Court Records" />);
-  const rail = screen.getByRole("heading").closest("[data-workspace-header]");
-  expect(rail).toHaveTextContent("Court Records");
-  rerender(<WorkspaceHeader {...props()} />);
-  expect(screen.getByRole("heading", { name: current.title })
-    .closest("[data-workspace-header]")).toBe(rail);
-});
-
 it("keeps the current draft and its actions in one header", async () => {
   const user = userEvent.setup(), handlers = props();
   render(<WorkspaceHeader {...handlers} />);

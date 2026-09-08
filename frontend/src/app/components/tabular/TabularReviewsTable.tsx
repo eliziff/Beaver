@@ -9,7 +9,7 @@ import {
     TableCell,
     TableEmptyState,
     TableHeaderCell,
-    TableLoadingRows,
+    TableLoadingState,
     TablePrimaryCell,
     TableRow,
     TableScrollArea,
@@ -92,19 +92,7 @@ export function TabularReviewsTable({
             </TableSelectionHeader>}
         >
             {loading ? (
-                <TableLoadingRows count={showProject ? 3 : 5}
-                    rowClassName={rowPadding}
-                    primaryWidthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
-                    primaryLineClassName={(index) => `h-3.5 ${showProject
-                        ? "w-48"
-                        : ["w-36", "w-40", "w-44", "w-48", "w-52"][index]}`}
-                    columns={[
-                        { className: `ml-auto ${REVIEW_COLUMN.columns}`, lineClassName: "w-8" },
-                        { className: REVIEW_COLUMN.documents, lineClassName: "w-8" },
-                        ...(showProject ? [{ className: REVIEW_COLUMN.project, lineClassName: "w-24" }] : []),
-                        { className: REVIEW_COLUMN.created, lineClassName: "w-20" },
-                        { className: REVIEW_COLUMN.actions },
-                    ]} />
+                <TableLoadingState />
             ) : reviews.length === 0 ? (
                 <TableEmptyState>
                     <TabularReviewSkeuoIcon className="mb-4 h-8 w-8" />

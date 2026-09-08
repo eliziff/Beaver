@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { LibraryDocumentPicker } from "./LibraryDocumentPicker";
 import type { Document } from "@/app/lib/api/documents";
@@ -13,6 +13,7 @@ it("ignores superseded searches and keeps import progress independent of search 
     search: (query: string) => new Promise<Document[]>((resolve) => pending.set(query, resolve)) };
   const { rerender } = render(<LibraryDocumentPicker {...props} />);
   fireEvent.change(screen.getByRole("searchbox"), { target: { value: "current" } });
+  await waitFor(() => expect(pending.has("current")).toBe(true));
   await act(async () => pending.get("current")!([file("current")]));
   rerender(<LibraryDocumentPicker {...props} busy />);
   await act(async () => pending.get("")!([file("obsolete")]));

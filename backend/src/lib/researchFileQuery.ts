@@ -86,7 +86,7 @@ async function openResearchSource(reference: ResearchSourceReference,
     return { sourceSha256: projection.sourceSha256, passages: [{ documentArtifact, evidence: (span) =>
       createLibraryEvidence({ documentId: reference.id, versionId: reference.versionId,
         filename: reference.title ?? reference.id, sourceSha256: native.documentRevision(documentArtifact),
-        start: span.start, end: span.end, spanText: span.text, blockId: span.blockId, locator: span.locator }) }] };
+        start: span.start, end: span.end, spanText: span.text, locator: span.locator }) }] };
   }
   const read = await (options.reader ?? legalSourceOperations.readPassage)({ source: reference, signal: options.signal });
   if (read.status !== "found") return { failure: read.status, passages: [] };
