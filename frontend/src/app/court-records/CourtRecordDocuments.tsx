@@ -3,7 +3,6 @@ import {
   ChevronDown,
   FilePlus2,
   Loader2,
-  Trash2,
 } from "lucide-react";
 import { CourtRecordStepHeading, RequiredBadge } from "./CourtRecordStepHeading";
 import { Button, buttonClassName } from "@/app/components/ui/button";
@@ -59,8 +58,6 @@ export function CourtRecordDocuments(props: Props) {
   const files = unassigned.filter(({ descriptionOnly }) => !descriptionOnly);
   const single = shown.length === 1 && !exhibitPool ? shown[0] : undefined;
   const singleFilled = single && props.entries.some((entry) => entry.kindId === single.id);
-  const singleReplaceable = single && !single.repeatable
-    ? props.entries.find((entry) => entry.kindId === single.id) : undefined;
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4" aria-labelledby={headingId}
       data-kind-id={single?.id} data-requirement={single?.requirement}
@@ -77,8 +74,7 @@ export function CourtRecordDocuments(props: Props) {
         <CourtRecordStepHeading id={headingId} step={props.step} required={single?.requirement === "required" && !singleFilled && !single.generated}>
           {single ? singleFilled ? single.label : `Add the ${single.label.toLowerCase()}` : props.heading ?? "Documents"}
         </CourtRecordStepHeading>
-        {single && !single.descriptionOnly && <DocumentActions {...props} kind={single}
-          onDelete={singleReplaceable ? () => props.onRemove(singleReplaceable.id) : undefined} />}
+        {single && !single.descriptionOnly && <DocumentActions {...props} kind={single} />}
       </div>
 
       {(!single || singleFilled || notes.length > 0 || files.length > 0) && <div className="mt-3 space-y-4">
@@ -103,8 +99,6 @@ function PendingNotes({ notes, onEntry, onRemove }: Props & { notes: RecordEntry
       <Input value={entry.title} aria-label="Note"
         onChange={(event) => onEntry(entry.id, { title: event.target.value })}
         className="h-9 border-gray-400 bg-white md:text-base" />
-      <Button type="button" variant="ghost" className="size-9 shrink-0 px-0"
-        aria-label="Remove note" onClick={() => onRemove(entry.id)}><Trash2 /></Button>
     </div>)}</div>
   </section>;
 }
@@ -191,8 +185,7 @@ function DocumentSlot({ profile, kind, hideLabel, entries, busyEntryId, entryFin
             <span className="ms-2 inline-flex"><RequiredBadge /></span>}
         </h3>
         <DocumentActions kind={kind} entries={entries} onFiles={onFiles} onPick={onPick}
-          onLibrary={onLibrary} sourceLabel={sourceLabel} onDescription={onDescription}
-          onDelete={canReplace ? () => onRemove(matching[0].id) : undefined} />
+          onLibrary={onLibrary} sourceLabel={sourceLabel} onDescription={onDescription} />
       </div>}
       {!!matching.length && (
         <div className={cn("divide-y divide-gray-100", !hideLabel && "mt-3")}>
@@ -205,7 +198,6 @@ function DocumentSlot({ profile, kind, hideLabel, entries, busyEntryId, entryFin
               findings={entryFindings.get(entry.id) ?? []}
               dateRequired={profile.technical.indexDate === "required" || !!kind.chronological}
               descriptionLabel={profile.outputMode === "separate-files" ? "Document name" : "Contents description"}
-              showRemove={!canReplace}
               onEntry={onEntry}
               onRemove={onRemove}
               onAssign={onAssign}
@@ -221,9 +213,9 @@ function DocumentSlot({ profile, kind, hideLabel, entries, busyEntryId, entryFin
   );
 }
 
-function DocumentActions({ kind, entries, onDescription, onDelete, ...sources }:
+function DocumentActions({ kind, entries, onDescription, ...sources }:
   Pick<Props, "entries" | "onFiles" | "onPick" | "onLibrary" | "sourceLabel" | "onDescription"> &
-  { kind: DocumentKind; onDelete?: () => void }) {
+  { kind: DocumentKind }) {
   const count = entries.filter((entry) => entry.kindId === kind.id).length;
   const canAdd = kind.repeatable || count === 0;
   const canReplace = !kind.repeatable && count === 1;
@@ -231,13 +223,11 @@ function DocumentActions({ kind, entries, onDescription, onDelete, ...sources }:
   return <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
     <AddFileControls {...sources} kind={kind} label={kind.generated
       ? canReplace ? "Replace signed PDF" : "Add signed PDF"
-      : canReplace ? "Replace file" : "Add file"} />
+      : canReplace ? "Replace" : "Add file"} />
     {canAdd && kind.allowUnavailableNote && <Button type="button" variant="outline"
       className="h-9 border-gray-500/80 px-3" onClick={() => onDescription(kind.id)}>
       <FilePlus2 /> Add note
     </Button>}
-    {onDelete && <Button type="button" variant="ghost" size="icon-sm" title="Remove"
-      aria-label={`Remove the ${kind.label.toLowerCase()}`} onClick={onDelete}><Trash2 /></Button>}
   </div>;
 }
 
@@ -294,7 +284,7 @@ function ExhibitPool(props: Props & { kind: DocumentKind }) {
             <h4 className="text-sm font-semibold text-gray-950">Exhibit {label}</h4>
             <div className="flex flex-wrap gap-2">
               <AddFileControls {...props} targetLabel={label}
-                label={entry ? "Replace file" : "Add file"} />
+                label={entry ? "Replace" : "Add file"} />
             </div>
           </div>
           {entry && <EntryRow {...props} entry={entry} busy={props.busyEntryId === entry.id}
@@ -331,7 +321,7 @@ function AffidavitWording({ statements = [] }: { statements?: string[] }) {
   </details>;
 }
 
-function AddFileControls({ kind, onFiles, onPick, onLibrary, sourceLabel = "Library",
+function AddFileControls({ kind, onFiles, onPick, onLibrary,
   targetLabel, label = "Add file" }:
   Pick<Props, "onFiles" | "onPick" | "onLibrary" | "sourceLabel"> & {
     kind: DocumentKind; targetLabel?: string; label?: string;
@@ -342,10 +332,8 @@ function AddFileControls({ kind, onFiles, onPick, onLibrary, sourceLabel = "Libr
   const withTarget = <T,>(callback: (kindId: string, targetLabel?: string) => T) =>
     targetLabel ? callback(kind.id, targetLabel) : callback(kind.id);
   return <>
-    {onLibrary && <Button type="button" variant="outline" className="h-9 border-gray-500/80 px-3"
-      onClick={() => withTarget(onLibrary)}>{sourceLabel}</Button>}
-    {onPick ? <Button id={id} type="button" variant={variant} className="h-9 px-3"
-      onClick={() => withTarget(onPick)}>{label}</Button> :
+    {(onLibrary || onPick) ? <Button id={id} type="button" variant={variant} className="h-9 px-3"
+      onClick={() => withTarget((onLibrary || onPick)!)}>{label}</Button> :
       <label className={buttonClassName({ variant,
         className: "h-9 cursor-pointer px-3 focus-within:ring-3 focus-within:ring-ring/50" })}>
         {label}
@@ -398,7 +386,7 @@ function TextRecognition({ entry, reading, onStop, onConfirm }: {
   </p>;
 }
 
-function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel, onEntry, onRemove, onAssign, onAssignKind, assignmentKinds, assignmentLabels, assignmentLabel, dragEnabled = false, showRemove = true, reading, onStopReading, onRelink }: {
+function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel, onEntry, onRemove, onAssign, onAssignKind, assignmentKinds, assignmentLabels, assignmentLabel, dragEnabled = false, reading, onStopReading, onRelink }: {
   entry: RecordEntry;
   kind?: DocumentKind;
   busy: boolean;
@@ -413,7 +401,6 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
   assignmentLabels?: string[];
   assignmentLabel?: string;
   dragEnabled?: boolean;
-  showRemove?: boolean;
   reading?: OcrRun;
   onStopReading?: Props["onStopReading"];
   onRelink?: Props["onRelink"];
@@ -455,10 +442,6 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
             {entry.pageCount !== null && <><span aria-hidden="true">·</span><span>{entry.pageCount} page{entry.pageCount === 1 ? "" : "s"}</span></>}
           </div>}
         </div>
-        {showRemove && <Button id={`entry-${entry.id}-remove`} type="button" variant="ghost" size="icon-sm"
-          onClick={() => onRemove(entry.id)} aria-label={`Remove ${entry.descriptionOnly ? entry.title || kind?.label : entry.file.name}`} title="Remove">
-          <Trash2 />
-        </Button>}
       </div>
       <div className="mt-3 flex flex-col gap-2 empty:hidden sm:flex-row sm:items-end">
         {assignmentKinds && (assignmentKinds.length === 1
