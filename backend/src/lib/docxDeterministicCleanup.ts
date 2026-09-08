@@ -1,8 +1,8 @@
 import type { DocumentStore } from "./documentStore";
 import { openDocxSession } from "./docx/session";
-import { ATTR_KEY, cloneNode, createBuilder, elAttrs, elChildren, elName,
-  ensureXmlDeclaration, getTextContent, makeEl, setChildren, type XNode } from "./docx/core";
-import { revisionAttrs, type AppliedChange } from "./docxTrackedChanges";
+import { createBuilder, elChildren, elName,
+  ensureXmlDeclaration, getTextContent, setChildren, type XNode } from "./docx/core";
+import { emitDocxRevisionPlan, revisionAttrs, type AppliedChange } from "./docxTrackedChanges";
 import { structureNative } from "./structureNative";
 
 function descendants(nodes: XNode[], name: string): XNode[] {
@@ -21,12 +21,6 @@ async function trackSupraChanges(before: Buffer, after: Buffer) {
   const date = new Date().toISOString();
   const serialize = (nodes: XNode[]) => createBuilder().build(nodes) as string;
   const text = (nodes: XNode[]) => descendants(nodes, "w:t").map(getTextContent).join("");
-  const deleted = (node: XNode): XNode => {
-    const name = elName(node);
-    if (!name) return cloneNode(node);
-    return { [name === "w:t" ? "w:delText" : name === "w:instrText" ? "w:delInstrText" : name]:
-      elChildren(node).map(deleted), ...(node[ATTR_KEY] ? { [ATTR_KEY]: elAttrs(node) } : {}) };
-  };
   for (const path of ["word/document.xml", "word/footnotes.xml", "word/endnotes.xml"]) {
     const oldTree = await original.readXml(path), newTree = await revised.readXml(path);
     if (!oldTree || !newTree) continue;
@@ -43,9 +37,9 @@ async function trackSupraChanges(before: Buffer, after: Buffer) {
       const oldRuns = oldNodes.slice(start, oldEnd), newRuns = newNodes.slice(start, newEnd);
       const delId = String(nextId++), insId = String(nextId++);
       const deletedText = text(oldRuns), insertedText = text(newRuns);
-      setChildren(newParagraphs[index], [...newNodes.slice(0, start),
-        makeEl("w:del", oldRuns.map(deleted), revisionAttrs(delId, "Beaver", date)),
-        makeEl("w:ins", newRuns, revisionAttrs(insId, "Beaver", date)), ...newNodes.slice(newEnd)]);
+      setChildren(newParagraphs[index], emitDocxRevisionPlan(newNodes, [{ start, end: newEnd,
+        replacement: newRuns, insertion: revisionAttrs(insId, "Beaver", date),
+        deletion: { nodes: oldRuns, attributes: revisionAttrs(delId, "Beaver", date) } }]));
       changes.push({ id: `${delId}:${insId}`, delId, insId, deletedText, insertedText,
         contextBefore: text(newNodes.slice(0, start)), contextAfter: text(newNodes.slice(newEnd)),
         reason: "Link supra references to native Word note numbers",
