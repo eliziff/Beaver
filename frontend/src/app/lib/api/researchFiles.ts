@@ -48,7 +48,7 @@ export const ensureSourcesWorkspace = (input: { chatId?: string; tableId?: strin
   post<ResearchFile>("/source-workspaces/ensure", input);
 export const bindWorkspaceView = (id: string, input: { chatId?: string; tableId?: string; selection?: ResearchSelection }) =>
   post<ResearchFile>(`/source-workspaces/${segment(id)}/bind`, input);
-export type ResearchTableInput = { rows?: "sources" | "passages"; labelId?: string;
+export type ResearchTableInput = { rows?: "sources" | "passages"; labelId?: string; columnIndex?: number;
   selection?: ResearchSelection; findingRefs?: ResearchFindingReference[];
   chatId?: string; messageIds?: string[]; tableId?: string; fingerprint?: string; design?: ResearchTableDesign; request?: string; model?: string; reasoningEffort?: string };
 export type ResearchTableDesign = { title: string; columns: ColumnConfig[];
@@ -63,7 +63,7 @@ export const previewWorkspaceTable = (id: string, input: ResearchTableInput) =>
 export const openWorkspaceTable = (id: string, input: ResearchTableInput) =>
   post<TabularReview>(`/source-workspaces/${segment(id)}/table`, input);
 export type ResearchLabelDesign = { title: string;
-  labels: { key: string; name: string; parentKey?: string | null; color?: string | null; definition?: string }[];
+  labels: { key: string; name: string; parentKey?: string | null; color?: string | null; definition?: string; scope?: "source" | "highlight" }[];
   assignments: { labelKey: string; rowIds: string[]; itemIds?: string[] }[] };
 export type ResearchLabelProposal = { title: string; target: "sources" | "passages"; propose: boolean;
   fingerprint: string; design: ResearchLabelDesign; unassigned: { id: string; title: string }[];
