@@ -128,7 +128,7 @@ export function AssistantDock({
                 aria-hidden={tab.id !== active.id}
                 className={cn(
                     "absolute inset-0 flex flex-col overflow-hidden",
-                    tab.id !== active.id && "invisible pointer-events-none",
+                    tab.id !== active.id && "invisible opacity-0 pointer-events-none",
                 )}
             >
                 {tab.content}

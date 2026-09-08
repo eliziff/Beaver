@@ -282,7 +282,7 @@ function ResearchSetPicker({ onSelect, onClose }: { onSelect: (id: string, label
     </Modal>;
 }
 interface DocTableProps {    scopeKey: string; documents: Document[]; folders: DocTableFolder[];
-    initialDocument?: { id: string; versionId?: string | null };
+    initialDocument?: { id: string; versionId?: string | null; sheet?: string | null; cell?: string | null };
     loading: boolean; active?: boolean; search: string; operations: DocTableOperations; emptyDropLabel?: string;
     renderAddDocumentsModal?: (open: boolean, onClose: () => void,
         onSelect: (documents: Document[]) => void) => ReactNode;
@@ -1355,6 +1355,7 @@ export function DocTable({
                 () => set("addDocsOpen", false), handleDocsSelected)}
             <DocumentSidePanel
                 doc={sidePanelDoc}
+                highlightCells={sidePanelDoc?.id === initialDocument?.id && viewingDocVersionId === (initialDocument?.versionId ?? null) ? [{ sheet: initialDocument?.sheet ?? undefined, cell: initialDocument?.cell ?? undefined }] : undefined}
                 versionId={viewingDocVersionId}
                 currentVersionId={sidePanelHistory?.currentVersionId ?? null}
                 versions={sidePanelHistory?.versions ?? []}

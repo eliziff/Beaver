@@ -128,14 +128,16 @@ it("pages saved reasoning with original support and queues only unmapped cells i
   const overview = await f.readFindings({ chatId: chat.id }), selected = JSON.parse((overview.result.content[0] as { text: string }).text).items[0];
   expect(selected).toMatchObject({ reference: { kind: "answer", answerId: `${messageId}:answer:0` }, claim_count: 15 });
   expect(selected.answer).toBeUndefined();
-  const outcome = await f.readFindings({ reference: selected.reference,
-    claim_offset: 1, claim_limit: 1, text_offset: 8_000, text_limit: 4_000 }),
-    detail = JSON.parse((outcome.result.content[0] as { text: string }).text);
-  expect(detail.claims[0]).toMatchObject({ claim_index: 1, text: claims[1].text.slice(8_000, 12_000),
-    text_offset: 8_000, text_length: claims[1].text.length });
-  expect(detail.evidence[0]).toMatchObject({ evidence_id: f.receipt.evidence_id, exact_passage: f.receipt.span_text });
-  expect(outcome.evidence).toEqual([f.receipt]);
-  expect(JSON.stringify(detail).length).toBeLessThan(64_000);
+  let offset = 0, recorded = "";
+  do {
+    const outcome = await f.readFindings({ reference: selected.reference, text_offset: offset }),
+      detail = JSON.parse((outcome.result.content[0] as { text: string }).text);
+    recorded += detail.json; offset = detail.next_read?.start_char ?? 0;
+    expect(detail.evidence[0]).toMatchObject({ evidence_id: f.receipt.evidence_id, exact_passage: f.receipt.span_text });
+    expect(outcome.evidence).toEqual([f.receipt]);
+    expect(JSON.stringify(detail).length).toBeLessThan(64_000);
+  } while (offset);
+  expect(JSON.parse(recorded).result.claims).toEqual(claims);
 
   const columns = [{ index: 0, name: "Existing finding", prompt: "Explain the existing finding" },
     { index: 1, name: "Further analysis", prompt: "What else follows?" }],
@@ -276,7 +278,7 @@ it("reuses a canonical typed table result across arrangements without copying it
     arrangement: { rows: [{ id: "payment", title: "Payment", sourceId }],
       cells: [{ rowId: "payment", columnIndex: 0, items: [reference] }] } }),
     result = await f.readFindings({ reference }), data = JSON.parse((result.result.content[0] as { text: string }).text);
-  expect(data.result).toMatchObject({ value: 30, reasoning: { text: content.reasoning }, flag: "yellow", coverage: "partial" });
+  expect(data.result).toMatchObject({ value: 30, reasoning: content.reasoning, flag: "yellow", coverage: "partial" });
   expect(result.evidence).toEqual([f.receipt]);
   const support = await f.readFindings({ reference, evidence_id: f.receipt.evidence_id });
   expect(JSON.parse((support.result.content[0] as { text: string }).text)).toMatchObject({

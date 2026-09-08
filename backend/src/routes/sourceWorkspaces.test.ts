@@ -57,9 +57,10 @@ describe("Sources workspace routes", () => {
     vi.mocked(verifyResearchPassage).mockResolvedValueOnce({ type: "merge", evidence: [receipt], labels: { [receipt.evidence_id]: [] } });
     const response = await request(app).post("/source-workspaces/d1/actions").send({
       version_id: "v1", working_revision: 0, action: { type: "passage", sourceId,
-        quote: "holding" } });
+        revision: "reader-v1", start: 0, end: 7 } });
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ sourceId, evidenceId: receipt.evidence_id });
+    expect(documents.replaceVersion).toHaveBeenCalledTimes(1);
     expect(documents.replaceVersion).toHaveBeenCalledWith(
       expect.anything(), "d1", "v1", 0, expect.objectContaining({ fileType: "md" }));
   });

@@ -67,7 +67,9 @@ export function researchStateChanges(before: ResearchFileState, after: ResearchF
     for (const id of new Set([...Object.keys(left), ...Object.keys(right)])) {
       const previous = left[id], next = right[id], item = previous ?? next,
         identity = { target, id, ...("sourceId" in item ? { sourceId: item.sourceId } : {}) };
-      if (previous && !next) { add(identity, "$", previous, null); continue; }
+      if (previous && !next || !previous && target === "passage" && (next as ResearchEvidence).highlightId) {
+        add(identity, "$", previous, next); continue;
+      }
       const previousLabels = new Set(previous?.labelIds), nextLabels = new Set(next?.labelIds);
       if (target === "passage") add(identity, "labelIds", previous?.labelIds ?? [], next?.labelIds ?? []);
       else {
@@ -76,9 +78,7 @@ export function researchStateChanges(before: ResearchFileState, after: ResearchF
         for (const labelId of new Set([...previousLabels, ...nextLabels]))
           add(identity, `labelIds.${labelId}`, previousLabels.has(labelId), nextLabels.has(labelId));
       }
-      if (previous) fields(identity, previous, next, ["note"]);
-      else for (const field of ["note"])
-        if ((next as Record<string, unknown> | undefined)?.[field]) add(identity, field, "", (next as Record<string, unknown>)[field]);
+      add(identity, "note", previous?.note ?? "", next?.note ?? "");
     }
   };
   assignments("source", before.sources, after.sources);

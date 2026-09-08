@@ -74,7 +74,6 @@ import type { SourceWorkspaceApplication } from "../sourceWorkspaceApplication";
 import type { ChatCreateInput } from "../chatStore";
 import { researchSelectionSchema } from "../researchSelection";
 import { researchResultFilter } from "../researchReader";
-import { resourceReference } from "../resourceReferences";
 import type { AuditStore } from "../audit";
 
 const uuid = z.string().uuid();
@@ -644,9 +643,7 @@ export function createChatApplication(deps: Dependencies) {
         files: canonicalFiles,
         workflow: canonicalWorkflow,
       });
-      const researchEvidence = research ? await deps.sources.items(auth, research.document.id,
-        { kind: "passages", offset: 0, limit: 100 }) : null,
-        researchQueries = research ? await deps.sources.items(auth, research.document.id,
+      const researchQueries = research ? await deps.sources.items(auth, research.document.id,
           { kind: "queries", offset: 0, limit: 50 }) : null,
         workspaceContext = research ? await deps.sources.context(auth, research.document.id,
           researchSelection ?? undefined) : undefined;
@@ -660,7 +657,7 @@ export function createChatApplication(deps: Dependencies) {
           subjects: researchContext.subjects, offset: 0, limit: 500 })).items : [];
       const priorEvents = rows.flatMap((row) => Array.isArray(row.content) ? row.content : []),
         priorEvidenceReceipts = [...new Map([...priorLegalEvidenceReceipts(priorEvents), ...selectedFindings.flatMap(({ evidence }) => evidence),
-          ...(researchEvidence?.items.flatMap((item) => item.kind === "passage" ? [item.value.receipt] : []) ?? [])]
+          ...(workspaceContext?.subjects.flatMap(({ savedEvidence }) => savedEvidence) ?? [])]
           .map((receipt) => [receipt.evidence_id, receipt])).values()].filter((receipt) =>
             permittedEvidence({ resource: legalEvidenceResourceReference(receipt) ?? "", evidence: [receipt] })),
         priorQueries = [...new Map([...priorLegalResearchQueryReceipts(priorEvents),
@@ -694,12 +691,7 @@ export function createChatApplication(deps: Dependencies) {
         features.personalisationPrompt,
         priorLegalEvidencePrompt(priorEvidenceReceipts, priorQueries),
         tabularPrompt,
-        researchContext?.findingRefs ? `Selected result references: ${JSON.stringify(researchContext.findingRefs)}. Use Read findings or read_table_cells to inspect their original answers and support.` : "",
-        selectedFindings.length ? `Existing selected findings (bounded preview; read references for full answers):\n${JSON.stringify(selectedFindings.slice(0, 12).map(({ reference, question, answer }) => ({ reference, question: question.title,
-          preview: (answer.summary ?? answer.claims.map(({ text }) => text).join(" ")).slice(0, 500) })))}` : "",
-        research ? `CURRENT RESEARCH WORKSPACE: ${resourceReference.document(research.document.id, research.versionId)}\n` +
-          `Read this workspace for labels, sources, passages, searches, memo, and history. Read findings for saved answers and table results, then use their returned references when arranging a view. Page through Read for more results.\n` +
-          `Choose useful sets, labels, question columns, and grouping for the user's task. Reuse relevant findings and request new answers where needed. Apply reversible work within the request; propose material changes beyond that scope for review.\n` +
+        research ? `Read the workspace for labels and history, and Read findings for saved answers.\n` +
           `Linked tables: ${(research.state.tables ?? []).join(", ") || "none"}. Use update_research_table to create or organize a table and read_table_cells to read its supported answers.` : "",
         registeredWorkflow?.skill_md
           ? `SELECTED WORKFLOW — follow these instructions for this turn:

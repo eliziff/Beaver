@@ -43,6 +43,7 @@ export const researchReadContextSchema = z.object({
   subjects: z.array(z.object({ sourceId: z.string(), resource: z.string().min(1).max(4_000),
     rowId: z.string().optional(), reference: researchSourceReferenceSchema,
     evidence: z.array(z.custom<LegalEvidenceReceipt>((value) => storedLegalEvidenceReceipt(value) !== null)).optional(),
+    savedEvidence: z.array(z.custom<LegalEvidenceReceipt>((value) => storedLegalEvidenceReceipt(value) !== null)).optional(),
     sourceSha256: z.string().optional(), sourceSha256s: z.array(z.string()).optional(),
   }).strict()).optional(),
   reads: z.record(readProgress).optional(),
@@ -76,20 +77,21 @@ export function researchReadContextPrompt(context: ResearchReadContext | undefin
   if (!context) return "";
   return [context.findingRefs ? `SELECTED RESEARCH RESULTS: ${JSON.stringify(context.findingRefs)}. Read findings or read_table_cells for the original answers and their support.` : "",
   context.workspace ? `CURRENT RESEARCH WORKSPACE: ${resourceReference.document(
-    context.workspace.documentId, context.workspace.versionId)}` : "",
-  context.subjects ? `${context.subjects.length} ${context.restricted ? "selected" : "saved"} source scopes:\n` +
-    context.subjects.slice(0, 5).map(({ resource, evidence }) => resource +
-      (evidence ? ` (${evidence.length} selected passages)` : "")).join("\n") +
-    (context.subjects.length > 5 ? "\nRead selection to page the complete scoped inventory and remaining reads." : "") : ""].filter(Boolean).join("\n");
+    context.workspace.documentId, context.workspace.versionId)}. Read selection first, then its saved evidence_ids. Answer from saved passages before reading sources for missing support. Describe filing as completed only after a successful mutation tool result.` : "",
+  context.subjects ? "Read selection to page the scoped sources, saved passages and remaining reads." : ""].filter(Boolean).join("\n");
 }
 export function readResearchContextInventory(context: ResearchReadContext, args: { offset?: number; limit?: number }) {
   const offset = Math.max(0, (args.offset ?? 1) - 1), limit = Math.max(1, Math.min(50, args.limit ?? 20)),
-    subjects = context.subjects ?? [], selected = subjects.slice(offset, offset + limit);
-  return result({ workspace: context.workspace, restricted: !!context.restricted, total: subjects.length,
-    items: selected.map(({ sourceId, resource, reference, evidence }) => ({ sourceId, resource,
-      title: reference.title ?? reference.citation, ...(evidence ? { passage_count: evidence.length } : {}),
-      next_reads: context.reads?.[resource]?.next ?? [{ resource, offset: 1, start_char: 0 }] })),
-    next_offset: offset + selected.length < subjects.length ? offset + selected.length + 1 : null });
+    subjects = context.subjects ?? [], inventory = subjects.flatMap(({ sourceId, resource, reference, evidence, savedEvidence }) => [{ sourceId, resource,
+      title: reference.title ?? reference.citation, saved_passage_count: savedEvidence?.length ?? 0,
+      ...(evidence ? { passage_count: evidence.length } : {}),
+      next_reads: context.reads?.[resource]?.next ?? [{ resource, offset: 1, start_char: 0 }] },
+      ...(savedEvidence ?? []).map(({ evidence_id, locator, span_text }) => ({ sourceId, resource,
+        evidence_id, locator, preview: span_text?.slice(0, 160), read: { file_path: evidence_id } }))]),
+    items = inventory.slice(offset, offset + limit);
+  while (items.length > 1 && JSON.stringify(items).length > 48_000) items.pop();
+  return result({ workspace: context.workspace, restricted: !!context.restricted, total: inventory.length, items,
+    next_offset: offset + items.length < inventory.length ? offset + items.length + 1 : null });
 }
 
 /** Child assignments narrow the resolved scope; they cannot add another source or passage. */
@@ -309,7 +311,8 @@ export function readLibraryResearchWindow(input: { documentId: string; versionId
         label: `${cell.tableName}!${cell.address}`, sheet: cell.tableName, cells: cell.address } }))
       : [{ start: row.span[0], end: row.span[1], ...(() => {
         const locator = provenBlockLocator(input.document, block, { start: row.span[0], end: row.span[1] });
-        return locator ? { locator } : {};
+        return { locator: locator ?? { kind: "document" as const, label: block?.kind === "paragraph"
+          ? `text paragraph ${block.label.replace(/^par/iu, "")}` : `text line ${row.lineNumber}` } };
       })() }])
       if (span.end > span.start) {
         const receipt = createLibraryEvidence({ documentId: input.documentId,

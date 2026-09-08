@@ -13,7 +13,7 @@ import {
 import type { Document } from "@/app/lib/api/documents";
 import type { ProjectPeople } from "@/app/lib/api/projects";
 import type { GroundedAnswer, GroundedEvidence } from "@/app/lib/groundedAnswers";
-import type { ResearchChange, ResearchFile, ResearchProposal, ResearchSelection, ResearchSourceReference } from "@/app/lib/researchFiles";
+import type { ResearchChange, ResearchProposal, ResearchSelection, ResearchSourceReference } from "@/app/lib/researchFiles";
 
 export type TabularResearchScope = { researchFileId: string; selection: ResearchSelection };
 export type TabularScope = { research_file_id?: string; versionId?: string; workingRevision?: number; subjects: {
@@ -97,6 +97,7 @@ export const getTabularReview = (reviewId: string) =>
 export const updateTabularReview = (
   reviewId: string,
   payload: {
+    cell_answer?: { rowId: string; columnIndex: number; chatId: string; messageId: string };
     title?: string;
     columns_config?: ColumnConfig[];
     document_ids?: string[];
@@ -121,10 +122,6 @@ export const designTabularReview = (payload: {
   current?: ColumnConfig[];
   documentNames?: string[];
 }) => post<{ title: string; columns_config: ColumnConfig[] }>("/tabular-review/design", payload);
-export const proposeColumnLabels = (fileId: string, reviewId: string, columnIndex: number, rowIds?: string[]) =>
-  post<ResearchFile>(`/source-workspaces/${segment(fileId)}/column-labels`, {
-    reviewId, columnIndex, ...(rowIds ? { rowIds } : {}),
-  });
 export const generateTabularColumnPrompt = (
   title: string,
   options?: { format?: string; documentName?: string; tags?: string[] },

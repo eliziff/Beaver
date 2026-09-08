@@ -123,7 +123,7 @@ function Harness({
     list?: DirectoryList;
     search?: string;
     workspaceFile?: ResearchFile | null;
-    initialDocument?: { id: string; versionId?: string | null };
+    initialDocument?: { id: string; versionId?: string | null; sheet?: string | null; cell?: string | null };
 }) {
     const [selection, setSelection] = useState<DocumentSelectionActions | null>(null);
     const [operations] = useState(() => ({
@@ -175,9 +175,9 @@ function documentRow() {
 
 it("opens a linked document version even outside the loaded directory page", async () => {
     documentApi.getDocument.mockResolvedValue(document);
-    render(<Harness initialDocuments={[]} initialDocument={{ id: document.id, versionId: "cited-version" }} />);
+    render(<Harness initialDocuments={[]} initialDocument={{ id: document.id, versionId: "cited-version", sheet: "Terms", cell: "R14" }} />);
     expect(await screen.findByTestId("document-view")).toHaveTextContent("Brief.pdf");
-    expect(sidePanelRender).toHaveBeenLastCalledWith(expect.objectContaining({ versionId: "cited-version" }));
+    expect(sidePanelRender).toHaveBeenLastCalledWith(expect.objectContaining({ versionId: "cited-version", highlightCells: [{ sheet: "Terms", cell: "R14" }] }));
 });
 
 function selectRow(filename: string) {

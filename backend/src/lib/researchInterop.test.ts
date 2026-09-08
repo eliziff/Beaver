@@ -27,7 +27,8 @@ async function fixture() {
     receipt = (index: number) => legal.createA2AJPassageEvidence({ citation: "Test 1", name: "Example decision", dataset: "scc", language: "en",
       sourceText: "The provisions are read together. A saving clause does not cure this problem.",
       spanText: index ? "A saving clause does not cure this problem." : "The provisions are read together.", start: index ? 33 : 0,
-      end: index ? 75 : 32, externalUrl: null, sourceClass: "case", sourceReference: { id: "test-source" } }),
+      end: index ? 75 : 32, locator: { kind: "paragraph", label: String(index + 1) },
+      externalUrl: null, sourceClass: "case", sourceReference: { id: "test-source" } }),
     receipts = [receipt(0), receipt(1)];
   let file = await sources.create(owner, { title: "Termination clauses" });
   const act = async (action: Parameters<typeof sources.update>[2]["action"]) => {
@@ -52,19 +53,72 @@ async function fixture() {
   }
   return { runtime, documents, tables, sources, chats, research, legal, labelId, typeId, sourceId, receipts, chat, act, turn, file: () => file };
 }
+it("files a chat's cited passage under every reviewed concept and undoes the whole proposal", async () => {
+  const f = await fixture(); await f.turn("How do these duties interact?", "The provisions are read together.", f.receipts[0]);
+  const { researchImportCatalog } = await import("./tabular/researchImport"), file = f.file(),
+    subjects = (await f.sources.selection(owner, file.document.id)).subjects,
+    parts = await f.research.readResearchEvidenceParts(f.documents, owner, file, [f.sourceId]),
+    findings = await f.sources.findings(owner, file.document.id, { chatId: f.chat.id, offset: 0, limit: 50 }),
+    catalog = researchImportCatalog(file, subjects, parts, findings.items, { rows: "sources" }),
+    support = catalog.entries.filter((entry) => entry.kind === "answer").map(({ id }) => id),
+    design = { title: "Interacting duties", labels: [{ key: "honesty", name: "Honest performance" },
+      { key: "exclusion", name: "Exclusion of duties" }], assignments: ["honesty", "exclusion"].map((labelKey) =>
+      ({ labelKey, rowIds: [f.sourceId], itemIds: support })) },
+    preview = await f.sources.previewLabels(owner, file.document.id, { chatId: f.chat.id, design }),
+    saved = await f.sources.applyLabels(owner, file.document.id, { chatId: f.chat.id, design, fingerprint: preview.fingerprint });
+  expect(saved.state.proposals).toEqual([]);
+  const passages = (await f.sources.items(owner, file.document.id,
+    { kind: "passages", sourceId: f.sourceId, offset: 0, limit: 50 })).items.flatMap((item) =>
+      item.kind === "passage" ? [item.value] : []);
+  expect(passages).toHaveLength(3);
+  expect(passages.every(({ receipt, labelIds }) => JSON.stringify(receipt) === JSON.stringify(f.receipts[0]) && labelIds.length === 1)).toBe(true);
+  expect(new Set(passages.map((item) => item.highlightId ?? item.receipt.evidence_id)).size).toBe(3);
+  for (const name of ["Honest performance", "Exclusion of duties"]) {
+    const labels = Object.values(saved.state.labels), concept = labels.find((label) => label.name === name && label.scope === "source")!,
+      type = labels.find((label) => label.name === name && label.scope === "highlight")!;
+    expect(saved.state.sources[f.sourceId].labelIds).toContain(concept.id);
+    expect(saved.state.sources[f.sourceId].passages?.labelCounts[type.id]).toBe(1);
+  }
+  const table = await f.sources.previewTable(owner, file.document.id, {});
+  expect(table.design.columns.map(({ name }) => name)).toEqual(["Integrated scheme", "Rule", "Honest performance", "Exclusion of duties"]);
+  expect(table.stats.map(({ evidence }) => evidence)).toEqual([0, 1, 1, 1]);
+  expect(table.samples.every(({ text }) => text === f.receipts[0].span_text)).toBe(true);
+  const history = await f.sources.items(owner, file.document.id, { kind: "history", offset: 0, limit: 1 }), change = history.items[0];
+  if (change.kind !== "change") throw new Error("Missing proposal history");
+  const restored = await f.act({ type: "undo", changeId: change.value.id });
+  expect(restored.state.labels).toEqual(file.state.labels);
+  expect(restored.state.sources).toEqual(file.state.sources);
+});
+it("projects and edits additional highlight instances without changing their shared receipt", async () => {
+  const f = await fixture(), typeId = randomUUID(), evidenceId = f.receipts[0].evidence_id;
+  await f.act({ type: "label", id: typeId, name: "Additional concept", scope: "highlight" });
+  const saved = await f.act({ type: "merge", evidence: [f.receipts[0]], labels: { [evidenceId]: [typeId] } });
+  const items = async () => (await f.sources.items(owner, saved.document.id,
+    { kind: "passages", sourceId: f.sourceId, offset: 0, limit: 200 })).items
+    .flatMap((item) => item.kind === "passage" ? [item.value] : []);
+  const before = await items(), extra = before.find((item) => item.highlightId)!;
+  expect(saved.state.sources[f.sourceId].passages?.labelCounts).toEqual({ [f.typeId]: 1, [typeId]: 1 });
+  await f.act({ type: "annotate", kind: "evidence", sourceId: f.sourceId, id: extra.highlightId!, note: "Only this instance" });
+  expect((await items()).find((item) => !item.highlightId)).toEqual(before.find((item) => !item.highlightId));
+  expect((await items()).find((item) => item.highlightId)).toEqual({ ...extra, note: "Only this instance" });
+  const removed = await f.act({ type: "remove", kind: "evidence", sourceId: f.sourceId, id: extra.highlightId! });
+  expect(await items()).toEqual(before.filter((item) => !item.highlightId));
+  expect(removed.state.sources[f.sourceId].passages?.labelCounts).toEqual({ [f.typeId]: 1 });
+});
+
 it("opens existing work as a populated snapshot, leaving new questions pending", async () => {
   const f = await fixture();
   await f.turn("Why was the clause invalid?", "The saving language did not cure the invalid scheme.");
   const preview = await f.sources.previewTable(owner, f.file().document.id, {});
-  expect(preview.stats.map(({ kinds }) => kinds)).toEqual([["classification"], ["passages"], ["answer"]]);
+  expect(preview.stats.map(({ kinds }) => kinds)).toEqual([[], ["passages"]]);
   const design = { ...preview.design, columns: [...preview.design.columns, { index: 9, name: "New question", prompt: "Was costs relief granted?", format: "text" as const }] };
   const created = await f.sources.table(owner, f.file().document.id, { design, fingerprint: preview.fingerprint });
   const detail = await f.tables.detail(owner, created.id);
   expect(detail.review.scope_config?.frozen).toBe(true);
-  expect(detail.cells.map(({ status }) => status).sort()).toEqual(["done", "done", "done", "pending"]);
-  const answer = detail.cells.find(({ column_index }) => column_index === 2)!.content!;
-  expect(answer.claims[0].text).toBe("The saving language did not cure the invalid scheme.");
-  expect(answer.evidence).toEqual([f.receipts[1]]);
+  expect(detail.cells.map(({ status }) => status).sort()).toEqual(["done", "pending", "pending"]);
+  const answer = detail.cells.find(({ column_index }) => column_index === 1)!.content!;
+  expect(answer.claims[0].text).toBe(f.receipts[0].span_text);
+  expect(answer.evidence).toEqual([f.receipts[0]]);
   await f.act({ type: "label", id: f.labelId, name: "Renamed classification", scope: "source" });
   await f.act({ type: "label", id: f.typeId, name: "Renamed rule", scope: "highlight" });
   const after = await f.tables.detail(owner, created.id);
@@ -83,12 +137,12 @@ it("converts only grounded Chat sources and reuses earlier receipts for a select
   const preview = await f.sources.previewTable(owner, f.file().document.id, { chatId: f.chat.id, messageIds: [later] });
   expect(preview.rows).toHaveLength(1);
   expect(preview).toMatchObject({ question: "Later question", proposed: false, fallback: expect.any(String) });
-  // The question is the subject of the table, never a column: the selected answer lands under "Finding".
+  // Failed model proposals retain the saved concepts and their passages, never question-shaped columns.
   expect(preview.design.columns.some(({ name }) => name === "First question" || name === "Later question")).toBe(false);
-  expect(preview.design.columns.some(({ name }) => name === "Finding")).toBe(true);
+  expect(preview.design.columns.map(({ name }) => name)).toEqual(["Integrated scheme", "Rule"]);
   const review = await f.sources.table(owner, f.file().document.id, { chatId: f.chat.id, messageIds: [later], design: preview.design, fingerprint: preview.fingerprint });
   const detail = await f.tables.detail(owner, review.id), answer = detail.cells.at(-1)!.content!;
-  expect(answer.claims[0].text).toBe("Later answer grounded in an earlier read");
+  expect(answer.claims[0].text).toBe(f.receipts[0].span_text);
   expect(answer.evidence).toEqual([f.receipts[0]]);
   expect(earlier).not.toBe(later);
 });
@@ -116,16 +170,16 @@ it("saves only deliberately requested claim support, without promoting other rea
 it("passes selected Table results back to Chat with exactly their original support", async () => {
   const f = await fixture(); await f.turn("Why?", "Grounded prior reasoning.");
   const table = await f.sources.table(owner, f.file().document.id, {}), detail = await f.tables.detail(owner, table.id),
-    reference = { kind: "cell" as const, reviewId: table.id, rowId: f.sourceId, columnIndex: 2 },
+    reference = { kind: "cell" as const, reviewId: table.id, rowId: f.sourceId, columnIndex: 1 },
     selection = { target: "sources" as const, sourceIds: [f.sourceId], findingRefs: [reference] };
   const context = await f.sources.context(owner, f.file().document.id, selection);
   const { readTabularCells } = await import("./chat/tabularCells"), read = readTabularCells(detail, undefined, undefined, { context });
-  expect(JSON.parse(read.content).cells).toEqual([expect.objectContaining({ col_index: 2, claims: [{ text: "Grounded prior reasoning.", evidence_ids: [f.receipts[1].evidence_id] }] })]);
-  expect(read.evidence).toEqual([f.receipts[1]]);
+  expect(JSON.parse(read.content).cells).toEqual([expect.objectContaining({ col_index: 1, claims: [{ text: f.receipts[0].span_text, evidence_ids: [f.receipts[0].evidence_id] }] })]);
+  expect(read.evidence).toEqual([f.receipts[0]]);
   const findings = await f.sources.findings(owner, f.file().document.id, { offset: 0, limit: 10, references: [reference], subjects: context.subjects });
   expect(findings.items.map(({ reference: ref }) => ref)).toEqual([reference]);
   await expect(f.sources.findings(owner, f.file().document.id, { offset: 0, limit: 10, references: [reference],
-    reference: { ...reference, columnIndex: 1 } })).rejects.toMatchObject({ status: 400 });
+    reference: { ...reference, columnIndex: 0 } })).rejects.toMatchObject({ status: 400 });
 });
 it("does not silently reseed a frozen answer during column edits and preserves pending new questions", async () => {
   const f = await fixture(), review = await f.sources.table(owner, f.file().document.id, {}), original = await f.tables.detail(owner, review.id);
@@ -170,7 +224,7 @@ it("refuses cross-account conversion, previews without changing research, and ke
   await f.act({ type: "source", reference: another, labelIds: [f.labelId] });
   expect((await f.tables.detail(owner, review.id)).review.document_ids).toEqual([f.sourceId]);
 });
-it("proposes categorical labels for selected rows and applies them only on acceptance", async () => {
+it("reviews categorical labels for selected rows in the shared proposal before applying them", async () => {
   const f = await fixture();
   await f.act({ type: "source", reference: { provider: "a2aj", id: "second-source", kind: "case", title: "Second decision" } });
   const file = (await f.sources.get(owner, f.file().document.id))!, ids = Object.keys(file.state.sources),
@@ -185,15 +239,110 @@ it("proposes categorical labels for selected rows and applies them only on accep
       expected: { status: cell.status, content: cell.content }, status: "done", content: { value, claims: [], evidence: [],
         resource: detail.review.scope_config!.subjects.find((subject) => tabularSubjectId(subject) === cell.document_id)!.resource, coverage: "complete", missing: [] } });
   }
-  const proposal = await f.sources.columnLabels(owner, file.document.id, { reviewId: review.id, columnIndex: 0, rowIds: [tabularSubjectId(firstRow)] });
-  expect(Object.keys(proposal.state.labels)).toEqual(Object.keys(file.state.labels));
-  expect(proposal.state.proposals).toHaveLength(1);
-  const accepted = (await f.sources.update(owner, file.document.id, { versionId: proposal.versionId, workingRevision: proposal.workingRevision,
-    action: { type: "accept", changeId: proposal.state.proposals![0].id } })).file;
+  const input = { tableId: review.id, columnIndex: 0, selection: { target: "sources" as const, sourceIds: [f.sourceId] } },
+    before = await f.sources.get(owner, file.document.id), proposal = await f.sources.previewLabels(owner, file.document.id, input);
+  expect(await f.sources.get(owner, file.document.id)).toEqual(before);
+  const accepted = await f.sources.applyLabels(owner, file.document.id, { ...input, design: proposal.design, fingerprint: proposal.fingerprint });
   const yes = Object.values(accepted.state.labels).find(({ name }) => name === "Yes")!;
   expect(yes).toBeDefined(); expect(accepted.state.sources[f.sourceId].labelIds).toContain(yes.id);
   expect(Object.values(accepted.state.labels).some(({ name }) => name === "No")).toBe(false);
   expect(accepted.state.sources[ids.find((id) => id !== f.sourceId)!].labelIds).toEqual([]);
+});
+it.each([false, true])("writes a grounded cell-chat answer with its receipts and undoes it (linked=%s)", async (linked) => {
+  const f = await fixture(), snapshot = await f.sources.table(owner, f.file().document.id, {}),
+    review = linked ? await f.tables.create(owner, { research_file_id: f.file().document.id,
+      columns_config: snapshot.columns_config, arrangement: snapshot.scope_config!.arrangement }) : snapshot,
+    before = await f.tables.detail(owner, review.id), rowId = before.review.document_ids[0],
+    columnIndex = before.review.columns_config[0].index, messageId = await f.turn("Clarify this cell", "The saving clause does not cure the defect."),
+    input = { expected_version: before.review.updated_at, cell_answer: { rowId, columnIndex, chatId: f.chat.id, messageId } };
+  const changed = await f.tables.update(owner, review.id, input), after = await f.tables.detail(owner, review.id),
+    answer = after.cells.find((cell) => cell.document_id === rowId && cell.column_index === columnIndex)!;
+  expect(answer).toMatchObject({ status: "done", content: { summary: "The saving clause does not cure the defect.",
+    claims: [{ text: "The saving clause does not cure the defect.", evidence_ids: [f.receipts[1].evidence_id] }],
+    evidence: [f.receipts[1]], origin: { chatId: f.chat.id, messageId } } });
+  expect(after.cells.filter((cell) => cell.column_index !== columnIndex).map(({ content }) => content))
+    .toEqual(before.cells.filter((cell) => cell.column_index !== columnIndex).map(({ content }) => content));
+  expect(changed.updated_at).not.toBe(before.review.updated_at);
+  await expect(f.tables.update(owner, review.id, input)).rejects.toMatchObject({ status: 409 });
+  await expect(f.tables.update(owner, review.id, { ...input, expected_version: changed.updated_at,
+    cell_answer: { ...input.cell_answer, messageId: "unrecorded" } })).rejects.toMatchObject({ status: 400 });
+  const history = (await f.tables.history(owner, review.id, { offset: 0, limit: 1 })).items[0];
+  await f.tables.change(owner, review.id, { id: history.id, action: "undo", expected_version: changed.updated_at });
+  const restored = await f.tables.detail(owner, review.id);
+  expect(restored.cells.map(({ content }) => content)).toEqual(before.cells.map(({ content }) => content));
+  expect(restored.review.scope_config?.arrangement).toEqual(before.review.scope_config?.arrangement);
+});
+it("reads saved workspace passages through their handles without fetching the source and files a finding reversibly", async () => {
+  const f = await fixture(), { runLocalAssistantTools } = await import("./__tests__/support/localAssistantTools"),
+    { a2ajLegalSourceProvider } = await import("./legalSources/a2aj"),
+    fetch = vi.spyOn(a2ajLegalSourceProvider, "document").mockRejectedValue(new Error("Source must not be fetched")),
+    context = await f.sources.context(owner, f.file().document.id, { target: "sources", labelIds: [f.labelId] }),
+    state = f.legal.createLegalEvidenceTurnState(), receipt = f.receipts[0];
+  expect(context.subjects[0].savedEvidence).toEqual([receipt]);
+  const results = await runLocalAssistantTools(owner.userId, [
+    { name: "Read", id: "inventory", input: { file_path: "selection" } },
+    { name: "Read", id: "saved", input: { file_path: receipt.evidence_id } },
+    { name: "Read", id: "pinpoint", input: { file_path: context.subjects[0].resource,
+      locator_kind: receipt.locator.kind, locator: `par${receipt.locator.label}` } },
+  ], { documents: f.documents, sources: f.sources, researchContext: context, legalEvidence: state });
+  expect(JSON.parse(results[0].content).items).toContainEqual(expect.objectContaining({ evidence_id: receipt.evidence_id }));
+  for (const result of results.slice(1)) expect(JSON.parse(result.content)).toMatchObject({ exact_passage: receipt.span_text });
+  expect(fetch).not.toHaveBeenCalled();
+  await f.act({ type: "remove", kind: "evidence", sourceId: f.sourceId, id: f.receipts[1].evidence_id });
+  await f.turn("What follows?", "Supported conclusion.");
+  const before = (await f.sources.get(owner, f.file().document.id))!, finding = (await f.sources.findings(owner,
+    before.document.id, { chatId: f.chat.id, offset: 0, limit: 10 })).items[0],
+    filed = await f.sources.saveFindings(owner, before.document.id, { references: [finding.reference], typeId: f.labelId,
+      versionId: before.versionId, workingRevision: before.workingRevision }),
+    highlights = (await f.sources.items(owner, before.document.id, { kind: "passages", offset: 0, limit: 20 })).items,
+    history = (await f.sources.items(owner, before.document.id, { kind: "history", offset: 0, limit: 1 })).items[0];
+  expect(highlights).toContainEqual(expect.objectContaining({ kind: "passage", value: expect.objectContaining({
+    receipt: f.receipts[1], labelIds: [Object.values(filed.file.state.labels).find(({ name, scope }) => name === "Integrated scheme" && scope === "highlight")!.id] }) }));
+  if (history.kind !== "change") throw new Error("Missing filing history");
+  const restored = (await f.sources.update(owner, before.document.id, { versionId: filed.file.versionId,
+    workingRevision: filed.file.workingRevision, action: { type: "undo", changeId: history.value.id } })).file;
+  expect(restored.state.sources).toEqual(before.state.sources);
+  expect(restored.state.labels).toEqual(before.state.labels);
+});
+it("round trips every table column with joint evidence outside its rows, then undoes all filing", async () => {
+  const f = await fixture(), columns = ["Honesty", "Exclusion", "Remedy"].map((name, index) => ({ index, name, prompt: `${name}?`, format: "text" })),
+    other = f.legal.createA2AJPassageEvidence({ citation: "Test 2", name: "Other decision", dataset: "scc", language: "en",
+      sourceText: "A joint conclusion.", spanText: "A joint conclusion.", start: 0, end: 19,
+      locator: { kind: "paragraph", label: "2" }, externalUrl: null, sourceClass: "case", sourceReference: { id: "other-source" } }),
+    evidence = [f.receipts[0], other],
+    initial = await f.sources.create(owner, { title: "Contract duties", sources: [f.file().state.sources[f.sourceId].reference], evidence: [f.receipts[0]] }),
+    review = await f.tables.create(owner, { research_file_id: initial.document.id, columns_config: columns }),
+    { tabularRepository } = await import("./relationalTabularRepository"), detail = await f.tables.detail(owner, review.id);
+  for (const cell of detail.cells) await tabularRepository.setCell(owner, { reviewId: review.id, documentId: cell.document_id,
+    columnIndex: cell.column_index, expected: cell, status: "done", content: { value: "Supported conclusion", summary: "Supported conclusion",
+      claims: [{ text: "Supported conclusion", evidence_ids: evidence.map(({ evidence_id }) => evidence_id) }], evidence,
+      resource: detail.review.scope_config!.subjects[0].resource, coverage: "complete" } });
+  const before = await f.sources.ensure(owner, { tableId: review.id }), input = { tableId: review.id },
+    preview = await f.sources.previewLabels(owner, before.document.id, input);
+  expect(preview.labels.map(({ name }) => name)).toEqual(columns.map(({ name }) => name));
+  expect(await f.sources.get(owner, before.document.id)).toEqual(before);
+  const saved = await f.sources.applyLabels(owner, before.document.id, { ...input, design: preview.design, fingerprint: preview.fingerprint }),
+    page = await f.sources.items(owner, saved.document.id, { kind: "passages", offset: 0, limit: 50 }),
+    passages = page.items.flatMap((item) => item.kind === "passage" ? [item.value] : []);
+  expect(passages).toHaveLength(6);
+  expect(new Set(passages.map((item) => item.highlightId ?? item.receipt.evidence_id)).size).toBe(6);
+  for (const receipt of evidence) {
+    const copies = passages.filter((passage) => passage.receipt.evidence_id === receipt.evidence_id);
+    expect(copies).toHaveLength(3);
+    expect(copies.every((passage) => JSON.stringify(passage.receipt) === JSON.stringify(receipt) && passage.labelIds.length === 1)).toBe(true);
+    const source = Object.values(saved.state.sources).find(({ reference }) =>
+      f.research.researchSourceResource(reference) === f.legal.legalEvidenceResourceReference(receipt))!;
+    expect(Object.values(source.passages!.labelCounts)).toEqual([1, 1, 1]);
+  }
+  expect(new Set(passages.map(({ labelIds }) => saved.state.labels[labelIds[0]].name))).toEqual(new Set(columns.map(({ name }) => name)));
+  const returned = await f.sources.previewTable(owner, saved.document.id, {});
+  expect(returned.design.columns.map(({ name, prompt }) => ({ name, prompt }))).toEqual(columns.map(({ name, prompt }) => ({ name, prompt })));
+  const history = (await f.sources.items(owner, saved.document.id, { kind: "history", offset: 0, limit: 1 })).items[0];
+  if (history.kind !== "change") throw new Error("Missing filing history");
+  const restored = (await f.sources.update(owner, saved.document.id, { versionId: saved.versionId,
+    workingRevision: saved.workingRevision, action: { type: "undo", changeId: history.value.id } })).file;
+  expect(restored.state.labels).toEqual(before.state.labels);
+  expect(restored.state.sources).toEqual(before.state.sources);
 });
 it("exposes reviewed conversions and explicit evidence saving through the authenticated routes", async () => {
   const f = await fixture(); await f.turn("Why?", "Grounded reason.");
@@ -207,7 +356,7 @@ it("exposes reviewed conversions and explicit evidence saving through the authen
   expect((await request(app).post(`${url}/table`).send({ chatId: f.chat.id, design: preview.body.design })).status).toBe(409);
   const opened = await request(app).post(`${url}/table`).send({ chatId: f.chat.id, design: preview.body.design, fingerprint: preview.body.fingerprint });
   expect(opened.status).toBe(200);
-  const current = (await f.sources.get(owner, f.file().document.id))!, ref = { kind: "cell", reviewId: opened.body.id, rowId: f.sourceId, columnIndex: 2 };
+  const current = (await f.sources.get(owner, f.file().document.id))!, ref = { kind: "cell", reviewId: opened.body.id, rowId: f.sourceId, columnIndex: 1 };
   const saved = await request(app).post(`${url}/save-findings`).send({ references: [ref], typeId: f.typeId,
     versionId: current.versionId, workingRevision: current.workingRevision });
   expect(saved.status).toBe(200); expect(saved.body.saved).toBe(1);
@@ -230,6 +379,8 @@ async function seededFindings(f: Awaited<ReturnType<typeof fixture>>, rows = 100
         evidence: [f.receipts[0]], outcome: "answered", coverage: "complete",
       } })) });
   if (result.status !== "committed") throw new Error("Could not seed findings");
+  await f.act({ type: "batch", title: "Review concepts", actions: fields.map(({ name, prompt }) =>
+    ({ type: "label", name, definition: prompt, scope: "source" })) });
   references.forEach((ref) => { ref.reviewId = result.value.id; });
   await f.sources.collect(owner, file.document.id, { tables: [result.value.id] });
   return { repository, review: result.value, references, resource };

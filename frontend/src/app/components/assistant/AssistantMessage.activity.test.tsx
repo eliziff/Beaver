@@ -198,12 +198,13 @@ describe("AssistantMessage activity", () => {
                 name: "Reading agent completed: Distinct Canadian lane one",
             }),
         ).toBeInTheDocument();
-        const citationPill = screen.getByRole("button", {
+        const citationPill = screen.getByRole("link", {
             name: "R. v. Example, 2020 BCSC 1",
         });
         expect(onCitationClick).not.toHaveBeenCalled();
-        // The chip opens the source in the reader rather than a browser tab.
-        await userEvent.click(citationPill);
+        expect(citationPill).toHaveAttribute("target", "_blank");
+        await userEvent.click(screen.getByRole("button", { name: "Citation actions" }));
+        await userEvent.click(screen.getByRole("menuitem", { name: "Open in reader" }));
         expect(onCitationClick).toHaveBeenCalledOnce();
 
         await userEvent.click(
@@ -228,9 +229,8 @@ describe("AssistantMessage activity", () => {
             }],
         }]} onCitationClick={onCitationClick} />);
 
-        await userEvent.click(screen.getByRole("button", {
-            name: "Example v. Example, 2020 BCSC 1",
-        }));
+        await userEvent.click(screen.getByRole("button", { name: "Citation actions" }));
+        await userEvent.click(screen.getByRole("menuitem", { name: "Open in reader" }));
         expect(onCitationClick).toHaveBeenCalledOnce();
     });
 

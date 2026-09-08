@@ -198,31 +198,30 @@ it("proposes column labels within the chosen research set without a Library onto
   await act({ type: "label", id: labelId, name: "Leases", scope: "source" });
   await act({ type: "annotate", kind: "source", id: sourceId, labelIds: [labelId] });
   const review = await sources.table(owner, f.workspace.id, { chatId: f.chat.id });
-  expect(review.columns_config).toMatchObject([{ format: "text" }, { prompt: "What did the materials establish?" }]);
+  expect(review.columns_config).toMatchObject([{ name: "Leases", format: "text" }]);
   await tables.update(owner, review.id, { expected_version: review.updated_at,
     columns_config: review.columns_config.map((column) => column.index === 0
       ? { ...column, name: "Topic", format: "tag" } : column) });
   const { tabularRepository } = await import("../lib/relationalTabularRepository"),
     cell = (await tabularRepository.detail(owner, review.id))!.cells.find((cell) =>
       cell.column_index === 0 && cell.document_id === sourceId)!;
-  expect((await request(f.api).post(`/source-workspaces/${f.workspace.id}/column-labels`)
-    .send({ reviewId: review.id, columnIndex: 0 })).status).toBe(400);
+  const previewPath = `/source-workspaces/${f.workspace.id}/labels/preview`, input = { tableId: review.id, columnIndex: 0 };
+  expect((await request(f.api).post(previewPath).send(input)).status).toBe(200);
   await tabularRepository.setCell(owner, { reviewId: review.id, documentId: sourceId, columnIndex: 0,
     expected: cell, status: "done", content: { value: "Leases", summary: "Leases", claims: [], evidence: [],
       flag: "green", outcome: "answered", coverage: "complete", resource: f.resource } });
-  const proposal = await request(f.api).post(`/source-workspaces/${f.workspace.id}/column-labels`)
-    .send({ reviewId: review.id, columnIndex: 0 });
+  const proposal = await request(f.api).post(previewPath).send(input);
   expect(proposal.status).toBe(200);
-  expect(proposal.body.state.proposals).toMatchObject([{ title: "Labels from Topic" }]);
-  expect(Object.values(proposal.body.state.labels).map((label) => (label as { name: string }).name)).toEqual(["Leases"]);
-  const history = await request(f.api).get(`/source-workspaces/${f.workspace.id}/items?kind=history`),
-    pending = (history.body.items as Array<{ value: { status: string;
-      changes: Array<{ target: string; id: string; field: string; after: unknown }> } }>)
-      .find(({ value }) => value.status === "pending")!;
-  expect(pending.value.changes.filter(({ target, field }) => target === "label" && field === "$")
-    .map(({ after }) => (after as { name: string }).name)).toEqual(["Topic", "Leases"]);
-  expect(pending.value.changes.some(({ target, id, field, after }) => target === "source" &&
-    id === sourceId && field.startsWith("labelIds.") && after === true)).toBe(true);
+  expect(proposal.body.labels.map(({ path }: { path: string }) => path)).toEqual(["Topic", "Topic / Leases"]);
+  expect(Object.values((await sources.get(owner, f.workspace.id))!.state.labels).map(({ name }) => name)).toEqual(["Leases"]);
+  const applied = await request(f.api).post(`/source-workspaces/${f.workspace.id}/labels`)
+    .send({ ...input, fingerprint: proposal.body.fingerprint, design: proposal.body.design });
+  expect(applied.status).toBe(200);
+  const labels = Object.values(applied.body.state.labels) as Array<{ id: string; name: string; scope: string; parentId: string | null }>,
+    parent = labels.find((label) => label.name === "Topic" && label.scope === "source")!,
+    child = labels.find((label) => label.name === "Leases" && label.parentId === parent.id)!;
+  expect(applied.body.state.sources[sourceId].labelIds).toEqual(expect.arrayContaining([labelId, child.id]));
+  expect(applied.body.state.proposals).toEqual([]);
   expect(model).not.toHaveBeenCalled();
 }, 60_000);
 
@@ -305,8 +304,9 @@ it("keeps selected claim IDs and their original support scoped across Chat findi
     subjects: selected.subjects, findingRefs: [reference] };
   const result = await readResearchFindings(dependencies, { reference });
   const content = JSON.parse((result.result.content[0] as { text: string }).text);
-  // The reported claim index stays the original one, never the index inside the narrowed selection.
-  expect(content.claims).toEqual([expect.objectContaining({ claim_index: 1, text: "The rate is five percent." })]);
+  // The canonical reference retains the original claim index alongside the selected grounded result.
+  expect(content.reference.claimIndices).toEqual([1]);
+  expect(content.result.claims).toEqual([{ text: "The rate is five percent.", evidence_ids: [f.receipts[0].evidence_id] }]);
   expect(result.evidence).toEqual([f.receipts[0]]);
   // A narrow claim scope cannot read the broader finding it was taken from.
   await expect(readResearchFindings(dependencies, { reference: original.reference })).rejects.toMatchObject({ status: 400 });

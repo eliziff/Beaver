@@ -335,7 +335,7 @@ function LegalSourceViewerContent({
     if (!root.current || !payload) return;
     const match = quotes.length ? highlightMatches.current[quoteIndex] : null;
     if (match) scrollTo(root.current, match);
-  }, [payload, quoteIndex, quotes.length, savedPassages]);
+  }, [payload, quoteIndex, quotes, savedPassages]);
 
   useReaderCapture(root, payloadReference, highlight,
     payload ? { revision: payload.reference.sourceSha256, slices } : null, setResearchError);
