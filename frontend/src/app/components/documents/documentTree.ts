@@ -1,6 +1,7 @@
 import type { Document, Folder, LibraryFolder } from "@/app/lib/api/documents";
 
-type DocumentTreeFolder = Folder | LibraryFolder;
+export type DocumentTreeFolder = Folder | LibraryFolder;
+export type DocumentTreeMove = { kind: "document" | "folder"; id: string };
 type DocumentTreeRow = { kind: "document"; document: Document; parentId: string | null; depth: number }
     | { kind: "folder"; folder: DocumentTreeFolder; parentId: string | null; depth: number }
     | { kind: "editor"; parentId: string | null; depth: number }
@@ -81,6 +82,21 @@ export function wouldCreateFolderCycle(movingId: string, targetId: string,
 export function hasDocumentTreeDrag({ types }: DataTransfer) {
     return Array.from(types).some((type) =>
         type === DOCUMENT_DRAG_TYPE || type === FOLDER_DRAG_TYPE);
+}
+
+export function documentTreeDrag(data: DataTransfer): DocumentTreeMove | null {
+    const documentId = data.getData(DOCUMENT_DRAG_TYPE), folderId = data.getData(FOLDER_DRAG_TYPE);
+    return documentId ? { kind: "document", id: documentId }
+        : folderId ? { kind: "folder", id: folderId } : null;
+}
+
+export function documentTreeMoveParent(move: DocumentTreeMove, destination: string | null,
+    documents: Document[], folders: Map<string, DocumentTreeFolder>) {
+    const item = move.kind === "document" ? documents.find(({ id }) => id === move.id) : folders.get(move.id);
+    if (!item || move.kind === "folder" && destination &&
+        wouldCreateFolderCycle(move.id, destination, folders)) return;
+    const parent = ("filename" in item ? item.folder_id : item.parent_folder_id) ?? null;
+    return parent === destination ? undefined : parent;
 }
 
 export function documentTreeDropFolder(target: EventTarget | null) {

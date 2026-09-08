@@ -1,5 +1,5 @@
 "use client";
-import { useState, type DragEvent } from "react";
+import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { Document, Folder } from "@/app/lib/api/documents";
 import { DocumentResultRow } from "@/app/components/shared/DocumentResultRow";
@@ -8,8 +8,11 @@ import { RowActions } from "@/app/components/shared/RowActions";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
-import { buildDocumentTree, DOCUMENT_DRAG_TYPE, documentTreeDropFolder,
-    FOLDER_DRAG_TYPE, hasDocumentTreeDrag, wouldCreateFolderCycle } from "@/app/components/documents/documentTree";
+import { DOCUMENT_DRAG_TYPE, documentTreeDropFolder,
+    FOLDER_DRAG_TYPE, hasDocumentTreeDrag } from "@/app/components/documents/documentTree";
+
+import { useFolderInteractions } from "@/app/components/documents/useFolderInteractions";
+import { InlineNameInput } from "@/app/components/shared/InlineNameInput";
 
 interface Props {
     documents: Document[];
@@ -24,8 +27,6 @@ interface Props {
     onMoveDoc?: (documentId: string, folderId: string | null) => Promise<void>;
     onMoveFolder?: (folderId: string, parentId: string | null) => Promise<void>;
 }
-type Editor = { kind: "new"; parentId: string | null } |
-    { kind: "rename"; folderId: string };
 type PendingMove = { kind: "document" | "folder"; id: string };
 
 export function ProjectExplorer({
@@ -33,16 +34,15 @@ export function ProjectExplorer({
     onRenameFolder, onDeleteFolder, onDeleteDoc,
     documentRemovalMode = "delete", onMoveDoc, onMoveFolder,
 }: Props) {
-    const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
-    const [editor, setEditor] = useState<Editor | null>(null);
-    const [name, setName] = useState("");
-    const [dragTarget, setDragTarget] = useState<string | null>();
     const [pendingDelete, setPendingDelete] = useState<{ kind: "document" | "folder"; id: string } | null>(null);
     const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
     const [status, setStatus] = useState<"idle" | "loading" | "complete">("idle");
     const [error, setError] = useState<string | null>(null);
-    const tree = buildDocumentTree(documents, folders, expanded,
-        editor?.kind === "new" ? editor.parentId : undefined, "", true);
+    const { tree, expanded, editor, setEditor, startEditor, commitEditor, toggleFolder,
+        dragTarget, setDragTarget, canMove, move, drop } = useFolderInteractions({
+        documents, folders, foldersFirst: true, onCreateFolder, onRenameFolder,
+        onMoveDocument: onMoveDoc && ((id, destination) => onMoveDoc(id, destination)),
+        onMoveFolder: onMoveFolder && ((id, destination) => onMoveFolder(id, destination)) });
     const detaches = documentRemovalMode === "detach";
     const pendingDocument = pendingDelete?.kind === "document"
         ? documents.find(({ id }) => id === pendingDelete.id) : undefined;
@@ -55,54 +55,10 @@ export function ProjectExplorer({
     const currentMoveParent = movingDocument?.folder_id ?? movingFolder?.parent_folder_id ?? null;
     const folderOptions = [
         ...(currentMoveParent ? [{ value: null, label: "Project root" }] : []),
-        ...folders.filter((folder) => folder.id !== currentMoveParent &&
-            (pendingMove?.kind !== "folder" || folder.id !== pendingMove.id &&
-                !wouldCreateFolderCycle(pendingMove.id, folder.id, tree.folderById)))
+        ...folders.filter((folder) => pendingMove && canMove(pendingMove, folder.id))
             .map((folder) => ({ value: folder.id, label: folderPath(folder, tree.folderById) }))
             .sort((a, b) => a.label.localeCompare(b.label)),
     ];
-    function toggleFolder(id: string) {
-        setExpanded((current) => {
-            const next = new Set(current);
-            if (next.has(id)) next.delete(id); else next.add(id);
-            return next;
-        });
-    }
-    function startEditor(next: Editor, value = "") {
-        setEditor(next);
-        setName(value);
-        if (next.kind === "new" && next.parentId)
-            setExpanded((current) => new Set(current).add(next.parentId!));
-    }
-    async function commitEditor() {
-        const current = editor;
-        const value = name.trim();
-        setEditor(null);
-        setName("");
-        if (!current || !value) return;
-        if (current.kind === "new") await onCreateFolder?.(current.parentId, value);
-        else await onRenameFolder?.(current.folderId, value);
-    }
-    async function drop(event: DragEvent<HTMLUListElement>) {
-        if (!hasDocumentTreeDrag(event.dataTransfer)) return;
-        event.preventDefault();
-        const targetId = documentTreeDropFolder(event.target);
-        const documentId = event.dataTransfer.getData(DOCUMENT_DRAG_TYPE);
-        const folderId = event.dataTransfer.getData(FOLDER_DRAG_TYPE);
-        setDragTarget(undefined);
-        if (documentId && onMoveDoc) {
-            const document = documents.find(({ id }) => id === documentId);
-            if (document && (document.folder_id ?? null) !== targetId)
-                await onMoveDoc(documentId, targetId);
-        } else if (
-            folderId && onMoveFolder && folderId !== targetId &&
-            (!targetId || !wouldCreateFolderCycle(folderId, targetId, tree.folderById))
-        ) {
-            const folder = tree.folderById.get(folderId);
-            if (folder && (folder.parent_folder_id ?? null) !== targetId)
-                await onMoveFolder(folderId, targetId);
-        }
-    }
     async function removePending() {
         if (!pendingDelete || status === "loading") return;
         const remove = pendingDelete.kind === "folder" ? onDeleteFolder : onDeleteDoc;
@@ -128,8 +84,7 @@ export function ProjectExplorer({
         setPendingMove(null);
         if (!current) return;
         try {
-            if (current.kind === "document") await onMoveDoc?.(current.id, destinationId);
-            else await onMoveFolder?.(current.id, destinationId);
+            await move(current, destinationId);
         } catch {
             setError(`${current.kind === "folder" ? "The folder" : "The document"} could not be moved.`);
         }
@@ -156,7 +111,11 @@ export function ProjectExplorer({
                             setDragTarget(undefined);
                     }}
                     onDragEnd={() => setDragTarget(undefined)}
-                    onDrop={(event) => void drop(event)}>
+                    onDrop={(event) => {
+                        if (!hasDocumentTreeDrag(event.dataTransfer)) return;
+                        event.preventDefault();
+                        void drop(event.dataTransfer, documentTreeDropFolder(event.target));
+                    }}>
                     {tree.rows.map((row) => {
                         if (row.kind === "editor") return (
                             <li key={`editor-${row.parentId ?? "root"}`} data-tree-drop-folder={row.parentId ?? ""}
@@ -164,8 +123,8 @@ export function ProjectExplorer({
                                 style={{ paddingLeft: 8 + row.depth * 16 }}>
                                 <ChevronRight className="h-3 w-3 shrink-0 text-gray-300" />
                                 <FolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
-                                <NameInput value={name} onChange={setName} onCommit={() =>
-                                    void commitEditor()} onCancel={() => setEditor(null)} />
+                                <InlineNameInput kind="new-folder" label="Folder name" onCommit={(value) =>
+                                    void commitEditor(value)} onCancel={() => setEditor(null)} />
                             </li>
                         );
                         if (row.kind === "folder") {
@@ -187,8 +146,8 @@ export function ProjectExplorer({
                                     className={`flex h-9 min-w-0 items-center ${dragTarget === folder.id ? "bg-red-50 ring-1 ring-inset ring-red-200" : "hover:bg-gray-50"}`}
                                     style={{ paddingLeft: 8 + row.depth * 16 }}>
                                     {renaming ? <>{prefix}
-                                        <NameInput label={`Rename ${folder.name}`} value={name} onChange={setName}
-                                            onCommit={() => void commitEditor()}
+                                        <InlineNameInput kind="folder" label={`Rename ${folder.name}`} value={folder.name}
+                                            onCommit={(value) => void commitEditor(value)}
                                             onCancel={() => setEditor(null)} />
                                     </> : <button type="button" onClick={() => toggleFolder(folder.id)}
                                         aria-expanded={open}
@@ -201,7 +160,7 @@ export function ProjectExplorer({
                                             startEditor({ kind: "new", parentId: folder.id })
                                             : undefined}
                                         onRename={onRenameFolder ? () => startEditor(
-                                            { kind: "rename", folderId: folder.id }, folder.name) : undefined}
+                                            { kind: "rename", folderId: folder.id }) : undefined}
                                         onMove={onMoveFolder ? () => setPendingMove({ kind: "folder",
                                             id: folder.id }) : undefined}
                                         onDelete={onDeleteFolder ? () =>
@@ -260,23 +219,6 @@ export function ProjectExplorer({
                     void movePending(destination)} />
             <WarningPopup open={!!error} message={error} onClose={() => setError(null)} />
         </>
-    );
-}
-
-type NameInputProps = { value: string; label?: string; onChange: (value: string) => void;
-    onCommit: () => void; onCancel: () => void };
-function NameInput({ value, label = "Folder name", onChange, onCommit, onCancel }: NameInputProps) {
-    return (
-        <input autoFocus aria-label={label} placeholder="Folder name"
-            value={value} onChange={(event) => onChange(event.target.value)}
-            onKeyDown={(event) => {
-                event.stopPropagation();
-                if (event.key === "Enter") onCommit();
-                else if (event.key === "Escape") onCancel();
-            }}
-            onBlur={onCommit} onClick={(event) => event.stopPropagation()}
-            className="min-w-0 flex-1 border-b border-gray-400 bg-transparent text-xs outline-none"
-        />
     );
 }
 
