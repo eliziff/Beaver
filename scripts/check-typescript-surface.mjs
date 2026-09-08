@@ -49,8 +49,8 @@ const productionCounts = new Map();
 const filesByName = new Map();
 for (const [file, tree] of syntaxTrees) {
   const relative = path.relative(repo, file);
-  const production = /^(?:backend|frontend)\\src\\/u.test(relative) &&
-    !/\\(?:__tests__|tests|fixtures|support)\\|\.test\.[cm]?[jt]sx?$/u.test(relative);
+  const production = /^(?:backend|frontend)[\\/]src[\\/]/u.test(relative) &&
+    !/[\\/](?:__tests__|tests|fixtures|support)[\\/]|\.test\.[cm]?[jt]sx?$/u.test(relative);
   const seen = new Set();
   const visit = (node) => {
     const name = ts.isIdentifier(node)
@@ -104,10 +104,10 @@ for (const [file, tree] of syntaxTrees) {
 }
 const dead = candidates.filter(({ occurrences }) => occurrences === 1);
 const isProduction = ({ file }) =>
-  /^(?:backend|frontend)\\src\\/u.test(file) &&
-  !/\\(?:__tests__|tests|fixtures|support)\\|\.test\.[cm]?[jt]sx?$/u.test(file);
+  /^(?:backend|frontend)[\\/]src[\\/]/u.test(file) &&
+  !/[\\/](?:__tests__|tests|fixtures|support)[\\/]|\.test\.[cm]?[jt]sx?$/u.test(file);
 const isTest = (file) =>
-  /\\(?:__tests__|tests|fixtures|support)\\|\.test\.[cm]?[jt]sx?$/u.test(file);
+  /[\\/](?:__tests__|tests|fixtures|support)[\\/]|\.test\.[cm]?[jt]sx?$/u.test(file);
 const productionDead = dead.filter(isProduction);
 const nonproductionDead = dead.filter((candidate) => !productionDead.includes(candidate));
 const privateOnly = candidates.filter(({ occurrences }) => occurrences > 1);
