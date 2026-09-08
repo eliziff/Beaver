@@ -13,6 +13,7 @@ type Kind = "classification" | "passages" | "note" | "answer";
 type Entry = { id: string; rowId: string; reference: Item; kind: Kind; text: string;
   column: TabularColumn; evidenceIds: string[]; default: boolean };
 export type ResearchImportCatalog = { title: string; question: string | null; fingerprint: string;
+  columns?: Array<TabularColumn & { scope: "source" | "highlight" }>;
   labels: { id: string; path: string; scope: "source" | "highlight"; definition?: string }[];
   rows: ResearchArrangement["rows"]; entries: Entry[] };
 const id = z.string().min(1).max(200);

@@ -9,9 +9,9 @@ const key = z.string().trim().min(1).max(80), colour = z.string().regex(/^#[a-f0
 export const researchLabelDesignSchema = z.object({
   title: z.string().trim().min(1).max(200),
   labels: z.array(z.object({ key, name: z.string().trim().min(1).max(200), parentKey: key.nullish(),
-    color: colour.nullish(), definition: z.string().trim().max(2_000).optional() }).strict()).min(1).max(40),
+    color: colour.nullish(), definition: z.string().trim().max(20_000).optional(), scope: z.enum(["source", "highlight"]).optional() }).strict()).min(1).max(100),
   assignments: z.array(z.object({ labelKey: key, itemIds: z.array(z.string().trim().min(1).max(200)).max(2_000).optional(),
-    rowIds: z.array(z.string().trim().min(1).max(4_000)).min(1).max(5_000) }).strict()).min(1).max(200),
+    rowIds: z.array(z.string().trim().min(1).max(4_000)).min(1).max(5_000) }).strict()).max(200),
 }).strict();
 export type ResearchLabelDesign = z.infer<typeof researchLabelDesignSchema>;
 export type ResearchLabelTarget = "sources" | "passages";
@@ -50,7 +50,7 @@ export function researchLabelPlan(file: ResearchFile, catalog: ResearchImportCat
     if (trail.has(key)) return bad("The proposed labels contain a cycle");
     trail.add(key);
     const current = file.state.labels[key], proposed = byKey.get(key);
-    if (current && current.scope !== scope) return bad("A proposed label reuses a label of another kind");
+    if (current && proposed && current.scope !== (proposed.scope ?? scope)) return bad("A proposed label reuses a label of another kind");
     if (!proposed && !current) return bad("A proposed label names an unknown parent");
     const name = current?.name ?? proposed!.name, parentKey = current ? current.parentId : proposed?.parentKey,
       parentId = parentKey ? resolve(parentKey, kind, trail).id : null,
@@ -62,7 +62,7 @@ export function researchLabelPlan(file: ResearchFile, catalog: ResearchImportCat
     if (!existing) actions.push({ type: "label", ...label });
     return label;
   };
-  for (const label of parsed.labels) { resolve(label.key, scope); if (target === "sources") resolve(label.key, "highlight"); }
+  for (const label of parsed.labels) { resolve(label.key, label.scope ?? scope); if ((label.scope ?? scope) === "source") resolve(label.key, "highlight"); }
   const support = new Map(catalog.entries.map((entry) => [entry.id, entry])),
     members = new Map<string, Map<string, { evidence: Set<string>; support: Set<string> }>>();
   for (const assignment of parsed.assignments) {
@@ -74,7 +74,7 @@ export function researchLabelPlan(file: ResearchFile, catalog: ResearchImportCat
       const row = rowById.get(rowId) ?? bad("An assignment names material outside this research");
       if (target === "passages" && !row.evidenceIds?.length) bad("A saved passage assignment has no passage");
       const member = rows.get(rowId) ?? { evidence: new Set<string>(), support: new Set<string>() };
-      if (target === "sources" && catalog.entries.some((item) => item.rowId === rowId && item.evidenceIds.length) &&
+      if (!catalog.columns && target === "sources" && catalog.entries.some((item) => item.rowId === rowId && item.evidenceIds.length) &&
         !items.some((item) => item.rowId === rowId && item.evidenceIds.length)) bad("Choose supporting findings for each source assignment");
       for (const id of target === "passages" ? row.evidenceIds ?? []
         : items.filter((item) => item.rowId === rowId).flatMap((item) => item.evidenceIds)) member.evidence.add(id);
@@ -84,8 +84,8 @@ export function researchLabelPlan(file: ResearchFile, catalog: ResearchImportCat
     members.set(assignment.labelKey, rows);
   }
   for (const [labelKey, rows] of members) {
-    if (target === "sources") actions.push({ type: "label-selection", target: "sources",
-      sourceIds: [...rows.keys()].map((id) => rowById.get(id)!.sourceId), assign: [resolve(labelKey, scope).id], mode: "add" });
+    if ((byKey.get(labelKey)!.scope ?? scope) === "source") actions.push({ type: "label-selection", target: "sources",
+      sourceIds: [...rows.keys()].map((id) => rowById.get(id)!.sourceId), assign: [resolve(labelKey, "source").id], mode: "add" });
     const passages = [...rows].filter(([, { evidence }]) => evidence.size)
       .map(([id, { evidence }]) => ({ sourceId: rowById.get(id)!.sourceId, evidenceIds: [...evidence] }));
     if (passages.length) actions.push({ type: "label-selection", target: "passages",
@@ -93,20 +93,20 @@ export function researchLabelPlan(file: ResearchFile, catalog: ResearchImportCat
   }
   const normalise = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/gu, " ").trim();
   const titles = new Set(catalog.rows.map((row) => normalise(row.title)));
-  for (const label of parsed.labels)
+  for (const label of catalog.columns ? [] : parsed.labels)
     if (titles.has(normalise(label.name)) && !file.state.labels[label.key]) bad(`“${clip(label.name, 80)}” names one ${
       target === "sources" ? "document" : "passage"}, not a concept to file it under`);
   const leaves = parsed.labels.filter((label) => members.has(label.key) && !parsed.labels.some(({ parentKey }) => parentKey === label.key));
-  if (target === "sources" && catalog.rows.length > 2 && leaves.length > 1 &&
+  if (!catalog.columns && target === "sources" && catalog.rows.length > 2 && leaves.length > 1 &&
     leaves.every((label) => members.get(label.key)!.size === 1))
     bad("Every label holds a single document; group the research by concept and file the documents under those");
-  if (actions.length > 100) throw new ApplicationError(413,
-    "This proposal needs more than 100 operations; ask for a smaller label set");
+  if (!members.size && !catalog.columns) bad("This proposal classifies nothing");
+  if (actions.length > 400) throw new ApplicationError(413, "Narrow this label proposal before applying it");
   const assigned = new Set([...members.values()].flatMap((rows) => [...rows.keys()]));
   return { title: clip(parsed.title), target, propose: false, actions,
-    labels: parsed.labels.map((label) => ({ ...resolve(label.key, scope), key: label.key,
-      path: researchLabelPath({ ...file.state, labels }, resolve(label.key, scope).id),
-      parentKey: label.parentKey ?? null, existing: !!file.state.labels[resolve(label.key, scope).id],
+    labels: parsed.labels.map((label) => ({ ...resolve(label.key, label.scope ?? scope), key: label.key,
+      path: researchLabelPath({ ...file.state, labels }, resolve(label.key, label.scope ?? scope).id),
+      parentKey: label.parentKey ?? null, existing: !!file.state.labels[resolve(label.key, label.scope ?? scope).id],
       rows: [...(members.get(label.key) ?? [])].map(([id, { support }]) =>
         ({ id, title: rowById.get(id)!.title, support: [...support] })) })),
     unassigned: catalog.rows.filter(({ id }) => !assigned.has(id)).map(({ id, title }) => ({ id, title })) };

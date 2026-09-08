@@ -72,7 +72,7 @@ const researchMutationSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("label"), id: uuid.optional(), name: text(200),
     parentId: uuid.nullable().optional(), color: z.string().regex(/^#[a-f0-9]{6}$/iu)
       .nullable().optional(), order: z.number().min(-1_000_000).max(1_000_000).optional(),
-    scope: z.enum(["source", "highlight"]).optional(), definition: z.string().trim().max(10_000).optional() }).strict(),
+    scope: z.enum(["source", "highlight"]).optional(), definition: z.string().trim().max(20_000).optional() }).strict(),
   z.object({ type: z.literal("remove"), kind: z.enum(["label", "source", "evidence"]),
     id: text(200), sourceId: uuid.optional() }).strict(),
   z.object({ type: z.literal("source"), reference: source, labelIds: ids.optional(),
@@ -101,7 +101,7 @@ export const researchFileActionSchema = z.union([researchMutationSchema,
     actions: z.array(researchMutationSchema.refine((action) =>
       action.type === "source" || action.type === "label" || action.type === "annotate" || action.type === "label-selection" ||
       action.type === "remove" && action.kind === "label", "Batch changes collect sources or organize labels and assignments"))
-      .min(1).max(100) }).strict(),
+      .min(1).max(400) }).strict(),
   z.object({ type: z.enum(["accept", "reject", "undo"]), changeId: uuid }).strict(),
 ]);
 export type PublicResearchFileAction = z.infer<typeof researchFileActionSchema>;
@@ -220,7 +220,7 @@ function decodeResearchFileState(value: unknown): ResearchFileState | null {
         typeof item.parentId === "string" && uuid.safeParse(item.parentId).success) ||
       !(item.color === null || typeof item.color === "string" && /^#[a-f0-9]{6}$/iu.test(item.color)) ||
       !Number.isInteger(item.order) || Number(item.order) < 0 || Number(item.order) > 1_000_000 ||
-      (item.definition !== undefined && (typeof item.definition !== "string" || item.definition.length > 10_000)) ||
+      (item.definition !== undefined && (typeof item.definition !== "string" || item.definition.length > 20_000)) ||
       (item.scope !== "source" && item.scope !== "highlight"); })) return null;
   if (Object.values(labels).some((value) => { const parent = record(value)?.parentId;
     return typeof parent === "string" && (!labels[parent] ||
@@ -533,6 +533,8 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     ownLabels(); return applyLabel(state, { type: "label", name: "Highlight", scope: "highlight", color: "#d6b85a" });
   };
   const fileHighlight = (values: Record<string, ResearchEvidence>, item: ResearchEvidence, assigned: string[]) => {
+    if (assigned.length && (item.receipt.scope !== "passage" || !item.receipt.span_text))
+      throw new ApplicationError(400, "Highlighting requires an exact supporting passage");
     if (!assigned.length || Object.values(values).some((saved) => saved.receipt.evidence_id === item.receipt.evidence_id &&
       saved.labelIds[0] === assigned[0])) return;
     if (!item.labelIds.length) { item.labelIds = assigned; return; }
