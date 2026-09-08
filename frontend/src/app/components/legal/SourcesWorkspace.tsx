@@ -152,6 +152,7 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
   const [pen, setPenState] = useState<string | null>(null), [armed, setArmed] = useState(false);
   /** Only a mounted reader can capture a selection, so only it can offer highlighting. */
   const [reading, setReading] = useState(false);
+  const [highlightError, setHighlightError] = useState("");
   const capture = useRef<(() => HighlightCapture | null) | null>(null);
   const penFile = useRef(file?.document.id); penFile.current = file?.document.id;
   const penId = useRef(pen); penId.current = pen;
@@ -164,6 +165,8 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
   const { act } = mutations;
   /** One deliberate write: prepare the source, ensure a pen, save the passage with it. The pen stays active. */
   const runHighlight = useCallback(async (): Promise<boolean> => {
+    setHighlightError("");
+    try {
     const picked = capture.current?.();
     if (!picked) return false;
     const base = current.current;
@@ -184,10 +187,11 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
     await act({ type: "passage", sourceId, ...span, labelIds: [active] });
     window.getSelection()?.removeAllRanges();
     return true;
+    } catch (reason) { setHighlightError(errorMessage(reason, "Could not save this highlight")); throw reason; }
   }, [act, setPen]);
-  const highlight = { pen, setPen, armed, arm: setArmed, run: runHighlight, reading,
+  const highlight = { pen, setPen, armed, arm: setArmed, run: runHighlight, reading, error: highlightError,
     registerReader: useCallback((next: (() => HighlightCapture | null) | null) => {
-      capture.current = next; setReading(!!next); }, []) };
+      capture.current = next; setReading(!!next); setHighlightError(""); }, []) };
 
   return { file, selection, setSelection, accept, open, refresh, loading, error, mutations, passages, evidence, findings,
     ensure, bind, table, chat, highlight, views: () => getWorkspaceViews(requireFile().document.id), retry: restore };

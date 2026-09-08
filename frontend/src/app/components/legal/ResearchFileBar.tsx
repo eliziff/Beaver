@@ -86,7 +86,7 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
   async function runHighlight() {
     setStatus("");
     try { if (!await highlight.run()) highlight.arm(!highlight.armed); }
-    catch (reason) { setStatus(errorMessage(reason, "Could not save this highlight")); }
+    catch { /* The shared highlight control displays the refusal for every gesture. */ }
   }
   const handedOff = !!(scope.members || scope.sourceIds || scope.evidenceIds || scope.labelIds);
   const descendants = (id: string) => new Set(Object.keys(labels).filter((child) => within(child, id)));
@@ -102,7 +102,7 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
   })();
   return <div className="@container relative flex h-full min-h-0 flex-col overflow-hidden">
     <ResearchWorkspacePicker projectId={projectId} rail={rail} onHistory={() => setChangesOpen(true)} />
-    {status && <span role="status" className="pointer-events-none absolute bottom-2 left-1/2 z-30 max-w-[calc(100%-1rem)] -translate-x-1/2 truncate rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-700 shadow-lg">{status}</span>}
+    {(highlight.error || status) && <span role="status" className="pointer-events-none absolute bottom-2 left-1/2 z-30 max-w-[calc(100%-1rem)] -translate-x-1/2 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-700 shadow-lg">{highlight.error || status}</span>}
     {file && <ResearchChanges file={file} mutations={commit} historyOpen={changesOpen} onCloseHistory={() => setChangesOpen(false)} />}
     {file && <>
       <Tabs value={tab} onValueChange={setTab} ariaLabel="Workspace views" variant="subtab"

@@ -251,12 +251,15 @@ export function PdfCanvas({
                         container: element, viewport });
                     await layer.render();
                     if (generation !== generationRef.current) return;
-                    const lines = new Map<string, HTMLDivElement>();
-                    for (const div of layer.textDivs) {
-                        const top = div.style.top;
-                        let line = lines.get(top);
-                        if (!line) { line = document.createElement("div"); line.style.display = "contents";
-                            line.dataset.legalText = String(index + 1); lines.set(top, line); element.appendChild(line); }
+                    let line: HTMLDivElement | undefined, bottom = -Infinity;
+                    for (const { div, rect } of layer.textDivs.filter(div => {
+                        if (div.textContent?.trim()) return true; div.remove(); return false;
+                    }).map(div => ({ div, rect: div.getBoundingClientRect() }))
+                        .sort((a, b) => Math.abs(a.rect.bottom - b.rect.bottom) < 2 * scale
+                            ? a.rect.left - b.rect.left : a.rect.bottom - b.rect.bottom)) {
+                        if (!line || Math.abs(rect.bottom - bottom) >= 2 * scale) {
+                            line = document.createElement("div"); line.style.display = "contents"; bottom = rect.bottom;
+                            line.dataset.legalText = String(index + 1); element.appendChild(line); }
                         line.appendChild(div);
                     }
                     pages[index].hasTextLayer = true;
