@@ -681,14 +681,23 @@ describe("production legal evidence", () => {
     ]);
   });
 
-  it("keeps a multi-sentence point under its shared evidence instead of repeating citation chips", () => {
+  it("requires each sentence to carry its own pinpoint", () => {
     const state = createLegalEvidenceTurnState("citation_structure"), evidence = [passage("par30"), passage("par31")];
     evidence.forEach((receipt) => registerLegalEvidence(state, receipt));
     expect(submitLegalEvidenceAnswer({ claims: [{
       text: "The appeal succeeded. Both passages record that result.",
       evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
-    }] }, state).ok).toBe(true);
-    expect(renderLegalEvidenceAnswer(state)).toBe("The appeal succeeded. Both passages record that result. [1]");
+    }] }, state).ok).toBe(false);
+    expect(renderLegalEvidenceAnswer(state)).toBeNull();
+    expect(submitLegalEvidenceAnswer({ claims: [{
+      text: "### Result\n\nThe appeal succeeded. Both passages record that result.",
+      evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
+    }] }, state).ok).toBe(false);
+    expect(submitLegalEvidenceAnswer({ claims: [
+      { text: "The appeal succeeded.", evidence_ids: [evidence[0].evidence_id] },
+      { text: "Both passages record that result.", evidence_ids: evidence.map(({ evidence_id }) => evidence_id) },
+    ] }, state).ok).toBe(true);
+    expect(renderLegalEvidenceAnswer(state)).toBe("The appeal succeeded. [1]\n\nBoth passages record that result. [2]");
   });
 
   it("collapses one article's pages into a single journal chip", () => {
