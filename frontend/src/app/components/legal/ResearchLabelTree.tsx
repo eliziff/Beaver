@@ -110,8 +110,7 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
             event.preventDefault(); const mode = drop?.id === label.id ? drop.mode : "inside"; setDrop(null);
             if (preview || busy) return;
             const sourceId = event.dataTransfer.getData(RESEARCH_SOURCE_DRAG), source = file?.state.sources[sourceId];
-            if (source && scope === "source") { void act({ type: "annotate", kind: "source", id: sourceId,
-              labelIds: [...new Set([...source.labelIds, label.id])] }); return; }
+            if (source && scope === "source") { void act({ type: "annotate", kind: "source", id: sourceId, labelIds: [label.id] }); return; }
             const raw = event.dataTransfer.getData(RESEARCH_SOURCE_REFERENCE_DRAG);
             if (raw && scope === "source") { try { void act({ type: "source", reference: JSON.parse(raw), labelIds: [label.id] }); } catch { onStatus("Could not add that source"); } return; }
             void move(event.dataTransfer.getData(LABEL_DRAG), mode === "inside" ? label.id : label.parentId,

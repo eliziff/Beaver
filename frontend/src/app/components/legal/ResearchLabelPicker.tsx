@@ -129,7 +129,10 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
         id: itemId.current, labelIds: nextSlots.filter(Boolean), note: nextNote }
         : { type: "annotate" as const, kind: "evidence" as const, id: itemId.current,
           sourceId: sourceId.current!, labelIds: nextSlots.filter(Boolean), note: nextNote };
-      const next = await mutations.act(action); confirmed.current = next;
+      const removed = slots.filter((id) => !nextSlots.includes(id)), next = await mutations.act(target.kind === "source" && removed.length
+        ? { type: "batch", title: "Update source filings", actions: [
+          { type: "label-selection", target: "sources", sourceIds: [itemId.current], assign: removed, mode: "remove" }, action] } : action);
+      confirmed.current = next;
       if (request === saveNumber.current) setFile(next);
     })().catch((reason) => { if (request === saveNumber.current) { const message = errorMessage(reason, "Could not save labels");
       lastSaved.current = "";
