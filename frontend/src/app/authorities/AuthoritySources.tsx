@@ -13,7 +13,7 @@ import { authorityName, authorityCitationForms, hasRequiredSources, requiresBili
 import type { AuthoritiesAction, AuthoritiesDraft, AuthoritiesProduct,
   AuthorityIdentity, AuthorityOccurrence } from "./types";
 import type { AuthoritiesSourceIssue } from "./host";
-import type { SourceOcrStatus } from "./sourceOcr";
+import type { ScannedPdf, SourceOcrStatus } from "./sourceOcr";
 
 const control = "h-8 shrink-0 border-gray-400 px-2.5 text-xs";
 export type AuthorityPanelProps = {
@@ -203,6 +203,21 @@ function StyleOfCause({ value, onSave, onCancel }: {
 }
 
 export type SourceOcrPanel = Pick<ReturnType<typeof import("./sourceOcr").useSourceOcr>, "tracked" | "begin" | "stop">;
+
+export function SourceRecognition({ file, ocr, disabled }: { file: ScannedPdf; ocr: SourceOcrPanel; disabled?: boolean }) {
+  const [pages, setPages] = useState("");
+  return <form className="my-2 flex flex-wrap items-center gap-2" onSubmit={event => {
+    event.preventDefault();
+    void ocr.begin([file], pages.trim() ? [...new Set(pages.split(",").map(Number))] : undefined);
+  }}>
+    <label className="text-sm text-gray-700">Pages to recognize <input value={pages}
+      onChange={event => setPages(event.target.value)} placeholder="All scanned pages"
+      pattern="\s*[1-9][0-9]*\s*(,\s*[1-9][0-9]*\s*)*" title="Enter page numbers separated by commas, or leave blank for all scanned pages."
+      className="ms-2 h-8 w-40 rounded border border-gray-400 px-2 text-sm" /></label>
+    <Button type="submit" variant="outline" className="h-8" disabled={disabled}>Recognize</Button>
+    {ocr.tracked[file.role] && <SourceOcrProgress status={ocr.tracked[file.role]} ocr={ocr} />}
+  </form>;
+}
 
 /** Text recognition for one scanned source, watched where the source lives. */
 export function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: SourceOcrPanel }) {

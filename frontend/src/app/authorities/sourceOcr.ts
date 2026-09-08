@@ -4,14 +4,10 @@ import { authorityName } from "./authorityPresentation";
 import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesProduct } from "./types";
 
-type ScannedPdf = { role: string; name: string; sourceSha256: string; textlessPages: number[] };
+export type ScannedPdf = { role: string; name: string; sourceSha256: string; textlessPages: number[] };
 export type SourceOcrStatus = ScannedPdf & { documentId?: string; page?: number;
   error?: string; state: "running" | "paused" | "cancelled" | "done" | "failed" };
 
-/**
- * Scanned source PDFs are recognized by the durable PDF queue, cited pages first,
- * and the workspace watches that queue instead of holding recognition in a request.
- */
 export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
   const [tracked, setTracked] = useState<Record<string, SourceOcrStatus>>({});
   const pending = useRef(Promise.resolve());
@@ -88,37 +84,20 @@ async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct,
   return files;
 }
 
-/**
- * Which sources are scans is settled in the background while the Sources list is
- * already on screen, so continuing does not pay for the whole check at once.
- */
 export function useScannedSources(host: AuthoritiesHost, draft: AuthoritiesProduct | undefined,
   key: string, found: (file: ScannedPdf) => void) {
-  const [status, setStatus] = useState({ progress: "", error: "" });
+  const [status, setStatus] = useState({ key: "", files: [] as ScannedPdf[], checking: true, progress: "", error: "" });
   const onFound = useRef(found); onFound.current = found;
-  const cached = useRef<{ key: string; report: (message: string) => void;
-    abort: AbortController; result: Promise<ScannedPdf[]> }>(undefined);
-  const ensure = useCallback((current: AuthoritiesProduct, report: (message: string) => void) => {
-    const running = cached.current;
-    if (running?.key === key) { running.report = report; return running.result; }
-    running?.abort.abort();
-    const entry = { key, report, abort: new AbortController(), result: undefined as unknown as Promise<ScannedPdf[]> };
-    entry.result = inspectSources(host, current, (message) => {
-      setStatus({ progress: message, error: "" }); entry.report(message);
-    }, (file) => onFound.current(file), entry.abort.signal).then((files) => {
-      if (!entry.abort.signal.aborted) setStatus({ progress: "", error: "" });
-      return files;
-    });
-    cached.current = entry;
-    entry.result.catch((error: Error) => {
-      if (cached.current === entry) cached.current = undefined;
-      if (!entry.abort.signal.aborted) setStatus({ progress: "", error: error.message });
-    });
-    return entry.result;
-  }, [host, key]);
   useEffect(() => {
-    if (draft && host.readSource) void ensure(draft, () => undefined).catch(() => undefined);
-    return () => { cached.current?.abort.abort(); cached.current = undefined; };
-  }, [ensure]);
-  return { ensure, ...status };
+    const abort = new AbortController();
+    setStatus({ key, files: [], checking: true, progress: "Checking PDFs", error: "" });
+    void (draft && host.readSource ? inspectSources(host, draft,
+      (progress) => { if (!abort.signal.aborted) setStatus(current => ({ ...current, progress })); },
+      (file) => { if (!abort.signal.aborted) onFound.current(file); }, abort.signal) : Promise.resolve([]))
+      .then(files => { if (!abort.signal.aborted) setStatus({ key, files, checking: false, progress: "", error: "" }); })
+      .catch((error: Error) => { if (!abort.signal.aborted) setStatus(current =>
+        ({ ...current, checking: false, progress: "", error: error.message })); });
+    return () => abort.abort();
+  }, [host, key]);
+  return { ...status, checking: status.key !== key || status.checking };
 }
