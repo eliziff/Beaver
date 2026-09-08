@@ -35,7 +35,7 @@ import { DocumentViewer } from "@/app/components/shared/views/DocumentViewer";
 import { ReaderExpandButton } from "./ReaderExpandButton";
 import { preserveReaderScroll } from "./useReaderExpansion";
 
-import { formatBytes, formatDate } from "@/app/lib/utils";
+import { formatBytes, formatDate, formatDateTime } from "@/app/lib/utils";
 
 import { getResearchFile, getResearchItems } from "@/app/lib/api/researchFiles";
 import { ResearchLabelMarker } from "@/app/components/legal/ResearchLabelMarker";
@@ -90,15 +90,7 @@ interface Props {
     onAssistantWorkflowSelect?: (selection: WorkflowSelection, documents: Document[]) => void;
 }
 
-const PLAIN_TEXT_VIEW_EXTENSIONS = new Set([
-    "txt",
-    "text",
-    "md",
-    "markdown",
-    "mdown",
-    "rst",
-    "log",
-]);
+const PLAIN_TEXT_VIEW_EXTENSIONS = new Set(["txt", "text", "md", "markdown", "mdown", "rst", "log"]);
 
 const ResearchMemoEditor = lazy(() => import("@/app/components/legal/ResearchMemoEditor"));
 function ResearchFilePreview({ documentId }: { documentId: string }) {
@@ -225,7 +217,6 @@ export function DocumentSidePanel({
     }, [expandedReader]);
     /** Non-null while the name is being edited; holds the draft. */
     const [nameDraft, setNameDraft] = useState<string | null>(null);
-    const [captureError, setCaptureError] = useState<string | null>(null);
     const sourcesController = useSourcesWorkspaceOrNull();
     const highlightController = sourcesController?.highlight ?? null;
     const captureReference: ResearchSourceReference | null =
@@ -234,7 +225,7 @@ export function DocumentSidePanel({
                 versionId: (versionId ?? doc.current_version_id) as string,
                 title: doc.filename }
             : null;
-    const captureReady = useReaderCapture(readerBody, captureReference, highlightController, undefined, setCaptureError);
+    const captureReady = useReaderCapture(readerBody, captureReference, highlightController);
     const [savedQuotes, setSavedQuotes] = useState<CitationQuote[]>([]);
     const workspaceFile = sourcesController?.file ?? null;
     const captureKey = captureReference ? researchSourceKey(captureReference) : null;
@@ -257,7 +248,6 @@ export function DocumentSidePanel({
 
     useEffect(() => {
         setVisibleVersionCount(VERSION_PAGE);
-        setCaptureError(null);
         setNameDraft(null);
         if (docId) void loadVersions(docId);
     }, [docId]);
@@ -282,13 +272,8 @@ export function DocumentSidePanel({
     const selectedId = selected?.id ?? versionId ?? currentId;
     const filename = selected?.filename.trim() || activeDoc.filename;
     const displayFilename = activeDoc.filename.replace(/\.research\.md$/iu, "");
-    const type = fileType(selected, activeDoc.file_type);
-    const extension = filename.split(".").pop()?.toLowerCase() ?? "";
-    const isDocx =
-        isDocxFilename(filename) || type === "docx" || type === "doc";
-    const isSpreadsheet =
-        isSpreadsheetFilename(filename) ||
-        ["xlsx", "xlsm", "xls"].includes(type);
+    const type = fileType(selected, activeDoc.file_type), viewerKind = documentViewKind(filename, type);
+    const isDocx = viewerKind === "docx";
     const revision = selectedId && selectedId === currentId
         ? `${selectedId}:${selected?.working_revision ?? activeDoc.current_working_revision ?? 0}`
         : selected ? `${selected.id}:${selected.working_revision}` : activeDoc.updated_at;
@@ -296,9 +281,7 @@ export function DocumentSidePanel({
     const selectedComparison = selected ? comparison(selected) : null;
     const showResearchPreview =
         isResearchDocument(activeDoc) && selectedId === currentId;
-    const viewerKind = isSpreadsheet ? "spreadsheet"
-        : PLAIN_TEXT_VIEW_EXTENSIONS.has(extension) || PLAIN_TEXT_VIEW_EXTENSIONS.has(type) ? "text"
-            : isDocx ? "docx" : type === "pdf" ? "pdf" : null;
+
 
     async function saveName() {
         const entered = nameDraft?.trim();
@@ -364,53 +347,19 @@ export function DocumentSidePanel({
             headerAction={
                 <div className="flex shrink-0 items-center gap-1.5">
                 <ReaderExpandButton expanded={expandedReader} onChange={changeReaderSize} />
-                {highlightController && (
-                    <button
-                        type="button"
-                        aria-label="Highlight"
-                        disabled={!captureReady}
-                        aria-pressed={highlightController.armed}
-                        title="Highlight"
-                        onPointerDown={(event) => event.preventDefault()}
-                        onClick={() => {
-                            setCaptureError(null);
-                            void highlightController.run().then((saved) => { if (!saved) highlightController.arm(!highlightController.armed); })
-                                .catch((reason: unknown) => {
-                                    setCaptureError(reason instanceof Error ? reason.message
-                                        : "Could not save this highlight");
-                                });
-                        }}
-                        className="h-8 w-8 rounded hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
-                    >
-                        <Highlighter className="mx-auto h-4 w-4" />
-                    </button>
-                )}
-                {nameDraft !== null ? (
-                    <button
-                        type="button"
-                        onClick={() => void saveName()}
-                        disabled={!!pendingAction}
-                        aria-label="Save document name"
-                        title="Save document name"
-                        className="h-8 w-8 rounded hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
-                    >
-                        {pendingAction === "rename" ? (
-                            <Loader2 className="mx-auto h-4 w-4 animate-spin" />
-                        ) : (
-                            <Check className="mx-auto h-4 w-4" />
-                        )}
-                    </button>
-                ) : (
-                    <button
-                        type="button"
-                        aria-label="Rename document"
-                        title="Rename document"
-                        onClick={() => setNameDraft(displayFilename)}
-                        className="h-8 w-8 rounded hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
-                    >
-                        <Pencil className="mx-auto h-4 w-4" />
-                    </button>
-                )}
+                {highlightController && <Button variant="ghost" size="icon-sm" aria-label="Highlight"
+                    disabled={!captureReady} aria-pressed={highlightController.armed} title="Highlight"
+                    onPointerDown={(event) => event.preventDefault()}
+                    onClick={() => void highlightController.run().then((saved) => {
+                        if (!saved) highlightController.arm(!highlightController.armed);
+                    }).catch(() => undefined)}><Highlighter aria-hidden /></Button>}
+                <Button variant="ghost" size="icon-sm" disabled={nameDraft !== null && !!pendingAction}
+                    aria-label={nameDraft !== null ? "Save document name" : "Rename document"}
+                    title={nameDraft !== null ? "Save document name" : "Rename document"}
+                    onClick={() => { if (nameDraft !== null) void saveName(); else setNameDraft(displayFilename); }}>
+                    {nameDraft === null ? <Pencil aria-hidden /> : pendingAction === "rename"
+                        ? <Loader2 aria-hidden className="animate-spin" /> : <Check aria-hidden />}
+                </Button>
                 <ContextualWorkflowLauncher
                     documents={[activeDoc]}
                     onOpen={onOpenWorkflows ? () => {
@@ -488,7 +437,9 @@ export function DocumentSidePanel({
                         </tr></thead>
                         <tbody>
                         {versionsLoading && !versions.length ? (
-                            <tr><td colSpan={5}><VersionLoading /></td></tr>
+                            <tr><td colSpan={5}><div className="space-y-1 p-2">
+                                {[1, 2, 3].map(id => <div key={id} className="h-12 animate-pulse rounded bg-gray-100" />)}
+                            </div></td></tr>
                         ) : versionsError ? (
                             <tr><td colSpan={5} role="alert" className="py-3 text-xs text-red-700">
                                 Could not load version history. <button type="button"
@@ -508,7 +459,6 @@ export function DocumentSidePanel({
                                         selected={version.id === selectedId}
                                         current={version.id === currentId}
                                         onSelect={() => {
-                                            setCaptureError(null);
                                             onSelectVersion(version.id);
                                         }}
                                     />
@@ -548,10 +498,10 @@ export function DocumentSidePanel({
                             Save version
                         </Button>
                     </form>}
-                    {(actionError || captureError) && (
+                    {(actionError || highlightController?.error) && (
                         <p role="alert" className="flex items-center gap-2 py-2 text-xs text-red-700">
                             <AlertCircle aria-hidden className="h-3.5 w-3.5 shrink-0" />
-                            {actionError || captureError}
+                            {actionError || highlightController?.error}
                         </p>
                     )}
                     <div className="flex shrink-0 justify-between gap-2 pt-3">
@@ -581,19 +531,6 @@ export function DocumentSidePanel({
     );
 }
 
-function VersionLoading() {
-    return (
-        <div className="space-y-1 p-2">
-            {[1, 2, 3].map((id) => (
-                <div
-                    key={id}
-                    className="h-12 animate-pulse rounded bg-gray-100"
-                />
-            ))}
-        </div>
-    );
-}
-
 function VersionRow({ version, selected, current, onSelect }: {
     version: DocumentVersion;
     selected: boolean;
@@ -607,12 +544,12 @@ function VersionRow({ version, selected, current, onSelect }: {
     return <>
         <tr onClick={onSelect} className={`cursor-pointer border-b border-gray-200 align-top hover:bg-gray-50 ${selected ? "bg-gray-100" : ""}`}>
             <td className="px-1 py-1"><button type="button" aria-current={selected ? "true" : undefined}
-                aria-label={`${canPreviewVersion(version) ? "Preview" : "Select"} ${title}: ${name}${current ? ", Current" : ""}`} title={[name, provenance].filter(Boolean).join(" — ")}
+                aria-label={`${documentViewKind(name, fileType(version, "")) ? "Preview" : "Select"} ${title}: ${name}${current ? ", Current" : ""}`} title={[name, provenance].filter(Boolean).join(" — ")}
                 className="inline-flex flex-wrap items-center gap-1 text-left font-medium tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-gray-900">
                 v{version.version_number}
                 {current && <Check aria-hidden className="size-3.5 shrink-0" />}
             </button></td>
-            <td className="px-1 py-1 text-gray-600"><time dateTime={version.created_at} title={versionTimestamp(version.created_at)}>{formatDate(version.created_at)}</time></td>
+            <td className="px-1 py-1 text-gray-600"><time dateTime={version.created_at} title={formatDateTime(version.created_at) ?? undefined}>{formatDate(version.created_at)}</time></td>
             <td className="max-w-24 break-words px-1 py-1 text-gray-600 [overflow-wrap:anywhere]" title={actor}>{actor}</td>
             <td className="px-1 py-1 tabular-nums text-gray-600">{formatBytes(version.size_bytes) ?? "—"}</td>
             <td className="px-1 py-1 text-right tabular-nums text-gray-600">{version.page_count ?? "—"}</td>
@@ -630,12 +567,11 @@ function versionFilename(version: DocumentVersion) {
     return version.filename.trim() || (version.source === "upload" ? "Original" : "—");
 }
 
-function canPreviewVersion(version: DocumentVersion) {
-    const name = versionFilename(version), type = fileType(version, "");
+function documentViewKind(name: string, type: string) {
     const extension = name.split(".").pop()?.toLowerCase() ?? "";
-    return type === "pdf" || type === "doc" || type === "docx" ||
-        isSpreadsheetFilename(name) || PLAIN_TEXT_VIEW_EXTENSIONS.has(type) ||
-        PLAIN_TEXT_VIEW_EXTENSIONS.has(extension);
+    return isSpreadsheetFilename(name) || ["xlsx", "xlsm", "xls"].includes(type) ? "spreadsheet"
+        : PLAIN_TEXT_VIEW_EXTENSIONS.has(extension) || PLAIN_TEXT_VIEW_EXTENSIONS.has(type) ? "text"
+            : isDocxFilename(name) || type === "docx" || type === "doc" ? "docx" : type === "pdf" ? "pdf" : null;
 }
 
 function fileType(
@@ -643,16 +579,4 @@ function fileType(
     fallback: string | null | undefined,
 ) {
     return version?.file_type.toLowerCase() || fallback?.toLowerCase() || "";
-}
-
-function versionTimestamp(iso: string | null | undefined) {
-    return iso
-        ? new Date(iso).toLocaleString(undefined, {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-              hour: "numeric",
-              minute: "2-digit",
-          })
-        : "—";
 }
