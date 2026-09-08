@@ -38,7 +38,7 @@ export function WorkflowRunPanel({ run }: { run: WorkflowRunEvent }) {
     ...(run.counts ?? []).map(({ label, value }) => [label, String(value)]),
   ];
   const appHref = safeAssistantUrl(run.app_url);
-  const workspace = run.requested_action === "open" && run.work_product
+  const workspace = run.work_product
     ? run.work_product.kind === "court-record"
       ? { href: `/court-records?draft=${encodeURIComponent(run.work_product.id)}`,
           label: "Open Court Records" }

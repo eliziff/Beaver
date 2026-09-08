@@ -3,7 +3,7 @@ import { Highlighter, MousePointer2, Pencil, Redo2, Trash2, Undo2 } from 'lucide
 import { Modal } from '@/app/components/modals/Modal';
 import { Button } from '@/app/components/ui/button';
 import { StepSection } from './StepSection';
-import { SourceOcrProgress, type SourceOcrPanel } from './AuthoritySources';
+import { SourceRecognition, type SourceOcrPanel } from './AuthoritySources';
 import { PdfView } from '@/app/components/shared/views/PdfView';
 import type { AnnotationTool } from '@/app/components/shared/views/pdfAnnotationLayer';
 import { cn, errorMessage } from '@/app/lib/utils';
@@ -63,7 +63,6 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
   const [focus, setFocus] = useState<{ id: string; request: number }>();
   const [loading, setLoading] = useState(false), [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [ocrPages, setOcrPages] = useState('');
   const request = useRef<AbortController|null>(null);
   const cardRefs = useRef(new Map<string,HTMLLIElement>());
   const source = choices.find(choice => choice.bindingRole === role)!;
@@ -184,21 +183,8 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
             <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Redo" disabled={disabled||current.position>=current.history.length-1} onClick={redo}><Redo2 /></Button>
           </div>
         </div>
-        {host.sourceOcr && ocr && <form className="mt-2 flex flex-wrap items-center gap-2" onSubmit={event => {
-          event.preventDefault();
-          const pages = ocrPages.split(',').map(value => Number(value.trim()));
-          if (pages.some(page => !Number.isSafeInteger(page) || page < 1)) {
-            setError('Enter page numbers separated by commas.'); return;
-          }
-          setError(''); void ocr.begin([{ role, name: source.title, sourceSha256: source.sourceSha256,
-            textlessPages: pages }], pages);
-        }}>
-          <label className="text-sm text-gray-700">Pages to recognize <input value={ocrPages}
-            onChange={event => setOcrPages(event.target.value)} placeholder="2, 4, 6" required
-            className="ms-2 h-8 w-28 rounded border border-gray-400 px-2 text-sm" /></label>
-          <Button type="submit" variant="outline" className="h-8" disabled={loading}>Recognize text</Button>
-          {ocr.tracked[role] && <SourceOcrProgress status={ocr.tracked[role]} ocr={ocr} />}
-        </form>}
+        {host.sourceOcr && ocr && <SourceRecognition key={role} ocr={ocr} disabled={loading}
+          file={{ role, name: source.title, sourceSha256: source.sourceSha256, textlessPages: [] }} />}
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(16rem,1fr)_minmax(8rem,.45fr)] md:grid-cols-[minmax(0,1fr)_19rem] md:grid-rows-1">
           <div className="mt-3 flex min-h-0 min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-gray-100 md:mr-3">
             {current ? <PdfView key={role} doc={null} bytes={current.bytes} rounded={false} ariaLabel="Authority PDF editor"

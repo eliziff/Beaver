@@ -11,7 +11,7 @@ describe("WorkflowRunPanel", () => {
   ] as const)("opens a %s result in its workspace", (kind, label, href) => {
     const run: WorkflowRunEvent = { type: "workflow_run", id: "run-1",
       tool: "update_work_product", stage: "Update", status: "complete",
-      requested_action: "open", work_product: { kind, id: "record-1", revision: 1 } };
+      work_product: { kind, id: "record-1", revision: 1 } };
     render(<MemoryRouter>
       <WorkflowRunButton run={run} onOpen={() => undefined} />
       <WorkflowRunPanel run={run} />
