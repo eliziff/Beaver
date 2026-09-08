@@ -83,6 +83,8 @@ it("reviews granular column changes in the creation column form", async () => {
     { target: "table", id: "table", field: "columns_config.7.prompt", before: "Find dates", after: "Find delivery deadlines" },
     { target: "table", id: "table", field: "columns_config.2.$", before: { name: "Legacy", prompt: "Find old terms", format: "text" }, after: null },
     { target: "table", id: "table", field: "columns_order", before: [2, 7], after: [7] },
+    { target: "result", id: "cell", field: "$", before: { column_index: 7, status: "done", content: "Prior answer" },
+        after: { column_index: 7, status: "pending", content: "Prior answer" } },
   ] };
   api.getTabularHistory.mockResolvedValue({ items: [proposal], total: 1, next_offset: null });
   render(<ResearchChanges review={{ id: "table", title: "Research", proposals: [proposal], columns_config: [
