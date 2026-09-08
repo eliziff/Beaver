@@ -395,6 +395,22 @@ describe("Research v2 parts", () => {
     expect((await run({ members: [{ sourceId: byId.c.id }] }, context)).evidence).toEqual([]);
   });
 
+  it("applies Boolean capture rules to each passage and captures its paragraph once", async () => {
+    const f = fixture(), paragraphs = ["Arbitrary detention can be psychological or physical.",
+      "Physical restraint alone.", "Arbitrary detention is physical but justified."], text = paragraphs.join("\n\n");
+    const documents = { ...f.documents, projectionSource: async () => ({ sourceSha256: "a".repeat(64),
+      document: { text, blocks: paragraphs.map((value, index) => ({ kind: "paragraph", label: String(index + 1),
+        start: text.indexOf(value), end: text.indexOf(value) + value.length })) } }) };
+    const saved = await act(f, { type: "merge", evidence: [createLibraryEvidence({ documentId: "selected",
+      versionId: "v1", filename: "Notes.txt", sourceSha256: "a".repeat(64), start: 0, end: text.length, spanText: text })] });
+    const result = await runResearchFileQuery(documents as never, { userId: "user-1" }, "doc-1", {
+      versionId: saved.versionId, workingRevision: saved.workingRevision, syntax: "terms", target: "sources",
+      sourceIds: Object.keys(saved.state.sources),
+      rules: [{ phrase: '"arbitrary detention" AND (psychological OR physical) NOT justified',
+        direction: "around", unit: "paragraph" }] });
+    expect(result.evidence.map(({ span_text }) => span_text)).toEqual([paragraphs[0]]);
+  });
+
   it("keeps the phrase inside its unit when a rule captures around it", async () => {
     const f = fixture(), text = "Outside line\nAlpha needle Beta\nneedle Gamma. Delta needle Epsilon. Trailing",
       selected = createLibraryEvidence({ documentId: "selected", versionId: "v1", filename: "Notes.txt",
