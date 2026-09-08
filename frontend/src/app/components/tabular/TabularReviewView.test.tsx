@@ -17,7 +17,8 @@ const mocks = vi.hoisted(() => ({
     regenerateCell: vi.fn(),
     uploadDocument: vi.fn(),
     updateReview: vi.fn(),
-    proposeColumnLabels: vi.fn(),
+    previewWorkspaceLabels: vi.fn(),
+    applyWorkspaceLabels: vi.fn(),
     getResearchFile: vi.fn(),
     ensureWorkspace: vi.fn(),
 }));
@@ -61,10 +62,11 @@ vi.mock("@/app/lib/api/tabular", () => ({
   startTabularGeneration: mocks.startGeneration,
   stopTabularGeneration: vi.fn(),
   updateTabularReview: mocks.updateReview,
-  proposeColumnLabels: mocks.proposeColumnLabels
 }));
 vi.mock("@/app/lib/api/researchFiles", () => ({
   getResearchFile: mocks.getResearchFile,
+  previewWorkspaceLabels: mocks.previewWorkspaceLabels,
+  applyWorkspaceLabels: mocks.applyWorkspaceLabels,
   ensureSourcesWorkspace: mocks.ensureWorkspace,
   actOnResearchFile: vi.fn(),
   runResearchFileQuery: vi.fn(),
@@ -102,6 +104,7 @@ vi.mock("../shared/PageHeader", () => ({
     }: {
         actions?: {
             label?: React.ReactNode;
+            render?: React.ReactNode;
             onClick?: () => void;
             disabled?: boolean;
         }[];
@@ -116,7 +119,7 @@ vi.mock("../shared/PageHeader", () => ({
                     >
                         {action.label}
                     </button>
-                ) : null,
+                ) : <span key={index}>{action?.render}</span>,
             )}
         </>
     ),
@@ -306,18 +309,26 @@ it("adds workspace sources that are not rows yet", async () => {
     expect(screen.queryByRole("button", { name: "Add Lease" })).not.toBeInTheDocument();
 });
 
-it("proposes labels from a tag column into the review's workspace", async () => {
+it("reviews a tag column in the shared dialog before filing it in the workspace", async () => {
     mocks.getTabularReview.mockResolvedValue(scoped([{ index: 3, name: "Outcome", prompt: "Outcome", format: "tag" }]));
     const file = workspaceFile({});
     mocks.getResearchFile.mockResolvedValue(file);
     mocks.ensureWorkspace.mockResolvedValue(file);
-    mocks.proposeColumnLabels.mockResolvedValue(file);
+    const proposal = { title: "Outcome", labels: [], unassigned: [], fingerprint: "a".repeat(64), design: { labels: [], assignments: [] } };
+    mocks.previewWorkspaceLabels.mockResolvedValue(proposal);
+    mocks.applyWorkspaceLabels.mockResolvedValue(file);
     render(<TRView reviewId="review-1" />);
     await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
 
     fireEvent.click(screen.getByRole("button", { name: "Labels from first column" }));
-    await waitFor(() => expect(mocks.proposeColumnLabels).toHaveBeenCalledWith("workspace-1", "review-1", 3, ["document-1"]));
-    expect(await screen.findByText("Sources workspace")).toBeVisible();
+    await waitFor(() => expect(mocks.previewWorkspaceLabels).toHaveBeenCalledWith("workspace-1", {
+      tableId: "review-1", columnIndex: 3, selection: { target: "sources", members: [{ sourceId: "source-1" }] }, model: "gpt-5", reasoningEffort: "medium" }));
+    const apply = await screen.findByRole("button", { name: "Apply labels" });
+    await waitFor(() => expect(apply).toBeEnabled());
+    expect(mocks.applyWorkspaceLabels).not.toHaveBeenCalled();
+    fireEvent.click(apply);
+    await waitFor(() => expect(mocks.applyWorkspaceLabels).toHaveBeenCalledWith("workspace-1", expect.objectContaining({
+      tableId: "review-1", columnIndex: 3, fingerprint: proposal.fingerprint, design: proposal.design })));
 });
 
 it("discusses the selected column with its actual completed cell references", async () => {

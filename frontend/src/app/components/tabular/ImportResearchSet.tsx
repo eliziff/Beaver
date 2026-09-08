@@ -16,11 +16,11 @@ const CARD = "relative min-w-0 break-words rounded-lg border border-gray-200 p-4
 const FIELD = "block w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-0.5 hover:border-gray-200 focus:border-gray-300";
 const INPUT = "w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900";
 type Props = { open: boolean; onClose: () => void; fileId?: string; projectId?: string | null; mode?: "table" | "labels";
-    selection?: ResearchSelection; chatId?: string; messageIds?: string[]; defaultRequest?: string; onOpen: (path: string) => void };
+    selection?: ResearchSelection; chatId?: string; tableId?: string; columnIndex?: number; messageIds?: string[]; defaultRequest?: string; onOpen: (path: string) => void };
 type Design = ResearchTablePreview["design"];
 export const ImportResearchSet = ({ open, ...props }: Props) => open ? <OpenImportResearchSet {...props} /> : null;
 /** One organizing step in either direction: the model proposes the structure from the research; the user edits it before it exists. */
-function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, messageIds, onOpen,
+function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, tableId, columnIndex, messageIds, onOpen,
     mode = "table", defaultRequest = "" }: Omit<Props, "open">) {
     const labelling = mode === "labels";
     const [picked, setPicked] = useState<Document[]>([]), [file, setFile] = useState<ResearchFile | null>(null);
@@ -29,7 +29,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const [busy, setBusy] = useState(false), [creating, setCreating] = useState(false);
     const [error, setError] = useState(""), [note, setNote] = useState("");
     const generation = useRef(0), activeId = fileId ?? picked[0]?.id, [model] = useSelectedModel(), [effort] = useSelectedReasoningEffort();
-    const input: ResearchTableInput = { ...(selection ? { selection } : {}), ...(chatId ? { chatId, messageIds } : {}) };
+    const input: ResearchTableInput = { ...(selection ? { selection } : {}), ...(chatId ? { chatId, messageIds } : {}), ...(tableId ? { tableId, columnIndex } : {}) };
     const inputKey = JSON.stringify(input);
     async function propose(instruction = "") {
         if (!activeId) return;
@@ -84,7 +84,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const onEnter = (action: () => void) => (event: React.KeyboardEvent) => { if (event.key === "Enter") { event.preventDefault(); action(); } };
     return <Modal open onClose={onClose} size="lg" breadcrumbs={[...(setName ? [setName] : []), labelling ? "Organize this research" : "Extract a table"]}
         footerStatus={error ? <p role="alert" className="me-auto text-sm text-red-700">{error}</p> : note ? <p role="status" className={`me-auto max-h-20 overflow-y-auto ${META}`}>{note}</p> : undefined}
-        secondaryAction={activeId ? { label: busy ? "Proposing…" : "Propose again", disabled: busy || creating, onClick: () => void propose(adjust) } : undefined}
+        secondaryAction={activeId && !tableId ? { label: busy ? "Proposing…" : "Propose again", disabled: busy || creating, onClick: () => void propose(adjust) } : undefined}
         primaryAction={activeId ? { label: creating ? "Working…" : labelling ? "Apply labels" : "Create table",
             onClick: () => void create(), disabled: busy || creating || !valid } : undefined}>
         <div className="flex min-h-0 flex-1 flex-col gap-4 py-4">
@@ -120,12 +120,12 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                             disabled={busy || creating} onChange={(event) => setAddition(event.target.value)} onKeyDown={onEnter(addColumn)} />
                     </>}
                 </div>
-                <label className="flex shrink-0 flex-col gap-1">
+                {!tableId && <label className="flex shrink-0 flex-col gap-1">
                     <span className={META}>Change the proposal</span>
                     <input value={adjust} disabled={busy || creating} className={INPUT} onChange={(event) => setAdjust(event.target.value)}
                         onKeyDown={onEnter(() => void propose(adjust))}
                         placeholder={labelling ? "e.g. group by the stage of the analysis" : "e.g. one column per Grant factor"} />
-                </label>
+                </label>}
             </>}
         </div>
     </Modal>;

@@ -206,7 +206,7 @@ it("refuses cross-account conversion, previews without changing research, and ke
   await f.act({ type: "source", reference: another, labelIds: [f.labelId] });
   expect((await f.tables.detail(owner, review.id)).review.document_ids).toEqual([f.sourceId]);
 });
-it("proposes categorical labels for selected rows and applies them only on acceptance", async () => {
+it("reviews categorical labels for selected rows in the shared proposal before applying them", async () => {
   const f = await fixture();
   await f.act({ type: "source", reference: { provider: "a2aj", id: "second-source", kind: "case", title: "Second decision" } });
   const file = (await f.sources.get(owner, f.file().document.id))!, ids = Object.keys(file.state.sources),
@@ -221,15 +221,43 @@ it("proposes categorical labels for selected rows and applies them only on accep
       expected: { status: cell.status, content: cell.content }, status: "done", content: { value, claims: [], evidence: [],
         resource: detail.review.scope_config!.subjects.find((subject) => tabularSubjectId(subject) === cell.document_id)!.resource, coverage: "complete", missing: [] } });
   }
-  const proposal = await f.sources.columnLabels(owner, file.document.id, { reviewId: review.id, columnIndex: 0, rowIds: [tabularSubjectId(firstRow)] });
-  expect(Object.keys(proposal.state.labels)).toEqual(Object.keys(file.state.labels));
-  expect(proposal.state.proposals).toHaveLength(1);
-  const accepted = (await f.sources.update(owner, file.document.id, { versionId: proposal.versionId, workingRevision: proposal.workingRevision,
-    action: { type: "accept", changeId: proposal.state.proposals![0].id } })).file;
+  const input = { tableId: review.id, columnIndex: 0, selection: { target: "sources" as const, sourceIds: [f.sourceId] } },
+    before = await f.sources.get(owner, file.document.id), proposal = await f.sources.previewLabels(owner, file.document.id, input);
+  expect(await f.sources.get(owner, file.document.id)).toEqual(before);
+  const accepted = await f.sources.applyLabels(owner, file.document.id, { ...input, design: proposal.design, fingerprint: proposal.fingerprint });
   const yes = Object.values(accepted.state.labels).find(({ name }) => name === "Yes")!;
   expect(yes).toBeDefined(); expect(accepted.state.sources[f.sourceId].labelIds).toContain(yes.id);
   expect(Object.values(accepted.state.labels).some(({ name }) => name === "No")).toBe(false);
   expect(accepted.state.sources[ids.find((id) => id !== f.sourceId)!].labelIds).toEqual([]);
+});
+it("round trips every table column and the same receipt under three types, then undoes all filing", async () => {
+  const f = await fixture(), columns = ["Honesty", "Exclusion", "Remedy"].map((name, index) => ({ index, name, prompt: `${name}?`, format: "text" })),
+    initial = await f.sources.create(owner, { title: "Contract duties", sources: [f.file().state.sources[f.sourceId].reference], evidence: [f.receipts[0]] }),
+    review = await f.tables.create(owner, { research_file_id: initial.document.id, columns_config: columns }),
+    { tabularRepository } = await import("./relationalTabularRepository"), detail = await f.tables.detail(owner, review.id);
+  for (const cell of detail.cells) await tabularRepository.setCell(owner, { reviewId: review.id, documentId: cell.document_id,
+    columnIndex: cell.column_index, expected: cell, status: "done", content: { value: "Supported conclusion", summary: "Supported conclusion",
+      claims: [{ text: "Supported conclusion", evidence_ids: [f.receipts[0].evidence_id] }], evidence: [f.receipts[0]],
+      resource: detail.review.scope_config!.subjects[0].resource, coverage: "complete" } });
+  const before = await f.sources.ensure(owner, { tableId: review.id }), input = { tableId: review.id },
+    preview = await f.sources.previewLabels(owner, before.document.id, input);
+  expect(preview.labels.map(({ name }) => name)).toEqual(columns.map(({ name }) => name));
+  expect(await f.sources.get(owner, before.document.id)).toEqual(before);
+  const saved = await f.sources.applyLabels(owner, before.document.id, { ...input, design: preview.design, fingerprint: preview.fingerprint }),
+    page = await f.sources.items(owner, saved.document.id, { kind: "passages", offset: 0, limit: 50 }),
+    passages = page.items.flatMap((item) => item.kind === "passage" ? [item.value] : []);
+  expect(passages).toHaveLength(3);
+  expect(new Set(passages.map((item) => item.highlightId ?? item.receipt.evidence_id)).size).toBe(3);
+  expect(passages.every(({ receipt, labelIds }) => JSON.stringify(receipt) === JSON.stringify(f.receipts[0]) && labelIds.length === 1)).toBe(true);
+  expect(new Set(passages.map(({ labelIds }) => saved.state.labels[labelIds[0]].name))).toEqual(new Set(columns.map(({ name }) => name)));
+  const returned = await f.sources.previewTable(owner, saved.document.id, {});
+  expect(returned.design.columns.map(({ name, prompt }) => ({ name, prompt }))).toEqual(columns.map(({ name, prompt }) => ({ name, prompt })));
+  const history = (await f.sources.items(owner, saved.document.id, { kind: "history", offset: 0, limit: 1 })).items[0];
+  if (history.kind !== "change") throw new Error("Missing filing history");
+  const restored = (await f.sources.update(owner, saved.document.id, { versionId: saved.versionId,
+    workingRevision: saved.workingRevision, action: { type: "undo", changeId: history.value.id } })).file;
+  expect(restored.state.labels).toEqual(before.state.labels);
+  expect(restored.state.sources).toEqual(before.state.sources);
 });
 it("exposes reviewed conversions and explicit evidence saving through the authenticated routes", async () => {
   const f = await fixture(); await f.turn("Why?", "Grounded reason.");
