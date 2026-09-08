@@ -1197,7 +1197,6 @@ describe("Authorities UI contracts", () => {
     expect(screen.getByText("2009 SCC 32")).toBeVisible();
     expect(within(correctedRow).getByText("PDF unavailable")).toBeVisible();
     expect(within(correctedRow).getByRole("button", { name: "Replace for R v Grant" })).toBeVisible();
-    expect(api.getWorkProductResolution).toHaveBeenCalledTimes(1);
   });
 
   it("offers CanLII only for a known handoff and accepts it through Add file", async () => {

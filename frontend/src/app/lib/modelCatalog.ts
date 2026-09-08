@@ -1,9 +1,16 @@
 import { getModelCatalog, type ModelCatalog } from "@/app/lib/api/account";
+import { useSyncExternalStore } from "react";
 const STORAGE_KEY = "beaver.modelCatalog.v1";
 const REFRESH_MS = 30_000;
 let catalog: ModelCatalog | null = null;
 let refreshedAt = 0;
 let pending: Promise<ModelCatalog> | null = null;
+const listeners = new Set<() => void>();
+const subscribe = (listener: () => void) => {
+    listeners.add(listener);
+    return () => { listeners.delete(listener); };
+};
+export const useModelCatalog = () => useSyncExternalStore(subscribe, getSessionModelCatalog, () => null);
 const hasModels = (value: ModelCatalog) =>
     value.models.length > 0 || !!value.ollama?.models.length ||
     !!value.openCodeGo?.models.length;
@@ -45,7 +52,7 @@ function cacheCatalog(value: ModelCatalog) {
         // Storage can be unavailable in private browsing or hardened contexts.
     }
 }
-export function getSessionModelCatalog() {
+function getSessionModelCatalog() {
     return catalog;
 }
 export function preloadModelCatalog() {
@@ -75,6 +82,7 @@ export function preloadModelCatalog() {
         })
         .finally(() => {
             pending = null;
+            listeners.forEach(notify => notify());
         });
     return pending;
 }

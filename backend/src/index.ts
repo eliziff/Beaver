@@ -24,7 +24,7 @@ async function start() {
     console.log(`Beaver running on port ${PORT}`);
     process.send?.({ type: "ready" });
     void import("./lib/codexCatalog").then((m) => m.codexModelCatalogSnapshot());
-    void import("./lib/llm/ollamaModels").then((m) => m.ollamaModelCatalogSnapshot());
+    void import("./lib/llm").then((m) => m.ollamaModelCatalogSnapshot());
   });
   listener.maxHeadersCount = 100;
   listener.headersTimeout = 15_000;

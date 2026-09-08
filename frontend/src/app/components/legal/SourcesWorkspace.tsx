@@ -3,7 +3,7 @@ import { bindWorkspaceView, ensureSourcesWorkspace, getResearchFile, getResearch
   getWorkspaceViews, openWorkspaceTable, type ResearchFinding } from "@/app/lib/api/researchFiles";
 import { createChat } from "@/app/lib/api/chat";
 import { BeaverApiError } from "@/app/lib/api/client";
-import { researchSourceKey, type PassageLocator, type ResearchFile, type ResearchPageItem,
+import { researchSourceKey, type ResearchFile, type ResearchPageItem,
   type ResearchSelection, type ResearchSourceReference } from "@/app/lib/researchFiles";
 import { usePagedChains } from "@/app/hooks/usePagedChains";
 import { errorMessage } from "@/app/lib/utils";

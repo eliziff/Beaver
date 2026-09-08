@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { codexModelCatalogSnapshot } from "../lib/codexCatalog";
-import { ollamaModelCatalogSnapshot } from "../lib/llm/ollamaModels";
+import { ollamaModelCatalogSnapshot } from "../lib/llm";
 import { openCodeGoModelCatalogSnapshot } from "../lib/llm/openCodeGo";
 import { getReadSubagentCapability } from "../lib/chat/readSubagents";
 import { asyncRoute } from "../lib/asyncRoute";
