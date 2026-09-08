@@ -18,6 +18,23 @@ vi.mock("@/app/contexts/AuthContext", () => ({
 }));
 
 describe("ChatHistoryProvider pending message handoff", () => {
+    it("shows each chat once when activity moves it across history pages", async () => {
+        auth.user = { id: "user-1" };
+        const first = Array.from({ length: 21 }, (_, index) => ({ id: `chat-${index}` }));
+        vi.stubGlobal("fetch", vi.fn(async (url: string) => Response.json(
+            new URL(url, "http://localhost").searchParams.get("offset") === "20"
+                ? [{ id: "chat-19" }, { id: "chat-20" }] : first)));
+        function Probe() {
+            const history = useChatHistoryContext();
+            return <><p>{history.chats?.map(({ id }) => id).join(",")}</p>
+                <button onClick={history.loadMoreChats}>More</button></>;
+        }
+        render(<ChatHistoryProvider><Probe /></ChatHistoryProvider>);
+        await screen.findByText(first.slice(0, 20).map(({ id }) => id).join(","));
+        fireEvent.click(screen.getByRole("button", { name: "More" }));
+        await screen.findByText(first.map(({ id }) => id).join(","));
+    });
+
     it("keeps the latest history when an older refresh arrives late", async () => {
         auth.user = { id: "user-1" };
         const requests: ((response: Response) => void)[] = [];
