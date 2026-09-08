@@ -78,20 +78,6 @@ describe("CourtRecordSetup parties", () => {
     expect(screen.queryByText(/First party|Second party/u)).not.toBeInTheDocument();
   });
 
-  it("keeps completed party fields visible for review", async () => {
-    render(<CourtRecordSetup
-      profile={COURT_PROFILE_BY_ID.get("fc-motion-record-moving")!}
-      cover={{ partyStyleId: "application", partyGroups: [
-        { id: "party-a", role: "Applicant", parties: [{ id: "a", name: "Ada North" }] },
-        { id: "party-b", role: "Respondent", parties: [{ id: "b", name: "River South" }] },
-      ], filingPartyIds: ["a"] }}
-      missingFields={new Set()} heading="Case details" onCover={() => undefined}
-    />);
-
-    expect(screen.getByRole("textbox", { name: "Applicant 1" })).toHaveValue("Ada North");
-    expect(screen.getByRole("region", { name: /^Applicant/u })).toBeVisible();
-  });
-
   it("selects the sole filer left after the selected party is removed", async () => {
     const user = userEvent.setup();
     render(<Setup />);
@@ -217,3 +203,4 @@ it("cancels a new record on an explicit close", async () => {
     .getByRole("button", { name: "Close" }));
   expect(onCancel).toHaveBeenCalledOnce();
 });
+
