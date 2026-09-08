@@ -23,7 +23,7 @@ export async function waitForPdfPreparation(
     const [state] = await pdfProgress([documentId]);
     if (state?.done) return;
     if (state?.error) throw new Error(state.error);
-    if (state?.page) progress?.(`Running OCR on page ${state.page}`);
+    if (state?.page) progress?.(`Reading page ${state.page}`);
     await new Promise((resolve) => setTimeout(resolve, 850));
   }
   throw new Error("PDF preparation did not finish within 10 minutes.");

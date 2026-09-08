@@ -30,21 +30,14 @@ export function decodeCourtRecordPartyContact(value: unknown): CourtRecordPartyC
 const sourceCoverFields = new Set(COURT_RECORD_COVER_FIELD_IDS);
 
 function validSourceFields(value: unknown) {
-  const source = object(value), cover = object(source?.cover), groups = source?.partyGroups,
+  const source = object(value), cover = object(source?.cover),
     labels = source?.exhibitLabels, mentions = source?.exhibitMentions,
     mentionMap = object(mentions);
   return !!source && !!cover && exactKeys(source, ["cover", "exhibitLabels"],
-    ["partyStyleId", "partyGroups", "exhibitMentions", "explicitExhibitLabel", "entryTitle", "entryDate"]) &&
+    ["exhibitMentions", "explicitExhibitLabel", "entryTitle", "entryDate"]) &&
     Object.entries(cover).every(([key, value]) => sourceCoverFields.has(key) && string(value)) &&
     Array.isArray(labels) && labels.length <= 702 && labels.every((label) => string(label, 20)) &&
-    (source.partyStyleId === undefined || id(source.partyStyleId)) &&
-    (groups === undefined || Array.isArray(groups) && groups.length <= 50 && groups.every((raw) => {
-      const group = object(raw);
-      return !!group && exactKeys(group, ["role", "parties"], ["roleBelow"]) &&
-        string(group.role, 500) && (group.roleBelow === undefined || string(group.roleBelow, 500)) &&
-        Array.isArray(group.parties) && group.parties.length <= 100 &&
-        group.parties.every((party) => string(party));
-    })) && (mentions === undefined || !!mentionMap && Object.entries(mentionMap).every(
+    (mentions === undefined || !!mentionMap && Object.entries(mentionMap).every(
       ([label, passages]) => /^[A-Z]+$/u.test(label) && Array.isArray(passages) &&
         passages.length <= 1_000 && passages.every((passage) => string(passage)))) &&
     ["explicitExhibitLabel", "entryTitle", "entryDate"].every((key) =>
@@ -129,7 +122,7 @@ export function decodeCourtRecordDraftState(value: unknown): WorkProductState | 
     if (!entry || !seen || !slot ||
         !exactKeys(entry, ["id", "kindId", "title", "lastSeen"],
           ["date", "rule70CountedPages", "exhibitLabel", "sourceExhibits", "sourceFields",
-            "descriptionOnly"]) ||
+            "descriptionOnly", "ocrAttemptedPages", "nonTextPagesConfirmed"]) ||
         !exactKeys(seen, ["name", "size", "modified"], ["sha256"]) ||
         !id(entry.id) || entryIds.has(String(entry.id)) || !id(entry.kindId) ||
         !string(entry.title, 1_000) ||
@@ -138,6 +131,11 @@ export function decodeCourtRecordDraftState(value: unknown): WorkProductState | 
           !natural(entry.rule70CountedPages) || Number(entry.rule70CountedPages) < 1)) ||
         (entry.exhibitLabel !== undefined && !string(entry.exhibitLabel, 500)) ||
         (entry.descriptionOnly !== undefined && typeof entry.descriptionOnly !== "boolean") ||
+        (entry.nonTextPagesConfirmed !== undefined &&
+          typeof entry.nonTextPagesConfirmed !== "boolean") ||
+        (entry.ocrAttemptedPages !== undefined && (!Array.isArray(entry.ocrAttemptedPages) ||
+          entry.ocrAttemptedPages.length > 2_000 ||
+          !entry.ocrAttemptedPages.every((page) => natural(page)))) ||
         (entry.sourceFields !== undefined && !validSourceFields(entry.sourceFields)) ||
         !string(seen.name, 500) || !natural(seen.size) || !natural(seen.modified) ||
         (seen.sha256 !== undefined && !hash(seen.sha256)) ||
