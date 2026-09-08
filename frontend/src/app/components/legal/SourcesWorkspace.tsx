@@ -23,11 +23,7 @@ type Controller = ReturnType<typeof useWorkspaceController>;
 const Context = createContext<Controller | null>(null);
 const ALL_SOURCES: ResearchSelection = { target: "sources" };
 const PEN_KEY = "beaver.research.pen.v1";
-/** What a reader hands the Highlight tool: the source it shows and the text the user picked. */
-/** A reader that renders the canonical text reports offsets in the revision it served; one that
- *  renders the original file reports the text it captured. */
-export type HighlightCapture = { reference: ResearchSourceReference }
-  & ({ revision: string; start: number; end: number } | { quote: string });
+export type HighlightCapture = { reference: ResearchSourceReference; revision: string; start: number; end: number };
 /** What a saved highlight hands back, so a reader can offer its type picker on the new passage. */
 export type SavedHighlight = { file: ResearchActionResult; sourceId: string; evidenceId?: string; labelIds: string[] };
 

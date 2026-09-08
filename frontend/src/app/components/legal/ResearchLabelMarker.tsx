@@ -40,7 +40,7 @@ export function ResearchLabelMarker({ labels, labelIds, size = "md" }: {
   const names = applied.map((id) => researchLabelPath(labels, id).map(({ name }) => name).join(" / "));
   return <span role="group" aria-label={names.length ? `Labels: ${names.join(", ")}` : "No labels"}
     title={names.join(" · ") || undefined} data-empty={applied.length ? undefined : "true"}
-    className={`inline-flex shrink-0 items-center gap-0.5 ${size === "sm" ? "w-8" : size === "md" ? "w-9" : "w-12"}`}>
+    className={`inline-flex shrink-0 items-center justify-center gap-0.5 ${size === "sm" ? "w-8" : size === "md" ? "w-9" : "w-12"}`}>
     <ResearchLabelFolder labels={labels} labelId={applied[0] ?? null} size={size} />
     {applied.length > 1 && <span className="text-[10px] leading-none text-gray-500">+{applied.length - 1}</span>}
   </span>;

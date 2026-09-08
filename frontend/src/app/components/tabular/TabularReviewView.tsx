@@ -184,7 +184,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
         const receipt = cell.content?.evidence.find(({ span_text }) => span_text &&
             citation.quotes?.some(({ quote }) => quote === span_text));
         setReading({ citation, reference: receipt ? citedSourceReference(receipt) : undefined });
-        setUi({ dockTab: "reading" });
+        setUi({ dockTab: "reading", cellView: null });
     }, [setUi]);
 
     function setChatId(next: string | null | undefined) {
@@ -739,7 +739,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
                                     : reading.reference?.title ?? reading.reference?.citation ?? "Source",
                                 actions: <Button variant="ghost" size="compact" onClick={closeReading} aria-label="Close source">
                                     <X className="size-3.5" aria-hidden /></Button>,
-                                content: <ResearchCitationContent {...reading} /> }] : []),
+                                content: <ResearchCitationContent {...reading} onOpenResearch={() => setUi({ dockTab: "sources" })} /> }] : []),
                         ]} />}
                 </div>
             </div>
