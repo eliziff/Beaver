@@ -1,3 +1,4 @@
+import { parseAssistantCitations, type AssistantCitation } from "./assistantWire";
 import {
   legalEvidenceCitationGroupsFromEntries,
   legalEvidenceCitationPlan,
@@ -31,7 +32,7 @@ export function legalEvidenceDocumentLink(entry: RegisteredEvidence) {
 function citationsFromGroups(
   groups: ReturnType<typeof legalEvidenceCitationGroupsFromEntries>,
 ) {
-  return groups.flatMap<Record<string, unknown>>(
+  return parseAssistantCitations(groups.flatMap<Record<string, unknown>>(
     (group) => {
       // Present from a member carrying the group's locator system, so the
       // chip's pinpoint and its passage link agree.
@@ -111,12 +112,12 @@ function citationsFromGroups(
         ...locator,
       }];
     },
-  );
+  ));
 }
 
 export function createLegalEvidenceCitationsFromEntries(
   entries: readonly RegisteredEvidence[],
-): Record<string, unknown>[] {
+): AssistantCitation[] {
   return citationsFromGroups(legalEvidenceCitationGroupsFromEntries(entries));
 }
 
@@ -126,7 +127,7 @@ export function createLegalEvidenceCitationsFromEntries(
  */
 export function createLegalEvidenceCitations(
   state: LegalEvidenceTurnState,
-): Record<string, unknown>[] {
+): AssistantCitation[] {
   return citationsFromGroups(legalEvidenceCitationPlan(state).groups);
 }
 
@@ -142,12 +143,12 @@ type SearchCitationCandidate = {
 
 export function createLegalSourceSearchCitations(
   value: unknown,
-): Record<string, unknown>[] {
+): AssistantCitation[] {
   const candidates = Array.isArray(value)
     ? value.filter((candidate): candidate is SearchCitationCandidate =>
         Boolean(candidate) && typeof candidate === "object")
     : [];
-  return candidates.flatMap<Record<string, unknown>>((candidate, index) => {
+  return parseAssistantCitations(candidates.flatMap<Record<string, unknown>>((candidate, index) => {
     const provider = typeof candidate.provider === "string" ? candidate.provider : "";
     const identifier = typeof candidate.identifier === "string" ? candidate.identifier : "";
     if (!identifier) return [];
@@ -182,5 +183,5 @@ export function createLegalSourceSearchCitations(
       ...(provider === "journal" && citation && { authority: citation }),
       ...common,
     }];
-  });
+  }));
 }
