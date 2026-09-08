@@ -19,10 +19,11 @@ afterEach(() => vi.useRealTimers());
 it("recovers an unsaved draft after a failed save and reopening the workspace", async () => {
   const mutations = { act: vi.fn().mockRejectedValue(new Error("The memo changed elsewhere.")), query: vi.fn() };
   const props = { file, mutations, onOpenCitation: vi.fn() };
+  vi.useFakeTimers();
   const view = render(<ResearchMemoPane {...props} />);
   fireEvent.change(screen.getByRole("textbox", { name: "Memo" }), { target: { value: "My unsaved analysis" } });
-  fireEvent.click(screen.getByRole("button", { name: "Save", exact: true }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("The memo changed elsewhere.");
+  await act(async () => { await vi.advanceTimersByTimeAsync(700); });
+  expect(screen.getByRole("alert")).toHaveTextContent("The memo changed elsewhere.");
   view.unmount();
   render(<ResearchMemoPane {...props} file={{ ...file, state: { ...file.state, note: "Newer saved analysis" } }} />);
   expect(screen.getByRole("textbox", { name: "Memo" })).toHaveValue("My unsaved analysis");
@@ -42,12 +43,10 @@ it("keeps edits typed while a save is in flight and saves them against the new b
   render(<ResearchMemoPane file={file} mutations={mutations} onOpenCitation={vi.fn()} />);
   const input = screen.getByRole("textbox", { name: "Memo" });
   fireEvent.change(input, { target: { value: "First edit" } });
-  fireEvent.click(screen.getByRole("button", { name: "Save", exact: true }));
+  await waitFor(() => expect(writes).toBe(1));
   fireEvent.change(input, { target: { value: "First edit and further analysis" } });
   release();
-  await waitFor(() => expect(screen.getByRole("button", { name: "Save", exact: true })).toBeEnabled());
-  fireEvent.click(screen.getByRole("button", { name: "Save", exact: true }));
-  await waitFor(() => expect(stored).toBe("First edit and further analysis"));
+  await waitFor(() => expect(stored).toBe("First edit and further analysis"), { timeout: 3000 });
   expect(input).toHaveValue(stored);
 });
 
@@ -64,7 +63,7 @@ it.each([false, true])("recovers an interrupted save and later edits after reope
   const view = render(<ResearchMemoPane file={file} mutations={mutations} onOpenCitation={vi.fn()} />);
   fireEvent.change(screen.getByRole("textbox", { name: "Memo" }), { target: { value: "Analysis" } });
   await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
-  expect(screen.getByRole("button", { name: "Retry save" })).toBeEnabled();
+  expect(screen.getByRole("alert")).toHaveTextContent("Could not connect to save.");
   expect(screen.queryByRole("button", { name: /load saved memo/i })).not.toBeInTheDocument();
   fireEvent.change(screen.getByRole("textbox", { name: "Memo" }), { target: { value: "Analysis with further edits" } });
   view.unmount();
@@ -84,8 +83,7 @@ it("requires an explicit discard before replacing a conflicting draft", async ()
     message: "The memo changed elsewhere." })), query: vi.fn() };
   render(<ResearchMemoPane file={file} mutations={mutations} onOpenCitation={vi.fn()} />);
   fireEvent.change(screen.getByRole("textbox", { name: "Memo" }), { target: { value: "Keep this analysis" } });
-  fireEvent.click(screen.getByRole("button", { name: "Save", exact: true }));
-  fireEvent.click(await screen.findByRole("button", { name: "Load saved memo" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Load saved memo" }, { timeout: 3000 }));
   expect(screen.getByRole("alertdialog", { name: "Discard this draft?" })).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   expect(screen.getByRole("textbox", { name: "Memo" })).toHaveValue("Keep this analysis");

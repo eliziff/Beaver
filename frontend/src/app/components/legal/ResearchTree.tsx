@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { BookOpen, ChevronRight } from "lucide-react";
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { Button } from "../ui/button";
-import { researchHighlightCount, type ResearchEvidence, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
+import { researchHighlightCount, researchLabelPath, type ResearchEvidence, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
 import { researchLabelColor, ResearchSourceKindIcon } from "./ResearchLabelMarker";
 import { ResearchLabelEditor, RESEARCH_SOURCE_DRAG, type ResearchLabelTarget } from "./ResearchLabelPicker";
 import { ResearchLabelTree } from "./ResearchLabelTree";
@@ -19,7 +19,7 @@ const NEWLINE = "\n";
 /** File-explorer row: one fixed-height line, chevron, glyph, name, actions, number.
  *  Nothing wraps, so a row can never grow into the one above it. */
 export const ROW = "group flex h-7 min-w-0 items-center gap-1 rounded px-1";
-export const ROW_ACTIONS = "flex w-7 shrink-0 items-center justify-end gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100 @[22rem]:w-14";
+export const ROW_ACTIONS = "flex w-14 shrink-0 items-center justify-end gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100";
 export const ROW_COUNT = "w-6 shrink-0 text-end text-xs tabular-nums text-gray-500";
 
 /** Virtual folders navigate one source list. A source never needs an exclusive location. */
@@ -48,7 +48,7 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
   function openControl(source: ResearchSource, name: string, locator?: string, evidenceId?: string, spoken?: string) {
     if (preview) return null;
     const href = reader?.sourceHref(source, locator),
-      className = "hidden size-6 shrink-0 place-items-center rounded text-gray-500 hover:bg-gray-200 @[22rem]:grid",
+      className = "grid size-6 shrink-0 place-items-center rounded text-gray-500 hover:bg-gray-200",
       inner = <BookOpen aria-hidden className="size-3.5" />, label = `Open ${spoken ?? locator ?? name}`;
     if (reader?.canRead(source)) return <button type="button" aria-label={label} title="Open" className={className}
       onClick={() => void reader.readSource(source, locator, evidenceId)}>{inner}</button>;
@@ -68,7 +68,6 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
       <span className={ROW_ACTIONS}>
         {openControl(source, name)}
         {!preview && <MoreActionsMenu label={`${name} options`} items={[
-          ...(reader?.canRead(source) ? [{ label: "Open", onSelect: () => void reader.readSource(source) }] : []),
           { label: "Labels", onSelect: () => setLabelTarget({ file: file!, kind: "source", itemId: source.id,
             labelIds: source.labelIds, note: source.note, title: name }) },
           { label: "Remove", onSelect: () => onRemove({ kind: "source", id: source.id, name }) },
@@ -121,8 +120,10 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
       </div>}
     </div>;
   };
+  // Ancestors count inherited membership; rows appear only at the deepest explicit filing in each branch.
   const under = (labelId: string | null) => sources.filter((source) => labelId
-    ? source.labelIds.includes(labelId)
+    ? source.labelIds.includes(labelId) && !source.labelIds.some((id) => id !== labelId &&
+        researchLabelPath(labels, id).some(({ id: ancestor }) => ancestor === labelId))
     : !source.labelIds.some((id) => labels[id]?.scope === "source"));
 
   return <>

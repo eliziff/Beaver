@@ -15,6 +15,7 @@ import { commitResearchFile, readResearchFile,
 import { provenBlockLocator } from "./documentLocators";
 import { structureNative } from "./structureNative";
 import { escapeRegExp } from "./text";
+import { hasSearchOperators, searchMatcher } from "./searchQuery";
 import { sha256 } from "./hash";
 import { documentProjectionService } from "./documentProjectionService";
 import { resolveResearchSelection, researchSelectionSchema, researchSelectionLabels, intersectResearchSubjects,
@@ -31,32 +32,8 @@ export type ResearchFileQueryInput = ResearchSelection & { versionId: string; wo
 type ResearchPassageReader = typeof legalSourceOperations.readPassage;
 const clean = (value: string) => value.normalize("NFC").replace(/\s+/gu, " ").trim();
 const allowed = new Set(["document", "paragraph", "section", "page", "footnote"]);
-const letters = /[\p{L}\p{N}]/u, onlyLetters = /[^\p{L}\p{N}]/gu;
-const lettersAt = (text: string, index: number) => {
-  let seen = 0;
-  for (let at = 0; at < text.length; at++) if (letters.test(text[at]) && seen++ === index) return at;
-  return text.length;
-};
-/**
- * A reader that renders the canonical text sends back offsets in it. A reader that renders the
- * original file instead — Library PDFs and Word documents — sends the text it captured; markers,
- * hyphenation and layout whitespace differ there but letters and digits never do, so their run
- * is what anchors the capture back to the canonical text.
- */
-const passageSpan = (action: Extract<PublicResearchFileAction, { type: "passage" }>, text: string) => {
-  if (action.start !== undefined && action.end !== undefined) {
-    const start = Math.min(Math.max(action.start, 0), text.length),
-      end = Math.min(Math.max(action.end, 0), text.length);
-    return end > start ? { start, end } : null;
-  }
-  const quote = action.quote ?? "", exact = quote ? text.indexOf(quote) : -1;
-  if (exact >= 0) return text.indexOf(quote, exact + 1) < 0 ? { start: exact, end: exact + quote.length } : null;
-  const needle = quote.replace(onlyLetters, ""), normalized = text.replace(onlyLetters, ""),
-    at = needle ? normalized.indexOf(needle) : -1;
-  return at < 0 || normalized.indexOf(needle, at + 1) >= 0 ? null
-    : { start: lettersAt(text, at), end: lettersAt(text, at + needle.length - 1) + 1 };
-};
 const MAX_CAPTURE_CHARS = 1_000_000, MAX_CAPTURE_CANDIDATES = 50_000;
+const MALFORMED_QUERY = "Check the search: AND, OR, NOT, matching brackets and closed quotes.";
 
 const paragraphBreak = /\r?\n\s*\r?\n/gu, sentenceEnd = /[.!?](?:\s|$)/gu;
 const next = (pattern: RegExp, text: string, at: number) => {
@@ -129,10 +106,12 @@ export async function verifyResearchPassage(file: ResearchFile, action: PublicRe
     { documents: context?.documents, scope: context?.scope, reader })).passages;
   if (!passage) throw new ApplicationError(404, "This source could not be opened for reading");
   const document = passage.documentArtifact, text = native.documentText(document);
-  if (action.revision && action.revision !== native.documentRevision(document))
+  if (action.revision !== native.documentRevision(document))
     throw new ApplicationError(409, "This source changed while you were reading it; open it again to highlight");
-  const span = passageSpan(action, text);
-  if (!span) throw new ApplicationError(400, "Select some text to highlight");
+  const { start, end } = action;
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end > text.length || end <= start)
+    throw new ApplicationError(400, "Invalid selection span", { code: "invalid_span" });
+  const span = { start, end };
   const block = native.smallestContainingDocumentBlock(document, span.start, span.end);
   const receipt = passage.evidence({ ...span, text: text.slice(span.start, span.end),
     ...((locator) => locator ? { blockId: `${locator.kind}:${locator.label}:${span.start}:${span.end}`,
@@ -203,11 +182,20 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
   if (rules.some(({ slot }) => slot !== undefined &&
       state.labels[slot]?.scope !== "highlight"))
     throw new ApplicationError(400, "Choose an existing highlight type for a capture");
-  const needles = [...new Set((input.syntax === "literal" ? [query] : query.split(/\s+/u))
-    .filter(Boolean).map((term) => term.toLowerCase()))];
-  if (needles.length > 100) throw new ApplicationError(400, "Query has too many terms");
+  /** "terms" is the Boolean syntax — AND/OR/NOT, &|-, quotes, brackets; "literal" stays one phrase. */
+  const search = input.syntax === "terms" && query ? searchMatcher(query) : null;
+  if (input.syntax === "terms" && query && !search) throw new ApplicationError(400, MALFORMED_QUERY,
+    { code: "invalid_query" });
+  const needle = query.toLowerCase();
   const matches = (text: string) => { const value = text.toLowerCase();
-    return needles.every((term) => value.includes(term)); };
+    return search ? search.test(value) : value.includes(needle); };
+  const compiled = rules.map((rule) => {
+    if (!hasSearchOperators(rule.phrase)) return { rule, source: escapeRegExp(rule.phrase), test: null };
+    const parsed = searchMatcher(rule.phrase);
+    if (!parsed) throw new ApplicationError(400, MALFORMED_QUERY, { code: "invalid_query" });
+    // A Boolean capture anchors on every term it admits, in text the whole expression accepts.
+    return { rule, source: parsed.terms.map(escapeRegExp).join("|"), test: parsed.test };
+  });
   const scopeInput = researchSelectionSchema.parse({ target: input.target, sourceIds: input.sourceIds,
     evidenceIds: input.evidenceIds, members: input.members, labelIds: input.labelIds, unlabelled: input.unlabelled }),
     labels = researchSelectionLabels(state, input.labelIds ?? []),
@@ -349,13 +337,25 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
         throw new ApplicationError(409, "Selected passage changed or is unavailable");
       for (const passage of windows) {
         const { text } = passage;
+        const slices = adapter.legalSourceViewer(passage.documentArtifact,
+          source.reference.kind === "legislation" ? "section" : "paragraph", text.length).slices;
+        const blocks = slices.length ? slices.map(({ primary, start, end }) => primary ??
+          { kind: "document" as const, label: `characters ${start + 1}-${end}`, start, end })
+          : adapter.documentAnchors(passage.documentArtifact);
         if (rules.length) {
           const captures: Capture[] = [], captureKeys = new Set<string>();
-          captureRules: for (const [order, rule] of rules.entries()) for (const range of passage.ranges) {
+          captureRules: for (const [order, { rule, source: phrase, test }] of compiled.entries())
+            for (const range of passage.ranges) {
             const selectedText = text.slice(range.start, range.end);
-            const pattern = new RegExp(escapeRegExp(rule.phrase), "giu"); let match: RegExpExecArray | null;
+            const pattern = new RegExp(phrase, "giu"); let match: RegExpExecArray | null;
             while ((match = pattern.exec(selectedText))) {
-              const span = adjacent(selectedText, match.index, match[0].length, rule);
+              const at = range.start + match.index, length = match[0].length;
+              const block = blocks.find(({ start, end }) => start <= at && end >= at + length);
+              const bounds = block ? { start: Math.max(range.start, block.start), end: Math.min(range.end, block.end) } : range;
+              if (test && (!block || !test(clean(text.slice(bounds.start, bounds.end))))) continue;
+              const span = rule.unit === "paragraph" && rule.direction === "around" && block
+                ? { start: bounds.start - range.start, end: bounds.end - range.start }
+                : adjacent(selectedText, match.index, match[0].length, rule);
               if (span) {
                 span.start += range.start; span.end += range.start;
                 const key = `${order}:${span.start}:${span.end}`;
@@ -390,11 +390,6 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
             found.push({ span: match.value, receipt: match.receipt, slot: span.slot, assign: span.assign });
           }
         } else {
-          const anchors = adapter.documentAnchors(passage.documentArtifact), blocks = anchors.length
-            ? anchors : adapter.legalSourceViewer(passage.documentArtifact,
-              source.reference.kind === "legislation" ? "section" : "paragraph").slices.map(
-                ({ start, end }) => ({ kind: "document" as const,
-                  label: `characters ${start + 1}-${end}`, start, end }));
           for (const block of blocks) {
             if (foundEvidence.size === limit) break;
             if (!allowed.has(block.kind)) continue;
