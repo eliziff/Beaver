@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useEffectEvent, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { BookOpen, MessageSquare, MessageSquareX, Play, Square, Upload, X } from "lucide-react";
+import { BookOpen, MessageSquare, Play, Square, Upload, X } from "lucide-react";
 import {
   clearTabularCells,
   deleteTabularReview,
