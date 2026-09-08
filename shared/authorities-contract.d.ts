@@ -1,6 +1,6 @@
-/** Shared Authorities data only; browser commands and reducer actions stay with their hosts. */
+/** Shared Authorities state and public commands; resolved reducer actions remain server-side. */
 import type { AuthoritySourceDecision } from "./authorities-sources.mjs";
-import type { PdfAnnotationSets } from "./pdf-annotations.mjs";
+import type { PdfAnnotationSet, PdfAnnotationSets } from "./pdf-annotations.mjs";
 
 export type AuthorityKind = "case" | "legislation" | "commentary" | "other";
 
@@ -116,3 +116,34 @@ export type AuthorityOccurrence = {
 
 export type AuthoritiesDiscrepancyAction =
   "ignore" | "pinpoint" | "quote_exact" | "quote_editorial";
+
+export type AuthoritiesUserAction =
+  | { type: "set-annotations"; entries: Array<{ authorityId: string; bindingRole: string; annotations: PdfAnnotationSet }> }
+  | { type: "add-authority"; kind: AuthorityKind; citation: string; name?: string | null }
+  | { type: "move-authority"; authorityId: string; toIndex: number }
+  | { type: "set-stage"; stage: "citations" | "sources" | "highlights" | "build" }
+  | { type: "remove-authority"; authorityId: string }
+  | { type: "exclude-authority"; authorityId: string; excluded: boolean }
+  | { type: "edit-authority"; authorityId: string; kind: AuthorityKind;
+      citation: string; name: string | null }
+  | { type: "rename-authority"; authorityId: string; displayName: string | null }
+  | { type: "split-occurrence"; occurrenceId: string; cursor: number }
+  | { type: "merge-occurrence"; occurrenceId: string }
+  | { type: "remove-occurrence"; occurrenceId: string }
+  | { type: "set-authority-span"; occurrenceId: string; start: number; end: number }
+  | { type: "set-pinpoint-span"; occurrenceId: string; start: number; end: number }
+  | { type: "relink-occurrence"; occurrenceId: string; authorityId: string | null }
+  | { type: "set-reviewed"; occurrenceId: string; reviewed: boolean }
+  | { type: "set-reference"; occurrenceId: string;
+      reference: { kind: "supra" | "ibid"; targetAuthorityId: string } | null }
+  | { type: "begin-canlii-handoff"; authorityId: string }
+  | { type: "clear-authority-source"; authorityId: string }
+  | { type: "clear-book-part"; slot: "cover" | "index" }
+  | { type: "remove-book-supplement"; id: string }
+  | { type: "set-cover"; cover: AuthoritiesCover }
+  | { type: "set-profile"; profileId: AuthoritiesProfileId }
+  | { type: "set-settings"; settings: Partial<AuthoritiesBuildSettings> }
+  | { type: "set-output-mode"; outputMode: AuthoritiesOutputMode }
+  | { type: "set-document-output"; enabled: boolean }
+  | { type: "set-highlight-exclusion"; authorityId: string;
+      locator: { kind: string; label: string }; excluded: boolean };
