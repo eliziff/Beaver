@@ -39,8 +39,11 @@ an ambiguous citation by selecting the first plausible candidate or recreating
 citation regexes in the UI. Source changes must pass the normal binding/revision
 boundary and invalidate geometry that no longer describes the same bytes.
 
-CanLII is manual-only: navigate through the validated provider link, then attach
-the returned PDF through Add PDF/drop and validate it against the pending source.
+CanLII is manual-only: the row opens the document page in a new tab; **Attach PDF**
+opens the file chooser, and dropping a downloaded PDF onto that row uses the same
+attachment operation. The opening citation must match the pending authority or a
+verified alias before binding. A mismatch or unreadable citation leaves the file
+unbound and shows one line explaining why. CanLII and View share one aligned column.
 No iframe, proxy, server fetch, scraper, automated navigation, Downloads-folder
 watcher or background acquisition is part of this handoff.
 
