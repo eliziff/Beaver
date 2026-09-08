@@ -29,34 +29,13 @@ export function DocumentViewer({
     versionId,
     ...options
 }: DocumentViewerProps) {
-    const renderer =
-        kind === "docx" ? (
-            <DocxView
-                documentId={documentId}
-                versionId={versionId}
-                {...options}
-            />
-        ) : kind === "text" ? (
-            <TextView
-                documentId={documentId}
-                versionId={versionId}
-                {...options}
-            />
-        ) : kind === "spreadsheet" ? (
-            <SpreadsheetRenderer
-                documentId={documentId}
-                versionId={versionId}
-                {...options}
-            />
-        ) : (
-            <PdfView
-                doc={{ document_id: documentId, version_id: versionId }}
-                {...options}
-            />
-        );
+    const Renderer = kind === "docx" ? DocxView : kind === "text" ? TextView : SpreadsheetRenderer;
     return <Suspense fallback={
         <div className="flex h-full min-h-0 items-center justify-center text-sm text-gray-500" role="status">
             Loading document…
         </div>
-    }>{renderer}</Suspense>;
+    }><div data-reader-view className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {kind === "pdf" ? <PdfView doc={{ document_id: documentId, version_id: versionId }} {...options} />
+            : <Renderer documentId={documentId} versionId={versionId} {...options} />}
+    </div></Suspense>;
 }
