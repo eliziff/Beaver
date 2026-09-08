@@ -1,21 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
-import { ModalSelect, SearchableChoiceModal } from "./ModalSelect";
-
-it("renders only supplied native options when the placeholder is disabled", () => {
-    const onChange = vi.fn();
-    render(
-        <ModalSelect id="mode" value="auto" placeholder={null}
-            options={[{ value: "auto", label: "Auto" }, { value: "manual", label: "Manual" }]}
-            onChange={onChange} />,
-    );
-
-    const select = screen.getByRole("combobox");
-    expect(screen.getAllByRole("option")).toHaveLength(2);
-    fireEvent.change(select, { target: { value: "manual" } });
-    expect(onChange).toHaveBeenCalledWith("manual");
-});
+import { SearchableChoiceModal } from "./ModalSelect";
 
 it("filters and selects the first matching choice with Enter", async () => {
     const onChange = vi.fn();

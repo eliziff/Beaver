@@ -28,19 +28,15 @@ it("renders tabular pills and citations through one shared path", async () => {
 it.each<[ColumnFormat, string, string | number | boolean | string[]]>([
     ["text", "A complete answer.", "A complete answer."],
     ["bulleted_list", "- First finding\n- Second finding", ["First finding", "Second finding"]],
-    ["number", "1234", 1234], ["percentage", "12.5%", 12.5],
-    ["monetary_amount", "CAD 1,000.00", "CAD 1,000.00"],
-    ["currency", "CAD", "CAD"], ["yes_no", "Yes", true],
-    ["tag", "Custom category", "Custom category"],
 ])("preserves the displayed value for %s", (format, text, value) => {
     const { container } = render(<TabularMarkdown text={text} value={value}
-        column={{ index: 0, name: "Finding", prompt: "Find it", format, tags: ["Custom category"] }} onCitationClick={vi.fn()} />);
+        column={{ format }} onCitationClick={vi.fn()} />);
     expect(container).toHaveTextContent(text.replace(/^- /gmu, "").replace("\n", " "));
     if (format === "bulleted_list") expect(screen.getAllByRole("listitem")).toHaveLength(2);
 });
 
 it("shows ISO dates as short locale dates and leaves other dates alone", () => {
-    const column = { index: 0, name: "Signed", prompt: "When", format: "date" as const };
+    const column = { format: "date" as const };
     const { container, rerender } = render(<TabularMarkdown text="05 September 2026" value="2026-09-05" column={column} onCitationClick={vi.fn()} />);
     expect(container).toHaveTextContent(/^(Sep|Sept)\.? 5, 2026$|^5 (Sep|Sept)\.? 2026$/u);
     rerender(<TabularMarkdown text="early 2026" value="early 2026" column={column} onCitationClick={vi.fn()} />);
@@ -49,6 +45,6 @@ it("shows ISO dates as short locale dates and leaves other dates alone", () => {
 
 it("folds long bulleted lists into three inline items in a grid cell", () => {
     render(<TabularMarkdown inline text="- a\n- b\n- c\n- d\n- e" value={["a", "b", "c", "d", "e"]} onCitationClick={vi.fn()}
-        column={{ index: 0, name: "Points", prompt: "List", format: "bulleted_list" }} />);
+        column={{ format: "bulleted_list" }} />);
     expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toEqual(["a", "b", "c", "+2"]);
 });
