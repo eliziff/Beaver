@@ -170,7 +170,7 @@ export function DocxView({
         onScrollChange,
         quotes,
     }));
-    const quoteKey = (quotes ?? []).map((q) => q.quote).join("||");
+    const quoteKey = JSON.stringify(quotes ?? []);
     const { result, loading, error } = useDocumentFile(
         documentId,
         versionId,
@@ -185,7 +185,7 @@ export function DocxView({
         scrollEl: HTMLElement,
         list: CitationQuote[] | undefined,
     ): boolean => {
-        const firstMatch = highlightDocxQuotes(containerEl, (list ?? []).map(({ quote }) => quote)).find(Boolean);
+        const firstMatch = highlightDocxQuotes(containerEl, list ?? []).find(Boolean);
         if (!firstMatch) return false;
         const scrollRect = scrollEl.getBoundingClientRect();
         const targetRect = firstMatch.getBoundingClientRect();
@@ -269,7 +269,7 @@ export function DocxView({
                             pendingHighlight,
                         );
                         if (pendingQuotes?.length) {
-                            highlightDocxQuotes(containerEl, pendingQuotes.map(({ quote }) => quote));
+                            highlightDocxQuotes(containerEl, pendingQuotes);
                         }
                     } else if (
                         pendingQuotes &&

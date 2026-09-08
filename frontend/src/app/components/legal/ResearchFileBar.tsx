@@ -133,7 +133,7 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
               <div className="mb-1 flex items-center gap-1.5 px-1">
                 <h3 className="min-w-0 flex-1 truncate text-xs font-medium text-gray-700">Highlight types</h3>
                 {highlight.reading && <Button size="compact" variant={highlight.armed ? "default" : "outline"} aria-label="Highlight"
-                  aria-pressed={highlight.armed} onClick={() => void runHighlight()} className="shrink-0 gap-1">
+                  aria-pressed={highlight.armed} onPointerDown={(event) => event.preventDefault()} onClick={() => void runHighlight()} className="shrink-0 gap-1">
                   <Highlighter aria-hidden="true" className="size-3.5" />
                 </Button>}
               </div>

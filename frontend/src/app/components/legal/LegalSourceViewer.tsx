@@ -25,12 +25,13 @@ import type {
   ResearchFile,
   ResearchSourceReference,
 } from "@/app/lib/researchFiles";
-import { readerBlockSpan, readerSelectionSpan } from "../shared/readerSelection";
+import { useReaderCapture } from "../shared/useReaderCapture";
+import { readerSelectionSpan } from "../shared/readerSelection";
 import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { errorMessage, formatLongDate } from "@/app/lib/utils";
 import { ResearchLabelEditor, ResearchLabelPicker,
   type ResearchLabelTarget } from "./ResearchLabelPicker";
-import { SourcesWorkspace, useSourcesWorkspace, type HighlightCapture } from "./SourcesWorkspace";
+import { SourcesWorkspace, useSourcesWorkspace } from "./SourcesWorkspace";
 import { RESEARCH_PASSAGE_REFERENCE_DRAG } from "./researchMemo";
 
 type Anchor = LegalSourceViewerPayload["slices"][number]["anchors"][number];
@@ -334,27 +335,8 @@ function LegalSourceViewerContent({
     if (match) scrollTo(root.current, match);
   }, [payload, quoteIndex, quotes.length, savedPassages]);
 
-  const consumed = useRef(false), wholeBlock = useRef<HTMLElement | null>(null);
-  const capture = useRef<() => HighlightCapture | null>(() => null);
-  capture.current = () => {
-    const reference = payloadReference, block = wholeBlock.current, revision = payload?.reference.sourceSha256;
-    wholeBlock.current = null;
-    if (!reference || !revision || !root.current) return null;
-    const span = block ? readerBlockSpan(block, slices)
-      : readerSelectionSpan(root.current, window.getSelection(), slices);
-    return span ? { reference, revision, ...span } : null;
-  };
-  const { registerReader, arm } = highlight;
-  useEffect(() => {
-    registerReader(() => capture.current());
-    return () => registerReader(null);
-  }, [registerReader]);
-  useEffect(() => {
-    if (!highlight.armed) return;
-    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") arm(false); };
-    document.addEventListener("keydown", escape);
-    return () => document.removeEventListener("keydown", escape);
-  }, [highlight.armed, arm]);
+  useReaderCapture(root, payloadReference, highlight,
+    payload ? { revision: payload.reference.sourceSha256, slices } : null, setResearchError);
   useEffect(() => {
     if (!payload || !root.current) return;
     const targetLocator = locator ?? decodeURIComponent(window.location.hash.slice(1)).replace(/^legal-/u, "");
@@ -376,12 +358,6 @@ function LegalSourceViewerContent({
   const sourceReference = payloadReference!;
   const needResearchFile = () => {
     onOpenResearch?.(); setResearchError("Choose or create a workspace first");
-  };
-  const runHighlight = () => {
-    if (!researchFile) { wholeBlock.current = null; return needResearchFile(); }
-    setResearchError("");
-    void highlight.run().catch((reason: unknown) =>
-      setResearchError(errorMessage(reason, "Could not save this highlight")));
   };
   async function prepareResearchSource(file: ResearchFile) {
     const existing = Object.values(file.state.sources).find(({ reference }) =>
@@ -485,22 +461,12 @@ function LegalSourceViewerContent({
       </p>}
       <div className="relative min-h-0 flex-1">
       <div ref={root} data-highlighter={highlight.armed ? "" : undefined}
-        onPointerDown={() => { consumed.current = false; }}
-        onPointerUp={() => { if (!highlight.armed || window.getSelection()?.isCollapsed !== false) return;
-          consumed.current = true; runHighlight(); }}
         onDragStart={(event) => {
           const span = readerSelectionSpan(event.currentTarget, window.getSelection(), slices);
           if (span) event.dataTransfer.setData(RESEARCH_PASSAGE_REFERENCE_DRAG,
             JSON.stringify({ reference: sourceReference, span: { revision: payload!.reference.sourceSha256, ...span } }));
         }}
-        onClick={(event) => {
-          if (openSavedHighlight(event.target) || !highlight.armed || consumed.current) return;
-          if (window.getSelection()?.isCollapsed === false) return;
-          const block = event.target instanceof Element
-            ? event.target.closest<HTMLElement>("[data-legal-text]") : null;
-          if (!block || !root.current?.contains(block)) return;
-          wholeBlock.current = block; runHighlight();
-        }}
+        onClick={(event) => { if (window.getSelection()?.isCollapsed !== false) openSavedHighlight(event.target); }}
         onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") &&
           openSavedHighlight(event.target)) event.preventDefault(); }}
         className={`h-full overflow-y-auto bg-[#faf9f6] px-4 py-8 sm:px-8 sm:py-10 ${
