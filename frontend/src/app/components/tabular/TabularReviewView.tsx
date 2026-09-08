@@ -594,7 +594,8 @@ function TRViewContent({ reviewId, projectId }: Props) {
                 {generating ? "Stop" : "Run"}
             </span>,
         },
-        !loading && { type: "custom", render: <ResearchViews workspace={() => openWorkspace()} chat={() => openChat()} /> },
+        !loading && { type: "custom", render: <ResearchViews workspace={() => openWorkspace()} /> },
+        { label: "Chat", disabled: loading, onClick: () => void openChat() },
         { type: "custom",
             render: <MoreActionsMenu items={menuItems} />,
         },
