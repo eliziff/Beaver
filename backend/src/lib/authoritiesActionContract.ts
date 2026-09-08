@@ -1,8 +1,8 @@
 import { decodeAnnotationSet } from "mike/shared/pdf-annotations.mjs";
 import { reject } from "./applicationError";
-import { AUTHORITIES_BOOK_ROLES, authoritiesProfileIds, type AuthorityOccurrence,
-  type AuthoritiesBuildSettings, type AuthoritiesCover, type AuthoritiesDiscrepancyAction,
-  type AuthoritiesProfileId } from "./authoritiesDomain";
+import type { AuthorityOccurrence,
+  AuthoritiesBuildSettings, AuthoritiesCover, AuthoritiesDiscrepancyAction,
+  AuthoritiesProfileId } from "./authoritiesDomain";
 import type { AuthoritiesInitialSettings, AuthoritiesUserAction } from
   "./authoritiesActions";
 import { isJsonRecord } from "./value";
@@ -28,7 +28,23 @@ function integer(value: unknown, min = 0) {
 function choice<T extends string>(value: unknown, choices: readonly T[]): T {
   return typeof value === "string" && choices.includes(value as T) ? value as T : bad();
 }
-const authorityKinds = ["case", "legislation", "commentary", "other"] as const;
+export const AUTHORITIES_BOOK_ROLES = ["applicant", "respondent", "joint", "appellant",
+  "intervener", "plaintiff", "defendant", "moving-party", "responding-party"] as const;
+import profiles from "mike/shared/authorities-profiles.json";
+export const authoritiesProfileIds = profiles.map(({ id }) => id);
+export const authorityKinds = ["case", "legislation", "commentary", "other"] as const;
+export const AUTHORITIES_ACTION_CHOICES = {
+  reference: ["supra", "ibid"], locator: ["paragraph", "section", "page"],
+  outputMode: ["table", "book", "both"], slot: ["cover", "index"],
+} as const;
+export const AUTHORITIES_TOOL_ACTIONS = [
+    "set-authority-span", "set-pinpoint-span", "split-occurrence", "merge-occurrence",
+    "remove-occurrence", "relink-occurrence", "set-reference", "add-authority",
+    "remove-authority", "exclude-authority",
+    "rename-authority", "clear-authority-source", "set-profile", "set-settings",
+    "set-output-mode", "set-document-output", "set-cover", "clear-book-part",
+    "remove-book-supplement", "set-highlight-exclusion",
+  ] as const;
 export const AUTHORITIES_SETTINGS_CHOICES = {
   sourceMode: ["automatic", "manual-originals", "render"], tabStyle: ["numeric", "alpha", "lower-alpha", "roman", "lower-roman"],
   tableOrder: ["first-reference", "alphabetical"],
@@ -73,7 +89,7 @@ function settings(value: unknown, initial = false) {
   if (initial && item.profileId !== undefined) result.profileId = choice(
     item.profileId, authoritiesProfileIds) as AuthoritiesProfileId;
   if (initial && item.outputMode !== undefined) result.outputMode = choice(
-    item.outputMode, ["table", "book", "both"] as const);
+    item.outputMode, AUTHORITIES_ACTION_CHOICES.outputMode);
   if (initial && item.insertIntoDocument !== undefined) result.insertIntoDocument =
     typeof item.insertIntoDocument === "boolean" ? item.insertIntoDocument : bad();
   if (!Object.keys(result).length) return bad();
@@ -83,7 +99,7 @@ function settings(value: unknown, initial = false) {
 function reference(value: unknown): AuthorityOccurrence["reference"] {
   if (value === null) return null;
   const item = object(value);
-  return { kind: choice(item.kind, ["supra", "ibid"] as const),
+  return { kind: choice(item.kind, AUTHORITIES_ACTION_CHOICES.reference),
     targetAuthorityId: text(item.targetAuthorityId) };
 }
 
@@ -131,7 +147,7 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
     case "set-highlight-exclusion": {
       const locator = object(item.locator);
       return { type, authorityId: text(item.authorityId),
-        locator: { kind: choice(locator.kind, ["paragraph", "section", "page"] as const),
+        locator: { kind: choice(locator.kind, AUTHORITIES_ACTION_CHOICES.locator),
           label: text(locator.label, 500) },
         excluded: typeof item.excluded === "boolean" ? item.excluded : bad() };
     }
@@ -159,14 +175,14 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
     }
     case "clear-authority-source": return { type, authorityId: text(item.authorityId) };
     case "clear-book-part": return { type,
-      slot: choice(item.slot, ["cover", "index"] as const) };
+      slot: choice(item.slot, AUTHORITIES_ACTION_CHOICES.slot) };
     case "remove-book-supplement": return { type, id: text(item.id) };
     case "set-cover": return { type, cover: cover(item.cover) };
     case "set-profile": return { type,
       profileId: choice(item.profileId, authoritiesProfileIds) };
     case "set-settings": return { type, settings: settings(item.settings) };
     case "set-output-mode": return { type,
-      outputMode: choice(item.outputMode, ["table", "book", "both"] as const) };
+      outputMode: choice(item.outputMode, AUTHORITIES_ACTION_CHOICES.outputMode) };
     case "set-document-output": return { type,
       enabled: typeof item.enabled === "boolean" ? item.enabled : bad() };
     default: return bad();

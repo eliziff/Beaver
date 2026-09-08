@@ -129,11 +129,13 @@ describe("WorkProduct application state contract", () => {
     expect(repository.create).toHaveBeenCalledOnce();
   });
 
-  it("derives editable citation boundaries before returning an Authorities draft", async () => {
+  it("preserves stored editable citation boundaries when returning an Authorities draft", async () => {
     const draft = createAuthoritiesDraft({ kind: "manual" }), text = "R v Grant, 2009 SCC 32";
     Object.assign(draft, { units: [{ id: "body:0", kind: "body", ordinal: 0,
       footnoteId: null, footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: ["cite"] }],
     occurrences: { cite: { id: "cite", unitId: "body:0", start: 0, end: text.length, text,
+      authoritySpan: { start: 0, end: text.length, text },
+      coreSpan: { start: text.indexOf("2009"), end: text.length, text: "2009 SCC 32" }, pinpointSpan: null,
       kind: "case", citation: "2009 SCC 32", authorityId: "grant", reference: null,
       pinpoints: [], evidenceIds: [], sourceTextSha256: "hash", localOrdinal: 0,
       reviewed: false } }, authorities: { grant: { id: "grant", key: "grant", kind: "case",

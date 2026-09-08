@@ -130,7 +130,7 @@ import type { AssistantEvent, ReadSubagentAssignment } from "./assistantEvents";
 import { safeErrorMessage } from "../safeError";
 import type { AuthoritiesUserAction } from "../authoritiesActions";
 import type { AuthoritiesWorkspaceApplication } from "../authoritiesWorkspaceApplication";
-import { AUTHORITIES_SETTINGS_CHOICES, decodeAuthoritiesUserAction } from
+import { AUTHORITIES_SETTINGS_CHOICES, AUTHORITIES_TOOL_ACTIONS, AUTHORITIES_ACTION_CHOICES, authorityKinds, decodeAuthoritiesUserAction } from
   "../authoritiesActionContract";
 import { authoritiesProfileIds,
   decodeAuthoritiesDraft } from "../authoritiesDomain";
@@ -254,18 +254,11 @@ const WORK_PRODUCT_ACTIVITY: Record<string, string> = {
   review: "Checking draft", refresh: "Refreshing draft", build: "Building draft",
 };
 const AUTHORITIES_ACTION = objectSchema({
-  type: { type: "string", enum: [
-    "set-authority-span", "set-pinpoint-span", "split-occurrence", "merge-occurrence",
-    "remove-occurrence", "relink-occurrence", "set-reference", "add-authority",
-    "remove-authority", "exclude-authority",
-    "rename-authority", "clear-authority-source", "set-profile", "set-settings",
-    "set-output-mode", "set-document-output", "set-cover", "clear-book-part",
-    "remove-book-supplement", "set-highlight-exclusion",
-  ] },
+  type: { type: "string", enum: AUTHORITIES_TOOL_ACTIONS },
   occurrenceId: { type: "string", minLength: 1,
     description: "Citation occurrence; omit in a bound view to use the focused citation." },
   authorityId: { type: "string" },
-  kind: { type: "string", enum: ["case", "legislation", "commentary", "other"] },
+  kind: { type: "string", enum: authorityKinds },
   citation: { type: "string", minLength: 1, maxLength: 1_000 },
   name: { type: ["string", "null"], maxLength: 1_000 },
   start: { type: "integer", minimum: 0,
@@ -275,7 +268,7 @@ const AUTHORITIES_ACTION = objectSchema({
   cursor: { type: "integer", minimum: 0,
     description: "Absolute UTF-16 split position; omit to use the selection start." },
   reference: { ...objectSchema({
-    kind: { type: "string", enum: ["supra", "ibid"] },
+    kind: { type: "string", enum: AUTHORITIES_ACTION_CHOICES.reference },
     targetAuthorityId: { type: "string", minLength: 1 },
   }, ["kind", "targetAuthorityId"]), type: ["object", "null"] },
   excluded: { type: "boolean" },
@@ -283,7 +276,7 @@ const AUTHORITIES_ACTION = objectSchema({
   profileId: { type: "string", enum: authoritiesProfileIds },
   settings: objectSchema(Object.fromEntries(Object.entries(AUTHORITIES_SETTINGS_CHOICES)
     .map(([key, values]) => [key, { type: "string", enum: values }]))),
-  outputMode: { type: "string", enum: ["table", "book", "both"] },
+  outputMode: { type: "string", enum: AUTHORITIES_ACTION_CHOICES.outputMode },
   enabled: { type: "boolean" },
   cover: objectSchema({
     courtFileNumber: { type: "string", maxLength: 100 },
@@ -295,10 +288,10 @@ const AUTHORITIES_ACTION = objectSchema({
     applicationUnder: { type: "string", maxLength: 2_000 },
     title: { type: "string", maxLength: 500 },
   }, ["courtFileNumber", "partyGroups", "applicationUnder", "title"]),
-  slot: { type: "string", enum: ["cover", "index"] },
+  slot: { type: "string", enum: AUTHORITIES_ACTION_CHOICES.slot },
   id: { type: "string", minLength: 1, maxLength: 200 },
   locator: objectSchema({
-    kind: { type: "string", enum: ["paragraph", "section", "page"] },
+    kind: { type: "string", enum: AUTHORITIES_ACTION_CHOICES.locator },
     label: { type: "string", minLength: 1, maxLength: 500 },
   }, ["kind", "label"]),
 }, ["type"]);
