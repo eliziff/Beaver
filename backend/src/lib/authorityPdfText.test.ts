@@ -22,6 +22,10 @@ describe("authority PDF text preparation", () => {
       pageTextByPage: ["First scanned page", "Native page", "Third scanned page"],
       ocrTextByPage: ["First scanned page", "", "Third scanned page"],
     });
+    await expect(authorityPdfText({ bytes, maxPages: 1 },
+      { preparePdf, lookupPdf } as never)).resolves.toEqual({
+      pageTextByPage: ["First scanned page"], ocrTextByPage: [""],
+    });
     expect(preparePdf).toHaveBeenCalledWith(expect.objectContaining({
       documentId: expect.stringMatching(/^standalone-authority:/u),
       versionId: expect.stringMatching(/^[a-f0-9]{64}$/u),
