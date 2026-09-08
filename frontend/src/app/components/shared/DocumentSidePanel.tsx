@@ -2,7 +2,6 @@ import {
     lazy,
     Suspense,
     useEffect,
-    useEffectEvent,
     useLayoutEffect,
     useRef,
     useState,
@@ -27,6 +26,7 @@ import { ContextualWorkflowLauncher } from "@/app/components/workflows/Contextua
 import type { WorkflowSelection } from "@/app/components/workflows/workflowRoutes";
 import { Button } from "@/app/components/ui/button";
 import type { Document, DocumentVersion } from "@/app/lib/api/documents";
+import type { DocumentController } from "../documents/useDocumentController";
 import {
   isDocxFilename,
   isSpreadsheetFilename,
@@ -53,36 +53,10 @@ import {
 const VERSION_PAGE = 40;
 const PREVIEW_TEXT = 1_000;
 const previewText = (text: string) => text.length > PREVIEW_TEXT ? `${text.slice(0, PREVIEW_TEXT)}…` : text;
-export type DocumentAction = "rename" | "upload" | "checkpoint" | "restore" | "compare" | "download";
 interface Props {
-    pendingAction?: DocumentAction;
-    actionError?: string | null;
-    doc: Document | null;
-    versionId?: string | null;
+    controller: DocumentController;
     highlightCells?: { sheet?: string; cell?: string }[];
-    currentVersionId?: string | null;
-    versions: DocumentVersion[];
-    versionsLoading: boolean;
-    versionsError?: boolean;
-    onClose: () => void;
-    onLoadVersions: (docId: string, force?: boolean) => Promise<unknown> | void;
-    onSelectVersion: (versionId: string) => void;
-    onDownloadVersion: (
-        docId: string,
-        versionId: string,
-        filename: string,
-    ) => Promise<void> | void;
     onRenameDocument: (docId: string, filename: string) => Promise<boolean>;
-    onCheckpointVersion: (docId: string, comment?: string) => Promise<boolean>;
-    onRestoreVersion: (
-        docId: string,
-        version: DocumentVersion,
-    ) => void;
-    onCompareVersions: (
-        docId: string,
-        baselineVersionId: string,
-        versionId: string,
-    ) => Promise<void> | void;
     onUploadNewVersion: (doc: Document) => void;
     onDelete: (doc: Document) => Promise<void> | void;
     documentRemovalMode?: "delete" | "detach";
@@ -180,28 +154,16 @@ function ResearchFilePreview({ documentId }: { documentId: string }) {
 }
 
 export function DocumentSidePanel({
-    doc, highlightCells,
-    versionId,
-    currentVersionId,
-    versions,
-    versionsLoading,
-    versionsError = false,
-    onClose,
-    onLoadVersions,
-    onSelectVersion,
-    onDownloadVersion,
-    onRenameDocument,
-    onCheckpointVersion,
-    onRestoreVersion,
-    onCompareVersions,
-    onUploadNewVersion,
-    pendingAction,
-    actionError,
-    onDelete,
+    controller, highlightCells, onRenameDocument,
+    onUploadNewVersion, onDelete,
     documentRemovalMode = "delete",
     onOpenWorkflows,
     onAssistantWorkflowSelect,
 }: Props) {
+    const { doc, versions, currentId, current, selected, selectedId, priorCurrent, history,
+        close: onClose } = controller;
+    const pendingAction = history?.pendingAction, actionError = history?.actionError;
+    const versionsLoading = history?.loading, versionsError = history?.error;
     const [visibleVersionCount, setVisibleVersionCount] =
         useState(VERSION_PAGE);
     const [expandedReader, setExpandedReader] = useState(false);
@@ -220,9 +182,9 @@ export function DocumentSidePanel({
     const sourcesController = useSourcesWorkspaceOrNull();
     const highlightController = sourcesController?.highlight ?? null;
     const captureReference: ResearchSourceReference | null =
-        doc && (versionId ?? doc.current_version_id)
+        doc && selectedId
             ? { provider: "library", kind: "document", id: doc.id,
-                versionId: (versionId ?? doc.current_version_id) as string,
+                versionId: selectedId,
                 title: doc.filename }
             : null;
     const captureReady = useReaderCapture(readerBody, captureReference, highlightController);
@@ -243,33 +205,18 @@ export function DocumentSidePanel({
         }).catch(() => { if (!cancelled) setSavedQuotes([]); });
         return () => { cancelled = true; };
     }, [workspaceFile, captureKey]);
-    const loadVersions = useEffectEvent(onLoadVersions);
     const docId = doc?.id;
 
     useEffect(() => {
         setVisibleVersionCount(VERSION_PAGE);
         setNameDraft(null);
-        if (docId) void loadVersions(docId);
     }, [docId]);
 
     if (!doc) return null;
 
     const activeDoc = doc;
-    const currentId =
-        currentVersionId ?? activeDoc.current_version_id ?? null;
-    const current = versions.find(({ id }) => id === currentId) ?? null;
     const comparisonCurrent = current && fileType(current, "") === "docx" ? current : null;
-    const priorCurrent = comparisonCurrent
-        ? versions.find(({ version_number }) =>
-            version_number < comparisonCurrent.version_number) ?? null
-        : null;
     const visible = versions.slice(0, visibleVersionCount);
-    const selected =
-        versions.find((version) => version.id === versionId) ??
-        current ??
-        versions[0] ??
-        null;
-    const selectedId = selected?.id ?? versionId ?? currentId;
     const filename = selected?.filename.trim() || activeDoc.filename;
     const displayFilename = activeDoc.filename.replace(/\.research\.md$/iu, "");
     const type = fileType(selected, activeDoc.file_type), viewerKind = documentViewKind(filename, type);
@@ -294,7 +241,7 @@ export function DocumentSidePanel({
         if (!canCheckpoint || pendingAction) return;
         const form = event.currentTarget;
         const comment = String(new FormData(form).get("comment") ?? "").trim();
-        if (await onCheckpointVersion(activeDoc.id, comment || undefined)) form.reset();
+        if (await controller.checkpoint(activeDoc.id, comment || undefined)) form.reset();
     }
 
     function comparison(version: DocumentVersion) {
@@ -411,19 +358,19 @@ export function DocumentSidePanel({
                         <div className="ml-auto flex items-center gap-1">
                             <Button variant="ghost" size="icon-sm" disabled={!selected || !!pendingAction}
                                 aria-label={`Download ${versionTitle(selected)}`} title="Download selected version"
-                                onClick={() => { if (selected) void onDownloadVersion(activeDoc.id, selected.id, versionFilename(selected)); }}>
+                                onClick={() => { if (selected) void controller.download(activeDoc.id, selected.id, versionFilename(selected)); }}>
                                 <Download aria-hidden />
                             </Button>
                             <Button variant="ghost" size="icon-sm"
                                 disabled={!selected || selectedId === currentId || !!pendingAction}
                                 aria-label={`Restore ${versionTitle(selected)} as a new current version`} title="Restore selected version"
-                                onClick={() => { if (selected) onRestoreVersion(activeDoc.id, selected); }}>
+                                onClick={() => { if (selected) controller.setPendingRestore({ docId: activeDoc.id, version: selected }); }}>
                                 {pendingAction === "restore" ? <Loader2 aria-hidden className="animate-spin" /> : <RotateCcw aria-hidden />}
                             </Button>
                             {comparisonCurrent && <Button variant="ghost" size="icon-sm"
                                 disabled={!selectedComparison || !!pendingAction}
                                 aria-label={selectedComparison?.label ?? "Download comparison"} title="Download comparison with current version"
-                                onClick={() => { if (selected && selectedComparison) void onCompareVersions(activeDoc.id,
+                                onClick={() => { if (selected && selectedComparison) void controller.compare(activeDoc.id,
                                     selectedComparison.baselineId, selectedComparison.comparedId); }}>
                                 {pendingAction === "compare" ? <Loader2 aria-hidden className="animate-spin" /> : <FileDiff aria-hidden />}
                             </Button>}
@@ -443,7 +390,7 @@ export function DocumentSidePanel({
                         ) : versionsError ? (
                             <tr><td colSpan={5} role="alert" className="py-3 text-xs text-red-700">
                                 Could not load version history. <button type="button"
-                                    onClick={() => void onLoadVersions(activeDoc.id, true)}
+                                    onClick={() => void controller.load(activeDoc.id, true)}
                                     className="font-semibold underline">Retry</button>
                             </td></tr>
                         ) : !versions.length ? (
@@ -459,7 +406,7 @@ export function DocumentSidePanel({
                                         selected={version.id === selectedId}
                                         current={version.id === currentId}
                                         onSelect={() => {
-                                            onSelectVersion(version.id);
+                                            controller.selectVersion(version.id);
                                         }}
                                     />
                                 ))}
