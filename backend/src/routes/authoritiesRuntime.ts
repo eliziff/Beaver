@@ -12,7 +12,7 @@ import { importStandaloneAuthoritiesFile } from "../lib/authoritiesImport";
 import { authorityPdfText } from "../lib/authorityPdfText";
 import { reviewAuthoritiesDiscrepancies } from "../lib/authoritiesDiscrepancy";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction, attachAuthorityPdf,
-  attachAuthoritiesBookPdf, authoritiesReview } from "../lib/authoritiesActions";
+  checkCanliiPdf, attachAuthoritiesBookPdf, authoritiesReview } from "../lib/authoritiesActions";
 import { resolveAuthoritiesSources, type PreparedAuthoritySource } from "../lib/authoritiesSourceResolution";
 import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "../lib/authoritiesPreparation";
 import { asyncRoute } from "../lib/asyncRoute";
@@ -222,26 +222,28 @@ export function createAuthoritiesRuntimeRouter(
     await sendMultipart(res, { draft: state }, [{ role: "source", filename: "source.docx",
       mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", bytes }]);
   }));
-  router.post("/book-part", singleFileUpload("file"), asyncRoute(async (req, res) => {
+  router.post("/pdf", singleFileUpload("file"), asyncRoute(async (req, res) => {
     const current = draft(json(req.body?.draft, "draft"));
-    const file = req.file ?? reject(400, "file is required");
-    const slot = (["cover", "index", "supplemental"] as const)
-      .find((value) => value === req.body?.slot) ?? reject(400, "Book-part slot is invalid");
-    const rawSupplementId = req.body?.supplement_id;
-    const supplementId = typeof rawSupplementId === "string" && rawSupplementId.trim() &&
-      rawSupplementId.trim().length <= 500 ? rawSupplementId.trim()
-      : rawSupplementId === undefined ? undefined : reject(400, "Book-part ID is invalid");
-    if (supplementId && slot !== "supplemental") reject(400, "Book-part ID is invalid");
-    const filename = file.originalname.trim(), modified = Number(req.body?.modified);
-    if (!filename || filename.length > 500 || /[\u0000-\u001f\u007f]/u.test(filename) ||
-        !/\.pdf$/iu.test(filename) ||
-        !Number.isSafeInteger(modified) || modified < 0) reject(400, "Add a PDF file");
-    const bytes = await readFile(file.path);
-    if (bytes.subarray(0, 5).toString("ascii") !== "%PDF-") reject(400, "Add a valid PDF");
-    const sourceSha256 = sha256(bytes);
-    const binding = { kind: "local-file" as const, handleId: "standalone",
+    const { filename, fileType, bytes, modified } = await standaloneSource(req);
+    if (!filename.trim() || filename.length > 500 || /[\u0000-\u001f\u007f]/u.test(filename) ||
+        fileType !== "pdf" || bytes.subarray(0, 5).toString("ascii") !== "%PDF-") reject(400, "Add a valid PDF");
+    const sourceSha256 = sha256(bytes), binding = { kind: "local-file" as const, handleId: "standalone",
       lastSeen: { name: filename, size: bytes.length, modified, sha256: sourceSha256 } };
-    res.json(attachAuthoritiesBookPdf(current, { slot, supplementId }, binding, filename, sourceSha256));
+    if (req.body?.authority_id !== undefined) {
+      const id = req.body.authority_id, authority = typeof id === "string" && Object.hasOwn(current.authorities, id)
+        ? current.authorities[id] : reject(400, "This authority no longer exists.");
+      const language = (["en", "fr", "bilingual"] as const).find(value => value === req.body.language)
+        ?? reject(400, "Choose the PDF language.");
+      await checkCanliiPdf(current, authority.id, bytes);
+      res.json(attachAuthorityPdf(current, authority, binding, filename, sourceSha256, language));
+    } else {
+      const slot = (["cover", "index", "supplemental"] as const).find(value => value === req.body?.slot)
+        ?? reject(400, "Book-part slot is invalid");
+      const supplementId = req.body?.supplement_id;
+      if (supplementId !== undefined && (typeof supplementId !== "string" || !supplementId.trim() ||
+          supplementId.length > 500)) reject(400, "Book-part ID is invalid");
+      res.json(attachAuthoritiesBookPdf(current, { slot, supplementId }, binding, filename, sourceSha256));
+    }
   }));
   router.post("/build", multipleFileUpload("files", 100), asyncRoute(async (req, res) => {
     const build = new AbortController();

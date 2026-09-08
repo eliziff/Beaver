@@ -8,7 +8,7 @@ import { Input } from "@/app/components/ui/input";
 import { cn } from "@/app/lib/utils";
 import { FileInputButton } from "./FileInputButton";
 import { TabFormatModal } from "./TabFormatModal";
-import { authorityName, authorityCitationForms, hasRequiredSources, requiresBilingualSources,
+import { authorityName, authorityCitationForms, requiresBilingualSources,
   requiresPdf, sourceLanguageLabel, sourceAction, relinkable } from "./authorityPresentation";
 import type { AuthoritiesAction, AuthoritiesDraft, AuthoritiesProduct,
   AuthorityIdentity, AuthorityOccurrence } from "./types";
@@ -39,24 +39,17 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
   sourceLabel = "Library", onAttach, onRelink, onOpenSource, onEditIdentity,
   ocr }: PanelProps) {
   const [tabSettings, setTabSettings] = useState(false);
-  const included = authorities.filter(({ excluded }) => !excluded);
-  const ready = included.filter((authority) => hasRequiredSources(state, authority) && authority.source.kind === "attached" &&
-    authority.source.sources.every(({ bindingRole }) => !sourceIssues[bindingRole])).length;
   return <><section className="mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
-    <div className="flex min-h-12 items-center gap-2 px-4">
-      <h2 className="font-semibold text-gray-950">Sources</h2>
-      <span className="ms-auto text-sm tabular-nums text-gray-500">{ready} / {included.length} PDFs</span>
-      {state.outputMode !== "table" && <Button type="button" variant="outline" className={control}
-        disabled={busy} onClick={(event) => { event.preventDefault(); setTabSettings(true); }}>Tab labels</Button>}
-    </div>
-    <div className="border-t border-gray-200 p-3 sm:p-4"
+    <div className="p-3 sm:p-4"
       onDragOver={(event) => { if (!busy && onFiles && event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
       onDrop={(event) => {
         if (!busy && onFiles && event.dataTransfer.files.length) {
           event.preventDefault(); onFiles(Array.from(event.dataTransfer.files));
         }
       }}>
-      {(onFiles || onLibraryAdd) && <div className="mb-3 flex flex-wrap justify-end gap-2">
+      {(state.outputMode !== "table" || onFiles || onLibraryAdd) && <div className="mb-3 flex flex-wrap justify-end gap-2">
+        {state.outputMode !== "table" && <Button type="button" variant="outline" className={control}
+          disabled={busy} onClick={() => setTabSettings(true)}>Tab labels</Button>}
         {onFiles && (onPickMany ? <Button type="button" variant="outline" className={control}
           disabled={busy} onClick={onPickMany}><FilePlus2 /> Upload</Button>
           : <FileInputButton multiple disabled={busy} label="Upload" accept=".pdf,application/pdf"
@@ -156,7 +149,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
     </>}
     <div className="col-span-3 flex items-center justify-end gap-1 sm:col-span-1">
       {needsPdf && (authority.source.kind === "pending-canlii"
-        ? <a href={authority.source.pdfUrl} target="_blank" rel="noopener noreferrer"
+        ? <a href={authority.source.pageUrl} target="_blank" rel="noopener noreferrer"
             className={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-red-800 outline-none hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-600")}>
             <ExternalLink className="h-3.5 w-3.5" />CanLII</a>
         : issue ? <Button type="button" variant="outline" className={cn(rowControl, "text-red-800")}
@@ -171,11 +164,14 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
                 disabled: busy || !!sourceIssues[source.bindingRole], onSelect: () => onOpen(source.bindingRole) }))}>
               <Eye className="h-3.5 w-3.5" /> View</ActionMenu>)
         : <span className="w-28" />)}
-      {needsPdf && <ActionMenu label={`${replacement} for ${title}`}
+      {needsPdf && (authority.source.kind === "pending-canlii"
+        ? <Button type="button" variant="outline" className={rowControl} disabled={busy}
+            aria-label={`Attach PDF for ${title}`} onClick={pick}><Upload />Attach PDF</Button>
+        : <ActionMenu label={`${replacement} for ${title}`}
         triggerClassName={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600")}
         items={[{ label: "Upload from computer", disabled: busy, onSelect: pick },
           ...(onLibrary ? [{ label: `Choose from ${sourceLabel}`, disabled: busy, onSelect: onLibrary }] : [])]}>
-        <Upload className="h-3.5 w-3.5" />{replacement}</ActionMenu>}
+        <Upload className="h-3.5 w-3.5" />{replacement}</ActionMenu>)}
       <MoreActionsMenu label={`Options for ${title}`} triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600"
         items={[{ label: editableIdentity ? "Edit details" : "Edit title", disabled: busy,
           onSelect: () => { if (editableIdentity) onEditIdentity(); else edit(); } },
