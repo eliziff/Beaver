@@ -61,7 +61,6 @@
   "slotDefinitions": {
     "affidavit":{"id":"affidavit","label":"Affidavit","requirement":"required","order":10},
     "exhibit":{"id":"exhibit","label":"Exhibit","requirement":"optional","order":20,"repeatable":true},
-    "other-document":{"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]},
     "chambers-application":{"id":"application","label":"Application","requirement":"required","order":10},
     "chambers-supporting-affidavit":{"id":"affidavit","label":"Supporting affidavit or evidence","requirement":"conditional","order":20,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"court-record","profileId":"ab-kb-affidavit-exhibits","role":"record"}]},
     "chambers-applicant-brief":{"id":"brief","label":"Applicant’s brief","requirement":"conditional","order":30},
@@ -121,7 +120,7 @@
       "family":"affidavit","outputMode":"affidavit-with-exhibits",
       "effectiveFrom":"1970-01-01",
       "cover":{"generated":false,"title":"Case details","colourName":"source","colourHex":"#FFFFFF","fieldKeys":["courtName","courtFileNumber","registryOptional","affidavitNumber","deponentOptional","swornDateOptional","swornPlace"]},
-      "slots": ["affidavit","exhibit","other-document"],
+      "slots": ["affidavit","exhibit"],
       "technical":"affidavit",
       "sourceIds":[],"filenamePattern":"Affidavit-{courtFileNumber}.pdf"
     },
@@ -131,7 +130,7 @@
       "family":"affidavit","outputMode":"affidavit-with-exhibits","exhibitCertificate":true,
       "effectiveFrom":"2010-11-01","partyStyleIds":["application","action","appeal"],
       "cover":{"generated":false,"title":"Affidavit details","colourName":"source","colourHex":"#FFFFFF","fieldKeys":["courtFileNumber","registryOptional","affidavitNumber","deponent","swornDate","swornPlace"]},
-      "slots": ["affidavit","exhibit","other-document"],
+      "slots": ["affidavit","exhibit"],
       "technical":"affidavit",
       "sourceIds":["ab-rules-part-13-14","ab-kb-form-49","ab-affidavit-exhibit-example","ab-kb-digital-guidelines"],"filenamePattern":"Affidavit-{filingParty}-{courtFileNumber}.pdf"
     },
@@ -141,7 +140,7 @@
       "family":"affidavit","outputMode":"affidavit-with-exhibits","exhibitCertificate":true,
       "effectiveFrom":"1998-02-05","partyStyleIds":["application","action","appeal"],
       "cover":{"generated":false,"title":"Affidavit details","colourName":"source","colourHex":"#FFFFFF","fieldKeys":["courtFileNumber","registryOptional","affidavitNumber","deponent","swornDate","swornPlace"]},
-      "slots": ["affidavit","exhibit","other-document"],
+      "slots": ["affidavit","exhibit"],
       "technical":"fcAffidavit",
       "sourceIds":["fc-rules","fc-practice-guidelines-2025","fc-efiling"],"filenamePattern":"Affidavit-{filingParty}-{courtFileNumber}.pdf"
     },
@@ -151,7 +150,7 @@
       "family":"affidavit","outputMode":"affidavit-with-exhibits","exhibitCertificate":true,
       "effectiveFrom":"1998-02-05","partyStyleIds":["application","appeal"],
       "cover":{"generated":false,"title":"Affidavit details","colourName":"source","colourHex":"#FFFFFF","fieldKeys":["courtFileNumber","registryOptional","affidavitNumber","deponent","swornDate","swornPlace"]},
-      "slots": ["affidavit","exhibit","other-document"],
+      "slots": ["affidavit","exhibit"],
       "technical":"fcaAffidavit",
       "sourceIds":["fc-rules","fca-consolidated-direction-2026","fca-efiling-guide"],"filenamePattern":"FCA-Affidavit-{filingParty}-{courtFileNumber}.pdf"
     },
@@ -163,8 +162,7 @@
       "cover":{"generated":false,"title":"File details","colourName":"source","colourHex":"#FFFFFF","fieldKeys":[]},
       "slots": [
         "chambers-application","chambers-supporting-affidavit","chambers-applicant-brief",
-        "chambers-applicant-authorities","justice-proposed-order","chambers-applicant-service",
-        "other-document"
+        "chambers-applicant-authorities","justice-proposed-order","chambers-applicant-service"
       ],
       "technical":"abKbSeparate",
       "sourceIds":["ab-kb-digital-guidelines","ab-kb-cpn1"],"filenamePattern":"{kind}.pdf"
@@ -179,7 +177,7 @@
         "chambers-responding-affidavit","chambers-responding-pleading","chambers-respondent-brief",
         "chambers-respondent-authorities",
         {"id":"proposed-order","label":"Respondent’s proposed order","requirement":"optional","order":50,"acceptedFormats":["docx"]},
-        "chambers-respondent-service","other-document"
+        "chambers-respondent-service"
       ],
       "technical":"abKbSeparate",
       "sourceIds":["ab-kb-digital-guidelines","ab-kb-cpn1"],"filenamePattern":"{kind}.pdf"
@@ -193,8 +191,7 @@
       "cover":{"generated":false,"title":"File details","colourName":"source","colourHex":"#FFFFFF","fieldKeys":[]},
       "slots": [
         "chambers-application","chambers-supporting-affidavit","chambers-applicant-brief",
-        "chambers-applicant-authorities","applications-judge-pdf-order","chambers-applicant-service",
-        "other-document"
+        "chambers-applicant-authorities","applications-judge-pdf-order","chambers-applicant-service"
       ],
       "technical":"abKbSeparate",
       "sourceIds":["ab-kb-digital-guidelines","ab-kb-cpn1","ab-kb-fds-2026","ab-kb-digital-orders-2026"],"filenamePattern":"{kind}.pdf"
@@ -208,8 +205,7 @@
       "cover":{"generated":false,"title":"File details","colourName":"source","colourHex":"#FFFFFF","fieldKeys":[]},
       "slots": [
         "chambers-responding-affidavit","chambers-responding-pleading","chambers-respondent-brief",
-        "chambers-respondent-authorities","applications-judge-pdf-order","chambers-respondent-service",
-        "other-document"
+        "chambers-respondent-authorities","applications-judge-pdf-order","chambers-respondent-service"
       ],
       "technical":"abKbSeparate",
       "sourceIds":["ab-kb-digital-guidelines","ab-kb-cpn1","ab-kb-fds-2026","ab-kb-digital-orders-2026"],"filenamePattern":"{kind}.pdf"
@@ -222,7 +218,7 @@
       "cover":{"generated":false,"title":"File details","colourName":"source","colourHex":"#FFFFFF","fieldKeys":[]},
       "slots": [
         "desk-application-form","desk-originating-document","desk-supporting-material","desk-consent",
-        "justice-proposed-order","other-document"
+        "justice-proposed-order"
       ],
       "technical":"abKbSeparate",
       "sourceIds":["ab-kb-digital-guidelines","ab-kb-cpn1"],"filenamePattern":"{kind}.pdf"
@@ -236,7 +232,7 @@
       "cover":{"generated":false,"title":"File details","colourName":"source","colourHex":"#FFFFFF","fieldKeys":[]},
       "slots": [
         "desk-application-form","desk-originating-document","desk-supporting-material","desk-consent",
-        "applications-judge-pdf-order","other-document"
+        "applications-judge-pdf-order"
       ],
       "technical":"abKbSeparate",
       "sourceIds":["ab-kb-digital-guidelines","ab-kb-cpn1","ab-kb-digital-orders-2026"],"filenamePattern":"{kind}.pdf"
@@ -254,8 +250,7 @@
         {"id":"brief","label":"Applicant’s brief","requirement":"required","order":30},
         {"id":"authorities","label":"Applicant’s authorities","requirement":"required","order":40,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"authorities","role":"book"}]},
         {"id":"oral-hearing-order","label":"Oral Hearing Order","requirement":"conditional","order":50},
-        {"id":"proposed-order","label":"Proposed order","requirement":"required","order":60,"acceptedFormats":["docx"]},
-        "other-document"
+        {"id":"proposed-order","label":"Proposed order","requirement":"required","order":60,"acceptedFormats":["docx"]}
       ],
       "technical":"abKbSeparate",
       "sourceIds":["ab-kb-digital-guidelines","ab-kb-cpn1","ab-kb-civil-special-chambers"],"filenamePattern":"{kind}.pdf"
@@ -270,8 +265,7 @@
         {"id":"evidence","label":"Responding affidavit or Rule 6.11 evidence","requirement":"required","order":10,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"court-record","profileId":"ab-kb-affidavit-exhibits","role":"record"}]},
         {"id":"responding-pleading","label":"Responding pleadings","requirement":"required","order":15,"repeatable":true},
         "special-respondent-brief","special-respondent-authorities",
-        {"id":"proposed-order","label":"Respondent’s proposed order","requirement":"required","order":40,"acceptedFormats":["docx"]},
-        "other-document"
+        {"id":"proposed-order","label":"Respondent’s proposed order","requirement":"required","order":40,"acceptedFormats":["docx"]}
       ],
       "technical":"abKbSeparate",
       "sourceIds":["ab-kb-digital-guidelines","ab-kb-cpn1","ab-kb-civil-special-chambers"],"filenamePattern":"{kind}.pdf"
@@ -288,7 +282,7 @@
         {"id":"affidavit","label":"Permitted affidavit","requirement":"conditional","order":30,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"court-record","profileId":"ab-kb-affidavit-exhibits","role":"record"}]},
         {"id":"brief","label":"Applicant’s brief","requirement":"required","order":40},
         {"id":"authorities","label":"Applicant’s authorities","requirement":"required","order":50,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"authorities","role":"book"}]},
-        "applicant-proposed-order","other-document"
+        "applicant-proposed-order"
       ],
       "technical":"abKbSeparate",
       "sourceIds":["ab-kb-digital-guidelines","ab-kb-cpn1"],"filenamePattern":"{kind}.pdf"
@@ -301,8 +295,7 @@
       "cover":{"generated":false,"title":"File details","colourName":"source","colourHex":"#FFFFFF","fieldKeys":[]},
       "slots": [
         {"id":"affidavit","label":"Permitted responding affidavit","requirement":"conditional","order":10,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"court-record","profileId":"ab-kb-affidavit-exhibits","role":"record"}]},
-        "special-respondent-brief","special-respondent-authorities","respondent-proposed-order",
-        "other-document"
+        "special-respondent-brief","special-respondent-authorities","respondent-proposed-order"
       ],
       "technical":"abKbSeparate",
       "sourceIds":["ab-kb-digital-guidelines","ab-kb-cpn1"],"filenamePattern":"{kind}.pdf"
@@ -319,7 +312,7 @@
         {"id":"evidence","label":"Supporting affidavit or material","requirement":"conditional","order":30,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"court-record","profileId":"ab-kb-affidavit-exhibits","role":"record"}]},
         {"id":"brief","label":"Applicant’s brief","requirement":"required","order":40,"maximumPages":35},
         {"id":"authorities","label":"Applicant’s authorities","requirement":"conditional","order":50,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"authorities","role":"book"}]},
-        "applicant-proposed-order","other-document"
+        "applicant-proposed-order"
       ],
       "technical":"abKbSeparate",
       "sourceIds":["ab-kb-digital-guidelines","ab-kb-commercial-pn1"],"filenamePattern":"{kind}.pdf"
@@ -334,7 +327,7 @@
         {"id":"evidence","label":"Responding affidavit or material","requirement":"conditional","order":10,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"court-record","profileId":"ab-kb-affidavit-exhibits","role":"record"}]},
         {"id":"brief","label":"Respondent’s brief","requirement":"required","order":20,"maximumPages":35},
         {"id":"authorities","label":"Respondent’s authorities","requirement":"conditional","order":30,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"authorities","role":"book"}]},
-        "respondent-proposed-order","other-document"
+        "respondent-proposed-order"
       ],
       "technical":"abKbSeparate",
       "sourceIds":["ab-kb-digital-guidelines","ab-kb-commercial-pn1"],"filenamePattern":"{kind}.pdf"
@@ -350,8 +343,7 @@
         {"id":"transcript-extract","label":"Transcript extract","requirement":"optional","order":20,"repeatable":true},
         {"id":"prior-order","label":"Previous order","requirement":"optional","order":30,"repeatable":true},
         {"id":"authority-extract","label":"Authority extract","requirement":"optional","order":40,"repeatable":true},
-        {"id":"nonessential","label":"Non-essential material","requirement":"forbidden","order":900,"repeatable":true},
-        "other-document"
+        {"id":"nonessential","label":"Non-essential material","requirement":"forbidden","order":900,"repeatable":true}
       ],
       "technical":"combinedRecord",
       "sourceIds":["ab-kb-digital-guidelines","ab-kb-commercial-pn1"],"filenamePattern":"Commercial-Compendium-{filingParty}-{courtFileNumber}.pdf"
@@ -374,7 +366,7 @@
         {"id":"part-3-transcript","label":"Part 3 — Transcript","requirement":"conditional","order":90,"group":"Part 3 — Transcripts","acceptedFormats":["pdf"],"separateFile":true,"preserveFilename":true,"pageLabelScheme":"abca-transcript"},
         {"id":"part-3-no-oral-record","label":"Part 3 — No oral record","requirement":"conditional","order":100,"group":"Part 3 — Transcripts","condition":"Use when there is no oral record that can be transcribed.","descriptionOnly":true,"defaultDescription":"There is no oral record that can be transcribed for Part 3, Transcripts"},
         {"id":"evidence","label":"Evidence, affidavit or exhibit","requirement":"forbidden","order":900,"repeatable":true},
-        "abca-forbidden-argument","other-document"
+        "abca-forbidden-argument"
       ],
       "oneOf":[{"slots":["part-3-transcript","part-3-no-oral-record"],"label":"Part 3 transcript or no-oral-record notation"}],
       "technical":"abCaRecord",
@@ -388,7 +380,7 @@
       "cover":{"generated":true,"title":"EXTRACTS OF KEY EVIDENCE","template":"abca-ap5","form":"Form AP-5","ruleReference":"Rules 14.29(c) and 14.87","colourName":"yellow","colourHex":"#F4DD76","fieldKeys":["appealFileNumber","lowerCourtFileNumber","registry","decisionMaker","decisionDate","decisionFileDate","counselName","counselAddress","counselPhone","counselFax","counselEmail","recordTitle"]},
       "slots": [
         "abca-transcript-extract","abca-exhibit-extract","abca-record-extract","forbidden-new-evidence",
-        "abca-forbidden-argument","other-document"
+        "abca-forbidden-argument"
       ],
       "technical":"abCaExtracts",
       "sourceIds":["ab-rules-part-13-14","ab-ca-electronic-format","ab-ca-filing-hub","ab-ca-extracts-requirements","ab-ca-sample-extracts"],"filenamePattern":"Extracts-Appellant-{courtFileNumber}.pdf"
@@ -401,7 +393,7 @@
       "cover":{"generated":true,"title":"EXTRACTS OF KEY EVIDENCE","template":"abca-ap5","form":"Form AP-5","ruleReference":"Rules 14.29(c) and 14.87","colourName":"pink","colourHex":"#FFAABF","fieldKeys":["appealFileNumber","lowerCourtFileNumber","registry","decisionMaker","decisionDate","decisionFileDate","counselName","counselAddress","counselPhone","counselFax","counselEmail","recordTitle"]},
       "slots": [
         "abca-transcript-extract","abca-exhibit-extract","abca-record-extract","forbidden-new-evidence",
-        "abca-forbidden-argument","other-document"
+        "abca-forbidden-argument"
       ],
       "technical":"abCaExtracts",
       "sourceIds":["ab-rules-part-13-14","ab-ca-electronic-format","ab-ca-filing-hub","ab-ca-extracts-requirements","ab-ca-sample-extracts"],"filenamePattern":"Extracts-Respondent-{courtFileNumber}.pdf"
@@ -414,7 +406,7 @@
       "cover":{"generated":true,"title":"EXTRACTS OF KEY EVIDENCE","template":"abca-ap5","form":"Form AP-5","ruleReference":"Rules 14.29(c) and 14.87","colourName":"blue","colourHex":"#9FC5DC","fieldKeys":["appealFileNumber","lowerCourtFileNumber","registry","decisionMaker","decisionDate","decisionFileDate","counselName","counselAddress","counselPhone","counselFax","counselEmail","recordTitle"]},
       "slots": [
         "abca-transcript-extract","abca-exhibit-extract","abca-record-extract","forbidden-new-evidence",
-        "abca-forbidden-argument","other-document"
+        "abca-forbidden-argument"
       ],
       "technical":"abCaExtracts",
       "sourceIds":["ab-rules-part-13-14","ab-ca-electronic-format","ab-ca-filing-hub","ab-ca-extracts-requirements","ab-ca-sample-extracts"],"filenamePattern":"Extracts-Intervener-{courtFileNumber}.pdf"
@@ -427,7 +419,7 @@
       "cover":{"generated":true,"title":"CONDENSED BOOK","template":"abca-ap5","form":"Form AP-5","colourName":"beige","colourHex":"#F5F5DC","fieldKeys":["appealFileNumber","lowerCourtFileNumber","registry","decisionMaker","decisionDate","decisionFileDate","counselName","counselAddress","counselPhone","counselFax","counselEmail","recordTitle"]},
       "slots": [
         {"id":"filed-extract","label":"Extract from filed material","requirement":"required","order":10,"repeatable":true},
-        "condensed-forbidden-new-material","other-document"
+        "condensed-forbidden-new-material"
       ],
       "technical":"abCaRecord",
       "sourceIds":["ab-rules-part-13-14","ab-ca-electronic-format","ab-ca-filing-hub","ab-ca-consolidated-directions","ab-ca-condensed-books-overview"],"filenamePattern":"Condensed-Book-{filingParty}-{courtFileNumber}.pdf"
@@ -441,8 +433,7 @@
       "slots": [
         "federal-notice-motion",
         {"id":"moving-evidence","label":"Affidavit or other moving material","requirement":"conditional","order":20,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"court-record","profileId":"fc-affidavit-exhibits","role":"record"}]},
-        "moving-transcript","moving-representations","moving-filed-material","federal-proof-service",
-        "other-document"
+        "moving-transcript","moving-representations","moving-filed-material","federal-proof-service"
       ],
       "technical":"fcMotionRecord",
       "sourceIds":["fc-rules","fc-practice-guidelines-2025","fc-efiling","fc-efiling-guide-2020","fc-sample-motion-record"],"filenamePattern":"Motion-Record-{filingParty}-{courtFileNumber}.pdf"
@@ -457,7 +448,7 @@
         "federal-notice-motion",
         {"id":"moving-evidence","label":"Affidavit or other moving material","requirement":"conditional","order":20,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"court-record","profileId":"fca-affidavit-exhibits","role":"record"}]},
         "moving-transcript","moving-representations","moving-filed-material","fca-oral-hearing-request",
-        "federal-proof-service","other-document"
+        "federal-proof-service"
       ],
       "technical":"fcaMotionRecord",
       "sourceIds":["fc-rules","fca-consolidated-direction-2026","fca-efiling-guide","fca-example-written-representations"],"filenamePattern":"FCA-Motion-Record-{filingParty}-{courtFileNumber}.pdf"
@@ -471,7 +462,7 @@
       "slots": [
         {"id":"responding-evidence","label":"Affidavit or responding material","requirement":"conditional","order":10,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"court-record","profileId":"fc-affidavit-exhibits","role":"record"}]},
         "responding-transcript","responding-representations","responding-filed-material",
-        "federal-proof-service","motion-forbidden-duplicate","other-document"
+        "federal-proof-service","motion-forbidden-duplicate"
       ],
       "technical":"fcMotionRecord",
       "sourceIds":["fc-rules","fc-practice-guidelines-2025","fc-efiling","fc-efiling-guide-2020","fc-sample-motion-record"],"filenamePattern":"Responding-Motion-Record-{filingParty}-{courtFileNumber}.pdf"
@@ -485,7 +476,7 @@
       "slots": [
         {"id":"responding-evidence","label":"Affidavit or responding material","requirement":"conditional","order":10,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"court-record","profileId":"fca-affidavit-exhibits","role":"record"}]},
         "responding-transcript","responding-representations","responding-filed-material",
-        "motion-forbidden-duplicate","fca-oral-hearing-request","federal-proof-service","other-document"
+        "motion-forbidden-duplicate","fca-oral-hearing-request","federal-proof-service"
       ],
       "technical":"fcaMotionRecord",
       "sourceIds":["fc-rules","fca-consolidated-direction-2026","fca-efiling-guide","fca-example-written-representations"],"filenamePattern":"FCA-Responding-Motion-Record-{filingParty}-{courtFileNumber}.pdf"
@@ -500,7 +491,7 @@
         "federal-notice-application","federal-decision",
         {"id":"supporting-affidavit","label":"Supporting affidavit and exhibits","requirement":"conditional","order":30,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"court-record","profileId":"fc-affidavit-exhibits","role":"record"}]},
         "applicant-cross-exam","applicant-tribunal-material","applicant-oral-evidence",
-        "applicant-physical-exhibit","applicant-memorandum","federal-proof-service","other-document"
+        "applicant-physical-exhibit","applicant-memorandum","federal-proof-service"
       ],
       "technical":"fcApplicationRecord",
       "sourceIds":["fc-rules","fc-practice-guidelines-2025","fc-efiling","fc-efiling-guide-2020"],"filenamePattern":"Applicant-Record-{filingParty}-{courtFileNumber}.pdf"
@@ -515,7 +506,7 @@
         "federal-notice-application","federal-decision",
         {"id":"supporting-affidavit","label":"Supporting affidavit and exhibits","requirement":"conditional","order":30,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"court-record","profileId":"fca-affidavit-exhibits","role":"record"}]},
         "applicant-cross-exam","applicant-tribunal-material","applicant-oral-evidence",
-        "applicant-physical-exhibit","applicant-memorandum","federal-proof-service","other-document"
+        "applicant-physical-exhibit","applicant-memorandum","federal-proof-service"
       ],
       "technical":"fcaApplicationRecord",
       "sourceIds":["fc-rules","fca-consolidated-direction-2026","fca-efiling-guide"],"filenamePattern":"FCA-Applicant-Record-{filingParty}-{courtFileNumber}.pdf"
@@ -530,7 +521,7 @@
         {"id":"supporting-affidavit","label":"Respondent affidavit and exhibits","requirement":"conditional","order":10,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"court-record","profileId":"fc-affidavit-exhibits","role":"record"}]},
         "respondent-cross-exam","respondent-tribunal-material","respondent-oral-evidence",
         "respondent-physical-exhibit","respondent-memorandum","federal-proof-service",
-        "application-forbidden-duplicate","other-document"
+        "application-forbidden-duplicate"
       ],
       "technical":"fcApplicationRecord",
       "sourceIds":["fc-rules","fc-practice-guidelines-2025","fc-efiling","fc-efiling-guide-2020"],"filenamePattern":"Respondent-Record-{filingParty}-{courtFileNumber}.pdf"
@@ -545,7 +536,7 @@
         {"id":"supporting-affidavit","label":"Respondent affidavit and exhibits","requirement":"conditional","order":10,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"court-record","profileId":"fca-affidavit-exhibits","role":"record"}]},
         "respondent-cross-exam","respondent-tribunal-material","respondent-oral-evidence",
         "respondent-physical-exhibit","respondent-memorandum","federal-proof-service",
-        "application-forbidden-duplicate","other-document"
+        "application-forbidden-duplicate"
       ],
       "technical":"fcaApplicationRecord",
       "sourceIds":["fc-rules","fca-consolidated-direction-2026","fca-efiling-guide"],"filenamePattern":"FCA-Respondent-Record-{filingParty}-{courtFileNumber}.pdf"
@@ -578,7 +569,7 @@
       "slots": [
         {"id":"appeal-book-extract","label":"Appeal-book extract","requirement":"optional","order":10,"repeatable":true},
         {"id":"authority-extract","label":"Authority extract","requirement":"optional","order":20,"repeatable":true},
-        "condensed-forbidden-new-material","other-document"
+        "condensed-forbidden-new-material"
       ],
       "technical":"fcaBook",
       "sourceIds":["fc-rules","fca-consolidated-direction-2026","fca-efiling-guide"],"filenamePattern":"FCA-Condensed-Book-{filingParty}-{courtFileNumber}.pdf"
@@ -589,7 +580,7 @@
       "family":"motion","outputMode":"separate-files","role":"Moving party",
       "effectiveFrom":"2025-12-21",
       "cover":{"generated":false,"title":"File details","colourName":"source","colourHex":"#FFFFFF","fieldKeys":[]},
-      "slots": ["motion-written-reply","reply-proof-service","other-document"],
+      "slots": ["motion-written-reply","reply-proof-service"],
       "technical":"fcSeparate",
       "sourceIds":["fc-rules","fc-practice-guidelines-2025","fc-efiling"],"filenamePattern":"{kind}.pdf"
     },
@@ -599,7 +590,7 @@
       "family":"motion","outputMode":"separate-files","role":"Moving party",
       "effectiveFrom":"2025-12-21",
       "cover":{"generated":false,"title":"File details","colourName":"source","colourHex":"#FFFFFF","fieldKeys":[]},
-      "slots": ["motion-written-reply","reply-proof-service","other-document"],
+      "slots": ["motion-written-reply","reply-proof-service"],
       "technical":"fcaSeparate",
       "sourceIds":["fc-rules","fca-consolidated-direction-2026","fca-efiling-guide","fca-example-written-representations"],"filenamePattern":"{kind}.pdf"
     },
@@ -614,8 +605,7 @@
         {"id":"particulars","label":"Particulars","requirement":"conditional","order":20,"repeatable":true,"group":"Particulars"},
         {"id":"trial-order-direction","label":"Trial order or direction","requirement":"conditional","order":30,"repeatable":true,"group":"Trial orders and directions"},
         {"id":"necessary-filed-document","label":"Other filed document necessary for trial","requirement":"conditional","order":40,"repeatable":true,"group":"Other necessary filed documents"},
-        {"id":"unfiled-material","label":"Unfiled material","requirement":"forbidden","order":900,"repeatable":true},
-        "other-document"
+        {"id":"unfiled-material","label":"Unfiled material","requirement":"forbidden","order":900,"repeatable":true}
       ],
       "technical":"fcTrialRecord",
       "sourceIds":["fc-rules","fc-practice-guidelines-2025","fc-efiling","fc-efiling-guide-2020","fc-action-guide"],"filenamePattern":"Trial-Record-{filingParty}-{courtFileNumber}.pdf"
@@ -631,7 +621,7 @@
         {"id":"pleadings-material","label":"Pleadings and necessary material","requirement":"required","order":30,"repeatable":true},
         {"id":"supporting-affidavit","label":"Supporting affidavit","requirement":"conditional","order":40,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"court-record","profileId":"fca-affidavit-exhibits","role":"record"}]},
         {"id":"memorandum","label":"Memorandum of fact and law","requirement":"required","order":50,"rule70PageLimit":"standard"},
-        "federal-proof-service","other-document"
+        "federal-proof-service"
       ],
       "technical":"fcaLeaveMotionRecord",
       "sourceIds":["fc-rules","fca-consolidated-direction-2026","fca-efiling-guide","fca-leave-guide"],"filenamePattern":"FCA-Leave-Motion-Record-{filingParty}-{courtFileNumber}.pdf"
@@ -645,8 +635,7 @@
       "slots": [
         {"id":"memorandum","label":"Respondent’s memorandum of fact and law","requirement":"required","order":10,"rule70PageLimit":"standard"},
         {"id":"supporting-affidavit","label":"Supporting affidavit","requirement":"conditional","order":20,"repeatable":true,"acceptedWorkProductOutputs":[{"kind":"court-record","profileId":"fca-affidavit-exhibits","role":"record"}]},
-        {"id":"proof-service","label":"Proof of service","requirement":"conditional","order":880,"acceptedFormats":["pdf"],"appendTo":"memorandum"},
-        "other-document"
+        {"id":"proof-service","label":"Proof of service","requirement":"conditional","order":880,"acceptedFormats":["pdf"],"appendTo":"memorandum"}
       ],
       "technical":"fcaSeparate",
       "sourceIds":["fc-rules","fca-consolidated-direction-2026","fca-efiling-guide","fca-leave-guide"],"filenamePattern":"{kind}.pdf"
@@ -659,7 +648,7 @@
       "cover":{"generated":false,"title":"File details","colourName":"source","colourHex":"#FFFFFF","fieldKeys":[]},
       "slots": [
         {"id":"written-reply","label":"Reply to the respondent’s memorandum","requirement":"required","order":10,"acceptedFormats":["pdf","docx"]},
-        "reply-proof-service","other-document"
+        "reply-proof-service"
       ],
       "technical":"fcaSeparate",
       "sourceIds":["fc-rules","fca-consolidated-direction-2026","fca-efiling-guide","fca-leave-guide"],"filenamePattern":"{kind}.pdf"
@@ -671,8 +660,7 @@
       "effectiveFrom":"2026-07-09",
       "cover":{"generated":false,"title":"File details","colourName":"source","colourHex":"#FFFFFF","fieldKeys":[]},
       "slots": [
-        {"id":"letter-with-service","label":"Informal motion letter with proof of service","requirement":"required","order":10},
-        "other-document"
+        {"id":"letter-with-service","label":"Informal motion letter with proof of service","requirement":"required","order":10}
       ],
       "technical":"fcaSeparate",
       "sourceIds":["fca-consolidated-direction-2026","fca-efiling-guide"],"filenamePattern":"{kind}.pdf"
@@ -686,8 +674,7 @@
       "slots": [
         {"id":"memorandum-material","label":"Material referred to in memorandum","requirement":"required","order":10,"repeatable":true},
         "forbidden-new-evidence",
-        {"id":"new-argument","label":"New argument","requirement":"forbidden","order":910,"repeatable":true},
-        "other-document"
+        {"id":"new-argument","label":"New argument","requirement":"forbidden","order":910,"repeatable":true}
       ],
       "technical":"fcaBook",
       "sourceIds":["fca-consolidated-direction-2026","fca-efiling-guide"],"filenamePattern":"FCA-Compendium-{filingParty}-{courtFileNumber}.pdf"

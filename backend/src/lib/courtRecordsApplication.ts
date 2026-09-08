@@ -314,19 +314,11 @@ export function createCourtRecordsApplication(
             prepared.pageCount > 2_000) {
           throw new ApplicationError(409, "This PDF has an unsupported page count");
         }
-        const lookup = await projection.lookupPdf(() => bytes, {
-          locatorKind: "page",
-          locator: prepared.pageCount === 1 ? "1" : `1-${prepared.pageCount}`,
-          contextBlocks: 0,
-        }, {
+        const text = await pageText(projection, () => bytes, prepared.pageCount, {
           persistEvidence: false, documentId, versionId, sourceSha256: digest,
           pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile,
             status: prepared.status },
         });
-        if (lookup.status !== "found") {
-          throw new ApplicationError(409, "The prepared PDF page text is unavailable");
-        }
-        const text = new Map(lookup.pages.map((page) => [page.page_number, page.text]));
         return { source_sha256: digest, page_count: prepared.pageCount,
           parser_status: prepared.status,
           ocr_pages: prepared.ocrRoutedPages.map((page) => page + 1),
@@ -361,6 +353,33 @@ export function createCourtRecordsApplication(
   });
 }
 
+/**
+ * Page text for a whole PDF. Exact page ranges are bounded by the projection, so a
+ * record-sized document is read in successive spans. A span of scanned pages carries
+ * no text at all; that is the answer for those pages, not a failure of the read.
+ */
+async function pageText(projection: ProjectionReader, readBytes: () => Buffer | Promise<Buffer>,
+  pageCount: number, options: Omit<Parameters<ProjectionReader["lookupPdf"]>[2], "pages">) {
+  const text = new Map<number, string>();
+  async function read(first: number, last: number) {
+    const lookup = await projection.lookupPdf(readBytes, { locatorKind: "page",
+      locator: first === last ? `${first}` : `${first}-${last}`, contextBlocks: 0 }, options);
+    if (lookup.status === "found") {
+      for (const page of lookup.pages) text.set(page.page_number, page.text);
+    } else if (lookup.status === "unavailable" &&
+        lookup.error === "The requested structural unit has no exact text") {
+      // One blank page makes the entire range unavailable; retain its readable neighbours.
+      if (first !== last) for (let page = first; page <= last; page++) await read(page, page);
+    } else {
+      throw new ApplicationError(409, "The prepared PDF page text is unavailable");
+    }
+  }
+  for (let first = 1; first <= pageCount; first += 20) {
+    await read(first, Math.min(first + 19, pageCount));
+  }
+  return text;
+}
+
 async function readPreparedPageText(documents: DocumentStore, projection: ProjectionReader,
   scope: ApplicationScope, documentId: string, versionId: string | null,
   knownMetadata?: Awaited<ReturnType<DocumentStore["metadata"]>>) {
@@ -379,16 +398,10 @@ async function readPreparedPageText(documents: DocumentStore, projection: Projec
   if (!Number.isSafeInteger(pageCount) || pageCount < 1 || pageCount > 2_000) {
     throw new ApplicationError(409, "Prepare this PDF before using it in a court record");
   }
-  const lookup = await projection.lookupPdf(source.readBytes, {
-    locatorKind: "page", locator: pageCount === 1 ? "1" : `1-${pageCount}`, contextBlocks: 0,
-  }, {
+  const text = await pageText(projection, source.readBytes, pageCount, {
     persistEvidence: false, documentId, versionId: source.versionId,
     sourceSha256: source.sourceSha256, pdfProfile: source.pdfProfile,
   });
-  if (lookup.status !== "found") {
-    throw new ApplicationError(409, "The prepared PDF page text is unavailable");
-  }
-  const text = new Map(lookup.pages.map((page) => [page.page_number, page.text]));
   return { document_id: documentId, version_id: source.versionId,
     source_sha256: source.sourceSha256, page_count: pageCount,
     parser_status: source.pdfProfile?.status ?? "ready",

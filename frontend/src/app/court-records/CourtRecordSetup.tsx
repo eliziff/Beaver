@@ -130,107 +130,40 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
   const activeStyle = styles.find((style) => style.id === cover.partyStyleId) ??
     (styles.length === 1 ? styles[0] : undefined);
   const groups = coverPartyGroups(profile, cover);
+  const definitions: Array<{ id: string; role: string; roleBelow?: string; optional?: boolean }> =
+    activeStyle?.groups ?? groups;
   const candidates = groups
     .filter((group) => !profile.cover.filingGroupId || group.id === profile.cover.filingGroupId)
     .flatMap((group) => group.parties
       .filter((party) => party.name.trim())
       .map((party) => ({ party, group })));
-  const candidateKey = candidates.map(({ party }) => party.id).join("\0");
-  const allowedKey = groups
-    .filter((group) => !profile.cover.filingGroupId || group.id === profile.cover.filingGroupId)
-    .flatMap((group) => group.parties.map(({ id }) => id)).join("\0");
-  const inferredFiler = useRef(!cover.filingPartyIds?.length);
-  const optional = activeStyle?.groups.find((group) => group.optional &&
-    !groups.some((current) => current.id === group.id));
 
-  const setGroups = (next: CasePartyGroup[]) => onCover("partyGroups", next);
-  const focus = (id: string) => requestAnimationFrame(() => document.getElementById(id)?.focus());
-
-  useEffect(() => {
-    const candidateIds = candidateKey ? candidateKey.split("\0") : [];
-    const allowed = new Set(allowedKey ? allowedKey.split("\0") : []);
-    const selected = (cover.filingPartyIds ?? []).filter((id) => allowed.has(id));
-    const infer = candidateIds.length === 1 && !selected.length || inferredFiler.current &&
-      (!!profile.cover.filingGroupId || candidateIds.length === 1);
-    const next = infer ? candidateIds : inferredFiler.current ? [] : selected;
-    if (next.join("\0") !== (cover.filingPartyIds ?? []).join("\0")) {
-      onCover("filingPartyIds", next);
-    }
-  }, [allowedKey, candidateKey, cover.filingPartyIds, onCover, profile.cover.filingGroupId]);
-
-  useEffect(() => {
-    if (styles.length === 1 && !cover.partyStyleId) onCover("partyStyleId", styles[0].id);
-  }, [cover.partyStyleId, onCover, styles]);
+  /** One name per line, the way the names stand in the style of cause on the cover. */
+  function changeNames(definition: (typeof definitions)[number], value: string) {
+    const previous = groups.find((group) => group.id === definition.id)?.parties ?? [];
+    const parties = value.split("\n").map((name, index) =>
+      ({ ...(previous[index] ?? { id: `${definition.id}-${index + 1}` }), name }));
+    const kept = groups.filter((group) => group.id !== definition.id);
+    const next = value.trim() || !definition.optional ? [...kept, { id: definition.id,
+      role: definition.role, roleBelow: definition.roleBelow, parties }] : kept;
+    onCover("partyGroups", definitions.flatMap((item) =>
+      next.filter((group) => group.id === item.id)));
+    const filers = next.filter((group) => !profile.cover.filingGroupId ||
+      group.id === profile.cover.filingGroupId).flatMap((group) => group.parties.filter((party) => party.name.trim()));
+    const selected = filers.filter((party) => cover.filingPartyIds?.includes(party.id));
+    onCover("filingPartyIds", (selected.length ? selected : filers.length === 1 ? filers : []).map(({ id }) => id));
+  }
 
   function changeStyle(styleId: string) {
     const nextStyle = styles.find((style) => style.id === styleId);
     if (!nextStyle) return;
     const current = new Map(groups.map((group) => [group.id, group]));
-    const next = nextStyle.groups.flatMap((definition) => {
+    onCover("partyGroups", nextStyle.groups.flatMap((definition) => {
       const existing = current.get(definition.id);
-      if (definition.optional && !existing) return [];
-      return [{
-        id: definition.id,
-        role: definition.role,
-        roleBelow: definition.roleBelow,
-        parties: existing?.parties ?? [{ id: `${definition.id}-1`, name: "" }],
-      }];
-    });
-    setGroups(next);
+      return existing ? [{ ...existing, role: definition.role,
+        roleBelow: definition.roleBelow }] : [];
+    }));
     onCover("partyStyleId", styleId);
-  }
-
-  function changeName(groupId: string, partyId: string, name: string) {
-    setGroups(groups.map((group) => group.id === groupId ? {
-      ...group,
-      parties: group.parties.map((party) => party.id === partyId ? { ...party, name } : party),
-    } : group));
-    if (!name.trim() && cover.filingPartyIds?.includes(partyId)) {
-      inferredFiler.current = false;
-      onCover("filingPartyIds", cover.filingPartyIds.filter((id) => id !== partyId));
-    }
-  }
-
-
-  function addParty(group: CasePartyGroup) {
-    const id = `${group.id}-${globalThis.crypto.randomUUID()}`;
-    setGroups(groups.map((current) => current.id === group.id
-      ? { ...current, parties: [...current.parties, { id, name: "" }] }
-      : current));
-    focus(`party-${id}`);
-  }
-
-  function removeParty(group: CasePartyGroup, partyId: string) {
-    setGroups(groups.map((current) => current.id === group.id
-      ? { ...current, parties: current.parties.filter((party) => party.id !== partyId) }
-      : current));
-    if (cover.filingPartyIds?.includes(partyId)) {
-      inferredFiler.current = false;
-      onCover("filingPartyIds", cover.filingPartyIds.filter((id) => id !== partyId));
-    }
-    focus(`add-${group.id}`);
-  }
-
-  function addOptionalGroup() {
-    if (!optional) return;
-    const id = `${optional.id}-${globalThis.crypto.randomUUID()}`;
-    setGroups([...groups, {
-      id: optional.id,
-      role: optional.role,
-      roleBelow: optional.roleBelow,
-      parties: [{ id, name: "" }],
-    }]);
-    focus(`party-${id}`);
-  }
-
-  function removeOptionalGroup(group: CasePartyGroup) {
-    setGroups(groups.filter((current) => current.id !== group.id));
-    const removed = new Set(group.parties.map(({ id }) => id));
-    if (cover.filingPartyIds?.some((id) => removed.has(id))) {
-      inferredFiler.current = false;
-      onCover("filingPartyIds", cover.filingPartyIds.filter((id) => !removed.has(id)));
-    }
-    focus(`add-${group.id}`);
   }
 
   return (
@@ -266,7 +199,6 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
               <input type="checkbox" value={party.id}
                 checked={cover.filingPartyIds?.includes(party.id) ?? false}
                 onChange={(event) => {
-                  inferredFiler.current = false;
                   const selected = new Set(cover.filingPartyIds ?? []);
                   if (event.target.checked) selected.add(party.id);
                   else selected.delete(party.id);
@@ -282,61 +214,31 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
         </fieldset>}
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        {groups.map((group) => {
-          const definition = activeStyle?.groups.find((item) => item.id === group.id) ??
-            styles.flatMap((style) => style.groups).find((item) => item.id === group.id);
-          const required = !definition?.optional || group.id === profile.cover.filingGroupId;
+        {definitions.map((definition) => {
+          const group = groups.find((item) => item.id === definition.id);
+          const required = !definition.optional || definition.id === profile.cover.filingGroupId;
           const invalid = required && missingFields.has("partyGroups") &&
-            !group.parties.some((party) => party.name.trim());
+            !group?.parties.some((party) => party.name.trim());
           return (
-            <section key={group.id} data-party-group={group.role}
-              data-party-group-id={group.id} aria-labelledby={`party-group-${group.id}`}
-              className="min-w-0">
-              <div className="flex min-h-7 items-start justify-between gap-2">
-                <h3 id={`party-group-${group.id}`} className="text-sm font-semibold text-gray-950">
-                  {group.role}{required && <><span className="ml-1 text-red-600" aria-hidden="true">*</span><span className="sr-only"> required</span></>}
-                  {group.roleBelow && <span className="block text-xs font-normal text-gray-500">{group.roleBelow} below</span>}
-                </h3>
-                {definition?.optional && !required && (
-                  <button type="button" aria-label={`Remove ${group.role.toLowerCase()} group`} onClick={() => removeOptionalGroup(group)} className="inline-flex min-h-8 items-center rounded-md px-2 text-xs font-medium text-gray-600 outline-none hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-red-600">
-                    Remove
-                  </button>
-                )}
-              </div>
-              <div className="mt-1.5 grid gap-1.5">
-                {group.parties.map((party, index) => <div key={party.id}>
-                  <div className="flex items-end gap-2">
-                    <label className="min-w-0 flex-1">
-                      <span className="sr-only">{group.role} {index + 1}</span>
-                      <Input id={`party-${party.id}`} value={party.name}
-                        onChange={(event) => changeName(group.id, party.id, event.target.value)}
-                        aria-invalid={invalid || undefined}
-                        aria-describedby={invalid ? `party-${group.id}-error` : undefined}
-                        className={cn("h-9 border-gray-400 bg-white font-normal md:text-base", invalid && "border-red-500")} />
-                    </label>
-                    {index > 0 ? <button type="button"
-                      aria-label={`Remove ${group.role.toLowerCase()} ${index + 1}`}
-                      onClick={() => removeParty(group, party.id)}
-                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 outline-none hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-red-600">
-                      <X className="h-4 w-4" aria-hidden="true" />
-                    </button> : <span className="h-10 w-10 shrink-0" aria-hidden="true" />}
-                  </div>
-
-                </div>)}
-                {invalid && <p id={`party-${group.id}-error`} className="text-sm text-red-700">Enter at least one name.</p>}
-                <Button id={`add-${group.id}`} variant="ghost" size="compact" onClick={() => addParty(group)} className="w-fit text-sm">
-                  <Plus className="h-4 w-4" aria-hidden="true" /> Add {group.role.toLowerCase()}
-                </Button>
-              </div>
-            </section>
+            <label key={definition.id} data-party-group={definition.role}
+              data-party-group-id={definition.id} className="block min-w-0 text-sm font-semibold text-gray-950">
+              {definition.role}{required && <span className="ml-1 text-red-600" aria-hidden="true">*</span>}
+              {definition.roleBelow && <span className="block text-xs font-normal text-gray-500">
+                {definition.roleBelow} below
+              </span>}
+              <ModalTextarea id={`party-${definition.id}`} rows={2}
+                value={(group?.parties ?? []).map(({ name }) => name).join("\n")}
+                aria-label={`${definition.role} names, one per line`}
+                aria-invalid={invalid || undefined}
+                aria-describedby={invalid ? `party-${definition.id}-error` : undefined}
+                onChange={(event) => changeNames(definition, event.target.value)}
+                className={cn("mt-1.5 min-h-20 font-normal", invalid && "border-red-500")} />
+              {invalid && <span id={`party-${definition.id}-error`}
+                className="mt-1 block text-sm font-normal text-red-700">Required</span>}
+            </label>
           );
         })}
       </div>
-      {optional && (
-        <Button id={`add-${optional.id}`} variant="outline" onClick={addOptionalGroup} className="mt-3">
-          <Plus className="h-4 w-4" aria-hidden="true" /> Add {optional.role.toLowerCase()}
-        </Button>
-      )}
     </fieldset>
   );
 }
