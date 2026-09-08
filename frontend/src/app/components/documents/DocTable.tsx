@@ -665,10 +665,8 @@ export function DocTable({
             set("uploadingDroppedFilenames", []);
         }
     }
-    async function handleDropDocumentVersions(doc: Document, files: File[]) {
-        const supported = acceptedFiles(files);
-        if (supported.length === 0) return;
-        await controller.upload(doc, supported);
+    function handleDropDocumentVersions(doc: Document, files: File[]) {
+        return controller.upload(doc, acceptedFiles(files));
     }
     function handleDocumentVersionDragOver(
         e: DragEvent<HTMLDivElement>,

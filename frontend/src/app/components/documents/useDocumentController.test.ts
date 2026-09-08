@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Document, DocumentVersion } from "@/app/lib/api/documents";
 import { useDocumentController } from "./useDocumentController";
 
-const api = vi.hoisted(() => ({ listDocumentVersions: vi.fn(), checkpointDocumentVersion: vi.fn() }));
+const api = vi.hoisted(() => ({ listDocumentVersions: vi.fn(), checkpointDocumentVersion: vi.fn(), uploadDocumentVersion: vi.fn() }));
 vi.mock("@/app/lib/api/documents", async (original) => ({
     ...await original<typeof import("@/app/lib/api/documents")>(), ...api,
 }));
@@ -14,6 +14,47 @@ const versions = [
 ] as DocumentVersion[];
 
 describe("document controller", () => {
+    it.each([true, false])("uses the renamed snapshot when removed from filter=%s, even if history refresh fails", async (removed) => {
+        api.listDocumentVersions.mockResolvedValueOnce({ current_version_id: "head", versions })
+            .mockRejectedValue(new Error("offline"));
+        const log = vi.spyOn(console, "error").mockImplementation(() => {});
+        const renamed = { ...document, filename: "Renamed.docx", current_working_revision: 4 };
+        const refresh = vi.fn(async () => rerender({ documents: removed ? [] : [document] }));
+        const { result, rerender } = renderHook(({ documents }: { documents: Document[] }) =>
+            useDocumentController(documents, refresh, vi.fn()), { initialProps: { documents: [document] } });
+        act(() => result.current.open(document));
+        await waitFor(() => expect(result.current.current?.id).toBe("head"));
+        act(() => result.current.selectVersion("older"));
+        await act(async () => { expect(await result.current.action("one", "rename", async () => renamed, true)).toBe(true); });
+        expect(result.current.docsById.has("one")).toBe(!removed);
+        expect(result.current.doc).toEqual(renamed);
+        expect(result.current.selectedId).toBe("older");
+        expect(result.current.history?.error).toBe(true);
+        const file = new File(["new"], "New.docx");
+        api.uploadDocumentVersion.mockResolvedValueOnce({ id: "uploaded", version_number: 3, working_revision: 0, filename: "New.docx" });
+        await act(async () => { expect(await result.current.upload(result.current.doc!, [file])).toBe(true); });
+        expect(api.uploadDocumentVersion).toHaveBeenCalledWith("one", file, "head", 4);
+        expect(result.current.doc).toMatchObject({ filename: "New.docx", current_version_id: "uploaded", current_working_revision: 0 });
+        api.uploadDocumentVersion.mockResolvedValueOnce({ id: "uploaded-again", version_number: 4, working_revision: 0, filename: "New.docx" });
+        await act(async () => { expect(await result.current.upload(result.current.doc!, [file])).toBe(true); });
+        expect(api.uploadDocumentVersion).toHaveBeenLastCalledWith("one", file, "uploaded", 0);
+        log.mockRestore();
+    });
+
+    it("preserves a real competing-session upload refusal without retrying against a newer revision", async () => {
+        api.listDocumentVersions.mockResolvedValue({ current_version_id: "head", versions });
+        api.uploadDocumentVersion.mockReset().mockRejectedValueOnce(new Error("409 competing rename"));
+        const { result } = renderHook(() => useDocumentController([document], vi.fn(async () => {}), vi.fn()));
+        act(() => result.current.open(document));
+        await waitFor(() => expect(result.current.current?.id).toBe("head"));
+        act(() => result.current.selectVersion("older"));
+        const file = new File(["new"], "New.docx");
+        await act(async () => { expect(await result.current.upload(result.current.doc!, [file])).toBe(false); });
+        expect(api.uploadDocumentVersion).toHaveBeenCalledExactlyOnceWith("one", file, "head", 3);
+        expect(result.current.selectedId).toBe("older");
+        expect(result.current.history?.actionError).toBe("Could not upload the new version.");
+    });
+
     it("retains an older selection and usable history after a revision conflict and failed refresh", async () => {
         api.listDocumentVersions.mockResolvedValueOnce({ current_version_id: "head", versions })
             .mockRejectedValueOnce(new Error("offline"));
