@@ -164,4 +164,33 @@ describe("DOCX evidence citations", () => {
     const ledger = await createDocxAuthorityLedger(state, bytes, resolved, appearances);
     expect(ledger?.occurrences).toHaveLength(citationPlacement === "none" ? 0 : citationPlacement === "inline" ? 2 : 1);
   });
+
+  it.each(["inline", "after-paragraph", "footnotes"] as const)("binds grouped and individual %s markers without assigning unrelated prose", async (citationPlacement) => {
+    const state = createLegalEvidenceTurnState();
+    registerLegalEvidence(state, receipt("e_paragraph_5", "par5", { source_sha256: "a".repeat(64) }));
+    registerLegalEvidence(state, receipt("e_other_para9", "par9", {
+      stable_source_id: "case:other", citation: "2026 SCC 2", name: "Other v State", source_sha256: "b".repeat(64),
+    }));
+    const resolved = resolveDocxEvidenceCitations(state, {
+      rule: ["e_paragraph_5"], other: ["e_other_para9"], both: ["e_paragraph_5", "e_other_para9"],
+    });
+    const markdown = "First.[@rule]\n\nAgain.[@rule]\n\nAuthored.[^note]\n\nOther.[@other]\n\nLater.[@rule]\n\nBoth.[@both]\n\n[^note]: Authored note.";
+    const appearances: DocxCitationAppearance[] = [];
+    const bytes = await renderDocxMarkdown(markdown, { citations: resolved.citations, citationPlacement }, [], appearances);
+    const ledger = await createDocxAuthorityLedger(state, bytes, resolved, appearances);
+    expect(ledger?.occurrences.map(({ markerId, evidenceIds, pinpoints }) => [markerId, evidenceIds, pinpoints]))
+      .toEqual([...["rule", "rule", "other", "rule"], "both", "both"].map((marker, index) =>
+        [marker, [index === 2 || index === 5 ? "e_other_para9" : "e_paragraph_5"],
+          [{ kind: "paragraph", text: index === 2 || index === 5 ? "para 9" : "para 5" }]]));
+    for (const occurrence of ledger!.occurrences)
+      expect(occurrence.unit.text.slice(occurrence.start, occurrence.end)).toBe(occurrence.text);
+    if (citationPlacement === "footnotes") return;
+    for (const extra of ["Example v State, 2026 SCC 1 at para 5",
+      "Example v State, 2026 SCC 1 at para 5; Other v State, 2026 SCC 2 at para 9"]) {
+      const ambiguous: DocxCitationAppearance[] = [];
+      const document = await renderDocxMarkdown(`Unrelated: ${extra}.\n\n${markdown}`,
+        { citations: resolved.citations, citationPlacement }, [], ambiguous);
+      expect(await createDocxAuthorityLedger(state, document, resolved, ambiguous)).toBeUndefined();
+    }
+  });
 });
