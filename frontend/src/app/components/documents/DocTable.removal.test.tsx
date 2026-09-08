@@ -18,6 +18,15 @@ vi.mock("@/app/contexts/AuthContext", () => ({
   useAuth: () => ({ user: { id: "local-user" } }),
 }));
 
+vi.mock("@/app/components/shared/views/DocumentViewer", () => ({ DocumentViewer: () => null }));
+vi.mock("@/app/lib/api/documents", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/documents")>(),
+  listDocumentVersions: async () => ({ current_version_id: "version-3", versions: [{
+    id: "version-3", version_number: 3, working_revision: 0, filename: "Brief.pdf",
+    file_type: "pdf", created_at: "2026-07-27T00:00:00.000Z", size_bytes: 10,
+  }] }),
+}));
+
 const document: Document = {
   id: "document-1",
   user_id: "local-user",
@@ -112,6 +121,27 @@ function selectDocument(filename: string) {
 }
 
 describe("DocTable document removal", () => {
+  it.each(["delete", "detach"] as const)("shares the reader %s confirmation, cancellation and retry", async (mode) => {
+    const removeDocument = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValue(undefined);
+    render(<Harness removeDocument={removeDocument} documentRemovalMode={mode} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Brief.pdf" }));
+    await screen.findByRole("button", { name: /Preview Version 3/ });
+    const label = mode === "delete" ? "Delete" : "Remove";
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: label }));
+    const prompt = screen.getByRole("alertdialog");
+    expect(prompt).toHaveTextContent(mode === "delete" ? "has 1 version" : "Library file and its links in other projects will be kept");
+    fireEvent.click(within(prompt).getByRole("button", { name: "Cancel" }));
+    expect(removeDocument).not.toHaveBeenCalled();
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: label }));
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: label }));
+    const warning = await screen.findByRole("alertdialog", { name: "Warning" });
+    expect(screen.getByRole("dialog")).toBeVisible();
+    fireEvent.click(within(warning).getByRole("button", { name: "Close" }));
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: label }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(removeDocument).toHaveBeenCalledTimes(2);
+  });
+
   it("requires confirmation before detaching a selected document", async () => {
     const removeDocument = vi.fn(async () => {});
     render(<Harness removeDocument={removeDocument} />);
