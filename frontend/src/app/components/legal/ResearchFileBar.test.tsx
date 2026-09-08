@@ -136,7 +136,7 @@ describe("ResearchFileBar", () => {
     }, sources: { ...file.state.sources, baker: { ...file.state.sources.baker, labelIds: ["fairness", "leaf"] } } } };
     render(<ResearchFileBar file={nested} onChange={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Fairness" }));
-    expect(screen.getAllByRole("treeitem", { name: "Baker v Canada" })).toHaveLength(1);
+    expect(within(screen.getByRole("tree", { name: "Sources" })).getAllByRole("treeitem", { name: "Baker v Canada" })).toHaveLength(1);
     expect(screen.queryByRole("treeitem", { name: "Appeal case" })).not.toBeInTheDocument();
     openSearch(); fireEvent.change(screen.getByRole("textbox", { name: "Phrase to find in saved sources" }), { target: { value: "fairness" } });
     fireEvent.click(screen.getByRole("button", { name: "Find" }));
@@ -305,7 +305,7 @@ describe("ResearchFileBar", () => {
       ...file.state.sources.baker.reference, provider: "hansard", url: "https://example.org/debate" } };
     render(<ResearchFileBar file={{ ...file, state: { ...file.state, sources: { baker: external } } }}
       onChange={vi.fn()} onReadSource={read} />);
-    expect(screen.getByRole("link", { name: "Open Baker v Canada" })).toHaveAttribute("href", "https://example.org/debate");
+    expect(within(screen.getByRole("tree", { name: "Sources" })).getByRole("link", { name: "Open Baker v Canada" })).toHaveAttribute("href", "https://example.org/debate");
     expect(read).not.toHaveBeenCalled();
   });
 
@@ -373,6 +373,33 @@ describe("ResearchFileBar", () => {
     fireEvent.click(within(confirmation).getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", 0,
       { type: "remove", kind: "evidence", id: "e_1", sourceId: "baker" }));
+  });
+
+  it("counts each concept's instances and edits an additional instance by its own identity", async () => {
+    const paired = structuredClone(file), extra = { ...evidence, highlightId: "e_1:second", labelIds: ["second"] };
+    paired.state.labels.holding = { ...paired.state.labels.holding, name: "Fairness", parentId: null };
+    paired.state.labels.second = { ...paired.state.labels.holding, id: "second", name: "Other" };
+    paired.state.sources.baker.passages = { count: 3, sha256: "paired", labelCounts: { holding: 1, second: 2 }, unlabelledCount: 0 };
+    api.actOnResearchFile.mockResolvedValue(paired);
+    api.getResearchItems.mockResolvedValue({ items: [evidence, extra,
+      { ...extra, highlightId: "e_2:third", receipt: { ...evidence.receipt, evidence_id: "e_2", locator: { kind: "paragraph", label: "para 6" } } }]
+      .map((value, index) => ({ kind: "passage", index, value })), next_cursor: null, total: 3 });
+    render(<ResearchFileBar file={paired} onChange={vi.fn()} />);
+    const tree = within(screen.getByRole("tree", { name: "Sources" }));
+    const inConcept = (name: string) => within(within(tree.getByRole("treeitem", { name, exact: true }))
+      .getByRole("treeitem", { name: "Baker v Canada" }));
+    expect(inConcept("Fairness").getByText("1", { exact: true })).toBeVisible();
+    expect(inConcept("Other").getByText("2", { exact: true })).toBeVisible();
+    fireEvent.click(inConcept("Other").getByRole("button", { name: "Passages in Baker v Canada" }));
+    const instance = await inConcept("Other").findByRole("treeitem", { name: "para 5" });
+    fireEvent.click(within(instance).getByRole("button", { name: /A duty of fairness/u }));
+    expect(instance).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(within(instance).getByRole("button", { name: "¶ 5 options" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Highlight type" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Item note" }), { target: { value: "Only this instance" } });
+    fireEvent.blur(screen.getByRole("textbox", { name: "Item note" }));
+    await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", 0,
+      { type: "annotate", kind: "evidence", id: extra.highlightId, sourceId: "baker", labelIds: ["second"], note: "Only this instance" }));
   });
 
   it("searches the visible source filters but does not silently narrow a new search to old matches", async () => {
