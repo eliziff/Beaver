@@ -1,6 +1,6 @@
 import {
-  legalEvidenceCitationGroups,
   legalEvidenceCitationGroupsFromEntries,
+  legalEvidenceCitationPlan,
   legalEvidenceSourceReference,
   type LegalEvidenceTurnState,
   type RegisteredEvidence,
@@ -38,8 +38,7 @@ function citationsFromGroups(
       const entry = group.members.find(
         ({ receipt }) => receipt.locator.kind === group.locatorKind) ?? group.members[0];
       const { receipt } = entry;
-      const quote = receipt.span_text;
-      if (!quote) return [];
+      if (!receipt.span_text) return [];
       // Quotes are verified source passages, never model prose. Fragments,
       // highlights, and DOCX links all derive from the same receipt span.
       const quotes = group.members.flatMap(({ receipt }) =>
@@ -56,6 +55,7 @@ function citationsFromGroups(
       const display = {
         authority: presentation.authority,
         short_authority: presentation.shortAuthority,
+        ...(group.shortForm && { short_form: true }),
         ...(presentation.locator && {
           locator_separator: presentation.locator.separator,
         }),
@@ -125,7 +125,7 @@ export function createLegalEvidenceCitationsFromEntries(
 export function createLegalEvidenceCitations(
   state: LegalEvidenceTurnState,
 ): Record<string, unknown>[] {
-  return citationsFromGroups(legalEvidenceCitationGroups(state));
+  return citationsFromGroups(legalEvidenceCitationPlan(state).groups);
 }
 
 type SearchCitationCandidate = {

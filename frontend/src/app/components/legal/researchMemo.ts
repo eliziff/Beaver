@@ -1,10 +1,10 @@
 import type { Citation } from "@/app/lib/citations";
-import { type ResearchAction, type ResearchSourceReference } from "@/app/lib/researchFiles";
+import { type PassageLocator, type ResearchSourceReference } from "@/app/lib/researchFiles";
 
 export const RESEARCH_PASSAGE_DRAG = "application/x-beaver-research-passage";
 export const RESEARCH_PASSAGE_REFERENCE_DRAG = "application/x-beaver-research-passage-reference";
 export type MemoSourceReference = { reference: ResearchSourceReference;
-  locator?: Extract<ResearchAction, { type: "passage" }>["locator"]; quote?: string };
+  locator?: PassageLocator; quote?: string };
 
 export function memoCitation(href: string, label?: string): Citation | null {
   if (!href.startsWith("/sources/view?") && !href.startsWith("/library?")) return null;

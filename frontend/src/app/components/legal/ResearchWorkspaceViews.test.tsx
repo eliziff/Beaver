@@ -29,11 +29,11 @@ beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); api.getResearchFile
   api.getWorkspaceViews.mockResolvedValue({ tables: [], chats: [] }); api.previewWorkspaceTable.mockResolvedValue(preview); });
 it("opens a table through the deterministic Research-set import", async () => {
   api.openWorkspaceTable.mockResolvedValue({ id: "table", project_id: "project" }); setup(); open("Table");
-  expect(await screen.findByRole("dialog", { name: /Review this research/u })).toBeVisible();
-  await screen.findByText("Grounded prior work");
+  expect(await screen.findByRole("dialog", { name: /Extract a table/u })).toBeVisible();
+  await screen.findByText(/Grounded prior work/u);
   expect(api.openWorkspaceTable).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Open review" }));
-  await waitFor(() => expect(api.openWorkspaceTable).toHaveBeenCalledWith("workspace", { rows: "sources", selection: { target: "sources" }, design: preview.design, fingerprint: preview.fingerprint }));
+  fireEvent.click(screen.getByRole("button", { name: "Create table" }));
+  await waitFor(() => expect(api.openWorkspaceTable).toHaveBeenCalledWith("workspace", { selection: { target: "sources" }, design: preview.design, fingerprint: preview.fingerprint }));
   await waitFor(() => expect(screen.getByLabelText("Location")).toHaveTextContent("/projects/project/tabular-reviews/table"));
 });
 it("creates a chat attached to the current workspace and selection", async () => {

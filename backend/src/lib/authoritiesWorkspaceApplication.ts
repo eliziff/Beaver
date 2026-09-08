@@ -5,8 +5,8 @@ import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
   type AuthoritiesInitialSettings, type AuthoritiesUserAction } from "./authoritiesActions";
 import { authorityPassageTargets, buildAuthorities, type AuthoritiesBuildInput,
   type AuthoritiesBuildResult } from "./authoritiesBuild";
-import { attachedAuthoritySources, authoritiesBookPdfs, decodeAuthoritiesDraft,
-  type AuthoritiesDraft, type AuthoritiesDiscrepancyAction,
+import { attachedAuthoritySources, decodeAuthoritiesDraft,
+  type AuthoritiesAction, type AuthoritiesDraft, type AuthoritiesDiscrepancyAction,
   type AuthoritySourceLanguage } from "./authoritiesDomain";
 import { createAuthoritiesImporter, type AuthoritiesImporter, type AuthoritiesImportSource,
   type GroundedReceiptSeed } from "./authoritiesImport";
@@ -27,6 +27,40 @@ function draftState(state: WorkProductState): AuthoritiesDraft {
   const draft = decodeAuthoritiesDraft(state);
   if (!draft) throw new ApplicationError(409, "Authorities draft state is invalid");
   return draft;
+}
+
+type LibraryBinding = Extract<WorkProductInput, { kind: "document" }>;
+type BoundPdf = { bindingRole: string; filename: string; sourceSha256: string };
+
+/** Workspace drafts bind Library documents only; any other binding is a corrupted draft. */
+function libraryBinding(draft: AuthoritiesDraft, role: string): LibraryBinding {
+  const binding = draft.bindings[role];
+  if (binding?.kind !== "document") {
+    throw new ApplicationError(409, "This source is not a Library document");
+  }
+  return binding;
+}
+
+/** Every bound PDF in the draft, keyed by role, with the action that re-points its slot. */
+function boundPdfs(draft: AuthoritiesDraft) {
+  const entries: Array<{ pdf: BoundPdf;
+    apply: (next: BoundPdf, binding: LibraryBinding) => AuthoritiesAction }> = [
+    ...Object.values(draft.authorities).flatMap((authority) =>
+      attachedAuthoritySources(authority.source).map((source) => ({ pdf: source,
+        apply: (next: BoundPdf, binding: LibraryBinding): AuthoritiesAction =>
+          ({ type: "attach-source", authorityId: authority.id, bindingRole: source.bindingRole,
+            binding, filename: next.filename, sourceSha256: next.sourceSha256,
+            sourceUrl: source.sourceUrl, origin: source.origin, language: source.language }) }))),
+    ...draft.bookParts.supplements.map((supplement) => ({ pdf: supplement,
+      apply: (next: BoundPdf, binding: LibraryBinding): AuthoritiesAction =>
+        ({ type: "set-book-supplement", supplement: { ...supplement, ...next }, binding }) })),
+    ...(["cover", "index"] as const).flatMap((slot) => {
+      const part = draft.bookParts[slot];
+      return part ? [{ pdf: part, apply: (next: BoundPdf, binding: LibraryBinding):
+        AuthoritiesAction => ({ type: "set-book-part", slot, pdf: { ...part, ...next }, binding }) }] : [];
+    }),
+  ];
+  return new Map(entries.map((entry) => [entry.pdf.bindingRole, entry]));
 }
 
 function attachableAuthority(draft: AuthoritiesDraft, authorityId: string) {
@@ -99,62 +133,34 @@ export function createAuthoritiesWorkspaceApplication(
       state: update(draft, { type: "refresh", review: review(fresh) }) });
   }
 
-  async function currentLibraryVersion(scope: ApplicationScope, draft: AuthoritiesDraft,
-    role: string, expected: "pdf" | "source") {
-    const binding = draft.bindings[role];
-    if (binding?.kind !== "document") {
-      throw new ApplicationError(409, "This source is not a Library document");
-    }
+  async function currentLibraryVersion(scope: ApplicationScope, binding: LibraryBinding,
+    expected: "pdf" | "docx") {
     const version = await documents.metadata(scope, binding.documentId);
     if (!version) throw new ApplicationError(409,
       "This Library file is no longer available. Add it again.");
-    const fileType = version.file_type.toLowerCase();
-    if (expected === "pdf" ? fileType !== "pdf" : !["pdf", "docx"].includes(fileType)) {
-      throw new ApplicationError(409, expected === "pdf"
-        ? "The current Library file is not a PDF"
-        : "The current Library file is not a PDF or Word document");
-    }
-    return { binding, version: { id: version.current_version_id, filename: version.filename,
-      file_type: fileType, source_sha256: version.source_sha256 } };
+    if (version.file_type.toLowerCase() !== expected) throw new ApplicationError(409,
+      `The current Library file is not a ${expected === "pdf" ? "PDF" : "Word document"}`);
+    return { id: version.current_version_id, filename: version.filename,
+      source_sha256: version.source_sha256 };
   }
 
-  function adoptCurrentPdf(draft: AuthoritiesDraft, role: string,
-    binding: Extract<WorkProductInput, { kind: "document" }>,
+  function adoptCurrentPdf(draft: AuthoritiesDraft, role: string, binding: LibraryBinding,
     version: { filename: string; source_sha256: string }) {
-    const attached = Object.values(draft.authorities).flatMap((authority) =>
-      attachedAuthoritySources(authority.source).map((source) => ({ authority, source })))
-      .find(({ source }) => source.bindingRole === role);
-    const cover = draft.bookParts.cover?.bindingRole === role ? draft.bookParts.cover : null;
-    const index = draft.bookParts.index?.bindingRole === role ? draft.bookParts.index : null;
-    const supplement = draft.bookParts.supplements.find(({ bindingRole }) => bindingRole === role);
-    const boundPdf = attached?.source ?? cover ?? index ?? supplement;
-    if (!boundPdf) throw new ApplicationError(409, "This source is no longer in the draft");
-    if (binding.version === "latest" && boundPdf.filename === version.filename &&
-        boundPdf.sourceSha256 === version.source_sha256) return draft;
-    const nextBinding = { ...binding, version: "latest" as const };
-    const pdf = { ...boundPdf, filename: version.filename,
-      sourceSha256: version.source_sha256 };
-    return attached
-      ? update(draft, { type: "attach-source", authorityId: attached.authority.id,
-        bindingRole: role, binding: nextBinding, filename: pdf.filename,
-        sourceSha256: pdf.sourceSha256, sourceUrl: attached.source.sourceUrl,
-        origin: attached.source.origin, language: attached.source.language })
-      : supplement
-        ? update(draft, { type: "set-book-supplement",
-          supplement: { ...supplement, ...pdf }, binding: nextBinding })
-        : update(draft, { type: "set-book-part", slot: cover ? "cover" : "index",
-          pdf, binding: nextBinding });
+    const bound = boundPdfs(draft).get(role);
+    if (!bound) throw new ApplicationError(409, "This source is no longer in the draft");
+    if (binding.version === "latest" && bound.pdf.filename === version.filename &&
+        bound.pdf.sourceSha256 === version.source_sha256) return draft;
+    return update(draft, bound.apply({ bindingRole: role, filename: version.filename,
+      sourceSha256: version.source_sha256 }, { ...binding, version: "latest" }));
   }
 
   async function followLatestBindings(scope: ApplicationScope, initial: AuthoritiesDraft,
     signal?: AbortSignal) {
     let draft = initial;
     if (draft.import.kind === "document") {
-      const role = draft.import.bindingRole, binding = draft.bindings[role];
-      if (binding?.kind === "document" && binding.version === "latest") {
-        const { version } = await currentLibraryVersion(scope, draft, role, "source");
-        if (version.file_type !== draft.import.fileType) throw new ApplicationError(409,
-          `The current Library file is not a ${draft.import.fileType === "pdf" ? "PDF" : "Word document"}`);
+      const binding = libraryBinding(draft, draft.import.bindingRole);
+      if (binding.version === "latest") {
+        const version = await currentLibraryVersion(scope, binding, draft.import.fileType);
         const snapshot = draft.import.snapshot;
         if (!snapshot || snapshot.documentId !== binding.documentId ||
             snapshot.versionId !== version.id || snapshot.sha256 !== version.source_sha256 ||
@@ -165,17 +171,12 @@ export function createAuthoritiesWorkspaceApplication(
         }
       }
     }
-    const roles = [...new Set([
-      ...Object.values(draft.authorities).flatMap(({ source }) =>
-        attachedAuthoritySources(source).map(({ bindingRole }) => bindingRole)),
-      ...authoritiesBookPdfs(draft).map(({ bindingRole }) => bindingRole),
-    ])].filter((role) => {
-      const binding = draft.bindings[role];
-      return binding?.kind === "document" && binding.version === "latest";
+    const latest = [...boundPdfs(draft).keys()].flatMap((role) => {
+      const binding = libraryBinding(draft, role);
+      return binding.version === "latest" ? [{ role, binding }] : [];
     });
-    const current = await Promise.all(roles.map(async (role) => ({ role,
-      ...await currentLibraryVersion(scope, draft, role, "pdf"),
-    })));
+    const current = await Promise.all(latest.map(async (item) => ({ ...item,
+      version: await currentLibraryVersion(scope, item.binding, "pdf") })));
     for (const item of current) draft = adoptCurrentPdf(
       draft, item.role, item.binding, item.version);
     return draft;
@@ -191,10 +192,7 @@ export function createAuthoritiesWorkspaceApplication(
     const result: NonNullable<AuthoritiesBuildInput["sources"]> = {};
     if (draft.import.kind === "document" && draft.import.snapshot) {
       const { bindingRole, snapshot, filename } = draft.import;
-      const binding = draft.bindings[bindingRole];
-      if (binding?.kind !== "document") {
-        throw new ApplicationError(409, "Imported document binding is invalid");
-      }
+      const binding = libraryBinding(draft, bindingRole);
       const requested = binding.version === "latest" ? null : binding.version.versionId;
       const [source, current] = await Promise.all([
         documents.projectionSource(scope, binding.documentId, requested),
@@ -224,16 +222,11 @@ export function createAuthoritiesWorkspaceApplication(
     const plan = createAuthoritiesPreparation(draft);
     const preparedRoles = new Set([...plan.bookRoles, ...plan.textRoles]);
     const preparation = new Map(preparedRoles.size
-      ? (await documents.parseStates(scope, [...preparedRoles].flatMap((role) => {
-        const binding = draft.bindings[role];
-        return binding?.kind === "document" ? [binding.documentId] : [];
-      }))).map((state) => [state.id, state.parse_state])
+      ? (await documents.parseStates(scope, [...preparedRoles].map((role) =>
+        libraryBinding(draft, role).documentId))).map((state) => [state.id, state.parse_state])
       : []);
-    const readPdf = async (source: { bindingRole: string; filename: string;
-      sourceSha256: string }, label: string) => {
-      const binding = draft.bindings[source.bindingRole];
-      if (binding?.kind !== "document") throw new ApplicationError(409,
-        `${label} is unavailable: ${source.filename}`);
+    const readPdf = async (source: BoundPdf, label: string) => {
+      const binding = libraryBinding(draft, source.bindingRole);
       const file = await documents.read(scope, binding.documentId,
         binding.version === "latest" ? null : binding.version.versionId, false);
       if (!file || file.fileType.toLowerCase() !== "pdf" ||
@@ -292,10 +285,7 @@ export function createAuthoritiesWorkspaceApplication(
         const snapshot = imported.snapshot;
         if (!snapshot) throw new ApplicationError(409,
           "Source corrections require an imported Word document");
-        const binding = draft.bindings[imported.bindingRole];
-        if (binding?.kind !== "document" || binding.documentId !== snapshot.documentId) {
-          throw new ApplicationError(409, "The imported Word document is unavailable");
-        }
+        const binding = libraryBinding(draft, imported.bindingRole);
         const source = await documents.read(scope, binding.documentId, snapshot.versionId, false);
         if (!source || source.fileType.toLowerCase() !== "docx" ||
             source.version.source_sha256 !== snapshot.sha256 || sha256(source.bytes) !== snapshot.sha256) {
@@ -380,10 +370,7 @@ export function createAuthoritiesWorkspaceApplication(
       receiptSeeds?: readonly GroundedReceiptSeed[]) {
       const { product, draft } = await edit(scope, id, revision);
       const binding = draft.import.kind === "document"
-        ? draft.bindings[draft.import.bindingRole] : null;
-      if (binding && binding.kind !== "document") {
-        throw new ApplicationError(409, "Imported document binding is invalid");
-      }
+        ? libraryBinding(draft, draft.import.bindingRole) : null;
       if (!binding && !receiptSeeds?.length) return product;
       const source: AuthoritiesImportSource = binding ??
         { kind: "receipts", seeds: receiptSeeds! };
@@ -393,19 +380,15 @@ export function createAuthoritiesWorkspaceApplication(
       revision: number; role: string;
     }) {
       const { product, draft } = await edit(scope, id, input.revision);
+      const binding = libraryBinding(draft, input.role);
       if (draft.import.kind === "document" && draft.import.bindingRole === input.role) {
-        const { binding, version } = await currentLibraryVersion(
-          scope, draft, input.role, "source");
-        if (version.file_type.toLowerCase() !== draft.import.fileType) {
-          throw new ApplicationError(409,
-            `The current Library file is not a ${draft.import.fileType === "pdf" ? "PDF" : "Word document"}`);
-        }
+        await currentLibraryVersion(scope, binding, draft.import.fileType);
         return saveRefresh(scope, product, draft, input.revision,
           { ...binding, version: "latest" });
       }
-      const { binding, version } = await currentLibraryVersion(scope, draft, input.role, "pdf");
-      const state = adoptCurrentPdf(draft, input.role, binding, version);
-      return workProducts.save(scope, id, { revision: input.revision, state });
+      const version = await currentLibraryVersion(scope, binding, "pdf");
+      return workProducts.save(scope, id, { revision: input.revision,
+        state: adoptCurrentPdf(draft, input.role, binding, version) });
     },
     async attachPdf(scope: ApplicationScope, id: string, input: {
       revision: number; authorityId: string; file: DocumentFile;
@@ -472,9 +455,7 @@ export function createAuthoritiesWorkspaceApplication(
       return Promise.all(plan.authoritySources
         .filter(({ source }) => roles.includes(source.bindingRole))
         .map(async ({ source, authority }) => {
-          const binding = draft.bindings[source.bindingRole];
-          if (binding?.kind !== "document") throw new ApplicationError(409,
-            `The PDF for ${source.filename} is unavailable`);
+          const binding = libraryBinding(draft, source.bindingRole);
           const resolved = await documents.projectionSource(scope, binding.documentId,
             binding.version === "latest" ? null : binding.version.versionId);
           if (!resolved) throw new ApplicationError(409, `The PDF for ${source.filename} is unavailable`);

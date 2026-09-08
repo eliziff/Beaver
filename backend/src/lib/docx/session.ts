@@ -33,9 +33,11 @@ const OBJECT_ELEMENT = /^w:(?:footnoteReference|endnoteReference|drawing|object|
 
 interface DocxEditRun {
   childIndex: number;
+  start: number;
+  end: number;
   rPr: XNode | null;
   protectedByContentControl: boolean;
-  textNodes: Array<{ paraStart: number; paraEnd: number }>;
+  textNodes: Array<{ start: number; end: number }>;
 }
 
 export type DocxRewriteAtom =
@@ -72,8 +74,6 @@ export interface DocxParagraphIndex {
   visibleText: string;
   events: DocxInlineEvent[];
   editRuns: DocxEditRun[];
-  charRun: Int32Array;
-  charTextNode: Int32Array;
   rewrite: DocxRewrite;
   containsObjects: boolean;
   truncated: boolean;
@@ -178,8 +178,6 @@ export function indexDocxParagraph(node: XNode): DocxParagraphIndex {
   const events: DocxInlineEvent[] = [];
   const editRuns: DocxEditRun[] = [];
   const runRewrites = new WeakMap<XNode, DocxRewrite>();
-  const charRuns: number[] = [];
-  const charTextNodes: number[] = [];
   let acceptedText = "";
   let compareText = "";
   let visibleText = "";
@@ -211,21 +209,20 @@ export function indexDocxParagraph(node: XNode): DocxParagraphIndex {
     if (name === "w:r") {
       const run = readRun(current, state.del);
       runRewrites.set(current, run.rewrite);
+      const runStart = acceptedText.length;
       const textNodes: DocxEditRun["textNodes"] = [];
       for (const value of state.edit && !state.del ? run.texts : []) {
         const start = acceptedText.length;
-        textNodes.push({ paraStart: start, paraEnd: start + value.length });
+        textNodes.push({ start, end: start + value.length });
         acceptedText += value;
-        for (let index = 0; index < value.length; index += 1) {
-          charRuns.push(editRuns.length);
-          charTextNodes.push(textNodes.length - 1);
-        }
       }
       if (state.compare && !state.del) compareText += run.rendered;
       if (!state.del) visibleText += run.visible;
       if (state.edit && !state.del) {
         editRuns.push({
           childIndex: topChildIndex,
+          start: runStart,
+          end: acceptedText.length,
           rPr: run.rPr,
           protectedByContentControl: state.protected,
           textNodes,
@@ -333,8 +330,6 @@ export function indexDocxParagraph(node: XNode): DocxParagraphIndex {
     visibleText,
     events,
     editRuns,
-    charRun: Int32Array.from(charRuns),
-    charTextNode: Int32Array.from(charTextNodes),
     rewrite: rewriteReason
       ? { ok: false, reason: rewriteReason }
       : { ok: true, atoms: rewriteAtoms, text: rewriteText },

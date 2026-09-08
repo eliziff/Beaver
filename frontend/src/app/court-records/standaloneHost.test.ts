@@ -98,8 +98,6 @@ beforeEach(() => {
   mocks.listOutputs.mockResolvedValue([]);
   mocks.getFilingContact.mockResolvedValue({ name: "Ada Lawyer", address: "1 Court Street",
     phone: "555-0100", fax: "", email: "ada@example.test" });
-  mocks.getOutputFolder.mockResolvedValue("Court outputs");
-  mocks.chooseOutputFolder.mockResolvedValue("Filed records");
   mocks.writeOutputs.mockResolvedValue(null);
 });
 
@@ -116,13 +114,6 @@ describe("standalone Court outputs", () => {
     expect(prepared.binding).toMatchObject({ kind: "local-file", lastSeen: { name: "order.docx" } });
     mocks.apiBlobRequest.mockReset();
   });
-  it("shares the standalone output-folder preference", async () => {
-    await expect(standaloneCourtRecordsHost.outputFolder!.get()).resolves.toBe("Court outputs");
-    await expect(standaloneCourtRecordsHost.outputFolder!.choose()).resolves.toBe("Filed records");
-    await standaloneCourtRecordsHost.outputFolder!.clear();
-    expect(mocks.clearOutputFolder).toHaveBeenCalledOnce();
-  });
-
   it("reuses explicitly saved filing details for new records", async () => {
     await expect(standaloneCourtRecordsHost.newDraftCover!()).resolves.toEqual({
       counselName: "Ada Lawyer", counselAddress: "1 Court Street", counselPhone: "555-0100",

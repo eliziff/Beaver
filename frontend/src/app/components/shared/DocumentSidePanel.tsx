@@ -40,7 +40,7 @@ import { DocumentViewer } from "@/app/components/shared/views/DocumentViewer";
 import { ReaderExpandButton } from "./ReaderExpandButton";
 import { preserveReaderScroll } from "./useReaderExpansion";
 
-import { formatBytes } from "@/app/lib/utils";
+import { formatBytes, formatDate } from "@/app/lib/utils";
 import { SUPPORTED_DOCUMENT_ACCEPT } from "@/app/lib/documentUploadValidation";
 
 import { getResearchFile, getResearchItems } from "@/app/lib/api/researchFiles";
@@ -216,7 +216,6 @@ export function DocumentSidePanel({
 }: Props) {
     const [visibleVersionCount, setVisibleVersionCount] =
         useState(VERSION_PAGE);
-    const [editingName, setEditingName] = useState(false);
     const [expandedReader, setExpandedReader] = useState(false);
     const [narrowDetailsOpen, setNarrowDetailsOpen] = useState(false);
     const readerBody = useRef<HTMLDivElement>(null);
@@ -228,7 +227,8 @@ export function DocumentSidePanel({
     useLayoutEffect(() => {
         if (!expandedReader) { restoreReaderScroll.current?.(); restoreReaderScroll.current = null; }
     }, [expandedReader]);
-    const [nameDraft, setNameDraft] = useState("");
+    /** Non-null while the name is being edited; holds the draft. */
+    const [nameDraft, setNameDraft] = useState<string | null>(null);
     const [savingName, setSavingName] = useState(false);
     const [extensionWarningOpen, setExtensionWarningOpen] = useState(false);
     const [uploading, setUploading] = useState(false);
@@ -237,12 +237,10 @@ export function DocumentSidePanel({
     const [restoreTarget, setRestoreTarget] = useState<DocumentVersion | null>(null);
     const [restoringId, setRestoringId] = useState<string | null>(null);
     const [comparingId, setComparingId] = useState<string | null>(null);
-    const [deleteOpen, setDeleteOpen] = useState(false);
     const [deleteStatus, setDeleteStatus] = useState<
-        "idle" | "deleting" | "deleted"
-    >("idle");
+        "closed" | "idle" | "deleting" | "deleted"
+    >("closed");
     const uploadRef = useRef<HTMLInputElement>(null);
-    const deleteTarget = useRef<Document | null>(null);
     const sourcesController = useSourcesWorkspaceOrNull();
     const highlightController = sourcesController?.highlight ?? null;
     const captureReference: ResearchSourceReference | null =
@@ -272,20 +270,11 @@ export function DocumentSidePanel({
     const docId = doc?.id;
 
     useEffect(() => {
-        if (!docId) return;
-        void loadVersions(docId);
-    }, [docId]);
-
-    useEffect(() => {
         setVisibleVersionCount(VERSION_PAGE);
         setActionError(null);
-        deleteTarget.current = null;
-        setDeleteOpen(false);
-    }, [doc?.id]);
-
-    useEffect(() => {
-        setEditingName(false);
-        setNameDraft("");
+        setDeleteStatus("closed");
+        setNameDraft(null);
+        if (docId) void loadVersions(docId);
     }, [docId]);
 
     useEffect(() => {
@@ -297,18 +286,17 @@ export function DocumentSidePanel({
     const activeDoc = doc;
     const currentId =
         currentVersionId ?? activeDoc.current_version_id ?? null;
-    const ordered = versions;
     const current = versions.find(({ id }) => id === currentId) ?? null;
     const comparisonCurrent = current && fileType(current, "") === "docx" ? current : null;
     const priorCurrent = comparisonCurrent
-        ? ordered.find(({ version_number }) =>
+        ? versions.find(({ version_number }) =>
             version_number < comparisonCurrent.version_number) ?? null
         : null;
-    const visible = ordered.slice(0, visibleVersionCount);
+    const visible = versions.slice(0, visibleVersionCount);
     const selected =
         versions.find((version) => version.id === versionId) ??
         current ??
-        ordered[0] ??
+        versions[0] ??
         null;
     const selectedId = selected?.id ?? versionId ?? currentId;
     const filename = selected?.filename.trim() || activeDoc.filename;
@@ -325,26 +313,26 @@ export function DocumentSidePanel({
         : selected ? `${selected.id}:${selected.working_revision}` : activeDoc.updated_at;
     const canCheckpoint = (current?.working_revision ?? activeDoc.current_working_revision ?? 0) > 0;
     const selectedComparison = selected ? comparison(selected) : null;
-    const activeVersionCount = versions.length;
     const showResearchPreview =
         isResearchDocument(activeDoc) && selectedId === currentId;
-    const previewable = showResearchPreview || isDocx || isSpreadsheet || type === "pdf" ||
-        PLAIN_TEXT_VIEW_EXTENSIONS.has(extension) || PLAIN_TEXT_VIEW_EXTENSIONS.has(type);
+    const viewerKind = isSpreadsheet ? "spreadsheet"
+        : PLAIN_TEXT_VIEW_EXTENSIONS.has(extension) || PLAIN_TEXT_VIEW_EXTENSIONS.has(type) ? "text"
+            : isDocx ? "docx" : type === "pdf" ? "pdf" : null;
 
     async function saveName() {
-        const entered = nameDraft.trim();
+        const entered = nameDraft?.trim();
         if (!entered) return;
         const next = isResearchDocument(activeDoc)
             ? `${entered.replace(/\.research\.md$/iu, "")}.research.md` : entered;
         if (hasFilenameExtensionChange(activeDoc.filename, next)) {
             return setExtensionWarningOpen(true);
         }
-        if (next === activeDoc.filename) return setEditingName(false);
+        if (next === activeDoc.filename) return setNameDraft(null);
         setSavingName(true);
         setActionError(null);
         try {
             await onRenameDocument(activeDoc.id, next);
-            setEditingName(false);
+            setNameDraft(null);
         } catch {
             setActionError("Could not rename this document.");
         } finally {
@@ -444,16 +432,14 @@ export function DocumentSidePanel({
         setDeleteStatus("deleting");
         setActionError(null);
         try {
-            await onDelete(deleteTarget.current ?? activeDoc);
+            await onDelete(activeDoc);
             setDeleteStatus("deleted");
             window.setTimeout(() => {
-                setDeleteOpen(false);
-                setDeleteStatus("idle");
+                setDeleteStatus("closed");
                 onClose();
             }, 650);
         } catch {
-            setDeleteOpen(false);
-            setDeleteStatus("idle");
+            setDeleteStatus("closed");
             setActionError(
                 documentRemovalMode === "detach"
                     ? "The document could not be removed from this project. Please try again."
@@ -471,16 +457,14 @@ export function DocumentSidePanel({
             );
         }
         setDeleteStatus("idle");
-        deleteTarget.current = activeDoc;
-        setDeleteOpen(true);
     }
 
     const deleteMessage =
         documentRemovalMode === "detach"
             ? `Remove ${displayFilename} from this project? The Library file and its links in other projects will be kept.`
-            : activeVersionCount > 0
-              ? `${displayFilename} has ${activeVersionCount} ${
-                    activeVersionCount === 1 ? "version" : "versions"
+            : versions.length > 0
+              ? `${displayFilename} has ${versions.length} ${
+                    versions.length === 1 ? "version" : "versions"
                 }. Deleting this document will delete all of its versions.`
               : `Delete ${displayFilename}? This will delete the document and all of its versions.`;
 
@@ -497,8 +481,8 @@ export function DocumentSidePanel({
                 <span key="document" className="flex h-8 min-w-0 items-center gap-2 text-sm font-medium leading-5 text-gray-900">
                 <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium uppercase text-gray-600">{activeDoc.file_type || type || "File"}</span>{" "}
                 <span className="relative block min-w-0 flex-1">
-                    <span className={`block truncate ${editingName ? "invisible" : ""}`}>{displayFilename}</span>
-                {editingName && (
+                    <span className={`block truncate ${nameDraft === null ? "" : "invisible"}`}>{displayFilename}</span>
+                {nameDraft !== null && (
                     <input
                         autoFocus
                         value={nameDraft}
@@ -508,7 +492,7 @@ export function DocumentSidePanel({
                             if (event.key === "Escape") {
                                 event.preventDefault();
                                 event.stopPropagation();
-                                setEditingName(false);
+                                setNameDraft(null);
                             }
                         }}
                         className="absolute inset-0 h-full w-full min-w-0 rounded-none border-0 bg-transparent p-0 text-sm font-medium leading-5 text-gray-900 outline-none focus-visible:ring-1 focus-visible:ring-gray-400"
@@ -539,7 +523,7 @@ export function DocumentSidePanel({
                         <Highlighter className="mx-auto h-4 w-4" />
                     </button>
                 )}
-                {editingName ? (
+                {nameDraft !== null ? (
                     <button
                         type="button"
                         onClick={() => void saveName()}
@@ -559,10 +543,7 @@ export function DocumentSidePanel({
                         type="button"
                         aria-label="Rename document"
                         title="Rename document"
-                        onClick={() => {
-                            setNameDraft(displayFilename);
-                            setEditingName(true);
-                        }}
+                        onClick={() => setNameDraft(displayFilename)}
                         className="h-8 w-8 rounded hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
                     >
                         <Pencil className="mx-auto h-4 w-4" />
@@ -594,22 +575,13 @@ export function DocumentSidePanel({
             <main className="flex min-h-0 flex-1 flex-col @min-[42rem]:grid @min-[42rem]:grid-cols-[minmax(0,1fr)_22rem]">
                 <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3">
                     {showResearchPreview ? <ResearchFilePreview
-                        key={`${activeDoc.id}:${revision ?? ""}`} documentId={activeDoc.id} /> : previewable ? <DocumentViewer
+                        key={`${activeDoc.id}:${revision ?? ""}`} documentId={activeDoc.id} /> : viewerKind ? <DocumentViewer
                         key={`${activeDoc.id}:${
                             selectedId ?? "current"
                         }:${revision ?? ""}`}
                         documentId={activeDoc.id}
-                        kind={
-                            isSpreadsheet
-                                ? "spreadsheet"
-                                : PLAIN_TEXT_VIEW_EXTENSIONS.has(extension) ||
-                                    PLAIN_TEXT_VIEW_EXTENSIONS.has(type)
-                                  ? "text"
-                                  : isDocx
-                                    ? "docx"
-                                    : "pdf"
-                        }
-                        {...(savedQuotes.length && (isDocx || (!isSpreadsheet && type === "pdf")) ? { quotes: savedQuotes } : {})}
+                        kind={viewerKind}
+                        {...(savedQuotes.length && (viewerKind === "docx" || viewerKind === "pdf") ? { quotes: savedQuotes } : {})}
                         filename={filename}
                         versionId={selectedId}
                         preferPdfRendition={isDocx}
@@ -661,7 +633,7 @@ export function DocumentSidePanel({
                                     onClick={() => void onLoadVersions(activeDoc.id, true)}
                                     className="font-semibold underline">Retry</button>
                             </td></tr>
-                        ) : !ordered.length ? (
+                        ) : !versions.length ? (
                             <tr><td colSpan={5} className="py-3 text-xs text-gray-500">
                                 No version history.
                             </td></tr>
@@ -679,7 +651,7 @@ export function DocumentSidePanel({
                                         }}
                                     />
                                 ))}
-                                {visible.length < ordered.length && (
+                                {visible.length < versions.length && (
                                     <tr><td colSpan={5}>
                                         <button
                                             type="button"
@@ -769,7 +741,7 @@ export function DocumentSidePanel({
                 onConfirm={() => void restoreVersion()}
             />
             <ConfirmPopup
-                open={deleteOpen}
+                open={deleteStatus !== "closed"}
                 title={
                     documentRemovalMode === "detach"
                         ? "Remove from project?"
@@ -788,11 +760,7 @@ export function DocumentSidePanel({
                 }
                 cancelLabel="Cancel"
                 onCancel={() => {
-                    if (deleteStatus !== "deleting") {
-                        deleteTarget.current = null;
-                        setDeleteOpen(false);
-                        setDeleteStatus("idle");
-                    }
+                    if (deleteStatus !== "deleting") setDeleteStatus("closed");
                 }}
                 onConfirm={() => void removeDocument()}
             />
@@ -832,9 +800,7 @@ function VersionRow({ version, selected, current, onSelect }: {
                 v{version.version_number}
                 {current && <Check aria-hidden className="size-3.5 shrink-0" />}
             </button></td>
-            <td className="px-1 py-1 text-gray-600"><time dateTime={version.created_at} title={formatDate(version.created_at)}>
-                {new Date(version.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
-            </time></td>
+            <td className="px-1 py-1 text-gray-600"><time dateTime={version.created_at} title={versionTimestamp(version.created_at)}>{formatDate(version.created_at)}</time></td>
             <td className="max-w-24 break-words px-1 py-1 text-gray-600 [overflow-wrap:anywhere]" title={actor}>{actor}</td>
             <td className="px-1 py-1 tabular-nums text-gray-600">{formatBytes(version.size_bytes) ?? "—"}</td>
             <td className="px-1 py-1 text-right tabular-nums text-gray-600">{version.page_count ?? "—"}</td>
@@ -867,7 +833,7 @@ function fileType(
     return version?.file_type.toLowerCase() || fallback?.toLowerCase() || "";
 }
 
-function formatDate(iso: string | null | undefined) {
+function versionTimestamp(iso: string | null | undefined) {
     return iso
         ? new Date(iso).toLocaleString(undefined, {
               day: "numeric",
