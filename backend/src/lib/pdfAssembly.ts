@@ -13,6 +13,7 @@ export type PdfAssemblyPart<Font extends string> = {
   decorate?: (page: PDFPage, sourceIndex: number, context: PdfAssemblyContext<Font>) => void;
 };
 export type PdfAssemblyInput<Font extends string> = {
+  document?: PDFDocument;
   fonts: Record<Font, StandardFonts | Uint8Array>;
   fontkit?: Parameters<PDFDocument["registerFontkit"]>[0];
   parts: PdfAssemblyPart<Font>[];
@@ -52,9 +53,9 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
     const height = sideways ? crop.width : crop.height;
     const x = position.endsWith("right") ? width - inset - textWidth : (width - textWidth) / 2;
     const y = position.startsWith("top") ? height - offset : offset;
-    const [pageX, pageY] = angle === 90 ? [y, x]
+    const [pageX, pageY] = angle === 90 ? [crop.width - y, x]
       : angle === 180 ? [crop.width - x, crop.height - y]
-        : angle === 270 ? [crop.width - y, crop.height - x] : [x, y];
+        : angle === 270 ? [y, crop.height - x] : [x, y];
     page.drawText(text, { x: crop.x + pageX, y: crop.y + pageY, size, font,
       rotate: degrees(angle), color: rgb(.12, .12, .12) });
   }
@@ -121,14 +122,14 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
 
   async function embedFonts<Font extends string>(document: PDFDocument,
     sources: Record<Font, StandardFonts | Uint8Array>,
-    fontkit?: Parameters<PDFDocument["registerFontkit"]>[0]) {
+    fontkit?: Parameters<PDFDocument["registerFontkit"]>[0], subset = true) {
     if (fontkit) document.registerFontkit(fontkit);
     const fonts = {} as Record<Font, PDFFont>;
     const embedded = new Map<StandardFonts | Uint8Array, PDFFont>();
     for (const name of Object.keys(sources) as Font[]) {
       const source = sources[name];
       fonts[name] = embedded.get(source) ?? await document.embedFont(source,
-        typeof source === "string" ? undefined : { subset: true });
+        typeof source === "string" ? undefined : { subset });
       embedded.set(source, fonts[name]);
     }
     return fonts;
@@ -146,7 +147,7 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
 
   async function assemble<Font extends string>(input: PdfAssemblyInput<Font>): Promise<PdfAssemblyResult> {
     input.signal?.throwIfAborted();
-    const document = await pdf.PDFDocument.create();
+    const document = input.document ?? await pdf.PDFDocument.create();
     const context = { document, fonts: await embedFonts(document, input.fonts, input.fontkit),
       starts: new Map<string, number>() };
     await input.before?.(context);

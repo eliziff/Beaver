@@ -1,4 +1,6 @@
 import type { PDFDocument, PDFFont, PDFPage, PDFPageDrawTextOptions } from "pdf-lib";
+import * as pdf from "pdf-lib";
+import { pdfAssembly } from "../../../../backend/src/lib/pdfAssembly";
 import { fetchBytes } from "@/app/lib/api/client";
 
 type CourtTextOptions = PDFPageDrawTextOptions & {
@@ -10,6 +12,7 @@ type CourtTextOptions = PDFPageDrawTextOptions & {
 
 type FontSource = {
   file: string;
+  subset?: boolean;
   matches: (character: string) => boolean;
 };
 
@@ -22,7 +25,7 @@ const FONT_SOURCES: FontSource[] = [
     matches: (character) => /[\u1400-\u167f\u18b0-\u18ff]/u.test(character) },
   { file: "NotoNaskhArabic-Regular.ttf",
     matches: (character) => /\p{Script_Extensions=Arabic}/u.test(character) },
-  { file: "NotoSerifSC-Regular.ttf",
+  { file: "NotoSerifSC-Regular.ttf", subset: false, // fontkit subsetting drops these glyph outlines.
     matches: (character) => /\p{Script_Extensions=Han}/u.test(character) },
 ];
 const GENERAL_FONT = { file: "NotoSerif-Regular.ttf", matches: () => true };
@@ -54,10 +57,11 @@ export async function registerCourtPdfFonts(
   const imported = await import("@pdf-lib/fontkit") as unknown as {
     default?: Parameters<PDFDocument["registerFontkit"]>[0];
   } & Parameters<PDFDocument["registerFontkit"]>[0];
-  document.registerFontkit(imported.default ?? imported);
-  const embedded = await Promise.all(sources.map(async ({ file }) => {
+  const embedded = await Promise.all(sources.map(async ({ file, subset = true }) => {
     const bytes = await fetchBytes(new URL(file, FONT_ROOT), `The bundled court PDF font ${file}`);
-    return document.embedFont(bytes, { subset: true });
+    const { fallback } = await pdfAssembly(pdf).embedFonts(document, { fallback: bytes },
+      imported.default ?? imported, subset);
+    return fallback;
   }));
   const missing = unsupported.filter((character) =>
     !embedded.some((font) => supports(font, character)));
@@ -136,4 +140,28 @@ function stringsIn(value: unknown, seen = new Set<object>()): string[] {
 function unsupportedFontError(characters: string[]) {
   return new Error(`The bundled court PDF fonts cannot render ${characters.map((character) =>
     `"${character}" (U+${character.codePointAt(0)!.toString(16).toUpperCase()})`).join(", ")}.`);
+}
+
+export function wrapCourtPdfText(text: string, font: PDFFont, size: number, maxWidth: number, paragraphs = false) {
+  const parts = paragraphs ? text.split(/\r?\n/u) : [text];
+  return parts.flatMap((paragraph) => {
+    const words = paragraph.trim().split(/\s+/u).filter(Boolean);
+    const lines: string[] = [];
+    let current = "";
+    for (let word of words) {
+      const next = current ? `${current} ${word}` : word;
+      if (courtPdfTextWidth(next, font, size) <= maxWidth) { current = next; continue; }
+      if (current) lines.push(current);
+      while (!paragraphs && courtPdfTextWidth(word, font, size) > maxWidth) {
+        let split = 1;
+        while (split < word.length &&
+          courtPdfTextWidth(word.slice(0, split + 1), font, size) <= maxWidth) split += 1;
+        lines.push(word.slice(0, split));
+        word = word.slice(split);
+      }
+      current = word;
+    }
+    if (current) lines.push(current);
+    return lines.length || paragraphs ? lines : [""];
+  });
 }
