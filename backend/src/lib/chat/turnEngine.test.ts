@@ -26,7 +26,7 @@ import { AssistantStreamError, runChatTurn, type ChatToolContext } from "./turnE
 import { toolText, type BeaverTool } from "./toolRegistry";
 import { a2ajLegalSourceProvider } from "../legalSources/a2aj";
 import { structureNative } from "../structureNative";
-import { readResearchContext, researchReadCursors, type ResearchReadContext,
+import { readResearchContext, readResearchContextInventory, researchReadCursors, type ResearchReadContext,
   type ResearchObserver } from "../researchReader";
 import { parseAssistantEvent, type ReadSubagentEvent } from "./assistantEvents";
 import type { DocumentStore } from "../documentStore";
@@ -113,7 +113,8 @@ it("forwards nested tool progress to the provider inactivity watchdog", async ()
 
 it("publishes source identity immediately and settles each parallel read before the batch ends", async () => {
   const events: Record<string, unknown>[] = [];
-  const source = { ref: 1, provider: "tna", citation: "2024 SCC 1", name: "Example v Example" };
+  const source = { kind: "public_legal", ref: 1, provider: "tna", identifier: "ewca/civ/2024/1",
+    citation: "[2024] EWCA Civ 1", title: "Example v Example", quotes: [] };
   const receipt = createTnaEvidence({
     jurisdiction: "CA", sourceClass: "case", stableSourceId: "case-1",
     sourceText: "The appeal is allowed.", spanText: "The appeal is allowed.",
@@ -622,7 +623,8 @@ it("resumes child source scopes, queries and coverage with the actual reading mo
     observed: Parameters<ResearchObserver>[] = [], checkpoints: ReadSubagentEvent[] = [];
   stream.mockImplementation(async (params) => {
     if (params.providerSession) {
-      const resource = resources.find((value) => params.systemPrompt.includes(value))!,
+      const inventory = await params.runTools([{ id: "selection", name: "Read", input: { file_path: "selection" } }]);
+      const resource = JSON.parse(inventory[0].content).items[0].resource,
         offset = params.providerSession.continuationId ? 2 : 1;
       expect(resource).toBeTruthy();
       params.providerSession.onContinuationId?.(resource);
@@ -650,6 +652,7 @@ it("resumes child source scopes, queries and coverage with the actual reading mo
       expect(context.research?.subjects).toHaveLength(1);
       return [{ ...ASSISTANT_TOOLS.find(({ name }) => name === "Read")!, reader: ["CA"],
         async execute(input, context, signal, call) {
+          if (input.file_path === "selection") return readResearchContextInventory(context.research!, {});
           const output = await readResearchContext(documents, { userId: "owner" }, context.research!, {
             resource: String(input.file_path), offset: Number(input.offset), limit: 1, signal, remainingOnly: true });
           return { ...output, queryReceipts: [{ call_id: call.id, tool: "Read", executed_at: "2026-09-06T08:00:00.000Z",
