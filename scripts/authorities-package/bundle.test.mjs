@@ -33,7 +33,9 @@ test("retains real shared source validation", () => assert.doesNotThrow(() =>
   assertAuthoritiesBundle({ inputs: { ...core, "node_modules/zod/index.js": {} } })));
 
 test("accepts the shared local Authorities workspace", () => assert.doesNotThrow(() =>
-  assertStandaloneFrontendModules(frontend)));
+  assertStandaloneFrontendModules([...frontend,
+    "/repo/frontend/src/app/lib/api/client.ts",
+    "/repo/frontend/src/app/lib/api/mutationEvents.ts"])));
 for (const input of ["/repo/frontend/src/app/authorities/beaverHost.ts",
   "/repo/frontend/src/app/components/assistant/WorkProductAssistant.tsx",
   "/repo/frontend/src/app/lib/api/documents.ts",
