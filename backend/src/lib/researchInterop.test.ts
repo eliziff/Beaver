@@ -78,6 +78,10 @@ it("files a chat's cited passage under every reviewed concept and undoes the who
     expect(saved.state.sources[f.sourceId].labelIds).toContain(concept.id);
     expect(saved.state.sources[f.sourceId].passages?.labelCounts[type.id]).toBe(1);
   }
+  const table = await f.sources.previewTable(owner, file.document.id, {});
+  expect(table.design.columns.map(({ name }) => name)).toEqual(["Integrated scheme", "Rule", "Honest performance", "Exclusion of duties"]);
+  expect(table.stats.map(({ evidence }) => evidence)).toEqual([0, 1, 1, 1]);
+  expect(table.samples.every(({ text }) => text === f.receipts[0].span_text)).toBe(true);
   const history = await f.sources.items(owner, file.document.id, { kind: "history", offset: 0, limit: 1 }), change = history.items[0];
   if (change.kind !== "change") throw new Error("Missing proposal history");
   const restored = await f.act({ type: "undo", changeId: change.value.id });
@@ -88,15 +92,15 @@ it("opens existing work as a populated snapshot, leaving new questions pending",
   const f = await fixture();
   await f.turn("Why was the clause invalid?", "The saving language did not cure the invalid scheme.");
   const preview = await f.sources.previewTable(owner, f.file().document.id, {});
-  expect(preview.stats.map(({ kinds }) => kinds)).toEqual([["classification"], ["passages"], ["answer"]]);
+  expect(preview.stats.map(({ kinds }) => kinds)).toEqual([[], ["passages"]]);
   const design = { ...preview.design, columns: [...preview.design.columns, { index: 9, name: "New question", prompt: "Was costs relief granted?", format: "text" as const }] };
   const created = await f.sources.table(owner, f.file().document.id, { design, fingerprint: preview.fingerprint });
   const detail = await f.tables.detail(owner, created.id);
   expect(detail.review.scope_config?.frozen).toBe(true);
-  expect(detail.cells.map(({ status }) => status).sort()).toEqual(["done", "done", "done", "pending"]);
-  const answer = detail.cells.find(({ column_index }) => column_index === 2)!.content!;
-  expect(answer.claims[0].text).toBe("The saving language did not cure the invalid scheme.");
-  expect(answer.evidence).toEqual([f.receipts[1]]);
+  expect(detail.cells.map(({ status }) => status).sort()).toEqual(["done", "pending", "pending"]);
+  const answer = detail.cells.find(({ column_index }) => column_index === 1)!.content!;
+  expect(answer.claims[0].text).toBe(f.receipts[0].span_text);
+  expect(answer.evidence).toEqual([f.receipts[0]]);
   await f.act({ type: "label", id: f.labelId, name: "Renamed classification", scope: "source" });
   await f.act({ type: "label", id: f.typeId, name: "Renamed rule", scope: "highlight" });
   const after = await f.tables.detail(owner, created.id);
@@ -115,12 +119,12 @@ it("converts only grounded Chat sources and reuses earlier receipts for a select
   const preview = await f.sources.previewTable(owner, f.file().document.id, { chatId: f.chat.id, messageIds: [later] });
   expect(preview.rows).toHaveLength(1);
   expect(preview).toMatchObject({ question: "Later question", proposed: false, fallback: expect.any(String) });
-  // The question is the subject of the table, never a column: the selected answer lands under "Finding".
+  // Failed model proposals retain the saved concepts and their passages, never question-shaped columns.
   expect(preview.design.columns.some(({ name }) => name === "First question" || name === "Later question")).toBe(false);
-  expect(preview.design.columns.some(({ name }) => name === "Finding")).toBe(true);
+  expect(preview.design.columns.map(({ name }) => name)).toEqual(["Integrated scheme", "Rule"]);
   const review = await f.sources.table(owner, f.file().document.id, { chatId: f.chat.id, messageIds: [later], design: preview.design, fingerprint: preview.fingerprint });
   const detail = await f.tables.detail(owner, review.id), answer = detail.cells.at(-1)!.content!;
-  expect(answer.claims[0].text).toBe("Later answer grounded in an earlier read");
+  expect(answer.claims[0].text).toBe(f.receipts[0].span_text);
   expect(answer.evidence).toEqual([f.receipts[0]]);
   expect(earlier).not.toBe(later);
 });
@@ -148,16 +152,16 @@ it("saves only deliberately requested claim support, without promoting other rea
 it("passes selected Table results back to Chat with exactly their original support", async () => {
   const f = await fixture(); await f.turn("Why?", "Grounded prior reasoning.");
   const table = await f.sources.table(owner, f.file().document.id, {}), detail = await f.tables.detail(owner, table.id),
-    reference = { kind: "cell" as const, reviewId: table.id, rowId: f.sourceId, columnIndex: 2 },
+    reference = { kind: "cell" as const, reviewId: table.id, rowId: f.sourceId, columnIndex: 1 },
     selection = { target: "sources" as const, sourceIds: [f.sourceId], findingRefs: [reference] };
   const context = await f.sources.context(owner, f.file().document.id, selection);
   const { readTabularCells } = await import("./chat/tabularCells"), read = readTabularCells(detail, undefined, undefined, { context });
-  expect(JSON.parse(read.content).cells).toEqual([expect.objectContaining({ col_index: 2, claims: [{ text: "Grounded prior reasoning.", evidence_ids: [f.receipts[1].evidence_id] }] })]);
-  expect(read.evidence).toEqual([f.receipts[1]]);
+  expect(JSON.parse(read.content).cells).toEqual([expect.objectContaining({ col_index: 1, claims: [{ text: f.receipts[0].span_text, evidence_ids: [f.receipts[0].evidence_id] }] })]);
+  expect(read.evidence).toEqual([f.receipts[0]]);
   const findings = await f.sources.findings(owner, f.file().document.id, { offset: 0, limit: 10, references: [reference], subjects: context.subjects });
   expect(findings.items.map(({ reference: ref }) => ref)).toEqual([reference]);
   await expect(f.sources.findings(owner, f.file().document.id, { offset: 0, limit: 10, references: [reference],
-    reference: { ...reference, columnIndex: 1 } })).rejects.toMatchObject({ status: 400 });
+    reference: { ...reference, columnIndex: 0 } })).rejects.toMatchObject({ status: 400 });
 });
 it("does not silently reseed a frozen answer during column edits and preserves pending new questions", async () => {
   const f = await fixture(), review = await f.sources.table(owner, f.file().document.id, {}), original = await f.tables.detail(owner, review.id);
@@ -239,7 +243,7 @@ it("exposes reviewed conversions and explicit evidence saving through the authen
   expect((await request(app).post(`${url}/table`).send({ chatId: f.chat.id, design: preview.body.design })).status).toBe(409);
   const opened = await request(app).post(`${url}/table`).send({ chatId: f.chat.id, design: preview.body.design, fingerprint: preview.body.fingerprint });
   expect(opened.status).toBe(200);
-  const current = (await f.sources.get(owner, f.file().document.id))!, ref = { kind: "cell", reviewId: opened.body.id, rowId: f.sourceId, columnIndex: 2 };
+  const current = (await f.sources.get(owner, f.file().document.id))!, ref = { kind: "cell", reviewId: opened.body.id, rowId: f.sourceId, columnIndex: 1 };
   const saved = await request(app).post(`${url}/save-findings`).send({ references: [ref], typeId: f.typeId,
     versionId: current.versionId, workingRevision: current.workingRevision });
   expect(saved.status).toBe(200); expect(saved.body.saved).toBe(1);
@@ -262,6 +266,8 @@ async function seededFindings(f: Awaited<ReturnType<typeof fixture>>, rows = 100
         evidence: [f.receipts[0]], outcome: "answered", coverage: "complete",
       } })) });
   if (result.status !== "committed") throw new Error("Could not seed findings");
+  await f.act({ type: "batch", title: "Review concepts", actions: fields.map(({ name, prompt }) =>
+    ({ type: "label", name, definition: prompt, scope: "source" })) });
   references.forEach((ref) => { ref.reviewId = result.value.id; });
   await f.sources.collect(owner, file.document.id, { tables: [result.value.id] });
   return { repository, review: result.value, references, resource };
