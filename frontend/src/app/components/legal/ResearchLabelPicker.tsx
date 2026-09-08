@@ -71,7 +71,8 @@ export function ResearchLabelWaterfall({ labels, scope, selectedId, onChoose, no
   return <div className="grid min-w-0 content-start">
     {Array.from({ length: depth }, (_, row) => { const parent = row ? path[row - 1] : null,
       items = row && !parent ? [] : tree.get(parent?.id ?? null) ?? [], active = path[row]?.id ?? null;
-      return <div key={row} className={`flex h-8 min-w-0 items-center gap-1 overflow-x-auto overflow-y-hidden py-1 ${row ? "ms-2 border-s-2 border-gray-200 ps-3" : ""}`}>
+      return <div key={row} style={{ marginInlineStart: row ? 8 + (row - 1) * 20 : 0 }}
+        className={`flex h-8 min-w-0 items-center gap-1 overflow-x-auto overflow-y-hidden py-1 ${row ? "border-s-2 border-gray-200 ps-3" : ""}`}>
         {!row && noneLabel && <button type="button" onClick={() => onChoose(null)} aria-pressed={!selectedId} className={CHIP(!selectedId)}>
           <ResearchLabelFolder labels={labels} labelId={null} size="sm" /><span className="max-w-20 truncate">{noneLabel}</span></button>}
         {items.map((label) => <button key={label.id} type="button" onClick={() => onChoose(label.id)}
@@ -149,7 +150,7 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
     <button type="button" onClick={() => close.current()} aria-label="Close label palette"
       className="grid size-8 shrink-0 place-items-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"><X className="size-4" aria-hidden="true" /></button>
     </header>
-    {scope === "source" && <div aria-label="Filed under" className="grid gap-0.5 border-b border-gray-100 py-2">
+    {scope === "source" && <div aria-label="Filed under" className="grid h-24 content-start gap-0.5 overflow-y-auto border-b border-gray-100 py-2">
       {[...slots, ""].map((id, index) => { const name = id ? researchLabelPath(labels, id).map((label) => label.name).join(" / ") : "";
         return <button key={`${id}:${index}`} type="button" onClick={() => setActiveSlot(index)}
           aria-pressed={index === activeSlot} aria-label={id ? `Filed under ${name}` : "Add a label"} title={name || "Add a label"}
