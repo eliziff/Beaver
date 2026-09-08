@@ -71,6 +71,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
       <div role="list" aria-label="Authority tab slots"
         className="divide-y divide-gray-200 rounded-lg border border-gray-300">
         {authorities.map((authority) => <AuthorityRow key={authority.id} authority={authority} busy={busy}
+          order={state.authorityOrder}
           tab={authority.excluded ? "Excluded" : tabs.get(authority.id)}
           citations={authorityCitationForms(authority, occurrences)}
           needsPdf={!authority.excluded && requiresPdf(state, authority)}
@@ -93,7 +94,8 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
 
 function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLanguages, sourceIssues,
   editableIdentity, rebuildsFromText, removable, sourceLabel, onAction, onPick, onLibrary, onAttach,
-  onRelink, onOpen, onEditIdentity, ocr }: {
+  onRelink, onOpen, onEditIdentity, ocr, order }: {
+  order: string[];
   authority: AuthorityIdentity; tab?: string; citations: string[]; busy: boolean; needsPdf: boolean;
   requireLanguages: boolean; sourceIssues: Record<string, AuthoritiesSourceIssue>;
   editableIdentity: boolean; rebuildsFromText: boolean; removable: boolean; sourceLabel: string;
@@ -125,13 +127,22 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   return <article role="listitem" data-authority-id={authority.id}
     className={cn("group/row grid min-h-12 min-w-0 grid-cols-[2.25rem_1.25rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 px-2 py-1.5 sm:grid-cols-[2.75rem_1.25rem_minmax(0,1fr)_11rem_16.5rem]",
       authority.excluded && "opacity-65")}
-    onDragOver={(event) => { if (!busy && needsPdf && event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
+    onDragOver={(event) => { if (!busy && (event.dataTransfer.types.includes("application/x-authority") ||
+      needsPdf && event.dataTransfer.types.includes("Files"))) event.preventDefault(); }}
     onDrop={(event) => {
+      const id = event.dataTransfer.getData("application/x-authority");
+      if (!busy && order.includes(id)) { event.preventDefault(); event.stopPropagation();
+        onAction({ type: "move-authority", authorityId: id, toIndex: order.indexOf(authority.id) }); return; }
       if (!event.dataTransfer.files.length) return;
       event.preventDefault(); event.stopPropagation();
       if (!busy && needsPdf) onAttach(event.dataTransfer.files[0]);
     }}>
-    <span className="truncate text-xs font-semibold text-gray-600" title={tab}>{tab}</span>
+    <button type="button" draggable={!busy} disabled={busy} title="Drag to reorder, or use arrow keys"
+      aria-label={`Reorder ${title}`} className="cursor-grab truncate rounded py-2 text-xs font-semibold text-gray-600 focus-visible:ring-2 focus-visible:ring-red-600"
+      onDragStart={event => event.dataTransfer.setData("application/x-authority", authority.id)}
+      onKeyDown={event => { if (!["ArrowUp", "ArrowDown"].includes(event.key)) return;
+        event.preventDefault(); onAction({ type: "move-authority", authorityId: authority.id,
+          toIndex: Math.max(0, Math.min(order.length - 1, order.indexOf(authority.id) + (event.key === "ArrowUp" ? -1 : 1))) }); }}>{tab}</button>
     <span className="flex h-4 w-4 items-center justify-center">
       {mark && <mark.Icon role="img" aria-label={mark.label} className={cn("h-4 w-4", mark.tone)}>
         <title>{mark.label}</title></mark.Icon>}
