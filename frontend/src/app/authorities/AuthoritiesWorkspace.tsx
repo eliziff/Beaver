@@ -259,7 +259,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const draftId = draft?.id;
   const sourceKey = sourceIssueKey(draft);
   const scannedSources = useScannedSources(host, draft, `${draftId}:${sourceKey}`,
-    draft?.state.stage === "sources" || draft?.state.stage === undefined);
+    (file) => { if (ocr.tracked[file.role]?.sourceSha256 !== file.sourceSha256) void ocr.begin([file]); });
   const sameDraft = draft && sourceIssueState.draftId === draft.id;
   const sourceIssues = sameDraft && sourceIssueState.sourceKey === sourceKey
     ? sourceIssueState.issues : {};
@@ -635,7 +635,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     void run(async () => {
       // Recognition is queued the moment a scan is found and watched in the Sources
       // list; how much of it reaches the book stays the scanned-PDF setting.
-      void ocr.begin(await scannedSources(current, setMessage));
+      await scannedSources.ensure(current, setMessage);
       request.signal.throwIfAborted();
       return prepareHighlightReview(current, request.signal);
     }, remember, "", "Preparing highlight review").finally(() => {
@@ -658,7 +658,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     onDownload={download} />;
   const preparedHighlights = highlightWarnings?.key === highlightPreparationKey(draft) ? highlightWarnings : undefined;
   const highlightPanel = draft && (stage === "highlights" || stage === "build") && <AuthoritiesHighlights product={draft} tabs={authorityTabs}
-    busy={busy} host={host} onSaved={remember} prepared={preparedHighlights?.sets} />;
+    busy={busy} host={host} ocr={ocr} onSaved={remember} prepared={preparedHighlights?.sets} />;
   // While editing citations the step appears only on request, from the finding's own Review button.
   const quotationReview = draft && !quotationsDone && discrepancies.length > 0 &&
     (stage !== "citations" || !!findingId) &&
@@ -683,7 +683,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       ? act({ type: "set-stage", stage: "highlights" }) : finishSources()}>
       Done<ChevronRight /></Button>
   </div>;
-  const authorityPanelProps = { authorities, tabs: authorityTabs, busy, sourceIssues,
+  const authorityPanelProps = { authorities, tabs: authorityTabs, busy, sourceIssues, ocr,
+    inspection: scannedSources,
     onAction: act, onEditIdentity: setEditingAuthority,
     onOpenSource: host.readSource ? openSource : undefined, onAdd: () => setAddOpen(true),
     onPick: host.pickFiles ? (id: string) => void pickFiles(false, "pdf",

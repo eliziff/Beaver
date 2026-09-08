@@ -4,9 +4,9 @@ import { authorityName } from "./authorityPresentation";
 import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesProduct } from "./types";
 
-type ScannedPdf = { role: string; name: string; textlessPages: number[] };
+type ScannedPdf = { role: string; name: string; sourceSha256: string; textlessPages: number[] };
 export type SourceOcrStatus = ScannedPdf & { documentId?: string; page?: number;
-  error?: string; state: "running" | "paused" | "done" | "failed" };
+  error?: string; state: "running" | "paused" | "cancelled" | "done" | "failed" };
 
 /**
  * Scanned source PDFs are recognized by the durable PDF queue, cited pages first,
@@ -14,27 +14,31 @@ export type SourceOcrStatus = ScannedPdf & { documentId?: string; page?: number;
  */
 export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
   const [tracked, setTracked] = useState<Record<string, SourceOcrStatus>>({});
+  const pending = useRef(Promise.resolve());
   const port = host.sourceOcr;
   const merge = useCallback((updates: Record<string, Partial<SourceOcrStatus>>) =>
     setTracked((current) => Object.fromEntries(Object.entries(current).map(([role, item]) =>
       [role, updates[role] ? { ...item, ...updates[role] } : item]))), []);
 
-  const begin = useCallback(async (files: ScannedPdf[]) => {
+  const begin = useCallback(async (files: ScannedPdf[], pages?: number[]) => {
     if (!port || !draftId || !files.length) return;
     setTracked((current) => ({ ...current, ...Object.fromEntries(files.map((file) =>
       [file.role, { ...file, state: "running" as const, error: undefined }])) }));
-    await port.start(draftId, files.map(({ role }) => role))
-      .then((started) => merge(Object.fromEntries(started.map((item) => [item.role, item]))))
+    await (pending.current = pending.current.then(() => port.start(draftId, files.map(({ role }) => role), pages))
+      .then((started) => merge(Object.fromEntries(started.map((item) => [item.role,
+        { documentId: item.documentId, ...(item.done ? { state: "done" as const } : {}) }]))))
       .catch((error: Error) => merge(Object.fromEntries(files.map(({ role }) =>
-        [role, { state: "failed" as const, error: error.message }]))));
+        [role, { state: "failed" as const, error: error.message }])))));
   }, [draftId, merge, port]);
 
   const stop = useCallback(async (roles: string[], paused: boolean) => {
     if (!port || !draftId || !roles.length) return;
-    if (paused) merge(Object.fromEntries(roles.map((role) => [role, { state: "paused" as const }])));
-    else setTracked((current) => Object.fromEntries(
-      Object.entries(current).filter(([role]) => !roles.includes(role))));
-    await port.cancel(draftId, roles).catch(() => undefined);
+    const stopped = Object.fromEntries(roles.map((role) => [role,
+      { state: paused ? "paused" as const : "cancelled" as const }]));
+    merge(stopped);
+    await (pending.current = pending.current.then(() => port.cancel(draftId, roles)).then(() => merge(stopped))
+      .catch((error: Error) => merge(Object.fromEntries(
+        roles.map((role) => [role, { state: "failed" as const, error: error.message }])))));
   }, [draftId, merge, port]);
 
   const watching = Object.values(tracked)
@@ -61,20 +65,24 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
 }
 
 async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct,
-  report: (message: string) => void) {
+  report: (message: string) => void, found: (file: ScannedPdf) => void, signal: AbortSignal) {
   const files: ScannedPdf[] = [];
   for (const id of draft.state.authorityOrder) {
     const authority = draft.state.authorities[id];
     if (authority.excluded || authority.source.kind !== "attached") continue;
     for (const source of authority.source.sources) {
+      signal.throwIfAborted();
       if (source.origin === "reconstructed" || !host.readSource) continue;
       report(`Checking pages in ${authorityName(authority)}`);
       const blob = await host.readSource(draft, source.bindingRole);
       const inspected = await inspectPdf(new File([blob], source.filename,
-        { type: "application/pdf" }));
+        { type: "application/pdf" }), undefined, signal);
       if (!inspected.pageCount) throw new Error(`Unlock the PDF for ${authorityName(authority)} before continuing.`);
-      if (inspected.textlessPages.length) files.push({ role: source.bindingRole,
-        name: authorityName(authority), textlessPages: inspected.textlessPages });
+      if (inspected.textlessPages.length) {
+        const file = { role: source.bindingRole, sourceSha256: source.sourceSha256,
+          name: authorityName(authority), textlessPages: inspected.textlessPages };
+        files.push(file); found(file);
+      }
     }
   }
   return files;
@@ -85,27 +93,32 @@ async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct,
  * already on screen, so continuing does not pay for the whole check at once.
  */
 export function useScannedSources(host: AuthoritiesHost, draft: AuthoritiesProduct | undefined,
-  key: string, active: boolean) {
+  key: string, found: (file: ScannedPdf) => void) {
+  const [status, setStatus] = useState({ progress: "", error: "" });
+  const onFound = useRef(found); onFound.current = found;
   const cached = useRef<{ key: string; report: (message: string) => void;
-    result: Promise<ScannedPdf[]> }>(undefined);
+    abort: AbortController; result: Promise<ScannedPdf[]> }>(undefined);
   const ensure = useCallback((current: AuthoritiesProduct, report: (message: string) => void) => {
     const running = cached.current;
-    // The check reports to whoever is waiting on it now, so continuing while the
-    // background pass is still going shows that pass's progress.
     if (running?.key === key) { running.report = report; return running.result; }
-    const entry = { key, report, result: undefined as unknown as Promise<ScannedPdf[]> };
-    entry.result = inspectSources(host, current, (message) => entry.report(message));
+    running?.abort.abort();
+    const entry = { key, report, abort: new AbortController(), result: undefined as unknown as Promise<ScannedPdf[]> };
+    entry.result = inspectSources(host, current, (message) => {
+      setStatus({ progress: message, error: "" }); entry.report(message);
+    }, (file) => onFound.current(file), entry.abort.signal).then((files) => {
+      if (!entry.abort.signal.aborted) setStatus({ progress: "", error: "" });
+      return files;
+    });
     cached.current = entry;
-    // A failed check is never remembered: the next attempt runs again and reports
-    // its own reason instead of replaying a stale rejection for ever.
-    entry.result.catch(() => { if (cached.current === entry) cached.current = undefined; });
+    entry.result.catch((error: Error) => {
+      if (cached.current === entry) cached.current = undefined;
+      if (!entry.abort.signal.aborted) setStatus({ progress: "", error: error.message });
+    });
     return entry.result;
   }, [host, key]);
   useEffect(() => {
-    if (!active || !draft || !host.readSource) return;
-    const timer = setTimeout(() => void ensure(draft, () => undefined)
-      .catch(() => undefined), 400);
-    return () => clearTimeout(timer);
-  }, [active, draft, ensure, host]);
-  return ensure;
+    if (draft && host.readSource) void ensure(draft, () => undefined).catch(() => undefined);
+    return () => { cached.current?.abort.abort(); cached.current = undefined; };
+  }, [ensure]);
+  return { ensure, ...status };
 }
