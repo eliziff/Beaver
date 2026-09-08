@@ -95,7 +95,7 @@ export default function ResearchMemoPane({ file, mutations, onOpenCitation }: {
     } catch { setError("Could not load the saved memo. Your draft is still here."); }
     finally { pending.current = false; setSaving(false); setConfirmReload(false); }
   };
-  const resolveReference = async ({ reference, locator, quote }: MemoSourceReference) => {
+  const resolveReference = async ({ reference, span }: MemoSourceReference) => {
     setAddingCitation(true); setCitationError("");
     try {
       let current = file, source = Object.values(current.state.sources).find((source) =>
@@ -105,8 +105,8 @@ export default function ResearchMemoPane({ file, mutations, onOpenCitation }: {
         source = next.sourceId ? next.state.sources[next.sourceId] : undefined;
       }
       if (!source) throw new Error("Could not save the source for this citation.");
-      if (!quote) return (await getResearchCitation(current.document.id, source.id)).href;
-      const saved = await mutations.act({ type: "passage", sourceId: source.id, quote });
+      if (!span) return (await getResearchCitation(current.document.id, source.id)).href;
+      const saved = await mutations.act({ type: "passage", sourceId: source.id, ...span });
       if (!saved.receipt) throw new Error("Could not verify the selected passage.");
       return (await getResearchCitation(saved.document.id, source.id, saved.receipt.evidence_id)).href;
     } catch (reason) { setCitationError(errorMessage(reason, "Could not add citation")); return null; }

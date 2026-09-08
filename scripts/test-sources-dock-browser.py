@@ -98,8 +98,11 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
             driver.find_element(By.XPATH, "//*[@role='menuitem' and normalize-space()='Add to research…']").click()
             dialog = visible(driver, By.CSS_SELECTOR, "dialog[open]")
             assert not api("GET", f"/api/source-workspaces/{research_id}")["state"]["sources"]
-            dialog.find_element(By.CSS_SELECTOR, "input[aria-label='Filter']").send_keys(title)
-            click_text(driver, title, dialog)
+            dialog.find_element(By.CSS_SELECTOR, "input[aria-label='Search research sets']").send_keys(title)
+            visible(driver, By.CSS_SELECTOR, f"input[aria-label='Select {title}']").click()
+            WebDriverWait(driver, 30).until(lambda _: dialog.find_element(
+                By.XPATH, ".//button[normalize-space()='Add']").is_enabled())
+            click_text(driver, "Add", dialog)
 
             def collected_source():
                 saved = api("GET", f"/api/source-workspaces/{research_id}")
@@ -114,11 +117,12 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
 
             # Explicit save, not a read: default type is one ordinary Highlight.
             saved = api("GET", f"/api/source-workspaces/{research_id}")
+            reader = api("GET", f"/api/single-documents/{document['id']}/reader-text?version_id={document['current_version_id']}")
             saved = api("POST", f"/api/source-workspaces/{research_id}/actions", {
                 "version_id": saved["versionId"], "working_revision": saved["workingRevision"],
                 "action": {"type": "passage", "sourceId": source["id"],
-                    "locator": {"kind": "document", "value": "document"},
-                    "quote": "First passage about fairness."}})
+                    "revision": reader["revision"], "start": 0,
+                    "end": len("First passage about fairness.")}})
             items = api("GET", f"/api/source-workspaces/{research_id}/items?kind=passages")["items"]
             assert len(items) == 1, items
             type_ids = items[0]["value"]["labelIds"]
@@ -129,11 +133,8 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
 
             driver.get(urljoin(args.url, f"/sources?research_file={research_id}"))
             rail = visible(driver, By.CSS_SELECTOR, "section[aria-label='Research collection']")
-            type_picker = rail.find_element(By.CSS_SELECTOR, "button[aria-label^='Highlight type:']")
-            assert type_picker.is_displayed()
-            type_picker.click()
-            visible(driver, By.CSS_SELECTOR, "[role='dialog'][aria-label='Highlight types']")
-            driver.switch_to.active_element.send_keys(Keys.ESCAPE)
+            types = rail.find_element(By.CSS_SELECTOR, "[role='tree'][aria-label='Highlight types']")
+            assert types.find_element(By.CSS_SELECTOR, "[role='treeitem'][aria-label='Highlight']").is_displayed()
             assert rail.find_element(By.CSS_SELECTOR, "input[aria-label='Filter']").is_displayed()
             tree = rail.find_element(By.CSS_SELECTOR, "[role='tree'][aria-label='Sources']")
             assert tree.is_displayed()

@@ -257,7 +257,7 @@ export function DocumentSidePanel({
     const savedHighlight = (saved: SavedHighlight | null) => { if (saved?.evidenceId)
         setLabelTarget({ file: saved.file, kind: "evidence", itemId: saved.evidenceId, sourceId: saved.sourceId,
             labelIds: saved.labelIds, title: doc?.filename ?? "", anchor: highlightButton.current ?? undefined }); };
-    useLibraryReaderCapture(readerBody, captureReference, highlightController, savedHighlight);
+    const captureReady = useLibraryReaderCapture(readerBody, captureReference, highlightController, savedHighlight);
     const [savedQuotes, setSavedQuotes] = useState<CitationQuote[]>([]);
     const workspaceFile = sourcesController?.file ?? null;
     const captureKey = captureReference ? researchSourceKey(captureReference) : null;
@@ -517,6 +517,7 @@ export function DocumentSidePanel({
                     <button
                         type="button"
                         aria-label="Highlight"
+                        disabled={!captureReady}
                         aria-pressed={highlightController.armed}
                         title="Highlight"
                         ref={highlightButton}

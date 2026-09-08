@@ -70,7 +70,7 @@ export function TextView({ documentId, versionId, filename, rounded }: Props) {
     if (MARKDOWN_EXTENSIONS.has(extension)) {
         return (
             <div className={`${frame} font-serif text-base leading-7 text-gray-950`}
-                data-legal-block="" data-locator-kind="document" data-locator-value="document">
+                data-legal-text="1">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}
                     components={MARKDOWN_COMPONENTS}>{text}</ReactMarkdown>
             </div>
@@ -78,7 +78,7 @@ export function TextView({ documentId, versionId, filename, rounded }: Props) {
     }
     return (
         <pre
-            data-legal-block="" data-locator-kind="document" data-locator-value="document"
+            data-legal-text="1"
             className={`${frame} whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-gray-900`}
         >
             {text}

@@ -1,13 +1,19 @@
 import { MessageCircle } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAssistantChat } from "@/app/hooks/useAssistantChat";
 import { AssistantDock } from "./AssistantDock";
 import { ConversationView } from "./ConversationView";
 import type { WorkProductAssistantProps } from "./WorkProductAssistant";
+import type { Citation } from "@/app/lib/citations";
+import { ResearchCitationContent } from "../legal/ResearchCitationViewer";
+import { ResearchWorkspaceHost } from "../legal/ResearchWorkspaceHost";
+import { SourcesWorkspace } from "../legal/SourcesWorkspace";
 
 export function WorkProductAssistantPanel({ product, chatId, onChatIdChange, expanded = true,
   focus, onClose, synced = true, onBusyChange, onProductUpdated,
   onTurnComplete }: WorkProductAssistantProps) {
+  const [reading, setReading] = useState<Citation | null>(null), [tab, setTab] = useState("assistant"),
+    [workspaceOpen, setWorkspaceOpen] = useState(false);
   const assistant = useAssistantChat({ chatId, onChatIdChange, stayInPlace: true,
     projectId: product?.projectId ?? undefined,
     workProduct: product && { kind: product.kind, id: product.id, revision: product.revision,
@@ -33,17 +39,22 @@ export function WorkProductAssistantPanel({ product, chatId, onChatIdChange, exp
     onTurnComplete?.();
     return result;
   };
-  return <AssistantDock tabs={[{ id: "assistant", label: "Assistant",
+  return <SourcesWorkspace projectId={product?.projectId ?? undefined}><AssistantDock tabs={[{ id: "assistant", label: "Assistant",
     icon: <MessageCircle aria-hidden className="size-4" />,
     actions: product?.title ? <span aria-label={`Current draft: ${product.title}`}
       title={product.title} className="max-w-44 truncate text-xs text-gray-500">
       {product.title}</span> : undefined, content:
       <ConversationView chatId={assistant.state.chatId} session={assistant.state}
+        onCitationClick={(citation) => { setReading(citation); setTab("reading"); }}
         handleChat={handleChat} cancel={assistant.actions.cancel} sendDisabled={!synced}
         onRejectedTurnRestored={assistant.actions.clearRejectedTurn}
         onRetryRejectedTurn={() => void assistant.actions.retryRejectedTurn()}
-        layout="panel" showContextTools={false} /> }]}
-    activeTabId="assistant" onActivateTab={() => {}} expanded={expanded}
+        layout="panel" showContextTools={false} /> },
+      ...(reading ? [{ id: "reading", label: "Source", readerExpansion: true,
+        content: <ResearchCitationContent citation={reading} onOpenResearch={() => setWorkspaceOpen(true)} /> }] : [])]}
+    activeTabId={tab} onActivateTab={setTab} expanded={expanded}
     showCollapsedButton={false}
-    onExpandedChange={(nextExpanded) => { if (!nextExpanded) onClose(); }} />;
+    onExpandedChange={(nextExpanded) => { if (!nextExpanded) onClose(); }} />
+    {workspaceOpen && <ResearchWorkspaceHost embedded floating open={expanded} onOpenChange={setWorkspaceOpen} />}
+  </SourcesWorkspace>;
 }

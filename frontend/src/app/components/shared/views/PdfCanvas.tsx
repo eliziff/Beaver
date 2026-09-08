@@ -247,6 +247,7 @@ export function PdfCanvas({
                     const viewport = page.getViewport({ scale });
                     element = document.createElement("div");
                     element.className = "pdf-text-layer";
+                    element.dataset.legalText = String(index + 1);
                     Object.assign(element.style, { position: "absolute", left: "0", top: "0",
                         width: `${viewport.width}px`, height: `${viewport.height}px`,
                         userSelect: "text", pointerEvents: "auto", zIndex: "1" });
@@ -256,6 +257,14 @@ export function PdfCanvas({
                         container: element, viewport });
                     await layer.render();
                     if (generation !== generationRef.current) return;
+                    const lines = new Map<string, HTMLDivElement>();
+                    for (const div of layer.textDivs) {
+                        const top = div.style.top;
+                        let line = lines.get(top);
+                        if (!line) { line = document.createElement("div"); line.style.display = "contents";
+                            line.dataset.legalText = String(index + 1); lines.set(top, line); element.appendChild(line); }
+                        line.appendChild(div);
+                    }
                     pages[index].textDivs = layer.textDivs;
                     pages[index].hasTextLayer = true;
                 } catch (cause) {

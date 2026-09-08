@@ -605,7 +605,7 @@ describe("Research v2 parts", () => {
     const prepared = await act(f, { type: "source", reference: library }),
       sourceId = Object.keys(prepared.state.sources)[0];
     const action = await verifyResearchPassage(prepared, { type: "passage", sourceId,
-      locator: { kind: "document", value: "document" }, quote: "governing law is Alberta",
+      revision: "a".repeat(64), start: text.indexOf("governing"), end: text.length - 1,
       labelIds: [highlightLabel] }, undefined, { documents: documents as never, scope });
     const saved = await act(f, action);
     expect(f.documents.replaceVersion).toHaveBeenCalledTimes(3);
@@ -616,7 +616,7 @@ describe("Research v2 parts", () => {
         span_text: "governing law is Alberta", locator: { kind: "document", label: "document" } } } });
   });
 
-  it("anchors a captured quote to its run of letters in the canonical text", async () => {
+  it("derives the quote from revision-bound offsets and refuses invalid spans", async () => {
     const f = fixture();
     const saved = await act(f, { type: "source", reference: { provider: "courtlistener",
       id: "1", kind: "case", citation: "Example" } }), sourceId = Object.keys(saved.state.sources)[0],
@@ -626,10 +626,12 @@ describe("Research v2 parts", () => {
         locator: { requested: { kind: "paragraph" as const, value: "1" }, label: "1" },
         role: "selected" as const, text, blockArtifact: block,
         documentArtifact: { text, blocks: [block] } }] })), base = { type: "passage" as const,
-        sourceId, locator: { kind: "paragraph" as const, value: "1" } };
-    await expect(verifyResearchPassage(saved, { ...base, quote: "missing" }, reader as never))
-      .rejects.toThrow("Select some text to highlight");
-    const action = await verifyResearchPassage(saved, { ...base, quote: "verified holding" },
+        sourceId, revision: "a".repeat(64), start: 4, end: 20 };
+    await expect(verifyResearchPassage(saved, { ...base, end: 200 }, reader as never))
+      .rejects.toMatchObject({ details: { code: "invalid_span" } });
+    await expect(verifyResearchPassage(saved, { ...base, revision: "b".repeat(64) }, reader as never))
+      .rejects.toThrow("This source changed");
+    const action = await verifyResearchPassage(saved, base,
       reader as never), updated = await act(f, action);
     expect((await pageResearchItems(f.documents as never, { userId: "user-1" }, updated,
       "passages")).items[0]).toMatchObject({ value: { receipt: {
