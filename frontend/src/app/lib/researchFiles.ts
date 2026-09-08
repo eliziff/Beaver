@@ -2,19 +2,10 @@ import type { ResearchFindingReference } from "@/app/lib/api/researchFiles";
 import type { Document } from "@/app/lib/api/documents";
 import type { GroundedEvidence } from "@/app/lib/groundedAnswers";
 
-export type ResearchLabel = { id: string; name: string; parentId: string | null;
-  color: string | null; order: number; scope: "source" | "highlight";
-  definition?: string };
-export type ResearchSourceReference = { id: string;
-  title?: string | null; citation?: string | null; alternateCitation?: string | null;
-  date?: string | null; collection?: string | null; language?: "en" | "fr";
-  url?: string | null } & ({ provider: "library"; kind: "document"; versionId: string;
-    family?: never; part?: never } | { provider: string; family?: string; part?: string;
-    kind: "case" | "legislation" | "journal" | "hansard"; versionId?: never });
-export type ResearchSource = { id: string; reference: ResearchSourceReference; collected?: boolean;
-  labelIds: string[]; note: string;
-  passages: (ResearchPartReference & { labelCounts: Record<string, number>;
-    unlabelledCount: number }) | null };
+import type { ResearchFileState } from "../../../../backend/src/lib/researchContract";
+export type { ResearchLabel, ResearchSourceReference, ResearchSource, ResearchPartReference,
+  ResearchFileState, PublicResearchFileAction as ResearchAction } from "../../../../backend/src/lib/researchContract";
+import type { ResearchSource, ResearchSourceReference } from "../../../../backend/src/lib/researchContract";
 export type ResearchEvidenceReceipt = GroundedEvidence;
 export type ResearchEvidence = { receipt: ResearchEvidenceReceipt; sourceId: string; highlightId?: string;
   labelIds: string[]; note: string };
@@ -28,17 +19,12 @@ export type ResearchQueryReceipt = { query_id: string; call_id: string;
   sourceFingerprints?: Record<string, string[]>;
   sourceReferences?: Record<string, ResearchSourceReference>;
   labelPaths?: Record<string, string> };
-export type ResearchPartReference = { count: number; sha256: string };
 export type ResearchChange = { id: string; title: string; createdAt: string;
   executor: "human" | "assistant"; model?: string; status: "pending" | "applied" | "rejected"; undoOf?: string;
   counts: { labels: number; sources: number; passages: number; tables?: number; results?: number };
   changes: { target: "label" | "source" | "passage" | "workspace" | "table" | "result"; id: string; sourceId?: string;
     field: string; before: unknown; after: unknown }[] };
 export type ResearchProposal = Pick<ResearchChange, "id" | "title" | "createdAt" | "executor" | "model" | "counts">;
-export type ResearchFileState = { schemaVersion: "beaver.research.v2";
-  labels: Record<string, ResearchLabel>; sources: Record<string, ResearchSource>;
-  queries: ResearchPartReference | null; note: string; tables?: string[]; chats?: string[];
-  proposals?: ResearchProposal[]; history?: ResearchPartReference };
 export type ResearchFile = { document: Document; versionId: string;
   workingRevision: number; state: ResearchFileState };
 export type ResearchQueryCoverage = { complete: boolean; next_after: string | null;
@@ -59,22 +45,6 @@ export type ResearchQueryInput = ResearchSelection & { text?: string; after?: st
 /** Library readers without block anchors address the whole projection with kind `document`. */
 export type PassageLocator = { kind: "paragraph" | "section" | "page" | "footnote" | "document";
   value: string; endValue?: string };
-export type ResearchAction =
-  | { type: "label"; id?: string; name: string; parentId?: string | null;
-      color?: string | null; order?: number; scope?: "source" | "highlight" }
-  | { type: "remove"; kind: "label" | "source"; id: string }
-  | { type: "remove"; kind: "evidence"; id: string; sourceId: string }
-  | { type: "source"; reference: ResearchSourceReference; labelIds?: string[]; note?: string }
-  | { type: "annotate"; kind: "source"; id: string; labelIds?: string[]; note?: string }
-  | { type: "annotate"; kind: "evidence"; id: string; sourceId: string;
-      labelIds?: string[]; note?: string }
-  | { type: "passage"; sourceId: string; labelIds?: string[]; revision: string; start: number; end: number }
-  | ({ type: "label-selection"; assign: string[]; mode: "add" | "remove" | "replace" } & ResearchSelection)
-  | { type: "accept" | "reject" | "undo"; changeId: string }
-  | { type: "note"; markdown: string; expectedMarkdown?: string }
-  /** One atomic research change: all of it commits, or none of it does. */
-  | { type: "batch"; title: string; propose?: boolean; actions: ResearchAction[] };
-
 /** Receipt inventory counts are not highlight counts. */
 export const researchHighlightCount = (source: ResearchSource) =>
   Object.values(source.passages?.labelCounts ?? {}).reduce((sum, count) => sum + count, 0);
@@ -86,21 +56,9 @@ export const researchMarkdown = (title: string, state = newResearchState()) =>
   `<!-- beaver-research:v2\n${JSON.stringify(state)}\n-->\n`;
 export const isResearchDocument = (document: Document) =>
   document.file_type === "md" && document.filename.toLowerCase().endsWith(".research.md");
-export const researchSourceKey = (value: ResearchSourceReference) => value.kind === "document"
-  ? `document://${encodeURIComponent(value.id)}/version/${encodeURIComponent(value.versionId)}`
-  : `source://${encodeURIComponent(value.provider)}/${encodeURIComponent(JSON.stringify(value.provider === "a2aj"
-      ? [value.id, value.kind === "legislation" ? "laws" : "cases", value.collection ?? "", value.language ?? "en"]
-      : [value.id, value.kind, value.family ?? "", value.part ?? "",
-        value.collection === value.provider ? "" : value.collection ?? "", value.language ?? "en"]))}`;
-export function researchLabelPath(labels: Record<string, ResearchLabel>, id: string) {
-  const path: ResearchLabel[] = [], seen = new Set<string>();
-  let label: ResearchLabel | undefined = labels[id];
-  while (label && !seen.has(label.id)) {
-    path.unshift(label); seen.add(label.id);
-    label = label.parentId ? labels[label.parentId] : undefined;
-  }
-  return path;
-}
+export { researchSourceKey } from "../../../../backend/src/lib/resourceReferences";
+
+export { researchLabelPath } from "../../../../backend/src/lib/researchLabels";
 export const legalSourceViewerHref = (reference: ResearchSourceReference, research?: {
   fileId: string; sourceId: string }) => `/sources/view?${new URLSearchParams({
     provider: reference.provider, citation: reference.citation ?? reference.id,
