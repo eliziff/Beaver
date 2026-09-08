@@ -168,9 +168,7 @@ const appRoutes: RouteObject[] = [
   }),
 ];
 
-// Keep runtime-dependent modules behind route.lazy: main imports these route
-// definitions while configuration is loading. Matched layouts and pages are
-// then downloaded concurrently, rather than behind the entire app shell.
+// Matched layouts and pages load concurrently after runtime configuration.
 function routes(LoginGate?: LoginGate): RouteObject[] {
   return [{
   lazy: async () => {
@@ -221,6 +219,9 @@ export async function preloadAppRoute(pathname: string) {
 }
 
 export function Router({ LoginGate }: { LoginGate?: LoginGate }) {
-  const [router] = useState(() => createBrowserRouter(routes(LoginGate)));
+  const [router] = useState(() => {
+    if (location.pathname === "/") history.replaceState(history.state, "", `/assistant${location.search}${location.hash}`);
+    return createBrowserRouter(routes(LoginGate));
+  });
   return <RouterProvider router={router} />;
 }

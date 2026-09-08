@@ -18,6 +18,7 @@ import {
     citationPillParts,
     citationTooltip,
 } from "./CitationSources";
+import { uniqueCitations } from "./citationUtils";
 export const MessageSearchHighlight = createContext("");
 
 function highlightText(query: string) {
@@ -76,7 +77,7 @@ function sourceCitations(text: string, citations: Citation[]) {
     return text.replace(/(?<!\\)\[(?:\d+(?:,\s*\d+)*)\](?:\s*\[(?:\d+(?:,\s*\d+)*)\])*(?!\()/gu, (markers) => {
         const selected = (markers.match(/\d+/gu) ?? [])
             .flatMap((ref) => byRef.get(Number(ref)) ?? []);
-        return selected.length ? selected.map(({ ref }) =>
+        return selected.length ? uniqueCitations(selected).map(({ ref }) =>
             `[source ${ref}](${ASSISTANT_SOURCE}${ref})`).join("") : markers;
     });
 }

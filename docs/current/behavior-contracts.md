@@ -255,6 +255,10 @@ scope.
 
 ## Durable jobs and work products
 
+- Opening Court Records from a blank chat starts a blank intake; an existing
+  record opens only when selected explicitly. Authorities reopens the last
+  selected draft within the current project or Library scope. Leaving either
+  workspace preserves its saved drafts.
 - Long work uses the shared durable job queue with progress, cancellation,
   restart recovery where supported, and usable partial results.
 - Progress reports stable job/activity identities and never requires a second
