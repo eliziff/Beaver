@@ -361,7 +361,7 @@ function TextRecognition({ entry, reading, onConfirm }: {
   </p>;
 }
 
-function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel, onChoose, onEntry, onRemove, onAssign, onAssignKind, assignmentKinds, assignmentLabels, assignmentLabel, dragEnabled = false, reading, onRelink }: {
+function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel, onChoose, onEntry, onAssign, onAssignKind, assignmentKinds, assignmentLabels, assignmentLabel, dragEnabled = false, reading, onRelink }: {
   entry: RecordEntry;
   kind?: DocumentKind;
   busy: boolean;

@@ -1,5 +1,5 @@
-import { ChevronDown, Plus, X } from "lucide-react";
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { ChevronDown } from "lucide-react";
+import { useRef, useState, type ChangeEvent } from "react";
 import { CourtChoiceModal, type CourtChoice } from "@/app/components/modals/CourtChoiceModal";
 import { ModalTextarea } from "@/app/components/modals/ModalTextarea";
 import { Input } from "@/app/components/ui/input";

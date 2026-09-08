@@ -86,8 +86,8 @@ it("reuses stored chat answers and their original Library/public evidence across
   };
   const first = await request(f.api).post(tablePath).send(input);
   expect(first.status).toBe(200);
-  expect(first.body.columns_config.map(({ name }: { name: string }) => name).slice(0, 2)).toEqual(["Labels", "Note"]);
-  expect((await request(f.api).post(tablePath).send(input)).body.id).toBe(first.body.id);
+  expect(first.body.columns_config).toMatchObject([{ prompt: "What did the materials establish?" }]);
+  expect(first.body.scope_config.frozen).toBe(true);
   const table = await arrange(f, first.body.id);
   expect(table.status).toBe(200);
   expect(table.body.cells).toHaveLength(2);
@@ -100,7 +100,7 @@ it("reuses stored chat answers and their original Library/public evidence across
     .toContain(f.resource);
   const { tabularRepository } = await import("../lib/relationalTabularRepository");
   expect((await tabularRepository.detail(owner, first.body.id))?.cells.every(({ status, content }) =>
-    status === "pending" && content === null)).toBe(true);
+    status === "done" && content !== null)).toBe(true);
   expect(table.body.documents.map(({ filename }: { filename: string }) => filename)).toEqual(["Chosen row 1", "Chosen row 2"]);
   expect((await request(f.api).post('/source-workspaces/ensure').send({ tableId: first.body.id })).body.document.id)
     .toBe(f.workspace.id);
@@ -138,6 +138,8 @@ it("keeps private chats, workspace bindings and Library sources inside their exi
   await expect(table.detail(other, imported.id)).rejects.toMatchObject({ status: 404 });
   const unrelated = await f.documents.create(owner, { filename: "Other.research.md", fileType: "md",
     bytes: Buffer.from(f.research.researchFileMarkdown("Other", f.research.createResearchFileState())) });
+  await expect(sources.table(owner, unrelated.id, { chatId: f.chat.id })).rejects.toMatchObject({ status: 404 });
+  await sources.bind(owner, unrelated.id, { chatId: f.chat.id });
   const related = await sources.table(owner, unrelated.id, { chatId: f.chat.id });
   expect(related.scope_config?.research_file_id).toBe(unrelated.id);
   expect((await sources.findings(owner, f.workspace.id, { offset: 0, limit: 20 })).items)
@@ -196,10 +198,18 @@ it("proposes column labels within the chosen research set without a Library onto
   await act({ type: "label", id: labelId, name: "Leases", scope: "source" });
   await act({ type: "annotate", kind: "source", id: sourceId, labelIds: [labelId] });
   const review = await sources.table(owner, f.workspace.id, { chatId: f.chat.id });
-  expect(review.columns_config.map(({ name }) => name).slice(0, 2)).toEqual(["Labels", "Note"]);
+  expect(review.columns_config).toMatchObject([{ format: "text" }, { prompt: "What did the materials establish?" }]);
   await tables.update(owner, review.id, { expected_version: review.updated_at,
     columns_config: review.columns_config.map((column) => column.index === 0
       ? { ...column, name: "Topic", format: "tag" } : column) });
+  const { tabularRepository } = await import("../lib/relationalTabularRepository"),
+    cell = (await tabularRepository.detail(owner, review.id))!.cells.find((cell) =>
+      cell.column_index === 0 && cell.document_id === sourceId)!;
+  expect((await request(f.api).post(`/source-workspaces/${f.workspace.id}/column-labels`)
+    .send({ reviewId: review.id, columnIndex: 0 })).status).toBe(400);
+  await tabularRepository.setCell(owner, { reviewId: review.id, documentId: sourceId, columnIndex: 0,
+    expected: cell, status: "done", content: { value: "Leases", summary: "Leases", claims: [], evidence: [],
+      flag: "green", outcome: "answered", coverage: "complete", resource: f.resource } });
   const proposal = await request(f.api).post(`/source-workspaces/${f.workspace.id}/column-labels`)
     .send({ reviewId: review.id, columnIndex: 0 });
   expect(proposal.status).toBe(200);
