@@ -70,7 +70,7 @@ function LegalResearchPanel({ tab, projectId, active }: { tab: LegalSourceTab;
     return <>
         <LegalSourceViewer {...tab} compact projectId={projectId} onOpenResearch={(intent) => { setOpen(true);
                 if (intent) setSourceDropNonce((value) => value + 1); }} />
-        <ResearchWorkspaceHost embedded open={open && active} onOpenChange={setOpen}
+        <ResearchWorkspaceHost embedded floating open={open && active} onOpenChange={setOpen}
             projectId={projectId} sourceDropNonce={sourceDropNonce} />
     </>;
 }

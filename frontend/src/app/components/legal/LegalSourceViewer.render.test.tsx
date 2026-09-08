@@ -35,14 +35,14 @@ vi.mock("react-router-dom", () => ({
 }));
 import {
     LegalSourceViewer as SourceViewer,
-    legalPassageTargetFromSelection,
     legalSourceViewerActions,
 } from "./LegalSourceViewer";
+import { readerSelectionSpan } from "../shared/readerSelection";
 import { LegalLibrarySourcePage } from "./LegalLibrary";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 function HighlightButton() {
   const { highlight } = useSourcesWorkspace();
-  return <button type="button" onClick={() => void highlight.run().catch(() => undefined)}>Highlight</button>;
+  return <button type="button" onPointerDown={(event) => event.preventDefault()} onClick={() => void highlight.run().then((saved) => { if (!saved) highlight.arm(!highlight.armed); }).catch(() => undefined)}>Highlight</button>;
 }
 function LegalSourceViewer({ researchFile, onResearchFileChange, ...props }: React.ComponentProps<typeof SourceViewer> &
   { researchFile?: ResearchFile | null; onResearchFileChange?: (file: ResearchFile | null) => void }) {
@@ -173,9 +173,9 @@ describe("legal source reader", () => {
             .toBeInTheDocument();
     });
 
-    it("captures a selected passage as an anchored text quote", () => {
+    it("maps a selected passage to its exact offsets in the served text", () => {
         const root = document.createElement("div");
-        root.innerHTML = '<section data-legal-block="par12" data-locator-kind="paragraph" data-locator-value="par12">Before <span>the exact holding</span> after</section>';
+        root.innerHTML = '<section data-legal-text="0">Before <span>the exact holding</span> after</section>';
         document.body.append(root);
         const text = root.querySelector("span")!.firstChild!;
         const range = document.createRange();
@@ -184,10 +184,8 @@ describe("legal source reader", () => {
         selection.removeAllRanges();
         selection.addRange(range);
 
-        expect(legalPassageTargetFromSelection(root, selection)).toEqual({
-            locator: { kind: "paragraph", value: "par12" },
-            quote: "the exact holding",
-        });
+        expect(readerSelectionSpan(root, selection, [{ start: 100, text: "Before the exact holding after" }]))
+            .toEqual({ start: 107, end: 124 });
         root.remove();
         selection.removeAllRanges();
     });
@@ -238,10 +236,10 @@ describe("legal source reader", () => {
 
         const expectedIds = [
             "legal-page1",
-            "legal-par1",
-            "legal-par2",
+            "legal-1",
+            "legal-2",
             "legal-page2",
-            "legal-par3",
+            "legal-3",
         ];
         const ids = Array.from(
             container.querySelectorAll<HTMLElement>("[id^='legal-']"),
@@ -252,7 +250,7 @@ describe("legal source reader", () => {
         for (const id of expectedIds) {
             expect(container.querySelector(`#${id}`)).not.toBeNull();
         }
-        expect(container.querySelector("#legal-par1")?.tagName).toBe("SECTION");
+        expect(container.querySelector("#legal-1")?.tagName).toBe("SECTION");
         expect(container.querySelector("#legal-page1")?.tagName).toBe("SPAN");
     });
 
@@ -260,7 +258,7 @@ describe("legal source reader", () => {
         api.direct.mockResolvedValue(multiSlicePayload());
         const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect")
             .mockImplementation(function () {
-                return { top: this.id === "legal-par2" ? 240 : 100 } as DOMRect;
+                return { top: this.id === "legal-2" ? 240 : 100 } as DOMRect;
             });
         const { container } = render(
             <LegalSourceViewer
@@ -324,7 +322,7 @@ describe("legal source reader", () => {
         window.getSelection()?.removeAllRanges();
         fireEvent.click(screen.getByRole("button", { name: "Highlight" }));
         await waitFor(() => expect(container.querySelector("[data-highlighter]")).not.toBeNull());
-        fireEvent.click(screen.getByText("ratio"));
+        fireEvent.pointerUp(screen.getByText("ratio"));
         await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", 0,
             expect.objectContaining({ type: "passage", sourceId: "saved",
                 revision: "a".repeat(64), labelIds: ["holding"] })));
@@ -373,7 +371,8 @@ describe("legal source reader", () => {
         const selection = selectText(emphasis);
         fireEvent.pointerUp(emphasis);
         fireEvent.click(emphasis);
-        await waitFor(() => expect(onOpenResearch).toHaveBeenCalledTimes(2));
+        expect(onOpenResearch).toHaveBeenCalledTimes(1);
+        expect(api.actOnResearchFile).not.toHaveBeenCalled();
         selection.removeAllRanges();
         expect(api.createResearchFile).not.toHaveBeenCalled();
         expect(api.actOnResearchFile).not.toHaveBeenCalled();
@@ -559,7 +558,7 @@ describe("legal source reader", () => {
         expect(screen.getByRole("group", { name: "No labels" })).toHaveAttribute(
             "data-empty", "true",
         );
-        fireEvent.click(screen.getByRole("button", { name: "Workspace" }));
+        fireEvent.click(screen.getByRole("button", { name: "Open in workspace" }));
         expect(onOpenResearch).toHaveBeenCalledTimes(1);
         fireEvent.dragStart(screen.getByRole("button", { name: "Label Fixture v. Test" }),
             { dataTransfer: { setData: vi.fn() } });
@@ -631,7 +630,7 @@ describe("legal source reader", () => {
             expect(
                 Array.from({ length: 12 }, (_, index) =>
                     container.querySelector(
-                        `#legal-par${index + 61} [data-qspan="0"]`,
+                        `#legal-${index + 61} [data-qspan="0"]`,
                     ),
                 ).every(Boolean),
             ).toBe(true),
