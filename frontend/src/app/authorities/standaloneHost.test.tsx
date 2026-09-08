@@ -6,6 +6,7 @@ import type { WorkProductInput } from "@/app/lib/workProducts";
 import { AuthoritiesWorkspace } from "./AuthoritiesWorkspace";
 import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesDraft, AuthoritiesProduct } from "./types";
+import { attachAuthoritySource } from "../../../../shared/authorities-sources.mjs";
 
 const { api, fileStore, drafts, unexpected } = vi.hoisted(() => ({
   api: { apiResponse: vi.fn() },
@@ -160,6 +161,30 @@ describe("standalone Authorities sources", () => {
       new File(["%PDF-bi"], "Code bilingual.pdf", { type: "application/pdf" })];
     const bindings = await Promise.all(files.map(async (file, index) =>
       input(await sha256(file), file.size, `code-${index}`)));
+    api.apiResponse.mockImplementation(async (path, options) => {
+      expect(path).toBe("/authorities-runtime/pdf");
+      expect(options.method).toBe("POST");
+      const form = options.body as FormData;
+      const state = JSON.parse(String(form.get("draft"))) as AuthoritiesDraft;
+      expect(state).toEqual(saved.state);
+      expect(form.get("authority_id")).toBe("case");
+      const language = form.get("language") as "en" | "fr" | "bilingual";
+      const file = files[["en", "fr", "bilingual"].indexOf(language)];
+      const uploaded = form.get("file") as File;
+      expect(uploaded.name).toBe(file.name);
+      expect(await sha256(uploaded)).toBe(await sha256(file));
+      expect(form.get("modified")).toBe(String(file.lastModified));
+      const digest = await sha256(file);
+      const bindingRole = `authority:${(await sha256(new Blob(["case"]))).slice(0, 24)}:${language}`;
+      attachAuthoritySource(state, state.authorities.case, {
+        bindingRole, filename: file.name, sourceSha256: digest,
+        sourceUrl: null, origin: "manual", language,
+      }, { kind: "local-file", handleId: "standalone", lastSeen: {
+        name: file.name, size: file.size, modified: file.lastModified, sha256: digest,
+      } });
+      return { headers: new Headers({ "content-type": "application/json" }),
+        json: async () => state };
+    });
     drafts.get.mockImplementation(async () => saved);
     fileStore.bindStandaloneFile.mockImplementation(async (file: File) => bindings[files.indexOf(file)]);
     drafts.update.mockImplementation(async (_id, patch) => (saved = {
@@ -175,6 +200,8 @@ describe("standalone Authorities sources", () => {
       { language: "en", filename: files[0].name },
       { language: "fr", filename: files[1].name },
     ] });
+    expect(Object.entries(saved.state.bindings).filter(([role]) => role.startsWith("authority:"))
+      .map(([, binding]) => binding)).toEqual(bindings.slice(0, 2));
 
     saved = await standaloneAuthoritiesHost.attach(saved.id, "case", saved.revision,
       { file: files[2] }, "bilingual");
@@ -185,7 +212,10 @@ describe("standalone Authorities sources", () => {
     expect(Object.keys(saved.state.bindings).filter((role) => role.startsWith("authority:")))
       .toHaveLength(1);
     expect(saved.state.stage).toBe("sources");
-    expect(api.apiResponse).not.toHaveBeenCalled();
+    expect(Object.entries(saved.state.bindings).filter(([role]) => role.startsWith("authority:"))
+      .map(([, binding]) => binding)).toEqual([bindings[2]]);
+    expect(api.apiResponse).toHaveBeenCalledTimes(3);
+    expect(fileStore.bindStandaloneFile).toHaveBeenCalledTimes(3);
   });
 
   it("relinks a missing imported source and refreshes its review once", async () => {
