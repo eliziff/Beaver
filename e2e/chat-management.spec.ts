@@ -34,10 +34,10 @@ const test = base.extend<{ created: Created }>({
 async function savedChat(page: Page, created: Created) {
     const { id } = await json(await page.request.post("/api/chat/create", { data: {} }));
     created.chats.push(id);
-    const title = `Chat ${id}`, draft = `Saved question for ${id}`;
+    const draft = `Saved question for ${id}`;
     // History intentionally omits chats that have neither messages nor a saved draft.
-    await json(await page.request.patch(`/api/chat/${id}`, {
-        data: { title, draft: { role: "user", content: draft } },
+    const { title } = await json(await page.request.patch(`/api/chat/${id}`, {
+        data: { draft: { role: "user", content: draft } },
     }));
     return { id: id as string, title, draft };
 }
