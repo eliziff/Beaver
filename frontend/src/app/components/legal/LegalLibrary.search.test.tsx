@@ -48,7 +48,7 @@ describe("LegalLibraryPage search", () => {
                 jurisdictionCode: "ca",
                 jurisdiction: "Canada",
                 sourceKind: "legislation",
-                dataset: "federal-statutes",
+                collection: "federal-statutes",
                 description: "Federal statutes",
             },
             {
@@ -155,12 +155,12 @@ describe("LegalLibraryPage search", () => {
     it("renders provider emphasis as safe React markup", async () => {
         api.searchLegalSources.mockResolvedValue([{
             provider: "a2aj",
-            doc_type: "laws",
-            source_id: "privacy-act",
+            kind: "legislation",
+            id: "privacy-act",
             language: "en",
-            dataset: "federal-statutes",
+            collection: "federal-statutes",
             citation: "RSC 1985, c P-21",
-            name: "Privacy Act",
+            title: "Privacy Act",
             date: null,
             url: "https://example.test/privacy",
             snippet: "The <em>privacy</em> of individuals",
@@ -188,11 +188,11 @@ describe("LegalLibraryPage search", () => {
     it("does not repeat a journal title inside its displayed citation", async () => {
         const title = "The [Unwritten] Principles (Again): C++?";
         api.searchLegalSources.mockResolvedValue([{
-            provider: "journal", doc_type: "articles", source_id: "17",
+            provider: "journal", kind: "journal", id: "17",
             language: "en",
-            dataset: "Alberta Law Review",
+            collection: "Alberta Law Review",
             citation: `Example Author, “${title}” (2024) 42 Alta L Rev 1`,
-            name: title, date: "2024-01-02", url: null, snippet: null,
+            title, date: "2024-01-02", url: null, snippet: null,
         }]);
         render(<MemoryRouter><LegalLibraryPage /></MemoryRouter>);
         fireEvent.click(screen.getByRole("tab", { name: "Journals" }));
@@ -221,9 +221,9 @@ describe("LegalLibraryPage search", () => {
                     collection: "SCC", language: "en" }, passages: null } },
             queries: null, note: "" } });
         api.searchLegalSources.mockResolvedValue([{
-            provider: "a2aj", doc_type: "cases", source_id: "2024-scc-1",
+            provider: "a2aj", kind: "case", id: "2024-scc-1",
             language: "en",
-            dataset: "SCC", citation: "2024 SCC 1", name: "Example v Test",
+            collection: "SCC", citation: "2024 SCC 1", title: "Example v Test",
             date: "2024-01-01", url: null, snippet: null,
         }]);
         render(<MemoryRouter><LegalLibraryPage /></MemoryRouter>);
@@ -243,10 +243,10 @@ describe("LegalLibraryPage search", () => {
 
     it("does not render provider-controlled non-HTTP source links", async () => {
         api.searchLegalSources.mockResolvedValue([{
-            provider: "a2aj", doc_type: "laws", source_id: "privacy-act",
+            provider: "a2aj", kind: "legislation", id: "privacy-act",
             language: "en",
-            dataset: "federal-statutes", citation: "RSC 1985, c P-21",
-            name: "Privacy Act", date: null, url: "javascript:alert(1)",
+            collection: "federal-statutes", citation: "RSC 1985, c P-21",
+            title: "Privacy Act", date: null, url: "javascript:alert(1)",
             snippet: null,
         }]);
         render(<MemoryRouter><LegalLibraryPage /></MemoryRouter>);
@@ -265,9 +265,9 @@ describe("LegalLibraryPage search", () => {
     it("opens the workspace chooser instead of inventing a file for a result", async () => {
         api.searchLegalSources.mockImplementation(({ docType }) => Promise.resolve(
             docType === "cases" ? [{
-                provider: "a2aj", doc_type: "cases", source_id: "2024-scc-1",
+                provider: "a2aj", kind: "case", id: "2024-scc-1",
                 language: "en",
-                dataset: "SCC", citation: "2024 SCC 1", name: "Example v Test",
+                collection: "SCC", citation: "2024 SCC 1", title: "Example v Test",
                 date: "2024-01-01", url: "https://example.test", snippet: null,
             }] : [],
         ));

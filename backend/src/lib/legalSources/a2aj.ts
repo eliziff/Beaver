@@ -16,7 +16,7 @@ import {
 import { objectValue as object, type JsonObject } from "./remoteProvider";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
 import type { LegalSourceProvider, LegalSourceReference,
-  LegalSourceResolveRequest, LegalSourceSearchHit } from ".";
+  LegalSourceResolveRequest, LegalSourceSearchHit, LegalSourceSearchRequest } from ".";
 
 type DocType = "cases" | "laws";
 type Language = "en" | "fr";
@@ -418,12 +418,13 @@ function searchResult(value: unknown, language: Language) {
 
 export type A2AJSearchResult = NonNullable<ReturnType<typeof searchResult>>;
 
-async function search(args: {
-  query: string; docType?: DocType; searchType?: "full_text" | "name";
-  language?: Language; size?: number; dataset?: string; startDate?: string;
-  endDate?: string; sortResults?: "default" | "newest_first" | "oldest_first";
-  querySyntax?: "terms" | "fts5"; signal?: AbortSignal;
-}) {
+async function search(input: LegalSourceSearchRequest, docType: DocType) {
+  const args = { query: input.text, docType, searchType: input.searchType,
+    language: input.language, size: input.perProviderLimit ?? input.limit,
+    dataset: input.collection, startDate: input.dateFrom, endDate: input.dateTo,
+    sortResults: input.sort === "newest" ? "newest_first" as const
+      : input.sort === "oldest" ? "oldest_first" as const : "default" as const,
+    querySyntax: input.syntax, signal: input.signal };
   const query = args.query.trim();
   if (!query) throw new Error("query is required");
   const language = args.language === "fr" ? "fr" : "en";
@@ -594,13 +595,7 @@ const provider: LegalSourceProvider<A2AJCompiledDocument> = {
     for (const kind of ["case", "legislation"] as const) {
       if (!request.kinds.includes(kind)) continue;
       const docType = kind === "case" ? "cases" : "laws";
-      const rows = (await search({ query: request.text, docType,
-        searchType: request.searchType, language: request.language,
-        size: request.perProviderLimit ?? request.limit, dataset: request.collection,
-        startDate: request.dateFrom, endDate: request.dateTo,
-        sortResults: request.sort === "newest" ? "newest_first" :
-          request.sort === "oldest" ? "oldest_first" : "default",
-        querySyntax: request.syntax, signal: request.signal }))
+      const rows = (await search(request, docType))
         .map((row): LegalSourceSearchHit => ({ provider: "a2aj", id: row.citation, kind,
           title: row.name, citation: row.citation, alternateCitation: row.alternateCitation,
           date: row.date, collection: row.dataset, language: request.language === "fr" ? "fr" : "en",

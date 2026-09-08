@@ -2,18 +2,8 @@ import { apiRequest, pagePath, segment } from "@/app/lib/api/client";
 
 export type LegalDocumentType = "cases" | "laws" | "articles";
 export type LegalSearchDocumentType = LegalDocumentType | "hansard";
-export interface LegalSourceSearchResult {
-  provider: "a2aj" | "journal" | "hansard";
-  doc_type: LegalSearchDocumentType;
-  source_id?: string | null;
-  language: "en" | "fr";
-  dataset: string;
-  citation: string;
-  name: string | null;
-  date: string | null;
-  url: string | null;
-  snippet: string | null;
-}
+export type { LegalSourceSearchHit as LegalSourceSearchResult } from "../../../../../backend/src/lib/legalSources";
+import type { LegalSourceSearchHit as LegalSourceSearchResult } from "../../../../../backend/src/lib/legalSources";
 export interface LegalSourceCoverage {
   dataset: string;
   description: string;

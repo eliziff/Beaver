@@ -14,6 +14,7 @@ import {
 } from "../structureNative";
 import type {
   LegalSourceProvider,
+  LegalSourceSearchRequest,
   LegalSourceReference,
 } from ".";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
@@ -271,14 +272,7 @@ const SEARCH_COLUMNS = `article_id, dataset, citation_en, name_en, authors,
 function findArticles(
   query: string,
   size = 10,
-  options: {
-    querySyntax?: "terms" | "fts5";
-    author?: string;
-    journal?: string;
-    startDate?: string;
-    endDate?: string;
-    sortResults?: "default" | "newest_first" | "oldest_first";
-  } = {},
+  options: Pick<LegalSourceSearchRequest, "syntax" | "author" | "journal" | "dateFrom" | "dateTo" | "sort"> = {},
 ): JournalArticleSearchResult[] {
   query = query.trim();
   if (!query) throw new Error("query is required");
@@ -304,8 +298,8 @@ function findArticles(
       "LOWER(COALESCE(journal_name, '') || ' ' || COALESCE(journal_abbrev, '')) LIKE ?",
       `%${options.journal.toLocaleLowerCase()}%`,
     ]);
-    if (options.startDate) filters.push(["document_date_en >= ?", options.startDate]);
-    if (options.endDate) filters.push(["document_date_en <= ?", options.endDate]);
+    if (options.dateFrom) filters.push(["document_date_en >= ?", options.dateFrom]);
+    if (options.dateTo) filters.push(["document_date_en <= ?", options.dateTo]);
     return database().prepare(`SELECT ${SEARCH_COLUMNS} FROM articles WHERE ${predicate}
       ${filters.map(([condition]) => `AND ${condition}`).join(" ")} ${suffix}`)
       .all(...values, ...filters.map(([, value]) => value), ...trailing) as Row[];
@@ -313,13 +307,13 @@ function findArticles(
   const search = searchDatabase();
   if (search) {
     const ftsQuery =
-      options.querySyntax === "fts5"
+      options.syntax === "fts5"
         ? query
         : tokens
             .map((token) => `"${token.replace(/"/gu, '""')}"`)
             .join(" AND ");
     const candidateLimit =
-      options.author || options.journal || options.startDate || options.endDate
+      options.author || options.journal || options.dateFrom || options.dateTo
         ? Math.min(250, wanted * 10)
         : wanted;
     const ids = (
@@ -340,10 +334,10 @@ function findArticles(
       const row = byId.get(id);
       return row ? [result(row, query)] : [];
     });
-    if (options.sortResults !== "default") {
+    if (options.sort === undefined || options.sort === "newest" || options.sort === "oldest") {
       found.sort((left, right) => {
         const missing = "\uffff";
-        if (options.sortResults === "newest_first") {
+        if (options.sort === "newest") {
           return (right.date ?? "").localeCompare(left.date ?? "");
         }
         return (left.date ?? missing).localeCompare(right.date ?? missing);
@@ -351,7 +345,7 @@ function findArticles(
     }
     return found.slice(0, wanted);
   }
-  if (options.querySyntax === "fts5") {
+  if (options.syntax === "fts5") {
     throw new Error("Boolean search requires the journal FTS index");
   }
   const haystack = `LOWER(
@@ -362,12 +356,12 @@ function findArticles(
   const rows = select(
     `text IS NOT NULL AND length(text) > 0 AND ${tokens.map(() => `${haystack} LIKE ?`).join(" AND ")}`,
     tokens.map((token) => `%${token}%`),
-    `ORDER BY ${options.sortResults === "newest_first"
+    `ORDER BY ${options.sort === "newest"
       ? "document_date_en DESC, article_id"
-      : options.sortResults === "oldest_first"
+      : options.sort === "oldest"
         ? "document_date_en ASC, article_id"
         : "CASE WHEN LOWER(name_en) = LOWER(?) THEN 0 ELSE 1 END, article_id"} LIMIT ?`,
-    [...(options.sortResults === "newest_first" || options.sortResults === "oldest_first" ? [] : [query]), wanted],
+    [...(options.sort === "newest" || options.sort === "oldest" ? [] : [query]), wanted],
   );
   return rows.map((row) => result(row, query));
 }
@@ -608,19 +602,7 @@ const provider: LegalSourceProvider<{
     return findArticles(
       request.text,
       request.perProviderLimit ?? request.limit,
-      {
-        querySyntax: request.syntax,
-        author: request.author,
-        journal: request.journal,
-        startDate: request.dateFrom,
-        endDate: request.dateTo,
-        sortResults:
-          request.sort === "newest"
-            ? "newest_first"
-            : request.sort === "oldest"
-              ? "oldest_first"
-              : "default",
-      },
+      request,
     ).map((row) => ({
       provider: "journal",
       id: String(row.articleId),

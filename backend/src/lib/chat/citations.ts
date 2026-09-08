@@ -133,8 +133,8 @@ export function createLegalEvidenceCitations(
 
 type SearchCitationCandidate = {
   provider: unknown;
-  source_type: unknown;
-  identifier: unknown;
+  kind: unknown;
+  id: unknown;
   title: unknown;
   citation: unknown;
   collection: unknown;
@@ -150,14 +150,14 @@ export function createLegalSourceSearchCitations(
     : [];
   return parseAssistantCitations(candidates.flatMap<Record<string, unknown>>((candidate, index) => {
     const provider = typeof candidate.provider === "string" ? candidate.provider : "";
-    const identifier = typeof candidate.identifier === "string" ? candidate.identifier : "";
+    const identifier = typeof candidate.id === "string" ? candidate.id : "";
     if (!identifier) return [];
     const title = typeof candidate.title === "string" ? candidate.title : null;
     const citation = typeof candidate.citation === "string" ? candidate.citation : null;
     const collection = typeof candidate.collection === "string" ? candidate.collection : null;
     const url = typeof candidate.url === "string" ? candidate.url : null;
-    const sourceClass = candidate.source_type === "case" ? "case"
-      : candidate.source_type === "legislation" ? "legislation"
+    const sourceClass = candidate.kind === "case" ? "case"
+      : candidate.kind === "legislation" ? "legislation"
         : "commentary";
     const common = {
       ref: index + 1,

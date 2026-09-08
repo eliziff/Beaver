@@ -51,7 +51,7 @@ describe("legal Library viewer responses", () => {
     expect(response.body).toEqual({ coverage: [] });
   });
 
-  it("keeps Library filters and DTOs while searching through the registry", async () => {
+  it("preserves Library filters and neutral hits while searching through the registry", async () => {
     process.env.AUTH_MODE = "local";
     searchLegalSources.mockResolvedValue({
       results: [{
@@ -83,19 +83,15 @@ describe("legal Library viewer responses", () => {
       });
 
     expect(response.status).toBe(200);
-    expect(response.body.results).toEqual([{
-      provider: "journal",
-      doc_type: "articles",
-      source_id: "17",
-      language: "en",
-      dataset: "Alberta Law Review",
-      citation: "42 Alta L Rev 1",
-      alternateCitation: null,
-      name: "A Registered Article",
-      date: "2024-01-02",
-      url: "https://example.test/article/17",
-      snippet: "registered search result",
-    }]);
+    expect(response.body.results).toEqual((await searchLegalSources.mock.results[0].value).results);
+  });
+
+  it("reports an unavailable registered search lane instead of an empty success", async () => {
+    process.env.AUTH_MODE = "local";
+    searchLegalSources.mockResolvedValue({ results: [], unavailable: [{ provider: "journal", message: "unavailable" }] });
+    const response = await request(app).get("/sources/search").query({ query: "registered", doc_type: "articles" });
+    expect(response.status).toBe(502);
+    expect(response.body.detail).toBe("Legal source search unavailable");
   });
 
   it("does not expose provider failures", async () => {
