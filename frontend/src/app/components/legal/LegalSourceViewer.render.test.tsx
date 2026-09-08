@@ -238,10 +238,10 @@ describe("legal source reader", () => {
 
         const expectedIds = [
             "legal-page1",
-            "legal-par1",
-            "legal-par2",
+            "legal-1",
+            "legal-2",
             "legal-page2",
-            "legal-par3",
+            "legal-3",
         ];
         const ids = Array.from(
             container.querySelectorAll<HTMLElement>("[id^='legal-']"),
@@ -252,7 +252,7 @@ describe("legal source reader", () => {
         for (const id of expectedIds) {
             expect(container.querySelector(`#${id}`)).not.toBeNull();
         }
-        expect(container.querySelector("#legal-par1")?.tagName).toBe("SECTION");
+        expect(container.querySelector("#legal-1")?.tagName).toBe("SECTION");
         expect(container.querySelector("#legal-page1")?.tagName).toBe("SPAN");
     });
 
@@ -260,7 +260,7 @@ describe("legal source reader", () => {
         api.direct.mockResolvedValue(multiSlicePayload());
         const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect")
             .mockImplementation(function () {
-                return { top: this.id === "legal-par2" ? 240 : 100 } as DOMRect;
+                return { top: this.id === "legal-2" ? 240 : 100 } as DOMRect;
             });
         const { container } = render(
             <LegalSourceViewer
@@ -559,7 +559,7 @@ describe("legal source reader", () => {
         expect(screen.getByRole("group", { name: "No labels" })).toHaveAttribute(
             "data-empty", "true",
         );
-        fireEvent.click(screen.getByRole("button", { name: "Workspace" }));
+        fireEvent.click(screen.getByRole("button", { name: "Open in workspace" }));
         expect(onOpenResearch).toHaveBeenCalledTimes(1);
         fireEvent.dragStart(screen.getByRole("button", { name: "Label Fixture v. Test" }),
             { dataTransfer: { setData: vi.fn() } });
@@ -631,7 +631,7 @@ describe("legal source reader", () => {
             expect(
                 Array.from({ length: 12 }, (_, index) =>
                     container.querySelector(
-                        `#legal-par${index + 61} [data-qspan="0"]`,
+                        `#legal-${index + 61} [data-qspan="0"]`,
                     ),
                 ).every(Boolean),
             ).toBe(true),

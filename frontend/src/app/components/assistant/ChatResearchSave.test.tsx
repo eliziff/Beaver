@@ -16,7 +16,7 @@ function Location() { const location = useLocation(); return <output aria-label=
   {location.state?.assistantIntent?.text}</output>; }
 function setup() { render(<MemoryRouter><SourcesWorkspaceProvider><ChatResearchSave chatId="chat" /><Location />
   </SourcesWorkspaceProvider></MemoryRouter>); }
-function open(name: "Workspace" | "Table" | "Open without organizing") {
+function open(name: "Workspace" | "Table" | "Open") {
   fireEvent.click(screen.getByRole("button", { name: "Open as" }));
   fireEvent.click(screen.getByRole("menuitem", { name }));
 }
@@ -25,7 +25,7 @@ async function act(name: string) { const at = () => screen.getByRole("button", {
 beforeEach(() => { vi.clearAllMocks(); localStorage.clear();
   api.ensureSourcesWorkspace.mockResolvedValue(file); api.getResearchFile.mockResolvedValue(file); api.previewWorkspaceTable.mockResolvedValue(preview); });
 it("opens the chat's Sources workspace directly when organizing is declined", async () => {
-  setup(); open("Open without organizing");
+  setup(); open("Open");
   await waitFor(() => expect(screen.getByLabelText("Location")).toHaveTextContent("/sources?research_file=workspace"));
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
