@@ -1,67 +1,48 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  product: undefined as unknown,
-  freshness: "current" as "unbuilt" | "current" | "stale",
-  getWorkProduct: vi.fn(),
-  getWorkProductResolution: vi.fn(),
-  refreshAuthoritiesInput: vi.fn(),
-  prepareAuthoritiesSources: vi.fn(),
-  buildAuthorities: vi.fn(),
-  listWorkProducts: vi.fn(),
-  listWorkProductMetadata: vi.fn(),
-  directoryResource: vi.fn(),
-  directoryList: vi.fn(),
-  getDocument: vi.fn(),
-  downloadDocument: vi.fn(),
-  prepareDeviceFile: vi.fn(),
-  getUserProfile: vi.fn(),
-  updateUserProfile: vi.fn(),
-  getDocumentParseStates: vi.fn(),
-  getCourtRecordPreparation: vi.fn(),
-  uploadCourtRecordDocument: vi.fn(),
-  saveCourtRecordBuild: vi.fn(),
-  deleteDocument: vi.fn(),
+const { api, fixtureState, directoryList, prepareDeviceFile, unexpected } = vi.hoisted(() => ({
+  api: {
+    workProducts: {
+      getWorkProduct: vi.fn(), getWorkProductResolution: vi.fn(), listWorkProducts: vi.fn(),
+      listWorkProductMetadata: vi.fn(),
+    },
+    authorities: {
+      refreshAuthoritiesInput: vi.fn(), prepareAuthoritiesSources: vi.fn(), buildAuthorities: vi.fn(),
+    },
+    documents: {
+      directoryResource: vi.fn(), getDocument: vi.fn(), downloadDocument: vi.fn(),
+      getDocumentParseStates: vi.fn(), deleteDocument: vi.fn(),
+    },
+    account: {
+      getUserProfile: vi.fn(), updateUserProfile: vi.fn(),
+    },
+    courtRecords: {
+      getCourtRecordPreparation: vi.fn(), uploadCourtRecordDocument: vi.fn(), saveCourtRecordBuild: vi.fn(),
+    },
+  },
+  fixtureState: { product: undefined as unknown, freshness: "current" as "unbuilt" | "current" | "stale" },
+  directoryList: vi.fn(), prepareDeviceFile: vi.fn(),
+  unexpected: vi.fn((name: string, ..._args: unknown[]) => { throw new Error(`Unconfigured API call: ${name}`); }),
 }));
 
 vi.mock("@/app/lib/api/workProducts", async (original) => ({
-  ...await original<typeof import("@/app/lib/api/workProducts")>(),
-  getWorkProduct: mocks.getWorkProduct,
-  getWorkProductResolution: mocks.getWorkProductResolution,
-  listWorkProducts: mocks.listWorkProducts,
-  listWorkProductMetadata: mocks.listWorkProductMetadata
+  ...await original<typeof import("@/app/lib/api/workProducts")>(), ...api.workProducts,
 }));
 vi.mock("@/app/lib/api/authorities", async (original) => ({
-  ...await original<typeof import("@/app/lib/api/authorities")>(),
-  refreshAuthoritiesInput: mocks.refreshAuthoritiesInput,
-  prepareAuthoritiesSources: mocks.prepareAuthoritiesSources,
-  buildAuthorities: mocks.buildAuthorities
+  ...await original<typeof import("@/app/lib/api/authorities")>(), ...api.authorities,
 }));
 vi.mock("@/app/lib/api/documents", async (original) => ({
-  ...await original<typeof import("@/app/lib/api/documents")>(),
-  directoryResource: mocks.directoryResource,
-  getDocument: mocks.getDocument,
-  downloadDocument: mocks.downloadDocument,
-  getDocumentParseStates: mocks.getDocumentParseStates,
-  deleteDocument: mocks.deleteDocument
+  ...await original<typeof import("@/app/lib/api/documents")>(), ...api.documents,
 }));
 vi.mock("@/app/lib/api/account", async (original) => ({
-  ...await original<typeof import("@/app/lib/api/account")>(),
-  getUserProfile: mocks.getUserProfile,
-  updateUserProfile: mocks.updateUserProfile
+  ...await original<typeof import("@/app/lib/api/account")>(), ...api.account,
 }));
 vi.mock("@/app/lib/api/courtRecords", async (original) => ({
-  ...await original<typeof import("@/app/lib/api/courtRecords")>(),
-  getCourtRecordPreparation: mocks.getCourtRecordPreparation,
-  uploadCourtRecordDocument: mocks.uploadCourtRecordDocument,
-  saveCourtRecordBuild: mocks.saveCourtRecordBuild
+  ...await original<typeof import("@/app/lib/api/courtRecords")>(), ...api.courtRecords,
 }));
-vi.mock("./prepareDeviceFile", () => ({
-  prepareDeviceFile: mocks.prepareDeviceFile,
-  prepareDocxRendition: mocks.prepareDeviceFile,
-}));
+vi.mock("./prepareDeviceFile", () => ({ prepareDeviceFile, prepareDocxRendition: prepareDeviceFile }));
 
 import type { WorkProduct, WorkProductOutput } from "@/app/lib/workProducts";
 import { BeaverApiError } from "@/app/lib/api/client";
@@ -110,47 +91,57 @@ function document(book: WorkProductOutput) {
     source_sha256: book.sha256 };
 }
 
+afterEach(() => {
+  vi.restoreAllMocks();
+  expect(unexpected).not.toHaveBeenCalled();
+});
+
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
+  for (const group of Object.values(api)) {
+    for (const [name, mock] of Object.entries(group)) {
+      mock.mockImplementation((...args) => unexpected(name, ...args));
+    }
+  }
   const book = output("version-1", hash("a"));
-  mocks.product = product(book);
-  mocks.freshness = "current";
-  mocks.getWorkProduct.mockImplementation(async () => mocks.product);
-  mocks.getWorkProductResolution.mockImplementation(async () => ({
-    product: mocks.product, freshness: mocks.freshness, inputs: {}, dependencies: [],
+  fixtureState.product = product(book);
+  fixtureState.freshness = "current";
+  api.workProducts.getWorkProduct.mockImplementation(async () => fixtureState.product);
+  api.workProducts.getWorkProductResolution.mockImplementation(async () => ({
+    product: fixtureState.product, freshness: fixtureState.freshness, inputs: {}, dependencies: [],
   }));
-  mocks.refreshAuthoritiesInput.mockImplementation(async () => {
-    const current = mocks.product as WorkProduct;
-    mocks.product = { ...current, revision: current.revision + 1 };
-    return mocks.product;
+  api.authorities.refreshAuthoritiesInput.mockImplementation(async () => {
+    const current = fixtureState.product as WorkProduct;
+    fixtureState.product = { ...current, revision: current.revision + 1 };
+    return fixtureState.product;
   });
-  mocks.prepareAuthoritiesSources.mockImplementation(async () => ({
-    ...mocks.product as WorkProduct, state: { authorities: {}, bindings: {} },
+  api.authorities.prepareAuthoritiesSources.mockImplementation(async () => ({
+    ...fixtureState.product as WorkProduct, state: { authorities: {}, bindings: {} },
   }));
-  mocks.buildAuthorities.mockImplementation(async () => {
-    const current = mocks.product as WorkProduct;
-    mocks.product = { ...current, revision: current.revision + 1,
+  api.authorities.buildAuthorities.mockImplementation(async () => {
+    const current = fixtureState.product as WorkProduct;
+    fixtureState.product = { ...current, revision: current.revision + 1,
       outputs: { ...current.outputs, book: output("version-2", hash("b")) } };
-    mocks.freshness = "current";
-    return { product: mocks.product, receipt: {} };
+    fixtureState.freshness = "current";
+    return { product: fixtureState.product, receipt: {} };
   });
-  mocks.listWorkProducts.mockImplementation(async (kind: string) =>
-    kind === "authorities" ? [mocks.product] : []);
-  mocks.listWorkProductMetadata.mockImplementation(async (kind: string) =>
-    kind === "authorities" ? [mocks.product] : []);
-  mocks.directoryResource.mockImplementation(() => ({ list: mocks.directoryList }));
-  mocks.directoryList.mockResolvedValue({ items: [], next_cursor: null });
-  mocks.getDocument.mockImplementation(async () => document(
-    Object.values((mocks.product as WorkProduct).outputs)[0]));
-  mocks.downloadDocument.mockResolvedValue({ blob: new Blob(["%PDF-1.7"]),
+  api.workProducts.listWorkProducts.mockImplementation(async (kind: string) =>
+    kind === "authorities" ? [fixtureState.product] : []);
+  api.workProducts.listWorkProductMetadata.mockImplementation(async (kind: string) =>
+    kind === "authorities" ? [fixtureState.product] : []);
+  api.documents.directoryResource.mockImplementation(() => ({ list: directoryList }));
+  directoryList.mockResolvedValue({ items: [], next_cursor: null });
+  api.documents.getDocument.mockImplementation(async () => document(
+    Object.values((fixtureState.product as WorkProduct).outputs)[0]));
+  api.documents.downloadDocument.mockResolvedValue({ blob: new Blob(["%PDF-1.7"]),
     filename: "Authorities.pdf" });
-  mocks.prepareDeviceFile.mockImplementation(async (file: File) => ({ file,
+  prepareDeviceFile.mockImplementation(async (file: File) => ({ file,
     pageCount: 2, searchable: true, encrypted: false }));
-  mocks.getUserProfile.mockResolvedValue({ filingContact: { name: "Ada Lawyer",
+  api.account.getUserProfile.mockResolvedValue({ filingContact: { name: "Ada Lawyer",
     address: "1 Court Street", phone: "555-0100", fax: "555-0101",
     email: "ada@example.test" } });
-  mocks.getDocumentParseStates.mockResolvedValue([{ parse_state: { status: "ready" } }]);
-  mocks.getCourtRecordPreparation.mockRejectedValue(new Error("not prepared"));
+  api.documents.getDocumentParseStates.mockResolvedValue([{ parse_state: { status: "ready" } }]);
+  api.courtRecords.getCourtRecordPreparation.mockRejectedValue(new Error("not prepared"));
 });
 
 describe("nested Court Record inputs", () => {
@@ -160,22 +151,26 @@ describe("nested Court Record inputs", () => {
       counselPhone: "555-0100", counselFax: "555-0101",
       counselEmail: "ada@example.test",
     });
-    await beaverCourtRecordsHost.saveFilingContact!({
-      counselName: " New Lawyer ", counselEmail: "new@example.test",
-    });
-    expect(mocks.updateUserProfile).toHaveBeenCalledWith({ filingContact: {
+    api.account.updateUserProfile.mockResolvedValue({ filingContact: {
       name: "New Lawyer", address: "1 Court Street", phone: "555-0100", fax: "555-0101",
       email: "new@example.test",
     } });
-    mocks.getUserProfile.mockRejectedValueOnce(new Error("offline"));
+    await beaverCourtRecordsHost.saveFilingContact!({
+      counselName: " New Lawyer ", counselEmail: "new@example.test",
+    });
+    expect(api.account.updateUserProfile).toHaveBeenCalledWith({ filingContact: {
+      name: "New Lawyer", address: "1 Court Street", phone: "555-0100", fax: "555-0101",
+      email: "new@example.test",
+    } });
+    api.account.getUserProfile.mockRejectedValueOnce(new Error("offline"));
     await expect(beaverCourtRecordsHost.newDraftCover!()).resolves.toEqual({});
   });
 
   it("polls healthy inspection and extraction silently", async () => {
-    mocks.getDocumentParseStates
+    api.documents.getDocumentParseStates
       .mockResolvedValueOnce([{ parse_state: { status: "parsing", phase: "inspecting" } }])
       .mockResolvedValueOnce([{ parse_state: { status: "ready" } }]);
-    mocks.getCourtRecordPreparation.mockResolvedValueOnce({
+    api.courtRecords.getCourtRecordPreparation.mockResolvedValueOnce({
       document_id: "source-1", version_id: "version-1", source_sha256: hash("a"),
       page_count: 1, parser_status: "ready", pages: [{ page_number: 1, text: "Text" }],
     });
@@ -189,11 +184,11 @@ describe("nested Court Record inputs", () => {
   });
 
   it("merges affidavit exhibit wording from local inspection and the parser projection", async () => {
-    mocks.prepareDeviceFile.mockImplementationOnce(async (file: File) => ({ file,
+    prepareDeviceFile.mockImplementationOnce(async (file: File) => ({ file,
       pageCount: 1, searchable: true, encrypted: false,
       sourceFields: { cover: {}, exhibitLabels: ["A"],
         exhibitMentions: { A: ["The order is attached as Exhibit A."] } } }));
-    mocks.getCourtRecordPreparation.mockResolvedValueOnce({
+    api.courtRecords.getCourtRecordPreparation.mockResolvedValueOnce({
       document_id: "book-document", version_id: "version-1", source_sha256: hash("a"),
       page_count: 1, parser_status: "ready",
       pages: [{ page_number: 1, text: "The reply is attached as Exhibit B." }],
@@ -220,7 +215,7 @@ describe("nested Court Record inputs", () => {
         versionId: "version-1", sourceSha256: hash("a") } } });
 
     const rebuilt = output("version-2", hash("b"));
-    mocks.product = product(rebuilt);
+    fixtureState.product = product(rebuilt);
     const draft: WorkProduct<CourtRecordDraft> = {
       id: "record-1", kind: "court-record", title: "Motion record", projectId: null,
       revision: 1, state: { profileId: "ab-kb-chambers-justice-applicant-set", cover: {},
@@ -243,56 +238,56 @@ describe("nested Court Record inputs", () => {
 
     const accepted = affidavitProduct("affidavit-fc", "fc-affidavit-exhibits");
     const wrongCourt = affidavitProduct("affidavit-fca", "fca-affidavit-exhibits");
-    mocks.listWorkProductMetadata.mockImplementation(async (productKind: string) =>
-      productKind === "court-record" ? [accepted, wrongCourt] : [mocks.product]);
+    api.workProducts.listWorkProductMetadata.mockImplementation(async (productKind: string) =>
+      productKind === "court-record" ? [accepted, wrongCourt] : [fixtureState.product]);
     await expect(beaverCourtRecordsHost.searchDraftOutputs!("", federalEvidenceSlot, sourceContext()))
       .resolves.toMatchObject([{ workProductId: accepted.id, kind: "court-record",
         profileId: "fc-affidavit-exhibits", role: "record" }]);
 
-    mocks.product = accepted;
+    fixtureState.product = accepted;
     const acceptedBinding = { kind: "work-product-output" as const,
       workProductId: accepted.id, role: "record" };
     await expect(beaverCourtRecordsHost.resolveInput(acceptedBinding, undefined,
       federalEvidenceSlot)).resolves.toMatchObject({ status: "ready" });
-    mocks.product = wrongCourt;
+    fixtureState.product = wrongCourt;
     await expect(beaverCourtRecordsHost.resolveInput({ ...acceptedBinding,
       workProductId: wrongCourt.id }, undefined, federalEvidenceSlot))
       .resolves.toEqual({ status: "missing", reason: "unavailable" });
   });
 
   it("rebuilds a stale Authorities child before downloading its latest output", async () => {
-    mocks.freshness = "stale";
-    mocks.getDocument.mockClear();
-    mocks.downloadDocument.mockClear();
+    fixtureState.freshness = "stale";
+    api.documents.getDocument.mockClear();
+    api.documents.downloadDocument.mockClear();
     const progress = vi.fn();
 
     await expect(beaverCourtRecordsHost.resolveInput(binding, progress, authoritiesSlot))
       .resolves.toMatchObject({
       status: "ready", prepared: { origin: { versionId: "version-2", sourceSha256: hash("b") } },
     });
-    expect(mocks.prepareAuthoritiesSources).toHaveBeenCalledWith("authorities-1", 2);
-    expect(mocks.buildAuthorities).toHaveBeenCalledWith("authorities-1", 2);
-    expect(mocks.refreshAuthoritiesInput).not.toHaveBeenCalled();
+    expect(api.authorities.prepareAuthoritiesSources).toHaveBeenCalledWith("authorities-1", 2);
+    expect(api.authorities.buildAuthorities).toHaveBeenCalledWith("authorities-1", 2);
+    expect(api.authorities.refreshAuthoritiesInput).not.toHaveBeenCalled();
     expect(progress).toHaveBeenCalledWith("Building Appeal authorities");
   });
 
   it("refreshes changed Authorities inputs before rebuilding and reports a useful failure", async () => {
-    mocks.freshness = "stale";
-    mocks.getWorkProductResolution.mockImplementation(async () => ({
-      product: mocks.product, freshness: mocks.freshness,
+    fixtureState.freshness = "stale";
+    api.workProducts.getWorkProductResolution.mockImplementation(async () => ({
+      product: fixtureState.product, freshness: fixtureState.freshness,
       inputs: { source: { status: "changed" }, "authority:grant": { status: "changed" } },
       dependencies: [],
     }));
 
     await beaverCourtRecordsHost.resolveInput(binding, undefined, authoritiesSlot);
-    expect(mocks.refreshAuthoritiesInput.mock.calls).toEqual([
+    expect(api.authorities.refreshAuthoritiesInput.mock.calls).toEqual([
       ["authorities-1", "source", 2], ["authorities-1", "authority:grant", 3],
     ]);
-    expect(mocks.prepareAuthoritiesSources).toHaveBeenCalledWith("authorities-1", 4);
-    expect(mocks.buildAuthorities).toHaveBeenCalledWith("authorities-1", 4);
+    expect(api.authorities.prepareAuthoritiesSources).toHaveBeenCalledWith("authorities-1", 4);
+    expect(api.authorities.buildAuthorities).toHaveBeenCalledWith("authorities-1", 4);
 
-    mocks.freshness = "stale";
-    mocks.buildAuthorities.mockRejectedValueOnce(new Error("Source PDF is password protected"));
+    fixtureState.freshness = "stale";
+    api.authorities.buildAuthorities.mockRejectedValueOnce(new Error("Source PDF is password protected"));
     await expect(beaverCourtRecordsHost.resolveInput(binding, undefined, authoritiesSlot))
       .rejects.toThrow(
       "Appeal authorities could not be rebuilt. Open its Authorities draft: Source PDF is password protected",
@@ -303,7 +298,7 @@ describe("nested Court Record inputs", () => {
     const sameMatter = { ...product(output("version-1", hash("a"))),
       projectId: "project-1" };
     const otherMatter = { ...sameMatter, id: "authorities-2", projectId: "project-2" };
-    mocks.listWorkProductMetadata.mockImplementation(async (kind: string) =>
+    api.workProducts.listWorkProductMetadata.mockImplementation(async (kind: string) =>
       kind === "authorities" ? [sameMatter, otherMatter] : []);
 
     await expect(beaverCourtRecordsHost.searchDraftOutputs!("", authoritiesSlot, sourceContext("project-1")))
@@ -313,7 +308,7 @@ describe("nested Court Record inputs", () => {
   it("does not offer matter outputs to a Library-level Court Draft", async () => {
     const libraryDraft = product(output("version-1", hash("a")));
     const matterDraft = { ...libraryDraft, id: "authorities-2", projectId: "project-2" };
-    mocks.listWorkProductMetadata.mockImplementation(async (kind: string) =>
+    api.workProducts.listWorkProductMetadata.mockImplementation(async (kind: string) =>
       kind === "authorities" ? [libraryDraft, matterDraft] : []);
 
     await expect(beaverCourtRecordsHost.searchDraftOutputs!("", authoritiesSlot, sourceContext()))
@@ -321,17 +316,17 @@ describe("nested Court Record inputs", () => {
   });
 
   it("coalesces parallel reads of the same child draft", async () => {
-    mocks.getWorkProductResolution.mockClear();
+    api.workProducts.getWorkProductResolution.mockClear();
     await Promise.all([
       beaverCourtRecordsHost.resolveInput(binding, undefined, authoritiesSlot),
       beaverCourtRecordsHost.resolveInput(binding, undefined, authoritiesSlot),
     ]);
-    expect(mocks.getWorkProductResolution).toHaveBeenCalledTimes(1);
+    expect(api.workProducts.getWorkProductResolution).toHaveBeenCalledTimes(1);
   });
 
   it("searches the open draft's project or Library without reloading the draft", async () => {
-    mocks.getWorkProduct.mockRejectedValue(new Error("Draft reload must not be needed"));
-    mocks.directoryResource.mockImplementation((scope) => ({ list: async () => ({
+    api.workProducts.getWorkProduct.mockRejectedValue(new Error("Draft reload must not be needed"));
+    api.documents.directoryResource.mockImplementation((scope) => ({ list: async () => ({
       items: [{ kind: "document", document: { id: scope.projectId ?? "library",
         filename: "Motion.pdf", file_type: "pdf" } }], next_cursor: null,
     }) }));
@@ -342,7 +337,7 @@ describe("nested Court Record inputs", () => {
   });
 
   it("retains and flags the slot when the child output disappears", async () => {
-    mocks.product = product();
+    fixtureState.product = product();
     const state: CourtRecordDraft = {
       profileId: "ab-kb-chambers-justice-applicant-set", cover: {},
       bindings: { authorities: binding }, entries: [{ id: "authorities",
@@ -360,10 +355,10 @@ describe("nested Court Record inputs", () => {
     const source = { kind: "document" as const, documentId: "source-1",
       version: "latest" as const };
     const offline = new Error("network unavailable");
-    mocks.getDocument.mockRejectedValueOnce(offline);
+    api.documents.getDocument.mockRejectedValueOnce(offline);
     await expect(beaverCourtRecordsHost.resolveInput(source)).rejects.toBe(offline);
 
-    mocks.getDocument.mockRejectedValueOnce(new BeaverApiError({
+    api.documents.getDocument.mockRejectedValueOnce(new BeaverApiError({
       status: 404, message: "Document not found",
     }));
     await expect(beaverCourtRecordsHost.resolveInput(source)).resolves.toEqual({
@@ -383,14 +378,14 @@ describe("nested Court Record inputs", () => {
       filename: artifact.filename, mimeType: artifact.mimeType,
       sha256: artifact.sha256, pageCount: 1,
     } } };
-    mocks.saveCourtRecordBuild.mockResolvedValue(saved);
+    api.courtRecords.saveCourtRecordBuild.mockResolvedValue(saved);
     await expect(beaverCourtRecordsHost.saveArtifacts!({ artifacts: [artifact], product: record,
       entries: [], receipt: await buildReceipt(artifact) })).resolves.toEqual({
       documents: [], product: saved, outputs: { record: {
         documentId: "created-document", versionId: "created-version",
       } },
     });
-    expect(mocks.saveCourtRecordBuild).toHaveBeenCalledOnce();
+    expect(api.courtRecords.saveCourtRecordBuild).toHaveBeenCalledOnce();
   });
 
   it("hashes equivalent Draft state identically regardless of object-key order", async () => {
@@ -418,12 +413,12 @@ describe("nested Court Record inputs", () => {
         documentId: "stable-document", versionId: "version-1", filename: artifact.filename,
         mimeType: artifact.mimeType, sha256: hash("a"), pageCount: 1,
       } }, createdAt: builtAt, updatedAt: builtAt };
-    mocks.saveCourtRecordBuild.mockRejectedValue(new TypeError("network connection lost"));
+    api.courtRecords.saveCourtRecordBuild.mockRejectedValue(new TypeError("network connection lost"));
     await expect(beaverCourtRecordsHost.saveArtifacts!({ artifacts: [artifact], product: record,
       entries: [], receipt: await buildReceipt(artifact) })).rejects.toThrow(
         "network connection lost");
-    expect(mocks.saveCourtRecordBuild).toHaveBeenCalledOnce();
-    expect(mocks.deleteDocument).not.toHaveBeenCalled();
+    expect(api.courtRecords.saveCourtRecordBuild).toHaveBeenCalledOnce();
+    expect(api.documents.deleteDocument).not.toHaveBeenCalled();
   });
 });
 

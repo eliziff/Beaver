@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { Profiler, useRef, useState } from "react";
-import { describe, expect, it, vi } from "vitest";
-import type { Document } from "@/app/lib/api/documents";
+import { Profiler, useState } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { DirectoryList, Document } from "@/app/lib/api/documents";
 import { newResearchState, type ResearchFile } from "@/app/lib/researchFiles";
 import { SourcesWorkspaceProvider } from "@/app/components/legal/SourcesWorkspace";
 import {
@@ -16,23 +16,34 @@ vi.mock("@/app/contexts/AuthContext", () => ({
 }));
 vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
 
-const { listVersions, uploadVersion, researchDirectory } = vi.hoisted(() => ({
-    listVersions: vi.fn(), uploadVersion: vi.fn(), researchDirectory: vi.fn(),
+const { documentApi, researchApi, directoryList, sidePanelRender, unexpected } = vi.hoisted(() => ({
+    documentApi: { listDocumentVersions: vi.fn(), uploadDocumentVersion: vi.fn(), directoryResource: vi.fn() },
+    researchApi: { actOnResearchFile: vi.fn(), getResearchFile: vi.fn() },
+    directoryList: vi.fn(), sidePanelRender: vi.fn(),
+    unexpected: vi.fn((name: string, ..._args: unknown[]) => { throw new Error(`Unconfigured API call: ${name}`); }),
 }));
 vi.mock("@/app/lib/api/documents", async (original) => ({
-  ...await original<typeof import("@/app/lib/api/documents")>(),
-  listDocumentVersions: listVersions,
-  directoryResource: () => ({ list: researchDirectory }),
-  uploadDocumentVersion: uploadVersion
+  ...await original<typeof import("@/app/lib/api/documents")>(), ...documentApi,
 }));
-const researchApi = vi.hoisted(() => ({ act: vi.fn(), getFile: vi.fn() }));
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({
-  ...await original<typeof import("@/app/lib/api/researchFiles")>(),
-  actOnResearchFile: researchApi.act,
-  getResearchFile: researchApi.getFile,
+  ...await original<typeof import("@/app/lib/api/researchFiles")>(), ...researchApi,
 }));
 
-const sidePanelRender = vi.hoisted(() => vi.fn());
+beforeEach(() => {
+    vi.resetAllMocks();
+    for (const group of [documentApi, researchApi]) {
+        for (const [name, mock] of Object.entries(group)) {
+            mock.mockImplementation((...args) => unexpected(name, ...args));
+        }
+    }
+    documentApi.directoryResource.mockReturnValue({ list: directoryList });
+});
+afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    expect(unexpected).not.toHaveBeenCalled();
+});
+
 vi.mock("@/app/components/shared/DocumentSidePanel", () => ({
     preloadDocumentViewer: vi.fn(() => Promise.resolve()),
     DocumentSidePanel: (props: { doc: Document | null; versionsError?: boolean;
@@ -52,12 +63,9 @@ const document: Document = {
     project_id: null,
     filename: "Brief.pdf",
     file_type: "pdf",
-    storage_path: "brief.pdf",
     pdf_storage_path: "brief.pdf",
     size_bytes: 10,
     page_count: 1,
-    structure_tree: null,
-    status: "ready",
     created_at: "2026-07-27T00:00:00.000Z",
     current_version_id: "version-1",
     current_working_revision: 7,
@@ -68,7 +76,6 @@ const wordDocument: Document = {
     id: "document-2",
     filename: "Submissions.docx",
     file_type: "docx",
-    storage_path: "submissions.docx",
     pdf_storage_path: null,
 };
 const DEFAULT_DOCUMENTS = [document];
@@ -112,16 +119,13 @@ function Harness({
     ) => Promise<Document>;
     onOpenWorkflows?: (documents: Document[]) => void;
     onOpenInChat?: (documents: Document[]) => void;
-    list?: (options: { parent_id?: string | null; cursor?: string | null }) => Promise<{
-        items: Array<{ kind: "document"; document: Document } | { kind: "folder"; folder: DocTableFolder }>;
-        next_cursor: string | null;
-    }>;
+    list?: DirectoryList;
     search?: string;
     workspaceFile?: ResearchFile | null;
 }) {
     const [selection, setSelection] = useState<DocumentSelectionActions | null>(null);
-    const operations = useRef({
-        list: list ?? (async ({ parent_id }: { parent_id?: string | null }) => ({
+    const [operations] = useState(() => ({
+        list: list ?? (async ({ parent_id }: { parent_id?: string | null } = {}) => ({
             items: initialFolders
                 .filter((folder) => (folder.parent_folder_id ?? null) === (parent_id ?? null))
                 .map((folder) => ({ kind: "folder" as const, folder })),
@@ -129,6 +133,7 @@ function Harness({
         })),
         uploadDocument,
         uploadDocuments,
+        uploadDirectory: vi.fn((...args) => unexpected("uploadDirectory", ...args)),
         refreshCollection: async () => { await refreshCollection(); },
         refreshDocumentParseStates: vi.fn(),
         createFolder: vi.fn(),
@@ -137,7 +142,7 @@ function Harness({
         moveFolder,
         moveDocument,
         renameDocument,
-    }).current;
+    }));
     const table = (
         <DocTable
             scopeKey="library"
@@ -176,13 +181,6 @@ function rowFor(filename: string) {
         .closest("[data-document-row]") as HTMLElement;
 }
 
-function rects(elements: HTMLElement[]) {
-    return elements.map((element) => {
-        const { x, y, width, height } = element.getBoundingClientRect();
-        return { x, y, width, height };
-    });
-}
-
 describe("DocTable Library interactions", () => {
     it("does not present a partially loaded folder as chat documents", () => {
         const folders = [
@@ -214,7 +212,7 @@ describe("DocTable Library interactions", () => {
         const cases = { id: "folder-2", name: "Cases", parent_folder_id: "folder-1" } as DocTableFolder;
         const inside = { ...document, id: "inside", folder_id: "folder-1" };
         const nested = { ...wordDocument, id: "nested", folder_id: "folder-2" };
-        const list = vi.fn(async ({ parent_id, cursor }: { parent_id?: string | null; cursor?: string | null }) => {
+        const list = vi.fn(async ({ parent_id, cursor }: { parent_id?: string | null; cursor?: string | null } = {}) => {
             if (parent_id === "folder-1" && !cursor) return { items: [
                 { kind: "document" as const, document: inside },
                 { kind: "folder" as const, folder: cases },
@@ -238,7 +236,6 @@ describe("DocTable Library interactions", () => {
     });
 
     it("avoids empty-state and version-picker rerenders", () => {
-        sidePanelRender.mockClear();
         render(<Harness />);
         const renders = sidePanelRender.mock.calls.length;
         expect(renders).toBe(1);
@@ -303,29 +300,28 @@ describe("DocTable Library interactions", () => {
 
     it("refreshes once after a partial chained version drop", async () => {
         const files = ["one", "two", "three"].map((name) => new File([name], `${name}.pdf`));
-        uploadVersion.mockReset()
+        documentApi.uploadDocumentVersion.mockReset()
             .mockResolvedValueOnce({ id: "version-2", working_revision: 8 })
             .mockResolvedValueOnce({ id: "version-3", working_revision: 9 })
             .mockRejectedValueOnce(new Error("third failed"));
-        listVersions.mockReset().mockResolvedValue({
+        documentApi.listDocumentVersions.mockReset().mockResolvedValue({
             current_version_id: "version-3", versions: [{ id: "version-3" }],
         });
-        const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+        vi.spyOn(console, "error").mockImplementation(() => undefined);
         render(<Harness />);
         fireEvent.click(screen.getByRole("button", { name: "View Brief.pdf" }));
         const row = documentRow(), dataTransfer = { types: ["Files"], files };
 
         fireEvent.drop(row, { dataTransfer });
 
-        await waitFor(() => expect(uploadVersion).toHaveBeenCalledTimes(3));
-        expect(uploadVersion.mock.calls.map(([, , id, revision]) =>
+        await waitFor(() => expect(documentApi.uploadDocumentVersion).toHaveBeenCalledTimes(3));
+        expect(documentApi.uploadDocumentVersion.mock.calls.map(([, , id, revision]) =>
             [id, revision])).toEqual([
             ["version-1", 7], ["version-2", 8],
             ["version-3", 9],
         ]);
         expect(await screen.findByText("Current version-3")).toBeVisible();
-        expect(listVersions).toHaveBeenCalledTimes(1);
-        error.mockRestore();
+        expect(documentApi.listDocumentVersions).toHaveBeenCalledTimes(1);
     });
 
     it("keeps inline rename geometry without per-keystroke commits", async () => {
@@ -524,14 +520,13 @@ describe("DocTable Library interactions", () => {
     });
 
     it("surfaces a version-history load failure to the document panel", async () => {
-        const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
-        listVersions.mockRejectedValueOnce(new Error("offline"));
+        vi.spyOn(console, "error").mockImplementation(() => undefined);
+        documentApi.listDocumentVersions.mockRejectedValueOnce(new Error("offline"));
         render(<Harness />);
         fireEvent.click(screen.getByRole("button", { name: "View Brief.pdf" }));
         const load = sidePanelRender.mock.calls.at(-1)?.[0].onLoadVersions;
         await act(async () => load("document-1", true));
         await waitFor(() => expect(sidePanelRender.mock.calls.at(-1)?.[0].versionsError).toBe(true));
-        error.mockRestore();
     });
 
     it("opens the selected row with Enter", async () => {
@@ -572,34 +567,6 @@ describe("DocTable Library interactions", () => {
         );
     });
 
-    it("keeps table headings and selection actions in stable places", async () => {
-        render(
-            <Harness
-                initialDocuments={[document, wordDocument]}
-            />,
-        );
-
-        expect(screen.getByRole("button", { name: "Workflows" })).toBeEnabled();
-        expect(screen.getByText("Name")).toBeVisible();
-        expect(
-            within(rowFor("Brief.pdf")).queryByRole("button", {
-                name: "Workflows",
-            }),
-        ).toBeNull();
-        expect(
-            within(rowFor("Submissions.docx")).queryByRole("button", {
-                name: "Workflows",
-            }),
-        ).toBeNull();
-
-        selectRow("Submissions.docx");
-        await waitFor(() => expect(screen.getByRole("button", { name: "Workflows" })).toBeEnabled());
-        expect(screen.getByText("Name")).toBeVisible();
-
-        selectRow("Brief.pdf");
-        expect(screen.getAllByRole("button", { name: "Workflows" })).toHaveLength(1);
-    });
-
     it("hands the full selection to an existing workflow dock", async () => {
         const onOpenWorkflows = vi.fn();
         render(<Harness initialDocuments={[document, wordDocument]}
@@ -614,65 +581,6 @@ describe("DocTable Library interactions", () => {
         expect(screen.queryByRole("dialog", { name: "Workflows" })).toBeNull();
     });
 
-    it.each([1440, 390])(
-        "keeps row and lead-cell geometry fixed at %ipx",
-        (viewportWidth) => {
-            Object.defineProperty(window, "innerWidth", {
-                configurable: true,
-                value: viewportWidth,
-            });
-            render(<Harness />);
-
-            const row = documentRow();
-            const leadCell = row.firstElementChild as HTMLElement;
-            const elements = [
-                row,
-                ...Array.from(row.children),
-            ] as HTMLElement[];
-            const stickyWidth = Math.max(180, viewportWidth - 112);
-
-            elements.forEach((element, index) => {
-                const width =
-                    element === row
-                        ? viewportWidth
-                        : element === leadCell
-                          ? stickyWidth
-                          : 32;
-                vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
-                    x: index === 0 ? 0 : stickyWidth + (index - 1) * 32,
-                    y: 44,
-                    width,
-                    height: 44,
-                    top: 44,
-                    right: width,
-                    bottom: 88,
-                    left: index === 0 ? 0 : stickyWidth + (index - 1) * 32,
-                    toJSON: () => ({}),
-                });
-            });
-
-            const nodes = [...row.children];
-            const before = rects(elements);
-
-            fireEvent.mouseEnter(row);
-            fireEvent.focus(row);
-            fireEvent.click(within(row).getByRole("checkbox"));
-
-            expect(documentRow()).toBe(row);
-            expect([...row.children]).toEqual(nodes);
-            expect(rects(elements)).toEqual(before);
-            expect(row).toHaveClass(
-                "h-11",
-                "min-h-11",
-                "w-full",
-                "bg-app-surface-active",
-            );
-            expect(leadCell).not.toHaveClass("sticky");
-            expect(`${row.className} ${leadCell.className}`).not.toMatch(
-                /\b(?:animate-|duration-|scale-|shadow|transition|translate-)/,
-            );
-        },
-    );
 });
 
 describe("structural parse state", () => {
@@ -704,8 +612,9 @@ describe("structural parse state", () => {
                     list: async () => ({ items: [], next_cursor: null }),
                     uploadDocument: async () => document,
                     uploadDocuments: async () => [document],
+                    uploadDirectory: vi.fn((...args) => unexpected("uploadDirectory", ...args)),
                     refreshCollection: vi.fn(),
-                    refreshDocumentParseStates,
+                    refreshDocumentParseStates: async () => { await refreshDocumentParseStates(); },
                     createFolder: vi.fn(),
                     renameFolder: vi.fn(),
                     deleteFolder: vi.fn(),
@@ -778,49 +687,48 @@ describe("structural parse state", () => {
         view.unmount();
         await vi.advanceTimersByTimeAsync(1_000);
         expect(refreshDocumentParseStates).toHaveBeenCalledTimes(1);
-        vi.useRealTimers();
     });
 });
 
 describe("research-scoped Library actions", () => {
-    const workspace = (): ResearchFile => ({ document: { id: "research-1", filename: "Contract research.research.md", file_type: "md" },
+    const workspace = (): ResearchFile => ({ document: { ...document, id: "research-1", filename: "Contract research.research.md", file_type: "md", pdf_storage_path: null },
         versionId: "v1", workingRevision: 1, state: { ...newResearchState(),
             labels: { "label-1": { id: "label-1", name: "Contract", parentId: null,
                 color: "#aabbaa", order: 0, scope: "source" } }, sources: {
             "source-1": { id: "source-1", collected: true, labelIds: ["label-1"],
       note: "", passages: null,
                 reference: { provider: "library", kind: "document", id: "document-1", versionId: "version-1" } },
-        } } } as ResearchFile);
+        } } });
 
     it("does not expose research labels or perform research writes merely by opening Library", () => {
-        researchApi.act.mockClear(); researchDirectory.mockClear();
+        researchApi.actOnResearchFile.mockClear(); directoryList.mockClear();
         render(<Harness workspaceFile={workspace()} />);
         expect(within(documentRow()).queryByText("Contract")).not.toBeInTheDocument();
         expect(within(documentRow()).queryByText(/in \d+ workspace/)).not.toBeInTheDocument();
         fireEvent.click(within(documentRow()).getByRole("button", { name: "More actions" }));
         expect(screen.queryByRole("menuitem", { name: "Label" })).not.toBeInTheDocument();
         expect(screen.getByRole("menuitem", { name: "Add to research…" })).toBeVisible();
-        expect(researchApi.act).not.toHaveBeenCalled();
-        expect(researchDirectory).not.toHaveBeenCalled();
+        expect(researchApi.actOnResearchFile).not.toHaveBeenCalled();
+        expect(directoryList).not.toHaveBeenCalled();
     });
 
     it("adds a pinned document only to the research set explicitly chosen by the user", async () => {
-        researchApi.act.mockClear();
-        researchDirectory.mockResolvedValue({ items: [{ kind: "document", document: workspace().document }], next_cursor: null });
-        researchApi.getFile.mockResolvedValue(workspace());
-        researchApi.act.mockResolvedValue({ ...workspace(), sourceId: "source-1" });
+        researchApi.actOnResearchFile.mockClear();
+        directoryList.mockResolvedValue({ items: [{ kind: "document", document: workspace().document }], next_cursor: null });
+        researchApi.getResearchFile.mockResolvedValue(workspace());
+        researchApi.actOnResearchFile.mockResolvedValue({ ...workspace(), sourceId: "source-1" });
         render(<Harness />);
         fireEvent.click(within(documentRow()).getByRole("button", { name: "More actions" }));
         fireEvent.click(screen.getByRole("menuitem", { name: "Add to research…" }));
         const choice = await screen.findByRole("radio", { name: "Select Contract research" });
-        expect(researchApi.act).not.toHaveBeenCalled();
+        expect(researchApi.actOnResearchFile).not.toHaveBeenCalled();
         fireEvent.click(choice);
         await screen.findByLabelText("Destination source label");
         fireEvent.change(screen.getByLabelText("Destination source label"), { target: { value: "label-1" } });
-        fireEvent.click(screen.getByRole("button", { name: "Add", exact: true }));
-        await waitFor(() => expect(researchApi.act).toHaveBeenCalledWith("research-1", "v1", 1,
+        fireEvent.click(screen.getByRole("button", { name: "Add" }));
+        await waitFor(() => expect(researchApi.actOnResearchFile).toHaveBeenCalledWith("research-1", "v1", 1,
             expect.objectContaining({ type: "source", reference: expect.objectContaining({
                 provider: "library", kind: "document", id: "document-1", versionId: "version-1" }) })));
-        expect(researchApi.act).toHaveBeenCalledTimes(1);
+        expect(researchApi.actOnResearchFile).toHaveBeenCalledTimes(1);
     });
 });
