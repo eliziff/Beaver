@@ -2848,7 +2848,7 @@ export function assistantTools<Context extends {
         });
         // Checkable propositions first: a review that runs out of budget should
         // spend it on verdicts it can prove, not on sources nobody attached.
-        const ordered = [...worklist].sort((left, right) =>
+        worklist.sort((left, right) =>
           Number(Boolean(right.machine_finding)) - Number(Boolean(left.machine_finding)) ||
           Number(Boolean(left.unverified)) - Number(Boolean(right.unverified)) ||
           (left.footnote_id ?? 0) - (right.footnote_id ?? 0));
@@ -2856,7 +2856,7 @@ export function assistantTools<Context extends {
           discrepancy_count: discrepancies.length, discrepancies: compact,
           discrepancies_truncated: discrepancies.length > compact.length,
           proposition_count: worklist.length,
-          propositions: ordered.slice(offset, offset + limit),
+          propositions: worklist.slice(offset, offset + limit),
           proposition_page: { offset, limit, has_more: offset + limit < worklist.length } }),
         false, receipts);
       }
