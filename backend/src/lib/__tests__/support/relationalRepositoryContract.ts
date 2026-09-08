@@ -888,7 +888,7 @@ export function relationalRepositoryContract(
         }),
       ]);
       expect(outcomes.filter((value) => value === "conflict")).toHaveLength(1);
-      const current = await documentRepository.get(owner, documentId);
+      const current = await documentRepository.history(owner, documentId);
       expect(current?.versions).toHaveLength(outcomes.includes("created") ? 2 : 1);
     } finally {
       await removeUserData(owner.userId);
@@ -1058,7 +1058,7 @@ export function relationalRepositoryContract(
         }] });
       await expect(documentRepository.pendingOrphans()).resolves.toEqual([]);
       await expect(database.query<{ count: number }>(sql`
-        SELECT COUNT(*) count FROM object_cleanup WHERE storage_path=${initial.version.blobKey}`))
+        SELECT CAST(COUNT(*) AS INTEGER) count FROM object_cleanup WHERE storage_path=${initial.version.blobKey}`))
         .resolves.toMatchObject({ rows: [{ count: 0 }] });
       await expect(documentRepository.deleteDocument(owner, documentId)).resolves.toBe(true);
       await database.query(sql`UPDATE object_cleanup
