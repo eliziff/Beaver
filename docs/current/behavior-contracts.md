@@ -245,6 +245,10 @@ scope.
 ## Legal sources and evidence
 
 - Providers enter through the shared search, resolve, and bounded-read plane.
+- A2AJ searches prefer installed full-text indexes. Missing FTS falls back to
+  the A2AJ search API for cases or legislation; an empty local result does not.
+- Missing optional search corpora return an explicit `not_installed` state.
+  Library displays one plain sentence without a result count or failure alert.
 - Provider-native identifiers, structure, coverage, URLs, and provenance are
   preserved when available.
 - Reconstructed structure fills genuine gaps but never overwrites authoritative

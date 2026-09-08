@@ -95,7 +95,7 @@ router.get("/search", asyncRoute(async (req, res) => {
       ? "newest" as const
       : req.query.sort_results === "oldest_first" ? "oldest" as const : "relevance" as const,
   };
-  res.json({ results: await application.searchLibrary(query) });
+  res.json(await application.searchLibrary(query));
 }));
 router.post("/", asyncRoute(async (req, res) => {
   const selected = docType(req.body?.doc_type);

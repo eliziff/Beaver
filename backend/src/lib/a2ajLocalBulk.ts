@@ -266,12 +266,7 @@ export function searchLocalA2AJ(args: {
     path.basename(searchDatabasePath(docType)) ===
     `a2aj-${docType}-fulltext.sqlite`;
   return withSearchDatabase(docType, (database) => {
-    if (!hasFts(database)) {
-      if (args.querySyntax === "fts5") {
-        throw new Error("Local A2AJ full-text index is unavailable");
-      }
-      return null;
-    }
+    if (!hasFts(database)) return null;
     const filters = dedicatedIndex ? [] : ["document.doc_type = ?"];
     const values: Array<string | number> = dedicatedIndex ? [] : [docType];
     addDatasetFilter(filters, values, args.dataset);
