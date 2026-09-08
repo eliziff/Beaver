@@ -1864,7 +1864,7 @@ describe("local assistant tools", () => {
       authority_span: { start: 4, end: 27 }, pinpoint_span: { start: 31, end: 37 } } } });
     expect(responses[2].content).not.toContain("reviewed");
     const detail = JSON.parse(responses[2].content);
-    expect(detail).toMatchObject({ freshness: "unbuilt", input_issues: [],
+    expect(detail).toMatchObject({ output_freshness: "unbuilt", input_issues: [],
       work_product: { id: current.id, revision: 7 }, draft: {
         authorities: [expect.objectContaining({ id: "jordan" })],
         authority_page: { has_more: false } } });
@@ -2139,13 +2139,13 @@ describe("local assistant tools", () => {
       authorities: { discrepancies, refreshInput } as never,
       workProducts: { get: vi.fn(async () => current), resolve } as never });
 
-    expect(JSON.parse(review.content)).toMatchObject({ freshness: "stale", input_issue_count: 2,
+    expect(JSON.parse(review.content)).toMatchObject({ output_freshness: "stale", input_issue_count: 2,
       input_issues: [{ role: "source", status: "changed", refreshable: true },
         { role: "missing", status: "missing", refreshable: false }],
       discrepancy_count: 1, discrepancies: [{ occurrence_id: "occ-1",
         cited_locator: { label: "para 9" }, suggested_locator: { label: "para 10" } }] });
     expect(review.content.length).toBeLessThan(64_000);
-    expect(review.content).not.toContain("\"proposition\"");
+    expect(JSON.parse(review.content).discrepancies[0].proposition.length).toBeLessThanOrEqual(701);
     expect(refreshed.mutated).toBe(true);
   });
 

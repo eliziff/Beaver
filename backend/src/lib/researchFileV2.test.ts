@@ -563,7 +563,7 @@ describe("Research v2 parts", () => {
       expect(labels).toEqual([sourceLabel, highlightLabel]);
   });
 
-  it("saves a Library highlight with its pen in one write and pins the whole-document quote to a block", async () => {
+  it("saves a Library highlight with its pen without inventing an unprinted paragraph pinpoint", async () => {
     const f = fixture(), scope = { userId: "user-1" },
       text = "Recitals follow.\n\nThe governing law is Alberta.",
       blocks = [{ kind: "paragraph", label: "1", start: 0, end: 16, text: "Recitals follow." },
@@ -584,7 +584,7 @@ describe("Research v2 parts", () => {
       labelCounts: { [highlightLabel]: 1 }, unlabelledCount: 0 });
     expect((await pageResearchItems(f.documents as never, scope, saved, "passages")).items[0])
       .toMatchObject({ value: { labelIds: [highlightLabel], receipt: {
-        span_text: "governing law is Alberta", locator: { kind: "paragraph", label: "2" } } } });
+        span_text: "governing law is Alberta", locator: { kind: "document", label: "document" } } } });
   });
 
   it("accepts only a quote verified against the selected canonical passage", async () => {
@@ -599,12 +599,12 @@ describe("Research v2 parts", () => {
         documentArtifact: { text, blocks: [block] } }] })), base = { type: "passage" as const,
         sourceId, locator: { kind: "paragraph" as const, value: "1" } };
     await expect(verifyResearchPassage(saved, { ...base, quote: "missing" }, reader as never))
-      .rejects.toThrow("not contained");
+      .rejects.toMatchObject({ status: 400 });
     const action = await verifyResearchPassage(saved, { ...base, quote: "verified holding" },
       reader as never), updated = await act(f, action);
     expect((await pageResearchItems(f.documents as never, { userId: "user-1" }, updated,
       "passages")).items[0]).toMatchObject({ value: { receipt: {
-        span_text: "verified holding", locator: { kind: "paragraph", label: "1" } } } });
+        span_text: "verified holding", locator: { kind: "document", label: "characters 5–20" } } } });
   });
 
   it("adaptively pages source parts when an aggregate read is too large", async () => {
