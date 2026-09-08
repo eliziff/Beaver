@@ -52,9 +52,6 @@ export const attachAuthoritiesBookPdf = (id: string, revision: number,
 export const authoritiesSourceOcr = (id: string, roles: string[], cancel = false, pages?: number[]) =>
   post<Array<{ role: string; documentId?: string; done?: boolean }>>(
     `/authorities/${segment(id)}/source-ocr`, { roles, cancel, pages });
-export const prepareAuthoritiesHighlights = (id: string, revision: number, signal?: AbortSignal) =>
-  apiRequest<AuthoritiesProduct>(`/authorities/${segment(id)}/prepare-highlights`,
-    { ...mutationInit("POST", { revision }), signal });
 export const buildAuthorities = (id: string, revision: number, signal?: AbortSignal) =>
   apiRequest<{ product: AuthoritiesProduct; receipt: AuthoritiesBuildReceipt }>(
     `/authorities/${segment(id)}/build`, { ...mutationInit("POST", { revision }), signal },

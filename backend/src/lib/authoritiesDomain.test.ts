@@ -478,7 +478,7 @@ describe("authorities draft domain", () => {
   it("edits review state immutably with explicit identities and reference targets", () => {
     const text = "Case A; Case B";
     const base: AuthoritiesDraft = {
-      ...createAuthoritiesDraft({ kind: "manual" }),
+      ...createAuthoritiesDraft(sourceImport, sourceBindings), stage: "build",
       units: [{ id: "footnote:1", kind: "footnote", ordinal: 1, footnoteId: 1,
         footnoteRefs: [], pageNumbers: [], text, occurrenceIds: ["whole"] }],
       occurrences: { whole: occurrence("whole", text, 0, text.length, "a") },
@@ -490,6 +490,8 @@ describe("authorities draft domain", () => {
     let draft = reduceAuthoritiesDraft(base, {
       type: "split-occurrence", occurrenceId: "whole", replacements: [left, right],
     });
+    expect(draft.stage).toBe("citations");
+    expect(base.stage).toBe("build");
     draft = reduceAuthoritiesDraft(draft, {
       type: "relink-occurrence", occurrenceId: "right", authorityId: "b",
     });
