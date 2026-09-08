@@ -828,7 +828,12 @@ describe("Research v2 parts", () => {
     const accepted = await act(f, { type: "accept", changeId: id });
     expect(accepted.state.proposals).toEqual([]);
     expect(accepted.state.labels[sourceLabel].name).toBe("Read");
-    expect(accepted.state.sources[sourceId].labelIds).toEqual([added]);
+    expect(accepted.state.sources[sourceId].labelIds).toEqual([sourceLabel, added]);
+    const protectedFiling = await act(f, { type: "label-selection", target: "sources", sourceIds: [sourceId],
+      assign: [added], mode: "remove" }, undefined, model);
+    expect(protectedFiling.state.sources[sourceId].labelIds).toEqual([sourceLabel, added]);
+    expect(protectedFiling.state.proposals).toHaveLength(1);
+    await act(f, { type: "reject", changeId: protectedFiling.state.proposals![0].id });
     const protectedEdit = await act(f, { type: "label", id: added, name: "Model revision" }, undefined, model);
     expect(protectedEdit.state.labels[added].name).toBe("Follow up");
     expect(protectedEdit.state.proposals).toHaveLength(1);
@@ -839,7 +844,7 @@ describe("Research v2 parts", () => {
     expect(undone.state.labels[sourceLabel].name).toBe("Reviewed");
     expect(undone.state.labels[added]).toBeUndefined();
     expect(undone.state.labels[later].name).toBe("Independent label");
-    expect(undone.state.sources[sourceId]).toMatchObject({ labelIds: [later, sourceLabel], note: "Keep this note" });
+    expect(undone.state.sources[sourceId]).toMatchObject({ labelIds: [sourceLabel, later], note: "Keep this note" });
     expect(undone.state.note).toBe("Independent memo edit");
     const history = await readResearchHistory(f.documents as never, scope, undone);
     expect(history.find((change) => change.id === id)).toMatchObject({ status: "applied", executor: "assistant", resolvedBy: scope.userId });
@@ -880,7 +885,7 @@ describe("Research v2 parts", () => {
     await act(f, { type: "annotate", kind: "source", id: sourceId, labelIds: [sourceLabel] });
     const added = await act(f, { type: "batch", title: "Add Further review", propose: true, actions: [
       { type: "label", id: highlightLabel, name: "Further review", scope: "source" },
-      { type: "label-selection", target: "sources", sourceIds: [sourceId], assign: [highlightLabel], mode: "add" },
+      { type: "annotate", kind: "source", id: sourceId, labelIds: [highlightLabel] },
     ] }, undefined, model);
     expect(added.state.proposals).toEqual([]);
     expect(added.state.sources[sourceId].labelIds).toEqual(expect.arrayContaining([sourceLabel, highlightLabel]));
@@ -895,6 +900,42 @@ describe("Research v2 parts", () => {
     expect(undone.state.labels[highlightLabel]).toBeUndefined();
     expect(undone.state.labels[sourceLabel].name).toBe("Counsel review");
     expect(undone.state.sources[sourceId].labelIds).toEqual([sourceLabel]);
+  });
+
+  it.each(["source", "annotate", "selection"] as const)("keeps explicit ancestor and descendant filings when filing via %s", async (type) => {
+    const f = fixture(), model = { executor: "assistant" as const }, other = "40000000-0000-4000-8000-000000000001";
+    const collected = await act(f, { type: "merge", evidence: [receipt("a")] }), source = Object.values(collected.state.sources)[0];
+    for (const action of [{ type: "label", id: sourceLabel, name: "Ancestor" },
+      { type: "label", id: highlightLabel, name: "Descendant", parentId: sourceLabel },
+      { type: "label", id: other, name: "Further review" }] as const) await act(f, action, undefined, model);
+    await act(f, { type: "annotate", kind: "source", id: source.id, labelIds: [sourceLabel, highlightLabel] });
+    const filed = await act(f, type === "source" ? { type, reference: source.reference, labelIds: [other] }
+      : type === "annotate" ? { type, kind: "source", id: source.id, labelIds: [other] }
+      : { type: "label-selection", target: "sources", sourceIds: [source.id], assign: [other], mode: "add" }, undefined, model);
+    expect(filed.state.sources[source.id].labelIds).toEqual([sourceLabel, highlightLabel, other]);
+    expect(filed.state.proposals).toEqual([]);
+    const removed = await act(f, { type: "label-selection", target: "sources", sourceIds: [source.id], assign: [other], mode: "remove" }, undefined, model);
+    expect(removed.state.sources[source.id].labelIds).toEqual([sourceLabel, highlightLabel]);
+    expect(removed.state.proposals).toEqual([]);
+    await expect(act(f, { type: "label-selection", target: "sources", sourceIds: [source.id], assign: [other], mode: "replace" }, undefined, model)).rejects.toThrow(/additive/);
+  });
+
+  it.each(["unfile", "delete-source", "delete-label", "undo"])("holds %s of a human filing for acceptance", async (type) => {
+    const f = fixture(), scope = { userId: "user-1" }, model = { executor: "assistant" as const };
+    await act(f, { type: "label", id: sourceLabel, name: "Model-owned label" }, undefined, model);
+    const collected = await act(f, { type: "merge", evidence: [receipt("a")] }), sourceId = Object.keys(collected.state.sources)[0];
+    const filed = await act(f, { type: "annotate", kind: "source", id: sourceId, labelIds: [sourceLabel] });
+    const history = await readResearchHistory(f.documents as never, scope, filed), action: ResearchFileAction = type === "unfile"
+      ? { type: "label-selection", target: "sources", sourceIds: [sourceId], assign: [sourceLabel], mode: "remove" }
+      : type === "undo" ? { type: "undo", changeId: history.at(-1)!.id }
+      : { type: "remove", kind: type === "delete-source" ? "source" : "label", id: type === "delete-source" ? sourceId : sourceLabel };
+    const pending = await act(f, action, undefined, model);
+    expect(pending.state.sources[sourceId]).toEqual(filed.state.sources[sourceId]);
+    expect(pending.state.labels).toEqual(filed.state.labels);
+    expect(pending.state.proposals).toHaveLength(1);
+    const accepted = await act(f, { type: "accept", changeId: pending.state.proposals![0].id });
+    expect(accepted.state.sources[sourceId].labelIds).toEqual([]);
+    expect(accepted.state.proposals).toEqual([]);
   });
 
   it("uses earlier classification edits in the same batch and undoes the group together", async () => {
