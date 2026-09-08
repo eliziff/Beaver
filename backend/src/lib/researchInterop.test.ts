@@ -4,6 +4,8 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 vi.mock("./localMode", () => ({ isLocalRuntime: () => true }));
+// Previews propose a structure with the model by default; these tests exercise the deterministic fallback.
+vi.mock("./chat/turnEngine", () => ({ runChatTurn: async () => { throw new Error("No model in this test"); } }));
 const owner = { userId: "00000000-0000-0000-0000-000000000001" };
 let directory: string, close: (() => Promise<void>) | undefined;
 beforeEach(async () => {
@@ -80,8 +82,10 @@ it("converts only grounded Chat sources and reuses earlier receipts for a select
   await f.sources.collect(owner, f.file().document.id, { evidence: [unrelated] });
   const preview = await f.sources.previewTable(owner, f.file().document.id, { chatId: f.chat.id, messageIds: [later] });
   expect(preview.rows).toHaveLength(1);
-  expect(preview.design.columns.some(({ name }) => name === "First question")).toBe(false);
-  expect(preview.design.columns.some(({ name }) => name === "Later question")).toBe(true);
+  expect(preview).toMatchObject({ question: "Later question", proposed: false, fallback: expect.any(String) });
+  // The question is the subject of the table, never a column: the selected answer lands under "Finding".
+  expect(preview.design.columns.some(({ name }) => name === "First question" || name === "Later question")).toBe(false);
+  expect(preview.design.columns.some(({ name }) => name === "Finding")).toBe(true);
   const review = await f.sources.table(owner, f.file().document.id, { chatId: f.chat.id, messageIds: [later], design: preview.design, fingerprint: preview.fingerprint });
   const detail = await f.tables.detail(owner, review.id), answer = detail.cells.at(-1)!.content!;
   expect(answer.claims[0].text).toBe("Later answer grounded in an earlier read");
