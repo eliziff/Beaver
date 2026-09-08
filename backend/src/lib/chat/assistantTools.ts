@@ -227,12 +227,12 @@ const documentOperationTool = (research = true): Tool & BeaverToolPolicy => ({
       "{type:'label',name,definition?,parentId?,color?:'#RRGGBB',order?,scope:'source'|'highlight'} creates a label: omit id, " +
       "then use returned label_id for child parentId and later labelIds; supply id only to edit; " +
       "{type:'source',reference:{provider,id,kind,...},labelIds?,note?} for a current search result returns source_id; " +
-      "{type:'annotate',kind:'source',id,labelIds?,note?} or " +
+      "{type:'annotate',kind:'source',id,labelIds?,note?} adds source filings, preserving all existing ancestor and descendant filings; or " +
       "{type:'annotate',kind:'evidence',id,sourceId,labelIds?,note?}; " +
-      "{type:'label-selection',target:'sources'|'passages',sourceIds?,evidenceIds?,labelIds?,unlabelled?,assign:[labelId],mode:'add'|'remove'|'replace'} labels a selected group; " +
+      "{type:'label-selection',target:'sources'|'passages',sourceIds?,evidenceIds?,labelIds?,unlabelled?,assign:[labelId],mode:'add'|'remove'} adds filings or explicitly removes only the named assign labels; replace is allowed only for passages. Removing a human-made or human-approved filing requires acceptance. " +
       "{type:'remove',kind:'label'|'source',id} or {type:'remove',kind:'evidence',id,sourceId}; " +
       "{type:'batch',title,actions:[label/annotate/label-selection/remove-label actions]} groups a change. New labels, filings and edits to model-owned labels apply immediately with History/Undo. Only edits, moves or deletions of human-created or human-approved labels require acceptance. " +
-      "{type:'undo',changeId} reverses a recorded change while preserving unrelated work. Read the workspace history for change IDs; pending proposals are reviewed by the user. " +
+      "{type:'undo',changeId} reverses a recorded change while preserving unrelated work. Read history for change IDs. If the result is pending, tell the user the change is waiting for acceptance; do not report it as completed. " +
       "{type:'note',markdown}; or " +
       "{type:'memo',title,markdown,mode?:'replace'|'append'} writes the workspace memo with " +
       "verified source links from top-level evidence_ids; use [@evidence_id] for inline citations; " +
@@ -2090,7 +2090,7 @@ export function assistantTools<Context extends {
         version_id: next.versionId, filename: next.document.filename,
         resource: resourceReference.document(next.document.id, next.versionId) });
     }
-    let next, queryId: string | undefined, performed: ResearchFileAction | undefined,
+    let next, pendingChange, queryId: string | undefined, performed: ResearchFileAction | undefined,
       matched: LegalEvidenceReceipt[] = [], queryReceipt: ResearchQueryReceipt | undefined,
       checkpointed = false, coverage: Awaited<ReturnType<typeof runResearchFileQuery>>["coverage"] | undefined;
     let savedEvidenceIds: string[] = [];
@@ -2161,8 +2161,8 @@ export function assistantTools<Context extends {
         }
       }
       performed = action;
-      next = (await sources.update(scope, documentId, { versionId, workingRevision: edit.workingRevision, action },
-        { operation, assistant: { turnVersionId: edit.turnVersionId, turnId }, signal })).file;
+      ({ file: next, pendingChange } = await sources.update(scope, documentId, { versionId, workingRevision: edit.workingRevision, action },
+        { operation, assistant: { turnVersionId: edit.turnVersionId, turnId }, signal }));
       checkpointed = next.versionId !== versionId ||
         next.workingRevision !== edit.workingRevision;
     }
@@ -2181,7 +2181,8 @@ export function assistantTools<Context extends {
         source = reference && sourceByKey.get(researchSourceKey(reference));
       return source ? [{ evidence_id, source_id: source.id }] : [];
     });
-    const content = { ok: true, document_id: next.document.id,
+    const content = { ok: true, document_id: next.document.id, status: pendingChange ? "pending" : "applied",
+      ...(pendingChange ? { applied: false, change_id: pendingChange.id, message: "This change is waiting for acceptance. It has not been applied. Tell the user it is pending, not completed." } : { applied: true }),
       version_id: next.versionId, filename: next.document.filename,
       resource: resourceReference.document(next.document.id, next.versionId),
       proposals: next.state.proposals ?? [], history: next.state.history,

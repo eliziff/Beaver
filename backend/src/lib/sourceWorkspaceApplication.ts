@@ -104,7 +104,8 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
         ? Object.values(file.state.sources).find(({ reference }) => researchSourceResource(reference) ===
           researchSourceResource(requested.reference))?.id : undefined,
       receipt = sourceId && action.type === "merge" ? action.evidence?.[0] : undefined;
-    return { file, ...(sourceId ? { sourceId } : {}), ...(receipt ? { evidenceId: receipt.evidence_id, receipt } : {}) };
+    return { file, pendingChange: file.state.proposals?.find(({ id }) => !current.state.proposals?.some((prior) => prior.id === id)),
+      ...(sourceId ? { sourceId } : {}), ...(receipt ? { evidenceId: receipt.evidence_id, receipt } : {}) };
   }
   const query = (scope: Scope, id: string, input: ResearchFileQueryInput,
     options: Parameters<typeof runResearchFileQuery>[4] = {}) => runResearchFileQuery(documents, scope, id,

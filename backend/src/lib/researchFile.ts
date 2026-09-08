@@ -90,6 +90,8 @@ const researchMutationSchema = z.discriminatedUnion("type", [
     mode: z.enum(["add", "remove", "replace"]) }).strict(),
   z.object({ type: z.literal("note"), markdown: z.string().max(250_000), expectedMarkdown: z.string().max(250_000).optional() }).strict(),
 ]).superRefine((action, context) => {
+  if (action.type === "label-selection" && action.target === "sources" && action.mode === "replace")
+    context.addIssue({ code: "custom", message: "Source filings are additive; name each removal with mode:remove" });
   if ((action.type === "annotate" || action.type === "remove") &&
       action.kind === "evidence" && !action.sourceId)
     context.addIssue({ code: "custom", message: "Evidence changes require sourceId" });
@@ -548,12 +550,11 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
       throw new ApplicationError(409, "The memo changed elsewhere. Your draft has been kept; reload the saved memo before editing it again.", { code: "memo_conflict" });
     state.note = action.markdown;
   }
-  else if (action.type === "source") {
-    if (action.reference.kind === "document" && !await documents.projectionSource(scope,
+  else if (action.type === "source" || action.type === "annotate" && action.kind === "source") {
+    if (action.type === "source" && action.reference.kind === "document" && !await documents.projectionSource(scope,
       action.reference.id, action.reference.versionId)) throw new ApplicationError(404, "Document version not found");
-    ownSources(); const item = ownSource(
-    addSource(state, action.reference).id); item.collected = true;
-    if (action.labelIds) item.labelIds = checkedLabels(state, action.labelIds, "source");
+    ownSources(); const item = ownSource(action.type === "source" ? addSource(state, action.reference).id : action.id); item.collected = true;
+    if (action.labelIds) item.labelIds = checkedLabels(state, [...item.labelIds, ...action.labelIds], "source");
     if (action.note !== undefined) item.note = action.note;
   } else if (action.type === "label-selection") {
     const selectionDocuments = { ...documents, readParts: async (...args: Parameters<DocumentStore["readParts"]>) => {
@@ -585,10 +586,6 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
         writeSource(subject.sourceId);
       }
     }
-  } else if (action.type === "annotate" && action.kind === "source") {
-    const item = ownSource(action.id); item.collected = true;
-    if (action.labelIds) item.labelIds = checkedLabels(state, action.labelIds, "source");
-    if (action.note !== undefined) item.note = action.note;
   } else if ((action.type === "annotate" || action.type === "remove") && action.kind === "evidence") {
     const sourceId = action.sourceId!; get(state.sources, sourceId, "Source"); await loadSources([sourceId]);
     const item = get(loaded.get(sourceId)!, action.id, "Evidence");
@@ -769,10 +766,12 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
   } else changes = researchStateChanges(current.state, state, originalEvidence, allEvidence());
   if (changes.length && request.type !== "accept") {
     const history = await loadHistory();
-    pending = executor === "human" && request.type === "batch" && request.propose === true || executor !== "human" && request.type !== "undo" &&
-      changes.some((change) => change.target === "label" && current.state.labels[change.id] &&
+    pending = executor === "human" && request.type === "batch" && request.propose === true || executor !== "human" &&
+      changes.some((change) => (change.target === "label" && current.state.labels[change.id] ||
+        change.target === "source" && change.field.startsWith("labelIds.") && change.before === true && change.after === false) &&
         history.some((prior) => prior.status === "applied" && (prior.executor === "human" || prior.resolvedBy) &&
-          prior.changes.some((field) => field.target === "label" && field.id === change.id)));
+          prior.changes.some((field) => field.target === change.target && field.id === change.id &&
+            (change.target === "label" || field.field === change.field && field.after === true))));
     const title = request.type === "batch" ? request.title : request.type === "undo" ? `Undo: ${selected!.title}`
         : request.type === "label" ? `Label: ${request.name}` : request.type === "label-selection" ? "Update classifications"
         : request.type === "note" ? "Update memo" : request.type === "merge" ? request.title ?? "Collect research" : "Update research";
