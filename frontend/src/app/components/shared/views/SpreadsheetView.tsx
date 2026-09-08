@@ -303,7 +303,7 @@ export function SpreadsheetView({
                 <>
                     <SpreadsheetGrid
                         sheet={sheet}
-                        highlight={parseRange(target?.cell)}
+                        highlight={!target?.sheet || target.sheet === sheet.name ? parseRange(target?.cell) : null}
                     />
                     {projection!.sheets.length > 1 && (
                         <TabList value={String(sheetIndex)}
