@@ -204,7 +204,11 @@ vi.mock("../workflows/WorkflowPickerModal", () => ({
 it("projects queued agents into the table", async () => {
     mocks.listProjects.mockResolvedValue({ items: [], next_cursor: null });
     mocks.getTabularReview.mockResolvedValue(fixture("pending").data);
-    mocks.startGeneration.mockResolvedValue({ job_ids: ["job-1"], queued: 1 });
+    mocks.startGeneration.mockImplementation(async () => {
+        const running = fixture("generating").data;
+        mocks.getTabularReview.mockResolvedValue({ ...running, review: { ...running.review, is_running: true } });
+        return { job_ids: ["job-1"], queued: 1 };
+    });
     render(<TRView reviewId="review-1" />);
 
     await waitFor(() =>
