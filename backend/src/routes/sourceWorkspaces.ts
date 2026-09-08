@@ -41,7 +41,7 @@ const tableInput = z.object({ selection: researchSelectionSchema.optional(), tab
 const labelInput = tableInput.innerType().omit({ design: true, tableId: true })
   .extend({ design: researchLabelDesignSchema.optional() }).strict()
   .refine((input) => !input.messageIds || !!input.chatId, "Select a chat for the chosen messages")
-  .refine((input) => Boolean(input.request) !== Boolean(input.design), "Describe a label set or apply a proposed one");
+  .refine((input) => !(input.request && input.design), "Describe a label set or apply a proposed one");
 
 export function createSourceWorkspacesRouter(app: SourceWorkspaceApplication) {
   const router = Router(), scope = applicationScope;
