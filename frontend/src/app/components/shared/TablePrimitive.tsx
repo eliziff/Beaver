@@ -14,6 +14,7 @@ import {
 } from "@/app/components/ui/liquid-surface";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { Button } from "@/app/components/ui/button";
+import { CollectionState } from "./CollectionState";
 const TABLE_PRIMARY_CELL_WIDTH_CLASS =
     "w-[248px] sm:w-[292px] md:w-[332px] shrink-0";
 export const TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS =
@@ -314,44 +315,10 @@ export function TableBody({ children, className, ...props }: DivProps) {
         </div>
     );
 }
-export function TableLoadingRows({
-    count = 3,
-    columns = [],
-    primaryWidthClassName,
-    primaryClassName,
-    primaryLineClassName = "h-3.5 w-48",
-    renderPrimary,
-    rowClassName,
-    selection = true,
-}: {
-    count?: number;
-    columns?: readonly { className: string; lineClassName?: string }[];
-    primaryWidthClassName?: string;
-    primaryClassName?: string;
-    primaryLineClassName?: string | ((index: number) => string);
-    renderPrimary?: (index: number) => ReactNode;
-    rowClassName?: string;
-    selection?: boolean;
-}) {
-    return (
-        <TableBody className="beaver-loading-indicator" aria-busy="true">
-            {Array.from({ length: count }, (_, index) => (
-                <TableRow key={index} interactive={false} className={rowClassName}>
-                    <TableStickyCell widthClassName={primaryWidthClassName} className={primaryClassName}>
-                        <div className="flex min-w-0 items-center">
-                            {selection && <TableSelectionPlaceholder />}
-                            {renderPrimary?.(index) ?? <SkeletonLine className={typeof primaryLineClassName === "function" ? primaryLineClassName(index) : primaryLineClassName} />}
-                        </div>
-                    </TableStickyCell>
-                    {columns.map(({ className, lineClassName }, column) => (
-                        <TableCell key={column} className={className}>
-                            {lineClassName && <SkeletonLine className={lineClassName} />}
-                        </TableCell>
-                    ))}
-                </TableRow>
-            ))}
-        </TableBody>
-    );
+export function TableLoadingState() {
+    return <TableBody aria-busy="true"><div role="row"><div role="cell">
+        <CollectionState loading>Loading…</CollectionState>
+    </div></div></TableBody>;
 }
 export const TableLoadMore = ({ show, onClick }: {
     show: boolean; onClick: () => void;

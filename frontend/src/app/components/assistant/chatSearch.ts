@@ -1,20 +1,22 @@
-import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
+import { useAuth } from "@/app/contexts/AuthContext";
+import { useDebounced } from "@/app/hooks/useDebounced";
 import { usePagedQuery } from "@/app/hooks/usePagedQuery";
+import { chatsCollection } from "@/app/lib/collectionKeys";
 import { listChats, type Chat, type ChatSearchOptions } from "@/app/lib/api/chat";
 
 export function useChatSearch(options: ChatSearchOptions, enabled = true) {
-    const { chats } = useChatHistoryContext();
-    const [search, setSearch] = useState(options.search);
-    useEffect(() => {
-        const timer = setTimeout(() => setSearch(options.search), 250);
-        return () => clearTimeout(timer);
-    }, [options.search]);
+    const { user } = useAuth();
+    const search = useDebounced(options.search);
+    const identity = chatsCollection({ ...options, search });
+    const scope = JSON.stringify([user?.id, options.search_scope, options.search_context,
+        options.created_from, options.created_to, options.sort]);
     const page = usePagedQuery<Chat>(async (cursor, signal) => {
         const offset = Number(cursor ?? 0);
         const rows = await listChats({ ...options, search, offset, limit: 21 }, signal);
         return { items: rows.slice(0, 20), next_cursor: rows.length > 20 ? String(offset + 20) : null };
-    }, [search, options.search_scope, options.search_context, options.created_from, options.created_to, options.sort, chats], enabled);
-    return { ...page, searchQuery: search ?? "", loading: page.loading || enabled && search !== options.search };
+    }, [identity.key, user?.id], enabled && (search === options.search || !!search), identity, { scope, query: search ?? "" });
+    return { ...page, searchQuery: page.displayQuery ?? "",
+        loading: page.loading || page.refreshing || enabled && search !== options.search };
 }
 
 export function chatSearchPath(chat: Chat) {
@@ -26,4 +28,3 @@ export function chatSearchPath(chat: Chat) {
     }
     return `${base}${params.size ? `?${params}` : ""}`;
 }
-import { useEffect, useState } from "react";

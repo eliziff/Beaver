@@ -4,6 +4,7 @@ import { Modal } from "@/app/components/modals/Modal";
 import type { Document } from "@/app/lib/api/documents";
 import { SearchBar } from "@/app/components/ui/search-bar";
 import { usePagedQuery } from "@/app/hooks/usePagedQuery";
+import { useDebounced } from "@/app/hooks/useDebounced";
 import { formatBytes } from "@/app/lib/utils";
 import { CollectionState } from "./CollectionState";
 import { DocumentResultRow } from "./DocumentResultRow";
@@ -27,9 +28,11 @@ function OpenPicker<T extends Document>({ title, formatLabel, busy = false,
   const [query, setQuery] = useState("");
   const searchInput = useRef<HTMLInputElement>(null);
   useLayoutEffect(() => searchInput.current?.focus(), []);
-  const load = useEffectEvent(search), reportError = useEffectEvent(onError);
+  const load = useRef(search), reportError = useEffectEvent(onError);
+  useLayoutEffect(() => { load.current = search; }, [search]);
+  const settledQuery = useDebounced(query);
   const { items: results, loading: searching, error } = usePagedQuery<T>(
-    async (_cursor, signal) => ({ items: await load(query, signal), next_cursor: null }), [query]);
+    async (_cursor, signal) => ({ items: await load.current(settledQuery, signal), next_cursor: null }), [settledQuery]);
   useEffect(() => { if (error) reportError(error); }, [error]);
   const loading = busy || searching;
   return <Modal open onClose={onClose} size="2xl" breadcrumbs={[title]}>

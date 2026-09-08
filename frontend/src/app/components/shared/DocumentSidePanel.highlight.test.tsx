@@ -70,7 +70,6 @@ describe("DocumentSidePanel highlight", () => {
         onClose={vi.fn()} onLoadVersions={vi.fn(async () => {})} />
     </SourcesWorkspaceProvider>);
     const highlight = await screen.findByRole("button", { name: "Highlight" });
-    expect(highlight).toHaveAttribute("aria-pressed", "false");
     const node = screen.getByText("quoted words here").firstChild!;
     const range = globalThis.document.createRange();
     range.selectNodeContents(node);
@@ -81,7 +80,10 @@ describe("DocumentSidePanel highlight", () => {
     await waitFor(() => expect(api.act).toHaveBeenCalledTimes(1));
     expect(api.act).toHaveBeenCalledWith("ontology-1", "v1", 1, expect.objectContaining({
       type: "passage", sourceId: "source-1",
-      locator: { kind: "page", value: "1" }, quote: "quoted words here", labelIds: ["pen-1"],
+      quote: "quoted words here", labelIds: ["pen-1"],
     }));
+    // Original-file readers send the quote; the server anchors it to the saved revision.
+    expect(api.act.mock.calls[0][3]).not.toHaveProperty("locator");
+    expect(highlight).toHaveAttribute("aria-pressed", "true");
   });
 });

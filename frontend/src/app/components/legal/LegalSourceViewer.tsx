@@ -271,13 +271,13 @@ function alignment(body: HTMLElement, slices: Slice[]) {
 }
 
 /** The canonical span of a whole rendered block, marker and page rule excluded. */
-export function legalBlockSpan(body: HTMLElement, slices: Slice[]) {
+function legalBlockSpan(body: HTMLElement, slices: Slice[]) {
   const found = alignment(body, slices);
   return found && { start: found.at(0), end: found.at(found.rendered.length - 1) + 1 };
 }
 
 /** The canonical span of the current selection in the reader. */
-export function legalSelectionSpan(root: HTMLElement, selection: Selection | null, slices: Slice[]) {
+function legalSelectionSpan(root: HTMLElement, selection: Selection | null, slices: Slice[]) {
   if (!selection || selection.isCollapsed || !selection.rangeCount) return null;
   const range = selection.getRangeAt(0);
   const edge = (node: Node, offset: number, trailing: boolean) => {

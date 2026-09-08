@@ -160,18 +160,18 @@ export const chatRepository: CreateChatRepository = (scope) => ({
       : sql.raw("GROUP_CONCAT(e.event ->> 'text', '' ORDER BY e.ordinal)");
     const position = db.engine === "postgres" ? sql`STRPOS(LOWER(h.body),${search})`
       : sql`INSTR(LOWER(h.body),${search})`;
-    // ponytail: scans the scoped transcript; add a text index only when measured history size requires one.
-    return (await rows(sql`WITH scoped AS (${scoped}), message_text AS (
+    // Reuse the message-order index and stop at the first hit in each chat.
+    // ponytail: absent substrings still scan scoped messages; index if that measured cost becomes limiting.
+    return (await rows(sql`WITH scoped AS (${scoped}), message_text AS NOT MATERIALIZED (
       SELECT m.chat_id,m.id,m.created_at,CASE WHEN m.role='user' THEN ${userText}
         ELSE (SELECT ${assistantText} FROM chat_message_events e
           WHERE e.message_id=m.id AND e.event ->> 'type'='content') END AS body
-      FROM chat_messages m JOIN scoped c ON c.id=m.chat_id
-    ), hits AS (
-      SELECT chat_id,id,body,ROW_NUMBER() OVER(PARTITION BY chat_id ORDER BY created_at,id) AS rank
-      FROM message_text WHERE LOWER(body) LIKE ${pattern} ESCAPE '\\'
+      FROM chat_messages m
     ) SELECT c.*,h.id AS search_message_id,
       SUBSTR(h.body,CASE WHEN ${position}>80 THEN ${position}-80 ELSE 1 END,360) AS search_snippet
-      FROM scoped c LEFT JOIN hits h ON h.chat_id=c.id AND h.rank=1
+      FROM scoped c LEFT JOIN message_text h ON h.id=(SELECT id FROM message_text candidate
+        WHERE candidate.chat_id=c.id AND LOWER(candidate.body) LIKE ${pattern} ESCAPE '\\'
+        ORDER BY candidate.created_at,candidate.id LIMIT 1)
       WHERE ${options.searchScope === "transcripts" ? sql`h.id IS NOT NULL` : sql`(${titleMatch} OR h.id IS NOT NULL)`}
       ORDER BY ${order} ${paging}`, db)).map(({ search_message_id, search_snippet, ...row }) => ({
       ...chatRecord(row), search_hit: { message_id: search_message_id ? String(search_message_id) : null,

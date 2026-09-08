@@ -17,7 +17,7 @@ const SHA256 = /^[a-f0-9]{64}$/u;
 const groupKey = (documentId: string, versionId: string, sourceSha256: string) =>
   `pdf:${documentId}:${versionId}:${sourceSha256}`;
 type PdfSource = { documentId: string; versionId: string; sourceSha256: string };
-export const pdfGroupKey = (input: PdfSource) =>
+const pdfGroupKey = (input: PdfSource) =>
   groupKey(input.documentId, input.versionId, input.sourceSha256);
 
 function documentPayload(job: ApplicationJob) {

@@ -98,7 +98,7 @@ export default function ResearchMemoPane({ file, mutations, onOpenCitation }: {
     } catch { setError("Could not load the saved memo. Your draft is still here."); }
     finally { pending.current = false; setSaving(false); setConfirmReload(false); }
   };
-  const resolveReference = async ({ reference, locator, quote }: MemoSourceReference) => {
+  const resolveReference = async ({ reference, quote }: MemoSourceReference) => {
     setAddingCitation(true); setCitationError("");
     try {
       let current = file, source = Object.values(current.state.sources).find((source) =>

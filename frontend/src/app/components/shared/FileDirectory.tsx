@@ -22,6 +22,7 @@ import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 import { SearchBar } from "@/app/components/ui/search-bar";
 import { InlineNameInput } from "./InlineNameInput";
 import { errorMessage } from "@/app/lib/utils";
+import { CollectionState } from "./CollectionState";
 
 export type DirectoryTab = "files" | "templates" | "projects";
 export type DirectoryLocation = DirectoryScope | { projectId: null };
@@ -161,7 +162,7 @@ export function FileDirectory({ documents = EMPTY, projectId, autoFocus = true,
                     }}
                         className="mb-1 min-h-9 px-2 text-sm text-gray-600 hover:text-gray-900">← Projects</button>}
             {projectList ? <>
-                {projects.loading && !projects.items.length && <Skeleton />}
+                {projects.loading && !projects.items.length && <CollectionState loading>Loading…</CollectionState>}
                 {projects.items.filter(({ id }) => id !== excludeProjectId).map((item) =>
                     <button type="button" key={item.id} onClick={() => {
                         setSelectedProjectId(item.id); setSearch(""); if (selected.size) onChange([]);
@@ -172,7 +173,7 @@ export function FileDirectory({ documents = EMPTY, projectId, autoFocus = true,
                     </button>)}
                 {projects.hasMore && <More loading={projects.loading} onClick={projects.loadMore} />}
                 {!projects.loading && !projects.items.length && <Empty query={query} noun={noun} />}
-            </> : loading && !tree.rows.length ? <Skeleton /> : tree.rows.length || uploadingFilenames.length ? <>
+            </> : loading && !tree.rows.length ? <CollectionState loading>Loading…</CollectionState> : tree.rows.length || uploadingFilenames.length ? <>
                 
                 {uploadingFilenames.map((name) => <div key={name}
                     className="flex h-10 items-center gap-2 px-2 text-sm text-gray-500">
@@ -243,8 +244,6 @@ function More({ loading, onClick, style }: { loading: boolean; onClick: () => vo
         className="min-h-10 px-2 text-sm text-gray-600 disabled:opacity-50">
         {loading ? "Loading..." : "Load more"}</button>;
 }
-const Skeleton = () => <div className="space-y-1">{[1, 2, 3, 4, 5].map((id) =>
-    <div className="h-10 animate-pulse rounded bg-gray-100" key={id} />)}</div>;
 const Empty = ({ query, noun }: { query: string; noun: string }) => <div
     className="flex flex-col items-center py-10 text-center text-sm text-gray-500">
     <FolderSvgIcon className="mb-2 h-6 w-6" />{query ? "No matches found" : `No ${noun} available`}</div>;
