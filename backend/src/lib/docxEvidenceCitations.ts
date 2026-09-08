@@ -225,17 +225,21 @@ export async function createDocxAuthorityLedger(state: LegalEvidenceTurnState | 
     expected.set(key, (expected.get(key) ?? 0) + 1);
   }
   const positions = new Map<string, ReturnType<typeof textPositions>>();
-  for (const [key, count] of expected) {
+  // Reserve complete groups before counting their constituent citation strings.
+  const claimed: Array<{ unit: NativeAuthorityTextUnit; start: number; end: number }> = [];
+  for (const [key, count] of [...expected].sort(([a], [b]) => b.length - a.length)) {
     const [kind, noteId, text] = key.split("\0") as ["body" | "footnote", string, string];
-    const found = textPositions(units, kind, text, noteId ? Number(noteId) : undefined);
-    if (found.length !== count) return undefined;
+    const found = textPositions(units, kind, text, noteId ? Number(noteId) : undefined)
+      .filter(({ unit, start }) => !claimed.some((span) => span.unit === unit && start >= span.start && start + text.length <= span.end));
+    if (found.length !== count || found.some(({ unit, start }) => claimed.some((span) =>
+      span.unit === unit && start < span.end && start + text.length > span.start))) return undefined;
     positions.set(key, found);
+    claimed.push(...found.map(({ unit, start }) => ({ unit, start, end: start + text.length })));
   }
   const localOrdinals = new Map<string, number>();
   const occurrences: AuthorityCitationLedger["occurrences"] = [];
   for (const appearance of appearances) {
-    const rendered = appearance.sources.map((source) => source.text);
-    const whole = rendered.join("; "), key = `${appearance.kind}\0${appearance.noteId ?? ""}\0${whole}`;
+    const whole = appearance.sources.map((source) => source.text).join("; "), key = `${appearance.kind}\0${appearance.noteId ?? ""}\0${whole}`;
     const position = positions.get(key)?.shift();
     if (!position) return undefined;
     let offset = position.start;
@@ -243,7 +247,7 @@ export async function createDocxAuthorityLedger(state: LegalEvidenceTurnState | 
       const source = input.sources.get(appearance.markerId)?.find((source) => source.stableId === renderedSource.stableId);
       if (!source) return undefined;
       if (index) offset += 2;
-      const text = rendered[index], start = offset; offset += text.length;
+      const text = renderedSource.text, start = offset; offset += text.length;
       const localOrdinal = localOrdinals.get(position.unit.key) ?? 0;
       localOrdinals.set(position.unit.key, localOrdinal + 1);
       occurrences.push({ id: `${position.unit.key}:ledger:${localOrdinal}`,

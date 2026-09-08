@@ -676,7 +676,6 @@ function documentMarkers(document: DocxMarkdownDocument) {
   const inlineControls = new Set<string>();
   const citationIds = new Set<string>();
   const collect = (groups: Iterable<DocxMarkdownInline[]>) => {
-    const citations: Extract<DocxMarkdownInline, { type: "citation" }>[] = [];
     for (const children of groups) {
       for (const child of children) {
         if (child.type === "control") {
@@ -684,15 +683,13 @@ function documentMarkers(document: DocxMarkdownDocument) {
           inlineControls.add(child.tag);
         } else if (child.type === "citation") {
           citationIds.add(child.id);
-          citations.push(child);
         }
       }
     }
-    return citations;
   };
-  const body = collect(blockInlineArrays(document.blocks));
-  const footnotes = collect(document.footnotes.map((note) => note.children));
-  return { controls, inlineControls, citationIds, body, footnotes };
+  collect(blockInlineArrays(document.blocks));
+  collect(document.footnotes.map((note) => note.children));
+  return { controls, inlineControls, citationIds };
 }
 
 function appendXmlChild(xml: string, closingTag: string, child: string) {
@@ -830,7 +827,7 @@ export async function renderDocxMarkdownDocument(
   warnings: string[] = [],
   appearances: DocxCitationAppearance[] = [],
 ): Promise<Buffer> {
-  const { controls, inlineControls, citationIds, body: bodyCitations } = documentMarkers(document);
+  const { controls, inlineControls, citationIds } = documentMarkers(document);
   const citations = options.citations ?? {};
   const unverifiedCitations = new Set<string>();
   for (const id of citationIds) {
@@ -1041,39 +1038,37 @@ export async function renderDocxMarkdownDocument(
     ]) as unknown as ParagraphChild;
   };
 
-  const noteNumbers = new Map(
-    document.footnotes.map((footnote, index) => [footnote.id, index + 1]),
-  );
+  const noteNumbers = new Map<string, number>();
+  let nextNote = 0;
   const citationPlacement = options.citationPlacement ?? "inline";
   const citationHyperlinks = options.citationHyperlinks !== false;
   const bodyAppearances: DocxCitationAppearance[] = [], authoredAppearances: DocxCitationAppearance[] = [];
-  const citationNotes = new Map<string, { number: number; citation: DocxCitation;
-    marker: { id: string; occurrence: number }; displayedForm: "full" | "supra" | "ibid" }>();
-  if (citationPlacement === "footnotes") {
-    const firstNoteBySource = new Map<string, number>();
-    let previousSource: string | null = null;
-    bodyCitations.filter(({ id }) => !unverifiedCitations.has(id)).forEach((citation, index) => {
-      const number = document.footnotes.length + index + 1;
-      let resolved = citations[citation.id];
-      let displayedForm: "full" | "supra" | "ibid" = "full";
-      if (resolved.sources.length === 1) {
-        const source = resolved.sources[0];
-        const firstNote = firstNoteBySource.get(source.stableId);
-        displayedForm = previousSource === source.stableId ? "ibid" : firstNote ? "supra" : "full";
-        const authority = displayedForm === "ibid"
-          ? "Ibid"
-          : firstNote
-            ? `${source.shortAuthority}, supra note ${firstNote}`
-            : source.authority;
-        if (!firstNote) firstNoteBySource.set(source.stableId, number);
-        previousSource = source.stableId;
-        resolved = { sources: [{ ...source, authority }] };
-      } else {
-        previousSource = null;
-      }
-      citationNotes.set(`${citation.id}:${citation.occurrence}`, { number, citation: resolved, marker: citation, displayedForm });
-    });
-  }
+  const citationNotes: { number: number; citation: DocxCitation;
+    marker: { id: string; occurrence: number }; displayedForm: "full" | "supra" | "ibid" }[] = [];
+  const firstNoteBySource = new Map<string, number>();
+  let previousSource: string | null = null;
+  const citationNote = (citation: { id: string; occurrence: number }) => {
+    const number = ++nextNote;
+    let resolved = citations[citation.id];
+    let displayedForm: "full" | "supra" | "ibid" = "full";
+    if (resolved.sources.length === 1) {
+      const source = resolved.sources[0];
+      const firstNote = firstNoteBySource.get(source.stableId);
+      displayedForm = previousSource === source.stableId ? "ibid" : firstNote ? "supra" : "full";
+      const authority = displayedForm === "ibid"
+        ? "Ibid"
+        : firstNote
+          ? `${source.shortAuthority}, supra note ${firstNote}`
+          : source.authority;
+      if (!firstNote) firstNoteBySource.set(source.stableId, number);
+      previousSource = source.stableId;
+      resolved = { sources: [{ ...source, authority }] };
+    } else {
+      previousSource = null;
+    }
+    citationNotes.push({ number, citation: resolved, marker: citation, displayedForm });
+    return new FootnoteReferenceRun(number);
+  };
   const linkedRun = (text: string, url: string | null): ParagraphChild =>
     citationHyperlinks && url
       ? new ExternalHyperlink({
@@ -1112,16 +1107,13 @@ export async function renderDocxMarkdownDocument(
         case "break":
           return [new TextRun({ break: 1 })];
         case "footnote":
+          if (!noteNumbers.has(child.id)) noteNumbers.set(child.id, ++nextNote);
+          previousSource = null;
           return [new FootnoteReferenceRun(noteNumbers.get(child.id)!)];
         case "citation": {
           if (unverifiedCitations.has(child.id)) return [];
           if (placement === "none" || placement === "after-paragraph") return [];
-          if (placement === "footnotes") {
-            const number = citationNotes.get(
-              `${child.id}:${child.occurrence}`,
-            )?.number;
-            return number ? [new FootnoteReferenceRun(number)] : [];
-          }
+          if (placement === "footnotes") return [citationNote(child)];
           return [run(" "), ...citationRuns(citations[child.id], child, noteId, "full", noteId !== undefined)];
         }
         case "control":
@@ -1377,18 +1369,18 @@ export async function renderDocxMarkdownDocument(
     numberingLevel(level, LevelFormat.BULLET, text),
   );
   const footnotes = Object.fromEntries([
-    ...document.footnotes.map((footnote, index) => [
-      String(index + 1),
+    ...document.footnotes.filter((footnote) => noteNumbers.has(footnote.id)).map((footnote) => [
+      String(noteNumbers.get(footnote.id)),
       {
         children: [
           new Paragraph({
             style: "FootnoteText",
-            children: inlines(footnote.children, false, "inline", index + 1),
+            children: inlines(footnote.children, false, "inline", noteNumbers.get(footnote.id)),
           }),
         ],
       },
     ] as const),
-    ...[...citationNotes.values()].map(({ number, citation, marker, displayedForm }) => [
+    ...citationNotes.map(({ number, citation, marker, displayedForm }) => [
       String(number),
       {
         children: [
