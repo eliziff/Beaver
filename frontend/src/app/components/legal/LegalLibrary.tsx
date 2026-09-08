@@ -15,7 +15,7 @@ import {
   type LegalSourceCoverage,
   type LegalSourceSearchResult,
 } from "@/app/lib/api/legalSources";
-import { legalSourceViewerHref, researchSourceKey, type ResearchFile, type ResearchSource,
+import { researchSourceKey, type ResearchFile, type ResearchSource,
     type ResearchSourceReference } from "@/app/lib/researchFiles";
 import {
     LegalSourceViewer,
@@ -519,8 +519,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                                 </div>
                                             </div>
                                             <div className="flex shrink-0 flex-wrap gap-2">
-                                                {result.provider !== "hansard" && (embedded && onOpenSource
-                                                    ? <button type="button" onClick={() => onOpenSource({
+                                                {result.provider !== "hansard" && <button type="button" onClick={() => (embedded && onOpenSource ? onOpenSource : setReadingSource)({
                                                         kind: "legal",
                                                         id: `legal:${result.provider}:${result.source_id ?? result.citation}`,
                                                         provider: result.provider === "journal" ? "journal" : "a2aj",
@@ -534,14 +533,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                                         researchSourceId: saved?.id,
                                                     })} aria-label={`View ${result.name || result.citation}`} className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark">
                                                         View
-                                                    </button>
-                                                    : <Link aria-label={`View ${result.name || result.citation}`}
-                                                        to={legalSourceViewerHref(researchReference(result), saved && researchFile
-                                                            ? { fileId: researchFile.document.id, sourceId: saved.id } : undefined)}
-                                                        className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark"
-                                                    >
-                                                        View
-                                                    </Link>)}
+                                                    </button>}
                                                 {sourceHref && (
                                                     <a
                                                         href={sourceHref}
