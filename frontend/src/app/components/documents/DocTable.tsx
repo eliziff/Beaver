@@ -41,7 +41,7 @@ import { TableHeaderCell, TableHeaderRow, TableScrollArea,
     from "@/app/components/shared/TablePrimitive";
 import { Button } from "@/app/components/ui/button";
 import { getPdfJs } from "@/app/components/shared/views/highlightQuote";
-import { DocumentSidePanel } from "@/app/components/shared/DocumentSidePanel";
+import { DocumentSidePanel, type DocumentAction } from "@/app/components/shared/DocumentSidePanel";
 import type { DocumentSelectionActions, UploadActions } from "./UploadAction";
 import type { WorkflowSelection } from "@/app/components/workflows/workflowRoutes";
 import { ContextualWorkflowPicker } from "@/app/components/workflows/ContextualWorkflowPicker";
@@ -186,7 +186,9 @@ type DocTableState = {
     expandedFolderIds: Set<string>; newFolderParentId?: string | null;
     renamingFolderId: string | null; dragOverFolderId: string | null;
     dragOverSurface: "root" | `version:${string}` | null;
-    uploadingVersionDocIds: Set<string>; uploadingDroppedFilenames: string[];
+    pendingActions: Map<string, DocumentAction>; actionErrors: Map<string, string>;
+    pendingRestore: { docId: string; version: DocumentVersion } | null;
+    uploadingDroppedFilenames: string[];
     deletingDocIds: Set<string>;
     warnings: Record<(typeof WARNING_KINDS)[number], string | null>;
     pendingDocumentRemoval: PendingDocumentRemoval | null;
@@ -315,7 +317,7 @@ export function DocTable({
         addDocsOpen: false, viewingDoc: null, viewingDocVersionId: null,
         selectedDocIds: [], versionsByDocId: new Map(), loadingVersionDocIds: new Set(), versionErrorDocIds: new Set(),
         renamingDocumentId: null, expandedFolderIds: new Set(), renamingFolderId: null,
-        dragOverFolderId: null, dragOverSurface: null, uploadingVersionDocIds: new Set(),
+        dragOverFolderId: null, dragOverSurface: null, pendingActions: new Map(), actionErrors: new Map(), pendingRestore: null,
         uploadingDroppedFilenames: [], deletingDocIds: new Set(),
         warnings: { upload: null, rename: null, collection: null },
         pendingDocumentRemoval: null,
@@ -343,12 +345,13 @@ export function DocTable({
     const {
         addDocsOpen, viewingDoc, viewingDocVersionId, selectedDocIds, versionsByDocId,
         loadingVersionDocIds, versionErrorDocIds, renamingDocumentId, expandedFolderIds, newFolderParentId,
-        renamingFolderId, dragOverFolderId, dragOverSurface, uploadingVersionDocIds,
+        renamingFolderId, dragOverFolderId, dragOverSurface, pendingActions, actionErrors, pendingRestore,
         uploadingDroppedFilenames, deletingDocIds, warnings,
         pendingDocumentRemoval, pendingDeleteFolder,
         pendingMove,
         folderTaskId, folderWorkflowDocuments,
     } = state;
+    const pendingActionIds = useRef(new Set<string>());
     const documentUploadInputRef = useRef<HTMLInputElement>(null);
     const directoryUploadInputRef = useRef<HTMLInputElement>(null);
     const loadingRef = useRef(loading);
@@ -416,19 +419,39 @@ export function DocTable({
             throw new Error("Document revision is unavailable");
         return { id: doc.current_version_id, working_revision: doc.current_working_revision };
     }
-    const refreshDocumentVersionState = useCallback(async (docId: string) => {
-        const [res] = await Promise.all([listDocumentVersions(docId), refreshCollection()]);
-        set("versionsByDocId", (prev) => new Map(prev).set(docId, {
-            currentVersionId: res.current_version_id, versions: res.versions,
-        }));
-    }, [refreshCollection]);
-    async function versionMutation<T>(docId: string, mutation: () => Promise<T>) {
-        try { return await mutation(); }
-        finally { await refreshDocumentVersionState(docId).catch(console.error); }
+    async function documentAction(docId: string, action: DocumentAction,
+        mutation: () => Promise<unknown>, refresh = false): Promise<boolean> {
+        if (pendingActionIds.current.has(docId)) return false;
+        pendingActionIds.current.add(docId);
+        set("pendingActions", (prev) => new Map(prev).set(docId, action));
+        set("actionErrors", (prev) => { const next = new Map(prev); next.delete(docId); return next; });
+        try {
+            await mutation();
+            return true;
+        } catch {
+            const message = `Could not ${ { rename: "rename this document", upload: "upload the new version",
+                checkpoint: "create this version", restore: "restore this version", compare: "create the comparison",
+                download: "download this version" }[action]}.`;
+            set("actionErrors", (prev) => new Map(prev).set(docId, message));
+            setState((current) => current.viewingDoc?.id === docId ? current
+                : { ...current, warnings: { ...current.warnings, collection: message } });
+            return false;
+        } finally {
+            if (refresh) await Promise.all([loadDocumentVersions(docId, true),
+                refreshCollection(docsById.get(docId)?.folder_id)]).catch(console.error);
+            pendingActionIds.current.delete(docId);
+            set("pendingActions", (prev) => { const next = new Map(prev); next.delete(docId); return next; });
+        }
     }
-    async function downloadDocVersion(docId: string, versionId: string, filename: string) {
-        const resolved = await downloadDocument(docId, versionId);
-        downloadBlob(resolved.blob, resolved.filename || filename);
+    function selectMutatedVersion(docId: string, versionId: string) {
+        setState((current) => current.viewingDoc?.id === docId
+            ? { ...current, viewingDocVersionId: versionId } : current);
+    }
+    function downloadDocVersion(docId: string, versionId: string, filename: string) {
+        return documentAction(docId, "download", async () => {
+            const resolved = await downloadDocument(docId, versionId);
+            downloadBlob(resolved.blob, resolved.filename || filename);
+        });
     }
     function handleUploadNewVersion(doc: Document) {
         versionUploadTargetDocRef.current = doc;
@@ -442,35 +465,28 @@ export function DocTable({
         if (!file || !doc) return;
         await handleDropDocumentVersions(doc, [file]);
     }
-    async function submitNewVersion(doc: Document, file: File) {
-        const head = documentHead(doc);
-        const version = await versionMutation(doc.id, () => uploadDocumentVersion(
-            doc.id, file, head.id, head.working_revision));
-        set("viewingDocVersionId", version.id);
+    async function handleRestoreVersion() {
+        if (!pendingRestore) return;
+        const { docId, version } = pendingRestore;
+        await documentAction(docId, "restore", async () => {
+            const head = cachedHead(docId);
+            const restored = await restoreDocumentVersion(docId, version.id, head.id, head.working_revision);
+            selectMutatedVersion(docId, restored.id);
+        }, true);
+        set("pendingRestore", null);
     }
-    async function handlePanelRename(docId: string, filename: string) {
-        await versionMutation(docId, () =>
-            operations.renameDocument(docId, filename));
-    }
-    async function handleRestoreVersion(docId: string, versionId: string) {
-        const head = cachedHead(docId);
-        const restored = await versionMutation(docId, () => restoreDocumentVersion(
-                docId,
-                versionId,
-                head.id,
-                head.working_revision,
-            ));
-        set("viewingDocVersionId", restored.id);
-    }
-    async function handleCheckpointVersion(docId: string, comment?: string) {
-        const head = cachedHead(docId);
-        const version = await versionMutation(docId, () => checkpointDocumentVersion(
-            docId, head.id, head.working_revision, comment));
-        set("viewingDocVersionId", version.id);
+    function handleCheckpointVersion(docId: string, comment?: string) {
+        return documentAction(docId, "checkpoint", async () => {
+            const head = cachedHead(docId);
+            const version = await checkpointDocumentVersion(docId, head.id, head.working_revision, comment);
+            selectMutatedVersion(docId, version.id);
+        }, true);
     }
     async function handleCompareVersions(docId: string, baselineId: string, versionId: string) {
-        const result = await compareDocumentVersions(docId, baselineId, versionId);
-        downloadBlob(result.blob, result.filename ?? "document changes.docx");
+        await documentAction(docId, "compare", async () => {
+            const result = await compareDocumentVersions(docId, baselineId, versionId);
+            downloadBlob(result.blob, result.filename ?? "document changes.docx");
+        });
     }
     const versionUploadInputRef = useRef<HTMLInputElement>(null);
     const versionUploadTargetDocRef = useRef<Document | null>(null);
@@ -643,23 +659,19 @@ export function DocTable({
             await operations.refreshCollection();
         }
     }
-    async function submitDocumentRename(docId: string, value: string) {
-        const trimmed = value.trim();
-        if (!trimmed) return set("renamingDocumentId", null);
-        const previous = docsById.get(docId);
-        if (!previous || trimmed === previous.filename)
-            return set("renamingDocumentId", null);
-        if (hasFilenameExtensionChange(previous.filename, trimmed)) {
+    async function submitDocumentRename(docId: string, value: string): Promise<boolean> {
+        const previous = docsById.get(docId) ?? (viewingDoc?.id === docId ? viewingDoc : null);
+        if (!previous || !value.trim()) return false;
+        const name = isResearchDocument(previous)
+            ? `${value.trim().replace(/\.research\.md$/iu, "")}.research.md` : value.trim();
+        if (hasFilenameExtensionChange(previous.filename, name)) {
             setWarning("rename", filenameExtensionChangeWarning(previous.filename));
-            return;
+            return false;
         }
-        set("renamingDocumentId", null);
-        try {
-            await operations.renameDocument(docId, trimmed);
-            await refreshCollection(previous.folder_id);
-        } catch (e) {
-            console.error("renameDocument failed", e);
-        }
+        const renamed = name === previous.filename || await documentAction(docId, "rename", () =>
+            operations.renameDocument(docId, name), true);
+        if (renamed) set("renamingDocumentId", null);
+        return renamed;
     }
     async function handleRemoveDocuments(
         documentsToRemove: Document[],
@@ -694,7 +706,9 @@ export function DocTable({
             );
             if (removedIds.size) await refreshParents(...owned
                 .filter(({ id }) => removedIds.has(id)).map(({ folder_id }) => folder_id));
-            if (fromSelection && removedIds.size) {
+            if (removedIds.size) {
+                setState((current) => current.viewingDoc && removedIds.has(current.viewingDoc.id)
+                    ? { ...current, viewingDoc: null, viewingDocVersionId: null } : current);
                 set("versionsByDocId", (prev) => {
                     const next = new Map(prev);
                     for (const id of removedIds) next.delete(id);
@@ -784,19 +798,13 @@ export function DocTable({
     async function handleDropDocumentVersions(doc: Document, files: File[]) {
         const supported = acceptedFiles(files);
         if (supported.length === 0) return;
-        set("uploadingVersionDocIds", (prev) => new Set(prev).add(doc.id));
-        try {
+        await documentAction(doc.id, "upload", async () => {
             let head = documentHead(doc);
             for (const file of supported) {
-                head = await uploadDocumentVersion(
-                    doc.id, file, head.id, head.working_revision);
+                head = await uploadDocumentVersion(doc.id, file, head.id, head.working_revision);
+                selectMutatedVersion(doc.id, head.id);
             }
-        } catch (err) {
-            console.error("Document version drop upload failed", err);
-        } finally {
-            await refreshDocumentVersionState(doc.id).catch(console.error);
-            set("uploadingVersionDocIds", (prev) => without(prev, [doc.id]));
-        }
+        }, true);
     }
     function handleDocumentVersionDragOver(
         e: DragEvent<HTMLDivElement>,
@@ -1047,7 +1055,7 @@ export function DocTable({
                         doc.parse_state?.status === "parsing";
                     const isError = doc.parse_state?.status === "failed";
                     const isVersionDragOver = dragOverSurface === `version:${doc.id}`;
-                    const isUploadingVersion = uploadingVersionDocIds.has(doc.id);
+                    const isUploadingVersion = pendingActions.get(doc.id) === "upload";
                     const prewarm = () => prewarmDocumentView(doc);
                     const isSelected = selection.selected.has(doc.id);
                     const isDeletingDoc = deletingDocIds.has(doc.id);
@@ -1264,6 +1272,11 @@ export function DocTable({
                     onClose={() => setWarning(kind, null)}
                     message={warnings[kind]} />
             ))}
+            <ConfirmPopup open={!!pendingRestore} title="Restore this version?"
+                message={`Version ${pendingRestore?.version.version_number} will become a new current version. Existing history will be kept.`}
+                confirmLabel="Restore" confirmStatus={pendingRestore && pendingActions.has(pendingRestore.docId) ? "loading" : "idle"}
+                onCancel={() => { if (pendingRestore && !pendingActions.has(pendingRestore.docId)) set("pendingRestore", null); }}
+                onConfirm={() => void handleRestoreVersion()} />
             <ConfirmPopup open={!!pendingDocumentRemoval}
                 title={
                     detachesDocument
@@ -1366,17 +1379,17 @@ export function DocTable({
                 }}
                 onLoadVersions={loadDocumentVersions}
                 onSelectVersion={(id) => set("viewingDocVersionId", id)}
-                onDownloadVersion={downloadDocVersion}
-                onRenameDocument={handlePanelRename}
+                pendingAction={sidePanelDoc ? pendingActions.get(sidePanelDoc.id) : undefined}
+                actionError={sidePanelDoc ? actionErrors.get(sidePanelDoc.id) : null}
+                onDownloadVersion={async (...args) => { await downloadDocVersion(...args); }}
+                onRenameDocument={submitDocumentRename}
                 onCheckpointVersion={handleCheckpointVersion}
-                onRestoreVersion={handleRestoreVersion}
+                onRestoreVersion={(docId, version) => set("pendingRestore", { docId, version })}
                 onCompareVersions={handleCompareVersions}
-                onUploadNewVersion={submitNewVersion}
-                canDelete={!isSharedDocument(sidePanelDoc)}
-                onOwnerOnlyAction={onOwnerOnlyAction}
+                onUploadNewVersion={handleUploadNewVersion}
                 onOpenWorkflows={onOpenWorkflows}
                 onAssistantWorkflowSelect={onAssistantWorkflowSelect}
-                onDelete={(doc) => handleRemoveDocuments([doc], false)}
+                onDelete={requestRemoveDoc}
                 documentRemovalMode={documentRemovalMode} />
         </div>
     );
