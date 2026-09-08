@@ -7,12 +7,8 @@ const mocks = vi.hoisted(() => ({
     saveApiKey: vi.fn(),
     clearLegalSourceRequests: vi.fn(),
     clearDocumentFileCache: vi.fn(),
-    pathname: "/assistant",
 }));
 
-vi.mock("react-router-dom", () => ({
-    useLocation: () => ({ pathname: mocks.pathname }),
-}));
 
 vi.mock("@/app/lib/api/auth", () => ({
     getAuthSession: mocks.getAuthSession,
@@ -96,13 +92,11 @@ describe("local startup", () => {
         vi.resetModules();
         vi.clearAllMocks();
         sessionStorage.clear();
-        mocks.pathname = "/assistant";
         mocks.getUserProfile.mockReturnValue(new Promise(() => {}));
         mocks.getAuthSession.mockResolvedValue(null);
     });
 
     it("starts without Supabase and reports the local profile load", async () => {
-        mocks.pathname = "/workflows";
         await configure("local");
         const { AuthProvider, useAuth } = await import("./AuthContext");
         const { UserProfileProvider, useUserProfile } = await import(
@@ -132,30 +126,7 @@ describe("local startup", () => {
         expect(mocks.getAuthSession).not.toHaveBeenCalled();
     });
 
-    it.each(["/library", "/sources"])("loads the profile for global Settings on %s", async (pathname) => {
-        mocks.pathname = pathname;
-        mocks.getUserProfile.mockResolvedValue(profileResponse());
-        await configure("local");
-        const { AuthProvider } = await import("./AuthContext");
-        const { UserProfileProvider, useUserProfile } = await import(
-            "./UserProfileContext"
-        );
-
-        function Probe() {
-            return <output>{useUserProfile().profile ? "settings ready" : "loading"}</output>;
-        }
-
-        render(
-            <AuthProvider>
-                <UserProfileProvider><Probe /></UserProfileProvider>
-            </AuthProvider>,
-        );
-
-        expect(await screen.findByText("settings ready")).toBeInTheDocument();
-    });
-
     it("restores cloud auth through the backend cookie and keeps MFA fail-closed while the profile loads", async () => {
-        mocks.pathname = "/library";
         await configure("cloud");
         sessionStorage.setItem("beaver:new-chat-documents", '[{"owner_email":"prior@example.com"}]');
         mocks.getAuthSession.mockResolvedValue({

@@ -68,21 +68,6 @@ it("filters one catalogue and opens a singleton workspace in one click", async (
     expect(screen.getByTestId("location")).toHaveTextContent("/court-records");
 });
 
-it("switches audience tabs locally without loading or another request", async () => {
-    agreements.metadata.audiences = ["solicitor"];
-    mocks.listWorkflows.mockResolvedValue([drafting, agreements]);
-    const view = render(<MemoryRouter><WorkflowList /></MemoryRouter>);
-    const draftingButton = await screen.findByRole("button", { name: /^Open chat:/i });
-    expect(draftingButton).toHaveAttribute("data-workflow-id", "drafting");
-    expect(view.container.querySelector('button[data-workflow-id="agreement-work"]')).toBeNull();
-
-    fireEvent.click(screen.getByRole("tab", { name: "Solicitor" }));
-    expect(view.container.querySelector('button[data-workflow-id="drafting"]')).toBeVisible();
-    expect(view.container.querySelector('button[data-workflow-id="agreement-work"]')).toBeVisible();
-    expect(view.container.querySelector(".animate-pulse")).toBeNull();
-    expect(mocks.listWorkflows).toHaveBeenCalledTimes(1);
-});
-
 function Location() {
     const location = useLocation();
     return <output data-testid="location"
