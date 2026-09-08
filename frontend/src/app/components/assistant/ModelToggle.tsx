@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, type ReactNode } from "react";
+import { useLayoutEffect, type ReactNode } from "react";
 import type { ApiKeyState, ModelCatalog } from "@/app/lib/api/account";
 import {
     useModelCatalog,
@@ -6,67 +6,22 @@ import {
 } from "@/app/lib/modelCatalog";
 import { ModelPicker, type ModelOption } from "./ModelPicker";
 export type { ModelOption } from "./ModelPicker";
-export const MODELS: ModelOption[] = [
-    { id: "claude-fable-5", label: "Claude Fable 5", group: "Anthropic" },
-    { id: "claude-opus-4-8", label: "Claude Opus 4.8", group: "Anthropic" },
-    { id: "claude-opus-4-7", label: "Claude Opus 4.7", group: "Anthropic" },
-    { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", group: "Anthropic" },
-    { id: "gemini-3.5-flash", label: "Gemini 3.5 Flash", group: "Google" },
-    { id: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", group: "Google" },
-    { id: "gemini-3-flash-preview", label: "Gemini 3 Flash", group: "Google" },
-    {
-        id: "deepseek-v4-flash",
-        label: "DeepSeek V4 Flash",
-        group: "DeepSeek",
-    },
-    { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro", group: "DeepSeek" },
-    { id: "muse-spark-1.2", label: "Muse Spark 1.2", group: "Meta" },
-    { id: "muse-spark-1.1", label: "Muse Spark 1.1", group: "Meta" },
-    {
-        id: "meta/muse-spark-1.1",
-        label: "Muse Spark 1.1 (OpenRouter)",
-        group: "Meta",
-    },
-];
-export const SETTINGS_MODELS: ModelOption[] = [
-    ...MODELS,
-    { id: "gpt-5.5", label: "GPT-5.5", group: "OpenAI" },
-    { id: "gpt-5.4", label: "GPT-5.4", group: "OpenAI" },
-    { id: "claude-haiku-4-5", label: "Claude Haiku 4.5", group: "Anthropic" },
-    {
-        id: "gemini-3.1-flash-lite-preview",
-        label: "Gemini 3.1 Flash Lite",
-        group: "Google",
-    },
-    { id: "gpt-5.4-lite", label: "GPT-5.4 Lite", group: "OpenAI" },
-    // Contributor tier trades ~12x cheaper tokens for Meta training on the
-    // prompts and completions, so it stays out of the default picker.
-    {
-        id: "muse-spark-1.2-contributor",
-        label: "Muse Spark 1.2 (contributor · trains on input)",
-        group: "Meta",
-    },
-];
 export const DEFAULT_MODEL_ID = "codex:gpt-5.6-terra";
-export const ALLOWED_MODEL_IDS = new Set(MODELS.map((m) => m.id));
-const DESKTOP_MODELS: ModelOption[] = [
-    { id: "ollama:qwen3.8:27b-ud-q2-k-xl", label: "Qwen 3.8 27B (UD-Q2_K_XL)", group: "Desktop" },
-];
-function fallbackModel(id: string, defaultGroup: ModelOption["group"] = "Codex"): ModelOption {
+function fallbackModel(id: string): ModelOption {
     const provider = ([ ["claude-p:", "Claude Code"], ["codex:", "Codex"],
         ["ollama:", "Desktop"], ["opencode-go/", "OpenCode Go"] ] as const)
         .find(([prefix]) => id.startsWith(prefix));
     const slug = provider ? id.slice(provider[0].length).trim() : "";
-    const label = !slug ? "Model" : provider?.[1] === "OpenCode Go" ? `${slug} · OpenCode Go`
+    const label = !slug ? id : provider?.[1] === "OpenCode Go" ? `${slug} · OpenCode Go`
         : slug.split("-").map(part => part.toLowerCase() === "gpt"
             ? "GPT" : `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`).join(" ");
-    return { id, label, group: provider?.[1] ?? defaultGroup, available: !id.startsWith("ollama:") };
+    return { id, label, group: provider?.[1] ?? "Unavailable", available: false };
 }
 interface Props {
     value: string;
     onChange: (id: string) => void;
     apiKeys?: ApiKeyState;
-    models?: ModelOption[];
+    includeSettingsModels?: boolean;
     disabled?: boolean;
     className?: string;
     detail?: string;
@@ -76,27 +31,18 @@ export function ModelToggle({
     value,
     onChange,
     apiKeys,
-    models = MODELS,
+    includeSettingsModels = false,
     disabled,
     className = "sm:w-56",
     detail,
     effortControls,
 }: Props) {
     const catalog = useModelCatalog();
-    const allModels = useMemo<ModelOption[]>(() => [
-        ...(catalog?.ollama ? catalog.ollama.models.map<ModelOption>(model => ({
-            id: `ollama:${model.name}`, group: "Desktop",
-            label: model.displayName + (catalog.ollama?.source === "unavailable" ? " — desktop offline" : ""),
-        })) : DESKTOP_MODELS),
-        ...(catalog?.models ?? []).map<ModelOption>(model => ({ id: `codex:${model.slug}`, label: model.displayName, group: "Codex" })),
-        ...(catalog?.openCodeGo?.models ?? []).map<ModelOption>(model => ({ id: `opencode-go/${model.id}`, label: model.displayName, group: "OpenCode Go" })),
-        ...models,
-        ...models.filter(model => model.group === "Anthropic").map<ModelOption>(model => ({ ...model, id: `claude-p:${model.id}`, group: "Claude Code" })),
-    ], [catalog, models]);
+    const allModels = (catalog?.models ?? []).filter(model => includeSettingsModels || !model.settingsOnly);
     const selected = allModels.find((model) => model.id === value);
     const visibleModels = selected
         ? allModels
-        : [fallbackModel(value, models[0]?.group), ...allModels];
+        : [fallbackModel(value), ...allModels];
     return (
         <ModelPicker
             value={value}
@@ -112,17 +58,10 @@ export function ModelToggle({
     );
 }
 function modelReasoning(model: string, value: string | undefined, catalog: ModelCatalog | null) {
-    const codex = catalog?.models.find(item => `codex:${item.slug}` === model);
-    const thinking = catalog?.ollama?.models.find(item => `ollama:${item.name}` === model)?.supportsThinking;
-    const deepseek = model.startsWith("deepseek-"), muse = model.includes("muse-spark-");
-    const unknownCodex = model.startsWith("codex:") && !codex;
-    const efforts = deepseek ? ["low", "high", "max"] : thinking ? ["off", "low", "medium", "high"]
-        : muse ? ["xhigh", "high", "medium", "low", "minimal"]
-        : (codex?.supportedReasoningLevels ?? []).map(level => level.effort);
-    const fallback = unknownCodex
-        ? model.endsWith("gpt-5.6-sol") ? "low" : model.endsWith("gpt-5.3-codex-spark") ? "high" : "medium"
-        : deepseek ? "high" : thinking ? "off" : muse ? "medium" : codex?.defaultReasoningLevel ?? efforts[0];
-    return { efforts, selectedEffort: value && (unknownCodex || efforts.includes(value)) ? value : fallback };
+    const entry = catalog?.models?.find(item => item.id === model);
+    const efforts = entry?.reasoningEfforts ?? [];
+    return { efforts, selectedEffort: value && (!entry || efforts.includes(value)) ? value
+        : entry?.defaultReasoningEffort ?? efforts[0] };
 }
 interface ReasoningEffortToggleProps {
     model: string;
