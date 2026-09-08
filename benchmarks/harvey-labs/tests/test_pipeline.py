@@ -1,291 +1,217 @@
-"""Unit tests for every step of the agent evaluation pipeline.
-
-Covers: env loading, task loading, adapter creation, tool definitions,
-tool execution, agent loop (mocked), system prompt construction, and eval prompts.
-
-Run with:
-    .venv/bin/python -m pytest tests/ -v
-"""
+"""Offline pipeline contracts and the unchanged, explicitly opted-in Podman tests."""
 
 import json
 import os
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import Mock
 
 import pytest
 
-BENCH_ROOT = Path(__file__).resolve().parent.parent
+from evaluation.judge import Judge, PROMPTS_DIR
+from harness.adapters.anthropic import AnthropicAdapter
+from harness.adapters.google import GoogleAdapter
+from harness.adapters.openai import OpenAIAdapter
+from harness.run import _load_env, create_adapter, load_task
+from harness.tools import get_all_tool_definitions
 
-
-# ── Fixtures ─────────────────────────────────────────────────────────
 
 @pytest.fixture
-def tmp_env_file(tmp_path):
-    """Create a temporary .env file."""
+def tmp_env_file(tmp_path, monkeypatch):
+    monkeypatch.setattr("harness.run.BENCH_ROOT", tmp_path)
     env = tmp_path / ".env"
     env.write_text(
-        "ANTHROPIC_API_KEY=sk-test-123\n"
-        "OPENAI_API_KEY=sk-test-456\n"
-        "GOOGLE_API_KEY=test-google-789\n"
-        "# This is a comment\n"
-        "\n"
+        "ANTHROPIC_API_KEY=sk-test-123\nOPENAI_API_KEY=sk-test-456\n"
+        "GOOGLE_API_KEY=test-google-789\n# This is a comment\n\n",
+        encoding="utf-8",
     )
     return env
 
 
-@pytest.fixture
-def documents_dir(tmp_path):
-    """Create a minimal documents directory with test files."""
-    documents = tmp_path / "documents"
-    documents.mkdir()
-    corp = documents / "01-corporate"
-    corp.mkdir()
-    (corp / "test_doc.txt").write_text("This is a test document about a merger.")
-    (corp / "another.txt").write_text("Another document.")
-    contracts = documents / "02-contracts"
-    contracts.mkdir()
-    (contracts / "agreement.txt").write_text("Service agreement between parties.")
-    return documents
-
-
-@pytest.fixture
-def output_dir(tmp_path):
-    """Create a temporary output directory."""
-    out = tmp_path / "output"
-    out.mkdir()
-    return out
-
-
-@pytest.fixture
-def mock_adapter():
-    """Create a mock ModelAdapter."""
-    from harness.adapters.base import ModelResponse, ToolCall
-
-    adapter = MagicMock()
-    adapter.make_system_message.return_value = {"role": "system", "content": "test"}
-    adapter.make_user_message.return_value = {"role": "user", "content": "test"}
-
-    # Default: return a text-only response (no tool calls) to end the loop
-    adapter.chat.return_value = ModelResponse(
-        message={"role": "assistant", "content": [{"type": "text", "text": "Done."}]},
-        tool_calls=[],
-        text="Done.",
-        input_tokens=100,
-        output_tokens=50,
-    )
-    return adapter
-
-
-# ══════════════════════════════════════════════════════════════════════
-# 1. ENV LOADING
-# ══════════════════════════════════════════════════════════════════════
-
 class TestEnvLoading:
     def test_load_env_sets_keys(self, tmp_env_file, monkeypatch):
-        """_load_env should set env vars from .env."""
-        from harness.run import BENCH_ROOT as _BR
-        # Patch BENCH_ROOT to our tmp dir
-        monkeypatch.setattr("harness.run.BENCH_ROOT", tmp_env_file.parent)
-        # Clear any existing keys
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-
-        from harness.run import _load_env
+        monkeypatch.setattr(os, "environ", {})
         _load_env()
-
-        assert os.environ["ANTHROPIC_API_KEY"] == "sk-test-123"
-        assert os.environ["OPENAI_API_KEY"] == "sk-test-456"
-        assert os.environ["GOOGLE_API_KEY"] == "test-google-789"
+        assert os.environ == {
+            "ANTHROPIC_API_KEY": "sk-test-123",
+            "OPENAI_API_KEY": "sk-test-456",
+            "GOOGLE_API_KEY": "test-google-789",
+        }
 
     def test_load_env_does_not_override_existing(self, tmp_env_file, monkeypatch):
-        """setdefault should not override pre-existing env vars."""
-        monkeypatch.setattr("harness.run.BENCH_ROOT", tmp_env_file.parent)
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "already-set")
-
-        from harness.run import _load_env
+        monkeypatch.setattr(os, "environ", {})
+        os.environ["ANTHROPIC_API_KEY"] = "already-set"
         _load_env()
+        assert os.environ == {
+            "ANTHROPIC_API_KEY": "already-set",
+            "OPENAI_API_KEY": "sk-test-456",
+            "GOOGLE_API_KEY": "test-google-789",
+        }
 
-        assert os.environ["ANTHROPIC_API_KEY"] == "already-set"
-
-    def test_load_env_skips_comments_and_blanks(self, tmp_env_file, monkeypatch):
-        """Comments and blank lines should be ignored."""
-        monkeypatch.setattr("harness.run.BENCH_ROOT", tmp_env_file.parent)
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-
-        from harness.run import _load_env
+    def test_load_env_missing_file(self, tmp_env_file, monkeypatch):
+        monkeypatch.setattr(os, "environ", {})
+        tmp_env_file.unlink()
+        os.environ["EXISTING"] = "untouched"
         _load_env()
+        assert os.environ == {"EXISTING": "untouched"}
 
-    def test_load_env_missing_file(self, tmp_path, monkeypatch):
-        """Should silently do nothing if .env doesn't exist."""
-        monkeypatch.setattr("harness.run.BENCH_ROOT", tmp_path)
-        from harness.run import _load_env
-        _load_env()  # Should not raise
-
-
-# ══════════════════════════════════════════════════════════════════════
-# 2. TASK LOADING
-# ══════════════════════════════════════════════════════════════════════
 
 class TestTaskLoading:
-    @pytest.fixture
-    def synthetic_task(self, tmp_path, monkeypatch):
-        """Create a synthetic task that load_task can find."""
-        task_dir = tmp_path / "tasks" / "test-area" / "test-task"
-        task_dir.mkdir(parents=True)
-        docs = task_dir / "documents"
-        docs.mkdir()
-        (docs / "sample.txt").write_text("Sample document.")
-        config = {
-            "title": "Test Task",
-            "instructions": "Analyze the sample documents and produce a detailed memo.",
-            "criteria": [
-                {"id": "C-01", "title": "T", "match_criteria": "M",
-                 "deliverables": ["memo.md"]},
-            ],
-        }
-        (task_dir / "task.json").write_text(json.dumps(config))
-        monkeypatch.setattr("harness.run.BENCH_ROOT", tmp_path)
-        return tmp_path
-
-    def test_load_task_returns_expected_keys(self, synthetic_task):
-        """load_task should return all expected keys."""
-        from harness.run import load_task
-        task = load_task("test-area/test-task")
-        assert set(task.keys()) == {
-            "name", "task_dir", "docs_dir",
-            "instructions", "config",
+    def test_load_task_returns_expected_keys(self, rubric_run):
+        assert set(load_task(rubric_run.task)) == {
+            "name",
+            "task_dir",
+            "docs_dir",
+            "instructions",
+            "config",
         }
 
-    def test_load_task_name(self, synthetic_task):
-        from harness.run import load_task
-        task = load_task("test-area/test-task")
-        assert task["name"] == "test-area/test-task"
+    def test_load_task_docs_dir_exists(self, rubric_run):
+        task = load_task(rubric_run.task)
+        assert task["docs_dir"] == str(rubric_run.task_dir / "documents")
+        assert (Path(task["docs_dir"]) / "sample.txt").read_text(
+            encoding="utf-8"
+        ) == "Sample document — café."
 
-    def test_load_task_docs_dir_exists(self, synthetic_task):
-        from harness.run import load_task
-        task = load_task("test-area/test-task")
-        assert Path(task["docs_dir"]).is_dir()
+    def test_load_task_reads_task_json_as_utf8(self, rubric_run, monkeypatch):
+        read_text = Path.read_text
 
-    def test_load_task_config_loaded(self, synthetic_task):
-        """task.json should be loaded into config."""
-        from harness.run import load_task
-        task = load_task("test-area/test-task")
-        assert "title" in task["config"]
-
-    def test_load_task_reads_task_json_as_utf8(self, synthetic_task, monkeypatch):
-        """task.json is read as UTF-8, not the locale default (cp1252 crashes on some task files)."""
-        from harness.run import load_task
-
-        real_read_text = Path.read_text
-
-        def strict_read_text(self, encoding=None, errors=None, **kwargs):
-            # Simulate a non-UTF-8 locale: an unencoded read fails on every platform.
+        def strict_read_text(path, encoding=None, **kwargs):
             if encoding is None:
                 raise UnicodeDecodeError("charmap", b"\x90", 0, 1, "no explicit encoding")
-            return real_read_text(self, encoding=encoding, errors=errors, **kwargs)
+            return read_text(path, encoding=encoding, **kwargs)
 
         monkeypatch.setattr(Path, "read_text", strict_read_text)
-        task = load_task("test-area/test-task")
-        assert task["config"]["title"] == "Test Task"
-        assert "criteria" in task["config"]
+        assert load_task(rubric_run.task)["config"] == rubric_run.config
 
-    def test_load_task_missing_raises(self):
-        from harness.run import load_task
-        with pytest.raises((FileNotFoundError, ValueError)):
-            load_task("nonexistent-task")
-
-    def test_load_task_two_part_name_required(self):
-        """load_task should reject 1-part task names."""
-        from harness.run import load_task
-        with pytest.raises(ValueError, match="at least 2 parts"):
+    def test_load_task_two_part_name_required(self, rubric_run):
+        with pytest.raises(ValueError, match="at least 2 parts") as error:
             load_task("only-one-part")
+        assert "only-one-part" in str(error.value)
 
-    def test_load_task_instructions_loaded(self, synthetic_task):
-        """instructions should be loaded from task.json."""
-        from harness.run import load_task
-        task = load_task("test-area/test-task")
-        assert isinstance(task["instructions"], str)
-        assert len(task["instructions"]) > 50
-
-
-# ══════════════════════════════════════════════════════════════════════
-# 3. ADAPTER CREATION
-# ══════════════════════════════════════════════════════════════════════
-
-class TestAdapterCreation:
-    def test_create_anthropic_adapter(self):
-        from harness.run import create_adapter
-        adapter = create_adapter("claude-sonnet-4-6")
-        assert type(adapter).__name__ == "AnthropicAdapter"
-        assert adapter.model == "claude-sonnet-4-6"
-
-    def test_create_openai_adapter(self):
-        from harness.run import create_adapter
-        adapter = create_adapter("gpt-5.4")
-        assert type(adapter).__name__ == "OpenAIAdapter"
-
-    def test_create_google_adapter(self):
-        from harness.run import create_adapter
-        adapter = create_adapter("gemini-3.1-pro-preview")
-        assert type(adapter).__name__ == "GoogleAdapter"
-
-    def test_create_with_provider_prefix(self):
-        from harness.run import create_adapter
-        adapter = create_adapter("anthropic/claude-sonnet-4-6")
-        assert adapter.model == "claude-sonnet-4-6"
-
-    def test_create_unknown_raises(self):
-        from harness.run import create_adapter
-        with pytest.raises(ValueError, match="Can't determine provider"):
-            create_adapter("unknown-model-xyz")
+    def test_load_task_instructions_loaded(self, rubric_run):
+        assert load_task(rubric_run.task)["instructions"] == (
+            "Analyze the sample documents and produce a detailed memo."
+        )
 
 
-# ══════════════════════════════════════════════════════════════════════
-# 4. TOOL DEFINITIONS
-# ══════════════════════════════════════════════════════════════════════
+@pytest.fixture
+def clients(monkeypatch):
+    clients = [Mock(), Mock(), Mock()]
+    for path, client in zip(
+        [
+            "harness.adapters.anthropic.anthropic.Anthropic",
+            "harness.adapters.openai.openai.OpenAI",
+            "harness.adapters.google.genai.Client",
+        ],
+        clients,
+        strict=True,
+    ):
+        monkeypatch.setattr(path, client)
+    return clients
+
+
+@pytest.mark.parametrize(
+    "model,adapter_type,model_id",
+    [
+        pytest.param(
+            "claude-sonnet-4-6",
+            AnthropicAdapter,
+            "claude-sonnet-4-6",
+            id="test_create_anthropic_adapter",
+        ),
+        pytest.param("gpt-5.4", OpenAIAdapter, "gpt-5.4", id="test_create_openai_adapter"),
+        pytest.param(
+            "gemini-3.1-pro-preview",
+            GoogleAdapter,
+            "gemini-3.1-pro-preview",
+            id="test_create_google_adapter",
+        ),
+        pytest.param(
+            "anthropic/claude-sonnet-4-6",
+            AnthropicAdapter,
+            "claude-sonnet-4-6",
+            id="test_create_with_provider_prefix",
+        ),
+    ],
+)
+def test_adapter_creation(clients, model, adapter_type, model_id):
+    adapter = create_adapter(model, temperature=0.25, reasoning_effort="high")
+    assert (type(adapter), adapter.model, adapter.temperature, adapter.reasoning_effort) == (
+        adapter_type,
+        model_id,
+        0.25,
+        "high",
+    )
+
+
+def test_create_unknown_raises(clients):
+    with pytest.raises(ValueError, match="Can't determine provider"):
+        create_adapter("unknown-model-xyz")
+    for client in clients:
+        client.assert_not_called()
+
 
 class TestToolDefinitions:
     def test_all_tools_have_required_fields(self):
-        from harness.tools import get_all_tool_definitions
-        tools = get_all_tool_definitions()
-        for tool in tools:
-            assert "name" in tool, f"Tool missing 'name': {tool}"
-            assert "description" in tool, f"Tool {tool['name']} missing 'description'"
-            assert "parameters" in tool, f"Tool {tool['name']} missing 'parameters'"
+        for tool in get_all_tool_definitions():
+            assert set(tool) == {"name", "description", "parameters"}, tool["name"]
+            assert tool["description"].strip(), tool["name"]
+            assert tool["parameters"]["type"] == "object", tool["name"]
+            assert isinstance(tool["parameters"]["properties"], dict), tool["name"]
 
     def test_expected_tools_present(self):
-        from harness.tools import get_all_tool_definitions
-        names = {t["name"] for t in get_all_tool_definitions()}
-        assert "bash" in names
-        assert "read" in names
-        assert "write" in names
-        assert "edit" in names
-        assert "glob" in names
-        assert "grep" in names
-
-    def test_tool_count(self):
-        from harness.tools import get_all_tool_definitions
-        tools = get_all_tool_definitions()
-        assert len(tools) == 6
-
-    def test_no_legacy_tools(self):
-        from harness.tools import get_all_tool_definitions
-        names = {t["name"] for t in get_all_tool_definitions()}
-        assert "read_file" not in names
-        assert "run_python" not in names
-        assert "write_file" not in names
-        assert "run_shell" not in names
-        assert "list_files" not in names
-        assert "web_fetch" not in names
-        assert "web_search" not in names
-        assert "finish" not in names
+        assert [tool["name"] for tool in get_all_tool_definitions()] == [
+            "bash",
+            "read",
+            "write",
+            "edit",
+            "glob",
+            "grep",
+        ]
 
 
-# ══════════════════════════════════════════════════════════════════════
-# 5. TOOL EXECUTION
-# ══════════════════════════════════════════════════════════════════════
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        pytest.param(
+            'Here is my analysis:\n```json\n{"verdict": "pass"}\n```',
+            {"verdict": "pass"},
+            id="test_parse_json_from_fences",
+        ),
+        pytest.param(
+            '{"verdict": "fail", "reasoning": "Not supported"}',
+            {"verdict": "fail", "reasoning": "Not supported"},
+            id="test_parse_json_bare",
+        ),
+    ],
+)
+def test_judge_parse_json(text, expected):
+    assert Judge._parse_json(text) == expected
+
+
+def test_parse_json_no_json_raises():
+    with pytest.raises(ValueError, match="No JSON found"):
+        Judge._parse_json("This has no JSON at all")
+
+
+def test_evaluate_calls_client(clients):
+    from types import SimpleNamespace
+
+    judge = Judge(model="claude-sonnet-4-6")
+    judge.client.messages.create.return_value = SimpleNamespace(
+        stop_reason="end_turn",
+        content=[SimpleNamespace(text='{"verdict": "pass"}')],
+    )
+    assert judge.evaluate("Is {thing} good?", {"thing": "pizza"}) == {"verdict": "pass"}
+    judge.client.messages.create.assert_called_once()
+    kwargs = judge.client.messages.create.call_args.kwargs
+    assert kwargs["model"] == "claude-sonnet-4-6"
+    assert kwargs["messages"] == [{"role": "user", "content": "Is pizza good?"}]
+
+
+def test_only_expected_prompts():
+    assert sorted(path.name for path in PROMPTS_DIR.glob("*.txt")) == ["rubric_criterion.txt"]
+
 
 @pytest.mark.podman
 class TestToolExecution:
@@ -380,58 +306,6 @@ class TestToolExecution:
         assert metrics["documents_skipped"] == 3
 
 
-# ══════════════════════════════════════════════════════════════════════
-# 7. EVAL: JUDGE
-# ══════════════════════════════════════════════════════════════════════
-
-class TestJudge:
-    def test_parse_json_from_fences(self):
-        from evaluation.judge import Judge
-        text = 'Here is my analysis:\n```json\n{"verdict": "found"}\n```'
-        result = Judge._parse_json(text)
-        assert result == {"verdict": "found"}
-
-    def test_parse_json_bare(self):
-        from evaluation.judge import Judge
-        text = '{"verdict": "missed", "reasoning": "Not found"}'
-        result = Judge._parse_json(text)
-        assert result["verdict"] == "missed"
-
-    def test_parse_json_no_json_raises(self):
-        from evaluation.judge import Judge
-        with pytest.raises(ValueError, match="No JSON found"):
-            Judge._parse_json("This has no JSON at all")
-
-    def test_evaluate_calls_client(self):
-        from evaluation.judge import Judge
-
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"verdict": "found"}')]
-        mock_client.messages.create.return_value = mock_response
-
-        judge = Judge(model="claude-sonnet-4-6")
-        judge.client = mock_client  # Replace the real client with mock
-        result = judge.evaluate("Is {thing} good?", {"thing": "pizza"})
-
-        assert result == {"verdict": "found"}
-        mock_client.messages.create.assert_called_once()
-        call_kwargs = mock_client.messages.create.call_args[1]
-        assert call_kwargs["model"] == "claude-sonnet-4-6"
-        assert "Is pizza good?" in call_kwargs["messages"][0]["content"]
-
-    def test_evaluate_from_file(self):
-        from evaluation.judge import Judge, PROMPTS_DIR
-
-        # Check that prompt files exist
-        prompt_files = list(PROMPTS_DIR.glob("*.txt"))
-        assert len(prompt_files) > 0, "Should have prompt files in evaluation/prompts/"
-
-
-# ══════════════════════════════════════════════════════════════════════
-# 8. AGENT LOOP (MOCKED)
-# ══════════════════════════════════════════════════════════════════════
-
 @pytest.mark.podman
 class TestAgentLoop:
     def test_single_turn_no_tools(self, mock_adapter, tool_executor):
@@ -514,54 +388,3 @@ class TestAgentLoop:
         assert len(lines) >= 1
         entry = json.loads(lines[0])
         assert entry["role"] == "assistant"
-
-
-# ══════════════════════════════════════════════════════════════════════
-# 9. SYSTEM PROMPT CONSTRUCTION
-# ══════════════════════════════════════════════════════════════════════
-
-class TestInstructions:
-    def test_instructions_is_non_empty_string(self, tmp_path, monkeypatch):
-        from harness.run import load_task
-
-        task_dir = tmp_path / "tasks" / "test-area" / "prompt-task"
-        task_dir.mkdir(parents=True)
-        docs = task_dir / "documents"
-        docs.mkdir()
-        (docs / "doc.txt").write_text("Test document content.")
-        instructions_text = (
-            "You are a legal analyst. Analyze the documents in the data room "
-            "and produce a comprehensive memorandum covering all key findings, "
-            "risk areas, and recommendations for the client."
-        )
-        (task_dir / "task.json").write_text(json.dumps({
-            "title": "Prompt Test",
-            "instructions": instructions_text,
-            "criteria": [
-                {"id": "C-01", "title": "T", "match_criteria": "M",
-                 "deliverables": ["memo.md"]},
-            ],
-        }))
-        monkeypatch.setattr("harness.run.BENCH_ROOT", tmp_path)
-
-        task = load_task("test-area/prompt-task")
-        assert isinstance(task["instructions"], str)
-        assert len(task["instructions"]) > 100
-
-
-# ══════════════════════════════════════════════════════════════════════
-# 12. EVAL PROMPTS EXIST
-# ══════════════════════════════════════════════════════════════════════
-
-class TestEvalPrompts:
-    EVAL_PROMPTS = BENCH_ROOT / "evaluation" / "prompts"
-
-    def test_rubric_criterion_prompt_exists(self):
-        assert (self.EVAL_PROMPTS / "rubric_criterion.txt").exists()
-
-    def test_only_expected_prompts(self):
-        """Only the rubric_criterion prompt should exist."""
-        prompt_files = sorted(f.name for f in self.EVAL_PROMPTS.glob("*.txt"))
-        assert prompt_files == [
-            "rubric_criterion.txt",
-        ]
