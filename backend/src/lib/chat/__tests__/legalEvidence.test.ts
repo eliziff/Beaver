@@ -738,8 +738,8 @@ describe("production legal evidence", () => {
   it("projects searched case names through the ordinary citation model", () => {
     expect(createLegalSourceSearchCitations([{
       provider: "a2aj",
-      source_type: "case",
-      identifier: "2020 BCSC 1",
+      kind: "case",
+      id: "2020 BCSC 1",
       title: "Example v Example",
       citation: "2020 BCSC 1",
       collection: "BCSC",

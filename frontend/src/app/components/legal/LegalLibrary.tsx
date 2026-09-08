@@ -50,13 +50,10 @@ const SOURCE_TABS: Array<[SourceTab, string]> = [
     ["hansard", "Hansard"],
 ];
 
-const researchReference = (result: LegalSourceSearchResult): ResearchSourceReference => ({
-    provider: result.provider, id: result.source_id ?? result.citation,
-    kind: result.doc_type === "cases" ? "case" : result.doc_type === "laws"
-        ? "legislation" : result.doc_type === "articles" ? "journal" : "hansard",
-    title: result.name, citation: result.citation, date: result.date,
-    collection: result.dataset || null, language: result.language ?? "en", url: result.url,
-});
+const researchReference = (result: LegalSourceSearchResult): ResearchSourceReference => {
+    const { snippet, authors, speaker, passageStart, passageEnd, authority, ...reference } = result;
+    return reference;
+};
 
 function SearchSnippet({ children }: { children: string }) {
     let emphasized = false;
@@ -470,22 +467,24 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                     const sourceHref = safeAssistantUrl(result.url, {
                                         relative: false,
                                     });
-                                    const citation = result.provider === "journal" && result.name
-                                        ? result.citation.replace(result.name, "")
+                                    const sourceCitation = result.citation || (result.kind === "hansard"
+                                        ? [result.date, result.speaker].filter(Boolean).join(" — ") : "") || result.id;
+                                    const citation = result.provider === "journal" && result.title
+                                        ? sourceCitation.replace(result.title, "")
                                             .replace(/(?:“”|""|‘’|'')/gu, "")
                                             .replace(/^[\s"'“”‘’.,:;–—-]+/u, "").replace(/\s{2,}/gu, " ").trim()
-                                        : result.citation;
+                                        : sourceCitation;
                                     const metadata = [
-                                        result.name && result.name !== citation
+                                        result.title && result.title !== citation
                                             ? citation
                                             : null,
-                                        result.dataset,
-                                        formatLongDate(result.date),
+                                        result.collection,
+                                        formatLongDate(result.date ?? null),
                                     ].filter(Boolean);
                                     const saved = sourceInFile(result);
                                     return (
                                         <article
-                                            key={`${result.provider}:${result.source_id ?? ""}:${result.dataset}:${result.citation}`}
+                                            key={`${result.provider}:${result.id ?? ""}:${result.collection}:${result.citation}`}
                                             className="rounded-md border border-gray-200 bg-white p-4"
                                         >
                                         <div className={`flex flex-col gap-3 ${embedded ? "" : "sm:flex-row sm:items-start"}`}>
@@ -493,7 +492,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                                 <ResearchLabelPicker file={researchFile} size="lg"
                                                     kind="source" itemId={saved?.id}
                                                     labelIds={saved?.labelIds ?? []} note={saved?.note}
-                                                    title={result.name || result.citation}
+                                                    title={result.title || sourceCitation}
                                                     disabled={researchBusy}
                                                     mutations={mutations} onError={setError} sourceReference={researchReference(result)}
                                                     onSourceDrag={() => { setResearchOpen(true); setSourceDropNonce((value) => value + 1); }}
@@ -501,8 +500,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                                     prepare={saved ? undefined : (file) => saveResult(result, file)} />
                                                 <div className="min-w-0 flex-1">
                                                 <h3 className="mt-0.5 text-base font-semibold text-gray-900">
-                                                    {result.name ||
-                                                        result.citation}
+                                                    {result.title || sourceCitation}
                                                 </h3>
                                                 {!!metadata.length && (
                                                     <p className="mt-1 text-sm leading-5 text-gray-600">
@@ -519,17 +517,17 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                             <div className="flex shrink-0 flex-wrap gap-2">
                                                 {result.provider !== "hansard" && <button type="button" onClick={() => (embedded && onOpenSource ? onOpenSource : setReadingSource)({
                                                         kind: "legal",
-                                                        id: `legal:${result.provider}:${result.source_id ?? result.citation}`,
+                                                        id: `legal:${result.provider}:${result.id ?? result.citation}`,
                                                         provider: result.provider === "journal" ? "journal" : "a2aj",
-                                                        sourceId: result.source_id,
-                                                        citation: result.citation,
-                                                        name: result.name,
-                                                        dataset: result.dataset,
-                                                        docType: result.doc_type === "hansard" ? "auto" : result.doc_type,
-                                                        language: result.language,
+                                                        sourceId: result.id,
+                                                        citation: sourceCitation,
+                                                        name: result.title ?? null,
+                                                        dataset: result.collection ?? null,
+                                                        docType: result.kind === "legislation" ? "laws" : result.kind === "journal" ? "articles" : "cases",
+                                                        language: result.language ?? "en",
                                                         researchFileId: researchFile?.document.id,
                                                         researchSourceId: saved?.id,
-                                                    })} aria-label={`View ${result.name || result.citation}`} className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark">
+                                                    })} aria-label={`View ${result.title || sourceCitation}`} className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark">
                                                         View
                                                     </button>}
                                                 {sourceHref && (
@@ -537,8 +535,8 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                                         href={sourceHref}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        aria-label={`Site: View original source for ${result.name || result.citation}`}
-                                                        title={`View original source for ${result.name || result.citation}`}
+                                                        aria-label={`Site: View original source for ${result.title || sourceCitation}`}
+                                                        title={`View original source for ${result.title || sourceCitation}`}
                                                         className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 hover:border-gray-400 hover:bg-gray-50"
                                                     >
                                                         Site

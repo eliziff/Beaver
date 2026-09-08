@@ -448,8 +448,8 @@ describe("local journal articles", () => {
       journal.find("Fixture Article", 10, {
         author: "Ada",
         journal: "Fixture LJ",
-        startDate: "2025-01-01",
-        endDate: "2026-12-31",
+        dateFrom: "2025-01-01",
+        dateTo: "2026-12-31",
       })[0]?.articleId,
     ).toBe(7);
     expect(
@@ -460,7 +460,7 @@ describe("local journal articles", () => {
     ).toEqual([]);
     expect(
       journal.find("Fixture Article", 10, {
-        startDate: "2027-01-01",
+        dateFrom: "2027-01-01",
       }),
     ).toEqual([]);
   });

@@ -12,7 +12,7 @@ import { hansardLegalSourceProvider } from "./a2ajHansard";
 import { govUkEmploymentTribunalLegalSourceProvider } from "./legalSources/govUkEmploymentTribunal";
 import { govInfoLegalSourceProvider } from "./legalSources/govInfo";
 import { tnaLegalSourceProvider } from "./legalSources/tna";
-import type { LegalSourceReference, LegalSourceSearchHit } from "./legalSources";
+import type { LegalSourceReference } from "./legalSources";
 import {
   type LegalSourcePdfRendition,
   type LegalSourceStore,
@@ -65,31 +65,6 @@ function a2ajPdfRenditionRequest(
     url: payload.metadata.pdfUrl,
     canonicalUrl: payload.metadata.url,
     title: payload.metadata.title,
-  };
-}
-
-function searchResult(result: LegalSourceSearchHit) {
-  const hansard = result.kind === "hansard";
-  const doc_type = {
-    case: "cases",
-    legislation: "laws",
-    journal: "articles",
-    hansard: "hansard",
-  }[result.kind];
-  return {
-    provider: result.provider,
-    doc_type,
-    source_id: result.id,
-    language: result.language ?? "en",
-    dataset: result.collection ?? (hansard ? "Hansard" : ""),
-    citation: hansard
-      ? [result.date, result.speaker].filter(Boolean).join(" — ") || result.id
-      : result.citation ?? result.id,
-    alternateCitation: result.alternateCitation ?? null,
-    name: result.title ?? (hansard ? result.speaker : null) ?? null,
-    date: result.date ?? null,
-    url: result.url ?? null,
-    snippet: result.snippet ?? null,
   };
 }
 
@@ -199,10 +174,11 @@ export function createLegalSourceApplication(store: LegalSourceStore) {
       const limit = Number.isFinite(size)
         ? Math.min(Math.max(size, 1), docType === "hansard" ? 20 : 25)
         : docType === "hansard" ? 10 : 12;
-      const { results } = await providerCall("Legal source search unavailable", () =>
+      const { results, unavailable } = await providerCall("Legal source search unavailable", () =>
         legalSourceOperations.search({ ...query, kinds: [type.kind], providers: [type.provider],
           limit, perProviderLimit: limit }));
-      return results.map(searchResult);
+      if (unavailable.length) return reject(502, "Legal source search unavailable");
+      return results;
     },
     viewer,
     async savedViewer(userId: string, id: string) {

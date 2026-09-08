@@ -83,8 +83,6 @@ export const SEARCH_SOURCES_TOOL: Tool & BeaverToolPolicy = {
   },
 };
 
-type Hit = Record<string, unknown>;
-
 type CachedSearch = { expires: number; value: Record<string, unknown> };
 const searchCache = new Map<string, CachedSearch>();
 const SEARCH_CACHE_MS = 5 * 60_000;
@@ -194,36 +192,7 @@ export async function searchSources(
   const unavailable = searched.unavailable.map(
     ({ provider, message }) => `${provider}: ${message}`,
   );
-  const results: Hit[] = searched.results.map((row) => {
-      const resource = researchSourceResource(row);
-      return {
-        provider: row.provider,
-        source_type: row.kind,
-        identifier: row.id,
-        title: row.title,
-        citation: row.citation,
-        alternate_citation: row.alternateCitation,
-        date: row.date,
-        collection: row.collection,
-        language: row.language,
-        authors: row.authors,
-        speaker: row.speaker,
-        snippet: row.snippet,
-        passage_start: row.passageStart,
-        passage_end: row.passageEnd,
-        url: row.url,
-        resource,
-        ...(row.authority
-          ? {
-              citation_signal: {
-                citing_cases: row.authority.citingCases,
-                citing_paragraphs: row.authority.citingParagraphs,
-                occurrences: row.authority.occurrences,
-              },
-            }
-          : {}),
-      };
-  });
+  const results = searched.results.map((hit) => ({ ...hit, resource: researchSourceResource(hit) }));
   const value = {
     ok: results.length > 0 || unavailable.length === 0,
     query,
