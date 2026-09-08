@@ -49,13 +49,16 @@ test("assistant landing reflows and the mobile sidebar behaves modally", async (
     await expect(
         sidebar.getByRole("button", { name: "Close sidebar" }),
     ).toBeFocused();
-    await expect(page.locator("[inert]")).toHaveCount(1);
+    const composer = page.getByLabel("Message", { exact: true });
+    await expect.poll(() => composer.evaluate((element) => !!element.closest("[inert]"))).toBe(true);
+    await composer.focus();
+    await expect(sidebar.getByRole("button", { name: "Close sidebar" })).toBeFocused();
     await page.screenshot({
         path: testInfo.outputPath("assistant-sidebar-320x720.png"),
     });
 
     const first = sidebar.getByRole("link", { name: "Beaver" });
-    const last = sidebar.getByRole("button", { name: "Settings" });
+    const last = sidebar.getByRole("link", { name: "Activity log" });
     await last.focus();
     await page.keyboard.press("Tab");
     await expect(first).toBeFocused();
@@ -66,7 +69,9 @@ test("assistant landing reflows and the mobile sidebar behaves modally", async (
     await page.keyboard.press("Escape");
     await expect(sidebar).toBeHidden();
     await expect(opener).toBeFocused();
-    await expect(page.locator("[inert]")).toHaveCount(0);
+    await expect.poll(() => composer.evaluate((element) => !!element.closest("[inert]"))).toBe(false);
+    await composer.focus();
+    await expect(prompt).toBeFocused();
 
     await page.setViewportSize({ width: 720, height: 450 });
     const lastQuickAction = page.getByRole("button", {
@@ -136,7 +141,7 @@ test("assistant landing reflows and the mobile sidebar behaves modally", async (
             (button) => button.getAttribute("aria-label") === "Add document",
         )!;
         const workflows = Array.from(document.querySelectorAll("button")).find(
-            (button) => button.getAttribute("aria-label") === "Open workflows",
+            (button) => button.getAttribute("aria-label") === "Workflows",
         )!;
         const disclaimer = Array.from(document.querySelectorAll("p")).find(
             (paragraph) =>

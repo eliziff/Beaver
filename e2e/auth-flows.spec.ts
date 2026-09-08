@@ -35,16 +35,11 @@ test.describe("unauthenticated", () => {
            to set the `error` state and re-render the error element. */
         await page.waitForLoadState("networkidle");
 
-        /* The login page conditionally renders:
-               <div className="text-red-600 text-sm bg-red-50 p-3 rounded">
-                   {error}
-               </div>
-           when the `error` state is non-null after a failed signInWithPassword.
-           REGRESSION: fails if the error <div className="bg-red-50"> is removed
-           from the login form or if the catch block stops setting `error`. */
-        await expect(page.locator("div.bg-red-50.text-red-600")).toBeVisible({
+        await expect(page.getByRole("alert")).toBeVisible({
             timeout: 10_000,
         });
+        await expect(page.getByRole("alert")).not.toBeEmpty();
+        await expect(page).toHaveURL(/\/login/);
     });
 
     /* ── Test 2: valid credentials redirect to /assistant ─────────────────── */
@@ -134,26 +129,9 @@ test.describe("logout (isolated user)", () => {
         await page.waitForURL(/\/assistant/, { timeout: 15_000 });
         await page.waitForLoadState("networkidle");
 
-    /* The AppSidebar renders a user-profile toggle button at the very bottom
-       of the sidebar. The button wraps a circular div that shows the user's
-       initial:
-           <div className="h-7 w-7 ... rounded-full bg-gray-700 ...">
-               {getUserInitials(user.email)}
-           </div>
-       Locate the button by the presence of that inner div. */
-    const userMenuButton = page.locator("button").filter({
-        has: page.locator("div.rounded-full.bg-gray-700"),
-    });
-    await expect(userMenuButton).toBeVisible({ timeout: 10_000 });
-    await userMenuButton.click();
-
-    /* The dropdown that appears contains an "Account Settings" button which
-       navigates to /account via router.push("/account"). */
-    const accountSettingsItem = page.getByRole("button", {
-        name: "Account Settings",
-    });
-    await expect(accountSettingsItem).toBeVisible({ timeout: 5_000 });
-    await accountSettingsItem.click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("dialog", { name: "Settings", exact: true })
+        .getByRole("link", { name: "Account", exact: true }).click();
 
     await expect(page).toHaveURL(/\/account/, { timeout: 10_000 });
     await page.waitForLoadState("networkidle");
@@ -165,7 +143,7 @@ test.describe("logout (isolated user)", () => {
        guard then redirects the now-unauthenticated user to "/login".
        REGRESSION: fails if signOut() is removed from handleLogout in
        frontend/src/app/(pages)/account/page.tsx. */
-    const signOutButton = page.getByRole("button", { name: "Sign Out" });
+    const signOutButton = page.getByRole("button", { name: "Sign out", exact: true });
     await expect(signOutButton).toBeVisible({ timeout: 5_000 });
     await signOutButton.click();
 

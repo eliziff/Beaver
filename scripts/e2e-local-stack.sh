@@ -77,6 +77,7 @@ set_kv .env AUTH_MODE cloud
 # cap in one run; once tripped every call 429s and profile/list waits time out.
 # Same overrides CI uses — e2e is not testing throttling.
 set_kv .env RATE_LIMIT_GENERAL_MAX 100000
+set_kv .env RATE_LIMIT_AUTH_MAX 100000
 set_kv .env RATE_LIMIT_CHAT_MAX 100000
 set_kv .env RATE_LIMIT_CHAT_CREATE_MAX 100000
 set_kv .env RATE_LIMIT_UPLOAD_MAX 100000
