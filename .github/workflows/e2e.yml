@@ -32,6 +32,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm ci --ignore-scripts --prefix backend
       - run: npm ci --ignore-scripts --prefix frontend
+      - name: Install document conversion dependency
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pandoc
       - run: cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
       - run: npx playwright install --with-deps chromium
 
