@@ -105,16 +105,34 @@ describe("DOCX Markdown marker ownership", () => {
       .toHaveLength(2);
   });
 
-  it("allocates generated citation notes after user notes without recursively numbering their citations", async () => {
+  it("allocates all notes in displayed order without recursively numbering authored citations", async () => {
     const bytes = await renderDocxMarkdown(markdown, { citations, citationPlacement: "footnotes" });
     const body = await xml(bytes, "word/document.xml");
     const notes = await xml(bytes, "word/footnotes.xml");
     expect([...body.matchAll(/<w:footnoteReference w:id="(\d+)"\/>/gu)].map((match) => Number(match[1])))
-      .toEqual([2, 3, 1, 4, 5, 6, 7, 8, 9]);
+      .toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
     expect(notes).not.toContain("w:footnoteReference");
     expect([...notes.matchAll(/<w:footnote w:id="(\d+)"/gu)].map((match) => Number(match[1])))
       .toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
-    expect(notes).toContain("shared, supra note 2");
+    expect(notes).toContain("shared, supra note 1");
+  });
+
+  it.each([0, 1, 2, 3, 4])("points supra at the full note Word displays with authored note at position %s", async (position) => {
+    const paragraphs = ["First.[@shared]", "Again.[@shared]", "Other.[@body]", "Later.[@shared]"];
+    paragraphs.splice(position, 0, "Authored.[^note]");
+    const bytes = await renderDocxMarkdown(`${paragraphs.join("\n\n")}\n\n[^note]: Authored note.`,
+      { citations, citationPlacement: "footnotes" });
+    const body = await xml(bytes, "word/document.xml"), footnotes = await xml(bytes, "word/footnotes.xml");
+    const ids = [...body.matchAll(/<w:footnoteReference\b[^>]*w:id="(\d+)"/gu)].map(([, id]) => id);
+    const notes = new Map([...footnotes.matchAll(/<w:footnote\b[^>]*w:id="(\d+)"[^>]*>(.*?)<\/w:footnote>/gu)]
+      .map(([, id, content]) => [id, [...content.matchAll(/<w:t(?: [^>]*)?>(.*?)<\/w:t>/gu)].map(([, text]) => text).join("")]));
+    const displayed = [...new Set(ids)].map((id) => notes.get(id)!);
+    const first = displayed.findIndex((text) => text === "Authority shared") + 1;
+    for (const text of displayed) for (const [, number] of text.matchAll(/shared, supra note (\d+)/gu))
+      expect(Number(number)).toBe(first);
+    expect(displayed.at(-1)).toBe(position === 4 ? "Authored note." : `shared, supra note ${first}`);
+    if (position === 1) expect(displayed[2]).toBe(`shared, supra note ${first}`);
+    else expect(displayed).toContain("Ibid");
   });
 
   it.each([false, true])("preserves table header styling, cell widths, and inline table citations (landscape=%s)", async (landscape) => {

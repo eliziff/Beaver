@@ -1,11 +1,13 @@
 import {
     Document,
+    ExternalHyperlink,
     FootnoteReferenceRun,
     LastRenderedPageBreak,
     Packer,
     Paragraph,
     TextRun,
 } from "docx";
+import JSZip from "jszip";
 import { parseAsync, renderDocument } from "docx-preview";
 import { describe, expect, it } from "vitest";
 
@@ -49,6 +51,32 @@ function refNumbers(container: HTMLElement): string[] {
 }
 
 describe("DOCX notes", () => {
+    it("resolves citation links from their owning note relationships, even with body ID collisions", async () => {
+        const link = (text: string, url: string) => new ExternalHyperlink({ link: url, children: [new TextRun(text)] });
+        const source = new Document({
+            footnotes: { 1: { children: [new Paragraph({ children: [
+                link("Case pinpoint", "https://example.test/case#par73"),
+            ] })] } },
+            sections: [{ children: [new Paragraph({ children: [
+                link("Body link", "https://example.test/body"), new FootnoteReferenceRun(1),
+            ] })] }],
+        });
+        const zip = await JSZip.loadAsync(await Packer.toArrayBuffer(source));
+        for (const part of ["document", "footnotes"]) {
+            const path = `word/${part}.xml`, rels = `word/_rels/${part}.xml.rels`;
+            const xml = await zip.file(path)!.async("string");
+            const id = /<w:hyperlink\b[^>]*r:id="([^"]+)"/u.exec(xml)![1];
+            zip.file(path, xml.replace(`r:id="${id}"`, 'r:id="shared-link"'));
+            zip.file(rels, (await zip.file(rels)!.async("string")).replace(`Id="${id}"`, 'Id="shared-link"'));
+        }
+        const container = await renderFixture(await zip.generateAsync({ type: "arraybuffer" }));
+        const links = [...container.querySelectorAll<HTMLAnchorElement>("a")];
+        expect(links.find((a) => a.textContent === "Body link")).toHaveAttribute("href", "https://example.test/body");
+        expect(links.find((a) => a.textContent === "Case pinpoint")).toHaveAttribute("href", "https://example.test/case#par73");
+        const ref = container.querySelector<HTMLAnchorElement>(".docx-note-ref")!;
+        expect(container.querySelector(ref.getAttribute("href")!)).toHaveTextContent("Case pinpoint");
+    });
+
     it("disables active or credential-bearing links from uploaded documents", () => {
         const container = document.createElement("div");
         container.innerHTML = `<a href="javascript:alert(1)">active</a>
