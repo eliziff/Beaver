@@ -407,7 +407,7 @@ function LegalSourceViewerContent({
     if (!root.current || !payload) return;
     const match = quotes.length ? highlightMatches.current[quoteIndex] : null;
     if (match) scrollTo(root.current, match);
-  }, [payload, quoteIndex, quotes.length, savedPassages]);
+  }, [payload, quoteIndex, quotes, savedPassages]);
 
   const consumed = useRef(false), wholeBlock = useRef<HTMLElement | null>(null);
   const capture = useRef<() => HighlightCapture | null>(() => null);

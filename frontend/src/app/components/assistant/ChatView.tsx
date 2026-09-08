@@ -129,7 +129,7 @@ export function legalCitationTab(
             citationRef: citation.ref,
             quotes,
             initialLocator:
-                normalizeLegalSourceLocator(citation.locator) ??
+                normalizeLegalSourceLocator(citation.locator_kind === "paragraph" ? citation.pinpoint ?? citation.locator : citation.locator) ??
                 legalSourceLocatorFromUrl(citation.url),
         };
     }
