@@ -100,6 +100,27 @@ describe("court records application", () => {
     }));
   });
 
+  it("retains readable pages beside a blank page and accepts an entirely blank prepared PDF", async () => {
+    const store = documents(), { files, workProducts } = dependencies();
+    const lookupPdf = vi.fn(async (_bytes, query: { locator: string }) => query.locator === "1"
+      ? { status: "found", pages: [{ page_number: 1, text: "Recognised affidavit" }] }
+      : { status: "unavailable", error: "The requested structural unit has no exact text", pages: [] });
+    const application = createCourtRecordsApplication(store, files as never,
+      workProducts as never, { lookupPdf: lookupPdf as never, preparePdf: vi.fn() as never });
+    await expect(application.preparedPageText(scope, "document-1", null)).resolves.toMatchObject({
+      pages: [{ page_number: 1, text: "Recognised affidavit" }, { page_number: 2, text: "" }],
+    });
+    lookupPdf.mockImplementation(async () => ({ status: "unavailable",
+      error: "The requested structural unit has no exact text", pages: [] }));
+    await expect(application.preparedPageText(scope, "document-1", null)).resolves.toMatchObject({
+      pages: [{ page_number: 1, text: "" }, { page_number: 2, text: "" }],
+    });
+    lookupPdf.mockImplementation(async () => ({ status: "unavailable",
+      error: "PDF source bytes no longer match their version", pages: [] }));
+    await expect(application.preparedPageText(scope, "document-1", null))
+      .rejects.toMatchObject({ status: 409 });
+  });
+
   it("does not route non-PDFs through a second conversion or parser", async () => {
     const lookupPdf = vi.fn(), { files, workProducts } = dependencies();
     const application = createCourtRecordsApplication(documents("docx"), files as never,
@@ -454,7 +475,7 @@ describe("court records application", () => {
     expect(workProducts.save.mock.calls[0][2].state).toMatchObject({ entries: [{
       kindId: "notice-application",
       sourceFields: { cover: { courtFileNumber: "T-123-26" },
-        partyStyleId: "application", exhibitLabels: [] },
+        exhibitLabels: [] },
     }] });
   });
 

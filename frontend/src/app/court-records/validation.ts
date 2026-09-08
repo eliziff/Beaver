@@ -352,24 +352,16 @@ export function validateCourtRecord({
         { entryId: entry.id },
       ));
     }
-    if (preparedPdf && profile.technical.searchable && entry.searchable === false &&
-        !entry.nonTextPagesConfirmed) {
+    // The entry states what recognition found; this only holds the build until the
+    // reader confirms that the pages it could not read carry no text.
+    if (preparedPdf && profile.technical.searchable && !entry.nonTextPagesConfirmed &&
+        (entry.searchable === false || (entry.textlessPageCount ?? 0) > 0)) {
       blockers.push(finding(
         `searchability-${entry.id}`,
         "blocker",
-        entry.ocrAttemptedPages?.length ? "Confirm non-text pages" : "OCR is required",
-        entry.ocrAttemptedPages?.length
-          ? `OCR found no text on ${entry.textlessPageCount === 1 ? "this page" : "these pages"}. Confirm they contain only photographs or other non-text material.`
-          : `${entry.file.name} has no searchable text layer. OCR it before building the filing copy.`,
-        { entryId: entry.id },
-      ));
-    } else if (preparedPdf && profile.technical.searchable && !entry.nonTextPagesConfirmed &&
-        (entry.textlessPageCount ?? 0) > 0) {
-      review.push(finding(
-        `textless-pages-${entry.id}`,
-        "review",
-        "Some pages have no searchable text",
-        `${entry.file.name} has ${entry.textlessPageCount} page${entry.textlessPageCount === 1 ? "" : "s"} without a detected text layer. Confirm those pages are photographs or other non-text material, or OCR them.`,
+        entry.ocrAttemptedPages?.length ? "Confirm the pages without text" : "Text recognition did not finish",
+        `${entry.file.name} has ${entry.textlessPageCount ?? entry.pageCount} page${
+          entry.textlessPageCount === 1 ? "" : "s"} without text.`,
         { entryId: entry.id },
       ));
     }
