@@ -77,7 +77,7 @@ export function researchReadContextPrompt(context: ResearchReadContext | undefin
   if (!context) return "";
   return [context.findingRefs ? `SELECTED RESEARCH RESULTS: ${JSON.stringify(context.findingRefs)}. Read findings or read_table_cells for the original answers and their support.` : "",
   context.workspace ? `CURRENT RESEARCH WORKSPACE: ${resourceReference.document(
-    context.workspace.documentId, context.workspace.versionId)}. Read selection first, then its saved evidence_ids. Answer from saved passages before reading sources for missing support. Describe filing as completed only after a successful mutation tool result.` : "",
+    context.workspace.documentId, context.workspace.versionId)}. For organization requests, Read this workspace's labels and use document_operation with action:"research" and research_action:{type:"batch",title,actions,propose:true} to submit an editable proposal. Rename with type:"label", the existing id and the requested name. Preserve other label fields and filings. Report completion only after a successful tool result. For legal questions, Read selection and its saved evidence_ids; use saved passages before reading sources for missing support.` : "",
   context.subjects ? "Read selection to page the scoped sources, saved passages and remaining reads." : ""].filter(Boolean).join("\n");
 }
 export function readResearchContextInventory(context: ResearchReadContext, args: { offset?: number; limit?: number }) {

@@ -743,7 +743,7 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
       else (item as Record<string, unknown>)[field] = structuredClone(value);
     } else throw new ApplicationError(400, "Invalid research change field");
   };
-  let changes: ResearchChangeField[], selected: ResearchChange | undefined;
+  let changes: ResearchChangeField[], selected: ResearchChange | undefined, pending = false;
   if (request.type === "accept" || request.type === "reject" || request.type === "undo") {
     selected = (await loadHistory()).find(({ id }) => id === request.changeId);
     if (!selected || selected.status !== (request.type === "undo" ? "applied" : "pending"))
@@ -768,11 +768,15 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     }
   } else changes = researchStateChanges(current.state, state, originalEvidence, allEvidence());
   if (changes.length && request.type !== "accept") {
-    const pending = request.type === "batch" && request.propose === true,
-      title = request.type === "batch" ? request.title : request.type === "undo" ? `Undo: ${selected!.title}`
+    const history = await loadHistory();
+    pending = request.type === "batch" && request.propose === true || executor !== "human" && request.type !== "undo" &&
+      changes.some((change) => change.target === "label" && current.state.labels[change.id] &&
+        history.some((prior) => prior.status === "applied" && (prior.executor === "human" || prior.resolvedBy) &&
+          prior.changes.some((field) => field.target === "label" && field.id === change.id)));
+    const title = request.type === "batch" ? request.title : request.type === "undo" ? `Undo: ${selected!.title}`
         : request.type === "label" ? `Label: ${request.name}` : request.type === "label-selection" ? "Update classifications"
         : request.type === "note" ? "Update memo" : request.type === "merge" ? request.title ?? "Collect research" : "Update research";
-    (await loadHistory()).push({ id: randomUUID(), title: title.slice(0, 200), createdAt: new Date().toISOString(),
+    history.push({ id: randomUUID(), title: title.slice(0, 200), createdAt: new Date().toISOString(),
       executor, userId: scope.userId, ...(context?.model && { model: context.model }), status: pending ? "pending" : "applied",
       ...(request.type === "undo" && { undoOf: request.changeId }), changes, counts: researchChangeCounts(changes) });
     if (pending) { state = { ...current.state }; puts.length = 0; removes.length = 0; }
@@ -794,7 +798,7 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
   const auditOperation = async (updated: ResearchFile) => {
     if (context) { const observed = allEvidence();
       await recordResearchOperation(context, scope, current, updated, request,
-        request.type === "batch" && request.propose ? [] : changes, (id) => observed[id] ?? originalEvidence[id]); }
+        pending ? [] : changes, (id) => observed[id] ?? originalEvidence[id]); }
   };
   if (!puts.length && !remove.length && sha256(bytes) === current.document.source_sha256) {
     await auditOperation(current); return current;
