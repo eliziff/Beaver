@@ -1,6 +1,7 @@
 import { useNavigationPrefetch } from "@/app/hooks/useNavigationPrefetch";
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type DragEvent,
@@ -32,6 +33,7 @@ import { AdvancedHistorySearch } from "@/app/components/assistant/AdvancedHistor
 import { ChatSearchResult } from "@/app/components/assistant/ChatSearchResult";
 import { TabList } from "@/app/components/ui/tabs";
 import { SidebarReviewHistory } from "@/app/components/tabular/SidebarReviewHistory";
+import { CollectionState } from "./CollectionState";
 const NAV_ITEMS = [
   { href: "/projects", label: "Projects", icon: FolderSvgIcon },
   { href: "/library", label: "Library", icon: LibrarySkeuoIcon },
@@ -51,15 +53,15 @@ export function AppSidebar({
   mobileOpen,
   onToggle,
 }: AppSidebarProps) {
+  const { pathname } = useLocation();
   const [recyclingOpen, setRecyclingOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [historySearch, setHistorySearch] = useState("");
   const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
-  const [historyTab, setHistoryTab] = useState("assistant");
+  const [historyTab, setHistoryTab] = useState(() => pathname.startsWith("/tabular-reviews") ? "reviews" : "assistant");
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const focusSearchOnOpen = useRef(false);
-  const lastAssistantPath = useRef<string | null>(null);
   const [chatProjectTarget, setChatProjectTarget] = useState<Chat | null>(null);
   const [selectedChatIds, setSelectedChatIds] = useState<Set<string>>(
     () => new Set(),
@@ -76,14 +78,13 @@ export function AppSidebar({
     useChatHistoryContext();
   const search = historySearch.trim();
   const searchedChats = useChatSearch({ search }, !!search && historyTab === "assistant");
-  const { pathname } = useLocation();
+  const showingSearch = !!search && (searchedChats.loaded || searchedChats.items.length > 0 || !!searchedChats.error);
   const prefetch = useNavigationPrefetch();
   const navigate = useNavigate();
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (pathname.startsWith("/tabular-reviews")) setHistoryTab("reviews");
     else if (pathname.startsWith("/assistant")) setHistoryTab("assistant");
   }, [pathname]);
-  if (pathname.startsWith("/assistant/chat/")) lastAssistantPath.current = pathname;
   useEffect(() => {
     if (!mobileOpen) return;
     const opener =
@@ -123,7 +124,7 @@ export function AppSidebar({
     : (pathname.match(/^\/projects\/[^/]+\/assistant\/chat\/([^/]+)/)?.[1] ??
       null);
   const assistantChats =
-    (search ? searchedChats.items : chats)?.filter(
+    (showingSearch ? searchedChats.items : chats)?.filter(
       (chat) => !chat.project_id && !movingChatIds.has(chat.id),
     ) ?? chats;
   const selectionActionChatId =
@@ -181,7 +182,6 @@ export function AppSidebar({
     try {
       await Promise.all(uniqueIds.map((id) => deleteChat(id)));
       if (routeChatId && uniqueIds.includes(routeChatId)) {
-        lastAssistantPath.current = null;
         navigate("/assistant", { replace: true });
       }
     } finally {
@@ -211,7 +211,6 @@ export function AppSidebar({
     setChatProjectTarget(null);
     try {
       await moveChat(chat.id, projectId);
-      if (lastAssistantPath.current === `/assistant/chat/${chat.id}`) lastAssistantPath.current = null;
     } finally {
       setMovingChatIds((current) => {
         const next = new Set(current);
@@ -316,30 +315,18 @@ export function AppSidebar({
             <div className="relative">
               <button type="button" aria-label={historyCollapsed ? "Expand history" : "Collapse history"} aria-expanded={!historyCollapsed} onClick={() => setHistoryCollapsed(!historyCollapsed)} className="absolute right-0 top-0.5 z-10 grid size-7 place-items-center rounded text-gray-500 hover:bg-gray-100"><ChevronRight className={cn("size-3.5", !historyCollapsed && "rotate-90")} /></button>
             <div hidden={historyTab !== "reviews"}>
-              <SidebarReviewHistory collapsed={historyCollapsed} search={search} onNavigate={() => closeNavigation?.()} />
+              <SidebarReviewHistory collapsed={historyCollapsed} active={historyTab === "reviews"} search={search} onNavigate={() => closeNavigation?.()} />
             </div>
             <div hidden={historyTab !== "assistant"}>
           <section id="assistant-conversations" aria-label="Assistant conversations" className="mb-2 flex min-h-0 flex-col [@media(max-height:500px)]:mb-0">
             <Link to="/assistant" onClick={() => { setHistorySearch(""); closeNavigation?.(); }} aria-label="New chat" className="mr-8 flex h-8 shrink-0 items-center gap-2 rounded-md px-2 text-xs font-medium text-gray-800 hover:bg-gray-100"><SquarePen className="size-3.5" />New chat</Link>
             {!historyCollapsed && <div
               id="assistant-history"
+              aria-busy={!!search && searchedChats.loading}
               className="h-[clamp(2rem,calc(100dvh-33rem),10rem)] overflow-y-auto overscroll-contain ps-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               {!assistantChats ? (
-                <div className="space-y-0">
-                  {[45, 65].map((width, index) => (
-                    <div
-                      key={index}
-                      className="flex h-8 items-center rounded-md px-2.5"
-                    >
-                      <div className="mr-2 h-3.5 w-3.5 shrink-0 rounded bg-gray-200" />
-                      <div
-                        className="h-3 rounded bg-gray-200"
-                        style={{ width: `${width}%` }}
-                      />
-                    </div>
-                  ))}
-                </div>
+                <CollectionState loading className="min-h-8 justify-start px-2 text-xs">Loading…</CollectionState>
               ) : assistantChats.length === 0 ? (
                 <div className="px-2 py-2 text-xs text-gray-500">
                   {search ? searchedChats.loading ? "Searching…" : searchedChats.error ? "Could not search history" : "0 results" : "No chats yet"}
@@ -347,7 +334,7 @@ export function AppSidebar({
               ) : (
                 <>
                   <div className="space-y-0">
-                    {assistantChats.map((chat) => search ? <ChatSearchResult key={chat.id} chat={chat} query={search} compact isActive={routeChatId === chat.id} onNavigate={closeNavigation} /> : (
+                    {assistantChats.map((chat) => showingSearch ? <ChatSearchResult key={chat.id} chat={chat} query={searchedChats.searchQuery} compact isActive={routeChatId === chat.id} onNavigate={closeNavigation} /> : (
                       <SidebarChatItem
                         key={chat.id}
                         chat={chat}

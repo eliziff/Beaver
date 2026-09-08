@@ -156,11 +156,10 @@ it("groups the same variant label once while preserving Chat and Tab", async () 
 
 it.each([
     ["court-records", "Prepare court materials.", { kind: "court_records" } as const,
-        "Court Records", "Court Records"],
+        "Court Records"],
     ["authorities", "Build the filing set.", { kind: "authorities" } as const,
-        "Create table/book of authorities", "Authorities"],
-])("shows one workspace label and one Open action for %s", async (id, description, launcher, title,
-    destination) => {
+        "Create table/book of authorities"],
+])("shows one workspace label and one Open action for %s", async (id, description, launcher, title) => {
     const direct = workflow(id, description, launcher, title);
     render(<WorkflowPickerContent {...props} workflows={[direct]} onSelect={vi.fn()} />);
 

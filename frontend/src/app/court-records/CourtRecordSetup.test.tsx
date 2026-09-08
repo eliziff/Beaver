@@ -79,7 +79,6 @@ describe("CourtRecordSetup parties", () => {
   });
 
   it("keeps completed party fields visible for review", async () => {
-    const user = userEvent.setup();
     render(<CourtRecordSetup
       profile={COURT_PROFILE_BY_ID.get("fc-motion-record-moving")!}
       cover={{ partyStyleId: "application", partyGroups: [
@@ -218,4 +217,3 @@ it("cancels a new record on an explicit close", async () => {
     .getByRole("button", { name: "Close" }));
   expect(onCancel).toHaveBeenCalledOnce();
 });
-

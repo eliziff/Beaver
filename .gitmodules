@@ -14,3 +14,7 @@
 	path = legal-structure
 	url = https://github.com/eliziff/legal-structure-parser.git
 	branch = main
+[submodule "OpenLegalData"]
+	path = OpenLegalData
+	url = subrepos/OpenLegalData.bundle
+	update = none

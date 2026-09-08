@@ -36,7 +36,7 @@ import { formatBytes, formatDate } from "@/app/lib/utils";
 import { APP_SURFACE_ACTIVE_CLASS, APP_SURFACE_HOVER_CLASS }
     from "@/app/components/ui/liquid-surface";
 import { TableHeaderCell, TableHeaderRow, TableScrollArea,
-    TableLoadingRows, TableSelectionCheckbox, TableStickyCell, useTableSelection }
+    TableLoadingState, TableSelectionCheckbox, TableStickyCell, useTableSelection }
     from "@/app/components/shared/TablePrimitive";
 import { Button } from "@/app/components/ui/button";
 import { getPdfJs } from "@/app/components/shared/views/highlightQuote";
@@ -48,7 +48,6 @@ import { Modal } from "@/app/components/modals/Modal";
 import { isResearchDocument, researchLabelPath, type ResearchFile, type ResearchSourceReference } from "@/app/lib/researchFiles";
 import { actOnResearchFile, getResearchFile } from "@/app/lib/api/researchFiles";
 import { FileDirectory } from "../shared/FileDirectory";
-import { directoryResource } from "@/app/lib/api/documents";
 import { buildDocumentTree, CHAT_DOCUMENT_DRAG_TYPE, descendantFolderIds, DOCUMENT_DRAG_TYPE,
     documentTreeDropFolder, FOLDER_DRAG_TYPE, hasDocumentTreeDrag,
     wouldCreateFolderCycle } from "./documentTree";
@@ -57,15 +56,15 @@ const DOCUMENT_ROW_CLASS =
     "group flex h-11 min-h-11 w-full min-w-0 items-center border-b border-gray-100 pr-2 [content-visibility:auto] [contain-intrinsic-size:auto_44px]";
 const DOCUMENT_METADATA_COLUMNS = [
     { label: "Type", row: "document-metadata ml-auto hidden w-20 shrink-0 sm:block",
-        header: "document-metadata ml-auto hidden w-20 items-center gap-1 sm:flex", skeleton: "h-3 w-8 rounded bg-gray-100" },
+        header: "document-metadata ml-auto hidden w-20 items-center gap-1 sm:flex" },
     { label: "Size", row: "document-metadata hidden w-24 shrink-0 md:block",
-        header: "document-metadata hidden w-24 items-center gap-1 md:flex", skeleton: "h-3 w-12 rounded bg-gray-100" },
+        header: "document-metadata hidden w-24 items-center gap-1 md:flex" },
     { label: "Version", row: "document-metadata hidden w-20 shrink-0 sm:block",
-        header: "document-metadata hidden w-20 items-center gap-1 sm:flex", skeleton: "h-3 w-5 rounded bg-gray-100" },
+        header: "document-metadata hidden w-20 items-center gap-1 sm:flex" },
     { label: "Created", row: "document-metadata hidden w-32 shrink-0 lg:block",
-        header: "document-metadata hidden w-32 items-center gap-1 lg:flex", skeleton: "h-3 w-16 rounded bg-gray-100" },
+        header: "document-metadata hidden w-32 items-center gap-1 lg:flex" },
     { label: "Updated", row: "document-metadata hidden w-32 shrink-0 xl:block",
-        header: "document-metadata hidden w-32 items-center gap-1 xl:flex", skeleton: "h-3 w-16 rounded bg-gray-100" },
+        header: "document-metadata hidden w-32 items-center gap-1 xl:flex" },
 ] as const;
 const DOCUMENT_METADATA_HEADERS = DOCUMENT_METADATA_COLUMNS.map(({ label, header }) =>
     <TableHeaderCell key={label} className={`${header} justify-center text-center`}><span>{label}</span></TableHeaderCell>);
@@ -299,20 +298,6 @@ interface DocTableProps {    scopeKey: string; documents: Document[]; folders: D
     onFolderExpanded?: (folderId: string) => void;
     onLoadMore?: (parentId: string | null) => void;
 }
-const PROJECT_TABLE_LOADING = (
-    <TableLoadingRows count={5} rowClassName={DOCUMENT_ROW_CLASS}
-        primaryWidthClassName={DOC_NAME_COL_W}
-        renderPrimary={(index) => <>
-            <div className="mr-2 h-4 w-4 shrink-0 rounded bg-gray-100" />
-            <div className="h-3.5 rounded bg-gray-100"
-                style={{ width: `${226 + index * 16}px` }} />
-        </>}
-        columns={[
-            ...DOCUMENT_METADATA_COLUMNS.map(({ row, skeleton }) =>
-                ({ className: row, lineClassName: skeleton })),
-            { className: "w-8 shrink-0" },
-        ]} />
-);
 export function DocTable({
     scopeKey, documents, folders, loading, active = true, search, operations,
     emptyDropLabel = "Drop PDF, Word, Excel, or PowerPoint files here",
@@ -1342,7 +1327,7 @@ export function DocTable({
                     <TableHeaderCell className="w-8" />
                 </TableHeaderRow>}
             >
-                {loading && isEmptyCollection ? PROJECT_TABLE_LOADING : (
+                {loading && isEmptyCollection ? <TableLoadingState /> : (
                     <div className="relative flex min-h-0 flex-1 flex-col">
                         {dragOverSurface === "root" && dragOverFolderId === null && (
                             <div className="pointer-events-none absolute inset-0 z-[80] border-2 border-red-400" />

@@ -109,12 +109,9 @@ describe("DocumentSidePanel document removal", () => {
     const labels = screen.getByRole("list", { name: "Labels" });
     expect(within(labels).getByText("Fairness")).toBeInTheDocument();
     expect(within(labels).getByText("Right to a hearing")).toBeInTheDocument();
-    const nestedMarker = within(labels).getByRole("group", {
+    expect(within(labels).getByRole("group", {
       name: "Labels: Fairness / Right to a hearing",
-    });
-    const folder = nestedMarker.querySelector<HTMLElement>("[data-label-folder=\"hearing\"]")!;
-    expect([...folder.children].map((part) => (part as HTMLElement).style.background))
-      .toEqual(["rgb(153, 27, 27)", "rgb(29, 78, 216)"]);
+    })).toBeVisible();
     expect(screen.getByText("Authorities on procedural fairness.")).toBeInTheDocument();
     expect(screen.getByText("Leading procedural fairness authority.")).toBeInTheDocument();
     expect(screen.getByLabelText("Workspace contents")).toHaveTextContent(

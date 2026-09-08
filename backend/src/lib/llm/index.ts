@@ -10,6 +10,7 @@ import type {
 
 export * from "./types";
 export * from "./models";
+export { ollamaModelCatalogSnapshot } from "./ollamaModels";
 
 async function streamProvider(
   provider: Provider,
