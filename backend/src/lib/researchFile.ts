@@ -107,6 +107,7 @@ export const researchFileActionSchema = z.union([researchMutationSchema,
 export type PublicResearchFileAction = z.infer<typeof researchFileActionSchema>;
 export type ResearchFileAction = PublicResearchFileAction | { type: "merge";
   evidence?: LegalEvidenceReceipt[]; queries?: ResearchQueryReceipt[];
+  title?: string; actions?: Extract<PublicResearchFileAction, { type: "batch" }>["actions"];
   sources?: ResearchSourceReference[]; labels?: Record<string, string[]>; tables?: string[]; chats?: string[] };
 
 const SOURCE_PART = (id: string) => `source.${id}.json`, QUERIES_PART = "queries.json";
@@ -473,7 +474,8 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
   let state: ResearchFileState = { ...current.state };
   const request = raw.type === "merge" ? raw : researchFileActionSchema.parse(raw),
     executor = context?.executor ?? (assistant ? "assistant" : "human"),
-    actions = request.type === "batch" ? request.actions :
+    actions = request.type === "merge" ? [request, ...(request.actions ?? []).map((action) => researchMutationSchema.parse(action))]
+      : request.type === "batch" ? request.actions :
       request.type === "accept" || request.type === "reject" || request.type === "undo" ? [] : [request],
     loaded = new Map<string, Record<string, ResearchEvidence>>(), originalEvidence: Record<string, ResearchEvidence> = {},
     puts: Array<{ name: string; bytes: Buffer; expectedSha256: string }> = [], removes: string[] = [];
@@ -771,7 +773,7 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     const pending = request.type === "batch" && request.propose === true,
       title = request.type === "batch" ? request.title : request.type === "undo" ? `Undo: ${selected!.title}`
         : request.type === "label" ? `Label: ${request.name}` : request.type === "label-selection" ? "Update classifications"
-        : request.type === "note" ? "Update memo" : request.type === "merge" ? "Collect research" : "Update research";
+        : request.type === "note" ? "Update memo" : request.type === "merge" ? request.title ?? "Collect research" : "Update research";
     (await loadHistory()).push({ id: randomUUID(), title: title.slice(0, 200), createdAt: new Date().toISOString(),
       executor, userId: scope.userId, ...(context?.model && { model: context.model }), status: pending ? "pending" : "applied",
       ...(request.type === "undo" && { undoOf: request.changeId }), changes, counts: researchChangeCounts(changes) });

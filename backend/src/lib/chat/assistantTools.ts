@@ -1,3 +1,4 @@
+import { collapseProvisionLabels } from "../provisionLabels";
 import { readLegalSourceResource, readLibraryResearchWindow, readResearchWorkspace, restoreResearchEvidence,
   oneHopLegalScope, sourceActivityCitations, readResearchContext, readResearchContextInventory, researchResultFilter,
   type ResearchReadContext } from "../researchReader";
@@ -2011,13 +2012,15 @@ export function assistantTools<Context extends {
     }
     if (researchContext?.subjects && (reference?.kind === "source" || reference?.kind === "document") && !workspaceId) {
       const selected = researchContext.subjects?.filter(({ resource }) => resource === requested) ?? [];
-      const saved = selected.flatMap(({ savedEvidence }) => savedEvidence ?? []).find(({ locator }) =>
-        locator.kind === args.locator_kind && locator.label === args.locator);
-      if (saved && legalEvidenceState && !args.context_blocks && !args.pattern && !args.section &&
+      const locatorKey = (label: string) => JSON.stringify(collapseProvisionLabels([label], String(args.locator_kind)) ?? [label]),
+        saved = String(args.locator ?? "").split(/\s*,\s*/u).map((label) =>
+          selected.flatMap(({ savedEvidence }) => savedEvidence ?? []).find(({ locator }) =>
+            locator.kind === args.locator_kind && locatorKey(locator.label) === locatorKey(label)));
+      if (saved.every((receipt) => receipt !== undefined) && legalEvidenceState && !args.context_blocks && !args.pattern && !args.section &&
         (!args.end_locator || args.end_locator === args.locator) && (!args.references || args.references === "none")) {
-        registerLegalEvidence(legalEvidenceState, saved);
-        if (readPriorLegalEvidence(legalEvidenceState, saved.evidence_id))
-          return { ...result(modelEvidencePassage(saved)), evidence: [saved] };
+        saved.forEach((receipt) => registerLegalEvidence(legalEvidenceState, receipt));
+        if (saved.every(({ evidence_id }) => readPriorLegalEvidence(legalEvidenceState, evidence_id)))
+          return { ...result(saved.length === 1 ? modelEvidencePassage(saved[0]) : saved.map(modelEvidencePassage)), evidence: saved };
       }
       if (selected.some(({ evidence }) => evidence !== undefined) || !args.locator_kind && !args.section && !args.pattern && !args.references &&
           args.mode !== "drafting" && args.mode !== "redline") return readResearchContext(documents, scope, researchContext,

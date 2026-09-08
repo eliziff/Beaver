@@ -109,7 +109,8 @@ const citationParsers: Record<string, Parser<Citation>> = {
     version_id: optional(short), version_number: optional(safeInteger), url: optional(url),
     quotes: defaulted(array(object({ quote: text, sheet: optional(short), cell: optional(short),
       page: optional((value) => typeof value === "number" ? finite(value) : short(value)),
-    }), 32), () => []), ...locatorFields }),
+    }), 32), () => []), ...locatorFields,
+    locator_kind: optional(choices("document", "paragraph", "page", "section", "footnote", "sheet", "cell")) }),
 };
 export function parseAssistantCitations(value: unknown): Citation[] {
   try {
