@@ -5,6 +5,7 @@ import {
   getStandaloneOutputFolder, inspectStandaloneFile, pickRetainedFiles, readStandaloneOutput,
   relinkStandaloneFile, resolveStandaloneFile, retainStandaloneFile, saveStandaloneArtifacts,
   standaloneWorkProducts, writeStandaloneArtifactsToOutputFolder,
+  type StandaloneArtifact,
 } from "@/app/lib/standaloneWorkProducts";
 import { apiResponse } from "@/app/lib/api/client";
 import type { WorkProductInput } from "@/app/lib/workProducts";
@@ -13,6 +14,8 @@ import type { AuthoritiesAction, AuthoritiesDraft,
 import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
 import { authoritiesProfile } from "./profiles";
 import { prepareAnnotations } from "./annotationPreparation";
+import { mapAuthorityBookBytes, renderAuthoritiesBook, type PreparedAuthoritiesBook } from
+  "../../../../backend/src/lib/authoritiesBook";
 
 async function resolveExact(input: WorkProductInput) {
   const result = await resolveStandaloneFile(input, true);
@@ -242,12 +245,30 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     const response = await (await runtimeResponse("build", form, false, signal)).formData();
     signal?.throwIfAborted();
     const receipt = JSON.parse(String(response.get("receipt")));
-    const artifacts = await Promise.all(Object.entries(receipt.outputs).map(async ([role, output]) => {
+    const artifacts: Omit<StandaloneArtifact, "receipt">[] = await Promise.all(Object.entries(receipt.outputs).map(async ([role, output]) => {
       const file = response.get(role), detail = output as {
         filename: string; mimeType: string; sha256: string; pageCount: number | null };
       if (!(file instanceof File)) throw new Error(`The ${role} output is missing.`);
       return { role, ...detail, bytes: new Uint8Array(await file.arrayBuffer()) };
     }));
+    const prepared = response.get("book");
+    if (prepared) {
+      const book = await mapAuthorityBookBytes(JSON.parse(String(prepared)) as PreparedAuthoritiesBook<string>,
+        async (role) => {
+          const source = response.get(role);
+          if (!(source instanceof File)) throw new Error(`The prepared PDF ${role} is missing.`);
+          return new Uint8Array(await source.arrayBuffer());
+        });
+      const built = await renderAuthoritiesBook(await import("pdf-lib"), book, signal);
+      for (const item of built) {
+        const hash = await crypto.subtle.digest("SHA-256", item.bytes.slice().buffer);
+        const sha256 = [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+        const detail = { filename: item.filename, mimeType: item.mimeType, sha256, pageCount: item.pageCount };
+        receipt.outputs[item.role] = detail;
+        artifacts.push({ ...item, sha256 });
+      }
+    }
+    signal?.throwIfAborted();
     progress?.("Saving outputs");
     const saved = await saveStandaloneArtifacts(product, artifacts.map((artifact) =>
       ({ ...artifact, receipt })));
