@@ -56,6 +56,7 @@ export type LegalSourceTab = {
 };
 
 export type LegalSourceViewerProps = {
+  navigationRequest?: object;
   referenceId?: string;
   provider?: "a2aj" | "journal";
   citation?: string;
@@ -227,6 +228,7 @@ export function LegalSourceViewer(props: LegalSourceViewerProps) {
 }
 
 function LegalSourceViewerContent({
+  navigationRequest,
   referenceId,
   provider = "a2aj",
   citation,
@@ -346,7 +348,7 @@ function LegalSourceViewerContent({
       if (root.current && target) scrollTo(root.current, target, true);
     });
     return () => cancelAnimationFrame(frame);
-  }, [locator, payload]);
+  }, [locator, payload, navigationRequest]);
 
   if (!payload) {
     return <div className="grid h-full place-items-center p-6">

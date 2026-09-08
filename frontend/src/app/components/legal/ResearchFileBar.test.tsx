@@ -296,7 +296,7 @@ describe("ResearchFileBar", () => {
     expect(read).not.toHaveBeenCalled();
     fireEvent.click(screen.getAllByRole("button", { name: "Open Baker v Canada" })[0]);
     expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined);
-    fireEvent.click((await screen.findAllByRole("button", { name: "Open ¶ 5" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "Open ¶ 5 in Baker v Canada" }))[0]);
     expect(read).toHaveBeenLastCalledWith(file.state.sources.baker, "para 5");
   });
 
@@ -314,7 +314,7 @@ describe("ResearchFileBar", () => {
     const read = vi.fn();
     render(<><ResearchFileBar file={file} onChange={vi.fn()} onReadSource={read} /><Location /></>);
     openBaker();
-    fireEvent.click((await screen.findAllByRole("button", { name: "Open ¶ 5" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "Open ¶ 5 in Baker v Canada" }))[0]);
     expect(read).toHaveBeenCalledWith(file.state.sources.baker, "para 5");
     expect(screen.getByRole("status", { name: "Location" })).toHaveTextContent(/^\/$/u);
   });
