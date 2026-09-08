@@ -69,6 +69,12 @@ assembled-book pages remain distinct. The builder applies the reviewed set befor
 merging language versions, extracting pages or splitting volumes; it does not
 regenerate marks at export. Manually marked pages remain in paper extracts.
 
+Native paragraph geometry uses printed addresses, including sequential detached
+margin numbers in parallel-column reports. A passage can span physical PDF pages;
+its extent includes continuation lines and excludes the following section heading.
+Missing, repeated or unbounded addresses are refused rather than replaced with
+structural paragraph ordinals.
+
 Passage marks export as ordinary `/Highlight` annotations with `/QuadPoints`,
 printable appearances and stable names; margin/sideline marks use `/Square`.
 Original page content is not flattened. Quotes sharing a pinpoint remain separate
