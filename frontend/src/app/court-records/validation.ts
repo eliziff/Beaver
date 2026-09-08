@@ -359,9 +359,9 @@ export function validateCourtRecord({
       blockers.push(finding(
         `searchability-${entry.id}`,
         "blocker",
-        "Confirm the pages without text",
+        entry.ocrAttemptedPages?.length ? "Confirm the pages without text" : "Text recognition did not finish",
         `${entry.file.name} has ${entry.textlessPageCount ?? entry.pageCount} page${
-          entry.textlessPageCount === 1 ? "" : "s"} that carry no text.`,
+          entry.textlessPageCount === 1 ? "" : "s"} without text.`,
         { entryId: entry.id },
       ));
     }

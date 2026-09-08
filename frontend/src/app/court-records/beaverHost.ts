@@ -29,7 +29,7 @@ import {
 } from "@/app/lib/api/courtRecords";
 import { getUserProfile, updateUserProfile } from "@/app/lib/api/account";
 import { BeaverApiError } from "@/app/lib/api/client";
-import { waitForPdfPreparation } from "@/app/lib/pdfPreparation";
+import { pdfProgress, waitForPdfPreparation } from "@/app/lib/pdfPreparation";
 import type { ResolvedWorkProductInput, WorkProduct, WorkProductBuildReceipt,
   WorkProductInput, WorkProductResolution,
   WorkProductStore } from "@/app/lib/workProducts";
@@ -210,7 +210,8 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
       versionId = uploaded.current_version_id ?? undefined;
       sourceSha256 = uploaded.source_sha256 ?? undefined;
     }
-    await waitForPdfPreparation(documentId, progress, signal);
+    const [state] = await pdfProgress([documentId]);
+    if (!state?.error) await waitForPdfPreparation(documentId, progress, signal);
     // No page text yet is the condition recognition exists to answer, not a reason
     // to stop before it has run.
     const read = () => getCourtRecordPreparation(documentId, versionId)
@@ -238,8 +239,8 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
         ...(versionId ? { version_id: versionId } : {}),
       });
       await waitForPdfPreparation(documentId, progress, signal);
-      prepared = await read();
-      if (prepared) merged = withProjection(merged, prepared);
+      prepared = await getCourtRecordPreparation(documentId, versionId);
+      merged = withProjection(merged, prepared);
     }
     return { ...merged, ocrAttemptedPages: entry.textlessPages ?? [] };
   },
@@ -414,7 +415,7 @@ function withProjection(
   const byPage = new Map(projection.pages.map((page) => [page.page_number, page.text]));
   const targets = prepared.textlessPages ?? [];
   const ocrTextByPage = Array.from({ length: prepared.pageCount ?? projection.page_count },
-    (_, index) => targets.includes(index + 1) ? byPage.get(index + 1) ?? "" : "");
+    (_, index) => targets.includes(index + 1) ? byPage.get(index + 1) ?? "" : prepared.ocrTextByPage?.[index] ?? "");
   const missing = targets.filter((page) => !ocrTextByPage[page - 1]?.trim());
   return {
     ...prepared,
@@ -423,6 +424,7 @@ function withProjection(
     searchable: missing.length ? prepared.searchable : true,
     textlessPageCount: missing.length,
     textlessPages: missing,
+    ...(targets.length && !missing.length && { ocrAttemptedPages: targets }),
     sourceFields: mergeSourceFields(prepared.sourceFields,
       sourceDocumentFields(projection.pages.map((page) => page.text))),
     origin: {
