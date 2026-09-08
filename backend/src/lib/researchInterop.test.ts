@@ -52,6 +52,38 @@ async function fixture() {
   }
   return { runtime, documents, tables, sources, chats, research, legal, labelId, typeId, sourceId, receipts, chat, act, turn, file: () => file };
 }
+it("files a chat's cited passage under every reviewed concept and undoes the whole proposal", async () => {
+  const f = await fixture(); await f.turn("How do these duties interact?", "The provisions are read together.", f.receipts[0]);
+  const { researchImportCatalog } = await import("./tabular/researchImport"), file = f.file(),
+    subjects = (await f.sources.selection(owner, file.document.id)).subjects,
+    parts = await f.research.readResearchEvidenceParts(f.documents, owner, file, [f.sourceId]),
+    findings = await f.sources.findings(owner, file.document.id, { chatId: f.chat.id, offset: 0, limit: 50 }),
+    catalog = researchImportCatalog(file, subjects, parts, findings.items, { rows: "sources" }),
+    support = catalog.entries.filter((entry) => entry.kind === "answer").map(({ id }) => id),
+    design = { title: "Interacting duties", labels: [{ key: "honesty", name: "Honest performance" },
+      { key: "exclusion", name: "Exclusion of duties" }], assignments: ["honesty", "exclusion"].map((labelKey) =>
+      ({ labelKey, rowIds: [f.sourceId], itemIds: support })) },
+    preview = await f.sources.previewLabels(owner, file.document.id, { chatId: f.chat.id, design }),
+    saved = await f.sources.applyLabels(owner, file.document.id, { chatId: f.chat.id, design, fingerprint: preview.fingerprint });
+  expect(saved.state.proposals).toEqual([]);
+  const passages = (await f.sources.items(owner, file.document.id,
+    { kind: "passages", sourceId: f.sourceId, offset: 0, limit: 50 })).items.flatMap((item) =>
+      item.kind === "passage" ? [item.value] : []);
+  expect(passages).toHaveLength(3);
+  expect(passages.every(({ receipt, labelIds }) => JSON.stringify(receipt) === JSON.stringify(f.receipts[0]) && labelIds.length === 1)).toBe(true);
+  expect(new Set(passages.map((item) => item.highlightId ?? item.receipt.evidence_id)).size).toBe(3);
+  for (const name of ["Honest performance", "Exclusion of duties"]) {
+    const labels = Object.values(saved.state.labels), concept = labels.find((label) => label.name === name && label.scope === "source")!,
+      type = labels.find((label) => label.name === name && label.scope === "highlight")!;
+    expect(saved.state.sources[f.sourceId].labelIds).toContain(concept.id);
+    expect(saved.state.sources[f.sourceId].passages?.labelCounts[type.id]).toBe(1);
+  }
+  const history = await f.sources.items(owner, file.document.id, { kind: "history", offset: 0, limit: 1 }), change = history.items[0];
+  if (change.kind !== "change") throw new Error("Missing proposal history");
+  const restored = await f.act({ type: "undo", changeId: change.value.id });
+  expect(restored.state.labels).toEqual(file.state.labels);
+  expect(restored.state.sources).toEqual(file.state.sources);
+});
 it("opens existing work as a populated snapshot, leaving new questions pending", async () => {
   const f = await fixture();
   await f.turn("Why was the clause invalid?", "The saving language did not cure the invalid scheme.");
