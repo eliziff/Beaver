@@ -112,7 +112,7 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
   if (rows.length > 500 || entries.length > 25_000)
     throw new ApplicationError(413, "Narrow this research selection before converting it; no rows were dropped");
   const title = clip((file.document.filename ?? "Research").replace(/\.research\.md$/iu, ""), 300) || "Research";
-  return { title, question: questions.at(-1) ?? null, rows, entries,
+  return { title, question: questions[0] ?? null, rows, entries,
     labels: Object.values(file.state.labels).map(({ id, scope, definition }) => ({ id, path: researchLabelPath(file.state, id), scope,
       ...(definition ? { definition } : {}) })),
     fingerprint: sha256(JSON.stringify([file.document.id, file.versionId, file.workingRevision, subjects, rows, entries, findings])) };
