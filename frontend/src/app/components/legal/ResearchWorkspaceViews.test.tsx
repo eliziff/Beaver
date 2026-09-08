@@ -30,7 +30,7 @@ beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); api.getResearchFile
 it("opens a table through the deterministic Research-set import", async () => {
   api.openWorkspaceTable.mockResolvedValue({ id: "table", project_id: "project" }); setup(); open("Table");
   expect(await screen.findByRole("dialog", { name: /Extract a table/u })).toBeVisible();
-  await screen.findByText(/Grounded prior work/u);
+  await screen.findByDisplayValue("Finding");
   expect(api.openWorkspaceTable).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Create table" }));
   await waitFor(() => expect(api.openWorkspaceTable).toHaveBeenCalledWith("workspace", { selection: { target: "sources" }, design: preview.design, fingerprint: preview.fingerprint }));
