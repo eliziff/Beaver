@@ -4,11 +4,9 @@ import type { WorkProductContext, WorkProductFocus,
   WorkProductRefresh } from "@/app/lib/workProducts";
 import { Button } from "@/app/components/ui/button";
 import { WorkProductAssistantPanel } from "./WorkProductAssistantPanel";
-import type { Citation } from "@/app/lib/citations";
 
 export type WorkProductAssistantProps = { product?: WorkProductContext & { title?: string };
   focus?: WorkProductFocus;
-  reader?: { citation: Citation; workspace?: boolean };
   chatId?: string; onChatIdChange(id: string): void;
   expanded?: boolean; synced?: boolean; onClose(): void; onBusyChange?(busy: boolean): void;
   onProductUpdated?(revision: number): void; onTurnComplete?(): void };
