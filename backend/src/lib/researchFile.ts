@@ -44,7 +44,7 @@ export type ResearchSource = { id: string; reference: ResearchSourceReference; c
   passages: (ResearchPartReference & { labelCounts: Record<string, number>;
     unlabelledCount: number }) | null };
 /** No highlight label means an observation. One label means an intentional highlight of that type. */
-export type ResearchEvidence = { receipt: LegalEvidenceReceipt; sourceId: string;
+export type ResearchEvidence = { receipt: LegalEvidenceReceipt; sourceId: string; highlightId?: string;
   labelIds: string[]; note: string };
 export type ResearchQueryReceipt = LegalResearchQueryReceipt & { sourceIds: string[];
   matchedSourceIds: string[]; evidenceIds: string[]; failures: Array<{ sourceId: string; code: string }>;
@@ -279,7 +279,10 @@ const decodeSourcePart = (bytes: Buffer, sourceId: string) => {
   if (part?.schemaVersion !== "beaver.research-source.v1" || part.sourceId !== sourceId || !evidence ||
       Object.keys(evidence).length > 100_000 || Object.entries(evidence).some(([id, value]) => {
         const item = record(value), receipt = storedLegalEvidenceReceipt(item?.receipt); return !item ||
-          !receipt || receipt.evidence_id !== id || item.sourceId !== sourceId || !validIds(item.labelIds) ||
+          !receipt || (item.highlightId ?? receipt.evidence_id) !== id ||
+          (item.highlightId !== undefined && (typeof item.highlightId !== "string" ||
+            !item.highlightId.startsWith(`${receipt.evidence_id}:`) || item.highlightId.length > 200)) ||
+          item.sourceId !== sourceId || !validIds(item.labelIds) ||
           (item.labelIds as string[]).length > 1 || !(item.labelIds as string[]).every((label) => uuid.safeParse(label).success) ||
           typeof item.note !== "string" || item.note.length > 50_000; })) return null;
   return evidence as Record<string, ResearchEvidence>;
@@ -496,7 +499,7 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
       existing = batch.filter((id) => current.state.sources[id]), parts =
         await readResearchEvidenceParts(documents, scope, current, existing);
       batch.forEach((id) => { const evidence = parts.get(id) ?? {}; loaded.set(id, evidence);
-        Object.values(evidence).forEach((item) => { originalEvidence[item.receipt.evidence_id] = structuredClone(item); }); }); }
+        Object.entries(evidence).forEach(([id, item]) => { originalEvidence[id] = structuredClone(item); }); }); }
   };
   const clearPart = (name: string) => {
     for (let index = puts.length - 1; index >= 0; index--) if (puts[index].name === name) puts.splice(index, 1);
@@ -528,6 +531,13 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
       label.scope === "highlight" && label.parentId === null && label.name === "Highlight");
     if (existing) return existing.id;
     ownLabels(); return applyLabel(state, { type: "label", name: "Highlight", scope: "highlight", color: "#d6b85a" });
+  };
+  const fileHighlight = (values: Record<string, ResearchEvidence>, item: ResearchEvidence, assigned: string[]) => {
+    if (!assigned.length || Object.values(values).some((saved) => saved.receipt.evidence_id === item.receipt.evidence_id &&
+      saved.labelIds[0] === assigned[0])) return;
+    if (!item.labelIds.length) { item.labelIds = assigned; return; }
+    const highlightId = `${item.receipt.evidence_id}:${randomUUID()}`;
+    values[highlightId] = { ...item, highlightId, labelIds: assigned };
   };
   for (const action of actions) {
   if (action.type === "label") { ownLabels(); applyLabel(state, action); }
@@ -564,8 +574,10 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     else {
       await loadSources(selection.subjects.map(({ sourceId }) => sourceId));
       for (const subject of selection.subjects) {
-        for (const receipt of subject.evidence ?? Object.values(loaded.get(subject.sourceId)!).map(({ receipt }) => receipt)) {
-          const item = loaded.get(subject.sourceId)![receipt.evidence_id]; item.labelIds = update(item.labelIds);
+        const values = loaded.get(subject.sourceId)!, receipts = new Set(subject.evidence?.map(({ evidence_id }) => evidence_id));
+        for (const item of Object.values(values).filter(({ receipt }) => !subject.evidence || receipts.has(receipt.evidence_id))) {
+          if (action.mode === "add") fileHighlight(values, item, assigned);
+          else if (!action.labelIds?.length || item.labelIds.some((id) => action.labelIds!.includes(id))) item.labelIds = update(item.labelIds);
           if (item.labelIds.length) ownSource(subject.sourceId).collected = true;
         }
         writeSource(subject.sourceId);
@@ -631,11 +643,11 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     await loadSources(evidence.map(({ source }) => source.id));
     evidence.forEach(({ receipt, source }) => { const values = loaded.get(source.id)!,
       previous = values[receipt.evidence_id], explicit = action.labels?.[receipt.evidence_id],
-      assigned = explicit === undefined ? previous?.labelIds ?? []
-        : checkedLabels(state, explicit.length ? explicit : [defaultHighlight()], "highlight");
-      if (assigned.length) ownSource(source.id).collected = true;
-      values[receipt.evidence_id] = { receipt: structuredClone(receipt), sourceId: source.id,
-        labelIds: assigned, note: previous?.note ?? "" }; });
+      item = values[receipt.evidence_id] = { receipt: structuredClone(receipt), sourceId: source.id,
+        labelIds: previous?.labelIds ?? [], note: previous?.note ?? "" };
+      if (explicit !== undefined) fileHighlight(values, item,
+        checkedLabels(state, explicit.length ? explicit : [defaultHighlight()], "highlight"));
+      if (item.labelIds.length) ownSource(source.id).collected = true; });
     [...new Set(evidence.map(({ source }) => source.id))].forEach(writeSource);
     if (action.queries?.length) { const ledger = await loadQueries();
       const evidenceSources = new Map(evidence.map(({ receipt, source }) =>
