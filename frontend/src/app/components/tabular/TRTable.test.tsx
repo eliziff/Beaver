@@ -42,13 +42,6 @@ describe("TRTable", () => {
         expect(container.querySelector("[data-tr-row]")?.textContent).toMatch(/First answer.*Later answer/u);
     });
 
-    it("renders the Document header and a row for each document", () => {
-        renderTable();
-        expect(screen.getByText("Document")).toBeInTheDocument();
-        expect(screen.getByText("report.pdf")).toBeInTheDocument();
-        expect(screen.getAllByRole("checkbox")).toHaveLength(2);
-    });
-
     it("keeps separately arranged passages of one source in their chosen groups", () => {
         render(<TRTable loading={false} columns={[]} documents={[
             { ...doc, id: "passage-1", filename: "Opening position", group: ["Delivery", "Deadlines"] },

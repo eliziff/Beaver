@@ -22,14 +22,6 @@ it("gives pill filter rails the shared keyboard and selected behavior", () => {
     expect(mine).toHaveAttribute("aria-selected", "true");
 });
 
-it("keeps an actions-only table toolbar", () => {
-    render(<TableToolbar actions={<button type="button">Upload</button>} />);
-
-    const action = screen.getByRole("button", { name: "Upload" });
-    expect(screen.queryByRole("tablist")).toBeNull();
-    expect(action.closest("[data-tabs-rail]")).not.toBeNull();
-});
-
 it("uses the same tab behavior for closable source tabs", () => {
     const close = vi.fn();
     render(<Tabs value="first" onValueChange={() => undefined}

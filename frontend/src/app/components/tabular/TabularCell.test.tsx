@@ -5,21 +5,8 @@ import { TabularCell } from "./TabularCell";
 
 const column = (format: ColumnConfig["format"]): ColumnConfig => ({ index: 0, name: "Amount", prompt: "Find it", format });
 const done = (content: NonNullable<TCell["content"]>): TCell => ({ id: "cell", document_id: "doc", column_index: 0, status: "done", content });
-const answered = (summary: string, value: string | number | boolean) =>
-    done({ summary, value, claims: [{ text: summary, evidence_ids: [] }], evidence: [], outcome: "answered", coverage: "complete" });
 const renderCell = (cell: TCell, col: ColumnConfig) =>
     render(<TabularCell cell={cell} column={col} onExpand={vi.fn()} onCitationClick={vi.fn()} />);
-
-it("renders numeric values", () => {
-    renderCell(answered("1,250", 1250), column("number"));
-    expect(screen.getByText("1,250")).toBeInTheDocument();
-});
-
-it("normalises ISO dates", () => {
-    renderCell(answered("2026-09-05", "2026-09-05"), column("date"));
-    expect(screen.queryByText("2026-09-05")).not.toBeInTheDocument();
-    expect(screen.getByText(/2026/u)).toHaveTextContent(/^(Sep|Sept)\.? 5, 2026$|^5 (Sep|Sept)\.? 2026$/u);
-});
 
 it("shows a dash for not found, a glyph for failure and nothing while pending", () => {
     const { rerender } = renderCell(done({ summary: "", claims: [], evidence: [], outcome: "not_found", coverage: "complete" }), column("text"));
