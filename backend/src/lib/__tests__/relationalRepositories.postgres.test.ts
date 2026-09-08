@@ -40,7 +40,7 @@ suite("PostgreSQL relational repository contract", () => {
   relationalRepositoryContract(provisionScopes);
 
   it("stores encoded JSON as structured PostgreSQL values", async () => {
-    const { relationalDatabase, sql, encodeJson } = await import("../relationalDatabase");
+    const { relationalDatabase, sql, encodeJson, decodeJson } = await import("../relationalDatabase");
     const database = await relationalDatabase();
     await expect(database.query(sql`SELECT
       jsonb_typeof(${encodeJson({ text: "visible" })}::jsonb) AS object_type,
@@ -48,6 +48,8 @@ suite("PostgreSQL relational repository contract", () => {
       json_typeof(${encodeJson([1, 2])}::json) AS array_type`)).resolves.toMatchObject({
       rows: [{ object_type: "object", text: "visible", array_type: "array" }],
     });
+    const result = await database.query(sql`SELECT ${encodeJson("A user message")}::jsonb AS content`);
+    expect(decodeJson(result.rows[0].content, null)).toBe("A user message");
   });
 
   it("queues root and named-part blobs removed by an identity cascade", async () => {
