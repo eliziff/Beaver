@@ -29,9 +29,9 @@ export function ResearchCitationContent({ citation, reference, document, onOpenR
       kind={isSpreadsheetFilename(title) || isSpreadsheetFilename(filename) ? "spreadsheet" : document?.pdf_storage_path ? "pdf"
         : isDocxFilename(title) || isDocxFilename(filename) ? "docx" : /\.(txt|md|csv|json)$/iu.test(filename.replace(/\.$/u, "")) ? "text" : "pdf"}
       quotes={quoted ? expandCitationToEntries(quoted) : []} highlightCells={quoted ? getDocumentCitationQuotes(quoted).map(({ sheet, cell }) => ({ sheet, cell })) : undefined} />;
-  if (legalTab) return <LegalSourceViewer {...legalTab} compact onOpenResearch={onOpenResearch} />;
+  if (legalTab) return <LegalSourceViewer {...legalTab} navigationRequest={citation} compact onOpenResearch={onOpenResearch} />;
   if (reference && (reference.provider === "a2aj" || reference.provider === "journal")) return <LegalSourceViewer
-        provider={reference.provider} citation={reference.citation ?? reference.id} sourceId={reference.id}
+        provider={reference.provider} citation={reference.citation ?? reference.id} sourceId={reference.id} navigationRequest={citation ?? reference}
         dataset={reference.collection} language={reference.language} docType={reference.kind === "legislation" ? "laws" : reference.kind === "journal" ? "articles" : "cases"}
         initialLocator={citation && "locator" in citation ? citation.locator ?? undefined : undefined} quotes={citation?.quotes} citationRef={citation?.ref} compact onOpenResearch={onOpenResearch} />;
   return url ? <a href={url} target="_blank" rel="noopener noreferrer" className="m-auto text-sm underline">Open source</a> : null;
