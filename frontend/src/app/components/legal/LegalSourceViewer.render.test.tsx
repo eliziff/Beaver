@@ -190,6 +190,16 @@ describe("legal source reader", () => {
         selection.removeAllRanges();
     });
 
+    it("preserves punctuation and Unicode at both edges of a selected PDF passage", () => {
+        const root = document.createElement("div"), text = "“Égalité matters.”";
+        root.innerHTML = '<div class="pdf-text-layer" data-legal-text="2"><span>' + text + '</span></div>';
+        document.body.append(root);
+        const selection = selectText(root.querySelector("span")!);
+        expect(readerSelectionSpan(root, selection, [{ page: 2, start: 42, text }]))
+            .toEqual({ start: 42, end: 60 });
+        root.remove(); selection.removeAllRanges();
+    });
+
     it("uses the page position to distinguish repeated PDF lines and refuses missing context", () => {
         const root = document.createElement("div");
         root.innerHTML = '<div class="pdf-text-layer" data-legal-text="1"><div data-legal-text="1">Harish Bhasin</div><div data-legal-text="1">Appellant</div><div data-legal-text="1">Harish Bhasin</div></div>';
