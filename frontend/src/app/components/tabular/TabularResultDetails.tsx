@@ -20,8 +20,6 @@ export function TabularResultDetails({ answer, column, onCitation }: {
     `${text}${[...new Set(evidence_ids)].flatMap((id) => cited.has(id) ? [`[${cited.get(id)!.ref}]`] : []).join("")}`;
   const summary = answer.summary || (answer.value == null ? "" : Array.isArray(answer.value) ? answer.value.join(", ") : String(answer.value));
   const claims = answer.claims.filter((claim) => claim.text.trim() !== summary.trim());
-  const reasoning = answer.reasoning && ![summary, ...answer.claims.map(({ text }) => text)].some((text) => text.trim() === answer.reasoning?.trim())
-    ? answer.reasoning : "";
   // Cells mapped from existing research are that research, not a model answer about it.
   const reused = !!answer.origin?.items?.length;
   return <div className="space-y-4 text-sm leading-6 text-gray-700 [overflow-wrap:anywhere]">
@@ -33,14 +31,13 @@ export function TabularResultDetails({ answer, column, onCitation }: {
       {summary ? <TabularMarkdown text={summary} value={answer.value} column={column} onCitationClick={onCitation} />
         : answer.outcome === "not_found" ? <p>No answer found in the reviewed material.</p> : null}
       {/* Claims carry their own pills; a separate row would repeat them. */}
-      {!!citations.length && !claims.length && !reasoning && <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      {!!citations.length && !claims.length && <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {citations.map((citation) => <CitationPill key={citation.ref} citation={citation} onClick={onCitation} />)}
       </div>}
     </section>
-    {(!!claims.length || reasoning) && <section aria-label={reused ? "Detail" : "Explanation"} className="space-y-2">
+    {!!claims.length && <section aria-label={reused ? "Detail" : "Explanation"} className="space-y-2">
       {!reused && <h3 className="text-xs font-medium text-gray-500">Explanation</h3>}
       {claims.map((claim, index) => <TabularMarkdown key={index} text={withRefs(claim)} citations={citations} onCitationClick={onCitation} />)}
-      {reasoning && <TabularMarkdown text={reasoning} citations={citations} onCitationClick={onCitation} />}
     </section>}
   </div>;
 }

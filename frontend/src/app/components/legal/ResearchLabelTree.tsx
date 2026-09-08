@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ChevronRight, Plus } from "lucide-react";
 import { buttonClassName } from "../ui/button";
 import { FolderSvgIcon } from "../shared/FolderSvgIcon";
@@ -16,10 +16,8 @@ const NOUN = { source: "label", highlight: "highlight type" } as const;
 const COLOURS = ["#d6b85a", "#8aa8c7", "#90ac99", "#bda0b5", "#b4ab91", "#9fa7bf"];
 
 /** The same small hierarchy editor serves source folders and the highlight-type picker. */
-export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, onRemove, onStatus, preview, renderSources, addSignal }: {
+export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, onRemove, onStatus, preview, renderSources }: {
   scope: ResearchLabel["scope"]; sources?: ResearchSource[]; selectedId: string | null;
-  /** Bumped by a toolbar control that owns "new label"; when given, the tree grows no button of its own. */
-  addSignal?: number;
   onSelect: (id: string | null) => void; onRemove: (removal: ResearchRemoval) => void;
   onStatus: (message: string) => void; preview?: ResearchTreePreview;
   /** Sources carried by a label render inline beneath it; `null` covers the unlabelled ones. */
@@ -44,7 +42,6 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
     for (const source of sources) source.labelIds.forEach((id) => result.add(id));
     return result;
   }, [sources]);
-  useEffect(() => { if (addSignal) setAdding(null); }, [addSignal]);
   /** A source filed in two places is one source: every count is a count of distinct sources. */
   const counts = useMemo(() => {
     const result = new Map<string, number>();
@@ -175,7 +172,7 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
         <span className={ROW_ACTIONS} /><span className={ROW_COUNT}>{sources.length}</span>
       </button></div>}
     {branch(null)}{renderSources?.(null)}{addField(null)}
-    {!preview && addSignal === undefined && <button type="button" disabled={busy} data-tree-drop-root onClick={() => setAdding(null)}
+    {!preview && <button type="button" disabled={busy} data-tree-drop-root onClick={() => setAdding(null)}
       className={buttonClassName({ variant: "outline", size: "compact", className: "mt-1 gap-1" })}>
       <Plus aria-hidden className="size-3" />{noun("New {x}")}
     </button>}

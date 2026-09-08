@@ -105,7 +105,8 @@ export function CitationPill({
         ("url" in citation ? citation.url : null) ?? citation.external_url,
         { relative: false },
     );
-    if (href) return (
+    // Where the surface can show the passage, the chip opens the reader at it.
+    if (href && !onClick) return (
         <a href={href} target="_blank" rel="noopener noreferrer"
             data-citation-ref={citation.ref}
             className={pillClassName}

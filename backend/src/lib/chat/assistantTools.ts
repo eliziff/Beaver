@@ -68,6 +68,7 @@ import {
   legalEvidenceSourceReference,
   legalEvidenceResourceReference,
   legalEvidenceProseIntegrityErrors,
+  legalSourceEvidence,
   modelEvidencePassage,
   modelEvidencePreview,
   modelResearchQuery,
@@ -134,8 +135,9 @@ import { AUTHORITIES_SETTINGS_CHOICES, decodeAuthoritiesUserAction } from
   "../authoritiesActionContract";
 import { authoritiesProfileIds,
   decodeAuthoritiesDraft } from "../authoritiesDomain";
+import { footnotePropositions, singleSourceFootnote } from "../authoritiesQuotations";
 import type { CourtRecordsApplication } from "../courtRecordsApplication";
-import { COURT_RECORD_PROFILE_BY_ID } from "../courtRecordContract";
+import { COURT_PROFILE_BY_ID } from "mike/shared/court-record-profiles.mjs";
 import type { FeaturePreferences } from "../userPreferences";
 import type { WorkProductApplication } from "../workProductApplication";
 import { WORK_PRODUCT_KINDS, type WorkProductKind } from "../workProduct";
@@ -2472,8 +2474,11 @@ export function assistantTools<Context extends {
           const title = trimmed(objectRecord(input.research_action)?.title);
           if (!title || title.length > 200) return Promise.resolve(fail("create requires a title"));
           if (!sources) return fail("Sources workspace operations are unavailable");
-          let file = await sources.create(scope, { title, projectId: matterId },
-            { audit, executor: "assistant", model, turnId, chatId, ...researchOperation, callId: call.id });
+          // Reuse this chat's bound workspace; repeated creates otherwise orphan Library files.
+          const createActor = { audit, executor: "assistant" as const, model, turnId, chatId,
+            ...researchOperation, callId: call.id };
+          let file = chatId ? await sources.ensure(scope, { chatId, title, projectId: matterId }, createActor)
+            : await sources.create(scope, { title, projectId: matterId }, createActor);
           onMutationCommitted();
           if (onResearchWorkspace) file = await onResearchWorkspace(file.document.id, legalEvidenceState) ?? file;
           return publishGenerated(file.document, file.workingRevision);
@@ -2672,7 +2677,8 @@ export function assistantTools<Context extends {
       } else issues.push({ role, status: item.status, reason: item.reason,
         work_product_id: item.workProductId, refreshable: false });
     }
-    return { freshness: resolution.freshness, input_issue_count: issues.length,
+    // Freshness is the output's, not the draft's: as "unbuilt" it read back as an absent draft.
+    return { output_freshness: resolution.freshness, input_issue_count: issues.length,
       input_issues: issues.slice(0, 50), input_issues_truncated: issues.length > 50 };
   };
   const authorizedDocument = async (input: Record<string, unknown>) => {
@@ -2716,17 +2722,19 @@ export function assistantTools<Context extends {
   }) : null;
   const updateWorkProduct: AssistantToolRun = async (call, input, signal) => {
     const kind = input.kind as WorkProductKind;
-    const respond = (raw: Record<string, unknown>, mutated = false) => {
+    const respond = (raw: Record<string, unknown>, mutated = false,
+      evidence?: LegalEvidenceReceipt[]) => {
       const payload = JSON.stringify(raw).length < MAX_MODEL_TOOL_RESULT_CHARS - 1_000 ? raw : {
         ok: raw.ok, ...(objectRecord(raw.work_product)
           ? { work_product: raw.work_product } : {}), truncated: true,
         detail: "Read again with a narrower unit, occurrence, or authority page.",
       };
       const productId = trimmed(objectRecord(payload.work_product)?.id);
-      return withEvent(payload.ok === true
+      const outcome = withEvent(payload.ok === true
         ? (mutated ? mutationResult(payload) : result(payload))
         : fail(clip(payload.error || "The work product could not be updated", 1_000)),
       workProductEvent(payload, productId ? `work-product:${productId}` : call.id));
+      return evidence?.length ? { ...outcome, evidence } : outcome;
     };
     if (!WORK_PRODUCT_KINDS.includes(kind)) {
       return respond({ ok: false, error: "Select a supported work-product kind" });
@@ -2745,7 +2753,7 @@ export function assistantTools<Context extends {
         if (trimmed(input.draft_id)) throw new Error("create does not accept draft_id");
         if (kind === "court-record") {
           const profileId = trimmed(input.profile_id);
-          if (!COURT_RECORD_PROFILE_BY_ID.has(profileId)) {
+          if (!COURT_PROFILE_BY_ID.has(profileId)) {
             throw new Error("Select an available court record format");
           }
           const product = await workProducts.create(scope, { kind,
@@ -2801,17 +2809,56 @@ export function assistantTools<Context extends {
           inputIssues(target.product.id),
           authorities.discrepancies(scope, target.product.id, signal),
         ]);
-        const compact = discrepancies.slice(0, 40).map((item) => ({
-          kind: item.kind, occurrence_id: item.occurrenceId,
-          authority_id: item.authorityId, footnote_id: item.footnoteId,
-          citation: clip(item.citation), authored_quote: clip(item.authoredQuote, 500),
-          authored_pinpoint: item.authoredPinpoint,
-          cited_locator: item.cited.locator,
-          ...(item.found ? { suggested_locator: item.found.locator } : {}),
-        }));
+        // A verdict has to rest on the passage that proves it, so the retrieved
+        // source passage is returned as evidence rather than described in prose.
+        const receipts: LegalEvidenceReceipt[] = [];
+        const compact = discrepancies.slice(0, 40).map((item) => {
+          const receipt = item.citedPassage && legalSourceEvidence(item.citedPassage);
+          if (receipt) receipts.push(receipt);
+          return { kind: item.kind, occurrence_id: item.occurrenceId,
+            authority_id: item.authorityId, footnote_id: item.footnoteId,
+            citation: clip(item.citation), proposition: clip(item.proposition, 700),
+            authored_quote: clip(item.authoredQuote, 500),
+            authored_pinpoint: item.authoredPinpoint,
+            cited_locator: item.cited.locator,
+            ...(receipt ? { source_evidence_id: receipt.evidence_id } : {}),
+            ...(item.found ? { suggested_locator: item.found.locator } : {}) };
+        });
+        const offset = Math.max(0, Math.trunc(Number(input.occurrence_offset) || 0));
+        const limit = Math.max(1, Math.min(25, Math.trunc(Number(input.occurrence_limit) || 10)));
+        const flagged = new Set(discrepancies.map(({ occurrenceId }) => occurrenceId));
+        const draft = decodeAuthoritiesDraft(target.product.state);
+        const propositions = draft ? footnotePropositions(draft.units) : new Map();
+        // Every proposition the draft advances is in issue, machine-checkable or not.
+        const worklist = (draft?.units ?? []).flatMap((unit) => {
+          const occurrence = draft && singleSourceFootnote(draft, unit);
+          const proposition = unit.footnoteId && propositions.get(unit.footnoteId)?.text;
+          if (!occurrence?.authorityId || !proposition) return [];
+          const authority = draft!.authorities[occurrence.authorityId];
+          const reason = flagged.has(occurrence.id) ? null
+            : !authority?.sourceIdentity ? "no source attached"
+              : occurrence.pinpoints.length !== 1 ? "no single pinpoint to check"
+                : null;
+          return [{ occurrence_id: occurrence.id, footnote_id: unit.footnoteId,
+            citation: clip(occurrence.citation, 300), authority_id: occurrence.authorityId,
+            proposition: clip(proposition, 700), pinpoints: occurrence.pinpoints,
+            verdict_required: true,
+            ...(flagged.has(occurrence.id) ? { machine_finding: true } : {}),
+            ...(reason ? { unverified: reason } : {}) }];
+        });
+        // Checkable propositions first: a review that runs out of budget should
+        // spend it on verdicts it can prove, not on sources nobody attached.
+        worklist.sort((left, right) =>
+          Number(Boolean(right.machine_finding)) - Number(Boolean(left.machine_finding)) ||
+          Number(Boolean(left.unverified)) - Number(Boolean(right.unverified)) ||
+          (left.footnote_id ?? 0) - (right.footnote_id ?? 0));
         return respond(authoritiesPayload(target.product, input, { ...issues,
           discrepancy_count: discrepancies.length, discrepancies: compact,
-          discrepancies_truncated: discrepancies.length > compact.length }));
+          discrepancies_truncated: discrepancies.length > compact.length,
+          proposition_count: worklist.length,
+          propositions: worklist.slice(offset, offset + limit),
+          proposition_page: { offset, limit, has_more: offset + limit < worklist.length } }),
+        false, receipts);
       }
       if (input.action === "select") {
         return respond(workProductPayload(target.product, { requested_action: "open" }));

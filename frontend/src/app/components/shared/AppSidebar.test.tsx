@@ -230,12 +230,6 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("tab", { name: "Assistant" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("link", { name: "New chat" })).toHaveAttribute("href", "/assistant");
     expect(within(history).queryByText("Project matter")).not.toBeInTheDocument();
-    expect(
-      within(screen.getByRole("navigation", { name: "Primary" })).getByRole(
-        "tab",
-        { name: "Assistant" },
-      ),
-    ).toHaveAttribute("aria-selected", "true");
     fireEvent.click(
       within(history).getByRole("link", { name: "Assistant matter" }),
     );

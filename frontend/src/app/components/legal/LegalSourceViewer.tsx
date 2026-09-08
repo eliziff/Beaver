@@ -23,9 +23,10 @@ import {
 import { researchSourceKey } from "@/app/lib/researchFiles";
 import type {
   ResearchFile,
-  ResearchAction,
+  PassageLocator,
   ResearchSourceReference,
 } from "@/app/lib/researchFiles";
+import { normalizeQuoteText, strippedToOriginal } from "@/app/components/shared/views/quoteText";
 import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { errorMessage, formatLongDate } from "@/app/lib/utils";
 import { ResearchLabelEditor, ResearchLabelPicker,
@@ -35,7 +36,7 @@ import { RESEARCH_PASSAGE_REFERENCE_DRAG } from "./researchMemo";
 
 type Anchor = LegalSourceViewerPayload["slices"][number]["anchors"][number];
 type Metadata = LegalSourceViewerPayload["metadata"];
-type ResearchLocator = Extract<ResearchAction, { type: "passage" }>["locator"];
+type ResearchLocator = PassageLocator;
 const EMPTY_QUOTES: { quote: string }[] = [];
 
 export type LegalSourceTab = {
@@ -247,6 +248,52 @@ export function legalPassageTargetFromSelection(
   };
 }
 
+type Slice = LegalSourceViewerPayload["slices"][number];
+
+/**
+ * The reader renders the slices of one served revision, so what is rendered maps back to an
+ * offset in it. Rendering drops paragraph markers, markdown syntax and layout whitespace but
+ * never reorders letters or digits, so their run aligns a rendered block with its canonical
+ * text and any position inside it becomes an exact canonical offset.
+ */
+function sliceBody(node: Node, root: HTMLElement) {
+  const element = node instanceof Element ? node : node.parentElement;
+  const body = element?.closest<HTMLElement>("[data-legal-text]") ?? null;
+  return body && root.contains(body) ? body : null;
+}
+
+function alignment(body: HTMLElement, slices: Slice[]) {
+  const slice = slices[Number(body.dataset.legalText)] as Slice | undefined;
+  const rendered = slice ? normalizeQuoteText(body.textContent ?? "") : "";
+  if (!slice || !rendered) return null;
+  const base = Math.max(0, normalizeQuoteText(slice.text).indexOf(rendered));
+  return { slice, rendered, at: (index: number) => slice.start + strippedToOriginal(slice.text, base + index) };
+}
+
+/** The canonical span of a whole rendered block, marker and page rule excluded. */
+export function legalBlockSpan(body: HTMLElement, slices: Slice[]) {
+  const found = alignment(body, slices);
+  return found && { start: found.at(0), end: found.at(found.rendered.length - 1) + 1 };
+}
+
+/** The canonical span of the current selection in the reader. */
+export function legalSelectionSpan(root: HTMLElement, selection: Selection | null, slices: Slice[]) {
+  if (!selection || selection.isCollapsed || !selection.rangeCount) return null;
+  const range = selection.getRangeAt(0);
+  const edge = (node: Node, offset: number, trailing: boolean) => {
+    const body = sliceBody(node, root), found = body && alignment(body, slices);
+    if (!body || !found) return null;
+    const upto = document.createRange();
+    upto.selectNodeContents(body); upto.setEnd(node, offset);
+    const count = normalizeQuoteText(upto.toString()).length;
+    if (trailing) return count ? found.at(count - 1) + 1 : null;
+    return found.at(Math.min(count, found.rendered.length - 1));
+  };
+  const start = edge(range.startContainer, range.startOffset, false),
+    end = edge(range.endContainer, range.endOffset, true);
+  return start !== null && end !== null && end > start ? { start, end } : null;
+}
+
 export function LegalSourceViewer(props: LegalSourceViewerProps) {
   return <SourcesWorkspace fileId={props.researchFileId} projectId={props.projectId}>
     <LegalSourceViewerContent {...props} />
@@ -365,16 +412,12 @@ function LegalSourceViewerContent({
   const consumed = useRef(false), wholeBlock = useRef<HTMLElement | null>(null);
   const capture = useRef<() => HighlightCapture | null>(() => null);
   capture.current = () => {
-    const reference = payloadReference, block = wholeBlock.current;
+    const reference = payloadReference, block = wholeBlock.current, revision = payload?.reference.sourceSha256;
     wholeBlock.current = null;
-    if (!reference || !root.current) return null;
-    if (block) {
-      const kind = block.dataset.locatorKind as ResearchLocator["kind"] | undefined,
-        value = block.dataset.locatorValue, quote = (block.textContent ?? "").replace(/\s+/gu, " ").trim();
-      return kind && value && quote ? { reference, locator: { kind, value }, quote } : null;
-    }
-    const target = legalPassageTargetFromSelection(root.current, window.getSelection());
-    return target ? { reference, ...target } : null;
+    if (!reference || !revision || !root.current) return null;
+    const span = block ? legalBlockSpan(block, slices)
+      : legalSelectionSpan(root.current, window.getSelection(), slices);
+    return span ? { reference, revision, ...span } : null;
   };
   const { registerReader, arm } = highlight;
   useEffect(() => {
@@ -440,8 +483,7 @@ function LegalSourceViewerContent({
   async function savePassage(passage: SelectionTarget, ready: { file: ResearchFile; itemId: string }) {
     {
       const next = await commit.act({
-        type: "passage", sourceId: ready.itemId,
-        locator: passage.locator, quote: passage.quote });
+        type: "passage", sourceId: ready.itemId, quote: passage.quote });
       window.getSelection()?.removeAllRanges();
       if (!next.evidenceId) throw new Error("Saved passage was not returned");
       return { file: next, itemId: next.evidenceId,
@@ -550,7 +592,7 @@ function LegalSourceViewerContent({
           if (openSavedHighlight(event.target) || !highlight.armed || consumed.current) return;
           if (window.getSelection()?.isCollapsed === false) return;
           const block = event.target instanceof Element
-            ? event.target.closest<HTMLElement>("[data-legal-block]") : null;
+            ? event.target.closest<HTMLElement>("[data-legal-text]") : null;
           if (!block || !root.current?.contains(block)) return;
           wholeBlock.current = block; runHighlight();
         }}
@@ -559,7 +601,7 @@ function LegalSourceViewerContent({
         className={`h-full overflow-y-auto bg-[#faf9f6] px-4 py-8 sm:px-8 sm:py-10 ${
           highlight.armed ? "cursor-crosshair" : ""}`}>
         <article lang={metadata.language} className="mx-auto max-w-[48rem] font-sans text-[17px] leading-[1.68] text-gray-900">
-            {slices.map((slice) => {
+            {slices.map((slice, sliceIndex) => {
               const page = slice.primary?.kind === "page"
                 ? slice.primary
                 : slice.anchors.find(({ kind }) => kind === "page");
@@ -593,7 +635,7 @@ function LegalSourceViewerContent({
                     {locatorLabel(page.label)}
                   </div>}
                   {marker && <span className="pt-[0.23rem] text-right text-xs font-semibold text-gray-600">{marker}</span>}
-                  <div className="min-w-0 [&_li>p]:mb-0">
+                  <div data-legal-text={sliceIndex} className="min-w-0 [&_li>p]:mb-0">
                     <LegalMarkdown>
                       {viewerMarkdown(
                         slice.text,
