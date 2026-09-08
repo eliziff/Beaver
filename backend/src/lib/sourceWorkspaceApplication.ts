@@ -345,6 +345,10 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
       return fail(400, "A selected message has no grounded findings");
     const selectedSources = input.chatId || refs ? new Set(selected.map(({ sourceId }) => sourceId))
       : table ? new Set(table.review.scope_config?.subjects.map(({ sourceId }) => sourceId)) : null;
+    if (selectedSources) {
+      const resources = new Set(selected.flatMap(({ evidence }) => evidence.map(legalEvidenceResourceReference)));
+      for (const source of Object.values(file.state.sources)) if (resources.has(researchSourceResource(source.reference))) selectedSources.add(source.id);
+    }
     const resolved = await resolveResearchSelection(documents, scope, { researchFileId: id,
       ...researchSelectionSchema.parse(input.selection ?? { target: "sources",
         ...(selectedSources ? { sourceIds: [...selectedSources] } : {}) }) }, file);
