@@ -66,7 +66,9 @@ const ontologyFile = (): ResearchFile => ({ document: { id: "ontology-1",
       passages: { count: 0, sha256: "none", labelCounts: {}, unlabelledCount: 0 } } } } } as ResearchFile);
 
 describe("DocumentSidePanel highlight", () => {
-  it("saves a PDF page selection with the current pen in one request", async () => {
+  it.each(["select-first", "arm-first", "keyboard"])("saves a PDF selection with the current pen: %s", async (gesture) => {
+    vi.clearAllMocks();
+    window.getSelection()?.removeAllRanges();
     api.items.mockResolvedValue({ items: [], next_cursor: null });
     api.act.mockImplementation(async (id: string, versionId: string, revision: number, action: { type: string }) =>
       ({ ...ontologyFile(), versionId, workingRevision: revision + 1, action }));
@@ -76,7 +78,8 @@ describe("DocumentSidePanel highlight", () => {
     </SourcesWorkspaceProvider>);
     const highlight = await screen.findByRole("button", { name: "Highlight" });
     await waitFor(() => expect(highlight).not.toBeDisabled());
-    expect(highlight).toHaveAttribute("aria-pressed", "true");
+    if (gesture === "arm-first") { fireEvent.click(highlight); await waitFor(() => expect(highlight).toHaveAttribute("aria-pressed", "true")); }
+    expect(highlight).toHaveAttribute("aria-pressed", gesture === "arm-first" ? "true" : "false");
     const node = screen.getByText("quoted words here").firstChild!;
     const range = globalThis.document.createRange();
     range.selectNodeContents(node);
@@ -84,13 +87,19 @@ describe("DocumentSidePanel highlight", () => {
     selection.removeAllRanges();
     selection.addRange(range);
     fireEvent.pointerUp(node.parentElement!);
+    if (gesture !== "arm-first") {
+      expect(api.act).not.toHaveBeenCalled();
+      if (gesture === "keyboard") fireEvent.keyDown(globalThis.document, { key: "H", ctrlKey: true, shiftKey: true });
+      else fireEvent.click(highlight);
+    }
     await waitFor(() => expect(api.act).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("dialog", { name: "Highlight type and note" })).not.toBeInTheDocument();
     expect(api.act).toHaveBeenCalledWith("ontology-1", "v1", 1, expect.objectContaining({
       type: "passage", sourceId: "source-1",
       revision: "a".repeat(64), start: 100, end: 117, labelIds: ["pen-1"],
     }));
     // The reader sends a span bound to the served revision.
     expect(api.act.mock.calls[0][3]).not.toHaveProperty("locator");
-    expect(highlight).toHaveAttribute("aria-pressed", "true");
+    expect(highlight).toHaveAttribute("aria-pressed", gesture === "arm-first" ? "true" : "false");
   });
 });

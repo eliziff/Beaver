@@ -37,10 +37,9 @@ export interface PdfCanvasProps {
     onUnavailable?: () => void;
 }
 
-type QuoteEntry = { page?: number; quote: string };
+type QuoteEntry = CitationQuote;
 type RenderedPage = {
     wrapper: HTMLDivElement;
-    textDivs: HTMLElement[];
     hasTextLayer: boolean;
     textLayer?: Promise<void>;
     top: number;
@@ -112,13 +111,8 @@ export function PdfCanvas({
     const navigationRef = useRef(0);
     const searchRef = useRef<((quotes: QuoteEntry[]) => Promise<void>) | null>(null);
     const preparePageRef = useRef<((number: number) => Promise<boolean>) | null>(null);
-    const quoteList: QuoteEntry[] = quotes?.map(({ page, quote }) => ({
-        page,
-        quote,
-    })) ?? [];
-    const quoteKey = quoteList
-        .map(({ page, quote }) => `${page ?? ""}:${quote}`)
-        .join("|");
+    const quoteList = quotes ?? [];
+    const quoteKey = JSON.stringify(quoteList);
     const [preparing, setPreparing] = useState(true);
     const [zoom, setZoom] = useState(1);
     const [currentPage, setCurrentPage] = useState(1);
@@ -185,7 +179,7 @@ export function PdfCanvas({
                 wrapper.setAttribute("aria-label", `Page ${index + 1}`);
                 fragment.appendChild(wrapper);
                 const entry: RenderedPage = {
-                    wrapper, textDivs: [], hasTextLayer: false, top, height: viewport.height,
+                    wrapper, hasTextLayer: false, top, height: viewport.height,
                 };
                 top += viewport.height + 8;
                 return entry;
@@ -265,7 +259,6 @@ export function PdfCanvas({
                             line.dataset.legalText = String(index + 1); lines.set(top, line); element.appendChild(line); }
                         line.appendChild(div);
                     }
-                    pages[index].textDivs = layer.textDivs;
                     pages[index].hasTextLayer = true;
                 } catch (cause) {
                     element?.remove();
@@ -405,8 +398,8 @@ export function PdfCanvas({
                 navigationRef.current += 1;
                 const quoteGeneration = ++quoteGenerationRef.current;
                 const current = () => generation === generationRef.current && quoteGeneration === quoteGenerationRef.current;
-                pages.forEach(({ textDivs }) => clearHighlights(textDivs));
-                const found = new Map<number, string[]>();
+                pages.forEach(({ wrapper }) => clearHighlights(wrapper));
+                const found = new Map<number, QuoteEntry[]>();
                 let focused = false;
                 for (const entry of entries) {
                     const hint = Number.isSafeInteger(entry.page) && entry.page! > 0 && entry.page! <= pages.length ? entry.page! - 1 : undefined;
@@ -421,10 +414,10 @@ export function PdfCanvas({
                         if (!matchesQuoteText(text, entry.quote)) continue;
                         await ensureTextLayer(index);
                         if (!current()) return;
-                        const quotes = [...found.get(index) ?? [], entry.quote];
-                        if (!highlightQuote(pages[index].textDivs, quotes.join(" … "))) continue;
+                        const quotes = [...found.get(index) ?? [], entry];
+                        if (!highlightQuote(pages[index].wrapper, quotes)) continue;
                         found.set(index, quotes);
-                        if (!focused) {
+                        if (!focused && !entry.color) {
                             focused = true;
                             scrollToHighlight(pages, scrollRef.current, index + 1);
                             scheduleRef.current?.();
@@ -433,7 +426,7 @@ export function PdfCanvas({
                     }
                 }
                 if (!focused && current()) {
-                    const page = entries.find(entry => Number.isSafeInteger(entry.page) && entry.page! > 0 && entry.page! <= pages.length)?.page;
+                    const page = entries.find(entry => !entry.color && Number.isSafeInteger(entry.page) && entry.page! > 0 && entry.page! <= pages.length)?.page;
                     if (page && await preparePageRef.current?.(page) && current()) {
                         scrollToHighlight(pages, scrollRef.current, page); scheduleRef.current?.();
                     }
