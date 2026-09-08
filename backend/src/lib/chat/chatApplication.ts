@@ -667,6 +667,10 @@ export function createChatApplication(deps: Dependencies) {
           ...(researchQueries?.items.flatMap((item) => item.kind === "query" ? [item.value] : []) ?? [])]
           .map((receipt) => [receipt.query_id, receipt])).values()],
         evidenceState = createLegalEvidenceTurnState();
+      if (canonicalWorkflow?.id === "quote-checking") {
+        evidenceState.mode = "citation_structure";
+        evidenceState.reviewDocumentIds = new Set(turnFiles.map(({ document_id }) => document_id));
+      }
       registerPriorLegalResearchQueries(evidenceState, priorQueries);
       const images = await loadImages(deps.documents, auth, messages, context.records);
       if (images.size && !modelSupportsImageInput(selectedModel)) {

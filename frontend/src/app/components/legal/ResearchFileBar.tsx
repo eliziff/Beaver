@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Highlighter } from "lucide-react";
 import { ConfirmPopup } from "../popups/ConfirmPopup";
 import { Tabs } from "../ui/tabs";
@@ -15,7 +15,7 @@ import { ResearchLabelTree } from "./ResearchLabelTree";
 import { ResearchTree, type ResearchRemoval } from "./ResearchTree";
 import { ResearchWorkspacePicker } from "./ResearchWorkspacePicker";
 import { sourceMatches, useSourceReader } from "./useSourceReader";
-import ResearchMemoPane from "./ResearchMemoPane";
+const ResearchMemoPane = lazy(() => import("./ResearchMemoPane"));
 
 type Props = { projectId?: string;
   rail?: HTMLElement | null; sourceDropNonce?: number;
@@ -143,13 +143,13 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
           </div>
         </div>
         <div className={`${noteOpen ? "flex" : "hidden"} min-h-0 flex-1 flex-col`}>
-          <ResearchMemoPane file={file} mutations={commit}
+          <Suspense fallback={null}><ResearchMemoPane file={file} mutations={commit}
             onOpenCitation={(href) => {
               const params = new URLSearchParams(href.slice(href.indexOf("?") + 1)), source = file.state.sources[params.get("research_source") ?? ""];
               if (source && reader.canRead(source)) void reader.readSource(source, params.get("locator") ?? undefined, params.get("evidence_id") ?? undefined);
               else if (href.startsWith("/library?")) { const citation = parseMemoCitation(href); if (citation) reader.setReading({ citation }); }
               else window.open(href, "_blank", "noopener,noreferrer");
-            }} />
+            }} /></Suspense>
         </div>
       </Tabs>
     </>}
