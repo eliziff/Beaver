@@ -106,6 +106,21 @@ it("projects and edits additional highlight instances without changing their sha
   expect(removed.state.sources[f.sourceId].passages?.labelCounts).toEqual({ [f.typeId]: 1 });
 });
 
+it("stores accepted table concepts on the set and projects them into both later proposals", async () => {
+  const f = await fixture(), file = await f.sources.create(owner, { title: "Administrative review",
+    sources: [f.file().state.sources[f.sourceId].reference], evidence: f.receipts }),
+    preview = await f.sources.previewTable(owner, file.document.id, {}), names = ["Reasonableness", "Administrative outcome"],
+    design = { ...preview.design, columns: names.map((name, index) => ({ index, name, prompt: `${name}?` })), cells: [] };
+  await f.sources.table(owner, file.document.id, { design, fingerprint: preview.fingerprint });
+  const labels = await f.sources.previewLabels(owner, file.document.id, {}),
+    table = await f.sources.previewTable(owner, file.document.id, {});
+  expect(labels.labels.map(label => label.name)).toEqual(names);
+  expect(labels.labels.every(label => label.existing)).toBe(true);
+  expect(table.design.columns.map(column => column.name)).toEqual(names);
+  expect(table.fallback).toBeUndefined();
+  expect((await f.sources.previewTable(owner, file.document.id, { repropose: true })).fallback).toEqual(expect.any(String));
+});
+
 it("opens existing work as a populated snapshot, leaving new questions pending", async () => {
   const f = await fixture();
   await f.turn("Why was the clause invalid?", "The saving language did not cure the invalid scheme.");
@@ -136,8 +151,8 @@ it("converts only grounded Chat sources and reuses earlier receipts for a select
   await f.sources.collect(owner, f.file().document.id, { evidence: [unrelated] });
   const preview = await f.sources.previewTable(owner, f.file().document.id, { chatId: f.chat.id, messageIds: [later] });
   expect(preview.rows).toHaveLength(1);
-  expect(preview).toMatchObject({ question: "Later question", proposed: false, fallback: expect.any(String) });
-  // Failed model proposals retain the saved concepts and their passages, never question-shaped columns.
+  expect(preview).toMatchObject({ question: "Later question", proposed: false, fallback: undefined });
+  // Saved concepts are projected without asking the model to organize the same research again.
   expect(preview.design.columns.some(({ name }) => name === "First question" || name === "Later question")).toBe(false);
   expect(preview.design.columns.map(({ name }) => name)).toEqual(["Integrated scheme", "Rule"]);
   const review = await f.sources.table(owner, f.file().document.id, { chatId: f.chat.id, messageIds: [later], design: preview.design, fingerprint: preview.fingerprint });

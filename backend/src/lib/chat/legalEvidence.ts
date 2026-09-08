@@ -14,7 +14,7 @@ import { normalizeWhitespace } from "../text";
 import { jsonRecord as object } from "../value";
 import { collapseProvisionLabels } from "../provisionLabels";
 import type { LegalEvidenceReceiptEvent } from "./assistantEvents";
-import type { GroundedClaim } from "../groundedAnswer";
+import { groundedSentenceCount, type GroundedClaim } from "../groundedAnswer";
 import { legalSourceResource, resourceReference } from "../resourceReferences";
 
 export const LEGAL_EVIDENCE_TOOL_NAME = "submit_grounded_answer";
@@ -22,9 +22,9 @@ export type LegalEvidenceMode = "citation_structure";
 export type LegalSourceClass = "case" | "legislation" | "commentary";
 
 const GROUNDED_ANSWER_CONTRACT =
-  "Finish evidence-dependent answers with this tool. Bind each claim to supporting passage evidence_ids. Citation chips supply source names, citations, pinpoints and links; include those details in prose only when needed for the analysis or requested by the user.";
+  "Finish evidence-dependent answers with this tool. Bind each claim to supporting passage evidence_ids. End with the conclusions the question asks for: apply the law to the client's facts and say what they should do, including what to correct before acting. Citation chips supply source names, citations, pinpoints and links; include those details in prose only when needed for the analysis or requested by the user.";
 const GROUNDED_CLAIM_GRANULARITY =
-  "Use one sentence per claim and the smallest supporting passage. When naming a paragraph, choose its exact evidence_id, not a neighbouring paragraph or a broader range; Read that paragraph if needed.";
+  "Use one sentence per claim and the smallest supporting passage. Locate the court's analysis of each issue within the judgment and read the relevant holding, including its qualifications. Do not present a party's submissions, a dissent, or a summary as the deciding court's reasoning. When naming a paragraph, choose its exact evidence_id, not a neighbouring paragraph or a broader range; Read that paragraph if needed.";
 export const GROUNDED_QUOTATION_POLICY_CURRENT =
   "Prefer direct quotation when the source itself states the proposition. Quote the shortest passage that preserves the source's meaning and necessary context. Paraphrase only when combining sources, explaining their effect, or expressing the point more clearly. Keep each claim to one proposition, and attach only the evidence that supports that proposition. Split the claim when different propositions require different evidence. Avoid long quotations unless their full wording is necessary.";
 export const GROUNDED_QUOTATION_POLICY_CLASSIC =
@@ -910,6 +910,15 @@ export function submitLegalEvidenceAnswer(
   const { claims, errors } = validateGroundedClaims(args.claims, state,
     { maxClaims: 64, maxTextLength: 1_200 });
   if (!claims || errors.length) return { ok: false, errors: errors.slice(0, 12) };
+  const native = structureNative();
+  for (const [index, claim] of claims.entries()) {
+    const spans = [...native.citationOccurrencesInText(claim.text), ...native.markedQuoteSpans(claim.text),
+      ...claim.text.matchAll(new RegExp(CASE_NAME.source, "gmu"))].map(span => "index" in span
+        ? { start: span.index!, end: span.index! + span[0].length } : span);
+    if (!claim.text.startsWith("|") && groundedSentenceCount(claim.text, spans) > 1)
+      errors.push(`claims[${index}] contains multiple sentences sharing evidence. Split it into one sentence per claim and bind each to its own supporting pinpoint.`);
+  }
+  if (errors.length) return { ok: false, errors: errors.slice(0, 12) };
   state.answer = claims;
   state.failure = null;
   return { ok: true, terminal: true };

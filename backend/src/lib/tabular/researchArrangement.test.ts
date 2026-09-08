@@ -77,6 +77,20 @@ it("can project an ancestor separately while preserving the assignment to its su
   expect(result.cells[0].content?.value).toBe("Obligations / Notice");
 });
 
+it("resolves a shared table finding on a supporting source's row from its filed receipt", async () => {
+  const input = fixture(), reference = { kind: "cell" as const, reviewId: "table-1", rowId: "other-source", columnIndex: 0 },
+    answer = { claims: [{ text: "Notice can be emailed.", evidence_ids: [input.receipts[0].evidence_id] }] };
+  input.arrangement.cells[0].items = [reference];
+  const resolveFinding = async () => ({ reference, kind: "result" as const, sourceId: "other-source", resource: "source://other",
+    question: { id: "table-1:0", title: "Notice", prompt: "How?" }, answer,
+    evidence: [input.receipts[0]], origin: { reviewId: "table-1", rowId: "other-source", columnIndex: 0 } });
+  const result = await resolveResearchArrangement({ ...input, resolveFinding, strict: true });
+  expect(result.cells[0].content).toMatchObject({ ...answer, evidence: [input.receipts[0]],
+    resource: researchSourceResource(input.file.state.sources[sourceId].reference) });
+  await expect(resolveResearchArrangement({ ...input, strict: true,
+    resolveFinding: async () => ({ ...await resolveFinding(), evidence: [] }) })).rejects.toMatchObject({ status: 409 });
+});
+
 it("isolates stale references to their cells and rejects them when saving a new arrangement", async () => {
   const input = fixture(); delete input.file.state.labels[first];
   const resolved = await resolveResearchArrangement(input);

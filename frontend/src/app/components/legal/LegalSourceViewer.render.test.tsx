@@ -190,6 +190,21 @@ describe("legal source reader", () => {
         selection.removeAllRanges();
     });
 
+    it("uses the page position to distinguish repeated PDF lines and refuses missing context", () => {
+        const root = document.createElement("div");
+        root.innerHTML = '<div class="pdf-text-layer" data-legal-text="1"><div data-legal-text="1">Harish Bhasin</div><div data-legal-text="1">Appellant</div><div data-legal-text="1">Harish Bhasin</div></div>';
+        document.body.append(root);
+        const lines = root.querySelectorAll<HTMLElement>(".pdf-text-layer > div"), selection = window.getSelection()!;
+        const select = (line: HTMLElement) => { const range = document.createRange(); range.selectNodeContents(line);
+            selection.removeAllRanges(); selection.addRange(range);
+            return readerSelectionSpan(root, selection, [{ page: 1, start: 100, text: "Harish Bhasin Appellant Harish Bhasin" }]); };
+        expect(select(lines[0])).toEqual({ start: 100, end: 113 });
+        expect(select(lines[2])).toEqual({ start: 124, end: 137 });
+        lines[0].remove(); lines[1].remove();
+        expect(select(lines[2])).toBeNull();
+        root.remove(); selection.removeAllRanges();
+    });
+
     it("renders continuous semantic content without paragraph navigation", async () => {
         api.direct.mockResolvedValue(viewerPayload());
 
