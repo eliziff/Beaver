@@ -67,6 +67,25 @@ async function ageOrphans() {
 }
 
 describe("shared document application", () => {
+  it("deletes owned version blobs immediately, preserving shared bytes and fresh upload reservations", async () => {
+    const objects = createFilesystemObjectStorage(root), documents = createDocumentApplication(repository, objects);
+    const scope = { userId: "deletion-owner" }, bytes = Buffer.from("shared");
+    const first = await documents.create(scope, { filename: "one.md", fileType: "md", bytes });
+    const shared = await documents.create(scope, { filename: "two.md", fileType: "md", bytes });
+    await documents.addVersion(scope, first.id, { filename: "one.md", fileType: "md", bytes: Buffer.from("changed") });
+    const history = (await repository.history(scope, first.id))!.versions;
+    const pending = documentBlobKey({ ...scope, projectId: null }, sha256(Buffer.from("uploading")));
+    await repository.recordOrphans([pending]);
+    await objects.put(pending, Buffer.from("uploading"), "text/plain", { expectedSha256: sha256(Buffer.from("uploading")) });
+    expect(await documents.deleteDocument(scope, first.id)).toBe(true);
+    expect(await objects.get(history.find(({ sourceSha256 }) => sourceSha256 !== first.source_sha256)!.blobKey)).toBeNull();
+    expect((await documents.read(scope, shared.id, null, false))?.bytes).toEqual(bytes);
+    expect(await objects.get(pending)).toEqual(Buffer.from("uploading"));
+    expect(await documents.deleteDocument(scope, shared.id)).toBe(true);
+    expect(await objects.get(history.find(({ sourceSha256 }) => sourceSha256 === first.source_sha256)!.blobKey)).toBeNull();
+    expect(await orphanKeys()).toEqual([pending]);
+  });
+
   it("bulk-loads unique files in caller order with four blob reads at a time", async () => {
     const base = createFilesystemObjectStorage(root);
     let active = 0, peak = 0;
