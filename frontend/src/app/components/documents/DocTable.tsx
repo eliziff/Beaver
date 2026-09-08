@@ -525,8 +525,7 @@ export function DocTable({
                 ?? (await loadDocumentVersions(doc.id))?.currentVersionId;
             if (!versionId) throw new Error("Document revision is unavailable");
             await actOnResearchFile(target.document.id, target.versionId, target.workingRevision,
-                { type: "source", reference: documentReference(doc, versionId), ...(labelId ? { labelIds: [...new Set([
-                    ...(Object.values(target.state.sources).find(({ reference }) => reference.kind === "document" && reference.id === doc.id && reference.versionId === versionId)?.labelIds ?? []), labelId])] } : {}) });
+                { type: "source", reference: documentReference(doc, versionId), ...(labelId ? { labelIds: [labelId] } : {}) });
             setPickerDoc(null);
         } catch (reason) {
             setWarning("collection", reason instanceof Error ? reason.message
