@@ -23,6 +23,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - name: Restore pinned native dependencies
+        run: git submodule update --init --recursive -- legal-structure legal-pdf-parser
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
@@ -30,6 +32,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm ci --ignore-scripts --prefix backend
       - run: npm ci --ignore-scripts --prefix frontend
+      - run: cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
       - run: npx playwright install --with-deps chromium
 
       - name: Start object storage
@@ -90,6 +93,12 @@ jobs:
       - name: Verify cloud persistence contracts
         env:
           S3_CONTRACT_TEST: "true"
+          S3_ENDPOINT: http://localhost:9000
+          S3_REGION: us-east-1
+          S3_BUCKET: mike
+          S3_ACCESS_KEY_ID: minioadmin
+          S3_SECRET_ACCESS_KEY: minioadmin
+          S3_FORCE_PATH_STYLE: "true"
         run: npm run test:stack --prefix backend
 
       - run: npm run build --prefix frontend

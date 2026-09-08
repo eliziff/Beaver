@@ -30,8 +30,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm audit --audit-level=high
       - run: cargo build --locked --release --manifest-path ../native/legal-structure-node/Cargo.toml
-      - run: npm test
       - run: npm run build
+      - run: npm test
 
   frontend:
     runs-on: ubuntu-latest
