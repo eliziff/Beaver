@@ -1,189 +1,81 @@
 # Beaver
 
-Beaver is a local-first legal research, document review, drafting, and
-authorities workspace, geared primarily toward Canadian law.
-Forked from Mike. This is a hobby project. I am not a software engineer.
-This project has bugs and jank and changes frequently, it
-makes no attempt to be a stable product.
-Making it available in case anyone wants
-to experiment with it or borrow parts of it. 
+A local-first application for Canadian legal research, document review, drafting,
+and court materials, forked from [Mike](https://github.com/Open-Legal-Products/mike).
+Beaver is experimental software, not a filing-readiness or legal-accuracy guarantee.
+Review sources, quotations and generated documents before relying on them.
 
-## What Beaver adds
+## What is here
 
-### A legal assistant that can use a Codex subscription
+The application combines an assistant, a versioned Library, saved research with
+labels/highlights and an optional memo, tabular review, document operations, and
+Authorities/Court Records workspaces. Authorities has embedded and standalone
+hosts for the same TypeScript application and shared Rust operations; the older
+Python AuthoritiesHelper is a reference, not Beaver's runtime.
 
-Beaver can run through a locally authenticated Codex CLI session. Run
-`codex login`, choose **Sign in with ChatGPT**, and Beaver can use the Codex
-access included with the selected ChatGPT workspace; this path does not require
-copying an `OPENAI_API_KEY` into Beaver. OpenAI documents ChatGPT sign-in as the
-subscription-access path and API-key sign-in as the separately billed,
-usage-based path in its [Codex authentication guide](https://developers.openai.com/codex/auth).
+React/Vite provides the UI and Express/TypeScript the application. Local mode uses
+SQLite and local document storage; cloud mode retains PostgreSQL/Supabase and
+object-storage adapters. Shared Rust components own legal structure and PDF work.
+Deployment differences belong at those boundaries, not in duplicate features.
 
-Beaver keeps the Codex process local, maintains resumable threads, and exposes
-only Beaver's authorized tool registry through a narrow MCP bridge. Model and
-reasoning-effort controls remain visible in the UI. OpenAI, Claude, Gemini,
-DeepSeek, OpenRouter, and local Ollama-style endpoints can instead be selected
-through the same turn, event, evidence, and tool contracts when configured.
+[Current behavior](docs/current/behavior-contracts.md) describes implemented
+contracts. The [master plan](docs/roadmap/master-plan.md) identifies remaining work
+and release evidence; a checked-in feature is not proof that every integration,
+corpus or court-output gate has passed.
 
-### One legal-source plane, not a set of one-off integrations
+## Run locally
 
-Legal sources enter Beaver through one small provider contract: `search`,
-`resolve`, and `readPassage`. Current adapters cover A2AJ data,
-CourtListener, The National Archives Find Case Law, GOV.UK Employment Tribunal,
-and GovInfo. The registry preserves each provider's
-native identifiers and structure while presenting one bounded search and exact
-passage interface to the Library, HTTP API, assistant, and authorities tools.
+The launcher below is Windows/PowerShell. Install Node.js **22.13 or newer**, npm,
+Python **3.11 or newer**, and the Rust toolchain. Restore the checkout using
+[repository setup](docs/current/local-subrepositories.md) first: public submodules
+and the bundled OpenLegalData repository use different initialization paths.
 
-Provider-native paragraphs, sections, pages, footnotes, and anchors are kept
-when available. Where a source lacks that structure, a provider compiler
-derives a `SourceDoc` rather than flattening the source into undifferentiated
-text. Selected and contextual blocks receive stable hashes, source revisions,
-and evidence receipts; safe link builders—not the language model—construct
-pinpoint and text-fragment URLs. This lets a chat citation be rehydrated and
-verified against the exact source unit that supported it.
-
-### A standalone native legal-PDF parser
-
-[legal-pdf-parser](https://github.com/eliziff/legal-pdf-parser) is Beaver's
-standalone Rust parser for legal PDFs. It extracts stable pages, words, lines,
-paragraphs, semantic sections, footnotes, references, and propositions without
-a server or cloud dependency. Its public contract prepares a content-addressed
-cache and supports exact page, paragraph, section, and footnote lookup.
-
-The parser attempts native extraction first, records diagnostics and text
-quality, and routes only weak pages to configured OCR. Ordinary digital-born
-PDFs therefore avoid OCR and network work. For scanned legal material, Beaver
-can use the custom Kraken Lite native/browser runtime and a legal-domain
-fine-tune of **CATMuS Print Small** through ONNX Runtime; Tesseract supplies the
-lightweight layout lane. Only pages selected by the quality router enter that
-OCR path. The parser cache is the only stored parse representation; Beaver
-keeps compact job and evidence records, validates evidence hashes on read, and
-can prepare uploaded PDFs as durable background work. Remote vision is never a
-silent fallback; optional local layout analysis remains a separately selected,
-bounded provider.
-
-### Reviewable tables and books of authorities
-
-Beaver's TypeScript Authorities work-product application creates resumable,
-version-bound drafts from DOCX or PDF input, resolves sources through shared
-legal data, supports manual CanLII PDF handoff, and builds reviewable tables or
-tabbed books. Citation and document structure come from the shared native legal
-structure and PDF primitives; generated files and receipts use Beaver's normal
-document storage in both local and cloud mode.
-
-### Deterministic document work
-
-Beaver reads PDF, DOCX, XLSX, PPTX, text, and provider-native resources through
-one resource grammar. Common DOCX edits use a compact deterministic operation;
-specialist tracked-change and OOXML editing remains available when exact run,
-style, numbering, or revision properties matter. Generation and editing return
-typed document events, and version writes use the same authorization and
-compare-and-swap rules in local and cloud deployments.
-
-## Architecture
-
-Beaver is a modular monolith:
-
-- a Vite/React desktop-oriented web client;
-- an Express/TypeScript application and assistant runtime;
-- one relational repository contract implemented by SQLite locally and
-  Postgres/Supabase in cloud deployments;
-- immutable document bytes in the local filesystem or object storage;
-- standalone process boundaries for `legal-pdf-parser`, Codex, and the
-  Authorities application; and
-- `OpenLegalData` read-only indexes for bulk legal corpora.
-
-Local and cloud are composition choices, not separate products. Routes,
-application rules, assistant tools, DTOs, and UI behavior are shared. Cloud
-adapters add identity, storage, and deployment primitives; local mode supplies
-the same ports without requiring an account or cloud service.
-
-## Requirements
-
-- Windows PowerShell
-- Node.js 22.13+
-- Python 3.11+
-- npm and Rust/Cargo
-- either a signed-in Codex CLI or one configured model-provider credential
-- optional LibreOffice for Office-to-PDF conversion
-- optional local OCR dependencies for scanned PDFs
-
-## Clone and install
-
-Clone the public submodules with Beaver:
+From the Beaver root:
 
 ```powershell
-git clone --recurse-submodules https://github.com/eliziff/Beaver.git
-Set-Location Beaver
-```
-
-`OpenLegalData` is not public and remains recoverable from the committed local
-bundle; see [Local subrepositories](docs/current/local-subrepositories.md).
-
-```powershell
-Copy-Item backend\.env.example backend\.env
+if (!(Test-Path backend\.env)) { Copy-Item backend\.env.example backend\.env }
 npm ci
 npm ci --prefix backend
 npm ci --prefix frontend
-cargo build --manifest-path legal-pdf-parser\Cargo.toml --release --locked `
-  --features full,fast-allocator
-```
-
-For Codex subscription access:
-
-```powershell
-codex login
-codex login status
-```
-
-Keep `AUTH_MODE=local` for account-free use. Replace
-`DOWNLOAD_SIGNING_SECRET` in `backend\.env` and add only provider credentials
-you actually use. A2AJ lookup, the local Library, deterministic PDF parsing,
-and local document operations do not require a cloud account.
-
-## Build and run
-
-```powershell
+cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
 npm run build --prefix backend
 npm run build --prefix frontend
+```
+
+Configure `backend/.env` from [the example](backend/.env.example): use
+`AUTH_MODE=local`, replace placeholder signing/encryption secrets, and configure
+only the providers and optional services needed. The native addon above is what
+the launcher checks; building only the standalone `legalpdf` executable is not a
+substitute. OCR/layout models and optional Office conversion need their separate
+runtime assets; see the component guides in [repository setup](docs/current/local-subrepositories.md).
+
+```powershell
 .\scripts\mike.ps1 doctor
 .\scripts\mike.ps1 start
 .\scripts\mike.ps1 smoke
-```
-
-Open <http://127.0.0.1:3000>. Stop only launcher-owned processes with:
-
-```powershell
+# Later:
 .\scripts\mike.ps1 stop
 ```
 
-Local databases, caches, document bytes, and Library state default to
-`%LOCALAPPDATA%\OpenLegalProducts\LegalData`. Override that root with
-`OPEN_LEGAL_DATA_HOME`.
+The app opens at `http://127.0.0.1:3000`. The launcher stops only processes it owns.
+Shared legal data defaults beneath
+`%LOCALAPPDATA%\OpenLegalProducts\LegalData`; `OPEN_LEGAL_DATA_HOME` overrides it.
+Do not put local stores, corpora, credentials or model packs in Git.
 
-## Verification
+Local mode is a single-OS-user, loopback-only boundary—not a remotely exposed
+server. Local storage does not make an external model local. Cloud deployment,
+provider data handling and vulnerability reporting are covered by
+[SECURITY.md](SECURITY.md).
 
-```powershell
-npm test --prefix backend
-npm test --prefix frontend
-npm run build --prefix backend
-npm run build --prefix frontend
-.\scripts\mike.ps1 smoke
-```
+## Develop
 
-High-fidelity parser, SourceDoc, DOCX, and authorities changes have additional
-corpus or byte-identity gates documented beside those subsystems.
+[Documentation](docs/README.md) is the project index.
+[CONTRIBUTING.md](CONTRIBUTING.md) owns contribution and validation instructions;
+[AGENTS.md](AGENTS.md) adds agent-specific safeguards. Standalone Authorities setup
+is in [its current guide](docs/current/authorities.md).
 
-## Documentation
+## License
 
-- [Documentation index](docs/README.md)
-- [Current architecture](docs/current/architecture.md)
-- [Background jobs](docs/current/background-jobs.md)
-- [Master plan](docs/roadmap/master-plan.md)
-- [Application-boundaries roadmap](docs/roadmap/application-boundaries.md)
-- [Local subrepositories](docs/current/local-subrepositories.md)
-
-## Licenses
-
-Beaver is AGPL-3.0-only. The two standalone repositories carry their own
-licenses and notices.
+Beaver is [AGPL-3.0-only](LICENSE). Standalone repositories, upstream components,
+model assets and legal data retain their own licenses and notices; Beaver's
+license does not replace them.

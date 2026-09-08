@@ -1,27 +1,28 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAssistantSessionState } from "../assistantSession";
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.resetModules();
-});
+import { duplicateWorkProduct, getWorkProductResolution } from "./workProducts";
+import { attachAuthorityPdf, uploadAuthoritiesDocument } from "./authorities";
+import { uploadCourtRecordDocument, saveCourtRecordBuild } from "./courtRecords";
+import { removeProjectDocument, directoryResource } from "./documents";
+import { apiBlobRequest } from "./client";
+import { startTabularGeneration } from "./tabular";
+import { getChat, deleteChat } from "./chat";
 
-async function configure(mode: "local" | "cloud") {
-  const { initializeRuntimeConfig } = await import("../runtimeConfig");
-  const config = { mode, capabilities: { connectors: mode === "cloud" } };
-  await initializeRuntimeConfig(async () => new Response(JSON.stringify(config)));
+afterEach(() => vi.unstubAllGlobals());
+
+function respond(value: unknown, status = 200) {
+  const request = vi.fn<typeof fetch>(async () => Response.json(value, { status }));
+  vi.stubGlobal("fetch", request);
+  return request;
 }
 
 describe("duplicateWorkProduct", () => {
   it("preserves the selected project context", async () => {
-    await configure("local");
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: "draft-copy" }), {
-      headers: { "Content-Type": "application/json" },
-    }));
-    vi.stubGlobal("fetch", fetchMock);
-    const { duplicateWorkProduct } = await import("@/app/lib/api/workProducts");
+    const fetchMock = respond({ id: "draft-copy" });
 
-    await duplicateWorkProduct("draft-1", { title: "Record copy", projectId: "matter-1" });
+    await expect(duplicateWorkProduct("draft-1", { title: "Record copy", projectId: "matter-1" }))
+      .resolves.toEqual({ id: "draft-copy" });
 
     expect(fetchMock).toHaveBeenCalledWith("/api/work-products/draft-1/duplicate",
       expect.objectContaining({ method: "POST", body: JSON.stringify({
@@ -32,14 +33,13 @@ describe("duplicateWorkProduct", () => {
 
 describe("getWorkProductResolution", () => {
   it("uses the durable nested-resolution endpoint", async () => {
-    await configure("local");
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+    const fetchMock = respond({
       product: { id: "draft/1" }, freshness: "stale", inputs: {}, dependencies: [],
-    }), { headers: { "Content-Type": "application/json" } }));
-    vi.stubGlobal("fetch", fetchMock);
-    const { getWorkProductResolution } = await import("@/app/lib/api/workProducts");
+    });
 
-    await getWorkProductResolution("draft/1");
+    await expect(getWorkProductResolution("draft/1")).resolves.toEqual({
+      product: { id: "draft/1" }, freshness: "stale", inputs: {}, dependencies: [],
+    });
 
     expect(fetchMock.mock.calls[0][0]).toBe("/api/work-products/draft%2F1/resolution");
   });
@@ -47,15 +47,12 @@ describe("getWorkProductResolution", () => {
 
 describe("work-product uploads", () => {
   it("carries the selected authority source language", async () => {
-    await configure("local");
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: "draft-1" }), {
-      headers: { "Content-Type": "application/json" },
-    }));
-    vi.stubGlobal("fetch", fetchMock);
-    const { attachAuthorityPdf } = await import("@/app/lib/api/authorities");
+    const fetchMock = respond({ id: "draft-1" });
+
     const file = new File(["%PDF-1.7"], "French.pdf", { type: "application/pdf" });
 
-    await attachAuthorityPdf("draft-1", "case-1", 3, file, "fr");
+    await expect(attachAuthorityPdf("draft-1", "case-1", 3, file, "fr"))
+      .resolves.toEqual({ id: "draft-1" });
 
     const body = fetchMock.mock.calls[0][1]?.body as FormData;
     expect(body.get("revision")).toBe("3");
@@ -64,17 +61,12 @@ describe("work-product uploads", () => {
   });
 
   it("carries Court Draft and Authorities Project context in multipart fields", async () => {
-    await configure("local");
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: "document-1" }), {
-      headers: { "Content-Type": "application/json" },
-    }));
-    vi.stubGlobal("fetch", fetchMock);
-    const { uploadAuthoritiesDocument } = await import("@/app/lib/api/authorities");
-const { uploadCourtRecordDocument } = await import("@/app/lib/api/courtRecords");
+    const fetchMock = respond({ id: "document-1" });
+
     const file = new File(["record"], "record.pdf", { type: "application/pdf" });
 
-    await uploadCourtRecordDocument(file, "record-1");
-    await uploadAuthoritiesDocument(file, "matter-1");
+    await expect(uploadCourtRecordDocument(file, "record-1")).resolves.toEqual({ id: "document-1" });
+    await expect(uploadAuthoritiesDocument(file, "matter-1")).resolves.toEqual({ id: "document-1" });
 
     expect((fetchMock.mock.calls[0][1]?.body as FormData).get("work_product_id"))
       .toBe("record-1");
@@ -83,16 +75,15 @@ const { uploadCourtRecordDocument } = await import("@/app/lib/api/courtRecords")
   });
 
   it("sends a Court build as one repeated-file request", async () => {
-    await configure("local");
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+    const fetchMock = respond({
       id: "record-1", revision: 4,
-    }), { headers: { "Content-Type": "application/json" } }));
-    vi.stubGlobal("fetch", fetchMock);
-    const { saveCourtRecordBuild } = await import("@/app/lib/api/courtRecords");
+    });
+
     const receipt = { schemaVersion: "beaver.work-product-build.v2",
       output: { role: "record" } } as never;
 
-    await saveCourtRecordBuild([{ file: new File(["record"], "Record.pdf"), receipt }]);
+    await expect(saveCourtRecordBuild([{ file: new File(["record"], "Record.pdf"), receipt }]))
+      .resolves.toEqual({ id: "record-1", revision: 4 });
 
     expect(fetchMock.mock.calls[0][0]).toBe("/api/court-records/builds");
     const body = fetchMock.mock.calls[0][1]?.body as FormData;
@@ -102,19 +93,14 @@ const { uploadCourtRecordDocument } = await import("@/app/lib/api/courtRecords")
 });
 
 describe("removeProjectDocument", () => {
-  it.each([
-    ["local", "/api/projects/matter-1/documents/document-1"],
-    ["cloud", "/api/projects/matter-1/documents/document-1"],
-  ] as const)("uses the %s removal route", async (authMode, expectedUrl) => {
-    await configure(authMode);
-    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+  it("uses the local removal route", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
-    const { removeProjectDocument } = await import("@/app/lib/api/documents");
 
-    await removeProjectDocument("matter-1", "document-1");
+    await expect(removeProjectDocument("matter-1", "document-1")).resolves.toBeUndefined();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      expectedUrl,
+      "/api/projects/matter-1/documents/document-1",
       expect.objectContaining({ method: "DELETE" }),
     );
   });
@@ -122,16 +108,12 @@ describe("removeProjectDocument", () => {
 
 describe("directoryResource", () => {
   it("uses one encoded directory contract for project and library storage", async () => {
-    await configure("local");
-    const fetchMock = vi.fn(async () => new Response(
-      JSON.stringify({ items: [], next_cursor: null }),
-      { headers: { "Content-Type": "application/json" } },
-    ));
-    vi.stubGlobal("fetch", fetchMock);
-    const { directoryResource } = await import("@/app/lib/api/documents");
+    const fetchMock = respond({ items: [], next_cursor: null });
 
-    await directoryResource({ projectId: "matter/1" }).list({ parent_id: "folder/1" });
-    await directoryResource({ library: "files" }).list();
+    await expect(directoryResource({ projectId: "matter/1" }).list({ parent_id: "folder/1" }))
+      .resolves.toEqual({ items: [], next_cursor: null });
+    await expect(directoryResource({ library: "files" }).list())
+      .resolves.toEqual({ items: [], next_cursor: null });
 
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
       "/api/projects/matter%2F1/directory?parent_id=folder%2F1",
@@ -140,9 +122,8 @@ describe("directoryResource", () => {
   });
 
   it("recreates a selected folder tree before uploading its files", async () => {
-    await configure("local");
     let folder = 0, document = 0, leaseAttempts = 0;
-    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    const fetchMock = vi.fn<typeof fetch>(async (url, init) => {
       const value = String(url);
       if (value.endsWith("/folders")) return new Response(JSON.stringify({
         id: `folder-${++folder}`,
@@ -158,7 +139,7 @@ describe("directoryResource", () => {
       return new Response(null, { status: 404 });
     });
     vi.stubGlobal("fetch", fetchMock);
-    const { directoryResource } = await import("@/app/lib/api/documents");
+
     const file = (name: string, relativePath: string) => {
       const value = new File([name], name);
       Object.defineProperty(value, "webkitRelativePath", { value: relativePath });
@@ -194,28 +175,25 @@ describe("directoryResource", () => {
 
 describe("apiBlobRequest", () => {
   it("preserves native Headers values and overrides", async () => {
-    await configure("local");
-    const fetchMock = vi.fn(async () => new Response("file"));
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response("file"));
     vi.stubGlobal("fetch", fetchMock);
-    const { apiBlobRequest } = await import("@/app/lib/api/client");
 
-    await apiBlobRequest("/health", {
+    const result = await apiBlobRequest("/health", {
       headers: new Headers({ Accept: "text/plain", "X-Test": "kept" }),
     });
 
+    expect(await result.blob.text()).toBe("file");
     const headers = new Headers(fetchMock.mock.calls[0][1]?.headers);
     expect(headers.get("accept")).toBe("text/plain");
     expect(headers.get("x-test")).toBe("kept");
   });
 
   it("preserves structured API failure details for tabular agents", async () => {
-    await configure("local");
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+    respond({
       code: "missing_api_key",
       detail: "Configure a provider",
       provider: "openai",
-    }), { status: 401 })));
-    const { startTabularGeneration } = await import("@/app/lib/api/tabular");
+    }, 401);
 
     await expect(startTabularGeneration("review-1")).rejects.toMatchObject({
       name: "BeaverApiError",
@@ -229,12 +207,10 @@ describe("apiBlobRequest", () => {
 
 describe("getChat", () => {
   it("keeps crafted identifiers inside their route segment", async () => {
-    await configure("local");
-    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
-    const { deleteChat } = await import("@/app/lib/api/chat");
 
-    await deleteChat("../user/account?confirm=true");
+    await expect(deleteChat("../user/account?confirm=true")).resolves.toBeUndefined();
 
     expect(fetchMock.mock.calls[0][0]).toBe(
       "/api/chat/..%2Fuser%2Faccount%3Fconfirm%3Dtrue",
@@ -242,8 +218,7 @@ describe("getChat", () => {
   });
 
   it("settles work left running by an interrupted backend turn", async () => {
-    await configure("local");
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+    respond({
       chat: { id: "chat-1", turn_in_progress: false },
       messages: [
         { id: "user-1", role: "user", turn_id: "turn-1", content: "Research this" },
@@ -260,8 +235,7 @@ describe("getChat", () => {
           }],
         },
       ],
-    }), { headers: { "Content-Type": "application/json" } })));
-    const { getChat } = await import("@/app/lib/api/chat");
+    });
 
     const { chat, messages } = await getChat("chat-1");
     const state = createAssistantSessionState({ chatId: chat.id, messages });
@@ -280,8 +254,7 @@ describe("getChat", () => {
   });
 
   it("keeps cancellation metadata out of assistant prose", async () => {
-    await configure("local");
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+    respond({
       chat: { id: "chat-1", turn_in_progress: false },
       messages: [{
         id: "assistant-1",
@@ -292,8 +265,7 @@ describe("getChat", () => {
           { type: "turn_status", status: "cancelled" },
         ],
       }],
-    }), { headers: { "Content-Type": "application/json" } })));
-    const { getChat } = await import("@/app/lib/api/chat");
+    });
 
     const { chat, messages } = await getChat("chat-1");
     const state = createAssistantSessionState({ chatId: chat.id, messages });
@@ -309,8 +281,7 @@ describe("getChat", () => {
   });
 
   it("marks a durable user turn with no response as interrupted", async () => {
-    await configure("local");
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+    respond({
       chat: { id: "chat-1", turn_in_progress: false },
       messages: [{
         id: "user-1",
@@ -318,8 +289,7 @@ describe("getChat", () => {
         turn_id: "turn-1",
         content: "Research this",
       }],
-    }), { headers: { "Content-Type": "application/json" } })));
-    const { getChat } = await import("@/app/lib/api/chat");
+    });
 
     const { chat, messages } = await getChat("chat-1");
     const state = createAssistantSessionState({ chatId: chat.id, messages });

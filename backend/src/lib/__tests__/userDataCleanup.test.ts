@@ -3,83 +3,95 @@ import { describe, expect, it, vi } from "vitest";
 import type { DocumentStore } from "../documentStore";
 import { deleteUserAccountData } from "../userDataCleanup";
 
-type Call = { table: string; method: string; query: Record<string, string>; body: unknown };
-const userId = "u1", email = "u1@example.com";
+type RequestRecord = { method: string; table: string; filters: Record<string, string>;
+  body: unknown };
 const ownedTables = ["tabular_reviews", "chats", "project_subfolders", "workflows",
   "work_products", "audit_events", "user_preferences", "projects"];
 
-function fixture(failure?: string) {
-  const calls: Call[] = [], deleteUserDocuments = vi.fn(async () => 0);
+function setup(failure?: string) {
+  const requests: RequestRecord[] = [];
+  const documents = { deleteUserDocuments: vi.fn(async () => 0) };
+  // Exercise the real SDK; only HTTP responses are supplied, not a second query engine.
   const db = createClient("https://cleanup.example.test", "test-key", {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     global: { fetch: async (input, init) => {
-      const url = new URL(String(input)), table = url.pathname.split("/").at(-1)!;
-      const method = init?.method ?? "GET", query = Object.fromEntries(url.searchParams);
-      calls.push({ table, method, query, body: init?.body ? JSON.parse(String(init.body)) : null });
-      const operation = method === "GET" && query.select === "id" ? "owned projects" : `${method} ${table}`;
-      const failed = failure === operation;
-      // Fixed HTTP responses, not a second implementation of PostgREST's query language.
-      const data = query.select === "id" ? [{ id: "mine" }] : [{ id: `shared-${table}`,
-        shared_with: [email, " U1@EXAMPLE.COM ", "keep@example.com"] }];
-      return new Response(failed ? JSON.stringify({ message: "offline" }) : method === "GET" ? JSON.stringify(data) : null,
-        { status: failed ? 400 : method === "GET" ? 200 : 204, headers: { "Content-Type": "application/json" } });
+      const request = new Request(input, init), url = new URL(request.url);
+      const table = url.pathname.split("/").at(-1)!;
+      url.searchParams.delete("select");
+      requests.push({ method: request.method, table,
+        filters: Object.fromEntries(url.searchParams),
+        body: request.method === "PATCH" ? await request.json() : null });
+      const operation = request.method === "GET" && url.searchParams.has("user_id")
+        ? "owned projects" : `${request.method} ${table}`;
+      if (operation === failure)
+        return Response.json({ message: "fixture failure" }, { status: 400 });
+      if (request.method !== "GET") return new Response(null, { status: 204 });
+      return Response.json(url.searchParams.has("user_id") ? [{ id: "owned-project" }] : [
+        { id: `${table}-shared`, shared_with: table === "projects"
+          ? ["u1@example.com", " U1@EXAMPLE.COM ", "keep@example.com"] : ["u1@example.com"] },
+      ]);
     } },
   });
-  const run = (userEmail?: string) => deleteUserAccountData(db,
-    { deleteUserDocuments } as unknown as DocumentStore, userId, userEmail);
-  return { calls, deleteUserDocuments, run };
+  return { requests, documents, run: (email?: string | null) => deleteUserAccountData(
+    db, documents as unknown as DocumentStore, "u1", email) };
 }
 
-it.each([undefined, " U1@Example.com "])("scopes account cleanup with email=%j", async (input) => {
-  const { calls, deleteUserDocuments, run } = fixture();
-  await run(input);
-  expect(calls).toContainEqual({ table: "projects", method: "GET", body: null, query: { select: "id", user_id: "eq.u1" } });
-  expect(deleteUserDocuments).toHaveBeenCalledExactlyOnceWith(
-    { userId, userEmail: input }, { projectIds: ["mine"], includeOwned: true });
-  const filters = calls.filter(({ method }) => method === "DELETE").map(({ table, query }) => JSON.stringify([table, query]));
-  expect(filters.sort()).toEqual([
-    ...ownedTables.map((table) => [table, { user_id: "eq.u1" }]),
-    ["workflow_open_source_submissions", { submitted_by_user_id: "eq.u1" }],
-    ["workflow_shares", { shared_by_user_id: "eq.u1" }],
-    ...(input ? [["workflow_shares", { shared_with_email: `eq.${email}` }]] : []),
-  ].map((filter) => JSON.stringify(filter)).sort());
-  const sharing = calls.filter(({ query }) => "shared_with" in query);
-  expect(sharing).toHaveLength(input ? 4 : 0);
-  for (const table of input ? ["projects", "tabular_reviews"] : []) {
-    expect(sharing).toContainEqual({ table, method: "GET", body: null,
-      query: { select: "id,shared_with", shared_with: `cs.["${email}"]` } });
-    expect(sharing).toContainEqual({ table, method: "PATCH", body: { shared_with: ["keep@example.com"] },
-      query: { id: `eq.shared-${table}`, shared_with: `cs.["${email}"]` } });
-  }
-});
+const sorted = <T>(values: T[]) => values.sort((a, b) =>
+  JSON.stringify(a).localeCompare(JSON.stringify(b)));
+const operations = (requests: RequestRecord[], method: string) => requests
+  .filter((request) => request.method === method)
+  .map(({ table, filters }) => [table, filters]);
 
-it("does not delete metadata while object cleanup is pending or after it fails", async () => {
-  const { calls, deleteUserDocuments, run } = fixture();
-  let reject!: (error: Error) => void;
-  deleteUserDocuments.mockReturnValueOnce(new Promise((_resolve, fail) => { reject = fail; }));
-  const deletion = run(), rejected = expect(deletion).rejects.toThrow("storage unavailable");
-  await vi.waitFor(() => expect(deleteUserDocuments).toHaveBeenCalledOnce());
-  try {
-    expect(calls.filter(({ method }) => method === "DELETE")).toEqual([]);
-  } finally {
-    reject(new Error("storage unavailable"));
-    await rejected;
-  }
-  expect(calls.filter(({ method }) => method === "DELETE")).toEqual([]);
-});
+describe("user data cleanup", () => {
+  it.each([undefined, null, "", " U1@Example.com "])(
+    "scopes every deletion and preserves other shared access (email: %s)", async (email) => {
+      const { run, documents, requests } = setup();
+      await run(email);
+      expect(documents.deleteUserDocuments).toHaveBeenCalledExactlyOnceWith(
+        { userId: "u1", userEmail: email ?? undefined },
+        { projectIds: ["owned-project"], includeOwned: true });
+      expect(sorted(operations(requests, "DELETE"))).toEqual(sorted([
+        ...ownedTables.map((table) => [table, { user_id: "eq.u1" }]),
+        ["workflow_open_source_submissions", { submitted_by_user_id: "eq.u1" }],
+        ["workflow_shares", { shared_by_user_id: "eq.u1" }],
+        ...(email ? [["workflow_shares", { shared_with_email: "eq.u1@example.com" }]] : []),
+      ]));
+      expect(sorted(operations(requests, "GET"))).toEqual(sorted([
+        ["projects", { user_id: "eq.u1" }],
+        ...(email ? ["projects", "tabular_reviews"].map((table) =>
+          [table, { shared_with: 'cs.["u1@example.com"]' }]) : []),
+      ]));
+      expect(sorted(requests.filter(({ method }) => method === "PATCH"))).toEqual(sorted(email
+        ? ["projects", "tabular_reviews"].map((table) => ({ method: "PATCH", table,
+          filters: { id: `eq.${table}-shared`, shared_with: 'cs.["u1@example.com"]' },
+          body: { shared_with: table === "projects" ? ["keep@example.com"] : [] } })) : []));
+    });
 
-describe("remote cleanup failures", () => {
-  it.each(["owned projects", "GET projects", "GET tabular_reviews", "PATCH projects", "PATCH tabular_reviews"])(
-    "stops before object and metadata deletion on %s failure", async (failure) => {
-      const { calls, deleteUserDocuments, run } = fixture(failure);
-      await expect(run(email)).rejects.toThrow("offline");
-      expect(deleteUserDocuments).not.toHaveBeenCalled();
-      expect(calls.filter(({ method }) => method === "DELETE")).toEqual([]);
-    },
-  );
-  it.each([...ownedTables, "workflow_open_source_submissions", "workflow_shares"])(
-    "does not report success when deleting %s fails", async (table) => {
-      await expect(fixture(`DELETE ${table}`).run(email)).rejects.toThrow("Failed to delete account data: offline");
-    },
-  );
+  it("waits for object cleanup to finish before deleting metadata", async () => {
+    const { run, documents, requests } = setup();
+    let release!: (value: number) => void;
+    documents.deleteUserDocuments.mockReturnValueOnce(new Promise((resolve) => { release = resolve; }));
+    const pending = run();
+    try {
+      await vi.waitFor(() => expect(documents.deleteUserDocuments).toHaveBeenCalledOnce());
+      expect(operations(requests, "DELETE")).toEqual([]);
+    } finally { release(0); await pending; }
+    expect(operations(requests, "DELETE")).toHaveLength(10);
+  });
+
+  it("does not delete metadata when required object cleanup fails", async () => {
+    const { run, documents, requests } = setup();
+    documents.deleteUserDocuments.mockRejectedValueOnce(new Error("storage unavailable"));
+    await expect(run("u1@example.com")).rejects.toThrow("storage unavailable");
+    expect(operations(requests, "DELETE")).toEqual([]);
+  });
+
+  it.each(["owned projects", "GET projects", "GET tabular_reviews", "PATCH projects",
+    "PATCH tabular_reviews", ...[...ownedTables, "workflow_open_source_submissions",
+      "workflow_shares"].map((table) => `DELETE ${table}`)])("propagates %s failures", async (failure) => {
+    const { run, documents, requests } = setup(failure);
+    await expect(run("u1@example.com")).rejects.toThrow("fixture failure");
+    expect(documents.deleteUserDocuments).toHaveBeenCalledTimes(failure.startsWith("DELETE") ? 1 : 0);
+    if (!failure.startsWith("DELETE")) expect(operations(requests, "DELETE")).toEqual([]);
+  });
 });

@@ -1,12 +1,13 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, ChevronRight, FileText, Scale } from "lucide-react";
+import { BookOpen, ChevronRight } from "lucide-react";
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { Button } from "../ui/button";
 import { researchHighlightCount, type ResearchEvidence, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
-import { researchLabelColor } from "./ResearchLabelMarker";
-import { ResearchLabelEditor, ResearchLabelPicker, RESEARCH_SOURCE_DRAG, type ResearchLabelTarget } from "./ResearchLabelPicker";
+import { researchLabelColor, ResearchSourceKindIcon } from "./ResearchLabelMarker";
+import { ResearchLabelEditor, RESEARCH_SOURCE_DRAG, type ResearchLabelTarget } from "./ResearchLabelPicker";
 import { ResearchLabelTree } from "./ResearchLabelTree";
+import { passageLabel, trimPassageMarker } from "@/app/lib/researchPassage";
 import { RESEARCH_PASSAGE_DRAG } from "./researchMemo";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 import { sourceName, type SourceReader } from "./useSourceReader";
@@ -14,18 +15,20 @@ import { sourceName, type SourceReader } from "./useSourceReader";
 export type ResearchRemoval = { kind: "label" | "source" | "evidence"; id: string; name: string; sourceId?: string };
 export type ResearchTreePreview = { labels: Record<string, ResearchLabel>; marks: Record<string, "added" | "changed"> };
 const NO_ROWS = new Set<string>();
-/** Every row shares one shape: chevron, glyph, name, actions, number. Nothing moves when a mark appears. */
-export const ROW = "group flex min-h-8 min-w-0 items-center gap-1 rounded px-1";
+const NEWLINE = "\n";
+/** File-explorer row: one fixed-height line, chevron, glyph, name, actions, number.
+ *  Nothing wraps, so a row can never grow into the one above it. */
+export const ROW = "group flex h-7 min-w-0 items-center gap-1 rounded px-1";
 export const ROW_ACTIONS = "flex w-7 shrink-0 items-center justify-end gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100 @[22rem]:w-14";
 export const ROW_COUNT = "w-6 shrink-0 text-end text-xs tabular-nums text-gray-500";
 
 /** Virtual folders navigate one source list. A source never needs an exclusive location. */
 export function ResearchTree({ reader, sources, navigationSources = sources, filter = "",
-  labelId = null, onLabelChange = () => undefined, selectedSourceId, addSignal,
+  labelId = null, onLabelChange = () => undefined, selectedSourceId,
   opened = NO_ROWS, setOpened = () => undefined, passageVisible = () => true,
   onRemove = () => undefined, onStatus = () => undefined, onSourceDrag, preview, passagePages: suppliedPages }: {
   reader?: SourceReader; sources: ResearchSource[]; navigationSources?: ResearchSource[]; filter?: string;
-  labelId?: string | null; onLabelChange?: (id: string | null) => void; addSignal?: number;
+  labelId?: string | null; onLabelChange?: (id: string | null) => void;
   passagePages?: ReturnType<typeof useSourcesWorkspace>["passages"]; selectedSourceId?: string;
   opened?: Set<string>; setOpened?: Dispatch<SetStateAction<Set<string>>>;
   passageVisible?: (item: ResearchEvidence) => boolean;
@@ -42,11 +45,11 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
     aria-label={label} aria-expanded={open} onClick={onClick} className="grid size-6 shrink-0 place-items-center rounded">
     <ChevronRight aria-hidden className={`size-3.5 text-gray-500 ${open ? "rotate-90" : ""}`} /></button>;
   /** Opening is always a deliberate control, never a side effect of touching the row. */
-  function openControl(source: ResearchSource, name: string, locator?: string, evidenceId?: string) {
+  function openControl(source: ResearchSource, name: string, locator?: string, evidenceId?: string, spoken?: string) {
     if (preview) return null;
     const href = reader?.sourceHref(source, locator),
       className = "hidden size-6 shrink-0 place-items-center rounded text-gray-500 hover:bg-gray-200 @[22rem]:grid",
-      inner = <BookOpen aria-hidden className="size-3.5" />, label = `Open ${locator ?? name}`;
+      inner = <BookOpen aria-hidden className="size-3.5" />, label = `Open ${spoken ?? locator ?? name}`;
     if (reader?.canRead(source)) return <button type="button" aria-label={label} title="Open" className={className}
       onClick={() => void reader.readSource(source, locator, evidenceId)}>{inner}</button>;
     if (!href) return null;
@@ -55,14 +58,11 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
   }
   function sourceRow(source: ResearchSource) {
     const name = sourceName(source), open = opened.has(source.id), count = researchHighlightCount(source);
-    const Icon = source.reference.kind === "document" ? FileText : Scale;
     return <div className={`${ROW} ${selectedSourceId === source.id ? "bg-gray-100" : "hover:bg-gray-50"}`} draggable={!preview}
       onDragStart={(event) => { onSourceDrag?.(); event.dataTransfer.setData(RESEARCH_SOURCE_DRAG, source.id); }}>
       {preview ? <span className="size-6 shrink-0" /> : chevron(open, `Passages in ${name}`, () => openSource(source.id))}
-      {preview ? <span className="grid size-5 shrink-0 place-items-center"><Icon aria-hidden className="size-3.5 text-gray-500" /></span>
-        : <ResearchLabelPicker file={file} kind="source" itemId={source.id} labelIds={source.labelIds} note={source.note}
-            title={name} size="sm" mutations={commit} onError={onStatus} onSourceDrag={onSourceDrag} />}
-      <button type="button" disabled={!!preview} onClick={() => openSource(source.id)} title={name}
+      <span className="grid size-5 shrink-0 place-items-center"><ResearchSourceKindIcon reference={source.reference} /></span>
+      <button type="button" disabled={!!preview} onClick={() => openSource(source.id)} title={[name, source.note].filter(Boolean).join(NEWLINE)}
         aria-current={selectedSourceId === source.id ? "true" : undefined} data-mark={mark(source.id)}
         className={`min-w-0 flex-1 truncate text-start text-sm text-gray-700 ${mark(source.id) ? "font-semibold underline decoration-gray-400" : ""}`}>{name}</button>
       <span className={ROW_ACTIONS}>
@@ -79,19 +79,19 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
   }
 
   function passageRow(source: ResearchSource, item: ResearchEvidence) {
-    const locator = item.receipt.locator.label;
+    const locator = passageLabel(item.receipt.locator);
     const color = item.labelIds[0] ? researchLabelColor(labels[item.labelIds[0]]) : "#d1d5db";
+    const quote = trimPassageMarker(item.receipt.span_text ?? "", item.receipt.locator);
     return <div draggable onDragStart={(event) => event.dataTransfer.setData(RESEARCH_PASSAGE_DRAG, JSON.stringify(item))}
-      className={`${ROW} items-start py-1 hover:bg-gray-50`}>
+      title={[locator, quote, item.note].filter(Boolean).join(NEWLINE)}
+      className={`${ROW} hover:bg-gray-50`}>
       <span className="size-6 shrink-0" />
-      <span className="mt-1 h-4 w-1 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs font-medium text-gray-700">{locator}</span>
-        <span className="line-clamp-2 text-xs text-gray-600 [overflow-wrap:anywhere]">{item.receipt.span_text}</span>
-        {item.note && <span className="block text-xs text-gray-700 [overflow-wrap:anywhere]">{item.note}</span>}
+      <span className="h-4 w-1 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+      <span className="min-w-0 flex-1 truncate text-xs text-gray-600">
+        <span className="font-medium text-gray-700">{locator}</span> {quote}
       </span>
       <span className={ROW_ACTIONS}>
-        {openControl(source, sourceName(source), locator, item.receipt.evidence_id)}
+        {openControl(source, sourceName(source), item.receipt.locator.label, item.receipt.evidence_id, locator)}
         <MoreActionsMenu label={`${locator} options`} items={[
           { label: "Highlight type", onSelect: () => setLabelTarget({ file: file!, kind: "evidence", itemId: item.receipt.evidence_id,
             sourceId: source.id, labelIds: item.labelIds, note: item.note, title: locator }) },
@@ -113,8 +113,7 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
           ? [<div key={item.value.receipt.evidence_id} role="treeitem" aria-label={item.value.receipt.locator.label}>
               {passageRow(source, item.value)}
             </div>] : [])}
-        {source.note && <p className="px-1 py-1 text-xs text-gray-600 [overflow-wrap:anywhere]">{source.note}</p>}
-        {page?.loading && !page.items.length && <p role="status" className="px-1 py-1 text-xs text-gray-500">Loading passages…</p>}
+        {page?.loading && !page.items.length && <p role="status" className={`${ROW} text-xs text-gray-500`}>Loading passages…</p>}
         {!!page?.error && <Button variant="outline" size="compact" className="my-1" onClick={() => void passagePages.fetchPage(source.id, null, false)}>Retry passages</Button>}
         {page?.nextCursor && <Button variant="outline" size="compact" className="my-1" disabled={page.loading}
           aria-label={`Show more passages from ${sourceName(source)}`}
@@ -128,7 +127,7 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
 
   return <>
     <ResearchLabelTree scope="source" sources={navigationSources} selectedId={labelId} onSelect={onLabelChange}
-      onRemove={onRemove} onStatus={onStatus} preview={preview} addSignal={addSignal}
+      onRemove={onRemove} onStatus={onStatus} preview={preview}
       renderSources={(id) => under(id).map((source) => sourceNode(source, `${id ?? ""}:${source.id}`))} />
     {!sources.length && <p className="p-2 text-xs text-gray-500">{filter || labelId ? "No matching sources." : "No sources yet."}</p>}
     {labelTarget && <ResearchLabelEditor target={labelTarget} mutations={commit} onError={onStatus} onClose={() => setLabelTarget(null)} />}

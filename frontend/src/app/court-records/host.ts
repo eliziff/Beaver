@@ -9,9 +9,8 @@ import type { CourtRecordWorkProductOutput } from "../../../../shared/court-reco
 import { sourceFormat } from "./formats";
 import type { OutputFolderPort } from "@/app/components/shared/OutputFolderSetting";
 
-export type FilingContact = {
-  name: string; address: string; phone: string; fax: string; email: string;
-};
+import type { FilingContact } from "../../../../shared/user-preferences.mjs";
+export type { FilingContact } from "../../../../shared/user-preferences.mjs";
 export const FILING_CONTACT_FIELDS = ["counselName", "counselAddress", "counselPhone",
   "counselFax", "counselEmail"] as const;
 export type FilingContactCover = Partial<Pick<CoverValues,

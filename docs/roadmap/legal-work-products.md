@@ -2,8 +2,10 @@
 
 Status/order/shared gates: [master plan](master-plan.md). A saved work product is
 a **Draft**: intent and input bindings, not another content store. One maintained
-UI/core per product, standalone and Beaver adapters. Preserve working Authorities
-behavior; replace Python product shell/state, not shared Rust citation/PDF owners.
+UI/core per product, standalone and Beaver adapters. Authorities already uses the
+TypeScript application and shared Rust operations; see its
+[current contract](../current/authorities.md). This plan retains capability and
+release requirements, not instructions to recreate the old Python gateway.
 
 ## Release inventory
 
@@ -182,20 +184,20 @@ marking/discrepancy review; bounded progress/cancel/errors/durable outputs.
 TypeScript owns review/state/source/build orchestration/rendering; existing
 source apps, Word operations, Rust structure/citation and PDF/OCR primitives
 retain ownership. PDF assembly may merge/bookmark/paginate/link/overlay proven
-geometry. No TS copies of citation regexes/resolvers. Delete Python product
-worker/bootstrap/iframe/job/project paths after parity, not unrelated corpus/dev
-scripts. Keep the reference interaction; apply Beaver visual/accessibility style,
-not an invented substitute.
+geometry. No TS copies of citation regexes/resolvers. The separately owned Python
+reference remains useful for parity evidence, not as Beaver's product worker,
+bootstrap, iframe, job or project runtime. Preserve unrelated corpus/dev scripts.
+Keep the reference capabilities and current shared UI rather than inventing a
+substitute or interpreting the port as proof that every parity gate passed.
 
-CanLII: existing validated URL helper derives sibling PDF only from safe known
-canlii.org route/neutral slug; unknown mapping abstains. Download from CanLII is
-one user link, retains pending authority, accepts returned PDF via Add PDF/drop,
-validates and attaches without reentering name/citation/tab. Persist binding.
-No server fetch/scrape/bulk navigation. Optional session-local return funnel checks
-only user-selected directory, exact expected filename plus browser duplicate suffix,
-and recent PDF after explicit click. No general watcher/background surveillance;
-unsupported browsers keep Add PDF. Internal terms/link receipt plus one expected
-HTML/PDF pair; validate via one user-initiated navigation, not retrieval loop.
+CanLII: the validated URL helper derives a sibling PDF only from safe known
+canlii.org routes/neutral slugs; unknown mapping abstains. Download from CanLII is
+one user link, retains the pending authority, and accepts the returned PDF via
+Add PDF/drop. Validate and persist the attachment without reentering the name,
+citation or tab. No server fetch, scrape, bulk navigation, iframe/proxy or
+Downloads-folder watching. The former optional directory-return funnel is not a
+current or planned dependency. Retain the internal terms/link receipt and one
+expected HTML/PDF pair; validation is a user-initiated handoff, not a retrieval loop.
 
 ## Assistant and host integration
 
@@ -231,21 +233,23 @@ evidence, not mockups.
 
 Bounded local draft/profile catalog; route opening does not search Library. Picker
 opens first server-paginated page (24), no eager loads. PDF.js/assembly/DOCX/
-Authorities build remain lazy; no parser/samples in initial bundle. Removing
-Python/iframe must reduce first-use latency. Hash only trust/build boundaries or
-cheap metadata-detected changes. Measure load/browser/build medians and production
-LoC against machine baseline; reject regressions, not invent hardware-free budgets.
+Authorities build remain lazy; no parser/samples in initial bundle. Measure
+first-use latency against the former Python/iframe path. Hash only trust/build
+boundaries or cheap metadata-detected changes. Measure load/browser/build medians
+and production LoC against machine baseline; reject regressions, not invent
+hardware-free budgets.
 
 ## Execution and live proof
 
-1. Freeze full profile/source/gap matrix, normative/example/discretionary classification,
-   official forms/real-reference hashes, CanLII terms/links, Authorities parity
-   fixtures and UI/Library/startup/build/LoC baseline. No new experiment/RESULTS.md
-   as a production transition.
-2. Close resumable draft/repository/host contract and exact output identities,
-   then Court interactions/profiles, Authorities parity/Python removal, ledger/
-   nesting/exhibit corpus, then assistant handoff. Preserve every capability
-   through complete cuts, no compatibility routes/old DTOs/dual reads/feature flags.
+1. Maintain the full profile/source/gap matrix, normative/example/discretionary
+   classification, official forms/real-reference hashes, CanLII terms/links,
+   Authorities parity fixtures and UI/Library/startup/build/LoC baseline. No new
+   experiment/RESULTS.md as a production transition.
+2. Close remaining resumable draft/repository/host and exact output-identity gates,
+   then Court interactions/profiles, Authorities reference parity, ledger/nesting/
+   exhibit corpus and assistant handoff. Preserve the shared TypeScript product;
+   do not restart its replacement project or add compatibility routes/old DTOs/
+   dual reads/feature flags.
 3. Before release run real ChromeDriver and rendered-PDF inspection for every
    profile and reference workflow, with screenshots at desktop/narrow/zoom.
    Required scenarios: restart with handles; moved/deleted/permission-revoked

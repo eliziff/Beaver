@@ -86,6 +86,7 @@ const longText: Parser<string> = (value) => text(value, ASSISTANT_LIMITS.text);
 const displayFields = {
   source_class: optional(choices("case", "legislation", "commentary")),
   external_url: optional(url), authority: optional(short), short_authority: optional(short),
+  short_form: optional(boolean),
   locator_separator: optional(choices(" at ", ", ")),
 };
 const locatorFields = { ...displayFields,

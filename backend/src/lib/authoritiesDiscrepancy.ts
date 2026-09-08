@@ -3,7 +3,7 @@ import type { AuthoritiesDiscrepancyAction, AuthoritiesDraft,
   AuthorityOccurrence } from "./authoritiesDomain";
 import { canonicalJsonSha256 } from "./hash";
 import { a2ajLegalSourceProvider } from "./legalSources/a2aj";
-import type { LegalSourceReference } from "./legalSources";
+import type { LegalSourcePassage, LegalSourceReference } from "./legalSources";
 import { structureNative } from "./structureNative";
 import { normalizeWhitespace } from "./text";
 import { footnotePropositions, markedQuotations, singleSourceFootnote } from "./authoritiesQuotations";
@@ -18,6 +18,8 @@ export type AuthoritiesOccurrenceSource = {
   cited: AuthoritiesSourcePassage;
   alternatives?: readonly AuthoritiesSourcePassage[];
   sourceVersion?: string;
+  /** The retrieved passage behind `cited`, so a review can bind a claim to it. */
+  citedPassage?: LegalSourcePassage;
 };
 
 type FindingBase = {
@@ -31,6 +33,7 @@ type FindingBase = {
   authoredQuote: string;
   authoredPinpoint: AuthorityOccurrence["pinpoints"][number];
   cited: AuthoritiesSourcePassage;
+  citedPassage?: LegalSourcePassage;
 };
 
 export type AuthoritiesDiscrepancy = FindingBase & (
@@ -152,7 +155,8 @@ export function findAuthoritiesDiscrepancies(
       }
       const base = { occurrenceId: occurrence.id, authorityId: occurrence.authorityId!,
         footnoteId: unit.footnoteId, citation: occurrence.citation, proposition,
-        authoredQuote, authoredPinpoint: { ...occurrence.pinpoints[0] }, cited: source.cited };
+        authoredQuote, authoredPinpoint: { ...occurrence.pinpoints[0] }, cited: source.cited,
+        citedPassage: source.citedPassage };
       if (matchCount === 1 && found && !sameLocator(source.cited, found)) {
         const replacement = occurrence.pinpointSpan && pinpointText(
           occurrence.pinpointSpan.text, found.locator.label);
@@ -345,6 +349,7 @@ export async function reviewAuthoritiesDiscrepancies(
           primary.kind === locator.kind
           ? [{ locator: { kind: primary.kind, label: primary.label }, text }] : []);
         supplied.push({ occurrenceId: occurrence.id, sourceVersion: identity.sourceSha256,
+          citedPassage: selected,
           cited: { locator: { kind: locator.kind, label: locator.endValue
             ? `${locator.value}–${locator.endValue}` : selected.locator.label },
             text: selections.map(value => value.text).join("\n\n") }, alternatives });

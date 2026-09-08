@@ -207,6 +207,29 @@ describe("compareDocxVersions", () => {
     expect(countOf(xml, /<w:ins\b/gu)).toBe(1);
   });
 
+  it.each([
+    ["fees[item][tax]", "fees[item][levy]", "fees[item][tax]", "fees[item][levy]"],
+    ["[two words]suffix", "[new words]suffix", "[two words]suffix", "[new words]suffix"],
+    ["123[old]", "123[new]", "123[old]", "123[new]"],
+    ["customer's", "supplier's", "customer's", "supplier's"],
+    ["fee_old", "fee_new", "old", "new"],
+    ["[broken", "[amended", "broken", "amended"],
+    ["😀old😀", "😀new😀", "old", "new"],
+    ["fee...old", "fee...new", "old", "new"],
+  ])("preserves token boundaries and reversible changes: %s", async (before, after, deleted, inserted) => {
+    const sentence = (value: string) => `The amount payable is ${value} under this agreement.`;
+    const result = await compareDocxVersions(await docxFrom([sentence(before)]), await docxFrom([sentence(after)]));
+    expect(result.abstentions).toEqual([]);
+    expect(result.changes.map(({ kind, deletedText, insertedText }) => [kind, deletedText, insertedText]))
+      .toEqual([["replace", deleted, inserted]]);
+    const ids = (await extractTrackedChangeIds(result.bytes)).map(({ w_id }) => w_id);
+    for (const [action, value] of [["accept", after], ["reject", before]] as const) {
+      const resolved = await resolveTrackedChange(result.bytes, ids, action);
+      expect(resolved.found).toBe(true);
+      expect(await extractDocxBodyText(resolved.bytes)).toBe(sentence(value));
+    }
+  });
+
   it("returns the new document untouched when nothing changed", async () => {
     const paragraphs = [
       "This agreement is governed by Ontario law.",

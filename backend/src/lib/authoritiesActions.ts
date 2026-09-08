@@ -228,64 +228,46 @@ function correctOccurrenceSpan(draft: AuthoritiesDraft,
       "Select the authority without its pinpoint");
     const previousPinpoint = occurrence.pinpointSpan
       ? { span: occurrence.pinpointSpan, values: occurrence.pinpoints } : null;
-    const matches = sources.occurrences(selected.text);
-    const match = chosenAuthorityMatch(matches, occurrence, draft, sources);
+    const match = chosenAuthorityMatch(sources.occurrences(selected.text), occurrence,
+      draft, sources);
     const key = match ? lookupKey(sources, match.coreCitation.text) : "";
-    if (!match || !key) {
+    let changed = draft;
+    // The span the occurrence extends from: the selection itself for a parsed match,
+    // but manualOccurrence's whitespace-trimmed bounds on the manual path.
+    let basis = { start: selected.start, end: selected.end };
+    if (match && key) {
+      const known = Object.values(draft.authorities).find((authority) => authority.key === key);
+      const discovered = known ?? parsedAuthority(match, key);
+      if (!known) changed = updateAuthoritiesDraft(draft,
+        { type: "add-authority", authority: discovered });
+      const selectedName = match.reasons.includes("same_text_style")
+        ? match.shortForm?.trim() : "";
+      if (known && selectedName && !known.name && !known.displayName) changed = updateAuthoritiesDraft(changed,
+        { type: "rename-authority", authorityId: known.id, displayName: selectedName });
+      Object.assign(occurrence, nativeOccurrenceSpans(match, selected.unit.text, selected.start), {
+        kind: parsedKind(match), citation: match.coreCitation.text,
+        authorityId: discovered.id, reference: null, pinpoints: [], reviewed: true });
+    } else {
       const manual = manualOccurrence(draft, selected.unit, selected.start,
         selected.end, donors, sources).occurrence;
-      if (manual.pinpointSpan && intersects(selected.start, selected.end,
-        manual.pinpointSpan)) throw new ApplicationError(400,
-        "Select the authority without its pinpoint");
-      Object.assign(occurrence, manual, { id: occurrence.id,
-        localOrdinal: occurrence.localOrdinal, evidenceIds });
-      occurrence.authoritySpan = { start: selected.start, end: selected.end,
-        text: selected.text };
-      occurrence.pinpointSpan = null;
-      occurrence.pinpoints = [];
-      if (previousPinpoint) {
-        occurrence.pinpointSpan = previousPinpoint.span;
-        occurrence.pinpoints = previousPinpoint.values;
-        occurrence.start = Math.min(occurrence.start, previousPinpoint.span.start);
-        occurrence.end = Math.max(occurrence.end, previousPinpoint.span.end);
-        occurrence.text = selected.unit.text.slice(occurrence.start, occurrence.end);
-      }
-      const changed = updateAuthoritiesDraft(draft, { type: "replace-occurrence",
-        occurrenceId: occurrence.id, replacement: occurrence,
-        absorbed: { ids: absorbedIds, start: selected.start, end: selected.end } });
-      return removeUnusedDetections(changed, donors, occurrence.authorityId);
+      Object.assign(occurrence, manual,
+        { id: occurrence.id, localOrdinal: occurrence.localOrdinal });
+      basis = { start: manual.start, end: manual.end };
     }
-    const known = Object.values(draft.authorities).find((authority) => authority.key === key);
-    const discovered = known ?? parsedAuthority(match, key);
-    let changed = known ? draft : updateAuthoritiesDraft(draft,
-      { type: "add-authority", authority: discovered });
-    const selectedName = match.reasons.includes("same_text_style")
-      ? match.shortForm?.trim() : "";
-    if (known && selectedName && !known.name && !known.displayName) changed = updateAuthoritiesDraft(changed,
-      { type: "rename-authority", authorityId: known.id, displayName: selectedName });
-    const spans = nativeOccurrenceSpans(match, selected.unit.text, selected.start);
-    if (spans.pinpointSpan && intersects(selected.start, selected.end,
-      spans.pinpointSpan)) throw new ApplicationError(400,
+    if (occurrence.pinpointSpan && intersects(selected.start, selected.end,
+      occurrence.pinpointSpan)) throw new ApplicationError(400,
       "Select the authority without its pinpoint");
-    Object.assign(occurrence, spans, {
-      authoritySpan: { start: selected.start, end: selected.end, text: selected.text },
-      kind: parsedKind(match), citation: match.coreCitation.text,
-      authorityId: discovered.id, reference: null,
-      evidenceIds, pinpoints: [], reviewed: true,
-    });
-    occurrence.pinpointSpan = null;
-    if (previousPinpoint) {
-      occurrence.pinpointSpan = previousPinpoint.span;
-      occurrence.pinpoints = previousPinpoint.values;
-    }
-    const pinpoint = occurrence.pinpointSpan;
-    occurrence.start = Math.min(occurrence.authoritySpan.start, pinpoint?.start ?? Infinity);
-    occurrence.end = Math.max(occurrence.authoritySpan.end, pinpoint?.end ?? -Infinity);
+    occurrence.evidenceIds = evidenceIds;
+    occurrence.authoritySpan = { start: selected.start, end: selected.end, text: selected.text };
+    occurrence.pinpointSpan = previousPinpoint?.span ?? null;
+    occurrence.pinpoints = previousPinpoint?.values ?? [];
+    occurrence.start = Math.min(basis.start, occurrence.pinpointSpan?.start ?? Infinity);
+    occurrence.end = Math.max(basis.end, occurrence.pinpointSpan?.end ?? -Infinity);
     occurrence.text = selected.unit.text.slice(occurrence.start, occurrence.end);
-    changed = updateAuthoritiesDraft(changed, { type: "replace-occurrence", occurrenceId: occurrence.id,
-      replacement: occurrence,
+    changed = updateAuthoritiesDraft(changed, { type: "replace-occurrence",
+      occurrenceId: occurrence.id, replacement: occurrence,
       absorbed: { ids: absorbedIds, start: selected.start, end: selected.end } });
-    return removeUnusedDetections(changed, donors, discovered.id);
+    return removeUnusedDetections(changed, donors, occurrence.authorityId);
   }
   if (intersects(selected.start, selected.end, occurrence.authoritySpan)) {
     throw new ApplicationError(400, "Select the pinpoint without the authority");

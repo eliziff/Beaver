@@ -11,7 +11,7 @@ import { commitResearchFile, readResearchFile,
   researchLabelPath, researchSourceKey, researchSourceResource, readResearchQueries,
   type PublicResearchFileAction,
   type ResearchFile, type ResearchFileAction, type ResearchFileState,
-  type ResearchQueryReceipt } from "./researchFile";
+  type ResearchQueryReceipt, type ResearchSourceReference } from "./researchFile";
 import { provenBlockLocator } from "./documentLocators";
 import { structureNative } from "./structureNative";
 import { escapeRegExp } from "./text";
@@ -30,10 +30,29 @@ export type ResearchFileQueryInput = ResearchSelection & { versionId: string; wo
   conflict?: "prompt" | "first" | "longer" | "shorter" | "append" };
 type ResearchPassageReader = typeof legalSourceOperations.readPassage;
 const clean = (value: string) => value.normalize("NFC").replace(/\s+/gu, " ").trim();
-const exactQuote = (text: string, quote: string) => new RegExp(quote.split(" ").map((part) =>
-  escapeRegExp(part)).join("\\s+"), "u").exec(text);
-const pinpoint = new Set(["paragraph", "section", "page", "footnote"]),
-  allowed = new Set(["document", ...pinpoint]);
+const allowed = new Set(["document", "paragraph", "section", "page", "footnote"]);
+const letters = /[\p{L}\p{N}]/u, onlyLetters = /[^\p{L}\p{N}]/gu;
+const lettersAt = (text: string, index: number) => {
+  let seen = 0;
+  for (let at = 0; at < text.length; at++) if (letters.test(text[at]) && seen++ === index) return at;
+  return text.length;
+};
+/**
+ * A reader that renders the canonical text sends back offsets in it. A reader that renders the
+ * original file instead — Library PDFs and Word documents — sends the text it captured; markers,
+ * hyphenation and layout whitespace differ there but letters and digits never do, so their run
+ * is what anchors the capture back to the canonical text.
+ */
+const passageSpan = (action: Extract<PublicResearchFileAction, { type: "passage" }>, text: string) => {
+  if (action.start !== undefined && action.end !== undefined) {
+    const start = Math.min(Math.max(action.start, 0), text.length),
+      end = Math.min(Math.max(action.end, 0), text.length);
+    return end > start ? { start, end } : null;
+  }
+  const needle = (action.quote ?? "").replace(onlyLetters, ""),
+    at = needle ? text.replace(onlyLetters, "").indexOf(needle) : -1;
+  return at < 0 ? null : { start: lettersAt(text, at), end: lettersAt(text, at + needle.length - 1) + 1 };
+};
 const MAX_CAPTURE_CHARS = 1_000_000, MAX_CAPTURE_CANDIDATES = 50_000;
 
 const paragraphBreak = /\r?\n\s*\r?\n/gu, sentenceEnd = /[.!?](?:\s|$)/gu;
@@ -68,54 +87,55 @@ const adjacent = (text: string, at: number, phraseLength: number, rule: Research
   return start < end ? { start, end, text: text.slice(start, end) } : null;
 };
 
+type CanonicalDocument = { documentArtifact: Parameters<ReturnType<typeof structureNative>["documentText"]>[0];
+  evidence: (span: LegalEvidenceSpan) => LegalEvidenceReceipt | undefined };
+
+/**
+ * The canonical document behind a research source, paired with the receipt factory for spans in
+ * it. Library documents come from the stored projection, legal sources from their provider.
+ */
+async function openResearchSource(reference: ResearchSourceReference,
+  native: ReturnType<typeof structureNative>, options: { documents?: DocumentStore; scope?: ApplicationScope;
+    reader?: ResearchPassageReader; signal?: AbortSignal }): Promise<{ sourceSha256?: string;
+      failure?: "not_found" | "unsupported"; passages: CanonicalDocument[] }> {
+  if (reference.kind === "document") {
+    const projection = options.documents && options.scope
+      && await options.documents.projectionSource(options.scope, reference.id, reference.versionId);
+    if (!projection) throw new ApplicationError(404, "Document version not found");
+    const documentArtifact = await documentProjectionService.read(projection, { signal: options.signal });
+    return { sourceSha256: projection.sourceSha256, passages: [{ documentArtifact, evidence: (span) =>
+      createLibraryEvidence({ documentId: reference.id, versionId: reference.versionId,
+        filename: reference.title ?? reference.id, sourceSha256: native.documentRevision(documentArtifact),
+        start: span.start, end: span.end, spanText: span.text, blockId: span.blockId, locator: span.locator }) }] };
+  }
+  const read = await (options.reader ?? legalSourceOperations.readPassage)({ source: reference, signal: options.signal });
+  if (read.status !== "found") return { failure: read.status, passages: [] };
+  const selected = read.values.filter(({ role }) => role === "document");
+  return { passages: (selected.length ? selected : read.values.slice(0, 1)).map((passage) => ({
+    documentArtifact: passage.documentArtifact, evidence: (span) => legalSourceEvidence(passage, span) })) };
+}
+
 export async function verifyResearchPassage(file: ResearchFile, action: PublicResearchFileAction,
   reader: ResearchPassageReader = legalSourceOperations.readPassage,
   context?: { documents: DocumentStore; scope: ApplicationScope }): Promise<ResearchFileAction> {
   if (action.type !== "passage") return action;
   const source = file.state.sources[action.sourceId]?.reference;
   if (!source) throw new ApplicationError(400, "Research source not found");
-  const labelled = (evidence: LegalEvidenceReceipt): ResearchFileAction => ({ type: "merge", evidence: [evidence],
-    labels: { [evidence.evidence_id]: action.labelIds ?? [] } });
-  if (source.kind === "document") {
-    const projection = context && await context.documents.projectionSource(context.scope, source.id, source.versionId);
-    if (!projection) throw new ApplicationError(404, "Document version not found");
-    const document = await documentProjectionService.read(projection), native = structureNative(),
-      text = native.documentText(document), whole = action.locator.kind === "document",
-      blocks = whole ? [] : native.documentAnchors(document).filter((block) =>
-        block.kind === action.locator.kind && (block.label === action.locator.value ||
-          !!action.locator.endValue && Number(block.label) >= Number(action.locator.value) &&
-          Number(block.label) <= Number(action.locator.endValue)));
-    if (!whole && !blocks.length) throw new ApplicationError(409, "The canonical document passage is unavailable");
-    const from = whole ? 0 : Math.min(...blocks.map(({ start }) => start)),
-      end = whole ? text.length : Math.max(...blocks.map(({ end }) => end)),
-      match = exactQuote(text.slice(from, end), clean(action.quote));
-    if (!match) throw new ApplicationError(400, "The quote is not contained in the canonical passage");
-    const start = from + match.index, stop = start + match[0].length,
-      block = whole ? native.smallestContainingDocumentBlock(document, start, stop) : null;
-    return labelled(createLibraryEvidence({ documentId: source.id,
-      versionId: source.versionId, filename: source.title ?? source.id,
-      sourceSha256: native.documentRevision(document), start, end: stop, spanText: match[0],
-      ...(whole ? ((locator) => locator ? { locator } : {})(
-          provenBlockLocator(document, block, { start, end: stop }))
-        : { locator: { kind: action.locator.kind, label: action.locator.endValue
-          ? `${action.locator.value}-${action.locator.endValue}` : action.locator.value } }) }));
-  }
-  const { kind } = action.locator;
-  if (kind === "document") throw new ApplicationError(400, "Select a numbered passage in this source");
-  const read = await reader({ source, locator: { ...action.locator, kind }, contextBlocks: 0 });
-  const selected = read.status === "found" ? read.values.filter(({ role }) => role === "selected") : [];
-  if (!selected.length) throw new ApplicationError(409, "The canonical source passage is unavailable");
-  const first = selected[0], last = selected.at(-1)!, native = structureNative(),
-    text = native.documentText(first.documentArtifact), from = first.blockArtifact?.start ?? 0,
-    match = exactQuote(text.slice(from, last.blockArtifact?.end ?? text.length), clean(action.quote));
-  if (!match) throw new ApplicationError(400, "The quote is not contained in the canonical passage");
-  const start = from + match.index, label = action.locator.endValue
-    ? `${action.locator.value}-${action.locator.endValue}` : action.locator.value;
-  const evidence = legalSourceEvidence(first, { text: match[0], start, end: start + match[0].length,
-    blockId: `${action.locator.kind}:${label}:${start}:${start + match[0].length}`,
-    locator: { kind: action.locator.kind, label } });
-  if (!evidence) throw new ApplicationError(409, "The canonical source passage is unavailable");
-  return labelled(evidence);
+  const native = structureNative();
+  const [passage] = (await openResearchSource(source, native,
+    { documents: context?.documents, scope: context?.scope, reader })).passages;
+  if (!passage) throw new ApplicationError(404, "This source could not be opened for reading");
+  const document = passage.documentArtifact, text = native.documentText(document);
+  if (action.revision && action.revision !== native.documentRevision(document))
+    throw new ApplicationError(409, "This source changed while you were reading it; open it again to highlight");
+  const span = passageSpan(action, text);
+  if (!span) throw new ApplicationError(400, "Select some text to highlight");
+  const block = native.smallestContainingDocumentBlock(document, span.start, span.end);
+  const receipt = passage.evidence({ ...span, text: text.slice(span.start, span.end),
+    ...((locator) => locator ? { blockId: `${locator.kind}:${locator.label}:${span.start}:${span.end}`,
+      locator } : {})(provenBlockLocator(document, block, span)) });
+  if (!receipt) throw new ApplicationError(404, "This source could not be opened for reading");
+  return { type: "merge", evidence: [receipt], labels: { [receipt.evidence_id]: action.labelIds ?? [] } };
 }
 
 type Capture = { start: number; end: number; slot: string; order: number; assign: boolean };
@@ -296,26 +316,12 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
         return { sourceId: source.id, sourceSha256s, found };
       }
       native ??= structureNative();
-      const reference = source.reference, passages: Array<{ documentArtifact: Parameters<ReturnType<typeof structureNative>["documentText"]>[0];
-        evidence: (span: LegalEvidenceSpan) => LegalEvidenceReceipt | undefined }> = [];
-      if (reference.kind === "document") {
-        const projection = await documents.projectionSource(scope, reference.id, reference.versionId);
-        if (!projection) throw new ApplicationError(404, "Document version not found");
-        if (boundaries.some(({ sourceSha256 }) => sourceSha256 && sourceSha256 !== projection.sourceSha256))
-          throw new ApplicationError(409, "Selected source changed during research");
-        const documentArtifact = await documentProjectionService.read(projection, { signal: options.signal });
-        passages.push({ documentArtifact, evidence: (span) => createLibraryEvidence({
-          documentId: reference.id, versionId: reference.versionId, filename: reference.title ?? reference.id,
-          sourceSha256: native!.documentRevision(documentArtifact), start: span.start, end: span.end,
-          spanText: span.text, blockId: span.blockId, locator: span.locator }) });
-      } else {
-        const read = await (options.reader ?? legalSourceOperations.readPassage)({ source: reference, signal: options.signal });
-        if (read.status !== "found") return { sourceId: source.id, failure: read.status, found: [] };
-        const selected = read.values.filter(({ role }) => role === "document");
-        for (const passage of selected.length ? selected : read.values.slice(0, 1))
-          passages.push({ documentArtifact: passage.documentArtifact, evidence: (span) => legalSourceEvidence(passage, span) });
-      }
-      if (!passages.length) return { sourceId: source.id, failure: "not_found", found: [] };
+      const opened = await openResearchSource(source.reference, native,
+        { documents, scope, reader: options.reader, signal: options.signal });
+      if (opened.sourceSha256 && boundaries.some(({ sourceSha256 }) => sourceSha256 && sourceSha256 !== opened.sourceSha256))
+        throw new ApplicationError(409, "Selected source changed during research");
+      const passages = opened.passages;
+      if (!passages.length) return { sourceId: source.id, failure: opened.failure ?? "not_found", found: [] };
       const adapter = native!, sourceSha256s = passages.map(({ documentArtifact }) =>
         adapter.documentRevision(documentArtifact)), found: Array<{
         span: string; receipt: LegalEvidenceReceipt | undefined; slot?: string; assign?: boolean }> = [],
