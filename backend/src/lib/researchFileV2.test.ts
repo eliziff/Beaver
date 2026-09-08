@@ -258,6 +258,12 @@ describe("Research v2 parts", () => {
     await act(f, { type: "label", id: grandchild, name: "Grandchild",
       parentId: child, scope: "source" });
     const saved = await act(f, { type: "label", name: "Fourth level", parentId: grandchild, scope: "source" });
+    const filed = await act(f, { type: "source", reference: { provider: "a2aj", kind: "case", id: "case" },
+      labelIds: [root, child, grandchild] });
+    const item = Object.values(filed.state.sources)[0];
+    expect(item.labelIds).toEqual([grandchild]);
+    item.labelIds = [root, child, grandchild];
+    expect(parseResearchFile(researchFileMarkdown("Cases", filed.state))!.sources[item.id].labelIds).toEqual([grandchild]);
     expect(Object.values(saved.state.labels).map(({ name }) => name)).toContain("Fourth level");
     await expect(commitResearchFile(f.documents as never, { userId: "user-1" }, saved,
       { type: "label", id: root, name: "Root", parentId: grandchild, scope: "source" }))
