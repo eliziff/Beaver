@@ -78,6 +78,25 @@ describe("production legal evidence", () => {
     });
   });
 
+  it.each(["document", "page"] as const)("keeps distinct Library spans on the same %s separate", (kind) => {
+    const state = createLegalEvidenceTurnState();
+    const sourceText = "First obligation. Second obligation.";
+    const receipts = [[0, 17], [18, 36]].map(([start, end]) => createLibraryEvidence({
+      documentId: "doc", versionId: "v1", filename: "Terms.docx", sourceText,
+      spanText: sourceText.slice(start, end), start, end, locator: { kind, label: kind === "page" ? "page1" : "text paragraph 34" },
+    }));
+    receipts.forEach((receipt) => registerLegalEvidence(state, receipt));
+    expect(submitLegalEvidenceAnswer({ claims: [0, 1, 0].map((index) => ({
+      text: receipts[index].span_text, evidence_ids: [receipts[index].evidence_id],
+    })) }, state).ok).toBe(true);
+    expect(renderLegalEvidenceAnswer(state)).toBe("First obligation. [1]\n\nSecond obligation. [2]\n\nFirst obligation. [1]");
+    expect(createLegalEvidenceCitations(state).map(({ quotes }) => quotes)).toEqual(receipts.map((receipt) => [
+      { quote: receipt.span_text, ...(kind === "page" && { page: "1" }) },
+    ]));
+    expect(submitLegalEvidenceAnswer({ claims: [{ text: "An obligation. [3]",
+      evidence_ids: [receipts[0].evidence_id] }] }, state).ok).toBe(false);
+  });
+
   it("shares grounding checks without imposing chat answer limits on extraction", () => {
     const state = createLegalEvidenceTurnState(), evidence = passage();
     registerLegalEvidence(state, evidence);
@@ -534,7 +553,7 @@ describe("production legal evidence", () => {
         document_id: "document-1",
         version_id: "version-1",
         filename: "record.pdf",
-        quotes: [{ quote: "The appeal is allowed." }],
+        quotes: [{ quote: "The appeal is allowed.", page: "5" }],
       }),
     ]);
   });

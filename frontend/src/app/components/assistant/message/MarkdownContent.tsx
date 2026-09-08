@@ -125,15 +125,7 @@ export function CitationPill({
             {content}
         </button>
     );
-    return (
-        <span
-            data-citation-ref={citation.ref}
-            className={pillClassName}
-            title={title ?? citationTooltip(citation)}
-        >
-            {content}
-        </span>
-    );
+    return <span title={title ?? citationTooltip(citation)}>{content}</span>;
 }
 
 export function CitationPillMarkdown({

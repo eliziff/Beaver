@@ -311,7 +311,8 @@ export function readLibraryResearchWindow(input: { documentId: string; versionId
         label: `${cell.tableName}!${cell.address}`, sheet: cell.tableName, cells: cell.address } }))
       : [{ start: row.span[0], end: row.span[1], ...(() => {
         const locator = provenBlockLocator(input.document, block, { start: row.span[0], end: row.span[1] });
-        return locator ? { locator } : {};
+        return { locator: locator ?? { kind: "document" as const, label: block?.kind === "paragraph"
+          ? `text paragraph ${block.label.replace(/^par/iu, "")}` : `text line ${row.lineNumber}` } };
       })() }])
       if (span.end > span.start) {
         const receipt = createLibraryEvidence({ documentId: input.documentId,
