@@ -396,7 +396,7 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
   async function previewLabels(scope: Scope, id: string, input: LabelInput, signal?: AbortSignal) {
     const { file, catalog, resolveFinding } = await importCatalog(scope, id, input);
     const target = input.rows ?? "sources";
-    if (catalog.labels.length && !input.repropose && input.columnIndex === undefined) catalog.columns = catalog.labels.filter(label =>
+    if (!catalog.columns && catalog.labels.length && !input.repropose && input.columnIndex === undefined) catalog.columns = catalog.labels.filter(label =>
       label.scope === (target === "sources" ? "source" : "highlight")).map((label, index) => ({ index,
         name: label.path, prompt: label.definition || `What does this source establish about ${label.path}?`, scope: label.scope }));
     const design = input.design ?? (catalog.columns ? await columnLabels(file, catalog, resolveFinding, input.columnIndex !== undefined)
