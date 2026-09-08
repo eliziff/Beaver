@@ -402,7 +402,7 @@ export async function restoreResearchEvidence(documents: DocumentStore, scope: A
   return restorePriorLegalEvidence(receipts, signal, true, available.flat());
 }
 
-export function oneHopLegalScope(
+function oneHopLegalScope(
   document: NativeDocument,
   block: NativeDocumentBlock,
   direction: "inbound" | "outbound" | "both",
