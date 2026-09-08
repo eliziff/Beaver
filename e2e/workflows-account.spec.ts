@@ -14,7 +14,7 @@ async function createWorkflow(page: Page, title: string) {
     expect(response.ok()).toBe(true);
     const workflow = await response.json();
     await expect(page).toHaveURL(new RegExp(`/workflows/${workflow.id}$`));
-    await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+    await expect(page.locator("header").getByRole("heading", { name: title, exact: true })).toBeVisible();
     return workflow.id as string;
 }
 
@@ -32,7 +32,7 @@ test.describe("Workflows", () => {
         await expect(response).toBeOK();
         expect((await response.json()).metadata.title).toBe(title);
         await page.reload();
-        await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+        await expect(page.locator("header").getByRole("heading", { name: title, exact: true })).toBeVisible();
     });
 
     test("built-in workflow information is read-only and edits are refused", async ({ page }) => {
