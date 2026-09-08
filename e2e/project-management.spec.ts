@@ -57,13 +57,12 @@ async function createProject(
     await page.getByRole("button", { name: "Next", exact: true }).click();
 
     if (filePath) {
-        /* On the documents step the footer "Upload" button opens a hidden file
-           input, and its label gains a "(n)" count once files are attached. */
+        await page.getByRole("button", { name: "Upload", exact: true }).click();
         const fileChooserPromise = page.waitForEvent("filechooser");
-        await page.getByRole("button", { name: /^Upload/ }).click();
-        (await fileChooserPromise).setFiles(filePath);
+        await page.getByRole("menuitem", { name: "Files", exact: true }).click();
+        await (await fileChooserPromise).setFiles(filePath);
         await expect(
-            page.getByRole("button", { name: /^Upload \(1\)/ }),
+            page.getByRole("list", { name: "Files ready to upload" }).getByText(path.basename(filePath)),
         ).toBeVisible({ timeout: 5_000 });
     }
 
@@ -116,6 +115,7 @@ async function waitForProjectLoaded(
 test("rename a project via Edit details", async ({ page }) => {
     const projectName = `E2E Proj ${Date.now()}`;
     await createProject(page, projectName);
+    const projectId = new URL(page.url()).pathname.split("/")[2];
 
     /* Navigate to the projects list (where the rename UI lives) and grab the
        row. Each project row is a <div class="group">. The sidebar "Recent
@@ -124,7 +124,7 @@ test("rename a project via Edit details", async ({ page }) => {
     const row = await gotoProjectRow(page, projectName);
 
     /* The ··· button (middle-dot U+00B7 × 3) is inside the last cell of the row */
-    const ellipsisBtn = row.locator("button").filter({ hasText: "···" });
+    const ellipsisBtn = row.getByRole("button", { name: "More actions", exact: true });
     await ellipsisBtn.click();
 
     /*
@@ -132,7 +132,7 @@ test("rename a project via Edit details", async ({ page }) => {
      * inline "Rename" affordance is gone; renaming now happens in
      * ProjectDetailsModal, which also carries the CM number and practice fields.
      */
-    await page.getByRole("button", { name: "Edit details", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Edit details", exact: true }).click();
 
     /* ProjectDetailsModal's name field is pre-filled with the current name;
        fill() clears it first, platform-independently. */
@@ -143,6 +143,13 @@ test("rename a project via Edit details", async ({ page }) => {
 
     // REGRESSION: fails if ProjectDetailsModal's onSave (updateProject) is removed
     await page.getByRole("button", { name: "Update", exact: true }).click();
+    await expect.poll(async () => {
+        const response = await page.request.get(`/api/projects/${projectId}`);
+        await expect(response).toBeOK();
+        return (await response.json()).name;
+    }).toBe(newName);
+    await page.keyboard.press("Escape");
+    await page.reload();
 
     /* handleRenameSubmit optimistically updates the projects list state.
        Scope to table rows (div.group) so the sidebar's stale copy of the old
@@ -161,6 +168,7 @@ test("rename a project via Edit details", async ({ page }) => {
 test("delete a project", async ({ page }) => {
     const projectName = `E2E Proj ${Date.now()}`;
     await createProject(page, projectName);
+    const projectId = new URL(page.url()).pathname.split("/")[2];
 
     /*
      * Back to the projects list.
@@ -179,23 +187,31 @@ test("delete a project", async ({ page }) => {
      * The "Actions" button is conditionally rendered only when selectedIds.length > 0.
      * It opens a small dropdown containing a "Delete" option.
      */
-    const actionsBtn = page.getByRole("button", { name: /^Actions/ });
+    const actionsBtn = page.getByRole("button", { name: "More actions for selected projects", exact: true });
     await expect(actionsBtn).toBeVisible({ timeout: 3_000 });
     await actionsBtn.click();
 
     /* exact:true so the substring match can't pick up any other button whose
        accessible name merely contains "Delete". */
-    const deleteBtn = page.getByRole("button", { name: "Delete", exact: true });
+    const deleteBtn = page.getByRole("menuitem", { name: "Delete", exact: true });
     await expect(deleteBtn).toBeVisible({ timeout: 3_000 });
 
     // REGRESSION: fails if `handleDeleteSelected` is removed
     await deleteBtn.click();
+    const confirmation = page.getByRole("alertdialog", { name: "Delete project?", exact: true });
+    await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(row).toBeVisible();
+    await expect(await page.request.get(`/api/projects/${projectId}`)).toBeOK();
+    await actionsBtn.click();
+    await deleteBtn.click();
+    await confirmation.getByRole("button", { name: "Delete", exact: true }).click();
 
     /* handleDeleteSelected removes the project from local state immediately.
        Scope to table rows so a stale sidebar entry can't keep this truthy. */
     await expect(
         page.locator("div.group").filter({ hasText: projectName }),
     ).toHaveCount(0, { timeout: 10_000 });
+    expect((await page.request.get(`/api/projects/${projectId}`)).status()).toBe(404);
 });
 
 // ─── Test 3: Create a folder inside a project ────────────────────────────────
@@ -218,7 +234,7 @@ test("create a folder inside a project", async ({ page }) => {
        "Add Subfolder" to "Folder" (a TabPillButton wired to the root
        createFolderAction — ProjectDocumentsView). Clicking it still renders the
        autofocused "Folder name" input at root level (creatingIn === null). */
-    const addSubfolderBtn = page.getByRole("button", { name: "Folder" });
+    const addSubfolderBtn = page.getByRole("button", { name: "New folder", exact: true });
     await waitForProjectLoaded(page, addSubfolderBtn);
 
     /* Confirm the uploaded document rendered, i.e. the project is non-empty and
@@ -252,7 +268,7 @@ test("create a folder inside a project", async ({ page }) => {
 
 // ─── Test 4: File upload type validation (wrong type rejected) ────────────────
 
-test("file upload type validation — .txt file is rejected", async ({ page }) => {
+test("file upload type validation — .exe file is rejected", async ({ page }) => {
     const projectName = `E2E Proj ${Date.now()}`;
     await createProject(page, projectName);
 
@@ -273,34 +289,20 @@ test("file upload type validation — .txt file is rejected", async ({ page }) =
 
     /* Open the Add Documents modal. The "Add Documents" button only renders
        once ProjectPage has loaded the project. */
-    const addDocsBtn = page.getByRole("button", { name: "Add Documents" });
+    const addDocsBtn = page.getByRole("button", { name: "Upload", exact: true });
     await waitForProjectLoaded(page, addDocsBtn);
 
     /* (b) Server-side rejection — REGRESSION: fails if type validation is
        removed from the upload handler. */
     const projectId = page.url().match(/\/projects\/([0-9a-f-]{36})/)?.[1];
     expect(projectId, "expected to be on a /projects/<id> page").toBeTruthy();
-    const accessToken = await page.evaluate(() => {
-        const item = Object.entries(localStorage).find(([k]) =>
-            k.includes("auth-token"),
-        );
-        if (!item) return null;
-        try {
-            return JSON.parse(item[1]).access_token ?? null;
-        } catch {
-            return null;
-        }
-    });
-    expect(accessToken, "expected a Supabase session in localStorage").toBeTruthy();
-    const apiBase = process.env.MIKE_API_BASE_URL ?? "http://localhost:3001";
     const uploadResponse = await page.request.post(
-        `${apiBase}/projects/${projectId}/documents`,
+        `/api/projects/${projectId}/documents`,
         {
-            headers: { Authorization: `Bearer ${accessToken}` },
             multipart: {
                 file: {
-                    name: "test.txt",
-                    mimeType: "text/plain",
+                    name: "test.exe",
+                    mimeType: "application/octet-stream",
                     buffer: Buffer.from(
                         "This is a plain text file that should be rejected.",
                     ),
@@ -312,10 +314,11 @@ test("file upload type validation — .txt file is rejected", async ({ page }) =
 
     /* (a) UI-side filtering with a visible warning. */
     await addDocsBtn.click();
+    await page.getByRole("menuitem", { name: "Files", exact: true }).click();
 
+    await page.getByRole("dialog").getByRole("button", { name: "Upload", exact: true }).click();
     const fileChooserPromise = page.waitForEvent("filechooser");
-    /* The Upload button label is "Upload" (not "Uploading…") when idle */
-    await page.getByRole("button", { name: "Upload" }).first().click();
+    await page.getByRole("menuitem", { name: "Files", exact: true }).click();
     const fileChooser = await fileChooserPromise;
 
     /*
@@ -324,8 +327,8 @@ test("file upload type validation — .txt file is rejected", async ({ page }) =
      * logic (not the accept attribute) is what's under test.
      */
     await fileChooser.setFiles({
-        name: "test.txt",
-        mimeType: "text/plain",
+        name: "test.exe",
+        mimeType: "application/octet-stream",
         buffer: Buffer.from("This is a plain text file that should be rejected."),
     });
 
@@ -333,10 +336,9 @@ test("file upload type validation — .txt file is rejected", async ({ page }) =
     // (UNSUPPORTED_DOCUMENT_WARNING_MESSAGE in documentUploadValidation.ts).
     await expect(
         page.getByText(
-            "Unsupported file type. Only PDF, Word, Excel, and PowerPoint files can be uploaded.",
+            /Unsupported file type/,
         ),
     ).toBeVisible({ timeout: 10_000 });
 
-    /* The .txt file must not appear in the modal's document list */
-    await expect(page.getByText("test.txt")).not.toBeVisible();
+    await expect(page.getByText("test.exe")).not.toBeVisible();
 });

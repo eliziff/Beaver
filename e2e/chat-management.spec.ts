@@ -43,7 +43,7 @@ async function savedChat(page: Page, created: Created) {
 }
 
 async function openHistory(page: Page) {
-    const history = page.getByRole("region", { name: "Assistant history" });
+    const history = page.getByRole("region", { name: "Assistant conversations" });
     const opener = page.getByRole("button", { name: "Open sidebar", exact: true });
     await expect(history.or(opener).first()).toBeVisible();
     if (!(await history.isVisible())) await opener.click();
