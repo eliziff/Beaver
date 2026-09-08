@@ -422,7 +422,7 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
   }
   async function saveFindings(scope: Scope, id: string, input: { references: ResearchFindingReference[];
     typeId?: string; versionId: string; workingRevision: number }, actor?: Operation) {
-    const { file, catalog } = await importCatalog(scope, id, { findingRefs: input.references }),
+    const { file, catalog, resolveFinding } = await importCatalog(scope, id, { findingRefs: input.references }),
       entries = catalog.entries.filter(({ kind }) => kind === "answer"), evidence = new Set(entries.flatMap(({ evidenceIds }) => evidenceIds));
     if (file.versionId !== input.versionId || file.workingRevision !== input.workingRevision)
       return conflict("The research set changed. Reload before saving these highlights.");
@@ -434,8 +434,9 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
           : { key: "highlight", name: "Highlight", scope: "highlight" }],
         assignments: [{ labelKey: label ? label.id : "highlight", rowIds: catalog.rows.map(({ id }) => id),
           itemIds: entries.map(({ id }) => id) }] }, "sources");
-    const saved = await commitResearchFile(documents, scope, file, { type: "batch", title, actions },
-    undefined, operation(actor)) ?? conflict("The research set changed. Reload before saving.");
+    const saved = await commitResearchFile(documents, scope, file, { type: "merge", title, actions,
+      evidence: (await Promise.all(entries.map(({ reference }) => reference.kind === "answer" || reference.kind === "cell"
+        ? resolveFinding(reference) : null))).flatMap((finding) => finding?.evidence ?? []) }, undefined, operation(actor)) ?? conflict("The research set changed. Reload before saving.");
     return { file: saved, saved: evidence.size };
   }
   async function columnLabels(file: ResearchFile, catalog: ResearchImportCatalog,

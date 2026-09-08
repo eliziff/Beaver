@@ -266,11 +266,12 @@ it("reads saved workspace passages through their handles without fetching the so
     { name: "Read", id: "inventory", input: { file_path: "selection" } },
     { name: "Read", id: "saved", input: { file_path: receipt.evidence_id } },
     { name: "Read", id: "pinpoint", input: { file_path: context.subjects[0].resource,
-      locator_kind: receipt.locator.kind, locator: receipt.locator.label } },
+      locator_kind: receipt.locator.kind, locator: `par${receipt.locator.label}` } },
   ], { documents: f.documents, sources: f.sources, researchContext: context, legalEvidence: state });
   expect(JSON.parse(results[0].content).items).toContainEqual(expect.objectContaining({ evidence_id: receipt.evidence_id }));
   for (const result of results.slice(1)) expect(JSON.parse(result.content)).toMatchObject({ exact_passage: receipt.span_text });
   expect(fetch).not.toHaveBeenCalled();
+  await f.act({ type: "remove", kind: "evidence", sourceId: f.sourceId, id: f.receipts[1].evidence_id });
   await f.turn("What follows?", "Supported conclusion.");
   const before = (await f.sources.get(owner, f.file().document.id))!, finding = (await f.sources.findings(owner,
     before.document.id, { chatId: f.chat.id, offset: 0, limit: 10 })).items[0],
