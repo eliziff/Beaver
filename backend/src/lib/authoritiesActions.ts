@@ -1,12 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { ApplicationError } from "./applicationError";
-import { AuthoritiesDomainError, authorityCitationForms, reduceAuthoritiesDraft,
+import { AuthoritiesDomainError, attachedAuthoritySources, authorityCitationForms, reduceAuthoritiesDraft,
   unusedScanOnlyAuthority, type AuthoritiesAction, type AuthoritiesBuildSettings,
   type AuthoritiesDraft, type AuthoritiesFreshReview, type AuthorityIdentity,
   type AuthorityKind, type AuthorityOccurrence, type AuthoritySourceLanguage,
   type AuthoritiesOutputMode, type AuthoritiesProfileId } from "./authoritiesDomain";
 import { nativeOccurrenceSpans } from "./authoritiesImport";
 import { buildCanliiCaseUrlFromCitation } from "./canliiUrls";
+import { authorityPdfText } from "./authorityPdfText";
+import { citationAliasKeysBatch } from "./caselawCitator";
 import { sha256 } from "./hash";
 import { structureNative, type NativeCitationOccurrence } from "./structureNative";
 import type { WorkProductInput } from "./workProduct";
@@ -74,10 +76,25 @@ export function attachAuthorityPdf(draft: AuthoritiesDraft, authority: Authority
   sourceSha256: string, language: AuthoritySourceLanguage,
   origin: "manual" | "original" | "reconstructed" = "manual",
   sourceUrl = authority.source.kind === "pending-canlii" ? authority.source.pdfUrl
-    : authority.sourceIdentity?.externalUrl ?? null) {
+    : attachedAuthoritySources(authority.source).find(source => source.language === language)?.sourceUrl
+      ?? authority.sourceIdentity?.externalUrl ?? null) {
   return updateAuthoritiesDraft(draft, { type: "attach-source", authorityId: authority.id, bindingRole:
-    `authority:${sha256(authority.key).slice(0, 24)}:${language}`, binding, filename, sourceSha256,
+    attachedAuthoritySources(authority.source).find(source => source.language === language)?.bindingRole
+      ?? `authority:${sha256(authority.key).slice(0, 24)}:${language}`, binding, filename, sourceSha256,
     sourceUrl, language, origin });
+}
+
+export async function checkCanliiPdf(draft: AuthoritiesDraft, authorityId: string, bytes: Buffer) {
+  const authority = draft.authorities[authorityId];
+  if (authority?.source.kind !== "pending-canlii") return;
+  const { pageTextByPage } = await authorityPdfText({ bytes, maxPages: 1 });
+  // Use the opening citation, never a matching case cited later in the reasons.
+  const citation = structureNative().citationOccurrencesInText(pageTextByPage[0] ?? "")
+    .find(({ kind }) => kind === "case")?.coreCitation.text;
+  if (!citation) throw new ApplicationError(400, "The PDF’s citation could not be verified; it was not attached.");
+  const keys = citationAliasKeysBatch(authorityCitationForms(draft, authorityId)).flat();
+  if (!keys.includes(structureNative().citationLookupKey(citation)))
+    throw new ApplicationError(400, `This PDF is ${citation}, not ${authority.citation}; it was not attached.`);
 }
 
 export function attachAuthoritiesBookPdf(draft: AuthoritiesDraft, input: {

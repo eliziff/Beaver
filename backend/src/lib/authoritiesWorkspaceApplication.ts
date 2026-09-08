@@ -1,7 +1,8 @@
+import { readFile } from "node:fs/promises";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
   attachAuthorityPdf as attachSource, attachAuthoritiesBookPdf as attachBookSource,
-  authoritiesReview as review, updateAuthoritiesDraft as update,
+  checkCanliiPdf, authoritiesReview as review, updateAuthoritiesDraft as update,
   type AuthoritiesInitialSettings, type AuthoritiesUserAction } from "./authoritiesActions";
 import { authorityPassageTargets, buildAuthorities, type AuthoritiesBuildInput,
   type AuthoritiesBuildResult } from "./authoritiesBuild";
@@ -269,6 +270,23 @@ export function createAuthoritiesWorkspaceApplication(
     return result;
   }
 
+  async function uploadPdf(scope: ApplicationScope, id: string,
+    input: { revision: number; file: DocumentFile; authorityId?: string },
+    attach: (draft: AuthoritiesDraft, binding: WorkProductInput, filename: string, hash: string) => AuthoritiesDraft) {
+    if (input.file.fileType.toLowerCase() !== "pdf") throw new ApplicationError(400, "Attach a PDF file");
+    const { product, draft } = await edit(scope, id, input.revision);
+    if (input.authorityId !== undefined && attachableAuthority(draft, input.authorityId).source.kind === "pending-canlii") {
+      await checkCanliiPdf(draft, input.authorityId,
+        "bytes" in input.file ? input.file.bytes : await readFile(input.file.path));
+    }
+    const created = await files.create(scope, "authorities", input.file,
+      { projectId: product.projectId, pdfOcrProvider: null });
+    return withRollback(scope, [createdDocumentRollback(created)], () => workProducts.save(scope, id,
+      { revision: input.revision, state: attach(draft, { kind: "document", documentId: created.id,
+        version: { versionId: created.current_version_id, sha256: created.source_sha256 } },
+      created.filename, created.source_sha256) }), "Attaching the PDF could not be completed");
+  }
+
   return Object.freeze({
     list: (scope: ApplicationScope, options: { projectId?: string; limit?: number } = {}) =>
       workProducts.list(scope, { kind: "authorities", ...options }),
@@ -391,44 +409,14 @@ export function createAuthoritiesWorkspaceApplication(
       return workProducts.save(scope, id, { revision: input.revision,
         state: adoptCurrentPdf(draft, input.role, binding, version) });
     },
-    async attachPdf(scope: ApplicationScope, id: string, input: {
-      revision: number; authorityId: string; file: DocumentFile;
-      language: AuthoritySourceLanguage;
-    }) {
-      if (input.file.fileType.toLowerCase() !== "pdf") {
-        throw new ApplicationError(400, "Attach a PDF file");
-      }
-      const { product, draft } = await edit(scope, id, input.revision);
-      const authority = attachableAuthority(draft, input.authorityId);
-      const created = await files.create(scope, "authorities", input.file,
-        { projectId: product.projectId, pdfOcrProvider: null });
-      return withRollback(scope, [createdDocumentRollback(created)], async () => {
-        const state = attachSource(draft, authority,
-          { kind: "document", documentId: created.id,
-            version: { versionId: created.current_version_id,
-              sha256: created.source_sha256 } }, created.filename, created.source_sha256,
-          input.language);
-        return workProducts.save(scope, id, { revision: input.revision, state });
-      }, "Attaching the PDF could not be completed");
-    },
-    async attachBookPdf(scope: ApplicationScope, id: string, input: {
-      revision: number; slot: "cover" | "index" | "supplemental"; file: DocumentFile;
-      supplementId?: string;
-    }) {
-      if (input.file.fileType.toLowerCase() !== "pdf") {
-        throw new ApplicationError(400, "Attach a PDF file");
-      }
-      const { product, draft } = await edit(scope, id, input.revision);
-      const created = await files.create(scope, "authorities", input.file,
-        { projectId: product.projectId, pdfOcrProvider: null });
-      return withRollback(scope, [createdDocumentRollback(created)], async () => {
-        const binding = { kind: "document" as const, documentId: created.id,
-          version: { versionId: created.current_version_id, sha256: created.source_sha256 } };
-        const state = attachBookSource(draft, input, binding, created.filename,
-          created.source_sha256);
-        return workProducts.save(scope, id, { revision: input.revision, state });
-      }, "Attaching the book PDF could not be completed");
-    },
+    attachPdf: (scope: ApplicationScope, id: string, input: {
+      revision: number; authorityId: string; file: DocumentFile; language: AuthoritySourceLanguage;
+    }) => uploadPdf(scope, id, input, (draft, binding, filename, hash) =>
+      attachSource(draft, attachableAuthority(draft, input.authorityId), binding, filename, hash, input.language)),
+    attachBookPdf: (scope: ApplicationScope, id: string, input: {
+      revision: number; slot: "cover" | "index" | "supplemental"; file: DocumentFile; supplementId?: string;
+    }) => uploadPdf(scope, id, input, (draft, binding, filename, hash) =>
+      attachBookSource(draft, input, binding, filename, hash)),
     async attachLibraryPdf(scope: ApplicationScope, id: string, input: {
       revision: number; documentId: string; versionId: string;
       target: { kind: "authority"; authorityId: string; language: AuthoritySourceLanguage } |
@@ -439,6 +427,12 @@ export function createAuthoritiesWorkspaceApplication(
       if (!version || version.current_version_id !== input.versionId ||
           version.file_type.toLowerCase() !== "pdf") {
         throw new ApplicationError(409, "Select the current PDF version from Library");
+      }
+      if (input.target.kind === "authority" &&
+          draft.authorities[input.target.authorityId]?.source.kind === "pending-canlii") {
+        const file = await documents.read(scope, input.documentId, input.versionId, false);
+        if (!file) throw new ApplicationError(409, "The PDF is no longer available.");
+        await checkCanliiPdf(draft, input.target.authorityId, file.bytes);
       }
       const binding = { kind: "document" as const, documentId: input.documentId,
         version: "latest" as const };
