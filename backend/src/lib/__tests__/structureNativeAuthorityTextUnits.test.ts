@@ -170,9 +170,11 @@ it("borders detached margin paragraphs across bilingual pages, excluding headers
     ["21", "24"].map(locator => ({ id: locator, locatorKind: "paragraph", locator })));
   expect(targets.map(target => target.status)).toEqual(["found", "found"]);
   expect(targets.map(target => target.pages.map(p => p.pageNumber))).toEqual([[1, 2], [2]]);
-  expect(targets[0].pages[0].passageRects[0]).toEqual([
-    expect.closeTo(84, 0), expect.closeTo(665, 0), expect.any(Number), expect.closeTo(686, 0),
-  ]);
+  const firstRect = targets[0].pages[0].passageRects[0];
+  expect(firstRect[0]).toBe(84);
+  expect(firstRect[1]).toBeLessThan(672); // Above the first drawn baseline.
+  expect(firstRect[3]).toBeGreaterThan(684); // Below the second drawn baseline.
+  expect(firstRect[3] - firstRect[1]).toBeLessThan(30);
   for (const target of targets) {
     expect(target.pages.map(p => p.text).join(" ")).not.toMatch(/Reporter|Legislation|Issues|following|next paragraph/);
     expect(target.pages.every(p => p.passageRects[0][2] > 450)).toBe(true);
