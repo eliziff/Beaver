@@ -894,8 +894,7 @@ function DraftsPanel({ drafts, loading, busy, onOpen }: { drafts: WorkProductMet
   return <section className="overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
     <div className="flex min-h-12 items-center gap-2 border-b border-gray-200 px-4">
       <History className="h-4 w-4 shrink-0 text-red-700" />
-      <h2 className="font-semibold text-gray-950">Saved drafts</h2>
-      <span className="ms-auto text-sm tabular-nums text-gray-500">{drafts.length}</span></div>
+      <h2 className="font-semibold text-gray-950">Saved drafts</h2></div>
     <div className="h-[28rem] overflow-y-auto">
       {loading ? <div className="grid h-full place-items-center px-4 py-12 text-sm text-gray-500"
         role="status"><span className="inline-flex items-center"><Loader2
