@@ -1035,13 +1035,12 @@ export function legalEvidenceCitationGroupsFromEntries(
   } as LegalEvidenceTurnState).groups : [];
 }
 
-// Group pinpoints per claim; reuse identical groups and shorten subsequent source names.
+// Each claim owns its references; subsequent source names use the short form.
 export function legalEvidenceCitationPlan(state: LegalEvidenceTurnState): {
   groups: LegalEvidenceCitationGroup[];
   claimRefs: number[][];
 } {
   const groups: LegalEvidenceCitationGroup[] = [];
-  const grouped = new Map<string, LegalEvidenceCitationGroup>();
   const cited = new Set<string>();
   const claimRefs: number[][] = [];
   for (const claim of state.answer ?? []) {
@@ -1061,17 +1060,10 @@ export function legalEvidenceCitationPlan(state: LegalEvidenceTurnState): {
       const labels = kind === "document" ? [] : members.flatMap(({ receipt }) =>
         receipt.locator.kind === kind ? [receipt.locator.label] : []);
       const locatorLabels = collapseProvisionLabels(labels, kind) ?? [...new Set(labels)];
-      const key = [source, kind, members[0].receipt.provider === "library"
-        ? members.map(({ receipt }) => receipt.evidence_id).sort().join(",")
-        : locatorLabels.join("\u0001")].join("\u0000");
-      let group = grouped.get(key);
-      if (!group) {
-        group = { ref: groups.length + 1, members: [], locatorKind: kind, locatorLabels,
-          shortForm: cited.has(source) };
-        grouped.set(key, group);
-        groups.push(group);
-        cited.add(source);
-      }
+      const group: LegalEvidenceCitationGroup = { ref: groups.length + 1, members: [], locatorKind: kind, locatorLabels,
+        shortForm: cited.has(source) };
+      groups.push(group);
+      cited.add(source);
       for (const entry of members)
         if (!group.members.some(({ receipt }) => receipt.evidence_id === entry.receipt.evidence_id))
           group.members.push({ ...entry, ref: group.ref });
