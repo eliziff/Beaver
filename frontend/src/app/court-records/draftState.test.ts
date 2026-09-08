@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { WorkProduct, WorkProductInput, WorkProductStore } from "@/app/lib/workProducts";
 import { applySourceEntryFields, courtRecordDraft, courtRecordDraftFromDocuments,
-  restoreCourtRecordDraft } from "./draftState";
+  rebaseDraft, restoreCourtRecordDraft } from "./draftState";
 import type { CourtRecordsHost } from "./host";
 import type { CourtRecordDraft, RecordEntry } from "./types";
 
@@ -31,6 +31,28 @@ function entry(): RecordEntry {
 }
 
 describe("court record draft state", () => {
+  it("rebases entry additions, removals and edits without losing the other writer's documents", () => {
+    const base = courtRecordDraft("general-affidavit-exhibits", {}, [entry()]);
+    const local = structuredClone(base), remote = structuredClone(base);
+    local.cover.courtFileNumber = "T-42";
+    local.entries[0].title = "Manual description";
+    remote.entries[0].ocrAttemptedPages = [1];
+    for (const [state, id] of [[local, "exhibit-a"], [remote, "exhibit-b"]] as const) {
+      state.entries.push({ ...base.entries[0], id, kindId: "exhibit" });
+      state.bindings[id] = { ...input, handleId: id };
+    }
+    const merged = rebaseDraft(base, local, remote);
+    expect(merged.entries.map(({ id }) => id)).toEqual(["entry-1", "exhibit-a", "exhibit-b"]);
+    expect(merged.entries[0]).toMatchObject({ title: "Manual description", ocrAttemptedPages: [1] });
+    expect(merged.cover.courtFileNumber).toBe("T-42");
+    expect(Object.keys(merged.bindings)).toEqual(["entry-1", "exhibit-a", "exhibit-b"]);
+    local.entries = local.entries.filter(({ id }) => id !== "entry-1");
+    delete local.bindings["entry-1"];
+    const removed = rebaseDraft(base, local, remote);
+    expect(removed.entries.map(({ id }) => id)).toEqual(["exhibit-a", "exhibit-b"]);
+    expect(Object.keys(removed.bindings)).toEqual(["exhibit-a", "exhibit-b"]);
+  });
+
   it("keeps contextual documents durable without assigning a filing slot", () => {
     const state = courtRecordDraftFromDocuments("fc-motion-record-moving", [
       { id: "notice", filename: "Notice.docx", size_bytes: 42,

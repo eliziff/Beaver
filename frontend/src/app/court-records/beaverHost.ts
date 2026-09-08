@@ -202,36 +202,16 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
   async runOcr(entry, progress, signal) {
     let documentId = entry.origin?.kind === "library" ? entry.origin.documentId : undefined;
     let versionId = entry.origin?.kind === "library" ? entry.origin.versionId : undefined;
-    let sourceSha256 = entry.origin?.kind === "library" ? entry.origin.sourceSha256 : undefined;
     if (!documentId) {
       progress?.(`Adding ${entry.file.name}`);
       const uploaded = await uploadCourtRecordDocument(entry.file);
       documentId = uploaded.id;
       versionId = uploaded.current_version_id ?? undefined;
-      sourceSha256 = uploaded.source_sha256 ?? undefined;
     }
     const [state] = await pdfProgress([documentId]);
     if (!state?.error) await waitForPdfPreparation(documentId, progress, signal);
-    // No page text yet is the condition recognition exists to answer, not a reason
-    // to stop before it has run.
-    const read = () => getCourtRecordPreparation(documentId, versionId)
-      .catch(() => undefined);
-    let prepared = await read();
-    const base: PreparedFile = {
-      file: entry.file,
-      pageCount: entry.pageCount,
-      searchable: entry.searchable,
-      encrypted: entry.encrypted,
-      textlessPageCount: entry.textlessPageCount,
-      textlessPages: entry.textlessPages,
-      sourceBookmarks: entry.sourceBookmarks,
-      ocrTextByPage: entry.ocrTextByPage,
-      inspectionError: entry.inspectionError,
-      origin: { kind: "library", documentId,
-        versionId: prepared?.version_id ?? versionId,
-        sourceSha256: prepared?.source_sha256 || sourceSha256 },
-    };
-    let merged = prepared ? withProjection(base, prepared) : base;
+    let prepared = await getCourtRecordPreparation(documentId, versionId).catch(() => undefined);
+    let merged = prepared ? withProjection(entry, prepared) : {};
     if (!prepared || merged.textlessPageCount) {
       progress?.("Reading the scanned pages");
       await retryLibraryPdfParse("files", documentId, {
@@ -240,7 +220,7 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
       });
       await waitForPdfPreparation(documentId, progress, signal);
       prepared = await getCourtRecordPreparation(documentId, versionId);
-      merged = withProjection(merged, prepared);
+      merged = withProjection({ ...entry, ...merged }, prepared);
     }
     return { ...merged, ocrAttemptedPages: entry.textlessPages ?? [] };
   },
@@ -402,7 +382,8 @@ async function prepareLibraryDocument(
   };
   if (format !== "pdf") return prepared;
   try {
-    return withProjection(prepared, await getCourtRecordPreparation(document.id, versionId));
+    return { ...prepared, ...withProjection(prepared,
+      await getCourtRecordPreparation(document.id, versionId)) };
   } catch {
     return prepared;
   }
@@ -411,14 +392,13 @@ async function prepareLibraryDocument(
 function withProjection(
   prepared: PreparedFile,
   projection: Awaited<ReturnType<typeof getCourtRecordPreparation>>,
-): PreparedFile {
+): Partial<PreparedFile> {
   const byPage = new Map(projection.pages.map((page) => [page.page_number, page.text]));
   const targets = prepared.textlessPages ?? [];
   const ocrTextByPage = Array.from({ length: prepared.pageCount ?? projection.page_count },
     (_, index) => targets.includes(index + 1) ? byPage.get(index + 1) ?? "" : prepared.ocrTextByPage?.[index] ?? "");
   const missing = targets.filter((page) => !ocrTextByPage[page - 1]?.trim());
   return {
-    ...prepared,
     pageCount: projection.page_count,
     ocrTextByPage,
     searchable: missing.length ? prepared.searchable : true,

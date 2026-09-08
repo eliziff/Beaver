@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import type { WorkProduct, WorkProductStore } from "@/app/lib/workProducts";
+import { BeaverApiError } from "@/app/lib/api/client";
 import type { CourtRecordsHost } from "./host";
 import { CourtRecordsWorkspace } from "./CourtRecordsWorkspace";
 import { COURT_PROFILE_BY_ID } from "./profiles";
@@ -56,6 +57,43 @@ function readyRecord(id = "record") {
 }
 
 describe("CourtRecordsWorkspace", () => {
+  it("retries a stale save on the fresh revision while retaining both writers' entries and edits", async () => {
+    const { draft, input, prepared } = readyRecord();
+    let current = draft;
+    let releaseSave!: () => void;
+    const pendingSave = new Promise<void>((resolve) => { releaseSave = resolve; });
+    const revisions: number[] = [];
+    const store = { list: async () => [current], get: async () => current,
+      update: async (_id: string, patch: { revision: number; state: CourtRecordDraft }) => {
+        revisions.push(patch.revision);
+        if (revisions.length === 1) current = { ...draft, revision: 2, state: {
+          ...draft.state, entries: [...draft.state.entries,
+            { ...draft.state.entries[0], id: "remote-exhibit", title: "Remote exhibit" }],
+          bindings: { ...draft.state.bindings, "remote-exhibit": input },
+        } };
+        if (revisions.length === 1) await pendingSave;
+        if (patch.revision !== current.revision) throw new BeaverApiError({ status: 409,
+          message: "This draft changed", details: { current_revision: String(current.revision) } });
+        return current = { ...current, revision: current.revision + 1, state: patch.state };
+      },
+    } as unknown as WorkProductStore;
+    const host = { mode: "beaver", drafts: store,
+      resolveInput: async () => ({ status: "ready", input, prepared, file: prepared.file }),
+    } as unknown as CourtRecordsHost;
+    const { rerender } = render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
+    fireEvent.change(await screen.findByLabelText(/Court file number/), { target: { value: "T-42" } });
+    await waitFor(() => expect(revisions).toHaveLength(1));
+    rerender(<CourtRecordsWorkspace host={host} initialDraftId={draft.id}
+      refreshToken={{ id: draft.id, revision: 2, sequence: 1 }} />);
+    expect(await screen.findByDisplayValue("Remote exhibit")).toBeVisible();
+    expect(screen.getByLabelText(/Court file number/)).toHaveValue("T-42");
+    await act(async () => releaseSave());
+    await waitFor(() => expect(current.state.cover.courtFileNumber).toBe("T-42"));
+    expect(revisions).toEqual([1, 2]);
+    expect(current.state.entries.map(({ id }) => id)).toEqual(["entry", "remote-exhibit"]);
+    expect(screen.getByDisplayValue("Remote exhibit")).toBeVisible();
+  });
+
   it.each([
     ["ab-kb-affidavit-exhibits", "affidavit"],
     ["fc-motion-record-responding", "written-representations"],
@@ -742,12 +780,16 @@ describe("CourtRecordsWorkspace", () => {
     expect(state.bindings).toEqual({ affidavit: binding });
   });
 
-  it("automatically OCRs a textless upload", async () => {
+  it("merges OCR into the current draft after three quick additions and a manual edit", async () => {
     const draft = saved("ocr");
+    let persisted = draft;
     const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
-      update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
+      update: vi.fn(async (_id, patch) => persisted = { ...persisted,
+        revision: persisted.revision + 1, state: patch.state }), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const prepareDeviceFile = vi.fn(async (file: File) => ({ file, pageCount: 1,
-      searchable: false, encrypted: false, textlessPageCount: 1, textlessPages: [1],
+      searchable: file.name !== "scan.pdf", encrypted: false,
+      textlessPageCount: file.name === "scan.pdf" ? 1 : 0,
+      textlessPages: file.name === "scan.pdf" ? [1] : [],
       origin: { kind: "device" as const } }));
     let finishOcr!: (patch: object) => void;
     const runOcr = vi.fn(() => new Promise((resolve) => { finishOcr = resolve; }));
@@ -764,10 +806,14 @@ describe("CourtRecordsWorkspace", () => {
 
     await waitFor(() => expect(runOcr).toHaveBeenCalledOnce());
     expect(screen.getByRole("button", { name: "Build record" })).toBeDisabled();
-    expect(onDraftChange).toHaveBeenLastCalledWith(draft, false);
+    fireEvent.change(screen.getByLabelText("Contents description"), { target: { value: "Human description" } });
+    await uploadFiles(document.getElementById("court-record-exhibit-file")!,
+      ["one.pdf", "two.pdf"].map((name) => new File([name], name, { type: "application/pdf" })));
     await act(async () => finishOcr({ searchable: true, textlessPageCount: 0,
       textlessPages: [], ocrAppliedPages: [1] }));
-    expect(screen.queryByRole("button", { name: "OCR text pages" })).not.toBeInTheDocument();
+    await waitFor(() => expect(persisted.state.entries).toHaveLength(3));
+    expect(persisted.state.entries[0].title).toBe("Human description");
+    expect(screen.getByDisplayValue("Human description")).toBeVisible();
   });
 
   it("propagates the affidavit, auto-slots certified exhibits, and replaces files", async () => {
