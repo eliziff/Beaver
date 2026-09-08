@@ -140,13 +140,18 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
 
   /** One name per line, the way the names stand in the style of cause on the cover. */
   function changeNames(definition: (typeof definitions)[number], value: string) {
+    const previous = groups.find((group) => group.id === definition.id)?.parties ?? [];
     const parties = value.split("\n").map((name, index) =>
-      ({ id: `${definition.id}-${index + 1}`, name }));
+      ({ ...(previous[index] ?? { id: `${definition.id}-${index + 1}` }), name }));
     const kept = groups.filter((group) => group.id !== definition.id);
     const next = value.trim() || !definition.optional ? [...kept, { id: definition.id,
       role: definition.role, roleBelow: definition.roleBelow, parties }] : kept;
     onCover("partyGroups", definitions.flatMap((item) =>
       next.filter((group) => group.id === item.id)));
+    const filers = next.filter((group) => !profile.cover.filingGroupId ||
+      group.id === profile.cover.filingGroupId).flatMap((group) => group.parties.filter((party) => party.name.trim()));
+    const selected = filers.filter((party) => cover.filingPartyIds?.includes(party.id));
+    onCover("filingPartyIds", (selected.length ? selected : filers.length === 1 ? filers : []).map(({ id }) => id));
   }
 
   function changeStyle(styleId: string) {
