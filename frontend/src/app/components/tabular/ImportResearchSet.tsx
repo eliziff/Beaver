@@ -83,7 +83,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const proposing = busy && (labelling ? !plan : !preview);
     const onEnter = (action: () => void) => (event: React.KeyboardEvent) => { if (event.key === "Enter") { event.preventDefault(); action(); } };
     return <Modal open onClose={onClose} size="lg" breadcrumbs={[...(setName ? [setName] : []), labelling ? "Organize this research" : "Extract a table"]}
-        footerStatus={error ? <p role="alert" className="me-auto text-sm text-red-700">{error}</p> : note ? <p className={`me-auto ${META}`}>{note}</p> : undefined}
+        footerStatus={error ? <p role="alert" className="me-auto text-sm text-red-700">{error}</p> : note ? <p role="status" className={`me-auto max-h-20 overflow-y-auto ${META}`}>{note}</p> : undefined}
         secondaryAction={activeId ? { label: busy ? "Proposing…" : "Propose again", disabled: busy || creating, onClick: () => void propose(adjust) } : undefined}
         primaryAction={activeId ? { label: creating ? "Working…" : labelling ? "Apply labels" : "Create table",
             onClick: () => void create(), disabled: busy || creating || !valid } : undefined}>
@@ -92,9 +92,6 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                 multiple={false} noun="research sets" documentFilter={isResearchDocument} onChange={setPicked}
                 initialLocation={projectId ? { projectId } : { library: "files" }} /></div>
             : <>
-                <p className={`shrink-0 text-pretty ${META}`}>{labelling
-                    ? "Beaver proposes the concepts this research turned on and files every source and passage under them."
-                    : "Each source becomes a row. Beaver proposes the columns this research turned on, fills them from your research and extracts the rest."}</p>
                 <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pe-1" aria-busy={busy}>
                     {proposing ? <div role="status" className="flex flex-col gap-3">
                         <p className={META}>Proposing a structure from your research…</p>
