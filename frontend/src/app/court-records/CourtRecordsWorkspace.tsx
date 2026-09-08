@@ -1,4 +1,7 @@
-import { useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
+/** Loaded on demand: the picker reaches Beaver's Library, which the standalone bundle must not preload. */
+const AddDocumentsModal = lazy(() => import("@/app/components/modals/AddDocumentsModal")
+  .then((m) => ({ default: m.AddDocumentsModal })));
 import { Settings2 } from "lucide-react";
 import type { Document } from "@/app/lib/api/documents";
 import { cn } from "@/app/lib/utils";
@@ -7,7 +10,6 @@ import { CourtRecordDocuments, type OcrRun } from "./CourtRecordDocuments";
 import { buildCourtRecord } from "./assembly";
 import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { Button } from "@/app/components/ui/button";
-import { AddDocumentsModal } from "@/app/components/modals/AddDocumentsModal";
 import { Pagination } from "@/app/components/shared/TablePrimitive";
 import { SearchBar } from "@/app/components/ui/search-bar";
 import { Modal } from "@/app/components/modals/Modal";
@@ -900,7 +902,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         onOpen={(next) => { setSavedOpen(false); void openSavedDraft(next); }}
         onClose={() => setSavedOpen(false)} />}
       {draft && sourceKindId && sourceKind && (
-        <AddDocumentsModal open
+        <Suspense fallback={null}><AddDocumentsModal open
           breadcrumb={["Court Records", `Choose ${sourceKind.label.toLowerCase()}`]}
           key={`${draft.id}:${draft.projectId}:${profile.id}:${sourceKindId}`}
           accept={sourceAccept(sourceKind)}
@@ -917,7 +919,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
               draft: sourceOutputs.find((choice) => choice.document.id === document.id) });
           }}
           onClose={() => { setSourceKindId(undefined); setSourceExhibitLabel(undefined); }}
-        />
+        /></Suspense>
       )}
       {host.outputFolder && <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)}
         size="lg" breadcrumbs={["Settings"]}>
