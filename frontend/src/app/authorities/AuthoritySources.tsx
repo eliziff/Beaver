@@ -13,7 +13,7 @@ import { authorityName, authorityCitationForms, hasRequiredSources, requiresBili
 import type { AuthoritiesAction, AuthoritiesDraft, AuthoritiesProduct,
   AuthorityIdentity, AuthorityOccurrence } from "./types";
 import type { AuthoritiesSourceIssue } from "./host";
-import type { SourceOcrStatus } from "./sourceOcr";
+import type { ScannedPdf, SourceOcrStatus } from "./sourceOcr";
 
 const control = "h-8 shrink-0 border-gray-400 px-2.5 text-xs";
 export type AuthorityPanelProps = {
@@ -29,7 +29,6 @@ type PanelProps = AuthorityPanelProps & {
   state: AuthoritiesDraft; occurrences: AuthorityOccurrence[];
   onPickMany?: () => void; onLibraryAdd?: () => void; onFiles?: (files: File[]) => void;
   ocr?: SourceOcrPanel;
-  inspection?: { progress: string; error: string };
 };
 export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft: AuthoritiesProduct }) {
   return <SourcePanel {...props} state={draft.state} />;
@@ -38,7 +37,7 @@ export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft
 function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues,
   onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onPick, onLibrary,
   sourceLabel = "Library", onAttach, onRelink, onOpenSource, onEditIdentity,
-  ocr, inspection }: PanelProps) {
+  ocr }: PanelProps) {
   const [tabSettings, setTabSettings] = useState(false);
   const included = authorities.filter(({ excluded }) => !excluded);
   const ready = included.filter((authority) => hasRequiredSources(state, authority) && authority.source.kind === "attached" &&
@@ -57,9 +56,6 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           event.preventDefault(); onFiles(Array.from(event.dataTransfer.files));
         }
       }}>
-      {(inspection?.progress || inspection?.error) && <p role={inspection.error ? "alert" : "status"}
-        className={cn("mb-2 text-sm", inspection.error ? "text-red-800" : "text-gray-600")}>
-        {inspection.error || inspection.progress}</p>}
       {(onFiles || onLibraryAdd) && <div className="mb-3 flex flex-wrap justify-end gap-2">
         {onFiles && (onPickMany ? <Button type="button" variant="outline" className={control}
           disabled={busy} onClick={onPickMany}><FilePlus2 /> Upload</Button>
@@ -71,6 +67,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
       <div role="list" aria-label="Authority tab slots"
         className="divide-y divide-gray-200 rounded-lg border border-gray-300">
         {authorities.map((authority) => <AuthorityRow key={authority.id} authority={authority} busy={busy}
+          order={state.authorityOrder}
           tab={authority.excluded ? "Excluded" : tabs.get(authority.id)}
           citations={authorityCitationForms(authority, occurrences)}
           needsPdf={!authority.excluded && requiresPdf(state, authority)}
@@ -93,7 +90,8 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
 
 function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLanguages, sourceIssues,
   editableIdentity, rebuildsFromText, removable, sourceLabel, onAction, onPick, onLibrary, onAttach,
-  onRelink, onOpen, onEditIdentity, ocr }: {
+  onRelink, onOpen, onEditIdentity, ocr, order }: {
+  order: string[];
   authority: AuthorityIdentity; tab?: string; citations: string[]; busy: boolean; needsPdf: boolean;
   requireLanguages: boolean; sourceIssues: Record<string, AuthoritiesSourceIssue>;
   editableIdentity: boolean; rebuildsFromText: boolean; removable: boolean; sourceLabel: string;
@@ -125,13 +123,22 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   return <article role="listitem" data-authority-id={authority.id}
     className={cn("group/row grid min-h-12 min-w-0 grid-cols-[2.25rem_1.25rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 px-2 py-1.5 sm:grid-cols-[2.75rem_1.25rem_minmax(0,1fr)_11rem_16.5rem]",
       authority.excluded && "opacity-65")}
-    onDragOver={(event) => { if (!busy && needsPdf && event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
+    onDragOver={(event) => { if (!busy && (event.dataTransfer.types.includes("application/x-authority") ||
+      needsPdf && event.dataTransfer.types.includes("Files"))) event.preventDefault(); }}
     onDrop={(event) => {
+      const id = event.dataTransfer.getData("application/x-authority");
+      if (!busy && order.includes(id)) { event.preventDefault(); event.stopPropagation();
+        onAction({ type: "move-authority", authorityId: id, toIndex: order.indexOf(authority.id) }); return; }
       if (!event.dataTransfer.files.length) return;
       event.preventDefault(); event.stopPropagation();
       if (!busy && needsPdf) onAttach(event.dataTransfer.files[0]);
     }}>
-    <span className="truncate text-xs font-semibold text-gray-600" title={tab}>{tab}</span>
+    <button type="button" draggable={!busy} disabled={busy} title="Drag to reorder, or use arrow keys"
+      aria-label={`Reorder ${title}`} className="cursor-grab truncate rounded py-2 text-xs font-semibold text-gray-600 focus-visible:ring-2 focus-visible:ring-red-600"
+      onDragStart={event => event.dataTransfer.setData("application/x-authority", authority.id)}
+      onKeyDown={event => { if (!["ArrowUp", "ArrowDown"].includes(event.key)) return;
+        event.preventDefault(); onAction({ type: "move-authority", authorityId: authority.id,
+          toIndex: Math.max(0, Math.min(order.length - 1, order.indexOf(authority.id) + (event.key === "ArrowUp" ? -1 : 1))) }); }}>{tab}</button>
     <span className="flex h-4 w-4 items-center justify-center">
       {mark && <mark.Icon role="img" aria-label={mark.label} className={cn("h-4 w-4", mark.tone)}>
         <title>{mark.label}</title></mark.Icon>}
@@ -203,6 +210,21 @@ function StyleOfCause({ value, onSave, onCancel }: {
 }
 
 export type SourceOcrPanel = Pick<ReturnType<typeof import("./sourceOcr").useSourceOcr>, "tracked" | "begin" | "stop">;
+
+export function SourceRecognition({ file, ocr, disabled }: { file: ScannedPdf; ocr: SourceOcrPanel; disabled?: boolean }) {
+  const [pages, setPages] = useState("");
+  return <form className="my-2 flex flex-wrap items-center gap-2" onSubmit={event => {
+    event.preventDefault();
+    void ocr.begin([file], pages.trim() ? [...new Set(pages.split(",").map(Number))] : undefined);
+  }}>
+    <label className="text-sm text-gray-700">Pages to recognize <input value={pages}
+      onChange={event => setPages(event.target.value)} placeholder="All scanned pages"
+      pattern="\s*[1-9][0-9]*\s*(,\s*[1-9][0-9]*\s*)*" title="Enter page numbers separated by commas, or leave blank for all scanned pages."
+      className="ms-2 h-8 w-40 rounded border border-gray-400 px-2 text-sm" /></label>
+    <Button type="submit" variant="outline" className="h-8" disabled={disabled}>Recognize</Button>
+    {ocr.tracked[file.role] && <SourceOcrProgress status={ocr.tracked[file.role]} ocr={ocr} />}
+  </form>;
+}
 
 /** Text recognition for one scanned source, watched where the source lives. */
 export function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: SourceOcrPanel }) {

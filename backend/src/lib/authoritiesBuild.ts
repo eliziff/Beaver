@@ -535,7 +535,7 @@ export function prepareAuthorityAnnotations(
     style: draft.settings.passageMarking, geometry: text.passageGeometry, pages,
     citedPages: citedSourcePages(draft, authority.id, text.pageTextByPage ?? [],
       document.catalog.has(pdf.PDFName.of("PageLabels")) ? pdfPageLabelIndices(pdf, document) : undefined,
-      document.getPageCount()),
+      document.getPageCount(), text.passageGeometry),
     exclusions: new Set((authority.highlightExclusions ?? []).map(({ kind, label }) => `${kind.trim()}\0${label.trim()}`)) });
 }
 
@@ -718,7 +718,7 @@ async function prepareAuthorityBook(
           return [{ title: `${title} ${target.locator}`, pageIndex: pageNumber - 1 }];
         }) : []) ?? [];
       const cited = source.authority ? citedSourcePages(draft, source.authority.id,
-        source.pageTextByPage ?? [], undefined, source.document.getPageCount()) : new Set<number>();
+        source.pageTextByPage ?? [], undefined, source.document.getPageCount(), source.passageGeometry) : new Set<number>();
       const ocrTextByPage = source.authority ? source.ocrTextByPage?.map((text, index) =>
         draft.settings.scannedPdfPolicy === "full" ||
           draft.settings.scannedPdfPolicy === "cited-pages" && cited.has(index)
@@ -736,7 +736,7 @@ async function bookArtifacts(plan: PreparedAuthoritiesBook, signal?: AbortSignal
 }
 
 function citedSourcePages(draft: AuthoritiesDraft, authorityId: string, pages: string[],
-  pageLabels?: Map<string, number[]>, pageCount = pages.length) {
+  pageLabels?: Map<string, number[]>, pageCount = pages.length, geometry?: NativePdfPassageGeometry) {
   const authority = draft.authorities[authorityId];
   const locators = [...(authority?.locators ?? []), ...Object.values(draft.occurrences)
     .flatMap((occurrence) => occurrence.authorityId === authorityId
@@ -751,21 +751,10 @@ function citedSourcePages(draft: AuthoritiesDraft, authorityId: string, pages: s
         else if (number > 0 && number <= pageCount) result.add(number - 1);
       }
     }
-    if ((kind === "paragraph" || kind === "section") && label.trim()) {
-      const values = label.trim().split(/\s+(?:to|[-\u2013\u2014])\s+|\s*[-\u2013\u2014]\s*/u)
-        .filter(Boolean).slice(0, 2);
-      const matched: number[] = [];
-      for (const value of values) {
-        const escaped = value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-        const marker = kind === "paragraph"
-          ? new RegExp(`(?:\\[\\s*${escaped}\\s*\\]|(?:^|\\n)\\s*${escaped}(?:\\s|[.)]))`, "iu")
-          : new RegExp(`(?:^|\\n|\\s)(?:s(?:ec(?:tion)?)?\\.?\\s*)?${escaped}(?:\\s|[.)])`, "iu");
-        pages.forEach((text, index) => { if (marker.test(text)) matched.push(index); });
-      }
-      if (matched.length) for (let index = Math.min(...matched); index <= Math.max(...matched);
-        index += 1) result.add(index);
-    }
+
   }
+  geometry?.targets.filter(target => target.status === "found").forEach(target =>
+    target.pages.forEach(({ pageNumber }) => { if (pageNumber > 0 && pageNumber <= pageCount) result.add(pageNumber - 1); }));
   return result;
 }
 
@@ -817,13 +806,8 @@ function federalPaperExtract(draft: AuthoritiesDraft, source: LoadedBookPdf,
     source.pageTextByPage?.[index]?.trim() || source.ocrTextByPage?.[index] || "");
   const reasonsStart = text.findIndex((page) =>
     /(?:^|\n)\s*(?:\[\s*1\s*\]|1[.)])(?:\s|$)/u.test(page));
-  const cited = citedSourcePages(draft, source.authority.id, text, pageLabels);
+  const cited = citedSourcePages(draft, source.authority.id, text, pageLabels, pageCount, source.passageGeometry);
   source.markedPages?.forEach(index => cited.add(index));
-  source.passageGeometry?.targets.forEach((target) => {
-    if (target.status === "found") target.pages.forEach(({ pageNumber }) => {
-      if (pageNumber > 0 && pageNumber <= pageCount) cited.add(pageNumber - 1);
-    });
-  });
   if (reasonsStart < 0 || !cited.size) return null;
   const selected = new Set(Array.from({ length: reasonsStart + 1 }, (_, index) => index));
   cited.forEach((index) => {

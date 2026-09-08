@@ -25,7 +25,7 @@ import { downloadBlob } from "@/app/lib/download";
 import { cn, errorMessage, formatDateTime } from "@/app/lib/utils";
 import type { WorkProductFocus, WorkProductMetadata,
   WorkProductRefresh } from "@/app/lib/workProducts";
-import { Sources } from "./AuthoritySources";
+import { Sources, SourceRecognition } from "./AuthoritySources";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
 import { useScannedSources, useSourceOcr } from "./sourceOcr";
 import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesHost,
@@ -137,6 +137,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     quote?: string; bytes?: Uint8Array; error?: string }>();
   const ocr = useSourceOcr(host, draft?.id);
   const [stubWarning, setStubWarning] = useState(false);
+  const [recognitionOpen, setRecognitionOpen] = useState(false);
   const scanRequest = useRef<AbortController | null>(null);
   const previewRequest = useRef(0);
   const [sourceIssueState, setSourceIssueState] = useState<{
@@ -161,7 +162,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     if (navigate) {
       reviewRequest.current?.abort(); reviewRequest.current = null; setReview(undefined);
       setFindingId(""); setViewedStep(undefined);
-      scanRequest.current?.abort(); ocr.reset();
+      scanRequest.current?.abort(); ocr.reset(); setRecognitionOpen(false);
       previewRequest.current += 1; setSourcePreview(undefined);
       setSelectedId(orderedOccurrences(next)[0]?.id ?? "");
       setPendingAttachment(undefined); setError(""); setMessage("");
@@ -628,7 +629,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       onResolve={host.resolveDiscrepancy ? resolveDiscrepancy : undefined}
       onDone={() => setFindingId("")} />;
   const authorityPanelProps = { authorities, tabs: authorityTabs, busy, sourceIssues, ocr,
-    inspection: scannedSources,
     onAction: act, onEditIdentity: setEditingAuthority,
     onOpenSource: host.readSource ? openSource : undefined, onAdd: () => setAddOpen(true),
     onPick: host.pickFiles ? (id: string) => void pickFiles(false, "pdf",
@@ -715,7 +715,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                     } : {})} />
                     <div className="mt-3 flex items-center justify-end gap-3">
                       <StepProgress label={stepOperation} error={stepError} />
-                      <Button disabled={busy} onClick={() => advance("highlights")}>Done<ChevronRight /></Button>
+                      <Button disabled={busy} onClick={() => {
+                        if (scannedSources.checking || scannedSources.error || scannedSources.files.length) setRecognitionOpen(true);
+                        else advance("highlights");
+                      }}>Done<ChevronRight /></Button>
                     </div></>}
                   {highlightPanel}
                   {stage === "highlights" && <div className="mt-3 flex justify-end">
@@ -768,9 +771,19 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
           act({ type: "edit-authority", authorityId: editingAuthority.id, kind, citation, name });
           setEditingAuthority(undefined);
         }} />}
+      <Modal open={recognitionOpen} onClose={() => setRecognitionOpen(false)} size="xl"
+        breadcrumbs={["Recognize text"]} footerStatus={scannedSources.progress}
+        primaryAction={{ label: "Continue to Highlights", disabled: busy || scannedSources.checking || !!scannedSources.error,
+          onClick: () => { setRecognitionOpen(false); advance("highlights"); } }}>
+        {scannedSources.error && <p role="alert">{scannedSources.error}</p>}
+        {scannedSources.files.map(file => <section key={file.role} className="border-b border-gray-200 py-3">
+          <h3 className="text-sm font-medium">{file.name}</h3>
+          {host.sourceOcr ? <SourceRecognition file={file} ocr={ocr} />
+            : <p className="text-sm">Text recognition is available when building the book.</p>}
+        </section>)}
+      </Modal>
       <Modal open={stubWarning} onClose={() => setStubWarning(false)} size="md"
         breadcrumbs={["Missing PDFs"]} fit
-        secondaryAction={{ label: "Cancel", onClick: () => setStubWarning(false) }}
         primaryAction={{ label: "Build anyway", disabled: busy, onClick: () => {
           setStubWarning(false);
           act({ type: "set-settings", settings: { allowIncomplete: true } },
@@ -879,8 +892,7 @@ function DraftsPanel({ drafts, loading, busy, onOpen }: { drafts: WorkProductMet
   return <section className="overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
     <div className="flex min-h-12 items-center gap-2 border-b border-gray-200 px-4">
       <History className="h-4 w-4 shrink-0 text-red-700" />
-      <h2 className="font-semibold text-gray-950">Saved drafts</h2>
-      <span className="ms-auto text-sm tabular-nums text-gray-500">{drafts.length}</span></div>
+      <h2 className="font-semibold text-gray-950">Saved drafts</h2></div>
     <div className="h-[28rem] overflow-y-auto">
       {loading ? <div className="grid h-full place-items-center px-4 py-12 text-sm text-gray-500"
         role="status"><span className="inline-flex items-center"><Loader2
