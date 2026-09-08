@@ -55,7 +55,7 @@ function packageRoot(input, base) {
   return parts.slice(0, index + (parts[index + 1].startsWith("@") ? 3 : 2)).join("/");
 }
 
-function writeThirdPartyNotices(stage, inputs, base, prefix) {
+export function writeThirdPartyNotices(stage, inputs, base, prefix) {
   const packages = [...new Set(inputs.map((input) => packageRoot(input, base)).filter(Boolean))]
     .sort();
   const records = [], notices = [];
@@ -75,7 +75,7 @@ function writeThirdPartyNotices(stage, inputs, base, prefix) {
   writeFileSync(path.join(licenses, `${prefix}-licenses.txt`), `${notices.join("\n\n")}\n`);
 }
 
-const localOnly = {
+export const localOnly = {
   name: "authorities-local-only",
   setup(build) {
     build.onResolve({ filter: /^\.\/jobQueue$/ }, ({ importer }) =>
