@@ -24,6 +24,20 @@ import { pdfLifecyclePhase } from "./pdfLifecycleDiagnostics";
 import { documentProjectionService } from "./documentProjectionService";
 import { spreadsheetToLLMStructure } from "./spreadsheet";
 
+/** Acquire an authorized version and its requested native view together. */
+export async function readDocumentProjection(documents: DocumentStore, scope: DocumentScope,
+  documentId: string, versionId: string | null,
+  options: Parameters<typeof documentProjectionService.read>[1] & { expectedSourceSha256?: string } = {}) {
+  const source = await documents.projectionSource(scope, documentId, versionId);
+  if (!source) return null;
+  if (options.expectedSourceSha256 && source.sourceSha256 !== options.expectedSourceSha256)
+    throw new ApplicationError(409, "Source changed after the extraction scope was selected");
+  const document = await pdfLifecyclePhase("open.projection", documentId, () =>
+    documentProjectionService.read({ ...source, readBytes: () =>
+      pdfLifecyclePhase("open.source_read", documentId, source.readBytes) }, options));
+  return { ...source, document };
+}
+
 const projectionReference = (documentId: string, version: StoredDocumentVersion) => ({
   documentId, versionId: version.id, sourceSha256: version.sourceSha256,
 });

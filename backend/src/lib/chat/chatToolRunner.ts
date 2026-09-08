@@ -22,7 +22,6 @@ import { createResearchTableTool } from "./researchTableTool";
 function state() {
   return {
     edits: new Map(),
-    servedDraftingCache: new Map(),
   };
 }
 
