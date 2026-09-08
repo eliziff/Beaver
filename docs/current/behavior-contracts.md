@@ -134,17 +134,20 @@ pagination or downloading.
 
 ## Research interoperability
 
-- Sources and Chat Open as Table use a read-only conversion preview. Source label
-  branches, intentionally saved highlight types, notes and original grounded
-  questions supply populated columns. Flat source classifications share a column;
-  separate Chat questions remain distinct. Cases/passages are exact selected rows.
-- Preview shows existing work, its kind and unanswered cells. Excerpts are not
-  new analytical answers. No absent classification is inferred as No/Not found.
-  The visible samples cover three rows; counts describe the complete selection.
-- Suggest layout is optional and uses the configured model. It receives a bounded
-  inventory and can map only original item/row IDs, including individual Chat
-  claims. Invalid/cross-row/overlapping mappings fail without writes. New questions
-  stay pending. Accepting never performs another model call.
+- Sources and Chat Open as Table propose a structure on opening the read-only
+  preview. The research question describes the whole table; model columns divide
+  it into legal issues, factors and outcomes, never raw passage dumps. Labels,
+  highlight types, notes and grounded findings supply the bounded inventory.
+- The title and columns are editable, columns can be removed or added, and Change
+  the proposal / Propose again requests a revised structure. Columns indicate
+  whether cells come from research or need extraction. Excerpts are not new
+  analytical answers; absent classifications never imply No/Not found.
+- Proposals map only original item/row IDs, including individual Chat claims.
+  Invalid/cross-row/overlapping mappings receive one corrected attempt; a failed
+  table proposal falls back to deterministic columns with a visible explanation.
+  New questions stay pending. Accepting never performs another model call.
+- Chat Open as Workspace proposes conceptual labels on opening, using the research
+  question unless a request is supplied. Apply labels accepts the reviewed plan.
 - Open review rechecks the preview fingerprint and source revision. Stale previews
   require review again. Accepted inputs and cell answers are persisted together
   through the normal table repository, preserving source versions, receipts and
