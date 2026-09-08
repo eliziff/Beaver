@@ -1,54 +1,23 @@
 import { jsonRecord as row, trimmedText as text } from "../value";
-import { WORK_PRODUCT_KINDS, type WorkProductKind,
-  type WorkProductReference } from "../workProduct";
-import type { WorkflowRunEvent } from "./assistantEvents";
-
-type WorkflowRunTool = "update_work_product";
-type Row = Record<string, unknown>;
-const number = (value: unknown) => typeof value === "number" && Number.isFinite(value)
-  ? value
-  : undefined;
-const workProduct = (value: unknown): WorkProductReference | undefined => {
-  const item = row(value), id = text(item?.id), revision = number(item?.revision);
-  const kind = item?.kind;
-  return id && Number.isSafeInteger(revision) && revision! >= 1 &&
-    WORK_PRODUCT_KINDS.includes(kind as WorkProductKind)
-    ? { id, kind: kind as WorkProductKind, revision: revision! } : undefined;
-};
+import type { WorkProductReference } from "../workProduct";
+import { workflow } from "./assistantWire";
 
 export const workProductResult = (product: WorkProductReference,
-  values: Row = {}) => ({ ok: true, work_product: { id: product.id, kind: product.kind,
-    revision: product.revision }, ...values });
+  values: Record<string, unknown> = {}) => ({ ok: true,
+    work_product: { id: product.id, kind: product.kind, revision: product.revision }, ...values });
 
-function event(
-  tool: WorkflowRunTool,
-  stage: string,
-  fields: ReadonlyArray<readonly [label: string, key: string]>,
-  value: unknown,
-  id: string,
-): WorkflowRunEvent | null {
+export function workProductEvent(value: unknown, id: string) {
   const result = row(value);
   if (!result) return null;
   const error = text(result.error);
-  const product = workProduct(result.work_product);
-  const base = { type: "workflow_run" as const, id, tool, stage };
-  if (result.ok !== true || error) {
-    return { ...base, status: "error", error: error || "Workflow failed" };
-  }
-  const counts = fields.flatMap(([label, key]) =>
-    number(result[key]) === undefined ? [] : [{ label, value: number(result[key])! }]);
-  return {
-    ...base,
-    status: "complete",
-    ...(counts.length && { counts }),
-    ...(text(result.filename) && { outputs: [{ name: text(result.filename) }] }),
-    ...(text(result.app_url) && { app_url: text(result.app_url) }),
-    ...(product && { work_product: product }),
-    ...(text(result.requested_action) && { requested_action: text(result.requested_action) }),
-    ...(number(result.version_number) !== undefined && { version_number: number(result.version_number) }),
-  };
+  const base = { type: "workflow_run", id, tool: "update_work_product", stage: "Update work product" };
+  const parsed = workflow.safeParse(result.ok !== true || error
+    ? { ...base, status: "error", error: error || "Workflow failed" }
+    : { ...base, status: "complete",
+      ...(text(result.filename) && { outputs: [{ name: text(result.filename) }] }),
+      ...(text(result.app_url) && { app_url: text(result.app_url) }),
+      ...(result.work_product !== undefined && { work_product: result.work_product }),
+      ...(text(result.requested_action) && { requested_action: text(result.requested_action) }),
+      ...(result.version_number !== undefined && { version_number: result.version_number }) });
+  return parsed.success ? parsed.data : null;
 }
-
-export const workProductEvent = (value: unknown, id: string) =>
-  event("update_work_product", "Update work product", [], value, id);
-

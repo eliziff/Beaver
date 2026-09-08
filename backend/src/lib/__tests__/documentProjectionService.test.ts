@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import JSZip from "jszip";
+import { Document, Packer, Paragraph } from "docx";
 import { sha256 } from "../hash";
 
 let localData: string | null = null;
@@ -81,4 +82,25 @@ describe("DocumentProjectionService", () => {
     await expect(projections.read(input, { signal: controller.signal }))
       .rejects.toMatchObject({ name: "AbortError" });
   });
+  it("rechecks each reader's authority on cached drafting and redline views", async () => {
+    const projections = await service();
+    const bytes = await Packer.toBuffer(new Document({ sections: [{ children: [
+      new Paragraph("Written notice is required."), new Paragraph("Delivery occurs at noon."),
+    ] }] }));
+    let available = true;
+    const input = { documentId: "notice", versionId: "v1", fileType: "docx",
+      sourceSha256: sha256(bytes), readBytes: () => bytes,
+      assertAvailable: async () => { if (!available) throw new Error("Access revoked"); } };
+    const { structureNative } = await import("../structureNative"), native = structureNative();
+    const draft = await projections.read(input, { mode: "drafting" });
+    const redline = await projections.read(input, { mode: "redline" });
+    expect(native.documentText(draft)).toContain("Written notice is required.");
+    expect(native.documentText(redline)).toContain("Delivery occurs at noon.");
+    expect(native.documentRevision(await projections.read(input, { mode: "drafting" })))
+      .toBe(native.documentRevision(draft));
+    available = false;
+    await expect(projections.read(input, { mode: "drafting" })).rejects.toThrow("Access revoked");
+    await expect(projections.read(input, { mode: "redline" })).rejects.toThrow("Access revoked");
+  });
+
 });

@@ -19,7 +19,7 @@ export function memoCitation(href: string, label?: string): Citation | null {
     ...(kind === "paragraph" || kind === "section" || kind === "page" || kind === "footnote"
       ? { locator_kind: kind, locator: params.get("locator") } : {}), quotes: [] };
   if (href.startsWith("/library?") && params.get("document_id")) return { ...common, kind: "document",
-    document_id: params.get("document_id")!, version_id: params.get("version_id"), filename: params.get("title") ?? label ?? "Document",
+    document_id: params.get("document_id")!, version_id: params.get("version_id") ?? undefined, filename: params.get("title") ?? label ?? "Document",
     quotes: [{ quote: "", ...(kind === "page" ? { page: params.get("locator") ?? undefined } : {}),
       sheet: params.get("sheet") ?? undefined, cell: params.get("cells") ?? undefined }] };
   if (provider === "a2aj") return { ...common, kind: "a2aj", name: params.get("title") };

@@ -1,7 +1,7 @@
+import { readDocumentProjection } from "./documentApplication";
 import { z } from "zod";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { DocumentStore } from "./documentStore";
-import { documentProjectionService } from "./documentProjectionService";
 import { parseResourceReference, resourceReference } from "./resourceReferences";
 import { provenBlockLocator } from "./documentLocators";
 import { structureNative, type NativeDocument, type NativeDocumentBlock } from "./structureNative";
@@ -20,7 +20,7 @@ import { findTextMatches } from "./chat/tools/documentOps";
 import type { A2AJReferenceDirection } from "./chat/tools/a2ajTools";
 import type { ReadSubagentAssignment, LegalEvidenceReceiptEvent } from "./chat/assistantEvents";
 import type { NormalizedToolCall } from "./llm";
-import { toolText, withoutUrls, type BeaverOutcome } from "./chat/toolRegistry";
+import { toolText, withoutUrls, MAX_MODEL_TOOL_RESULT_CHARS, type BeaverOutcome } from "./chat/toolRegistry";
 import { jsonRecord as objectRecord, trimmedText as trimmed } from "./value";
 import { utf16PrefixCeil } from "./text";
 import type { ResearchChange } from "./researchHistory";
@@ -263,7 +263,7 @@ export async function readResearchWorkspace(documents: DocumentStore, scope: App
 }
 
 export type ResearchRead = BeaverOutcome & { coverage: {
-  complete: boolean; next: { resource: string; offset: number; start_char?: number }[] } };
+  complete: boolean; next: { resource: string; offset: number; start_char?: number; section?: string }[] } };
 
 const boundedRow = (row: ReturnType<ReturnType<typeof structureNative>["readDocumentTextWindow"]>["rows"][number]) => {
   const text = JSON.stringify(row.text).length > 28_000 ? utf16PrefixCeil(row.text, 4_000) : row.text;
@@ -283,8 +283,11 @@ function sourceExtent(artifact: NativeDocument) {
 }
 
 /** The same native window and receipt identities serve chat and extraction. */
-export function readLibraryResearchWindow(input: { documentId: string; versionId: string;
-  filename: string; document: NativeDocument; offset?: number; start_char?: number; limit?: number }): ResearchRead {
+type LibraryWindowInput = { documentId: string; versionId: string;
+  filename: string; document: NativeDocument; offset?: number; start_char?: number; limit?: number;
+  section?: string; references?: "none" | "inbound" | "outbound" | "both" };
+export function readLibraryResearchWindow(input: LibraryWindowInput): ResearchRead {
+  if (input.section) return readLibrarySectionWindow(input);
   const native = structureNative(), offset = input.offset ?? 1,
     window = native.readDocumentTextWindow(input.document, offset, input.start_char ?? 0,
       Math.max(1, Math.min(2_000, input.limit ?? 100))),
@@ -294,8 +297,8 @@ export function readLibraryResearchWindow(input: { documentId: string; versionId
     : window.status === "split_character" ? `(start_char ${input.start_char} splits a Unicode character on line ${offset})`
     : `(start_char ${input.start_char} is past the end of line ${offset}; line chars: ${window.lineLength ?? 0})`),
     coverage: { complete: false, next: [{ resource, offset, start_char: input.start_char ?? 0 }] } };
-  const sourceSha256 = native.documentRevision(input.document), evidence: LegalEvidenceReceipt[] = [],
-    sourceText = native.documentText(input.document), cells = native.documentTableCells(input.document), lines: string[] = [];
+  const sourceText = native.documentText(input.document),
+    cells = native.documentTableCells(input.document), lines: LibraryReadLine[] = [];
   let chars = 0, next = window.nextOffset === null ? null
     : { resource, offset: window.nextOffset, start_char: window.nextStartChar ?? 0 };
   for (const original of window.rows) {
@@ -315,12 +318,9 @@ export function readLibraryResearchWindow(input: { documentId: string; versionId
           ? `text paragraph ${block.label.replace(/^par/iu, "")}` : `text line ${row.lineNumber}` } };
       })() }])
       if (span.end > span.start) {
-        const receipt = createLibraryEvidence({ documentId: input.documentId,
-          versionId: input.versionId, filename: input.filename, sourceSha256, ...span,
-          spanText: sourceText.slice(span.start, span.end) });
-        evidence.push(receipt);
-        lines.push(`${receipt.evidence_id} ${span.locator?.kind === "cell"
-          ? span.locator.label : row.lineNumber}\t${receipt.span_text}`);
+        lines.push({ span: [span.start, span.end], locator: span.locator,
+          rendered: `${span.locator?.kind === "cell" ? span.locator.label : row.lineNumber}\t` +
+            sourceText.slice(span.start, span.end) });
       }
     chars += JSON.stringify(row.text).length;
     if (row.text.length < original.text.length) {
@@ -328,9 +328,8 @@ export function readLibraryResearchWindow(input: { documentId: string; versionId
     }
   }
   const continuation = next ? `\n\n[TRUNCATED: continue with Read(file_path=${JSON.stringify(resource)}, offset=${next.offset}, limit=${input.limit ?? 100}, start_char=${next.start_char ?? 0}).]` : "";
-  return { ...result(lines.join("\n") + continuation), evidence,
-    evidenceSources: new Map(evidence.map(({ evidence_id }) => [evidence_id, { source: input.document }])),
-    coverage: { complete: next === null, next: next ? [next] : [] } };
+  return renderLibraryRead(input, lines, continuation,
+    { complete: next === null, next: next ? [next] : [] });
 }
 
 export async function readResearchResource(documents: DocumentStore, scope: ApplicationScope,
@@ -345,18 +344,17 @@ export async function readResearchResource(documents: DocumentStore, scope: Appl
   if (boundary) throw new ApplicationError(400, boundary);
   const meta = reference.kind === "document" ? await documents.metadata(scope, reference.documentId) : null;
   if (reference.kind === "document" && !meta) throw new ApplicationError(404, "Document not found");
-  const projection = reference.kind === "document"
-    ? await documents.projectionSource(scope, reference.documentId, reference.versionId) : null;
-  if (reference.kind === "document" && !projection) throw new ApplicationError(404, "Document version not found");
-  if (projection && input.expectedSourceSha256 && projection.sourceSha256 !== input.expectedSourceSha256)
-    throw new ApplicationError(409, "Source changed after the extraction scope was selected");
   if (reference.kind === "document" && input.maxBytes !== undefined) {
     const version = (await documents.versions(scope, reference.documentId))?.versions
       .find(({ id }) => id === reference.versionId);
     if (!version) throw new ApplicationError(404, "Document version not found");
     if (version.size_bytes > input.maxBytes) throw new ApplicationError(413, "This document is too large for tabular extraction");
   }
-  const document = projection ? await documentProjectionService.read(projection, { signal: input.signal }) : null;
+  const projection = reference.kind === "document"
+    ? await readDocumentProjection(documents, scope, reference.documentId, reference.versionId, {
+      signal: input.signal, expectedSourceSha256: input.expectedSourceSha256 }) : null;
+  if (reference.kind === "document" && !projection) throw new ApplicationError(404, "Document version not found");
+  const document = projection?.document ?? null;
   if (input.evidence !== undefined) {
     if (input.evidence.some((receipt) => legalEvidenceResourceReference(receipt) !== input.resource))
       throw new ApplicationError(400, "Passage does not belong to the selected source");
@@ -396,8 +394,8 @@ export async function restoreResearchEvidence(documents: DocumentStore, scope: A
     .map(async (receipt): Promise<RegisteredEvidence[]> => {
       const resource = legalEvidenceResourceReference(receipt); if (!resource || !receipt.version) return [];
       let source = sources.get(resource);
-      if (!source) { source = documents.projectionSource(scope, receipt.stable_source_id, receipt.version)
-        .then((value) => value ? documentProjectionService.read(value, { signal }) : null)
+      if (!source) { source = readDocumentProjection(documents, scope, receipt.stable_source_id, receipt.version, { signal })
+        .then((value) => value?.document ?? null)
         .catch((error) => { if (signal?.aborted) throw error; return null; }); sources.set(resource, source); }
       const native = await source; return native ? [{ receipt, source: native }] : [];
     }));
@@ -795,4 +793,165 @@ export async function readLegalSourceResource(
         : "Legal source read failed.",
     );
   }
+}
+
+type TextRange = { start: number; end: number };
+type LibraryReadLine = { rendered: string; lineNumber?: number; span?: [number, number];
+  locator?: Parameters<typeof createLibraryEvidence>[0]["locator"] };
+function addCoveredRange(covered: TextRange[], added: TextRange) {
+  const ordered = [...covered, added]
+    .sort((left, right) => left.start - right.start);
+  const merged: TextRange[] = [];
+  for (const range of ordered) {
+    const last = merged.at(-1);
+    if (!last || range.start > last.end) merged.push(range);
+    else last.end = Math.max(last.end, range.end);
+  }
+  covered.splice(0, covered.length, ...merged);
+}
+
+function uncoveredRanges(range: TextRange, covered: readonly TextRange[]) {
+  let cursor = range.start;
+  const open: TextRange[] = [];
+  for (const prior of covered) {
+    if (prior.end <= cursor) continue;
+    if (prior.start >= range.end) break;
+    if (prior.start > cursor) {
+      open.push({ start: cursor, end: Math.min(prior.start, range.end) });
+    }
+    cursor = Math.max(cursor, prior.end);
+    if (cursor >= range.end) break;
+  }
+  if (cursor < range.end) open.push({ start: cursor, end: range.end });
+  return open;
+}
+
+function renderLibraryRead(input: LibraryWindowInput, lines: LibraryReadLine[],
+  suffix: string, coverage: ResearchRead["coverage"]): ResearchRead {
+  const native = structureNative(), sourceSha256 = native.documentRevision(input.document),
+    text = native.documentText(input.document), receipts = new Map<string, LegalEvidenceReceipt>();
+  const content = lines.map(({ rendered, span, locator }) => {
+    if (!span || span[0] === span[1]) return rendered;
+    const receipt = createLibraryEvidence({ documentId: input.documentId, versionId: input.versionId,
+      filename: input.filename, sourceSha256, start: span[0], end: span[1],
+      spanText: text.slice(span[0], span[1]), locator });
+    receipts.set(receipt.evidence_id, receipt);
+    return `${receipt.evidence_id} ${rendered}`;
+  }).join("\n") + suffix;
+  const evidence = [...receipts.values()];
+  return { ...result(content), evidence,
+    evidenceSources: new Map(evidence.map(({ evidence_id }) => [evidence_id, { source: input.document }])),
+    coverage };
+}
+
+function readLibrarySectionWindow(input: LibraryWindowInput): ResearchRead {
+  const refuse = (message: string): ResearchRead => ({ ...fail(message),
+    coverage: { complete: false, next: [] } });
+  let nextOffset: number | null = null;
+  const nativeDocument = input.document, sectionArg = input.section!,
+    references = input.references ?? "none", limit = input.limit ?? 2_000,
+    requested = resourceReference.document(input.documentId, input.versionId);
+  const windowLines = (
+    rows: ReturnType<ReturnType<typeof structureNative>["readDocumentTextWindow"]>["rows"],
+    label: string,
+  ): LibraryReadLine[] => rows.map((row) => ({
+    rendered: `${String(row.lineNumber).padStart(6, " ")}\t` +
+      `${row.truncatedStart ? "…" : ""}${row.text}${row.truncatedEnd ? "…" : ""}`,
+    lineNumber: row.lineNumber, span: row.span, locator: { label, kind: "section" },
+  }));
+  const finish = (candidates: LibraryReadLine[],
+    suffix?: (kept: LibraryReadLine[], truncated: boolean) => string) => {
+    const kept: LibraryReadLine[] = [];
+    let chars = 0;
+    for (const row of candidates) {
+      const added = row.rendered.length + (kept.length ? 1 : 0);
+      if (kept.length && chars + added > MAX_MODEL_TOOL_RESULT_CHARS - 1_000) break;
+      kept.push(row); chars += added;
+    }
+    const truncated = kept.length < candidates.length;
+    const continuation = suffix?.(kept, truncated) ?? "";
+    return renderLibraryRead(input, kept, continuation, { complete: !truncated && nextOffset === null,
+      next: nextOffset === null ? [] : [{ resource: requested, offset: nextOffset, section: sectionArg }] });
+
+  };
+  const lookup = structureNative().lookupStructureBlock(
+    nativeDocument, sectionArg, 0);
+  if (lookup.status !== "found" || !lookup.block) {
+    return refuse(
+      `Section '${sectionArg}' not found (${lookup.status}` +
+        (lookup.matches.length
+          ? `; candidates: ${lookup.matches.join(", ")}`
+          : "") +
+        "). Grep for the wording, or Read without section.",
+    );
+  }
+  const block = lookup.block;
+  // A heuristic anchor is inferred from wording, not declared by the file, so in
+  // ordinary prose it is usually quoted legislation with a runaway extent.
+  const inferredSection = block.origin === "heuristic"
+    ? `\n\n[Section '${block.label}' was inferred from the wording of ${input.filename}, not declared by it: it may be quoted legislation rather than a section of this document, and its extent may be wrong.]`
+    : "";
+  if (references !== "none") {
+    const scope = oneHopLegalScope(
+      nativeDocument,
+      block,
+      references,
+    );
+    if (!scope) {
+      return refuse(`Section '${sectionArg}' could not seed a reference scope.`);
+    }
+    const covered: TextRange[] = [];
+    const candidates: LibraryReadLine[] = [];
+    for (const [index, node] of [scope.seed, ...scope.nodes].entries()) {
+      const open = uncoveredRanges(
+        { start: node.start, end: node.end },
+        covered,
+      );
+      for (const range of open) {
+        const window = structureNative().readDocumentTextRange(
+          nativeDocument, range.start, range.end, undefined, 0xffff_ffff);
+        if (window.status !== "ready") {
+          return refuse(`Section '${node.label}' has an invalid text range.`);
+        }
+        candidates.push({
+          rendered: `=== ${input.filename} :: Read section="${node.label}" :: ${
+            index === 0 ? "target" : "direct reference"
+          } ===`,
+        }, ...windowLines(window.rows, node.label));
+      }
+      addCoveredRange(covered, { start: node.start, end: node.end });
+    }
+    return finish(
+      candidates,
+      (_kept, truncated) => (truncated
+        ? "\n(Reference read stopped at the tool-result limit; narrow the direction or read a returned section recipe.)"
+        : "") + inferredSection,
+    );
+  }
+  const offset = input.offset;
+  const window = structureNative().readDocumentTextRange(
+    nativeDocument, block.start, block.end, offset, limit);
+  const startLine = window.rangeStartLine ?? 0;
+  const endLine = window.rangeEndLine ?? 0;
+  if (window.status === "invalid_line") {
+    return refuse(
+      `(offset ${offset} is outside section ${block.label}; ` +
+        `the section spans lines ${startLine}-${endLine})`,
+    );
+  }
+  if (window.status !== "ready") {
+    return refuse(`Section '${block.label}' has an invalid text range.`);
+  }
+  const candidates = windowLines(window.rows, block.label);
+  return finish(
+    candidates,
+    (kept, truncated) => {
+      const firstShown = candidates[0]?.lineNumber ?? startLine;
+      const lastShown = kept.at(-1)?.lineNumber ?? firstShown;
+      nextOffset = truncated ? lastShown + 1 : window.nextOffset;
+      return (nextOffset !== null
+        ? `\n\n[TRUNCATED: returned section lines ${firstShown}-${lastShown} of ${startLine}-${endLine}; continue with Read(file_path="${requested}", section="${block.label}", offset=${nextOffset}).${truncated ? " Tool-result limit reached." : ""}]`
+        : "") + inferredSection;
+    },
+  );
 }

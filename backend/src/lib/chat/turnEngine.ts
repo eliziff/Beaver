@@ -1,3 +1,4 @@
+import { parseAssistantCitations } from "./assistantWire";
 import {
   streamChatWithTools,
   type LlmMessage,
@@ -536,7 +537,7 @@ export async function runChatTurn(options: {
       const activity = toolActivities.get(call.id);
       if (activity?.status === "running") {
         const citations = activity.citations?.length ? activity.citations
-          : outcome.activityCitations?.length ? outcome.activityCitations
+          : outcome.activityCitations?.length ? parseAssistantCitations(outcome.activityCitations)
           : createLegalEvidenceCitationsFromEntries(entries);
         emitToolActivity({
           ...activity,
@@ -621,7 +622,7 @@ export async function runChatTurn(options: {
       ) return;
       const label = defaultLabel ??
         assistantToolActivityLabel(call.name, call.input) ?? call.name;
-      const citations = registry.activityCitations(call);
+      const citations = parseAssistantCitations(registry.activityCitations(call));
       boundary = Boolean(text);
       emitToolActivity({
         id: call.id,
