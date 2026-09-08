@@ -37,7 +37,7 @@ const manualState = () => ({ schemaVersion: "beaver.authorities-draft.v1" as con
     passageMarking: "margin" as const, scannedPdfPolicy: "page-margin" as const,
     missingSourcePolicy: "placeholder" as const },
   bookParts: { cover: null, index: null, supplements: [] },
-  insertIntoDocument: false, ledger: null, units: [], occurrences: {},
+  insertIntoDocument: false, ledger: null, units: [], occurrences: {}, discrepancyDecisions: {},
   authorityOrder: ["case"], authorities: { case: {
     id: "case", key: "case", kind: "case" as const, citation: "2024 ABKB 123",
     name: "Example v Example", displayName: null,

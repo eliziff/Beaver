@@ -152,36 +152,55 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const reviewRequest = useRef<AbortController | null>(null);
   const inspectionRequest = useRef(0);
   const actionQueue = useRef(Promise.resolve());
-  const modeDrafts = useRef<{ automatic?: AuthoritiesProduct; manual?: AuthoritiesProduct }>({});
+  const modeDrafts = useRef<{ automatic?: string; manual?: string }>({});
   const stayOnLanding = useRef(false);
   const refreshSeen = useRef(0), refreshRequest = useRef(0);
-  draftRef.current = draft;
 
-  const display = useCallback((next?: AuthoritiesProduct, preserveTab = false) => {
-    reviewRequest.current?.abort(); reviewRequest.current = null; setReview(undefined);
-    setFindingId(""); setViewedStep(undefined);
-    scanRequest.current?.abort(); ocr.reset();
-    previewRequest.current += 1; setSourcePreview(undefined);
-    draftRef.current = next; setDraft(next); setSelectedId(orderedOccurrences(next)[0]?.id ?? "");
-    if (next) {
-      modeDrafts.current[next.state.import.kind === "manual" ? "manual" : "automatic"] = next;
-      if (!preserveTab) setTab(next.state.import.kind === "manual" ? "manual" : "automatic");
-      if (next.state.import.kind === "manual") setManualTitle(next.title);
+  const adopt = useCallback((next?: AuthoritiesProduct, navigate = false, preserveTab = false) => {
+    const current = draftRef.current;
+    if (!navigate && (!next || current?.id !== next.id || next.revision < current.revision)) return false;
+    if (navigate) {
+      reviewRequest.current?.abort(); reviewRequest.current = null; setReview(undefined);
+      setFindingId(""); setViewedStep(undefined);
+      scanRequest.current?.abort(); ocr.reset();
+      previewRequest.current += 1; setSourcePreview(undefined);
+      setSelectedId(orderedOccurrences(next)[0]?.id ?? "");
+      setPendingAttachment(undefined); setError(""); setMessage("");
     }
-    setPendingAttachment(undefined); setError(""); setMessage("");
-  }, []);
-  const remember = useCallback((next: AuthoritiesProduct) => {
     draftRef.current = next; setDraft(next);
-    modeDrafts.current[next.state.import.kind === "manual" ? "manual" : "automatic"] = next;
-    localStorage.setItem(lastDraftKey(projectId), next.id);
-    setDrafts((current) => [metadata(next), ...current.filter(({ id }) => id !== next.id)]
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
-  }, [projectId]);
+    if (next) {
+      const mode = next.state.import.kind === "manual" ? "manual" : "automatic";
+      modeDrafts.current[mode] = next.id;
+      if (navigate && !preserveTab) setTab(mode);
+      if (mode === "manual") setManualTitle(next.title);
+      localStorage.setItem(lastDraftKey(projectId, host.mode), next.id);
+      setDrafts((items) => [metadata(next), ...items.filter(({ id }) => id !== next.id)]
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+    }
+    return true;
+  }, [projectId, host.mode]);
   const open = useCallback((next?: AuthoritiesProduct) => {
     stayOnLanding.current = false;
-    display(next); routeTarget.current = next?.id ?? "";
+    adopt(next, true); routeTarget.current = next?.id ?? "";
     replaceDraft(next?.id);
-  }, [display, replaceDraft]);
+  }, [adopt, replaceDraft]);
+  const load = useCallback(async (id: string, navigate?: (next: AuthoritiesProduct) => void, preserveTab = false) => {
+    const request = ++routeRequest.current;
+    setLoading(!draftRef.current);
+    try {
+      const next = await host.drafts.get<AuthoritiesProduct["state"]>(id);
+      if (next.kind !== "authorities") throw new Error("This is not an Authorities draft.");
+      if (request !== routeRequest.current || draftRef.current?.id === next.id &&
+          draftRef.current.revision > next.revision) return;
+      if (navigate) navigate(next); else adopt(next, true, preserveTab);
+    } catch (caught) {
+      if (request === routeRequest.current) {
+        setError(errorText(caught));
+        if (navigate && localStorage.getItem(lastDraftKey(projectId, host.mode)) === id)
+          localStorage.removeItem(lastDraftKey(projectId, host.mode));
+      }
+    } finally { if (request === routeRequest.current) setLoading(false); }
+  }, [host, adopt, projectId]);
   const refreshDraftEffect = useEffectEvent(async (expectedRevision: number) => {
     const current = draftRef.current;
     if (!current || current.revision >= expectedRevision) return;
@@ -190,7 +209,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       const next = await host.drafts.get<AuthoritiesProduct["state"]>(current.id);
       if (request === refreshRequest.current && draftRef.current?.id === current.id &&
           next.revision >= expectedRevision && next.revision > (draftRef.current?.revision ?? 0))
-        remember(next);
+        adopt(next);
     } catch (caught) {
       if (request === refreshRequest.current) setError(errorText(caught));
     }
@@ -213,14 +232,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     const scope = projectId ?? "local";
     if (restoredScope === scope || requested || draftRef.current ||
         stayOnLanding.current) return;
-    const id = localStorage.getItem(lastDraftKey(projectId));
+    const id = localStorage.getItem(lastDraftKey(projectId, host.mode));
     if (!id) { setRestoredScope(scope); return; }
-    setLoading(true);
-    void host.drafts.get<AuthoritiesProduct["state"]>(id).then((next) => {
-      remember(next); open(next);
-    }).catch(() => localStorage.removeItem(lastDraftKey(projectId)))
-      .finally(() => { setRestoredScope(scope); setLoading(false); });
-  }, [host, projectId, requested, restoredScope, open, remember]);
+    void load(id, open).finally(() => setRestoredScope(scope));
+  }, [projectId, requested, restoredScope, load, open]);
 
   useEffect(() => {
     if (routeTarget.current !== null) {
@@ -228,21 +243,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       routeTarget.current = null;
       if (requested === target) return;
     }
-    const request = ++routeRequest.current;
-    if (!requested) { display(); setLoading(false); return; }
-    setLoading(!draftRef.current);
-    void host.drafts.get<AuthoritiesProduct["state"]>(requested).then((next) => {
-      if (next.kind !== "authorities") throw new Error("This is not an Authorities draft.");
-      if (request !== routeRequest.current) return;
-      remember(next);
-      display(next, tabRef.current === "drafts");
-    }).catch((caught) => {
-      if (request === routeRequest.current) setError(errorText(caught));
-    }).finally(() => {
-      if (request === routeRequest.current) setLoading(false);
-    });
+    if (!requested) { adopt(undefined, true); setLoading(false); return; }
+    void load(requested, undefined, tabRef.current === "drafts");
     return () => { routeRequest.current += 1; };
-  }, [requested, projectId, display, host, remember]);
+  }, [requested, projectId, adopt, load]);
 
   useEffect(() => {
     onDraftChange?.(draft, !!draft && !busy);
@@ -326,25 +330,25 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const sourceLabel = (draft?.projectId ?? projectId) ? "Project" : "Library";
 
   function newDraft(forget = true) {
+    routeRequest.current += 1;
     stayOnLanding.current = true;
     if (forget) {
       const current = draftRef.current;
       if (current) delete modeDrafts.current[current.state.import.kind === "manual"
         ? "manual" : "automatic"];
-      localStorage.removeItem(lastDraftKey(projectId));
+      localStorage.removeItem(lastDraftKey(projectId, host.mode));
     }
-    display(); routeTarget.current = ""; replaceDraft();
+    adopt(undefined, true); routeTarget.current = ""; replaceDraft();
   }
   function changeTab(next: WorkspaceTab) {
     if (next === "automatic" || next === "manual") {
       const current = draftRef.current;
       const activeMode = current?.state.import.kind === "manual" ? "manual" : "automatic";
-      if (current && next !== activeMode) {
-        modeDrafts.current[activeMode] = current;
+      if (!current || next !== activeMode) {
         const target = modeDrafts.current[next];
-        if (target) open(target); else newDraft(false);
-      } else if (!current && modeDrafts.current[next]) {
-        open(modeDrafts.current[next]);
+        if (target) {
+          adopt(undefined, true); void load(target, open);
+        } else newDraft(false);
       }
     }
     setTab(next);
@@ -376,7 +380,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         const prior = "occurrenceId" in action
           ? current.state.occurrences[action.occurrenceId] : null;
         const next = await host.act(current.id, current.revision, action);
-        remember(next);
+        if (!adopt(next)) return;
         if (prior) {
           const unit = next.state.units.find(({ id }) => id === prior.unitId);
           const items = unit?.occurrenceIds.flatMap((id) =>
@@ -397,7 +401,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     if (!current || !host.resolveDiscrepancy) return;
     void run(() => host.resolveDiscrepancy!(current.id,
       { id: finding.id, action, revision: current.revision }), (next) => {
-      remember(next); done();
+      adopt(next); done();
     }, action === "ignore" ? "Quotation difference dismissed"
       : host.mode === "standalone" ? "Corrected Word copy saved with this draft"
         : "Source corrected and draft refreshed", "Correcting source");
@@ -419,7 +423,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     void run(() => host.create({ ...pendingImport, projectId,
       settings: pendingImport.preferences }), (next) => {
       setPreferences(pendingImport.preferences); setPendingImport(undefined);
-      remember(next); open(next);
+      open(next);
     });
   }
   async function pickFiles(multiple: boolean, accept: "source" | "pdf",
@@ -439,7 +443,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         projectId, settings: { ...manualPreferences, sourceMode: "manual-originals",
           passageMarking: "margin", outputMode: "book" },
       });
-      if (current !== draft) { remember(current); open(current); }
+      if (current !== draft) { open(current); }
       for (let index = 0; index < pdfs.length; index += 1) {
         const selected = pdfs[index], before = new Set(current.state.authorityOrder);
         const filename = pdfChoiceName(selected);
@@ -448,17 +452,17 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         setMessage(`Adding ${index + 1} of ${pdfs.length}`);
         current = await host.act(current.id, current.revision,
           { type: "add-authority", kind: "other", citation: label, name: label });
-        remember(current);
+        adopt(current);
         const authorityId = current.state.authorityOrder.find((id) => !before.has(id));
         if (!authorityId) throw new Error("The PDF could not be added.");
         current = isLibraryDocument(selected)
           ? await host.attachLibraryPdf!(current.id, current.revision, selected,
             { kind: "authority", authorityId, language: "en" })
           : await host.attach(current.id, authorityId, current.revision, selected);
-        remember(current);
+        adopt(current);
       }
       return current;
-    }, (next) => { remember(next); open(next); }, `${pdfs.length} PDF${pdfs.length === 1 ? "" : "s"} added`);
+    }, (next) => { open(next); }, `${pdfs.length} PDF${pdfs.length === 1 ? "" : "s"} added`);
   }
   function attach(authorityId: string, selected?: PdfChoice,
     language?: AuthoritySourceLanguage) {
@@ -470,7 +474,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     void run(() => isLibraryDocument(selected)
       ? host.attachLibraryPdf!(current.id, current.revision, selected,
         { kind: "authority", authorityId, language: language ?? "en" })
-      : host.attach(current.id, authorityId, current.revision, selected, language), remember,
+      : host.attach(current.id, authorityId, current.revision, selected, language), adopt,
     `${pdfChoiceName(selected)} attached`);
   }
   function attachBookFiles(slot: AuthoritiesBookSlot,
@@ -486,10 +490,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
           ? await host.attachLibraryPdf!(current.id, current.revision, selected,
             { kind: "book", slot, supplementId })
           : await host.attachBookPdf!(current.id, current.revision, slot, selected, supplementId);
-        remember(current);
+        adopt(current);
       }
       return current;
-    }, remember, files.length > 1 ? `${files.length} files added` : `${pdfChoiceName(files[0])} added`);
+    }, adopt, files.length > 1 ? `${files.length} files added` : `${pdfChoiceName(files[0])} added`);
   }
 
   function openLibrary(target: LibraryTarget) {
@@ -508,7 +512,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   function relinkSource(role: string) {
     if (!draft || !host.relinkSource) return;
     void run(() => host.relinkSource!(draft.id, role, draft.revision), (next) => {
-      remember(next);
+      adopt(next);
       setSourceIssueState((current) => {
         const { [role]: _resolved, ...issues } = current.issues;
         return { ...current, issues };
@@ -518,12 +522,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   }
   function rename(title: string) {
     if (draft) void run(() => host.drafts.update<AuthoritiesProduct["state"]>(draft.id,
-      { revision: draft.revision, title }), (next) => { remember(next); if (next.state.import.kind === "manual") setManualTitle(next.title); });
+      { revision: draft.revision, title }), adopt);
   }
   function duplicate() {
     if (!draft) return;
     void run(() => host.drafts.duplicate<AuthoritiesProduct["state"]>(draft.id,
-      { title: `${draft.title} copy` }), (next) => { remember(next); open(next); });
+      { title: `${draft.title} copy` }), (next) => { open(next); });
   }
   function removeDraft() {
     if (!draft) return;
@@ -547,7 +551,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
             issues: current.draftId === product.id && current.sourceKey === key
               ? current.issues : {}, outputFreshness: "current" };
         });
-        remember(product); setMessage(notice || "Outputs ready");
+        adopt(product); setMessage(notice || "Outputs ready");
       }).finally(() => {
         if (buildRequest.current === request) {
           buildRequest.current = null; setBuilding(false);
@@ -586,9 +590,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     void run(async () => {
       const prepared = await host.prepareSources(current, request.signal);
       request.signal.throwIfAborted();
-      remember(prepared);
+      adopt(prepared);
       return host.act(prepared.id, prepared.revision, { type: "set-stage", stage: "sources" });
-    }, remember, "", "Finding source PDFs").finally(() => {
+    }, adopt, "", "Finding source PDFs").finally(() => {
       if (scanRequest.current === request) scanRequest.current = null;
     });
   }
@@ -617,7 +621,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     sourceLabel={sourceLabel} onBuild={() => build()} onCancel={() => buildRequest.current?.abort()}
     onDownload={download} />;
   const highlightPanel = draft && stage === "highlights" && <AuthoritiesHighlights product={draft} tabs={authorityTabs}
-    busy={busy} host={host} ocr={ocr} onSaved={remember} />;
+    busy={busy} host={host} ocr={ocr} onSaved={adopt} />;
   const quotationReview = draft && findingId && discrepancies.length > 0 &&
     <QuotationReview items={currentReview?.items} currentId={findingId}
       busy={busy || !currentReview} error={error || currentReview?.error} onSelect={setFindingId}
@@ -661,11 +665,11 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         <div id="authorities-panel" role="tabpanel"
           aria-labelledby={`authorities-panel-tab-${TABS.findIndex(({ value }) => value === tab)}`}>
         {loading || (!requested && !stayOnLanding.current &&
-          !!localStorage.getItem(lastDraftKey(projectId)) &&
+          !!localStorage.getItem(lastDraftKey(projectId, host.mode)) &&
           restoredScope !== (projectId ?? "local")) ? <Loading /> : tab === "drafts"
           ? <DraftsPanel drafts={drafts} loading={draftsLoading} busy={busy} onOpen={(id) => void run(
               () => host.drafts.get<AuthoritiesProduct["state"]>(id), (next) => {
-                remember(next); open(next);
+                open(next);
               }, "", "Opening draft")} />
             : !draft
               ? tab === "manual"
@@ -756,7 +760,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
           act({ type: "add-authority", kind, citation, name }, async (next) => {
             if (next.state.stage !== "citations") {
               setOperation("Finding source PDF");
-              try { remember(await host.prepareSources(next)); }
+              try { adopt(await host.prepareSources(next)); }
               finally { setOperation(""); }
             }
           });
@@ -1602,14 +1606,14 @@ function usableSelection(value: { start: number; end: number } | null) {
   return !!value && value.start !== value.end;
 }
 const errorText = (error: unknown) => errorMessage(error, "Authorities could not be updated.");
-const lastDraftKey = (projectId?: string) =>
-  `beaver.authorities.last.${projectId ?? "library"}`;
+const lastDraftKey = (projectId: string | undefined, mode: AuthoritiesHost["mode"]) =>
+  `beaver.authorities.${mode === "standalone" ? "standalone." : ""}last.${projectId ?? "library"}`;
 function loadPreferences(): StartPreferences {
   try {
     const value = JSON.parse(localStorage.getItem("beaver.authorities.preferences") ?? "null") as
       Partial<StartPreferences> | null;
     return value && AUTHORITY_PROFILE_BY_ID.has(value.profileId ?? "") &&
-      ["automatic", "manual-originals", "render"].includes(value.sourceMode ?? "") &&
+      SOURCE_OPTIONS.some(({ value: id }) => id === value.sourceMode) &&
       PASSAGE_OPTIONS.some(({ value: id }) => id === value.passageMarking)
       ? withProfile(value as StartPreferences, value.profileId!) : DEFAULTS;
   } catch { return DEFAULTS; }
