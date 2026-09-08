@@ -155,14 +155,14 @@ describe("account-free tabular reviews", () => {
     await chats.commitTurn(scope, chat.id, { expectedVersion: 0,
       userMessage: { id: randomUUID(), content: "What law applies?" },
       assistantMessage: { id: answerMessageId, content: [legalEvidenceReceiptEvent(state)!] } });
+    await sources.bind(scope, created.id, { chatId: chat.id });
     const imported = await sources.table(scope, created.id, { chatId: chat.id, messageIds: [answerMessageId] }),
       finding = (await sources.findings(scope, created.id, { chatId: chat.id, offset: 0, limit: 10 })).items[0];
     expect(imported.id).not.toBe(table.body.id);
-    expect(imported.columns_config.map(({ name }) => name).slice(0, 2)).toEqual(["Labels", "Note"]);
+    expect(imported.columns_config).toMatchObject([{ prompt: "What law applies?" }]);
     expect(imported.scope_config?.arrangement?.rows).toEqual([{ id: sourceId, title: "Example", sourceId }]);
     expect((await app.detail(scope, imported.id)).cells.every(({ status }) => status === "done")).toBe(true);
-    expect((await sources.table(scope, created.id, { chatId: chat.id, messageIds: [answerMessageId] })).id)
-      .toBe(imported.id);
+    expect(imported.scope_config?.frozen).toBe(true);
     const arrangement = { rows: [{ id: "governing-law", title: "Governing law", sourceId }],
       cells: [{ rowId: "governing-law", columnIndex: 0, items: [{ kind: "answer" as const,
         chatId: chat.id, answerId: finding.question.id, resource }] }] };
@@ -171,11 +171,10 @@ describe("account-free tabular reviews", () => {
     const detail = await app.detail(scope, imported.id);
     expect(detail.cells[0].content).toMatchObject({ claims: extraction.claims, evidence: extraction.evidence,
       summary: extraction.claims.map(({ text }: { text: string }) => text).join("\n\n") });
-    expect(detail.review.scope_config).toMatchObject({ arrangement,
-      findings: { references: [finding.reference], sourceIds: [sourceId] } });
+    expect(detail.review.scope_config).toMatchObject({ arrangement, frozen: true });
     const { tabularRepository } = await import("../../lib/relationalTabularRepository");
     expect((await tabularRepository.detail(scope, imported.id))?.cells[0])
-      .toMatchObject({ status: "pending", content: null });
+      .toMatchObject({ status: "done", content: { claims: extraction.claims, evidence: extraction.evidence } });
     expect(mocks.streamChatWithTools.mock.calls.length).toBe(calls);
   });
 
@@ -339,7 +338,7 @@ describe("account-free tabular reviews", () => {
       content: {
         summary: "Alberta",
         flag: "green",
-        reasoning: "The governing law is Alberta.",
+        claims: [{ text: "The governing law is Alberta.", evidence_ids: [expect.any(String)] }],
       },
     });
 

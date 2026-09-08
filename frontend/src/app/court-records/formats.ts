@@ -22,9 +22,3 @@ export function sourceAccept(kind: DocumentKind) {
     ? ["application/pdf", ".pdf"]
     : [DOCX_MIME, ".docx"]).join(",");
 }
-
-export function sourceFormatLabel(kind: DocumentKind) {
-  const formats = acceptedSourceFormats(kind);
-  if (formats.length === 2) return "PDF or Word";
-  return formats[0] === "docx" ? "Word" : "PDF";
-}

@@ -112,12 +112,12 @@ export async function resolveAuthoritiesSources(
       authority.sourceIdentity?.provider === "a2aj" &&
       !hasBilingualAuthoritySource(authority.source);
     return authority && !authority.excluded && ["case", "legislation"].includes(authority.kind) &&
-      (["unresolved", "resolved", "pending-canlii"].includes(authority.source.kind) || incompleteEnactment) &&
-      !(authority.sourceIdentity && authority.sourceIdentity.provider !== "a2aj")
+      (["unresolved", "resolved", "pending-canlii"].includes(authority.source.kind) || incompleteEnactment)
       ? [{ id, authority }] : [];
   });
   const resolutions = await concurrentMap(candidates, async ({ id, authority }) => {
     signal?.throwIfAborted();
+    if (authority.sourceIdentity && authority.sourceIdentity.provider !== "a2aj") return { source: null };
     let unavailable = false;
     for (const citation of authorityCitationForms(initial, id)) try {
       const source = await sources.resolve(citation,
@@ -156,15 +156,19 @@ export async function resolveAuthoritiesSources(
   // Authorities the Canadian corpus does not hold: US reporter and UK neutral
   // citations resolve through their own providers into the same source pipeline.
   const foreign = await concurrentMap(candidates.flatMap(({ id, authority }, index) =>
-    authority.kind === "case" && !authority.sourceIdentity &&
+    authority.kind === "case" && authority.sourceIdentity?.provider !== "a2aj" &&
       !("mismatch" in resolutions[index]) && !resolutions[index].source &&
-      draft.authorities[id]?.source.kind === "unresolved" ? [id] : []), async (id) => {
+      ["unresolved", "resolved"].includes(draft.authorities[id]?.source.kind) ? [id] : []), async (id) => {
     signal?.throwIfAborted();
     try { return [id, await sources.resolveForeign(authorityCitationForms(draft, id), signal)] as const; }
     catch { signal?.throwIfAborted(); return [id, null] as const; }
   });
   for (const [id, found] of foreign) {
     if (!found) continue;
+    const previous = draft.authorities[id].sourceIdentity;
+    if (previous && (previous.stableSourceId !== found.stableSourceId ||
+        previous.sourceSha256 !== found.sourceSha256)) throw new ApplicationError(409,
+      `The legal source for ${draft.authorities[id].citation} changed. Add the current PDF before trying again.`);
     resolvedSources.set(found.stableSourceId, { ...found, identity: found.stableSourceId,
       alternateCitation: null, dataset: found.provider, language: "en",
       searchText: found.text, verifiedPdf: found.pdfUrl

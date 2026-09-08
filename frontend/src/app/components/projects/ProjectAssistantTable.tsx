@@ -5,7 +5,7 @@ import {
     TableCell,
     TableEmptyState,
     TableHeaderCell,
-    TableLoadingRows,
+    TableLoadingState,
     TablePrimaryCell,
     TableRow,
     TableScrollArea,
@@ -16,7 +16,6 @@ import {
 import { ChatSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import type { Chat } from "@/app/lib/api/chat";
 import { formatDate } from "@/app/lib/utils";
-const LOADING_TITLE_WIDTHS = ["w-36", "w-40", "w-44", "w-48", "w-52"];
 export function ProjectAssistantTable({
     chats,
     filteredChats,
@@ -80,15 +79,7 @@ export function ProjectAssistantTable({
             </TableSelectionHeader>}
         >
             {loading ? (
-                <TableLoadingRows count={LOADING_TITLE_WIDTHS.length}
-                    rowClassName="pr-8 md:pr-8"
-                    primaryWidthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
-                    primaryLineClassName={(index) => `h-3.5 ${LOADING_TITLE_WIDTHS[index]}`}
-                    columns={[
-                        { className: "ml-auto hidden w-28 sm:block md:w-32", lineClassName: "w-16" },
-                        { className: "hidden w-28 sm:block md:w-32", lineClassName: "w-16" },
-                        { className: "w-7 sm:w-8" },
-                    ]} />
+                <TableLoadingState />
             ) : chats.length === 0 ? (
                 <TableEmptyState>
                     <ChatSkeuoIcon className="mb-4 h-8 w-8" />

@@ -234,13 +234,6 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     state.bindings[part.bindingRole] = binding;
     return save(id, revision, state);
   },
-  async prepareHighlights(selected, progress, signal) {
-    const product = await currentProduct(selected.id, selected.revision);
-    const form = await buildInputs(product, progress, signal);
-    progress?.("Preparing highlight review");
-    await runtimeResponse("prepare-highlights", form, false, signal);
-    signal?.throwIfAborted();
-  },
   async build(selected, progress, signal) {
     signal?.throwIfAborted();
     const product = await currentProduct(selected.id, selected.revision);

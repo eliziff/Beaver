@@ -2,11 +2,14 @@ import type { ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 
-/** Work started from a step reports itself in that step, beside the control that began it.
+/** Work started from a step reports itself in that step, beside the control that began it,
+ *  and so does the reason it stopped.
  *  `announce` is off where the step already carries its own live region. */
-export function StepProgress({ label, className, announce = true }: {
-  label?: string; className?: string; announce?: boolean;
+export function StepProgress({ label, error, className, announce = true }: {
+  label?: string; error?: string; className?: string; announce?: boolean;
 }) {
+  if (error) return <span role="alert"
+    className={cn("text-sm font-medium text-red-800", className)}>{error}</span>;
   if (!label) return null;
   return <span role={announce ? "status" : undefined}
     className={cn("flex items-center gap-2 text-sm font-medium text-gray-700", className)}>

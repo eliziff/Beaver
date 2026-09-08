@@ -1,7 +1,7 @@
 import { useNavigationPrefetch } from "@/app/hooks/useNavigationPrefetch";
 import { projectsCollection } from "@/app/lib/collectionKeys";
-"use client";
-import { useDeferredValue, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useDebounced } from "@/app/hooks/useDebounced";
 import { Link, useNavigate } from "react-router-dom";
 import { MessageSquarePlus } from "lucide-react";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
@@ -17,12 +17,11 @@ import { TableToolbar } from "@/app/components/shared/TableToolbar";
 import { RowActions } from "@/app/components/shared/RowActions";
 import { NewPageAction, PageHeader } from "@/app/components/shared/PageHeader";
 import {
-    SkeletonLine,
     TableBody,
     TableEmptyState,
     TableHeaderCell,
     TableLoadMore,
-    TableLoadingRows,
+    TableLoadingState,
     TablePrimaryCell,
     TableRow,
     TableScrollArea,
@@ -56,7 +55,6 @@ const PROJECT_FILTERS: { id: ProjectFilter; label: string }[] = [
     { id: "mine", label: "Mine" },
     { id: "shared-with-me", label: "Shared with me" },
 ];
-const SKELETON_ROWS = 3;
 export function ProjectsOverview() {
     const [modalOpen, setModalOpen] = useState(false);
     const [detailsProjectId, setDetailsProjectId] = useState<string | null>(
@@ -72,7 +70,7 @@ export function ProjectsOverview() {
     const { saveChat } = useChatHistoryContext();
     const { user, isAuthenticated, authLoading } = useAuth();
     const userId = user?.id;
-    const deferredSearch = useDeferredValue(search.trim());
+    const deferredSearch = useDebounced(search.trim());
     const page = usePagedQuery(
         (cursor, signal) => listProjects({
             q: deferredSearch,
@@ -82,6 +80,7 @@ export function ProjectsOverview() {
         [activeFilter, deferredSearch, userId],
         !authLoading && isAuthenticated && !!userId,
         projectsCollection({ q: deferredSearch, scope: activeFilter }),
+        { scope: JSON.stringify([userId, activeFilter]), query: deferredSearch },
     );
     const loading = authLoading || page.loading;
     const rows = page.items;
@@ -210,18 +209,7 @@ export function ProjectsOverview() {
                 </TableSelectionHeader>}
             >
                 {initialLoading ? (
-                    <TableLoadingRows count={SKELETON_ROWS}
-                        rowClassName="h-14 w-full min-w-0 bg-white"
-                        primaryClassName="min-w-0 flex-1"
-                        primaryWidthClassName="min-w-0 flex-1"
-                        columns={[{ className: "w-8" }]}
-                        renderPrimary={() => <>
-                            <div className="mr-2 h-5 w-5 shrink-0 rounded bg-gray-100" />
-                            <div className="min-w-0 flex-1 space-y-1.5">
-                                <SkeletonLine className="h-3.5 w-48" />
-                                <SkeletonLine className="h-2.5 w-72 max-w-full" />
-                            </div>
-                        </>} />
+                    <TableLoadingState />
                 ) : loadError || filtered.length === 0 ? (
                     <TableEmptyState>
                         <FolderSvgIcon

@@ -163,7 +163,7 @@ describe("TabularApplication", () => {
       "Alberta", "- Alberta\n- Canada", "3.5", "12.5%", "CAD 1000", "CAD, USD", "Yes", "05 September 2026", "High",
     ]);
     for (const [index, cell] of cells.entries()) expect(cell).toMatchObject({ status: "done", content: {
-      value: values[index], flag: "green", reasoning: "Governing law: Alberta", coverage: "complete", outcome: "answered",
+      value: values[index], flag: "green", claims: [{ text: "Governing law: Alberta", evidence_ids: [expect.any(String)] }], coverage: "complete", outcome: "answered",
       evidence: [{ provider: "library", stable_source_id: "document", version: "v1", span_text: "Governing law: Alberta" }],
     } });
   });

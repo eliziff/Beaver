@@ -1,7 +1,7 @@
-import { useLayoutEffect, useSyncExternalStore, type ReactNode } from "react";
+import { useLayoutEffect, useMemo, type ReactNode } from "react";
 import type { ApiKeyState, ModelCatalog } from "@/app/lib/api/account";
 import {
-    getSessionModelCatalog,
+    useModelCatalog,
     preloadModelCatalog,
 } from "@/app/lib/modelCatalog";
 import { ModelPicker, type ModelOption } from "./ModelPicker";
@@ -52,45 +52,15 @@ export const ALLOWED_MODEL_IDS = new Set(MODELS.map((m) => m.id));
 const DESKTOP_MODELS: ModelOption[] = [
     { id: "ollama:qwen3.8:27b-ud-q2-k-xl", label: "Qwen 3.8 27B (UD-Q2_K_XL)", group: "Desktop" },
 ];
-const catalogListeners = new Set<() => void>();
-let catalogRefresh: Promise<ModelCatalog> | null = null;
-function subscribeModelCatalog(listener: () => void) {
-    catalogListeners.add(listener);
-    return () => catalogListeners.delete(listener);
-}
-function refreshModelCatalog() {
-    catalogRefresh ??= preloadModelCatalog().finally(() => {
-        catalogRefresh = null;
-        catalogListeners.forEach((notify) => notify());
-    });
-}
-function useModelCatalog(): ModelCatalog | null {
-    return useSyncExternalStore(
-        subscribeModelCatalog,
-        getSessionModelCatalog,
-        () => null,
-    );
-}
-function fallbackDynamicLabel(modelId: string): string | null {
-    if (modelId.startsWith("opencode-go/")) {
-        const slug = modelId.slice("opencode-go/".length).trim();
-        return slug ? `${slug} · OpenCode Go` : null;
-    }
-    const prefix = ["claude-p:", "codex:", "ollama:"].find((candidate) =>
-        modelId.startsWith(candidate),
-    );
-    if (!prefix) return null;
-    const slug = modelId.slice(prefix.length).trim();
-    if (!slug) return null;
-    const label = slug
-        .split("-")
-        .map((part) =>
-            part.toLowerCase() === "gpt"
-                ? "GPT"
-                : `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`,
-        )
-        .join(" ");
-    return label;
+function fallbackModel(id: string, defaultGroup: ModelOption["group"] = "Codex"): ModelOption {
+    const provider = ([ ["claude-p:", "Claude Code"], ["codex:", "Codex"],
+        ["ollama:", "Desktop"], ["opencode-go/", "OpenCode Go"] ] as const)
+        .find(([prefix]) => id.startsWith(prefix));
+    const slug = provider ? id.slice(provider[0].length).trim() : "";
+    const label = !slug ? "Model" : provider?.[1] === "OpenCode Go" ? `${slug} · OpenCode Go`
+        : slug.split("-").map(part => part.toLowerCase() === "gpt"
+            ? "GPT" : `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`).join(" ");
+    return { id, label, group: provider?.[1] ?? defaultGroup, available: !id.startsWith("ollama:") };
 }
 interface Props {
     value: string;
@@ -113,74 +83,20 @@ export function ModelToggle({
     effortControls,
 }: Props) {
     const catalog = useModelCatalog();
-    const dynamicModels: ModelOption[] = (catalog?.models ?? []).map((model) => ({
-            id: `codex:${model.slug}`,
-            label: model.displayName,
-            group: "Codex",
-        }));
-    const catalogDesktopModels: ModelOption[] = (catalog?.ollama?.models ?? []).map(
-        (model) => ({
-            id: `ollama:${model.name}`,
-            label: model.displayName,
-            group: "Desktop",
-        }),
-    );
-    const openCodeGoModels: ModelOption[] = (catalog?.openCodeGo?.models ?? []).map(
-        (model) => ({
-            id: `opencode-go/${model.id}`,
-            label: model.displayName,
-            group: "OpenCode Go",
-        }),
-    );
-    const desktopModels = catalog?.ollama
-        ? catalogDesktopModels.map((model) => ({
-              ...model,
-              label:
-                  catalog.ollama?.source === "unavailable"
-                      ? `${model.label} — desktop offline`
-                      : model.label,
-          }))
-        : DESKTOP_MODELS;
-    const subscriptionModels: ModelOption[] = models
-        .filter((model) => model.group === "Anthropic")
-        .map((model) => ({
-            ...model,
-            id: `claude-p:${model.id}`,
-            label: model.label,
-            group: "Claude Code",
-        }));
-    const allModels = [
-        ...desktopModels,
-        ...dynamicModels,
-        ...openCodeGoModels,
+    const allModels = useMemo<ModelOption[]>(() => [
+        ...(catalog?.ollama ? catalog.ollama.models.map<ModelOption>(model => ({
+            id: `ollama:${model.name}`, group: "Desktop",
+            label: model.displayName + (catalog.ollama?.source === "unavailable" ? " — desktop offline" : ""),
+        })) : DESKTOP_MODELS),
+        ...(catalog?.models ?? []).map<ModelOption>(model => ({ id: `codex:${model.slug}`, label: model.displayName, group: "Codex" })),
+        ...(catalog?.openCodeGo?.models ?? []).map<ModelOption>(model => ({ id: `opencode-go/${model.id}`, label: model.displayName, group: "OpenCode Go" })),
         ...models,
-        ...subscriptionModels,
-    ];
+        ...models.filter(model => model.group === "Anthropic").map<ModelOption>(model => ({ ...model, id: `claude-p:${model.id}`, group: "Claude Code" })),
+    ], [catalog, models]);
     const selected = allModels.find((model) => model.id === value);
-    const selectedLabel =
-        selected?.label ?? fallbackDynamicLabel(value) ?? "Model";
-    const selectedGroup =
-        selected?.group ??
-        (value.startsWith("codex:")
-            ? "Codex"
-            : value.startsWith("ollama:")
-              ? "Desktop"
-              : value.startsWith("claude-p:")
-                ? "Claude Code"
-                : value.startsWith("opencode-go/")
-                  ? "OpenCode Go"
-                  : models[0]?.group ?? "Codex");
     const visibleModels = selected
         ? allModels
-        : [
-              {
-                  id: value,
-                  label: selectedLabel,
-                  group: selectedGroup,
-                  available: !value.startsWith("ollama:"),
-              },
-              ...allModels,
-          ];
+        : [fallbackModel(value, models[0]?.group), ...allModels];
     return (
         <ModelPicker
             value={value}
@@ -191,69 +107,22 @@ export function ModelToggle({
             className={className}
             detail={detail}
             effortControls={effortControls}
-            onOpen={refreshModelCatalog}
+            onOpen={() => { void preloadModelCatalog(); }}
         />
     );
 }
-function reasoningEfforts(model: string, catalog: ModelCatalog | null) {
-    const selectedModel = catalog?.models.find(
-        (item) => `codex:${item.slug}` === model,
-    );
-    const selectedDesktopModel = catalog?.ollama?.models.find(
-        (item) => `ollama:${item.name}` === model,
-    );
-    // Same reasoning ladder on both Muse Spark transports (direct + OpenRouter).
-    const isMuseSpark = model.includes("muse-spark-");
-    return model.startsWith("deepseek-")
-        ? [{ effort: "low" }, { effort: "high" }, { effort: "max" }]
-        : selectedDesktopModel?.supportsThinking
-          ? ["off", "low", "medium", "high"].map((effort) => ({
-                effort,
-            }))
-        : isMuseSpark
-          ? [
-                { effort: "xhigh" },
-                { effort: "high" },
-                { effort: "medium" },
-                { effort: "low" },
-                { effort: "minimal" },
-            ]
-          : (selectedModel?.supportedReasoningLevels ?? []);
-}
-function selectedReasoningEffort(
-    model: string,
-    value: string | undefined,
-    catalog: ModelCatalog | null,
-) {
-    const efforts = reasoningEfforts(model, catalog);
-    const selectedModel = catalog?.models.find(
-        (item) => `codex:${item.slug}` === model,
-    );
-    const selectedDesktopModel = catalog?.ollama?.models.find(
-        (item) => `ollama:${item.name}` === model,
-    );
-    const isMuseSpark = model.includes("muse-spark-");
-    const defaultCodexReasoning = model.endsWith("gpt-5.6-sol") ? "low"
-        : model.endsWith("gpt-5.3-codex-spark")
-          ? "high"
-          : "medium";
-    return (
-        value && (
-            efforts.some((level) => level.effort === value) ||
-            (!selectedModel && model.startsWith("codex:"))
-        )
-            ? value
-            : model.startsWith("codex:") && !selectedModel
-              ? defaultCodexReasoning
-              : model.startsWith("deepseek-")
-                ? "high"
-                : selectedDesktopModel?.supportsThinking
-                  ? "off"
-                  : isMuseSpark
-                    ? "medium"
-                    : (selectedModel?.defaultReasoningLevel ??
-                      efforts[0]?.effort)
-    );
+function modelReasoning(model: string, value: string | undefined, catalog: ModelCatalog | null) {
+    const codex = catalog?.models.find(item => `codex:${item.slug}` === model);
+    const thinking = catalog?.ollama?.models.find(item => `ollama:${item.name}` === model)?.supportsThinking;
+    const deepseek = model.startsWith("deepseek-"), muse = model.includes("muse-spark-");
+    const unknownCodex = model.startsWith("codex:") && !codex;
+    const efforts = deepseek ? ["low", "high", "max"] : thinking ? ["off", "low", "medium", "high"]
+        : muse ? ["xhigh", "high", "medium", "low", "minimal"]
+        : (codex?.supportedReasoningLevels ?? []).map(level => level.effort);
+    const fallback = unknownCodex
+        ? model.endsWith("gpt-5.6-sol") ? "low" : model.endsWith("gpt-5.3-codex-spark") ? "high" : "medium"
+        : deepseek ? "high" : thinking ? "off" : muse ? "medium" : codex?.defaultReasoningLevel ?? efforts[0];
+    return { efforts, selectedEffort: value && (unknownCodex || efforts.includes(value)) ? value : fallback };
 }
 interface ReasoningEffortToggleProps {
     model: string;
@@ -269,8 +138,7 @@ export function ReasoningEffortToggle({
     expanded = false,
 }: ReasoningEffortToggleProps) {
     const catalog = useModelCatalog();
-    const efforts = reasoningEfforts(model, catalog);
-    const selectedEffort = selectedReasoningEffort(model, value, catalog);
+    const { efforts, selectedEffort } = modelReasoning(model, value, catalog);
     const supported = efforts.length > 0;
     useLayoutEffect(() => {
         if (
@@ -284,11 +152,11 @@ export function ReasoningEffortToggle({
     }, [onChange, selectedEffort, supported, value]);
     if (expanded) return <fieldset className="flex flex-col gap-1">
         <legend className="mb-3 text-sm font-medium text-gray-700">Reasoning effort</legend>
-        {supported ? efforts.map((level) => <label key={level.effort}
-            className={`flex min-h-10 cursor-pointer items-center gap-3 rounded-md px-3 text-sm hover:bg-gray-100 ${selectedEffort === level.effort ? "bg-gray-100 text-gray-950" : "text-gray-600"}`}>
-            <input type="radio" name={`effort-${model}`} value={level.effort}
-                checked={selectedEffort === level.effort} onChange={() => onChange(level.effort)}
-                className="accent-gray-900" />{effortLabel(level.effort)}
+        {supported ? efforts.map((level) => <label key={level}
+            className={`flex min-h-10 cursor-pointer items-center gap-3 rounded-md px-3 text-sm hover:bg-gray-100 ${selectedEffort === level ? "bg-gray-100 text-gray-950" : "text-gray-600"}`}>
+            <input type="radio" name={`effort-${model}`} value={level}
+                checked={selectedEffort === level} onChange={() => onChange(level)}
+                className="accent-gray-900" />{effortLabel(level)}
         </label>) : <p className="text-sm text-gray-500">{model.startsWith("codex:") && !catalog ? "Loading…" : "Automatic"}</p>}
     </fieldset>;
     return (
@@ -307,8 +175,8 @@ export function ReasoningEffortToggle({
             >
                 {supported ? (
                     efforts.map((level) => (
-                        <option key={level.effort} value={level.effort}>
-                            {effortLabel(level.effort)}
+                        <option key={level} value={level}>
+                            {effortLabel(level)}
                         </option>
                     ))
                 ) : (
@@ -337,7 +205,7 @@ export function ModelEffortToggle({
     apiKeys?: ApiKeyState;
 }) {
     const catalog = useModelCatalog();
-    const selectedEffort = selectedReasoningEffort(model, effort, catalog);
+    const { selectedEffort } = modelReasoning(model, effort, catalog);
     useLayoutEffect(() => {
         if (effort !== undefined && selectedEffort && effort !== selectedEffort) {
             onEffortChange(selectedEffort);

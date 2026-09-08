@@ -329,17 +329,6 @@ describe("nested Court Record inputs", () => {
     expect(mocks.getWorkProductResolution).toHaveBeenCalledTimes(1);
   });
 
-  it("searches the open draft's project or Library without reloading the draft", async () => {
-    mocks.getWorkProduct.mockRejectedValue(new Error("Draft reload must not be needed"));
-    mocks.directoryResource.mockImplementation((scope) => ({ list: async () => ({
-      items: [{ kind: "document", document: { id: scope.projectId ?? "library",
-        filename: "Motion.pdf", file_type: "pdf" } }], next_cursor: null,
-    }) }));
-    await expect(beaverCourtRecordsHost.searchLibrary!("motion", ["pdf"], sourceContext("project-1")))
-      .resolves.toMatchObject([{ id: "project-1" }]);
-    await expect(beaverCourtRecordsHost.searchLibrary!("", ["pdf"], sourceContext()))
-      .resolves.toMatchObject([{ id: "library" }]);
-  });
 
   it("retains and flags the slot when the child output disappears", async () => {
     mocks.product = product();

@@ -89,5 +89,8 @@ describe("DocumentSidePanel highlight", () => {
       type: "passage", sourceId: "source-1",
       revision: "a".repeat(64), start: 100, end: 117, labelIds: ["pen-1"],
     }));
+    // The reader sends a span bound to the served revision.
+    expect(api.act.mock.calls[0][3]).not.toHaveProperty("locator");
+    expect(highlight).toHaveAttribute("aria-pressed", "true");
   });
 });

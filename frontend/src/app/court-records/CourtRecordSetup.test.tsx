@@ -55,22 +55,15 @@ describe("CourtRecordSetup parties", () => {
     expect(screen.getByLabelText(/Style of cause/u)).toHaveDisplayValue("Choose style");
     await user.selectOptions(screen.getByLabelText(/Style of cause/u), "action");
     expect(screen.queryByLabelText(/Application under/u)).not.toBeInTheDocument();
-    const plaintiffs = screen.getByRole("region", { name: /Plaintiff/u });
-    const defendants = screen.getByRole("region", { name: /Defendant/u });
-    await user.type(within(plaintiffs).getByLabelText("Plaintiff 1"), "Ada North");
+    const plaintiffs = screen.getByRole("textbox", { name: "Plaintiff names, one per line" });
+    await user.type(plaintiffs, "Ada North");
     expect(screen.getByTestId("filing-party-ids")).toHaveTextContent("party-a-1");
-    expect(screen.queryByRole("group", { name: /Filing parties/u })).toBeNull();
-    await user.click(within(plaintiffs).getByRole("button", { name: "Add plaintiff" }));
-    await user.type(within(plaintiffs).getByLabelText("Plaintiff 2"), "Acme Ltd.");
-    expect(screen.getByTestId("filing-party-ids")).toBeEmptyDOMElement();
-    await user.type(within(defendants).getByLabelText("Defendant 1"), "River South");
-    await user.click(screen.getByRole("button", { name: "Add intervener" }));
-    await user.type(within(screen.getByRole("region", { name: "Intervener" })).getByLabelText("Intervener 1"), "Justice Centre");
+    await user.type(plaintiffs, "\nAcme Ltd.");
+    await user.type(screen.getByLabelText("Defendant names, one per line"), "River South");
+    await user.type(screen.getByLabelText("Intervener names, one per line"), "Justice Centre");
 
     const filingParties = screen.getByRole("group", { name: /Filing parties/u });
-    await user.click(within(filingParties).getByRole("checkbox", {
-      name: "Ada North — Plaintiff",
-    }));
+    expect(within(filingParties).getByRole("checkbox", { name: /Ada North/u })).toBeChecked();
     await user.click(within(filingParties).getByRole("checkbox", {
       name: "Acme Ltd. — Plaintiff",
     }));
@@ -79,7 +72,6 @@ describe("CourtRecordSetup parties", () => {
   });
 
   it("keeps completed party fields visible for review", async () => {
-    const user = userEvent.setup();
     render(<CourtRecordSetup
       profile={COURT_PROFILE_BY_ID.get("fc-motion-record-moving")!}
       cover={{ partyStyleId: "application", partyGroups: [
@@ -89,20 +81,20 @@ describe("CourtRecordSetup parties", () => {
       missingFields={new Set()} heading="Case details" onCover={() => undefined}
     />);
 
-    expect(screen.getByRole("textbox", { name: "Applicant 1" })).toHaveValue("Ada North");
-    expect(screen.getByRole("region", { name: /^Applicant/u })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Applicant names, one per line" })).toHaveValue("Ada North");
+
   });
 
   it("selects the sole filer left after the selected party is removed", async () => {
     const user = userEvent.setup();
     render(<Setup />);
     await user.selectOptions(screen.getByLabelText(/Style of cause/u), "action");
-    const plaintiffs = screen.getByRole("region", { name: /Plaintiff/u });
-    await user.type(within(plaintiffs).getByLabelText("Plaintiff 1"), "Ada North");
-    await user.click(within(plaintiffs).getByRole("button", { name: "Add plaintiff" }));
-    await user.type(within(plaintiffs).getByLabelText("Plaintiff 2"), "Acme Ltd.");
+    const plaintiffs = screen.getByLabelText("Plaintiff names, one per line");
+    await user.type(plaintiffs, "Ada North\nAcme Ltd.");
+    await user.click(screen.getByRole("checkbox", { name: /Ada North/u }));
     await user.click(screen.getByRole("checkbox", { name: /Acme Ltd\./u }));
-    await user.click(within(plaintiffs).getByRole("button", { name: "Remove plaintiff 2" }));
+    await user.clear(plaintiffs);
+    await user.type(plaintiffs, "Ada North");
     expect(screen.getByTestId("filing-party-ids")).toHaveTextContent("party-a-1");
   });
 

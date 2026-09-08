@@ -8,7 +8,7 @@ Measurements below are recorded evidence, not fresh measurements of every build.
 
 ## Collections and navigation
 
-Projects, Library files/templates, project directories, shared pickers and tabular
+Chat history, Projects, Library files/templates, project directories, shared pickers and tabular
 collections reuse one paged-collection engine. Resource, account/project/Library
 scope, query, filters and page size define identity. Sources' manually loaded,
 revision-sensitive passage/finding chains remain component-local.
@@ -35,6 +35,25 @@ or speculative Sources query is added. Navigation joins pending work; a complete
 prefetch has one handoff within one second, not a general freshness TTL. Mutations
 clear it, failures retry on real navigation, and account replacement discards late
 results.
+
+History, Projects and review-history searches use the shared paged-query snapshot
+retention: the previous rows and their highlighting query remain until a replacement
+arrives. Retention is explicitly bounded to the same account/resource/filter scope;
+scope changes, disabling and errors discard the held snapshot. Empty success replaces
+it normally. Network-backed history, project and Library-picker text inputs use the
+shared 200 ms debounce; inputs themselves update immediately. Hidden review history
+does not issue requests. Initial table/picker loading uses the existing delayed
+indicator instead of constructing a second, fictional row/column layout.
+
+Transcript search uses the existing message-order index to find the earliest matching
+message per chat, rather than ranking all matching messages. Matching remains literal
+substring search over ordered content events, with the same access and date filters.
+Absent terms still require a scoped scan; this is not a full-text index.
+`node --import tsx scripts/measure-chat-search.ts` from `backend` reproduces a disposable
+SQLite benchmark (1,000 chats, 24,000 messages, 48,000 content events; median of five
+warm reads after one warm-up). The September 8 comparison against `ab7246374` measured
+803 → 62 ms for `lease`, and 405 → 435 ms for an absent term. These are local synthetic
+results, not PostgreSQL measurements or a general latency guarantee.
 
 ## Document text
 

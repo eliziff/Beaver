@@ -18,11 +18,6 @@ describe("court record source fields", () => {
         swornDate: "January 2, 2026",
         swornPlace: "Calgary, Alberta",
       },
-      partyStyleId: "action",
-      partyGroups: [
-        { role: "Plaintiff", parties: ["ALPHA PERSON"] },
-        { role: "Defendant", parties: ["BETA PERSON"] },
-      ],
       exhibitLabels: ["A"],
       exhibitMentions: { A: ["The January order is attached as Exhibit A."] },
       explicitExhibitLabel: "B",
@@ -48,19 +43,10 @@ describe("court record source fields", () => {
     });
   });
 
-  it("reads bare party roles from the preceding line", () => {
-    const fields = sourceDocumentFields([["ACME LTD.", "PLAINTIFF", "RIVERSTONE INC.",
-      "DEFENDANT", "2nd Affidavit of JANE DOE"].join("\n")]);
-    expect(fields?.partyGroups).toEqual([
-      { role: "Plaintiff", parties: ["ACME LTD."] },
-      { role: "Defendant", parties: ["RIVERSTONE INC."] },
-    ]);
-    expect(fields?.cover.deponent).toBe("JANE DOE");
-    expect(sourceDocumentFields([["PLAINTIFF:", "ALPHA LTD.", "DEFENDANT:",
-      "BETA LTD."].join("\n")])?.partyGroups).toEqual([
-        { role: "Plaintiff", parties: ["ALPHA LTD."] },
-        { role: "Defendant", parties: ["BETA LTD."] },
-      ]);
+  it("does not turn dates, registries, or caption fragments into parties", () => {
+    const fields = sourceDocumentFields(["28-Jul-26\nVancouver\n(collectively\nthe\nChildren).\n8.\nRespondent"]);
+    expect(fields).not.toHaveProperty("partyGroups");
+    expect(fields).not.toHaveProperty("partyStyleId");
   });
 
   it("preserves legal capitalization in extracted names and acronyms", () => {
@@ -75,9 +61,7 @@ describe("court record source fields", () => {
     expect(sourceDocumentFields([["Court File No. T-982-19", "FEDERAL COURT", "BETWEEN:",
       "North Prairie Ltd.", "Applicant", "- and -", "Riverstone Inc.", "Respondent",
       "APPLICATION UNDER Federal Courts Act, section 18.1", "MOTION RECORD"].join("\n")]))
-      .toMatchObject({ cover: { courtFileNumber: "T-982-19" }, partyStyleId: "application",
-        partyGroups: [{ role: "Applicant", parties: ["North Prairie Ltd."] },
-          { role: "Respondent", parties: ["Riverstone Inc."] }] });
+      .toMatchObject({ cover: { courtFileNumber: "T-982-19" } });
   });
 
   it("reads the official Federal Court motion-record cover, not its index rows", () => {
@@ -100,23 +84,20 @@ describe("court record source fields", () => {
     expect(fields).not.toHaveProperty("entryDate");
   });
 
-  it("recovers a filing heading and its stated date", () => {
+  it("recovers the stated date without inventing an entry title", () => {
     expect(sourceDocumentFields([["Court File No. T-982-19", "FEDERAL COURT", "BETWEEN:",
       "North Prairie Ltd.", "Applicant", "and", "Canada", "Respondent",
       "NOTICE OF APPLICATION"].join("\n"),
     "DATED at Calgary, Alberta this 4th day of September, 2026."]))
-      .toMatchObject({ entryTitle: "NOTICE OF APPLICATION", entryDate: "September 4, 2026" });
+      .toMatchObject({ entryDate: "September 4, 2026" });
   });
 
-  it("keeps multiple parties on each side of a generated style of cause", () => {
-    expect(sourceDocumentFields([["FEDERAL COURT", "BETWEEN:", "Alpha Ltd.", "Ada Person",
-      "Applicants", "and", "Beta Ltd.", "Baker Person", "Respondents", "AFFIDAVIT"].join("\n")]))
-      .toMatchObject({ partyGroups: [{ role: "Applicant",
-        parties: ["Alpha Ltd.", "Ada Person"] }, { role: "Respondent",
-        parties: ["Beta Ltd.", "Baker Person"] }] });
+  it("does not use a bare Order line as an entry title", () => {
+    expect(sourceDocumentFields(["Court file number: 2401-12345\nOrder"]))
+      .not.toHaveProperty("entryTitle");
   });
 
-  it("keeps interveners and AP-5 metadata without guessing the underlying style", () => {
+  it("keeps AP-5 metadata without guessing parties", () => {
     const fields = sourceDocumentFields([["COURT OF APPEAL FILE NUMBER: 2403-0001AC",
       "TRIAL COURT FILE NUMBER: 2201-12345", "REGISTRY OFFICE: Calgary",
       "PLAINTIFF/APPLICANT:", "ACME Holdings Inc.", "STATUS ON APPEAL:", "Appellant",
@@ -128,12 +109,8 @@ describe("court record source fields", () => {
       courtFileNumber: "2403-0001AC", lowerCourtFileNumber: "2201-12345", registry: "Calgary",
       decisionMaker: "The Honourable Justice A. Ng", decisionDate: "March 4, 2026",
       decisionFileDate: "March 5, 2026",
-    }, partyGroups: [
-      { role: "Appellant", parties: ["ACME Holdings Inc."] },
-      { role: "Respondent", parties: ["RIVERSTONE LTD."] },
-      { role: "Intervener", roleBelow: "Intervener", parties: ["Public Interest Centre"] },
-    ] });
-    expect(fields?.partyStyleId).toBeUndefined();
+    } });
+    expect(fields).not.toHaveProperty("partyStyleId");
   });
 
   it("reads official AP-5 decision fields without propagating blank contact labels", () => {

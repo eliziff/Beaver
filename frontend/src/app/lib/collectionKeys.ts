@@ -2,6 +2,7 @@ import type { CollectionSpec } from "./collections";
 import type { DirectoryScope } from "./api/documents";
 import type { listProjects } from "./api/projects";
 import type { listTabularReviews } from "./api/tabular";
+import type { ChatSearchOptions } from "./api/chat";
 
 function identity(resource: string, options: object, tags: string[]): CollectionSpec {
     const params = new URLSearchParams();
@@ -14,6 +15,9 @@ export const projectsCollection = (options: Omit<NonNullable<Parameters<typeof l
     identity("/projects", { ...options, scope: options.scope ?? "all" }, ["projects"]);
 export const tabularReviewsCollection = (options: Omit<NonNullable<Parameters<typeof listTabularReviews>[0]>, "cursor"> = {}) =>
     identity("/tabular-review", options, ["reviews"]);
+export const chatsCollection = (options: ChatSearchOptions = {}) =>
+    identity("/chat", { ...options, search_scope: options.search_scope ?? "all",
+        search_context: options.search_context ?? "assistant", sort: options.sort ?? "newest", limit: 21 }, ["chats", "reviews"]);
 export function directoryCollection(scope: DirectoryScope, q = "") {
     const root = "projectId" in scope ? `/projects/${encodeURIComponent(scope.projectId)}` : `/library/${scope.library}`;
     return identity(`${root}/collection`, { q: q.trim() }, ["directories", `directory:${root}`]);

@@ -25,7 +25,7 @@ import { downloadBlob } from "@/app/lib/download";
 import { cn, errorMessage, formatDateTime } from "@/app/lib/utils";
 import type { WorkProductFocus, WorkProductMetadata,
   WorkProductRefresh } from "@/app/lib/workProducts";
-import { ManualDraft, Sources } from "./AuthoritySources";
+import { Sources } from "./AuthoritySources";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
 import { useScannedSources, useSourceOcr } from "./sourceOcr";
 import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesHost,
@@ -38,7 +38,6 @@ import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesProduct,
   AuthorityIdentity, AuthorityKind, AuthorityOccurrence, AuthoritySourceLanguage } from "./types";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "../../../../shared/authorities-order.mjs";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
-import { emptyAnnotationSet, type PdfAnnotationSet } from "../../../../shared/pdf-annotations.mjs";
 
 import { AuthoritiesHighlights } from "./AuthoritiesHighlightEditor";
 
@@ -125,15 +124,14 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const [operation, setOperation] = useState("");
   const [building, setBuilding] = useState(false);
   const [message, setMessage] = useState(""), [error, setError] = useState("");
+  const [stepFailure, setStepFailure] = useState("");
   const [libraryTarget, setLibraryTarget] = useState<LibraryTarget>(), [addOpen, setAddOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<PendingImport>();
   const [pendingAttachment, setPendingAttachment] = useState<{
     authorityId: string; selected: PdfChoice;
   }>();
   const [findingId, setFindingId] = useState("");
-  const [quotationsDone, setQuotationsDone] = useState(false);
-  const [highlightWarnings, setHighlightWarnings] = useState<{ key: string;
-    items: Array<{ label: string; excerpt: string }>; sets: Record<string, PdfAnnotationSet> }>();
+  const [viewedStep, setViewedStep] = useState<{ key: string; value: Step }>();
   const [editingAuthority, setEditingAuthority] = useState<AuthorityIdentity>();
   const [sourcePreview, setSourcePreview] = useState<{ role: string; name: string;
     quote?: string; bytes?: Uint8Array; error?: string }>();
@@ -146,7 +144,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     issues: Record<string, AuthoritiesSourceIssue>;
     outputFreshness: "unbuilt" | "current" | "stale";
   }>({ draftId: "", sourceKey: "", revision: -1, issues: {}, outputFreshness: "unbuilt" });
-  const [sourceIntervention, setSourceIntervention] = useState("");
   const [review, setReview] = useState<{ id: string; key: string;
     items: AuthoritiesDiscrepancy[]; error: string }>();
   const draftRef = useRef(draft);
@@ -161,7 +158,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
 
   const display = useCallback((next?: AuthoritiesProduct, preserveTab = false) => {
     reviewRequest.current?.abort(); reviewRequest.current = null; setReview(undefined);
-    setFindingId(""); setQuotationsDone(false); setHighlightWarnings(undefined);
+    setFindingId(""); setViewedStep(undefined);
     scanRequest.current?.abort(); ocr.reset();
     previewRequest.current += 1; setSourcePreview(undefined);
     draftRef.current = next; setDraft(next); setSelectedId(orderedOccurrences(next)[0]?.id ?? "");
@@ -258,7 +255,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const draftId = draft?.id;
   const sourceKey = sourceIssueKey(draft);
   const scannedSources = useScannedSources(host, draft, `${draftId}:${sourceKey}`,
-    draft?.state.stage === "sources" || draft?.state.stage === undefined);
+    (file) => { if (ocr.tracked[file.role]?.sourceSha256 !== file.sourceSha256) void ocr.begin([file]); });
   const sameDraft = draft && sourceIssueState.draftId === draft.id;
   const sourceIssues = sameDraft && sourceIssueState.sourceKey === sourceKey
     ? sourceIssueState.issues : {};
@@ -281,7 +278,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const reviewKey = useMemo(() => discrepancyKey(draft), [draft]);
   useEffect(() => {
     reviewRequest.current?.abort();
-    setQuotationsDone(false);
     if (!draftId || !host.review || !reviewKey) { setReview(undefined); return; }
     const request = new AbortController(); reviewRequest.current = request;
     const id = draftId, key = reviewKey;
@@ -317,8 +313,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     ? draft.state.import.bindingRole : undefined;
   const importedIssue = importedRole ? sourceIssues[importedRole] : undefined;
   const reviewError = !globalTab ? currentReview?.error || "" : "";
-  const status = error || message || reviewError;
-  // Work a step starts reports itself in that step; only unattached work needs the page-level line.
+  // Work a step starts reports itself in that step, and so does the reason it stopped;
+  // only unattached work needs the page-level line.
+  const stepError = error && error === stepFailure ? error : "";
+  const status = (stepError ? "" : error) || message || reviewError;
   const stepOperation = STEP_PROGRESS.has(operation) ? operation : "";
   const busyText = stepOperation ? "" : building ? "Building outputs"
     : pendingImport ? "Finding citations" : operation || "Updating authorities";
@@ -358,14 +356,18 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     try { const value = await operationFn(); done(value); if (success) setMessage(success); }
     catch (caught) {
       if ((caught as { name?: string })?.name === "AbortError") setMessage("Build cancelled");
-      else setError(errorText(caught));
+      else {
+        const text = errorText(caught);
+        setError(text); if (STEP_PROGRESS.has(label)) setStepFailure(text);
+      }
     }
     finally { setBusy(false); setOperation(""); }
   }
   const act: ActionHandler = (action, done) => {
     const targetId = draftRef.current?.id;
     if (!targetId) return;
-    setPendingActions((count) => count + 1);
+    const blocking = action.type !== "rename-authority";
+    if (blocking) setPendingActions((count) => count + 1);
     actionQueue.current = actionQueue.current.then(async () => {
       try {
         const current = draftRef.current;
@@ -386,7 +388,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         }
         await done?.(next);
       } catch (caught) { setError(errorText(caught)); }
-      finally { setPendingActions((count) => Math.max(0, count - 1)); }
+      finally { if (blocking) setPendingActions((count) => Math.max(0, count - 1)); }
     });
   };
   const resolveDiscrepancy: DiscrepancyHandler = (finding, action, done) => {
@@ -585,58 +587,22 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       request.signal.throwIfAborted();
       remember(prepared);
       return host.act(prepared.id, prepared.revision, { type: "set-stage", stage: "sources" });
-    }, (next) => { remember(next); setSourceIntervention(""); }, "", "Finding source PDFs").finally(() => {
+    }, remember, "", "Finding source PDFs").finally(() => {
       if (scanRequest.current === request) scanRequest.current = null;
     });
   }
-  async function prepareHighlightReview(current: AuthoritiesProduct, signal: AbortSignal) {
-    await host.prepareHighlights?.(current, setMessage, signal);
-    const sets: Record<string, PdfAnnotationSet> = {};
-    const items: Array<{ label: string; excerpt: string }> = [];
-    if (host.prepareAnnotations && host.readSource && current.state.settings.passageMarking !== "none") {
-      for (const authority of Object.values(current.state.authorities)) {
-        if (authority.excluded || authority.source.kind !== "attached") continue;
-        for (const source of authority.source.sources) {
-          signal.throwIfAborted();
-          if (authority.annotations?.[source.bindingRole]?.sourceSha256 === source.sourceSha256) continue;
-          setMessage(`Preparing highlights in ${authorityName(authority)}`);
-          try {
-            const blob = await host.readSource(current, source.bindingRole);
-            const result = await host.prepareAnnotations(current, authority.id, source.bindingRole, blob, signal);
-            sets[source.bindingRole] = result.annotations;
-            items.push(...result.unresolved.map(item => ({ ...item,
-              label: `${authorityName(authority)} · ${item.label}` })));
-          } catch (caught) {
-            signal.throwIfAborted();
-            sets[source.bindingRole] = emptyAnnotationSet(source.sourceSha256);
-            items.push({ label: authorityName(authority), excerpt: errorText(caught) });
-          }
-        }
-      }
-    }
-    signal.throwIfAborted();
-    // Preparation is not an edit. Persist only when the user saves their review;
-    // otherwise a reload must not mistake an unacknowledged failure for a reviewed PDF.
-    setHighlightWarnings({ key: highlightPreparationKey(current), items, sets });
-    return items.length ? current : host.act(current.id, current.revision, { type: "set-stage", stage: "highlights" });
-  }
-
-  function finishSources() {
-    const current = draftRef.current;
-    if (!current || busy) return;
-    const request = new AbortController(); scanRequest.current?.abort(); scanRequest.current = request;
-    void run(async () => {
-      // Recognition is queued the moment a scan is found and watched in the Sources
-      // list; how much of it reaches the book stays the scanned-PDF setting.
-      void ocr.begin(await scannedSources(current, setMessage));
-      request.signal.throwIfAborted();
-      return prepareHighlightReview(current, request.signal);
-    }, remember, "", "Preparing highlight review").finally(() => {
-      if (scanRequest.current === request) scanRequest.current = null;
-    });
-  }
-  const stage = draft?.state.stage ?? (draft && Object.keys(draft.outputs).length ? "build"
+  const reached = draft?.state.stage ?? (draft && Object.keys(draft.outputs).length ? "build"
     : draft?.state.import.kind === "manual" ? "sources" : "citations");
+  const stepKey = `${draft?.id}:${reached}`;
+  const stage = viewedStep?.key === stepKey ? viewedStep.value : reached;
+  const steps = STEPS.filter(({ value }) => value !== "citations" || draft?.state.import.kind !== "manual")
+    .map(step => ({ ...step, disabled: busy || STEPS.findIndex(({ value }) => value === step.value) >
+      STEPS.findIndex(({ value }) => value === reached) }));
+  const viewStep = (value: Step) => setViewedStep({ key: stepKey, value });
+  const advance = (next: Step) => {
+    if (STEPS.findIndex(({ value }) => value === next) <= STEPS.findIndex(({ value }) => value === reached)) viewStep(next);
+    else act({ type: "set-stage", stage: next });
+  };
   const buildPanel = draft && stage === "build" && <BuildPanel draft={draft} busy={busy} building={building}
     jurisdictionOrder={jurisdictionOrder} outputFreshness={outputFreshness}
     missing={missingPdfs.length} onAction={act} sourceIssues={sourceIssues}
@@ -649,34 +615,16 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       ? (slot, supplementId) => openLibrary({ kind: "book", slot, supplementId }) : undefined}
     sourceLabel={sourceLabel} onBuild={() => build()} onCancel={() => buildRequest.current?.abort()}
     onDownload={download} />;
-  const preparedHighlights = highlightWarnings?.key === highlightPreparationKey(draft) ? highlightWarnings : undefined;
-  const highlightPanel = draft && (stage === "highlights" || stage === "build") && <AuthoritiesHighlights product={draft} tabs={authorityTabs}
-    busy={busy} host={host} onSaved={remember} prepared={preparedHighlights?.sets} />;
-  // While editing citations the step appears only on request, from the finding's own Review button.
-  const quotationReview = draft && !quotationsDone && discrepancies.length > 0 &&
-    (stage !== "citations" || !!findingId) &&
-    <QuotationReview items={currentReview?.items} currentId={findingId || discrepancies[0].id}
+  const highlightPanel = draft && stage === "highlights" && <AuthoritiesHighlights product={draft} tabs={authorityTabs}
+    busy={busy} host={host} ocr={ocr} onSaved={remember} />;
+  const quotationReview = draft && findingId && discrepancies.length > 0 &&
+    <QuotationReview items={currentReview?.items} currentId={findingId}
       busy={busy || !currentReview} error={error || currentReview?.error} onSelect={setFindingId}
       onOpenSource={host.readSource ? openFindingSource : undefined}
       onResolve={host.resolveDiscrepancy ? resolveDiscrepancy : undefined}
-      onDone={() => { setFindingId(""); if (stage !== "citations") setQuotationsDone(true); }} />;
-  const markingIssues = preparedHighlights?.items.length ? preparedHighlights.items : undefined;
-  const sourcesContinue = draft && stage === "sources" && <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
-    {missingPdfs.length > 0 && <p className="mr-auto text-sm text-gray-600">
-      {missingPdfs.length} missing PDF{missingPdfs.length === 1 ? "" : "s"}</p>}
-    {markingIssues && <details open className="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm">
-      <summary className="cursor-pointer font-medium text-red-800">{markingIssues.length} passages need manual highlighting</summary>
-      <p className="mt-2 text-gray-600">Check these citations or mark the passages in the PDF. No guessed highlights were added.</p>
-      <ul className="mt-2 max-h-40 space-y-2 overflow-y-auto">{markingIssues.map((item, index) =>
-        <li key={index}><span className="font-medium">{item.label}</span>
-          {item.excerpt && <p className="line-clamp-2 text-xs text-gray-600">{item.excerpt}</p>}</li>)}</ul>
-    </details>}
-    <StepProgress label={stepOperation} />
-    <Button disabled={busy} onClick={() => markingIssues
-      ? act({ type: "set-stage", stage: "highlights" }) : finishSources()}>
-      Done<ChevronRight /></Button>
-  </div>;
-  const authorityPanelProps = { authorities, tabs: authorityTabs, busy, sourceIssues,
+      onDone={() => setFindingId("")} />;
+  const authorityPanelProps = { authorities, tabs: authorityTabs, busy, sourceIssues, ocr,
+    inspection: scannedSources,
     onAction: act, onEditIdentity: setEditingAuthority,
     onOpenSource: host.readSource ? openSource : undefined, onAdd: () => setAddOpen(true),
     onPick: host.pickFiles ? (id: string) => void pickFiles(false, "pdf",
@@ -693,14 +641,14 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
 
   return <div className={cn("authorities-workspace bg-app-background [scrollbar-gutter:stable]",
     host.mode === "standalone" ? "min-h-dvh" : "min-h-full lg:h-full lg:min-h-0 lg:overflow-y-auto")}>
-    {draft && !globalTab ? <WorkspaceHeader className={host.mode === "standalone" ? WORKSPACE_FRAME : undefined} current={draft}
+    {draft ? <WorkspaceHeader className={host.mode === "standalone" ? WORKSPACE_FRAME : undefined} current={draft}
         busy={busy || locked} itemLabel="authorities draft"
         onBack={() => newDraft(false)} onRename={rename} onDuplicate={duplicate}
         onDelete={removeDraft} headerActions={<><Button type="button" variant="outline"
           className="h-9 border-gray-400" disabled={busy || locked} onClick={() => newDraft()}>
-          <Plus /> New</Button>{settingsAction}{headerActions}</>} />
+          <Plus /> New</Button>{headerActions}{settingsAction}</>} />
         : <WorkspaceHeader className={host.mode === "standalone" ? WORKSPACE_FRAME : undefined} title="Authorities"
-          headerActions={<>{settingsAction}{headerActions}</>} />}
+          headerActions={<>{headerActions}{settingsAction}</>} />}
     <div inert={locked} aria-busy={locked || undefined}>
           <main className={cn(WORKSPACE_FRAME, "min-h-80 py-4")}>
         <TabList value={tab} onValueChange={changeTab} options={TABS}
@@ -732,46 +680,46 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                     onFile={(file) => queueFile(file && { file })}
                     onLibrary={libraryAvailable ? () => openLibrary({ kind: "import" }) : undefined}
                     sourceLabel={sourceLabel} />
-              : draft.state.import.kind === "manual"
-                ? <><ManualDraft state={draft.state} {...authorityPanelProps}
-                    onPickMany={host.pickFiles ? () => void pickFiles(true, "pdf", appendManual) : undefined}
-                    onLibraryAdd={attachLibraryAvailable
-                      ? () => openLibrary({ kind: "manual" }) : undefined}
-                    onFiles={(files) => appendManual(files.map((file) => ({ file })))}
-                    />
-                  {quotationReview}
-                  {sourcesContinue}
-                  {highlightPanel}
-                  {buildPanel}</>
-                : <><StepSection title="Import and review" subtitle={draft.state.import.filename}
+              : <>
+                  <TabList value={stage} onValueChange={viewStep} options={steps}
+                    ariaLabel="Book steps" variant="subtab" panelId="authorities-step" />
+                  <div id="authorities-step" role="tabpanel"
+                    aria-labelledby={`authorities-step-tab-${steps.findIndex(({ value }) => value === stage)}`}>
+                  {stage === "citations" && draft.state.import.kind === "document" && <><StepSection title="Import and review" subtitle={draft.state.import.filename}
                     subtitleTitle={draft.state.import.filename}
                     actions={<>
-                      {stage !== "citations" && <Button variant="outline" className="h-9 border-gray-400"
-                        disabled={busy} onClick={() => act({ type: "set-stage", stage: "citations" })}>Edit citations</Button>}
-                      {stage === "citations" && <>
                       {importedRole && importedIssue && host.relinkSource &&
                         relinkable(importedIssue) && <Button type="button"
                         variant="outline" className="h-9 border-gray-400" disabled={busy}
                         onClick={() => relinkSource(importedRole)}><FilePlus2 />
                         {sourceAction(importedIssue, "source")}</Button>}
-                      <StepProgress label={stepOperation} />
-                      <Button disabled={busy} className="h-9" onClick={findSources}>Done<ChevronRight /></Button></>}
+                      <StepProgress label={stepOperation} error={stepError} />
+                      <Button disabled={busy} className="h-9" onClick={() => reached === "citations" ? findSources() : viewStep("sources")}>
+                        Done<ChevronRight /></Button>
                     </>}>
-                    {stage === "citations" && operation !== "Finding source PDFs" && <CitationReview occurrences={occurrences} units={draft.state.units}
+                    {operation !== "Finding source PDFs" && <CitationReview occurrences={occurrences} units={draft.state.units}
                       selected={selected} authorities={authorities} discrepancies={discrepancies}
                       busy={busy} onSelect={setSelectedId} onAction={act}
                       onFocusChange={onFocusChange} onReview={setFindingId} />}
-                  </StepSection>
-                  {stage !== "citations" && <Sources key={draft.id} draft={draft} occurrences={occurrences}
-                    {...authorityPanelProps} ocr={ocr}
-                    forceOpen={sourceIntervention === sourceKey} />}
-                  {quotationReview}
-                  {sourcesContinue}
+                  </StepSection>{quotationReview}</>}
+                  {stage === "sources" && <><Sources key={draft.id} draft={draft} occurrences={occurrences}
+                    {...authorityPanelProps}
+                    {...(draft.state.import.kind === "manual" ? {
+                      onPickMany: host.pickFiles ? () => void pickFiles(true, "pdf", appendManual) : undefined,
+                      onLibraryAdd: attachLibraryAvailable ? () => openLibrary({ kind: "manual" }) : undefined,
+                      onFiles: (files: File[]) => appendManual(files.map((file) => ({ file }))),
+                    } : {})} />
+                    <div className="mt-3 flex items-center justify-end gap-3">
+                      <StepProgress label={stepOperation} error={stepError} />
+                      <Button disabled={busy} onClick={() => advance("highlights")}>Done<ChevronRight /></Button>
+                    </div></>}
                   {highlightPanel}
                   {stage === "highlights" && <div className="mt-3 flex justify-end">
-                    <Button disabled={busy} onClick={() => act({ type: "set-stage", stage: "build" })}>
+                    <Button disabled={busy} onClick={() => advance("build")}>
                       Done — build book<ChevronRight /></Button></div>}
-                  {buildPanel}</>}
+                  {buildPanel}
+                  </div>
+                </>}
         </div>
       </main>
       {LibraryPicker && <LibraryPicker open={!!libraryTarget}
@@ -1537,8 +1485,10 @@ function Status({ busy, busyText, status, error }: { busy: boolean; busyText: st
   </p>;
 }
 /** Operations a step owns: their progress belongs in that step, not at the top of the page. */
-const STEP_PROGRESS = new Set(["Finding source PDFs", "Checking source PDFs",
-  "Preparing highlight review"]);
+const STEP_PROGRESS = new Set(["Finding source PDFs", "Checking source PDFs"]);
+const STEPS = [{ value: "citations", label: "Citations" }, { value: "sources", label: "Sources" },
+  { value: "highlights", label: "Highlights" }, { value: "build", label: "Build book" }] as const;
+type Step = typeof STEPS[number]["value"];
 
 const SOURCE_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["sourceMode"]>> = [
   { value: "automatic", label: "Automatic sources",
@@ -1576,11 +1526,6 @@ function orderedOccurrences(draft?: AuthoritiesProduct) {
   if (!draft) return [];
   return draft.state.units.flatMap((unit) => unit.occurrenceIds
     .flatMap((id) => draft.state.occurrences[id] ? [draft.state.occurrences[id]] : []));
-}
-function highlightPreparationKey(draft?: AuthoritiesProduct) {
-  return draft ? canonicalJson([draft.id, draft.state.units, draft.state.occurrences, draft.state.bindings,
-    draft.state.settings.passageMarking, draft.state.settings.scannedPdfPolicy,
-    Object.values(draft.state.authorities).map(({ id, locators, highlightExclusions }) => [id, locators, highlightExclusions])]) : "";
 }
 function discrepancyKey(draft?: AuthoritiesProduct) {
   if (!draft || draft.state.import.kind !== "document") return "";

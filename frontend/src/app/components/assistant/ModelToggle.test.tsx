@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { getModelCatalog } from "@/app/lib/api/account";
 import { ModelEffortToggle } from "./ModelToggle";
+import { preloadModelCatalog } from "@/app/lib/modelCatalog";
 
 vi.mock("@/app/lib/api/account", () => ({
   getModelCatalog: vi.fn()
@@ -85,4 +86,15 @@ it("changes model and supported effort without leaving the picker", async () => 
   fireEvent.click(effort);
   expect(effort).toBeChecked();
   expect(screen.getByRole("dialog")).toBeVisible();
+});
+
+it("updates mounted pickers when settings refreshes the shared catalog", async () => {
+  render(<ModelEffortToggle model="codex:catalog-fixture" onModelChange={vi.fn()} onEffortChange={vi.fn()} />);
+  getCatalog.mockResolvedValue({ models: [{ slug: "catalog-fixture", displayName: "Updated fixture",
+    defaultReasoningLevel: "medium", supportedReasoningLevels: [{ effort: "medium" }] }] });
+  const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000);
+  try {
+    await act(async () => { await preloadModelCatalog(); });
+    expect(screen.getByRole("button", { name: /^Model: Updated fixture/ })).toBeVisible();
+  } finally { clock.mockRestore(); }
 });

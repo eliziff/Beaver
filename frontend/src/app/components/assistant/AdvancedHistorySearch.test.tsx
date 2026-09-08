@@ -18,7 +18,23 @@ const hit = { id: "chat-1", title: "Old matter", project_id: null, user_id: "own
     created_at: "2026-09-05T10:00:00Z",
     search_hit: { message_id: "message-42", snippet: "The Lease terms include renewal." } };
 
-beforeEach(() => listChats.mockReset().mockResolvedValue([]));
+beforeEach(() => { listChats.mockReset().mockResolvedValue([]); });
+
+it("keeps the last results and their highlights while the next search is pending", async () => {
+    listChats.mockResolvedValueOnce([hit]);
+    render(<MemoryRouter><Harness /></MemoryRouter>);
+    const original = await screen.findByRole("link", { name: /Old matter/ });
+    let finish!: (rows: typeof hit[]) => void;
+    listChats.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    fireEvent.change(screen.getByLabelText("Search conversations"), { target: { value: "renewal" } });
+    await waitFor(() => expect(listChats).toHaveBeenCalledTimes(2));
+    try {
+        expect(screen.getByRole("link", { name: /Old matter/ })).toBe(original);
+        expect(original.querySelector("mark")).toHaveTextContent("Lease terms");
+    } finally { await act(async () => finish([])); }
+    expect(screen.getByText("0 results")).toBeVisible();
+    expect(screen.queryByRole("link", { name: /Old matter/ })).toBeNull();
+});
 
 it("finishes an empty search and ignores the previous query's late response", async () => {
     let finishPrevious!: (rows: typeof hit[]) => void;

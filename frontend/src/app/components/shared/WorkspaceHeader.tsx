@@ -37,8 +37,8 @@ export function WorkspaceHeader(props: (Active | Static) & { busy?: boolean;
       { label: "Duplicate", disabled: busy, onSelect: props.onDuplicate },
       { label: "Delete", disabled: busy, onSelect: () => setConfirmDelete(true) },
     ]} /> : null;
-  const actions = props.headerActions || menu ? [{ type: "custom" as const,
-    render: <div className="flex min-h-9 items-center gap-2">{props.headerActions}{menu}</div> }] : undefined;
+  const actions = props.headerActions ? [{ type: "custom" as const,
+    render: <div className="flex min-h-9 items-center gap-2">{props.headerActions}</div> }] : undefined;
   return <header data-workspace-header className="shrink-0">
     <PageHeader shrink className={props.className} actions={actions}>
       {current && "onBack" in props ? <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -60,6 +60,7 @@ export function WorkspaceHeader(props: (Active | Static) & { busy?: boolean;
           : <h1 className="truncate text-2xl font-medium leading-tight text-gray-900">
             {current.title}
           </h1>}
+        {menu}
       </div> : <h1 className="truncate text-2xl font-medium leading-tight text-gray-900">
         {props.title}
       </h1>}
