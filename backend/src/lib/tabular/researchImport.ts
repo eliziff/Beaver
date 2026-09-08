@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { ApplicationError } from "../applicationError";
 import { sha256 } from "../hash";
-import { researchLabelPath, type ResearchEvidence, type ResearchFile } from "../researchFile";
+import { researchLabelPath, researchSourceResource, type ResearchEvidence, type ResearchFile } from "../researchFile";
+import { legalEvidenceResourceReference } from "../chat/legalEvidence";
 import type { ResearchFinding } from "../researchChat";
 import { researchSelectionLabels, type ResearchSubject } from "../researchSelection";
 import type { TabularColumn } from "../tabularStore";
@@ -83,19 +84,20 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
           { name: "Research note", prompt: "The note retained for this passage.", format: "text" });
       }
       for (const finding of findings.filter((value) => value.sourceId === sourceId)) {
+        const owned = new Set(finding.evidence.filter((receipt) => legalEvidenceResourceReference(receipt) === researchSourceResource(source.reference)).map(({ evidence_id }) => evidence_id));
         const relevant = finding.answer.claims.map((claim, index) => ({ claim, index })).filter(({ claim }) =>
-          !evidenceIds || !!claim.evidence_ids.length && claim.evidence_ids.every((id) => evidenceIds.includes(id)));
+          !evidenceIds || claim.evidence_ids.some((id) => owned.has(id)) && claim.evidence_ids.filter((id) => owned.has(id)).every((id) => evidenceIds.includes(id)));
         if (evidenceIds && !relevant.length) continue;
         const question = { name: finding.reference.kind === "answer" ? "Finding" : clip(finding.question.title, 60) || "Finding", prompt: finding.question.prompt || "Recorded finding",
           format: finding.question.format ?? "text", ...(finding.question.tags ? { tags: finding.question.tags } : {}) };
         const complete = relevant.length === finding.answer.claims.length;
         if (complete) add(rowId, finding.reference, "answer", finding.answer.summary ?? (finding.answer.value == null ? finding.answer.claims.map(({ text }) => text).join("\n\n") :
           Array.isArray(finding.answer.value) ? finding.answer.value.join("\n") : String(finding.answer.value)), question,
-          [...new Set(finding.answer.claims.flatMap(({ evidence_ids }) => evidence_ids))]);
+          [...new Set(finding.answer.claims.flatMap(({ evidence_ids }) => evidence_ids.filter((id) => owned.has(id))))]);
         // A semantic layout may put separate claims from one Chat answer in different columns.
         if (finding.reference.kind === "answer" && (!complete || finding.answer.claims.length > 1)) for (const { claim, index } of relevant)
           add(rowId, { ...finding.reference, claimIndices: [finding.reference.claimIndices?.[index] ?? index] }, "answer", claim.text, question,
-            claim.evidence_ids, !complete);
+            claim.evidence_ids.filter((id) => owned.has(id)), !complete);
       }
     }
   }

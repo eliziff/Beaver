@@ -71,10 +71,10 @@ describe("production legal evidence", () => {
     expect(createLibraryEvidence({ ...source, blockId: "pdf:page-1" }).evidence_id)
       .not.toBe(createLibraryEvidence({ ...source, blockId: "pdf:page-2" }).evidence_id);
     const sheet = createLibraryEvidence({ ...source,
-      locator: { kind: "cell", label: "Terms!B4", sheet: "Terms", cells: "B4" } });
+      locator: { kind: "cell", label: "Penalty-Summary!B4", sheet: "Penalty-Summary", cells: "B4" } });
     expect(legalEvidenceResourceReference(sheet)).toBe("document://doc/version/v1");
     expect(createLegalEvidenceCitationsFromEntries([{ receipt: sheet }])[0]).toMatchObject({
-      kind: "document", locator_kind: "cell", locator: "Terms!B4", sheet: "Terms", cells: "B4",
+      kind: "document", locator_kind: "cell", locator: "Penalty-Summary!B4", sheet: "Penalty-Summary", cells: "B4",
     });
   });
 
