@@ -219,7 +219,7 @@ describe("court record draft state", () => {
     expect(peak).toBe(4);
   });
 
-  it("OCRs a restored textless source", async () => {
+  it("restores a textless source for eager workspace OCR", async () => {
     const state = courtRecordDraft("fc-motion-record-moving", {}, [entry()]);
     const file = entry().file;
     const host = {
@@ -233,14 +233,12 @@ describe("court record draft state", () => {
 
     const [restored] = await restoreCourtRecordDraft(product(state), host);
 
-    expect(host.runOcr).toHaveBeenCalledWith(expect.objectContaining({
-      file, inputStatus: "ready", textlessPages: [1],
-    }), undefined);
-    expect(restored).toMatchObject({ inputStatus: "ready", searchable: true,
-      textlessPageCount: 0, ocrTextByPage: ["Notice of motion"] });
+    expect(host.runOcr).not.toHaveBeenCalled();
+    expect(restored).toMatchObject({ inputStatus: "ready", searchable: false,
+      textlessPageCount: 1, textlessPages: [1] });
   });
 
-  it("keeps a retained source ready when restore OCR fails", async () => {
+  it("keeps a retained textless source ready for eager workspace OCR", async () => {
     const existing = { ...entry(), searchable: false, textlessPageCount: 1,
       textlessPages: [1] };
     const state = courtRecordDraft("fc-motion-record-moving", {}, [existing]);
@@ -252,7 +250,7 @@ describe("court record draft state", () => {
     const [restored] = await restoreCourtRecordDraft(product(state), host, undefined, [existing]);
 
     expect(restored).toMatchObject({ inputStatus: "ready", searchable: false,
-      inspectionError: "OCR unavailable" });
+      textlessPages: [1] });
     expect(host.resolveInput).not.toHaveBeenCalled();
   });
 });

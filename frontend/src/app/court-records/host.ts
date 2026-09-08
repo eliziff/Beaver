@@ -4,7 +4,6 @@ import type { InputResolution, WorkProduct, WorkProductContext, WorkProductInput
 import { downloadBlob } from "@/app/lib/download";
 import type { BuildArtifact, CourtRecordDraft, CourtRecordReceipt, CoverValues,
   DocumentKind, RecordEntry } from "./types";
-import type { CourtSourceFormat } from "./types";
 import type { CourtRecordWorkProductOutput } from "../../../../shared/court-record-work-products.mjs";
 import { sourceFormat } from "./formats";
 import type { OutputFolderPort } from "@/app/components/shared/OutputFolderSetting";
@@ -53,13 +52,11 @@ export interface CourtRecordsHost {
   saveFilingContact?(cover: FilingContactCover): Promise<void>;
   prepareDeviceFile(file: File, progress?: PreparationProgress,
     context?: PreparationContext): Promise<PreparedFile>;
-  pickDeviceFiles?(multiple: boolean): Promise<SelectedFile[]>;
   resolveInput(input: WorkProductInput, progress?: PreparationProgress,
     destination?: DocumentKind): Promise<InputResolution & { prepared?: PreparedFile }>;
   relinkInput?(input: WorkProductInput): Promise<InputResolution & { prepared?: PreparedFile }>;
-  runOcr?(entry: RecordEntry, progress?: PreparationProgress): Promise<Partial<RecordEntry>>;
-  searchLibrary?(query: string, formats: CourtSourceFormat[], draft: WorkProductContext, signal?: AbortSignal):
-    Promise<Document[]>;
+  runOcr?(entry: RecordEntry, progress?: PreparationProgress,
+    signal?: AbortSignal): Promise<Partial<RecordEntry>>;
   importLibraryDocument?(document: Document, progress?: PreparationProgress,
     destination?: DocumentKind): Promise<PreparedFile>;
   searchDraftOutputs?(query: string, destination: DocumentKind, draft: WorkProductContext, signal?: AbortSignal):
@@ -77,9 +74,10 @@ export interface CourtRecordsHost {
   outputFolder?: OutputFolderPort;
 }
 
-export const needsOcr = (entry: Pick<RecordEntry,
-  "encrypted" | "searchable" | "textlessPageCount" | "nonTextPagesConfirmed">) =>
-  !entry.nonTextPagesConfirmed && entry.encrypted !== true &&
+/** Recognition runs once per file: a second pass over pages it already read finds nothing new. */
+export const needsOcr = (entry: Pick<RecordEntry, "encrypted" | "searchable" |
+  "textlessPageCount" | "ocrAttemptedPages" | "nonTextPagesConfirmed">) =>
+  !entry.nonTextPagesConfirmed && entry.encrypted !== true && !entry.ocrAttemptedPages &&
     (entry.searchable === false || (entry.textlessPageCount ?? 0) > 0);
 
 type OutputProduct = Pick<WorkProduct,

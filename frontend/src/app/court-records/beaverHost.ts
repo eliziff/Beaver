@@ -1,6 +1,5 @@
 import {
   type Document,
-  directoryResource,
   downloadDocument,
   downloadDocumentPdf,
   getDocument,
@@ -30,7 +29,7 @@ import {
 } from "@/app/lib/api/courtRecords";
 import { getUserProfile, updateUserProfile } from "@/app/lib/api/account";
 import { BeaverApiError } from "@/app/lib/api/client";
-import { waitForPdfPreparation } from "@/app/lib/pdfPreparation";
+import { pdfProgress, waitForPdfPreparation } from "@/app/lib/pdfPreparation";
 import type { ResolvedWorkProductInput, WorkProduct, WorkProductBuildReceipt,
   WorkProductInput, WorkProductResolution,
   WorkProductStore } from "@/app/lib/workProducts";
@@ -136,16 +135,6 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
     prepared.binding = { kind: "document", documentId: uploaded.id, version: "latest" };
     return prepared;
   },
-  async searchLibrary(query, formats, draft, signal) {
-    const library = directoryResource(draft.projectId
-      ? { projectId: draft.projectId } : { library: "files" });
-    const page = await library.list({ q: query.trim(), limit: 24 }, signal);
-    return page.items.flatMap((entry) => entry.kind === "document" ? [entry.document] : [])
-      .filter((document) => {
-        const format = document.file_type?.toLowerCase();
-        return format === "pdf" || format === "docx" ? formats.includes(format) : false;
-      });
-  },
   async importLibraryDocument(document, progress, destination) {
     return prepareLibraryDocument(document, document.current_version_id, progress, destination);
   },
@@ -210,7 +199,7 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
       throw error;
     }
   },
-  async runOcr(entry, progress) {
+  async runOcr(entry, progress, signal) {
     let documentId = entry.origin?.kind === "library" ? entry.origin.documentId : undefined;
     let versionId = entry.origin?.kind === "library" ? entry.origin.versionId : undefined;
     let sourceSha256 = entry.origin?.kind === "library" ? entry.origin.sourceSha256 : undefined;
@@ -221,9 +210,14 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
       versionId = uploaded.current_version_id ?? undefined;
       sourceSha256 = uploaded.source_sha256 ?? undefined;
     }
-    await waitForPdfPreparation(documentId, progress);
-    let prepared = await getCourtRecordPreparation(documentId, versionId);
-    let merged = withProjection({
+    const [state] = await pdfProgress([documentId]);
+    if (!state?.error) await waitForPdfPreparation(documentId, progress, signal);
+    // No page text yet is the condition recognition exists to answer, not a reason
+    // to stop before it has run.
+    const read = () => getCourtRecordPreparation(documentId, versionId)
+      .catch(() => undefined);
+    let prepared = await read();
+    const base: PreparedFile = {
       file: entry.file,
       pageCount: entry.pageCount,
       searchable: entry.searchable,
@@ -233,16 +227,18 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
       sourceBookmarks: entry.sourceBookmarks,
       ocrTextByPage: entry.ocrTextByPage,
       inspectionError: entry.inspectionError,
-      origin: { kind: "library", documentId, versionId: prepared.version_id,
-        sourceSha256: prepared.source_sha256 || sourceSha256 },
-    }, prepared);
-    if (merged.textlessPageCount) {
-      progress?.("Running OCR");
+      origin: { kind: "library", documentId,
+        versionId: prepared?.version_id ?? versionId,
+        sourceSha256: prepared?.source_sha256 || sourceSha256 },
+    };
+    let merged = prepared ? withProjection(base, prepared) : base;
+    if (!prepared || merged.textlessPageCount) {
+      progress?.("Reading the scanned pages");
       await retryLibraryPdfParse("files", documentId, {
         ocr_provider: "kraken-lite",
         ...(versionId ? { version_id: versionId } : {}),
       });
-      await waitForPdfPreparation(documentId, progress);
+      await waitForPdfPreparation(documentId, progress, signal);
       prepared = await getCourtRecordPreparation(documentId, versionId);
       merged = withProjection(merged, prepared);
     }
@@ -419,7 +415,7 @@ function withProjection(
   const byPage = new Map(projection.pages.map((page) => [page.page_number, page.text]));
   const targets = prepared.textlessPages ?? [];
   const ocrTextByPage = Array.from({ length: prepared.pageCount ?? projection.page_count },
-    (_, index) => targets.includes(index + 1) ? byPage.get(index + 1) ?? "" : "");
+    (_, index) => targets.includes(index + 1) ? byPage.get(index + 1) ?? "" : prepared.ocrTextByPage?.[index] ?? "");
   const missing = targets.filter((page) => !ocrTextByPage[page - 1]?.trim());
   return {
     ...prepared,
@@ -428,6 +424,7 @@ function withProjection(
     searchable: missing.length ? prepared.searchable : true,
     textlessPageCount: missing.length,
     textlessPages: missing,
+    ...(targets.length && !missing.length && { ocrAttemptedPages: targets }),
     sourceFields: mergeSourceFields(prepared.sourceFields,
       sourceDocumentFields(projection.pages.map((page) => page.text))),
     origin: {
@@ -449,8 +446,6 @@ function mergeSourceFields(...sources: (SourceDocumentFields | undefined)[]) {
   ]));
   return {
     cover: Object.assign({}, ...values.map(({ cover }) => cover)),
-    partyStyleId: values.findLast(({ partyStyleId }) => partyStyleId)?.partyStyleId,
-    partyGroups: values.flatMap(({ partyGroups }) => partyGroups ?? []),
     exhibitLabels: [...new Set(values.flatMap(({ exhibitLabels }) => exhibitLabels))],
     ...(mentionLabels.length && { exhibitMentions }),
     explicitExhibitLabel: values.findLast(({ explicitExhibitLabel }) => explicitExhibitLabel)?.explicitExhibitLabel,

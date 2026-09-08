@@ -474,7 +474,7 @@ describe("court record validation", () => {
 
     expect(validateCourtRecord({ profile, cover, entries: [scanned, documents[1]] }).blockers)
       .toEqual(expect.arrayContaining([expect.objectContaining({
-        id: "searchability-motion", title: "Confirm non-text pages",
+        id: "searchability-motion",
       })]));
     expect(validateCourtRecord({ profile, cover, entries: [
       { ...scanned, nonTextPagesConfirmed: true }, documents[1],

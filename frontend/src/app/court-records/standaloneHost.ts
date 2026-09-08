@@ -3,13 +3,11 @@ import { draftOutputChoice, filingContactCover, mergeFilingContact,
 import type { CourtRecordsHost, PreparationProgress } from "./host";
 import {
   bindStandaloneFile,
-  canRetainLocalFiles,
   chooseStandaloneOutputFolder,
   clearStandaloneOutputFolder,
   getStandaloneFilingContact,
   getStandaloneOutputFolder,
   listStandaloneOutputs,
-  pickRetainedFiles,
   readStandaloneOutput,
   relinkStandaloneFile,
   resolveStandaloneFile,
@@ -91,7 +89,6 @@ export const standaloneCourtRecordsHost: CourtRecordsHost = {
       searchable: !missing.length, textlessPageCount: missing.length, textlessPages: missing,
       sourceFields: sourceDocumentFields(prepared.pages.map((page) => page.text)) };
   },
-  pickDeviceFiles: canRetainLocalFiles() ? pickRetainedFiles : undefined,
   async searchDraftOutputs(query, destination, draft) {
     const formats = acceptedSourceFormats(destination);
     const needle = query.trim().toLowerCase();
