@@ -45,7 +45,7 @@ export function WorkProductAssistantPanel({ product, chatId, onChatIdChange, exp
       title={product.title} className="max-w-44 truncate text-xs text-gray-500">
       {product.title}</span> : undefined, content:
       <ConversationView chatId={assistant.state.chatId} session={assistant.state}
-        onCitationClick={(citation) => { setReading(citation); setTab("reading"); }}
+        onCitationClick={(citation, action) => { setReading(citation); setTab("reading"); if (action) setWorkspaceOpen(true); }}
         handleChat={handleChat} cancel={assistant.actions.cancel} sendDisabled={!synced}
         onRejectedTurnRestored={assistant.actions.clearRejectedTurn}
         onRetryRejectedTurn={() => void assistant.actions.retryRejectedTurn()}
