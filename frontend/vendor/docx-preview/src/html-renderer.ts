@@ -363,11 +363,11 @@ export class HtmlRenderer {
 			}
 
 			if (this.options.renderFootnotes) {
-				this.renderNotes(this.currentFootnoteIds, this.footnoteMap, pageElement);
+				this.renderNotes(this.currentFootnoteIds, this.footnoteMap, pageElement, this.document.footnotesPart);
 			}
 
 			if (this.options.renderEndnotes && i == l - 1) {
-				this.renderNotes(this.currentEndnoteIds, this.endnoteMap, pageElement);
+				this.renderNotes(this.currentEndnoteIds, this.endnoteMap, pageElement, this.document.endnotesPart);
 			}
 
 			this.currentSectionProps = props;
@@ -719,11 +719,13 @@ section.${c}>footer { z-index: 1; }
 		return this.createStyleElement(styleText);
 	}
 
-	renderNotes(noteIds: string[], notesMap: Record<string, WmlBaseNote>, into: HTMLElement) {
+	renderNotes(noteIds: string[], notesMap: Record<string, WmlBaseNote>, into: HTMLElement, part: Part) {
 		var notes = noteIds.map(id => notesMap[id]).filter(x => x);
 
 		if (notes.length > 0) {
+			this.currentPart = part;
 			var result = this.createElement("ol", null, this.renderElements(notes));
+			this.currentPart = null;
 			into.appendChild(result);
 		}
 	}
@@ -958,7 +960,7 @@ section.${c}>footer { z-index: 1; }
 		let href = '';
 
 		if (elem.id) {
-			const rel = this.document.documentPart.rels.find(it => it.id == elem.id && it.targetMode === "External");
+			const rel = (this.currentPart ?? this.document.documentPart).rels.find(it => it.id == elem.id && it.targetMode === "External");
 			href = rel?.target ?? href;
 		}
 
