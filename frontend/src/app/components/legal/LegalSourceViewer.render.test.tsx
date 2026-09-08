@@ -35,9 +35,9 @@ vi.mock("react-router-dom", () => ({
 }));
 import {
     LegalSourceViewer as SourceViewer,
-    legalPassageTargetFromSelection,
     legalSourceViewerActions,
 } from "./LegalSourceViewer";
+import { readerSelectionSpan } from "../shared/readerSelection";
 import { LegalLibrarySourcePage } from "./LegalLibrary";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 function HighlightButton() {
@@ -173,9 +173,9 @@ describe("legal source reader", () => {
             .toBeInTheDocument();
     });
 
-    it("captures a selected passage as an anchored text quote", () => {
+    it("maps a selected passage to its exact offsets in the served text", () => {
         const root = document.createElement("div");
-        root.innerHTML = '<section data-legal-block="par12" data-locator-kind="paragraph" data-locator-value="par12">Before <span>the exact holding</span> after</section>';
+        root.innerHTML = '<section data-legal-text="0">Before <span>the exact holding</span> after</section>';
         document.body.append(root);
         const text = root.querySelector("span")!.firstChild!;
         const range = document.createRange();
@@ -184,10 +184,8 @@ describe("legal source reader", () => {
         selection.removeAllRanges();
         selection.addRange(range);
 
-        expect(legalPassageTargetFromSelection(root, selection)).toEqual({
-            locator: { kind: "paragraph", value: "par12" },
-            quote: "the exact holding",
-        });
+        expect(readerSelectionSpan(root, selection, [{ start: 100, text: "Before the exact holding after" }]))
+            .toEqual({ start: 107, end: 124 });
         root.remove();
         selection.removeAllRanges();
     });

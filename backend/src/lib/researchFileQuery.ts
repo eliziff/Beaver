@@ -32,28 +32,6 @@ export type ResearchFileQueryInput = ResearchSelection & { versionId: string; wo
 type ResearchPassageReader = typeof legalSourceOperations.readPassage;
 const clean = (value: string) => value.normalize("NFC").replace(/\s+/gu, " ").trim();
 const allowed = new Set(["document", "paragraph", "section", "page", "footnote"]);
-const letters = /[\p{L}\p{N}]/u, onlyLetters = /[^\p{L}\p{N}]/gu;
-const lettersAt = (text: string, index: number) => {
-  let seen = 0;
-  for (let at = 0; at < text.length; at++) if (letters.test(text[at]) && seen++ === index) return at;
-  return text.length;
-};
-/**
- * A reader that renders the canonical text sends back offsets in it. A reader that renders the
- * original file instead — Library PDFs and Word documents — sends the text it captured; markers,
- * hyphenation and layout whitespace differ there but letters and digits never do, so their run
- * is what anchors the capture back to the canonical text.
- */
-const passageSpan = (action: Extract<PublicResearchFileAction, { type: "passage" }>, text: string) => {
-  if (action.start !== undefined && action.end !== undefined) {
-    const start = Math.min(Math.max(action.start, 0), text.length),
-      end = Math.min(Math.max(action.end, 0), text.length);
-    return end > start ? { start, end } : null;
-  }
-  const needle = (action.quote ?? "").replace(onlyLetters, ""),
-    at = needle ? text.replace(onlyLetters, "").indexOf(needle) : -1;
-  return at < 0 ? null : { start: lettersAt(text, at), end: lettersAt(text, at + needle.length - 1) + 1 };
-};
 const MAX_CAPTURE_CHARS = 1_000_000, MAX_CAPTURE_CANDIDATES = 50_000;
 const MALFORMED_QUERY = "Check the search: AND, OR, NOT, matching brackets and closed quotes.";
 
@@ -128,10 +106,12 @@ export async function verifyResearchPassage(file: ResearchFile, action: PublicRe
     { documents: context?.documents, scope: context?.scope, reader })).passages;
   if (!passage) throw new ApplicationError(404, "This source could not be opened for reading");
   const document = passage.documentArtifact, text = native.documentText(document);
-  if (action.revision && action.revision !== native.documentRevision(document))
+  if (action.revision !== native.documentRevision(document))
     throw new ApplicationError(409, "This source changed while you were reading it; open it again to highlight");
-  const span = passageSpan(action, text);
-  if (!span) throw new ApplicationError(400, "Select some text to highlight");
+  const { start, end } = action;
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end > text.length || end <= start)
+    throw new ApplicationError(400, "Invalid selection span", { code: "invalid_span" });
+  const span = { start, end };
   const block = native.smallestContainingDocumentBlock(document, span.start, span.end);
   const receipt = passage.evidence({ ...span, text: text.slice(span.start, span.end),
     ...((locator) => locator ? { blockId: `${locator.kind}:${locator.label}:${span.start}:${span.end}`,

@@ -91,7 +91,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
     const [editState, setEditState] = useState(() => ({ docIds: new Set<string>(),
         editIds: new Set<string>(), statuses: {} as Record<string, "accepted" | "rejected"> }));
     const scrolledSearch = useRef<string | null>(null);
-    type Anchor = { element: HTMLElement; fraction: number; offset: number } | null;
+    type Anchor = { element: HTMLElement; fraction: number; offset: number; citation?: number } | null;
     const anchor = useRef<Anchor>(null), pinned = useRef<Anchor>(null),
         reanchor = useRef(() => undefined as void);
     useImperativeHandle(ref, () => ({
@@ -134,6 +134,11 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
         const hold = (event: MouseEvent) => {
             const message = (event.target as HTMLElement | null)?.closest?.<HTMLElement>("[data-message-id]");
             pinned.current = message ? at(message, event.clientY) : null;
+            const chip = (event.target as HTMLElement | null)?.closest?.<HTMLElement>("[data-citation-ref]");
+            if (message && chip && pinned.current) {
+                pinned.current.citation = Array.from(message.querySelectorAll("[data-citation-ref]")).indexOf(chip);
+                pinned.current.offset = chip.getBoundingClientRect().top - container.getBoundingClientRect().top;
+            }
         };
         container.addEventListener("click", hold, true);
         container.addEventListener("scroll", update);
@@ -141,7 +146,9 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
             const held = pinned.current ?? anchor.current;
             pinned.current = null;
             if (held?.element.isConnected) { const rect = held.element.getBoundingClientRect();
-                container.scrollTop += rect.top + held.fraction * rect.height
+                const chip = held.citation === undefined ? null
+                    : held.element.querySelectorAll("[data-citation-ref]")[held.citation];
+                container.scrollTop += (chip?.getBoundingClientRect().top ?? rect.top + held.fraction * rect.height)
                     - container.getBoundingClientRect().top - held.offset; }
             update();
         });

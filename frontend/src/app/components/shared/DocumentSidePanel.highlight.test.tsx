@@ -6,6 +6,11 @@ import { SourcesWorkspaceProvider } from "@/app/components/legal/SourcesWorkspac
 import { DocumentSidePanel } from "./DocumentSidePanel";
 
 const api = vi.hoisted(() => ({ act: vi.fn(), items: vi.fn() }));
+vi.mock("@/app/lib/api/documents", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/documents")>(),
+  getDocumentReaderText: async () => ({ revision: "a".repeat(64),
+    slices: [{ start: 100, end: 117, text: "quoted words here", page: 1 }] }),
+}));
 
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({
   ...await original<typeof import("@/app/lib/api/researchFiles")>(),
@@ -14,7 +19,7 @@ vi.mock("@/app/lib/api/researchFiles", async (original) => ({
 }));
 vi.mock("@/app/components/shared/views/DocumentViewer", () => ({
   DocumentViewer: () => (
-    <div data-legal-block="" data-locator-kind="page" data-locator-value="1">
+    <div data-legal-text="1">
       quoted words here
     </div>
   ),
@@ -70,18 +75,19 @@ describe("DocumentSidePanel highlight", () => {
         onClose={vi.fn()} onLoadVersions={vi.fn(async () => {})} />
     </SourcesWorkspaceProvider>);
     const highlight = await screen.findByRole("button", { name: "Highlight" });
-    expect(highlight).toHaveAttribute("aria-pressed", "false");
+    await waitFor(() => expect(highlight).not.toBeDisabled());
+    expect(highlight).toHaveAttribute("aria-pressed", "true");
     const node = screen.getByText("quoted words here").firstChild!;
     const range = globalThis.document.createRange();
     range.selectNodeContents(node);
     const selection = window.getSelection()!;
     selection.removeAllRanges();
     selection.addRange(range);
-    fireEvent.click(highlight);
+    fireEvent.pointerUp(node.parentElement!);
     await waitFor(() => expect(api.act).toHaveBeenCalledTimes(1));
     expect(api.act).toHaveBeenCalledWith("ontology-1", "v1", 1, expect.objectContaining({
       type: "passage", sourceId: "source-1",
-      locator: { kind: "page", value: "1" }, quote: "quoted words here", labelIds: ["pen-1"],
+      revision: "a".repeat(64), start: 100, end: 117, labelIds: ["pen-1"],
     }));
   });
 });

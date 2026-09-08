@@ -374,6 +374,7 @@ export function DocxView({
                     </div>
                 )}
                 <div ref={containerRef} className="docx-view-container"
+                    data-legal-text="1"
                     data-legal-block={preparing || viewError ? undefined : ""}
                     data-locator-kind="document" data-locator-value="document"
                     style={{ visibility: preparing || viewError ? "hidden" : "visible" }} />
