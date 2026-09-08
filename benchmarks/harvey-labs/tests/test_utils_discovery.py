@@ -1,34 +1,60 @@
-"""Tests for task discovery helper scripts."""
+"""Discovery contracts must not depend on which benchmark tier is checked out."""
 
-from pathlib import Path
+import json
 
+import pytest
 
-def test_list_tasks_discovers_nested_tasks():
-    from utils.list_tasks import discover_tasks
-
-    ids = {t["id"] for t in discover_tasks()}
-    assert "real-estate/extract-psa-key-terms/scenario-01" in ids
+from utils import describe_task, list_tasks, sweep
 
 
-def test_sweep_discovers_nested_workflow():
-    from utils.sweep import discover_tasks
+@pytest.fixture
+def tasks(tmp_path, monkeypatch):
+    for module in (describe_task, list_tasks, sweep):
+        monkeypatch.setattr(module, "BENCH_ROOT", tmp_path)
+    for task_id, title in [
+        ("test-area/workflow/scenario-01", "First — café"),
+        ("test-area/workflow/scenario-02", "Second"),
+        ("other-area/flat", "Unrelated"),
+    ]:
+        task = tmp_path / "tasks" / task_id
+        task.mkdir(parents=True)
+        (task / "task.json").write_text(
+            json.dumps(
+                {
+                    "title": title,
+                    "instructions": "Analyze the documents.",
+                    "criteria": [{"id": "C-01", "title": "Finding", "match_criteria": "Supported"}],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+    documents = tmp_path / "tasks/test-area/workflow/scenario-01/documents"
+    documents.mkdir()
+    (documents / "sample.txt").write_text("Synthetic source", encoding="utf-8")
+    return tmp_path / "tasks"
 
-    tasks = discover_tasks("real-estate/extract-psa-key-terms")
-    assert tasks == [
-        "real-estate/extract-psa-key-terms/scenario-01",
-        "real-estate/extract-psa-key-terms/scenario-02",
+
+def test_list_tasks_discovers_nested_tasks(tasks):
+    assert [
+        (task["id"], task["title"], task["criteria"], task["documents"])
+        for task in list_tasks.discover_tasks()
+    ] == [
+        ("other-area/flat", "Unrelated", 1, 0),
+        ("test-area/workflow/scenario-01", "First — café", 1, 1),
+        ("test-area/workflow/scenario-02", "Second", 1, 0),
     ]
 
 
-def test_describe_resolves_nested_task():
-    from utils.describe_task import BENCH_ROOT, resolve_task_dir
+def test_sweep_discovers_nested_workflow(tasks):
+    assert sweep.discover_tasks("test-area/workflow") == [
+        "test-area/workflow/scenario-01",
+        "test-area/workflow/scenario-02",
+    ]
 
-    task_dir = resolve_task_dir("real-estate/extract-psa-key-terms/scenario-01")
-    expected = (
-        Path(BENCH_ROOT)
-        / "tasks"
-        / "real-estate"
-        / "extract-psa-key-terms"
-        / "scenario-01"
+
+def test_describe_resolves_nested_task(tasks):
+    assert (
+        describe_task.resolve_task_dir("test-area/workflow/scenario-01")
+        == tasks / "test-area/workflow/scenario-01"
     )
-    assert task_dir == expected

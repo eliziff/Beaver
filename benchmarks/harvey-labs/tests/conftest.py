@@ -219,3 +219,74 @@ def make_scripted_adapter():
         return adapter
 
     return _make
+
+
+@pytest.fixture
+def rubric_judge():
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    def make(verdicts):
+        responses = {
+            f"Criterion {i}": {"verdict": verdict, "reasoning": f"Reason {i}"}
+            for i, verdict in enumerate(verdicts, 1)
+        }
+        return SimpleNamespace(
+            model="mock-judge",
+            reasoning_effort=None,
+            evaluate_from_file=Mock(
+                side_effect=lambda *, prompt_name, variables: responses[
+                    variables["criterion_title"]
+                ]
+            ),
+        )
+
+    return make
+
+
+@pytest.fixture
+def rubric_run(tmp_path, monkeypatch):
+    """Fresh on-disk task/run shared by loader and evaluation contract tests."""
+    import json
+    from types import SimpleNamespace
+
+    task = "test-practice/test-task"
+    task_dir = tmp_path / "tasks" / task
+    docs = task_dir / "documents"
+    docs.mkdir(parents=True)
+    (docs / "sample.txt").write_text("Sample document — café.", encoding="utf-8")
+    config = {
+        "title": "Test Task — café",
+        "instructions": "Analyze the sample documents and produce a detailed memo.",
+        "criteria": [
+            {
+                "id": f"C-{i:02d}",
+                "title": f"Criterion {i}",
+                "match_criteria": f"Guidance {i}",
+                "deliverables": ["memo.md"],
+            }
+            for i in range(1, 5)
+        ],
+    }
+    (task_dir / "task.json").write_text(
+        json.dumps(config, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    run_dir = tmp_path / "results" / "test-run"
+    output = run_dir / "output"
+    output.mkdir(parents=True)
+    (output / "memo.md").write_text("# Memo\n\nEvidence — café.", encoding="utf-8")
+    (run_dir / "metrics.json").write_text(
+        json.dumps(
+            {
+                "input_tokens": 30000,
+                "output_tokens": 5000,
+                "wall_clock_seconds": 90,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("evaluation.run_eval.BENCH_ROOT", tmp_path)
+    monkeypatch.setattr("evaluation.run_eval.RESULTS_DIR", run_dir.parent)
+    monkeypatch.setattr("harness.run.BENCH_ROOT", tmp_path)
+    return SimpleNamespace(task=task, task_dir=task_dir, run_dir=run_dir, config=config)
