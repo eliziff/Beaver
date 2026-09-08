@@ -70,9 +70,12 @@ const authoritiesState = (source?: WorkProductInput): WorkProductState => source
 const removeUserData = async (userId: string) => {
   const { relationalDatabase, sql } = await import("../../relationalDatabase");
   const database = await relationalDatabase();
+  const projects = await database.query<{ id: string }>(sql`SELECT id FROM projects WHERE user_id=${userId}`);
   await database.query(sql`DELETE FROM work_products WHERE user_id=${userId}`);
   await database.query(sql`DELETE FROM documents WHERE user_id=${userId}`);
   await database.query(sql`DELETE FROM projects WHERE user_id=${userId}`);
+  for (const prefix of [`users/${userId}/`, ...projects.rows.map(({ id }) => `projects/${id}/`)])
+    await database.query(sql`DELETE FROM object_cleanup WHERE storage_path LIKE ${`${prefix}%`}`);
 };
 
 export function relationalRepositoryContract(
@@ -546,6 +549,7 @@ export function relationalRepositoryContract(
 
   it("reverses table question and result changes with provenance and stale-value protection", async () => {
     const { tabularRepository: tables } = await import("../../relationalTabularRepository"),
+      { relationalDatabase, sql, encodeJson, decodeJson } = await import("../../relationalDatabase"),
       owner = scope("table-history-owner"), stranger = scope("table-history-stranger"),
       reference = { provider: "tna", kind: "case" as const, id: "ewca/civ/2024/1" },
       { researchSourceResource } = await import("../../researchFile"), resource = researchSourceResource(reference);
@@ -571,6 +575,12 @@ export function relationalRepositoryContract(
       await write("done", original);
       const generationId = randomUUID();
       await write("generating", null, generationId);
+      // JSONB can reorder object keys; replay must compare values, not serialization order.
+      const database = await relationalDatabase(), stored = await database.query(sql`
+        SELECT record FROM tabular_changes WHERE review_id=${id} AND change_key=${generationId}`);
+      await database.query(sql`UPDATE tabular_changes
+        SET record=${encodeJson(reverseObjectKeys(decodeJson(stored.rows[0].record, null)))}
+        WHERE review_id=${id} AND change_key=${generationId}`);
       await write("done", { ...original, summary: "Replacement", value: "Replacement" }, generationId);
       const generation = (await history()).items.find(({ changes }) => changes.some(({ after }) =>
         (after as { content?: { summary?: string } } | null)?.content?.summary === "Replacement"))!;
@@ -979,13 +989,14 @@ export function relationalRepositoryContract(
     await prepareScopes([owner, member]);
     const ownerId = randomUUID(), ownerVersion = randomUUID(), memberId = randomUUID(),
       memberVersion = randomUUID(), database = await relationalDatabase();
+    const keys: string[] = [];
     try {
       const project = await projectRepository.create(owner, { name: "Matter", cmNumber: null,
         practice: null, sharedWith: [member.userEmail], metadata: {}, notes: null });
       const key = (value: string) => documentBlobKey({ userId: owner.userId,
         projectId: project.id }, value.repeat(64));
       const [ownerOld, ownerCurrent, memberKey, lateKey] = ["a", "b", "c", "d"].map(key);
-      const keys = [ownerOld, ownerCurrent, memberKey, lateKey];
+      keys.push(ownerOld, ownerCurrent, memberKey, lateKey);
       const owned = initialDocument(owner, ownerId, ownerVersion, project.id);
       owned.version.fileType = "md";
       const contributed = initialDocument(member, memberId, memberVersion, project.id,
@@ -1014,6 +1025,7 @@ export function relationalRepositoryContract(
     } finally {
       await removeUserData(member.userId);
       await removeUserData(owner.userId);
+      await database.query(sql`DELETE FROM object_cleanup WHERE storage_path IN(${sql.join(keys)})`);
     }
   });
 
