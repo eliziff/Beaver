@@ -41,12 +41,12 @@ export async function directoryPage<F>(options: { q: string; parentFolderId: str
 
 export async function queueObjectCleanup(db: RelationalDatabase, keys: string[]) {
   const unique = [...new Set(keys)];
-  const createdAt = now();
+  const createdAt = new Date(0).toISOString(); // Dereferenced blobs are ready; existing upload reservations keep their grace period.
   for (let start = 0; start < unique.length; start += 250) {
     const batch = unique.slice(start, start + 250);
     await changes(sql`INSERT INTO object_cleanup(storage_path,created_at) VALUES
       ${sql.join(batch.map((key) => sql`(${key},${createdAt})`))}
-      ON CONFLICT(storage_path) DO UPDATE SET created_at=excluded.created_at`, db);
+      ON CONFLICT(storage_path) DO NOTHING`, db);
   }
 }
 
