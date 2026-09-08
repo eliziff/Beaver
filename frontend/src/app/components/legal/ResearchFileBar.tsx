@@ -86,7 +86,7 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
   }
   async function runHighlight() {
     setStatus("");
-    try { if (await highlight.run() === "none") highlight.arm(!highlight.armed); }
+    try { if (!await highlight.run()) highlight.arm(!highlight.armed); }
     catch (reason) { setStatus(errorMessage(reason, "Could not save this highlight")); }
   }
   const handedOff = !!(scope.members || scope.sourceIds || scope.evidenceIds || scope.labelIds);

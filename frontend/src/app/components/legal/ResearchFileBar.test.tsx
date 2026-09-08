@@ -2,6 +2,7 @@ import { fireEvent, render as renderView, screen, waitFor, within } from "@testi
 import { MemoryRouter, useLocation } from "react-router-dom";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { BeaverApiError } from "@/app/lib/api/client";
 import type { ResearchEvidence, ResearchFile, ResearchQueryReceipt } from "@/app/lib/researchFiles";
 import { ResearchFileBar as WorkspaceBar } from "./ResearchFileBar";
 import { SourcesWorkspaceProvider, useSourcesWorkspace } from "./SourcesWorkspace";
@@ -411,6 +412,24 @@ describe("ResearchFileBar", () => {
       rules: [{ phrase: "natural justice", direction: "after", unit: "sentence" }],
     }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("sends a Boolean expression as terms and keeps a malformed one beside the input", async () => {
+    await renderWorkspace(); openSearch();
+    const input = screen.getByRole("textbox", { name: "Phrase to find in saved sources" });
+    fireEvent.change(input, { target: { value: 'fairness AND (duty OR "natural justice")' } });
+    fireEvent.click(screen.getByRole("button", { name: "Find" }));
+    await waitFor(() => expect(api.runResearchFileQuery).toHaveBeenCalledWith("file-1",
+      expect.objectContaining({ text: 'fairness AND (duty OR "natural justice")', syntax: "terms" })));
+    api.runResearchFileQuery.mockRejectedValueOnce(new BeaverApiError({ status: 400,
+      code: "invalid_query", message: "Check the search: AND, OR, NOT, matching brackets and closed quotes." }));
+    fireEvent.change(input, { target: { value: "fairness AND (duty" } });
+    fireEvent.click(screen.getByRole("button", { name: "Find" }));
+    expect(await screen.findByText(/Check the search/)).toBeVisible();
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    fireEvent.change(input, { target: { value: "fairness AND (duty)" } });
+    expect(screen.queryByText(/Check the search/)).not.toBeInTheDocument();
   });
 
   it("saves matched passages under the active pen", async () => {

@@ -324,6 +324,9 @@ describe("Research v2 parts", () => {
     expect(ids(await run({ unlabelled: true }))).toEqual(["case-c", "case-a"]);
     expect(ids(await run({ labelIds: [highlightLabel] }))).toEqual(["case-b"]);
     expect(ids(await run({ labelIds: [sourceLabel] }))).toEqual(["case-a"]);
+    expect(ids(await run({ text: "alpha NOT labelled" }))).toEqual(["case-c", "case-a"]);
+    expect(ids(await run({ text: '"alpha beta" | labelled' }))).toEqual(["case-c", "case-b"]);
+    await expect(run({ text: "alpha and (beta" })).rejects.toThrow("Check the search");
   });
 
   it("resolves overlapping capture rules and assigns their slots", async () => {
@@ -342,10 +345,10 @@ describe("Research v2 parts", () => {
         chars: 10, slot: labels[0] }, { phrase: "Y", direction: "before" as const,
         unit: "chars" as const, chars: 5, slot: labels[1] }, { phrase: "Y",
         direction: "after" as const, unit: "chars" as const, chars: 2, slot: labels[2] }],
-      run = async (conflict: "first" | "append") => {
+      run = async (conflict: "first" | "append", applied = rules) => {
         const result = await runResearchFileQuery(f.documents as never, { userId: "user-1" },
           "doc-1", { versionId: saved.versionId, workingRevision: saved.workingRevision,
-            syntax: "literal", target: "sources", sourceIds: [sourceId], rules, conflict },
+            syntax: "literal", target: "sources", sourceIds: [sourceId], rules: applied, conflict },
           { reader: reader as never });
         saved = result.file; return result;
       };
@@ -354,6 +357,10 @@ describe("Research v2 parts", () => {
     const appended = await run("append"), slots = Object.fromEntries(appended.evidence.map(
       (item) => [item.span_text, appended.receipt.slots[item.evidence_id]]));
     expect(slots).toEqual({ abcdefghij: [labels[0]], fghij: [labels[1]], kl: [labels[2]] });
+    expect((await run("append", [{ phrase: "X | Y", direction: "after", unit: "chars",
+      chars: 2, slot: labels[0] }])).evidence.map(({ span_text }) => span_text)).toEqual(["ab", "kl"]);
+    await expect(run("append", [{ phrase: '"X', direction: "after", unit: "chars", chars: 2 }]))
+      .rejects.toThrow("Check the search");
   });
 
   it("queries exact and mixed subjects without widening an active reading scope", async () => {
@@ -563,7 +570,7 @@ describe("Research v2 parts", () => {
       expect(labels).toEqual([sourceLabel, highlightLabel]);
   });
 
-  it("saves a Library highlight with its pen in one write and pins the whole-document quote to a block", async () => {
+  it("saves a Library highlight with its pen in one write and locates it by what the page prints", async () => {
     const f = fixture(), scope = { userId: "user-1" },
       text = "Recitals follow.\n\nThe governing law is Alberta.",
       blocks = [{ kind: "paragraph", label: "1", start: 0, end: 16, text: "Recitals follow." },
@@ -584,10 +591,10 @@ describe("Research v2 parts", () => {
       labelCounts: { [highlightLabel]: 1 }, unlabelledCount: 0 });
     expect((await pageResearchItems(f.documents as never, scope, saved, "passages")).items[0])
       .toMatchObject({ value: { labelIds: [highlightLabel], receipt: {
-        span_text: "governing law is Alberta", locator: { kind: "paragraph", label: "2" } } } });
+        span_text: "governing law is Alberta", locator: { kind: "document", label: "document" } } } });
   });
 
-  it("accepts only a quote verified against the selected canonical passage", async () => {
+  it("anchors a captured quote to its run of letters in the canonical text", async () => {
     const f = fixture();
     const saved = await act(f, { type: "source", reference: { provider: "courtlistener",
       id: "1", kind: "case", citation: "Example" } }), sourceId = Object.keys(saved.state.sources)[0],
@@ -599,12 +606,12 @@ describe("Research v2 parts", () => {
         documentArtifact: { text, blocks: [block] } }] })), base = { type: "passage" as const,
         sourceId, locator: { kind: "paragraph" as const, value: "1" } };
     await expect(verifyResearchPassage(saved, { ...base, quote: "missing" }, reader as never))
-      .rejects.toThrow("not contained");
+      .rejects.toThrow("Select some text to highlight");
     const action = await verifyResearchPassage(saved, { ...base, quote: "verified holding" },
       reader as never), updated = await act(f, action);
     expect((await pageResearchItems(f.documents as never, { userId: "user-1" }, updated,
       "passages")).items[0]).toMatchObject({ value: { receipt: {
-        span_text: "verified holding", locator: { kind: "paragraph", label: "1" } } } });
+        span_text: "verified holding", locator: { kind: "document", label: "characters 5–20" } } } });
   });
 
   it("adaptively pages source parts when an aggregate read is too large", async () => {

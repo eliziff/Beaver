@@ -15,6 +15,7 @@ import { commitResearchFile, readResearchFile,
 import { provenBlockLocator } from "./documentLocators";
 import { structureNative } from "./structureNative";
 import { escapeRegExp } from "./text";
+import { hasSearchOperators, searchMatcher } from "./searchQuery";
 import { sha256 } from "./hash";
 import { documentProjectionService } from "./documentProjectionService";
 import { resolveResearchSelection, researchSelectionSchema, researchSelectionLabels, intersectResearchSubjects,
@@ -54,6 +55,7 @@ const passageSpan = (action: Extract<PublicResearchFileAction, { type: "passage"
   return at < 0 ? null : { start: lettersAt(text, at), end: lettersAt(text, at + needle.length - 1) + 1 };
 };
 const MAX_CAPTURE_CHARS = 1_000_000, MAX_CAPTURE_CANDIDATES = 50_000;
+const MALFORMED_QUERY = "Check the search: AND, OR, NOT, matching brackets and closed quotes.";
 
 const paragraphBreak = /\r?\n\s*\r?\n/gu, sentenceEnd = /[.!?](?:\s|$)/gu;
 const next = (pattern: RegExp, text: string, at: number) => {
@@ -200,11 +202,20 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
   if (rules.some(({ slot }) => slot !== undefined &&
       state.labels[slot]?.scope !== "highlight"))
     throw new ApplicationError(400, "Choose an existing highlight type for a capture");
-  const needles = [...new Set((input.syntax === "literal" ? [query] : query.split(/\s+/u))
-    .filter(Boolean).map((term) => term.toLowerCase()))];
-  if (needles.length > 100) throw new ApplicationError(400, "Query has too many terms");
+  /** "terms" is the Boolean syntax — AND/OR/NOT, &|-, quotes, brackets; "literal" stays one phrase. */
+  const search = input.syntax === "terms" && query ? searchMatcher(query) : null;
+  if (input.syntax === "terms" && query && !search) throw new ApplicationError(400, MALFORMED_QUERY,
+    { code: "invalid_query" });
+  const needle = query.toLowerCase();
   const matches = (text: string) => { const value = text.toLowerCase();
-    return needles.every((term) => value.includes(term)); };
+    return search ? search.test(value) : value.includes(needle); };
+  const compiled = rules.map((rule) => {
+    if (!hasSearchOperators(rule.phrase)) return { rule, source: escapeRegExp(rule.phrase), test: null };
+    const parsed = searchMatcher(rule.phrase);
+    if (!parsed) throw new ApplicationError(400, MALFORMED_QUERY, { code: "invalid_query" });
+    // A Boolean capture anchors on every term it admits, in text the whole expression accepts.
+    return { rule, source: parsed.terms.map(escapeRegExp).join("|"), test: parsed.test };
+  });
   const scopeInput = researchSelectionSchema.parse({ target: input.target, sourceIds: input.sourceIds,
     evidenceIds: input.evidenceIds, members: input.members, labelIds: input.labelIds, unlabelled: input.unlabelled }),
     labels = researchSelectionLabels(state, input.labelIds ?? []),
@@ -348,9 +359,11 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
         const { text } = passage;
         if (rules.length) {
           const captures: Capture[] = [], captureKeys = new Set<string>();
-          captureRules: for (const [order, rule] of rules.entries()) for (const range of passage.ranges) {
+          captureRules: for (const [order, { rule, source: phrase, test }] of compiled.entries())
+            for (const range of passage.ranges) {
             const selectedText = text.slice(range.start, range.end);
-            const pattern = new RegExp(escapeRegExp(rule.phrase), "giu"); let match: RegExpExecArray | null;
+            if (test && !test(selectedText)) continue;
+            const pattern = new RegExp(phrase, "giu"); let match: RegExpExecArray | null;
             while ((match = pattern.exec(selectedText))) {
               const span = adjacent(selectedText, match.index, match[0].length, rule);
               if (span) {
