@@ -6,7 +6,7 @@ import { SourcesWorkspaceProvider } from "../legal/SourcesWorkspace";
 import { ChatResearchSave } from "./ChatResearchSave";
 const api = vi.hoisted(() => ({ ensureSourcesWorkspace: vi.fn(), openWorkspaceTable: vi.fn(), getResearchFile: vi.fn(), previewWorkspaceTable: vi.fn(), previewWorkspaceLabels: vi.fn(), applyWorkspaceLabels: vi.fn() }));
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({ ...await original<typeof import("@/app/lib/api/researchFiles")>(), ...api }));
-vi.mock("@/app/hooks/useSelectedModel", () => ({ useSelectedModel: () => ["model", vi.fn()] }));
+vi.mock("@/app/hooks/useSelectedModel", () => ({ useSelectedModel: () => ["model", vi.fn()], useSelectedReasoningEffort: () => [undefined, vi.fn()] }));
 const file = { document: { id: "workspace", filename: "Research.research.md", project_id: null },
   versionId: "v1", workingRevision: 0, state: { sources: {}, labels: {} } } as ResearchFile;
 const preview = { fingerprint: "a".repeat(64), design: { title: "Research", columns: [{ index: 0, name: "Finding", prompt: "Question?" }],

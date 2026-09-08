@@ -39,7 +39,7 @@ type FindingsInput = { sourceIds?: string[]; reference?: ResearchFindingReferenc
 type FindingsPage = { items: ResearchFinding[]; total: number; next_offset: number | null; is_running: boolean };
 type TableInput = { tableId?: string; chatId?: string; messageIds?: string[];
   selection?: ResearchSelection; findingRefs?: ResearchFindingReference[];
-  fingerprint?: string; design?: ResearchImportDesign; request?: string; model?: string } & Partial<ResearchImportInput>;
+  fingerprint?: string; design?: ResearchImportDesign; request?: string; model?: string; reasoningEffort?: string } & Partial<ResearchImportInput>;
 type LabelInput = Omit<TableInput, "design"> & { design?: ResearchLabelDesign };
 
 /** The Sources workspace use cases share the existing document, chat and table persistence ports. */
@@ -368,7 +368,7 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
   async function previewTable(scope: Scope, id: string, input: TableInput, signal?: AbortSignal) {
     const { catalog } = await importCatalog(scope, id, input);
     const proposed = input.design ? null : await (await dependencies.tabular()).designResearch(scope, catalog,
-      input.request ?? catalog.question ?? catalog.title, { model: input.model, signal })
+      input.request ?? catalog.question ?? catalog.title, { model: input.model, reasoningEffort: input.reasoningEffort, signal })
       .catch((error: unknown) => { if (signal?.aborted) throw error; return null; });
     const design = input.design ?? proposed ?? defaultResearchImport(catalog);
     const { arrangement: _arrangement, columns_config: _columns, ...preview } = researchImportPlan(catalog, design);
@@ -380,7 +380,7 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     const { file, catalog } = await importCatalog(scope, id, input);
     const target = input.rows ?? "sources";
     const design = input.design ?? await (await dependencies.tabular()).designLabels(scope, catalog, file, target,
-      input.request ?? catalog.question ?? catalog.title, { model: input.model, signal });
+      input.request ?? catalog.question ?? catalog.title, { model: input.model, reasoningEffort: input.reasoningEffort, signal });
     const { actions: _actions, ...plan } = researchLabelPlan(file, catalog, design, target);
     return { ...plan, design, fingerprint: catalog.fingerprint };
   }

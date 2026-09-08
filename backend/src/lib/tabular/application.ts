@@ -364,12 +364,13 @@ export function createTabularApplication(
 
 
   /** One organizing step for every hand-off: the model creates the structure; a rejected proposal gets one corrected attempt. */
-  async function proposal<T>(scope: TabularScope, options: { model?: string; signal?: AbortSignal },
+  async function proposal<T>(scope: TabularScope, options: { model?: string; reasoningEffort?: string; signal?: AbortSignal },
     system: string, user: string, accept: (raw: string) => T, failure: string): Promise<T> {
     const config = await settings(scope.userId);
     const model = options.model && isSupportedModel(options.model) ? options.model : config.title_model;
     modelKey(model, config.api_keys);
     const attempt = async (note?: string) => accept(await modelText({ model, apiKeys: config.api_keys, system, signal: options.signal,
+      reasoningEffort: options.reasoningEffort ?? "low",
       user: note ? `${user}\n\nYour previous proposal was rejected: ${note}\nReturn a corrected proposal.` : user }));
     try { return await attempt(); } catch (first) {
       if (options.signal?.aborted) throw first;
@@ -629,7 +630,7 @@ export function createTabularApplication(
         await cellWrite(scope, cell, "pending", null, detail.review.updated_at, { executor: "human", title: "Clear table answer" });
     },
     async designResearch(scope: TabularScope, catalog: ResearchImportCatalog, request: string,
-      options: { model?: string; signal?: AbortSignal } = {}) {
+      options: { model?: string; reasoningEffort?: string; signal?: AbortSignal } = {}) {
       const inventory = JSON.stringify({ title: catalog.title, question: catalog.question, labels: catalog.labels, rows: catalog.rows,
         items: catalog.entries.map(({ column: { index: _index, ...question }, reference: _ref, text, ...entry }) =>
           ({ ...entry, question, text: text.slice(0, 900) })) });
@@ -640,7 +641,7 @@ export function createTabularApplication(
         "The suggested layout was invalid; your research was not changed");
     },
     async designLabels(scope: TabularScope, catalog: ResearchImportCatalog, file: ResearchFile,
-      target: ResearchLabelTarget, request: string, options: { model?: string; signal?: AbortSignal } = {}) {
+      target: ResearchLabelTarget, request: string, options: { model?: string; reasoningEffort?: string; signal?: AbortSignal } = {}) {
       const inventory = researchLabelInventory(catalog, file, target);
       if (inventory.length > 160_000) return fail(413, "Select fewer sources or passages before asking for a label set");
       return proposal(scope, options, RESEARCH_LABEL_PROMPT, `Organization requested: ${request}\nResearch inventory:\n${inventory}`,
