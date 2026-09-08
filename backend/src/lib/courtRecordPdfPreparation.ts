@@ -26,25 +26,15 @@ export async function prepareCourtRecordPdf(file: DocumentFile, requestedPages: 
         prepared.pageCount > 2_000) {
       throw new ApplicationError(409, "This PDF has an unsupported page count");
     }
-    const lookup = await projection.lookupPdf(() => bytes, {
-      locatorKind: "page",
-      locator: prepared.pageCount === 1 ? "1" : `1-${prepared.pageCount}`,
-      contextBlocks: 0,
-    }, {
+    const pageText = await courtRecordPageText(() => bytes, prepared.pageCount, projection, {
       persistEvidence: false, documentId, versionId, sourceSha256: digest,
       pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile,
         status: prepared.status },
     });
-    if (lookup.status !== "found") {
-      throw new ApplicationError(409, "The prepared PDF page text is unavailable");
-    }
-    const text = new Map(lookup.pages.map((page) => [page.page_number, page.text]));
     return { source_sha256: digest, page_count: prepared.pageCount,
       parser_status: prepared.status,
       ocr_pages: prepared.ocrRoutedPages.map((page) => page + 1),
-      pages: Array.from({ length: prepared.pageCount }, (_, index) => ({
-        page_number: index + 1, text: text.get(index + 1) ?? "",
-      })) };
+      pages: pageText };
   } catch (error) {
     if (error instanceof ApplicationError) throw error;
     if (error instanceof Error && error.name === "PdfEncrypted") {
@@ -56,6 +46,23 @@ export async function prepareCourtRecordPdf(file: DocumentFile, requestedPages: 
     }
     throw error;
   }
+}
+
+export async function courtRecordPageText(readBytes: () => Buffer | Promise<Buffer>, pageCount: number,
+  projection: Pick<typeof documentProjectionService, "lookupPdf">,
+  options: Parameters<typeof documentProjectionService.lookupPdf>[2]) {
+  const pages = [];
+  for (let page = 1; page <= pageCount; page++) {
+    const lookup = await projection.lookupPdf(readBytes, {
+      locatorKind: "page", locator: String(page), contextBlocks: 0,
+    }, options);
+    if (lookup.status !== "found" && lookup.status !== "unavailable") {
+      throw new ApplicationError(409, "The prepared PDF page text is unavailable");
+    }
+    pages.push({ page_number: page, text: lookup.status === "found"
+      ? lookup.pages.find(({ page_number }) => page_number === page)?.text ?? "" : "" });
+  }
+  return pages;
 }
 
 function selectedOcrPages(value: unknown) {

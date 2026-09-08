@@ -1,4 +1,4 @@
-import { prepareCourtRecordPdf } from "./courtRecordPdfPreparation";
+import { courtRecordPageText, prepareCourtRecordPdf } from "./courtRecordPdfPreparation";
 import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
@@ -330,22 +330,13 @@ async function readPreparedPageText(documents: DocumentStore, projection: Projec
   if (!Number.isSafeInteger(pageCount) || pageCount < 1 || pageCount > 2_000) {
     throw new ApplicationError(409, "Prepare this PDF before using it in a court record");
   }
-  const lookup = await projection.lookupPdf(source.readBytes, {
-    locatorKind: "page", locator: pageCount === 1 ? "1" : `1-${pageCount}`, contextBlocks: 0,
-  }, {
+  const pages = await courtRecordPageText(source.readBytes, pageCount, projection, {
     persistEvidence: false, documentId, versionId: source.versionId,
     sourceSha256: source.sourceSha256, pdfProfile: source.pdfProfile,
   });
-  if (lookup.status !== "found") {
-    throw new ApplicationError(409, "The prepared PDF page text is unavailable");
-  }
-  const text = new Map(lookup.pages.map((page) => [page.page_number, page.text]));
   return { document_id: documentId, version_id: source.versionId,
     source_sha256: source.sourceSha256, page_count: pageCount,
-    parser_status: source.pdfProfile?.status ?? "ready",
-    pages: Array.from({ length: pageCount }, (_, index) => ({
-      page_number: index + 1, text: text.get(index + 1) ?? "",
-    })) };
+    parser_status: source.pdfProfile?.status ?? "ready", pages };
 }
 
 const object = (value: unknown): value is Record<string, unknown> =>
