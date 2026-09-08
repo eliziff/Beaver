@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { DocumentStore } from "./documentStore";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
+import { canonicalJson } from "./hash";
 import type { ResearchEvidence, ResearchFile, ResearchFileState } from "./researchFile";
 
 export const RESEARCH_HISTORY_PART = "history.json";
@@ -20,7 +21,7 @@ export type ResearchChangeField = z.infer<typeof changeField>;
 export type ResearchChangeSummary = z.infer<typeof researchChangeSummarySchema>;
 export type ResearchChange = z.infer<typeof changeSchema>;
 export const sameResearchValue = (left: unknown, right: unknown) =>
-  JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+  canonicalJson(left ?? null) === canonicalJson(right ?? null);
 export function assertResearchChangeBase(changes: ResearchChangeField[],
   read: (change: ResearchChangeField) => unknown, inverse = false) {
   if (changes.some((change) => !sameResearchValue(read(change), inverse ? change.after : change.before)))
