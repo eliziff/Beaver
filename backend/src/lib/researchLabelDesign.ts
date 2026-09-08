@@ -101,10 +101,6 @@ export function researchLabelPlan(file: ResearchFile, catalog: ResearchImportCat
   for (const label of catalog.columns ? [] : parsed.labels)
     if (titles.has(normalise(label.name)) && !file.state.labels[label.key]) bad(`“${clip(label.name, 80)}” names one ${
       target === "sources" ? "document" : "passage"}, not a concept to file it under`);
-  const leaves = parsed.labels.filter((label) => members.has(label.key) && !parsed.labels.some(({ parentKey }) => parentKey === label.key));
-  if (!catalog.columns && target === "sources" && catalog.rows.length > 2 && leaves.length > 1 &&
-    leaves.every((label) => members.get(label.key)!.size === 1))
-    bad("Every label holds a single document; group the research by concept and file the documents under those");
   if (!members.size && !catalog.columns) bad("This proposal classifies nothing");
   if (actions.length > 400) throw new ApplicationError(413, "Narrow this label proposal before applying it");
   const assigned = new Set([...members.values()].flatMap((rows) => [...rows.keys()]));
