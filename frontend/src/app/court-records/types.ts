@@ -38,20 +38,12 @@ export interface CoverValues extends Partial<Record<CoverFieldId, string>> {
   filingPartyIds?: string[];
 }
 
-export interface SourcePartyGroup {
-  role: string;
-  roleBelow?: string;
-  parties: string[];
-}
-
 export interface SourceDocumentFields {
   cover: Partial<Pick<CoverValues,
     "courtName" | "courtFileNumber" | "lowerCourtFileNumber" | "registry" |
     "decisionMaker" | "decisionDate" | "decisionFileDate" | "affidavitNumber" |
     "deponent" | "swornDate" | "swornPlace" | "recordTitle" | "counselName" |
     "counselAddress" | "counselPhone" | "counselFax" | "counselEmail">>;
-  partyStyleId?: string;
-  partyGroups?: SourcePartyGroup[];
   exhibitLabels: string[];
   exhibitMentions?: Record<string, string[]>;
   explicitExhibitLabel?: string;
@@ -226,6 +218,7 @@ export interface CourtRecordDraftEntry {
   sourceExhibits?: SourceExhibits;
   sourceFields?: SourceDocumentFields;
   descriptionOnly?: boolean;
+  ocrAttemptedPages?: number[];
   nonTextPagesConfirmed?: boolean;
   lastSeen: FileSnapshot;
 }

@@ -210,7 +210,7 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
       throw error;
     }
   },
-  async runOcr(entry, progress) {
+  async runOcr(entry, progress, signal) {
     let documentId = entry.origin?.kind === "library" ? entry.origin.documentId : undefined;
     let versionId = entry.origin?.kind === "library" ? entry.origin.versionId : undefined;
     let sourceSha256 = entry.origin?.kind === "library" ? entry.origin.sourceSha256 : undefined;
@@ -221,9 +221,13 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
       versionId = uploaded.current_version_id ?? undefined;
       sourceSha256 = uploaded.source_sha256 ?? undefined;
     }
-    await waitForPdfPreparation(documentId, progress);
-    let prepared = await getCourtRecordPreparation(documentId, versionId);
-    let merged = withProjection({
+    await waitForPdfPreparation(documentId, progress, signal);
+    // No page text yet is the condition recognition exists to answer, not a reason
+    // to stop before it has run.
+    const read = () => getCourtRecordPreparation(documentId, versionId)
+      .catch(() => undefined);
+    let prepared = await read();
+    const base: PreparedFile = {
       file: entry.file,
       pageCount: entry.pageCount,
       searchable: entry.searchable,
@@ -233,18 +237,20 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
       sourceBookmarks: entry.sourceBookmarks,
       ocrTextByPage: entry.ocrTextByPage,
       inspectionError: entry.inspectionError,
-      origin: { kind: "library", documentId, versionId: prepared.version_id,
-        sourceSha256: prepared.source_sha256 || sourceSha256 },
-    }, prepared);
-    if (merged.textlessPageCount) {
-      progress?.("Running OCR");
+      origin: { kind: "library", documentId,
+        versionId: prepared?.version_id ?? versionId,
+        sourceSha256: prepared?.source_sha256 || sourceSha256 },
+    };
+    let merged = prepared ? withProjection(base, prepared) : base;
+    if (!prepared || merged.textlessPageCount) {
+      progress?.("Reading the scanned pages");
       await retryLibraryPdfParse("files", documentId, {
         ocr_provider: "kraken-lite",
         ...(versionId ? { version_id: versionId } : {}),
       });
-      await waitForPdfPreparation(documentId, progress);
-      prepared = await getCourtRecordPreparation(documentId, versionId);
-      merged = withProjection(merged, prepared);
+      await waitForPdfPreparation(documentId, progress, signal);
+      prepared = await read();
+      if (prepared) merged = withProjection(merged, prepared);
     }
     return { ...merged, ocrAttemptedPages: entry.textlessPages ?? [] };
   },
@@ -449,8 +455,6 @@ function mergeSourceFields(...sources: (SourceDocumentFields | undefined)[]) {
   ]));
   return {
     cover: Object.assign({}, ...values.map(({ cover }) => cover)),
-    partyStyleId: values.findLast(({ partyStyleId }) => partyStyleId)?.partyStyleId,
-    partyGroups: values.flatMap(({ partyGroups }) => partyGroups ?? []),
     exhibitLabels: [...new Set(values.flatMap(({ exhibitLabels }) => exhibitLabels))],
     ...(mentionLabels.length && { exhibitMentions }),
     explicitExhibitLabel: values.findLast(({ explicitExhibitLabel }) => explicitExhibitLabel)?.explicitExhibitLabel,

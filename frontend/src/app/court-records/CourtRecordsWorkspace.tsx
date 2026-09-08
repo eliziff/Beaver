@@ -3,7 +3,7 @@ import { Settings2 } from "lucide-react";
 import type { Document } from "@/app/lib/api/documents";
 import { cn } from "@/app/lib/utils";
 import { CourtRecordBuildPanel } from "./CourtRecordBuildPanel";
-import { CourtRecordDocuments } from "./CourtRecordDocuments";
+import { CourtRecordDocuments, type OcrRun } from "./CourtRecordDocuments";
 import { buildCourtRecord } from "./assembly";
 import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { Button } from "@/app/components/ui/button";
@@ -63,6 +63,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [busyEntryId, setBusyEntryId] = useState<string>();
   const [progress, setProgress] = useState<string>();
+  const [reading, setReading] = useState<OcrRun>();
   const [error, setError] = useState<string>();
   const [building, setBuilding] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -368,9 +369,26 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     }
   }
 
-  const ocr = (entry: RecordEntry) => host.runOcr?.(entry, (message, completed, total) => {
-    setProgress(total ? `${message} · ${completed ?? 0}/${total}` : message);
-  });
+  /**
+   * Recognition starts on its own for a scanned PDF and reports against the entry it
+   * belongs to, so the page says which file it is reading and can be stopped.
+   */
+  async function ocr(entry: RecordEntry) {
+    if (!host.runOcr) return;
+    const controller = new AbortController();
+    setReading({ id: entry.id, controller });
+    try {
+      return await host.runOcr(entry, (message) => setReading((current) =>
+        current?.id === entry.id ? { ...current, message } : current), controller.signal);
+    } catch (caught) {
+      // Either way the pages have been through recognition; what it found is the
+      // entry's business to state, and repeating it would find the same.
+      return { ocrAttemptedPages: [], ...(controller.signal.aborted ? {}
+        : { inspectionError: errorMessage(caught, "The scanned pages could not be read.") }) };
+    } finally {
+      setReading((current) => current?.id === entry.id ? undefined : current);
+    }
+  }
 
   function chooseProfile(nextId: string) {
     const next = COURT_PROFILE_BY_ID.get(nextId);
@@ -460,7 +478,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         id,
         kindId,
         file,
-        title: previous?.title ?? titleFromFile(file.name),
+        title: previous?.title ?? "",
         ...(previous?.date ? { date: previous.date } : {}),
         ...(previous?.sourceExhibits ? { sourceExhibits: previous.sourceExhibits } : {}),
         pageCount: null,
@@ -483,18 +501,12 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         previous?.sourceFields);
         setEntries((current) => putPreparedEntry(current, ready, exhibitLabel));
         applySourceCover(ready);
-        if (host.runOcr && needsOcr(ready)) {
-          try {
-            const patch = await ocr(ready);
-            if (patch) {
-              ready = applySourceEntryFields({ ...ready, ...patch },
-                previous ? undefined : pending.title, ready.sourceFields);
-              setEntries((current) => putPreparedEntry(current, ready, exhibitLabel));
-              applySourceCover(ready);
-            }
-          } catch (caught) {
-            setError(errorMessage(caught, "OCR failed."));
-          }
+        const patch = needsOcr(ready) ? await ocr(ready) : undefined;
+        if (patch) {
+          ready = applySourceEntryFields({ ...ready, ...patch },
+            previous ? undefined : pending.title, ready.sourceFields);
+          setEntries((current) => putPreparedEntry(current, ready, exhibitLabel));
+          applySourceCover(ready);
         }
       } catch (caught) {
         setEntries((current) => current.map((entry) => entry.id === id
@@ -560,26 +572,6 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       if (!(caught instanceof DOMException && caught.name === "AbortError")) {
         setError(errorMessage(caught, "The file could not be relinked."));
       }
-    } finally {
-      setBusyEntryId(undefined);
-      setProgress(undefined);
-    }
-  }
-
-  async function runOcr(id: string) {
-    const entry = entries.find((item) => item.id === id);
-    if (!entry || !host.runOcr) return;
-    setBusyEntryId(id);
-    setError(undefined);
-    setResult(undefined);
-    try {
-      const patch = await ocr(entry);
-      if (!patch) return;
-      const ready = applySourceEntryFields({ ...entry, ...patch }, undefined, entry.sourceFields);
-      setEntries((current) => fillExhibitLabels(current.map((item) => item.id === id ? ready : item)));
-      applySourceCover(ready);
-    } catch (caught) {
-      setError(errorMessage(caught, "OCR failed."));
     } finally {
       setBusyEntryId(undefined);
       setProgress(undefined);
@@ -753,17 +745,13 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       const entry: RecordEntry = {
         id: previous?.id ?? crypto.randomUUID(),
         kindId,
-        title: previous?.title ?? titleFromFile(prepared.file.name),
+        title: previous?.title ?? "",
         ...(previous?.date ? { date: previous.date } : {}),
         ...(previous?.sourceExhibits ? { sourceExhibits: previous.sourceExhibits } : {}),
         ...prepared,
       };
       setBusyEntryId(entry.id);
-      let patch: Partial<RecordEntry> | undefined;
-      if (host.runOcr && needsOcr(entry)) {
-        try { patch = await ocr(entry); }
-        catch (caught) { setError(errorMessage(caught, "OCR failed.")); }
-      }
+      const patch = needsOcr(entry) ? await ocr(entry) : undefined;
       const ready = applySourceEntryFields({ ...entry, ...patch },
         previous ? undefined : entry.title, previous?.sourceFields);
       setEntries((current) => putPreparedEntry(current, ready, exhibitLabel));
@@ -820,7 +808,8 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       onAssignKind={assignKind}
       onRemove={(id) => { setEntries((current) =>
         fillExhibitLabels(current.filter((entry) => entry.id !== id))); invalidate(); }}
-      onOcr={host.runOcr ? (id) => void runOcr(id) : undefined}
+      reading={reading}
+      onStopReading={() => reading?.controller.abort()}
       onRelink={host.relinkInput ? (id) => void relinkEntry(id) : undefined}
     />
   );
@@ -991,10 +980,6 @@ function focusFinding(finding?: ComplianceFinding) {
   target?.focus();
 }
 
-function titleFromFile(filename: string) {
-  return filename.replace(/\.(?:pdf|docx)$/iu, "").replace(/[_-]+/gu, " ").replace(/\s+/gu, " ").trim();
-}
-
 const sourceKindMayFillCover = (kindId: string) => !/(?:authority|exhibit)/u.test(kindId);
 const coverSourceFields = (entries: Array<{ kindId: string;
   sourceFields?: SourceDocumentFields }>) => entries.flatMap((entry) =>
@@ -1013,97 +998,12 @@ function fillSourceCover(profile: CourtProfile, current: CoverValues,
       else if (prior) delete cover[id];
     }
   }
-  const styles = profile.cover.partyStyles;
-  const partySources = sources.filter((source) => source.partyGroups?.length);
-  const priorPartySources = previous.filter((source) => source.partyGroups?.length);
-  if (!styles?.length || !partySources.length && !priorPartySources.length) return cover;
-  const currentStyle = styles.find(({ id }) => id === cover.partyStyleId);
-  const priorStyle = resolveSourceStyle(styles, priorPartySources);
-  const detectedStyle = resolveSourceStyle(styles, partySources);
-  const selected = !currentStyle || currentStyle.id === priorStyle?.id
-    ? detectedStyle ?? currentStyle : currentStyle;
-  const definitions = selected?.groups ?? commonPartyGroups(styles);
-  const groups = definitions.flatMap((definition) => {
-    const existing = cover.partyGroups?.find(({ id }) => id === definition.id);
-    const direct = sourceNames(partySources, definition.role);
-    const names = direct.length ? direct : sourceNames(partySources, definition.roleBelow);
-    const priorDirect = sourceNames(priorPartySources, definition.role);
-    const priorNames = priorDirect.length ? priorDirect
-      : sourceNames(priorPartySources, definition.roleBelow);
-    const currentNames = existing?.parties.map(({ name }) => name.trim()).filter(Boolean) ?? [];
-    const sourceOwned = !!priorPartySources.length && sameNames(currentNames, priorNames);
-    if (definition.optional && (!existing || sourceOwned) && !names.length &&
-        definition.id !== profile.cover.filingGroupId) return [];
-    const parties = sourceOwned ? names.map((name, index) => ({
-      ...existing?.parties[index],
-      id: existing?.parties[index]?.id ?? `${definition.id}-${index + 1}`, name,
-    })) : existing?.parties?.length ? existing.parties.map((party) => ({ ...party })) : [];
-    const known = new Set(parties.map(({ name }) => name.trim().toLocaleLowerCase()).filter(Boolean));
-    const pending = priorPartySources.length && !sourceOwned ? []
-      : names.filter((name) => !known.has(name.toLocaleLowerCase()));
-    parties.forEach((party) => { if (!party.name.trim() && pending.length) party.name = pending.shift()!; });
-    for (const name of pending) {
-      let index = parties.length + 1;
-      while (parties.some(({ id }) => id === `${definition.id}-${index}`)) index += 1;
-      parties.push({ id: `${definition.id}-${index}`, name });
-    }
-    if (!parties.length) parties.push({ id: `${definition.id}-1`, name: "" });
-    return [{ id: definition.id, role: definition.role, roleBelow: definition.roleBelow, parties }];
-  });
-  const eligibleParties = groups.filter((group) => !profile.cover.filingGroupId ||
-    group.id === profile.cover.filingGroupId).flatMap((group) => group.parties);
-  const eligible = eligibleParties.filter(({ name }) => name.trim()).map(({ id }) => id);
-  const allowedIds = new Set(eligibleParties.map(({ id }) => id));
-  const filingPartyIds = Object.hasOwn(cover, "filingPartyIds")
-    ? cover.filingPartyIds?.filter((id) => allowedIds.has(id)) ?? []
-    : profile.cover.filingGroupId || eligible.length === 1 ? eligible : undefined;
-  return { ...cover, ...(selected && { partyStyleId: selected.id }), partyGroups: groups,
-    ...(filingPartyIds && { filingPartyIds }) };
+  return cover;
 }
 
 const sourceCoverValue = (sources: SourceDocumentFields[], id: CoverFieldId) =>
   sources.map(({ cover }) => (cover as Partial<Record<CoverFieldId, string>>)[id])
     .find((value) => value?.trim());
-const sameNames = (left: string[], right: string[]) => left.length === right.length &&
-  left.every((name, index) => name.toLocaleLowerCase() === right[index]?.toLocaleLowerCase());
-
-const roleKey = (value = "") => value.toLocaleLowerCase().replace(/[^a-z]+/gu, "")
-  .replace(/s$/u, "").replace("intervenor", "intervener")
-  .replace("petitioner", "applicant").replace("claimant", "plaintiff");
-function sourceNames(sources: SourceDocumentFields[], role?: string) {
-  if (!role) return [];
-  const names: string[] = [];
-  for (const group of sources.flatMap((source) => source.partyGroups ?? [])) {
-    if (![group.role, group.roleBelow].some((value) => roleKey(value) === roleKey(role))) continue;
-    for (const name of group.parties.map((value) => value.trim()).filter(Boolean)) {
-      if (!names.some((value) => value.toLocaleLowerCase() === name.toLocaleLowerCase())) names.push(name);
-    }
-  }
-  return names;
-}
-function resolveSourceStyle(styles: NonNullable<CourtProfile["cover"]["partyStyles"]>,
-  sources: SourceDocumentFields[]) {
-  const exact = [...new Set(sources.map(({ partyStyleId }) => partyStyleId)
-    .filter((id): id is string => !!id && styles.some((style) => style.id === id)))];
-  if (exact.length === 1) return styles.find(({ id }) => id === exact[0]);
-  if (styles.length === 1) return styles[0];
-  const scored = styles.map((style) => ({ style, score: style.groups.reduce((score, group) => {
-    if (!group.roleBelow) return score;
-    const direct = new Set(sourceNames(sources, group.role).map((name) => name.toLocaleLowerCase()));
-    return score + sourceNames(sources, group.roleBelow)
-      .filter((name) => direct.has(name.toLocaleLowerCase())).length;
-  }, 0) })).sort((left, right) => right.score - left.score);
-  return scored[0]?.score && scored[0].score > (scored[1]?.score ?? 0) ? scored[0].style : undefined;
-}
-function commonPartyGroups(styles: NonNullable<CourtProfile["cover"]["partyStyles"]>) {
-  return styles[0].groups.flatMap((group) => {
-    const matches = styles.map((style) => style.groups.find(({ id }) => id === group.id));
-    if (matches.some((item) => !item || item.role !== group.role)) return [];
-    const roleBelow = matches.every((item) => item?.roleBelow === group.roleBelow)
-      ? group.roleBelow : undefined;
-    return [{ ...group, roleBelow }];
-  });
-}
 
 function fillExhibitLabels(entries: RecordEntry[]) {
   const labels = sourceExhibitSlots(entries)?.labels ?? [];

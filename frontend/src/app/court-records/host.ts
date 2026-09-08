@@ -57,7 +57,8 @@ export interface CourtRecordsHost {
   resolveInput(input: WorkProductInput, progress?: PreparationProgress,
     destination?: DocumentKind): Promise<InputResolution & { prepared?: PreparedFile }>;
   relinkInput?(input: WorkProductInput): Promise<InputResolution & { prepared?: PreparedFile }>;
-  runOcr?(entry: RecordEntry, progress?: PreparationProgress): Promise<Partial<RecordEntry>>;
+  runOcr?(entry: RecordEntry, progress?: PreparationProgress,
+    signal?: AbortSignal): Promise<Partial<RecordEntry>>;
   searchLibrary?(query: string, formats: CourtSourceFormat[], draft: WorkProductContext, signal?: AbortSignal):
     Promise<Document[]>;
   importLibraryDocument?(document: Document, progress?: PreparationProgress,
@@ -77,9 +78,10 @@ export interface CourtRecordsHost {
   outputFolder?: OutputFolderPort;
 }
 
-export const needsOcr = (entry: Pick<RecordEntry,
-  "encrypted" | "searchable" | "textlessPageCount" | "nonTextPagesConfirmed">) =>
-  !entry.nonTextPagesConfirmed && entry.encrypted !== true &&
+/** Recognition runs once per file: a second pass over pages it already read finds nothing new. */
+export const needsOcr = (entry: Pick<RecordEntry, "encrypted" | "searchable" |
+  "textlessPageCount" | "ocrAttemptedPages" | "nonTextPagesConfirmed">) =>
+  !entry.nonTextPagesConfirmed && entry.encrypted !== true && !entry.ocrAttemptedPages &&
     (entry.searchable === false || (entry.textlessPageCount ?? 0) > 0);
 
 type OutputProduct = Pick<WorkProduct,
