@@ -602,6 +602,93 @@ mod legalpdf_exports {
         Some((Status::Found, selected))
     }
 
+    // Detached paragraph labels sit outside the body, unlike reporter page
+    // numbers. Their aligned body rows bound both columns in parallel text.
+    // Use these native witnesses even when the structure profile has no prose
+    // nodes; a structural ordinal is not a substitute for a printed address.
+    fn marginal_paragraph_plan<'a>(
+        pages: &'a [legalpdf::Page],
+        locator: &str,
+    ) -> Option<(legalpdf::PdfLookupStatus, HashSet<&'a str>)> {
+        use legalpdf::PdfLookupStatus as Status;
+        let body_bounds = pages.iter().map(|page| {
+            page.lines.iter().filter(|line| line.bbox[2] - line.bbox[0] > page.width * 0.20
+                && line.text.chars().any(char::is_alphabetic))
+                .map(|line| line.bbox).reduce(|a, b| [a[0].min(b[0]), a[1].min(b[1]),
+                    a[2].max(b[2]), a[3].max(b[3])])
+        }).collect::<Vec<_>>();
+        let mut labels = Vec::new();
+        for (page_index, page) in pages.iter().enumerate() {
+            let Some(bounds) = body_bounds[page_index] else { continue };
+            for line in &page.lines {
+                let text = line.text.trim();
+                let text = text.strip_prefix('[').and_then(|s| s.strip_suffix(']')).unwrap_or(text);
+                if text.is_empty() || text.len() > 5 || !text.bytes().all(|b| b.is_ascii_digit()) {
+                    continue;
+                }
+                let height = line.bbox[3] - line.bbox[1];
+                let gap = (bounds[0] - line.bbox[2]).max(line.bbox[0] - bounds[2]);
+                if gap < height * 0.5 || gap > height * 8.0 { continue; }
+                let row = page.lines.iter().filter(|peer|
+                    peer.bbox[2] - peer.bbox[0] > page.width * 0.20
+                    && peer.text.chars().any(char::is_alphabetic)
+                    && (peer.bbox[1] - line.bbox[1]).abs() <= height * 0.6)
+                    .map(|peer| peer.bbox[1]).min_by(f64::total_cmp);
+                if let Some(y) = row {
+                    labels.push((text.parse::<usize>().ok()?, page_index, y));
+                }
+            }
+        }
+        labels.sort_by(|a, b| a.1.cmp(&b.1).then(a.2.total_cmp(&b.2)));
+        // One isolated margin number could be a note. Require a numbering run.
+        if !labels.windows(3).any(|w| w[0].0 + 1 == w[1].0 && w[1].0 + 1 == w[2].0) {
+            return None;
+        }
+        let range = legal_pdf_support::numeric_range("paragraph", locator)
+            .or_else(|| legal_pdf_support::parse_ordinal("paragraph", locator).map(|n| (n, n)));
+        let Some((from, to)) = range.filter(|(a, b)| a <= b && b - a < 100) else {
+            return Some((Status::Invalid, HashSet::new()));
+        };
+        let mut selected = HashSet::new();
+        for number in from..=to {
+            let hits = labels.iter().enumerate().filter(|(_, label)| label.0 == number)
+                .map(|(index, _)| index).collect::<Vec<_>>();
+            if hits.len() != 1 {
+                return Some((if hits.is_empty() { Status::NotFound } else { Status::Ambiguous }, HashSet::new()));
+            }
+            let (_, start_page, start_y) = labels[hits[0]];
+            let Some(&(_, end_page, end_y)) = labels.get(hits[0] + 1).filter(|next| next.0 == number + 1) else {
+                // No witnessed end: do not sweep in end matter or a numbering restart.
+                return Some((Status::Unavailable, HashSet::new()));
+            };
+            for page_index in start_page..=end_page {
+                let Some(bounds) = body_bounds[page_index] else {
+                    return Some((Status::Unavailable, HashSet::new()));
+                };
+                let top = if page_index == start_page { start_y - 0.5 } else { bounds[1] };
+                let bottom = if page_index == end_page { end_y - 0.5 } else { bounds[3] };
+                let lines = pages[page_index].lines.iter().filter(|line|
+                    line.bbox[0] >= bounds[0] - 0.5 && line.bbox[2] <= bounds[2] + 0.5
+                    && line.bbox[1] >= top && line.bbox[1] < bottom).collect::<Vec<_>>();
+                // A separated heading immediately before the next numbered
+                // paragraph belongs to that following section, not this passage.
+                let heading_top = (page_index == end_page).then(|| lines.iter().filter(|line| {
+                    let Some((prefix, text)) = line.text.trim().split_once(". ") else { return false };
+                    if legal_pdf_support::enumerator_interpretations(prefix, ".").is_empty()
+                        || !legal_pdf_support::heading_text_plausible(text) { return false; }
+                    let height = line.bbox[3] - line.bbox[1];
+                    let prior_bottom = lines.iter().filter(|prior| prior.bbox[3] < line.bbox[1])
+                        .map(|prior| prior.bbox[3]).max_by(f64::total_cmp);
+                    prior_bottom.is_some_and(|y| line.bbox[1] - y > height * 0.5)
+                        && end_y - line.bbox[3] > height * 0.5
+                }).map(|line| line.bbox[1]).min_by(f64::total_cmp)).flatten();
+                selected.extend(lines.iter().filter(|line|
+                    heading_top.is_none_or(|y| line.bbox[1] < y - 0.5)).map(|line| line.id.as_str()));
+            }
+        }
+        Some((Status::Found, selected))
+    }
+
     pub struct PdfPassagePagesTask {
         bytes: Buffer,
         summary: legalpdf::PdfSummary,
@@ -634,7 +721,8 @@ mod legalpdf_exports {
                 .into_iter()
                 .map(|plan| {
                     let printed = plan.paragraph.as_ref().and_then(|locator|
-                        printed_paragraph_plan(&prose_lines, &self.paragraphs, locator));
+                        marginal_paragraph_plan(&pdf.pages, locator).or_else(||
+                            printed_paragraph_plan(&prose_lines, &self.paragraphs, locator)));
                     let structural = printed.is_none();
                     let (status, selected) = printed.unwrap_or_else(|| (plan.status,
                         plan.lines.iter().map(String::as_str).collect::<HashSet<_>>()));
