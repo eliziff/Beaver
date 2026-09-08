@@ -100,7 +100,7 @@ function expandDocumentQuoteEntry(entry: DocumentCitationQuote): CitationQuote[]
 }
 export function getDocumentCitationQuotes(a: Citation): DocumentCitationQuote[] {
   return a.kind === "document"
-    ? a.quotes.filter((entry) => entry.quote.trim().length > 0)
+    ? a.quotes.filter((entry) => entry.quote.trim().length > 0).map((entry) => ({ ...entry, sheet: entry.sheet ?? a.sheet, cell: entry.cell ?? a.cells }))
     : [];
 }
 export function expandCitationToEntries(
