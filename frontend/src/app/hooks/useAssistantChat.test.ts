@@ -144,14 +144,17 @@ it("loads another chat when switching away from an active response", async () =>
   expect(mocks.stopChat).not.toHaveBeenCalled();
 });
 
-it("refreshes the workspace binding after the assistant creates one", async () => {
+it("loads the saved message identity and workspace binding after a completed answer", async () => {
   mocks.getChat.mockResolvedValueOnce({ chat: { id: "chat-1", transcript_version: 0 }, messages: [] })
-    .mockResolvedValueOnce({ chat: { id: "chat-1", transcript_version: 2, research_file_id: "created-workspace" }, messages: [] });
+    .mockResolvedValueOnce({ chat: { id: "chat-1", transcript_version: 2, research_file_id: "created-workspace" }, messages: [
+      { id: "saved-answer", role: "assistant", turn_id: "turn-1", turn_complete: true, content: "Verified answer" },
+    ] });
   mocks.streamChat.mockResolvedValueOnce(completedTurn());
   const { result } = renderHook(() => useAssistantChat({ chatId: "chat-1" }));
   await waitFor(() => expect(result.current.chatLoad.status).toBe("loaded"));
-  await act(async () => { await result.current.handleChat({ role: "user", content: "Organize these files" }); });
+  await act(async () => { await result.current.handleChat({ role: "user", content: "Organize these files" }, { turnId: "turn-1" }); });
   expect(result.current.chatLoad).toMatchObject({ status: "loaded", chat: { research_file_id: "created-workspace" } });
+  expect(result.current.messages.at(-1)).toMatchObject({ id: "saved-answer", content: "Verified answer" });
 });
 
 describe("useAssistantChat local transcript boundary", () => {

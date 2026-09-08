@@ -1,3 +1,4 @@
+import { collapseProvisionLabels } from "../provisionLabels";
 import { readLegalSourceResource, readLibraryResearchWindow, readResearchWorkspace, restoreResearchEvidence,
   oneHopLegalScope, sourceActivityCitations, readResearchContext, readResearchContextInventory, researchResultFilter,
   type ResearchReadContext } from "../researchReader";
@@ -219,6 +220,7 @@ const documentOperationTool = (research = true): Tool & BeaverToolPolicy => ({
     research_action: { type: "object", description:
       "Use {type:'create',title} without document_id, then reuse its returned resource as document_id. " +
       "Read an existing research file before changing it. " +
+      "{type:'file-findings',references:[reference from Read findings],typeId:label_id} files original supporting passages under the chosen label. " +
       "{type:'save'} with top-level evidence_ids/query_ids saves verified evidence and returns " +
       "saved:[{evidence_id,source_id}] for annotation; " +
       "Workspace queries save automatically; use save for search_sources query_ids. " +
@@ -1962,7 +1964,7 @@ export function assistantTools<Context extends {
         findingRefs: researchContext.findingRefs,
         ...(researchContext.restricted ? { subjects: researchContext.subjects ?? [] } : {}) }, {
         reference, ...(args.pattern ? { evidence_id: String(args.pattern) } : {}),
-        ...(reference ? { claim_offset: offset, claim_limit: Math.min(10, limit), text_offset: Number(args.start_char) || 0 }
+        ...(reference ? { text_offset: Number(args.start_char) || 0 }
           : { offset, limit: Math.min(50, limit) }),
       });
     }
@@ -1979,9 +1981,12 @@ export function assistantTools<Context extends {
         return result({ total, items: values, next_offset: offset + limit < total ? offset + limit + 1 : null });
       }
       if (/^e_/u.test(requested)) {
+        const saved = researchContext?.subjects?.flatMap(({ savedEvidence }) => savedEvidence ?? [])
+          .find(({ evidence_id }) => evidence_id === requested);
+        if (saved && !legalEvidenceState.evidence.has(requested)) registerLegalEvidence(legalEvidenceState, saved);
         const entry = readPriorLegalEvidence(legalEvidenceState, requested);
         return entry && inScope({ resource: legalEvidenceResourceReference(entry.receipt) ?? "", evidence: [entry.receipt] })
-          ? result(modelEvidencePassage(entry.receipt)) : fail("Evidence unavailable in the selected scope");
+          ? { ...result(modelEvidencePassage(entry.receipt)), evidence: [entry.receipt] } : fail("Evidence unavailable in the selected scope");
       }
       if (/^q_/u.test(requested)) {
         const query = legalEvidenceState.queries.get(requested);
@@ -2007,6 +2012,16 @@ export function assistantTools<Context extends {
     }
     if (researchContext?.subjects && (reference?.kind === "source" || reference?.kind === "document") && !workspaceId) {
       const selected = researchContext.subjects?.filter(({ resource }) => resource === requested) ?? [];
+      const locatorKey = (label: string) => JSON.stringify(collapseProvisionLabels([label], String(args.locator_kind)) ?? [label]),
+        saved = String(args.locator ?? "").split(/\s*,\s*/u).map((label) =>
+          selected.flatMap(({ savedEvidence }) => savedEvidence ?? []).find(({ locator }) =>
+            locator.kind === args.locator_kind && locatorKey(locator.label) === locatorKey(label)));
+      if (saved.every((receipt) => receipt !== undefined) && legalEvidenceState && !args.context_blocks && !args.pattern && !args.section &&
+        (!args.end_locator || args.end_locator === args.locator) && (!args.references || args.references === "none")) {
+        saved.forEach((receipt) => registerLegalEvidence(legalEvidenceState, receipt));
+        if (saved.every(({ evidence_id }) => readPriorLegalEvidence(legalEvidenceState, evidence_id)))
+          return { ...result(saved.length === 1 ? modelEvidencePassage(saved[0]) : saved.map(modelEvidencePassage)), evidence: saved };
+      }
       if (selected.some(({ evidence }) => evidence !== undefined) || !args.locator_kind && !args.section && !args.pattern && !args.references &&
           args.mode !== "drafting" && args.mode !== "redline") return readResearchContext(documents, scope, researchContext,
         { resource: requested, offset: Number(args.offset) || 1, start_char: Number(args.start_char) || 0,
@@ -2307,6 +2322,13 @@ export function assistantTools<Context extends {
       ...researchOperation, callId: call.id };
     const edit = turnEditState?.get(documentId), versionId = edit?.versionId ?? trimmed(input.version_id);
     if (!edit) return fail("Read the research file before changing it");
+    if (command.type === "file-findings") {
+      const saved = await sources.saveFindings(scope, documentId, {
+        references: researchFindingReferenceSchema.array().min(1).max(500).parse(command.references),
+        typeId: trimmed(command.typeId) || undefined, versionId, workingRevision: edit.workingRevision ?? 0 }, operation);
+      Object.assign(edit, { versionId: saved.file.versionId, workingRevision: saved.file.workingRevision });
+      return result({ filed: saved.saved, version_id: saved.file.versionId, working_revision: saved.file.workingRevision });
+    }
     if (command.type === "memo") {
       const title = trimmed(command.title), markdown = typeof command.markdown === "string"
         ? command.markdown.trim() : "", research = await sources.get(scope, documentId);

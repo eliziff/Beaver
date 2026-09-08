@@ -105,11 +105,12 @@ const citationParsers: Record<string, Parser<Citation>> = {
   tabular: object({ kind: choices("tabular"), ref: safeInteger, review_id: id,
     col_index: safeInteger, row_index: safeInteger, col_name: defaulted(short, () => ""),
     doc_name: defaulted(short, () => ""), quotes, ...displayFields }),
-  document: object({ kind: choices("document"), ref: safeInteger, document_id: id, filename: id,
+  document: object({ kind: choices("document"), ref: safeInteger, document_id: id, filename: id, sheet: optional(short), cells: optional(short),
     version_id: optional(short), version_number: optional(safeInteger), url: optional(url),
     quotes: defaulted(array(object({ quote: text, sheet: optional(short), cell: optional(short),
       page: optional((value) => typeof value === "number" ? finite(value) : short(value)),
-    }), 32), () => []), ...locatorFields }),
+    }), 32), () => []), ...locatorFields,
+    locator_kind: optional(choices("document", "paragraph", "page", "section", "footnote", "sheet", "cell")) }),
 };
 export function parseAssistantCitations(value: unknown): Citation[] {
   try {

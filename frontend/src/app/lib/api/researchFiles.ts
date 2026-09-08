@@ -41,14 +41,17 @@ export type ResearchFinding = {
 };
 export type ResearchViews = { chats: { id: string; title: string | null }[]; tables: { id: string; title: string | null }[] };
 export const getWorkspaceViews = (id: string) => apiRequest<ResearchViews>(`/source-workspaces/${segment(id)}/views`);
-export const getWorkspaceFindings = (id: string, input: { sourceIds?: string[]; offset?: number; limit?: number }, signal?: AbortSignal) =>
+export const getWorkspaceFindings = (id: string, input: { sourceIds?: string[]; chatId?: string; messageId?: string; offset?: number; limit?: number }, signal?: AbortSignal) =>
   apiRequest<{ items: ResearchFinding[]; total: number; next_offset: number | null; is_running?: boolean }>(
-    pagePath(`/source-workspaces/${segment(id)}/findings`, { source_ids: input.sourceIds?.join(","), offset: input.offset, limit: input.limit ?? 50 }), { signal });
+    pagePath(`/source-workspaces/${segment(id)}/findings`, { source_ids: input.sourceIds?.join(","), chatId: input.chatId,
+      message_id: input.messageId, offset: input.offset, limit: input.limit ?? 50 }), { signal });
+export const saveWorkspaceFindings = (id: string, input: { references: ResearchFindingReference[]; typeId: string; versionId: string; workingRevision: number }) =>
+  post<{ file: ResearchFile; saved: number }>(`/source-workspaces/${segment(id)}/save-findings`, input);
 export const ensureSourcesWorkspace = (input: { chatId?: string; tableId?: string; title?: string; projectId?: string }) =>
   post<ResearchFile>("/source-workspaces/ensure", input);
 export const bindWorkspaceView = (id: string, input: { chatId?: string; tableId?: string; selection?: ResearchSelection }) =>
   post<ResearchFile>(`/source-workspaces/${segment(id)}/bind`, input);
-export type ResearchTableInput = { rows?: "sources" | "passages"; labelId?: string;
+export type ResearchTableInput = { rows?: "sources" | "passages"; labelId?: string; columnIndex?: number;
   selection?: ResearchSelection; findingRefs?: ResearchFindingReference[];
   chatId?: string; messageIds?: string[]; tableId?: string; fingerprint?: string; design?: ResearchTableDesign; request?: string; model?: string; reasoningEffort?: string };
 export type ResearchTableDesign = { title: string; columns: ColumnConfig[];
@@ -63,7 +66,7 @@ export const previewWorkspaceTable = (id: string, input: ResearchTableInput) =>
 export const openWorkspaceTable = (id: string, input: ResearchTableInput) =>
   post<TabularReview>(`/source-workspaces/${segment(id)}/table`, input);
 export type ResearchLabelDesign = { title: string;
-  labels: { key: string; name: string; parentKey?: string | null; color?: string | null; definition?: string }[];
+  labels: { key: string; name: string; parentKey?: string | null; color?: string | null; definition?: string; scope?: "source" | "highlight" }[];
   assignments: { labelKey: string; rowIds: string[]; itemIds?: string[] }[] };
 export type ResearchLabelProposal = { title: string; target: "sources" | "passages"; propose: boolean;
   fingerprint: string; design: ResearchLabelDesign; unassigned: { id: string; title: string }[];

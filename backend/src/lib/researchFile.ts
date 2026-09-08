@@ -44,7 +44,7 @@ export type ResearchSource = { id: string; reference: ResearchSourceReference; c
   passages: (ResearchPartReference & { labelCounts: Record<string, number>;
     unlabelledCount: number }) | null };
 /** No highlight label means an observation. One label means an intentional highlight of that type. */
-export type ResearchEvidence = { receipt: LegalEvidenceReceipt; sourceId: string;
+export type ResearchEvidence = { receipt: LegalEvidenceReceipt; sourceId: string; highlightId?: string;
   labelIds: string[]; note: string };
 export type ResearchQueryReceipt = LegalResearchQueryReceipt & { sourceIds: string[];
   matchedSourceIds: string[]; evidenceIds: string[]; failures: Array<{ sourceId: string; code: string }>;
@@ -72,7 +72,7 @@ const researchMutationSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("label"), id: uuid.optional(), name: text(200),
     parentId: uuid.nullable().optional(), color: z.string().regex(/^#[a-f0-9]{6}$/iu)
       .nullable().optional(), order: z.number().min(-1_000_000).max(1_000_000).optional(),
-    scope: z.enum(["source", "highlight"]).optional(), definition: z.string().trim().max(10_000).optional() }).strict(),
+    scope: z.enum(["source", "highlight"]).optional(), definition: z.string().trim().max(20_000).optional() }).strict(),
   z.object({ type: z.literal("remove"), kind: z.enum(["label", "source", "evidence"]),
     id: text(200), sourceId: uuid.optional() }).strict(),
   z.object({ type: z.literal("source"), reference: source, labelIds: ids.optional(),
@@ -99,12 +99,13 @@ export const researchFileActionSchema = z.union([researchMutationSchema,
     actions: z.array(researchMutationSchema.refine((action) =>
       action.type === "source" || action.type === "label" || action.type === "annotate" || action.type === "label-selection" ||
       action.type === "remove" && action.kind === "label", "Batch changes collect sources or organize labels and assignments"))
-      .min(1).max(100) }).strict(),
+      .min(1).max(400) }).strict(),
   z.object({ type: z.enum(["accept", "reject", "undo"]), changeId: uuid }).strict(),
 ]);
 export type PublicResearchFileAction = z.infer<typeof researchFileActionSchema>;
 export type ResearchFileAction = PublicResearchFileAction | { type: "merge";
   evidence?: LegalEvidenceReceipt[]; queries?: ResearchQueryReceipt[];
+  title?: string; actions?: Extract<PublicResearchFileAction, { type: "batch" }>["actions"];
   sources?: ResearchSourceReference[]; labels?: Record<string, string[]>; tables?: string[]; chats?: string[] };
 
 const SOURCE_PART = (id: string) => `source.${id}.json`, QUERIES_PART = "queries.json";
@@ -218,7 +219,7 @@ function decodeResearchFileState(value: unknown): ResearchFileState | null {
         typeof item.parentId === "string" && uuid.safeParse(item.parentId).success) ||
       !(item.color === null || typeof item.color === "string" && /^#[a-f0-9]{6}$/iu.test(item.color)) ||
       !Number.isInteger(item.order) || Number(item.order) < 0 || Number(item.order) > 1_000_000 ||
-      (item.definition !== undefined && (typeof item.definition !== "string" || item.definition.length > 10_000)) ||
+      (item.definition !== undefined && (typeof item.definition !== "string" || item.definition.length > 20_000)) ||
       (item.scope !== "source" && item.scope !== "highlight"); })) return null;
   if (Object.values(labels).some((value) => { const parent = record(value)?.parentId;
     return typeof parent === "string" && (!labels[parent] ||
@@ -277,7 +278,10 @@ const decodeSourcePart = (bytes: Buffer, sourceId: string) => {
   if (part?.schemaVersion !== "beaver.research-source.v1" || part.sourceId !== sourceId || !evidence ||
       Object.keys(evidence).length > 100_000 || Object.entries(evidence).some(([id, value]) => {
         const item = record(value), receipt = storedLegalEvidenceReceipt(item?.receipt); return !item ||
-          !receipt || receipt.evidence_id !== id || item.sourceId !== sourceId || !validIds(item.labelIds) ||
+          !receipt || (item.highlightId ?? receipt.evidence_id) !== id ||
+          (item.highlightId !== undefined && (typeof item.highlightId !== "string" ||
+            !item.highlightId.startsWith(`${receipt.evidence_id}:`) || item.highlightId.length > 200)) ||
+          item.sourceId !== sourceId || !validIds(item.labelIds) ||
           (item.labelIds as string[]).length > 1 || !(item.labelIds as string[]).every((label) => uuid.safeParse(label).success) ||
           typeof item.note !== "string" || item.note.length > 50_000; })) return null;
   return evidence as Record<string, ResearchEvidence>;
@@ -468,7 +472,8 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
   let state: ResearchFileState = { ...current.state };
   const request = raw.type === "merge" ? raw : researchFileActionSchema.parse(raw),
     executor = context?.executor ?? (assistant ? "assistant" : "human"),
-    actions = request.type === "batch" ? request.actions :
+    actions = request.type === "merge" ? [request, ...(request.actions ?? []).map((action) => researchMutationSchema.parse(action))]
+      : request.type === "batch" ? request.actions :
       request.type === "accept" || request.type === "reject" || request.type === "undo" ? [] : [request],
     loaded = new Map<string, Record<string, ResearchEvidence>>(), originalEvidence: Record<string, ResearchEvidence> = {},
     puts: Array<{ name: string; bytes: Buffer; expectedSha256: string }> = [], removes: string[] = [];
@@ -494,7 +499,7 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
       existing = batch.filter((id) => current.state.sources[id]), parts =
         await readResearchEvidenceParts(documents, scope, current, existing);
       batch.forEach((id) => { const evidence = parts.get(id) ?? {}; loaded.set(id, evidence);
-        Object.values(evidence).forEach((item) => { originalEvidence[item.receipt.evidence_id] = structuredClone(item); }); }); }
+        Object.entries(evidence).forEach(([id, item]) => { originalEvidence[id] = structuredClone(item); }); }); }
   };
   const clearPart = (name: string) => {
     for (let index = puts.length - 1; index >= 0; index--) if (puts[index].name === name) puts.splice(index, 1);
@@ -526,6 +531,15 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
       label.scope === "highlight" && label.parentId === null && label.name === "Highlight");
     if (existing) return existing.id;
     ownLabels(); return applyLabel(state, { type: "label", name: "Highlight", scope: "highlight", color: "#d6b85a" });
+  };
+  const fileHighlight = (values: Record<string, ResearchEvidence>, item: ResearchEvidence, assigned: string[]) => {
+    if (assigned.length && (item.receipt.scope !== "passage" || !item.receipt.span_text))
+      throw new ApplicationError(400, "Highlighting requires an exact supporting passage");
+    if (!assigned.length || Object.values(values).some((saved) => saved.receipt.evidence_id === item.receipt.evidence_id &&
+      saved.labelIds[0] === assigned[0])) return;
+    if (!item.labelIds.length) { item.labelIds = assigned; return; }
+    const highlightId = `${item.receipt.evidence_id}:${randomUUID()}`;
+    values[highlightId] = { ...item, highlightId, labelIds: assigned };
   };
   for (const action of actions) {
   if (action.type === "label") { ownLabels(); applyLabel(state, action); }
@@ -562,8 +576,10 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     else {
       await loadSources(selection.subjects.map(({ sourceId }) => sourceId));
       for (const subject of selection.subjects) {
-        for (const receipt of subject.evidence ?? Object.values(loaded.get(subject.sourceId)!).map(({ receipt }) => receipt)) {
-          const item = loaded.get(subject.sourceId)![receipt.evidence_id]; item.labelIds = update(item.labelIds);
+        const values = loaded.get(subject.sourceId)!, receipts = new Set(subject.evidence?.map(({ evidence_id }) => evidence_id));
+        for (const item of Object.values(values).filter(({ receipt }) => !subject.evidence || receipts.has(receipt.evidence_id))) {
+          if (action.mode === "add") fileHighlight(values, item, assigned);
+          else if (!action.labelIds?.length || item.labelIds.some((id) => action.labelIds!.includes(id))) item.labelIds = update(item.labelIds);
           if (item.labelIds.length) ownSource(subject.sourceId).collected = true;
         }
         writeSource(subject.sourceId);
@@ -629,11 +645,11 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     await loadSources(evidence.map(({ source }) => source.id));
     evidence.forEach(({ receipt, source }) => { const values = loaded.get(source.id)!,
       previous = values[receipt.evidence_id], explicit = action.labels?.[receipt.evidence_id],
-      assigned = explicit === undefined ? previous?.labelIds ?? []
-        : checkedLabels(state, explicit.length ? explicit : [defaultHighlight()], "highlight");
-      if (assigned.length) ownSource(source.id).collected = true;
-      values[receipt.evidence_id] = { receipt: structuredClone(receipt), sourceId: source.id,
-        labelIds: assigned, note: previous?.note ?? "" }; });
+      item = values[receipt.evidence_id] = { receipt: structuredClone(receipt), sourceId: source.id,
+        labelIds: previous?.labelIds ?? [], note: previous?.note ?? "" };
+      if (explicit !== undefined) fileHighlight(values, item,
+        checkedLabels(state, explicit.length ? explicit : [defaultHighlight()], "highlight"));
+      if (item.labelIds.length) ownSource(source.id).collected = true; });
     [...new Set(evidence.map(({ source }) => source.id))].forEach(writeSource);
     if (action.queries?.length) { const ledger = await loadQueries();
       const evidenceSources = new Map(evidence.map(({ receipt, source }) =>
@@ -755,7 +771,7 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     const pending = request.type === "batch" && request.propose === true,
       title = request.type === "batch" ? request.title : request.type === "undo" ? `Undo: ${selected!.title}`
         : request.type === "label" ? `Label: ${request.name}` : request.type === "label-selection" ? "Update classifications"
-        : request.type === "note" ? "Update memo" : request.type === "merge" ? "Collect research" : "Update research";
+        : request.type === "note" ? "Update memo" : request.type === "merge" ? request.title ?? "Collect research" : "Update research";
     (await loadHistory()).push({ id: randomUUID(), title: title.slice(0, 200), createdAt: new Date().toISOString(),
       executor, userId: scope.userId, ...(context?.model && { model: context.model }), status: pending ? "pending" : "applied",
       ...(request.type === "undo" && { undoOf: request.changeId }), changes, counts: researchChangeCounts(changes) });

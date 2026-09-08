@@ -11,7 +11,6 @@ import { memoCitation as parseMemoCitation } from "./researchMemo";
 import { ResearchCitationViewer } from "./ResearchCitationViewer";
 import { ResearchChanges } from "./ResearchChanges";
 import { ResearchSearchPanel } from "./ResearchSearchPanel";
-import { ResearchLabelTree } from "./ResearchLabelTree";
 import { ResearchTree, type ResearchRemoval } from "./ResearchTree";
 import { ResearchWorkspacePicker } from "./ResearchWorkspacePicker";
 import { sourceMatches, useSourceReader } from "./useSourceReader";
@@ -137,8 +136,8 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
                   <Highlighter aria-hidden="true" className="size-3.5" />
                 </Button>}
               </div>
-              <ResearchLabelTree scope="highlight" selectedId={highlight.pen ?? null}
-                onSelect={(id) => { if (id) highlight.setPen(id); }} onRemove={setRemoving} onStatus={setStatus} />
+              <ResearchTree scope="highlight" sources={named} reader={reader} passagePages={passagePages} opened={openedSources} setOpened={setOpenedSources}
+                labelId={highlight.pen ?? null} passageVisible={passageVisible} onLabelChange={(id) => { if (id) highlight.setPen(id); }} onRemove={setRemoving} onStatus={setStatus} />
             </div>
           </div>
         </div>

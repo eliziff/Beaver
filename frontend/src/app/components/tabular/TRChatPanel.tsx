@@ -21,6 +21,7 @@ interface Props {
     scopeLabel?: string; onClearScope?: () => void;
     onIntentSent?: () => void;
     onUpdated?: () => void;
+    onUseAnswer?: (chatId: string, messageId: string) => Promise<void>;
 }
 
 const HEADER_BUTTON_CLASS = `flex h-7 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-app-surface px-2 text-gray-600 hover:text-gray-900 ${APP_SURFACE_HOVER_CLASS}`;
@@ -29,7 +30,7 @@ export function TRChatPanel({
     reviewId,
     onCitationClick,
     chatId: currentChatId = null,
-    onChatIdChange, searchMessageId, initialIntent, workspaceReady = true, scopeLabel, onClearScope, onIntentSent, onUpdated,
+    onChatIdChange, searchMessageId, initialIntent, workspaceReady = true, scopeLabel, onClearScope, onIntentSent, onUpdated, onUseAnswer,
 }: Props) {
     const [chats, setChats] = useState<Chat[]>([]);
     const [historyOpen, setHistoryOpen] = useState(false);
@@ -66,9 +67,6 @@ export function TRChatPanel({
         onCitationClick(citation.col_index, citation.row_index);
         return true;
     };
-    const newChat = () => {
-        onChatIdChange(null);
-    };
 
     return (
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -101,24 +99,23 @@ export function TRChatPanel({
                         }
                     }}
                 />
-                <div className="flex shrink-0 items-center gap-1.5">
                     {assistant.state.messages.length > 0 && (
                         <button
                             type="button"
-                            onClick={newChat}
+                            onClick={() => onChatIdChange(null)}
                             title="New chat"
                             className={HEADER_BUTTON_CLASS}
                         >
                             <Plus className="h-3.5 w-3.5" />
                         </button>
                     )}
-                </div>
             </div>
             {scopeLabel && <div className="mt-11 flex shrink-0 items-center gap-2 border-b border-gray-200 px-3 py-1 text-xs text-gray-600">
                 <span className="min-w-0 flex-1 truncate" title={scopeLabel}>{scopeLabel}</span>
                 <button type="button" onClick={onClearScope} aria-label="Discuss all columns" className="shrink-0 underline">All columns</button>
             </div>}
             <ChatView
+                onUseAnswer={onUseAnswer && assistant.state.chatId ? (messageId) => onUseAnswer(assistant.state.chatId!, messageId) : undefined}
                 chatId={assistant.state.chatId}
                 ready={workspaceReady && assistant.chatLoad.status === "loaded"}
                 initialIntent={initialIntent} onIntentSent={onIntentSent}

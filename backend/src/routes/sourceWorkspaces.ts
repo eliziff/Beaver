@@ -32,6 +32,7 @@ const query = z.object({ version_id: id, working_revision: revision,
   "Supply either text or capture rules");
 
 const tableInput = z.object({ selection: researchSelectionSchema.optional(), tableId: id.optional(),
+  columnIndex: z.number().int().min(0).max(10_000).optional(),
   chatId: id.optional(), messageIds: z.array(id).min(1).max(100).optional(),
   rows: z.enum(["sources", "passages"]).optional(), labelId: id.optional(),
   findingRefs: z.array(researchFindingReferenceSchema).min(1).max(10_000).optional(),
@@ -39,7 +40,7 @@ const tableInput = z.object({ selection: researchSelectionSchema.optional(), tab
   request: z.string().trim().min(1).max(4_000).optional(), model: z.string().trim().min(1).max(200).optional(),
   reasoningEffort: z.string().trim().min(1).max(20).optional(),
 }).strict().refine((input) => !input.messageIds || !!input.chatId, "Select a chat for the chosen messages");
-const labelInput = tableInput.innerType().omit({ design: true, tableId: true })
+const labelInput = tableInput.innerType().omit({ design: true })
   .extend({ design: researchLabelDesignSchema.optional() }).strict()
   .refine((input) => !input.messageIds || !!input.chatId, "Select a chat for the chosen messages")
   .refine((input) => !(input.request && input.design), "Describe a label set or apply a proposed one");
@@ -95,9 +96,10 @@ export function createSourceWorkspacesRouter(app: SourceWorkspaceApplication) {
     res.json(await app.views(scope(res), id.parse(req.params.id)));
   }));
   router.get("/:id/findings", asyncRoute(async (req, res) => {
-    const { source_ids, ...input } = z.object({ ...page,
+    const { source_ids, message_id, ...input } = z.object({ ...page, chatId: id.optional(), message_id: id.optional(),
       source_ids: z.string().max(20_000).optional() }).strict().parse(req.query);
     res.json(await app.findings(scope(res), id.parse(req.params.id), { ...input,
+      ...(message_id ? { messageIds: [message_id] } : {}),
       ...(source_ids ? { sourceIds: source_ids.split(",") } : {}) }));
   }));
   router.post("/:id/bind", asyncRoute(async (req, res) => {
@@ -127,10 +129,6 @@ export function createSourceWorkspacesRouter(app: SourceWorkspaceApplication) {
     const input = z.object({ references: z.array(researchFindingReferenceSchema).min(1).max(500),
       typeId: id.optional(), versionId: id, workingRevision: revision }).strict().parse(req.body);
     res.json(await app.saveFindings(scope(res), id.parse(req.params.id), input, { executor: "human" }));
-  }));
-  router.post("/:id/column-labels", asyncRoute(async (req, res) => {
-    const input = z.object({ reviewId: id, columnIndex: z.number().int().min(0).max(10_000), rowIds: z.array(z.string().min(1).max(4_000)).min(1).max(10_000).optional() }).strict().parse(req.body);
-    res.json(await app.columnLabels(scope(res), id.parse(req.params.id), input, { executor: "human" }));
   }));
   return router;
 }

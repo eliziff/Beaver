@@ -35,6 +35,13 @@ it("keeps a failed suggestion from replacing the last usable preview", async () 
   expect(await screen.findByDisplayValue("Finding")).toBeVisible();
   expect(api.openWorkspaceTable).not.toHaveBeenCalled();
 });
+it("shows the proposal rejection alongside the preserved workspace columns", async () => {
+  api.previewWorkspaceTable.mockResolvedValueOnce({ ...preview, fallback: "The proposal omitted the saved concept Notice" });
+  render(<ImportResearchSet open onClose={vi.fn()} onOpen={vi.fn()} fileId="workspace" />);
+  await ready();
+  expect(screen.getByRole("status")).toHaveTextContent("omitted the saved concept Notice");
+  expect(screen.getByDisplayValue("Finding")).toBeVisible();
+});
 it("shows proposed columns and marks genuinely unanswered questions", async () => {
   render(<ImportResearchSet open onClose={vi.fn()} onOpen={vi.fn()} fileId="workspace" />);
   await ready(); api.previewWorkspaceTable.mockResolvedValueOnce({ ...preview, design: { ...preview.design,

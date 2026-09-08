@@ -62,6 +62,7 @@ const previewText = (text: string) => text.length > PREVIEW_TEXT ? `${text.slice
 interface Props {
     doc: Document | null;
     versionId?: string | null;
+    highlightCells?: { sheet?: string; cell?: string }[];
     currentVersionId?: string | null;
     versions: DocumentVersion[];
     versionsLoading: boolean;
@@ -192,7 +193,7 @@ function ResearchFilePreview({ documentId }: { documentId: string }) {
 }
 
 export function DocumentSidePanel({
-    doc,
+    doc, highlightCells,
     versionId,
     currentVersionId,
     versions,
@@ -586,7 +587,7 @@ export function DocumentSidePanel({
                         documentId={activeDoc.id}
                         kind={viewerKind}
                         {...(savedQuotes.length && (viewerKind === "docx" || viewerKind === "pdf") ? { quotes: savedQuotes } : {})}
-                        filename={filename}
+                        filename={filename} highlightCells={highlightCells}
                         versionId={selectedId}
                         preferPdfRendition={isDocx}
                         refetchKey={revision ?? undefined}

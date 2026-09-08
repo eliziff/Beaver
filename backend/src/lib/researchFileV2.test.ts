@@ -875,9 +875,10 @@ describe("Research v2 parts", () => {
     ] }, undefined, model), history = await readResearchHistory(f.documents as never, scope, classified);
     expect(classified.state.proposals).toEqual([]);
     expect((await pageResearchItems(f.documents as never, scope, classified, "passages")).items)
-      .toMatchObject([{ value: { receipt: passage, labelIds: [highlightLabel] } }]);
+      .toMatchObject([{ value: { receipt: passage, labelIds: [sourceLabel] } },
+        { value: { receipt: passage, labelIds: [highlightLabel] } }]);
     expect(history.at(-1)).toMatchObject({ title: "Organize selected passages", status: "applied",
-      counts: { labels: 2, sources: 1, passages: 1 }, executor: "assistant", model: "model-a" });
+      counts: { labels: 2, sources: 1, passages: 2 }, executor: "assistant", model: "model-a" });
     const undone = await act(f, { type: "undo", changeId: history.at(-1)!.id });
     expect(undone.state.labels).toEqual({});
     expect((await pageResearchItems(f.documents as never, scope, undone, "evidence")).items)
@@ -972,8 +973,8 @@ describe("Research v2 parts", () => {
     const initial = await act(f, { type: "merge", evidence: [passage], labels: { [passage.evidence_id]: [highlightLabel] } }),
       sourceId = Object.keys(initial.state.sources)[0];
     await act(f, { type: "annotate", kind: "source", id: sourceId, labelIds: [sourceLabel] });
-    let file = await act(f, { type: "label-selection", target: "passages", evidenceIds: [passage.evidence_id],
-      assign: [other], mode: "add" });
+    let file = await act(f, { type: "annotate", kind: "evidence", sourceId, id: passage.evidence_id,
+      labelIds: [other] });
     const change = (await readResearchHistory(f.documents as never, scope, file)).at(-1)!;
     expect((await pageResearchItems(f.documents as never, scope, file, "passages")).items)
       .toMatchObject([{ value: { receipt: passage, labelIds: [other] } }]);

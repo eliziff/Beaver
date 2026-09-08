@@ -14,7 +14,7 @@ import { searchHighlightRanges } from "@/app/lib/searchHighlight";
 import remend from "remend";
 import remarkGfm from "remark-gfm";
 import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
-import type { Citation } from "@/app/lib/citations";
+import { getDocumentCitationQuotes, type Citation } from "@/app/lib/citations";
 import { withoutMarkdownNode } from "./messageStyles";
 import {
     citationPillParts,
@@ -101,13 +101,14 @@ export function CitationPill({
     sourceOnly?: boolean;
     children?: ReactNode;
 }) {
-    const label = citationPillParts(citation, sourceOnly);
+    const label = citationPillParts(citation, sourceOnly), target = getDocumentCitationQuotes(citation)[0];
     const content = label.styleOfCause ? (
         <><em className={truncateStyleOfCause ? "min-w-0 max-w-56 truncate" : undefined}>{label.styleOfCause}</em><span className={truncateStyleOfCause ? "shrink-0 whitespace-nowrap" : undefined}>{label.rest}</span></>
     ) : label.rest;
     const pillClassName = `${LEGAL_CITATION_PILL} ${truncateStyleOfCause && label.styleOfCause ? "!inline-flex !whitespace-nowrap" : ""} ${className}`;
     const href = citation.kind === "document" ? `/library?${new URLSearchParams({ document_id: citation.document_id,
-        ...(citation.version_id ? { version_id: citation.version_id } : {}) })}`
+        ...(citation.version_id ? { version_id: citation.version_id } : {}),
+        ...(target?.sheet ? { sheet: target.sheet } : {}), ...(target?.cell ? { cell: target.cell } : {}) })}`
         : citation.kind === "tabular" ? `/tabular-reviews/${encodeURIComponent(citation.review_id)}`
         : safeAssistantUrl(citation.external_url ?? citation.url, { relative: false });
     return <span className="group/citation inline-flex max-w-full items-baseline" onClick={(event) => event.stopPropagation()}>

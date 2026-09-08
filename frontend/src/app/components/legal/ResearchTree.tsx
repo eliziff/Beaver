@@ -23,11 +23,11 @@ export const ROW_ACTIONS = "flex w-14 shrink-0 items-center justify-end gap-0.5 
 export const ROW_COUNT = "w-6 shrink-0 text-end text-xs tabular-nums text-gray-500";
 
 /** Virtual folders navigate one source list. A source never needs an exclusive location. */
-export function ResearchTree({ reader, sources, navigationSources = sources, filter = "",
+export function ResearchTree({ scope = "source", reader, sources, navigationSources = sources, filter = "",
   labelId = null, onLabelChange = () => undefined, selectedSourceId,
   opened = NO_ROWS, setOpened = () => undefined, passageVisible = () => true,
   onRemove = () => undefined, onStatus = () => undefined, onSourceDrag, preview, passagePages: suppliedPages }: {
-  reader?: SourceReader; sources: ResearchSource[]; navigationSources?: ResearchSource[]; filter?: string;
+  scope?: "source" | "highlight"; reader?: SourceReader; sources: ResearchSource[]; navigationSources?: ResearchSource[]; filter?: string;
   labelId?: string | null; onLabelChange?: (id: string | null) => void;
   passagePages?: ReturnType<typeof useSourcesWorkspace>["passages"]; selectedSourceId?: string;
   opened?: Set<string>; setOpened?: Dispatch<SetStateAction<Set<string>>>;
@@ -37,6 +37,7 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
 }) {
   const { file, mutations: commit, passages } = useSourcesWorkspace();
   const passagePages = suppliedPages ?? passages, labels = preview?.labels ?? file?.state.labels ?? {};
+  const [selectedHighlight, setSelectedHighlight] = useState<string | null>(null);
   const [labelTarget, setLabelTarget] = useState<ResearchLabelTarget | null>(null);
   if (!file) return null;
   const mark = (id: string) => preview?.marks[id];
@@ -56,8 +57,8 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
     return href.startsWith("/") ? <Link to={href} aria-label={label} title="Open" className={className}>{inner}</Link>
       : <a href={href} aria-label={label} title="Open" className={className}>{inner}</a>;
   }
-  function sourceRow(source: ResearchSource) {
-    const name = sourceName(source), open = opened.has(source.id), count = researchHighlightCount(source);
+  function sourceRow(source: ResearchSource, count: number) {
+    const name = sourceName(source), open = opened.has(source.id);
     return <div className={`${ROW} ${selectedSourceId === source.id ? "bg-gray-100" : "hover:bg-gray-50"}`} draggable={!preview}
       onDragStart={(event) => { onSourceDrag?.(); event.dataTransfer.setData(RESEARCH_SOURCE_DRAG, source.id); }}>
       {preview ? <span className="size-6 shrink-0" /> : chevron(open, `Passages in ${name}`, () => openSource(source.id))}
@@ -78,23 +79,23 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
   }
 
   function passageRow(source: ResearchSource, item: ResearchEvidence) {
-    const locator = passageLabel(item.receipt.locator);
-    const color = item.labelIds[0] ? researchLabelColor(labels[item.labelIds[0]]) : "#d1d5db";
+    const locator = passageLabel(item.receipt.locator), id = item.highlightId ?? item.receipt.evidence_id;
+    const color = labels[item.labelIds[0]] ? researchLabelColor(labels[item.labelIds[0]]) : "#d1d5db";
     const quote = trimPassageMarker(item.receipt.span_text ?? "", item.receipt.locator);
     return <div draggable onDragStart={(event) => event.dataTransfer.setData(RESEARCH_PASSAGE_DRAG, JSON.stringify(item))}
       title={[locator, quote, item.note].filter(Boolean).join(NEWLINE)}
-      className={`${ROW} hover:bg-gray-50`}>
+      className={`${ROW} ${selectedHighlight === id ? "bg-gray-100" : "hover:bg-gray-50"}`}>
       <span className="size-6 shrink-0" />
       <span className="h-4 w-1 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-      <span className="min-w-0 flex-1 truncate text-xs text-gray-600">
+      <button type="button" onClick={() => setSelectedHighlight(id)} className="min-w-0 flex-1 truncate text-start text-xs text-gray-600">
         <span className="font-medium text-gray-700">{locator}</span> {quote}
-      </span>
+      </button>
       <span className={ROW_ACTIONS}>
         {openControl(source, sourceName(source), item.receipt.locator.label, item.receipt.evidence_id, locator)}
         <MoreActionsMenu label={`${locator} options`} items={[
-          { label: "Highlight type", onSelect: () => setLabelTarget({ file: file!, kind: "evidence", itemId: item.receipt.evidence_id,
+          { label: "Highlight type", onSelect: () => setLabelTarget({ file: file!, kind: "evidence", itemId: id,
             sourceId: source.id, labelIds: item.labelIds, note: item.note, title: locator }) },
-          { label: "Delete", onSelect: () => onRemove({ kind: "evidence", id: item.receipt.evidence_id, sourceId: source.id, name: locator }) },
+          { label: "Delete", onSelect: () => onRemove({ kind: "evidence", id, sourceId: source.id, name: locator }) },
         ]} />
       </span>
       <span className={ROW_COUNT} />
@@ -102,14 +103,17 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
   }
 
   /** One tree: labels nest, and each source hangs under every label it carries. */
-  const sourceNode = (source: ResearchSource, key: string) => {
-    const page = passagePages.chains[source.id];
-    return <div key={key} role="treeitem" aria-label={sourceName(source)}
+  const sourceNode = (source: ResearchSource, labelId: string | null) => {
+    const page = passagePages.chains[source.id], path = (id: string) => JSON.stringify(researchLabelPath(labels, id).map(({ name }) => name)),
+      matched = labelId === null ? [] : scope === "highlight" ? [labelId] : Object.values(labels).filter((label) => label.scope === "highlight" && path(label.id) === path(labelId)).map(({ id }) => id),
+      types = matched.length ? new Set(matched) : null,
+      count = types ? [...types].reduce((sum, id) => sum + (source.passages?.labelCounts[id] ?? 0), 0) : researchHighlightCount(source);
+    return <div key={`${labelId ?? ""}:${source.id}`} role="treeitem" aria-label={sourceName(source)}
       aria-expanded={opened.has(source.id)} aria-selected={selectedSourceId === source.id}>
-      {sourceRow(source)}
+      {sourceRow(source, count)}
       {opened.has(source.id) && !preview && <div role="group" className="ms-4">
-        {page?.items.flatMap((item) => (item.kind === "passage" || item.kind === "evidence") && passageVisible(item.value)
-          ? [<div key={item.value.receipt.evidence_id} role="treeitem" aria-label={item.value.receipt.locator.label}>
+        {page?.items.flatMap((item) => (item.kind === "passage" || item.kind === "evidence") && passageVisible(item.value) && (!types || item.value.labelIds.some((id) => types.has(id)))
+          ? [<div key={item.value.highlightId ?? item.value.receipt.evidence_id} role="treeitem" aria-selected={selectedHighlight === (item.value.highlightId ?? item.value.receipt.evidence_id)} aria-label={item.value.receipt.locator.label}>
               {passageRow(source, item.value)}
             </div>] : [])}
         {page?.loading && !page.items.length && <p role="status" className={`${ROW} text-xs text-gray-500`}>Loading passages…</p>}
@@ -121,15 +125,16 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
     </div>;
   };
   // Ancestors count inherited membership; rows appear only at the deepest explicit filing in each branch.
-  const under = (labelId: string | null) => sources.filter((source) => labelId
+  const under = (labelId: string | null) => sources.filter((source) => scope === "highlight"
+    ? !!labelId && !!source.passages?.labelCounts[labelId] : labelId
     ? source.labelIds.includes(labelId) && !source.labelIds.some((id) => id !== labelId &&
         researchLabelPath(labels, id).some(({ id: ancestor }) => ancestor === labelId))
     : !source.labelIds.some((id) => labels[id]?.scope === "source"));
 
   return <>
-    <ResearchLabelTree scope="source" sources={navigationSources} selectedId={labelId} onSelect={onLabelChange}
+    <ResearchLabelTree scope={scope} sources={navigationSources} selectedId={labelId} onSelect={onLabelChange}
       onRemove={onRemove} onStatus={onStatus} preview={preview}
-      renderSources={(id) => under(id).map((source) => sourceNode(source, `${id ?? ""}:${source.id}`))} />
+      renderSources={(id) => under(id).map((source) => sourceNode(source, id))} />
     {!sources.length && <p className="p-2 text-xs text-gray-500">{filter || labelId ? "No matching sources." : "No sources yet."}</p>}
     {labelTarget && <ResearchLabelEditor target={labelTarget} mutations={commit} onError={onStatus} onClose={() => setLabelTarget(null)} />}
   </>;

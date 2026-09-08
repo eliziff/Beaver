@@ -25,7 +25,7 @@ function presentLegalEvidenceLocator(
   labels: readonly string[],
 ): CitationPresentation["locator"] {
   if (kind === "document") return null;
-  const values = [...new Set(labels.map(locatorValue).filter(Boolean))];
+  const values = [...new Set(labels.map((label) => kind === "cell" || kind === "sheet" ? label.trim() : locatorValue(label)).filter(Boolean))];
   if (!values.length) return null;
   const value = values.join(", ");
   const plural = values.length > 1 || value.includes("\u2013");
@@ -127,7 +127,9 @@ export function presentLegalEvidence(
       receipt.provider === "journal" ? citation.split(/, “/u)[0] || name || "Source"
         : name || citation || "Source",
     ),
-    locator: presentLegalEvidenceLocator(locatorKind, locatorLabels),
+    locator: receipt.provider === "library" && locatorKind === "document" && receipt.locator.label !== "document"
+      ? { separator: " at ", text: receipt.locator.label, label: receipt.locator.label }
+      : presentLegalEvidenceLocator(locatorKind, locatorLabels),
     sourceUrl: citationUrl,
     passageUrl,
   };
