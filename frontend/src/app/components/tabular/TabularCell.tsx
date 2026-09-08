@@ -1,4 +1,3 @@
-import { CitationPill } from "../assistant/message/MarkdownContent";
 import { memo } from "react";
 import { AlertCircle } from "lucide-react";
 import type { ColumnConfig, TabularCell as TCell } from "@/app/lib/api/tabular";
@@ -38,10 +37,10 @@ export const TabularCell = memo(function TabularCell({ cell, column, onExpand, o
                 </div>
                 {(answer.flag || !!citations.length) && <span className="relative flex shrink-0 items-center gap-1.5">
                     {answer.flag && <FlagDot flag={answer.flag} />}
-                    {!!citations.length && <CitationPill citation={citations[0]!}
-                        onClick={(citation, action) => onCitationClick(cell, citation, action)}
+                    {!!citations.length && <button type="button" onClick={() => onCitationClick(cell, citations[0]!)}
+                        aria-label={`Show references for ${column?.name ?? "cell"}`}
                         title={`${citations.length} citation${citations.length === 1 ? "" : "s"}`}
-                        className="!bg-gray-50 !px-1 !text-[10px] !text-gray-600 !ring-gray-300">{citations.length}</CitationPill>}
+                        className="rounded bg-gray-50 px-1 text-[10px] text-gray-600 ring-1 ring-gray-300 focus-visible:outline focus-visible:outline-2">{citations.length}</button>}
                 </span>}
             </>}
     </div>;

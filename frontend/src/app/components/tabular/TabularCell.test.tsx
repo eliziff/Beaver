@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import type { ColumnConfig, TabularCell as TCell } from "@/app/lib/api/tabular";
 import { TabularCell } from "./TabularCell";
@@ -24,4 +24,16 @@ it("marks the answer with the shared flag", () => {
     renderCell(done({ summary: "Yes", value: true, flag: "green", claims: [], evidence: [], outcome: "answered", coverage: "complete" }), column("yes_no"));
     expect(screen.getByRole("img", { name: "Supported" })).toBeInTheDocument();
     expect(screen.getByText("Yes")).toBeInTheDocument();
+});
+
+it("reveals bare reference counts in the app", () => {
+    const evidence = [1, 2, 3].map((id) => ({ evidence_id: String(id), provider: "a2aj", stable_source_id: "case",
+        name: "Example case", citation: "Example case", span_text: `Passage ${id}`,
+        external_url: "https://example.com/case", locator: { kind: "paragraph", label: String(id) } }));
+    const cell = done({ summary: "Supported result", claims: [{ text: "Supported result", evidence_ids: ["1", "2", "3"] }],
+        evidence } as NonNullable<TCell["content"]>), reveal = vi.fn();
+    render(<TabularCell cell={cell} column={column("text")} onExpand={vi.fn()} onCitationClick={reveal} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show references for Amount" }));
+    expect(screen.queryByRole("link", { name: "3" })).not.toBeInTheDocument();
+    expect(reveal).toHaveBeenCalledWith(cell, expect.objectContaining({ ref: 1 }));
 });
