@@ -80,6 +80,39 @@ export const revisionAttrs = (id: string, author: string, date: string) => ({
     "w:date": date,
 });
 
+/** Exact paragraph-child replacement; alignment and style selection belong to the planner. */
+export type DocxRevisionPlan = {
+    start: number;
+    end: number;
+    replacement: XNode[];
+    insertion?: Record<string, string>;
+    deletion?: { nodes: XNode[]; attributes: Record<string, string> };
+};
+
+export function emitDocxRevisionPlan(source: XNode[], plans: DocxRevisionPlan[]): XNode[] {
+    const deleted = (node: XNode): XNode => {
+        const name = elName(node);
+        if (!name) return cloneNode(node);
+        return { [name === "w:t" ? "w:delText" : name === "w:instrText" ? "w:delInstrText" : name]:
+            elChildren(node).map(deleted), ...(node[ATTR_KEY] ? { [ATTR_KEY]: elAttrs(node) } : {}) };
+    };
+    const output: XNode[] = [];
+    let cursor = 0;
+    for (const plan of plans) {
+        if (!Number.isSafeInteger(plan.start) || !Number.isSafeInteger(plan.end) ||
+            plan.start < cursor || plan.end < plan.start || plan.end > source.length)
+            throw new Error("Invalid or overlapping DOCX revision plan");
+        output.push(...source.slice(cursor, plan.start));
+        const insertion = plan.insertion
+            ? [makeEl("w:ins", plan.replacement, plan.insertion)] : plan.replacement;
+        const deletion = plan.deletion
+            ? [makeEl("w:del", plan.deletion.nodes.map(deleted), plan.deletion.attributes)] : [];
+        output.push(...deletion, ...insertion);
+        cursor = plan.end;
+    }
+    return [...output, ...source.slice(cursor)];
+}
+
 export function markParagraphRevision(
     paragraph: XNode,
     kind: "w:ins" | "w:del",
@@ -102,18 +135,14 @@ export function markParagraphRevision(
 // emitted as <w:br/> soft line breaks (interleaved with w:t/w:delText
 // segments) so models can request multi-line replacements without the
 // literal "\n" showing up as visible text.
-function buildRun(rPr: XNode | null, text: string, tagName: "w:t" | "w:delText"): XNode {
+export function buildRun(rPr: XNode | null, text: string, tagName: "w:t" | "w:delText", tabs = false): XNode {
     const children: XNode[] = [];
     if (rPr) children.push(cloneNode(rPr));
-    const segments = text.split("\n");
-    for (let i = 0; i < segments.length; i++) {
-        if (i > 0) children.push(makeEl("w:br", []));
-        const seg = segments[i];
-        if (seg.length > 0) {
-            children.push(
-                makeEl(tagName, [makeText(seg)], { "xml:space": "preserve" }),
-            );
-        }
+    const segments = text.split(tabs ? /(\t|\n)/u : /(\n)/u).filter(Boolean);
+    for (const segment of segments) {
+        children.push(segment === "\n" ? makeEl("w:br", [])
+            : tabs && segment === "\t" ? makeEl("w:tab", [])
+            : makeEl(tagName, [makeText(segment)], { "xml:space": "preserve" }));
     }
     return makeEl("w:r", children);
 }
@@ -202,7 +231,7 @@ function spanAt(spans: readonly { end: number }[], position: number): number {
 }
 
 /** Rewrite only the runs touched by sorted, non-overlapping changes. */
-function reconstructParagraph(
+function planParagraphRevision(
     flat: DocxParagraphIndex,
     plan: PlannedChange[],
     now: string,
@@ -221,6 +250,7 @@ function reconstructParagraph(
     const firstRun = flat.editRuns[firstRunIdx];
     const lastRun = flat.editRuns[lastRunIdx];
     const newRunGroup: XNode[] = [];
+    const revisions: DocxRevisionPlan[] = [];
     const emitText = (start: number, end: number, deletionId?: string) => {
         if (start >= end) return;
         const output = deletionId === undefined ? newRunGroup : [];
@@ -236,9 +266,9 @@ function reconstructParagraph(
                     deletionId === undefined ? "w:t" : "w:delText"));
             }
         }
-        if (deletionId !== undefined) newRunGroup.push(
-            makeEl("w:del", output, revisionAttrs(deletionId, author, now)),
-        );
+        if (deletionId !== undefined) revisions.push({ start: newRunGroup.length,
+            end: newRunGroup.length, replacement: [],
+            deletion: { nodes: output, attributes: revisionAttrs(deletionId, author, now) } });
     };
 
     let cursor = firstRun.start;
@@ -247,9 +277,9 @@ function reconstructParagraph(
         if (change.insertedText) {
             const position = change.deleteStart === lastRun.end
                 ? change.deleteStart - 1 : change.deleteStart;
-            newRunGroup.push(makeEl("w:ins", [buildRun(
-                flat.editRuns[runAt(position)].rPr, change.insertedText, "w:t",
-            )], revisionAttrs(change.insWId!, author, now)));
+            revisions.push({ start: newRunGroup.length, end: newRunGroup.length,
+                replacement: [buildRun(flat.editRuns[runAt(position)].rPr, change.insertedText, "w:t")],
+                insertion: revisionAttrs(change.insWId!, author, now) });
         }
         if (change.deleteEnd > change.deleteStart)
             emitText(change.deleteStart, change.deleteEnd, change.delWId!);
@@ -262,8 +292,9 @@ function reconstructParagraph(
     for (let index = firstRun.childIndex; index <= lastRun.childIndex; index++) {
         if (elName(flat.children[index]) === "w:del") dropped.add(index);
     }
+    const revised = emitDocxRevisionPlan(newRunGroup, revisions);
     return flat.children.flatMap((child, index) =>
-        index === firstRun.childIndex ? newRunGroup : dropped.has(index) ? [] : [child]);
+        index === firstRun.childIndex ? revised : dropped.has(index) ? [] : [child]);
 }
 
 function touchesContentControl(flat: DocxParagraphIndex, start: number, end: number): boolean {
@@ -438,20 +469,30 @@ export async function applyTrackedEdits(
         const source = edits[sourceIndex];
         const find = (source.find ?? "").replace(/\r\n?/g, "\n");
         const replace = (source.replace ?? "").replace(/\r\n?/g, "\n");
-        if (!find.includes("\n") && !replace.includes("\n")) {
-            concreteEdits.push({ edit: source, sourceIndex });
+        const multiline = find.includes("\n") || replace.includes("\n");
+        if (!find && (!replace || !source.context_before && !source.context_after &&
+            !Number.isSafeInteger(source.exact_start))) {
+            errors.push({ index: sourceIndex, reason: replace
+                ? "Pure insertion requires context_before or context_after." : "Empty edit." });
             continue;
         }
-
-        const matched = locateEdit(bodyNorm, bodyText.length, source);
+        const hasExact = Number.isSafeInteger(source.exact_start) && Number.isSafeInteger(source.exact_end);
+        const matched = hasExact
+            ? { start: source.exact_start!, end: source.exact_end! }
+            : locateEdit(bodyNorm, bodyText.length, source);
         if ("error" in matched) {
-            errors.push({
-                index: sourceIndex,
-                reason:
-                    matched.error === "ambiguous"
-                        ? "Ambiguous match for the multi-paragraph edit; the document is unchanged."
-                        : "Could not locate the multi-paragraph edit; the document is unchanged.",
-            });
+            errors.push({ index: sourceIndex, reason: multiline
+                ? matched.error === "ambiguous"
+                    ? "Ambiguous match for the multi-paragraph edit; the document is unchanged."
+                    : "Could not locate the multi-paragraph edit; the document is unchanged."
+                : matched.error === "ambiguous"
+                    ? "Ambiguous match for this edit; the document is unchanged."
+                    : "Could not locate this edit on the current document text plane; the document is unchanged." });
+            continue;
+        }
+        if (!multiline) {
+            concreteEdits.push({ edit: { ...source, find: hasExact ? source.find : bodyText.slice(matched.start, matched.end),
+                exact_start: matched.start, exact_end: matched.end }, sourceIndex });
             continue;
         }
 
@@ -512,78 +553,26 @@ export async function applyTrackedEdits(
         const { edit, sourceIndex: editIdx } = concreteEdits[concreteIndex];
         const find = edit.find ?? "";
         const replace = edit.replace ?? "";
-        const ctxBefore = edit.context_before ?? "";
-        const ctxAfter = edit.context_after ?? "";
-
-        if (!find && !replace) {
-            errors.push({ index: editIdx, reason: "Empty edit." });
-            continue;
-        }
-        if (!find && !ctxBefore && !ctxAfter) {
-            errors.push({
-                index: editIdx,
-                reason: "Pure insertion requires context_before or context_after.",
-            });
-            continue;
-        }
-
         let paraIdx = -1;
         let findStart = -1;
         let findEnd = -1;
-        const hasExact =
-            Number.isSafeInteger(edit.exact_start) &&
-            Number.isSafeInteger(edit.exact_end);
-        if (hasExact) {
-            const exactStart = edit.exact_start!;
-            const exactEnd = edit.exact_end!;
-            if (exactStart < 0 || exactEnd < exactStart) {
-                errors.push({ index: editIdx, reason: "Invalid exact edit span." });
-                continue;
-            }
-            paraIdx = paragraphIndexForRange(paragraphs, exactStart, exactEnd);
-            if (paraIdx < 0) {
-                errors.push({
-                    index: editIdx,
-                    reason: "Exact edit span must resolve inside one paragraph.",
-                });
-                continue;
-            }
-            const paragraph = paragraphs[paraIdx];
-            findStart = exactStart - paragraph.globalStart;
-            findEnd = exactEnd - paragraph.globalStart;
-            if (
-                paragraph.acceptedText.slice(findStart, findEnd) !== find
-            ) {
-                errors.push({
-                    index: editIdx,
-                    reason: "Exact edit span no longer matches the pinned text.",
-                });
-                continue;
-            }
-        } else {
-            const hit = locateEdit(bodyNorm, bodyText.length, edit);
-            if (!("error" in hit)) {
-                paraIdx = paragraphIndexForRange(
-                    paragraphs,
-                    hit.start,
-                    hit.end,
-                );
-                if (paraIdx >= 0) {
-                    findStart = hit.start - paragraphs[paraIdx].globalStart;
-                    findEnd = hit.end - paragraphs[paraIdx].globalStart;
-                }
-            }
-
-            if (paraIdx < 0) {
-                errors.push({
-                    index: editIdx,
-                    reason:
-                        "error" in hit && hit.error === "ambiguous"
-                            ? "Ambiguous match for this edit; the document is unchanged."
-                            : "Could not locate this edit on the current document text plane; the document is unchanged.",
-                });
-                continue;
-            }
+        const exactStart = edit.exact_start!;
+        const exactEnd = edit.exact_end!;
+        if (exactStart < 0 || exactEnd < exactStart) {
+            errors.push({ index: editIdx, reason: "Invalid exact edit span." });
+            continue;
+        }
+        paraIdx = paragraphIndexForRange(paragraphs, exactStart, exactEnd);
+        if (paraIdx < 0) {
+            errors.push({ index: editIdx, reason: "Exact edit span must resolve inside one paragraph." });
+            continue;
+        }
+        const paragraph = paragraphs[paraIdx];
+        findStart = exactStart - paragraph.globalStart;
+        findEnd = exactEnd - paragraph.globalStart;
+        if (paragraph.acceptedText.slice(findStart, findEnd) !== find) {
+            errors.push({ index: editIdx, reason: "Exact edit span no longer matches the pinned text." });
+            continue;
         }
 
         const originalFind = paragraphs[paraIdx].acceptedText.slice(
@@ -686,7 +675,7 @@ export async function applyTrackedEdits(
 
     for (const [paraIdx, plan] of plansPerParagraph) {
         const paragraph = paragraphs[paraIdx];
-        setChildren(paragraph.node, reconstructParagraph(paragraph, plan, now, author));
+        setChildren(paragraph.node, planParagraphRevision(paragraph, plan, now, author));
     }
 
     session.writeDocument(tree);
@@ -773,13 +762,8 @@ export async function insertTrackedBlocks(
             contextAfter,
             diff: [{ kind: "insert", text: block }],
         });
-        const paragraph = makeEl("w:p", [
-            makeEl("w:ins", [
-                makeEl("w:r", [
-                    makeEl("w:t", [makeText(block)], { "xml:space": "preserve" }),
-                ]),
-            ], attrs),
-        ]);
+        const paragraph = makeEl("w:p", emitDocxRevisionPlan([], [{ start: 0, end: 0,
+            replacement: [buildRun(null, block, "w:t")], insertion: attrs }]));
         markParagraphRevision(paragraph, "w:ins", attrs);
         return paragraph;
     });

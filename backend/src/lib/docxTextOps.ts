@@ -221,17 +221,6 @@ export async function planTextOps(
   return { replacements: all, reports };
 }
 
-/** Context anchors for one replacement, bounded to its own paragraph. */
-function contextAround(docText: string, start: number, end: number) {
-  const lineStart = docText.lastIndexOf("\n", start - 1) + 1;
-  let lineEnd = docText.indexOf("\n", end);
-  if (lineEnd < 0) lineEnd = docText.length;
-  return {
-    context_before: docText.slice(Math.max(lineStart, start - 60), start),
-    context_after: docText.slice(end, Math.min(lineEnd, end + 60)),
-  };
-}
-
 /**
  * Apply deterministic text ops to DOCX bytes; returns the redlined bytes and
  * one accept/rejectable tracked edit per replacement. Store-agnostic —
@@ -255,7 +244,8 @@ export async function applyTextOpsToDocx(
   const edits: EditInput[] = replacements.map((r) => ({
     find: docText.slice(r.start, r.end),
     replace: r.text,
-    ...contextAround(docText, r.start, r.end),
+    exact_start: r.start, exact_end: r.end,
+    context_before: "", context_after: "",
   }));
   const applied = await applyTrackedEdits(originalBytes, edits, {
     author: "Beaver",

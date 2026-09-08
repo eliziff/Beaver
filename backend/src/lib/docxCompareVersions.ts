@@ -29,6 +29,7 @@ import {
     openDocxSession,
 } from "./docx/session";
 import {
+    buildRun, emitDocxRevisionPlan, type DocxRevisionPlan,
     clusterTextChanges,
     markParagraphRevision,
     normalizeWs,
@@ -366,26 +367,12 @@ const KEEP_PARA_CHILDREN = new Set([
     "w:commentRangeEnd",
 ]);
 
-function buildDelWrapper(
-    deleted: string,
-    rPr: XNode | null,
-    author: string,
-    date: string,
-    id: string,
-): XNode {
-    const kids = deleted.split(/(\t|\n)/u).filter(Boolean).map((text) =>
-        text === "\t" ? makeEl("w:tab", []) : text === "\n" ? makeEl("w:br", [])
-            : makeEl("w:delText", [makeText(text)], { "xml:space": "preserve" }));
-    if (rPr) kids.unshift(cloneNode(rPr));
-    return makeEl("w:del", [makeEl("w:r", kids)], revisionAttrs(id, author, date));
-}
-
 interface RebuildResult {
     children: XNode[];
     notes: string[];
 }
 
-function rebuildParagraphChildren(
+function planComparisonRevision(
     pNode: XNode,
     flat: { atoms: DocxRewriteAtom[]; text: string },
     clusters: DiffCluster[],
@@ -395,6 +382,7 @@ function rebuildParagraphChildren(
 ): RebuildResult {
     const notes: string[] = [];
     const out: XNode[] = [];
+    const plans: DocxRevisionPlan[] = [];
     const pPr = elChildren(pNode).find((k) => elName(k) === "w:pPr");
     if (pPr) out.push(pPr);
 
@@ -418,7 +406,8 @@ function rebuildParagraphChildren(
     const closeRegion = () => {
         run = null;
         if (insertion) {
-            out.push(makeEl("w:ins", insertion.runs, revisionAttrs(nextId(), author, date)));
+            plans.push({ start: out.length, end: out.length, replacement: insertion.runs,
+                insertion: revisionAttrs(nextId(), author, date) });
             insertion = null;
         }
     };
@@ -452,8 +441,9 @@ function rebuildParagraphChildren(
             const cluster = clusters[nextCluster++];
             if (cluster.deleted) {
                 closeRegion();
-                out.push(buildDelWrapper(cluster.deleted, rPrForPos(cluster.newStart),
-                    author, date, nextId()));
+                plans.push({ start: out.length, end: out.length, replacement: [], deletion: {
+                    nodes: [buildRun(rPrForPos(cluster.newStart), cluster.deleted, "w:delText", true)],
+                    attributes: revisionAttrs(nextId(), author, date) } });
             }
             active = cluster;
         }
@@ -489,7 +479,7 @@ function rebuildParagraphChildren(
     }
     advance(position);
     closeRegion();
-    return { children: out, notes };
+    return { children: emitDocxRevisionPlan(out, plans), notes };
 }
 
 const DELETED_RUN_TEXTUAL = new Set([
@@ -612,13 +602,8 @@ function buildDeletedParagraph(
         paraKids.push(c);
     }
     if (runs.length) {
-        paraKids.push(
-            makeEl(
-                "w:del",
-                runs,
-                revisionAttrs(nextId(), author, date),
-            ),
-        );
+        paraKids.push(...emitDocxRevisionPlan([], [{ start: 0, end: 0, replacement: [],
+            deletion: { nodes: runs, attributes: revisionAttrs(nextId(), author, date) } }]));
     }
     const node = makeEl("w:p", paraKids);
     markParagraphRevision(
@@ -694,13 +679,8 @@ function markParagraphInserted(
         let group: XNode[] = [];
         const flush = () => {
             if (group.length) {
-                next.push(
-                    makeEl(
-                        "w:ins",
-                        group,
-                        revisionAttrs(nextId(), author, date),
-                    ),
-                );
+                next.push(...emitDocxRevisionPlan([], [{ start: 0, end: 0, replacement: group,
+                    insertion: revisionAttrs(nextId(), author, date) }]));
                 group = [];
             }
         };
@@ -908,7 +888,7 @@ export async function compareDocxVersions(
         }
         const clusters = wordDiffClusters(oldB.text, newB.text);
         if (clusters.length === 0) return;
-        const rebuilt = rebuildParagraphChildren(
+        const rebuilt = planComparisonRevision(
             newB.node,
             flattened,
             clusters,
