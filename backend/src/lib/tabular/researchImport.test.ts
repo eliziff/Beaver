@@ -189,3 +189,20 @@ it("uses the configured model only for a requested design and validates its retu
   response = JSON.stringify({ ...accepted, columns: accepted.columns.slice(1), cells: [] });
   await expect(app.designResearch({ userId: "owner" }, catalog, "Compare terms")).rejects.toThrow(/omitted the saved concept “Contract”/u);
 });
+it("maps joint findings to each receipt's source without changing their full grounding", () => {
+  const f = fixture(), other = createA2AJPassageEvidence({ citation: "Input 2", name: "Second agreement", dataset: "test", language: "en",
+    sourceText: "Notice is required.", spanText: "Notice is required.", start: 0, end: 19,
+    externalUrl: null, sourceClass: "case", sourceReference: { id: "input-2" } }),
+    answer = finding(f, "Joint conclusion");
+  answer.evidence.push(other);
+  answer.answer.claims[0].evidence_ids.push(other.evidence_id);
+  for (const rows of ["sources", "passages"] as const) {
+    const catalog = researchImportCatalog(f.file, f.subjects, f.parts, [answer], { rows }),
+      entries = catalog.entries.filter(({ kind }) => kind === "answer");
+    expect(entries).toHaveLength(1);
+    expect(entries[0].evidenceIds).toEqual([f.receipts[0].evidence_id]);
+    expect(entries[0].reference).toEqual(answer.reference);
+  }
+  expect(answer.answer.claims[0].evidence_ids).toContain(other.evidence_id);
+  expect(answer.evidence).toContain(other);
+});

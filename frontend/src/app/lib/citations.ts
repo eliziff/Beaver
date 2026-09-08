@@ -25,7 +25,7 @@ export type DocumentCitation = CitationDisplay & {
   document_id: string;
   version_id?: string | null;
   version_number?: number | null;
-  filename: string;
+  filename: string; sheet?: string; cells?: string;
   quotes: DocumentCitationQuote[];
   locator_kind?: "document" | "paragraph" | "page" | "section" | "footnote" | "sheet" | "cell";
   locator?: string | null;
