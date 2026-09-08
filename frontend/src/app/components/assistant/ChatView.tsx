@@ -53,6 +53,7 @@ import { ChatFindingActions } from "./ChatFindingActions";
 import type { ResearchSelection } from "@/app/lib/researchFiles";
 import { SourcesWorkspace, useSourcesWorkspace } from "../legal/SourcesWorkspace";
 import type { AssistantIntent } from "./assistantIntent";
+import { ResearchWorkspaceHost } from "../legal/ResearchWorkspaceHost";
 import { InitialDockPanel } from "./InitialDockPanel";
 interface Props {
     initialDraft?: import("@/app/lib/api/chat").ChatDraft | null;
@@ -129,7 +130,7 @@ export function legalCitationTab(
             citationRef: citation.ref,
             quotes,
             initialLocator:
-                normalizeLegalSourceLocator(citation.locator_kind === "paragraph" ? citation.pinpoint ?? citation.locator : citation.locator) ??
+                normalizeLegalSourceLocator(citation.pinpoint ?? citation.locator) ??
                 legalSourceLocatorFromUrl(citation.url),
         };
     }
@@ -286,7 +287,9 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         },
         [setDockExpanded],
     );
-    const openCitation = (citation: Citation) => {
+    const [citationWorkspaceOpen, setCitationWorkspaceOpen] = useState(false);
+    const openCitation = (citation: Citation, action?: "workspace") => {
+        if (action) { setCitationWorkspaceOpen(true); setDockExpanded(true); }
         if (onCitationClick?.(citation)) return;
         if (citation.kind === "tabular") return;
         if (citation.kind === "document") {
@@ -662,7 +665,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
             onExpandedChange={setDockExpanded}
         />
     ) : undefined;
-    return <ConversationView
+    return <><ConversationView
         ref={conversationRef}
         chatId={chatId}
         messageActions={activeResearchFile && chatId ? (messageId) => <ChatFindingActions
@@ -704,5 +707,5 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         editModeLabels={editModeLabels}
         sendDisabled={sendDisabled}
         searchMessageId={searchMessageId}
-    />;
+    /><ResearchWorkspaceHost embedded floating open={citationWorkspaceOpen} onOpenChange={setCitationWorkspaceOpen} projectId={projectId} /></>;
 });

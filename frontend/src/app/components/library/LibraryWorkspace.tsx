@@ -8,10 +8,11 @@ import {
     useState,
     type ReactNode,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { stageNewChatDocuments } from "../assistant/assistantLaunch";
 import { assistantWorkflowLaunch, type WorkflowSelection } from "../workflows/workflowRoutes";
 import { DocTable, type DocTableFolder } from "../documents/DocTable";
+import { SourcesWorkspace } from "../legal/SourcesWorkspace";
 import { DirectoryActions, type DocumentSelectionActions,
     type UploadActions } from "../documents/UploadAction";
 import { PageHeader } from "../shared/PageHeader";
@@ -54,10 +55,15 @@ export function LibraryWorkspaceProvider({ children }: { children: ReactNode }) 
         }));
     }, []);
     const value = useMemo(() => ({ views, setSearch }), [setSearch, views]);
+    // The Library reader is a reader: it shares the open research workspace, so a selection in a
+    // stored PDF or Word file can be highlighted into it exactly as a legal source can.
+    const [params] = useSearchParams();
     return (
-        <LibraryWorkspace.Provider value={value}>
-            {children}
-        </LibraryWorkspace.Provider>
+        <SourcesWorkspace fileId={params.get("research_file")} restoreLast>
+            <LibraryWorkspace.Provider value={value}>
+                {children}
+            </LibraryWorkspace.Provider>
+        </SourcesWorkspace>
     );
 }
 
@@ -99,6 +105,7 @@ function LibraryCollection({
     active = true,
 }: LibraryCollectionProps) {
     const navigate = useNavigate();
+    const [params] = useSearchParams(), documentId = params.get("document_id");
     const workspace = useContext(LibraryWorkspace);
     const [localSearch, setLocalSearch] = useState("");
     const search = workspace?.views[kind].search ?? localSearch;
@@ -188,6 +195,7 @@ function LibraryCollection({
                     }
                 >
                 <DocTable
+                    initialDocument={active && documentId ? { id: documentId, versionId: params.get("version_id") } : undefined}
                     scopeKey={kind}
                     documents={directory.documents}
                     folders={directory.folders as DocTableFolder[]}

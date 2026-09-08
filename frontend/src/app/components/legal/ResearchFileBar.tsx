@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Highlighter } from "lucide-react";
 import { ConfirmPopup } from "../popups/ConfirmPopup";
 import { Tabs } from "../ui/tabs";
@@ -15,7 +15,7 @@ import { ResearchLabelTree } from "./ResearchLabelTree";
 import { ResearchTree, type ResearchRemoval } from "./ResearchTree";
 import { ResearchWorkspacePicker } from "./ResearchWorkspacePicker";
 import { sourceMatches, useSourceReader } from "./useSourceReader";
-import ResearchMemoPane from "./ResearchMemoPane";
+const ResearchMemoPane = lazy(() => import("./ResearchMemoPane"));
 
 type Props = { projectId?: string;
   rail?: HTMLElement | null; sourceDropNonce?: number;
@@ -86,7 +86,7 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
   }
   async function runHighlight() {
     setStatus("");
-    try { if (await highlight.run() === "none") highlight.arm(!highlight.armed); }
+    try { if (!await highlight.run()) highlight.arm(!highlight.armed); }
     catch (reason) { setStatus(errorMessage(reason, "Could not save this highlight")); }
   }
   const handedOff = !!(scope.members || scope.sourceIds || scope.evidenceIds || scope.labelIds);
@@ -133,7 +133,7 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
               <div className="mb-1 flex items-center gap-1.5 px-1">
                 <h3 className="min-w-0 flex-1 truncate text-xs font-medium text-gray-700">Highlight types</h3>
                 {highlight.reading && <Button size="compact" variant={highlight.armed ? "default" : "outline"} aria-label="Highlight"
-                  aria-pressed={highlight.armed} onClick={() => void runHighlight()} className="shrink-0 gap-1">
+                  aria-pressed={highlight.armed} onPointerDown={(event) => event.preventDefault()} onClick={() => void runHighlight()} className="shrink-0 gap-1">
                   <Highlighter aria-hidden="true" className="size-3.5" />
                 </Button>}
               </div>
@@ -143,13 +143,13 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
           </div>
         </div>
         <div className={`${noteOpen ? "flex" : "hidden"} min-h-0 flex-1 flex-col`}>
-          <ResearchMemoPane file={file} mutations={commit}
+          <Suspense fallback={null}><ResearchMemoPane file={file} mutations={commit}
             onOpenCitation={(href) => {
               const params = new URLSearchParams(href.slice(href.indexOf("?") + 1)), source = file.state.sources[params.get("research_source") ?? ""];
               if (source && reader.canRead(source)) void reader.readSource(source, params.get("locator") ?? undefined, params.get("evidence_id") ?? undefined);
               else if (href.startsWith("/library?")) { const citation = parseMemoCitation(href); if (citation) reader.setReading({ citation }); }
               else window.open(href, "_blank", "noopener,noreferrer");
-            }} />
+            }} /></Suspense>
         </div>
       </Tabs>
     </>}

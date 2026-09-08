@@ -8,6 +8,7 @@ import {
   deleteDocument,
   downloadDocumentsZip,
   downloadDocument,
+  getDocument,
   listDirectoryDocuments,
   listDocumentVersions,
   restoreDocumentVersion,
@@ -281,6 +282,7 @@ function ResearchSetPicker({ onSelect, onClose }: { onSelect: (id: string, label
     </Modal>;
 }
 interface DocTableProps {    scopeKey: string; documents: Document[]; folders: DocTableFolder[];
+    initialDocument?: { id: string; versionId?: string | null };
     loading: boolean; active?: boolean; search: string; operations: DocTableOperations; emptyDropLabel?: string;
     renderAddDocumentsModal?: (open: boolean, onClose: () => void,
         onSelect: (documents: Document[]) => void) => ReactNode;
@@ -306,7 +308,7 @@ export function DocTable({
     onOpenInChat, onAssistantWorkflowSelect, onOwnerOnlyAction,
     documentRemovalMode = "delete", selectionFirst = false, compact = false,
     hasMoreParents = new Set(), loadingParents = new Set(),
-    onFolderExpanded, onLoadMore,
+    onFolderExpanded, onLoadMore, initialDocument,
 }: DocTableProps) {
     const { user } = useAuth();
     const [state, setState] = useState<DocTableState>(() => ({
@@ -321,6 +323,14 @@ export function DocTable({
         pendingMove: null,
         folderTaskId: null, folderWorkflowDocuments: null,
     }));
+    useEffect(() => {
+        if (!initialDocument?.id) return;
+        let cancelled = false;
+        void getDocument(initialDocument.id).then((doc) => {
+            if (!cancelled) setState((state) => ({ ...state, viewingDoc: doc, viewingDocVersionId: initialDocument.versionId ?? null }));
+        }).catch((error: Error) => { if (!cancelled) setState((state) => ({ ...state, warnings: { ...state.warnings, collection: error.message } })); });
+        return () => { cancelled = true; };
+    }, [initialDocument?.id, initialDocument?.versionId]);
     function set<K extends keyof DocTableState>(key: K,
         next: DocTableState[K] | ((current: DocTableState[K]) => DocTableState[K])) {
         setState((current) => {
@@ -755,29 +765,17 @@ export function DocTable({
         setWarning("upload", formatUnsupportedDocumentWarning(unsupported));
         return supported;
     }
-    async function handleDropCollectionFiles(files: File[]) {
+    async function uploadCollection(files: File[], directory = false) {
         const supported = acceptedFiles(files);
         if (supported.length === 0) return;
         set("uploadingDroppedFilenames", supported.map((file) => file.name));
         try {
-            await operations.uploadDocuments(supported);
+            await (directory ? operations.uploadDirectory : operations.uploadDocuments)(supported);
         } catch (err) {
-            console.error("Document drop upload failed", err);
-            setWarning("upload", "Some files could not be uploaded. Try those files again.");
-        } finally {
-            await Promise.resolve(refreshCollection()).catch(() => undefined);
-            set("uploadingDroppedFilenames", []);
-        }
-    }
-    async function handleDirectoryUpload(files: File[]) {
-        const supported = acceptedFiles(files);
-        if (!supported.length) return;
-        set("uploadingDroppedFilenames", supported.map((file) => file.name));
-        try {
-            await operations.uploadDirectory(supported);
-        } catch (error) {
-            console.error("Folder upload failed", error);
-            setWarning("upload", "The folder was only partly uploaded. Try the missing files again.");
+            console.error(directory ? "Folder upload failed" : "Document drop upload failed", err);
+            setWarning("upload", directory
+                ? "The folder was only partly uploaded. Try the missing files again."
+                : "Some files could not be uploaded. Try those files again.");
         } finally {
             await Promise.resolve(refreshCollection()).catch(() => undefined);
             set("uploadingDroppedFilenames", []);
@@ -927,7 +925,7 @@ export function DocTable({
     async function handleCollectionDrop(event: DragEvent<HTMLElement>) {
         if (hasFilePayload(event.dataTransfer)) {
             event.preventDefault();
-            void handleDropCollectionFiles(Array.from(event.dataTransfer.files));
+            void uploadCollection(Array.from(event.dataTransfer.files));
         } else if (hasDocumentTreeDrag(event.dataTransfer)) {
             event.preventDefault();
             const folderId = documentTreeDropFolder(event.target);
@@ -1251,7 +1249,7 @@ export function DocTable({
                 onChange={(event) => {
                     const files = Array.from(event.target.files ?? []);
                     event.target.value = "";
-                    void handleDropCollectionFiles(files);
+                    void uploadCollection(files);
                 }} />
             <input ref={directoryUploadInputRef} type="file"
                 accept={SUPPORTED_DOCUMENT_ACCEPT} multiple className="hidden"
@@ -1259,7 +1257,7 @@ export function DocTable({
                 onChange={(event) => {
                     const files = Array.from(event.target.files ?? []);
                     event.target.value = "";
-                    void handleDirectoryUpload(files);
+                    void uploadCollection(files, true);
                 }} />
             {WARNING_KINDS.map((kind) => (
                 <WarningPopup key={kind} open={!!warnings[kind]}

@@ -23,20 +23,19 @@ import {
 import { researchSourceKey } from "@/app/lib/researchFiles";
 import type {
   ResearchFile,
-  PassageLocator,
   ResearchSourceReference,
 } from "@/app/lib/researchFiles";
-import { normalizeQuoteText, strippedToOriginal } from "@/app/components/shared/views/quoteText";
+import { useReaderCapture } from "../shared/useReaderCapture";
+import { readerSelectionSpan } from "../shared/readerSelection";
 import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { errorMessage, formatLongDate } from "@/app/lib/utils";
 import { ResearchLabelEditor, ResearchLabelPicker,
   type ResearchLabelTarget } from "./ResearchLabelPicker";
-import { SourcesWorkspace, useSourcesWorkspace, type HighlightCapture } from "./SourcesWorkspace";
+import { SourcesWorkspace, useSourcesWorkspace } from "./SourcesWorkspace";
 import { RESEARCH_PASSAGE_REFERENCE_DRAG } from "./researchMemo";
 
 type Anchor = LegalSourceViewerPayload["slices"][number]["anchors"][number];
 type Metadata = LegalSourceViewerPayload["metadata"];
-type ResearchLocator = PassageLocator;
 const EMPTY_QUOTES: { quote: string }[] = [];
 
 export type LegalSourceTab = {
@@ -57,6 +56,7 @@ export type LegalSourceTab = {
 };
 
 export type LegalSourceViewerProps = {
+  navigationRequest?: object;
   referenceId?: string;
   provider?: "a2aj" | "journal";
   citation?: string;
@@ -75,7 +75,7 @@ export type LegalSourceViewerProps = {
 };
 
 function legalSourceAnchorId(label: string) {
-  return `legal-${label.replace(/[^a-z0-9_.-]+/giu, "-")}`;
+  return `legal-${(normalizeLegalSourceLocator(label) ?? label).replace(/[^a-z0-9_.-]+/giu, "-")}`;
 }
 
 export function legalSourceLocatorFromUrl(value: string | null | undefined) {
@@ -88,11 +88,12 @@ export function legalSourceLocatorFromUrl(value: string | null | undefined) {
   }
 }
 
+/** One pinpoint form everywhere: "para 44", "par44" and the block label "44" name the same anchor,
+ *  so a chat chip, a search result and a saved passage all land on the same place in the reader. */
 export function normalizeLegalSourceLocator(value: string | null | undefined) {
   const locator = value?.trim();
   if (!locator) return null;
-  const paragraph = locator.match(/^para(?:graph)?s?\.?\s*(\d+)/iu)?.[1];
-  return paragraph ? `par${paragraph}` : locator.match(/^par\d+/iu)?.[0] ?? locator;
+  return locator.match(/^(?:par(?:a(?:graph)?)?|sec(?:tion)?)s?\.?\s*(\d+)$/iu)?.[1] ?? locator;
 }
 
 function locatorLabel(label: string) {
@@ -220,80 +221,6 @@ function scrollTo(root: HTMLElement, target: HTMLElement, top = false) {
   root.scrollTop += targetBox.top - rootBox.top - (top ? 16 : 32);
 }
 
-type SelectionTarget = { locator: ResearchLocator; quote: string };
-
-function sectionForNode(node: Node, root: HTMLElement) {
-  const element = node instanceof Element ? node : node.parentElement;
-  const section = element?.closest<HTMLElement>("[data-legal-block]") ?? null;
-  return section && root.contains(section) ? section : null;
-}
-
-export function legalPassageTargetFromSelection(
-  root: HTMLElement,
-  selection: Selection | null,
-): SelectionTarget | null {
-  if (!selection || selection.isCollapsed || !selection.rangeCount) return null;
-  const range = selection.getRangeAt(0);
-  const start = sectionForNode(range.startContainer, root);
-  const end = sectionForNode(range.endContainer, root);
-  const kind = start?.dataset.locatorKind as ResearchLocator["kind"] | undefined;
-  const value = start?.dataset.locatorValue;
-  const endValue = end?.dataset.locatorValue;
-  if (!start || !end || !kind || !value) return null;
-  const quote = selection.toString().replace(/\s+/gu, " ").trim();
-  if (!quote) return null;
-  return {
-    locator: { kind, value, ...(endValue && endValue !== value ? { endValue } : {}) },
-    quote,
-  };
-}
-
-type Slice = LegalSourceViewerPayload["slices"][number];
-
-/**
- * The reader renders the slices of one served revision, so what is rendered maps back to an
- * offset in it. Rendering drops paragraph markers, markdown syntax and layout whitespace but
- * never reorders letters or digits, so their run aligns a rendered block with its canonical
- * text and any position inside it becomes an exact canonical offset.
- */
-function sliceBody(node: Node, root: HTMLElement) {
-  const element = node instanceof Element ? node : node.parentElement;
-  const body = element?.closest<HTMLElement>("[data-legal-text]") ?? null;
-  return body && root.contains(body) ? body : null;
-}
-
-function alignment(body: HTMLElement, slices: Slice[]) {
-  const slice = slices[Number(body.dataset.legalText)] as Slice | undefined;
-  const rendered = slice ? normalizeQuoteText(body.textContent ?? "") : "";
-  if (!slice || !rendered) return null;
-  const base = Math.max(0, normalizeQuoteText(slice.text).indexOf(rendered));
-  return { slice, rendered, at: (index: number) => slice.start + strippedToOriginal(slice.text, base + index) };
-}
-
-/** The canonical span of a whole rendered block, marker and page rule excluded. */
-function legalBlockSpan(body: HTMLElement, slices: Slice[]) {
-  const found = alignment(body, slices);
-  return found && { start: found.at(0), end: found.at(found.rendered.length - 1) + 1 };
-}
-
-/** The canonical span of the current selection in the reader. */
-function legalSelectionSpan(root: HTMLElement, selection: Selection | null, slices: Slice[]) {
-  if (!selection || selection.isCollapsed || !selection.rangeCount) return null;
-  const range = selection.getRangeAt(0);
-  const edge = (node: Node, offset: number, trailing: boolean) => {
-    const body = sliceBody(node, root), found = body && alignment(body, slices);
-    if (!body || !found) return null;
-    const upto = document.createRange();
-    upto.selectNodeContents(body); upto.setEnd(node, offset);
-    const count = normalizeQuoteText(upto.toString()).length;
-    if (trailing) return count ? found.at(count - 1) + 1 : null;
-    return found.at(Math.min(count, found.rendered.length - 1));
-  };
-  const start = edge(range.startContainer, range.startOffset, false),
-    end = edge(range.endContainer, range.endOffset, true);
-  return start !== null && end !== null && end > start ? { start, end } : null;
-}
-
 export function LegalSourceViewer(props: LegalSourceViewerProps) {
   return <SourcesWorkspace fileId={props.researchFileId} projectId={props.projectId}>
     <LegalSourceViewerContent {...props} />
@@ -301,6 +228,7 @@ export function LegalSourceViewer(props: LegalSourceViewerProps) {
 }
 
 function LegalSourceViewerContent({
+  navigationRequest,
   referenceId,
   provider = "a2aj",
   citation,
@@ -409,27 +337,8 @@ function LegalSourceViewerContent({
     if (match) scrollTo(root.current, match);
   }, [payload, quoteIndex, quotes, savedPassages]);
 
-  const consumed = useRef(false), wholeBlock = useRef<HTMLElement | null>(null);
-  const capture = useRef<() => HighlightCapture | null>(() => null);
-  capture.current = () => {
-    const reference = payloadReference, block = wholeBlock.current, revision = payload?.reference.sourceSha256;
-    wholeBlock.current = null;
-    if (!reference || !revision || !root.current) return null;
-    const span = block ? legalBlockSpan(block, slices)
-      : legalSelectionSpan(root.current, window.getSelection(), slices);
-    return span ? { reference, revision, ...span } : null;
-  };
-  const { registerReader, arm } = highlight;
-  useEffect(() => {
-    registerReader(() => capture.current());
-    return () => registerReader(null);
-  }, [registerReader]);
-  useEffect(() => {
-    if (!highlight.armed) return;
-    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") arm(false); };
-    document.addEventListener("keydown", escape);
-    return () => document.removeEventListener("keydown", escape);
-  }, [highlight.armed, arm]);
+  useReaderCapture(root, payloadReference, highlight,
+    payload ? { revision: payload.reference.sourceSha256, slices } : null, setResearchError);
   useEffect(() => {
     if (!payload || !root.current) return;
     const targetLocator = locator ?? decodeURIComponent(window.location.hash.slice(1)).replace(/^legal-/u, "");
@@ -439,7 +348,7 @@ function LegalSourceViewerContent({
       if (root.current && target) scrollTo(root.current, target, true);
     });
     return () => cancelAnimationFrame(frame);
-  }, [locator, payload]);
+  }, [locator, payload, navigationRequest]);
 
   if (!payload) {
     return <div className="grid h-full place-items-center p-6">
@@ -451,12 +360,6 @@ function LegalSourceViewerContent({
   const sourceReference = payloadReference!;
   const needResearchFile = () => {
     onOpenResearch?.(); setResearchError("Choose or create a workspace first");
-  };
-  const runHighlight = () => {
-    if (!researchFile) { wholeBlock.current = null; return needResearchFile(); }
-    setResearchError("");
-    void highlight.run().catch((reason: unknown) =>
-      setResearchError(errorMessage(reason, "Could not save this highlight")));
   };
   async function prepareResearchSource(file: ResearchFile) {
     const existing = Object.values(file.state.sources).find(({ reference }) =>
@@ -480,28 +383,6 @@ function LegalSourceViewerContent({
     quote: quote.quote,
   }));
 
-  async function savePassage(passage: SelectionTarget, ready: { file: ResearchFile; itemId: string }) {
-    {
-      const next = await commit.act({
-        type: "passage", sourceId: ready.itemId, quote: passage.quote });
-      window.getSelection()?.removeAllRanges();
-      if (!next.evidenceId) throw new Error("Saved passage was not returned");
-      return { file: next, itemId: next.evidenceId,
-        sourceId: next.sourceId ?? ready.itemId };
-    }
-  }
-  function labelPassage(passage: SelectionTarget,
-    saved?: (typeof savedPassages)[number], anchor?: HTMLElement | DOMRect,
-    returnFocus?: HTMLElement) {
-    if (!researchFile) return needResearchFile();
-    setResearchError("");
-    setLabelTarget({ file: researchFile, itemId: saved?.receipt.evidence_id ?? "",
-      sourceId: saved?.sourceId ?? activeResearchSourceId,
-      prepare: saved ? undefined : async (file) => savePassage(passage, activeResearchSourceId
-        ? { file, itemId: activeResearchSourceId } : await prepareResearchSource(file)),
-      kind: "evidence", labelIds: saved?.labelIds ?? [], note: saved?.note,
-      title: passage.locator.value, anchor, returnFocus });
-  }
   function openSavedHighlight(target: EventTarget | null) {
     const mark = target instanceof Element
       ? target.closest<HTMLElement>("[data-research-evidence]") : null;
@@ -511,8 +392,10 @@ function LegalSourceViewerContent({
     const kind = saved?.receipt.locator.kind;
     if (!saved || kind !== "paragraph" && kind !== "section" &&
       kind !== "page" && kind !== "footnote" && kind !== "document") return false;
-    void labelPassage({ locator: { kind, value: saved.receipt.locator.label },
-      quote: saved.receipt.span_text ?? "" }, saved, mark, mark);
+    if (!researchFile) return false;
+    setLabelTarget({ file: researchFile, kind: "evidence", itemId: saved.receipt.evidence_id,
+      sourceId: saved.sourceId, labelIds: saved.labelIds, note: saved.note,
+      title: saved.receipt.locator.label, anchor: mark, returnFocus: mark });
     return true;
   }
 
@@ -538,8 +421,8 @@ function LegalSourceViewerContent({
               {metadata.title}
             </h1>
             {compact && onOpenResearch && <button type="button" onClick={() => onOpenResearch()}
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-gray-900 px-2.5 text-xs font-medium text-white hover:bg-gray-700">
-              Workspace <PanelsTopLeft className="size-3.5" aria-hidden="true" />
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-gray-300 px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+              Open in workspace <PanelsTopLeft className="size-3.5" aria-hidden="true" />
             </button>}
             <ReaderExpandButton expanded={readerExpansion.expanded} onChange={readerExpansion.onChange} />
             {!!actions.length && <nav aria-label="Source links" className="flex shrink-0 items-center gap-2">
@@ -580,22 +463,12 @@ function LegalSourceViewerContent({
       </p>}
       <div className="relative min-h-0 flex-1">
       <div ref={root} data-highlighter={highlight.armed ? "" : undefined}
-        onPointerDown={() => { consumed.current = false; }}
-        onPointerUp={() => { if (!highlight.armed || window.getSelection()?.isCollapsed !== false) return;
-          consumed.current = true; runHighlight(); }}
         onDragStart={(event) => {
-          const passage = legalPassageTargetFromSelection(event.currentTarget, window.getSelection());
-          if (passage) event.dataTransfer.setData(RESEARCH_PASSAGE_REFERENCE_DRAG,
-            JSON.stringify({ reference: sourceReference, ...passage }));
+          const span = readerSelectionSpan(event.currentTarget, window.getSelection(), slices);
+          if (span) event.dataTransfer.setData(RESEARCH_PASSAGE_REFERENCE_DRAG,
+            JSON.stringify({ reference: sourceReference, span: { revision: payload!.reference.sourceSha256, ...span } }));
         }}
-        onClick={(event) => {
-          if (openSavedHighlight(event.target) || !highlight.armed || consumed.current) return;
-          if (window.getSelection()?.isCollapsed === false) return;
-          const block = event.target instanceof Element
-            ? event.target.closest<HTMLElement>("[data-legal-text]") : null;
-          if (!block || !root.current?.contains(block)) return;
-          wholeBlock.current = block; runHighlight();
-        }}
+        onClick={(event) => { if (window.getSelection()?.isCollapsed !== false) openSavedHighlight(event.target); }}
         onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") &&
           openSavedHighlight(event.target)) event.preventDefault(); }}
         className={`h-full overflow-y-auto bg-[#faf9f6] px-4 py-8 sm:px-8 sm:py-10 ${

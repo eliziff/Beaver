@@ -1,4 +1,3 @@
-import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { forwardRef, useEffect, useImperativeHandle,
     useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, CircleStop } from "lucide-react";
@@ -31,7 +30,7 @@ interface Props {
     handleChat: (message: Message, options?: AssistantTurnOptions) => Promise<string | null>;
     cancel(): void; onSubmit?: (message: Message) => unknown;
     onRejectedTurnRestored?(): void; onRetryRejectedTurn?(): void;
-    onCitationClick?: (citation: Citation) => void; citationTitle?: (citation: Citation) => string;
+    onCitationClick?: (citation: Citation, action?: "workspace") => void; citationTitle?: (citation: Citation) => string;
     onWorkflowRunClick?: (run: WorkflowRunEvent) => void; onReaderClick?: (readerId: string) => void;
     onEditViewClick?: (annotation: EditAnnotation, filename: string, changeNumber?: number) => void;
     onOpenDocument?: OpenDocument; onEditResolveStart?: (args: EditResolveStart) => void;
@@ -56,27 +55,11 @@ function without<T>(items: Set<T>, item: T) {
     next.delete(item); return next;
 }
 
-function openUndockedCitation(citation: Citation) {
-    if (citation.kind === "tabular" || citation.kind === "document") return;
-    const internal = (citation.kind === "a2aj" && citation.citation) ||
-        (citation.kind === "public_legal" && citation.provider === "journal");
-    const exactProviderUrl = safeAssistantUrl(!(citation.kind === "public_legal" &&
-        citation.provider === "journal") && citation.url?.includes("#")
-        ? citation.url : null, { relative: false });
-    if (exactProviderUrl) {
-        window.open(exactProviderUrl, "_blank", "noopener,noreferrer");
-        return;
-    }
-    if (internal) return;
-    const href = safeAssistantUrl(citation.url, { relative: false });
-    if (href) window.open(href, "_blank", "noopener,noreferrer");
-}
-
 export const ConversationView = forwardRef<ChatInputHandle, Props>(function ConversationView(
     {
         chatId, session, handleChat, cancel, onSubmit = handleChat,
         onRejectedTurnRestored, onRetryRejectedTurn,
-        onCitationClick = openUndockedCitation, citationTitle, onWorkflowRunClick, onReaderClick,
+        onCitationClick, citationTitle, onWorkflowRunClick, onReaderClick,
         onEditViewClick, onOpenDocument, onEditResolveStart, onEditResolved, onEditError,
         isDocReloading, isEditReloading, resolvedEditStatuses,
         layout = "page", gutterVisible = false, header, dock, showContextTools = true,
@@ -92,6 +75,9 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
     const [editState, setEditState] = useState(() => ({ docIds: new Set<string>(),
         editIds: new Set<string>(), statuses: {} as Record<string, "accepted" | "rejected"> }));
     const scrolledSearch = useRef<string | null>(null);
+    type Anchor = { element: HTMLElement; fraction: number; offset: number; citation?: number } | null;
+    const anchor = useRef<Anchor>(null), pinned = useRef<Anchor>(null),
+        reanchor = useRef(() => undefined as void);
     useImperativeHandle(ref, () => ({
         addDoc: (document: Document) => chatInputRef.current?.addDoc(document),
         clearDraft: () => chatInputRef.current?.clearDraft(),
@@ -112,15 +98,51 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
     useEffect(() => {
         const container = messagesContainerRef.current;
         if (!container) return;
-        const update = () => setShowScrollButton(
-            container.scrollHeight - container.scrollTop - container.clientHeight > 10);
+        // The message the reader is looking at, and how far down the viewport it sits. Opening the
+        // dock narrows this column and remeasures every message, so the offset is what we restore.
+        /** A place in the log: how far down a message, and where that sat in the viewport. The message
+         *  survives re-rendering where the words inside it do not, so it is what the position is kept by. */
+        const at = (element: HTMLElement, y: number): Anchor => { const rect = element.getBoundingClientRect();
+            return { element, fraction: rect.height ? (y - rect.top) / rect.height : 0,
+                offset: y - container.getBoundingClientRect().top }; };
+        const update = () => {
+            setShowScrollButton(container.scrollHeight - container.scrollTop - container.clientHeight > 10);
+            const top = container.getBoundingClientRect().top;
+            const element = Array.from(container.querySelectorAll<HTMLElement>("[data-message-id]"))
+                .find((candidate) => candidate.getBoundingClientRect().bottom > top);
+            anchor.current = element ? at(element, Math.max(element.getBoundingClientRect().top, top)) : null;
+        };
+        reanchor.current = update;
+        // What the reader just clicked — a citation chip, say — outranks the top of the viewport as the
+        // thing that must not move, until the layout the click provoked has settled.
+        const hold = (event: MouseEvent) => {
+            const message = (event.target as HTMLElement | null)?.closest?.<HTMLElement>("[data-message-id]");
+            pinned.current = message ? at(message, event.clientY) : null;
+            const chip = (event.target as HTMLElement | null)?.closest?.<HTMLElement>("[data-citation-ref]");
+            if (message && chip && pinned.current) {
+                pinned.current.citation = Array.from(message.querySelectorAll("[data-citation-ref]")).indexOf(chip);
+                pinned.current.offset = chip.getBoundingClientRect().top - container.getBoundingClientRect().top;
+            }
+        };
+        container.addEventListener("click", hold, true);
         container.addEventListener("scroll", update);
-        const observer = new ResizeObserver(update);
+        const observer = new ResizeObserver(() => {
+            const held = pinned.current ?? anchor.current;
+            pinned.current = null;
+            if (held?.element.isConnected) { const rect = held.element.getBoundingClientRect();
+                const chip = held.citation === undefined ? null
+                    : held.element.querySelectorAll("[data-citation-ref]")[held.citation];
+                container.scrollTop += (chip?.getBoundingClientRect().top ?? rect.top + held.fraction * rect.height)
+                    - container.getBoundingClientRect().top - held.offset; }
+            update();
+        });
         const content = messagesEndRef.current?.parentElement;
         if (content) observer.observe(content);
+        observer.observe(container);
         const frame = requestAnimationFrame(update);
         return () => {
             cancelAnimationFrame(frame); observer.disconnect();
+            container.removeEventListener("click", hold, true);
             container.removeEventListener("scroll", update);
         };
     }, []);
@@ -133,14 +155,16 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
             if (target) {
                 target
                     .scrollIntoView({ block: "center", behavior: "auto" });
-                scrolledSearch.current = searchKey;
+                scrolledSearch.current = searchKey; reanchor.current();
                 return;
             }
         }
         if (!searchKey) scrolledSearch.current = null;
         const element = latestUserMessageRef.current;
-        if (messages.length && container && element)
+        if (messages.length && container && element) {
             container.scrollTo({ top: element.offsetTop - 24, behavior: "auto" });
+            reanchor.current();
+        }
     }, [chatId, messages.length, searchMessageId]);
 
     const handleEditResolveStart = (args: EditResolveStart) => {
@@ -226,7 +250,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                     <div className={`relative w-full px-4 md:px-6 ${gutterVisible ? "ms-auto me-0 max-w-5xl md:max-lg:pe-2" : "mx-auto max-w-4xl"}`}>
                         {showScrollButton && !activeInput && (
                             <button type="button" aria-label="Scroll to latest message" onClick={() =>
-                                messagesEndRef.current?.scrollIntoView({ behavior: "auto" })}
+                                { messagesEndRef.current?.scrollIntoView({ behavior: "auto" }); reanchor.current(); }}
                                 className="absolute bottom-[calc(100%+1rem)] left-1/2 z-20 -translate-x-1/2 cursor-pointer rounded-full border border-gray-300 bg-white p-2 text-gray-500 hover:bg-gray-100">
                                 <ArrowDown className="h-6 w-6" />
                             </button>

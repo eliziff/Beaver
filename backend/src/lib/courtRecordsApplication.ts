@@ -1,8 +1,9 @@
+import { courtRecordPageText, prepareCourtRecordPdf } from "./courtRecordPdfPreparation";
 import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { docxToPdf } from "./convert";
-import { contentTypeForDocumentType, validateDocumentFile } from "./documentTypes";
+import { contentTypeForDocumentType } from "./documentTypes";
 import { COURT_PROFILE_BY_ID, type PartyStyle, type CourtProfile }
   from "mike/shared/court-record-profiles.mjs";
 import { decodeCourtRecordDraftState, decodeCourtRecordPartyContact,
@@ -12,7 +13,7 @@ import type { DocumentFile, DocumentStore } from "./documentStore";
 import { decodeWorkProductBuildReceipt, type WorkProductInput } from "./workProduct";
 import { saveWorkProductBuild, type WorkProductApplication } from "./workProductApplication";
 import type { WorkflowFiles } from "./workflowFiles";
-import { canonicalJson, canonicalJsonSha256, sha256 } from "./hash";
+import { canonicalJson, canonicalJsonSha256 } from "./hash";
 import { sourceExhibitLabels } from "mike/shared/court-record-exhibits.mjs";
 import { sourceDocumentFields } from "mike/shared/court-record-source-fields.mjs";
 import { acceptsWorkProductOutput } from "mike/shared/court-record-work-products.mjs";
@@ -294,49 +295,7 @@ export function createCourtRecordsApplication(
         revision: input.revision, state: nextState,
       }) };
     },
-    async prepareUploadedPdf(file: DocumentFile, requestedPages: unknown) {
-      const pages = selectedOcrPages(requestedPages);
-      const bytes = "bytes" in file ? file.bytes : await readFile(file.path);
-      if ("sizeBytes" in file && bytes.byteLength !== file.sizeBytes) {
-        throw new Error("Uploaded file size changed while reading");
-      }
-      const validated = validateDocumentFile(file.filename, bytes);
-      if (!validated.ok || validated.fileType !== "pdf" || file.fileType !== "pdf") {
-        throw new ApplicationError(400,
-          validated.ok ? "A PDF is required" : validated.error);
-      }
-      const digest = sha256(bytes), documentId = `court-record:${digest}`,
-        versionId = `source:${digest}`;
-      try {
-        const prepared = await projection.preparePdf({ documentId, versionId, bytes,
-          sourceSha256: digest, pages, ocrProvider: "kraken-lite" });
-        if (!Number.isSafeInteger(prepared.pageCount) || prepared.pageCount < 1 ||
-            prepared.pageCount > 2_000) {
-          throw new ApplicationError(409, "This PDF has an unsupported page count");
-        }
-        const text = await pageText(projection, () => bytes, prepared.pageCount, {
-          persistEvidence: false, documentId, versionId, sourceSha256: digest,
-          pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile,
-            status: prepared.status },
-        });
-        return { source_sha256: digest, page_count: prepared.pageCount,
-          parser_status: prepared.status,
-          ocr_pages: prepared.ocrRoutedPages.map((page) => page + 1),
-          pages: Array.from({ length: prepared.pageCount }, (_, index) => ({
-            page_number: index + 1, text: text.get(index + 1) ?? "",
-          })) };
-      } catch (error) {
-        if (error instanceof ApplicationError) throw error;
-        if (error instanceof Error && error.name === "PdfEncrypted") {
-          throw new ApplicationError(409, error.message);
-        }
-        if (error instanceof Error && ["PDF is invalid or corrupt",
-          "PDF structural parser failed"].includes(error.message)) {
-          throw new ApplicationError(400, error.message);
-        }
-        throw error;
-      }
-    },
+    prepareUploadedPdf: (file: DocumentFile, pages: unknown) => prepareCourtRecordPdf(file, pages, projection),
     async preparedPageText(
       scope: ApplicationScope,
       documentId: string,
@@ -351,33 +310,6 @@ export function createCourtRecordsApplication(
       return convert("bytes" in file ? file.bytes : await readFile(file.path));
     },
   });
-}
-
-/**
- * Page text for a whole PDF. Exact page ranges are bounded by the projection, so a
- * record-sized document is read in successive spans. A span of scanned pages carries
- * no text at all; that is the answer for those pages, not a failure of the read.
- */
-async function pageText(projection: ProjectionReader, readBytes: () => Buffer | Promise<Buffer>,
-  pageCount: number, options: Omit<Parameters<ProjectionReader["lookupPdf"]>[2], "pages">) {
-  const text = new Map<number, string>();
-  async function read(first: number, last: number) {
-    const lookup = await projection.lookupPdf(readBytes, { locatorKind: "page",
-      locator: first === last ? `${first}` : `${first}-${last}`, contextBlocks: 0 }, options);
-    if (lookup.status === "found") {
-      for (const page of lookup.pages) text.set(page.page_number, page.text);
-    } else if (lookup.status === "unavailable" &&
-        lookup.error === "The requested structural unit has no exact text") {
-      // One blank page makes the entire range unavailable; retain its readable neighbours.
-      if (first !== last) for (let page = first; page <= last; page++) await read(page, page);
-    } else {
-      throw new ApplicationError(409, "The prepared PDF page text is unavailable");
-    }
-  }
-  for (let first = 1; first <= pageCount; first += 20) {
-    await read(first, Math.min(first + 19, pageCount));
-  }
-  return text;
 }
 
 async function readPreparedPageText(documents: DocumentStore, projection: ProjectionReader,
@@ -398,16 +330,13 @@ async function readPreparedPageText(documents: DocumentStore, projection: Projec
   if (!Number.isSafeInteger(pageCount) || pageCount < 1 || pageCount > 2_000) {
     throw new ApplicationError(409, "Prepare this PDF before using it in a court record");
   }
-  const text = await pageText(projection, source.readBytes, pageCount, {
+  const pages = await courtRecordPageText(source.readBytes, pageCount, projection, {
     persistEvidence: false, documentId, versionId: source.versionId,
     sourceSha256: source.sourceSha256, pdfProfile: source.pdfProfile,
   });
   return { document_id: documentId, version_id: source.versionId,
     source_sha256: source.sourceSha256, page_count: pageCount,
-    parser_status: source.pdfProfile?.status ?? "ready",
-    pages: Array.from({ length: pageCount }, (_, index) => ({
-      page_number: index + 1, text: text.get(index + 1) ?? "",
-    })) };
+    parser_status: source.pdfProfile?.status ?? "ready", pages };
 }
 
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -473,14 +402,6 @@ async function assertExhibitAssignment(documents: DocumentStore, scope: Applicat
   }
 }
 
-function selectedOcrPages(value: unknown) {
-  if (!Array.isArray(value) || !value.length || value.length > 2_000 ||
-      !value.every((page) => typeof page === "number" && Number.isSafeInteger(page) &&
-        page > 0 && page <= 2_000)) {
-    throw new ApplicationError(400, "OCR pages must be one-based page numbers");
-  }
-  return [...new Set(value as number[])].sort((left, right) => left - right);
-}
 
 function parsePartyGroups(value: unknown, profile: CourtProfile,
   style: PartyStyle, requireNames = false): PartyGroup[] {

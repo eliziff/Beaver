@@ -23,7 +23,7 @@ function collectTextNodes(root: HTMLElement): Text[] {
     }
     return out;
 }
-function clearDocxQuoteHighlights(root: HTMLElement): void {
+export function clearDocxQuoteHighlights(root: HTMLElement): void {
     root.querySelectorAll(`.${HIGHLIGHT_CLASS}`).forEach((span) => {
         const parent = span.parentNode;
         if (!parent) return;
@@ -35,7 +35,7 @@ function clearDocxQuoteHighlights(root: HTMLElement): void {
 /** Highlight every verified text directive from one index of the rendered text. */
 export function highlightDocxQuotes(
     root: HTMLElement,
-    quotes: readonly (string | { quote: string; locator: string })[],
+    quotes: readonly (string | { quote: string; locator?: string; color?: string })[],
 ): Array<HTMLElement | null> {
     clearDocxQuoteHighlights(root);
     const matches = quotes.map(() => null as HTMLElement | null);
@@ -75,7 +75,7 @@ export function highlightDocxQuotes(
     };
     quotes.forEach((input, quoteIndex) => {
       const quote = typeof input === "string" ? input : input.quote;
-      const bounds = typeof input === "string" ? [0, fullStripped.length] : locatorBounds(input.locator);
+      const bounds = typeof input === "string" || !input.locator ? [0, fullStripped.length] : locatorBounds(input.locator);
       if (!bounds) return;
       quote.split(/\.{3}|…/).map(normalizeQuoteText).filter(Boolean).forEach((segment) => {
         const matchPos = fullStripped.indexOf(segment, bounds[0]);
@@ -110,6 +110,11 @@ export function highlightDocxQuotes(
               .map((item) => item.quoteIndex))) {
                 const span = document.createElement("span");
                 span.className = HIGHLIGHT_CLASS; span.dataset.qspan = String(quoteIndex);
+                const input = quotes[quoteIndex], color = typeof input === "string" ? undefined : input.color;
+                if (color && /^#[\da-f]{6}$/iu.test(color)) {
+                    span.style.setProperty("background-color", `${color}59`, "important");
+                    span.style.borderBottom = `3px solid ${color}`;
+                }
                 span.append(child); child = span; matches[quoteIndex] ??= span;
             }
             fragment.append(child); cursor = end;

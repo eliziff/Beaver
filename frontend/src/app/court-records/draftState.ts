@@ -7,6 +7,30 @@ import type { CourtRecordDraft, CoverValues, RecordEntry, SourceDocumentFields }
 
 const UNASSIGNED_KIND_ID = "unassigned";
 
+/** Replay local edits on a newer revision; entries and parties merge by identity. */
+export function rebaseDraft<T>(base: T, local: T, remote: T): T {
+  if (local instanceof Blob || base instanceof Blob) return local === base ? remote : local;
+  if (JSON.stringify(base) === JSON.stringify(local)) return remote;
+  if (Array.isArray(local) && Array.isArray(remote) && Array.isArray(base) &&
+      [...base, ...local, ...remote].every((item) => item && typeof item.id === "string")) {
+    const keyed = (items: typeof local) => Object.fromEntries(items.map((item) => [item.id, item]));
+    const merged = rebaseDraft(keyed(base), keyed(local), keyed(remote));
+    return [...new Set([...local, ...remote].map((item) => item.id))]
+      .flatMap((id) => merged[id] === undefined ? [] : [merged[id]]) as T;
+  }
+  if (local && remote && Object.getPrototypeOf(local) === Object.prototype &&
+      Object.getPrototypeOf(remote) === Object.prototype) {
+    const before = (base ?? {}) as Record<string, unknown>, next = local as Record<string, unknown>;
+    const latest = remote as Record<string, unknown>;
+    return Object.fromEntries([...new Set([...Object.keys(before), ...Object.keys(next),
+      ...Object.keys(latest)])].flatMap((key) => {
+      const value = rebaseDraft(before[key], next[key], latest[key]);
+      return value === undefined ? [] : [[key, value]];
+    })) as T;
+  }
+  return local;
+}
+
 export function courtRecordDraftFromDocuments(profileId: string,
   documents: Array<Pick<Document, "id" | "filename"> &
   Partial<Pick<Document, "size_bytes" | "created_at" | "source_sha256">>>): CourtRecordDraft {
@@ -39,19 +63,12 @@ export function courtRecordDraft(
         exhibits?.labels.includes(label) && !assigned.has(label) ? label : undefined;
       if (exhibitLabel) assigned.add(exhibitLabel);
       return {
-        id: entry.id,
-        kindId: entry.kindId,
-        title: entry.title,
-        ...(entry.date ? { date: entry.date } : {}),
-        ...(entry.rule70CountedPages !== undefined
-          ? { rule70CountedPages: entry.rule70CountedPages } : {}),
-        ...(exhibitLabel ? { exhibitLabel } : {}),
-        ...(entry.kindId === "affidavit" && exhibits?.labels.length
-          ? { sourceExhibits: exhibits } : {}),
-        ...(entry.sourceFields ? { sourceFields: entry.sourceFields } : {}),
-        ...(entry.descriptionOnly ? { descriptionOnly: true } : {}),
-        ...(entry.ocrAttemptedPages ? { ocrAttemptedPages: entry.ocrAttemptedPages } : {}),
-        ...(entry.nonTextPagesConfirmed ? { nonTextPagesConfirmed: true } : {}),
+        id: entry.id, kindId: entry.kindId, title: entry.title, date: entry.date || undefined,
+        rule70CountedPages: entry.rule70CountedPages, exhibitLabel,
+        sourceExhibits: entry.kindId === "affidavit" && exhibits?.labels.length ? exhibits : undefined,
+        sourceFields: entry.sourceFields, descriptionOnly: entry.descriptionOnly || undefined,
+        ocrAttemptedPages: entry.ocrAttemptedPages,
+        nonTextPagesConfirmed: entry.nonTextPagesConfirmed || undefined,
         lastSeen: entrySnapshot(entry),
       };
     }),
@@ -107,15 +124,9 @@ export async function restoreCourtRecordDraft(
     }, undefined, saved.sourceFields);
   }
 
-  const savedEntries = draft.state.entries;
-  const entries = new Array<RecordEntry>(savedEntries.length);
-  let next = 0;
-  await Promise.all(Array.from({ length: Math.min(4, savedEntries.length) }, async () => {
-    while (next < savedEntries.length) {
-      const index = next++;
-      entries[index] = await restore(savedEntries[index]);
-    }
-  }));
+  const entries: RecordEntry[] = [];
+  for (let offset = 0; offset < draft.state.entries.length; offset += 4)
+    entries.push(...await Promise.all(draft.state.entries.slice(offset, offset + 4).map(restore)));
   const exhibits = sourceExhibitSlots(entries);
   return entries.map((entry) => entry.kindId === "affidavit"
     ? { ...entry, sourceExhibits: exhibits?.labels.length ? exhibits : undefined } : entry);

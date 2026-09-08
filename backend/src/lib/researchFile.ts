@@ -80,10 +80,8 @@ const researchMutationSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("annotate"), kind: z.enum(["source", "evidence"]), id: text(200),
     sourceId: uuid.optional(), labelIds: ids.optional(),
     note: z.string().max(50_000).optional() }).strict(),
-  // A reader that renders the canonical text sends offsets in the revision it served; one that
-  // renders the original file sends the text it captured instead.
-  z.object({ type: z.literal("passage"), sourceId: uuid, revision: text(200).optional(),
-    start: offset.optional(), end: offset.optional(), quote: text(50_000).optional(),
+  z.object({ type: z.literal("passage"), sourceId: uuid, revision: text(200),
+    start: offset, end: offset,
     labelIds: ids.optional() }).strict(),
   z.object({ type: z.literal("label-selection"), findingRefs: z.array(researchFindingReferenceSchema).max(500).optional(), target: z.enum(["sources", "passages"]),
     sourceIds: ids.optional(), evidenceIds: z.array(text(200)).max(100_000).optional(),
