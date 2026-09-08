@@ -48,8 +48,8 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
   function openControl(source: ResearchSource, name: string, locator?: string, evidenceId?: string, spoken?: string) {
     if (preview) return null;
     const href = reader?.sourceHref(source, locator),
-      className = "grid size-6 shrink-0 place-items-center rounded text-gray-500 hover:bg-gray-200",
-      inner = <BookOpen aria-hidden className="size-3.5" />, label = `Open ${spoken ?? locator ?? name}`;
+      className = "grid size-6 shrink-0 place-items-center rounded text-gray-500 hover:bg-gray-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
+      inner = <BookOpen aria-hidden className="size-3.5" />, label = `Open ${[spoken ?? locator, name].filter(Boolean).join(" in ")}`;
     if (reader?.canRead(source)) return <button type="button" aria-label={label} title="Open" className={className}
       onClick={() => void reader.readSource(source, locator, evidenceId)}>{inner}</button>;
     if (!href) return null;
