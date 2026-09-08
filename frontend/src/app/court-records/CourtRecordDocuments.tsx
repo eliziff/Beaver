@@ -21,7 +21,7 @@ type Props = {
   entryFindings: Map<string, ComplianceFinding[]>;
   onFiles: (kindId: string, files: File[], exhibitLabel?: string) => void;
   onDescription: (kindId: string, title?: string) => void;
-  onChoose: (kindId: string, exhibitLabel?: string) => void;
+  onChoose: (kindId: string, exhibitLabel?: string, entryId?: string) => void;
   onEntry: (id: string, patch: Partial<RecordEntry>) => void;
   onRemove: (id: string) => void;
   onAssign: (id: string, label?: string) => void;
@@ -94,7 +94,8 @@ function PendingNotes({ notes, onEntry, onRemove }: Props & { notes: RecordEntry
     <div className="space-y-2">{notes.map((entry) => <div key={entry.id}
       className="flex items-center gap-2">
       <Input value={entry.title} aria-label="Note"
-        onChange={(event) => onEntry(entry.id, { title: event.target.value })}
+        onChange={(event) => event.target.value
+          ? onEntry(entry.id, { title: event.target.value }) : onRemove(entry.id)}
         className="h-9 border-gray-400 bg-white md:text-base" />
     </div>)}</div>
   </section>;
@@ -194,6 +195,7 @@ function DocumentSlot({ profile, kind, hideLabel, entries, busyEntryId, entryFin
               findings={entryFindings.get(entry.id) ?? []}
               dateRequired={profile.technical.indexDate === "required" || !!kind.chronological}
               descriptionLabel={profile.outputMode === "separate-files" ? "Document name" : "Contents description"}
+              onChoose={onChoose}
               onEntry={onEntry}
               onRemove={onRemove}
               onAssign={onAssign}
@@ -213,12 +215,9 @@ function DocumentActions({ kind, entries, onDescription, ...sources }:
   { kind: DocumentKind }) {
   const count = entries.filter((entry) => entry.kindId === kind.id).length;
   const canAdd = kind.repeatable || count === 0;
-  const canReplace = !kind.repeatable && count === 1;
-  if (!canAdd && !canReplace) return null;
+  if (!canAdd) return null;
   return <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-    <AddFileControls {...sources} kind={kind} label={kind.generated
-      ? canReplace ? "Replace signed PDF" : "Add signed PDF"
-      : canReplace ? "Replace" : "Add file"} />
+    <AddFileControls {...sources} kind={kind} label={kind.generated ? "Add signed PDF" : "Add file"} />
     {canAdd && kind.allowUnavailableNote && <Button type="button" variant="outline"
       className="h-9 border-gray-500/80 px-3" onClick={() => onDescription(kind.id)}>
       <FilePlus2 /> Add note
@@ -278,8 +277,7 @@ function ExhibitPool(props: Props & { kind: DocumentKind }) {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-sm font-semibold text-gray-950">Exhibit {label}</h4>
             <div className="flex flex-wrap gap-2">
-              <AddFileControls {...props} targetLabel={label}
-                label={entry ? "Replace" : "Add file"} />
+              {!entry && <AddFileControls {...props} targetLabel={label} />}
             </div>
           </div>
           {entry && <EntryRow {...props} entry={entry} busy={props.busyEntryId === entry.id}
@@ -363,13 +361,14 @@ function TextRecognition({ entry, reading, onConfirm }: {
   </p>;
 }
 
-function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel, onEntry, onRemove, onAssign, onAssignKind, assignmentKinds, assignmentLabels, assignmentLabel, dragEnabled = false, reading, onRelink }: {
+function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel, onChoose, onEntry, onRemove, onAssign, onAssignKind, assignmentKinds, assignmentLabels, assignmentLabel, dragEnabled = false, reading, onRelink }: {
   entry: RecordEntry;
   kind?: DocumentKind;
   busy: boolean;
   findings: ComplianceFinding[];
   dateRequired: boolean;
   descriptionLabel: string;
+  onChoose: Props["onChoose"];
   onEntry: Props["onEntry"];
   onRemove: Props["onRemove"];
   onAssign: Props["onAssign"];
@@ -418,6 +417,8 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
             {entry.pageCount !== null && <><span aria-hidden="true">·</span><span>{entry.pageCount} page{entry.pageCount === 1 ? "" : "s"}</span></>}
           </div>}
         </div>
+        {kind && !entry.descriptionOnly && <Button type="button" variant="outline" className="h-9 px-3"
+          onClick={() => onChoose(kind.id, entry.exhibitLabel, entry.id)}>Replace</Button>}
       </div>
       <div className="mt-3 flex flex-col gap-2 empty:hidden sm:flex-row sm:items-end">
         {assignmentKinds && (assignmentKinds.length === 1

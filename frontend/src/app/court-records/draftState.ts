@@ -130,14 +130,11 @@ export function applySourceEntryFields(entry: RecordEntry, replaceTitle?: string
   return {
     ...entry,
     title: source.entryTitle && (!entry.title.trim() || entry.title === replaceTitle || sourcedTitle)
-      ? source.entryTitle : sourcedTitle ? fileTitle(entry.file.name) : entry.title,
+      ? source.entryTitle : sourcedTitle ? "" : entry.title,
     date: source.entryDate && (!entry.date?.trim() || sourcedDate)
       ? source.entryDate : sourcedDate ? undefined : entry.date,
   };
 }
-
-const fileTitle = (filename: string) => filename.replace(/\.(?:pdf|docx)$/iu, "")
-  .replace(/[_-]+/gu, " ").replace(/\s+/gu, " ").trim();
 
 function entrySnapshot(entry: RecordEntry) {
   const sha256 = entry.origin?.sourceSha256 ?? (entry.binding?.kind === "local-file"
