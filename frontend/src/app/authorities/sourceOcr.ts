@@ -86,13 +86,20 @@ async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct,
  */
 export function useScannedSources(host: AuthoritiesHost, draft: AuthoritiesProduct | undefined,
   key: string, active: boolean) {
-  const cached = useRef<{ key: string; result: Promise<ScannedPdf[]> }>(undefined);
+  const cached = useRef<{ key: string; report: (message: string) => void;
+    result: Promise<ScannedPdf[]> }>(undefined);
   const ensure = useCallback((current: AuthoritiesProduct, report: (message: string) => void) => {
-    if (cached.current?.key !== key) {
-      cached.current = { key, result: inspectSources(host, current, report) };
-      cached.current.result.catch(() => undefined);
-    }
-    return cached.current.result;
+    const running = cached.current;
+    // The check reports to whoever is waiting on it now, so continuing while the
+    // background pass is still going shows that pass's progress.
+    if (running?.key === key) { running.report = report; return running.result; }
+    const entry = { key, report, result: undefined as unknown as Promise<ScannedPdf[]> };
+    entry.result = inspectSources(host, current, (message) => entry.report(message));
+    cached.current = entry;
+    // A failed check is never remembered: the next attempt runs again and reports
+    // its own reason instead of replaying a stale rejection for ever.
+    entry.result.catch(() => { if (cached.current === entry) cached.current = undefined; });
+    return entry.result;
   }, [host, key]);
   useEffect(() => {
     if (!active || !draft || !host.readSource) return;
