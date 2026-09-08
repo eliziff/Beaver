@@ -7,7 +7,7 @@ import { readResearchEvidenceParts, type ResearchFile, type ResearchSource } fro
 /** Memo links carry the same presentation produced for assistant citations. */
 export function researchMemoCitation(file: ResearchFile, source: ResearchSource, receipt?: LegalEvidenceReceipt) {
   const reference = source.reference;
-  const citation = receipt ? createLegalEvidenceCitationsFromEntries([{ receipt }])[0]
+  const citation: Record<string, unknown> = receipt ? createLegalEvidenceCitationsFromEntries([{ receipt }])[0]
     : reference.kind === "document" ? { authority: reference.title ?? reference.id }
     : createLegalSourceSearchCitations([{ provider: reference.provider, identifier: reference.id,
       source_type: reference.kind, title: reference.title, citation: reference.citation,

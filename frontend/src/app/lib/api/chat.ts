@@ -31,61 +31,10 @@ export interface Chat {
   created_at: string;
   deleted_at?: string | null;
 }
-export type WorkflowOperationName =
-  | "create_table_of_authorities"
-  | "update_work_product";
-export type WorkflowRunEvent = {
-  type: "workflow_run";
-  id: string;
-  tool: WorkflowOperationName;
-  status: string;
-  stage: string;
-  progress?: number;
-  message?: string;
-  counts?: { label: string; value: number }[];
-  error?: string;
-  outputs?: { name: string; url?: string }[];
-  app_url?: string;
-  job_id?: string;
-  version_number?: number | null;
-  work_product?: {
-    kind: WorkProductKind;
-    id: string;
-    revision: number;
-  };
-  requested_action?: "open" | "refresh" | "build";
-};
-export type AskInputsEvent = {
-  type: "ask_inputs";
-  items: (
-    | {
-        id: string;
-        kind: "choice";
-        question: string;
-        options: { value: string }[];
-      }
-    | {
-        id: string;
-        kind: "documents";
-        document_types: string[];
-      }
-  )[];
-};
-export type AskInputsResponseEvent = {
-  type: "ask_inputs_response";
-  responses: (
-    | {
-        id: string;
-        kind: "choice";
-        answer?: string;
-      }
-    | {
-        id: string;
-        kind: "documents";
-        documents: { document_id: string; filename: string }[];
-      }
-  )[];
-};
+import type { WorkflowRunEvent as WireWorkflowRunEvent } from "../../../../../backend/src/lib/chat/assistantWire";
+export type { AskInputsEvent, AskInputsResponseEvent } from "../../../../../backend/src/lib/chat/assistantWire";
+export type WorkflowRunEvent = WireWorkflowRunEvent & { id: string };
+export type WorkflowOperationName = WorkflowRunEvent["tool"];
 export interface Message {
   research_file_id?: string | null;
   research_selection?: ResearchSelection | null;
