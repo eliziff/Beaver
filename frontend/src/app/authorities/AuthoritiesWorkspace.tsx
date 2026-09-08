@@ -371,7 +371,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const act: ActionHandler = (action, done) => {
     const targetId = draftRef.current?.id;
     if (!targetId) return;
-    setPendingActions((count) => count + 1);
+    const blocking = action.type !== "rename-authority";
+    if (blocking) setPendingActions((count) => count + 1);
     actionQueue.current = actionQueue.current.then(async () => {
       try {
         const current = draftRef.current;
@@ -392,7 +393,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         }
         await done?.(next);
       } catch (caught) { setError(errorText(caught)); }
-      finally { setPendingActions((count) => Math.max(0, count - 1)); }
+      finally { if (blocking) setPendingActions((count) => Math.max(0, count - 1)); }
     });
   };
   const resolveDiscrepancy: DiscrepancyHandler = (finding, action, done) => {

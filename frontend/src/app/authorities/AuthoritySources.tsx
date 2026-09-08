@@ -107,8 +107,6 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   const fileInput = useRef<HTMLInputElement>(null);
   const styleOfCause = authority.displayName || authority.name || "";
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(styleOfCause);
-  const cancelled = useRef(false);
   const sources = authority.source.kind === "attached" ? authority.source.sources : [];
   const title = authorityName(authority), citationLine = citations.filter((citation) =>
     !styleOfCause.toLocaleLowerCase().includes(citation.toLocaleLowerCase())).join("; ");
@@ -123,8 +121,8 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       label: loaded ? "Built from source text" : "Will be built from source text" }
     : loaded ? { Icon: FileCheck2, tone: "text-green-700",
       label: sources.map(({ filename }) => filename).join("\n") || "PDF loaded" } : null;
-  const edit = () => { cancelled.current = false; setName(styleOfCause); setEditing(true); };
-  const save = () => { if (cancelled.current) return; cancelled.current = true; setEditing(false);
+  const edit = () => setEditing(true);
+  const save = (name: string) => { setEditing(false);
     if (name.trim() !== styleOfCause) onAction({ type: "rename-authority",
       authorityId: authority.id, displayName: name.trim() || null }); };
   return <article role="listitem" data-authority-id={authority.id}
@@ -141,11 +139,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       {mark && <mark.Icon role="img" aria-label={mark.label} className={cn("h-4 w-4", mark.tone)}>
         <title>{mark.label}</title></mark.Icon>}
     </span>
-    {editing ? <Input autoFocus aria-label="Style of cause" placeholder="Add style of cause" value={name}
-      onChange={(event) => setName(event.target.value)} onBlur={save}
-      onKeyDown={(event) => { if (event.key === "Enter") save();
-        if (event.key === "Escape") { cancelled.current = true; setEditing(false); } }}
-      className="col-span-1 h-8 min-w-0 border-gray-400 text-sm sm:col-span-2" /> : <>
+    {editing ? <StyleOfCause value={styleOfCause} onSave={save} onCancel={() => setEditing(false)} /> : <>
       <div className="flex min-w-0 items-center gap-1">
         {styleOfCause ? <h3 className="truncate text-sm font-medium text-gray-950" title={title}>{styleOfCause}</h3>
           : <span className="truncate text-sm italic text-gray-500">Add style of cause</span>}
@@ -196,6 +190,19 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
         if (file) onAttach(file);
       }} />
   </article>;
+}
+
+function StyleOfCause({ value, onSave, onCancel }: {
+  value: string; onSave: (value: string) => void; onCancel: () => void;
+}) {
+  const [name, setName] = useState(value), finished = useRef(false);
+  return <Input autoFocus aria-label="Style of cause" placeholder="Add style of cause" value={name}
+    onChange={(event) => setName(event.target.value)}
+    onBlur={() => { if (!finished.current) { finished.current = true; onSave(name); } }}
+    onKeyDown={(event) => {
+      if (event.key === "Enter") event.currentTarget.blur();
+      if (event.key === "Escape") { finished.current = true; onCancel(); }
+    }} className="col-span-1 h-8 min-w-0 border-gray-400 text-sm sm:col-span-2" />;
 }
 
 export type SourceOcrPanel = { tracked: Record<string, SourceOcrStatus>;
