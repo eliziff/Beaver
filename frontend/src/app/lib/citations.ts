@@ -27,7 +27,7 @@ export type DocumentCitation = CitationDisplay & {
   version_number?: number | null;
   filename: string;
   quotes: DocumentCitationQuote[];
-  locator_kind?: "paragraph" | "page" | "section" | "footnote";
+  locator_kind?: "document" | "paragraph" | "page" | "section" | "footnote" | "sheet" | "cell";
   locator?: string | null;
   pinpoint?: string | null;
 };

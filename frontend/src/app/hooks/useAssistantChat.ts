@@ -355,7 +355,9 @@ export function useAssistantChat({
       dispatch({ type: "run_finished", runId });
       if (finalChatId) {
         try { const latest = await getChat(finalChatId); controller.signal.throwIfAborted();
-          setChatLoad({ status: "loaded", chatId: finalChatId, chat: latest.chat });
+          if (!latest.chat.turn_in_progress && latest.messages.some((message) => message.role === "assistant" &&
+            message.turn_id === turnOptions?.turnId && message.turn_complete)) loadTranscript(finalChatId, latest);
+          else setChatLoad({ status: "loaded", chatId: finalChatId, chat: latest.chat });
         } catch { /* Keep usable chat metadata while a completed response reconnects. */ }
         controller.signal.throwIfAborted();
       }

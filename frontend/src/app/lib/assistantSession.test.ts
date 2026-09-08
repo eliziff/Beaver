@@ -123,6 +123,12 @@ describe("assistant protocol validation", () => {
     }).ok).toBe(false);
   });
 
+  it.each(["document", "sheet", "cell"])("retains Library %s pinpoints for clickable citations", (locator_kind) => {
+    const citation = { kind: "document", ref: 3, document_id: "doc", filename: "Terms.xlsx",
+      locator_kind, locator: "Terms!B4", pinpoint: "Terms!B4", quotes: [{ quote: "25.45", sheet: "Terms", cell: "B4" }] };
+    expect(parseAssistantCitations([citation])).toEqual([citation]);
+  });
+
   it("drops malformed citations and never throws on hostile event objects", () => {
     const revoked = Proxy.revocable({}, {}); revoked.revoke();
     expect(parseAssistantCitations([revoked.proxy, {
