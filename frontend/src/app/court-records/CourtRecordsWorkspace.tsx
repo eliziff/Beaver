@@ -72,6 +72,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const [restoredEmpty, setRestoredEmpty] = useState(false);
   const [result, setResult] = useState<BuildResult>();
   const [sourceKindId, setSourceKindId] = useState<string>();
+  const [sourceEntryId, setSourceEntryId] = useState<string>();
   const [sourceExhibitLabel, setSourceExhibitLabel] = useState<string>();
   const [importingSource, setImportingSource] = useState(false);
   const refreshSeen = useRef(0);
@@ -457,17 +458,17 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     invalidate();
   }
 
-  async function addFiles(kindId: string, files: File[], exhibitLabel?: string) {
-    return addSelectedFiles(kindId, files.map((file) => ({ file })), exhibitLabel);
+  async function addFiles(kindId: string, files: File[], exhibitLabel?: string, entryId?: string) {
+    return addSelectedFiles(kindId, files.map((file) => ({ file })), exhibitLabel, entryId);
   }
 
-  async function addSelectedFiles(kindId: string, files: SelectedFile[], exhibitLabel?: string) {
+  async function addSelectedFiles(kindId: string, files: SelectedFile[], exhibitLabel?: string, entryId?: string) {
     const kind = profile.documentKinds.find((item) => item.id === kindId);
     if (!kind || kind.requirement === "forbidden" || !files.length) return;
-    const selected = kind.repeatable && !exhibitLabel ? files : files.slice(0, 1);
+    const selected = kind.repeatable && !exhibitLabel && !entryId ? files : files.slice(0, 1);
     for (const selection of selected) {
       const { file } = selection;
-      const previous = replacementEntry(entries, kind, exhibitLabel);
+      const previous = replacementEntry(entries, kind, exhibitLabel, entryId);
       const id = previous?.id ?? crypto.randomUUID();
       const pending: RecordEntry = {
         id,
@@ -699,7 +700,8 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   }
 
   const [sourceOutputs, setSourceOutputs] = useState<DraftOutputChoice[]>([]);
-  async function openSource(kindId: string, exhibitLabel?: string) {
+  async function openSource(kindId: string, exhibitLabel?: string, entryId?: string) {
+    setSourceEntryId(entryId);
     setSourceOutputs([]);
     setSourceKindId(kindId);
     setSourceExhibitLabel(exhibitLabel);
@@ -724,7 +726,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         ? await host.importDraftOutput!(selected.draft, kind,
           (message) => setProgress(message))
         : await host.importLibraryDocument!(selected, (message) => setProgress(message), kind);
-      const previous = replacementEntry(entries, kind, exhibitLabel);
+      const previous = replacementEntry(entries, kind, exhibitLabel, sourceEntryId);
       const entry: RecordEntry = {
         id: previous?.id ?? crypto.randomUUID(),
         kindId,
@@ -770,7 +772,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       heading={heading} step={step}
       onFiles={(kindId, files, exhibitLabel) => void addFiles(kindId, files, exhibitLabel)}
       onDescription={addDescription}
-      onChoose={(kindId, exhibitLabel) => void openSource(kindId, exhibitLabel)}
+      onChoose={(kindId, exhibitLabel, entryId) => void openSource(kindId, exhibitLabel, entryId)}
       onEntry={(id, patch) => { setEntries((current) => current.map((entry) => entry.id === id ? { ...entry, ...patch } : entry)); invalidate(); }}
       onAssign={(id, label) => { setEntries((current) => assignExhibit(current, id, label)); invalidate(); }}
       onAddExhibit={() => {
@@ -908,7 +910,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
           busy={importingSource}
           onUploadFiles={host.mode === "standalone" ? async (files) => {
             setSourceKindId(undefined);
-            await addFiles(sourceKind.id, files, sourceExhibitLabel);
+            await addFiles(sourceKind.id, files, sourceExhibitLabel, sourceEntryId);
           } : undefined}
           onSelect={async ([document]) => {
             if (document) await importSource({ ...document,
@@ -1016,7 +1018,8 @@ function assignExhibit(entries: RecordEntry[], id: string, label?: string) {
 const assignPreparedExhibit = (entries: RecordEntry[], id: string, label?: string) =>
   fillExhibitLabels(label ? assignExhibit(entries, id, label) : entries);
 
-function replacementEntry(entries: RecordEntry[], kind: DocumentKind, label?: string) {
+function replacementEntry(entries: RecordEntry[], kind: DocumentKind, label?: string, id?: string) {
+  if (id) return entries.find((entry) => entry.id === id && entry.kindId === kind.id);
   const exhibitLabel = label?.trim().toUpperCase();
   return exhibitLabel
     ? entries.find((entry) => entry.kindId === "exhibit" &&
