@@ -136,6 +136,25 @@ describe("production legal evidence", () => {
     expect(priorLegalEvidenceReceipts([event])).toEqual([evidence]);
   });
 
+  it("refuses a neighbouring paragraph handle and accepts the named paragraph", () => {
+    const state = createLegalEvidenceTurnState();
+    const wrong = passage("par73"), right = passage("par74");
+    registerLegalEvidence(state, wrong); registerLegalEvidence(state, right);
+    const text = "The duty applies irrespective of intention: 2024 SCC 1, para. 74.";
+    expect(submitLegalEvidenceAnswer({ claims: [{ text, evidence_ids: [wrong.evidence_id] }] }, state))
+      .toMatchObject({ ok: false, errors: [expect.stringContaining("paragraphs 74 require their exact passage")] });
+    expect(submitLegalEvidenceAnswer({ claims: [{ text, evidence_ids: [wrong.evidence_id, right.evidence_id] }] }, state).ok)
+      .toBe(false);
+    expect(submitLegalEvidenceAnswer({ claims: [{ text, evidence_ids: [right.evidence_id] }] }, state).ok).toBe(true);
+    expect(createLegalEvidenceCitations(state)[0]).toMatchObject({ locator: "74" });
+    const range = "The duty applies: 2024 SCC 1, paras. 73–75.";
+    const end = passage("par75"); registerLegalEvidence(state, end);
+    expect(submitLegalEvidenceAnswer({ claims: [{ text: range, evidence_ids: [wrong.evidence_id, end.evidence_id] }] }, state).ok)
+      .toBe(false);
+    expect(submitLegalEvidenceAnswer({ claims: [{ text: range,
+      evidence_ids: [wrong.evidence_id, right.evidence_id, end.evidence_id] }] }, state).ok).toBe(true);
+  });
+
   it("keeps each grounded table row's citations inside its final cell", () => {
     const state = createLegalEvidenceTurnState();
     const first = passage("par12"), second = passage("par13");
@@ -526,6 +545,26 @@ describe("production legal evidence", () => {
     ]);
   });
 
+  it("requires both pinpointed sources for every review finding", () => {
+    const state = createLegalEvidenceTurnState("citation_structure");
+    state.reviewDocumentIds = new Set(["brief"]);
+    const document = createLibraryEvidence({ documentId: "brief", versionId: "v1", filename: "brief.docx",
+      sourceText: "The appeal is allowed.", spanText: "The appeal is allowed.", start: 0, end: 22,
+      locator: { kind: "paragraph", label: "para 5" } });
+    const authority = passage();
+    for (const receipt of [document, authority]) registerLegalEvidence(state, receipt);
+    const claim = (ids: string[]) => ({ text: "The result requires qualification.", evidence_ids: ids });
+    for (const ids of [[document.evidence_id], [authority.evidence_id]]) {
+      expect(submitLegalEvidenceAnswer({ claims: [claim(ids)] }, state).ok).toBe(false);
+      expect(renderLegalEvidenceAnswer(state)).toBeNull();
+    }
+    expect(submitLegalEvidenceAnswer({ claims: [claim([document.evidence_id, authority.evidence_id])] }, state).ok).toBe(true);
+    expect(createLegalEvidenceCitations(state).map(({ pinpoint }) => pinpoint)).toEqual(["para 5", "para 12"]);
+    const broad = passage(" ");
+    registerLegalEvidence(state, broad);
+    expect(submitLegalEvidenceAnswer({ claims: [claim([document.evidence_id, broad.evidence_id])] }, state).ok).toBe(false);
+  });
+
   it("emits document citations for attached PDF passages", () => {
     const state = createLegalEvidenceTurnState("citation_structure");
     const evidence = createLibraryEvidence({
@@ -641,24 +680,14 @@ describe("production legal evidence", () => {
     ]);
   });
 
-  it("requires separate claims when sentences use different passages", () => {
-    const state = createLegalEvidenceTurnState("citation_structure");
-    const evidence = [passage("par30"), passage("par31")];
+  it("keeps a multi-sentence point under its shared evidence instead of repeating citation chips", () => {
+    const state = createLegalEvidenceTurnState("citation_structure"), evidence = [passage("par30"), passage("par31")];
     evidence.forEach((receipt) => registerLegalEvidence(state, receipt));
-
     expect(submitLegalEvidenceAnswer({ claims: [{
-      text: "The test is demanding. Valero failed to identify an unsettled question.",
+      text: "The appeal succeeded. Both passages record that result.",
       evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
-    }] }, state).errors).toContain(
-      "claims[0] must split sentences supported by different passages",
-    );
-
-    expect(submitLegalEvidenceAnswer({ claims: [{
-      text: "R. v. Smith and Acme Ltd. Canada support one proposition.",
-      evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
-    }] }, state).errors ?? []).not.toContain(
-      "claims[0] must split sentences supported by different passages",
-    );
+    }] }, state).ok).toBe(true);
+    expect(renderLegalEvidenceAnswer(state)).toBe("The appeal succeeded. Both passages record that result. [1]");
   });
 
   it("collapses one article's pages into a single journal chip", () => {

@@ -7,14 +7,13 @@ import type { Document } from "@/app/lib/api/documents";
 import { cn } from "@/app/lib/utils";
 import { CourtRecordBuildPanel } from "./CourtRecordBuildPanel";
 import { CourtRecordDocuments, type OcrRun } from "./CourtRecordDocuments";
-import { buildCourtRecord } from "./assembly";
 import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { Button } from "@/app/components/ui/button";
 import { Pagination } from "@/app/components/shared/TablePrimitive";
 import { SearchBar } from "@/app/components/ui/search-bar";
 import { Modal } from "@/app/components/modals/Modal";
 import { OutputFolderSetting } from "@/app/components/shared/OutputFolderSetting";
-import { applySourceEntryFields, courtRecordDraft, courtRecordDraftFromDocuments, restoreCourtRecordDraft } from "./draftState";
+import { applySourceEntryFields, courtRecordDraft, courtRecordDraftFromDocuments, rebaseDraft, restoreCourtRecordDraft } from "./draftState";
 import { sourceAccept, sourceFormat } from "./formats";
 import { CourtRecordChooser, CourtRecordSetup } from "./CourtRecordSetup";
 import { downloadArtifact, FILING_CONTACT_FIELDS, needsOcr, type CourtRecordsHost,
@@ -77,14 +76,13 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const [sourceEntryId, setSourceEntryId] = useState<string>();
   const [sourceExhibitLabel, setSourceExhibitLabel] = useState<string>();
   const [importingSource, setImportingSource] = useState(false);
-  const refreshSeen = useRef(0);
   const openRequest = useRef(0);
   const routeLoading = useRef(false);
   const openingRevision = useRef<{ id: string; revision: number } | undefined>(undefined);
   const draftRef = useRef(draft);
   const stateRef = useRef<CourtRecordDraft>(undefined!);
+  const entriesRef = useRef(entries);
   const mounted = useRef(true);
-  stateRef.current ||= courtRecordDraft(profileId, cover, entries);
   const savingDraft = useRef<Promise<WorkProduct<CourtRecordDraft> | undefined> | undefined>(undefined);
   const stateVersion = useRef(0);
   const profile = COURT_PROFILE_BY_ID.get(profileId) ?? COURT_PROFILE_BY_ID.get(DEFAULT_PROFILE_ID)!;
@@ -103,8 +101,8 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     if (next) void readEntryEffect(next);
   }, [host, entries, draftBusy, busyEntryId, importingSource, reading]);
 
-  draftRef.current = draft;
   stateRef.current = courtRecordDraft(profileId, cover, entries);
+  entriesRef.current = entries;
 
   useEffect(() => {
     mounted.current = true;
@@ -176,17 +174,13 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   }, [draft, operationBusy, profileId, cover, entries, onDraftChange]);
 
   useEffect(() => {
-    if (!draft?.id || refreshToken?.id !== draft.id ||
-        refreshToken.sequence <= refreshSeen.current) return;
-    refreshSeen.current = refreshToken.sequence;
-    void refreshDraftEffect(refreshToken.revision);
+    if (draft?.id && refreshToken?.id === draft.id) void refreshDraftEffect(refreshToken.revision);
   }, [draft?.id, refreshToken]);
 
   useEffect(() => {
     if (!draft || draftBusy || building || saving || operationBusy && !reading ||
         sameState(draft.state, stateRef.current)) return;
-    const timer = window.setTimeout(() => void saveDraftEffect(), 400);
-    return () => window.clearTimeout(timer);
+    void saveDraftEffect();
   }, [draft, operationBusy, reading, profileId, cover, entries]);
 
   const report = useMemo(() => validateCourtRecord({
@@ -230,29 +224,34 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   }
 
   function saveCurrentDraft(): Promise<WorkProduct<CourtRecordDraft> | undefined> {
-    if (savingDraft.current) return savingDraft.current.then(() => saveCurrentDraft());
+    if (savingDraft.current) return savingDraft.current;
     const current = draftRef.current;
-    const state = stateRef.current;
-    if (!current || sameState(current.state, state)) return Promise.resolve(current);
-    const operation = Promise.resolve(host.drafts.update<CourtRecordDraft>(current.id, {
-      revision: current.revision,
-      state,
-    })).then((saved) => {
-      if (!saved) return;
-      rememberDraft(saved);
-      return saved;
-    }).catch((caught) => {
+    if (!current || sameState(current.state, stateRef.current)) return Promise.resolve(current);
+    const operation = (async () => {
+      while (draftRef.current?.id === current.id) {
+        const basedOn = draftRef.current, state = stateRef.current;
+        if (sameState(basedOn.state, state)) return basedOn;
+        try {
+          const saved = await host.drafts.update<CourtRecordDraft>(current.id,
+            { revision: basedOn.revision, state });
+          if (!saved || draftRef.current?.id !== current.id) return saved;
+          if (saved.revision >= draftRef.current.revision) rememberDraft(saved);
+        } catch (caught) {
+          const latest = await host.drafts.get<CourtRecordDraft>(current.id);
+          if (latest.revision <= basedOn.revision) throw caught;
+          await openDraft(latest);
+          if (draftRef.current?.id === current.id && draftRef.current.revision < latest.revision) throw caught;
+        }
+      }
+    })().catch((caught) => {
       if (mounted.current) setError(errorMessage(caught, "This draft could not be saved."));
       return undefined;
-    });
-    savingDraft.current = operation;
-    void operation.finally(() => {
-      if (savingDraft.current === operation) savingDraft.current = undefined;
-    });
-    return operation;
+    }).finally(() => { savingDraft.current = undefined; });
+    return savingDraft.current = operation;
   }
 
-  async function openDraft(next: WorkProduct<CourtRecordDraft>, wasNew = false) {
+  async function openDraft(next: WorkProduct<CourtRecordDraft>, wasNew = false,
+    base = draftRef.current?.state) {
     if (projectId && next.projectId !== projectId) {
       throw new Error("This Court Record draft is not in this project.");
     }
@@ -265,19 +264,25 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     setReading(undefined);
     setProgress("Opening draft");
     try {
-      const definition = COURT_PROFILE_BY_ID.get(next.state.profileId);
+      const local = stateRef.current, live = entriesRef.current;
+      const state = base && draftRef.current?.id === next.id
+        ? rebaseDraft(base, local, next.state) : next.state;
+      const definition = COURT_PROFILE_BY_ID.get(state.profileId);
       if (!definition) throw new Error("This filing format is not available.");
-      const restored = await restoreCourtRecordDraft(next, host, (message) => {
+      const restored = await restoreCourtRecordDraft({ ...next, state }, host, (message) => {
         if (request === openRequest.current) setProgress(message);
       },
-        draftRef.current?.id === next.id ? entries : []);
-      if (request !== openRequest.current) return;
+        draftRef.current?.id === next.id ? live : []);
+      if (request !== openRequest.current || draftRef.current?.id === next.id &&
+          draftRef.current.revision > next.revision) return;
       stateVersion.current += 1;
       setProfileId(definition.id);
-      const restoredCover = next.state.cover ?? {};
-      setCover(fillSourceCover(definition, restoredCover,
-        coverSourceFields(restored), coverSourceFields(next.state.entries)));
-      setEntries(fillExhibitLabels(restored));
+      const merged = fillExhibitLabels(rebaseDraft(live, entriesRef.current, restored));
+      const restoredCover = fillSourceCover(definition,
+        rebaseDraft(local.cover, stateRef.current.cover, state.cover),
+        coverSourceFields(merged), coverSourceFields(state.entries));
+      stateRef.current = courtRecordDraft(definition.id, restoredCover, merged);
+      setCover(restoredCover); setEntries(merged);
       setResult(undefined);
       setShowErrors(false);
       setCreating(false);
@@ -289,7 +294,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     } finally {
       if (request === openRequest.current) {
         setProgress(undefined);
-        setDraftBusy(false);
+        if (!routeLoading.current) setDraftBusy(false);
       }
     }
   }
@@ -395,9 +400,12 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       patch = { ocrAttemptedPages: [] };
     }
     if (request !== openRequest.current || !mounted.current) return;
-    const ready = applySourceEntryFields({ ...entry, ...patch }, undefined, entry.sourceFields);
-    setEntries((current) => putPreparedEntry(current, ready, entry.exhibitLabel));
-    applySourceCover(ready);
+    const current = entriesRef.current.find(({ id }) => id === entry.id);
+    if (current && current.file === entry.file) {
+      const ready = applySourceEntryFields({ ...current, ...patch }, undefined, current.sourceFields);
+      setEntries((entries) => putPreparedEntry(entries, ready, current.exhibitLabel));
+      applySourceCover(ready);
+    }
     setReading(undefined);
   }
 
@@ -618,7 +626,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         requestAnimationFrame(() => focusFinding(buildReport.blockers[0]));
         throw new Error(buildReport.blockers[0]?.title ?? "Complete the required information.");
       }
-      const built = await buildCourtRecord({
+      const built = await (await import("./assembly")).buildCourtRecord({
         profile,
         entries: buildEntries,
         cover: buildCover,

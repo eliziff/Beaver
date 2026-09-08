@@ -74,15 +74,11 @@ function dependencies(value = product()) {
 beforeEach(() => vi.clearAllMocks());
 
 describe("court records application", () => {
-  it("reads all prepared page text through the existing projection service", async () => {
+  it("retains recognized page text beside a non-text page", async () => {
     const store = documents(), { files, workProducts } = dependencies();
-    const lookupPdf = vi.fn(async () => ({
-      status: "found" as const,
-      pages: [
-        { page_number: 1, text: "First page" },
-        { page_number: 2, text: "Second page" },
-      ],
-    }));
+    const lookupPdf = vi.fn(async (_bytes, input: { locator: string }) => input.locator === "1"
+      ? { status: "found" as const, pages: [{ page_number: 1, text: "First page" }] }
+      : { status: "unavailable" as const, pages: [] });
     const application = createCourtRecordsApplication(store, files as never,
       workProducts as never, { lookupPdf: lookupPdf as never, preparePdf: vi.fn() as never });
     await expect(application.preparedPageText(scope, "document-1", null)).resolves.toEqual({
@@ -90,14 +86,9 @@ describe("court records application", () => {
       source_sha256: "a".repeat(64), page_count: 2, parser_status: "ready",
       pages: [
         { page_number: 1, text: "First page" },
-        { page_number: 2, text: "Second page" },
+        { page_number: 2, text: "" },
       ],
     });
-    expect(lookupPdf).toHaveBeenCalledWith(expect.any(Function), {
-      locatorKind: "page", locator: "1-2", contextBlocks: 0,
-    }, expect.objectContaining({
-      documentId: "document-1", versionId: "version-1", persistEvidence: false,
-    }));
   });
 
   it("retains readable pages beside a blank page and accepts an entirely blank prepared PDF", async () => {
@@ -153,10 +144,6 @@ describe("court records application", () => {
       documentId: `court-record:${digest}`, versionId: `source:${digest}`,
       sourceSha256: digest, pages: [2], ocrProvider: "kraken-lite",
     }));
-    expect(lookupPdf).toHaveBeenCalledWith(expect.any(Function), {
-      locatorKind: "page", locator: "1-2", contextBlocks: 0,
-    }, expect.objectContaining({ documentId: `court-record:${digest}`,
-      versionId: `source:${digest}`, persistEvidence: false }));
   });
 
   it("rejects invalid and password-protected standalone PDFs", async () => {

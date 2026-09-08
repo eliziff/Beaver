@@ -218,8 +218,6 @@ describe("SQLite and filesystem document adapters", () => {
     const retainedKey = moved.find(({ name }) => name === "queries.json")!.storage_path;
     expect(await objects.get(retainedKey)).toEqual(queries);
     expect(await documents.deleteDocument(scope, created.id)).toBe(true);
-    await database.query(sql`UPDATE object_cleanup SET created_at='2000-01-01T00:00:00.000Z'`);
-    await documents.resumeCleanup();
     expect(await objects.get(retainedKey)).toBeNull();
   });
 

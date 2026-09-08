@@ -33,7 +33,7 @@ export function TabularMarkdown({
     citations?: Citation[];
     value?: GroundedAnswer["value"];
     column?: Pick<ColumnConfig, "format" | "tags">;
-    onCitationClick: (citation: Citation) => void;
+    onCitationClick: (citation: Citation, action?: "workspace") => void;
     inline?: boolean;
 }) {
     if (!text) return null;
