@@ -6,17 +6,9 @@ import {
   stableA2AJSourceId,
   type A2AJCompiledDocument,
 } from "../legalSources/a2aj";
-import {
-  structureNative,
-  type NativeDocument,
-} from "../structureNative";
-import {
-  hasCanadianDecisionLink,
-} from "../legalSourceLinks";
-import {
-  type LegalSourcePassage,
-  type LegalSourceReference,
-} from "../legalSources";
+import { structureNative, type NativeDocument } from "../structureNative";
+import { hasCanadianDecisionLink } from "../legalSourceLinks";
+import type { LegalSourcePassage, LegalSourceReference } from "../legalSources";
 import { type Tool } from "../llm";
 import { normalizeWhitespace } from "../text";
 import { jsonRecord as object } from "../value";
@@ -32,7 +24,7 @@ export type LegalSourceClass = "case" | "legislation" | "commentary";
 const GROUNDED_ANSWER_CONTRACT =
   "Finish evidence-dependent answers with this tool. Bind each claim to supporting passage evidence_ids. Citation chips supply source names, citations, pinpoints and links; include those details in prose only when needed for the analysis or requested by the user.";
 const GROUNDED_CLAIM_GRANULARITY =
-  "Use the smallest passage that supports the claim, with a native pinpoint when available. End a claim when its supporting evidence changes.";
+  "Use one sentence per claim and the smallest supporting passage. When naming a paragraph, choose its exact evidence_id, not a neighbouring paragraph or a broader range; Read that paragraph if needed.";
 export const GROUNDED_QUOTATION_POLICY_CURRENT =
   "Prefer direct quotation when the source itself states the proposition. Quote the shortest passage that preserves the source's meaning and necessary context. Paraphrase only when combining sources, explaining their effect, or expressing the point more clearly. Keep each claim to one proposition, and attach only the evidence that supports that proposition. Split the claim when different propositions require different evidence. Avoid long quotations unless their full wording is necessary.";
 export const GROUNDED_QUOTATION_POLICY_CLASSIC =
@@ -45,8 +37,6 @@ export function selectGroundedQuotationPolicy(flag?: string) {
 export const GROUNDED_QUOTATION_POLICY = selectGroundedQuotationPolicy(
   process.env.BEAVER_GROUNDED_QUOTATION_POLICY,
 );
-const GROUNDED_SUMMARY_POLICY =
-  "A summary may group one to three closely connected sentences when they perform the same function and are supported by the same narrow evidence—for example, one fact cluster, issue, holding, reasoning step, or disposition. Start a new claim when the function or supporting evidence changes.";
 
 export type LegalEvidenceReceipt = {
   evidence_id: string;
@@ -870,35 +860,45 @@ export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnS
   return { claims, errors };
 }
 
-/**
- * Structure and work-product tools address text by internal handle — `body:12`,
- * `node:7`, `par25`, `e_<hash>`. Those are addresses into a projection, not
- * citations, and a reader cannot resolve them; claims name authorities through
- * their evidence, which renders as a chip.
- */
 const INTERNAL_HANDLE =
   /\b(?:body|node|unit|block|chars):\s*\d{1,6}\b|\bpar\d{1,5}\b|\be_[0-9a-f]{8,}\b/iu;
 
-export function legalEvidenceProseIntegrityErrors(
-  text: string,
-  citedEvidenceIds: readonly string[],
-  state: LegalEvidenceTurnState,
-) {
-  const passages = new Map(state.priorEvidencePreviews);
-  for (const id of [...state.presentedEvidenceIds, ...citedEvidenceIds]) {
-    const text = state.evidence.get(id)?.receipt.span_text;
-    if (text) passages.set(id, text);
+export function legalEvidenceProseIntegrityErrors(text: string,
+  citedEvidenceIds: readonly string[], state: LegalEvidenceTurnState) {
+  const native = structureNative(), cited = citedEvidenceIds.flatMap((id) => state.evidence.get(id)?.receipt ?? []);
+  const visible = [...new Set([...state.priorEvidencePreviews.keys(), ...state.presentedEvidenceIds, ...citedEvidenceIds])]
+    .flatMap((evidenceId) => {
+      const receipt = state.evidence.get(evidenceId)?.receipt;
+      const passage = state.presentedEvidenceIds.has(evidenceId) || citedEvidenceIds.includes(evidenceId)
+        ? receipt?.span_text : state.priorEvidencePreviews.get(evidenceId);
+      return receipt && passage ? [{ evidenceId, text: passage,
+        labels: [receipt.name, receipt.citation].filter((value): value is string => Boolean(value)) }] : [];
+    });
+  const named = new Map<string, Set<string>>();
+  for (const citation of native.citationOccurrencesInText(text).filter((citation) =>
+    !native.markedQuoteSpans(text).some((quote) => citation.start >= quote.start && citation.end <= quote.end))) {
+    const key = native.citationLookupKey(citation.coreCitation.text), labels = named.get(key) ?? new Set<string>();
+    const paragraphs = citation.pinpoints.filter(({ kind }) => kind === "paragraph");
+    if (!paragraphs.length) continue;
+    named.set(key, labels);
+    paragraphs.forEach((point, index) => {
+      const previous = paragraphs[index - 1], range = previous && /^\s*[-–—]\s*$/u.test(text.slice(previous.end, point.start));
+      const start = range ? Number(previous.text) : Number(point.text), end = Number(point.text);
+      if (Number.isSafeInteger(start) && end >= start && end - start < 4)
+        for (let value = start; value <= end; value++) labels.add(String(value));
+      else labels.add(range ? `${previous.text}–${point.text}` : point.text);
+    });
   }
-  const visible = [...passages].flatMap(([evidenceId, text]) => {
-    const receipt = state.evidence.get(evidenceId)?.receipt;
-    return receipt && text ? [{ evidenceId, text,
-        labels: [receipt.name, receipt.citation].filter(
-          (value): value is string => Boolean(value)) }] : [];
+  const pinpoints = [...named].flatMap(([key, labels]) => {
+    const actual = cited.filter((receipt) => native.citationLookupKey(receipt.citation) === key)
+      .map(({ locator }) => locator.kind === "paragraph" ? locator.label.replace(/^(?:paragraph|para|par)[\s.]*/iu, "") : "");
+    return [...labels].every((label) => actual.includes(label)) && actual.every((label) => labels.has(label))
+      ? [] : [`${key} paragraphs ${[...labels].join(", ")} require their exact passage evidence_ids; Read those paragraphs and correct the claim's evidence_ids or split the claim`];
   });
   const handle = INTERNAL_HANDLE.exec(text)?.[0];
   return [
     ...(handle ? [`must not name the internal handle "${handle}"; cite the passage through its evidence instead`] : []),
-    ...structureNative().groundedProseErrors(text, citedEvidenceIds, visible),
+    ...pinpoints, ...native.groundedProseErrors(text, citedEvidenceIds, visible),
   ];
 }
 
@@ -943,7 +943,6 @@ export const LEGAL_EVIDENCE_SUBMIT_TOOL: Tool = {
     GROUNDED_ANSWER_CONTRACT,
     GROUNDED_QUOTATION_POLICY,
     GROUNDED_CLAIM_GRANULARITY,
-    GROUNDED_SUMMARY_POLICY,
   ].join(" "),
   inputSchema: {
       type: "object",

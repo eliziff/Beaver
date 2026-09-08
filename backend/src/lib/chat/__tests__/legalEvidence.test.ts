@@ -117,6 +117,25 @@ describe("production legal evidence", () => {
     expect(priorLegalEvidenceReceipts([event])).toEqual([evidence]);
   });
 
+  it("refuses a neighbouring paragraph handle and accepts the named paragraph", () => {
+    const state = createLegalEvidenceTurnState();
+    const wrong = passage("par73"), right = passage("par74");
+    registerLegalEvidence(state, wrong); registerLegalEvidence(state, right);
+    const text = "The duty applies irrespective of intention: 2024 SCC 1, para. 74.";
+    expect(submitLegalEvidenceAnswer({ claims: [{ text, evidence_ids: [wrong.evidence_id] }] }, state))
+      .toMatchObject({ ok: false, errors: [expect.stringContaining("paragraphs 74 require their exact passage")] });
+    expect(submitLegalEvidenceAnswer({ claims: [{ text, evidence_ids: [wrong.evidence_id, right.evidence_id] }] }, state).ok)
+      .toBe(false);
+    expect(submitLegalEvidenceAnswer({ claims: [{ text, evidence_ids: [right.evidence_id] }] }, state).ok).toBe(true);
+    expect(createLegalEvidenceCitations(state)[0]).toMatchObject({ locator: "74" });
+    const range = "The duty applies: 2024 SCC 1, paras. 73–75.";
+    const end = passage("par75"); registerLegalEvidence(state, end);
+    expect(submitLegalEvidenceAnswer({ claims: [{ text: range, evidence_ids: [wrong.evidence_id, end.evidence_id] }] }, state).ok)
+      .toBe(false);
+    expect(submitLegalEvidenceAnswer({ claims: [{ text: range,
+      evidence_ids: [wrong.evidence_id, right.evidence_id, end.evidence_id] }] }, state).ok).toBe(true);
+  });
+
   it("keeps each grounded table row's citations inside its final cell", () => {
     const state = createLegalEvidenceTurnState();
     const first = passage("par12"), second = passage("par13");
