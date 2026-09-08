@@ -1,20 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-    CLAUDE_LOW_MODELS,
-    CLAUDE_MAIN_MODELS,
-    CLAUDE_MID_MODELS,
-    DEEPSEEK_MAIN_MODELS,
     DEFAULT_MAIN_MODEL,
     DEFAULT_TABULAR_MODEL,
     DEFAULT_TITLE_MODEL,
-    GEMINI_LOW_MODELS,
-    GEMINI_MAIN_MODELS,
-    GEMINI_MID_MODELS,
-    META_MAIN_MODELS,
-    OPENAI_LOW_MODELS,
-    OPENAI_MAIN_MODELS,
-    OPENAI_MID_MODELS,
     isSupportedModel,
+    staticPickerModels,
     openCodeGoProtocol,
     providerForModel,
     resolveModel,
@@ -27,27 +17,35 @@ import {
 } from "../llm/contextWindow";
 
 const PROVIDER_CATALOGS: Record<string, string[]> = {
-    claude: [
-        ...CLAUDE_MAIN_MODELS,
-        ...CLAUDE_MID_MODELS,
-        ...CLAUDE_LOW_MODELS,
-    ],
-    gemini: [
-        ...GEMINI_MAIN_MODELS,
-        ...GEMINI_MID_MODELS,
-        ...GEMINI_LOW_MODELS,
-    ],
-    openai: [
-        ...OPENAI_MAIN_MODELS,
-        ...OPENAI_MID_MODELS,
-        ...OPENAI_LOW_MODELS,
-    ],
-    deepseek: [...DEEPSEEK_MAIN_MODELS],
-    openrouter: [...META_MAIN_MODELS],
+    claude: ["claude-fable-5", "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5"],
+    gemini: ["gemini-3.5-flash", "gemini-3.1-pro-preview", "gemini-3-flash-preview", "gemini-3.1-flash-lite-preview"],
+    openai: ["gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-lite"],
+    deepseek: ["deepseek-v4-flash", "deepseek-v4-pro"],
+    openrouter: ["meta/muse-spark-1.1"],
 };
 const CATALOG = Object.values(PROVIDER_CATALOGS).flat();
 
 describe("model catalog", () => {
+    it("offers the existing chat and settings models with their own reasoning and protocol", () => {
+        const models = staticPickerModels();
+        expect(models.filter(model => !model.settingsOnly && model.group !== "Claude Code")
+            .map(model => model.id)).toEqual([
+                "claude-fable-5", "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6",
+                "gemini-3.5-flash", "gemini-3.1-pro-preview", "gemini-3-flash-preview",
+                "deepseek-v4-flash", "deepseek-v4-pro", "muse-spark-1.2", "muse-spark-1.1", "meta/muse-spark-1.1",
+            ]);
+        expect(models.filter(model => model.settingsOnly && model.group !== "Claude Code")
+            .map(model => model.id)).toEqual(["gpt-5.5", "gpt-5.4", "claude-haiku-4-5",
+                "gemini-3.1-flash-lite-preview", "gpt-5.4-lite", "muse-spark-1.2-contributor"]);
+        expect(models.find(model => model.id === "deepseek-v4-flash")).toMatchObject({
+            reasoningEfforts: ["low", "high", "max"], defaultReasoningEffort: "high" });
+        expect(models.find(model => model.id === "meta/muse-spark-1.1")).toMatchObject({
+            provider: "openrouter", reasoningEfforts: ["xhigh", "high", "medium", "low", "minimal"] });
+        expect(models.find(model => model.id === "muse-spark-1.2-contributor")).toMatchObject({
+            provider: "meta", settingsOnly: true, defaultReasoningEffort: "medium" });
+        expect(models.every(model => isSupportedModel(model.id))).toBe(true);
+    });
+
     it("maps every catalog and provider-shaped id", () => {
         expect(
             Object.fromEntries(

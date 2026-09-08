@@ -51,24 +51,16 @@ export interface UserProfile extends UserPreferences {
 export interface UserLookupResult {
   exists: boolean; email: string; display_name: string | null;
 }
+export interface ModelOption {
+  id: string; label: string; group: string;
+  provider?: import("../modelAvailability").ModelProvider;
+  settingsOnly?: boolean; available?: boolean;
+  reasoningEfforts?: string[]; defaultReasoningEffort?: string;
+}
 export interface ModelCatalog {
-  models: {
-    slug: string; displayName: string; defaultReasoningLevel?: string;
-    supportedReasoningLevels: { effort: string }[];
-  }[];
-  ollama?: {
-    source: "live" | "unavailable";
-    models: {
-      name: string; displayName: string; supportsThinking?: boolean;
-    }[];
-  };
-  openCodeGo?: {
-    source: "live" | "unavailable";
-    models: { id: string; displayName: string }[];
-  };
-  readSubagents?: {
-    serverEnabled: boolean;
-  };
+  models: ModelOption[];
+  unavailableProviders?: import("../modelAvailability").ModelProvider[];
+  readSubagents?: { serverEnabled: boolean };
 }
 export const getModelCatalog = () => apiRequest<ModelCatalog>("/models");
 export const getUserProfile = () => apiRequest<UserProfile>("/user/profile");
