@@ -319,8 +319,8 @@ it("reads saved workspace passages through their handles without fetching the so
   expect(restored.state.sources).toEqual(before.state.sources);
   expect(restored.state.labels).toEqual(before.state.labels);
 });
-it("round trips every table column with joint evidence outside its rows, then undoes all filing", async () => {
-  const f = await fixture(), columns = ["Honesty", "Exclusion", "Remedy"].map((name, index) => ({ index, name, prompt: `${name}?`, format: "text" })),
+it.each([false, true])("round trips every table column with joint evidence and undoes filing (existing labels=%s)", async (existing) => {
+  const f = await fixture(), columns = ["Honesty", "Exclusion", "Remedy"].map((name, index) => ({ index: index + 4, name, prompt: `${name}?`, format: "text" })),
     other = f.legal.createA2AJPassageEvidence({ citation: "Test 2", name: "Other decision", dataset: "scc", language: "en",
       sourceText: "A joint conclusion.", spanText: "A joint conclusion.", start: 0, end: 19,
       locator: { kind: "paragraph", label: "2" }, externalUrl: null, sourceClass: "case", sourceReference: { id: "other-source" } }),
@@ -332,6 +332,9 @@ it("round trips every table column with joint evidence outside its rows, then un
     columnIndex: cell.column_index, expected: cell, status: "done", content: { value: "Supported conclusion", summary: "Supported conclusion",
       claims: [{ text: "Supported conclusion", evidence_ids: evidence.map(({ evidence_id }) => evidence_id) }], evidence,
       resource: detail.review.scope_config!.subjects[0].resource, coverage: "complete" } });
+  if (existing) { const current = (await f.sources.get(owner, initial.document.id))!;
+    await f.sources.update(owner, current.document.id, { versionId: current.versionId,
+      workingRevision: current.workingRevision, action: { type: "label", name: "Honesty", scope: "source", definition: "Honesty?" } }); }
   const before = await f.sources.ensure(owner, { tableId: review.id }), input = { tableId: review.id },
     preview = await f.sources.previewLabels(owner, before.document.id, input);
   expect(preview.labels.map(({ name }) => name)).toEqual(columns.map(({ name }) => name));

@@ -21,5 +21,5 @@ ${rows || "- (none)"}
 COLUMNS (fields):
 ${columns || "- (none)"}
 
-Read this review with update_research_table to inspect its selected research and arrangement before organizing it. Added columns, explicit renames and reorders apply directly: send the complete columns_config, whose array order is the column order. Rewritten prompts, changed formats or tags and removals of existing columns are proposals: send them with propose:true so the user reviews them in a form. Keep completed no-match results distinct from incomplete or failed extraction.`;
+For organization requests, read this review with update_research_table, then submit the proposed columns through that tool with propose:true. Preserve questions the user only wants renamed. A prose suggestion is not a reviewable proposal. Added columns, explicit renames and reorders apply directly: send the complete columns_config, whose array order is the column order. Rewritten prompts, changed formats or tags and removals of existing columns are proposals: send them with propose:true so the user reviews them in a form. Keep completed no-match results distinct from incomplete or failed extraction.`;
 }

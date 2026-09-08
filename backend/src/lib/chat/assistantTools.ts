@@ -2841,7 +2841,7 @@ export function assistantTools<Context extends {
       definition(workProductTool(productFeatures?.authorities !== false, false,
         activeCourtTool || authoritiesId ? "manage_work_products" : "update_work_product"), updateWorkProduct),
     ]),
-    definition(documentOperationTool(includeResearchTools), documentOperation),
+    definition(documentOperationTool(includeResearchTools), documentOperation, { specialist: !researchContext?.workspace }),
     definition(LINT_DOCUMENT_TOOL, (call, input, signal) =>
       runWorkflow(call, { ...input, action: "lint_structure" }, signal)),
     definition(ADVANCED_DOCX_EDIT_TOOL, codingWithArtifacts),
