@@ -53,6 +53,8 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
       <ChevronRight className="h-4 w-4 text-red-700 transition-transform group-open:rotate-90 motion-reduce:transition-none" />
       <h2 className="font-semibold text-gray-950">Sources</h2>
       <span className="ms-auto text-sm tabular-nums text-gray-500">{ready} / {included.length} PDFs</span>
+      {state.outputMode !== "table" && <Button type="button" variant="outline" className={control}
+        disabled={busy} onClick={(event) => { event.preventDefault(); setTabSettings(true); }}>Tab labels</Button>}
     </summary>
     <div className="border-t border-gray-200 p-3 sm:p-4"
       onDragOver={(event) => { if (!busy && onFiles && event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
@@ -61,16 +63,14 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           event.preventDefault(); onFiles(Array.from(event.dataTransfer.files));
         }
       }}>
-      <div className="mb-3 flex flex-wrap justify-end gap-2">
-        {state.outputMode !== "table" && <Button type="button" variant="outline" className={control}
-          disabled={busy} onClick={() => setTabSettings(true)}>Tab labels</Button>}
+      {(onFiles || onLibraryAdd) && <div className="mb-3 flex flex-wrap justify-end gap-2">
         {onFiles && (onPickMany ? <Button type="button" variant="outline" className={control}
           disabled={busy} onClick={onPickMany}><FilePlus2 /> Upload</Button>
           : <FileInputButton multiple disabled={busy} label="Upload" accept=".pdf,application/pdf"
             onFiles={onFiles} variant="outline" compact />)}
         {onLibraryAdd && <Button type="button" variant="outline" className={control} disabled={busy}
           onClick={onLibraryAdd}><FolderSearch /> {sourceLabel}</Button>}
-      </div>
+      </div>}
       <div role="list" aria-label="Authority tab slots"
         className="divide-y divide-gray-200 rounded-lg border border-gray-300">
         {authorities.map((authority) => <AuthorityRow key={authority.id} authority={authority} busy={busy}

@@ -700,14 +700,14 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
 
   return <div className={cn("authorities-workspace bg-app-background [scrollbar-gutter:stable]",
     host.mode === "standalone" ? "min-h-dvh" : "min-h-full lg:h-full lg:min-h-0 lg:overflow-y-auto")}>
-    {draft && !globalTab ? <WorkspaceHeader className={host.mode === "standalone" ? WORKSPACE_FRAME : undefined} current={draft}
+    {draft ? <WorkspaceHeader className={host.mode === "standalone" ? WORKSPACE_FRAME : undefined} current={draft}
         busy={busy || locked} itemLabel="authorities draft"
         onBack={() => newDraft(false)} onRename={rename} onDuplicate={duplicate}
         onDelete={removeDraft} headerActions={<><Button type="button" variant="outline"
           className="h-9 border-gray-400" disabled={busy || locked} onClick={() => newDraft()}>
-          <Plus /> New</Button>{settingsAction}{headerActions}</>} />
+          <Plus /> New</Button>{headerActions}{settingsAction}</>} />
         : <WorkspaceHeader className={host.mode === "standalone" ? WORKSPACE_FRAME : undefined} title="Authorities"
-          headerActions={<>{settingsAction}{headerActions}</>} />}
+          headerActions={<>{headerActions}{settingsAction}</>} />}
     <div inert={locked} aria-busy={locked || undefined}>
           <main className={cn(WORKSPACE_FRAME, "min-h-80 py-4")}>
         <TabList value={tab} onValueChange={changeTab} options={TABS}
