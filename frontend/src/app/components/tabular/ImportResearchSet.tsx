@@ -9,7 +9,7 @@ import { Button } from "../ui/button";
 import { Modal } from "../modals/Modal";
 import { FileDirectory } from "../shared/FileDirectory";
 import { tabularReviewPath } from "./tabularReviewRoute";
-import { useSelectedModel } from "@/app/hooks/useSelectedModel";
+import { useSelectedModel, useSelectedReasoningEffort } from "@/app/hooks/useSelectedModel";
 
 const HEAD = "text-sm font-semibold text-gray-900", META = "text-xs text-gray-500";
 const CARD = "relative min-w-0 break-words rounded-lg border border-gray-200 p-4 pe-10";
@@ -28,7 +28,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const [adjust, setAdjust] = useState(""), [addition, setAddition] = useState("");
     const [busy, setBusy] = useState(false), [creating, setCreating] = useState(false);
     const [error, setError] = useState(""), [note, setNote] = useState("");
-    const generation = useRef(0), activeId = fileId ?? picked[0]?.id, [model] = useSelectedModel();
+    const generation = useRef(0), activeId = fileId ?? picked[0]?.id, [model] = useSelectedModel(), [effort] = useSelectedReasoningEffort();
     const input: ResearchTableInput = { ...(selection ? { selection } : {}), ...(chatId ? { chatId, messageIds } : {}) };
     const inputKey = JSON.stringify(input);
     async function propose(instruction = "") {
@@ -36,7 +36,8 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
         const run = ++generation.current; setBusy(true); setError(""); setNote("");
         try {
             const request = [defaultRequest.trim(), instruction.trim()].filter(Boolean).join("\n");
-            const body = { ...JSON.parse(inputKey) as ResearchTableInput, ...(request ? { request } : {}), model };
+            const body = { ...JSON.parse(inputKey) as ResearchTableInput, ...(request ? { request } : {}), model,
+                ...(effort ? { reasoningEffort: effort } : {}) };
             const [current, next] = await Promise.all([getResearchFile(activeId),
                 labelling ? previewWorkspaceLabels(activeId, body) : previewWorkspaceTable(activeId, body)]);
             if (run !== generation.current) return;
