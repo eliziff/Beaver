@@ -3,6 +3,7 @@ import { checkpointDocumentVersion, compareDocumentVersions, downloadDocument, g
     listDocumentVersions, restoreDocumentVersion, uploadDocumentVersion,
     type Document, type DocumentVersion } from "@/app/lib/api/documents";
 import { downloadBlob } from "@/app/lib/download";
+import { BeaverApiError } from "@/app/lib/api/client";
 
 export type DocumentAction = "rename" | "upload" | "checkpoint" | "restore" | "compare" | "download";
 type History = { currentVersionId: string | null; versions: DocumentVersion[];
@@ -63,8 +64,11 @@ export function useDocumentController(documents: Document[],
         try { const updated = await mutation();
             if (updated) setSelection((current) => current?.doc.id === id ? { ...current, doc: updated } : current);
             return true; }
-        catch {
-            const message = `Could not ${{ rename: "rename this document", upload: "upload the new version",
+        catch (error) {
+            const latest = error instanceof BeaverApiError && error.status === 409
+                ? await getDocument(id).catch(console.error) : undefined;
+            if (latest) setSelection((current) => current?.doc.id === id ? { doc: latest, versionId: null } : current);
+            const message = latest ? "This document changed; review the current version and try again." : `Could not ${{ rename: "rename this document", upload: "upload the new version",
                 checkpoint: "create this version", restore: "restore this version", compare: "create the comparison",
                 download: "download this version" }[action]}.`;
             update(id, { actionError: message });
@@ -107,16 +111,12 @@ export function useDocumentController(documents: Document[],
         }, true);
     }
     function download(id: string, versionId: string, filename: string) {
-        return action(id, "download", async () => {
-            const result = await downloadDocument(id, versionId);
-            downloadBlob(result.blob, result.filename || filename);
-        });
+        return action(id, "download", () => downloadDocument(id, versionId)
+            .then((result) => downloadBlob(result.blob, result.filename || filename)));
     }
     function compare(id: string, baselineId: string, versionId: string) {
-        return action(id, "compare", async () => {
-            const result = await compareDocumentVersions(id, baselineId, versionId);
-            downloadBlob(result.blob, result.filename ?? "document changes.docx");
-        });
+        return action(id, "compare", () => compareDocumentVersions(id, baselineId, versionId)
+            .then((result) => downloadBlob(result.blob, result.filename ?? "document changes.docx")));
     }
     return { docsById, doc, history, histories, versions, currentId, current, selected, selectedId, priorCurrent,
         versionId: selection?.versionId ?? null, load, action, forget, pendingRestore, setPendingRestore,
