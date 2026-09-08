@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAssistantChat } from "@/app/hooks/useAssistantChat";
 import { ChatView } from "./ChatView";
 import {
-    assistantSessionReducer,
     createAssistantSessionState,
 } from "@/app/lib/assistantSession";
 

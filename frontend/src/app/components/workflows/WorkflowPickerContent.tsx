@@ -8,6 +8,7 @@ import { Modal } from "@/app/components/modals/Modal";
 import { APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
 import type { Workflow, WorkflowVariant } from "@/app/lib/api/workflows";
 import { AUDIENCE_TABS, groupWorkflows, type AudienceFilter } from "./workflowCatalog";
+import { CollectionState } from "../shared/CollectionState";
 
 interface Props {
     workflows: Workflow[]; search: string; audience: AudienceFilter;
@@ -131,7 +132,7 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
             <div ref={listRef} className={`mt-2 min-h-0 flex-1 overflow-y-auto pb-4 ${audienceTabVariant === "dock" ? "max-[40rem]:overflow-visible" : ""}`}>
                 <p role="status" className="sr-only">{loading
                     ? "Loading workflows" : `${count} workflow choices`}</p>
-                {loading && !workflows.length ? <WorkflowSkeleton />
+                {loading && !workflows.length ? <CollectionState loading>Loading…</CollectionState>
                     : loadError && !workflows.length ? <LoadError onRetry={onRetryLoad} />
                     : groups.length ? <div className="grid items-start gap-3">{groups.map((group) => {
                         const sectionId = `${idPrefix}-workflow-section-${slug(group.label)}`;
@@ -311,10 +312,6 @@ const launchLabel = (variant: WorkflowVariant) => variant.execution === "tabular
     ? "Start Tabular Review" : "Open chat";
 const DESTINATION_BUTTON_CLASS = "inline-flex min-h-9 w-16 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45";
 const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/gu, "-");
-const WorkflowSkeleton = () => <div aria-hidden="true" className="space-y-2">
-    {[1, 2, 3, 4, 5].map((item) =>
-        <div key={item} className="h-14 rounded-lg bg-gray-100 motion-safe:animate-pulse" />)}
-</div>;
 
 const WORKFLOW_ICONS: Record<string, LucideIcon> = {
     drafting: FilePenLine, "fix-supras": RefreshCw,
@@ -324,4 +321,3 @@ const WORKFLOW_ICONS: Record<string, LucideIcon> = {
     "corporate-approvals": Building2, "submission-drafting": FilePenLine,
     "evidence-review": Files, "court-records": Scale, authorities: BookOpen,
 };
-

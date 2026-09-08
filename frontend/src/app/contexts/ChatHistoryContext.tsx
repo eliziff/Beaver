@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
 import {
   createChat,
   deleteChat,
@@ -11,6 +11,8 @@ import {
   type Message,
 } from "@/app/lib/api/chat";
 
+import { usePagedQuery } from "@/app/hooks/usePagedQuery";
+import { chatsCollection } from "@/app/lib/collectionKeys";
 import { onCollectionChange } from "@/app/lib/collectionEvents";
 import { useAuth } from "./AuthContext";
 
@@ -37,13 +39,16 @@ type Context = {
 };
 
 const ChatHistoryContext = createContext<Context | null>(null);
-const INITIAL_LIMIT = 20;
 
 export function ChatHistoryProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const [chats, setChats] = useState<Chat[] | null>(null);
-  const [limit, setLimit] = useState(INITIAL_LIMIT);
-  const [hasMoreChats, setHasMore] = useState(false);
+  const page = usePagedQuery<Chat>(async (cursor, signal) => {
+    const offset = Number(cursor ?? 0), rows = await listChats({ offset, limit: 21 }, signal);
+    return { items: rows.slice(0, 20), next_cursor: rows.length > 20 ? String(offset + 20) : null };
+  }, [user?.id], !!user, chatsCollection());
+  const chats = !user ? [] : page.loaded ? page.items : null;
+  const hasMoreChats = page.hasMore;
+  const setItems = page.setItems, loadChats = page.reload;
   const prepared = useRef<PreparedChat | null>(null);
   useEffect(() => { prepared.current = null; }, [user]);
   const projectMoveListeners = useRef(new Set<ProjectMoveListener>());
@@ -52,57 +57,11 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
     return () => { projectMoveListeners.current.delete(listener); };
   }, []);
   const pending = useRef<{ id: string; message: Message } | null>(null);
-  const listRequest = useRef(0);
-  const updateChats = useCallback((update: (current: Chat[] | null) => Chat[] | null) => {
-    // A local mutation result is newer than any list request already in flight.
-    listRequest.current += 1;
-    setChats(update);
-  }, []);
-
-  const loadChats = useCallback(async () => {
-    const request = ++listRequest.current;
-    if (!user) {
-      setChats([]);
-      setHasMore(false);
-      return;
-    }
-    try {
-      const rows = await listChats({ limit: limit + 1 });
-      if (request !== listRequest.current) return;
-      const next = rows.slice(0, limit);
-      setChats((current) => JSON.stringify(current) === JSON.stringify(next) ? current : next);
-      setHasMore(rows.length > limit);
-    } catch {
-      // Retain the last usable list on a transient refresh failure.
-    }
-  }, [limit, user]);
-
-  useEffect(() => {
-    if (!user) {
-      setChats([]);
-      setLimit(INITIAL_LIMIT);
-      setHasMore(false);
-    } else {
-      void loadChats();
-    }
-  }, [loadChats, user]);
-
-  useEffect(() => {
-    const refresh = () => { if (document.visibilityState === "visible") void loadChats(); };
-    const off = onCollectionChange(({ tags }) => {
-      if (tags.includes("chats")) { prepared.current = null; void loadChats(); }
-    });
-    window.addEventListener("focus", refresh);
-    window.addEventListener("online", refresh);
-    document.addEventListener("visibilitychange", refresh);
-    return () => {
-      off();
-      window.removeEventListener("focus", refresh);
-      window.removeEventListener("online", refresh);
-      document.removeEventListener("visibilitychange", refresh);
-      listRequest.current += 1;
-    };
-  }, [loadChats]);
+  const updateChats = useCallback((update: (current: Chat[] | null) => Chat[] | null) =>
+    setItems((current) => update(current) ?? []), [setItems]);
+  useEffect(() => onCollectionChange(({ tags }) => {
+    if (tags.includes("chats")) prepared.current = null;
+  }), []);
 
   const saveChat = useCallback(async (projectId?: string) => {
     try {
@@ -153,7 +112,7 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
       return entry?.id === id && Date.now() - entry.at < 5_000 ? { ...entry } : null;
     },
     loadChats,
-    loadMoreChats: () => setLimit((current) => current + 10),
+    loadMoreChats: () => { void page.loadMore(); },
     saveChat,
     renameChat: async (id, title) => {
       updateChats((current) => current?.map((chat) => chat.id === id ? { ...chat, title } : chat) ?? []);
@@ -174,7 +133,7 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
       return [...unique.values()];
     }),
     setChatTurnInProgress,
-  }), [chats, onProjectMove, hasMoreChats, loadChats, saveChat, claimPendingChatMessage, setChatTurnInProgress, updateChats]);
+  }), [chats, onProjectMove, hasMoreChats, loadChats, page.loadMore, saveChat, claimPendingChatMessage, setChatTurnInProgress, updateChats]);
   return <ChatHistoryContext.Provider value={value}>{children}</ChatHistoryContext.Provider>;
 }
 

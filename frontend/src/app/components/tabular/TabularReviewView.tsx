@@ -491,10 +491,6 @@ function TRViewContent({ reviewId, projectId }: Props) {
         setUi({ dockTab: "chat" });
         if (!chatOpen) setChatId(null);
     }
-    async function openSources() {
-        await prepareRows();
-        setUi({ dockTab: "sources" });
-    }
     function closeDock() {
         setUi({ dockTab: null });
         setReading(null);

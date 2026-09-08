@@ -10,14 +10,14 @@ const compile = (value: CourtRecordCatalogue) => compileCourtRecordProfiles(valu
 describe("Court Record catalogue", () => {
   it("resolves whole slot rules without sharing mutable rule objects between profiles", () => {
     const input = catalogue(), before = structuredClone(input), profiles = compile(input);
-    const slot = (id: string, kind = "other-document") => profiles.find((p) => p.id === id)!
+    const slot = (id: string, kind = "exhibit") => profiles.find((p) => p.id === id)!
       .documentKinds.find((item) => item.id === kind)!;
     const first = slot("general-affidavit-exhibits"), second = slot("ab-kb-affidavit-exhibits");
     expect(first).toEqual(second);
     first.label = "Changed in one profile";
-    first.acceptedFormats!.push("pdf");
-    expect(second.label).toBe("Other document");
-    expect(second.acceptedFormats).toEqual(["pdf", "docx"]);
+    first.acceptedFormats = ["pdf"];
+    expect(second.label).toBe(before.slotDefinitions.exhibit.label);
+    expect(second.acceptedFormats).toEqual(before.slotDefinitions.exhibit.acceptedFormats);
     slot("ab-kb-chambers-justice-applicant-set", "affidavit")
       .acceptedWorkProductOutputs![0].role = "changed";
     expect(slot("ab-kb-chambers-applications-judge-applicant-set", "affidavit")

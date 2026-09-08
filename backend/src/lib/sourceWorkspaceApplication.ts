@@ -39,7 +39,7 @@ type FindingsInput = { sourceIds?: string[]; reference?: ResearchFindingReferenc
 type FindingsPage = { items: ResearchFinding[]; total: number; next_offset: number | null; is_running: boolean };
 type TableInput = { tableId?: string; chatId?: string; messageIds?: string[];
   selection?: ResearchSelection; findingRefs?: ResearchFindingReference[];
-  fingerprint?: string; design?: ResearchImportDesign; request?: string; model?: string } & Partial<ResearchImportInput>;
+  fingerprint?: string; design?: ResearchImportDesign; request?: string; model?: string; reasoningEffort?: string } & Partial<ResearchImportInput>;
 type LabelInput = Omit<TableInput, "design"> & { design?: ResearchLabelDesign };
 
 /** The Sources workspace use cases share the existing document, chat and table persistence ports. */
@@ -364,19 +364,23 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     return { file, catalog, resolveFinding: async (ref: ResearchFindingReference): Promise<ResearchFinding | null> =>
       captured.get(JSON.stringify(ref)) ?? null };
   }
+  /** The research-to-table organizing step: the model creates the structure; labels and highlight types stand in when it cannot. */
   async function previewTable(scope: Scope, id: string, input: TableInput, signal?: AbortSignal) {
     const { catalog } = await importCatalog(scope, id, input);
-    const design = input.request ? await (await dependencies.tabular()).designResearch(scope, catalog, input.request, { model: input.model, signal })
-      : input.design ?? defaultResearchImport(catalog);
+    const proposed = input.design ? null : await (await dependencies.tabular()).designResearch(scope, catalog,
+      input.request ?? catalog.question ?? catalog.title, { model: input.model, reasoningEffort: input.reasoningEffort, signal })
+      .catch((error: unknown) => { if (signal?.aborted) throw error; return null; });
+    const design = input.design ?? proposed ?? defaultResearchImport(catalog);
     const { arrangement: _arrangement, columns_config: _columns, ...preview } = researchImportPlan(catalog, design);
-    return preview;
+    return { ...preview, question: catalog.question, proposed: !!proposed, ...(input.design || proposed ? {}
+      : { fallback: "Columns come from your labels and highlight types; a structure could not be proposed right now." }) };
   }
   /** The chat-to-workspace organizing step: one model-proposed ontology, reviewed before it becomes research operations. */
   async function previewLabels(scope: Scope, id: string, input: LabelInput, signal?: AbortSignal) {
     const { file, catalog } = await importCatalog(scope, id, input);
     const target = input.rows ?? "sources";
     const design = input.design ?? await (await dependencies.tabular()).designLabels(scope, catalog, file, target,
-      input.request ?? fail(400, "Describe the label set you want"), { model: input.model, signal });
+      input.request ?? catalog.question ?? catalog.title, { model: input.model, reasoningEffort: input.reasoningEffort, signal });
     const { actions: _actions, ...plan } = researchLabelPlan(file, catalog, design, target);
     return { ...plan, design, fingerprint: catalog.fingerprint };
   }

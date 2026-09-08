@@ -144,12 +144,11 @@ export function ContextualWorkflowPicker({ documents = [], initialWorkflowId,
 
 export function ContextualWorkflowLauncher<T extends WorkflowDocument>({ documents = [], onAssistantSelect,
     onOpen, className, labelClassName = "hidden sm:inline",
-    disabled = false, showDisabled = false, resolveDocuments }: {
+    disabled = false, resolveDocuments }: {
             documents?: T[];
             onAssistantSelect?: (selection: WorkflowSelection, documents: T[]) => void;
             onOpen?: (documents: T[]) => void;
             className?: string; labelClassName?: string; disabled?: boolean;
-            showDisabled?: boolean;
             resolveDocuments?: () => Promise<T[]> }) {
     const [open, setOpen] = useState(false);
     const [resolved, setResolved] = useState<T[]>([]);

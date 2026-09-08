@@ -253,9 +253,10 @@ it("preserves the first observed passage when extraction fails before submitting
   expect((await f.sources.items(owner, id, { kind: "passages", offset: 0, limit: 10 })).total).toBe(0);
   await expect(app.runAgent(owner, { reviewId: table.id, documentId: f.source.id, jobId: "failed-job" }))
     .rejects.toThrow("Model unavailable");
-  const saved = await f.sources.items(owner, id, { kind: "passages", offset: 0, limit: 10 });
+  const saved = await f.sources.items(owner, id, { kind: "evidence", offset: 0, limit: 10 });
   expect(saved.total).toBe(1);
   expect(saved.items[0].value).toMatchObject({ receipt: { span_text: "Payment is due in thirty days." } });
+  expect((await f.sources.items(owner, id, { kind: "passages", offset: 0, limit: 10 })).total).toBe(0);
   expect((await tabularRepository.detail(owner, table.id))?.cells[0]).toMatchObject({ status: "error", content: null });
 });
 

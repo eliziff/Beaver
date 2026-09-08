@@ -12,7 +12,7 @@ import {
     TableEmptyState,
     TableHeaderCell,
     TableHeaderRow,
-    TableLoadingRows,
+    TableLoadingState,
     TableRow,
     TableScrollArea,
     TableSelectionCheckbox,
@@ -25,8 +25,6 @@ import { Button } from "../ui/button";
 import { HelpPopover } from "../ui/help-popover";
 import { APP_SURFACE_ACTIVE_CLASS, APP_SURFACE_GROUP_HOVER_CLASS, APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
 
-const SKELETON_COLS = 4;
-const SKELETON_ROWS = 5;
 const COLUMN_WIDTH = "w-[180px] sm:w-[220px] shrink-0";
 const GRID_LINE = "border-b border-r border-gray-200";
 const ROW = "h-10 w-max min-w-full pr-0 [contain-intrinsic-size:auto_40px]";
@@ -80,7 +78,6 @@ export function TRTable({
     const dragOverlay = dragOverFiles && (
         <div className="pointer-events-none absolute inset-0 z-20 border-2 border-dashed border-gray-400 bg-gray-50/50" />
     );
-    const headerColumns = loading ? Array.from({ length: SKELETON_COLS }, (_, index) => ({ index, name: "", prompt: "" })) : sortedColumns;
     const noRows = !documents.length && !uploadingFilenames.length;
     return (
         <TableScrollArea horizontal scrollRef={scrollContainerRef}
@@ -94,20 +91,13 @@ export function TRTable({
                             <li key={flag} className="flex items-center gap-2"><FlagDot flag={flag} />{FLAGS[flag].meaning}</li>)}</ul>
                     </HelpPopover>}
                 </TableStickyCell>
-                {headerColumns.map((col) => loading
-                    ? <TableHeaderCell key={col.index} data-tr-col-header className={`${COLUMN_WIDTH} ${GRID_LINE} h-full justify-start`}>
-                        <SkeletonLine className="h-3 w-28" />
-                    </TableHeaderCell>
-                    : <ColumnHeader key={col.index} column={col} disabled={savingColumnsConfig} running={running || !documents.length}
+                {sortedColumns.map((col) => <ColumnHeader key={col.index} column={col} disabled={loading || savingColumnsConfig} running={running || !documents.length}
                         onEdit={onEditColumn} onRerun={onRerunColumn} onClear={onClearColumn} onDelete={onDeleteColumn}
                         onLabels={onColumnLabels} onDiscuss={onColumnDiscuss} />)}
                 <div className={FILLER} />
             </TableHeaderRow>}
         >
-            {loading ? <TableLoadingRows count={SKELETON_ROWS} rowClassName={ROW}
-                primaryClassName={STICKY} primaryLineClassName="h-3 w-32"
-                columns={[...headerColumns.map(() => ({ className: `${COLUMN_WIDTH} ${GRID_LINE} flex h-full items-center`, lineClassName: "h-3 w-20" })),
-                    { className: FILLER }]} />
+            {loading ? <TableLoadingState />
             : noRows ? <div className="relative flex min-h-0 flex-1">
                 {dragOverlay}
                 <TableEmptyState className="py-16">

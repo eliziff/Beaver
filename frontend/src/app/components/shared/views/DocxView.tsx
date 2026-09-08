@@ -7,8 +7,7 @@ import {
 } from "docx-preview";
 import { useDocumentFile } from "@/app/hooks/useDocumentFile";
 import {
-    clearDocxQuoteHighlights,
-    highlightDocxQuote,
+    highlightDocxQuotes,
 } from "./highlightDocxQuote";
 import {
     finalizeDocxDom,
@@ -186,13 +185,7 @@ export function DocxView({
         scrollEl: HTMLElement,
         list: CitationQuote[] | undefined,
     ): boolean => {
-        clearDocxQuoteHighlights(containerEl);
-        if (!list || list.length === 0) return false;
-        let firstMatch: HTMLElement | null = null;
-        for (const q of list) {
-            const match = highlightDocxQuote(containerEl, q.quote);
-            if (match && !firstMatch) firstMatch = match;
-        }
+        const firstMatch = highlightDocxQuotes(containerEl, (list ?? []).map(({ quote }) => quote)).find(Boolean);
         if (!firstMatch) return false;
         const scrollRect = scrollEl.getBoundingClientRect();
         const targetRect = firstMatch.getBoundingClientRect();
@@ -276,8 +269,7 @@ export function DocxView({
                             pendingHighlight,
                         );
                         if (pendingQuotes?.length) {
-                            for (const q of pendingQuotes)
-                                highlightDocxQuote(containerEl, q.quote);
+                            highlightDocxQuotes(containerEl, pendingQuotes.map(({ quote }) => quote));
                         }
                     } else if (
                         pendingQuotes &&

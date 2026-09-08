@@ -4,7 +4,7 @@ import { cn } from "@/app/lib/utils";
 
 type TabVariant = "segmented" | "dock" | "pill" | "settings" | "sheets" | "subtab";
 type TabOption<T extends string = string> = { value: T; label: ReactNode;
-    onClose?: () => void; closeLabel?: string };
+    onClose?: () => void; closeLabel?: string; disabled?: boolean };
 type TabListProps<T extends string> = { value: T; onValueChange: (value: T) => void;
     options: readonly TabOption<T>[]; ariaLabel: string; variant?: TabVariant;
     actions?: ReactNode; className?: string; panelId?: string };
@@ -70,9 +70,10 @@ export function TabList<T extends string>({ value, onValueChange, options,
         else if (item.right > rail.right) list.scrollLeft += item.right - rail.right;
     }, [active]);
     function move(index: number, key: string) {
-        if (!options.length) return;
-        const next = key === "Home" ? 0 : key === "End" ? options.length - 1
-            : (index + (key === "ArrowRight" ? 1 : -1) + options.length) % options.length;
+        const enabled = options.flatMap((option, i) => option.disabled ? [] : [i]);
+        if (!enabled.length) return;
+        const next = key === "Home" ? enabled[0] : key === "End" ? enabled.at(-1)!
+            : enabled[(enabled.indexOf(index) + (key === "ArrowRight" ? 1 : -1) + enabled.length) % enabled.length];
         onValueChange(options[next].value);
         refs.current[next]?.focus({ preventScroll: true });
     }
@@ -88,6 +89,7 @@ export function TabList<T extends string>({ value, onValueChange, options,
                     ref={(node) => { refs.current[index] = node; }}
                     id={`${listId}-tab-${index}`} role="tab"
                     aria-selected={index === active} aria-controls={panelId}
+                    disabled={option.disabled}
                     tabIndex={index === active ? 0 : -1}
                     onClick={() => onValueChange(option.value)}
                     onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
@@ -97,7 +99,7 @@ export function TabList<T extends string>({ value, onValueChange, options,
                     }}
                     className={cn(tabClass[variant],
                         option.onClose && "pe-7",
-                        "truncate text-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-900",
+                        "truncate text-center disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-900",
                         index === active ? selectedClass[variant] : idleClass[variant])}
                 >{option.label}</button>{option.onClose && <button type="button"
                     onClick={(event) => { event.stopPropagation(); option.onClose?.(); }}

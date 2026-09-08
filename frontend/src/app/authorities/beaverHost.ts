@@ -8,7 +8,6 @@ import {
   refreshAuthorities,
   prepareAuthoritiesSources,
   authoritiesSourceOcr,
-  prepareAuthoritiesHighlights,
   refreshAuthoritiesInput,
   reviewAuthorities,
   resolveAuthoritiesDiscrepancy,
@@ -93,13 +92,8 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
     return downloadDocument(resolved.documentId, resolved.versionId).then(({ blob }) => blob);
   },
   sourceOcr: { progress: pdfProgress,
-    start: (id, roles) => authoritiesSourceOcr(id, roles),
+    start: (id, roles, pages) => authoritiesSourceOcr(id, roles, false, pages),
     cancel: (id, roles) => authoritiesSourceOcr(id, roles, true) },
-  async prepareHighlights(draft, progress, signal) {
-    await prepareSourcePdfs(draft, progress, signal);
-    progress?.("Preparing highlight review");
-    await prepareAuthoritiesHighlights(draft.id, draft.revision, signal);
-  },
   async build(draft, progress, signal) {
     await prepareSourcePdfs(draft, progress, signal);
     progress?.("Building outputs");

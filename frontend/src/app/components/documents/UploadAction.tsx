@@ -92,7 +92,7 @@ export function DirectoryActions({ actions, onCreateFolder, selection,
             onOpen={onOpenWorkflows}
             onAssistantSelect={onAssistantWorkflowSelect}
             className="directory-action-button" labelClassName={labelClass}
-            disabled={busy} showDisabled />
+            disabled={busy} />
         <MoreActionsMenu label="More actions" items={[
             { label: "Download", disabled: unavailable,
                 onSelect: () => void selection?.onDownload() },

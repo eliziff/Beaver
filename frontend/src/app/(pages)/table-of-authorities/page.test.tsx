@@ -17,7 +17,7 @@ const api = vi.hoisted(() => ({
   downloadDocument: vi.fn(), duplicateWorkProduct: vi.fn(), getDocumentParseStates: vi.fn(),
   getWorkProduct: vi.fn(),
   getWorkProductResolution: vi.fn(), listWorkProductMetadata: vi.fn(),
-  listWorkProducts: vi.fn(), prepareAuthoritiesSources: vi.fn(), prepareAuthoritiesHighlights: vi.fn(), refreshAuthorities: vi.fn(),
+  listWorkProducts: vi.fn(), prepareAuthoritiesSources: vi.fn(), refreshAuthorities: vi.fn(),
   refreshAuthoritiesInput: vi.fn(), reviewAuthorities: vi.fn(),
   resolveAuthoritiesDiscrepancy: vi.fn(),
   updateWorkProduct: vi.fn(),
@@ -34,7 +34,6 @@ vi.mock("@/app/lib/api/authorities", () => ({
   attachAuthoritiesLibraryPdf: api.attachAuthoritiesLibraryPdf,
   createAuthorities: api.createAuthorities,
   prepareAuthoritiesSources: api.prepareAuthoritiesSources,
-  prepareAuthoritiesHighlights: api.prepareAuthoritiesHighlights,
   refreshAuthorities: api.refreshAuthorities,
   refreshAuthoritiesInput: api.refreshAuthoritiesInput,
   reviewAuthorities: api.reviewAuthorities,
@@ -218,7 +217,7 @@ describe("Authorities UI contracts", () => {
       LibraryPicker={LibraryDocumentPicker}
       route={{ ...workspaceRoute(saved.id), projectId: "matter-1" }} /></MemoryRouter>);
 
-    await userEvent.click((await screen.findByRole("heading", { name: "Sources" })).closest("summary")!);
+    await userEvent.click(await screen.findByRole("tab", { name: "Sources", exact: true }));
     await userEvent.click(screen.getByRole("button", { name: "Upload for R v Grant" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Choose from Project" }));
     await userEvent.click(await screen.findByRole("button", { name: /Grant\.pdf/u }));
@@ -226,6 +225,7 @@ describe("Authorities UI contracts", () => {
       saved.id, saved.revision, document.id, document.current_version_id,
       { kind: "authority", authorityId: "grant", language: "en" }));
 
+    await userEvent.click(screen.getByRole("tab", { name: "Build book", exact: true }));
     await userEvent.click(screen.getByRole("button", { name: "Choose Cover from Project" }));
     await userEvent.click(await screen.findByRole("button", { name: /Grant\.pdf/u }));
     await waitFor(() => expect(api.attachAuthoritiesLibraryPdf).toHaveBeenLastCalledWith(
@@ -511,7 +511,7 @@ describe("Authorities UI contracts", () => {
     load.resolve(documentDraft());
     await waitFor(() => expect(screen.getByRole("tab", { name: "Drafts" }))
       .toHaveAttribute("aria-selected", "true"));
-    expect(screen.getByRole("heading", { name: "Authorities" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Requested draft" })).toBeVisible();
   });
 
   it("keeps the current draft visible while a new route is loading", async () => {
@@ -537,11 +537,9 @@ describe("Authorities UI contracts", () => {
 
     expect(await screen.findByRole("heading", { name: "Requested draft" })).toBeVisible();
     await userEvent.click(screen.getByRole("tab", { name: "Drafts" }));
-    expect(screen.getByRole("heading", { name: "Authorities" })).toBeVisible();
-    expect(screen.queryByRole("heading", { name: "Requested draft" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Requested draft" })).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Settings" }));
-    expect(screen.getByRole("heading", { name: "Authorities" })).toBeVisible();
-    expect(screen.queryByRole("heading", { name: "Requested draft" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Requested draft" })).toBeVisible();
   });
 
   it("keeps the drafts surface in a loading state until metadata arrives", async () => {
@@ -729,7 +727,7 @@ describe("Authorities UI contracts", () => {
     api.prepareAuthoritiesSources.mockResolvedValue(saved);
     api.actOnAuthorities.mockResolvedValue({ ...saved, revision: 2, state: { ...saved.state, stage: "sources" } });
     await userEvent.click(screen.getByRole("button", { name: "Done" }));
-    const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("details")!;
+    const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("section")!;
     expect(within(sources).getAllByRole("listitem")).toHaveLength(1);
     expect(within(sources).getByText(`${neutral}; ${reporter}`)).toBeInTheDocument();
   });
@@ -793,8 +791,8 @@ describe("Authorities UI contracts", () => {
     expect(api.prepareAuthoritiesSources).toHaveBeenCalledWith(saved.id, saved.revision, expect.any(AbortSignal));
     expect(screen.queryByRole("heading", { name: "Sources" })).not.toBeInTheDocument();
     await act(async () => pending.resolve(saved));
-    const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("details")!;
-    expect(sources).toHaveAttribute("open");
+    const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("section")!;
+    expect(sources).toBeVisible();
     expect(within(sources).getAllByRole("listitem")).toHaveLength(2);
     expect(screen.getByRole("button", { name: /^Done$/u })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Build outputs" })).not.toBeInTheDocument();
@@ -815,8 +813,8 @@ describe("Authorities UI contracts", () => {
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
 
-    const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("details")!;
-    expect(sources).toHaveAttribute("open");
+    const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("section")!;
+    expect(sources).toBeVisible();
     expect(within(sources).getByRole("button", { name: "Upload for Example v Example" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Build outputs" })).not.toBeInTheDocument();
   });
@@ -914,7 +912,7 @@ describe("Authorities UI contracts", () => {
     expect(api.getWorkProductResolution).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps prepared sources visible when the final build fails", async () => {
+  it("keeps prepared sources revisitable when the final build fails", async () => {
     const saved = add(documentDraft(), authority("case", "Example v Example",
       { kind: "unresolved" }));
     saved.state.outputMode = "book";
@@ -935,9 +933,7 @@ describe("Authorities UI contracts", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Build" }));
 
     expect(await screen.findByText("The book could not be built")).toBeVisible();
-    const sources = screen.getByRole("heading", { name: "Sources" }).closest("details")!;
-    expect(sources).not.toHaveAttribute("open");
-    await userEvent.click(within(sources).getByText("Sources"));
+    await userEvent.click(screen.getByRole("tab", { name: "Sources", exact: true }));
     expect(screen.getByRole("img", { name: "Decision.pdf" })).toBeVisible();
   });
 
@@ -1060,7 +1056,7 @@ describe("Authorities UI contracts", () => {
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
 
-    const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("details")!;
+    const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("section")!;
     const rows = within(sources).getAllByRole("listitem");
     expect(rows.map((row) => within(row).getByRole("heading").textContent))
       .toEqual(["Zulu Act", "Beta v Test", "Alpha v Test"]);
@@ -1080,7 +1076,7 @@ describe("Authorities UI contracts", () => {
     api.getWorkProduct.mockResolvedValue(saved);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
-    const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("details")!;
+    const sources = (await screen.findByRole("heading", { name: "Sources" })).closest("section")!;
     const rows = within(sources).getAllByRole("listitem");
     rows.forEach((row, i) => {
       expect(within(row).getByRole("heading")).toHaveTextContent(["Alpha", "Beta", "Gamma"][i]);
@@ -1117,15 +1113,17 @@ describe("Authorities UI contracts", () => {
     await waitFor(() => expect(api.updateWorkProduct).toHaveBeenCalledWith("draft-1",
       { revision: 1, title: "Appeal authorities" }));
 
-    await userEvent.click(screen.getByRole("heading", { name: "Sources" }).closest("summary")!);
+    await userEvent.click(screen.getByRole("tab", { name: "Sources", exact: true }));
     expect(screen.getByText("Tab 1")).toBeVisible();
     expect(screen.getByText("Tab 2")).toBeVisible();
     expect(screen.queryByRole("button", { name: /Reorder/u })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Tab for/u)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Build book", exact: true }));
     await userEvent.click(screen.getByText("Options"));
     await userEvent.selectOptions(screen.getByLabelText("Tabs"), "alpha");
     await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 2,
       { type: "set-settings", settings: { tabStyle: "alpha" } }));
+    await userEvent.click(screen.getByRole("tab", { name: "Sources", exact: true }));
     expect(await screen.findByText("Tab A")).toBeVisible();
     expect(screen.getByText("Tab B")).toBeVisible();
   });
@@ -1148,7 +1146,7 @@ describe("Authorities UI contracts", () => {
     await screen.findByRole("heading", { name: "Alpha" });
     const file = new File(["%PDF-1.7"], "beta.pdf", { type: "application/pdf" });
 
-    const authorities = screen.getByRole("heading", { name: "Sources" }).closest("details")!;
+    const authorities = screen.getByRole("heading", { name: "Sources" }).closest("section")!;
     await userEvent.upload(within(authorities).getByLabelText("Upload"), file);
 
     await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1,
@@ -1197,7 +1195,6 @@ describe("Authorities UI contracts", () => {
     expect(screen.getByText("2009 SCC 32")).toBeVisible();
     expect(within(correctedRow).getByText("PDF unavailable")).toBeVisible();
     expect(within(correctedRow).getByRole("button", { name: "Replace for R v Grant" })).toBeVisible();
-    expect(api.getWorkProductResolution).toHaveBeenCalledTimes(1);
   });
 
   it("offers CanLII only for a known handoff and accepts it through Add file", async () => {
@@ -1500,13 +1497,12 @@ describe("Authorities UI contracts", () => {
   });
 });
 
-it("reviews missing highlight locations before opening the editor without saving guessed or unreviewed marks", async () => {
+it("advances immediately to Highlights and revisits completed steps without saving unreviewed marks", async () => {
   let current = draft(); current.state.stage = "sources"; current.state.outputMode = "book";
   add(current, authority("case", "Example", attachedSource("case-en", "case.pdf", "a", null, "reconstructed")));
   api.getWorkProduct.mockResolvedValue(current);
   const host = { ...beaverAuthoritiesHost,
     readSource: vi.fn(async () => new Blob(["synthetic source"])),
-    prepareHighlights: vi.fn(async () => undefined),
     prepareAnnotations: vi.fn(async () => ({ annotations: { schemaVersion: "beaver.pdf-annotations.v1" as const,
       sourceSha256: "a".repeat(64), marks: [] }, unresolved: [{ label: "para 42 · Quote", excerpt: "Unlocated quoted words" }] })),
     act: vi.fn(async (_id: string, _revision: number, action: import("@/app/authorities/types").AuthoritiesAction) => {
@@ -1518,12 +1514,13 @@ it("reviews missing highlight locations before opening the editor without saving
   };
   render(<MemoryRouter><AuthoritiesWorkspace host={host} route={workspaceRoute("draft-1")} /></MemoryRouter>);
   await userEvent.click(await screen.findByRole("button", { name: "Done" }));
-  expect(await screen.findByText("Unlocated quoted words")).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Edit in PDF" })).not.toBeInTheDocument();
-  expect(current.state.stage).toBe("sources");
-  expect(current.state.authorities.case.annotations).toBeUndefined();
-  await userEvent.click(screen.getByRole("button", { name: "Done" }));
   expect(await screen.findByRole("button", { name: "Edit in PDF" })).toBeVisible();
   expect(current.state.stage).toBe("highlights");
   expect(host.act.mock.calls.some(([, , action]) => action.type === "set-annotations")).toBe(false);
+  await userEvent.click(screen.getByRole("tab", { name: "Sources", exact: true }));
+  expect(screen.getByRole("heading", { name: "Sources", exact: true })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Edit in PDF" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("tab", { name: "Highlights", exact: true }));
+  expect(screen.getByRole("button", { name: "Edit in PDF" })).toBeVisible();
+  expect(current.state.stage).toBe("highlights");
 });

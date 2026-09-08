@@ -119,8 +119,9 @@ it("keeps the sibling workspace interactive when opened at narrow widths", () =>
 it.each(["sources"])("expands %s without remounting its reader and restores its dock width", async (id) => {
     let fullscreenElement: Element | null = null;
     Object.defineProperty(document, "fullscreenElement", { configurable: true, get: () => fullscreenElement });
-    const request = vi.fn(async function (this: HTMLElement) {
-        fullscreenElement = this; document.dispatchEvent(new Event("fullscreenchange"));
+    const request = vi.fn(async () => {
+        fullscreenElement = screen.getByRole("complementary", { name: "Assistant dock" });
+        document.dispatchEvent(new Event("fullscreenchange"));
     });
     const exit = vi.fn(async () => {
         fullscreenElement = null; document.dispatchEvent(new Event("fullscreenchange"));
