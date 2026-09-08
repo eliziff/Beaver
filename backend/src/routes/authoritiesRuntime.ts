@@ -242,7 +242,7 @@ export function createAuthoritiesRuntimeRouter(
       lastSeen: { name: filename, size: bytes.length, modified, sha256: sourceSha256 } };
     res.json(attachAuthoritiesBookPdf(current, { slot, supplementId }, binding, filename, sourceSha256));
   }));
-  router.post(["/build", "/prepare-highlights"], multipleFileUpload("files", 100), asyncRoute(async (req, res) => {
+  router.post("/build", multipleFileUpload("files", 100), asyncRoute(async (req, res) => {
     const build = new AbortController();
     res.once("close", () => build.abort());
     let raw: unknown, roles: unknown;
@@ -276,11 +276,6 @@ export function createAuthoritiesRuntimeRouter(
             ? `Could not read ${files[index].originalname}: ${error.message}`
             : `Could not read ${files[index].originalname}`);
         }) };
-    }
-    if (req.path === "/prepare-highlights") {
-      const missing = [...preparation.textRoles].filter((role) => !sources[role]);
-      if (missing.length) reject(400, "Some source PDFs were not supplied for highlight preparation");
-      res.json({ prepared: true }); return;
     }
     const built = await buildAuthorities({ draft: state, title,
       workProduct: { id, revision }, sources, signal: build.signal }).catch((error) => {

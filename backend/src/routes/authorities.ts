@@ -157,12 +157,6 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
     res.json(await application.sourceOcr(applicationScope(res), text(req.params.id),
       (roles as unknown[]).map((role) => text(role)), body.cancel === true, pages));
   }));
-  router.post("/:id/prepare-highlights", asyncRoute(async (req, res) => {
-    const preparation = new AbortController();
-    res.once("close", () => preparation.abort());
-    res.json(await application.prepareHighlights(applicationScope(res), text(req.params.id),
-      revision(object(req.body).revision), preparation.signal));
-  }));
   router.post("/:id/build", asyncRoute(async (req, res) => {
     const build = new AbortController();
     res.once("close", () => build.abort());
