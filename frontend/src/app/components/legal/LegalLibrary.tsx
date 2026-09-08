@@ -140,9 +140,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
             docType: ref.kind === "legislation" ? "laws" : ref.kind === "journal" ? "articles" : "cases",
             researchFileId: researchFile?.document.id, researchSourceId: source.id, initialLocator: locator };
         if (embedded && onOpenSource) onOpenSource(tab);
-        else {
-            setReadingSource(tab);
-        }
+        else setReadingSource(tab);
     }
     async function saveResult(result: LegalSourceSearchResult, file = researchFile) {
         if (!file) throw new Error("Choose or create a workspace first");
@@ -253,7 +251,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                 </Button>
             </div>}
             {readingSource && <section aria-label="Source reader" className="min-h-0 min-w-0 flex-1">
-                <LegalSourceViewer key={`${readingSource.id}:${readingSource.initialLocator ?? ""}`} {...readingSource}
+                <LegalSourceViewer key={readingSource.id} {...readingSource} navigationRequest={readingSource}
                     onOpenResearch={(intent) => { setResearchOpen(true);
                         if (intent) setSourceDropNonce((value) => value + 1); }} />
             </section>}

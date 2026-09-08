@@ -3,7 +3,6 @@ import {
   createChat,
   deleteChat,
   getChat,
-  listChats,
   renameChat,
   updateChatProject,
   type ChatDetail,
@@ -11,8 +10,7 @@ import {
   type Message,
 } from "@/app/lib/api/chat";
 
-import { usePagedQuery } from "@/app/hooks/usePagedQuery";
-import { chatsCollection } from "@/app/lib/collectionKeys";
+import { useChatSearch } from "@/app/components/assistant/chatSearch";
 import { onCollectionChange } from "@/app/lib/collectionEvents";
 import { useAuth } from "./AuthContext";
 
@@ -42,10 +40,7 @@ const ChatHistoryContext = createContext<Context | null>(null);
 
 export function ChatHistoryProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const page = usePagedQuery<Chat>(async (cursor, signal) => {
-    const offset = Number(cursor ?? 0), rows = await listChats({ offset, limit: 21 }, signal);
-    return { items: rows.slice(0, 20), next_cursor: rows.length > 20 ? String(offset + 20) : null };
-  }, [user?.id], !!user, chatsCollection());
+  const page = useChatSearch({}, !!user);
   const chats = !user ? [] : page.loaded ? page.items : null;
   const hasMoreChats = page.hasMore;
   const setItems = page.setItems, loadChats = page.reload;
