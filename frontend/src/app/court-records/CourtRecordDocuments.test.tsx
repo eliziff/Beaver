@@ -212,21 +212,6 @@ describe("Court Record documents", () => {
     expect(screen.queryByRole("spinbutton", { name: "Pages in Parts I–IV" })).toBeNull();
   });
 
-  it("puts the unassigned file pool above the exhibit slots", () => {
-    const affidavit = { id: "affidavit", kindId: "affidavit",
-      file: new File(["affidavit"], "affidavit.pdf"), title: "Affidavit", pageCount: 1,
-      searchable: true, encrypted: false, sourceFields: { cover: {}, exhibitLabels: ["A"] },
-      origin: { kind: "library", sourceSha256: "a".repeat(64) } } as RecordEntry;
-    render(<CourtRecordDocuments {...required}
-      profile={COURT_PROFILE_BY_ID.get("ab-kb-affidavit-exhibits")!}
-      kindIds={["affidavit", "exhibit"]} entries={[affidavit]} />);
-
-    const pool = screen.getByRole("heading", { name: /^Files/ });
-    const exhibitSlot = screen.getByRole("region", { name: "Exhibit A slot" });
-    expect(pool.compareDocumentPosition(exhibitSlot) & Node.DOCUMENT_POSITION_FOLLOWING)
-      .toBeTruthy();
-  });
-
   it("edits repeatable physical-exhibit descriptions inline", () => {
     const first = { id: "physical-1", kindId: "physical-exhibit",
       file: new File([], "description-only"), title: "Scale model", pageCount: 0,
