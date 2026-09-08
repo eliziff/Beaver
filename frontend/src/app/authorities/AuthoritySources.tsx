@@ -29,7 +29,6 @@ type PanelProps = AuthorityPanelProps & {
   state: AuthoritiesDraft; occurrences: AuthorityOccurrence[];
   onPickMany?: () => void; onLibraryAdd?: () => void; onFiles?: (files: File[]) => void;
   ocr?: SourceOcrPanel;
-  inspection?: { progress: string; error: string };
 };
 export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft: AuthoritiesProduct }) {
   return <SourcePanel {...props} state={draft.state} />;
@@ -38,7 +37,7 @@ export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft
 function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues,
   onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onPick, onLibrary,
   sourceLabel = "Library", onAttach, onRelink, onOpenSource, onEditIdentity,
-  ocr, inspection }: PanelProps) {
+  ocr }: PanelProps) {
   const [tabSettings, setTabSettings] = useState(false);
   const included = authorities.filter(({ excluded }) => !excluded);
   const ready = included.filter((authority) => hasRequiredSources(state, authority) && authority.source.kind === "attached" &&
@@ -57,9 +56,6 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           event.preventDefault(); onFiles(Array.from(event.dataTransfer.files));
         }
       }}>
-      {(inspection?.progress || inspection?.error) && <p role={inspection.error ? "alert" : "status"}
-        className={cn("mb-2 text-sm", inspection.error ? "text-red-800" : "text-gray-600")}>
-        {inspection.error || inspection.progress}</p>}
       {(onFiles || onLibraryAdd) && <div className="mb-3 flex flex-wrap justify-end gap-2">
         {onFiles && (onPickMany ? <Button type="button" variant="outline" className={control}
           disabled={busy} onClick={onPickMany}><FilePlus2 /> Upload</Button>

@@ -629,7 +629,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       onResolve={host.resolveDiscrepancy ? resolveDiscrepancy : undefined}
       onDone={() => setFindingId("")} />;
   const authorityPanelProps = { authorities, tabs: authorityTabs, busy, sourceIssues, ocr,
-    inspection: scannedSources,
     onAction: act, onEditIdentity: setEditingAuthority,
     onOpenSource: host.readSource ? openSource : undefined, onAdd: () => setAddOpen(true),
     onPick: host.pickFiles ? (id: string) => void pickFiles(false, "pdf",
