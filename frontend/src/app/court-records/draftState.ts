@@ -1,6 +1,6 @@
 import { fileSnapshot, type WorkProduct } from "@/app/lib/workProducts";
 import type { Document } from "@/app/lib/api/documents";
-import { needsOcr, type CourtRecordsHost, type PreparationProgress } from "./host";
+import { type CourtRecordsHost, type PreparationProgress } from "./host";
 import { COURT_PROFILE_BY_ID } from "./profiles";
 import { propagatingSourceFields, sourceExhibitSlots } from "./types";
 import type { CourtRecordDraft, CoverValues, RecordEntry, SourceDocumentFields } from "./types";
@@ -87,8 +87,8 @@ export async function restoreCourtRecordDraft(
     if (binding.kind !== "work-product-output" && existing &&
         JSON.stringify(existing.binding) === JSON.stringify(binding) &&
         JSON.stringify(entrySnapshot(existing)) === JSON.stringify(lastSeen)) {
-      return applySourceEntryFields(await withOcr(host, { ...existing, ...values, lastSeen,
-        ...recognised, binding, inputStatus: "ready" }, progress), undefined, saved.sourceFields);
+      return applySourceEntryFields({ ...existing, ...values, lastSeen,
+        ...recognised, binding, inputStatus: "ready" }, undefined, saved.sourceFields);
     }
     const destination = profile?.documentKinds.find(({ id }) => id === saved.kindId);
     const resolved = await host.resolveInput(binding, progress, destination);
@@ -98,13 +98,13 @@ export async function restoreCourtRecordDraft(
       lastSeen.sha256 && prepared.origin?.sourceSha256 &&
       lastSeen.sha256 !== prepared.origin.sourceSha256
     );
-    return applySourceEntryFields(await withOcr(host, {
+    return applySourceEntryFields({
       ...values,
       ...prepared,
       ...(changed ? {} : recognised),
       binding: resolved.input,
       inputStatus: resolved.status === "stale" ? "stale" : changed ? "changed" : "ready",
-    }, progress), undefined, saved.sourceFields);
+    }, undefined, saved.sourceFields);
   }
 
   const savedEntries = draft.state.entries;
@@ -138,22 +138,6 @@ export function applySourceEntryFields(entry: RecordEntry, replaceTitle?: string
 
 const fileTitle = (filename: string) => filename.replace(/\.(?:pdf|docx)$/iu, "")
   .replace(/[_-]+/gu, " ").replace(/\s+/gu, " ").trim();
-
-async function withOcr(
-  host: CourtRecordsHost,
-  entry: RecordEntry,
-  progress?: PreparationProgress,
-): Promise<RecordEntry> {
-  if (!host.runOcr || !needsOcr(entry)) return entry;
-  try {
-    return { ...entry, ...await host.runOcr(entry, progress) };
-  } catch (error) {
-    // A read that could not finish is still a read; repeating it on every open
-    // would report the same failure and never reach the reader's confirmation.
-    return { ...entry, ocrAttemptedPages: [],
-      inspectionError: error instanceof Error ? error.message : "OCR failed." };
-  }
-}
 
 function entrySnapshot(entry: RecordEntry) {
   const sha256 = entry.origin?.sourceSha256 ?? (entry.binding?.kind === "local-file"

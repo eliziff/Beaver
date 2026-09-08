@@ -12,7 +12,7 @@ import { acceptedSourceFormats, sourceFormat } from "./formats";
 import { rule70MaximumPages, sourceExhibitSlots } from "./types";
 import type { ComplianceFinding, CourtProfile, DocumentKind, RecordEntry } from "./types";
 
-export type OcrRun = { id: string; message?: string; controller: AbortController };
+export type OcrRun = { id: string; message?: string };
 
 type Props = {
   profile: CourtProfile;
@@ -28,7 +28,6 @@ type Props = {
   onAddExhibit?: () => void;
   onAssignKind: (id: string, kindId: string) => void;
   reading?: OcrRun;
-  onStopReading?: () => void;
   onRelink?: (id: string) => void;
   kindIds?: string[];
   heading?: string;
@@ -124,7 +123,7 @@ function PendingFiles(props: Props & { pending: RecordEntry[] }) {
   </section>;
 }
 
-function DocumentSlot({ profile, kind, hideLabel, entries, busyEntryId, entryFindings, onFiles, onDescription, onChoose, onEntry, onRemove, onAssign, onAssignKind, reading, onStopReading, onRelink }: Props & { kind: DocumentKind; hideLabel?: boolean }) {
+function DocumentSlot({ profile, kind, hideLabel, entries, busyEntryId, entryFindings, onFiles, onDescription, onChoose, onEntry, onRemove, onAssign, onAssignKind, reading, onRelink }: Props & { kind: DocumentKind; hideLabel?: boolean }) {
   const matching = entries.filter((entry) => entry.kindId === kind.id);
   if (kind.descriptionOnly) {
     const first = matching[0];
@@ -200,7 +199,6 @@ function DocumentSlot({ profile, kind, hideLabel, entries, busyEntryId, entryFin
               onAssign={onAssign}
               onAssignKind={onAssignKind}
               reading={reading}
-              onStopReading={onStopReading}
               onRelink={onRelink}
             />
           ))}
@@ -335,18 +333,19 @@ const pageList = (pages: number[]) => pages.length === 1 ? `page ${pages[0]}`
  * asked for, so the entry only ever needs the reader's attention when pages that were
  * read still hold no text.
  */
-function TextRecognition({ entry, reading, onStop, onConfirm }: {
-  entry: RecordEntry; reading?: OcrRun; onStop?: () => void; onConfirm: () => void;
+function TextRecognition({ entry, reading, onConfirm }: {
+  entry: RecordEntry; reading?: OcrRun; onConfirm: () => void;
 }) {
   const textless = entry.textlessPages ?? [];
   const line = "flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5 text-gray-600";
   if (reading) return <p className={cn("mt-1.5", line)} role="status">
     <Loader2 aria-hidden="true" className="size-3.5 motion-safe:animate-spin" />
     {reading.message ?? "Reading the scanned pages"}
-    {onStop && <Button type="button" variant="ghost" className="h-6 px-1.5 text-xs underline"
-      onClick={onStop}>Stop</Button>}
   </p>;
   if (!entry.ocrAttemptedPages || entry.pageCount === null) return null;
+  if (!entry.ocrAttemptedPages.length) return <p className={cn("mt-1.5", line)}>
+    Text recognition did not finish.
+  </p>;
   const read = entry.pageCount - textless.length;
   if (entry.nonTextPagesConfirmed) return <p className={cn("mt-1.5", line)}>
     Text recognised on {read} of {entry.pageCount} pages; the rest are confirmed as
@@ -357,14 +356,14 @@ function TextRecognition({ entry, reading, onStop, onConfirm }: {
   </p>;
   return <p className={cn("mt-1.5", line)}>
     <span>Text recognised on {read} of {entry.pageCount} pages;{" "}
-      {textless.length > 6 ? `${textless.length} pages appear` : `${pageList(textless)} appear`}
-      {textless.length === 1 ? "s" : ""} to be photographs.</span>
+      {textless.length > 6 ? `${textless.length} pages have` : `${pageList(textless)} ${textless.length === 1 ? "has" : "have"}`}
+      {" "}no text.</span>
     <Button type="button" variant="outline" className="h-7 border-gray-500/80 px-2 text-xs"
       onClick={onConfirm}><Check className="size-3.5" /> Confirm</Button>
   </p>;
 }
 
-function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel, onEntry, onRemove, onAssign, onAssignKind, assignmentKinds, assignmentLabels, assignmentLabel, dragEnabled = false, reading, onStopReading, onRelink }: {
+function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel, onEntry, onRemove, onAssign, onAssignKind, assignmentKinds, assignmentLabels, assignmentLabel, dragEnabled = false, reading, onRelink }: {
   entry: RecordEntry;
   kind?: DocumentKind;
   busy: boolean;
@@ -380,7 +379,6 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
   assignmentLabel?: string;
   dragEnabled?: boolean;
   reading?: OcrRun;
-  onStopReading?: Props["onStopReading"];
   onRelink?: Props["onRelink"];
 }) {
   const isPdf = sourceFormat(entry.file) === "pdf";
@@ -481,7 +479,7 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
         )}
       </div>
       {isPdf && entry.inputStatus !== "missing" && <TextRecognition entry={entry}
-        reading={reading?.id === entry.id ? reading : undefined} onStop={onStopReading}
+        reading={reading?.id === entry.id ? reading : undefined}
         onConfirm={() => onEntry(entry.id, { nonTextPagesConfirmed: true })} />}
       {!busy && !!findings.length && (
         <div className="mt-2 space-y-1" role="status">
@@ -490,7 +488,7 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
           ))}
         </div>
       )}
-      {busy && <div className="mt-2 h-1 overflow-hidden rounded-full bg-gray-100"><div className="h-full w-1/2 rounded-full bg-red-600 motion-safe:animate-pulse" /></div>}
+      {busy && reading?.id !== entry.id && <div className="mt-2 h-1 overflow-hidden rounded-full bg-gray-100"><div className="h-full w-1/2 rounded-full bg-red-600 motion-safe:animate-pulse" /></div>}
     </article>
   );
 }
