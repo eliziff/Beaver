@@ -89,6 +89,23 @@ it("files a chat's cited passage under every reviewed concept and undoes the who
   expect(restored.state.labels).toEqual(file.state.labels);
   expect(restored.state.sources).toEqual(file.state.sources);
 });
+it("projects and edits additional highlight instances without changing their shared receipt", async () => {
+  const f = await fixture(), typeId = randomUUID(), evidenceId = f.receipts[0].evidence_id;
+  await f.act({ type: "label", id: typeId, name: "Additional concept", scope: "highlight" });
+  const saved = await f.act({ type: "merge", evidence: [f.receipts[0]], labels: { [evidenceId]: [typeId] } });
+  const items = async () => (await f.sources.items(owner, saved.document.id,
+    { kind: "passages", sourceId: f.sourceId, offset: 0, limit: 200 })).items
+    .flatMap((item) => item.kind === "passage" ? [item.value] : []);
+  const before = await items(), extra = before.find((item) => item.highlightId)!;
+  expect(saved.state.sources[f.sourceId].passages?.labelCounts).toEqual({ [f.typeId]: 1, [typeId]: 1 });
+  await f.act({ type: "annotate", kind: "evidence", sourceId: f.sourceId, id: extra.highlightId!, note: "Only this instance" });
+  expect((await items()).find((item) => !item.highlightId)).toEqual(before.find((item) => !item.highlightId));
+  expect((await items()).find((item) => item.highlightId)).toEqual({ ...extra, note: "Only this instance" });
+  const removed = await f.act({ type: "remove", kind: "evidence", sourceId: f.sourceId, id: extra.highlightId! });
+  expect(await items()).toEqual(before.filter((item) => !item.highlightId));
+  expect(removed.state.sources[f.sourceId].passages?.labelCounts).toEqual({ [f.typeId]: 1 });
+});
+
 it("opens existing work as a populated snapshot, leaving new questions pending", async () => {
   const f = await fixture();
   await f.turn("Why was the clause invalid?", "The saving language did not cure the invalid scheme.");

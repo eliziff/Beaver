@@ -39,18 +39,19 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
   }, [labels, scope]);
   const direct = useMemo(() => {
     const result = new Set<string>();
-    for (const source of sources) source.labelIds.forEach((id) => result.add(id));
+    for (const source of sources) (scope === "source" ? source.labelIds : Object.keys(source.passages?.labelCounts ?? {})).forEach((id) => result.add(id));
     return result;
-  }, [sources]);
-  /** A source filed in two places is one source: every count is a count of distinct sources. */
+  }, [sources, scope]);
+  /** Source folders count distinct sources; highlight types count their own instances. */
   const counts = useMemo(() => {
     const result = new Map<string, number>();
     for (const source of sources) {
+      if (scope === "highlight") { Object.entries(source.passages?.labelCounts ?? {}).forEach(([id, count]) => result.set(id, (result.get(id) ?? 0) + count)); continue; }
       const ids = new Set(source.labelIds.flatMap((id) => researchLabelPath(labels, id).map((label) => label.id)));
       ids.forEach((id) => result.set(id, (result.get(id) ?? 0) + 1));
     }
     return result;
-  }, [labels, sources]);
+  }, [labels, sources, scope]);
   async function act(action: ResearchAction) {
     try { await mutations.act(action); return true; }
     catch (error) { onStatus(errorMessage(error, "Could not update labels")); return false; }
@@ -140,7 +141,7 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
               { label: "Delete", onSelect: () => onRemove({ kind: "label", id: label.id, name: label.name }) },
             ]} />}
           </span>
-          <span className={ROW_COUNT}>{scope === "source" ? counts.get(label.id) || "" : ""}</span>
+          <span className={ROW_COUNT}>{counts.get(label.id) || ""}</span>
         </div>
         {open && <div role={hasChildren ? "group" : undefined} className="ms-4">{branch(label.id)}{renderSources?.(label.id)}{addField(label.id)}</div>}
       </div>;
