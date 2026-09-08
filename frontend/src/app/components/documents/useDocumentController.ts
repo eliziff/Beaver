@@ -16,7 +16,10 @@ export function useDocumentController(documents: Document[],
     const [selection, setSelection] = useState<{ doc: Document; versionId: string | null } | null>(null);
     const [pendingRestore, setPendingRestore] = useState<{ docId: string; version: DocumentVersion } | null>(null);
     const locks = useRef(new Set<string>()), activeId = useRef<string | null>(null);
-    const doc = selection ? docsById.get(selection.doc.id) ?? selection.doc : null;
+    let doc = selection ? docsById.get(selection.doc.id) ?? selection.doc : null;
+    if (doc && selection && ((doc.active_version_number ?? 0) < (selection.doc.active_version_number ?? 0)
+        || doc.current_version_id === selection.doc.current_version_id
+        && (doc.current_working_revision ?? -1) < (selection.doc.current_working_revision ?? -1))) doc = selection.doc;
     activeId.current = doc?.id ?? null;
     const history = doc ? histories.get(doc.id) : undefined, versions = history?.versions ?? [];
     const currentId = history?.currentVersionId ?? doc?.current_version_id ?? null;
@@ -28,8 +31,7 @@ export function useDocumentController(documents: Document[],
         setHistories((all) => new Map(all).set(id, { currentVersionId: null, versions: [], ...all.get(id), ...patch }));
     }
     async function load(id: string, force = false) {
-        const cached = histories.get(id);
-        if (!force && cached?.loaded) return cached;
+        if (!force && histories.get(id)?.loaded) return histories.get(id);
         update(id, { loading: true, error: false });
         try {
             const result = await listDocumentVersions(id);
@@ -49,16 +51,18 @@ export function useDocumentController(documents: Document[],
         }).catch((error: Error) => { if (!cancelled) onError(error.message); });
         return () => { cancelled = true; };
     }, [initialDocument?.id, initialDocument?.versionId]);
-    function head(id: string) {
-        const history = histories.get(id), current = history?.versions.find(({ id }) => id === history.currentVersionId);
-        if (!current) throw new Error("Document history is not loaded");
-        return current;
+    function head(id: string, document?: Document) {
+        const history = histories.get(id), current = document ? { id: document.current_version_id, working_revision: document.current_working_revision } : history?.versions.find(({ id }) => id === history.currentVersionId);
+        if (!current?.id || current.working_revision == null) throw new Error("Document revision is unavailable");
+        return { id: current.id, working_revision: current.working_revision };
     }
-    async function action(id: string, action: DocumentAction, mutation: () => Promise<unknown>, refresh = false) {
+    async function action(id: string, action: DocumentAction, mutation: () => Promise<Document | void>, refresh = false) {
         if (locks.current.has(id)) return false;
         locks.current.add(id);
         update(id, { pendingAction: action, actionError: undefined });
-        try { await mutation(); return true; }
+        try { const updated = await mutation();
+            if (updated) setSelection((current) => current?.doc.id === id ? { ...current, doc: updated } : current);
+            return true; }
         catch {
             const message = `Could not ${{ rename: "rename this document", upload: "upload the new version",
                 checkpoint: "create this version", restore: "restore this version", compare: "create the comparison",
@@ -72,8 +76,8 @@ export function useDocumentController(documents: Document[],
             update(id, { pendingAction: undefined });
         }
     }
-    function selectMutated(id: string, versionId: string) {
-        setSelection((current) => current?.doc.id === id ? { ...current, versionId } : current);
+    function selectMutated(id: string, version: DocumentVersion) {
+        setSelection((current) => current?.doc.id === id ? { ...current, versionId: version.id, doc: { ...current.doc, filename: version.filename ?? current.doc.filename, current_version_id: version.id, current_working_revision: version.working_revision, active_version_number: version.version_number } } : current);
     }
     function forget(ids: Set<string>) {
         setHistories((all) => new Map([...all].filter(([id]) => !ids.has(id))));
@@ -84,24 +88,22 @@ export function useDocumentController(documents: Document[],
         const { docId, version } = pendingRestore;
         await action(docId, "restore", async () => {
             const current = head(docId);
-            selectMutated(docId, (await restoreDocumentVersion(docId, version.id, current.id, current.working_revision)).id);
+            selectMutated(docId, await restoreDocumentVersion(docId, version.id, current.id, current.working_revision));
         }, true);
         setPendingRestore(null);
     }
     function checkpoint(id: string, comment?: string) {
         return action(id, "checkpoint", async () => {
             const current = head(id);
-            selectMutated(id, (await checkpointDocumentVersion(id, current.id, current.working_revision, comment)).id);
+            selectMutated(id, await checkpointDocumentVersion(id, current.id, current.working_revision, comment));
         }, true);
     }
     function upload(doc: Document, files: File[]) {
+        if (!files.length) return Promise.resolve(false);
         return action(doc.id, "upload", async () => {
-            if (!doc.current_version_id || doc.current_working_revision == null) throw new Error("Document revision is unavailable");
-            let head = { id: doc.current_version_id, working_revision: doc.current_working_revision };
-            for (const file of files) {
-                head = await uploadDocumentVersion(doc.id, file, head.id, head.working_revision);
-                selectMutated(doc.id, head.id);
-            }
+            let current = head(doc.id, doc);
+            for (const file of files)
+                selectMutated(doc.id, current = await uploadDocumentVersion(doc.id, file, current.id, current.working_revision));
         }, true);
     }
     function download(id: string, versionId: string, filename: string) {
