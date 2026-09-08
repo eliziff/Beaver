@@ -124,10 +124,11 @@ export function enqueuePdfPreparation(input: {
 
 /** Recognize the pages carrying cited passages before the rest of the scan. */
 export async function enqueueAuthorityOcr(input: PdfSource & {
-  userId: string; citedPages: number[];
+  userId: string; citedPages: number[]; pages?: number[];
 }) {
   const cited = [...new Set(input.citedPages)].sort((a, b) => a - b);
   const settings = { ...input, ocrProvider: "kraken-lite" as const };
+  if (input.pages?.length) return enqueuePdfReprocess({ ...settings, pages: input.pages, priority: 60 });
   if (cited.length) await enqueuePdfReprocess({ ...settings, pages: cited, priority: 60 });
   return enqueuePdfReprocess({ ...settings, priority: 40 });
 }
