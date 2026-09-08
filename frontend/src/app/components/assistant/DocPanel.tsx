@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { ContextualWorkflowLauncher } from "../workflows/ContextualWorkflowPicker";
 import type { WorkflowDocument } from "../workflows/ContextualWorkflowPicker";
@@ -11,7 +11,8 @@ import { Button } from "../ui/button";
 
 import { downloadBlob } from "../../lib/download";
 import { useEditResolution } from "./EditCard";
-import { SourcesWorkspaceProvider } from "../legal/SourcesWorkspace";
+import { SourcesWorkspaceProvider, useSourcesWorkspaceOrNull } from "../legal/SourcesWorkspace";
+import { useReaderCapture } from "../shared/useReaderCapture";
 
 const ResearchWorkspaceHost = lazy(async () => ({
   default: (await import("../legal/ResearchWorkspaceHost")).ResearchWorkspaceHost,
@@ -61,6 +62,10 @@ export function DocPanel({
   onOpenWorkflows?: (documents: WorkflowDocument[]) => void;
 }) {
   const [downloading, setDownloading] = useState(false);
+  const reader = useRef<HTMLDivElement>(null), workspace = useSourcesWorkspaceOrNull();
+  useReaderCapture(reader, versionId && !filename.toLowerCase().endsWith(".research.md")
+    ? { provider: "library", kind: "document", id: documentId, versionId, title: filename } : null,
+    workspace?.highlight ?? null);
   const documentQuotes = mode.kind === "citation"
     ? getDocumentCitationQuotes(mode.citation)
     : undefined;
@@ -105,7 +110,8 @@ export function DocPanel({
           </Button>
         </header>
       )}
-      <div className="flex min-h-0 flex-1 flex-col p-3">
+      <div ref={reader} data-highlighter={workspace?.highlight.armed || undefined}
+        className={`flex min-h-0 flex-1 flex-col p-3 ${workspace?.highlight.armed ? "cursor-crosshair" : ""}`}>
         {filename.toLowerCase().endsWith(".research.md") ? <ResearchDocument
           documentId={documentId} projectId={projectId} /> : <DocumentViewer
           documentId={documentId}
