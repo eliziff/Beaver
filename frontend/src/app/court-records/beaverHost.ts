@@ -1,6 +1,5 @@
 import {
   type Document,
-  directoryResource,
   downloadDocument,
   downloadDocumentPdf,
   getDocument,
@@ -135,16 +134,6 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
     };
     prepared.binding = { kind: "document", documentId: uploaded.id, version: "latest" };
     return prepared;
-  },
-  async searchLibrary(query, formats, draft, signal) {
-    const library = directoryResource(draft.projectId
-      ? { projectId: draft.projectId } : { library: "files" });
-    const page = await library.list({ q: query.trim(), limit: 24 }, signal);
-    return page.items.flatMap((entry) => entry.kind === "document" ? [entry.document] : [])
-      .filter((document) => {
-        const format = document.file_type?.toLowerCase();
-        return format === "pdf" || format === "docx" ? formats.includes(format) : false;
-      });
   },
   async importLibraryDocument(document, progress, destination) {
     return prepareLibraryDocument(document, document.current_version_id, progress, destination);
