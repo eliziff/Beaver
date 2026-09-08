@@ -32,13 +32,6 @@ export function clearDocxQuoteHighlights(root: HTMLElement): void {
     });
     root.normalize();
 }
-export function highlightDocxQuote(
-    root: HTMLElement,
-    quote: string,
-): HTMLElement | null {
-    return highlightDocxQuotes(root, [quote])[0] ?? null;
-}
-
 /** Highlight every verified text directive from one index of the rendered text. */
 export function highlightDocxQuotes(
     root: HTMLElement,
