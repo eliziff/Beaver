@@ -8,11 +8,8 @@ export const RESEARCH_HISTORY_PART = "history.json";
 const changeField = z.object({ target: z.enum(["label", "source", "passage", "workspace", "table", "result"]),
   id: z.string().min(1).max(200), sourceId: z.string().uuid().optional(),
   field: z.string().min(1).max(300), before: z.unknown(), after: z.unknown() }).strict();
-const counts = z.object({ labels: z.number().int().nonnegative(), sources: z.number().int().nonnegative(),
-  passages: z.number().int().nonnegative(), tables: z.number().int().nonnegative().optional(),
-  results: z.number().int().nonnegative().optional() }).strict();
-export const researchChangeSummarySchema = z.object({ id: z.string().uuid(), title: z.string().min(1).max(200),
-  createdAt: z.string().datetime(), executor: z.enum(["human", "assistant"]), model: z.string().optional(), counts }).strict();
+import { researchChangeSummarySchema } from "./researchContract";
+export { researchChangeSummarySchema } from "./researchContract";
 const changeSchema = researchChangeSummarySchema.extend({ userId: z.string(),
   status: z.enum(["pending", "applied", "rejected"]), undoOf: z.string().uuid().optional(),
   resolvedBy: z.string().optional(), resolvedAt: z.string().datetime().optional(),
