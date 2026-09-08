@@ -3037,6 +3037,7 @@ export function assistantTools<Context extends {
       async (_call, input, signal, progress) => {
         const document = await authorizedDocument(input);
         if (!document) throw new Error("Select a version-pinned Library document.");
+        if (legalEvidenceState) (legalEvidenceState.reviewDocumentIds ??= new Set()).add(document.documentId);
         const source = await documents.projectionSource(scope, document.documentId, document.versionId);
         if (!source) throw new Error("Document version not found.");
         const draft = await createAuthoritiesImporter(documents).draft(scope, {

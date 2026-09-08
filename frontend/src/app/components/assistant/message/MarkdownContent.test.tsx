@@ -14,6 +14,17 @@ function renderMarkdown(text: string, inlineCitationTargets: Citation[] = []) {
     );
 }
 
+it("collapses repeated adjacent citations while retaining distinct sources and pinpoints", () => {
+    const first: Citation = { kind: "document", ref: 1, document_id: "brief", filename: "Brief", pinpoint: "para 5", quotes: [] };
+    const second: Citation = { kind: "a2aj", ref: 2, citation: "2024 SCC 1", pinpoint: "para 12", quotes: [] };
+    const citations = [first, second, { ...first, ref: 3 }, { ...second, ref: 4, pinpoint: "para 13" }];
+    const targets: Citation[] = [];
+    preprocessCitations("Point [1][1][3][2][2][4]", new Map(citations.map((c) => [c.ref, c])), targets);
+    expect(targets.map((c) => c.pinpoint)).toEqual(["para 5", "para 12", "para 13"]);
+    const { container } = render(<CitationPillMarkdown text="Point [1][1][3][2][2][4]" citations={citations} />);
+    expect(container.querySelectorAll("[data-citation-ref]")).toHaveLength(3);
+});
+
 describe("MarkdownContent tables", () => {
     it.each([false, true])("renders Markdown tables (streaming: %s)", (isStreaming) => {
         render(<MarkdownContent

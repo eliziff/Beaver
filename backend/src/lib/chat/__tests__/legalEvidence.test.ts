@@ -507,6 +507,26 @@ describe("production legal evidence", () => {
     ]);
   });
 
+  it("requires both pinpointed sources for every review finding", () => {
+    const state = createLegalEvidenceTurnState("citation_structure");
+    state.reviewDocumentIds = new Set(["brief"]);
+    const document = createLibraryEvidence({ documentId: "brief", versionId: "v1", filename: "brief.docx",
+      sourceText: "The appeal is allowed.", spanText: "The appeal is allowed.", start: 0, end: 22,
+      locator: { kind: "paragraph", label: "para 5" } });
+    const authority = passage();
+    for (const receipt of [document, authority]) registerLegalEvidence(state, receipt);
+    const claim = (ids: string[]) => ({ text: "The result requires qualification.", evidence_ids: ids });
+    for (const ids of [[document.evidence_id], [authority.evidence_id]]) {
+      expect(submitLegalEvidenceAnswer({ claims: [claim(ids)] }, state).ok).toBe(false);
+      expect(renderLegalEvidenceAnswer(state)).toBeNull();
+    }
+    expect(submitLegalEvidenceAnswer({ claims: [claim([document.evidence_id, authority.evidence_id])] }, state).ok).toBe(true);
+    expect(createLegalEvidenceCitations(state).map(({ pinpoint }) => pinpoint)).toEqual(["para 5", "para 12"]);
+    const broad = passage(" ");
+    registerLegalEvidence(state, broad);
+    expect(submitLegalEvidenceAnswer({ claims: [claim([document.evidence_id, broad.evidence_id])] }, state).ok).toBe(false);
+  });
+
   it("emits document citations for attached PDF passages", () => {
     const state = createLegalEvidenceTurnState("citation_structure");
     const evidence = createLibraryEvidence({
@@ -622,24 +642,14 @@ describe("production legal evidence", () => {
     ]);
   });
 
-  it("requires separate claims when sentences use different passages", () => {
-    const state = createLegalEvidenceTurnState("citation_structure");
-    const evidence = [passage("par30"), passage("par31")];
+  it("keeps a multi-sentence point under its shared evidence instead of repeating citation chips", () => {
+    const state = createLegalEvidenceTurnState("citation_structure"), evidence = [passage("par30"), passage("par31")];
     evidence.forEach((receipt) => registerLegalEvidence(state, receipt));
-
     expect(submitLegalEvidenceAnswer({ claims: [{
-      text: "The test is demanding. Valero failed to identify an unsettled question.",
+      text: "The appeal succeeded. Both passages record that result.",
       evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
-    }] }, state).errors).toContain(
-      "claims[0] must split sentences supported by different passages",
-    );
-
-    expect(submitLegalEvidenceAnswer({ claims: [{
-      text: "R. v. Smith and Acme Ltd. Canada support one proposition.",
-      evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
-    }] }, state).errors ?? []).not.toContain(
-      "claims[0] must split sentences supported by different passages",
-    );
+    }] }, state).ok).toBe(true);
+    expect(renderLegalEvidenceAnswer(state)).toBe("The appeal succeeded. Both passages record that result. [1]");
   });
 
   it("collapses one article's pages into a single journal chip", () => {
