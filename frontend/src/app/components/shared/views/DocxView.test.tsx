@@ -138,6 +138,25 @@ describe("DocxView", () => {
         expect(onReady).toHaveBeenCalledOnce();
     });
 
+    it("retains every cited passage and scrolls to the first attached highlight", async () => {
+        mocks.renderDocument.mockImplementationOnce(async (_doc, container: HTMLElement) => {
+            container.innerHTML = '<section class="docx"><p>First cited passage.</p><p>Second cited passage.</p></section>';
+        });
+        const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function () {
+            return { top: this.isConnected && this.classList.contains("docx-text-highlight") ? 600 : 0,
+                height: 20, width: 800, bottom: 620, left: 0, right: 800, x: 0, y: 0, toJSON() {} };
+        });
+        try {
+            const onReady = vi.fn();
+            const { container } = render(<DocxView documentId="multi-quote" onReady={onReady}
+                quotes={[{ quote: "First cited passage." }, { quote: "Second cited passage." }]} />);
+            await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+            expect(Array.from(container.querySelectorAll(".docx-text-highlight"), (node) => node.textContent))
+                .toEqual(["First cited passage.", "Second cited passage."]);
+            expect(container.querySelector(".docx-view-scroll")?.scrollTop).toBe(610);
+        } finally { rect.mockRestore(); }
+    });
+
     it("renders saved Word page breaks without inventing page numbers", async () => {
         const onReady = vi.fn();
         const onScrollChange = vi.fn();
