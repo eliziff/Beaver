@@ -1,13 +1,13 @@
+import { pdfAssembly, type PdfOutline as Outline } from "../../../../backend/src/lib/pdfAssembly";
+import * as pdf from "pdf-lib";
 import {
   PDFDocument,
   PDFHexString,
   PDFName,
   StandardFonts,
-  degrees,
   rgb,
   type PDFFont,
   type PDFPage,
-  type PDFRef,
 } from "pdf-lib";
 import { drawCourtCover, drawCourtExhibitCertificate, drawFederalForm344 } from "./courtForms";
 import { acceptedSourceFormats, DOCX_MIME, needsPdfRendition, sourceFormat } from "./formats";
@@ -31,6 +31,8 @@ import {
   drawCourtPdfText,
   registerCourtPdfFonts,
 } from "./pdfText";
+
+const { addInternalLink, applyOcrText, applyOutlines, applyPageLabels, drawPageNumber } = pdfAssembly(pdf);
 
 const LETTER: [number, number] = [612, 792];
 const GENERATED_OVERHEAD_BYTES = 160_000;
@@ -58,12 +60,6 @@ type AssemblyItem = {
   indexParentId?: string;
   indexPageOffset?: number;
   descriptionLines?: string[];
-};
-
-type Outline = {
-  title: string;
-  pageIndex: number;
-  children?: Outline[];
 };
 
 type IndexTarget = {
@@ -297,7 +293,7 @@ async function buildSeparateFiles(
     if (profile.technical.pdfPageLabelsMatch) applyPageLabels(output, 1);
     applyOutlines(output, [{ title: entry.title, pageIndex: 0,
       children: sourceOutlines(entry.sourceBookmarks, 0) }], profile.technical.bookmarksPanelOpen);
-    setMetadata(output, `${profile.label} — ${entry.title}`);
+    setMetadata(output, `${profile.label} â€” ${entry.title}`);
     const bytes = await output.save();
     artifacts.push(await pdfArtifact(filename, bytes, pages.length));
   }
@@ -333,7 +329,7 @@ async function buildAttachedPdf(
       pageIndex: start, children: sourceOutlines(sourceEntry.sourceBookmarks, start) });
   }
   applyOutlines(document, outlines, profile.technical.bookmarksPanelOpen);
-  setMetadata(document, `${profile.label} — ${entry.title}`);
+  setMetadata(document, `${profile.label} â€” ${entry.title}`);
   return pdfArtifact(filename, await document.save(), document.getPageCount());
 }
 
@@ -384,7 +380,7 @@ async function buildAffidavit(
     outlines.push({
       title: entry.kindId === "exhibit"
         ? `Exhibit ${entry.exhibitLabel?.trim() || exhibitName(entries.slice(0, entryIndex)
-          .filter((item) => item.kindId === "exhibit").length)} — ${entry.title}`
+          .filter((item) => item.kindId === "exhibit").length)} â€” ${entry.title}`
         : entry.title,
       pageIndex: start,
       children: sourceOutlines(entry.sourceBookmarks, start),
@@ -579,7 +575,7 @@ function splitAssemblyItem(item: AssemblyItem): [AssemblyItem[], AssemblyItem[]]
   const part = (from: number, to: number): AssemblyItem => ({
     ...item,
     id: `${item.entry!.id}:source-pages-${from + 1}-${to}`,
-    title: `${baseTitle} — source pages ${from + 1}–${to}`,
+    title: `${baseTitle} â€” source pages ${from + 1}â€“${to}`,
     baseTitle,
     sourcePageStart: from,
     sourcePageEnd: to,
@@ -786,7 +782,7 @@ function drawPhysicalExhibitDescription(
   index: number,
 ) {
   page.drawRectangle({ x: 0, y: 0, width: 612, height: 792, color: rgb(1, 1, 1) });
-  centredText(page, `DESCRIPTION OF PHYSICAL EXHIBIT${index ? " — CONTINUED" : ""}`,
+  centredText(page, `DESCRIPTION OF PHYSICAL EXHIBIT${index ? " â€” CONTINUED" : ""}`,
     708, bold, 12);
   lines.forEach((text, lineIndex) => drawCourtPdfText(page, text, {
     x: 99.21, y: 660 - lineIndex * 16, font: regular, size: 12,
@@ -825,7 +821,7 @@ function drawIndexPage(
   });
   const suffix = [plan.count > 1 ? `Volume ${plan.number} of ${plan.count}` : "",
     indexPageCount > 1 ? `Page ${indexPage + 1} of ${indexPageCount}` : ""]
-    .filter(Boolean).join(" · ");
+    .filter(Boolean).join(" Â· ");
   if (suffix) drawRight(page, suffix, width - 48, height - 69, regular, 9, rgb(0.3, 0.3, 0.3));
   const top = height - 112;
   page.drawRectangle({ x: 48, y: top - 19, width: width - 96, height: 22,
@@ -852,7 +848,7 @@ function drawIndexPage(
     const lines = item.indexLines ?? [latin(item.title)];
     const rowHeight = Math.max(24, lines.length * 11 + 13);
     const visible = !item.pageCount ? "" : range.start === range.end
-      ? `${range.start}` : `${range.start}–${range.end}`;
+      ? `${range.start}` : `${range.start}â€“${range.end}`;
     page.drawText(item.indexParentId ? "" : String(item.tab), { x: 57, y, font: sans, size: 8.5 });
     lines.forEach((text, index) => drawCourtPdfText(page, text, {
       x: 96 + (item.indexParentId ? 12 : 0), y: y - index * 11, font: sans, size: 8.5,
@@ -999,74 +995,6 @@ function vertical(page: PDFPage, x: number, bottom: number, top: number) {
   line(page, x, bottom, x, top, rgb(0.25, 0.25, 0.25), 0.7);
 }
 
-function drawPageNumber(
-  page: PDFPage,
-  number: number,
-  font: PDFFont,
-  position: CourtProfile["technical"]["pageNumberPosition"],
-  size = 9,
-  inset = 72,
-  offset = 36,
-) {
-  const text = String(number);
-  const textWidth = font.widthOfTextAtSize(text, size);
-  const { width, height } = page.getSize();
-  const angle = ((page.getRotation().angle % 360) + 360) % 360;
-  const top = position.startsWith("top");
-  const right = position.endsWith("right");
-  if (angle === 90) {
-    page.drawText(text, {
-      x: top ? width - offset : offset,
-      y: right ? height - inset - textWidth : (height - textWidth) / 2,
-      size,
-      font,
-      rotate: degrees(90),
-      color: rgb(0.12, 0.12, 0.12),
-    });
-  } else if (angle === 180) {
-    page.drawText(text, {
-      x: right ? inset + textWidth : (width + textWidth) / 2,
-      y: top ? offset : height - offset,
-      size,
-      font,
-      rotate: degrees(180),
-      color: rgb(0.12, 0.12, 0.12),
-    });
-  } else if (angle === 270) {
-    page.drawText(text, {
-      x: top ? offset : width - offset,
-      y: right ? inset + textWidth : (height + textWidth) / 2,
-      size,
-      font,
-      rotate: degrees(270),
-      color: rgb(0.12, 0.12, 0.12),
-    });
-  } else {
-    page.drawText(text, {
-      x: right ? width - inset - textWidth : (width - textWidth) / 2,
-      y: top ? height - offset : offset,
-      size,
-      font,
-      color: rgb(0.12, 0.12, 0.12),
-    });
-  }
-}
-
-function applyOcrText(page: PDFPage, font: PDFFont, value?: string) {
-  if (!value?.trim()) return;
-  const text = latin(value).slice(0, 60_000);
-  const chunks = text.match(/[\s\S]{1,1800}/gu) ?? [];
-  chunks.forEach((chunk, index) => page.drawText(chunk, {
-    x: 1,
-    y: 1 + (index % 4),
-    size: 1,
-    lineHeight: 1,
-    maxWidth: Math.max(1, page.getWidth() - 2),
-    font,
-    opacity: 0,
-  }));
-}
-
 function sourceOutlines(bookmarks: SourceBookmark[] | undefined, offset: number): Outline[] {
   return (bookmarks ?? []).flatMap((bookmark) => bookmark.pageIndex < 0 ? [] : [{
     title: bookmark.title,
@@ -1091,77 +1019,11 @@ function sourceOutlinesForItem(item: AssemblyItem, offset: number): Outline[] {
   return select(item.entry?.sourceBookmarks);
 }
 
-function applyPageLabels(document: PDFDocument, start: number) {
-  const labels = document.context.obj({
-    Nums: [0, document.context.obj({ S: "D", St: start })],
-  });
-  document.catalog.set(PDFName.of("PageLabels"), document.context.register(labels));
-}
-
-function applyOutlines(document: PDFDocument, outlines: Outline[], open: boolean) {
-  const valid = outlines.filter((outline) =>
-    outline.pageIndex >= 0 && outline.pageIndex < document.getPageCount());
-  if (!valid.length) return;
-  const root = document.context.obj({ Type: "Outlines" });
-  const rootRef = document.context.register(root);
-  const branch = outlineBranch(document, valid, rootRef);
-  root.set(PDFName.of("First"), branch.first);
-  root.set(PDFName.of("Last"), branch.last);
-  root.set(PDFName.of("Count"), document.context.obj(branch.count));
-  document.catalog.set(PDFName.of("Outlines"), rootRef);
-  if (open) document.catalog.set(PDFName.of("PageMode"), PDFName.of("UseOutlines"));
-}
-
-function outlineBranch(document: PDFDocument, outlines: Outline[], parent: PDFRef) {
-  const nodes = outlines.map((outline) => {
-    const page = document.getPage(Math.min(outline.pageIndex, document.getPageCount() - 1));
-    const dict = document.context.obj({
-      Title: PDFHexString.fromText(outline.title.slice(0, 300)),
-      Parent: parent,
-      Dest: [page.ref, "Fit"],
-    });
-    return { outline, dict, ref: document.context.register(dict), descendants: 0 };
-  });
-  nodes.forEach((node, index) => {
-    if (index) node.dict.set(PDFName.of("Prev"), nodes[index - 1].ref);
-    if (index + 1 < nodes.length) node.dict.set(PDFName.of("Next"), nodes[index + 1].ref);
-    const children = node.outline.children?.filter((child) =>
-      child.pageIndex >= 0 && child.pageIndex < document.getPageCount()) ?? [];
-    if (children.length) {
-      const branch = outlineBranch(document, children, node.ref);
-      node.dict.set(PDFName.of("First"), branch.first);
-      node.dict.set(PDFName.of("Last"), branch.last);
-      node.dict.set(PDFName.of("Count"), document.context.obj(branch.count));
-      node.descendants = branch.count;
-    }
-  });
-  return {
-    first: nodes[0].ref,
-    last: nodes[nodes.length - 1].ref,
-    count: nodes.reduce((sum, node) => sum + 1 + node.descendants, 0),
-  };
-}
-
-function addInternalLink(
-  page: PDFPage,
-  [x1, y1, x2, y2]: [number, number, number, number],
-  target: PDFPage,
-) {
-  const annotation = page.doc.context.obj({
-    Type: "Annot",
-    Subtype: "Link",
-    Rect: [x1, y1, x2, y2],
-    Border: [0, 0, 0],
-    Dest: [target.ref, "Fit"],
-  });
-  page.node.addAnnot(page.doc.context.register(annotation));
-}
-
 function setMetadata(document: PDFDocument, title: string) {
   document.setTitle(title);
   document.setSubject("Court filing record assembled from user-selected source PDFs");
   document.setCreator("Beaver Court Record Builder");
-  document.setProducer("Beaver Court Record Builder · pdf-lib");
+  document.setProducer("Beaver Court Record Builder Â· pdf-lib");
   const preferences = document.catalog.getOrCreateViewerPreferences();
   preferences.setDisplayDocTitle(true);
   document.catalog.set(PDFName.of("Lang"), PDFHexString.fromText("en-CA"));
