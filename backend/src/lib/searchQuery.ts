@@ -8,12 +8,12 @@ const escapeLike = (value: string) => value.replace(/!/gu, "!!")
   .replace(/%/gu, "!%").replace(/_/gu, "!_");
 const isAnd = (value = "") => /^(?:AND|ET|&&?)$/iu.test(value);
 const isOr = (value = "") => /^(?:OR|OU|\|\|?)$/iu.test(value);
-const isNot = (value = "") => value === "NOT" || value === "NON";
+const isNot = (value = "") => /^(?:NOT|NON)$/iu.test(value);
 
 /** Parses CanLII's Boolean priority: OR, NOT, then explicit or implicit AND.
  *  `flag` reports a malformed expression: a missing operand, bracket or quote. */
 function parseSearch(query: string, flag?: () => void): SearchNode {
-  const input = query.match(/"[^"]*"|\(|\)|[^\s()]+/gu)?.slice(0, 32) ?? [];
+  const input = (query.match(/"[^"]*"|\(|\)|[^\s()]+/gu)?.slice(0, 32) ?? []).filter((token, i, tokens) => !isAnd(token) || !isNot(tokens[i + 1]));
   let at = 0;
   const term = (raw?: string): SearchNode => {
     if (raw === undefined) { flag?.(); raw = NEVER; }
