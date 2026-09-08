@@ -357,15 +357,25 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
         throw new ApplicationError(409, "Selected passage changed or is unavailable");
       for (const passage of windows) {
         const { text } = passage;
+        const slices = adapter.legalSourceViewer(passage.documentArtifact,
+          source.reference.kind === "legislation" ? "section" : "paragraph", text.length).slices;
+        const blocks = slices.length ? slices.map(({ primary, start, end }) => primary ??
+          { kind: "document" as const, label: `characters ${start + 1}-${end}`, start, end })
+          : adapter.documentAnchors(passage.documentArtifact);
         if (rules.length) {
           const captures: Capture[] = [], captureKeys = new Set<string>();
           captureRules: for (const [order, { rule, source: phrase, test }] of compiled.entries())
             for (const range of passage.ranges) {
             const selectedText = text.slice(range.start, range.end);
-            if (test && !test(selectedText)) continue;
             const pattern = new RegExp(phrase, "giu"); let match: RegExpExecArray | null;
             while ((match = pattern.exec(selectedText))) {
-              const span = adjacent(selectedText, match.index, match[0].length, rule);
+              const at = range.start + match.index, length = match[0].length;
+              const block = blocks.find(({ start, end }) => start <= at && end >= at + length);
+              const bounds = block ? { start: Math.max(range.start, block.start), end: Math.min(range.end, block.end) } : range;
+              if (test && (!block || !test(clean(text.slice(bounds.start, bounds.end))))) continue;
+              const span = rule.unit === "paragraph" && rule.direction === "around" && block
+                ? { start: bounds.start - range.start, end: bounds.end - range.start }
+                : adjacent(selectedText, match.index, match[0].length, rule);
               if (span) {
                 span.start += range.start; span.end += range.start;
                 const key = `${order}:${span.start}:${span.end}`;
@@ -400,11 +410,6 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
             found.push({ span: match.value, receipt: match.receipt, slot: span.slot, assign: span.assign });
           }
         } else {
-          const anchors = adapter.documentAnchors(passage.documentArtifact), blocks = anchors.length
-            ? anchors : adapter.legalSourceViewer(passage.documentArtifact,
-              source.reference.kind === "legislation" ? "section" : "paragraph").slices.map(
-                ({ start, end }) => ({ kind: "document" as const,
-                  label: `characters ${start + 1}-${end}`, start, end }));
           for (const block of blocks) {
             if (foundEvidence.size === limit) break;
             if (!allowed.has(block.kind)) continue;
