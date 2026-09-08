@@ -26,6 +26,7 @@ import {
 } from "./documentTypes";
 import { extractEmailText } from "./emailText";
 import { extractPresentationText } from "./officeText";
+import { projectDocxRedline } from "./docx/redline";
 import { docxToPdf } from "./convert";
 import { isJsonRecord } from "./value";
 import { pdfLifecyclePhase } from "./pdfLifecycleDiagnostics";
@@ -347,12 +348,12 @@ const projectionMemory = new Map<string, WeakRef<NativeDocument> | string>();
 const projectionKey = (input: ProjectionReference) =>
   `${input.documentId}\0${input.versionId}\0${input.sourceSha256}\0${input.cacheKey ?? ""}`;
 
-async function boundedSource(input: DocumentProjectionSource) {
+async function boundedSource(input: DocumentProjectionSource, nativeDocxView = false) {
   const fileType = input.fileType.trim().toLowerCase();
   const bytes = await input.readBytes();
   if (!bytes.length || bytes.length > MAX_DOCUMENT_INPUT_BYTES)
     throw new Error("Document projection input exceeds the read limit");
-  if (["docx", "xlsx", "xlsm", "pptx"].includes(fileType) &&
+  if (!nativeDocxView && ["docx", "xlsx", "xlsm", "pptx"].includes(fileType) &&
       bytes.length > MAX_COMPRESSED_PACKAGE_BYTES)
     throw new Error("Compressed document exceeds the read limit");
   const sourceSha256 = sha256(bytes);
@@ -430,14 +431,17 @@ function waitForProjection<T>(pending: Promise<T>, signal?: AbortSignal): Promis
 async function compileReadProjection(
   input: DocumentProjectionSource,
   source: Awaited<ReturnType<typeof boundedSource>>,
+  mode: "text" | "drafting" | "redline" = "text",
 ): Promise<NativeDocument> {
   const { bytes, fileType } = source;
   if (fileType === "docx") {
-    const document = await structureNative().deriveDocxDocument(
-      bytes,
-      `${input.documentId}:${input.versionId}`,
-    );
-    return document;
+    if (mode === "redline") return structureNative().deriveDocumentStructure({
+      kind: "instrument", id: input.documentId,
+      text: (await projectDocxRedline(bytes)).text, reconstruct_lineation: true,
+    });
+    return structureNative().deriveDocxDocument(bytes,
+      mode === "drafting" ? input.documentId : `${input.documentId}:${input.versionId}`,
+      mode === "drafting");
   }
   if (isSpreadsheetDocumentType(fileType)) {
     const grid = await spreadsheetToLLMStructure(bytes, fileType);
@@ -481,7 +485,9 @@ function assertProjectionOutput(document: NativeDocument) {
     throw new Error("Document projection output exceeds the read limit");
 }
 
-async function read(input: DocumentProjectionSource, options: { signal?: AbortSignal } = {}) {
+async function read(input: DocumentProjectionSource, options: {
+  mode?: "text" | "drafting" | "redline"; signal?: AbortSignal;
+} = {}) {
   options.signal?.throwIfAborted();
   assertProjectionSource(input);
   const reference = {
@@ -490,17 +496,30 @@ async function read(input: DocumentProjectionSource, options: { signal?: AbortSi
     sourceSha256: input.sourceSha256,
     ...(input.pdfProfile ? { cacheKey: input.pdfProfile.cacheKey } : {}),
   };
-  // Share source verification as well as compilation. Cancellation belongs to
-  // each reader; abandoning one read must not invalidate another reader's work.
-  const result = input.fileType.trim().toLowerCase() === "pdf"
-    ? await pdfDocumentForSource(input.readBytes, reference, { pdfProfile: input.pdfProfile })
-    : await projectionFor(projectionKey(reference), async () => {
-      const document = await compileReadProjection(input, await boundedSource(input));
-      assertProjectionOutput(document);
-      return document;
-    });
-  options.signal?.throwIfAborted();
-  return result;
+  const pending = (async () => {
+    if (input.assertAvailable) await input.assertAvailable();
+    let reusable = true;
+    const mode = input.fileType.toLowerCase() === "docx" ? options.mode ?? "text" : "text";
+    if (options.mode === "redline" && mode !== "redline")
+      throw new Error("Redline requires a DOCX document");
+    const result = input.fileType.trim().toLowerCase() === "pdf"
+      ? await pdfDocumentForSource(input.readBytes, reference, { pdfProfile: input.pdfProfile })
+      : await projectionFor(`${projectionKey(reference)}\0${mode}`, async () => {
+        const source = await boundedSource(input, mode !== "text");
+        let document: NativeDocument;
+        try { document = await compileReadProjection(input, source, mode); }
+        catch (error) {
+          if (mode !== "drafting") throw error;
+          reusable = false;
+          document = await compileReadProjection(input, await boundedSource(input));
+        }
+        if (mode === "text" || !reusable) assertProjectionOutput(document);
+        return document;
+      }, () => reusable);
+    if (input.assertAvailable) await input.assertAvailable();
+    return result;
+  })();
+  return waitForProjection(pending, options.signal);
 }
 
 async function text(input: DocumentProjectionSource, options: {
