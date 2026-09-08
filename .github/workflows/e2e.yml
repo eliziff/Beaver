@@ -81,6 +81,7 @@ jobs:
             echo 'USER_API_KEYS_ENCRYPTION_SECRET=ci-user-api-keys-encryption-secret-0123456789abcdef'
             echo 'MCP_CONNECTORS_ENCRYPTION_SECRET=ci-mcp-connectors-encryption-secret-0123456789abcdef'
             echo 'RATE_LIMIT_GENERAL_MAX=100000'
+            echo 'RATE_LIMIT_AUTH_MAX=100000'
             echo 'RATE_LIMIT_CHAT_MAX=100000'
             echo 'RATE_LIMIT_CHAT_CREATE_MAX=100000'
             echo 'RATE_LIMIT_UPLOAD_MAX=100000'
