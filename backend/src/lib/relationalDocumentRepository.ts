@@ -249,9 +249,18 @@ async function lockRelocationRoots(db: RelationalDatabase, scope: ApplicationSco
     AND ${projectAccess(scope)} ORDER BY p.id FOR SHARE OF p`, db)).length === ids.length;
 }
 
+async function lockDocuments(db: RelationalDatabase, scope: ApplicationScope,
+  ids: string[], owner = false) {
+  // Lock first, then read joined versions in a fresh READ COMMITTED snapshot.
+  if (db.engine === "postgres") await rows(sql`SELECT d.id FROM documents d
+    WHERE d.id IN(${sql.join(ids)}) AND ${documentAccess(scope, owner)}
+    ORDER BY d.id FOR UPDATE OF d`, db);
+}
+
 async function heads(db: RelationalDatabase, scope: ApplicationScope, documentIds: string[],
   owner = false, lock = false): Promise<DocumentHead[]> {
   if (!documentIds.length) return [];
+  if (lock) await lockDocuments(db, scope, documentIds, owner);
   const found = await rows(sql`SELECT d.*,v.page_count pdf_page_count,v.pdf_profile,
     v.id head_id,v.document_id head_document_id,v.parent_version_id head_parent_version_id,
     v.version_number head_version_number,v.working_revision head_working_revision,
@@ -268,8 +277,7 @@ async function heads(db: RelationalDatabase, scope: ApplicationScope, documentId
       WHERE q.document_id=d.id AND q.document_version_id=d.current_version_id
         AND q.kind IN('pdf.prepare','pdf.reprocess')
       ORDER BY q.updated_at DESC,q.id DESC LIMIT 1)
-    WHERE d.id IN(${sql.join(documentIds)}) AND ${documentAccess(scope, owner)}
-    ${lock && db.engine === "postgres" ? sql.raw("FOR UPDATE OF d") : sql.raw("")}`, db);
+    WHERE d.id IN(${sql.join(documentIds)}) AND ${documentAccess(scope, owner)}`, db);
   return found.map((row) => ({ document: storedDocument(row), versions: [storedVersion(row, "head_")] }));
 }
 const head = async (db: RelationalDatabase, scope: ApplicationScope, documentId: string,
@@ -399,13 +407,13 @@ export const documentRepository: DocumentRepository = {
         part.versionId !== input.version.id)) throw new Error("Document part belongs to a different version");
     const db = await relationalDatabase();
     const result = await db.transaction(async (tx) => {
+      await lockDocuments(tx, scope, [id]);
       const document = await one(sql`SELECT d.current_version_id,d.user_id,d.project_id,
           CASE WHEN d.project_id IS NULL THEN d.library_folder_id ELSE d.folder_id END current_folder_id,
           v.working_revision current_working_revision,
           v.version_number current_version_number FROM documents d
         JOIN document_versions v ON v.id=d.current_version_id AND v.document_id=d.id
-        WHERE d.id=${id} AND ${documentAccess(scope)}
-        ${tx.engine === "postgres" ? sql.raw("FOR UPDATE OF d") : sql.raw("")}`, tx);
+        WHERE d.id=${id} AND ${documentAccess(scope)}`, tx);
       if (!document) return "missing";
       if (document.current_version_id !== input.expectedCurrentVersionId ||
           Number(document.current_working_revision) !== input.expectedCurrentWorkingRevision ||
@@ -443,6 +451,7 @@ export const documentRepository: DocumentRepository = {
         part.versionId !== input.versionId)) throw new Error("Document part belongs to a different version");
     const db = await relationalDatabase();
     const result = await db.transaction(async (tx) => {
+      await lockDocuments(tx, scope, [id]);
       const row = await one(sql`SELECT v.*,d.current_version_id,d.user_id owner_user_id,
           d.project_id owner_project_id
         FROM documents d JOIN document_versions v ON v.document_id=d.id

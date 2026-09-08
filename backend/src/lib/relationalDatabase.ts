@@ -95,6 +95,9 @@ function postgresClient(connection: string) {
     throw new Error("PostgreSQL TLS can be disabled only for a loopback database");
   }
   return postgres(connection, {
+    // Relational statements already encode JSON for both database engines.
+    types: { json: { to: 114, from: [114, 3802],
+      serialize: (value: string) => value, parse: JSON.parse } },
     connection: {
       idle_in_transaction_session_timeout: 30_000,
       statement_timeout: 60_000,
