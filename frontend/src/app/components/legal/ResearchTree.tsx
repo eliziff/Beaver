@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { BookOpen, ChevronRight } from "lucide-react";
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { Button } from "../ui/button";
-import { researchHighlightCount, type ResearchEvidence, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
+import { researchHighlightCount, researchLabelPath, type ResearchEvidence, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
 import { researchLabelColor, ResearchSourceKindIcon } from "./ResearchLabelMarker";
 import { ResearchLabelEditor, RESEARCH_SOURCE_DRAG, type ResearchLabelTarget } from "./ResearchLabelPicker";
 import { ResearchLabelTree } from "./ResearchLabelTree";
@@ -19,7 +19,7 @@ const NEWLINE = "\n";
 /** File-explorer row: one fixed-height line, chevron, glyph, name, actions, number.
  *  Nothing wraps, so a row can never grow into the one above it. */
 export const ROW = "group flex h-7 min-w-0 items-center gap-1 rounded px-1";
-export const ROW_ACTIONS = "flex w-7 shrink-0 items-center justify-end gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100 @[22rem]:w-14";
+export const ROW_ACTIONS = "flex w-14 shrink-0 items-center justify-end gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100";
 export const ROW_COUNT = "w-6 shrink-0 text-end text-xs tabular-nums text-gray-500";
 
 /** Virtual folders navigate one source list. A source never needs an exclusive location. */
@@ -48,7 +48,7 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
   function openControl(source: ResearchSource, name: string, locator?: string, evidenceId?: string, spoken?: string) {
     if (preview) return null;
     const href = reader?.sourceHref(source, locator),
-      className = "hidden size-6 shrink-0 place-items-center rounded text-gray-500 hover:bg-gray-200 @[22rem]:grid",
+      className = "grid size-6 shrink-0 place-items-center rounded text-gray-500 hover:bg-gray-200",
       inner = <BookOpen aria-hidden className="size-3.5" />, label = `Open ${spoken ?? locator ?? name}`;
     if (reader?.canRead(source)) return <button type="button" aria-label={label} title="Open" className={className}
       onClick={() => void reader.readSource(source, locator, evidenceId)}>{inner}</button>;
@@ -56,7 +56,7 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
     return href.startsWith("/") ? <Link to={href} aria-label={label} title="Open" className={className}>{inner}</Link>
       : <a href={href} aria-label={label} title="Open" className={className}>{inner}</a>;
   }
-  function sourceRow(source: ResearchSource) {
+  function sourceRow(source: ResearchSource, inherited: boolean) {
     const name = sourceName(source), open = opened.has(source.id), count = researchHighlightCount(source);
     return <div className={`${ROW} ${selectedSourceId === source.id ? "bg-gray-100" : "hover:bg-gray-50"}`} draggable={!preview}
       onDragStart={(event) => { onSourceDrag?.(); event.dataTransfer.setData(RESEARCH_SOURCE_DRAG, source.id); }}>
@@ -64,11 +64,10 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
       <span className="grid size-5 shrink-0 place-items-center"><ResearchSourceKindIcon reference={source.reference} /></span>
       <button type="button" disabled={!!preview} onClick={() => openSource(source.id)} title={[name, source.note].filter(Boolean).join(NEWLINE)}
         aria-current={selectedSourceId === source.id ? "true" : undefined} data-mark={mark(source.id)}
-        className={`min-w-0 flex-1 truncate text-start text-sm text-gray-700 ${mark(source.id) ? "font-semibold underline decoration-gray-400" : ""}`}>{name}</button>
+        className={`min-w-0 flex-1 truncate text-start text-sm ${inherited ? "text-gray-400" : "text-gray-700"} ${mark(source.id) ? "font-semibold underline decoration-gray-400" : ""}`}>{name}</button>
       <span className={ROW_ACTIONS}>
         {openControl(source, name)}
         {!preview && <MoreActionsMenu label={`${name} options`} items={[
-          ...(reader?.canRead(source) ? [{ label: "Open", onSelect: () => void reader.readSource(source) }] : []),
           { label: "Labels", onSelect: () => setLabelTarget({ file: file!, kind: "source", itemId: source.id,
             labelIds: source.labelIds, note: source.note, title: name }) },
           { label: "Remove", onSelect: () => onRemove({ kind: "source", id: source.id, name }) },
@@ -103,11 +102,11 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
   }
 
   /** One tree: labels nest, and each source hangs under every label it carries. */
-  const sourceNode = (source: ResearchSource, key: string) => {
+  const sourceNode = (source: ResearchSource, key: string, inherited: boolean) => {
     const page = passagePages.chains[source.id];
-    return <div key={key} role="treeitem" aria-label={sourceName(source)}
+    return <div key={key} role="treeitem" aria-label={sourceName(source)} data-inherited={inherited || undefined}
       aria-expanded={opened.has(source.id)} aria-selected={selectedSourceId === source.id}>
-      {sourceRow(source)}
+      {sourceRow(source, inherited)}
       {opened.has(source.id) && !preview && <div role="group" className="ms-4">
         {page?.items.flatMap((item) => (item.kind === "passage" || item.kind === "evidence") && passageVisible(item.value)
           ? [<div key={item.value.receipt.evidence_id} role="treeitem" aria-label={item.value.receipt.locator.label}>
@@ -121,14 +120,18 @@ export function ResearchTree({ reader, sources, navigationSources = sources, fil
       </div>}
     </div>;
   };
-  const under = (labelId: string | null) => sources.filter((source) => labelId
-    ? source.labelIds.includes(labelId)
-    : !source.labelIds.some((id) => labels[id]?.scope === "source"));
+  /** Filing is transitive: a label lists what is filed on it, then what its descendants hold, in lighter type. */
+  const under = (labelId: string | null) => labelId
+    ? sources.flatMap((source) => { const direct = source.labelIds.includes(labelId);
+        return direct || source.labelIds.some((id) => researchLabelPath(labels, id).some(({ id: at }) => at === labelId))
+          ? [{ source, inherited: !direct }] : []; })
+    : sources.filter((source) => !source.labelIds.some((id) => labels[id]?.scope === "source"))
+      .map((source) => ({ source, inherited: false }));
 
   return <>
     <ResearchLabelTree scope="source" sources={navigationSources} selectedId={labelId} onSelect={onLabelChange}
       onRemove={onRemove} onStatus={onStatus} preview={preview}
-      renderSources={(id) => under(id).map((source) => sourceNode(source, `${id ?? ""}:${source.id}`))} />
+      renderSources={(id) => under(id).map(({ source, inherited }) => sourceNode(source, `${id ?? ""}:${source.id}`, inherited))} />
     {!sources.length && <p className="p-2 text-xs text-gray-500">{filter || labelId ? "No matching sources." : "No sources yet."}</p>}
     {labelTarget && <ResearchLabelEditor target={labelTarget} mutations={commit} onError={onStatus} onClose={() => setLabelTarget(null)} />}
   </>;

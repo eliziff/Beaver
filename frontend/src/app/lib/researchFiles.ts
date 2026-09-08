@@ -102,6 +102,11 @@ export function researchLabelPath(labels: Record<string, ResearchLabel>, id: str
   }
   return path;
 }
+/** One filing per branch, the deepest: a parent never holds what a descendant of it already holds. */
+export const researchFiledLabelIds = (labels: Record<string, ResearchLabel>, labelIds: string[]) => {
+  const covered = new Set(labelIds.flatMap((id) => researchLabelPath(labels, id).slice(0, -1).map((label) => label.id)));
+  return labelIds.filter((id) => !covered.has(id));
+};
 export const legalSourceViewerHref = (reference: ResearchSourceReference, research?: {
   fileId: string; sourceId: string }) => `/sources/view?${new URLSearchParams({
     provider: reference.provider, citation: reference.citation ?? reference.id,

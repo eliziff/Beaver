@@ -40,7 +40,6 @@ import { invalidateDocumentFile } from "@/app/hooks/useDocumentFile";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import {
     legalSourceLocatorFromUrl,
-    normalizeLegalSourceLocator,
 } from "@/app/components/legal/LegalSourceViewer";
 
 import {
@@ -127,8 +126,7 @@ export function legalCitationTab(
             citationRef: citation.ref,
             quotes,
             initialLocator:
-                normalizeLegalSourceLocator(citation.locator) ??
-                legalSourceLocatorFromUrl(citation.url),
+                citation.locator ?? legalSourceLocatorFromUrl(citation.url),
         };
     }
     if (citation.kind === "public_legal" && citation.provider === "journal") {

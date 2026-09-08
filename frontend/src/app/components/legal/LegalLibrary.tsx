@@ -491,8 +491,8 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                             className="rounded-md border border-gray-200 bg-white p-4"
                                         >
                                         <div className={`flex flex-col gap-3 ${embedded ? "" : "sm:flex-row sm:items-start"}`}>
-                                            <div className="flex min-w-0 flex-1 items-start gap-3">
-                                                <ResearchLabelPicker file={researchFile}
+                                            <div className="flex min-w-0 flex-1 items-center gap-3">
+                                                <ResearchLabelPicker file={researchFile} size="lg"
                                                     kind="source" itemId={saved?.id}
                                                     labelIds={saved?.labelIds ?? []} note={saved?.note}
                                                     title={result.name || result.citation}
