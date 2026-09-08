@@ -45,10 +45,8 @@ import { SUPPORTED_DOCUMENT_ACCEPT } from "@/app/lib/documentUploadValidation";
 
 import { getResearchFile, getResearchItems } from "@/app/lib/api/researchFiles";
 import { ResearchLabelMarker } from "@/app/components/legal/ResearchLabelMarker";
-import { ResearchLabelEditor, type ResearchLabelTarget } from "@/app/components/legal/ResearchLabelPicker";
-import type { SavedHighlight } from "@/app/components/legal/SourcesWorkspace";
 import { useSourcesWorkspaceOrNull } from "@/app/components/legal/SourcesWorkspace";
-import { useLibraryReaderCapture } from "@/app/components/shared/useLibraryReaderCapture";
+import { useReaderCapture } from "@/app/components/shared/useReaderCapture";
 import type { CitationQuote } from "@/app/lib/citations";
 import {
     isResearchDocument,
@@ -251,13 +249,7 @@ export function DocumentSidePanel({
                 versionId: (versionId ?? doc.current_version_id) as string,
                 title: doc.filename }
             : null;
-    const [labelTarget, setLabelTarget] = useState<ResearchLabelTarget | null>(null);
-    const highlightButton = useRef<HTMLButtonElement>(null);
-    /** Every saved highlight offers its type, however it was made. */
-    const savedHighlight = (saved: SavedHighlight | null) => { if (saved?.evidenceId)
-        setLabelTarget({ file: saved.file, kind: "evidence", itemId: saved.evidenceId, sourceId: saved.sourceId,
-            labelIds: saved.labelIds, title: doc?.filename ?? "", anchor: highlightButton.current ?? undefined }); };
-    const captureReady = useLibraryReaderCapture(readerBody, captureReference, highlightController, savedHighlight);
+    const captureReady = useReaderCapture(readerBody, captureReference, highlightController, undefined, setActionError);
     const [savedQuotes, setSavedQuotes] = useState<CitationQuote[]>([]);
     const workspaceFile = sourcesController?.file ?? null;
     const captureKey = captureReference ? researchSourceKey(captureReference) : null;
@@ -270,7 +262,8 @@ export function DocumentSidePanel({
         void getResearchItems(workspaceFile.document.id, { kind: "passages", sourceId: source.id }).then((page) => {
             if (cancelled) return;
             setSavedQuotes(page.items.flatMap((item) => item.kind === "passage" && item.value.receipt.span_text
-                ? [{ quote: item.value.receipt.span_text }] : []));
+                ? [{ quote: item.value.receipt.span_text, color: workspaceFile.state.labels[item.value.labelIds[0]]?.color ?? "#eab308",
+                      ...(item.value.receipt.locator.kind === "page" ? { page: Number(item.value.receipt.locator.label) } : {}) }] : []));
         }).catch(() => { if (!cancelled) setSavedQuotes([]); });
         return () => { cancelled = true; };
     }, [workspaceFile, captureKey]);
@@ -520,10 +513,10 @@ export function DocumentSidePanel({
                         disabled={!captureReady}
                         aria-pressed={highlightController.armed}
                         title="Highlight"
-                        ref={highlightButton}
+                        onPointerDown={(event) => event.preventDefault()}
                         onClick={() => {
                             setActionError(null);
-                            void highlightController.run().then(savedHighlight)
+                            void highlightController.run().then((saved) => { if (!saved) highlightController.arm(!highlightController.armed); })
                                 .catch((reason: unknown) => {
                                     setActionError(reason instanceof Error ? reason.message
                                         : "Could not save this highlight");
@@ -775,8 +768,6 @@ export function DocumentSidePanel({
                 }}
                 onConfirm={() => void removeDocument()}
             />
-            {labelTarget && sourcesController && <ResearchLabelEditor target={labelTarget}
-                mutations={sourcesController.mutations} onError={setActionError} onClose={() => setLabelTarget(null)} />}
             </div>
         </Modal>
     );

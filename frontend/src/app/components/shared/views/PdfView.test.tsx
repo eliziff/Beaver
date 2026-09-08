@@ -232,7 +232,7 @@ describe("PdfView", () => {
         selection.removeAllRanges(); selection.addRange(range);
         expect(selection.toString()).toBe("Page 1");
         expect(text.closest("[data-legal-block]")).toHaveAttribute("data-locator-value", "1");
-        expect(text.parentElement).toHaveStyle({ userSelect: "text", pointerEvents: "auto" });
+        expect(text.closest(".pdf-text-layer")).toHaveStyle({ userSelect: "text", pointerEvents: "auto" });
     });
 
     it("finishes exact mixed-size geometry and bounds canvases when jumping", async () => {

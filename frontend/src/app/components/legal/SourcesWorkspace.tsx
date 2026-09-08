@@ -3,7 +3,7 @@ import { bindWorkspaceView, ensureSourcesWorkspace, getResearchFile, getResearch
   getWorkspaceViews, openWorkspaceTable, type ResearchFinding } from "@/app/lib/api/researchFiles";
 import { createChat } from "@/app/lib/api/chat";
 import { BeaverApiError } from "@/app/lib/api/client";
-import { researchSourceKey, type PassageLocator, type ResearchActionResult, type ResearchFile, type ResearchPageItem,
+import { researchSourceKey, type ResearchFile, type ResearchPageItem,
   type ResearchSelection, type ResearchSourceReference } from "@/app/lib/researchFiles";
 import { usePagedChains } from "@/app/hooks/usePagedChains";
 import { errorMessage } from "@/app/lib/utils";
@@ -24,8 +24,6 @@ const Context = createContext<Controller | null>(null);
 const ALL_SOURCES: ResearchSelection = { target: "sources" };
 const PEN_KEY = "beaver.research.pen.v1";
 export type HighlightCapture = { reference: ResearchSourceReference; revision: string; start: number; end: number };
-/** What a saved highlight hands back, so a reader can offer its type picker on the new passage. */
-export type SavedHighlight = { file: ResearchActionResult; sourceId: string; evidenceId?: string; labelIds: string[] };
 
 function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey, selection: suppliedSelection, restoreLast = false, onChange }: Options) {
   const memoryKey = `beaver.research.current:${projectId ?? "personal"}`;
@@ -151,7 +149,7 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
     return { id, path: `${source.document.project_id ? `/projects/${source.document.project_id}` : ""}/assistant/chat/${id}` };
   }
 
-  const [pen, setPenState] = useState<string | null>(null), [armed, setArmed] = useState(true);
+  const [pen, setPenState] = useState<string | null>(null), [armed, setArmed] = useState(false);
   /** Only a mounted reader can capture a selection, so only it can offer highlighting. */
   const [reading, setReading] = useState(false);
   const capture = useRef<(() => HighlightCapture | null) | null>(null);
@@ -165,9 +163,9 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
   }, []);
   const { act } = mutations;
   /** One deliberate write: prepare the source, ensure a pen, save the passage with it. The pen stays active. */
-  const runHighlight = useCallback(async (): Promise<SavedHighlight | null> => {
+  const runHighlight = useCallback(async (): Promise<boolean> => {
     const picked = capture.current?.();
-    if (!picked) return null;
+    if (!picked) return false;
     const base = current.current;
     if (!base) throw new Error("Open a workspace first");
     const key = researchSourceKey(picked.reference);
@@ -183,9 +181,9 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
     }
     if (active !== penId.current) { penId.current = active; setPen(active); }
     const { reference: _reference, ...span } = picked;
-    const file = await act({ type: "passage", sourceId, ...span, labelIds: [active] });
+    await act({ type: "passage", sourceId, ...span, labelIds: [active] });
     window.getSelection()?.removeAllRanges();
-    return { file, sourceId, evidenceId: file.evidenceId, labelIds: [active] };
+    return true;
   }, [act, setPen]);
   const highlight = { pen, setPen, armed, arm: setArmed, run: runHighlight, reading,
     registerReader: useCallback((next: (() => HighlightCapture | null) | null) => {
@@ -197,16 +195,17 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
 
 export function SourcesWorkspaceProvider(props: Options) {
   const controller = useWorkspaceController(props);
-  const { run } = controller.highlight;
+  const { run, arm } = controller.highlight;
   useEffect(() => {
     const pressed = (event: KeyboardEvent) => {
+      if (event.key === "Escape") arm(false);
       if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== "h") return;
       event.preventDefault();
       void run().catch(() => undefined);
     };
     document.addEventListener("keydown", pressed);
     return () => document.removeEventListener("keydown", pressed);
-  }, [run]);
+  }, [run, arm]);
   return <Context value={controller}>{props.children}</Context>;
 }
 

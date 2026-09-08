@@ -42,7 +42,7 @@ import { LegalLibrarySourcePage } from "./LegalLibrary";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 function HighlightButton() {
   const { highlight } = useSourcesWorkspace();
-  return <button type="button" onClick={() => void highlight.run().catch(() => undefined)}>Highlight</button>;
+  return <button type="button" onPointerDown={(event) => event.preventDefault()} onClick={() => void highlight.run().then((saved) => { if (!saved) highlight.arm(!highlight.armed); }).catch(() => undefined)}>Highlight</button>;
 }
 function LegalSourceViewer({ researchFile, onResearchFileChange, ...props }: React.ComponentProps<typeof SourceViewer> &
   { researchFile?: ResearchFile | null; onResearchFileChange?: (file: ResearchFile | null) => void }) {
@@ -322,7 +322,7 @@ describe("legal source reader", () => {
         window.getSelection()?.removeAllRanges();
         fireEvent.click(screen.getByRole("button", { name: "Highlight" }));
         await waitFor(() => expect(container.querySelector("[data-highlighter]")).not.toBeNull());
-        fireEvent.click(screen.getByText("ratio"));
+        fireEvent.pointerUp(screen.getByText("ratio"));
         await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", 0,
             expect.objectContaining({ type: "passage", sourceId: "saved",
                 revision: "a".repeat(64), labelIds: ["holding"] })));
@@ -371,7 +371,8 @@ describe("legal source reader", () => {
         const selection = selectText(emphasis);
         fireEvent.pointerUp(emphasis);
         fireEvent.click(emphasis);
-        await waitFor(() => expect(onOpenResearch).toHaveBeenCalledTimes(2));
+        expect(onOpenResearch).toHaveBeenCalledTimes(1);
+        expect(api.actOnResearchFile).not.toHaveBeenCalled();
         selection.removeAllRanges();
         expect(api.createResearchFile).not.toHaveBeenCalled();
         expect(api.actOnResearchFile).not.toHaveBeenCalled();
