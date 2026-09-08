@@ -259,7 +259,7 @@ describe("standalone Authorities runtime", () => {
       return Buffer.from(await pdf.save());
     };
     const cover = await makePdf(1);
-    const first = await request(app).post("/authorities-runtime/book-part")
+    const first = await request(app).post("/authorities-runtime/pdf")
       .field("draft", JSON.stringify(manualState())).field("slot", "cover")
       .field("modified", "4").attach("file", cover, "Cover.pdf").expect(200);
     expect(first.body.bookParts.cover).toMatchObject({ bindingRole: "book:cover:cover",
@@ -269,7 +269,7 @@ describe("standalone Authorities runtime", () => {
         sha256: sha256(cover) } });
 
     const replacement = await makePdf(2);
-    const replaced = await request(app).post("/authorities-runtime/book-part")
+    const replaced = await request(app).post("/authorities-runtime/pdf")
       .field("draft", JSON.stringify(first.body)).field("slot", "cover")
       .field("modified", "5").attach("file", replacement, "New cover.pdf").expect(200);
     expect(replaced.body.bookParts.cover).toMatchObject({ bindingRole: "book:cover:cover",
@@ -277,16 +277,16 @@ describe("standalone Authorities runtime", () => {
     expect(Object.keys(replaced.body.bindings)).toEqual(["book:cover:cover"]);
 
     const index = await makePdf(1);
-    const indexed = await request(app).post("/authorities-runtime/book-part")
+    const indexed = await request(app).post("/authorities-runtime/pdf")
       .field("draft", JSON.stringify(replaced.body)).field("slot", "index")
       .field("modified", "6").attach("file", index, "Index.pdf").expect(200);
     expect(indexed.body.bookParts.index).toMatchObject({ filename: "Index.pdf",
       sourceSha256: sha256(index) });
-    const supplemented = await request(app).post("/authorities-runtime/book-part")
+    const supplemented = await request(app).post("/authorities-runtime/pdf")
       .field("draft", JSON.stringify(indexed.body)).field("slot", "supplemental")
       .field("modified", "7").attach("file", index, "Extra.pdf").expect(200);
     const extraId = supplemented.body.bookParts.supplements[0].id;
-    const replacedExtra = await request(app).post("/authorities-runtime/book-part")
+    const replacedExtra = await request(app).post("/authorities-runtime/pdf")
       .field("draft", JSON.stringify(supplemented.body)).field("slot", "supplemental")
       .field("supplement_id", extraId).field("modified", "8")
       .attach("file", replacement, "Replacement extra.pdf").expect(200);
@@ -295,7 +295,7 @@ describe("standalone Authorities runtime", () => {
         supplemented.body.bookParts.supplements[0].bindingRole,
       filename: "Replacement extra.pdf" }),
     ]);
-    const second = await request(app).post("/authorities-runtime/book-part")
+    const second = await request(app).post("/authorities-runtime/pdf")
       .field("draft", JSON.stringify(replacedExtra.body)).field("slot", "supplemental")
       .field("modified", "9").attach("file", index, "Later.pdf").expect(200);
     expect(second.body.bookParts.supplements.map(({ filename }: { filename: string }) => filename))
@@ -303,11 +303,11 @@ describe("standalone Authorities runtime", () => {
   });
 
   it("accepts only actual PDF uploads for book parts", async () => {
-    await request(app).post("/authorities-runtime/book-part")
+    await request(app).post("/authorities-runtime/pdf")
       .field("draft", JSON.stringify(manualState())).field("slot", "cover")
       .field("modified", "1").attach("file", Buffer.from("%PDF-1.7"), "Cover.txt")
       .expect(400);
-    await request(app).post("/authorities-runtime/book-part")
+    await request(app).post("/authorities-runtime/pdf")
       .field("draft", JSON.stringify(manualState())).field("slot", "index")
       .field("modified", "1").attach("file", Buffer.from("not a pdf"), "Index.pdf")
       .expect(400);

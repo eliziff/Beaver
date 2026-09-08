@@ -9,6 +9,7 @@ type Projection = Pick<typeof documentProjectionService, "preparePdf" | "lookupP
 
 export async function authorityPdfText(input: {
   bytes: Buffer;
+  maxPages?: number;
   documentId?: string;
   versionId?: string;
   sourceSha256?: string;
@@ -65,11 +66,11 @@ export async function authorityPdfText(input: {
         ? { pages: [...recognizedPages].map((index) => index + 1).sort((a, b) => a - b) } : {}) });
   }
   const routed = new Set(policy === "page-margin" ? [] : recognized.ocrRoutedPages);
-  const pageTextByPage: string[] = [];
+  const pageTextByPage: string[] = [], pageCount = Math.min(native.pageCount, input.maxPages ?? native.pageCount);
   // Bound concurrent page requests rather than opening hundreds of page lookups at once.
-  for (let offset = 0; offset < native.pageCount; offset += 8) {
+  for (let offset = 0; offset < pageCount; offset += 8) {
     input.signal?.throwIfAborted();
-    const lookups = await Promise.all(Array.from({ length: Math.min(8, native.pageCount - offset) }, async (_, at) => {
+    const lookups = await Promise.all(Array.from({ length: Math.min(8, pageCount - offset) }, async (_, at) => {
       const index = offset + at;
       const prepared = recognizedPages && !recognizedPages.has(index) ? native : recognized;
       const lookup = await projection.lookupPdf(() => input.bytes, { locatorKind: "page", locator: String(index + 1),
