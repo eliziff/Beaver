@@ -988,7 +988,7 @@ describe("Authorities UI contracts", () => {
       const warning = await screen.findByRole("dialog", { name: /Missing PDFs/u });
       expect(within(warning).getByText(/1 authority has no PDF/u)).toBeVisible();
       expect(api.buildAuthorities).not.toHaveBeenCalled();
-      await userEvent.click(within(warning).getByRole("button", { name: "Cancel" }));
+      await userEvent.click(within(warning).getByRole("button", { name: "Close" }));
       expect(screen.queryByRole("dialog", { name: /Missing PDFs/u })).not.toBeInTheDocument();
       expect(api.buildAuthorities).not.toHaveBeenCalled();
     });
