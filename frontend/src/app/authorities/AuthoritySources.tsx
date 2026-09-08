@@ -227,7 +227,7 @@ export function SourceRecognition({ file, ocr, disabled }: { file: ScannedPdf; o
 }
 
 /** Text recognition for one scanned source, watched where the source lives. */
-export function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: SourceOcrPanel }) {
+function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: SourceOcrPanel }) {
   const action = (label: string, act: () => void) => <button type="button"
     className="min-h-6 rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600"
     onClick={act}>{label}</button>;
