@@ -261,6 +261,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const sourceKey = sourceIssueKey(draft);
   const scannedSources = useScannedSources(host, draft, `${draftId}:${sourceKey}`,
     (file) => { if (ocr.tracked[file.role]?.sourceSha256 !== file.sourceSha256) void ocr.begin([file]); });
+  // Eager recognition runs as soon as scans are known; the step only shows what is still unrecognized.
+  const unrecognized = scannedSources.files.filter((file) => ocr.tracked[file.role]?.state !== "done");
+  const recognitionSettled = !scannedSources.checking && !scannedSources.error && !unrecognized.length;
+  useEffect(() => {
+    if (recognitionOpen && recognitionSettled) { setRecognitionOpen(false); advance("highlights"); }
+  }, [recognitionOpen, recognitionSettled]);
   const sameDraft = draft && sourceIssueState.draftId === draft.id;
   const sourceIssues = sameDraft && sourceIssueState.sourceKey === sourceKey
     ? sourceIssueState.issues : {};
@@ -716,8 +722,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                     <div className="mt-3 flex items-center justify-end gap-3">
                       <StepProgress label={stepOperation} error={stepError} />
                       <Button disabled={busy} onClick={() => {
-                        if (scannedSources.checking || scannedSources.error || scannedSources.files.length) setRecognitionOpen(true);
-                        else advance("highlights");
+                        if (recognitionSettled) advance("highlights");
+                        else setRecognitionOpen(true);
                       }}>Done<ChevronRight /></Button>
                     </div></>}
                   {highlightPanel}
@@ -776,7 +782,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         primaryAction={{ label: "Continue to Highlights", disabled: busy || scannedSources.checking || !!scannedSources.error,
           onClick: () => { setRecognitionOpen(false); advance("highlights"); } }}>
         {scannedSources.error && <p role="alert">{scannedSources.error}</p>}
-        {scannedSources.files.map(file => <section key={file.role} className="border-b border-gray-200 py-3">
+        {unrecognized.map(file => <section key={file.role} className="border-b border-gray-200 py-3">
           <h3 className="text-sm font-medium">{file.name}</h3>
           {host.sourceOcr ? <SourceRecognition file={file} ocr={ocr} />
             : <p className="text-sm">Text recognition is available when building the book.</p>}
