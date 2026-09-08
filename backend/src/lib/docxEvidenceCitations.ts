@@ -4,8 +4,7 @@ import {
   type LegalEvidenceReceipt,
   type LegalEvidenceTurnState,
 } from "./chat/legalEvidence";
-import type { DocxCitation } from "./chat/tools/docxMarkdown";
-import { docxMarkdownCitationMarkers } from "./chat/tools/docxMarkdown";
+import type { DocxCitation, DocxCitationAppearance } from "./chat/tools/docxMarkdown";
 import { authoritySeedFromReceipts,
   type AuthorityCitationLedger } from "./authoritiesDomain";
 import { sha256 } from "./hash";
@@ -35,8 +34,6 @@ export type ResolvedDocxEvidenceCitations = {
 type LedgerSource = {
   authorityKey: string;
   stableId: string;
-  authority: string;
-  shortAuthority: string;
   evidenceIds: string[];
   pinpoints: Array<{ kind: "paragraph" | "section" | "page"; text: string;
     separator?: " at " | ", " }>;
@@ -188,7 +185,6 @@ function ledgerInputs(state: LegalEvidenceTurnState,
             ? { separator: pinpoint.separator } : {}) };
         });
         return { authorityKey: key, stableId: source.stableId,
-          authority: source.authority, shortAuthority: source.shortAuthority,
           evidenceIds: grouped.map(({ receipt }) => receipt.evidence_id), pinpoints };
       });
       sources.set(binding.id, markerSources);
@@ -200,15 +196,11 @@ function ledgerInputs(state: LegalEvidenceTurnState,
   } catch { return null; }
 }
 
-const sourceText = (source: LedgerSource, authority = source.authority) =>
-  authority + source.pinpoints.map((pinpoint, index) =>
-    `${index ? ", " : pinpoint.separator ?? " at "}${pinpoint.text}`).join("");
-
 function textPositions(units: NativeAuthorityTextUnit[], kind: "body" | "footnote",
-  text: string) {
+  text: string, noteId?: number) {
   const positions: Array<{ unit: NativeAuthorityTextUnit; start: number }> = [];
   for (const unit of units) {
-    if (unit.kind !== kind) continue;
+    if (unit.kind !== kind || (noteId !== undefined && unit.footnote_id !== noteId)) continue;
     for (let start = unit.text.indexOf(text); start >= 0;
       start = unit.text.indexOf(text, start + Math.max(1, text.length))) {
       positions.push({ unit, start });
@@ -219,78 +211,42 @@ function textPositions(units: NativeAuthorityTextUnit[], kind: "body" | "footnot
 
 /** Builds a version-bound ledger from verified renderer markers, or abstains on ambiguity. */
 export async function createDocxAuthorityLedger(state: LegalEvidenceTurnState | undefined,
-  markdown: string, bytes: Buffer, resolved: ResolvedDocxEvidenceCitations,
-  placement: "footnotes" | "inline" | "after-paragraph" | "none",
+  bytes: Buffer, resolved: ResolvedDocxEvidenceCitations, appearances: readonly DocxCitationAppearance[],
   native: LedgerNative = structureNative()):
   Promise<Omit<AuthorityCitationLedger, "document"> | undefined> {
   if (!state || !resolved.bindings.length) return undefined;
   const input = ledgerInputs(state, resolved, native);
   if (!input) return undefined;
-  const markers = docxMarkdownCitationMarkers(markdown);
-  if (placement === "after-paragraph" && markers.body.length) return undefined;
-  const appearances: Array<{ markerId: string; occurrence: number;
-    kind: "body" | "footnote"; sources: Array<LedgerSource & {
-      renderedAuthority: string; displayedForm: "full" | "supra" | "ibid" }> }> = [];
-  if (placement !== "none") {
-    const firstNote = new Map<string, number>();
-    let previous: string | null = null;
-    for (const [index, marker] of markers.body.entries()) {
-      const markerSources = input.sources.get(marker.id);
-      if (!markerSources) continue;
-      const rendered: Array<LedgerSource & { renderedAuthority: string;
-        displayedForm: "full" | "supra" | "ibid" }> = markerSources.map((source) => ({
-          ...source, renderedAuthority: source.authority, displayedForm: "full",
-        }));
-      if (placement === "footnotes" && rendered.length === 1) {
-        const source = rendered[0], note = firstNote.get(source.stableId);
-        source.displayedForm = previous === source.stableId ? "ibid" : note ? "supra" : "full";
-        source.renderedAuthority = source.displayedForm === "ibid" ? "Ibid"
-          : source.displayedForm === "supra"
-          ? `${source.shortAuthority}, supra note ${note}` : source.authority;
-        if (!note) firstNote.set(source.stableId, markers.footnoteCount + index + 1);
-        previous = source.stableId;
-      } else if (placement === "footnotes") previous = null;
-      appearances.push({ markerId: marker.id, occurrence: marker.occurrence,
-        kind: placement === "footnotes" ? "footnote" : "body",
-        sources: rendered });
-    }
-  }
-  for (const marker of markers.footnotes) {
-    const markerSources = input.sources.get(marker.id);
-    if (markerSources) appearances.push({ markerId: marker.id,
-      occurrence: marker.occurrence, kind: "footnote",
-      sources: markerSources.map((source) => ({ ...source,
-        renderedAuthority: source.authority, displayedForm: "full" })) });
-  }
   const units = await native.docxAuthorityTextUnits(bytes);
   const expected = new Map<string, number>();
   for (const appearance of appearances) {
-    const text = appearance.sources.map((source) =>
-      sourceText(source, source.renderedAuthority)).join("; ");
-    const key = `${appearance.kind}\0${text}`;
+    const text = appearance.sources.map((source) => source.text).join("; ");
+    const key = `${appearance.kind}\0${appearance.noteId ?? ""}\0${text}`;
     expected.set(key, (expected.get(key) ?? 0) + 1);
   }
   const positions = new Map<string, ReturnType<typeof textPositions>>();
   for (const [key, count] of expected) {
-    const [kind, text] = key.split("\0") as ["body" | "footnote", string];
-    const found = textPositions(units, kind, text);
+    const [kind, noteId, text] = key.split("\0") as ["body" | "footnote", string, string];
+    const found = textPositions(units, kind, text, noteId ? Number(noteId) : undefined);
     if (found.length !== count) return undefined;
     positions.set(key, found);
   }
   const localOrdinals = new Map<string, number>();
-  const occurrences = appearances.flatMap((appearance) => {
-    const rendered = appearance.sources.map((source) =>
-      sourceText(source, source.renderedAuthority));
-    const whole = rendered.join("; "), key = `${appearance.kind}\0${whole}`;
+  const occurrences: AuthorityCitationLedger["occurrences"] = [];
+  for (const appearance of appearances) {
+    const rendered = appearance.sources.map((source) => source.text);
+    const whole = rendered.join("; "), key = `${appearance.kind}\0${appearance.noteId ?? ""}\0${whole}`;
     const position = positions.get(key)?.shift();
-    if (!position) return [];
+    if (!position) return undefined;
     let offset = position.start;
-    return appearance.sources.map((source, index) => {
+    for (const [index, renderedSource] of appearance.sources.entries()) {
+      const source = input.sources.get(appearance.markerId)?.find((source) => source.stableId === renderedSource.stableId);
+      if (!source) return undefined;
       if (index) offset += 2;
       const text = rendered[index], start = offset; offset += text.length;
       const localOrdinal = localOrdinals.get(position.unit.key) ?? 0;
       localOrdinals.set(position.unit.key, localOrdinal + 1);
-      return { id: `${position.unit.key}:ledger:${localOrdinal}`,
+      occurrences.push({ id: `${position.unit.key}:ledger:${localOrdinal}`,
         markerId: appearance.markerId, targetId: source.authorityKey,
         authorityKey: source.authorityKey,
         unit: { id: position.unit.key, kind: position.unit.kind,
@@ -298,10 +254,10 @@ export async function createDocxAuthorityLedger(state: LegalEvidenceTurnState | 
           footnoteRefs: position.unit.footnote_refs,
           pageNumbers: position.unit.page_numbers, text: position.unit.text,
           sourceTextSha256: sha256(position.unit.text) }, start, end: offset, text,
-        displayedForm: source.displayedForm,
+        displayedForm: renderedSource.displayedForm,
         pinpoints: source.pinpoints.map(({ kind, text }) => ({ kind, text })),
-        evidenceIds: source.evidenceIds, localOrdinal };
-    });
-  });
+        evidenceIds: source.evidenceIds, localOrdinal });
+    }
+  }
   return { schemaVersion: "beaver.authority-ledger.v1", seeds: input.seeds, occurrences };
 }

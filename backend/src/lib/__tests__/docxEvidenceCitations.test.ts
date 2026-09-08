@@ -6,6 +6,7 @@ import {
   registerLegalEvidence,
   type LegalEvidenceReceipt,
 } from "../chat/legalEvidence";
+import { renderDocxMarkdown, type DocxCitationAppearance } from "../chat/tools/docxMarkdown";
 import { createDocxAuthorityLedger,
   resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
 
@@ -105,20 +106,16 @@ describe("DOCX evidence citations", () => {
       source_sha256: "a".repeat(64),
     }));
     const resolved = resolveDocxEvidenceCitations(state, { rule: ["e_paragraph_5"] });
-    const unit = { key: "body:0", kind: "body" as const, ordinal: 0,
-      footnote_id: null, page_numbers: [], footnote_refs: [],
-      text: "The rule applies. Example v State, 2026 SCC 1 at para 5." };
-    const ledger = await createDocxAuthorityLedger(state,
-      "The rule applies.[@rule]", Buffer.from("docx"), resolved, "inline", {
-        citationLookupKey: () => "case:2026scc1",
-        docxAuthorityTextUnits: async () => [unit],
-      });
+    const appearances: DocxCitationAppearance[] = [];
+    const bytes = await renderDocxMarkdown("The rule applies.[@rule]", {
+      citations: resolved.citations }, [], appearances);
+    const ledger = await createDocxAuthorityLedger(state, bytes, resolved, appearances);
 
     expect(ledger).toMatchObject({
       schemaVersion: "beaver.authority-ledger.v1",
-      seeds: [{ key: "case:2026scc1", evidenceIds: ["e_paragraph_5"] }],
-      occurrences: [{ markerId: "rule", authorityKey: "case:2026scc1",
-        unit: { id: "body:0", text: unit.text },
+      seeds: [{ key: "2026scc1", evidenceIds: ["e_paragraph_5"] }],
+      occurrences: [{ markerId: "rule", authorityKey: "2026scc1",
+        unit: { id: "body:0", text: "The rule applies. Example v State, 2026 SCC 1 at para 5" },
         text: "Example v State, 2026 SCC 1 at para 5", displayedForm: "full",
         evidenceIds: ["e_paragraph_5"] }],
     });
@@ -131,12 +128,40 @@ describe("DOCX evidence citations", () => {
     }));
     const resolved = resolveDocxEvidenceCitations(state, { rule: ["e_paragraph_5"] });
     const citation = "Example v State, 2026 SCC 1 at para 5";
-    expect(await createDocxAuthorityLedger(state, "Text.[@rule]", Buffer.from("docx"),
-      resolved, "inline", {
-        citationLookupKey: () => "case:2026scc1",
-        docxAuthorityTextUnits: async () => [{ key: "body:0", kind: "body",
-          ordinal: 0, footnote_id: null, page_numbers: [], footnote_refs: [],
-          text: `${citation}. Repeated ${citation}.` }],
-      })).toBeUndefined();
+    const appearances: DocxCitationAppearance[] = [];
+    const bytes = await renderDocxMarkdown(`Unrelated prose: ${citation}. Claim.[@rule]`, {
+      citations: resolved.citations }, [], appearances);
+    expect(await createDocxAuthorityLedger(state, bytes, resolved, appearances)).toBeUndefined();
+  });
+
+  it("binds actual full, ibid, supra, grouped and authored-note appearances by note identity", async () => {
+    const state = createLegalEvidenceTurnState();
+    registerLegalEvidence(state, receipt("e_paragraph_5", "par5", { source_sha256: "a".repeat(64) }));
+    registerLegalEvidence(state, receipt("e_other_para5", "par5", {
+      stable_source_id: "case:other", citation: "2026 SCC 2", name: "Other v State",
+      source_sha256: "b".repeat(64),
+    }));
+    const resolved = resolveDocxEvidenceCitations(state, { rule: ["e_paragraph_5"],
+      other: ["e_other_para5"], both: ["e_paragraph_5", "e_other_para5"] });
+    const appearances: DocxCitationAppearance[] = [];
+    const bytes = await renderDocxMarkdown(
+      "Author.[^note]\n\nFirst.[@rule]\n\nAgain.[@rule]\n\nOther.[@other]\n\nLater.[@rule]\n\nBoth.[@both]\n\n[^note]: Authored.[@rule]",
+      { citations: resolved.citations, citationPlacement: "footnotes" }, [], appearances);
+    const ledger = await createDocxAuthorityLedger(state, bytes, resolved, appearances);
+    expect(ledger?.occurrences.map(({ unit, displayedForm }) => [unit.footnoteId, displayedForm]))
+      .toEqual([[2, "full"], [3, "ibid"], [4, "full"], [5, "supra"], [6, "full"], [6, "full"], [1, "full"]]);
+    for (const occurrence of ledger!.occurrences)
+      expect(occurrence.unit.text.slice(occurrence.start, occurrence.end)).toBe(occurrence.text);
+  });
+
+  it.each(["inline", "after-paragraph", "none"] as const)("binds only emitted %s markers", async (citationPlacement) => {
+    const state = createLegalEvidenceTurnState();
+    registerLegalEvidence(state, receipt("e_paragraph_5", "par5", { source_sha256: "a".repeat(64) }));
+    const resolved = resolveDocxEvidenceCitations(state, { rule: ["e_paragraph_5"] });
+    const appearances: DocxCitationAppearance[] = [];
+    const bytes = await renderDocxMarkdown("Claim.[@rule][@rule]", {
+      citations: resolved.citations, citationPlacement }, [], appearances);
+    const ledger = await createDocxAuthorityLedger(state, bytes, resolved, appearances);
+    expect(ledger?.occurrences).toHaveLength(citationPlacement === "none" ? 0 : citationPlacement === "inline" ? 2 : 1);
   });
 });
