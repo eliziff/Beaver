@@ -435,7 +435,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       !oldKinds.has(entry.kindId) || nextKinds.has(entry.kindId) ? entry : {
         ...entry, kindId: entry.descriptionOnly
           ? noteKinds.length === 1 ? noteKinds[0].id : entry.kindId
-          : "other-document",
+          : "unassigned",
         exhibitLabel: undefined,
       })));
     setShowErrors(false);
@@ -904,7 +904,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
           breadcrumb={["Court Records", `Choose ${sourceKind.label.toLowerCase()}`]}
           key={`${draft.id}:${draft.projectId}:${profile.id}:${sourceKindId}`}
           accept={sourceAccept(sourceKind)}
-          multiple={false}
+          multiple={!!sourceKind.repeatable && !sourceExhibitLabel && !sourceEntryId}
           showTabs={host.mode === "beaver"}
           documents={sourceOutputs.map(({ document }) => document)}
           busy={importingSource}
@@ -912,8 +912,8 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
             setSourceKindId(undefined);
             await addFiles(sourceKind.id, files, sourceExhibitLabel, sourceEntryId);
           } : undefined}
-          onSelect={async ([document]) => {
-            if (document) await importSource({ ...document,
+          onSelect={async (documents) => {
+            for (const document of documents) await importSource({ ...document,
               draft: sourceOutputs.find((choice) => choice.document.id === document.id) });
           }}
           onClose={() => { setSourceKindId(undefined); setSourceExhibitLabel(undefined); }}
@@ -944,7 +944,7 @@ function focusFinding(finding?: ComplianceFinding) {
       .find((item) => item.dataset.contactFindingId === finding.id);
     target = contact?.querySelector<HTMLElement>("[aria-invalid=true], input, textarea") ?? null;
   } else if (finding.fieldId === "partyGroups") {
-    target = document.querySelector(`[data-party-group-id="${finding.id.slice(6)}"] input`);
+    target = document.querySelector(`[data-party-group-id="${finding.id.slice(6)}"] textarea`);
   } else if (finding.fieldId) {
     target = document.getElementById(`cover-${finding.fieldId}`);
   } else if (finding.entryId) {
@@ -954,13 +954,13 @@ function focusFinding(finding?: ComplianceFinding) {
           ? "ocr"
           : finding.id.startsWith("description-") || finding.id.startsWith("unknown-")
             ? "title"
-            : finding.id.startsWith("missing-file-") ? "relink" : "remove";
+            : finding.id.startsWith("missing-file-") ? "relink" : "title";
     target = document.getElementById(`entry-${finding.entryId}-${suffix}`) ||
-      document.getElementById(`entry-${finding.entryId}-remove`);
+      document.getElementById(`entry-${finding.entryId}-title`);
   } else if (finding.id.startsWith("missing-")) {
     target = document.getElementById(`court-record-${finding.id.slice(8)}-file`);
   }
-  target ??= document.querySelector<HTMLElement>("[data-kind-id] input[type=file]");
+  target ??= document.querySelector<HTMLElement>("[data-kind-id] button");
   target?.focus();
 }
 

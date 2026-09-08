@@ -11,18 +11,15 @@ const profile = { documentKinds: [{ id: "authorities", label: "Authorities",
   requirement: "optional", order: 1 }],
   technical: { indexDate: "none" }, outputMode: "separate-files" } as CourtProfile;
 const required = { profile, entries: [], entryFindings: new Map(),
-  onFiles: vi.fn(), onDescription: vi.fn(), onEntry: vi.fn(), onRemove: vi.fn(),
+  onFiles: vi.fn(), onChoose: vi.fn(), onDescription: vi.fn(), onEntry: vi.fn(), onRemove: vi.fn(),
   onAssign: vi.fn(), onAssignKind: vi.fn() };
 
 describe("Court Record documents", () => {
-  it("offers Library or file upload, not record drafts, as slot sources", () => {
-    const onLibrary = vi.fn();
-    const { rerender } = render(<CourtRecordDocuments {...required}
-      onLibrary={onLibrary} />);
-    fireEvent.click(screen.getByRole("button", { name: "Library" }));
-    expect(onLibrary).toHaveBeenCalledWith("authorities");
-    expect(screen.queryByRole("button", { name: "Draft output" })).toBeNull();
-    rerender(<CourtRecordDocuments {...required} />);
+  it("opens one shared picker for a document slot", () => {
+    const onChoose = vi.fn();
+    render(<CourtRecordDocuments {...required} onChoose={onChoose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add file" }));
+    expect(onChoose).toHaveBeenCalledWith("authorities", undefined);
     expect(screen.queryByRole("button", { name: "Library" })).toBeNull();
   });
 
@@ -74,25 +71,21 @@ describe("Court Record documents", () => {
     expect(onAssign).toHaveBeenCalledWith("pool", "B");
     fireEvent.click(screen.getByRole("button", { name: "Add exhibit" }));
     expect(onAddExhibit).toHaveBeenCalledOnce();
-    fireEvent.change(screen.getByLabelText("Add files"), {
-      target: { files: [new File(["a"], "a.pdf"), new File(["b"], "b.pdf")] },
-    });
-    expect(onFiles).toHaveBeenCalledWith("exhibit", expect.any(Array));
-    expect(onFiles.mock.calls[0][1]).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Add files" }));
+    expect(required.onChoose).toHaveBeenCalledWith("exhibit", undefined);
   });
 
   it("offers a real file replacement for an occupied nonrepeatable slot", () => {
     const authority = { id: "authority", kindId: "authorities",
       file: new File(["old"], "old.pdf", { type: "application/pdf" }), title: "Authorities",
       pageCount: 1, searchable: true, encrypted: false } as RecordEntry;
-    const onFiles = vi.fn();
-    render(<CourtRecordDocuments {...required} entries={[authority]} onFiles={onFiles} />);
-
-    fireEvent.change(screen.getByLabelText("Replace file"), {
-      target: { files: [new File(["new"], "new.pdf", { type: "application/pdf" })] },
-    });
-
-    expect(onFiles).toHaveBeenCalledWith("authorities", [expect.objectContaining({ name: "new.pdf" })]);
+    const onChoose = vi.fn();
+    render(<CourtRecordDocuments {...required} entries={[authority]} onChoose={onChoose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Replace" }));
+    expect(onChoose).toHaveBeenCalledWith("authorities", undefined, "authority");
+    expect(screen.getAllByText("old.pdf")).toHaveLength(1);
+    expect(screen.getByText("1 page")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Remove/ })).toBeNull();
   });
 
   it("asks for non-text confirmation only after OCR has run", () => {
@@ -100,59 +93,44 @@ describe("Court Record documents", () => {
       file: new File(["scan"], "photograph.pdf", { type: "application/pdf" }),
       title: "Photograph", pageCount: 1, searchable: false, encrypted: false,
       textlessPageCount: 1, textlessPages: [1] } as RecordEntry;
-    const onEntry = vi.fn(), onOcr = vi.fn();
-    const { rerender } = render(<CourtRecordDocuments {...required} entries={[scan]}
-      onEntry={onEntry} onOcr={onOcr} />);
-    expect(screen.getByRole("button", { name: "OCR text pages" })).toBeVisible();
-
+    const onEntry = vi.fn();
+    const { rerender } = render(<CourtRecordDocuments {...required} entries={[scan]} onEntry={onEntry} />);
+    expect(screen.queryByRole("button", { name: "Confirm" })).toBeNull();
+    rerender(<CourtRecordDocuments {...required} entries={[{ ...scan, ocrAttemptedPages: [] }]} />);
+    expect(screen.queryByRole("button", { name: "Confirm" })).toBeNull();
     rerender(<CourtRecordDocuments {...required}
-      entries={[{ ...scan, ocrAttemptedPages: [1] }]} onEntry={onEntry} onOcr={onOcr} />);
-    fireEvent.click(screen.getByRole("button", { name: "Confirm non-text pages" }));
+      entries={[{ ...scan, ocrAttemptedPages: [1] }]} onEntry={onEntry} />);
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
     expect(onEntry).toHaveBeenCalledWith("scan", { nonTextPagesConfirmed: true });
-    expect(screen.queryByRole("button", { name: "OCR text pages" })).toBeNull();
   });
 
   it("offers the signed Form 344 PDF as a replacement for the generated certificate", () => {
     const profile = COURT_PROFILE_BY_ID.get("fca-appeal-book")!;
-    const onFiles = vi.fn();
-    const { rerender } = render(<CourtRecordDocuments {...required} profile={profile}
-      onFiles={onFiles} />);
-
-    const add = screen.getByLabelText("Add signed PDF");
-    expect(screen.getByRole("heading", { name: "Form 344 certificate" })).toBeVisible();
-    expect(add).toHaveAttribute("accept", "application/pdf,.pdf");
-    expect(add).not.toHaveAttribute("aria-required");
-    fireEvent.change(add, { target: { files: [new File(["signed"], "form-344.pdf", {
-      type: "application/pdf",
-    })] } });
-    expect(onFiles).toHaveBeenCalledWith("form-344",
-      [expect.objectContaining({ name: "form-344.pdf" })]);
+    const onChoose = vi.fn();
+    const { rerender } = render(<CourtRecordDocuments {...required} profile={profile} onChoose={onChoose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add signed PDF" }));
+    expect(onChoose).toHaveBeenCalledWith("form-344", undefined);
 
     const signed = { id: "signed", kindId: "form-344",
       file: new File(["signed"], "form-344.pdf", { type: "application/pdf" }),
       title: "Form 344 certificate", pageCount: 1, searchable: true,
       encrypted: false } as RecordEntry;
     rerender(<CourtRecordDocuments {...required} profile={profile} entries={[signed]}
-      onFiles={onFiles} />);
-    expect(screen.getByLabelText("Replace signed PDF")).toBeVisible();
-    expect(screen.queryByLabelText("Add signed PDF")).toBeNull();
+      onChoose={onChoose} />);
+    expect(screen.getByRole("button", { name: "Replace" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Add signed PDF" })).toBeNull();
   });
 
   it("shows only the fulfilled one-of slot until its entry is removed", () => {
     const transcript = { id: "transcript", kindId: "part-3-transcript",
       file: new File(["transcript"], "transcript.pdf"), title: "Transcript", pageCount: 1,
       searchable: true, encrypted: false } as RecordEntry;
-    function AppealDocuments() {
-      const [entries, setEntries] = useState([transcript]);
-      return <CourtRecordDocuments {...required}
-        profile={COURT_PROFILE_BY_ID.get("ab-ca-appeal-record")!} entries={entries}
-        onRemove={(id) => setEntries((current) => current.filter((entry) => entry.id !== id))} />;
-    }
-    render(<AppealDocuments />);
+    const profile = COURT_PROFILE_BY_ID.get("ab-ca-appeal-record")!;
+    const { rerender } = render(<CourtRecordDocuments {...required} profile={profile} entries={[transcript]} />);
 
     expect(screen.getByRole("heading", { name: /Part 3 .* Transcript/u })).toBeVisible();
     expect(screen.queryByRole("textbox", { name: /Part 3 .* No oral record/u })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Remove transcript.pdf" }));
+    rerender(<CourtRecordDocuments {...required} profile={profile} entries={[]} />);
     expect(screen.getByRole("heading", { name: /Part 3 .* Transcript/u })).toBeVisible();
     expect(screen.getByRole("textbox", { name: /Part 3 .* No oral record/u })).toBeVisible();
   });
@@ -265,7 +243,7 @@ describe("Court Record documents", () => {
       target: { value: "Updated object" },
     });
     expect(onEntry).toHaveBeenCalledWith("note", { title: "Updated object" });
-    fireEvent.click(screen.getByRole("button", { name: "Remove note" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Note" }), { target: { value: "" } });
     expect(onRemove).toHaveBeenCalledWith("note");
   });
 });
