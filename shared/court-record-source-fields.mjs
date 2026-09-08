@@ -97,8 +97,6 @@ function sourceDocumentFields(pages) {
       labelled(["application under"], openingLines, true)),
   });
   const swornDate = cover.swornDate, readableDeponent = cover.deponent;
-  const heading = recordHeading || cover.recordTitle || openingLines.find((line) => line.length <= 160 &&
-    /^(?:(?:applicant|respondent|appellant|moving party|responding party)['\u2019s]*\s+)?(?:notice(?:\s+of\s+(?:application|motion|appeal))?|application|originating application|statement of (?:claim|defence)|memorandum(?:\s+of\s+fact\s+and\s+law)?|written representations|factum|brief|order(?:\s+and\s+reasons)?|reasons(?:\s+for\s+(?:judgment|order))?|judgment(?:\s+and\s+reasons)?|decision|transcript(?:\s+of\s+.+)?|certificate(?:\s+of\s+.+)?|affidavit(?:\s+of\s+.+)?)$/iu.test(line));
   const dateText = `${openingFlat} ${endingFlat}`;
   const dated = !recordHeading && (dateText.match(new RegExp(
     `\\b(?:dated|filed|issued|made)\\b.{0,100}?\\b(\\d{1,2})(?:st|nd|rd|th|e)?\\s+(?:day\\s+of\\s+)?(${MONTHS})\\s*,?\\s*(\\d{4})\\b`, "iu"))
@@ -115,7 +113,7 @@ function sourceDocumentFields(pages) {
     ...(explicitExhibitLabel && { explicitExhibitLabel }),
     ...(readableDeponent && swornDate
       ? { entryTitle: `Affidavit of ${readableDeponent}` }
-      : heading && { entryTitle: readable(heading) }),
+      : (recordHeading || cover.recordTitle) && { entryTitle: recordHeading || cover.recordTitle }),
     ...(entryDate && { entryDate }),
   };
 }
