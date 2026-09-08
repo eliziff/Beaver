@@ -4,6 +4,7 @@ import {
     buildDocumentTree,
     descendantFolderIds,
     documentTreeDropFolder,
+    documentTreeMoveParent,
     wouldCreateFolderCycle,
 } from "./documentTree";
 
@@ -13,6 +14,18 @@ const file = (id: string, filename: string, folder_id: string | null = null) =>
     ({ id, filename, folder_id } as Document);
 
 describe("documentTree", () => {
+    it("permits changed parents but refuses absent items, same parents and descendants", () => {
+        const documents = [file("doc", "Brief.pdf", "a")];
+        const tree = buildDocumentTree(documents, [folder("a", "A"), folder("b", "B", "a")], new Set());
+        const parent = (kind: "document" | "folder", id: string, target: string | null) =>
+            documentTreeMoveParent({ kind, id }, target, documents, tree.folderById);
+        expect(parent("document", "doc", null)).toBe("a");
+        expect(parent("folder", "b", null)).toBe("a");
+        expect(parent("folder", "a", "b")).toBeUndefined();
+        expect(parent("folder", "a", "a")).toBeUndefined();
+        expect(parent("document", "doc", "a")).toBeUndefined();
+        expect(parent("document", "missing", "a")).toBeUndefined();
+    });
     it("flattens expanded rows in each consumer's existing order", () => {
         const folders = [folder("z", "Zulu"), folder("a", "Alpha")];
         const documents = [

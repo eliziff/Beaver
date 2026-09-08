@@ -49,9 +49,9 @@ import { Modal } from "@/app/components/modals/Modal";
 import { isResearchDocument, researchLabelPath, type ResearchFile, type ResearchSourceReference } from "@/app/lib/researchFiles";
 import { actOnResearchFile, getResearchFile } from "@/app/lib/api/researchFiles";
 import { FileDirectory } from "../shared/FileDirectory";
-import { buildDocumentTree, CHAT_DOCUMENT_DRAG_TYPE, descendantFolderIds, DOCUMENT_DRAG_TYPE,
-    documentTreeDropFolder, FOLDER_DRAG_TYPE, hasDocumentTreeDrag,
-    wouldCreateFolderCycle } from "./documentTree";
+import { CHAT_DOCUMENT_DRAG_TYPE, descendantFolderIds, DOCUMENT_DRAG_TYPE,
+    documentTreeDropFolder, FOLDER_DRAG_TYPE, hasDocumentTreeDrag } from "./documentTree";
+import { useFolderInteractions } from "./useFolderInteractions";
 export type DocTableFolder = ProjectFolder | LibraryFolder;
 const DOCUMENT_ROW_CLASS =
     "group flex h-11 min-h-11 w-full min-w-0 items-center border-b border-gray-100 pr-2 [content-visibility:auto] [contain-intrinsic-size:auto_44px]";
@@ -183,8 +183,6 @@ type DocTableState = {
     selectedDocIds: string[];
     versionsByDocId: Map<string, DocumentVersionHistory>;
     loadingVersionDocIds: Set<string>; versionErrorDocIds: Set<string>; renamingDocumentId: string | null;
-    expandedFolderIds: Set<string>; newFolderParentId?: string | null;
-    renamingFolderId: string | null; dragOverFolderId: string | null;
     dragOverSurface: "root" | `version:${string}` | null;
     pendingActions: Map<string, DocumentAction>; actionErrors: Map<string, string>;
     pendingRestore: { docId: string; version: DocumentVersion } | null;
@@ -316,8 +314,8 @@ export function DocTable({
     const [state, setState] = useState<DocTableState>(() => ({
         addDocsOpen: false, viewingDoc: null, viewingDocVersionId: null,
         selectedDocIds: [], versionsByDocId: new Map(), loadingVersionDocIds: new Set(), versionErrorDocIds: new Set(),
-        renamingDocumentId: null, expandedFolderIds: new Set(), renamingFolderId: null,
-        dragOverFolderId: null, dragOverSurface: null, pendingActions: new Map(), actionErrors: new Map(), pendingRestore: null,
+        renamingDocumentId: null,
+        dragOverSurface: null, pendingActions: new Map(), actionErrors: new Map(), pendingRestore: null,
         uploadingDroppedFilenames: [], deletingDocIds: new Set(),
         warnings: { upload: null, rename: null, collection: null },
         pendingDocumentRemoval: null,
@@ -344,13 +342,39 @@ export function DocTable({
     }
     const {
         addDocsOpen, viewingDoc, viewingDocVersionId, selectedDocIds, versionsByDocId,
-        loadingVersionDocIds, versionErrorDocIds, renamingDocumentId, expandedFolderIds, newFolderParentId,
-        renamingFolderId, dragOverFolderId, dragOverSurface, pendingActions, actionErrors, pendingRestore,
+        loadingVersionDocIds, versionErrorDocIds, renamingDocumentId, dragOverSurface, pendingActions, actionErrors, pendingRestore,
         uploadingDroppedFilenames, deletingDocIds, warnings,
         pendingDocumentRemoval, pendingDeleteFolder,
         pendingMove,
         folderTaskId, folderWorkflowDocuments,
     } = state;
+    const { tree, expanded: expandedFolderIds, setExpanded: setExpandedFolderIds,
+        editor: folderEditor, setEditor: setFolderEditor, startEditor: startFolderEditor,
+        commitEditor: commitFolderEditor, toggleFolder, dragTarget: folderDragTarget,
+        setDragTarget: setFolderDragTarget, canMove: canMoveTreeItem, move: moveTreeItem,
+        drop: dropTreeItem } = useFolderInteractions({
+        documents, folders, search, hasMoreParents, onFolderExpanded,
+        async onCreateFolder(parent, name) {
+            const folder = await operations.createFolder(name, parent);
+            await refreshCollection(parent);
+            return folder;
+        },
+        async onRenameFolder(id, name) {
+            await operations.renameFolder(id, name);
+            await refreshCollection(tree.folderById.get(id)?.parent_folder_id);
+        },
+        async onMoveDocument(id, destination, parent) {
+            await operations.moveDocument(id, destination);
+            await refreshParents(parent, destination);
+        },
+        async onMoveFolder(id, destination, parent) {
+            await operations.moveFolder(id, destination);
+            await refreshParents(parent, destination);
+        },
+    });
+    const newFolderParentId = folderEditor?.kind === "new" ? folderEditor.parentId : undefined;
+    const renamingFolderId = folderEditor?.kind === "rename" ? folderEditor.folderId : null;
+    const dragOverFolderId = folderDragTarget ?? null;
     const pendingActionIds = useRef(new Set<string>());
     const documentUploadInputRef = useRef<HTMLInputElement>(null);
     const directoryUploadInputRef = useRef<HTMLInputElement>(null);
@@ -497,8 +521,8 @@ export function DocTable({
     }
     const openCreateFolder = useCallback(() => {
         if (loadingRef.current) return;
-        set("newFolderParentId", null);
-    }, []);
+        startFolderEditor({ kind: "new", parentId: null });
+    }, [startFolderEditor]);
     const openUploadFolder = useCallback(() => {
         if (!loadingRef.current) directoryUploadInputRef.current?.click();
     }, []);
@@ -533,9 +557,6 @@ export function DocTable({
             throw reason;
         }
     }
-    const tree = buildDocumentTree(
-        documents, folders, expandedFolderIds, newFolderParentId, search,
-        false, hasMoreParents);
     const docsById = useMemo(() =>
         new Map(documents.map((doc) => [doc.id, doc])), [documents]);
     function removeDocument(doc: Document) {
@@ -548,15 +569,6 @@ export function DocTable({
     const refreshParents = useCallback((...parents: (string | null | undefined)[]) =>
         Promise.all([...new Set(parents.map((id) => id ?? null))]
             .map(refreshCollection)), [refreshCollection]);
-    function toggleFolder(id: string) {
-        if (!expandedFolderIds.has(id)) onFolderExpanded?.(id);
-        set("expandedFolderIds", (prev) => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-            return next;
-        });
-    }
     async function openFolder(folderId: string, action: (documents: Document[]) => void) {
         if (folderTaskId) return;
         set("folderTaskId", folderId); setWarning("collection", null);
@@ -567,26 +579,6 @@ export function DocTable({
         } catch {
             setWarning("collection", "The folder could not be opened. Try again.");
         } finally { set("folderTaskId", null); }
-    }
-    async function handleCreateFolder(parentId: string | null, value: string) {
-        const name = value.trim();
-        if (!name) return set("newFolderParentId", undefined);
-        set("newFolderParentId", undefined);
-        const folder = await operations.createFolder(name, parentId ?? null);
-        set("expandedFolderIds", (prev) => {
-            const next = new Set(prev);
-            next.add(folder.id);
-            if (parentId) next.add(parentId);
-            return next;
-        });
-        await refreshCollection(parentId);
-    }
-    async function handleRenameFolder(folderId: string, value: string) {
-        const name = value.trim();
-        set("renamingFolderId", null);
-        if (!name) return;
-        await operations.renameFolder(folderId, name);
-        await refreshCollection(foldersById.get(folderId)?.parent_folder_id);
     }
     function requestDeleteFolder(folderId: string) {
         const folder = foldersById.get(folderId);
@@ -607,9 +599,9 @@ export function DocTable({
                 .filter((document) => document.folder_id &&
                     toDelete.has(document.folder_id))
                 .map((document) => document.id));
-            set("expandedFolderIds", (prev) => without(prev, toDelete));
+            setExpandedFolderIds((prev) => without(prev, toDelete));
             if (renamingFolderId && toDelete.has(renamingFolderId))
-                set("renamingFolderId", null);
+                setFolderEditor(null);
             set("selectedDocIds", (prev) =>
                 prev.filter((id) => !deletedDocIds.has(id)));
             set("versionsByDocId", (prev) => {
@@ -630,12 +622,7 @@ export function DocTable({
     async function movePending(destinationId: string | null) {
         if (!pendingMove) return;
         if ("folderId" in pendingMove) {
-            const folder = foldersById.get(pendingMove.folderId);
-            if (!folder || (folder.parent_folder_id ?? null) === destinationId ||
-                destinationId && wouldCreateFolderCycle(folder.id, destinationId, foldersById))
-                return;
-            await operations.moveFolder(folder.id, destinationId);
-            await refreshParents(folder.parent_folder_id, destinationId);
+            await moveTreeItem({ kind: "folder", id: pendingMove.folderId }, destinationId);
         } else {
             const documentsToMove = pendingMove.documentIds
                 .map((id) => docsById.get(id))
@@ -765,7 +752,7 @@ export function DocTable({
         return dt.types.includes("Files");
     }
     function clearDragOver() {
-        set("dragOverFolderId", null);
+        setFolderDragTarget(undefined);
         set("dragOverSurface", null);
     }
     function isSharedDocument(doc: Document | null | undefined): boolean {
@@ -825,26 +812,6 @@ export function DocTable({
         e.stopPropagation();
         clearDragOver();
         void handleDropDocumentVersions(doc, Array.from(e.dataTransfer.files));
-    }
-    async function handleDropOnFolder(targetFolderId: string | null, dt: DataTransfer) {
-        if (!hasDocumentTreeDrag(dt)) return;
-        const docId = dt.getData(DOCUMENT_DRAG_TYPE);
-        const subFolderId = dt.getData(FOLDER_DRAG_TYPE);
-        if (docId) {
-            const doc = docsById.get(docId);
-            if (!doc || (doc.folder_id ?? null) === targetFolderId) return;
-            await operations.moveDocument(docId, targetFolderId);
-            await refreshParents(doc.folder_id, targetFolderId);
-        } else if (subFolderId && subFolderId !== targetFolderId) {
-            if (targetFolderId !== null &&
-                wouldCreateFolderCycle(subFolderId, targetFolderId, foldersById))
-                return;
-            const folder = foldersById.get(subFolderId);
-            if (!folder || (folder.parent_folder_id ?? null) === targetFolderId)
-                return;
-            await operations.moveFolder(subFolderId, targetFolderId);
-            await refreshParents(folder.parent_folder_id, targetFolderId);
-        }
     }
     function renderDocumentActivityRow({ key, filename, fileType, depth, statusLabel }: {
         key: string; filename: string; fileType: string | null;
@@ -921,7 +888,7 @@ export function DocTable({
         } else if (hasDocumentTreeDrag(event.dataTransfer)) {
             event.preventDefault();
             const folderId = documentTreeDropFolder(event.target);
-            set("dragOverFolderId", folderId);
+            setFolderDragTarget(folderId);
             set("dragOverSurface", folderId ? null : "root");
         }
     }
@@ -937,7 +904,7 @@ export function DocTable({
             event.preventDefault();
             const folderId = documentTreeDropFolder(event.target);
             clearDragOver();
-            await handleDropOnFolder(folderId, event.dataTransfer);
+            await dropTreeItem(event.dataTransfer, folderId);
         }
     }
     function renderRows() {
@@ -978,8 +945,8 @@ export function DocTable({
                                     <FolderSvgIcon className="mr-2 h-4 w-4 shrink-0" />
                                     <InlineNameInput kind="new-folder"
                                         onCommit={(name) =>
-                                            void handleCreateFolder(row.parentId, name)}
-                                        onCancel={() => set("newFolderParentId", undefined)} />
+                                            void commitFolderEditor(name)}
+                                        onCancel={() => setFolderEditor(null)} />
                                 </div>
                             </div>
                             {DOCUMENT_METADATA_COLUMNS.map(({ label, row: column }) =>
@@ -1011,8 +978,8 @@ export function DocTable({
                                         {folderPrefix}<InlineNameInput kind="folder"
                                                 value={folder.name}
                                                 onCommit={(value) =>
-                                                    void handleRenameFolder(folder.id, value)}
-                                                onCancel={() => set("renamingFolderId", null)} />
+                                                    void commitFolderEditor(value)}
+                                                onCancel={() => setFolderEditor(null)} />
                                     </div> : <button type="button" aria-expanded={isExpanded}
                                         onClick={() => toggleFolder(folder.id)}
                                         className="flex min-h-6 w-full cursor-pointer items-center text-left outline-none focus-visible:ring-2 focus-visible:ring-red-600">
@@ -1034,13 +1001,9 @@ export function DocTable({
                                                     else set("folderWorkflowDocuments", selected);
                                                 }) }] : []),
                                         ]}
-                                        onNewSubfolder={() => {
-                                            set("newFolderParentId", folder.id);
-                                            set("expandedFolderIds", (current) =>
-                                                new Set(current).add(folder.id));
-                                        }}
+                                        onNewSubfolder={() => startFolderEditor({ kind: "new", parentId: folder.id })}
                                         newSubfolderLabel="New subfolder inside"
-                                        onRename={() => set("renamingFolderId", folder.id)}
+                                        onRename={() => startFolderEditor({ kind: "rename", folderId: folder.id })}
                                         onMove={() => set("pendingMove", { folderId: folder.id })}
                                         onDelete={() => requestDeleteFolder(folder.id)} />
                                 </div>
@@ -1237,8 +1200,7 @@ export function DocTable({
         ? descendantFolderIds(pendingMove.folderId, foldersByParent) : undefined;
     const canMovePendingTo = (destinationId: string | null) => !!pendingMove &&
         ("folderId" in pendingMove
-            ? (foldersById.get(pendingMove.folderId)?.parent_folder_id ?? null) !== destinationId &&
-                !disabledMoveFolders?.has(destinationId ?? "")
+            ? canMoveTreeItem({ kind: "folder", id: pendingMove.folderId }, destinationId)
             : pendingMove.documentIds.some((id) =>
                 (docsById.get(id)?.folder_id ?? null) !== destinationId));
     const isEmptyCollection = documents.length === 0 && folders.length === 0 &&
