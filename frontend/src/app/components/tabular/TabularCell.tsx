@@ -1,3 +1,4 @@
+import { CitationPill } from "../assistant/message/MarkdownContent";
 import { memo } from "react";
 import { AlertCircle } from "lucide-react";
 import type { ColumnConfig, TabularCell as TCell } from "@/app/lib/api/tabular";
@@ -12,7 +13,7 @@ interface Props {
     cell: TCell;
     column?: ColumnConfig;
     onExpand: (cell: TCell) => void;
-    onCitationClick: (cell: TCell, citation: Citation) => void;
+    onCitationClick: (cell: TCell, citation: Citation, action?: "workspace") => void;
 }
 
 export const TabularCell = memo(function TabularCell({ cell, column, onExpand, onCitationClick }: Props) {
@@ -33,16 +34,14 @@ export const TabularCell = memo(function TabularCell({ cell, column, onExpand, o
                 <div className={cn("pointer-events-none relative line-clamp-2 min-w-0 flex-1 [overflow-wrap:anywhere] [&_a]:pointer-events-auto",
                     numeric && "tabular-nums")}>
                     <TabularMarkdown text={text} value={answer.value} column={column}
-                        onCitationClick={(citation) => onCitationClick(cell, citation)} inline />
+                        onCitationClick={(citation, action) => onCitationClick(cell, citation, action)} inline />
                 </div>
                 {(answer.flag || !!citations.length) && <span className="relative flex shrink-0 items-center gap-1.5">
                     {answer.flag && <FlagDot flag={answer.flag} />}
-                    {!!citations.length && <button type="button" onClick={() => onCitationClick(cell, citations[0]!)}
-                        aria-label={`${citations.length} citation${citations.length === 1 ? "" : "s"}`}
+                    {!!citations.length && <CitationPill citation={citations[0]!}
+                        onClick={(citation, action) => onCitationClick(cell, citation, action)}
                         title={`${citations.length} citation${citations.length === 1 ? "" : "s"}`}
-                        className="min-w-5 rounded border border-gray-300 bg-gray-50 px-1 text-[10px] font-medium leading-4 tabular-nums text-gray-600 hover:bg-white">
-                        {citations.length}
-                    </button>}
+                        className="!bg-gray-50 !px-1 !text-[10px] !text-gray-600 !ring-gray-300">{citations.length}</CitationPill>}
                 </span>}
             </>}
     </div>;

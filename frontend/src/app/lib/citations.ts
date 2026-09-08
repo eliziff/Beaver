@@ -1,6 +1,7 @@
 import { isSpreadsheetFilename } from "@/app/lib/documentFilename";
 
 export interface CitationQuote {
+  color?: string;
   page?: number;
   quote: string;
 }

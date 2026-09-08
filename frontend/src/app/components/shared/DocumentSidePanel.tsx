@@ -46,7 +46,7 @@ import { SUPPORTED_DOCUMENT_ACCEPT } from "@/app/lib/documentUploadValidation";
 import { getResearchFile, getResearchItems } from "@/app/lib/api/researchFiles";
 import { ResearchLabelMarker } from "@/app/components/legal/ResearchLabelMarker";
 import { useSourcesWorkspaceOrNull } from "@/app/components/legal/SourcesWorkspace";
-import { useLibraryReaderCapture } from "@/app/components/shared/useLibraryReaderCapture";
+import { useReaderCapture } from "@/app/components/shared/useReaderCapture";
 import type { CitationQuote } from "@/app/lib/citations";
 import {
     isResearchDocument,
@@ -249,7 +249,7 @@ export function DocumentSidePanel({
                 versionId: (versionId ?? doc.current_version_id) as string,
                 title: doc.filename }
             : null;
-    useLibraryReaderCapture(readerBody, captureReference, highlightController);
+    const captureReady = useReaderCapture(readerBody, captureReference, highlightController, undefined, setActionError);
     const [savedQuotes, setSavedQuotes] = useState<CitationQuote[]>([]);
     const workspaceFile = sourcesController?.file ?? null;
     const captureKey = captureReference ? researchSourceKey(captureReference) : null;
@@ -262,7 +262,8 @@ export function DocumentSidePanel({
         void getResearchItems(workspaceFile.document.id, { kind: "passages", sourceId: source.id }).then((page) => {
             if (cancelled) return;
             setSavedQuotes(page.items.flatMap((item) => item.kind === "passage" && item.value.receipt.span_text
-                ? [{ quote: item.value.receipt.span_text }] : []));
+                ? [{ quote: item.value.receipt.span_text, color: workspaceFile.state.labels[item.value.labelIds[0]]?.color ?? "#eab308",
+                      ...(item.value.receipt.locator.kind === "page" ? { page: Number(item.value.receipt.locator.label) } : {}) }] : []));
         }).catch(() => { if (!cancelled) setSavedQuotes([]); });
         return () => { cancelled = true; };
     }, [workspaceFile, captureKey]);
@@ -509,14 +510,17 @@ export function DocumentSidePanel({
                     <button
                         type="button"
                         aria-label="Highlight"
+                        disabled={!captureReady}
                         aria-pressed={highlightController.armed}
                         title="Highlight"
+                        onPointerDown={(event) => event.preventDefault()}
                         onClick={() => {
                             setActionError(null);
-                            void highlightController.run().catch((reason: unknown) => {
-                                setActionError(reason instanceof Error ? reason.message
-                                    : "Could not save this highlight");
-                            });
+                            void highlightController.run().then((saved) => { if (!saved) highlightController.arm(!highlightController.armed); })
+                                .catch((reason: unknown) => {
+                                    setActionError(reason instanceof Error ? reason.message
+                                        : "Could not save this highlight");
+                                });
                         }}
                         className="h-8 w-8 rounded hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900"
                     >

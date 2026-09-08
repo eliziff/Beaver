@@ -12,7 +12,8 @@ describe("PDF quote highlighting", () => {
         first.textContent = "The controlling ";
         second.textContent = "passage applies.";
 
-        expect(highlightQuote([first, second], "controlling passage")).toBe(true);
+        const root = document.createElement("div"); root.append(first, second);
+        expect(highlightQuote(root, [{ quote: "controlling passage", color: "#90ac99" }])).toBe(true);
         expect(first.querySelector(".pdf-text-highlight")).toHaveTextContent(
             "controlling",
         );
@@ -20,7 +21,8 @@ describe("PDF quote highlighting", () => {
             "passage",
         );
 
-        clearHighlights([first, second]);
+        expect(first.querySelector<HTMLElement>(".pdf-text-highlight")!.style.borderBottom).toContain("solid");
+        clearHighlights(root);
         expect(first.textContent).toBe("The controlling ");
         expect(second.textContent).toBe("passage applies.");
     });

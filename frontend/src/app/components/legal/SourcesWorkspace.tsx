@@ -23,11 +23,7 @@ type Controller = ReturnType<typeof useWorkspaceController>;
 const Context = createContext<Controller | null>(null);
 const ALL_SOURCES: ResearchSelection = { target: "sources" };
 const PEN_KEY = "beaver.research.pen.v1";
-/** What a reader hands the Highlight tool: the source it shows and the text the user picked. */
-/** A reader that renders the canonical text reports offsets in the revision it served; one that
- *  renders the original file reports the text it captured. */
-export type HighlightCapture = { reference: ResearchSourceReference }
-  & ({ revision: string; start: number; end: number } | { quote: string });
+export type HighlightCapture = { reference: ResearchSourceReference; revision: string; start: number; end: number };
 
 function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey, selection: suppliedSelection, restoreLast = false, onChange }: Options) {
   const memoryKey = `beaver.research.current:${projectId ?? "personal"}`;
@@ -153,7 +149,7 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
     return { id, path: `${source.document.project_id ? `/projects/${source.document.project_id}` : ""}/assistant/chat/${id}` };
   }
 
-  const [pen, setPenState] = useState<string | null>(null), [armed, setArmed] = useState(true);
+  const [pen, setPenState] = useState<string | null>(null), [armed, setArmed] = useState(false);
   /** Only a mounted reader can capture a selection, so only it can offer highlighting. */
   const [reading, setReading] = useState(false);
   const capture = useRef<(() => HighlightCapture | null) | null>(null);
@@ -167,9 +163,9 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
   }, []);
   const { act } = mutations;
   /** One deliberate write: prepare the source, ensure a pen, save the passage with it. The pen stays active. */
-  const runHighlight = useCallback(async (): Promise<"saved" | "none"> => {
+  const runHighlight = useCallback(async (): Promise<boolean> => {
     const picked = capture.current?.();
-    if (!picked) return "none";
+    if (!picked) return false;
     const base = current.current;
     if (!base) throw new Error("Open a workspace first");
     const key = researchSourceKey(picked.reference);
@@ -187,7 +183,7 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
     const { reference: _reference, ...span } = picked;
     await act({ type: "passage", sourceId, ...span, labelIds: [active] });
     window.getSelection()?.removeAllRanges();
-    return "saved";
+    return true;
   }, [act, setPen]);
   const highlight = { pen, setPen, armed, arm: setArmed, run: runHighlight, reading,
     registerReader: useCallback((next: (() => HighlightCapture | null) | null) => {
@@ -199,16 +195,17 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
 
 export function SourcesWorkspaceProvider(props: Options) {
   const controller = useWorkspaceController(props);
-  const { run } = controller.highlight;
+  const { run, arm } = controller.highlight;
   useEffect(() => {
     const pressed = (event: KeyboardEvent) => {
+      if (event.key === "Escape") arm(false);
       if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== "h") return;
       event.preventDefault();
       void run().catch(() => undefined);
     };
     document.addEventListener("keydown", pressed);
     return () => document.removeEventListener("keydown", pressed);
-  }, [run]);
+  }, [run, arm]);
   return <Context value={controller}>{props.children}</Context>;
 }
 

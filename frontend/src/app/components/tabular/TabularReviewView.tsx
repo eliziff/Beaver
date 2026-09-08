@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useEffectEvent, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { MessageSquare, MessageSquareX, Play, Square, Upload } from "lucide-react";
+import { BookOpen, MessageSquare, MessageSquareX, Play, Square, Upload, X } from "lucide-react";
 import {
   clearTabularCells,
   deleteTabularReview,
@@ -40,7 +40,7 @@ import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { ResearchSelectionLabels } from "../shared/ResearchSelectionLabels";
 import { ResearchChanges } from "../legal/ResearchChanges";
 import { SourcesWorkspace, useSourcesWorkspace } from "../legal/SourcesWorkspace";
-import { ResearchCitationViewer } from "../legal/ResearchCitationViewer";
+import { ResearchCitationContent } from "../legal/ResearchCitationViewer";
 import type { ResearchSelection, ResearchSourceReference } from "@/app/lib/researchFiles";
 import { AssistantDock } from "../assistant/AssistantDock";
 import { ResearchWorkspaceHost } from "../legal/ResearchWorkspaceHost";
@@ -64,16 +64,11 @@ import { TRTable } from "./TRTable";
 interface Props { reviewId: string; projectId?: string }
 type Modal = "documents" | "details" | "people" | null;
 type CellView = { cellId: string };
-const cellKey = (documentId: string, columnIndex: number) =>
-    `${documentId}:${columnIndex}`;
-const pendingCell = (
-    documentId: string, columnIndex: number,
-): TabularCell => ({
-    id: `new-${documentId}-${columnIndex}`,
-    document_id: documentId,
-    column_index: columnIndex,
-    content: null,
-    status: "pending",
+type DockTab = "chat" | "sources" | "reading" | null;
+const cellKey = (documentId: string, columnIndex: number) => `${documentId}:${columnIndex}`;
+const pendingCell = (documentId: string, columnIndex: number): TabularCell => ({
+    id: `new-${documentId}-${columnIndex}`, document_id: documentId,
+    column_index: columnIndex, content: null, status: "pending",
 });
 
 export function TRView(props: Props) {
@@ -111,7 +106,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
         chatId: initialChat === "new" ? null : initialChat ?? undefined,
         highlightedCell: null as { colIdx: number; rowIdx: number } | null,
         missingProvider: null as ModelProvider | null,
-        dockTab: (initialChat === null ? null : "chat") as "chat" | "sources" | null,
+        dockTab: (initialChat === null ? null : "chat") as DockTab,
         columnRun: null as { columnIndex: number; total: number; queue: string[] } | null,
     }));
     const setUi = useCallback((patch: Partial<typeof ui>) =>
@@ -184,11 +179,13 @@ function TRViewContent({ reviewId, projectId }: Props) {
     }, [generating, reviewId, setUi]);
 
     const expandCell = useCallback(({ id }: TabularCell) => setUi({ cellView: { cellId: id } }), [setUi]);
-    const openCitation = useCallback((cell: TabularCell, citation: Citation) => {
+    // The reader opens as a dock tab beside the table, not a modal over it.
+    const openCitation = useCallback((cell: TabularCell, citation: Citation, action?: "workspace") => {
         const receipt = cell.content?.evidence.find(({ span_text }) => span_text &&
             citation.quotes?.some(({ quote }) => quote === span_text));
         setReading({ citation, reference: receipt ? citedSourceReference(receipt) : undefined });
-    }, []);
+        setUi({ dockTab: action ? "sources" : "reading", cellView: null });
+    }, [setUi]);
 
     function setChatId(next: string | null | undefined) {
         setUi({ chatId: next });
@@ -236,12 +233,9 @@ function TRViewContent({ reviewId, projectId }: Props) {
             setUi({ uploading: [] });
         }
     }
-    function patchCell(documentId: string, columnIndex: number,
-        patch: Partial<TabularCell>) {
-        setCells((current) => current.map((cell) =>
-            cell.document_id === documentId &&
-            cell.column_index === columnIndex
-                ? { ...cell, ...patch } : cell));
+    function patchCell(documentId: string, columnIndex: number, patch: Partial<TabularCell>) {
+        setCells((current) => current.map((cell) => cell.document_id === documentId &&
+            cell.column_index === columnIndex ? { ...cell, ...patch } : cell));
     }
     function modelUnavailable() {
         if (profile?.apiKeys && !isModelAvailable(model, profile.apiKeys)) {
@@ -255,8 +249,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
         setUi({ generating: true });
         patchCell(documentId, columnIndex, { status: "generating", content: null });
         try {
-            await regenerateTabularCell(
-                reviewId, documentId, columnIndex, { model, reasoningEffort });
+            await regenerateTabularCell(reviewId, documentId, columnIndex, { model, reasoningEffort });
         } catch (error) {
             console.error("Regeneration failed", error);
             patchCell(documentId, columnIndex, { status: "error" });
@@ -326,24 +319,16 @@ function TRViewContent({ reviewId, projectId }: Props) {
         }
     }
     async function addColumns(incoming: ColumnConfig[]) {
-        const start = columns.reduce(
-            (max, column) => Math.max(max, column.index), -1) + 1;
-        const added = incoming.map((column, index) => ({
-            ...column, index: start + index,
-        }));
+        const start = columns.reduce((max, column) => Math.max(max, column.index), -1) + 1;
+        const added = incoming.map((column, index) => ({ ...column, index: start + index }));
         const next = [...columns, ...added];
         setColumns(next);
         setCells((current) => {
             const existing = new Set(current.map((cell) =>
                 cellKey(cell.document_id, cell.column_index)));
-            return [
-                ...current,
-                ...documents.flatMap((document) => added
-                    .filter(({ index }) =>
-                        !existing.has(cellKey(document.id, index)))
-                    .map(({ index }) =>
-                        pendingCell(document.id, index))),
-            ];
+            return [...current, ...documents.flatMap((document) => added
+                .filter(({ index }) => !existing.has(cellKey(document.id, index)))
+                .map(({ index }) => pendingCell(document.id, index)))];
         });
         try {
             await saveColumns(next);
@@ -366,15 +351,11 @@ function TRViewContent({ reviewId, projectId }: Props) {
         }
     }
     function updateColumn(updated: ColumnConfig) {
-        return commitColumns(columns.map((column) =>
-            column.index === updated.index ? updated : column),
-        "Failed to update column");
+        return commitColumns(columns.map((column) => column.index === updated.index ? updated : column),
+            "Failed to update column");
     }
     function deleteColumn(index: number) {
-        return commitColumns(
-            columns.filter((column) => column.index !== index),
-            "Failed to delete column",
-        );
+        return commitColumns(columns.filter((column) => column.index !== index), "Failed to delete column");
     }
     async function deleteDocuments() {
         if (!selectedIds.length) return;
@@ -512,7 +493,12 @@ function TRViewContent({ reviewId, projectId }: Props) {
     }
     function closeDock() {
         setUi({ dockTab: null });
+        setReading(null);
         setChatId(undefined);
+    }
+    function closeReading() {
+        setReading(null);
+        setUi({ dockTab: chatOpen ? "chat" : null });
     }
     async function labelsFromColumn(column: ColumnConfig) {
         if (column.format !== "tag" && column.format !== "yes_no") return openChat({ columnIndex: column.index,
@@ -721,7 +707,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
                     {dockTab && <AssistantDock expanded showCollapsedButton={false}
                         defaultWidth={400} minWidth={320} maxWidth="40%"
                         activeTabId={dockTab} onActivateTab={(id) => {
-                            setUi({ dockTab: id as "chat" | "sources" });
+                            setUi({ dockTab: id as DockTab });
                             if (id === "chat" && !chatOpen) void openChat();
                         }}
                         onExpandedChange={(open) => { if (!open) closeDock(); }}
@@ -744,6 +730,12 @@ function TRViewContent({ reviewId, projectId }: Props) {
                             /> },
                             { id: "sources", label: "Sources", content: <ResearchWorkspaceHost embedded open
                                 projectId={projectId} onOpenChange={() => undefined} /> },
+                            ...(reading ? [{ id: "reading", readerExpansion: true, icon: <BookOpen aria-hidden className="size-4" />,
+                                label: reading.citation.kind === "document" ? reading.citation.filename
+                                    : reading.reference?.title ?? reading.reference?.citation ?? "Source",
+                                actions: <Button variant="ghost" size="compact" onClick={closeReading} aria-label="Close source">
+                                    <X className="size-3.5" aria-hidden /></Button>,
+                                content: <ResearchCitationContent {...reading} onOpenResearch={() => setUi({ dockTab: "sources" })} /> }] : []),
                         ]} />}
                 </div>
             </div>
@@ -753,14 +745,13 @@ function TRViewContent({ reviewId, projectId }: Props) {
                     key={JSON.stringify(cellView)} cell={expandedCell}
                     document={expandedDocument} column={expandedColumn}
                     onDiscuss={() => void openChat({ rowId: expandedCell.document_id, columnIndex: expandedCell.column_index })}
-                    onCitation={(citation) => openCitation(expandedCell, citation)}
+                    onCitation={(citation, action) => openCitation(expandedCell, citation, action)}
                     onClose={() => setUi({ cellView: null })}
                     onRegenerate={() => regenerateCell(
                         expandedCell.document_id, expandedCell.column_index)}
                     running={generating || !!columnRun}
                 />
             )}
-            {reading && <ResearchCitationViewer {...reading} onClose={() => setReading(null)} />}
             <AddColumnModal
                 open={columnModal !== undefined} existingCount={columns.length}
                 editingColumn={columnModal ?? undefined}
