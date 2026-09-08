@@ -5,9 +5,11 @@ import { Button } from "../ui/button";
 import { ColumnList, type ColumnMark } from "./ColumnList";
 
 const COLUMN_FIELD = /^columns_config\.(\d+)\.(\$|name|prompt|format|tags)$/u;
-/** Column edits are reviewed in the creation form; anything else stays a diff list. */
-export const isColumnProposal = ({ changes }: ResearchChange) => changes.length > 0 &&
-    changes.every(({ target, field }) => target === "table" && (field === "columns_order" || COLUMN_FIELD.test(field)));
+/** Column edits include the cell invalidations caused by changed questions. */
+export const isColumnProposal = ({ changes }: ResearchChange) => changes.some(({ field }) => field === "columns_order" || COLUMN_FIELD.test(field)) &&
+    changes.every(({ target, field, before, after }) => target === "table" ? field === "columns_order" || COLUMN_FIELD.test(field)
+        : target === "result" && field === "$" && (after == null || (after as { status?: string }).status === "pending") &&
+          changes.some((item) => item.field.startsWith(`columns_config.${((before ?? after) as { column_index?: number } | null)?.column_index}.`)));
 
 function proposed(review: TabularReview, change: ResearchChange) {
     const saved = review.columns_config ?? [];
@@ -60,6 +62,7 @@ export function TableProposalReview({ review, change, busy, onAccept, onReject }
     const final = columns.filter(({ index }) => !dropped.has(index));
     const edited = JSON.stringify(final) !== JSON.stringify(base.rows.filter(({ index }) => base.marks[index] !== "removed"));
     return <section aria-label="Proposed columns" className="space-y-2">
+        {change.changes.some(({ target }) => target === "result") && <p className="text-xs text-gray-600">Changed questions need to be run again.</p>}
         <ColumnList columns={columns} marks={marks} expanded={expanded} onExpand={setExpanded}
             onChange={(updated) => setColumns((items) => items.map((item) => item.index === updated.index ? updated : item))}
             onRemove={({ index }) => setDropped((current) => {
