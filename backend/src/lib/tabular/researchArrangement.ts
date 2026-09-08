@@ -93,7 +93,9 @@ export async function resolveResearchArrangement(input: {
       for (const reference of mapping.items) {
         if (reference.kind === "answer" || reference.kind === "cell") {
           const answer = await input.resolveFinding?.(reference);
-          if (!answer || answer.resource !== resource) missing("The referenced answer is unavailable for this row");
+          if (!answer || answer.resource !== resource && !Object.values(parts.get(row.sourceId) ?? {}).some(({ receipt }) =>
+            answer.evidence.some(({ evidence_id }) => evidence_id === receipt.evidence_id)))
+            missing("The referenced answer is unavailable for this row");
           if (row.evidenceIds && answer.answer.claims.some((claim) => !claim.evidence_ids.some((id) => row.evidenceIds!.includes(id))))
             throw new ApplicationError(400, "An answer includes claims outside the selected row scope");
           if (mapping.items.length === 1) singleFinding = answer;

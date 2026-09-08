@@ -53,13 +53,13 @@ export const bindWorkspaceView = (id: string, input: { chatId?: string; tableId?
   post<ResearchFile>(`/source-workspaces/${segment(id)}/bind`, input);
 export type ResearchTableInput = { rows?: "sources" | "passages"; labelId?: string; columnIndex?: number;
   selection?: ResearchSelection; findingRefs?: ResearchFindingReference[];
-  chatId?: string; messageIds?: string[]; tableId?: string; fingerprint?: string; design?: ResearchTableDesign; request?: string; model?: string; reasoningEffort?: string };
+  chatId?: string; messageIds?: string[]; tableId?: string; fingerprint?: string; design?: ResearchTableDesign; request?: string; repropose?: boolean; model?: string; reasoningEffort?: string };
 export type ResearchTableDesign = { title: string; columns: ColumnConfig[];
   cells: { rowId: string; columnIndex: number; itemIds: string[] }[] };
 export type ResearchTablePreview = { fingerprint: string; design: ResearchTableDesign;
   question?: string | null; proposed?: boolean; fallback?: string;
   rows: { id: string; title: string; sourceId: string; evidenceIds?: string[] }[];
-  stats: { index: number; reused: number; kinds: string[]; evidence: number }[];
+  stats: { index: number; reused: number; kinds: string[]; evidence: number; existing: boolean }[];
   samples: { rowId: string; columnIndex: number; text: string; kinds: string[] }[] };
 export const previewWorkspaceTable = (id: string, input: ResearchTableInput) =>
   post<ResearchTablePreview>(`/source-workspaces/${segment(id)}/table/preview`, input);

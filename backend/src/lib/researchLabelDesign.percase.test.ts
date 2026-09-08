@@ -29,4 +29,14 @@ describe("a label is a concept, never a document", () => {
       [{ labelKey: "b", rowIds: ["r1", "r2"] }, { labelKey: "c", rowIds: ["r2", "r3"] }]), "sources");
     expect(plan.labels.map(({ name }) => name)).toContain("Psychological detention");
   });
+  it("reuses case and plural variants on a second proposal", () => {
+    const first = researchLabelPlan(file, catalog, design([{ key: "outcome", name: "Administrative outcome" }],
+      [{ labelKey: "outcome", rowIds: ["r1", "r2", "r3"] }]), "sources"),
+      labels = Object.fromEntries(first.actions.flatMap(action => action.type === "label" ? [[action.id!, action]] : [])),
+      saved = { ...file, state: { ...file.state, labels } } as ResearchFile,
+      second = researchLabelPlan(saved, catalog, design([{ key: "again", name: "ADMINISTRATIVE OUTCOMES" }],
+        [{ labelKey: "again", rowIds: ["r1", "r2", "r3"] }]), "sources");
+    expect(second.actions.some(action => action.type === "label")).toBe(false);
+    expect(second.labels).toMatchObject([{ name: "Administrative outcome", existing: true }]);
+  });
 });

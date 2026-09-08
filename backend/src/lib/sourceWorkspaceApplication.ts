@@ -23,7 +23,7 @@ import { parseResourceReference } from "./resourceReferences";
 import { resolveResearchArrangement, type ResearchArrangement } from "./tabular/researchArrangement";
 import { researchImportCatalog, defaultResearchImport, researchImportPlan,
   type ResearchImportInput, type ResearchImportDesign, type ResearchImportCatalog } from "./tabular/researchImport";
-import { researchLabelPlan, type ResearchLabelDesign } from "./researchLabelDesign";
+import { researchConceptKey, researchLabelPlan, type ResearchLabelDesign } from "./researchLabelDesign";
 import type { TabularApplication } from "./tabular/application";
 import { tabularSubjectId,
   type TabularRepository, type TabularReview } from "./tabularStore";
@@ -38,7 +38,7 @@ type FindingsInput = { sourceIds?: string[]; reference?: ResearchFindingReferenc
 type FindingsPage = { items: ResearchFinding[]; total: number; next_offset: number | null; is_running: boolean };
 type TableInput = { tableId?: string; columnIndex?: number; chatId?: string; messageIds?: string[];
   selection?: ResearchSelection; findingRefs?: ResearchFindingReference[];
-  fingerprint?: string; design?: ResearchImportDesign; request?: string; model?: string; reasoningEffort?: string } & Partial<ResearchImportInput>;
+  fingerprint?: string; design?: ResearchImportDesign; request?: string; repropose?: boolean; model?: string; reasoningEffort?: string } & Partial<ResearchImportInput>;
 type LabelInput = Omit<TableInput, "design"> & { design?: ResearchLabelDesign };
 
 /** The Sources workspace use cases share the existing document, chat and table persistence ports. */
@@ -385,7 +385,7 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
   async function previewTable(scope: Scope, id: string, input: TableInput, signal?: AbortSignal) {
     const { catalog } = await importCatalog(scope, id, input);
     let fallback: string | undefined;
-    const proposed = input.design ? null : await (await dependencies.tabular()).designResearch(scope, catalog,
+    const proposed = input.design || catalog.labels.length && !input.repropose ? null : await (await dependencies.tabular()).designResearch(scope, catalog,
       input.request ?? catalog.question ?? catalog.title, { model: input.model, reasoningEffort: input.reasoningEffort, signal })
       .catch((error: unknown) => { if (signal?.aborted) throw error;
         fallback = error instanceof Error ? error.message : String(error); return null; });
@@ -396,6 +396,9 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
   async function previewLabels(scope: Scope, id: string, input: LabelInput, signal?: AbortSignal) {
     const { file, catalog, resolveFinding } = await importCatalog(scope, id, input);
     const target = input.rows ?? "sources";
+    if (catalog.labels.length && !input.repropose && input.columnIndex === undefined) catalog.columns = catalog.labels.filter(label =>
+      label.scope === (target === "sources" ? "source" : "highlight")).map((label, index) => ({ index,
+        name: label.path, prompt: label.definition || `What does this source establish about ${label.path}?`, scope: label.scope }));
     const design = input.design ?? (catalog.columns ? await columnLabels(file, catalog, resolveFinding, input.columnIndex !== undefined)
       : await (await dependencies.tabular()).designLabels(scope, catalog, file, target,
         input.request ?? catalog.question ?? catalog.title, { model: input.model, reasoningEffort: input.reasoningEffort, signal }));
@@ -422,6 +425,11 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
       project_id: file.document.project_id ?? undefined, research_file_id: id,
       arrangement: plan.arrangement, columns_config: plan.columns_config }, actor,
       { freeze: true, resolveFinding, expectedResearch: { versionId: file.versionId, workingRevision: file.workingRevision } });
+    if (plan.design.columns.some(column => !catalog.labels.some(label => label.path === column.name))) {
+      const saved = await importCatalog(scope, id, { tableId: review.id }),
+        design = await columnLabels(saved.file, saved.catalog, saved.resolveFinding, false);
+      await applyLabels(scope, id, { tableId: review.id, design, fingerprint: saved.catalog.fingerprint }, actor);
+    }
     return review;
   }
   async function saveFindings(scope: Scope, id: string, input: { references: ResearchFindingReference[];
@@ -447,16 +455,19 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     resolve: (ref: ResearchFindingReference) => Promise<ResearchFinding | null>, categorical: boolean): Promise<ResearchLabelDesign> {
     const design: ResearchLabelDesign = { title: catalog.title, labels: [], assignments: [] };
     for (const column of catalog.columns ?? []) {
-      const current = Object.values(file.state.labels).find((label) => label.scope === column.scope && researchLabelPath(file.state, label.id) === column.name),
+      const current = Object.values(file.state.labels).find((label) => label.scope === column.scope &&
+        researchConceptKey(researchLabelPath(file.state, label.id)) === researchConceptKey(column.name)),
         key = current?.id ?? `column:${column.index}`, groups = new Map<string, ResearchImportCatalog["entries"]>();
       design.labels.push({ key, name: current?.name ?? column.name, parentKey: current?.parentId,
         scope: column.scope, definition: column.prompt });
       for (const entry of catalog.entries) {
-        if (entry.reference.kind !== "cell" || entry.reference.columnIndex !== column.index) continue;
-        const item = await resolve(entry.reference); if (!item || item.answer.outcome === "not_found") continue;
+        if (entry.reference.kind === "cell" ? entry.reference.columnIndex !== column.index
+          : researchConceptKey(entry.column.name) !== researchConceptKey(column.name)) continue;
+        const item = entry.reference.kind === "cell" || entry.reference.kind === "answer" ? await resolve(entry.reference) : null;
+        if (item?.answer.outcome === "not_found") continue;
         const values = !categorical || column.format !== "tag" && column.format !== "yes_no" ? [null]
-          : column.format === "yes_no" ? (typeof item.answer.value === "boolean" ? [item.answer.value ? "Yes" : "No"] : [])
-            : Array.isArray(item.answer.value) ? item.answer.value : [item.answer.value];
+          : column.format === "yes_no" ? (typeof item?.answer.value === "boolean" ? [item.answer.value ? "Yes" : "No"] : [])
+            : Array.isArray(item?.answer.value) ? item.answer.value : [item?.answer.value];
         for (const value of values) {
           if (value !== null && (typeof value !== "string" || !value.trim() || value.length > 200))
             return fail(400, "Consolidate long column values before creating labels; no values were truncated");
