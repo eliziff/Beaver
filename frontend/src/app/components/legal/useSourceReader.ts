@@ -30,9 +30,19 @@ export function useSourceReader({ file, passagePages, onReadSource, onStatus }: 
     return locator ? `${href}&locator=${encodeURIComponent(locator)}` : href;
   }
   const canRead = (source: ResearchSource) => source.reference.kind === "document" ||
-    !!onReadSource && (source.reference.provider === "a2aj" || source.reference.provider === "journal");
+    source.reference.provider === "a2aj" || source.reference.provider === "journal";
+  /** A host with its own reader takes the source; otherwise it opens here. Reading never navigates
+   *  the panel away, so the workspace beside it keeps its place. */
   async function readSource(source: ResearchSource, locator?: string, evidenceId?: string) {
-    if (source.reference.kind !== "document") { onReadSource?.(source, locator); return; }
+    if (source.reference.kind !== "document") {
+      if (onReadSource) return onReadSource(source, locator);
+      const reference = source.reference;
+      return setReading({ reference, citation: reference.provider === "journal"
+        ? { kind: "public_legal", ref: 1, provider: "journal", identifier: reference.id, title: reference.title ?? null,
+            citation: reference.citation ?? null, quotes: [], locator: locator ?? null }
+        : { kind: "a2aj", ref: 1, citation: reference.citation ?? reference.id, name: reference.title ?? null,
+            dataset: reference.collection ?? null, quotes: [], locator: locator ?? null } });
+    }
     let items = passagePages.chains[source.id]?.items ?? [], receipt = items.find((item) => (item.kind === "passage" || item.kind === "evidence") &&
       (evidenceId ? item.value.receipt.evidence_id === evidenceId : item.value.receipt.locator.label === locator));
     try {

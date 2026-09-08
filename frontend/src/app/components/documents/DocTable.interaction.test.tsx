@@ -17,7 +17,7 @@ vi.mock("@/app/contexts/AuthContext", () => ({
 vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
 
 const { documentApi, researchApi, directoryList, sidePanelRender, unexpected } = vi.hoisted(() => ({
-    documentApi: { listDocumentVersions: vi.fn(), uploadDocumentVersion: vi.fn(), directoryResource: vi.fn() },
+    documentApi: { getDocument: vi.fn(), listDocumentVersions: vi.fn(), uploadDocumentVersion: vi.fn(), directoryResource: vi.fn() },
     researchApi: { actOnResearchFile: vi.fn(), getResearchFile: vi.fn() },
     directoryList: vi.fn(), sidePanelRender: vi.fn(),
     unexpected: vi.fn((name: string, ..._args: unknown[]) => { throw new Error(`Unconfigured API call: ${name}`); }),
@@ -100,6 +100,7 @@ function Harness({
     list,
     search = "",
     workspaceFile,
+    initialDocument,
 }: {
     selectionFirst?: boolean;
     initialDocuments?: Document[];
@@ -122,6 +123,7 @@ function Harness({
     list?: DirectoryList;
     search?: string;
     workspaceFile?: ResearchFile | null;
+    initialDocument?: { id: string; versionId?: string | null };
 }) {
     const [selection, setSelection] = useState<DocumentSelectionActions | null>(null);
     const [operations] = useState(() => ({
@@ -145,6 +147,7 @@ function Harness({
     }));
     const table = (
         <DocTable
+            initialDocument={initialDocument}
             scopeKey="library"
             documents={initialDocuments}
             folders={initialFolders}
@@ -169,6 +172,13 @@ function Harness({
 function documentRow() {
     return rowFor("Brief.pdf");
 }
+
+it("opens a linked document version even outside the loaded directory page", async () => {
+    documentApi.getDocument.mockResolvedValue(document);
+    render(<Harness initialDocuments={[]} initialDocument={{ id: document.id, versionId: "cited-version" }} />);
+    expect(await screen.findByTestId("document-view")).toHaveTextContent("Brief.pdf");
+    expect(sidePanelRender).toHaveBeenLastCalledWith(expect.objectContaining({ versionId: "cited-version" }));
+});
 
 function selectRow(filename: string) {
     fireEvent.click(within(rowFor(filename)).getByRole("checkbox"));

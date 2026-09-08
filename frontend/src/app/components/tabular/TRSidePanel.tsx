@@ -11,7 +11,7 @@ interface Props {
     document: TabularDocument;
     column: ColumnConfig;
     onClose: () => void;
-    onCitation: (citation: Citation) => void;
+    onCitation: (citation: Citation, action?: "workspace") => void;
     onRegenerate?: () => Promise<void>;
     onDiscuss?: () => void;
     running?: boolean;

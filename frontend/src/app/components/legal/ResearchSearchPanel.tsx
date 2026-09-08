@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { useAnchoredPopover } from "@/app/hooks/useAnchoredPopover";
 import { Button } from "../ui/button";
 import { usePagedChains } from "@/app/hooks/usePagedChains";
+import { BeaverApiError } from "@/app/lib/api/client";
 import { getResearchItems } from "@/app/lib/api/researchFiles";
 import { researchLabelPath, type ResearchLabel, type ResearchPageItem, type ResearchQueryInput,
   type ResearchQueryReceipt, type ResearchSelection } from "@/app/lib/researchFiles";
@@ -24,6 +25,18 @@ const queryPhrase = (input: Record<string, unknown>) => Array.isArray(input.rule
   ? input.rules.map((rule) => String((rule as { phrase?: unknown }).phrase ?? "")).filter(Boolean).join("; ")
   : String(input.text ?? input.pattern ?? input.query ?? "Search");
 const CHOICE = "h-7 rounded-md border border-gray-200 px-2 text-xs text-gray-700 aria-pressed:border-gray-500 aria-pressed:bg-gray-100 aria-pressed:font-medium";
+
+/** Plain text stays a phrase; these markers make it a Boolean expression the backend evaluates. */
+const OPERATORS = /["()&|]|(?:^|\s)-\S|(?:^|\s)(?:AND|OR|NOT|ET|OU|NON)(?:\s|$)/iu;
+/** A Boolean expression is marked on its first searchable term, not on the expression itself. */
+function markPhrase(text: string) {
+  if (!OPERATORS.test(text)) return text;
+  for (const token of text.match(/"[^"]*"|[^\s()]+/gu) ?? []) {
+    if (token.startsWith('"')) return token.replace(/"/gu, "");
+    if (!token.startsWith("-") && !/^(?:AND|OR|NOT|ET|OU|NON|&&?|\|\|?)$/iu.test(token)) return token;
+  }
+  return "";
+}
 
 const WINDOW = 90;
 /** A match is read around its phrase, not as a whole paragraph: window it, then mark it. */
@@ -65,7 +78,8 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
   const labels = file?.state.labels ?? {};
   const [phrase, setPhrase] = useState(""), [direction, setDirection] = useState<Rule["direction"]>("around"),
     [unit, setUnit] = useState<Rule["unit"] | "match">("match");
-  const [busy, setBusy] = useState(false), [historyOpen, setHistoryOpen] = useState(false);
+  const [busy, setBusy] = useState(false), [historyOpen, setHistoryOpen] = useState(false),
+    [hint, setHint] = useState("");
   const [result, setResult] = useState<{ phrase: string; matches: Set<string>; sourceIds: string[] } | null>(null);
   const [more, setMore] = useState<{ input: ResearchQueryInput; phrase: string } | null>(null);
   /** Which slice of the saved research this search reads, and what a result can be filed into. */
@@ -104,7 +118,7 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
   async function run(input: ResearchQueryInput, text: string, continuing = false) {
     if (!file) return;
     if (!continuing && selection.sourceIds?.length === 0) return setStatus("No sources to search");
-    setBusy(true); setStatus("");
+    setBusy(true); setStatus(""); setHint("");
     try {
       const request = continuing ? input : scoped(input);
       const { receipt, coverage } = await commit.query(request);
@@ -113,13 +127,18 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
         sourceIds: [...new Set([...(continuing ? current?.sourceIds ?? [] : []), ...receipt.matchedSourceIds])] }));
       setMore(coverage?.next_after ? { input: { ...request, after: coverage.next_after }, phrase: text } : null);
       if (!receipt.evidenceIds.length) setStatus("No matches");
-    } catch (reason) { setStatus(errorMessage(reason, "Search failed")); }
+    } catch (reason) {
+      // A malformed expression is the user still typing, not a failure: it never leaves the input.
+      if (reason instanceof BeaverApiError && reason.code === "invalid_query") setHint(reason.message);
+      else setStatus(errorMessage(reason, "Search failed"));
+    }
     finally { setBusy(false); }
   }
   function find(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const text = phrase.trim(); if (!text) return;
-    void run(unit === "match" ? { text, syntax: "literal", target: "sources" }
-      : { syntax: "literal", target: "sources", rules: [{ phrase: text, direction, unit }], conflict: "append" }, text);
+    const syntax = OPERATORS.test(text) ? "terms" as const : "literal" as const;
+    void run(unit === "match" ? { text, syntax, target: "sources" }
+      : { syntax, target: "sources", rules: [{ phrase: text, direction, unit }], conflict: "append" }, text);
   }
   function rerun(receipt: ResearchQueryReceipt) {
     const rules = Array.isArray(receipt.input.rules) ? receipt.input.rules as Rule[] : [];
@@ -152,16 +171,20 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
   }
   const rows = (sourceId: string) => (evidence.chains[sourceId]?.items ?? []).flatMap((item) =>
     (item.kind === "passage" || item.kind === "evidence") && result?.matches.has(item.value.receipt.evidence_id) ? [item.value] : []);
-  const found = result?.sourceIds.filter((id) => file?.state.sources[id] && rows(id).length) ?? [];
+  const found = result?.sourceIds.filter((id) => file?.state.sources[id] && rows(id).length) ?? [],
+    mark = markPhrase(result?.phrase ?? "");
   const pending = (result?.sourceIds.length ?? 0) - found.length;
   if (!file) return <p className="p-2 text-xs text-gray-500">Open a workspace to search its saved sources.</p>;
   return <div className="grid min-w-0 content-start gap-2">
     <form onSubmit={find} className="flex min-w-0 items-center gap-1.5">
-      <input required autoComplete="off" value={phrase} onChange={(event) => setPhrase(event.target.value)}
-        aria-label="Phrase to find in saved sources" placeholder="Find a phrase in saved sources"
-        className="h-8 min-w-0 flex-1 rounded-md border border-gray-300 px-2 text-sm" />
+      <input required autoComplete="off" value={phrase} aria-invalid={!!hint || undefined}
+        aria-describedby={hint ? "research-search-hint" : undefined}
+        onChange={(event) => { setPhrase(event.target.value); setHint(""); }}
+        aria-label="Phrase to find in saved sources" placeholder={'Find a phrase — or lease AND (renewal OR "option to renew")'}
+        className="h-8 min-w-0 flex-1 rounded-md border border-gray-300 px-2 text-sm aria-[invalid]:border-amber-500" />
       <Button type="submit" size="compact" disabled={busy}>{busy ? "Finding…" : "Find"}</Button>
     </form>
+    {!!hint && <p id="research-search-hint" role="status" className="truncate text-xs text-amber-700">{hint}</p>}
     <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-gray-600">
       <span className="text-gray-500">Search in</span>
       <button type="button" onClick={opener({ kind: "scope" })} aria-expanded={choosing?.kind === "scope"} aria-pressed={!!scopeLabel}
@@ -194,7 +217,7 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
           className="flex min-w-0 items-start gap-1.5 rounded border-s-2 border-gray-200 ps-2">
           <span className="line-clamp-4 min-w-0 flex-1 text-xs leading-5 text-gray-700 [overflow-wrap:anywhere]">
             <span className="me-1 font-medium text-gray-500">{passageLabel(receipt.locator)}</span>
-            {marked(trimPassageMarker(receipt.span_text ?? "", receipt.locator), result.phrase)}
+            {marked(trimPassageMarker(receipt.span_text ?? "", receipt.locator), mark)}
           </span>
           {reader?.canRead(file.state.sources[sourceId]) && <button type="button"
             aria-label={`Open ${passageLabel(receipt.locator)} in ${sourceName(file.state.sources[sourceId])}`} title="Open here"

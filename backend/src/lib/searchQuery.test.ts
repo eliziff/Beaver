@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { LocalDatabase, sql } from "./relationalDatabase";
-import { searchFilter, searchFts5 } from "./searchQuery";
+import { hasSearchOperators, searchFilter, searchFts5, searchMatcher } from "./searchQuery";
 import { DatabaseSync } from "node:sqlite";
 
 const values = ["permit hunting", "permit fishing", "city municipality", "custody child"];
@@ -23,6 +23,23 @@ it("applies CanLII Boolean search safely", async () => {
     expect(await matching("custody -child")).toEqual([]);
     expect(await matching("permit not fishing")).toEqual([]);
     expect(await matching("%' OR 1=1 --")).toEqual([]);
+});
+
+it("evaluates the same Boolean syntax in memory and refuses malformed expressions", () => {
+  const kept = (query: string) => values.filter((value) => searchMatcher(query)!.test(value));
+  expect(kept("permit hunting")).toEqual(["permit hunting"]);
+  expect(kept("permit and (hunting or fishing)")).toEqual(["permit hunting", "permit fishing"]);
+  expect(kept("permit & (hunting | fishing)")).toEqual(["permit hunting", "permit fishing"]);
+  expect(kept("PERMIT NOT fishing")).toEqual(["permit hunting"]);
+  expect(kept("custody -child")).toEqual([]);
+  expect(kept('"city municipality"')).toEqual(["city municipality"]);
+  expect(searchMatcher("permit and (hunting")).toBeNull();
+  expect(searchMatcher('permit "city')).toBeNull();
+  expect(searchMatcher("permit or")).toBeNull();
+  expect(searchMatcher("  ")).toBeNull();
+  expect(searchMatcher("permit and (hunting or fishing)")!.terms).toEqual(["permit", "hunting", "fishing"]);
+  expect([hasSearchOperators("governing law"), hasSearchOperators("law OR equity"),
+    hasSearchOperators('"governing law"')]).toEqual([false, true, true]);
 });
 
 it("preserves CanLII priority when compiling FTS5", () => {

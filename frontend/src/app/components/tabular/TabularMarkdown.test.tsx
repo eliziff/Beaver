@@ -14,11 +14,9 @@ it("renders tabular pills and citations through one shared path", async () => {
     render(<TabularMarkdown {...answer} onCitationClick={onCitationClick} />);
 
     expect(screen.getByText("Result")).toBeInTheDocument();
-    await userEvent.click(
-        screen.getByRole("button", {
-            name: "Rule.pdf, p. 7",
-        }),
-    );
+    expect(screen.getByRole("link", { name: "Rule.pdf, p. 7" })).toHaveAttribute("href", "/library?document_id=document-1&version_id=version-7");
+    await userEvent.click(screen.getByRole("button", { name: "Citation actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Open in reader" }));
     expect(onCitationClick).toHaveBeenCalledWith(
         expect.objectContaining({ kind: "document", document_id: "document-1", version_id: "version-7",
             quotes: [{ page: "7", quote: "The quoted rule." }] }),
