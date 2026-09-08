@@ -30,8 +30,8 @@ import { decodeWorkProductBindings, type WorkProductInput,
   type WorkProductState } from "./workProduct";
 import profileValues from "mike/shared/authorities-profiles.json";
 
-export const AUTHORITIES_BOOK_ROLES = ["applicant", "respondent", "joint", "appellant",
-  "intervener", "plaintiff", "defendant", "moving-party", "responding-party"] as const;
+import { AUTHORITIES_SETTINGS_CHOICES, decodeAuthoritiesInitialSettings } from "./authoritiesActionContract";
+export { AUTHORITIES_BOOK_ROLES, authoritiesProfileIds } from "./authoritiesActionContract";
 type AuthoritiesProfile = {
   id: AuthoritiesProfileId;
   label: string;
@@ -56,7 +56,6 @@ type AuthoritiesProfile = {
 /** Filing defaults only; source receipts remain in the repository audit data. */
 const authoritiesProfiles = profileValues as AuthoritiesProfile[];
 const AUTHORITIES_PROFILES = new Map(authoritiesProfiles.map((profile) => [profile.id, profile]));
-export const authoritiesProfileIds = authoritiesProfiles.map(({ id }) => id);
 export function authoritiesProfile(id: AuthoritiesProfileId) {
   const profile = AUTHORITIES_PROFILES.get(id);
   if (!profile) throw new AuthoritiesDomainError(`Unknown Authorities profile: ${id}`);
@@ -227,8 +226,8 @@ const authoritySpan = (value: unknown) => {
   return !!item && integer(item.start) && integer(item.end) && text(item.text);
 };
 const buildSettings = (value: unknown) => {
-  const keys = ["sourceMode", "tabStyle", "tableOrder", "tableDelivery", "tableLocation",
-    "passageMarking", "scannedPdfPolicy", "missingSourcePolicy"];
+  const keys = Object.keys(AUTHORITIES_SETTINGS_CHOICES).filter((key) =>
+    key !== "filingMedium" && key !== "bookRole");
   const item = object(value);
   if (!item || !exactKeys(item, ["profileId", ...keys], ["filingMedium", "bookRole", "tabStart", "tabPrefix", "tabLabels", "allowIncomplete"])) {
     return false;
@@ -243,20 +242,10 @@ const buildSettings = (value: unknown) => {
     ? profile?.id === "federal-court" && !Object.hasOwn(item, "bookRole") ||
       oneOf(item.bookRole, bookRoles)
     : !Object.hasOwn(item, "bookRole");
-  return !!profile && context && roleContext &&
-    oneOf(item.sourceMode, ["automatic", "manual-originals", "render"]) &&
-    oneOf(item.tabStyle, ["numeric", "alpha", "lower-alpha", "roman", "lower-roman"]) &&
-    (item.tabStart === undefined || integer(item.tabStart) && Number(item.tabStart) >= 1 && Number(item.tabStart) <= 10_000) &&
-    (item.tabPrefix === undefined || typeof item.tabPrefix === "string" && item.tabPrefix.length <= 80 && !/[\u0000-\u001f\u007f]/u.test(item.tabPrefix)) &&
-    (item.tabLabels === undefined || list(item.tabLabels, (label) => typeof label === "string" && label.length <= 100 && !/[\u0000-\u001f\u007f]/u.test(label), 10_000)) &&
-    (item.allowIncomplete === undefined || typeof item.allowIncomplete === "boolean") &&
-    oneOf(item.tableOrder, ["first-reference", "alphabetical"]) &&
-    oneOf(item.tableDelivery, ["native-marks", "native-append", "linked-append"]) &&
-    oneOf(item.tableLocation, ["pages", "pinpoints", "combined"]) &&
-    oneOf(item.passageMarking, ["none", "margin", "paragraph", "text", "sidelined"]) &&
-    !(profile.requirements?.markedPassages && item.passageMarking === "none") &&
-    oneOf(item.scannedPdfPolicy, ["page-margin", "cited-pages", "full"]) &&
-    oneOf(item.missingSourcePolicy, ["placeholder", "omit"]);
+  if (!profile || !context || !roleContext ||
+      profile.requirements?.markedPassages && item.passageMarking === "none") return false;
+  try { decodeAuthoritiesInitialSettings(item); return true; }
+  catch { return false; }
 };
 const boundPdf = (value: unknown) => {
   const item = closed(value, ["bindingRole", "filename", "sourceSha256"]);

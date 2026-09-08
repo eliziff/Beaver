@@ -863,6 +863,31 @@ describe("Authorities UI contracts", () => {
     expect(await screen.findByText("Source corrected and draft refreshed")).toBeVisible();
   });
 
+  it("rejects a pending settings result and review after opening another draft", async () => {
+    const first = documentDraft("first", "First draft"), second = draft("second", "Second draft");
+    addReviewCandidate(first); first.state.stage = "build";
+    const update = deferred<AuthoritiesProduct>(), review = deferred<never[]>();
+    api.getWorkProduct.mockImplementation(async (id: string) => id === "first" ? first : second);
+    api.actOnAuthorities.mockReturnValue(update.promise);
+    api.reviewAuthorities.mockReturnValue(review.promise);
+    const view = render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("first")} /></MemoryRouter>);
+    await userEvent.selectOptions(await screen.findByLabelText("Create"), "book");
+    await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("first", 1,
+      { type: "set-output-mode", outputMode: "book" }));
+    view.rerender(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("second")} /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Second draft" })).toBeVisible();
+    await act(async () => {
+      update.resolve({ ...first, revision: 2, state: { ...first.state, outputMode: "book" } });
+      review.reject(new Error("Late review failure"));
+    });
+    expect(screen.getByRole("heading", { name: "Second draft" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "First draft" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Late review failure/u)).not.toBeInTheDocument();
+    expect(localStorage.getItem("beaver.authorities.last.library")).toBe("second");
+  });
+
   it("surfaces source-check failures and does not rerun review after a build-only revision", async () => {
     const saved = documentDraft(), built = { ...saved, revision: 2 };
     addReviewCandidate(saved);
