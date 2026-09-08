@@ -13,6 +13,11 @@ import {
   type Page,
 } from "@/app/lib/api/client";
 
+export type DocumentReaderText = { revision: string;
+  slices: Array<{ start: number; end: number; text: string; page: number }> };
+export const getDocumentReaderText = (id: string, versionId: string, signal?: AbortSignal) =>
+  apiRequest<DocumentReaderText>(pagePath(`/single-documents/${segment(id)}/reader-text`,
+    { version_id: versionId }), { signal });
 
 export interface Folder {
   id: string;

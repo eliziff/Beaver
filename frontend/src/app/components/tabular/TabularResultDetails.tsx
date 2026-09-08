@@ -7,7 +7,7 @@ import { TabularMarkdown } from "./TabularMarkdown";
 
 /** Support is shown as ordinary citation pills, one per cited passage, exactly as chat answers show it. */
 export function TabularResultDetails({ answer, column, onCitation }: {
-  answer: NonNullable<TabularCell["content"]>; column: ColumnConfig; onCitation: (citation: Citation) => void;
+  answer: NonNullable<TabularCell["content"]>; column: ColumnConfig; onCitation: (citation: Citation, action?: "workspace") => void;
 }) {
   const byId = new Map(answer.evidence.map((item) => [item.evidence_id, item]));
   const cited = new Map<string, Citation>();

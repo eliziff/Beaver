@@ -13,7 +13,7 @@ export function ResearchViews({ workspace, table, chat, plain }: {
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   return <span className="relative inline-flex shrink-0">
     <ActionMenu label="Open as" triggerClassName={buttonClassName({ variant: "outline", size: "compact" })}
-      items={([["Workspace", workspace], ["Table", table], ["Chat", chat], ["Open without organizing", plain]] as const)
+      items={([["Workspace", workspace], ["Table", table], ["Chat", chat], ["Open", plain]] as const)
         .flatMap(([label, open]) => open ? [{ label, disabled: busy, onSelect: () => {
           setBusy(true); setError(""); void Promise.resolve().then(open).catch((reason) =>
             setError(errorMessage(reason, `Could not open ${label.toLowerCase()}`))).finally(() => setBusy(false));

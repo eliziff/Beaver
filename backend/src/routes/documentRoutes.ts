@@ -13,6 +13,8 @@ import { downloadHeaders, MAX_OBJECT_SIZE_BYTES,
   normalizeDownloadFilename } from "../lib/storage";
 import { singleFileUpload, uploadedDocument } from "../lib/upload";
 import { z } from "zod";
+import { documentProjectionService } from "../lib/documentProjectionService";
+import { structureNative } from "../lib/structureNative";
 const scope = applicationScope, MAX_ZIP_FILES = 100;
 const researchVersion = z.string().trim().min(1).max(200);
 const revisionNumber = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -99,6 +101,18 @@ export function createDocumentsRouter(
       ?? reject(404, "Document not found");
     res.setHeader("Cache-Control", "private, no-store");
     res.json(grid);
+  }));
+
+  router.get("/:documentId/reader-text", asyncRoute(async (req, res) => {
+    const source = await documents.projectionSource(scope(res), req.params.documentId, versionId(req))
+      ?? reject(404, "Document version not found");
+    const document = await documentProjectionService.read(source), native = structureNative(),
+      text = native.documentText(document), pages = source.fileType === "pdf"
+        ? native.documentAnchors(document, text.length).filter(({ kind }) => kind === "page") : [];
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ revision: native.documentRevision(document), slices: (pages.length ? pages
+      : [{ start: 0, end: text.length, label: "1" }]).map(({ start, end, label }) =>
+        ({ start, end, text: text.slice(start, end), page: Number(label.replace(/^page/iu, "")) })) });
   }));
 
   router.post(
