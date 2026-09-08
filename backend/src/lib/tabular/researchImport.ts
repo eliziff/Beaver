@@ -46,7 +46,7 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
   const questions = [...new Set(findings.filter(({ reference }) => reference.kind === "answer").map(({ question }) => question.prompt))];
   const add = (rowId: string, reference: Item, kind: Kind, text: string,
     column: Omit<TabularColumn, "index">, evidenceIds: string[] = [], use = true) => {
-    entries.push({ id: key([rowId, reference]), rowId, reference, kind, text,
+    entries.push({ id: `item${entries.length}`, rowId, reference, kind, text,
       column: { ...column, index: 0 }, evidenceIds, default: use });
   };
   for (const [sourceId, permitted] of allowed) {
