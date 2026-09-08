@@ -567,7 +567,7 @@ describe("legal source reader", () => {
         expect(api.actOnResearchFile).not.toHaveBeenCalled();
     });
 
-    it("lands a verified quote just below the top of the source viewer", async () => {
+    it("lands each selected quote even when the same source keeps one quote", async () => {
         api.direct.mockResolvedValue(multiSlicePayload());
         const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect")
             .mockImplementation(function () {
@@ -577,7 +577,7 @@ describe("legal source reader", () => {
             });
         const height = vi.spyOn(HTMLElement.prototype, "clientHeight", "get")
             .mockReturnValue(800);
-        const { container } = render(
+        const { container, rerender } = render(
             <LegalSourceViewer
                 citation="2099 SCC 1"
                 docType="cases"
@@ -587,6 +587,10 @@ describe("legal source reader", () => {
         await screen.findByRole("heading", { name: "Fixture v. Test" });
         const reader = container.querySelector<HTMLElement>(".overflow-y-auto")!;
 
+        await waitFor(() => expect(reader.scrollTop).toBe(108));
+        reader.scrollTop = 0;
+        rerender(<LegalSourceViewer citation="2099 SCC 1" docType="cases"
+            quotes={[{ quote: "Second proposition." }]} />);
         await waitFor(() => expect(reader.scrollTop).toBe(108));
         rect.mockRestore();
         height.mockRestore();
