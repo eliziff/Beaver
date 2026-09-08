@@ -23,7 +23,7 @@ import { parseResourceReference } from "./resourceReferences";
 import { resolveResearchArrangement, type ResearchArrangement } from "./tabular/researchArrangement";
 import { researchImportCatalog, defaultResearchImport, researchImportPlan,
   type ResearchImportInput, type ResearchImportDesign, type ResearchImportCatalog } from "./tabular/researchImport";
-import { researchLabelPlan, type ResearchLabelDesign } from "./researchLabelDesign";
+import { researchConceptKey, researchLabelPlan, type ResearchLabelDesign } from "./researchLabelDesign";
 import type { TabularApplication } from "./tabular/application";
 import { tabularSubjectId,
   type TabularRepository, type TabularReview } from "./tabularStore";
@@ -447,7 +447,8 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     resolve: (ref: ResearchFindingReference) => Promise<ResearchFinding | null>, categorical: boolean): Promise<ResearchLabelDesign> {
     const design: ResearchLabelDesign = { title: catalog.title, labels: [], assignments: [] };
     for (const column of catalog.columns ?? []) {
-      const current = Object.values(file.state.labels).find((label) => label.scope === column.scope && researchLabelPath(file.state, label.id) === column.name),
+      const current = Object.values(file.state.labels).find((label) => label.scope === column.scope &&
+        researchConceptKey(researchLabelPath(file.state, label.id)) === researchConceptKey(column.name)),
         key = current?.id ?? `column:${column.index}`, groups = new Map<string, ResearchImportCatalog["entries"]>();
       design.labels.push({ key, name: current?.name ?? column.name, parentKey: current?.parentId,
         scope: column.scope, definition: column.prompt });
