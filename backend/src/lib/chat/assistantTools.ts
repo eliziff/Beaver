@@ -2008,8 +2008,8 @@ export function assistantTools<Context extends {
     return {
       ...result({ ...modelSearch, ...(Array.isArray(searched.results) ? {
         results: searched.results.map((value) => {
-          const { provider: _provider, identifier: _identifier, passage_start: _start,
-            passage_end: _end, ...hit } = objectRecord(value) ?? {};
+          const { provider: _provider, id: _id, passageStart: _start,
+            passageEnd: _end, ...hit } = objectRecord(value) ?? {};
           return Object.fromEntries(Object.entries(hit).filter(([, value]) =>
             value !== null && value !== undefined && value !== ""));
         }),

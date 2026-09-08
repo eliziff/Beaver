@@ -25,7 +25,7 @@ describe("legal evidence citation presentation", () => {
       const original = structuredClone(receipt);
       const [citation] = createLegalEvidenceCitationsFromEntries([{ receipt, source: document }]);
       const [discovered] = createLegalSourceSearchCitations([{ ...source,
-        identifier: source.id, source_type: source.kind }]);
+        id: source.id, kind: source.kind }]);
       expect(citation.identifier).toBe(discovered.identifier);
       expect(citation).toMatchObject({ provider, identifier: source.id,
         external_url: source.url, url: expect.stringContaining(`${source.url}#:~:text=`),
