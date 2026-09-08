@@ -195,13 +195,15 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
       </button>
       {scopeLabel && <span className="text-gray-500">{scopeLabel.scope === "highlight" ? "highlighted passages" : "and everything under it"}</span>}
     </div>
-    <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-gray-600">
-      <span className="text-gray-500">Capture</span>
+    <details className="text-xs text-gray-600">
+      <summary className="cursor-pointer text-gray-500">Capture options</summary>
+      <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
       {UNITS.map((option) => <button key={option.value} type="button" onClick={() => setUnit(option.value)}
         aria-pressed={unit === option.value} className={CHOICE}>{option.label}</button>)}
       {unit !== "match" && DIRECTIONS.map((option) => <button key={option.value} type="button" onClick={() => setDirection(option.value)}
         aria-pressed={direction === option.value} aria-label={`${option.label} the phrase`} className={CHOICE}>{option.label}</button>)}
-    </div>
+      </div>
+    </details>
     {!!result && <section aria-label="Matches" className="grid min-w-0 gap-2 border-t border-gray-200 pt-2">
       {!!result.matches.size && <div className="flex min-w-0 items-center gap-2">
         <span className="min-w-0 flex-1 truncate text-xs text-gray-600">{result.matches.size} match{result.matches.size === 1 ? "" : "es"}</span>
