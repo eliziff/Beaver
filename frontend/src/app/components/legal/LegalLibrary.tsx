@@ -51,7 +51,8 @@ const SOURCE_TABS: Array<[SourceTab, string]> = [
 ];
 
 const researchReference = (result: LegalSourceSearchResult): ResearchSourceReference => {
-    const { snippet, authors, speaker, passageStart, passageEnd, authority, ...reference } = result;
+    const { snippet: _snippet, authors: _authors, speaker: _speaker,
+        passageStart: _passageStart, passageEnd: _passageEnd, authority: _authority, ...reference } = result;
     return reference;
 };
 
