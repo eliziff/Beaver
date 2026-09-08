@@ -244,6 +244,9 @@ function decodeResearchFileState(value: unknown): ResearchFileState | null {
     })) return null;
   if (Object.values(sources).reduce<number>((sum, value) =>
     sum + Number(record(record(value)?.passages)?.count ?? 0), 0) > 100_000) return null;
+  Object.values(sources as Record<string, ResearchSource>).forEach((item) => {
+    item.labelIds = checkedLabels(state as ResearchFileState, item.labelIds, "source");
+  });
   return state as ResearchFileState;
 }
 
