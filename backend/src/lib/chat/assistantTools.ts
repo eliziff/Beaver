@@ -2124,8 +2124,7 @@ export function assistantTools<Context extends {
         },
       );
       const authorityLedger = await createDocxAuthorityLedger(
-        legalEvidenceState, markdown, rendered.bytes, evidence,
-        drafting.citationPlacement,
+        legalEvidenceState, rendered.bytes, evidence, rendered.appearances,
       );
       return persistGenerated(
         filename,

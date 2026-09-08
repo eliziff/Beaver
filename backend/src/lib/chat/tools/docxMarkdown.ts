@@ -63,6 +63,15 @@ export type DocxCitation = {
   }[];
 };
 
+export type DocxCitationAppearance = {
+  markerId: string;
+  occurrence: number;
+  kind: "body" | "footnote";
+  noteId?: number;
+  sources: { stableId: string; text: string; displayedForm: "full" | "supra" | "ibid";
+    parts: { text: string; url: string | null }[] }[];
+};
+
 export type RenderDocxMarkdownOptions = {
   title?: string;
   landscape?: boolean;
@@ -784,18 +793,6 @@ async function bindContentControls(
   return session.save();
 }
 
-export function docxMarkdownCitationMarkers(markdown: string) {
-  const document = parseDocxMarkdown(markdown);
-  const { body, footnotes } = documentMarkers(document);
-  const marker = ({ id, occurrence }: Extract<DocxMarkdownInline, { type: "citation" }>) =>
-    ({ id, occurrence });
-  return {
-    body: body.map(marker),
-    footnotes: footnotes.map(marker),
-    footnoteCount: document.footnotes.length,
-  };
-}
-
 function inlineText(children: DocxMarkdownInline[]) {
   return children
     .map((child) =>
@@ -851,6 +848,7 @@ export async function renderDocxMarkdown(
   markdown: string,
   options: RenderDocxMarkdownOptions = {},
   warnings: string[] = [],
+  appearances: DocxCitationAppearance[] = [],
 ): Promise<Buffer> {
   if (options.memoHeader && hasMemoHeader(markdown)) {
     throw new Error(
@@ -861,6 +859,7 @@ export async function renderDocxMarkdown(
     parseDocxMarkdown(markdown, warnings),
     options,
     warnings,
+    appearances,
   );
 }
 
@@ -868,6 +867,7 @@ export async function renderDocxMarkdownDocument(
   document: DocxMarkdownDocument,
   options: RenderDocxMarkdownOptions = {},
   warnings: string[] = [],
+  appearances: DocxCitationAppearance[] = [],
 ): Promise<Buffer> {
   const { controls, inlineControls, citationIds, body: bodyCitations } = documentMarkers(document);
   const citations = options.citations ?? {};
@@ -1066,17 +1066,21 @@ export async function renderDocxMarkdownDocument(
   );
   const citationPlacement = options.citationPlacement ?? "inline";
   const citationHyperlinks = options.citationHyperlinks !== false;
-  const citationNotes = new Map<string, { number: number; citation: DocxCitation }>();
+  const bodyAppearances: DocxCitationAppearance[] = [], authoredAppearances: DocxCitationAppearance[] = [];
+  const citationNotes = new Map<string, { number: number; citation: DocxCitation;
+    marker: { id: string; occurrence: number }; displayedForm: "full" | "supra" | "ibid" }>();
   if (citationPlacement === "footnotes") {
     const firstNoteBySource = new Map<string, number>();
     let previousSource: string | null = null;
     bodyCitations.filter(({ id }) => !unverifiedCitations.has(id)).forEach((citation, index) => {
       const number = document.footnotes.length + index + 1;
       let resolved = citations[citation.id];
+      let displayedForm: "full" | "supra" | "ibid" = "full";
       if (resolved.sources.length === 1) {
         const source = resolved.sources[0];
         const firstNote = firstNoteBySource.get(source.stableId);
-        const authority = previousSource === source.stableId
+        displayedForm = previousSource === source.stableId ? "ibid" : firstNote ? "supra" : "full";
+        const authority = displayedForm === "ibid"
           ? "Ibid"
           : firstNote
             ? `${source.shortAuthority}, supra note ${firstNote}`
@@ -1087,7 +1091,7 @@ export async function renderDocxMarkdownDocument(
       } else {
         previousSource = null;
       }
-      citationNotes.set(`${citation.id}:${citation.occurrence}`, { number, citation: resolved });
+      citationNotes.set(`${citation.id}:${citation.occurrence}`, { number, citation: resolved, marker: citation, displayedForm });
     });
   }
   const linkedRun = (text: string, url: string | null): ParagraphChild =>
@@ -1097,21 +1101,25 @@ export async function renderDocxMarkdownDocument(
           children: [new TextRun({ text, style: "Hyperlink" })],
         })
       : run(text);
-  const citationRuns = (citation: DocxCitation): ParagraphChild[] =>
-    citation.sources.flatMap((source, sourceIndex): ParagraphChild[] => [
-      ...(sourceIndex ? [run("; ")] : []),
-      linkedRun(source.authority, source.mainUrl),
-      ...source.pinpoints.flatMap(
-        (pinpoint, pinpointIndex): ParagraphChild[] => [
-          run(pinpointIndex ? ", " : pinpoint.separator ?? " at "),
-          linkedRun(pinpoint.text, pinpoint.url),
-        ],
-      ),
+  const citationRuns = (citation: DocxCitation, marker: { id: string; occurrence: number },
+    noteId?: number, displayedForm: "full" | "supra" | "ibid" = "full", authored = false): ParagraphChild[] => {
+    const sources = citation.sources.map((source) => {
+      const parts = [{ text: source.authority, url: source.mainUrl }, ...source.pinpoints.flatMap(
+        (pinpoint, index) => [{ text: index ? ", " : pinpoint.separator ?? " at ", url: null },
+          { text: pinpoint.text, url: pinpoint.url }])];
+      return { stableId: source.stableId, displayedForm, parts, text: parts.map(({ text }) => text).join("") };
+    });
+    (authored ? authoredAppearances : bodyAppearances).push({ markerId: marker.id,
+      occurrence: marker.occurrence, kind: noteId === undefined ? "body" : "footnote", noteId, sources });
+    return sources.flatMap((source, index) => [
+      ...(index ? [run("; ")] : []), ...source.parts.map(({ text, url }) => linkedRun(text, url)),
     ]);
+  };
   const inlines = (
     children: DocxMarkdownInline[],
     forceBold = false,
     placement = citationPlacement,
+    noteId?: number,
   ): ParagraphChild[] =>
     children.flatMap((child): ParagraphChild[] => {
       switch (child.type) {
@@ -1134,7 +1142,7 @@ export async function renderDocxMarkdownDocument(
             )?.number;
             return number ? [new FootnoteReferenceRun(number)] : [];
           }
-          return [run(" "), ...citationRuns(citations[child.id])];
+          return [run(" "), ...citationRuns(citations[child.id], child, noteId, "full", noteId !== undefined)];
         }
         case "control":
           return [inlineControl(child.tag, child.occurrence)];
@@ -1142,21 +1150,16 @@ export async function renderDocxMarkdownDocument(
     });
   const followingCitationParagraph = (children: DocxMarkdownInline[]) => {
     if (citationPlacement !== "after-paragraph") return null;
-    const ids = [
-      ...new Set(
-        children.flatMap((child) =>
-          child.type === "citation" && !unverifiedCitations.has(child.id)
-            ? [child.id]
-            : [],
-        ),
-      ),
-    ];
-    return ids.length
+    const markers = new Map<string, Extract<DocxMarkdownInline, { type: "citation" }>>();
+    for (const child of children)
+      if (child.type === "citation" && !unverifiedCitations.has(child.id) && !markers.has(child.id))
+        markers.set(child.id, child);
+    return markers.size
       ? new Paragraph({
           style: "CitationBlock",
-          children: ids.flatMap((id, index): ParagraphChild[] => [
+          children: [...markers.values()].flatMap((marker, index): ParagraphChild[] => [
             ...(index ? [run("; ")] : []),
-            ...citationRuns(citations[id]),
+            ...citationRuns(citations[marker.id], marker),
           ]),
         })
       : null;
@@ -1400,16 +1403,16 @@ export async function renderDocxMarkdownDocument(
         children: [
           new Paragraph({
             style: "FootnoteText",
-            children: inlines(footnote.children, false, "inline"),
+            children: inlines(footnote.children, false, "inline", index + 1),
           }),
         ],
       },
     ] as const),
-    ...[...citationNotes.values()].map(({ number, citation }) => [
+    ...[...citationNotes.values()].map(({ number, citation, marker, displayedForm }) => [
       String(number),
       {
         children: [
-          new Paragraph({ style: "FootnoteText", children: citationRuns(citation) }),
+          new Paragraph({ style: "FootnoteText", children: citationRuns(citation, marker, number, displayedForm) }),
         ],
       },
     ] as const),
@@ -1544,5 +1547,7 @@ export async function renderDocxMarkdownDocument(
       },
     ],
   });
-  return bindContentControls(await Packer.toBuffer(docx), controls, values);
+  const bytes = await bindContentControls(await Packer.toBuffer(docx), controls, values);
+  appearances.push(...bodyAppearances, ...authoredAppearances);
+  return bytes;
 }
