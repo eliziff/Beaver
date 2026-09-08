@@ -29,6 +29,8 @@ export function useReaderCapture(root: React.RefObject<HTMLElement | null>,
     const whole = block.current; block.current = null;
     if (!root.current || !text || !reference) return null;
     const span = whole ? readerBlockSpan(whole, text.slices) : readerSelectionSpan(root.current, window.getSelection(), text.slices);
+    if (!span && (whole || window.getSelection()?.isCollapsed === false))
+      throw new Error("Could not locate this selection in the source. Select the passage again.");
     return span ? { reference, revision: text.revision, ...span } : null;
   };
   const register = highlight?.registerReader;
