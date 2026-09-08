@@ -33,7 +33,10 @@ jobs:
       - run: npm ci --ignore-scripts --prefix backend
       - run: npm ci --ignore-scripts --prefix frontend
       - name: Install document conversion dependency
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pandoc
+        run: |
+          curl -fsSL https://github.com/jgm/pandoc/releases/download/3.10/pandoc-3.10-1-amd64.deb -o "$RUNNER_TEMP/pandoc.deb"
+          echo "d502599878eb29af3ae5f0cb5d559134df96534125d452c7a0674a5bad2c5ecf  $RUNNER_TEMP/pandoc.deb" | sha256sum --check
+          sudo dpkg -i "$RUNNER_TEMP/pandoc.deb"
       - run: cargo build --locked --release --manifest-path native/legal-structure-node/Cargo.toml
       - run: npx playwright install --with-deps chromium
 
