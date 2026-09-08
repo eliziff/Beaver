@@ -33,7 +33,7 @@ export function evidenceCitation(receipt: GroundedEvidence, ref: number): Citati
   const common = { ref, source_class: receipt.source_class, ...locator };
   if (receipt.provider === "library") return {
     ...common, kind: "document", document_id: receipt.stable_source_id,
-    version_id: receipt.version, filename: receipt.name ?? receipt.citation,
+    version_id: receipt.version ?? undefined, filename: receipt.name ?? receipt.citation,
     ...(kind === "document" && label !== "document" && { pinpoint: label }),
     quotes: [{ quote: receipt.span_text,
       ...(kind === "page" ? { page: label.replace(/^page\s*/iu, "") } : {}),
