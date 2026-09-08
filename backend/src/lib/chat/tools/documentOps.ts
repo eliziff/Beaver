@@ -1,64 +1,21 @@
 import {
-  normalizeDocxControlTag,
   renderDocxMarkdown,
   type RenderDocxMarkdownOptions,
   type DocxCitationAppearance,
 } from "./docxMarkdown";
-import { isJsonRecord } from "../../value";
-
-function docxFieldValues(raw: unknown) {
-  if (raw === undefined) return {};
-  if (!isJsonRecord(raw) || Object.keys(raw).length > 100) {
-    throw new Error("DOCX fields must be an object of at most 100 values.");
-  }
-  // Report every bad field in one error so the model can fix the whole call
-  // in a single retry instead of discovering problems one round-trip at a time.
-  const values: Record<string, string> = {};
-  const problems: string[] = [];
-  let totalLength = 0;
-  for (const [key, value] of Object.entries(raw)) {
-    const id = normalizeDocxControlTag(key);
-    if (!id) {
-      problems.push(
-        `field "${key}" must normalize to an identifier beginning with a letter.`,
-      );
-      continue;
-    }
-    if (Object.hasOwn(values, id)) {
-      problems.push(`field "${id}" is duplicated.`);
-      continue;
-    }
-    if (typeof value !== "string" || value.length > 20_000) {
-      problems.push(
-        `field "${id}" value must be a string of at most 20,000 characters.`,
-      );
-      continue;
-    }
-    totalLength += value.length;
-    values[id] = value;
-  }
-  if (totalLength > 200_000) {
-    problems.push("field values exceed 200,000 characters in total.");
-  }
-  if (problems.length) {
-    throw new Error(
-      `DOCX fields rejected: ${problems.join(" ")} Fix every listed field and retry the same call.`,
-    );
-  }
-  return values;
-}
 
 export async function renderMarkdownDocx(
   title: string,
   markdown: string,
   fields?: unknown,
-  options?: Omit<RenderDocxMarkdownOptions, "title" | "values">,
+  options?: Omit<RenderDocxMarkdownOptions, "title" | "values" | "strictFields">,
 ) {
   const appearances: DocxCitationAppearance[] = [];
   const bytes = await renderDocxMarkdown(markdown, {
     ...options,
     title,
-    values: docxFieldValues(fields),
+    values: fields,
+    strictFields: true,
   }, [], appearances);
   return { filename: safeGeneratedFilename(title, "docx"), bytes, appearances };
 }
