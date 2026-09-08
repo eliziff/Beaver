@@ -23,7 +23,7 @@ async function workflowAccess(scope: ApplicationScope, id: string,
   const row = await one(sql`SELECT w.*,
       CASE WHEN w.user_id=${scope.userId} THEN 1 ELSE 0 END is_owner,
       COALESCE((SELECT allow_edit FROM workflow_shares s WHERE s.workflow_id=w.id
-        AND s.shared_with_email=${email(scope)}),0) allow_edit
+        AND s.shared_with_email=${email(scope)}),FALSE) allow_edit
     FROM workflows w WHERE w.id=${id} AND (w.user_id=${scope.userId} OR EXISTS(
       SELECT 1 FROM workflow_shares s WHERE s.workflow_id=w.id
         AND s.shared_with_email=${email(scope)}))`, db);
