@@ -231,6 +231,30 @@ it("reviews categorical labels for selected rows in the shared proposal before a
   expect(Object.values(accepted.state.labels).some(({ name }) => name === "No")).toBe(false);
   expect(accepted.state.sources[ids.find((id) => id !== f.sourceId)!].labelIds).toEqual([]);
 });
+it.each([false, true])("writes a grounded cell-chat answer with its receipts and undoes it (linked=%s)", async (linked) => {
+  const f = await fixture(), snapshot = await f.sources.table(owner, f.file().document.id, {}),
+    review = linked ? await f.tables.create(owner, { research_file_id: f.file().document.id,
+      columns_config: snapshot.columns_config, arrangement: snapshot.scope_config!.arrangement }) : snapshot,
+    before = await f.tables.detail(owner, review.id), rowId = before.review.document_ids[0],
+    columnIndex = before.review.columns_config[0].index, messageId = await f.turn("Clarify this cell", "The saving clause does not cure the defect."),
+    input = { expected_version: before.review.updated_at, cell_answer: { rowId, columnIndex, chatId: f.chat.id, messageId } };
+  const changed = await f.tables.update(owner, review.id, input), after = await f.tables.detail(owner, review.id),
+    answer = after.cells.find((cell) => cell.document_id === rowId && cell.column_index === columnIndex)!;
+  expect(answer).toMatchObject({ status: "done", content: { summary: "The saving clause does not cure the defect.",
+    claims: [{ text: "The saving clause does not cure the defect.", evidence_ids: [f.receipts[1].evidence_id] }],
+    evidence: [f.receipts[1]], origin: { chatId: f.chat.id, messageId } } });
+  expect(after.cells.filter((cell) => cell.column_index !== columnIndex).map(({ content }) => content))
+    .toEqual(before.cells.filter((cell) => cell.column_index !== columnIndex).map(({ content }) => content));
+  expect(changed.updated_at).not.toBe(before.review.updated_at);
+  await expect(f.tables.update(owner, review.id, input)).rejects.toMatchObject({ status: 409 });
+  await expect(f.tables.update(owner, review.id, { ...input, expected_version: changed.updated_at,
+    cell_answer: { ...input.cell_answer, messageId: "unrecorded" } })).rejects.toMatchObject({ status: 400 });
+  const history = (await f.tables.history(owner, review.id, { offset: 0, limit: 1 })).items[0];
+  await f.tables.change(owner, review.id, { id: history.id, action: "undo", expected_version: changed.updated_at });
+  const restored = await f.tables.detail(owner, review.id);
+  expect(restored.cells.map(({ content }) => content)).toEqual(before.cells.map(({ content }) => content));
+  expect(restored.review.scope_config?.arrangement).toEqual(before.review.scope_config?.arrangement);
+});
 it("reads saved workspace passages through their handles without fetching the source and files a finding reversibly", async () => {
   const f = await fixture(), { runLocalAssistantTools } = await import("./__tests__/support/localAssistantTools"),
     { a2ajLegalSourceProvider } = await import("./legalSources/a2aj"),

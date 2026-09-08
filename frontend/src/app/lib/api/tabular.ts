@@ -97,6 +97,7 @@ export const getTabularReview = (reviewId: string) =>
 export const updateTabularReview = (
   reviewId: string,
   payload: {
+    cell_answer?: { rowId: string; columnIndex: number; chatId: string; messageId: string };
     title?: string;
     columns_config?: ColumnConfig[];
     document_ids?: string[];

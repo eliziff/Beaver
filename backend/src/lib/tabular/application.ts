@@ -1,5 +1,5 @@
 import type { ResearchFinding } from "../researchChat";
-import type { ResearchFindingReference } from "../researchFindingReference";
+import { researchFindingReferenceSchema, type ResearchFindingReference } from "../researchFindingReference";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { runChatTurn } from "../chat/turnEngine";
@@ -85,6 +85,8 @@ export const tabularDtos = {
     columns_config: columns, workflow_id: id.optional(), project_id: projectId.optional(),
   }).strict(),
   update: z.object({
+    cell_answer: researchFindingReferenceSchema.options[1].omit({ kind: true, reviewId: true })
+      .extend({ chatId: id, messageId: id }).strict().optional(),
     title: z.string().trim().max(300).nullable().optional(),
     document_ids: rowIds.optional(), columns_config: columns.optional(), ...researchInput,
     workflow_id: id.nullable().optional(),
@@ -558,6 +560,29 @@ export function createTabularApplication(
       const current = await store.detail(scope, reviewId);
       if (!current) return fail(404, "Review not found");
       await assertIdle(current.review);
+      if (input.cell_answer) {
+        if (!input.expected_version || Object.keys(input).some((key) => key !== "cell_answer" && key !== "expected_version"))
+          return fail(400, "Use a chat answer as one version-pinned cell update");
+        const { rowId, columnIndex, chatId, messageId } = input.cell_answer, config = current.review.scope_config,
+          subject = config?.subjects.find((subject) => tabularSubjectId(subject) === rowId),
+          column = current.review.columns_config.find(({ index }) => index === columnIndex);
+        if (!subject || !column || !config?.research_file_id) return fail(404, "Cell not found in this workspace");
+        const read = await (await dependencies.sources()).readFindings(scope, config.research_file_id),
+          finding = (await read.list({ chatId, messageIds: [messageId], sourceIds: [subject.sourceId], offset: 0, limit: 500 }))
+            .items.filter(({ origin, answer }) => !origin.subagentId && answer.claims.length).at(-1);
+        if (!finding) return fail(400, "This message has no grounded answer for this row");
+        const resolved = await read.arrange({ columns: [column], storedCells: [], strict: true, arrangement: {
+          rows: [{ id: "answer", sourceId: subject.sourceId, title: column.name,
+            ...(subject.evidence ? { evidenceIds: subject.evidence.map(({ evidence_id }) => evidence_id) } : {}) }],
+          cells: [{ rowId: "answer", columnIndex, items: [finding.reference] }] } });
+        const cell = resolved.cells[0];
+        if (!cell?.content?.evidence.length) return fail(400, "This answer has no supporting passages");
+        cell.content.origin = { chatId, messageId, items: [finding.reference] };
+        return value(await store.update(scope, reviewId, input.expected_version, { seedCells: [{ ...cell, document_id: rowId }],
+          ...(config.arrangement ? { scopeConfig: { ...config, arrangement: { ...config.arrangement,
+            cells: config.arrangement.cells.filter((item) => item.rowId !== rowId || item.columnIndex !== columnIndex) } } } : {}),
+          operation: { executor: "human", title: "Use chat answer" } }), "Review");
+      }
       if (!current.review.is_owner && (input.columns_config !== undefined || input.research_file_id !== undefined ||
           input.arrangement !== undefined))
         return fail(403, "Only the review owner can change columns");
