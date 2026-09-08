@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { SpreadsheetView } from "./SpreadsheetView";
+import { getDocumentCitationQuotes } from "@/app/lib/citations";
 
 const { getSpreadsheetProjection } = vi.hoisted(() => ({
   getSpreadsheetProjection: vi.fn(),
@@ -23,7 +24,8 @@ describe("SpreadsheetView", () => {
       <SpreadsheetView
         documentId="sheet-1"
         versionId="v1"
-        highlightCells={[{ sheet: "Authorities", cell: "B2" }]}
+        highlightCells={getDocumentCitationQuotes({ kind: "document", ref: 1, document_id: "sheet-1",
+          filename: "Authorities.xlsx", sheet: "Authorities", cells: "B2", quotes: [{ quote: "R v Example" }] })}
       />,
     );
 

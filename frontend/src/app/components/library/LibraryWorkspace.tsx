@@ -195,7 +195,7 @@ function LibraryCollection({
                     }
                 >
                 <DocTable
-                    initialDocument={active && documentId ? { id: documentId, versionId: params.get("version_id") } : undefined}
+                    initialDocument={active && documentId ? { id: documentId, versionId: params.get("version_id"), sheet: params.get("sheet"), cell: params.get("cell") } : undefined}
                     scopeKey={kind}
                     documents={directory.documents}
                     folders={directory.folders as DocTableFolder[]}
