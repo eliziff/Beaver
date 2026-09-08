@@ -540,7 +540,7 @@ function LegalSourceViewerContent({
             </h1>
             {compact && onOpenResearch && <button type="button" onClick={() => onOpenResearch()}
               className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-gray-900 px-2.5 text-xs font-medium text-white hover:bg-gray-700">
-              Workspace <PanelsTopLeft className="size-3.5" aria-hidden="true" />
+              Open in workspace <PanelsTopLeft className="size-3.5" aria-hidden="true" />
             </button>}
             <ReaderExpandButton expanded={readerExpansion.expanded} onChange={readerExpansion.onChange} />
             {!!actions.length && <nav aria-label="Source links" className="flex shrink-0 items-center gap-2">
