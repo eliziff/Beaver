@@ -26,49 +26,12 @@ function sourceDocumentFields(pages) {
     }
     return "";
   };
-  const partyNames = (role) => {
-    const matches = (line) => role === "Intervener"
-      ? /^interven(?:er|or)s?\s*:?$/iu.test(line) : sameRole(line, role);
-    const boundary = (line) => {
-      const text = line.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
-      return ROLES.some((candidate) => sameRole(text, candidate)) ||
-        /^(?:and|between|court\s+file|court\s+of|federal\s+court|registry|judicial\s+centre|application\s+under|motion\s+record|affidavit|status\s+on\s+appeal|document)\b/iu.test(text);
-    };
-    for (let index = 0; index < openingLines.length; index += 1) {
-      const divided = openingLines[index].match(/^(.{2,35}?)(?:\s*[:|]\s*|\s+[\u2013\u2014-]\s+)(.+)$/u);
-      if (divided && matches(divided[1])) return divided[2].split(/\s*;\s*/u)
-        .map(cleanParty).filter(Boolean);
-      if (!matches(openingLines[index])) continue;
-      if (/^STATUS ON APPEAL\s*:?$/iu.test(openingLines[index - 1] ?? "")) continue;
-      const collect = (step) => {
-        const names = [];
-        for (let cursor = index + step; cursor >= 0 && cursor < openingLines.length &&
-          Math.abs(cursor - index) <= 8; cursor += step) {
-          const line = openingLines[cursor];
-          if (boundary(line)) break;
-          if (step < 0) names.unshift(cleanParty(line)); else names.push(cleanParty(line));
-        }
-        return names.filter(Boolean);
-      };
-      const before = collect(-1), after = collect(1);
-      return /[:|]\s*$/u.test(openingLines[index]) ? after : before.length ? before : after;
-    }
-    return [];
-  };
 
-  const ap5Groups = extractAp5Groups(openingLines);
-  const genericGroups = ROLES.flatMap((role) => {
-    const parties = partyNames(role);
-    return parties.length ? [{ role, parties }] : [];
-  }).filter((group) => !ap5Groups.some((item) => sameRole(item.role, group.role)));
-  const partyGroups = mergeSourceGroups(ap5Groups, genericGroups);
-  const partyStyleId = sourcePartyStyle(partyGroups, !!ap5Groups.length);
   const recordIndex = coverLines.findIndex((line) => /^MOTION RECORD$/iu.test(line));
   const recordSubtitle = [];
   if (recordIndex >= 0) {
     for (const line of coverLines.slice(recordIndex + 1)) {
       if (fieldOrSectionLabel(line) || ROLES.some((role) => sameRole(line, role)) ||
-        partyGroups.some((group) => group.parties.some((party) => sameParty(line, party))) ||
         [...recordSubtitle, line].join(" ").length > 240) break;
       recordSubtitle.push(line);
     }
@@ -147,8 +110,6 @@ function sourceDocumentFields(pages) {
       : `${readable(dated[1])} ${Number(dated[2])}, ${dated[3]}`));
   return {
     cover,
-    ...(partyStyleId && { partyStyleId }),
-    ...(partyGroups.length && { partyGroups }),
     exhibitLabels: exhibits,
     ...(exhibits.length && { exhibitMentions }),
     ...(explicitExhibitLabel && { explicitExhibitLabel }),
@@ -159,68 +120,7 @@ function sourceDocumentFields(pages) {
   };
 }
 
-function extractAp5Groups(lines) {
-  const groups = [];
-  for (let index = 0; index < lines.length; index += 1) {
-    const divided = lines[index].match(/^(.{2,35}?)(?:\s*[:|]\s*)(.*)$/u);
-    const label = divided?.[1] ?? lines[index];
-    const combined = /(?:plaintiff\s*\/\s*applicant|defendant\s*\/\s*respondent)/iu.test(label);
-    const roleBelow = combined ? undefined : /plaintiff/iu.test(label) ? "Plaintiff"
-      : /defendant/iu.test(label) ? "Defendant"
-        : /applicant/iu.test(label) ? "Applicant"
-          : /interven(?:er|or)/iu.test(label) ? "Intervener" : undefined;
-    if (!combined && !/interven(?:er|or)/iu.test(label)) continue;
-    const parties = divided?.[2] ? [cleanParty(divided[2])] : [];
-    let status = roleBelow === "Intervener" ? "Intervener" : "";
-    for (let cursor = index + 1; cursor < lines.length && cursor - index <= 8; cursor += 1) {
-      const statusLine = lines[cursor].match(/^STATUS ON APPEAL\s*:?\s*(.*)$/iu);
-      if (statusLine) {
-        status = statusLine[1] || cleanText(lines[cursor + 1] ?? "");
-        break;
-      }
-      if (/^(?:PLAINTIFF\s*\/\s*APPLICANT|DEFENDANT\s*\/\s*RESPONDENT|INTERVEN(?:ER|OR)|DOCUMENT|DECISION\b)/iu.test(lines[cursor])) break;
-      parties.push(cleanParty(lines[cursor]));
-    }
-    const role = canonicalRole(status), names = parties.filter(Boolean);
-    if (role && names.length) groups.push({ role, ...(roleBelow && { roleBelow }), parties: names });
-  }
-  return groups;
-}
 
-function mergeSourceGroups(...sets) {
-  const groups = [];
-  for (const group of sets.flat()) {
-    const existing = groups.find((item) => sameRole(item.role, group.role) &&
-      sameRole(item.roleBelow ?? "", group.roleBelow ?? ""));
-    if (!existing) groups.push({ ...group, parties: [...group.parties] });
-    else for (const party of group.parties) {
-      if (!existing.parties.some((name) => sameParty(name, party))) existing.parties.push(party);
-    }
-  }
-  return groups;
-}
-
-function sourcePartyStyle(groups, ap5 = false) {
-  const roles = new Set(groups.map((group) => canonicalRole(group.role)));
-  const appellant = groups.find((group) => canonicalRole(group.role) === "Appellant");
-  if (appellant?.roleBelow) {
-    const underlying = canonicalRole(appellant.roleBelow);
-    if (underlying === "Plaintiff") return "action-plaintiff";
-    if (underlying === "Defendant") return "action-defendant";
-    if (underlying === "Applicant") return "application-applicant";
-    if (underlying === "Respondent") return "application-respondent";
-  }
-  if (ap5) return;
-  if (roles.has("Plaintiff") && roles.has("Defendant")) return "action";
-  if ((roles.has("Applicant") || roles.has("Petitioner")) && roles.has("Respondent")) {
-    return "application";
-  }
-  if (roles.has("Appellant") && roles.has("Respondent")) return "appeal";
-}
-
-const canonicalRole = (value) => ROLES.find((role) => sameRole(value, role));
-const sameParty = (left, right) => cleanText(left).toLocaleLowerCase() ===
-  cleanText(right).toLocaleLowerCase();
 const sameLabel = (left, right) => left.toLowerCase().replace(/[^a-z0-9]+/gu, "") ===
   right.toLowerCase().replace(/[^a-z0-9]+/gu, "");
 function sameRole(left, right) {
@@ -230,7 +130,6 @@ function sameRole(left, right) {
 const fieldOrSectionLabel = (value) => /^(?:affidavit (?:number|no)|deponent|court (?:of appeal )?file (?:number|no)|trial court file number|lower court file number|registry(?: office)?|judicial centre|appeal from the decision of|decision (?:maker(?: appealed from)?|date|filing date)|date (?:of decision|of judgment|decision filed|judgment filed|sworn)|judge appealed from|sworn at|affirmed (?:at|date)|record title|document(?: title)?|counsel|lawyer(?: or filing person| for .+)?|address(?: for service)?|(?:counsel |lawyer )?address|telephone|phone|counsel phone|fax|counsel fax|email|counsel email|name|status on appeal|hearing date\b.*|application under\b.*|registrar['\u2019]?s stamp)\s*:?$/iu.test(cleanText(value));
 const cleanText = (value = "") => value.replace(/\s+/gu, " ").trim()
   .replace(/^[,;:\s]+|[,;:\s]+$/gu, "");
-const cleanParty = (value = "") => cleanText(value);
 const readable = cleanText;
 const compact = (value) => Object.fromEntries(Object.entries(value).filter(([, item]) => item));
 

@@ -50,6 +50,7 @@ export function courtRecordDraft(
           ? { sourceExhibits: exhibits } : {}),
         ...(entry.sourceFields ? { sourceFields: entry.sourceFields } : {}),
         ...(entry.descriptionOnly ? { descriptionOnly: true } : {}),
+        ...(entry.ocrAttemptedPages ? { ocrAttemptedPages: entry.ocrAttemptedPages } : {}),
         ...(entry.nonTextPagesConfirmed ? { nonTextPagesConfirmed: true } : {}),
         lastSeen: entrySnapshot(entry),
       };
@@ -68,10 +69,12 @@ export async function restoreCourtRecordDraft(
   const currentById = new Map(current.map((entry) => [entry.id, entry]));
   const profile = COURT_PROFILE_BY_ID.get(draft.state.profileId);
   async function restore(saved: CourtRecordDraft["entries"][number]): Promise<RecordEntry> {
-    const { lastSeen, nonTextPagesConfirmed, ...values } = saved;
+    const { lastSeen, ocrAttemptedPages, nonTextPagesConfirmed, ...values } = saved;
+    // What recognition already found for these bytes; re-reading them finds nothing new.
+    const recognised = { ...(ocrAttemptedPages ? { ocrAttemptedPages } : {}),
+      ...(nonTextPagesConfirmed ? { nonTextPagesConfirmed } : {}) };
     if (saved.descriptionOnly) return {
       ...values,
-      ...(nonTextPagesConfirmed ? { nonTextPagesConfirmed } : {}),
       file: new File([], "description-only"),
       pageCount: 0,
       searchable: null,
@@ -85,8 +88,7 @@ export async function restoreCourtRecordDraft(
         JSON.stringify(existing.binding) === JSON.stringify(binding) &&
         JSON.stringify(entrySnapshot(existing)) === JSON.stringify(lastSeen)) {
       return applySourceEntryFields(await withOcr(host, { ...existing, ...values, lastSeen,
-        ...(nonTextPagesConfirmed ? { nonTextPagesConfirmed } : {}),
-        binding, inputStatus: "ready" }, progress), undefined, saved.sourceFields);
+        ...recognised, binding, inputStatus: "ready" }, progress), undefined, saved.sourceFields);
     }
     const destination = profile?.documentKinds.find(({ id }) => id === saved.kindId);
     const resolved = await host.resolveInput(binding, progress, destination);
@@ -99,7 +101,7 @@ export async function restoreCourtRecordDraft(
     return applySourceEntryFields(await withOcr(host, {
       ...values,
       ...prepared,
-      ...(!changed && nonTextPagesConfirmed ? { nonTextPagesConfirmed } : {}),
+      ...(changed ? {} : recognised),
       binding: resolved.input,
       inputStatus: resolved.status === "stale" ? "stale" : changed ? "changed" : "ready",
     }, progress), undefined, saved.sourceFields);
@@ -146,7 +148,9 @@ async function withOcr(
   try {
     return { ...entry, ...await host.runOcr(entry, progress) };
   } catch (error) {
-    return { ...entry,
+    // A read that could not finish is still a read; repeating it on every open
+    // would report the same failure and never reach the reader's confirmation.
+    return { ...entry, ocrAttemptedPages: [],
       inspectionError: error instanceof Error ? error.message : "OCR failed." };
   }
 }

@@ -3,7 +3,6 @@ import {
   ChevronDown,
   FilePlus2,
   Loader2,
-  ScanText,
   Trash2,
 } from "lucide-react";
 import { CourtRecordStepHeading, RequiredBadge } from "./CourtRecordStepHeading";
@@ -11,9 +10,10 @@ import { Button, buttonClassName } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { cn, formatBytes } from "@/app/lib/utils";
 import { acceptedSourceFormats, sourceAccept, sourceFormat } from "./formats";
-import { needsOcr } from "./host";
 import { rule70MaximumPages, sourceExhibitSlots } from "./types";
 import type { ComplianceFinding, CourtProfile, DocumentKind, RecordEntry } from "./types";
+
+export type OcrRun = { id: string; message?: string; controller: AbortController };
 
 type Props = {
   profile: CourtProfile;
@@ -30,7 +30,8 @@ type Props = {
   onAssign: (id: string, label?: string) => void;
   onAddExhibit?: () => void;
   onAssignKind: (id: string, kindId: string) => void;
-  onOcr?: (id: string) => void;
+  reading?: OcrRun;
+  onStopReading?: () => void;
   onRelink?: (id: string) => void;
   kindIds?: string[];
   heading?: string;
@@ -58,6 +59,8 @@ export function CourtRecordDocuments(props: Props) {
   const files = unassigned.filter(({ descriptionOnly }) => !descriptionOnly);
   const single = shown.length === 1 && !exhibitPool ? shown[0] : undefined;
   const singleFilled = single && props.entries.some((entry) => entry.kindId === single.id);
+  const singleReplaceable = single && !single.repeatable
+    ? props.entries.find((entry) => entry.kindId === single.id) : undefined;
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4" aria-labelledby={headingId}
       data-kind-id={single?.id} data-requirement={single?.requirement}
@@ -74,7 +77,8 @@ export function CourtRecordDocuments(props: Props) {
         <CourtRecordStepHeading id={headingId} step={props.step} required={single?.requirement === "required" && !singleFilled && !single.generated}>
           {single ? singleFilled ? single.label : `Add the ${single.label.toLowerCase()}` : props.heading ?? "Documents"}
         </CourtRecordStepHeading>
-        {single && !single.descriptionOnly && <DocumentActions {...props} kind={single} />}
+        {single && !single.descriptionOnly && <DocumentActions {...props} kind={single}
+          onDelete={singleReplaceable ? () => props.onRemove(singleReplaceable.id) : undefined} />}
       </div>
 
       {(!single || singleFilled || notes.length > 0 || files.length > 0) && <div className="mt-3 space-y-4">
@@ -128,7 +132,7 @@ function PendingFiles(props: Props & { pending: RecordEntry[] }) {
   </section>;
 }
 
-function DocumentSlot({ profile, kind, hideLabel, entries, busyEntryId, entryFindings, onFiles, onDescription, onPick, onLibrary, sourceLabel, onEntry, onRemove, onAssign, onAssignKind, onOcr, onRelink }: Props & { kind: DocumentKind; hideLabel?: boolean }) {
+function DocumentSlot({ profile, kind, hideLabel, entries, busyEntryId, entryFindings, onFiles, onDescription, onPick, onLibrary, sourceLabel, onEntry, onRemove, onAssign, onAssignKind, reading, onStopReading, onRelink }: Props & { kind: DocumentKind; hideLabel?: boolean }) {
   const matching = entries.filter((entry) => entry.kindId === kind.id);
   if (kind.descriptionOnly) {
     const first = matching[0];
@@ -187,7 +191,8 @@ function DocumentSlot({ profile, kind, hideLabel, entries, busyEntryId, entryFin
             <span className="ms-2 inline-flex"><RequiredBadge /></span>}
         </h3>
         <DocumentActions kind={kind} entries={entries} onFiles={onFiles} onPick={onPick}
-          onLibrary={onLibrary} sourceLabel={sourceLabel} onDescription={onDescription} />
+          onLibrary={onLibrary} sourceLabel={sourceLabel} onDescription={onDescription}
+          onDelete={canReplace ? () => onRemove(matching[0].id) : undefined} />
       </div>}
       {!!matching.length && (
         <div className={cn("divide-y divide-gray-100", !hideLabel && "mt-3")}>
@@ -200,11 +205,13 @@ function DocumentSlot({ profile, kind, hideLabel, entries, busyEntryId, entryFin
               findings={entryFindings.get(entry.id) ?? []}
               dateRequired={profile.technical.indexDate === "required" || !!kind.chronological}
               descriptionLabel={profile.outputMode === "separate-files" ? "Document name" : "Contents description"}
+              showRemove={!canReplace}
               onEntry={onEntry}
               onRemove={onRemove}
               onAssign={onAssign}
               onAssignKind={onAssignKind}
-              onOcr={onOcr}
+              reading={reading}
+              onStopReading={onStopReading}
               onRelink={onRelink}
             />
           ))}
@@ -214,13 +221,14 @@ function DocumentSlot({ profile, kind, hideLabel, entries, busyEntryId, entryFin
   );
 }
 
-function DocumentActions({ kind, entries, onDescription, ...sources }:
-  Pick<Props, "entries" | "onFiles" | "onPick" | "onLibrary" | "sourceLabel" | "onDescription"> & { kind: DocumentKind }) {
+function DocumentActions({ kind, entries, onDescription, onDelete, ...sources }:
+  Pick<Props, "entries" | "onFiles" | "onPick" | "onLibrary" | "sourceLabel" | "onDescription"> &
+  { kind: DocumentKind; onDelete?: () => void }) {
   const count = entries.filter((entry) => entry.kindId === kind.id).length;
   const canAdd = kind.repeatable || count === 0;
   const canReplace = !kind.repeatable && count === 1;
   if (!canAdd && !canReplace) return null;
-  return <div className="flex min-w-0 max-w-full flex-wrap gap-2">
+  return <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
     <AddFileControls {...sources} kind={kind} label={kind.generated
       ? canReplace ? "Replace signed PDF" : "Add signed PDF"
       : canReplace ? "Replace file" : "Add file"} />
@@ -228,6 +236,8 @@ function DocumentActions({ kind, entries, onDescription, ...sources }:
       className="h-9 border-gray-500/80 px-3" onClick={() => onDescription(kind.id)}>
       <FilePlus2 /> Add note
     </Button>}
+    {onDelete && <Button type="button" variant="ghost" size="icon-sm" title="Remove"
+      aria-label={`Remove the ${kind.label.toLowerCase()}`} onClick={onDelete}><Trash2 /></Button>}
   </div>;
 }
 
@@ -351,7 +361,44 @@ function AddFileControls({ kind, onFiles, onPick, onLibrary, sourceLabel = "Libr
   </>;
 }
 
-function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel, onEntry, onRemove, onAssign, onAssignKind, assignmentKinds, assignmentLabels, assignmentLabel, dragEnabled = false, onOcr, onRelink }: {
+const pageList = (pages: number[]) => pages.length === 1 ? `page ${pages[0]}`
+  : `pages ${pages.slice(0, -1).join(", ")} and ${pages[pages.length - 1]}`;
+
+/**
+ * What recognition did to this file, in one line. Scanned pages are read without being
+ * asked for, so the entry only ever needs the reader's attention when pages that were
+ * read still hold no text.
+ */
+function TextRecognition({ entry, reading, onStop, onConfirm }: {
+  entry: RecordEntry; reading?: OcrRun; onStop?: () => void; onConfirm: () => void;
+}) {
+  const textless = entry.textlessPages ?? [];
+  const line = "flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5 text-gray-600";
+  if (reading) return <p className={cn("mt-1.5", line)} role="status">
+    <Loader2 aria-hidden="true" className="size-3.5 motion-safe:animate-spin" />
+    {reading.message ?? "Reading the scanned pages"}
+    {onStop && <Button type="button" variant="ghost" className="h-6 px-1.5 text-xs underline"
+      onClick={onStop}>Stop</Button>}
+  </p>;
+  if (!entry.ocrAttemptedPages || entry.pageCount === null) return null;
+  const read = entry.pageCount - textless.length;
+  if (entry.nonTextPagesConfirmed) return <p className={cn("mt-1.5", line)}>
+    Text recognised on {read} of {entry.pageCount} pages; the rest are confirmed as
+    non-text material.
+  </p>;
+  if (!textless.length) return <p className={cn("mt-1.5", line)}>
+    Text recognised on all {entry.pageCount} pages.
+  </p>;
+  return <p className={cn("mt-1.5", line)}>
+    <span>Text recognised on {read} of {entry.pageCount} pages;{" "}
+      {textless.length > 6 ? `${textless.length} pages appear` : `${pageList(textless)} appear`}
+      {textless.length === 1 ? "s" : ""} to be photographs.</span>
+    <Button type="button" variant="outline" className="h-7 border-gray-500/80 px-2 text-xs"
+      onClick={onConfirm}><Check className="size-3.5" /> Confirm</Button>
+  </p>;
+}
+
+function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel, onEntry, onRemove, onAssign, onAssignKind, assignmentKinds, assignmentLabels, assignmentLabel, dragEnabled = false, showRemove = true, reading, onStopReading, onRelink }: {
   entry: RecordEntry;
   kind?: DocumentKind;
   busy: boolean;
@@ -366,7 +413,9 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
   assignmentLabels?: string[];
   assignmentLabel?: string;
   dragEnabled?: boolean;
-  onOcr?: Props["onOcr"];
+  showRemove?: boolean;
+  reading?: OcrRun;
+  onStopReading?: Props["onStopReading"];
   onRelink?: Props["onRelink"];
 }) {
   const isPdf = sourceFormat(entry.file) === "pdf";
@@ -374,8 +423,6 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
   const titleMissing = findings.some((finding) => finding.id === `description-${entry.id}`);
   const rule70Limit = kind && rule70MaximumPages(kind);
   const rule70Finding = findings.find((finding) => finding.id === `rule70-pages-${entry.id}`);
-  const confirmNonText = !!entry.ocrAttemptedPages?.length &&
-    (entry.textlessPageCount ?? 0) > 0 && !entry.nonTextPagesConfirmed;
   return (
     <article
       className="min-w-0 py-3"
@@ -408,10 +455,10 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
             {entry.pageCount !== null && <><span aria-hidden="true">·</span><span>{entry.pageCount} page{entry.pageCount === 1 ? "" : "s"}</span></>}
           </div>}
         </div>
-        <Button id={`entry-${entry.id}-remove`} type="button" variant="ghost" size="icon-sm"
+        {showRemove && <Button id={`entry-${entry.id}-remove`} type="button" variant="ghost" size="icon-sm"
           onClick={() => onRemove(entry.id)} aria-label={`Remove ${entry.descriptionOnly ? entry.title || kind?.label : entry.file.name}`} title="Remove">
           <Trash2 />
-        </Button>
+        </Button>}
       </div>
       <div className="mt-3 flex flex-col gap-2 empty:hidden sm:flex-row sm:items-end">
         {assignmentKinds && (assignmentKinds.length === 1
@@ -471,22 +518,13 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
             className="h-9 border-red-500 text-red-800" disabled={busy}
             onClick={() => onRelink(entry.id)}><FilePlus2 /> {entry.missingReason === "permission" ? "Allow file access" : "Relink file"}</Button>
         )}
-        {entry.inputStatus !== "missing" && isPdf && needsOcr(entry) && onOcr && !confirmNonText && (
-          <Button id={`entry-${entry.id}-ocr`} type="button" variant="outline"
-            className="h-9 border-gray-500/80" disabled={busy} onClick={() => onOcr(entry.id)}>
-            {busy ? <Loader2 className="motion-safe:animate-spin" /> : <ScanText />}
-            {busy ? "Running OCR" : "OCR text pages"}
-          </Button>
-        )}
-        {confirmNonText && <Button type="button" variant="outline"
-          className="h-9 border-gray-500/80" onClick={() => onEntry(entry.id,
-            { nonTextPagesConfirmed: true })}>
-          <Check /> Confirm non-text pages
-        </Button>}
       </div>
+      {isPdf && entry.inputStatus !== "missing" && <TextRecognition entry={entry}
+        reading={reading?.id === entry.id ? reading : undefined} onStop={onStopReading}
+        onConfirm={() => onEntry(entry.id, { nonTextPagesConfirmed: true })} />}
       {!busy && !!findings.length && (
         <div className="mt-2 space-y-1" role="status">
-          {findings.map((finding) => (
+          {findings.filter(({ id }) => !id.startsWith("searchability-")).map((finding) => (
             <p id={`finding-${finding.id}`} key={finding.id} className={cn("text-xs leading-5", finding.level === "blocker" ? "text-red-700" : "text-amber-800")}>{finding.detail}</p>
           ))}
         </div>
