@@ -68,13 +68,13 @@ export function initialAuthorityAnnotations(input: {
       add('highlight', `${label} · Quote`, quote.text, quoteFragments);
     }
   }
-  // Page-only and scanned/ambiguous pinpoints have a real page anchor, not invented text geometry.
+  // Only verified passage pages and explicit page citations can anchor a page margin.
   if (input.style === 'margin' || input.style === 'sidelined') {
     const allExcluded = !!input.geometry?.targets.length && !targets.length;
     if (!allExcluded) for (const [index, { width, height }] of input.pages.entries()) {
       const pageNumber = index + 1;
       const hasMark = marks.some(mark => mark.kind === 'margin' && mark.fragments.some(f => f.pageNumber === pageNumber));
-      const hasTarget = targets.some(target => target.pages.some(page => page.pageNumber === pageNumber));
+      const hasTarget = targets.some(target => target.status === 'found' && target.pages.some(page => page.pageNumber === pageNumber));
       if (!hasMark && (input.citedPages.has(index) || hasTarget)) add('margin', 'Cited page', '', [{ pageNumber,
         rects: [[6.75 / width, 18 / height, 9.25 / width, 1 - 18 / height]] }]);
     }
