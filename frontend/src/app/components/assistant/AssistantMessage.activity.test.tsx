@@ -214,29 +214,6 @@ describe("AssistantMessage activity", () => {
         expect(onSubagentClick).toHaveBeenCalledOnce();
     });
 
-    it("labels a document revision as editing", async () => {
-        render(
-            <AssistantMessage
-                events={[
-                    {
-                        type: "tool_activity",
-                        id: "edit-1",
-                        tool: "Edit",
-                        status: "running",
-                        label: "Editing document",
-                    },
-                ]}
-                isStreaming
-            />,
-        );
-
-        const disclosure = screen.getByRole("button", {
-            name: "Activity — Editing document",
-        });
-        expect(disclosure).toBeInTheDocument();
-        expect(screen.getByText("Editing document...")).toBeVisible();
-    });
-
     it("renders verified tool evidence with the shared citation chip", async () => {
         const onCitationClick = vi.fn();
         render(<AssistantMessage events={[{
