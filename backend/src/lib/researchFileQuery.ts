@@ -49,9 +49,12 @@ const passageSpan = (action: Extract<PublicResearchFileAction, { type: "passage"
       end = Math.min(Math.max(action.end, 0), text.length);
     return end > start ? { start, end } : null;
   }
-  const needle = (action.quote ?? "").replace(onlyLetters, ""),
-    at = needle ? text.replace(onlyLetters, "").indexOf(needle) : -1;
-  return at < 0 ? null : { start: lettersAt(text, at), end: lettersAt(text, at + needle.length - 1) + 1 };
+  const quote = action.quote ?? "", exact = quote ? text.indexOf(quote) : -1;
+  if (exact >= 0) return text.indexOf(quote, exact + 1) < 0 ? { start: exact, end: exact + quote.length } : null;
+  const needle = quote.replace(onlyLetters, ""), normalized = text.replace(onlyLetters, ""),
+    at = needle ? normalized.indexOf(needle) : -1;
+  return at < 0 || normalized.indexOf(needle, at + 1) >= 0 ? null
+    : { start: lettersAt(text, at), end: lettersAt(text, at + needle.length - 1) + 1 };
 };
 const MAX_CAPTURE_CHARS = 1_000_000, MAX_CAPTURE_CANDIDATES = 50_000;
 
@@ -106,7 +109,7 @@ async function openResearchSource(reference: ResearchSourceReference,
     return { sourceSha256: projection.sourceSha256, passages: [{ documentArtifact, evidence: (span) =>
       createLibraryEvidence({ documentId: reference.id, versionId: reference.versionId,
         filename: reference.title ?? reference.id, sourceSha256: native.documentRevision(documentArtifact),
-        start: span.start, end: span.end, spanText: span.text, blockId: span.blockId, locator: span.locator }) }] };
+        start: span.start, end: span.end, spanText: span.text, locator: span.locator }) }] };
   }
   const read = await (options.reader ?? legalSourceOperations.readPassage)({ source: reference, signal: options.signal });
   if (read.status !== "found") return { failure: read.status, passages: [] };

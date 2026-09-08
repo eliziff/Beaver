@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { CourtRecordDocuments } from "./CourtRecordDocuments";
 import { COURT_PROFILE_BY_ID } from "./profiles";

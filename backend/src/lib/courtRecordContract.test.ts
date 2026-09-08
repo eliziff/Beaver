@@ -10,9 +10,7 @@ const state = () => ({
     lastSeen: { name: "affidavit.pdf", size: 20, modified: 1, sha256: sourceSha256 },
     sourceExhibits: { sourceSha256, labels: ["A", "B", "C"] },
     sourceFields: { cover: { courtFileNumber: "2401-1", deponent: "JANE McDONALD" },
-      partyStyleId: "action", partyGroups: [
-        { role: "Plaintiff", parties: ["IBM CANADA LTD."] },
-      ], exhibitLabels: ["A", "C"], exhibitMentions: { A: ["attached as Exhibit A"] },
+      exhibitLabels: ["A", "C"], exhibitMentions: { A: ["attached as Exhibit A"] },
       entryTitle: "Affidavit of JANE McDONALD", entryDate: "September 4, 2026" },
   }, {
     id: "exhibit-a", kindId: "exhibit", title: "Contract", exhibitLabel: "A",
@@ -76,11 +74,15 @@ describe("Court Record draft contract", () => {
     delete wrongSlot.entries[0].sourceExhibits;
     const malformedSource = state();
     malformedSource.entries[0].sourceFields.cover.unknown = "invented";
+    const guessedParties = state();
+    Object.assign(guessedParties.entries[0].sourceFields, {
+      partyStyleId: "action", partyGroups: [{ role: "Plaintiff", parties: ["IBM CANADA LTD."] }],
+    });
     const extraKey = state() as ReturnType<typeof state> & { extra?: boolean };
     extraKey.extra = true;
 
     for (const invalid of [skipped, stale, localMismatch, invented, duplicate, wrongSlot,
-      malformedSource,
+      malformedSource, guessedParties,
       extraKey]) expect(decodeCourtRecordDraftState(invalid)).toBeNull();
   });
 

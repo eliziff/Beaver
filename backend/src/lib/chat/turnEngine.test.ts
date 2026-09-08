@@ -62,7 +62,7 @@ it("starts from saved receipts and restores only cited sources for final pinpoin
   }), provider: "a2aj" as const, source_sha256: structureNative().documentRevision(native) },
     document = { docType: "cases" as const, dataset: "SCC", citation: receipt.citation,
       alternateCitation: null, name: receipt.name, date: null, url: receipt.external_url!,
-      verifiedPdf: null, language: "en" as const, upstreamLicense: null, native },
+      verifiedPdf: null, language: "en" as const, upstreamLicense: null, native, searchNative: native, searchText: text },
     load = vi.spyOn(a2ajLegalSourceProvider, "document").mockResolvedValue(document);
   stream.mockImplementationOnce(async ({ runTools }) => {
     expect(load).not.toHaveBeenCalled();
