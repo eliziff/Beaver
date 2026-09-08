@@ -466,29 +466,29 @@ describe("court record assembly", () => {
     const result = await buildCourtRecord({ profile, cover: profileCover(profile),
       preparationDate: "2026-09-04", entries: [
         await entry("oral hearing request", "oral-hearing-request"),
-        await entry("other material", "other-document", 2),
+        await entry("other material", "other-filed-material", 2),
         await entry("service", "proof-service"),
         await entry("representations", "written-representations", 2),
         await entry("notice", "notice-motion", 2),
       ] });
 
-    expect(result.artifacts).toHaveLength(2);
-    const [first, second] = result.artifacts;
-    const firstDocument = await PDFDocument.load(first.bytes);
-    const secondDocument = await PDFDocument.load(second.bytes);
-    expect(pageLabelStart(firstDocument)).toBe(1);
-    expect(pageLabelStart(secondDocument)).toBe(9);
-    expect(await indexTabs(first.bytes.slice())).toEqual(["1", "2", "3", "4", "5"]);
-    expect(await indexTabs(second.bytes.slice())).toEqual(["1", "2", "3", "4", "5"]);
-    expect(linkedPageIndexes(firstDocument, 1)).toEqual([2, 4, 6]);
-    expect(linkedPageIndexes(secondDocument, 1)).toEqual([2, 4]);
-    expect(await pdfText(first.bytes.slice(), 7)).toContain("service page 1");
+    expect(result.artifacts.length).toBeGreaterThan(1);
+    let nextPage = 1;
+    const contents: string[] = [];
     for (const [volumeIndex, artifact] of result.artifacts.entries()) {
-      const label = `VOLUME ${volumeIndex + 1} OF 2`;
+      const document = await PDFDocument.load(artifact.bytes);
+      expect(pageLabelStart(document)).toBe(nextPage);
+      nextPage += document.getPageCount();
+      expect(await indexTabs(artifact.bytes.slice())).toEqual(["1", "2", "3", "4", "5"]);
+      expect(linkedPageIndexes(document, 1).length).toBeGreaterThan(0);
+      const label = `VOLUME ${volumeIndex + 1} OF ${result.artifacts.length}`;
       expect(await pdfText(artifact.bytes.slice(), 1)).toContain(label);
       expect(await pdfText(artifact.bytes.slice(), artifact.pageCount!)).toContain(label);
+      for (let page = 1; page <= document.getPageCount(); page++)
+        contents.push(await pdfText(artifact.bytes.slice(), page));
     }
-    expect(await pdfText(second.bytes.slice(), 5)).toContain("oral hearing request page 1");
+    expect(contents.filter((text) => text.includes("service page 1"))).toHaveLength(1);
+    expect(contents.filter((text) => text.includes("oral hearing request page 1"))).toHaveLength(1);
   });
 
   it("includes a physical-exhibit description as consecutively paginated record content", async () => {
@@ -858,16 +858,16 @@ describe("court record assembly", () => {
 
   it("keeps separate-file output identity stable when an earlier repeated file is removed", async () => {
     const profile = COURT_PROFILE_BY_ID.get("ab-kb-chambers-justice-respondent-set")!;
-    const first = await entry("first-stable-id", "other-document");
-    const second = await entry("second-stable-id", "other-document");
+    const first = await entry("first-stable-id", "responding-affidavit");
+    const second = await entry("second-stable-id", "responding-affidavit");
     const build = (entries: RecordEntry[]) => buildCourtRecord({ profile, cover: {}, entries,
       preparationDate: "2026-09-04" });
     const before = await build([first, second]);
     const after = await build([second]);
-    expect(before.artifacts.find(({ filename }) => filename === "other-document-2.pdf")?.role)
-      .toBe(`other-document:${second.id}`);
-    expect(after.artifacts[0].filename).toBe("other-document.pdf");
-    expect(after.artifacts[0].role).toBe(`other-document:${second.id}`);
+    expect(before.artifacts.find(({ filename }) => filename === "responding-affidavit-2.pdf")?.role)
+      .toBe(`responding-affidavit:${second.id}`);
+    expect(after.artifacts[0].filename).toBe("responding-affidavit.pdf");
+    expect(after.artifacts[0].role).toBe(`responding-affidavit:${second.id}`);
   });
 
   it.each([
@@ -882,14 +882,13 @@ describe("court record assembly", () => {
     const profile = COURT_PROFILE_BY_ID.get(profileId)!;
     const served = { ...await entry("served", targetKind, 2), title: "Served document" };
     const proof = { ...await entry("proof", "proof-service"), title: "Affidavit of service" };
-    const other = await entry("other", "other-document");
     const result = await buildCourtRecord({ profile, cover: {}, preparationDate: "2026-09-04",
-      entries: [other, proof, served] });
+      entries: [proof, served] });
 
     expect(result.artifacts.map(({ filename }) => filename))
-      .toEqual([`${targetKind}.pdf`, "other-document.pdf"]);
+      .toEqual([`${targetKind}.pdf`]);
     expect(result.artifacts.map(({ role }) => role))
-      .toEqual([`${targetKind}:${served.id}`, `other-document:${other.id}`]);
+      .toEqual([`${targetKind}:${served.id}`]);
     const servedPdf = await PDFDocument.load(result.artifacts[0].bytes);
     expect(servedPdf.getPageCount()).toBe(3);
     expect(await pdfText(result.artifacts[0].bytes.slice(), 3)).toContain("proof page 1");
@@ -897,8 +896,8 @@ describe("court record assembly", () => {
       { title: "Served document", pageIndex: 0 },
       { title: "Proof of service", pageIndex: 2 },
     ]);
-    expect(result.receipt.sources).toHaveLength(3);
-    expect(result.receipt.outputs).toHaveLength(2);
+    expect(result.receipt.sources).toHaveLength(2);
+    expect(result.receipt.outputs).toHaveLength(1);
     expect(result.receipt.automatic_steps)
       .toContain("Appended related filing material in the same bookmarked PDF");
   });

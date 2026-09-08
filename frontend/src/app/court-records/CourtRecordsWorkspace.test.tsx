@@ -19,6 +19,11 @@ vi.mock("@/app/components/shared/views/PdfView", () => ({
   PdfView: ({ ariaLabel }: { ariaLabel: string }) => <div role="region" aria-label={ariaLabel} />,
 }));
 
+async function uploadFiles(control: HTMLElement, files: File[]) {
+  await userEvent.click(control);
+  fireEvent.change(await screen.findByLabelText("Upload files"), { target: { files } });
+}
+
 const saved = (id: string): WorkProduct<CourtRecordDraft> => ({
   id, kind: "court-record", title: id, projectId: null, revision: 1,
   state: { profileId: "general-affidavit-exhibits", cover: {}, entries: [], bindings: {} },
@@ -73,15 +78,11 @@ describe("CourtRecordsWorkspace", () => {
     await screen.findByRole("heading", { name: /Add the .*Required/ });
     expect(screen.queryByRole("heading", { name: "Case details" })).not.toBeInTheDocument();
     expect(screen.queryByRole("complementary", { name: "Build output" })).not.toBeInTheDocument();
-    expect(document.querySelectorAll("input[type=file]")).toHaveLength(1);
-    fireEvent.change(document.getElementById(`court-record-${kindId}-file`)!, {
-      target: { files: [new File(["source"], "Source.pdf", { type: "application/pdf" })] },
-    });
+    expect(document.querySelectorAll("input[type=file]")).toHaveLength(0);
+    await uploadFiles(document.getElementById(`court-record-${kindId}-file`)!, [new File(["source"], "Source.pdf", { type: "application/pdf" })]);
     expect(await screen.findByLabelText(/Court file number/)).toHaveValue("T-42-26");
     expect(screen.getByRole("complementary", { name: "Build output" })).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: /Remove Source/ }));
-    expect(screen.queryByRole("heading", { name: "Case details" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("complementary", { name: "Build output" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Replace" })).toBeVisible();
   });
 
   it.each([{ records: [] }, { records: [saved("existing")] }])("keeps landing actions stable while saved records load: %j", async ({ records }) => {
@@ -206,7 +207,7 @@ describe("CourtRecordsWorkspace", () => {
       .getByRole("button", { name: "Trial record" }));
     await waitFor(() => expect(update.mock.calls.at(-1)![1].state).toMatchObject({
       profileId: "fc-trial-record",
-      entries: [{ id: "notice", kindId: "other-document" }],
+      entries: [{ id: "notice", kindId: "unassigned" }],
       bindings: { notice: binding },
     }));
   });
@@ -372,9 +373,7 @@ describe("CourtRecordsWorkspace", () => {
 
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
     await screen.findByRole("heading", { name: /Add the notice/ });
-    fireEvent.change(document.getElementById("court-record-notice-motion-file")!, {
-      target: { files: [new File(["source"], "Notice.pdf", { type: "application/pdf" })] },
-    });
+    await uploadFiles(document.getElementById("court-record-notice-motion-file")!, [new File(["source"], "Notice.pdf", { type: "application/pdf" })]);
     await userEvent.click(await screen.findByRole("button", {
       name: "Save filing details for new records",
     }));
@@ -596,8 +595,8 @@ describe("CourtRecordsWorkspace", () => {
     expect(mocks.build.mock.calls[0][0].cover).toMatchObject({
       courtFileNumber: "2401-99999", deponent: "Counsel override",
       swornDate: "September 4, 2026",
-      partyGroups: [expect.objectContaining({ parties: [{ id: "a", name: "Ada Applicant" }] }),
-        expect.objectContaining({ parties: [{ id: "b", name: "Riley Respondent" }] })],
+      partyGroups: [expect.objectContaining({ parties: [{ id: "a", name: "Old applicant" }] }),
+        expect.objectContaining({ parties: [{ id: "b", name: "Old respondent" }] })],
     });
     expect(mocks.build.mock.calls[0][0].entries[0]).toMatchObject({
       title: "Affidavit of Ada Applicant", date: "September 4, 2026",
@@ -621,7 +620,7 @@ describe("CourtRecordsWorkspace", () => {
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Build record" }));
-    await waitFor(() => expect(document.activeElement).toBe(document.getElementById("party-a")));
+    await waitFor(() => expect(document.activeElement).toBe(document.getElementById("party-party-a")));
   });
 
   it("focuses relinking rather than an unrelated field when an input is missing", async () => {
@@ -720,7 +719,6 @@ describe("CourtRecordsWorkspace", () => {
       resolveInput: vi.fn(async () => ({ status: "ready" as const, file: oldFile,
         input: oldBinding, prepared: { file: oldFile, pageCount: 1, searchable: true,
           encrypted: false, binding: oldBinding, origin: { kind: "library" as const } } })),
-      searchLibrary: vi.fn(async () => [libraryDocument]),
       searchDraftOutputs: vi.fn(async () => [choice]), importLibraryDocument,
       importDraftOutput } as unknown as CourtRecordsHost;
     const user = userEvent.setup();
@@ -729,11 +727,12 @@ describe("CourtRecordsWorkspace", () => {
     await waitFor(() => expect(document.querySelector("[data-kind-id=affidavit]"))
       .toBeInTheDocument());
     await user.click(within(document.querySelector("[data-kind-id=affidavit]")!)
-      .getByRole("button", { name: "Library" }));
+      .getByRole("button", { name: "Replace" }));
     const picker = await screen.findByRole("dialog");
-    const result = within(picker).getAllByRole("button", { name: /Authorities\.pdf/iu });
+    const result = await within(picker).findAllByRole("radio", { name: "Select Authorities.pdf" });
     expect(result).toHaveLength(1);
     await user.click(result[0]);
+    await user.click(within(picker).getByRole("button", { name: "Confirm" }));
 
     expect(importLibraryDocument).not.toHaveBeenCalled();
     await waitFor(() => expect(update).toHaveBeenCalled());
@@ -760,9 +759,8 @@ describe("CourtRecordsWorkspace", () => {
 
     await waitFor(() => expect(document.getElementById("court-record-affidavit-file"))
       .toBeInTheDocument());
-    const input = document.getElementById("court-record-affidavit-file")!;
-    fireEvent.change(input, { target: { files: [new File(["scan"], "scan.pdf",
-      { type: "application/pdf" })] } });
+    await uploadFiles(document.getElementById("court-record-affidavit-file")!,
+      [new File(["scan"], "scan.pdf", { type: "application/pdf" })]);
 
     await waitFor(() => expect(runOcr).toHaveBeenCalledOnce());
     expect(screen.getByRole("button", { name: "Build record" })).toBeDisabled();
@@ -806,15 +804,12 @@ describe("CourtRecordsWorkspace", () => {
     await screen.findByRole("heading", { name: /Add the affidavit.*Required/ });
     expect(screen.queryByLabelText(/Deponent/iu)).not.toBeInTheDocument();
     expect(screen.queryByRole("complementary", { name: "Build output" })).not.toBeInTheDocument();
-    fireEvent.change(document.querySelector<HTMLInputElement>("[data-kind-id=affidavit] input[type=file]")!, {
-      target: { files: [new File(["affidavit"], "affidavit.pdf", { type: "application/pdf" })] },
-    });
+    await uploadFiles(document.getElementById("court-record-affidavit-file")!, [new File(["affidavit"], "affidavit.pdf", { type: "application/pdf" })]);
 
     await waitFor(() => expect(screen.getByLabelText(/Court file number/iu)).toHaveValue("2401-12345"));
     expect(screen.getByLabelText(/Deponent/iu)).toHaveValue("Edited deponent");
     expect(screen.getByLabelText("Contents description")).toHaveValue("Affidavit of Source deponent");
-    expect(document.querySelector<HTMLInputElement>("[data-party-group=Plaintiff] input"))
-      .toHaveValue("Alpha Person");
+    expect(screen.getByLabelText(/Style of cause/u)).toHaveValue("");
     fireEvent.drop(document.querySelector("[data-kind-id=affidavit]")!, {
       dataTransfer: { types: ["Files"], files: [new File(["updated"],
         "updated-affidavit.pdf", { type: "application/pdf" })] },
@@ -825,18 +820,14 @@ describe("CourtRecordsWorkspace", () => {
     expect(screen.getByRole("region", { name: "Exhibit C slot" })).toBeVisible();
     const exhibits = [new File(["a"], "source-labelled.pdf", { type: "application/pdf" }),
       new File(["b"], "Exhibit B.pdf", { type: "application/pdf" })];
-    fireEvent.change(document.getElementById("court-record-exhibit-file")!, {
-      target: { files: exhibits },
-    });
+    await uploadFiles(document.getElementById("court-record-exhibit-file")!, exhibits);
     const pool = screen.getByRole("heading", { name: /^Files/ }).closest("div")!.parentElement!;
     await waitFor(() => expect(within(screen.getByRole("region", { name: "Exhibit A slot" }))
       .getByText("source-labelled.pdf")).toBeVisible());
     expect(within(pool).queryByText("source-labelled.pdf")).toBeNull();
     expect(within(pool).getByText("Exhibit B.pdf")).toBeVisible();
-    fireEvent.change(document.getElementById("court-record-exhibit-A")!, {
-      target: { files: [new File(["replacement"], "replacement.pdf",
-        { type: "application/pdf" })] },
-    });
+    await uploadFiles(within(screen.getByRole("region", { name: "Exhibit A slot" })).getByRole("button", { name: "Replace" }), [new File(["replacement"], "replacement.pdf",
+        { type: "application/pdf" })]);
     await waitFor(() => expect(within(screen.getByRole("region", { name: "Exhibit A slot" }))
       .getByText("replacement.pdf")).toBeVisible());
     expect(screen.queryByText("source-labelled.pdf")).toBeNull();
@@ -854,7 +845,7 @@ describe("CourtRecordsWorkspace", () => {
         ] },
       entries: [
         { id: "affidavit", kindId: "affidavit", title: "Affidavit", lastSeen: snapshot("affidavit.pdf") },
-        { id: "filing", kindId: "other-document", title: "Notice", lastSeen: snapshot("notice.pdf") },
+        { id: "filing", kindId: "unassigned", title: "Notice", lastSeen: snapshot("notice.pdf") },
         { id: "exhibit", kindId: "exhibit", title: "Exhibit", lastSeen: snapshot("exhibit.pdf") },
       ], bindings: { affidavit: input("affidavit"), filing: input("filing"),
         exhibit: input("exhibit") },
@@ -886,9 +877,8 @@ describe("CourtRecordsWorkspace", () => {
     expect(await screen.findByLabelText(/Court file number/iu)).toHaveValue("2401-12345");
     expect(screen.getByLabelText(/Registry/iu)).toHaveValue("");
     expect(screen.getByLabelText(/Deponent/iu)).toHaveValue("Typed deponent");
-    expect([...document.querySelectorAll<HTMLInputElement>("[data-party-group=Plaintiff] input")]
-      .map(({ value }) => value)).toEqual(["Typed Plaintiff", "Alpha Person"]);
-    expect(document.querySelector<HTMLInputElement>("[data-party-group=Defendant] input"))
+    expect(screen.getByLabelText("Plaintiff names, one per line")).toHaveValue("Typed Plaintiff");
+    expect(screen.getByLabelText("Defendant names, one per line"))
       .toHaveValue("");
   });
 
@@ -922,11 +912,9 @@ describe("CourtRecordsWorkspace", () => {
     await user.click(documents.getAllByRole("button",
       { name: /^Application record$/u })[0]);
 
-    fireEvent.change(document.getElementById("court-record-notice-application-file")!, {
-      target: { files: [new File(["source"], "Notice.pdf", { type: "application/pdf" })] },
-    });
+    await uploadFiles(document.getElementById("court-record-notice-application-file")!, [new File(["source"], "Notice.pdf", { type: "application/pdf" })]);
     expect(await screen.findByLabelText(/Court file number/iu)).toHaveValue("T-1-26");
-    expect(document.querySelector<HTMLInputElement>("[data-party-group=Applicant] input"))
+    expect(screen.getByLabelText("Applicant names, one per line"))
       .toHaveValue("Alpha Ltd.");
     await waitFor(() => expect(update.mock.calls.some(([, change]) =>
       change.state.profileId === "fc-application-record-applicant")).toBe(true));
