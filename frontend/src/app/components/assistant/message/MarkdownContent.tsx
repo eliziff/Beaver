@@ -5,7 +5,9 @@ import {
     type ComponentProps,
     type ElementType,
     type RefObject,
+    type ReactNode,
 } from "react";
+import { MoreActionsMenu } from "../../shared/MoreActionsMenu";
 import ReactMarkdown from "react-markdown";
 import type { Root, Element, Text } from "hast";
 import { searchHighlightRanges } from "@/app/lib/searchHighlight";
@@ -88,52 +90,33 @@ export function CitationPill({
     title,
     truncateStyleOfCause = false,
     sourceOnly = false,
+    children,
 }: {
     citation: Citation;
-    onClick?: (citation: Citation) => void;
+    onClick?: (citation: Citation, action?: "workspace") => void;
     className?: string;
     title?: string;
     truncateStyleOfCause?: boolean;
     sourceOnly?: boolean;
+    children?: ReactNode;
 }) {
     const label = citationPillParts(citation, sourceOnly);
     const content = label.styleOfCause ? (
         <><em className={truncateStyleOfCause ? "min-w-0 max-w-56 truncate" : undefined}>{label.styleOfCause}</em><span className={truncateStyleOfCause ? "shrink-0 whitespace-nowrap" : undefined}>{label.rest}</span></>
     ) : label.rest;
     const pillClassName = `${LEGAL_CITATION_PILL} ${truncateStyleOfCause && label.styleOfCause ? "!inline-flex !whitespace-nowrap" : ""} ${className}`;
-    const href = safeAssistantUrl(
-        ("url" in citation ? citation.url : null) ?? citation.external_url,
-        { relative: false },
-    );
-    // Where the surface can show the passage, the chip opens the reader at it.
-    if (href && !onClick) return (
-        <a href={href} target="_blank" rel="noopener noreferrer"
-            data-citation-ref={citation.ref}
-            className={pillClassName}
-            title={title ?? citationTooltip(citation)}>
-            {content}
-        </a>
-    );
-    if (onClick) return (
-        <button
-            type="button"
-            onClick={() => onClick(citation)}
-            data-citation-ref={citation.ref}
-            className={`${pillClassName} text-left`}
-            title={title ?? citationTooltip(citation)}
-        >
-            {content}
-        </button>
-    );
-    return (
-        <span
-            data-citation-ref={citation.ref}
-            className={pillClassName}
-            title={title ?? citationTooltip(citation)}
-        >
-            {content}
-        </span>
-    );
+    const href = citation.kind === "document" ? `/library?${new URLSearchParams({ document_id: citation.document_id,
+        ...(citation.version_id ? { version_id: citation.version_id } : {}) })}`
+        : citation.kind === "tabular" ? `/tabular-reviews/${encodeURIComponent(citation.review_id)}`
+        : safeAssistantUrl(citation.external_url ?? citation.url, { relative: false });
+    return <span className="group/citation inline-flex max-w-full items-baseline" onClick={(event) => event.stopPropagation()}>
+        <a href={href ?? undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!href || undefined}
+            data-citation-ref={citation.ref} className={pillClassName} title={title ?? citationTooltip(citation)}>{children ?? content}</a>
+        {onClick && <MoreActionsMenu label="Citation actions"
+            triggerClassName="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-500 opacity-0 hover:bg-gray-100 group-hover/citation:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100"
+            items={[{ label: "Open in reader", onSelect: () => onClick(citation) },
+                { label: "Open in workspace", onSelect: () => onClick(citation, "workspace") }]} />}
+    </span>;
 }
 
 export function CitationPillMarkdown({
@@ -144,7 +127,7 @@ export function CitationPillMarkdown({
 }: {
     text: string;
     citations?: Citation[];
-    onCitationClick?: (citation: Citation) => void;
+    onCitationClick?: (citation: Citation, action?: "workspace") => void;
     truncateStyleOfCause?: boolean;
 }) {
     return (
