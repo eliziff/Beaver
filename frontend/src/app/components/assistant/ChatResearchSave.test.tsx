@@ -37,8 +37,6 @@ it("organizes the chat into a proposed label set before landing in the workspace
       existing: false, rows: [{ id: "source", title: "Case A", support: ["The test is stated at para 21."] }] }],
     unassigned: [] };
   api.previewWorkspaceLabels.mockResolvedValue(plan); api.applyWorkspaceLabels.mockResolvedValue(file); setup(); open("Workspace");
-  fireEvent.change(await screen.findByLabelText("What should these be sorted into?"), { target: { value: "By the test applied" } });
-  await act("Propose labels");
   expect(await screen.findByText("States the test")).toBeVisible(); expect(api.applyWorkspaceLabels).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Apply labels" }));
   await waitFor(() => expect(screen.getByLabelText("Location")).toHaveTextContent("/sources?research_file=workspace"));
@@ -48,8 +46,8 @@ it("organizes the chat into a proposed label set before landing in the workspace
 it("previews grounded Chat work and creates a table only after acceptance", async () => {
   api.openWorkspaceTable.mockResolvedValue({ id: "table" });
   setup(); open("Table");
-  expect(await screen.findByText(/Grounded prior work/u)).toBeVisible(); expect(api.openWorkspaceTable).not.toHaveBeenCalled();
-  expect(api.previewWorkspaceTable).toHaveBeenCalledWith("workspace", { chatId: "chat" });
+  expect(await screen.findByDisplayValue("Finding")).toBeVisible(); expect(api.openWorkspaceTable).not.toHaveBeenCalled();
+  expect(api.previewWorkspaceTable).toHaveBeenCalledWith("workspace", expect.objectContaining({ chatId: "chat", model: "model" }));
   await act("Create table");
   await waitFor(() => expect(screen.getByLabelText("Location")).toHaveTextContent("/tabular-reviews/table"));
   expect(api.openWorkspaceTable).toHaveBeenCalledWith("workspace", { chatId: "chat", messageIds: undefined,

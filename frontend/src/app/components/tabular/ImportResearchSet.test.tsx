@@ -11,17 +11,17 @@ const preview = { fingerprint: "a".repeat(64), design: { title: "Research", colu
   stats: [{ index: 0, reused: 1, kinds: ["answer"], evidence: 1 }], samples: [{ rowId: "source", columnIndex: 0, text: "Grounded prior work", kinds: ["answer"] }] };
 const create = () => screen.getByRole("button", { name: "Create table" });
 async function ready() { await waitFor(() => expect(create()).toBeEnabled()); return create(); }
-const ask = (text: string) => { fireEvent.change(screen.getByLabelText("Ask for extra columns"), { target: { value: text } });
-  fireEvent.click(screen.getByRole("button", { name: "Propose columns" })); };
+const ask = (text: string) => { fireEvent.change(screen.getByLabelText("Change the proposal"), { target: { value: text } });
+  fireEvent.click(screen.getByRole("button", { name: "Propose again" })); };
 
 beforeEach(() => { vi.clearAllMocks(); api.getResearchFile.mockResolvedValue(file); api.previewWorkspaceTable.mockResolvedValue(preview); });
 it("preserves exact scope in previews and submits only the accepted reference mapping", async () => {
   const onOpen = vi.fn(), selection = { target: "passages" as const, members: [{ sourceId: "source", evidenceIds: ["e_saved"] }] };
   api.openWorkspaceTable.mockResolvedValue({ id: "review" });
   render(<ImportResearchSet open onClose={vi.fn()} onOpen={onOpen} fileId="workspace" selection={selection} />);
-  await ready(); expect(screen.getByText(/Grounded prior work/u)).toBeVisible();
+  await ready(); expect(screen.getByDisplayValue("Finding")).toBeVisible();
   expect(api.openWorkspaceTable).not.toHaveBeenCalled();
-  expect(api.previewWorkspaceTable).toHaveBeenCalledWith("workspace", { selection });
+  expect(api.previewWorkspaceTable).toHaveBeenCalledWith("workspace", { selection, model: "model" });
   fireEvent.click(create());
   await waitFor(() => expect(onOpen).toHaveBeenCalledWith("/tabular-reviews/review"));
   expect(api.openWorkspaceTable).toHaveBeenCalledWith("workspace", { selection,
@@ -32,7 +32,7 @@ it("keeps a failed suggestion from replacing the last usable preview", async () 
   await ready(); api.previewWorkspaceTable.mockRejectedValueOnce(new Error("No model configured"));
   ask("The reasons given");
   expect(await screen.findByRole("alert")).toHaveTextContent("No model configured");
-  expect(await screen.findByText(/Grounded prior work/u)).toBeVisible();
+  expect(await screen.findByDisplayValue("Finding")).toBeVisible();
   expect(api.openWorkspaceTable).not.toHaveBeenCalled();
 });
 it("shows proposed columns and marks genuinely unanswered questions", async () => {
@@ -42,6 +42,7 @@ it("shows proposed columns and marks genuinely unanswered questions", async () =
     stats: [...preview.stats, { index: 2, reused: 0, kinds: [], evidence: 0 }] });
   ask("Costs too");
   await screen.findByDisplayValue("Costs");
+  expect(api.previewWorkspaceTable).toHaveBeenLastCalledWith("workspace", { model: "model", request: "Costs too" });
   expect(await screen.findByText("Extracted for every source")).toBeVisible();
 });
 it("shows a stale-preview rejection without navigating away or silently reinterpreting it", async () => {
@@ -49,7 +50,7 @@ it("shows a stale-preview rejection without navigating away or silently reinterp
   render(<ImportResearchSet open onClose={vi.fn()} onOpen={onOpen} fileId="workspace" />);
   await ready(); fireEvent.click(create());
   expect(await screen.findByRole("alert")).toHaveTextContent("Research changed");
-  expect(onOpen).not.toHaveBeenCalled(); expect(screen.getByText(/Grounded prior work/u)).toBeVisible();
+  expect(onOpen).not.toHaveBeenCalled(); expect(screen.getByDisplayValue("Finding")).toBeVisible();
 });
 it("ignores an older preview response after the selected research changes", async () => {
   let finish!: (value: unknown) => void;
@@ -57,6 +58,6 @@ it("ignores an older preview response after the selected research changes", asyn
   const props = { open: true, onClose: vi.fn(), onOpen: vi.fn() };
   const view = render(<ImportResearchSet {...props} fileId="old" />);
   view.rerender(<ImportResearchSet {...props} fileId="new" />); await ready();
-  await act(async () => finish({ ...preview, samples: [{ ...preview.samples[0], text: "Obsolete work" }] }));
-  expect(screen.queryByText("Obsolete work")).not.toBeInTheDocument();
+  await act(async () => finish({ ...preview, design: { ...preview.design, title: "Obsolete work" } }));
+  expect(screen.queryByDisplayValue("Obsolete work")).not.toBeInTheDocument();
 });
