@@ -5,7 +5,7 @@ import { ANNOTATION_SCHEMA, decodeAnnotationSet, quadBounds, rectToPdfQuad, vali
 
 type PdfModule = typeof import('pdf-lib');
 type PdfDocument = import('pdf-lib').PDFDocument;
-export type AnnotationPreparation = { annotations: PdfAnnotationSet; unresolved: Array<{ label: string; excerpt: string }> };
+export type AnnotationPreparation = { annotations: PdfAnnotationSet; pageMarked: string[] };
 type Style = 'none' | 'margin' | 'paragraph' | 'text' | 'sidelined';
 const labelFor = (kind: string, value: string) => `${kind === 'paragraph' ? 'para' : kind === 'section' ? 's' : 'p'} ${value}`;
 const normal = (rect: number[], width: number, height: number): AnnotationRect =>
@@ -18,7 +18,7 @@ export function initialAuthorityAnnotations(input: {
   pages: Array<{ width: number; height: number }>; citedPages: Set<number>;
   exclusions?: ReadonlySet<string>;
 }): AnnotationPreparation {
-  const marks: PdfAnnotation[] = [], unresolved: AnnotationPreparation['unresolved'] = [];
+  const marks: PdfAnnotation[] = [], unlocated: string[] = [];
   const add = (kind: PdfAnnotation['kind'], label: string, excerpt: string, fragments: AnnotationFragment[]) => {
     fragments = fragments.map(f => ({ ...f, rects: f.rects.filter(validRect) })).filter(f => f.rects.length);
     if (!fragments.length) return;
@@ -41,7 +41,7 @@ export function initialAuthorityAnnotations(input: {
       const rects = page.passageRects.map(r => normal(r, page.width, page.height)).filter(validRect);
       return rects.length ? [{ pageNumber: page.pageNumber, rects }] : [];
     }) : [];
-    if (!found || !fragments.length && target.locatorKind !== 'page') unresolved.push({ label, excerpt: '' });
+    if (!fragments.length && target.locatorKind !== 'page') unlocated.push(label);
     if (input.style === 'paragraph') add('highlight', label, excerpt, fragments);
     if (input.style === 'margin' || input.style === 'sidelined') {
       add('margin', label, excerpt, fragments.map(fragment => {
@@ -59,30 +59,27 @@ export function initialAuthorityAnnotations(input: {
           return page && input.pages[page.pageNumber - 1] ? [{ pageNumber: page.pageNumber,
             rects: fragment.rects.map(rect => normal(rect, page.width, page.height)).filter(validRect) }] : [];
         });
-      if (quote.status !== 'found' || !quoteFragments.length || quoteFragments.some(f => !f.rects.length)) {
-        // A missing paragraph is one issue, not one additional failure per quote.
-        if (found && fragments.length || target.locatorKind === 'page')
-          unresolved.push({ label: `${label} · Quote`, excerpt: quote.text.slice(0, 2_000) });
-        continue;
-      }
+      if (quote.status !== 'found' || !quoteFragments.length || quoteFragments.some(f => !f.rects.length)) continue;
       add('highlight', `${label} · Quote`, quote.text, quoteFragments);
     }
   }
-  // Only verified passage pages and explicit page citations can anchor a page margin.
-  if (input.style === 'margin' || input.style === 'sidelined') {
+  // Verified passage pages and explicit page citations anchor a page margin, and so
+  // does a passage whose own extent could not be located: the page carries the mark.
+  const marginal = input.style === 'margin' || input.style === 'sidelined';
+  if (marginal || unlocated.length) {
     const allExcluded = !!input.geometry?.targets.length && !targets.length;
     if (!allExcluded) for (const [index, { width, height }] of input.pages.entries()) {
       const pageNumber = index + 1;
       const hasMark = marks.some(mark => mark.kind === 'margin' && mark.fragments.some(f => f.pageNumber === pageNumber));
-      const hasTarget = targets.some(target => target.status === 'found' && target.pages.some(page => page.pageNumber === pageNumber));
+      const hasTarget = marginal && targets.some(target => target.status === 'found' && target.pages.some(page => page.pageNumber === pageNumber));
       if (!hasMark && (input.citedPages.has(index) || hasTarget)) add('margin', 'Cited page', '', [{ pageNumber,
         rects: [[6.75 / width, 18 / height, 9.25 / width, 1 - 18 / height]] }]);
     }
   }
+  const marked = marks.some(mark => mark.label === 'Cited page');
   return { annotations: decodeAnnotationSet({ schemaVersion: ANNOTATION_SCHEMA,
     sourceSha256: input.sourceSha256, marks }),
-    unresolved: unresolved.filter((item, index) => unresolved.findIndex(other =>
-      other.label === item.label && other.excerpt === item.excerpt) === index) };
+    pageMarked: marked ? [...new Set(unlocated)] : [] };
 }
 
 /** Standard editable annotations, with printable appearance streams; never alter page contents. */

@@ -551,7 +551,7 @@ describe("standalone Authorities sources", () => {
     expect(relinkSource).toHaveBeenCalledWith("draft-1", "source", 1);
     await waitFor(() => expect(screen.queryByRole("button", { name: "Allow file access" }))
       .not.toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "Done" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
@@ -597,19 +597,19 @@ describe("standalone Authorities sources", () => {
     };
     render(<MemoryRouter><AuthoritiesWorkspace host={host}
       route={{ draftId: "draft-1", replaceDraft: vi.fn() }} /></MemoryRouter>);
-    await screen.findByRole("button", { name: "Done" });
+    await screen.findByRole("button", { name: "Next" });
     expect(screen.queryByRole("list", { name: "Authority tab slots" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Build outputs" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(host.prepareSources).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("list", { name: "Authority tab slots" })).not.toBeInTheDocument();
     resolveSources(saved);
     await screen.findByRole("list", { name: "Authority tab slots" });
     expect(screen.queryByRole("heading", { name: "Build outputs" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Done" }));
-    await screen.findByRole("button", { name: "Done — build book" });
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByRole("button", { name: "Next" });
     expect(screen.queryByRole("heading", { name: "Build outputs" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Done — build book" }));
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByRole("heading", { name: "Build outputs" });
   });
 
