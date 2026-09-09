@@ -3,16 +3,19 @@ import { ChevronDown, CircleStop, LoaderCircle } from "lucide-react";
 import type { AssistantReaderRun } from "@/app/lib/assistantSession";
 import { ActivityDisclosure, ActivityRow, collapseActivities } from "./message/EventBlocks";
 import { CitationPillMarkdown } from "./message/MarkdownContent";
+import type { Citation } from "@/app/lib/citations";
 
 export type ReadSubagentPanel = AssistantReaderRun;
 export function ReadSubagentDock({
     panels,
     idPrefix = "reading-agent",
     embedded = false,
+    onCitationClick,
 }: {
     panels: ReadSubagentPanel[];
     idPrefix?: string;
     embedded?: boolean;
+    onCitationClick?: (citation: Citation) => void;
 }) {
     const [collapsed, setCollapsed] = useState(false);
     const bodyRef = useRef<HTMLDivElement>(null);
@@ -77,7 +80,7 @@ export function ReadSubagentDock({
                                             isStreaming={panel.status === "running"}
                                             label={panel.activities.at(-1)?.label ?? "Reading sources"}
                                         >
-                                            {collapseActivities(panel.activities).map((activity) => <ActivityRow key={activity.id} activity={activity} />)}
+                                            {collapseActivities(panel.activities).map((activity) => <ActivityRow key={activity.id} activity={activity} onCitationClick={onCitationClick} />)}
                                             {panel.status === "running" && !panel.activities.some(({ status }) => status === "running") && <div role="status" className="flex items-center gap-2 text-xs text-gray-600"><LoaderCircle className="size-3 motion-safe:animate-spin" aria-hidden="true" />Thinking</div>}
                                         </ActivityDisclosure>
                                     </div>
@@ -90,7 +93,7 @@ export function ReadSubagentDock({
                                     <details open className="mt-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs leading-5 text-gray-700">
                                         <summary className="cursor-pointer font-medium text-gray-600">Final output{panel.citations.length ? ` · ${panel.citations.length} verified ${panel.citations.length === 1 ? "source" : "sources"}` : ""}</summary>
                                         <div aria-label="Agent final output" className="prose prose-sm mt-2 max-w-none break-words text-xs leading-5 text-gray-700 [overflow-wrap:anywhere] [&_h1]:text-xs [&_h2]:text-xs [&_h3]:text-xs [&_h4]:text-xs [&_li]:text-xs [&_p]:text-xs">
-                                            <CitationPillMarkdown text={panel.output} citations={panel.citations} />
+                                            <CitationPillMarkdown text={panel.output} citations={panel.citations} onCitationClick={onCitationClick} />
                                         </div>
                                     </details>
                                 ) : panel.status === "error" ? <p className="ms-5 mt-2 rounded-xl rounded-br-sm bg-red-50 px-3 py-2.5 text-xs leading-5 text-red-700">{panel.error ?? "Reading agent failed."}</p> : null}
