@@ -25,9 +25,9 @@ import { downloadBlob } from "@/app/lib/download";
 import { cn, errorMessage, formatDateTime } from "@/app/lib/utils";
 import type { WorkProductFocus, WorkProductMetadata,
   WorkProductRefresh } from "@/app/lib/workProducts";
-import { Sources, SourceRecognition } from "./AuthoritySources";
+import { Sources } from "./AuthoritySources";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
-import { useScannedSources, useSourceOcr } from "./sourceOcr";
+import { useScannedSources, useSourceOcr, type SourceOcrStatus } from "./sourceOcr";
 import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesHost,
   AuthoritiesLibraryPdfTarget,
   AuthoritiesSourceIssue } from "./host";
@@ -137,7 +137,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     quote?: string; bytes?: Uint8Array; error?: string }>();
   const ocr = useSourceOcr(host, draft?.id);
   const [stubWarning, setStubWarning] = useState(false);
-  const [recognitionOpen, setRecognitionOpen] = useState(false);
+  const [recognitionAsked, setRecognitionAsked] = useState(false), [recognizePages, setRecognizePages] = useState("");
   const scanRequest = useRef<AbortController | null>(null);
   const previewRequest = useRef(0);
   const [sourceIssueState, setSourceIssueState] = useState<{
@@ -162,7 +162,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     if (navigate) {
       reviewRequest.current?.abort(); reviewRequest.current = null; setReview(undefined);
       setFindingId(""); setViewedStep(undefined);
-      scanRequest.current?.abort(); ocr.reset(); setRecognitionOpen(false);
+      scanRequest.current?.abort(); ocr.reset(); setRecognitionAsked(false);
       previewRequest.current += 1; setSourcePreview(undefined);
       setSelectedId(orderedOccurrences(next)[0]?.id ?? "");
       setPendingAttachment(undefined); setError(""); setMessage("");
@@ -260,13 +260,20 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const draftId = draft?.id;
   const sourceKey = sourceIssueKey(draft);
   const scannedSources = useScannedSources(host, draft, `${draftId}:${sourceKey}`,
-    (file) => { if (ocr.tracked[file.role]?.sourceSha256 !== file.sourceSha256) void ocr.begin([file]); });
-  // Eager recognition runs as soon as scans are known; the step only shows what is still unrecognized.
+    (file) => { if (ocr.tracked[file.role]?.sourceSha256 !== file.sourceSha256 &&
+      draftRef.current?.state.settings.scannedPdfPolicy !== "page-margin") void ocr.begin([file]); });
+  // Recognition starts as soon as a scan is found, unless the book keeps the scan as
+  // images; the step then only lists what is still unrecognized.
   const unrecognized = scannedSources.files.filter((file) => ocr.tracked[file.role]?.state !== "done");
-  const recognitionSettled = !scannedSources.checking && !scannedSources.error && !unrecognized.length;
+  const reading = Object.values(ocr.tracked).some(({ state }) => state === "running" || state === "paused");
+  const recognitionSettled = !reading && !scannedSources.checking && !scannedSources.error && !unrecognized.length;
+  // The step only interrupts once a scan is known to be unrecognized, so a book whose
+  // sources are all readable moves on without a dialog the reader never needed. Once it
+  // is up it stays up while a scan is being read, through the checks that follow.
+  const recognitionOpen = recognitionAsked && (reading || !scannedSources.checking && !!unrecognized.length);
   useEffect(() => {
-    if (recognitionOpen && recognitionSettled) { setRecognitionOpen(false); advance("highlights"); }
-  }, [recognitionOpen, recognitionSettled]);
+    if (recognitionAsked && recognitionSettled) { setRecognitionAsked(false); advance("highlights"); }
+  }, [recognitionAsked, recognitionSettled]);
   const sameDraft = draft && sourceIssueState.draftId === draft.id;
   const sourceIssues = sameDraft && sourceIssueState.sourceKey === sourceKey
     ? sourceIssueState.issues : {};
@@ -589,6 +596,13 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     const role = source?.kind === "attached" ? source.sources[0]?.bindingRole : undefined;
     if (role) openSource(role, (finding.found ?? finding.cited).text);
   }
+  const recognizeScope = draft?.state.settings.scannedPdfPolicy ?? "page-margin";
+  /** One recognition for every scan the step still lists; the step closes when they finish. */
+  function recognizeSources() {
+    const chosen = recognizePages.trim()
+      ? [...new Set(recognizePages.split(",").map(Number))].sort((first, second) => first - second) : undefined;
+    void ocr.begin(unrecognized, chosen);
+  }
   function findSources() {
     const current = draftRef.current;
     if (!current) return;
@@ -627,7 +641,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     sourceLabel={sourceLabel} onBuild={() => build()} onCancel={() => buildRequest.current?.abort()}
     onDownload={download} />;
   const highlightPanel = draft && stage === "highlights" && <AuthoritiesHighlights product={draft} tabs={authorityTabs}
-    busy={busy} host={host} ocr={ocr} onSaved={adopt} />;
+    busy={busy} host={host} onSaved={adopt} />;
   const quotationReview = draft && findingId && discrepancies.length > 0 &&
     <QuotationReview items={currentReview?.items} currentId={findingId}
       busy={busy || !currentReview} error={error || currentReview?.error} onSelect={setFindingId}
@@ -705,7 +719,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                         {sourceAction(importedIssue, "source")}</Button>}
                       <StepProgress label={stepOperation} error={stepError} />
                       <Button disabled={busy} className="h-9" onClick={() => reached === "citations" ? findSources() : viewStep("sources")}>
-                        Done<ChevronRight /></Button>
+                        Next<ChevronRight /></Button>
                     </>}>
                     {operation !== "Finding source PDFs" && <CitationReview occurrences={occurrences} units={draft.state.units}
                       selected={selected} authorities={authorities} discrepancies={discrepancies}
@@ -720,16 +734,15 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                       onFiles: (files: File[]) => appendManual(files.map((file) => ({ file }))),
                     } : {})} />
                     <div className="mt-3 flex items-center justify-end gap-3">
-                      <StepProgress label={stepOperation} error={stepError} />
-                      <Button disabled={busy} onClick={() => {
-                        if (recognitionSettled) advance("highlights");
-                        else setRecognitionOpen(true);
-                      }}>Done<ChevronRight /></Button>
+                      <StepProgress label={stepOperation || (recognitionAsked ? scannedSources.progress : "")} error={stepError} />
+                      <Button disabled={busy || recognitionAsked} onClick={() => {
+                        if (recognitionSettled) advance("highlights"); else setRecognitionAsked(true);
+                      }}>Next<ChevronRight /></Button>
                     </div></>}
                   {highlightPanel}
                   {stage === "highlights" && <div className="mt-3 flex justify-end">
                     <Button disabled={busy} onClick={() => advance("build")}>
-                      Done — build book<ChevronRight /></Button></div>}
+                      Next<ChevronRight /></Button></div>}
                   {buildPanel}
                   </div>
                 </>}
@@ -777,16 +790,35 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
           act({ type: "edit-authority", authorityId: editingAuthority.id, kind, citation, name });
           setEditingAuthority(undefined);
         }} />}
-      <Modal open={recognitionOpen} onClose={() => setRecognitionOpen(false)} size="xl"
-        breadcrumbs={["Recognize text"]} footerStatus={scannedSources.progress}
-        primaryAction={{ label: "Continue to Highlights", disabled: busy || scannedSources.checking || !!scannedSources.error,
-          onClick: () => { setRecognitionOpen(false); advance("highlights"); } }}>
-        {scannedSources.error && <p role="alert">{scannedSources.error}</p>}
-        {unrecognized.map(file => <section key={file.role} className="border-b border-gray-200 py-3">
-          <h3 className="text-sm font-medium">{file.name}</h3>
-          {host.sourceOcr ? <SourceRecognition file={file} ocr={ocr} />
-            : <p className="text-sm">Text recognition is available when building the book.</p>}
-        </section>)}
+      <Modal open={recognitionOpen} onClose={() => setRecognitionAsked(false)} size="xl"
+        breadcrumbs={["Recognize text"]} fit footerStatus={scannedSources.progress}
+        secondaryAction={{ label: "Recognize", disabled: busy || scannedSources.checking ||
+          !!scannedSources.error || !host.sourceOcr || recognizeScope === "page-margin",
+          onClick: recognizeSources }}
+        primaryAction={{ label: "Next", disabled: busy,
+          onClick: () => { setRecognitionAsked(false); advance("highlights"); } }}>
+        <p className="text-sm leading-6 text-gray-700">These source PDFs are scans. Recognition reads
+          their pages so passages can be marked and the book can be searched.</p>
+        {scannedSources.error && <p role="alert" className="mt-2 text-sm text-red-800">{scannedSources.error}</p>}
+        <ul className="my-3 h-36 divide-y divide-gray-200 overflow-y-auto rounded-md border border-gray-300">
+          {unrecognized.map(file => <li key={file.role} className="px-3 py-2 text-sm">
+            <span className="block truncate font-medium text-gray-950" title={file.name}>{file.name}</span>
+            <span className="text-xs text-gray-600">Pages {pageRanges(file.textlessPages)}</span>
+            {ocr.tracked[file.role] && <SourceOcrProgress ocr={ocr} status={ocr.tracked[file.role]} />}
+          </li>)}
+        </ul>
+        <fieldset className="space-y-1.5"><legend className="mb-1 text-sm font-medium text-gray-950">What to recognize</legend>
+          {RECOGNITION_SCOPES.map(([value, label]) => <label key={value} className="flex items-center gap-2 text-sm text-gray-700">
+            <input type="radio" name="recognition-scope" className="accent-red-700" checked={recognizeScope === value}
+              disabled={busy} onChange={() => { act({ type: "set-settings", settings: { scannedPdfPolicy: value } });
+                if (value === "page-margin") void ocr.stop(Object.keys(ocr.tracked), false); }} />{label}
+          </label>)}
+        </fieldset>
+        <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">Pages
+          <Input value={recognizePages} onChange={event => setRecognizePages(event.target.value)}
+            disabled={busy || recognizeScope === "page-margin"} placeholder="All scanned pages"
+            pattern="\s*[1-9][0-9]*\s*(,\s*[1-9][0-9]*\s*)*" aria-label="Pages to recognize"
+            className="h-8 w-44 border-gray-400 text-sm" /></label>
       </Modal>
       <Modal open={stubWarning} onClose={() => setStubWarning(false)} size="md"
         breadcrumbs={["Missing PDFs"]} fit
@@ -1145,7 +1177,7 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
           ? () => setCoverOpen(true)
           : () => document.getElementById("authorities-filed-by")?.focus()}>
         {building ? <><Loader2 className="motion-safe:animate-spin" /> Cancel</>
-          : <><BookOpen /> {draft.state.settings.allowIncomplete ? "Build draft" : "Build"}</>}</Button>
+          : <><BookOpen /> Build</>}</Button>
     </div>
     {book && filingMedia && bookRoles && <div className="mt-2 grid gap-3 sm:grid-cols-2">
       <SelectField label="Filing" value={draft.state.settings.filingMedium ?? "electronic"}
@@ -1510,6 +1542,38 @@ function Status({ busy, busyText, status, error }: { busy: boolean; busyText: st
   </p>;
 }
 /** Operations a step owns: their progress belongs in that step, not at the top of the page. */
+type SourceOcrPanel = Pick<ReturnType<typeof import("./sourceOcr").useSourceOcr>, "tracked" | "begin" | "stop">;
+
+/** Text recognition for one scanned source, watched where the source lives. */
+function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: SourceOcrPanel }) {
+  const action = (label: string, act: () => void) => <button type="button"
+    className="min-h-6 rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600"
+    onClick={act}>{label}</button>;
+  return <div className="col-span-full flex flex-wrap items-center gap-2 text-xs">
+    <span className={cn("min-w-0 truncate", status.state === "done" ? "text-green-800"
+      : status.state === "failed" ? "text-red-800" : "text-gray-600")}>
+      {status.state === "done" ? "Text recognition complete"
+        : status.state === "failed" ? status.error || "Text recognition failed"
+        : status.state === "paused" ? "Text recognition paused"
+        : status.state === "cancelled" ? "Text recognition cancelled"
+        : `Recognizing text${status.page ? ` on page ${status.page}` : ""}`}</span>
+    <span className="ms-auto flex shrink-0 gap-1">
+      {status.state === "running" && action("Pause", () => ocr.stop([status.role], true))}
+      {["paused", "failed", "cancelled"].includes(status.state) && action("Resume", () => void ocr.begin([status]))}
+      {["running", "paused"].includes(status.state) && action("Cancel", () => void ocr.stop([status.role], false))}
+    </span>
+  </div>;
+}
+
+const RECOGNITION_SCOPES = [["cited-pages", "The cited pages"], ["full", "Every scanned page"],
+  ["page-margin", "Nothing; keep the pages as images"]] as const satisfies ReadonlyArray<
+    readonly [AuthoritiesBuildSettings["scannedPdfPolicy"], string]>;
+/** Page numbers as spans, so a long scan reads as a range rather than a list. */
+const pageRanges = (pages: number[]) => pages.reduce<number[][]>((runs, page) => {
+  const last = runs[runs.length - 1];
+  if (last && page === last[1] + 1) last[1] = page; else runs.push([page, page]);
+  return runs;
+}, []).map(([from, to]) => from === to ? `${from}` : `${from}–${to}`).join(", ");
 const STEP_PROGRESS = new Set(["Finding source PDFs", "Checking source PDFs"]);
 const STEPS = [{ value: "citations", label: "Citations" }, { value: "sources", label: "Sources" },
   { value: "highlights", label: "Highlights" }, { value: "build", label: "Build book" }] as const;

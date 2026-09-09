@@ -152,5 +152,5 @@ it('keeps a cross-page quotation as a single editable mark', () => {
     pages:[{width:400,height:500},{width:400,height:500}],citedPages:new Set()});
   expect(result.annotations.marks).toHaveLength(1);
   expect(result.annotations.marks[0].fragments.map(f=>f.pageNumber)).toEqual([1,2]);
-  expect(result.unresolved).toEqual([]);
+  expect(result.pageMarked).toEqual([]);
 });
