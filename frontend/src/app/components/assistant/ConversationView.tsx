@@ -30,7 +30,7 @@ interface Props {
     handleChat: (message: Message, options?: AssistantTurnOptions) => Promise<string | null>;
     cancel(): void; onSubmit?: (message: Message) => unknown;
     onRejectedTurnRestored?(): void; onRetryRejectedTurn?(): void;
-    citationTitle?: (citation: Citation) => string;
+    onCitationClick?: (citation: Citation) => void; citationTitle?: (citation: Citation) => string;
     onWorkflowRunClick?: (run: WorkflowRunEvent) => void; onReaderClick?: (readerId: string) => void;
     onEditViewClick?: (annotation: EditAnnotation, filename: string, changeNumber?: number) => void;
     onOpenDocument?: OpenDocument; onEditResolveStart?: (args: EditResolveStart) => void;
@@ -59,7 +59,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
     {
         chatId, session, handleChat, cancel, onSubmit = handleChat,
         onRejectedTurnRestored, onRetryRejectedTurn,
-        citationTitle, onWorkflowRunClick, onReaderClick,
+        onCitationClick, citationTitle, onWorkflowRunClick, onReaderClick,
         onEditViewClick, onOpenDocument, onEditResolveStart, onEditResolved, onEditError,
         isDocReloading, isEditReloading, resolvedEditStatuses,
         layout = "page", gutterVisible = false, header, dock, showContextTools = true,
@@ -215,7 +215,8 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                                     ) : (
                                         <AssistantMessage
                                             message={message} isStreaming={index === messages.length - 1 &&
-                                                responseInProgress && !message.contentFinal} citationTitle={citationTitle}
+                                                responseInProgress && !message.contentFinal}
+                                            onCitationClick={onCitationClick} citationTitle={citationTitle}
                                             onWorkflowRunClick={onWorkflowRunClick} onReaderClick={onReaderClick}
                                             minHeight={message.turnStatus ? "0px"
                                                 : index === lastAssistantIndex

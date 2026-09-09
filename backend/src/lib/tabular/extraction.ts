@@ -8,6 +8,7 @@ import { createLegalEvidenceTurnState, legalEvidenceReceiptEvent, modelEvidenceP
   registerPriorLegalEvidence, registerPriorLegalResearchQueries,
   validateGroundedClaims } from "../chat/legalEvidence";
 import { toolText, type BeaverTool } from "../chat/toolRegistry";
+import { presentLegalEvidence } from "../chat/citationPresentation";
 import { readResearchContext, researchReadCursors, researchReadReceipt,
   type ResearchReadContext, type ResearchObserver } from "../researchReader";
 import type { ResearchOperationContext } from "../researchProvenance";
@@ -179,7 +180,9 @@ export async function extractTabularAnswers(input: {
             query_ids: [...state.queries.values()].filter(({ query_id, results }) => query_id === queryId
               ? fromRead : results.some((result) => "evidence_id" in result && evidenceIds.has(result.evidence_id)))
               .map(({ query_id }) => query_id),
-            evidence: [...evidenceIds].map((id) => state.evidence.get(id)!.receipt) });
+            // The cell's chips link to the passage, as chat citations do, not just the source page.
+            evidence: [...evidenceIds].map((id) => { const entry = state.evidence.get(id)!;
+              return { ...entry.receipt, external_url: presentLegalEvidence(entry).passageUrl ?? entry.receipt.external_url }; }) });
           received.add(index);
           state.answer = [...(state.answer ?? []), ...claims];
           return { result: toolText({ saved: index, remaining: input.columns.length - received.size }),
