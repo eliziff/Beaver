@@ -965,9 +965,12 @@ export function finalizeLegalEvidence(
   state: LegalEvidenceTurnState,
   draft: string,
 ) {
-  const namesAuthority = hasCaseNameInText(draft);
-  const citesAuthority = structureNative().hasCitationInText(draft) ||
-    hasCanadianDecisionLink(draft);
+  // An authority named only inside quotation marks is text the answer reports, such as the
+  // citation text of the document under review, rather than law the answer itself advances.
+  const advanced = structureNative().markedQuoteSpans(draft).reduceRight((value, { start, end }) =>
+    `${value.slice(0, start)} ${value.slice(end)}`, draft);
+  const namesAuthority = hasCaseNameInText(advanced);
+  const citesAuthority = structureNative().hasCitationInText(advanced) || hasCanadianDecisionLink(draft);
   if (!state.mode && !state.answer && (namesAuthority || citesAuthority))
     state.mode = "citation_structure";
   if (!state.mode) return true;
