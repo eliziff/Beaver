@@ -362,7 +362,7 @@ it.each([false, true])("round trips every table column with joint evidence and u
   expect(restored.state.labels).toEqual(before.state.labels);
   expect(restored.state.sources).toEqual(before.state.sources);
 });
-it("exposes reviewed conversions and explicit evidence saving through the authenticated routes", async () => {
+it("exposes reviewed conversions through the authenticated routes", async () => {
   const f = await fixture(); await f.turn("Why?", "Grounded reason.");
   const express = (await import("express")).default, request = (await import("supertest")).default,
     { createSourceWorkspacesRouter } = await import("../routes/sourceWorkspaces"), app = express();
@@ -374,10 +374,6 @@ it("exposes reviewed conversions and explicit evidence saving through the authen
   expect((await request(app).post(`${url}/table`).send({ chatId: f.chat.id, design: preview.body.design })).status).toBe(409);
   const opened = await request(app).post(`${url}/table`).send({ chatId: f.chat.id, design: preview.body.design, fingerprint: preview.body.fingerprint });
   expect(opened.status).toBe(200);
-  const current = (await f.sources.get(owner, f.file().document.id))!, ref = { kind: "cell", reviewId: opened.body.id, rowId: f.sourceId, columnIndex: 1 };
-  const saved = await request(app).post(`${url}/save-findings`).send({ references: [ref], typeId: f.typeId,
-    versionId: current.versionId, workingRevision: current.workingRevision });
-  expect(saved.status).toBe(200); expect(saved.body.saved).toBe(1);
   expect((await request(app).post(`${url}/table/preview`).send({ messageIds: ["missing-chat"] })).status).toBe(400);
 });
 

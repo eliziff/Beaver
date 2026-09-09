@@ -1,4 +1,3 @@
-import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
     forwardRef,
@@ -20,7 +19,7 @@ import {
 import { AssistantDock, type AssistantDockTab } from "./AssistantDock";
 import type { WorkflowDocument } from "../workflows/ContextualWorkflowPicker";
 import type { WorkflowRunEvent, Message } from "@/app/lib/api/chat";
-import type { Citation, DocumentCitation } from "@/app/lib/citations";
+import type { Citation } from "@/app/lib/citations";
 import type {
   Document,
   EditAnnotation,
@@ -53,7 +52,6 @@ import { ChatFindingActions } from "./ChatFindingActions";
 import type { ResearchSelection } from "@/app/lib/researchFiles";
 import { SourcesWorkspace, useSourcesWorkspace } from "../legal/SourcesWorkspace";
 import type { AssistantIntent } from "./assistantIntent";
-import { ResearchWorkspaceHost } from "../legal/ResearchWorkspaceHost";
 import { InitialDockPanel } from "./InitialDockPanel";
 interface Props {
     initialDraft?: import("@/app/lib/api/chat").ChatDraft | null;
@@ -83,7 +81,6 @@ interface Props {
         dock?: boolean;
         researchSave?: boolean;
     };
-    onCitationClick?: (citation: Citation) => boolean | void;
     citationTitle?: (citation: Citation) => string;
     initialModel?: string | null;
     initialReasoningEffort?: string | null;
@@ -153,17 +150,6 @@ export function legalCitationTab(
     }
     return null;
 }
-function documentCitationTab(citation: DocumentCitation): AssistantDocumentTab {
-    return {
-        id: citation.document_id,
-        documentId: citation.document_id,
-        filename: citation.filename,
-        versionId: citation.version_id ?? null,
-        versionNumber: citation.version_number ?? null,
-        kind: "citation",
-        citation,
-    };
-}
 export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(props, ref) {
     const latest = props.session.messages.findLast((message) => message.role === "assistant");
     const refreshKey = props.session.run || !latest?.contentFinal ? null : latest.id;
@@ -190,7 +176,6 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         onActiveDocumentChange,
         layout = "page",
         features,
-        onCitationClick,
         citationTitle,
         initialDraft,
         initialModel,
@@ -222,7 +207,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
     );
     const [activeAgentSlot, setActiveAgentSlot] = useState<string | null>(null);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
-    const { file: activeResearchFile, selection: researchSelection, loading: researchLoading, accept: acceptResearchFile } = useSourcesWorkspace();
+    const { file: activeResearchFile, selection: researchSelection, loading: researchLoading } = useSourcesWorkspace();
     const [workflowInitialId, setWorkflowInitialId] = useState(
         initialWorkflow?.workflow.id,
     );
@@ -287,23 +272,6 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         },
         [setDockExpanded],
     );
-    const [citationWorkspaceOpen, setCitationWorkspaceOpen] = useState(false);
-    const openCitation = (citation: Citation, action?: "workspace") => {
-        if (action) { setCitationWorkspaceOpen(true); setDockExpanded(true); }
-        if (onCitationClick?.(citation)) return;
-        if (citation.kind === "tabular") return;
-        if (citation.kind === "document") {
-            return upsertTab(documentCitationTab(citation));
-        }
-        // The reader opens at the chip's own pinpoint; the provider's page is
-        // the fallback for sources the reader cannot render.
-        const tab = legalCitationTab(citation, true);
-        if (tab) upsertTab(tab);
-        else if (citation.url) {
-            const href = safeAssistantUrl(citation.url, { relative: false });
-            if (href) window.open(href, "_blank", "noopener,noreferrer");
-        }
-    };
     const openEditor = (
         ann: EditAnnotation,
         filename: string,
@@ -616,7 +584,6 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
                     groups={agentGroups}
                     activeId={activeAgentSlot}
                     onActivate={setActiveAgentSlot}
-                    onCitationClick={openCitation}
                 />
             ),
         },
@@ -665,20 +632,17 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
             onExpandedChange={setDockExpanded}
         />
     ) : undefined;
-    return <><ConversationView
+    return <ConversationView
         ref={conversationRef}
         chatId={chatId}
-        messageActions={activeResearchFile && chatId ? (messageId) => <ChatFindingActions
-            file={activeResearchFile} chatId={chatId} messageId={messageId} onFiled={acceptResearchFile}
-            onUseAnswer={onUseAnswer && messageId === session.messages.findLast(({ role }) => role === "assistant")?.id
-                ? () => onUseAnswer(messageId) : undefined} /> : undefined}
+        messageActions={activeResearchFile && chatId && onUseAnswer ? (messageId) => messageId === session.messages.findLast(({ role }) => role === "assistant")?.id ? <ChatFindingActions
+            file={activeResearchFile} chatId={chatId} messageId={messageId} onUseAnswer={() => onUseAnswer(messageId)} /> : null : undefined}
         session={session}
         handleChat={handleChat}
         cancel={cancel}
         onSubmit={submitMessage}
         onRejectedTurnRestored={onRejectedTurnRestored}
         onRetryRejectedTurn={onRetryRejectedTurn}
-        onCitationClick={openCitation}
         citationTitle={citationTitle}
         onWorkflowRunClick={openWorkflowRun}
         onReaderClick={readSubagents.showDock ? (readerId) => {
@@ -707,5 +671,5 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         editModeLabels={editModeLabels}
         sendDisabled={sendDisabled}
         searchMessageId={searchMessageId}
-    /><ResearchWorkspaceHost embedded floating open={citationWorkspaceOpen} onOpenChange={setCitationWorkspaceOpen} projectId={projectId} /></>;
+    />;
 });

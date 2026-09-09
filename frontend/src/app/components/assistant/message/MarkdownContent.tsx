@@ -7,7 +7,6 @@ import {
     type RefObject,
     type ReactNode,
 } from "react";
-import { MoreActionsMenu } from "../../shared/MoreActionsMenu";
 import ReactMarkdown from "react-markdown";
 import type { Root, Element, Text } from "hast";
 import { searchHighlightRanges } from "@/app/lib/searchHighlight";
@@ -86,7 +85,6 @@ function sourceCitations(text: string, citations: Citation[]) {
 
 export function CitationPill({
     citation,
-    onClick,
     className = "",
     title,
     truncateStyleOfCause = false,
@@ -94,7 +92,6 @@ export function CitationPill({
     children,
 }: {
     citation: Citation;
-    onClick?: (citation: Citation, action?: "workspace") => void;
     className?: string;
     title?: string;
     truncateStyleOfCause?: boolean;
@@ -114,22 +111,16 @@ export function CitationPill({
     return <span className="group/citation inline-flex max-w-full items-baseline" onClick={(event) => event.stopPropagation()}>
         <a href={href ?? undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!href || undefined}
             data-citation-ref={citation.ref} className={pillClassName} title={title ?? citationTooltip(citation)}>{children ?? content}</a>
-        {onClick && <MoreActionsMenu label="Citation actions"
-            triggerClassName="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-500 opacity-0 hover:bg-gray-100 group-hover/citation:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100"
-            items={[{ label: "Open in reader", onSelect: () => onClick(citation) },
-                { label: "Open in workspace", onSelect: () => onClick(citation, "workspace") }]} />}
     </span>;
 }
 
 export function CitationPillMarkdown({
     text,
     citations = [],
-    onCitationClick,
     truncateStyleOfCause = false,
 }: {
     text: string;
     citations?: Citation[];
-    onCitationClick?: (citation: Citation, action?: "workspace") => void;
     truncateStyleOfCause?: boolean;
 }) {
     return (
@@ -142,7 +133,7 @@ export function CitationPillMarkdown({
                         ? Number(href.slice(ASSISTANT_SOURCE.length))
                         : -1;
                     const citation = citations.find(({ ref }) => ref === sourceRef);
-                    if (citation) return <CitationPill citation={citation} onClick={onCitationClick} truncateStyleOfCause={truncateStyleOfCause} />;
+                    if (citation) return <CitationPill citation={citation} truncateStyleOfCause={truncateStyleOfCause} />;
                     const link = safeAssistantUrl(href);
                     if (!link || !link.startsWith("/")) return <>{children}</>;
                     const internal = link.startsWith("/");
@@ -172,14 +163,12 @@ function styled<T extends ElementType>(tag: T, className: string) {
 export function MarkdownContent({
     text,
     inlineCitationTargets,
-    onCitationClick,
     citationTitle,
     divRef,
     isStreaming = false,
 }: {
     text: string;
     inlineCitationTargets: Citation[];
-    onCitationClick?: (c: Citation) => void;
     citationTitle?: (c: Citation) => string;
     divRef?: RefObject<HTMLDivElement | null>;
     isStreaming?: boolean;
@@ -244,7 +233,6 @@ export function MarkdownContent({
                                 return (
                                     <CitationPill
                                         citation={annotation}
-                                        onClick={onCitationClick}
                                         className="mx-0.5"
                                         title={citationTitle?.(annotation)}
                                     />

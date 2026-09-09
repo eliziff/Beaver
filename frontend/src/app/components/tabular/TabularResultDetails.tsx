@@ -6,8 +6,8 @@ import { FLAGS, FlagDot } from "../shared/GroundedAnswerContent";
 import { TabularMarkdown } from "./TabularMarkdown";
 
 /** Support is shown as ordinary citation pills, one per cited passage, exactly as chat answers show it. */
-export function TabularResultDetails({ answer, column, onCitation }: {
-  answer: NonNullable<TabularCell["content"]>; column: ColumnConfig; onCitation: (citation: Citation, action?: "workspace") => void;
+export function TabularResultDetails({ answer, column }: {
+  answer: NonNullable<TabularCell["content"]>; column: ColumnConfig;
 }) {
   const byId = new Map(answer.evidence.map((item) => [item.evidence_id, item]));
   const cited = new Map<string, Citation>();
@@ -28,16 +28,16 @@ export function TabularResultDetails({ answer, column, onCitation }: {
         <h3 className="font-medium text-gray-500">Answer</h3>
         {answer.flag && <span className="inline-flex items-center gap-1.5"><FlagDot flag={answer.flag} />{FLAGS[answer.flag].meaning}</span>}
       </div>}
-      {summary ? <TabularMarkdown text={summary} value={answer.value} column={column} onCitationClick={onCitation} />
+      {summary ? <TabularMarkdown text={summary} value={answer.value} column={column} />
         : answer.outcome === "not_found" ? <p>No answer found in the reviewed material.</p> : null}
       {/* Claims carry their own pills; a separate row would repeat them. */}
       {!!citations.length && !claims.length && <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        {citations.map((citation) => <CitationPill key={citation.ref} citation={citation} onClick={onCitation} />)}
+        {citations.map((citation) => <CitationPill key={citation.ref} citation={citation} />)}
       </div>}
     </section>
     {!!claims.length && <section aria-label={reused ? "Detail" : "Explanation"} className="space-y-2">
       {!reused && <h3 className="text-xs font-medium text-gray-500">Explanation</h3>}
-      {claims.map((claim, index) => <TabularMarkdown key={index} text={withRefs(claim)} citations={citations} onCitationClick={onCitation} />)}
+      {claims.map((claim, index) => <TabularMarkdown key={index} text={withRefs(claim)} citations={citations} />)}
     </section>}
   </div>;
 }
