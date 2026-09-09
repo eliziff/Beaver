@@ -149,7 +149,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
     </>}
     <div className="col-span-3 flex items-center justify-end gap-1 sm:col-span-1">
       {needsPdf && (authority.source.kind === "pending-canlii"
-        ? <a href={authority.source.pageUrl} target="_blank" rel="noopener noreferrer"
+        ? <a href={authority.source.pdfUrl} target="_blank" rel="noopener noreferrer"
             className={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-red-800 outline-none hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-600")}>
             <ExternalLink className="h-3.5 w-3.5" />CanLII</a>
         : issue ? <Button type="button" variant="outline" className={cn(rowControl, "text-red-800")}
