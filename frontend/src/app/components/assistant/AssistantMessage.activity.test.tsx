@@ -156,7 +156,6 @@ describe("AssistantMessage activity", () => {
 
     it("shows running readers and keeps completed findings in a panel pill", async () => {
         const onSubagentClick = vi.fn();
-        const onCitationClick = vi.fn();
         const running = ["one", "two", "three"].map((id) => ({
             type: "subagent_run" as const,
             id,
@@ -187,7 +186,6 @@ describe("AssistantMessage activity", () => {
                 ]}
                 isStreaming
                 onSubagentClick={onSubagentClick}
-                onCitationClick={onCitationClick}
             />,
         );
 
@@ -201,11 +199,8 @@ describe("AssistantMessage activity", () => {
         const citationPill = screen.getByRole("link", {
             name: "R. v. Example, 2020 BCSC 1",
         });
-        expect(onCitationClick).not.toHaveBeenCalled();
         expect(citationPill).toHaveAttribute("target", "_blank");
-        await userEvent.click(screen.getByRole("button", { name: "Citation actions" }));
-        await userEvent.click(screen.getByRole("menuitem", { name: "Open in reader" }));
-        expect(onCitationClick).toHaveBeenCalledOnce();
+        expect(screen.queryByRole("button", { name: "Citation actions" })).toBeNull();
 
         await userEvent.click(
             screen.getByRole("button", {
@@ -215,8 +210,7 @@ describe("AssistantMessage activity", () => {
         expect(onSubagentClick).toHaveBeenCalledOnce();
     });
 
-    it("renders verified tool evidence with the shared citation chip", async () => {
-        const onCitationClick = vi.fn();
+    it("renders verified tool evidence with the shared citation chip", () => {
         render(<AssistantMessage events={[{
             type: "tool_activity", id: "read-1", tool: "Read",
             status: "completed", label: "Read Example v. Example",
@@ -227,11 +221,9 @@ describe("AssistantMessage activity", () => {
                 locator: "12", pinpoint: "para 12",
                 quotes: [{ quote: "Exact passage" }],
             }],
-        }]} onCitationClick={onCitationClick} />);
-
-        await userEvent.click(screen.getByRole("button", { name: "Citation actions" }));
-        await userEvent.click(screen.getByRole("menuitem", { name: "Open in reader" }));
-        expect(onCitationClick).toHaveBeenCalledOnce();
+        }]} />);
+        expect(document.querySelector("[data-citation-ref]" )).toHaveTextContent("Example v. Example");
+        expect(screen.queryByRole("button", { name: "Citation actions" })).toBeNull();
     });
 
     it("hides raw search results and shows read passages as canonical chips", () => {

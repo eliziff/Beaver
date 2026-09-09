@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BookOpen, FileText, Loader2, RefreshCw, X } from "lucide-react";
 import type { ColumnConfig, TabularCell, TabularDocument } from "@/app/lib/api/tabular";
-import { type Citation } from "@/app/lib/citations";
 import { TabularResultDetails } from "./TabularResultDetails";
 import { Button } from "../ui/button";
 import { cn } from "@/app/lib/utils";
@@ -11,7 +10,6 @@ interface Props {
     document: TabularDocument;
     column: ColumnConfig;
     onClose: () => void;
-    onCitation: (citation: Citation, action?: "workspace") => void;
     onRegenerate?: () => Promise<void>;
     onDiscuss?: () => void;
     running?: boolean;
@@ -23,7 +21,6 @@ export function TRSidePanel({
     document: doc,
     column,
     onClose,
-    onCitation,
     onRegenerate, onDiscuss,
     running = false,
 }: Props) {
@@ -110,7 +107,7 @@ export function TRSidePanel({
                     </div>
                     <h2 className="text-sm font-semibold leading-5 text-gray-900 [overflow-wrap:anywhere]">{column.name}</h2>
                     <div className="mt-3">
-                        {cell.content && <TabularResultDetails answer={cell.content} column={column} onCitation={onCitation} />}
+                        {cell.content && <TabularResultDetails answer={cell.content} column={column} />}
                         {!cell.content && <p role="status" className="text-sm text-gray-500">{cell.status === "error" ? "This result failed. Regenerate to try again."
                             : cell.status === "generating" ? "Running…" : "This question has not run yet."}</p>}
                     </div>
