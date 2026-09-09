@@ -14,6 +14,10 @@ import { changes, deleteDocumentRows, documentAccess, now, one, projectAccess,
 
 const CLEANUP_GRACE_MS = 60 * 60 * 1_000;
 const CLEANUP_LEASE_MS = 5 * 60 * 1_000;
+// Work still queued describes the PDF better than work that already finished: a cited-pages
+// pass succeeds while the whole-PDF pass waits, and the reader is still waiting with it.
+const ACTIVE_JOB_FIRST = sql.raw(`CASE q.status WHEN 'running' THEN 0 WHEN 'queued' THEN 1
+  ELSE 2 END,q.priority DESC,q.updated_at DESC,q.id DESC`);
 const scopedBlob = (key: string, userId: unknown, projectId: unknown,
   digest = documentBlobDigest(key)) => !!digest && key === documentBlobKey({
     userId: String(userId), projectId: typeof projectId === "string" ? projectId : null,
@@ -61,7 +65,8 @@ const pdfParseState = (row: Row): DocumentParseState | null => {
   if (result.status === "ready" || result.status === "degraded") {
     return { status: result.status, ...completed };
   }
-  return null;
+  // A page-limited run records no profile of its own; the stored one still describes the PDF.
+  return stored ? { status: stored.status, ...completed } : null;
 };
 const storedDocument = (row: Row): StoredDocument => ({
   id: String(row.id), userId: String(row.user_id),
@@ -276,7 +281,7 @@ async function heads(db: RelationalDatabase, scope: ApplicationScope, documentId
     LEFT JOIN application_jobs j ON j.id=(SELECT q.id FROM application_jobs q
       WHERE q.document_id=d.id AND q.document_version_id=d.current_version_id
         AND q.kind IN('pdf.prepare','pdf.reprocess')
-      ORDER BY q.updated_at DESC,q.id DESC LIMIT 1)
+      ORDER BY ${ACTIVE_JOB_FIRST} LIMIT 1)
     WHERE d.id IN(${sql.join(documentIds)}) AND ${documentAccess(scope, owner)}`, db);
   return found.map((row) => ({ document: storedDocument(row), versions: [storedVersion(row, "head_")] }));
 }
@@ -380,7 +385,7 @@ export const documentRepository: DocumentRepository = {
         FROM application_jobs q WHERE q.document_id=d.id
           AND q.document_version_id=d.current_version_id
           AND q.kind IN('pdf.prepare','pdf.reprocess')
-        ORDER BY q.updated_at DESC,q.id DESC LIMIT 1)
+        ORDER BY ${ACTIVE_JOB_FIRST} LIMIT 1)
       WHERE d.id IN(${sql.join(unique)}) AND ${documentAccess(scope)}`))
       .map((row) => ({ id: String(row.id), parseState: pdfParseState(row) }));
   },

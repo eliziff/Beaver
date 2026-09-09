@@ -3,7 +3,7 @@
     "id": "general",
     "label": "No court preset",
     "courtId": "general",
-    "defaults": {"outputMode":"book","settings":{"sourceMode":"automatic","tabStyle":"numeric","tableOrder":"alphabetical","tableDelivery":"native-append","tableLocation":"pages","passageMarking":"margin","scannedPdfPolicy":"page-margin","missingSourcePolicy":"placeholder"}},
+    "defaults": {"outputMode":"book","settings":{"sourceMode":"automatic","tabStyle":"numeric","tableOrder":"alphabetical","tableDelivery":"native-append","tableLocation":"pages","passageMarking":"margin","scannedPdfPolicy":"cited-pages","missingSourcePolicy":"placeholder"}},
     "options": {"missingSourcePolicy":true}
   },
   {

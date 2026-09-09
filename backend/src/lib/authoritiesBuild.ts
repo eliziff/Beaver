@@ -735,7 +735,7 @@ async function bookArtifacts(plan: PreparedAuthoritiesBook, signal?: AbortSignal
     artifact(item.role, item.filename, item.mimeType, Buffer.from(item.bytes), item.pageCount));
 }
 
-function citedSourcePages(draft: AuthoritiesDraft, authorityId: string, pages: string[],
+export function citedSourcePages(draft: AuthoritiesDraft, authorityId: string, pages: string[],
   pageLabels?: Map<string, number[]>, pageCount = pages.length, geometry?: NativePdfPassageGeometry) {
   const authority = draft.authorities[authorityId];
   const locators = [...(authority?.locators ?? []), ...Object.values(draft.occurrences)

@@ -4,8 +4,8 @@ import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
   attachAuthorityPdf as attachSource, attachAuthoritiesBookPdf as attachBookSource,
   checkCanliiPdf, authoritiesReview as review, updateAuthoritiesDraft as update,
   type AuthoritiesInitialSettings, type AuthoritiesUserAction } from "./authoritiesActions";
-import { authorityPassageTargets, buildAuthorities, type AuthoritiesBuildInput,
-  type AuthoritiesBuildResult } from "./authoritiesBuild";
+import { authorityPassageTargets, buildAuthorities, citedSourcePages,
+  type AuthoritiesBuildInput, type AuthoritiesBuildResult } from "./authoritiesBuild";
 import { attachedAuthoritySources, decodeAuthoritiesDraft,
   type AuthoritiesAction, type AuthoritiesDraft, type AuthoritiesDiscrepancyAction,
   type AuthoritySourceLanguage } from "./authoritiesDomain";
@@ -463,7 +463,11 @@ export function createAuthoritiesWorkspaceApplication(
             bytes: await resolved.readBytes(), ocrProvider: null });
           if (pages?.some((page) => page > prepared.pageCount)) throw new ApplicationError(400,
             `Choose page numbers within the PDF for ${source.filename}.`);
-          const targets = pages ? [] : authorityPassageTargets(draft, authority.id), citedPages: number[] = [];
+          const targets = pages ? [] : authorityPassageTargets(draft, authority.id);
+          // Page pinpoints locate themselves without any text, so a scan whose passages the
+          // geometry cannot find still has its cited pages recognized before the whole PDF.
+          const citedPages = pages ? [] : [...citedSourcePages(draft, authority.id, [],
+            undefined, prepared.pageCount)].map((index) => index + 1);
           for (let start = 0; start < targets.length; start += 100) {
             const geometry = await documentProjectionService.pdfPassageGeometry(resolved.readBytes,
               targets.slice(start, start + 100), { ...reference, cacheKey: prepared.cacheKey },
