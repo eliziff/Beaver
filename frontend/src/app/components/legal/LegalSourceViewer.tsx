@@ -447,7 +447,6 @@ function LegalSourceViewerContent({
             currentIndex={quoteIndex}
             activeQuoteId={quoteItems[quoteIndex]?.id}
             citationRef={citationRef}
-            citationText={metadata.citation}
             onSelect={(_quote, index) => setQuoteIndex(index)}
             onIndexChange={setQuoteIndex}
           />

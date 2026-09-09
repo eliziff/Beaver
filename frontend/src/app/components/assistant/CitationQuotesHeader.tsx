@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Check, Minus, Quote, RectangleHorizontal, Rows3 } from "lucide-react";
+import { Minus, RectangleHorizontal, Rows3 } from "lucide-react";
 
 export type CitationQuoteHeaderItem = {
     id: string;
@@ -7,7 +7,6 @@ export type CitationQuoteHeaderItem = {
     eyebrow?: string | null;
     inlineDetail?: string | null;
     detail?: string | null;
-    citationText?: string | null;
 };
 const QUOTE_CARD_SURFACE = "rounded-2xl bg-gray-100";
 const VIEW_OPTIONS = [
@@ -24,7 +23,6 @@ interface Props {
     activeQuoteId?: string | null;
     currentIndex?: number;
     citationRef?: number;
-    citationText?: string;
     onSelect?: (quote: CitationQuoteHeaderItem, index: number) => void;
     onIndexChange?: (index: number) => void;
 }
@@ -36,12 +34,10 @@ export function CitationQuotesHeader({
     activeQuoteId = null,
     currentIndex = 0,
     citationRef,
-    citationText,
     onSelect,
     onIndexChange,
 }: Props) {
     const [viewMode, setViewMode] = useState<ViewMode>("single");
-    const [isCopied, setIsCopied] = useState(false);
     const [localIndex, setLocalIndex] = useState(currentIndex);
     const selectedIndex = onIndexChange ? currentIndex : localIndex;
     const hasMultipleQuotes = quotes.length > 1;
@@ -55,18 +51,6 @@ export function CitationQuotesHeader({
               ? [{ quote: currentQuote, index: selectedIndex }]
               : [];
 
-    async function copyCitation() {
-        if (!currentQuote) return;
-        try {
-            const text =
-                `"${currentQuote.quote.replace(/"/g, "'")}" ${currentQuote.citationText ?? citationText ?? ""}`.trim();
-            await navigator.clipboard.writeText(text);
-            setIsCopied(true);
-            setTimeout(() => setIsCopied(false), 2000);
-        } catch (error) {
-            console.error("Failed to copy citation:", error);
-        }
-    }
     return (
         <div className="px-3">
             <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
@@ -105,30 +89,6 @@ export function CitationQuotesHeader({
                                     </button>
                                 ))}
                             </div>
-                        )}
-                        {currentQuote && (
-                            <button
-                                type="button"
-                                aria-label="Copy quote and citation"
-                                onClick={(event) => {
-                                    event.stopPropagation();
-                                    event.preventDefault();
-                                    void copyCitation();
-                                }}
-                                className="flex h-6 items-center gap-1 rounded-full bg-white px-2 text-gray-600 shadow-[0_1px_3px_rgba(0,0,0,0.22)] hover:bg-gray-50"
-                                title="Copy Quote and Citation"
-                            >
-                                {isCopied ? (
-                                    <Check className="h-3 w-3 text-green-600" />
-                                ) : (
-                                    <Quote className="h-3 w-3" />
-                                )}
-                                <span
-                                    className={`text-[10px] font-medium ${isCopied ? "text-green-600" : ""}`}
-                                >
-                                    {isCopied ? "Copied" : "Cite"}
-                                </span>
-                            </button>
                         )}
                         <div
                             className={`flex h-6 items-center gap-1 rounded-full bg-gray-200 p-1 ${
