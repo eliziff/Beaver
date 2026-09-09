@@ -11,29 +11,16 @@
 
 import diff from "fast-diff";
 import {
-    TEXT_KEY,
-    type XNode,
-    cloneNode,
-    elAttrs,
-    elChildren,
-    elName,
-    getTextContent,
-    makeEl,
-    makeText,
-    setChildren,
+    TEXT_KEY, type XNode, cloneNode, elAttrs, elChildren, elName,
+    getTextContent, makeEl, makeText, setChildren,
 } from "./docx/core";
 import {
-    type DocxParagraphIndex,
-    type DocxRewriteAtom,
-    type DocxSession,
+    type DocxParagraphIndex, type DocxRewriteAtom, type DocxSession,
     openDocxSession,
 } from "./docx/session";
 import {
-    buildRun, emitDocxRevisionPlan, type DocxRevisionPlan,
-    clusterTextChanges,
-    markParagraphRevision,
-    normalizeWs,
-    revisionAttrs,
+    buildRun, emitDocxRevisionPlan, type DocxRevisionPlan, clusterTextChanges,
+    markParagraphRevision, normalizeWs, revisionAttrs,
 } from "./docxTrackedChanges";
 import { decodeXmlText } from "./text";
 
@@ -69,6 +56,11 @@ function excerptOf(s: string): string {
     return t.length > EXCERPT_CHARS ? `${t.slice(0, EXCERPT_CHARS)}…` : t;
 }
 
+/** Every abstention names the affected text by bounded excerpt. */
+function abstention(reason: string, source: string): CompareAbstention {
+    return { reason, excerpt: excerptOf(source) };
+}
+
 interface Block {
     kind: "p" | "tbl" | "sdt";
     node: XNode;
@@ -78,23 +70,13 @@ interface Block {
     paragraph?: DocxParagraphIndex;
 }
 
-function alignSequences(
-    a: string[],
-    b: string[],
-): Array<[number, number]> | null {
+function alignSequences(a: string[], b: string[]): Array<[number, number]> | null {
     let prefix = 0;
-    while (
-        prefix < a.length &&
-        prefix < b.length &&
-        a[prefix] === b[prefix]
-    )
+    while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix])
         prefix++;
     let suffix = 0;
-    while (
-        suffix < a.length - prefix &&
-        suffix < b.length - prefix &&
-        a[a.length - 1 - suffix] === b[b.length - 1 - suffix]
-    )
+    while (suffix < a.length - prefix && suffix < b.length - prefix &&
+        a[a.length - 1 - suffix] === b[b.length - 1 - suffix])
         suffix++;
 
     const n = a.length - prefix - suffix;
@@ -135,9 +117,7 @@ function alignSequences(
         pairs.push(...middle);
     }
 
-    for (let k = suffix; k > 0; k--) {
-        pairs.push([a.length - k, b.length - k]);
-    }
+    for (let k = suffix; k > 0; k--) pairs.push([a.length - k, b.length - k]);
     return pairs;
 }
 
@@ -158,10 +138,7 @@ type GapOp =
     | { op: "del"; oi: number }
     | { op: "ins"; ni: number };
 
-function pairGapParagraphs(
-    oldNorms: string[],
-    newNorms: string[],
-): GapOp[] {
+function pairGapParagraphs(oldNorms: string[], newNorms: string[]): GapOp[] {
     const n = oldNorms.length;
     const m = newNorms.length;
     const allDeletesTheninserts = (): GapOp[] => [
@@ -239,26 +216,10 @@ interface DiffCluster {
     deleted: string;
 }
 
-const DOUBLE_QUOTE_CHARS = new Set([
-    '"',
-    "“",
-    "”",
-    "«",
-    "»",
-    "„",
-]);
+const DOUBLE_QUOTE_CHARS = new Set(['"', "“", "”", "«", "»", "„"]);
 const SINGLE_QUOTE_CHARS = new Set(["'", "‘", "’", "‚"]);
-const DASH_CHARS = new Set([
-    "-",
-    "­",
-    "‐",
-    "‑",
-    "‒",
-    "–",
-    "—",
-    "―",
-    "−",
-]);
+const DASH_CHARS = new Set(["-", "­", "‐", "‑", "‒", "–",
+    "—", "―", "−"]);
 const DASH_FOLD_RE = /[­‐‑‒–—―−]/gu;
 
 // quote_edits._WORD: letters/digits (no underscore) with internal
@@ -359,27 +320,17 @@ function wordDiffClusters(oldText: string, newText: string): DiffCluster[] {
     return clustersInNewText(parts);
 }
 
-const KEEP_PARA_CHILDREN = new Set([
-    "w:bookmarkStart",
-    "w:bookmarkEnd",
-    "w:proofErr",
-    "w:commentRangeStart",
-    "w:commentRangeEnd",
-]);
+const KEEP_PARA_CHILDREN = new Set(["w:bookmarkStart", "w:bookmarkEnd",
+    "w:proofErr", "w:commentRangeStart", "w:commentRangeEnd"]);
 
 interface RebuildResult {
     children: XNode[];
     notes: string[];
 }
 
-function planComparisonRevision(
-    pNode: XNode,
-    flat: { atoms: DocxRewriteAtom[]; text: string },
-    clusters: DiffCluster[],
-    author: string,
-    date: string,
-    nextId: () => string,
-): RebuildResult {
+function planComparisonRevision(pNode: XNode,
+    flat: { atoms: DocxRewriteAtom[]; text: string }, clusters: DiffCluster[],
+    author: string, date: string, nextId: () => string): RebuildResult {
     const notes: string[] = [];
     const out: XNode[] = [];
     const plans: DocxRevisionPlan[] = [];
@@ -482,14 +433,8 @@ function planComparisonRevision(
     return { children: emitDocxRevisionPlan(out, plans), notes };
 }
 
-const DELETED_RUN_TEXTUAL = new Set([
-    "w:tab",
-    "w:br",
-    "w:cr",
-    "w:noBreakHyphen",
-    "w:softHyphen",
-    "w:sym",
-]);
+const DELETED_RUN_TEXTUAL = new Set(["w:tab", "w:br", "w:cr", "w:noBreakHyphen",
+    "w:softHyphen", "w:sym"]);
 
 interface DeletedParagraphResult {
     /** Null when the paragraph has no representable content at all. */
@@ -499,13 +444,8 @@ interface DeletedParagraphResult {
     dropped: Set<string>;
 }
 
-function buildDeletedParagraph(
-    oldP: XNode,
-    text: string,
-    author: string,
-    date: string,
-    nextId: () => string,
-): DeletedParagraphResult {
+function buildDeletedParagraph(oldP: XNode, text: string, author: string,
+    date: string, nextId: () => string): DeletedParagraphResult {
     const dropped = new Set<string>();
     const runs: XNode[] = [];
 
@@ -518,11 +458,8 @@ function buildDeletedParagraph(
             if (rn === "w:rPr") {
                 kids.push(cloneNode(rk));
             } else if (rn === "w:t") {
-                kids.push(
-                    makeEl("w:delText", [makeText(getTextContent(rk))], {
-                        "xml:space": "preserve",
-                    }),
-                );
+                kids.push(makeEl("w:delText", [makeText(getTextContent(rk))],
+                    { "xml:space": "preserve" }));
                 hasContent = true;
             } else if (DELETED_RUN_TEXTUAL.has(rn)) {
                 kids.push(cloneNode(rk));
@@ -581,24 +518,12 @@ function buildDeletedParagraph(
     const paraKids: XNode[] = [];
     const oldPPr = elChildren(oldP).find((k) => elName(k) === "w:pPr");
     if (oldPPr) {
+        const drop = (node: XNode, names: string[]) => setChildren(node,
+            elChildren(node).filter((k) => !names.includes(elName(k) ?? "")));
         const c = cloneNode(oldPPr);
-        setChildren(
-            c,
-            elChildren(c).filter((k) => {
-                const n = elName(k);
-                return n !== "w:sectPr" && n !== "w:numPr";
-            }),
-        );
+        drop(c, ["w:sectPr", "w:numPr"]);
         const rPr = elChildren(c).find((k) => elName(k) === "w:rPr");
-        if (rPr) {
-            setChildren(
-                rPr,
-                elChildren(rPr).filter((k) => {
-                    const n = elName(k);
-                    return n !== "w:ins" && n !== "w:del";
-                }),
-            );
-        }
+        if (rPr) drop(rPr, ["w:ins", "w:del"]);
         paraKids.push(c);
     }
     if (runs.length) {
@@ -606,29 +531,14 @@ function buildDeletedParagraph(
             deletion: { nodes: runs, attributes: revisionAttrs(nextId(), author, date) } }]));
     }
     const node = makeEl("w:p", paraKids);
-    markParagraphRevision(
-        node,
-        "w:del",
-        revisionAttrs(nextId(), author, date),
-    );
+    markParagraphRevision(node, "w:del", revisionAttrs(nextId(), author, date));
     return { node, text, dropped };
 }
 
-const INSERT_RUN_ALLOWED = new Set([
-    "w:rPr",
-    "w:t",
-    "w:tab",
-    "w:br",
-    "w:cr",
-    "w:noBreakHyphen",
-    "w:softHyphen",
-    "w:lastRenderedPageBreak",
-    "w:footnoteReference",
-    "w:endnoteReference",
-    "w:commentReference",
-    "w:drawing",
-    "w:sym",
-]);
+const INSERT_RUN_ALLOWED = new Set(["w:rPr", "w:t", "w:tab", "w:br", "w:cr",
+    "w:noBreakHyphen", "w:softHyphen", "w:lastRenderedPageBreak",
+    "w:footnoteReference", "w:endnoteReference", "w:commentReference",
+    "w:drawing", "w:sym"]);
 
 function validateInsertable(pNode: XNode): string | null {
     const visitContainer = (kids: XNode[], allowPPr: boolean): string | null => {
@@ -668,12 +578,8 @@ function validateInsertable(pNode: XNode): string | null {
     return visitContainer(elChildren(pNode), true);
 }
 
-function markParagraphInserted(
-    pNode: XNode,
-    author: string,
-    date: string,
-    nextId: () => string,
-): void {
+function markParagraphInserted(pNode: XNode, author: string, date: string,
+    nextId: () => string): void {
     const wrapRuns = (kids: XNode[]): XNode[] => {
         const next: XNode[] = [];
         let group: XNode[] = [];
@@ -706,11 +612,7 @@ function markParagraphInserted(
         return next;
     };
     setChildren(pNode, wrapRuns(elChildren(pNode)));
-    markParagraphRevision(
-        pNode,
-        "w:ins",
-        revisionAttrs(nextId(), author, date),
-    );
+    markParagraphRevision(pNode, "w:ins", revisionAttrs(nextId(), author, date));
 }
 
 /** numId is package-local; only list presence and level compare reliably. */
@@ -743,53 +645,43 @@ async function storyText(session: DocxSession, pattern: RegExp): Promise<string>
     return parts.join("\n");
 }
 
-async function compareAuxStories(
-    oldSession: DocxSession,
-    newSession: DocxSession,
-): Promise<CompareAbstention[]> {
+async function compareAuxStories(oldSession: DocxSession,
+    newSession: DocxSession): Promise<CompareAbstention[]> {
     const abstentions: CompareAbstention[] = [];
     for (const [code, label, pattern] of STORY_PATTERNS) {
         const [oldText, newText] = await Promise.all([
-            storyText(oldSession, pattern),
-            storyText(newSession, pattern),
-        ]);
+            storyText(oldSession, pattern), storyText(newSession, pattern)]);
         if (normTrim(oldText) !== normTrim(newText)) {
-            abstentions.push({
-                reason:
-                    `${code}: the ${label} story differs between the two ` +
-                    "versions; compare_versions marks up the main document " +
-                    "story only, so this difference is not shown in the " +
-                    "redline",
-                excerpt: excerptOf(newText || oldText),
-            });
+            abstentions.push(abstention(
+                `${code}: the ${label} story differs between the two ` +
+                "versions; compare_versions marks up the main document " +
+                "story only, so this difference is not shown in the " +
+                "redline",
+                newText || oldText));
         }
     }
     return abstentions;
 }
 
-export async function compareDocxVersions(
-    oldBytes: Buffer,
-    newBytes: Buffer,
-    options?: { author?: string },
-): Promise<CompareDocxVersionsResult> {
+export async function compareDocxVersions(oldBytes: Buffer, newBytes: Buffer,
+    options?: { author?: string }): Promise<CompareDocxVersionsResult> {
     const author = options?.author ?? "Beaver";
     const now = new Date().toISOString();
 
     const [oldSession, newSession] = await Promise.all([
-        openDocxSession(oldBytes),
-        openDocxSession(newBytes),
-    ]);
+        openDocxSession(oldBytes), openDocxSession(newBytes)]);
     const [oldDocument, newDocument] = await Promise.all([
-        oldSession.document("old docx"),
-        newSession.document("new docx"),
-    ]);
+        oldSession.document("old docx"), newSession.document("new docx")]);
     const { tree: newTree, body: newBody } = newDocument;
 
     const changes: CompareChange[] = [];
-    const abstentions: CompareAbstention[] = await compareAuxStories(
-        oldSession,
-        newSession,
-    );
+    const abstentions = await compareAuxStories(oldSession, newSession);
+    const abstain = (reason: string, source: string) =>
+        abstentions.push(abstention(reason, source));
+    const record = (deletedText: string, insertedText: string,
+        kind: CompareChange["kind"] = deletedText && insertedText ? "replace"
+            : deletedText ? "delete" : "insert") =>
+        changes.push({ kind, deletedText, insertedText });
 
     const newBodyKids = elChildren(newBody);
     const blocksFor = (document: typeof oldDocument): Block[] => {
@@ -806,27 +698,19 @@ export async function compareDocxVersions(
     const newBlocks = blocksFor(newDocument);
 
     let endInsertIndex = newBodyKids.length;
-    if (
-        endInsertIndex > 0 &&
-        elName(newBodyKids[endInsertIndex - 1]) === "w:sectPr"
-    ) {
-        endInsertIndex--;
-    }
+    if (endInsertIndex > 0 &&
+        elName(newBodyKids[endInsertIndex - 1]) === "w:sectPr") endInsertIndex--;
 
-    const pairs = alignSequences(
-        oldBlocks.map((b) => b.key),
-        newBlocks.map((b) => b.key),
-    );
+    const pairs = alignSequences(oldBlocks.map((b) => b.key),
+        newBlocks.map((b) => b.key));
     if (pairs === null) {
-        abstentions.push({
-            reason:
-                "documents_too_divergent: the two versions share too " +
-                "little aligned structure for a safe deterministic " +
-                `comparison (${oldBlocks.length}×${newBlocks.length} ` +
-                "blocks); the new version is returned without revision " +
-                "marks",
-            excerpt: excerptOf(newBlocks[0]?.text ?? ""),
-        });
+        abstain(
+            "documents_too_divergent: the two versions share too " +
+            "little aligned structure for a safe deterministic " +
+            `comparison (${oldBlocks.length}×${newBlocks.length} ` +
+            "blocks); the new version is returned without revision " +
+            "marks",
+            newBlocks[0]?.text ?? "");
         return { bytes: newBytes, changes, abstentions };
     }
 
@@ -847,15 +731,13 @@ export async function compareDocxVersions(
         const oldSig = numberingSignature(oldB.node);
         const newSig = numberingSignature(newB.node);
         if (oldSig !== newSig) {
-            abstentions.push({
-                reason:
-                    "numbering_change_not_tracked: this paragraph's list " +
-                    `numbering changed (${oldSig ?? "none"} → ` +
-                    `${newSig ?? "none"}); numbering property changes are ` +
-                    "not representable as text revisions and are left " +
-                    "unmarked",
-                excerpt: excerptOf(newB.text),
-            });
+            abstain(
+                "numbering_change_not_tracked: this paragraph's list " +
+                `numbering changed (${oldSig ?? "none"} → ` +
+                `${newSig ?? "none"}); numbering property changes are ` +
+                "not representable as text revisions and are left " +
+                "unmarked",
+                newB.text);
         }
     };
 
@@ -867,118 +749,75 @@ export async function compareDocxVersions(
             const why = flattened.ok
                 ? "its text has structure the differ cannot round-trip"
                 : flattened.reason;
-            abstentions.push({
-                reason:
-                    "paragraph_not_diffable: a changed paragraph " +
-                    `${why}; it is left as the new version's text without ` +
-                    "revision marks",
-                excerpt: excerptOf(newB.text),
-            });
+            abstain(
+                "paragraph_not_diffable: a changed paragraph " +
+                `${why}; it is left as the new version's text without ` +
+                "revision marks",
+                newB.text);
             return;
         }
         if (oldB.paragraph!.containsObjects) {
-            abstentions.push({
-                reason:
-                    "old_paragraph_objects_not_compared: the old version " +
-                    "of a changed paragraph contains non-text content " +
-                    "(fields, images, or note references); only its text " +
-                    "was compared",
-                excerpt: excerptOf(oldB.text),
-            });
+            abstain(
+                "old_paragraph_objects_not_compared: the old version " +
+                "of a changed paragraph contains non-text content " +
+                "(fields, images, or note references); only its text " +
+                "was compared",
+                oldB.text);
         }
         const clusters = wordDiffClusters(oldB.text, newB.text);
         if (clusters.length === 0) return;
-        const rebuilt = planComparisonRevision(
-            newB.node,
-            flattened,
-            clusters,
-            author,
-            now,
-            nextId,
-        );
+        const rebuilt = planComparisonRevision(newB.node, flattened, clusters,
+            author, now, nextId);
         setChildren(newB.node, rebuilt.children);
         modified = true;
-        for (const note of rebuilt.notes) {
-            abstentions.push({ reason: note, excerpt: excerptOf(newB.text) });
-        }
+        for (const note of rebuilt.notes) abstain(note, newB.text);
         for (const c of clusters) {
-            const inserted = newB.text.slice(c.newStart, c.newEnd);
-            changes.push({
-                kind:
-                    c.deleted && inserted
-                        ? "replace"
-                        : c.deleted
-                          ? "delete"
-                          : "insert",
-                deletedText: c.deleted,
-                insertedText: inserted,
-            });
+            record(c.deleted, newB.text.slice(c.newStart, c.newEnd));
         }
     };
 
     const handleDeletedParagraph = (oldB: Block, beforeIndex: number) => {
-        const result = buildDeletedParagraph(
-            oldB.node,
-            oldB.text,
-            author,
-            now,
-            nextId,
-        );
+        const result = buildDeletedParagraph(oldB.node, oldB.text, author, now,
+            nextId);
         if (result.node === null) {
-            abstentions.push({
-                reason:
-                    "deleted_paragraph_unrepresentable: a paragraph " +
-                    "removed from the old version has no text content " +
-                    `(only: ${[...result.dropped].join(", ")}); its ` +
-                    "deletion is not shown in the redline",
-                excerpt: excerptOf(result.text),
-            });
+            abstain(
+                "deleted_paragraph_unrepresentable: a paragraph " +
+                "removed from the old version has no text content " +
+                `(only: ${[...result.dropped].join(", ")}); its ` +
+                "deletion is not shown in the redline",
+                result.text);
             return;
         }
         if (result.dropped.size > 0) {
-            abstentions.push({
-                reason:
-                    "deleted_paragraph_content_dropped: a deleted " +
-                    "paragraph is shown in the redline but its non-text " +
-                    `content (${[...result.dropped].join(", ")}) could ` +
-                    "not be carried into the new document's package",
-                excerpt: excerptOf(result.text),
-            });
+            abstain(
+                "deleted_paragraph_content_dropped: a deleted " +
+                "paragraph is shown in the redline but its non-text " +
+                `content (${[...result.dropped].join(", ")}) could ` +
+                "not be carried into the new document's package",
+                result.text);
         }
         queueSplice(beforeIndex, result.node);
-        changes.push({
-            kind: "delete",
-            deletedText: result.text,
-            insertedText: "",
-        });
+        record(result.text, "", "delete");
     };
 
     const handleInsertedParagraph = (newB: Block) => {
         const problem = validateInsertable(newB.node);
         if (problem) {
-            abstentions.push({
-                reason:
-                    "inserted_paragraph_not_markable: a paragraph added " +
-                    `in the new version ${problem} and cannot be safely ` +
-                    "wrapped in w:ins; it is included without revision " +
-                    "marks",
-                excerpt: excerptOf(newB.text),
-            });
+            abstain(
+                "inserted_paragraph_not_markable: a paragraph added " +
+                `in the new version ${problem} and cannot be safely ` +
+                "wrapped in w:ins; it is included without revision " +
+                "marks",
+                newB.text);
             return;
         }
         markParagraphInserted(newB.node, author, now, nextId);
         modified = true;
-        changes.push({
-            kind: "insert",
-            deletedText: "",
-            insertedText: newB.text,
-        });
+        record("", newB.text, "insert");
     };
 
-    const blockLabel = (kind: "tbl" | "sdt") =>
-        kind === "tbl" ? "table" : "content control";
-    const blockCode = (kind: "tbl" | "sdt") =>
-        kind === "tbl" ? "table" : "content_control";
+    const blockLabel = (k: "tbl" | "sdt") => k === "tbl" ? "table" : "content control";
+    const blockCode = (k: "tbl" | "sdt") => k === "tbl" ? "table" : "content_control";
 
     const processGap = (
         gapOld: Block[],
@@ -990,35 +829,29 @@ export async function compareDocxVersions(
             const newK = gapNew.filter((b) => b.kind === kind);
             const paired = Math.min(oldK.length, newK.length);
             for (let k = 0; k < paired; k++) {
-                abstentions.push({
-                    reason:
-                        `${blockCode(kind)}_changed: a ${blockLabel(kind)} ` +
-                        "differs between the two versions; " +
-                        `${blockLabel(kind)}s are not compared, and the ` +
-                        "new version's content is included without " +
-                        "revision marks",
-                    excerpt: excerptOf(newK[k].text),
-                });
+                abstain(
+                    `${blockCode(kind)}_changed: a ${blockLabel(kind)} ` +
+                    "differs between the two versions; " +
+                    `${blockLabel(kind)}s are not compared, and the ` +
+                    "new version's content is included without " +
+                    "revision marks",
+                    newK[k].text);
             }
             for (let k = paired; k < oldK.length; k++) {
-                abstentions.push({
-                    reason:
-                        `${blockCode(kind)}_removed: a ${blockLabel(kind)} ` +
-                        "present in the old version does not appear in " +
-                        "the new version; its removal is not shown in the " +
-                        "redline",
-                    excerpt: excerptOf(oldK[k].text),
-                });
+                abstain(
+                    `${blockCode(kind)}_removed: a ${blockLabel(kind)} ` +
+                    "present in the old version does not appear in " +
+                    "the new version; its removal is not shown in the " +
+                    "redline",
+                    oldK[k].text);
             }
             for (let k = paired; k < newK.length; k++) {
-                abstentions.push({
-                    reason:
-                        `${blockCode(kind)}_added: a ${blockLabel(kind)} ` +
-                        "added in the new version is included without " +
-                        "revision marks; " +
-                        `${blockLabel(kind)} changes are not tracked`,
-                    excerpt: excerptOf(newK[k].text),
-                });
+                abstain(
+                    `${blockCode(kind)}_added: a ${blockLabel(kind)} ` +
+                    "added in the new version is included without " +
+                    "revision marks; " +
+                    `${blockLabel(kind)} changes are not tracked`,
+                    newK[k].text);
             }
         }
 
@@ -1054,15 +887,9 @@ export async function compareDocxVersions(
         const isSentinel = k === pairs.length;
         const pi = isSentinel ? oldBlocks.length : pairs[k][0];
         const pj = isSentinel ? newBlocks.length : pairs[k][1];
-        const trailing =
-            pj < newBlocks.length
-                ? newBlocks[pj].bodyIndex
-                : endInsertIndex;
-        processGap(
-            oldBlocks.slice(oi, pi),
-            newBlocks.slice(ni, pj),
-            trailing,
-        );
+        const trailing = pj < newBlocks.length
+            ? newBlocks[pj].bodyIndex : endInsertIndex;
+        processGap(oldBlocks.slice(oi, pi), newBlocks.slice(ni, pj), trailing);
         if (isSentinel) break;
         const oldB = oldBlocks[pi];
         const newB = newBlocks[pj];
@@ -1090,9 +917,5 @@ export async function compareDocxVersions(
     }
 
     newSession.writeDocument(newTree);
-    return {
-        bytes: await newSession.save(),
-        changes,
-        abstentions,
-    };
+    return { bytes: await newSession.save(), changes, abstentions };
 }
