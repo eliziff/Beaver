@@ -70,18 +70,15 @@ it("files a chat's cited passage under every reviewed concept and undoes the who
   const passages = (await f.sources.items(owner, file.document.id,
     { kind: "passages", sourceId: f.sourceId, offset: 0, limit: 50 })).items.flatMap((item) =>
       item.kind === "passage" ? [item.value] : []);
-  expect(passages).toHaveLength(3);
-  expect(passages.every(({ receipt, labelIds }) => JSON.stringify(receipt) === JSON.stringify(f.receipts[0]) && labelIds.length === 1)).toBe(true);
-  expect(new Set(passages.map((item) => item.highlightId ?? item.receipt.evidence_id)).size).toBe(3);
+  expect(passages).toHaveLength(1);
+  expect(Object.values(saved.state.labels).filter((label) => label.scope === "highlight").map(({ name }) => name)).toEqual(["Rule"]);
   for (const name of ["Honest performance", "Exclusion of duties"]) {
-    const labels = Object.values(saved.state.labels), concept = labels.find((label) => label.name === name && label.scope === "source")!,
-      type = labels.find((label) => label.name === name && label.scope === "highlight")!;
+    const concept = Object.values(saved.state.labels).find((label) => label.name === name && label.scope === "source")!;
     expect(saved.state.sources[f.sourceId].labelIds).toContain(concept.id);
-    expect(saved.state.sources[f.sourceId].passages?.labelCounts[type.id]).toBe(1);
   }
   const table = await f.sources.previewTable(owner, file.document.id, {});
   expect(table.design.columns.map(({ name }) => name)).toEqual(["Integrated scheme", "Rule", "Honest performance", "Exclusion of duties"]);
-  expect(table.stats.map(({ evidence }) => evidence)).toEqual([0, 1, 1, 1]);
+  expect(table.stats.map(({ evidence }) => evidence)).toEqual([0, 1, 0, 0]);
   expect(table.samples.every(({ text }) => text === f.receipts[0].span_text)).toBe(true);
   const history = await f.sources.items(owner, file.document.id, { kind: "history", offset: 0, limit: 1 }), change = history.items[0];
   if (change.kind !== "change") throw new Error("Missing proposal history");
@@ -307,12 +304,12 @@ it("reads saved workspace passages through their handles without fetching the so
   await f.turn("What follows?", "Supported conclusion.");
   const before = (await f.sources.get(owner, f.file().document.id))!, finding = (await f.sources.findings(owner,
     before.document.id, { chatId: f.chat.id, offset: 0, limit: 10 })).items[0],
-    filed = await f.sources.saveFindings(owner, before.document.id, { references: [finding.reference], typeId: f.labelId,
+    filed = await f.sources.saveFindings(owner, before.document.id, { references: [finding.reference], typeId: f.typeId,
       versionId: before.versionId, workingRevision: before.workingRevision }),
     highlights = (await f.sources.items(owner, before.document.id, { kind: "passages", offset: 0, limit: 20 })).items,
     history = (await f.sources.items(owner, before.document.id, { kind: "history", offset: 0, limit: 1 })).items[0];
   expect(highlights).toContainEqual(expect.objectContaining({ kind: "passage", value: expect.objectContaining({
-    receipt: f.receipts[1], labelIds: [Object.values(filed.file.state.labels).find(({ name, scope }) => name === "Integrated scheme" && scope === "highlight")!.id] }) }));
+    receipt: f.receipts[1], labelIds: [f.typeId] }) }));
   if (history.kind !== "change") throw new Error("Missing filing history");
   const restored = (await f.sources.update(owner, before.document.id, { versionId: filed.file.versionId,
     workingRevision: filed.file.workingRevision, action: { type: "undo", changeId: history.value.id } })).file;
@@ -340,19 +337,15 @@ it.each([false, true])("round trips every table column with joint evidence and u
   expect(preview.labels.map(({ name }) => name)).toEqual(columns.map(({ name }) => name));
   expect(await f.sources.get(owner, before.document.id)).toEqual(before);
   const saved = await f.sources.applyLabels(owner, before.document.id, { ...input, design: preview.design, fingerprint: preview.fingerprint }),
-    page = await f.sources.items(owner, saved.document.id, { kind: "passages", offset: 0, limit: 50 }),
-    passages = page.items.flatMap((item) => item.kind === "passage" ? [item.value] : []);
-  expect(passages).toHaveLength(6);
-  expect(new Set(passages.map((item) => item.highlightId ?? item.receipt.evidence_id)).size).toBe(6);
+    page = await f.sources.items(owner, saved.document.id, { kind: "evidence", offset: 0, limit: 50 }),
+    passages = page.items.flatMap((item) => item.kind === "evidence" ? [item.value] : []);
+  expect(passages.map(({ receipt }) => receipt.evidence_id).sort()).toEqual(evidence.map(({ evidence_id }) => evidence_id).sort());
+  expect(passages.every((passage) => passage.labelIds.length === 0)).toBe(true);
   for (const receipt of evidence) {
-    const copies = passages.filter((passage) => passage.receipt.evidence_id === receipt.evidence_id);
-    expect(copies).toHaveLength(3);
-    expect(copies.every((passage) => JSON.stringify(passage.receipt) === JSON.stringify(receipt) && passage.labelIds.length === 1)).toBe(true);
     const source = Object.values(saved.state.sources).find(({ reference }) =>
       f.research.researchSourceResource(reference) === f.legal.legalEvidenceResourceReference(receipt))!;
-    expect(Object.values(source.passages!.labelCounts)).toEqual([1, 1, 1]);
+    expect(source.labelIds.map((id) => saved.state.labels[id].name).sort()).toEqual(columns.map(({ name }) => name).sort());
   }
-  expect(new Set(passages.map(({ labelIds }) => saved.state.labels[labelIds[0]].name))).toEqual(new Set(columns.map(({ name }) => name)));
   const returned = await f.sources.previewTable(owner, saved.document.id, {});
   expect(returned.design.columns.map(({ name, prompt }) => ({ name, prompt }))).toEqual(columns.map(({ name, prompt }) => ({ name, prompt })));
   const history = (await f.sources.items(owner, saved.document.id, { kind: "history", offset: 0, limit: 1 })).items[0];

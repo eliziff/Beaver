@@ -67,7 +67,7 @@ export function researchLabelPlan(file: ResearchFile, catalog: ResearchImportCat
     if (!existing) actions.push({ type: "label", ...label });
     return label;
   };
-  for (const label of parsed.labels) { resolve(label.key, label.scope ?? scope); if ((label.scope ?? scope) === "source") resolve(label.key, "highlight"); }
+  for (const label of parsed.labels) resolve(label.key, label.scope ?? scope);
   const support = new Map(catalog.entries.map((entry) => [entry.id, entry])),
     members = new Map<string, Map<string, { evidence: Set<string>; support: Set<string> }>>();
   for (const assignment of parsed.assignments) {
@@ -89,12 +89,15 @@ export function researchLabelPlan(file: ResearchFile, catalog: ResearchImportCat
     members.set(assignment.labelKey, rows);
   }
   for (const [labelKey, rows] of members) {
-    if ((byKey.get(labelKey)!.scope ?? scope) === "source") actions.push({ type: "label-selection", target: "sources",
+    // A source label files whole sources and keeps its supporting passages as plain evidence; only a highlight
+    // type files passages under itself. Neither kind gets a twin of the other.
+    const concept = (byKey.get(labelKey)!.scope ?? scope) === "source";
+    if (concept) actions.push({ type: "label-selection", target: "sources",
       sourceIds: [...rows.keys()].map((id) => rowById.get(id)!.sourceId), assign: [resolve(labelKey, "source").id], mode: "add" });
     const passages = [...rows].filter(([, { evidence }]) => evidence.size)
       .map(([id, { evidence }]) => ({ sourceId: rowById.get(id)!.sourceId, evidenceIds: [...evidence] }));
     if (passages.length) actions.push({ type: "label-selection", target: "passages",
-      assign: [resolve(labelKey, "highlight").id], mode: "add", members: passages });
+      assign: concept ? [] : [resolve(labelKey, "highlight").id], mode: "add", members: passages });
   }
   const normalise = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/gu, " ").trim();
   const titles = new Set(catalog.rows.map((row) => normalise(row.title)));
