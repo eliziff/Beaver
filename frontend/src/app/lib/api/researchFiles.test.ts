@@ -50,11 +50,10 @@ describe("research file API", () => {
     const fetchMock = vi.fn(async () => json({ id: "review-1", title: "Fairness",
       columns_config: [{ index: 0, name: "Labels" }] }));
     vi.stubGlobal("fetch", fetchMock);
-    await expect(openWorkspaceTable("file/1", { rows: "passages", labelId: "pen-1" }))
+    await expect(openWorkspaceTable("file/1", { labelId: "pen-1" }))
       .resolves.toMatchObject({ id: "review-1", columns_config: [{ name: "Labels" }] });
     expect(fetchMock.mock.calls[0][0]).toBe("/api/source-workspaces/file%2F1/table");
-    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body)))
-      .toEqual({ rows: "passages", labelId: "pen-1" });
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ labelId: "pen-1" });
   });
 
   it("pages v2 parts without reconstructing them from the root file", async () => {
