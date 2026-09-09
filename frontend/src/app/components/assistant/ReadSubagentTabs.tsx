@@ -1,6 +1,5 @@
 import { CircleStop, LoaderCircle } from "lucide-react";
 import { Tabs } from "@/app/components/ui/tabs";
-import type { Citation } from "@/app/lib/citations";
 import { ReadSubagentDock, type ReadSubagentPanel } from "./ReadSubagentDock";
 
 export type ReadSubagentGroup = { id: string; label: string; panels: ReadSubagentPanel[] };
@@ -21,12 +20,11 @@ export function ReadSubagentTabs({
     groups,
     activeId,
     onActivate,
-    onCitationClick,
 }: {
     groups: ReadSubagentGroup[];
     activeId: string | null;
     onActivate: (id: string) => void;
-    onCitationClick: (citation: Citation) => void;
+
 }) {
     const active = groups.find(({ id }) => id === activeId) ?? groups[0];
     if (!active) return <div className="grid h-full place-items-center p-6 text-center text-sm text-gray-500">Reading-agent runs will appear here.</div>;
@@ -39,6 +37,6 @@ export function ReadSubagentTabs({
             ariaLabel="Reading agents" variant="segmented" className="h-full"
             railClassName="m-2 mb-0">
         <ReadSubagentDock idPrefix={`reading-agent-${active.id}`}
-            panels={active.panels} onCitationClick={onCitationClick} embedded />
+            panels={active.panels} embedded />
     </Tabs>;
 }

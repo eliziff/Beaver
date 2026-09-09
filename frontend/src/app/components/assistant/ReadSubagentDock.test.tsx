@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { expect, it } from "vitest";
 import { ReadSubagentDock } from "./ReadSubagentDock";
 
 const completedPanel = {
@@ -44,11 +44,9 @@ const runningPanel = {
 };
 
 it("keeps the delegated source chip unchanged and opens its exact source after completion", () => {
-    const onCitationClick = vi.fn();
     const { rerender } = render(
         <ReadSubagentDock
             panels={[runningPanel]}
-            onCitationClick={onCitationClick}
             embedded
         />,
     );
@@ -60,11 +58,9 @@ it("keeps the delegated source chip unchanged and opens its exact source after c
         name: "Example v. Example, 2020 BCSC 1",
     });
     expect(screen.getByRole("listitem")).toHaveAttribute("aria-busy", "true");
-    rerender(<ReadSubagentDock panels={[completedPanel]} onCitationClick={onCitationClick} embedded />);
+    rerender(<ReadSubagentDock panels={[completedPanel]} embedded />);
     expect(screen.getByRole("link", { name: "Example v. Example, 2020 BCSC 1" })).toBe(citation);
     expect(screen.getByRole("listitem")).toHaveAttribute("aria-busy", "false");
     expect(citation).toHaveAttribute("target", "_blank");
-    fireEvent.click(screen.getByRole("button", { name: "Citation actions" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Open in reader" }));
-    expect(onCitationClick).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Citation actions" })).toBeNull();
 });
