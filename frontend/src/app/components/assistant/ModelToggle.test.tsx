@@ -19,7 +19,7 @@ beforeEach(() => {
   });
 });
 
-it("does not start model discovery until the user opens the model selector", async () => {
+it("loads the catalog on mount so opening the model selector never waits", async () => {
   render(
     <ModelEffortToggle
       model="codex:gpt-5.6-terra"
@@ -29,14 +29,13 @@ it("does not start model discovery until the user opens the model selector", asy
     />,
   );
 
-  const modelButton = screen.getByRole("button", { name: /^Model:/ });
-  expect(modelButton).toHaveTextContent("Terra");
-  expect(getCatalog).not.toHaveBeenCalled();
+  await waitFor(() => expect(getCatalog).toHaveBeenCalledTimes(1));
+  const modelButton = await screen.findByRole("button", { name: /^Model: GPT-5.6 Terra/ });
 
   fireEvent.click(modelButton);
 
-  await waitFor(() => expect(getCatalog).toHaveBeenCalledTimes(1));
-  expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "GPT-5.6 Terra" })).toBeVisible();
 });
 
 it("preserves persisted effort without guessing an undiscovered model default", () => {
@@ -51,7 +50,6 @@ it("preserves persisted effort without guessing an undiscovered model default", 
 
   expect(screen.getByRole("button", { name: /^Model:.*max/ }))
     .toHaveTextContent("max");
-  expect(getCatalog).not.toHaveBeenCalled();
 
   render(
     <ModelEffortToggle
@@ -63,7 +61,6 @@ it("preserves persisted effort without guessing an undiscovered model default", 
 
   expect(screen.getByRole("button", { name: /^Model:.*Automatic/ }))
     .toHaveTextContent("Automatic");
-  expect(getCatalog).not.toHaveBeenCalled();
 });
 
 it("changes model and supported effort without leaving the picker", async () => {

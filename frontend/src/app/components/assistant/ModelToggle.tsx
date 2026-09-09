@@ -1,4 +1,4 @@
-import { useLayoutEffect, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, type ReactNode } from "react";
 import type { ApiKeyState, ModelCatalog } from "@/app/lib/api/account";
 import {
     useModelCatalog,
@@ -38,6 +38,8 @@ export function ModelToggle({
     effortControls,
 }: Props) {
     const catalog = useModelCatalog();
+    // Fetch in the background on mount so opening the picker never waits on the network.
+    useEffect(() => { void preloadModelCatalog(); }, []);
     const allModels = (catalog?.models ?? []).filter(model => includeSettingsModels || !model.settingsOnly);
     const selected = allModels.find((model) => model.id === value);
     const visibleModels = selected
