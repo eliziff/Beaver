@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { PanelsTopLeft } from "lucide-react";
 import { CitationQuotesHeader } from "@/app/components/assistant/CitationQuotesHeader";
 import { GfmMarkdown } from "@/app/components/assistant/message/MarkdownContent";
 import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
@@ -420,10 +419,6 @@ function LegalSourceViewerContent({
               : "text-xl font-semibold leading-tight text-gray-950 sm:text-2xl"}`}>
               {metadata.title}
             </h1>
-            {compact && onOpenResearch && <button type="button" onClick={() => onOpenResearch()}
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-gray-300 px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
-              Open in workspace <PanelsTopLeft className="size-3.5" aria-hidden="true" />
-            </button>}
             <ReaderExpandButton expanded={readerExpansion.expanded} onChange={readerExpansion.onChange} />
             {!!actions.length && <nav aria-label="Source links" className="flex shrink-0 items-center gap-2">
               {actions.map(({ kind, label, href }) => (
