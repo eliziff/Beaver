@@ -16,22 +16,10 @@
 
 import diff from "fast-diff";
 import {
-    ATTR_KEY,
-    type XNode,
-    cloneNode,
-    createBuilder,
-    ensureXmlDeclaration,
-    elAttrs,
-    elChildren,
-    elName,
-    makeEl,
-    makeText,
-    setChildren,
+    ATTR_KEY, type XNode, cloneNode, createBuilder, ensureXmlDeclaration,
+    elAttrs, elChildren, elName, makeEl, makeText, setChildren,
 } from "./docx/core";
-import {
-    type DocxParagraphIndex,
-    openDocxSession,
-} from "./docx/session";
+import { type DocxParagraphIndex, openDocxSession } from "./docx/session";
 
 export interface EditInput {
     find: string;
@@ -196,25 +184,16 @@ export function clusterTextChanges(parts: Iterable<diff.Diff>, coordinate: "old"
  * insertion) plus the text inserted at its start; the semantic cleanup keeps
  * word-shaped changes whole rather than character confetti.
  */
-function minimalTextEdit(
-    find: string,
-    replace: string,
-): {
+function minimalTextEdit(find: string, replace: string): {
     clusters: { offset: number; deleted: string; inserted: string }[];
     diff: EditDiffSegment[];
 } {
     const parts = diff(find, replace, undefined, true);
     return {
         clusters: clusterTextChanges(parts, "old"),
-        diff: parts.map(([op, text]) => ({
-            kind:
-                op === diff.EQUAL
-                    ? "equal"
-                    : op === diff.DELETE
-                      ? "delete"
-                      : "insert",
-            text,
-        })),
+        diff: parts.map(([op, text]) => ({ text,
+            kind: op === diff.EQUAL ? "equal"
+                : op === diff.DELETE ? "delete" : "insert" })),
     };
 }
 
@@ -231,12 +210,8 @@ function spanAt(spans: readonly { end: number }[], position: number): number {
 }
 
 /** Rewrite only the runs touched by sorted, non-overlapping changes. */
-function planParagraphRevision(
-    flat: DocxParagraphIndex,
-    plan: PlannedChange[],
-    now: string,
-    author: string,
-): XNode[] {
+function planParagraphRevision(flat: DocxParagraphIndex, plan: PlannedChange[],
+    now: string, author: string): XNode[] {
     if (plan.length === 0 || flat.acceptedText.length === 0) return flat.children;
     // An insertion at paragraph end inherits the preceding nonempty run.
     const runAt = (position: number) => spanAt(flat.editRuns,
@@ -311,11 +286,8 @@ function touchesContentControl(flat: DocxParagraphIndex, start: number, end: num
     return false;
 }
 
-function paragraphIndexForRange(
-    paragraphs: DocxParagraphIndex[],
-    start: number,
-    end: number,
-): number {
+function paragraphIndexForRange(paragraphs: DocxParagraphIndex[], start: number,
+    end: number): number {
     let low = 0;
     let high = paragraphs.length - 1;
     while (low <= high) {
@@ -346,17 +318,11 @@ export function normalizeWs(input: string): Normalized {
     let prevSpace = false;
     for (let i = 0; i < s.length; i++) {
         const ch = s[i];
-        if (/\s/.test(ch)) {
-            if (!prevSpace) {
-                norm.push(" ");
-                origIdx.push(i);
-                prevSpace = true;
-            }
-        } else {
-            norm.push(ch);
-            origIdx.push(i);
-            prevSpace = false;
-        }
+        const space = /\s/.test(ch);
+        if (space && prevSpace) continue;
+        norm.push(space ? " " : ch);
+        origIdx.push(i);
+        prevSpace = space;
     }
     return { norm: norm.join(""), origIdx };
 }
@@ -366,11 +332,8 @@ export function normalizeWs(input: string): Normalized {
  * Match contexts separately: concatenating them with the find text would change
  * the meaning of whitespace collapsed at their boundaries.
  */
-function locateEdit(
-    body: Normalized,
-    originalLength: number,
-    edit: EditInput,
-): { start: number; end: number } | { error: "none" | "ambiguous" } {
+function locateEdit(body: Normalized, originalLength: number, edit: EditInput):
+    { start: number; end: number } | { error: "none" | "ambiguous" } {
     const find = normalizeWs(edit.find ?? "").norm;
     const before = normalizeWs(edit.context_before ?? "").norm;
     const after = normalizeWs(edit.context_after ?? "").norm;
@@ -385,11 +348,9 @@ function locateEdit(
         const position = index + offset;
         const contextStart = position - before.length;
         const contextEnd = position + find.length;
-        if (
-            contextStart < 0 ||
+        if (contextStart < 0 ||
             body.norm.slice(contextStart, position) !== before ||
-            body.norm.slice(contextEnd, contextEnd + after.length) !== after
-        ) continue;
+            body.norm.slice(contextEnd, contextEnd + after.length) !== after) continue;
         if (match >= 0) return { error: "ambiguous" };
         match = position;
     }
@@ -418,13 +379,10 @@ export interface InsertTrackedBlocksInput {
 export async function extractDocxBodyText(bytes: Buffer): Promise<string> {
     const session = await openDocxSession(bytes);
     if (!session.has("word/document.xml")) return "";
-    return session.document().then(
-        (document) => document.text,
-        (error: unknown) => {
-            if (/^w:body missing from /u.test(String((error as Error).message))) return "";
-            throw error;
-        },
-    );
+    return session.document().then((document) => document.text, (error: unknown) => {
+        if (/^w:body missing from /u.test(String((error as Error).message))) return "";
+        throw error;
+    });
 }
 
 /**
@@ -433,24 +391,19 @@ export async function extractDocxBodyText(bytes: Buffer): Promise<string> {
  * as <ins>/<del> in the DOM, so the frontend can tag each rendered
  * element by index to recover the w:id attribute that docx-preview drops.
  */
-export async function extractTrackedChangeIds(
-    bytes: Buffer,
-): Promise<{ kind: "ins" | "del"; w_id: string }[]> {
+export async function extractTrackedChangeIds(bytes: Buffer):
+    Promise<{ kind: "ins" | "del"; w_id: string }[]> {
     return (await (await openDocxSession(bytes)).revisions()).changes;
 }
 
-export async function applyTrackedEdits(
-    bytes: Buffer,
-    edits: EditInput[],
-    opts?: { author?: string },
-): Promise<ApplyTrackedEditsResult> {
+export async function applyTrackedEdits(bytes: Buffer, edits: EditInput[],
+    opts?: { author?: string }): Promise<ApplyTrackedEditsResult> {
     const author = opts?.author ?? "Beaver";
     const now = new Date().toISOString();
 
     const session = await openDocxSession(bytes);
     const document = await session.document();
     const { tree } = document;
-
     const paragraphs = document.paragraphs;
 
     // Word tracks text inside paragraphs. The assistant, however, reads the
@@ -461,6 +414,7 @@ export async function applyTrackedEdits(
     type ConcreteEdit = { edit: EditInput; sourceIndex: number };
     const concreteEdits: ConcreteEdit[] = [];
     const errors: EditError[] = [];
+    const fail = (index: number, reason: string) => errors.push({ index, reason });
     const diffByEdit = new Map<number, EditDiffSegment[]>();
     const bodyText = document.text;
     const bodyNorm = normalizeWs(bodyText);
@@ -472,8 +426,8 @@ export async function applyTrackedEdits(
         const multiline = find.includes("\n") || replace.includes("\n");
         if (!find && (!replace || !source.context_before && !source.context_after &&
             !Number.isSafeInteger(source.exact_start))) {
-            errors.push({ index: sourceIndex, reason: replace
-                ? "Pure insertion requires context_before or context_after." : "Empty edit." });
+            fail(sourceIndex, replace
+                ? "Pure insertion requires context_before or context_after." : "Empty edit.");
             continue;
         }
         const hasExact = Number.isSafeInteger(source.exact_start) && Number.isSafeInteger(source.exact_end);
@@ -481,13 +435,13 @@ export async function applyTrackedEdits(
             ? { start: source.exact_start!, end: source.exact_end! }
             : locateEdit(bodyNorm, bodyText.length, source);
         if ("error" in matched) {
-            errors.push({ index: sourceIndex, reason: multiline
+            fail(sourceIndex, multiline
                 ? matched.error === "ambiguous"
                     ? "Ambiguous match for the multi-paragraph edit; the document is unchanged."
                     : "Could not locate the multi-paragraph edit; the document is unchanged."
                 : matched.error === "ambiguous"
                     ? "Ambiguous match for this edit; the document is unchanged."
-                    : "Could not locate this edit on the current document text plane; the document is unchanged." });
+                    : "Could not locate this edit on the current document text plane; the document is unchanged.");
             continue;
         }
         if (!multiline) {
@@ -501,10 +455,7 @@ export async function applyTrackedEdits(
         const findLines = actualFind.split("\n");
         const replaceLines = replace.split("\n");
         if (findLines.length !== replaceLines.length) {
-            errors.push({
-                index: sourceIndex,
-                reason: `Multi-paragraph replacement must preserve the paragraph count (${findLines.length} found, ${replaceLines.length} supplied).`,
-            });
+            fail(sourceIndex, `Multi-paragraph replacement must preserve the paragraph count (${findLines.length} found, ${replaceLines.length} supplied).`);
             continue;
         }
 
@@ -521,10 +472,8 @@ export async function applyTrackedEdits(
                         find: original,
                         replace: replacement,
                         context_before: bodyText.slice(Math.max(0, cursor - 40), cursor),
-                        context_after: bodyText.slice(
-                            cursor + original.length,
-                            cursor + original.length + 40,
-                        ),
+                        context_after: bodyText.slice(cursor + original.length,
+                            cursor + original.length + 40),
                         reason: source.reason,
                         exact_start: cursor,
                         exact_end: cursor + original.length,
@@ -533,12 +482,7 @@ export async function applyTrackedEdits(
             }
             cursor += original.length + (line + 1 < findLines.length ? 1 : 0);
         }
-        if (!changed) {
-            errors.push({
-                index: sourceIndex,
-                reason: "Replacement does not change the matched text.",
-            });
-        }
+        if (!changed) fail(sourceIndex, "Replacement does not change the matched text.");
     }
 
     let nextWId = document.maxTrackedId + 1;
@@ -549,60 +493,41 @@ export async function applyTrackedEdits(
         { changeId: string; delWId?: string; insWId?: string }
     >();
 
-    for (let concreteIndex = 0; concreteIndex < concreteEdits.length; concreteIndex++) {
-        const { edit, sourceIndex: editIdx } = concreteEdits[concreteIndex];
+    for (const { edit, sourceIndex: editIdx } of concreteEdits) {
         const find = edit.find ?? "";
         const replace = edit.replace ?? "";
-        let paraIdx = -1;
-        let findStart = -1;
-        let findEnd = -1;
         const exactStart = edit.exact_start!;
         const exactEnd = edit.exact_end!;
         if (exactStart < 0 || exactEnd < exactStart) {
-            errors.push({ index: editIdx, reason: "Invalid exact edit span." });
+            fail(editIdx, "Invalid exact edit span.");
             continue;
         }
-        paraIdx = paragraphIndexForRange(paragraphs, exactStart, exactEnd);
+        const paraIdx = paragraphIndexForRange(paragraphs, exactStart, exactEnd);
         if (paraIdx < 0) {
-            errors.push({ index: editIdx, reason: "Exact edit span must resolve inside one paragraph." });
+            fail(editIdx, "Exact edit span must resolve inside one paragraph.");
             continue;
         }
         const paragraph = paragraphs[paraIdx];
-        findStart = exactStart - paragraph.globalStart;
-        findEnd = exactEnd - paragraph.globalStart;
+        const findStart = exactStart - paragraph.globalStart;
+        const findEnd = exactEnd - paragraph.globalStart;
+        // The pinned span is the matcher's own coordinate: it must still read
+        // exactly as `find`, which the minimal diff then works from.
         if (paragraph.acceptedText.slice(findStart, findEnd) !== find) {
-            errors.push({ index: editIdx, reason: "Exact edit span no longer matches the pinned text." });
+            fail(editIdx, "Exact edit span no longer matches the pinned text.");
             continue;
         }
 
-        const originalFind = paragraphs[paraIdx].acceptedText.slice(
-            findStart,
-            findEnd,
-        );
-
-        const minimal = minimalTextEdit(originalFind, replace);
+        const minimal = minimalTextEdit(find, replace);
         const clusters = minimal.clusters;
         if (!diffByEdit.has(editIdx)) diffByEdit.set(editIdx, minimal.diff);
         if (clusters.length === 0) {
-            errors.push({
-                index: editIdx,
-                reason: "Replacement does not change the matched text.",
-            });
+            fail(editIdx, "Replacement does not change the matched text.");
             continue;
         }
-        if (
-            clusters.some((cluster) =>
-                touchesContentControl(
-                    paragraphs[paraIdx],
-                    findStart + cluster.offset,
-                    findStart + cluster.offset + cluster.deleted.length,
-                ),
-            )
-        ) {
-            errors.push({
-                index: editIdx,
-                reason: "This edit touches a Word content control. Edit the control in Word or regenerate the draft.",
-            });
+        if (clusters.some((cluster) => touchesContentControl(paragraph,
+            findStart + cluster.offset,
+            findStart + cluster.offset + cluster.deleted.length))) {
+            fail(editIdx, "This edit touches a Word content control. Edit the control in Word or regenerate the draft.");
             continue;
         }
 
@@ -624,16 +549,10 @@ export async function applyTrackedEdits(
         }));
 
         const existing = plansPerParagraph.get(paraIdx) ?? [];
-        const overlap = editPlans.some((plan) =>
-            existing.some(
-                (p) => !(plan.deleteEnd <= p.deleteStart || plan.deleteStart >= p.deleteEnd),
-            ),
-        );
+        const overlap = editPlans.some((plan) => existing.some((p) =>
+            !(plan.deleteEnd <= p.deleteStart || plan.deleteStart >= p.deleteEnd)));
         if (overlap) {
-            errors.push({
-                index: editIdx,
-                reason: "Overlaps a previous edit in the same paragraph.",
-            });
+            fail(editIdx, "Overlaps a previous edit in the same paragraph.");
             continue;
         }
 
@@ -641,14 +560,10 @@ export async function applyTrackedEdits(
         existing.sort((a, b) => a.deleteStart - b.deleteStart);
         plansPerParagraph.set(paraIdx, existing);
 
-        const deletedText = clusters
-            .map((cluster) => cluster.deleted)
-            .filter(Boolean)
-            .join(" … ");
-        const insertedText = clusters
-            .map((cluster) => cluster.inserted)
-            .filter(Boolean)
-            .join(" … ");
+        const joinClusters = (field: "deleted" | "inserted") =>
+            clusters.map((cluster) => cluster[field]).filter(Boolean).join(" … ");
+        const deletedText = joinClusters("deleted");
+        const insertedText = joinClusters("inserted");
         const applied = appliedChangesByEdit.get(editIdx);
         if (applied) {
             applied.delId = revision.delWId;
@@ -679,19 +594,14 @@ export async function applyTrackedEdits(
     }
 
     session.writeDocument(tree);
-    return {
-        bytes: await session.save(),
-        changes: [...appliedChangesByEdit.values()],
-        errors,
-    };
+    return { bytes: await session.save(), errors,
+        changes: [...appliedChangesByEdit.values()] };
 }
 
 /** Insert new paragraphs as tracked text plus an inserted paragraph mark. */
-export async function insertTrackedBlocks(
-    bytes: Buffer,
+export async function insertTrackedBlocks(bytes: Buffer,
     input: InsertTrackedBlocksInput,
-    opts?: { author?: string },
-): Promise<ApplyTrackedEditsResult> {
+    opts?: { author?: string }): Promise<ApplyTrackedEditsResult> {
     if (!input.blocks.length || input.blocks.some((block) => !block.trim())) {
         throw new Error("insert_blocks requires one or more non-empty blocks");
     }
@@ -703,35 +613,26 @@ export async function insertTrackedBlocks(
     const { tree } = document;
     const body = elChildren(document.body);
     const byNode = new Map(
-        document.paragraphs.map((paragraph) => [paragraph.node, paragraph]),
-    );
+        document.paragraphs.map((paragraph) => [paragraph.node, paragraph]));
 
-    const paragraphIndexes = body
-        .map((node, index) => ({ paragraph: byNode.get(node), index }))
-        .filter(
-            (entry): entry is { paragraph: DocxParagraphIndex; index: number } =>
-                !!entry.paragraph,
-        );
+    const paragraphIndexes = body.flatMap((node, index) => {
+        const paragraph = byNode.get(node);
+        return paragraph ? [{ paragraph, index }] : [];
+    });
     let insertionIndex: number;
     let contextBefore = "";
     let contextAfter = "";
     if (input.anchorText?.trim()) {
         const needle = normalizeWs(input.anchorText).norm;
         const hits = paragraphIndexes.filter(({ paragraph }) =>
-            normalizeWs(paragraph.visibleText).norm.includes(needle),
-        );
-        const chosen =
-            typeof input.occurrence === "number"
-                ? hits[input.occurrence - 1]
-                : hits.length === 1
-                  ? hits[0]
-                  : undefined;
+            normalizeWs(paragraph.visibleText).norm.includes(needle));
+        const chosen = typeof input.occurrence === "number"
+            ? hits[input.occurrence - 1]
+            : hits.length === 1 ? hits[0] : undefined;
         if (!chosen) {
-            throw new Error(
-                hits.length
-                    ? `insert_blocks anchor is ambiguous (${hits.length} paragraphs); set occurrence`
-                    : "insert_blocks anchor paragraph was not found",
-            );
+            throw new Error(hits.length
+                ? `insert_blocks anchor is ambiguous (${hits.length} paragraphs); set occurrence`
+                : "insert_blocks anchor paragraph was not found");
         }
         const anchor = chosen.paragraph.visibleText;
         contextBefore = input.position === "after" ? anchor.slice(-120) : "";
@@ -740,9 +641,7 @@ export async function insertTrackedBlocks(
     } else if (input.position === "before") {
         insertionIndex = paragraphIndexes[0]?.index ?? 0;
     } else {
-        const sectionProperties = body.findIndex(
-            (node) => elName(node) === "w:sectPr",
-        );
+        const sectionProperties = body.findIndex((n) => elName(n) === "w:sectPr");
         insertionIndex = sectionProperties < 0 ? body.length : sectionProperties;
     }
 
@@ -753,15 +652,8 @@ export async function insertTrackedBlocks(
     const paragraphs = input.blocks.map((block) => {
         const id = String(nextId++);
         const attrs = revisionAttrs(id, author, date);
-        changes.push({
-            id,
-            insId: id,
-            deletedText: "",
-            insertedText: block,
-            contextBefore,
-            contextAfter,
-            diff: [{ kind: "insert", text: block }],
-        });
+        changes.push({ id, insId: id, deletedText: "", insertedText: block,
+            contextBefore, contextAfter, diff: [{ kind: "insert", text: block }] });
         const paragraph = makeEl("w:p", emitDocxRevisionPlan([], [{ start: 0, end: 0,
             replacement: [buildRun(null, block, "w:t")], insertion: attrs }]));
         markParagraphRevision(paragraph, "w:ins", attrs);
@@ -769,22 +661,12 @@ export async function insertTrackedBlocks(
     });
     body.splice(insertionIndex, 0, ...paragraphs);
     session.writeDocument(tree);
-    return {
-        bytes: await session.save(),
-        changes,
-        errors: [],
-    };
+    return { bytes: await session.save(), changes, errors: [] };
 }
 
-/**
- * Walk the XML tree and transform matching w:ins/w:del wrappers for the
- * given change id. Returns { found, updatedTree }.
- */
-function resolveInTree(
-    doc: XNode[],
-    changeIds: string[],
-    mode: "accept" | "reject",
-): { found: boolean } {
+/** Transform matching w:ins/w:del wrappers in place, in every story tree. */
+function resolveInTree(doc: XNode[], changeIds: string[],
+    mode: "accept" | "reject"): { found: boolean } {
     const ids = new Set(changeIds.map((s) => String(s)));
     let touched = false;
 
@@ -798,43 +680,30 @@ function resolveInTree(
             }
 
             if (name === "w:p" && mode === "reject") {
-                const paragraphMarkIds = elChildren(n)
-                    .filter((child) => elName(child) === "w:pPr")
-                    .flatMap((child) => elChildren(child))
-                    .filter((child) => elName(child) === "w:rPr")
-                    .flatMap((child) => elChildren(child))
-                    .filter((child) => elName(child) === "w:ins")
-                    .map((child) => String(elAttrs(child)["@_w:id"] ?? ""));
-                if (paragraphMarkIds.some((id) => ids.has(id))) {
+                const marks = elChildren(n)
+                    .flatMap((c) => elName(c) === "w:pPr" ? elChildren(c) : [])
+                    .flatMap((c) => elName(c) === "w:rPr" ? elChildren(c) : [])
+                    .filter((c) => elName(c) === "w:ins");
+                if (marks.some((c) => ids.has(String(elAttrs(c)["@_w:id"] ?? "")))) {
                     touched = true;
                     continue;
                 }
             }
 
             const kids = elChildren(n);
-            if (kids.length) {
-                const newKids = rewrite(kids);
-                if (newKids !== kids) setChildren(n, newKids);
-            }
+            if (kids.length) setChildren(n, rewrite(kids));
 
             if (name === "w:ins" || name === "w:del") {
-                const a = elAttrs(n);
-                const wId = String(a["@_w:id"] ?? "");
-                if (ids.has(wId)) {
+                if (ids.has(String(elAttrs(n)["@_w:id"] ?? ""))) {
                     touched = true;
-                    if (
-                        (name === "w:ins" && mode === "accept") ||
-                        (name === "w:del" && mode === "reject")
-                    ) {
-                        const inner =
-                            name === "w:del"
-                                ? (elChildren(n) as XNode[]).map(unwrapDelText)
-                                : (elChildren(n) as XNode[]);
-                        for (const c of inner) out.push(c);
-                        continue;
-                    } else {
-                        continue;
+                    // Accepting an insertion or rejecting a deletion keeps the
+                    // wrapped content; the other two cases drop it.
+                    if ((name === "w:ins" && mode === "accept") ||
+                        (name === "w:del" && mode === "reject")) {
+                        out.push(...(name === "w:del"
+                            ? elChildren(n).map(unwrapDelText) : elChildren(n)));
                     }
+                    continue;
                 }
             }
 
@@ -856,27 +725,20 @@ function unwrapDelText(n: XNode): XNode {
     if (!name) return n;
     if (name === "w:delText" || name === "w:delInstrText") {
         const attrs = elAttrs(n);
-        return {
-            [name === "w:delText" ? "w:t" : "w:instrText"]: elChildren(n),
-            ...(Object.keys(attrs).length ? { [ATTR_KEY]: attrs } : {}),
-        };
+        return { [name === "w:delText" ? "w:t" : "w:instrText"]: elChildren(n),
+            ...(Object.keys(attrs).length ? { [ATTR_KEY]: attrs } : {}) };
     }
     setChildren(n, elChildren(n).map(unwrapDelText));
     return n;
 }
 
-export async function resolveTrackedChange(
-    bytes: Buffer,
-    changeIds: string[],
-    mode: "accept" | "reject",
-): Promise<{ bytes: Buffer; found: boolean }> {
+export async function resolveTrackedChange(bytes: Buffer, changeIds: string[],
+    mode: "accept" | "reject"): Promise<{ bytes: Buffer; found: boolean }> {
     const session = await openDocxSession(bytes);
     const parts = await session.revisionParts();
     const ids = new Set(changeIds.map(String));
     const present = new Set(parts.flatMap(({ changes }) => changes.map(({ w_id }) => w_id)));
-    if (!ids.size || [...ids].some((id) => !present.has(id))) {
-        return { bytes, found: false };
-    }
+    if (!ids.size || [...ids].some((id) => !present.has(id))) return { bytes, found: false };
     for (const { path, tree } of parts) {
         if (resolveInTree(tree, changeIds, mode).found)
             session.write(path, ensureXmlDeclaration(createBuilder().build(tree)));
@@ -885,11 +747,8 @@ export async function resolveTrackedChange(
 }
 
 /** Apply the host-selected policy to newly written revision wrappers. */
-export async function finalizeTrackedEdits(
-    bytes: Buffer,
-    changeIds: string[],
-    mode: EditMode,
-): Promise<{ bytes: Buffer; status: "pending" | "accepted" }> {
+export async function finalizeTrackedEdits(bytes: Buffer, changeIds: string[],
+    mode: EditMode): Promise<{ bytes: Buffer; status: "pending" | "accepted" }> {
     if (mode === "manual") return { bytes, status: "pending" };
     const ids = [...new Set(changeIds.filter(Boolean))];
     const resolved = await resolveTrackedChange(bytes, ids, "accept");
