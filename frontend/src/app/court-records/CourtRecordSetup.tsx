@@ -226,13 +226,13 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
               {definition.roleBelow && <span className="block text-xs font-normal text-gray-500">
                 {definition.roleBelow} below
               </span>}
-              <ModalTextarea id={`party-${definition.id}`} rows={2}
+              <ModalTextarea id={`party-${definition.id}`} rows={1}
                 value={(group?.parties ?? []).map(({ name }) => name).join("\n")}
                 aria-label={`${definition.role} names, one per line`}
                 aria-invalid={invalid || undefined}
                 aria-describedby={invalid ? `party-${definition.id}-error` : undefined}
                 onChange={(event) => changeNames(definition, event.target.value)}
-                className={cn("mt-1.5 min-h-20 font-normal", invalid && "border-red-500")} />
+                className={cn("mt-1.5 min-h-9 font-normal", invalid && "border-red-500")} />
               {invalid && <span id={`party-${definition.id}-error`}
                 className="mt-1 block text-sm font-normal text-red-700">Required</span>}
             </label>
