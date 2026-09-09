@@ -1,28 +1,17 @@
 import { useNavigationPrefetch } from "@/app/hooks/useNavigationPrefetch";
-import {
-  lazy, Suspense, useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type DragEvent,
-} from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState,
+  type DragEvent } from "react";
 import { BookOpenCheck, BookOpenText, ChevronRight, Files, History, PanelLeft, Settings, SlidersHorizontal, SquarePen, Trash2 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";
 import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
-import {
-  ChatSkeuoIcon,
-  TabularReviewSkeuoIcon,
-  LibrarySkeuoIcon,
-  WorkflowSkeuoIcon,
-} from "@/app/components/shared/AppSidebarSkeuoIcons";
+import { ChatSkeuoIcon, TabularReviewSkeuoIcon, LibrarySkeuoIcon, WorkflowSkeuoIcon }
+  from "@/app/components/shared/AppSidebarSkeuoIcons";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { cn } from "@/app/lib/utils";
-import {
-  APP_SURFACE_ACTIVE_CLASS,
-  APP_SURFACE_HOVER_CLASS,
-} from "@/app/components/ui/liquid-surface";
+import { APP_SURFACE_ACTIVE_CLASS, APP_SURFACE_HOVER_CLASS }
+  from "@/app/components/ui/liquid-surface";
 import type { Chat } from "@/app/lib/api/chat";
 const RecyclingBinModal = lazy(() => import("@/app/components/assistant/RecyclingBinModal").then(m => ({ default: m.RecyclingBinModal })));
 const AppSettingsModal = lazy(() => import("@/app/components/settings/AppSettingsModal").then(m => ({ default: m.AppSettingsModal })));
@@ -49,10 +38,7 @@ interface AppSidebarProps {
   mobileOpen: boolean;
   onToggle: () => void;
 }
-export function AppSidebar({
-  mobileOpen,
-  onToggle,
-}: AppSidebarProps) {
+export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
   const { pathname } = useLocation();
   const [recyclingOpen, setRecyclingOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -63,14 +49,10 @@ export function AppSidebar({
   const searchRef = useRef<HTMLInputElement>(null);
   const focusSearchOnOpen = useRef(false);
   const [chatProjectTarget, setChatProjectTarget] = useState<Chat | null>(null);
-  const [selectedChatIds, setSelectedChatIds] = useState<Set<string>>(
-    () => new Set(),
-  );
+  const [selectedChatIds, setSelectedChatIds] = useState<Set<string>>(() => new Set());
   const [recyclingDragOver, setRecyclingDragOver] = useState(false);
   const [recyclingBusy, setRecyclingBusy] = useState(false);
-  const [movingChatIds, setMovingChatIds] = useState<Set<string>>(
-    () => new Set(),
-  );
+  const [movingChatIds, setMovingChatIds] = useState<Set<string>>(() => new Set());
   const selectionAnchorRef = useRef<string | null>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -87,10 +69,8 @@ export function AppSidebar({
   }, [pathname]);
   useEffect(() => {
     if (!mobileOpen) return;
-    const opener =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
+    const opener = document.activeElement instanceof HTMLElement
+      ? document.activeElement : null;
     const sidebar = sidebarRef.current;
     const frame = requestAnimationFrame(() => {
       (focusSearchOnOpen.current ? searchRef : closeButtonRef).current?.focus();
@@ -98,12 +78,7 @@ export function AppSidebar({
     });
     return () => {
       cancelAnimationFrame(frame);
-      if (
-        opener?.isConnected &&
-        sidebar?.contains(document.activeElement)
-      ) {
-        opener.focus();
-      }
+      if (opener?.isConnected && sidebar?.contains(document.activeElement)) opener.focus();
     };
   }, [mobileOpen]);
   useEffect(() => {
@@ -121,35 +96,23 @@ export function AppSidebar({
   }, [onToggle]);
   const routeChatId = pathname.startsWith("/assistant/chat/")
     ? pathname.split("/").pop() ?? null
-    : (pathname.match(/^\/projects\/[^/]+\/assistant\/chat\/([^/]+)/)?.[1] ??
-      null);
-  const assistantChats =
-    (showingSearch ? searchedChats.items : chats)?.filter(
-      (chat) => !chat.project_id && !movingChatIds.has(chat.id),
-    ) ?? chats;
+    : (pathname.match(/^\/projects\/[^/]+\/assistant\/chat\/([^/]+)/)?.[1] ?? null);
+  const assistantChats = (showingSearch ? searchedChats.items : chats)?.filter(
+    (chat) => !chat.project_id && !movingChatIds.has(chat.id)) ?? chats;
   const selectionActionChatId =
     assistantChats?.find((chat) => selectedChatIds.has(chat.id))?.id ?? null;
-  function selectChat(
-    chatId: string,
-    modifiers: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean },
-  ) {
+  function selectChat(chatId: string,
+    modifiers: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) {
     const ids = assistantChats?.map((chat) => chat.id) ?? [];
     setSelectedChatIds((current) => {
       if (modifiers.shiftKey && selectionAnchorRef.current) {
         const anchor = ids.indexOf(selectionAnchorRef.current);
         const target = ids.indexOf(chatId);
         if (anchor >= 0 && target >= 0) {
-          const next =
-            modifiers.ctrlKey || modifiers.metaKey
-              ? new Set(current)
-              : new Set<string>();
-          for (
-            let index = Math.min(anchor, target);
-            index <= Math.max(anchor, target);
-            index += 1
-          ) {
-            next.add(ids[index]);
-          }
+          const next = modifiers.ctrlKey || modifiers.metaKey
+            ? new Set(current) : new Set<string>();
+          for (let index = Math.min(anchor, target);
+            index <= Math.max(anchor, target); index += 1) next.add(ids[index]);
           return next;
         }
       }
@@ -161,9 +124,7 @@ export function AppSidebar({
     });
   }
   function dragChat(chatId: string, event: DragEvent<HTMLDivElement>) {
-    const ids = selectedChatIds.has(chatId)
-      ? [...selectedChatIds]
-      : [chatId];
+    const ids = selectedChatIds.has(chatId) ? [...selectedChatIds] : [chatId];
     if (!selectedChatIds.has(chatId)) {
       selectionAnchorRef.current = chatId;
       setSelectedChatIds(new Set(ids));
@@ -174,16 +135,14 @@ export function AppSidebar({
   }
   async function recycleChats(ids: string[]) {
     const uniqueIds = [...new Set(ids)].filter((id) =>
-      assistantChats?.some((chat) => chat.id === id),
-    );
+      assistantChats?.some((chat) => chat.id === id));
     if (!uniqueIds.length) return;
     setRecyclingBusy(true);
     setRecyclingDragOver(false);
     try {
       await Promise.all(uniqueIds.map((id) => deleteChat(id)));
-      if (routeChatId && uniqueIds.includes(routeChatId)) {
+      if (routeChatId && uniqueIds.includes(routeChatId))
         navigate("/assistant", { replace: true });
-      }
     } finally {
       setSelectedChatIds(new Set());
       selectionAnchorRef.current = null;
@@ -193,25 +152,18 @@ export function AppSidebar({
   function dropChats(event: DragEvent<HTMLButtonElement>) {
     event.preventDefault();
     let ids: unknown;
-    try {
-      ids = JSON.parse(event.dataTransfer.getData(CHAT_DRAG_TYPE));
-    } catch {
-      ids = null;
-    }
-    if (Array.isArray(ids) && ids.every((id) => typeof id === "string")) {
-      void recycleChats(ids);
-    } else {
-      setRecyclingDragOver(false);
-    }
+    try { ids = JSON.parse(event.dataTransfer.getData(CHAT_DRAG_TYPE)); }
+    catch { ids = null; }
+    if (Array.isArray(ids) && ids.every((id) => typeof id === "string")) void recycleChats(ids);
+    else setRecyclingDragOver(false);
   }
   async function moveChatToProject(projectId: string | null) {
     const chat = chatProjectTarget;
     if (!chat) return;
     setMovingChatIds((current) => new Set(current).add(chat.id));
     setChatProjectTarget(null);
-    try {
-      await moveChat(chat.id, projectId);
-    } finally {
+    try { await moveChat(chat.id, projectId); }
+    finally {
       setMovingChatIds((current) => {
         const next = new Set(current);
         next.delete(chat.id);
@@ -233,11 +185,8 @@ export function AppSidebar({
   return (
     <>
       {mobileOpen && (
-        <div
-          className="fixed inset-0 z-[98] bg-gray-950/30 lg:hidden"
-          onClick={onToggle}
-          aria-hidden="true"
-        />
+        <div className="fixed inset-0 z-[98] bg-gray-950/30 lg:hidden"
+          onClick={onToggle} aria-hidden="true" />
       )}
       <aside
         ref={sidebarRef}
@@ -253,10 +202,7 @@ export function AppSidebar({
           }
           if (event.key !== "Tab") return;
           const focusable = Array.from(
-            event.currentTarget.querySelectorAll<HTMLElement>(
-              FOCUSABLE_SELECTOR,
-            ),
-          );
+            event.currentTarget.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
           if (!focusable.length) return;
           const first = focusable[0];
           const last = focusable[focusable.length - 1];
@@ -279,27 +225,16 @@ export function AppSidebar({
       >
         <div className="flex shrink-0 items-center justify-between px-2.5 py-2">
           <div className="px-2">
-            <Link
-              to="/assistant"
-              className="flex items-center gap-1.5 hover:opacity-80"
-              onClick={mobileOpen ? onToggle : undefined}
-            >
+            <Link to="/assistant" className="flex items-center gap-1.5 hover:opacity-80"
+              onClick={closeNavigation}>
               <BeaverIcon size={22} />
               <span className="text-2xl font-medium font-serif">Beaver</span>
             </Link>
           </div>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            onClick={onToggle}
-            className={cn(
-              "flex h-9 w-9 items-center p-2.5 lg:hidden",
-              "rounded-md",
-              APP_SURFACE_HOVER_CLASS,
-            )}
-            title="Close sidebar"
-            aria-label="Close sidebar"
-          >
+          <button ref={closeButtonRef} type="button" onClick={onToggle}
+            title="Close sidebar" aria-label="Close sidebar"
+            className={cn("flex h-9 w-9 items-center p-2.5 lg:hidden", "rounded-md",
+              APP_SURFACE_HOVER_CLASS)}>
             <PanelLeft className="h-4 w-4" />
           </button>
         </div>
@@ -332,49 +267,36 @@ export function AppSidebar({
                   {search ? searchedChats.loading ? "Searching…" : searchedChats.error ? "Could not search history" : "0 results" : "No chats yet"}
                 </div>
               ) : (
-                <>
-                  <div className="space-y-0">
-                    {assistantChats.map((chat) => showingSearch ? <ChatSearchResult key={chat.id} chat={chat} query={searchedChats.searchQuery} compact isActive={routeChatId === chat.id} onNavigate={closeNavigation} /> : (
-                      <SidebarChatItem
-                        key={chat.id}
-                        chat={chat}
-                        showIcon={false}
-                        isActive={routeChatId === chat.id}
-                        isSelected={selectedChatIds.has(chat.id)}
-                        selectedCount={selectedChatIds.size}
-                        isSelectionActionOwner={
-                          selectionActionChatId === chat.id
-                        }
-                        to={chatSearchPath(chat)}
-                        onNavigate={mobileOpen ? onToggle : undefined}
-                        onClearSelection={() => {
-                          setSelectedChatIds(new Set());
-                          selectionAnchorRef.current = chat.id;
-                        }}
-                        onSelect={(modifiers) =>
-                          selectChat(chat.id, modifiers)
-                        }
-                        onDragChat={(event) => dragChat(chat.id, event)}
-                        onMoveToProject={() => {
-                          setChatProjectTarget(chat);
-                          if (mobileOpen) onToggle();
-                        }}
-                        onDeleteSelection={() =>
-                          recycleChats([...selectedChatIds])
-                        }
-                      />
-                    ))}
-                  </div>
-                </>
+                <div className="space-y-0">
+                  {assistantChats.map((chat) => showingSearch ? <ChatSearchResult key={chat.id} chat={chat} query={searchedChats.searchQuery} compact isActive={routeChatId === chat.id} onNavigate={closeNavigation} /> : (
+                    <SidebarChatItem key={chat.id} chat={chat} showIcon={false}
+                      isActive={routeChatId === chat.id}
+                      isSelected={selectedChatIds.has(chat.id)}
+                      selectedCount={selectedChatIds.size}
+                      isSelectionActionOwner={selectionActionChatId === chat.id}
+                      to={chatSearchPath(chat)}
+                      onNavigate={closeNavigation}
+                      onClearSelection={() => {
+                        setSelectedChatIds(new Set());
+                        selectionAnchorRef.current = chat.id;
+                      }}
+                      onSelect={(modifiers) => selectChat(chat.id, modifiers)}
+                      onDragChat={(event) => dragChat(chat.id, event)}
+                      onMoveToProject={() => {
+                        setChatProjectTarget(chat);
+                        if (mobileOpen) onToggle();
+                      }}
+                      onDeleteSelection={() => recycleChats([...selectedChatIds])}
+                    />
+                  ))}
+                </div>
               )}
               {(search ? searchedChats.hasMore : hasMoreChats) && <button type="button" disabled={!!search && searchedChats.loading} onClick={() => search ? void searchedChats.loadMore() : loadMoreChats()} className="h-8 w-full rounded-md px-2 text-left text-xs text-gray-500 hover:bg-gray-100">Load more</button>}
             </div>}
           </section></div></div>
 
             <div className="mb-2 shrink-0 border-b border-gray-200 pb-2">
-              <button
-                type="button"
-                disabled={recyclingBusy}
+              <button type="button" disabled={recyclingBusy} onDrop={dropChats}
                 onClick={() => {
                   if (selectedChatIds.size) void recycleChats([...selectedChatIds]);
                   else setRecyclingOpen(true);
@@ -393,33 +315,20 @@ export function AppSidebar({
                   }
                 }}
                 onDragLeave={(event) => {
-                  if (
-                    !event.currentTarget.contains(
-                      event.relatedTarget as Node | null,
-                    )
-                  ) {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null))
                     setRecyclingDragOver(false);
-                  }
                 }}
-                onDrop={dropChats}
-                aria-label={
-                  selectedChatIds.size
-                    ? `Move ${selectedChatIds.size} selected ${selectedChatIds.size === 1 ? "chat" : "chats"} to Recycling bin`
-                    : "Recycling bin"
-                }
+                aria-label={selectedChatIds.size
+                  ? `Move ${selectedChatIds.size} selected ${selectedChatIds.size === 1 ? "chat" : "chats"} to Recycling bin`
+                  : "Recycling bin"}
                 className={cn(
                   "flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-xs text-gray-500 hover:text-gray-900 disabled:opacity-50",
-                  recyclingDragOver
-                    ? "bg-red-100 text-red-800"
-                    : APP_SURFACE_HOVER_CLASS,
-                )}
+                  recyclingDragOver ? "bg-red-100 text-red-800" : APP_SURFACE_HOVER_CLASS)}
               >
                 <Trash2 className="size-3.5 shrink-0" />
                 Recycling bin
-                <span
-                  aria-hidden="true"
-                  className="ml-auto w-5 text-right text-xs tabular-nums text-red-700"
-                >
+                <span aria-hidden="true"
+                  className="ml-auto w-5 text-right text-xs tabular-nums text-red-700">
                   {selectedChatIds.size || ""}
                 </span>
               </button>
@@ -435,16 +344,11 @@ export function AppSidebar({
         </div>
         <div className="shrink-0 border-t border-gray-300 p-1">
           <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => {
-              setSettingsOpen(true);
-              if (mobileOpen) onToggle();
-            }}
+          <button type="button"
+            onClick={() => { setSettingsOpen(true); if (mobileOpen) onToggle(); }}
             className={cn(
               "flex h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-3 text-sm font-medium text-gray-700",
-              APP_SURFACE_HOVER_CLASS,
-            )}
+              APP_SURFACE_HOVER_CLASS)}
           >
             <Settings className="h-4 w-4 shrink-0" />
             Settings
@@ -458,28 +362,16 @@ export function AppSidebar({
         {advancedSearchOpen && <AdvancedHistorySearch initialQuery={historySearch} initialContext={historyTab === "reviews" ? "reviews" : "assistant"}
           onClose={() => setAdvancedSearchOpen(false)} />}
         <Suspense fallback={null}>{chatProjectTarget && (
-          <SelectAssistantProjectModal
-            open
-            onClose={() => setChatProjectTarget(null)}
-            chatTitle={chatProjectTarget.title}
-            currentLocation="Assistant"
+          <SelectAssistantProjectModal open onClose={() => setChatProjectTarget(null)}
+            chatTitle={chatProjectTarget.title} currentLocation="Assistant"
             currentProjectId={chatProjectTarget.project_id}
-            onSelectProject={moveChatToProject}
-          />
+            onSelectProject={moveChatToProject} />
         )}
         {recyclingOpen && (
-          <RecyclingBinModal
-            open
-            onClose={() => setRecyclingOpen(false)}
-            onRestored={loadChats}
-          />
+          <RecyclingBinModal open onClose={() => setRecyclingOpen(false)}
+            onRestored={loadChats} />
         )}
-        {settingsOpen && (
-          <AppSettingsModal
-            open
-            onClose={() => setSettingsOpen(false)}
-          />
-        )}</Suspense>
+        {settingsOpen && <AppSettingsModal open onClose={() => setSettingsOpen(false)} />}</Suspense>
     </>
   );
 }
