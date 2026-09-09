@@ -134,6 +134,21 @@ describe("production legal evidence", () => {
       .toBe(false);
   });
 
+  it("reports the bound draft's own citation text however it is punctuated", () => {
+    const reporting = createLegalEvidenceTurnState();
+    reporting.reportedCitations = new Set(["Bhasin v. Hrynew",
+      "Bhasin v. Hrynew, 2014 SCC", "Bhasin v. Hrynew, 2014 SCC 71"]);
+    expect(finalizeLegalEvidence(reporting, "In-text citation 1 reads Bhasin v. Hrynew, 2014 SCC " +
+      "and should read Bhasin v. Hrynew, 2014 SCC 71; press Use selection as citation."))
+      .toBe(true);
+    expect(reporting.failure).toBeNull();
+
+    const advancing = createLegalEvidenceTurnState();
+    advancing.reportedCitations = new Set(["Bhasin v. Hrynew, 2014 SCC"]);
+    expect(finalizeLegalEvidence(advancing, "The boundary is wrong, and R. v. Oakes governs it."))
+      .toBe(false);
+  });
+
   it("accepts registered passages and emits durable receipts", () => {
     const state = createLegalEvidenceTurnState();
     const evidence = passage();

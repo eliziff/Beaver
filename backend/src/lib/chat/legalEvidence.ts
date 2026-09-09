@@ -138,6 +138,8 @@ export type LegalEvidenceTurnState = {
   documentEvidenceIds: Set<string>;
   queries: Map<string, LegalResearchQueryReceipt>;
   reviewDocumentIds?: Set<string>;
+  /** Citation text the work product bound to this chat carries, as its own tool returned it. */
+  reportedCitations?: Set<string>;
   answer: GroundedLegalClaim[] | null;
   attempted: boolean;
   failure: string | null;
@@ -967,8 +969,12 @@ export function finalizeLegalEvidence(
 ) {
   // An authority named only inside quotation marks is text the answer reports, such as the
   // citation text of the document under review, rather than law the answer itself advances.
-  const advanced = structureNative().markedQuoteSpans(draft).reduceRight((value, { start, end }) =>
-    `${value.slice(0, start)} ${value.slice(end)}`, draft);
+  // The bound work product's own citation text reads the same way unquoted: it reports the draft.
+  const advanced = [...state.reportedCitations ?? []]
+    .sort((left, right) => right.length - left.length)
+    .reduce((value, citation) => value.split(citation).join(" "),
+  structureNative().markedQuoteSpans(draft).reduceRight((value, { start, end }) =>
+    `${value.slice(0, start)} ${value.slice(end)}`, draft));
   const namesAuthority = hasCaseNameInText(advanced);
   const citesAuthority = structureNative().hasCitationInText(advanced) || hasCanadianDecisionLink(draft);
   if (!state.mode && !state.answer && (namesAuthority || citesAuthority))

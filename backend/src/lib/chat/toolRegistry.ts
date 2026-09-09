@@ -164,9 +164,11 @@ export class TurnToolRegistry<Context> {
     ];
   }
   activity(call: NormalizedToolCall) {
-    // Reaching for a tool is machinery, not an act the reader follows.
-    return call.name === LOAD_TOOLS_NAME ? null
-      : this.#byName.get(call.name)?.tool.activity?.(call.input) ?? null;
+    // Reaching for a tool is machinery, not an act the reader follows, and a call whose
+    // arguments the schema rejects never runs: neither is work to show as a step.
+    const compiled = this.#byName.get(call.name);
+    return compiled?.input(call.input).valid
+      ? compiled.tool.activity?.(call.input) ?? null : null;
   }
   activityCitations(call: NormalizedToolCall) {
     return this.#byName.get(call.name)?.tool.activityCitations?.(call.input) ?? [];
@@ -253,8 +255,12 @@ export class TurnToolRegistry<Context> {
         compiled ? `Load ${call.name} before calling it.` : `Unknown tool: ${call.name}`),
     };
     const checked = compiled.input(call.input);
-    if (!checked.valid) return { call, outcome: errorOutcome(
-      "invalid_arguments", checked.errorMessage) };
+    if (!checked.valid) {
+      // Rejected arguments never reach the tool, so log them here or the failure is invisible.
+      console.error("[assistant-tool] rejected arguments",
+        { tool: call.name, detail: checked.errorMessage?.slice(0, 500) });
+      return { call, outcome: errorOutcome("invalid_arguments", checked.errorMessage) };
+    }
     try {
       if (signal.aborted) throw signal.reason ?? new Error("Tool call cancelled");
       const outcome = await compiled.tool.execute(call.input, context, signal, call);
