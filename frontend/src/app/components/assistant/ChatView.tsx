@@ -19,7 +19,7 @@ import {
 import { AssistantDock, type AssistantDockTab } from "./AssistantDock";
 import type { WorkflowDocument } from "../workflows/ContextualWorkflowPicker";
 import type { WorkflowRunEvent, Message } from "@/app/lib/api/chat";
-import type { Citation } from "@/app/lib/citations";
+import type { Citation, DocumentCitation } from "@/app/lib/citations";
 import type {
   Document,
   EditAnnotation,
@@ -150,6 +150,11 @@ export function legalCitationTab(
     }
     return null;
 }
+function documentCitationTab(citation: DocumentCitation): AssistantDocumentTab {
+    return { id: citation.document_id, documentId: citation.document_id, filename: citation.filename,
+        versionId: citation.version_id ?? null, versionNumber: citation.version_number ?? null,
+        kind: "citation", citation };
+}
 export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(props, ref) {
     const latest = props.session.messages.findLast((message) => message.role === "assistant");
     const refreshKey = props.session.run || !latest?.contentFinal ? null : latest.id;
@@ -196,12 +201,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
     const contextToolsEnabled = features?.contextTools ?? true;
     const researchSaveEnabled = features?.researchSave ?? true;
     const [tabs, setTabs] = useState<AssistantSidePanelTab[]>([]);
-    const [dockOpen, setDockOpen] = useState(!!initialWorkflow);
-    const [dockActivated, setDockActivated] = useState(!!projectFiles || !!initialWorkflow);
-    const setDockExpanded = useCallback((expanded: boolean) => {
-        setDockOpen(expanded);
-        if (expanded) setDockActivated(true);
-    }, []);
+    const [dockOpen, setDockExpanded] = useState(!!initialWorkflow);
     const [activeDockTab, setActiveDockTab] = useState(
         initialWorkflow ? "workflows" : projectFiles ? "project-files" : "sources",
     );
@@ -272,6 +272,10 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         },
         [setDockExpanded],
     );
+    // Own-library chips open in the dock; external sources stay new-tab links (Eli, 2026-09-09).
+    const openCitation = (citation: Citation) => {
+        if (citation.kind === "document") upsertTab(documentCitationTab(citation));
+    };
     const openEditor = (
         ann: EditAnnotation,
         filename: string,
@@ -584,6 +588,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
                     groups={agentGroups}
                     activeId={activeAgentSlot}
                     onActivate={setActiveAgentSlot}
+                    onCitationClick={openCitation}
                 />
             ),
         },
@@ -623,7 +628,8 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         });
         return () => { active = false; };
     }, [ready, researchLoading, session.run, intent, researchFileId, activeResearchFile, onIntentSent, navigate, location, submitMessage]);
-    const dock = dockEnabled && (dockActivated || dockOpen) ? (
+    // Always mounted: the collapsed dock keeps its expand button on the right (Eli, 2026-09-09).
+    const dock = dockEnabled ? (
         <AssistantDock
             tabs={dockTabs}
             activeTabId={resolvedDockTab}
@@ -643,6 +649,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         onSubmit={submitMessage}
         onRejectedTurnRestored={onRejectedTurnRestored}
         onRetryRejectedTurn={onRetryRejectedTurn}
+        onCitationClick={openCitation}
         citationTitle={citationTitle}
         onWorkflowRunClick={openWorkflowRun}
         onReaderClick={readSubagents.showDock ? (readerId) => {
