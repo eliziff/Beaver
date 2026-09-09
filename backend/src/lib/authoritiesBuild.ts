@@ -526,7 +526,7 @@ export function prepareAuthorityAnnotations(
 ) {
   const saved = regenerate ? undefined : annotationSetForSource(authority.annotations,
     source.bindingRole, source.sourceSha256);
-  if (saved) return { annotations: saved, unresolved: [] };
+  if (saved) return { annotations: saved, pageMarked: [] };
   const pages = document.getPages().map(page => {
     const crop = page.getCropBox(), rotated = Math.abs(page.getRotation().angle % 180) === 90;
     return { width: rotated ? crop.height : crop.width, height: rotated ? crop.width : crop.height };

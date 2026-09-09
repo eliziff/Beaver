@@ -334,7 +334,7 @@ describe("Authorities UI contracts", () => {
       title: "Factum", projectId: undefined,
       settings: { profileId: "general", sourceMode: "manual-originals", passageMarking: "text" },
     }));
-    expect(await screen.findByRole("button", { name: "Done" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Next" })).toBeVisible();
     expect(screen.queryByRole("list", { name: "Authority tab slots" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Add file for Example v Example")).not.toBeInTheDocument();
   });
@@ -726,7 +726,7 @@ describe("Authorities UI contracts", () => {
     expect(screen.getByRole("option", { name: /\[2009\] 2 SCR 353/u })).toBeVisible();
     api.prepareAuthoritiesSources.mockResolvedValue(saved);
     api.actOnAuthorities.mockResolvedValue({ ...saved, revision: 2, state: { ...saved.state, stage: "sources" } });
-    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
     const sources = (await screen.findByRole("list", { name: "Authority tab slots" })).closest("section")!;
     expect(within(sources).getAllByRole("listitem")).toHaveLength(1);
     expect(within(sources).getByText(`${neutral}; ${reporter}`)).toBeInTheDocument();
@@ -784,17 +784,17 @@ describe("Authorities UI contracts", () => {
     }));
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
-    await screen.findByRole("button", { name: "Done" });
+    await screen.findByRole("button", { name: "Next" });
     expect(screen.queryByRole("list", { name: "Authority tab slots" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Build outputs" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(api.prepareAuthoritiesSources).toHaveBeenCalledWith(saved.id, saved.revision, expect.any(AbortSignal));
     expect(screen.queryByRole("list", { name: "Authority tab slots" })).not.toBeInTheDocument();
     await act(async () => pending.resolve(saved));
     const sources = (await screen.findByRole("list", { name: "Authority tab slots" })).closest("section")!;
     expect(sources).toBeVisible();
     expect(within(sources).getAllByRole("listitem")).toHaveLength(2);
-    expect(screen.getByRole("button", { name: /^Done$/u })).toBeVisible();
+    expect(screen.getByRole("button", { name: /^Next$/u })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Build outputs" })).not.toBeInTheDocument();
   });
 
@@ -1302,7 +1302,7 @@ describe("Authorities UI contracts", () => {
       .toHaveBeenCalledWith("draft-1", 1, "cover", file, undefined));
     expect(contents).toBeVisible();
     expect(screen.queryByText(/labelled pages will be added/)).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Build draft" }));
+    await userEvent.click(screen.getByRole("button", { name: "Build" }));
     await waitFor(() => expect(api.buildAuthorities).toHaveBeenCalledWith(
       "draft-1", 2, expect.any(AbortSignal)));
     expect(screen.getByText("Saved to Court outputs")).toBeVisible();
@@ -1529,7 +1529,7 @@ it("advances immediately to Highlights and revisits completed steps without savi
   const host = { ...beaverAuthoritiesHost,
     readSource: vi.fn(async () => new Blob(["synthetic source"])),
     prepareAnnotations: vi.fn(async () => ({ annotations: { schemaVersion: "beaver.pdf-annotations.v1" as const,
-      sourceSha256: "a".repeat(64), marks: [] }, unresolved: [{ label: "para 42 · Quote", excerpt: "Unlocated quoted words" }] })),
+      sourceSha256: "a".repeat(64), marks: [] }, pageMarked: ["para 42"] })),
     act: vi.fn(async (_id: string, _revision: number, action: import("@/app/authorities/types").AuthoritiesAction) => {
       current = structuredClone(current); current.revision++;
       if (action.type === "set-settings") Object.assign(current.state.settings, action.settings);
@@ -1538,7 +1538,7 @@ it("advances immediately to Highlights and revisits completed steps without savi
     }),
   };
   render(<MemoryRouter><AuthoritiesWorkspace host={host} route={workspaceRoute("draft-1")} /></MemoryRouter>);
-  await userEvent.click(await screen.findByRole("button", { name: "Done" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Next" }));
   expect(await screen.findByRole("button", { name: "Edit in PDF" })).toBeVisible();
   expect(current.state.stage).toBe("highlights");
   expect(host.act.mock.calls.some(([, , action]) => action.type === "set-annotations")).toBe(false);
