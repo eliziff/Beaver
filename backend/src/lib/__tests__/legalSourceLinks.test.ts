@@ -190,40 +190,11 @@ describe("verified legal-source links", () => {
     ]);
   });
 
-  it("uses the BCLaws human page and section anchor", async () => {
-    const text = "19.15 (1) An arbitrator may correct an award on application.";
-    const result = buildLegalSourcePinpointUrl(
-      {
-        url: "https://www.bclaws.gov.bc.ca/civix/document/id/complete/statreg/00_11025_00_multi/xml",
-        anchor: "sec19.15",
-        blockText: text,
-        documentText: await nativeSource(text),
-      },
-      ["An arbitrator may correct an award on application."],
-    );
-
-    expect(result).toContain("00_11025_00_multi#section19.15:~:text=");
-    expect(result).not.toContain("/xml");
-
-    const nestedText = "The subsection applies to this exact legal proposition.";
-    const nested = buildLegalSourcePinpointUrl(
-      {
-        url: "https://www.bclaws.gov.bc.ca/civix/document/id/complete/statreg/00_11025_00_multi/xml",
-        anchor: "sec249.1(2)(a)(ii)",
-        blockText: nestedText,
-        documentText: await nativeSource(nestedText),
-      },
-      ["subsection applies to this exact legal proposition"],
-    );
-    expect(nested).toContain("#section249.1:~:text=");
-    expect(nested).not.toContain("section249.1(2)");
-  });
-
   it("uses range endpoints across interior legal-reference seams", async () => {
     const text = "duties arise under sections 5.1.1 annotation follows";
     const documentText = await nativeSource(text);
     const bclaws = buildLegalSourcePinpointUrl({
-      url: "https://www.bclaws.gov.bc.ca/civix/document/id/complete/statreg/example/xml",
+      url: "https://www.canlii.org/en/bc/laws/stat/sbc-2003-c-63/latest/sbc-2003-c-63.html",
       blockText: text,
       documentText,
     }, [text])!;
@@ -236,23 +207,6 @@ describe("verified legal-source links", () => {
     expect(textDirectives(bclaws)).toHaveLength(1);
     expect(textDirectives(ordinary)).toHaveLength(1);
     expect(paintedTerms(textDirectives(bclaws)[0]!)).toHaveLength(2);
-  });
-
-  it("uses the Justice Laws public page instead of its raw XML feed", async () => {
-    const text = "The applicable table is determined under these Guidelines.";
-    const result = buildLegalSourcePinpointUrl(
-      {
-        url: "https://laws-lois.justice.gc.ca/eng/XML/SOR-97-175.xml",
-        blockText: text,
-        documentText: await nativeSource(text),
-      },
-      ["The applicable table is determined under these Guidelines."],
-    );
-
-    expect(result).toContain(
-      "https://laws-lois.justice.gc.ca/eng/regulations/SOR-97-175/FullText.html#:~:text=",
-    );
-    expect(result).not.toContain("/XML/");
   });
 
   it("keeps paragraph markers out of CanLII text targets", async () => {

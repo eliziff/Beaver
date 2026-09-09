@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { WORK_PRODUCT_KINDS } from "mike/shared/work-products.mjs";
+import { buildCanliiLawUrl } from "../canliiUrls";
 
 export const ASSISTANT_LIMITS = { activities: 256, artifacts: 64, blocks: 128,
   citations: 256, readers: 32, text: 1_000_000 } as const;
@@ -48,7 +49,13 @@ export type AssistantCitation = z.infer<typeof citation>;
 export function parseAssistantCitations(value: unknown): AssistantCitation[] {
   try {
     return Array.isArray(value) ? value.slice(0, ASSISTANT_LIMITS.citations).flatMap((raw) => {
-      try { const parsed = citation.safeParse(raw); return parsed.success ? [parsed.data] : []; }
+      try {
+        const parsed = citation.safeParse(raw); if (!parsed.success) return [];
+        // Legislation links go to CanLII's statute page, also for citations stored before that rule.
+        const canlii = parsed.data.kind === "a2aj" && parsed.data.source_class !== "case"
+          ? buildCanliiLawUrl({ dataset: parsed.data.dataset ?? "", citation: parsed.data.citation ?? null, language: "en" }) : null;
+        return [canlii ? { ...parsed.data, url: canlii, external_url: canlii } : parsed.data];
+      }
       catch { return []; }
     }) : [];
   } catch { return []; }
