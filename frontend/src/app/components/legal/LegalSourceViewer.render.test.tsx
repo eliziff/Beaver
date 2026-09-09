@@ -583,10 +583,9 @@ describe("legal source reader", () => {
         expect(screen.getByRole("group", { name: "No labels" })).toHaveAttribute(
             "data-empty", "true",
         );
-        fireEvent.click(screen.getByRole("button", { name: "Open in workspace" }));
-        expect(onOpenResearch).toHaveBeenCalledTimes(1);
         fireEvent.dragStart(screen.getByRole("button", { name: "Label Fixture v. Test" }),
             { dataTransfer: { setData: vi.fn() } });
+        expect(onOpenResearch).toHaveBeenCalledTimes(1);
         expect(onOpenResearch).toHaveBeenLastCalledWith("source-drop");
         expect(api.actOnResearchFile).not.toHaveBeenCalled();
     });
