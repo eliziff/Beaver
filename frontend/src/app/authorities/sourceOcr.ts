@@ -5,8 +5,12 @@ import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesProduct } from "./types";
 
 export type ScannedPdf = { role: string; name: string; sourceSha256: string; textlessPages: number[] };
-export type SourceOcrStatus = ScannedPdf & { documentId?: string; page?: number;
+/** `pages` is the pass being read now (empty for the whole PDF); `recognized` is what it has finished. */
+export type SourceOcrStatus = ScannedPdf & { documentId?: string; pages?: number[]; recognized: number;
   error?: string; state: "running" | "paused" | "cancelled" | "done" | "failed" };
+
+/** What a step needs to watch and steer recognition, without owning it. */
+export type SourceOcrPanel = Pick<ReturnType<typeof useSourceOcr>, "tracked" | "begin" | "stop">;
 
 export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
   const [tracked, setTracked] = useState<Record<string, SourceOcrStatus>>({});
@@ -19,7 +23,8 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
   const begin = useCallback(async (files: ScannedPdf[], pages?: number[]) => {
     if (!port || !draftId || !files.length) return;
     setTracked((current) => ({ ...current, ...Object.fromEntries(files.map((file) =>
-      [file.role, { ...file, state: "running" as const, error: undefined }])) }));
+      [file.role, { ...current[file.role], ...file, recognized: current[file.role]?.recognized ?? 0,
+        state: "running" as const, error: undefined }])) }));
     await (pending.current = pending.current.then(() => port.start(draftId, files.map(({ role }) => role), pages))
       .then((started) => merge(Object.fromEntries(started.map((item) => [item.role,
         { documentId: item.documentId, ...(item.done ? { state: "done" as const } : {}) }]))))
@@ -48,7 +53,12 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
       setTracked((current) => Object.fromEntries(Object.entries(current).map(([role, item]) => {
         const state = item.state === "running" && item.documentId
           ? states.get(item.documentId) : undefined;
-        return [role, state ? { ...item, page: state.page, error: state.error,
+        // A pass is opaque while it runs, so pages count as recognized only once it ends:
+        // the cited pages when the whole-PDF pass takes over, the whole PDF when it finishes.
+        return [role, state ? { ...item, pages: state.pages ?? [], error: state.error,
+          recognized: state.done ? item.textlessPages.length
+            : state.pages?.length ? item.recognized
+              : Math.max(item.recognized, item.pages?.length ?? 0),
           state: state.done ? "done" : state.error ? "failed" : "running" } : item];
       })));
     };
