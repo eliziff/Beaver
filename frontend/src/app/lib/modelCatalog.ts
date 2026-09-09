@@ -22,13 +22,10 @@ function readCachedCatalog() {
             typeof model?.id === "string" && typeof model.label === "string" &&
             typeof model.group === "string" && (model.reasoningEfforts === undefined ||
                 Array.isArray(model.reasoningEfforts) && model.reasoningEfforts.every(level => typeof level === "string")))
-            ? unavailableCatalog(cached) : null;
+            ? cached : null;
     } catch {
         return null;
     }
-}
-function unavailableCatalog(value: ModelCatalog): ModelCatalog {
-    return { ...value, models: value.models.map(model => ({ ...model, available: false })) };
 }
 function cacheCatalog(value: ModelCatalog) {
     if (typeof window === "undefined" || !value.models.length) return;
@@ -65,7 +62,7 @@ export function preloadModelCatalog() {
         })
         .catch(() => {
             refreshedAt = Date.now();
-            catalog = unavailableCatalog(catalog ?? { models: [] });
+            catalog = { ...catalog, models: (catalog?.models ?? []).map(model => ({ ...model, available: false })) };
             return catalog;
         })
         .finally(() => {
