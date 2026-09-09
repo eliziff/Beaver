@@ -57,24 +57,16 @@ const PDF_VIEWER_ERROR =
 const clampZoom = (value: number) =>
     Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(value * 100) / 100));
 
-function scrollToHighlight(
-    pages: RenderedPage[],
-    scrollElement: HTMLDivElement | null,
-    pageNumber: number,
-) {
+function scrollToHighlight(pages: RenderedPage[], scrollElement: HTMLDivElement | null,
+    pageNumber: number) {
     const page = pages[pageNumber - 1];
     if (!page || !scrollElement) return;
-    const highlight = page.wrapper.querySelector<HTMLElement>(
-        ".pdf-text-highlight",
-    );
+    const highlight = page.wrapper.querySelector<HTMLElement>(".pdf-text-highlight");
     const rect = (highlight ?? page.wrapper).getBoundingClientRect();
     const containerRect = scrollElement.getBoundingClientRect();
     scrollElement.scrollTo({
-        top: Math.max(
-            0,
-            scrollElement.scrollTop + rect.top - containerRect.top +
-                (highlight ? (rect.height - scrollElement.clientHeight) / 2 : 0),
-        ),
+        top: Math.max(0, scrollElement.scrollTop + rect.top - containerRect.top +
+            (highlight ? (rect.height - scrollElement.clientHeight) / 2 : 0)),
         behavior: "instant" as ScrollBehavior,
     });
 }
@@ -120,10 +112,7 @@ export function PdfCanvas({
     const [viewerError, setViewerError] = useState<string | null>(null);
     const notifyUnavailable = useEffectEvent(() => onUnavailable?.());
 
-    const renderPdf = useCallback(async (
-        list: QuoteEntry[],
-        scrollToPage?: number,
-    ) => {
+    const renderPdf = useCallback(async (list: QuoteEntry[], scrollToPage?: number) => {
         const container = containerRef.current;
         const pdf = pdfRef.current;
         if (!container || !pdf) return;
@@ -303,8 +292,7 @@ export function PdfCanvas({
                 running = true;
                 try {
                     while (generation === generationRef.current) {
-                        const { start, end } = range();
-                        const { margin } = range();
+                        const { start, end, margin } = range();
                         const candidates: number[] = [];
                         for (let index = pageAt(pages, start - margin);
                             index < pages.length && pages[index].top <= end + margin; index++) {
@@ -490,24 +478,18 @@ export function PdfCanvas({
         const onWheel = (event: WheelEvent) => {
             if (!event.ctrlKey) return;
             event.preventDefault();
-            const delta = event.deltaMode === 0
-                ? event.deltaY / 300
-                : event.deltaY * 0.1;
+            const delta = event.deltaMode === 0 ? event.deltaY / 300 : event.deltaY * 0.1;
             const next = clampZoom(zoomRef.current * Math.exp(-delta));
             if (next === zoomRef.current) return;
             zoomRef.current = next;
             setZoom(next);
             if (timer) clearTimeout(timer);
-            timer = setTimeout(() => {
-                void renderPdf(quotesRef.current, pageRef.current);
-            }, 150);
+            timer = setTimeout(() => void renderPdf(quotesRef.current, pageRef.current), 150);
         };
         let initialDistance = 0;
         let initialZoom = 1;
         const touchDistance = (touches: TouchList) => Math.hypot(
-            touches[0].clientX - touches[1].clientX,
-            touches[0].clientY - touches[1].clientY,
-        );
+            touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
         const onTouchStart = (event: TouchEvent) => {
             if (event.touches.length !== 2) return;
             initialDistance = touchDistance(event.touches);
@@ -516,9 +498,7 @@ export function PdfCanvas({
         const onTouchMove = (event: TouchEvent) => {
             if (event.touches.length !== 2 || !initialDistance) return;
             event.preventDefault();
-            const next = clampZoom(
-                initialZoom * touchDistance(event.touches) / initialDistance,
-            );
+            const next = clampZoom(initialZoom * touchDistance(event.touches) / initialDistance);
             zoomRef.current = next;
             setZoom(next);
         };
@@ -541,10 +521,7 @@ export function PdfCanvas({
     }, [renderPdf]);
 
     useEffect(() => {
-        if (error) {
-            notifyUnavailable();
-            return;
-        }
+        if (error) { notifyUnavailable(); return; }
         if (!bytes && !source) return;
         const controller = new AbortController();
         pagesRef.current = [];
@@ -561,16 +538,19 @@ export function PdfCanvas({
             setNumPages(0);
             setViewerError(null);
         });
+        /** Abandon every in-flight render and drop the DOM for this document. */
+        const teardown = () => {
+            generationRef.current += 1; quoteGenerationRef.current += 1;
+            taskRef.current?.cancel(); scheduleRef.current = null;
+            pageCacheRef.current = null; pagesRef.current = [];
+            searchRef.current = null; preparePageRef.current = null;
+            containerRef.current?.replaceChildren();
+        };
         const unavailable = (cause: unknown) => {
             if (cancelled || controller.signal.aborted) return;
             console.error("PDF render error", cause);
-            controller.abort();
-            generationRef.current += 1;
-            taskRef.current?.cancel(); scheduleRef.current = null;
-            pdfRef.current = null; pageCacheRef.current = null; pagesRef.current = [];
-            searchRef.current = null; preparePageRef.current = null;
-            quoteGenerationRef.current += 1; navigationRef.current += 1;
-            containerRef.current?.replaceChildren();
+            controller.abort(); teardown();
+            pdfRef.current = null; navigationRef.current += 1;
             setNumPages(0); setPreparing(false); setViewerError(PDF_VIEWER_ERROR);
             if (loadingTask) void loadingTask.destroy().catch(() => undefined);
             notifyUnavailable();
@@ -598,16 +578,7 @@ export function PdfCanvas({
             await renderPdf(quotesRef.current);
         })().catch(unavailable);
         return () => {
-            cancelled = true; controller.abort();
-            generationRef.current += 1;
-            taskRef.current?.cancel();
-            scheduleRef.current = null;
-            pageCacheRef.current = null;
-            searchRef.current = null;
-            preparePageRef.current = null;
-            quoteGenerationRef.current += 1;
-            pagesRef.current = [];
-            containerRef.current?.replaceChildren();
+            cancelled = true; controller.abort(); teardown();
             const pdf = pdfRef.current;
             pdfRef.current = null;
             if (loadingTask) void loadingTask.destroy().catch(() => undefined);
@@ -659,9 +630,7 @@ export function PdfCanvas({
     }
 
     function changeZoom(event: ReactMouseEvent<HTMLButtonElement>) {
-        const next = clampZoom(
-            zoomRef.current + Number(event.currentTarget.value),
-        );
+        const next = clampZoom(zoomRef.current + Number(event.currentTarget.value));
         if (next === zoomRef.current) return;
         zoomRef.current = next;
         setZoom(next);
@@ -683,8 +652,7 @@ export function PdfCanvas({
                 {(error || viewerError) && (
                     <div role="alert" className="flex h-full items-center justify-center">
                         <p className="max-w-sm px-6 text-center text-sm text-red-600">
-                            {error || viewerError}
-                        </p>
+                            {error || viewerError}</p>
                     </div>
                 )}
                 <div ref={containerRef} />
@@ -705,27 +673,17 @@ export function PdfCanvas({
                         </span>
                     </div>
                     <div className="absolute bottom-4 right-4 flex items-center gap-px rounded-full border border-gray-200 bg-white p-1 shadow-sm">
-                        <button
-                            type="button"
-                            onClick={changeZoom}
-                            value={-ZOOM_STEP}
-                            disabled={zoom <= ZOOM_MIN}
-                            aria-label="Zoom out"
-                            className="flex h-7 w-7 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 disabled:opacity-30"
-                        >
+                        <button type="button" onClick={changeZoom} value={-ZOOM_STEP}
+                            disabled={zoom <= ZOOM_MIN} aria-label="Zoom out"
+                            className="flex h-7 w-7 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 disabled:opacity-30">
                             <ZoomOut className="h-3.5 w-3.5" />
                         </button>
                         <span className="w-9 select-none text-center text-xs font-medium tabular-nums text-gray-600">
                             {Math.round(zoom * 100)}%
                         </span>
-                        <button
-                            type="button"
-                            onClick={changeZoom}
-                            value={ZOOM_STEP}
-                            disabled={zoom >= ZOOM_MAX}
-                            aria-label="Zoom in"
-                            className="flex h-7 w-7 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 disabled:opacity-30"
-                        >
+                        <button type="button" onClick={changeZoom} value={ZOOM_STEP}
+                            disabled={zoom >= ZOOM_MAX} aria-label="Zoom in"
+                            className="flex h-7 w-7 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 disabled:opacity-30">
                             <ZoomIn className="h-3.5 w-3.5" />
                         </button>
                     </div>
