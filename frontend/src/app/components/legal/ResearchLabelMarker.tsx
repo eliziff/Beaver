@@ -1,5 +1,4 @@
-import { BookText, FileText, Gavel, Landmark, Scale } from "lucide-react";
-import { researchLabelPath, type ResearchLabel, type ResearchSourceReference } from "@/app/lib/researchFiles";
+import { researchLabelPath, type ResearchLabel } from "@/app/lib/researchFiles";
 import { FolderSvgIcon } from "../shared/FolderSvgIcon";
 
 export const researchLabelColor = (label: ResearchLabel) => label.color ??
@@ -8,16 +7,6 @@ export const researchLabelColor = (label: ResearchLabel) => label.color ??
 const BOX = { sm: "h-3.5 w-5", md: "h-4 w-6", lg: "h-6 w-9" };
 /** Three tab slots: one per generation, filled left to right, so depth is countable at a glance. */
 const TABS = 3;
-const KIND_ICON = { case: Scale, legislation: Landmark, journal: BookText, hansard: Gavel, document: FileText };
-const KIND_NAME = { case: "Case", legislation: "Legislation", journal: "Journal article", hansard: "Hansard", document: "Library document" };
-
-/** Inside the tree a source is already under its folder: it shows what kind of source it is, not its parent's colour. */
-export function ResearchSourceKindIcon({ reference, className = "size-3.5" }: {
-  reference: ResearchSourceReference; className?: string }) {
-  const Icon = KIND_ICON[reference.kind] ?? FileText;
-  return <Icon aria-label={KIND_NAME[reference.kind] ?? "Source"} className={`${className} shrink-0 text-gray-500`} />;
-}
-
 /** One folder as a binder: the root label paints the body, every layer below it adds a tab sheet, in order. */
 export function ResearchLabelFolder({ labels, labelId, size = "md" }: {
   labels: Record<string, ResearchLabel>; labelId: string | null; size?: keyof typeof BOX }) {

@@ -50,12 +50,12 @@ describe("ResearchLabelPicker", () => {
     render(<ResearchLabelEditor target={{ file, kind: "evidence", itemId: "e-1", sourceId: "source-1",
       labelIds: [], title: "Passage" }} mutations={lane(act)} onClose={vi.fn()} />);
     expect(screen.queryByLabelText("Badge")).not.toBeInTheDocument();
-    const choice = screen.getByRole("button", { name: "H" }), icon = choice.querySelector("span[style]");
-    expect(icon).toHaveStyle({ backgroundColor: "#eab308" });
+    const choice = screen.getByRole("button", { name: "H" }), icon = choice.querySelector("svg");
+    expect(icon).toHaveStyle({ color: "#eab308" });
     fireEvent.click(choice);
     expect(screen.getByRole("button", { name: "H" })).toBe(choice);
     expect(choice).toHaveAttribute("aria-pressed", "true");
-    expect(choice.querySelector("span[style]")).toBe(icon);
+    expect(choice.querySelector("svg")).toBe(icon);
     await waitFor(() => expect(act).toHaveBeenCalledWith({ type: "annotate", kind: "evidence",
       id: "e-1", sourceId: "source-1", labelIds: ["h"], note: "" }));
   });
@@ -126,17 +126,17 @@ describe("ResearchLabelPicker", () => {
     await waitFor(() => expect([...filings]).toEqual(["a", "b", "d"]));
   });
 
-  it("keeps every generation's row reserved so revealing children moves nothing above", () => {
+  it("reveals only the selected branch below its existing sibling row", () => {
     const nested = { ...file, state: { ...file.state, labels: { ...labels,
       child: { ...label("child", 0), parentId: "a" }, leaf: { ...label("leaf", 0), parentId: "child" },
     } } };
     const view = render(<ResearchLabelEditor target={{ file: nested, kind: "source", itemId: "source-1",
       labelIds: [], title: "Source" }} mutations={lane()} onClose={vi.fn()} />);
-    const rows = () => view.container.querySelectorAll<HTMLElement>('[role="dialog"] .overflow-x-auto');
-    expect(rows()).toHaveLength(3);
+    const rows = () => view.container.querySelectorAll<HTMLElement>('[role="group"][aria-label^="Label level"]');
+    expect(rows()).toHaveLength(1);
     const first = rows()[0];
     fireEvent.click(screen.getByRole("button", { name: "A" }));
-    expect(rows()).toHaveLength(3); expect(rows()[0]).toBe(first);
+    expect(rows()).toHaveLength(2); expect(rows()[0]).toBe(first);
     fireEvent.click(screen.getByRole("button", { name: "CHILD" }));
     expect(rows()).toHaveLength(3); expect(rows()[0]).toBe(first);
   });

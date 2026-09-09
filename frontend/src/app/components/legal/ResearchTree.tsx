@@ -4,7 +4,7 @@ import { BookOpen, ChevronRight } from "lucide-react";
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { Button } from "../ui/button";
 import { researchHighlightCount, researchLabelPath, type ResearchEvidence, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
-import { researchLabelColor, ResearchSourceKindIcon } from "./ResearchLabelMarker";
+import { researchLabelColor, ResearchLabelMarker } from "./ResearchLabelMarker";
 import { ResearchLabelEditor, RESEARCH_SOURCE_DRAG, type ResearchLabelTarget } from "./ResearchLabelPicker";
 import { ResearchLabelTree } from "./ResearchLabelTree";
 import { passageLabel, trimPassageMarker } from "@/app/lib/researchPassage";
@@ -62,15 +62,15 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
     return <div className={`${ROW} ${selectedSourceId === source.id ? "bg-gray-100" : "hover:bg-gray-50"}`} draggable={!preview}
       onDragStart={(event) => { onSourceDrag?.(); event.dataTransfer.setData(RESEARCH_SOURCE_DRAG, source.id); }}>
       {preview ? <span className="size-6 shrink-0" /> : chevron(open, `Passages in ${name}`, () => openSource(source.id))}
-      <span className="grid size-5 shrink-0 place-items-center"><ResearchSourceKindIcon reference={source.reference} /></span>
+      <button type="button" data-source-marker={source.id} disabled={!!preview} aria-label={`Label ${name}`} onClick={(event) => setLabelTarget({ file: file!, kind: "source", itemId: source.id,
+        labelIds: source.labelIds, note: source.note, title: name, anchor: event.currentTarget.getBoundingClientRect(), returnFocus: event.currentTarget })} className="grid min-h-6 shrink-0 place-items-center rounded">
+        <ResearchLabelMarker labels={labels} labelIds={source.labelIds} size="sm" /></button>
       <button type="button" disabled={!!preview} onClick={() => openSource(source.id)} title={[name, source.note].filter(Boolean).join(NEWLINE)}
         aria-current={selectedSourceId === source.id ? "true" : undefined} data-mark={mark(source.id)}
         className={`min-w-0 flex-1 truncate text-start text-sm text-gray-700 ${mark(source.id) ? "font-semibold underline decoration-gray-400" : ""}`}>{name}</button>
       <span className={ROW_ACTIONS}>
         {openControl(source, name)}
         {!preview && <MoreActionsMenu label={`${name} options`} items={[
-          { label: "Labels", onSelect: () => setLabelTarget({ file: file!, kind: "source", itemId: source.id,
-            labelIds: source.labelIds, note: source.note, title: name }) },
           { label: "Remove", onSelect: () => onRemove({ kind: "source", id: source.id, name }) },
         ]} />}
       </span>
@@ -94,7 +94,7 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
         {openControl(source, sourceName(source), item.receipt.locator.label, item.receipt.evidence_id, locator)}
         <MoreActionsMenu label={`${locator} options`} items={[
           { label: "Highlight type", onSelect: () => setLabelTarget({ file: file!, kind: "evidence", itemId: id,
-            sourceId: source.id, labelIds: item.labelIds, note: item.note, title: locator }) },
+            sourceId: source.id, labelIds: item.labelIds, note: item.note, title: locator, anchor: document.activeElement?.getBoundingClientRect() }) },
           { label: "Delete", onSelect: () => onRemove({ kind: "evidence", id, sourceId: source.id, name: locator }) },
         ]} />
       </span>
