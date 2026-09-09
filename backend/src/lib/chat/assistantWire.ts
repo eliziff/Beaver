@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { WORK_PRODUCT_KINDS } from "mike/shared/work-products.mjs";
-import { buildCanliiLawUrl } from "../canliiUrls";
+import { buildCanliiLawUrl } from "../canliiLawUrls";
 
 export const ASSISTANT_LIMITS = { activities: 256, artifacts: 64, blocks: 128,
   citations: 256, readers: 32, text: 1_000_000 } as const;
