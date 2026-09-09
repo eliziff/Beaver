@@ -7,17 +7,9 @@
 import type JSZip from "jszip";
 import { assertBoundedZip, loadZip, readZipEntry, zipReadBudget } from "../zip";
 import {
-  type XNode,
-  MAX_DRAFTING_DOCX_BYTES,
-  MAX_DRAFTING_XML_ENTRY_BYTES,
-  createBuilder,
-  createParser,
-  elAttrs,
-  elChildren,
-  elName,
-  ensureXmlDeclaration,
-  findBody,
-  getTextContent,
+  type XNode, MAX_DRAFTING_DOCX_BYTES, MAX_DRAFTING_XML_ENTRY_BYTES,
+  createBuilder, createParser, elAttrs, elChildren, elName,
+  ensureXmlDeclaration, findBody, getTextContent,
 } from "./core";
 
 const MAX_ZIP_ENTRIES = 2_048;
@@ -26,6 +18,8 @@ const MAX_XML_BYTES = 32 * 1024 * 1024;
 const MAX_MARKUP_DEPTH = 256;
 
 const BLOCK_CONTAINER = /^w:(?:tbl|tr|tc|sdt|sdtContent)$/u;
+const BLOCK_KIND = new Map<string | null, "p" | "tbl" | "sdt">(
+  [["w:p", "p"], ["w:tbl", "tbl"], ["w:sdt", "sdt"]]);
 const INLINE_SKIP = /^(?:w:(?:pPr|rPr|sectPr|tblPr|trPr|tcPr|tblGrid|sdtPr|sdtEndPr|bookmarkStart|bookmarkEnd|proofErr|commentReference)|mc:Fallback)$/u;
 const REWRITE_KEEP = /^w:(?:bookmarkStart|bookmarkEnd|proofErr|commentRangeStart|commentRangeEnd)$/u;
 const REWRITE_ATOMIC = /^w:(?:footnoteReference|endnoteReference|commentReference|drawing)$/u;
@@ -54,8 +48,6 @@ interface DocxIndexedRun {
   del: boolean;
   strike: boolean;
   color: string | null;
-  hyperlinkId: string | null;
-  story: boolean;
 }
 
 type DocxInlineEvent =
@@ -81,7 +73,6 @@ export interface DocxParagraphIndex {
 
 type DocxDocumentIndex = ReturnType<typeof indexDocxBody> & {
   tree: XNode[];
-  trackedChanges: Array<{ kind: "ins" | "del"; w_id: string }>;
   maxTrackedId: number;
 };
 
@@ -89,20 +80,12 @@ interface InlineState {
   ins: boolean;
   del: boolean;
   protected: boolean;
-  hyperlinkId: string | null;
   edit: boolean;
   compare: boolean;
-  story: boolean;
 }
 
 const CLEAN_INLINE_STATE: InlineState = {
-  ins: false,
-  del: false,
-  protected: false,
-  hyperlinkId: null,
-  edit: true,
-  compare: true,
-  story: true,
+  ins: false, del: false, protected: false, edit: true, compare: true,
 };
 
 function readRun(run: XNode, inDeletion: boolean) {
@@ -118,15 +101,13 @@ function readRun(run: XNode, inDeletion: boolean) {
   let unsupported: string | null = null;
   const texts: string[] = [];
   const atoms: DocxRewriteAtom[] = [];
-  if (rPr) {
-    for (const property of elChildren(rPr)) {
-        const propertyName = elName(property);
-        const value = elAttrs(property)["@_w:val"];
-        if (propertyName === "w:strike") {
-          strike = value == null || !/^(?:false|0)$/iu.test(String(value));
-        } else if (propertyName === "w:color" && value != null && String(value).toLowerCase() !== "auto") {
-          color = String(value);
-        }
+  for (const property of elChildren(rPr)) {
+    const propertyName = elName(property);
+    const value = elAttrs(property)["@_w:val"];
+    if (propertyName === "w:strike") {
+      strike = value == null || !/^(?:false|0)$/iu.test(String(value));
+    } else if (propertyName === "w:color" && value != null && String(value).toLowerCase() !== "auto") {
+      color = String(value);
     }
   }
   for (const child of children) {
@@ -230,15 +211,8 @@ export function indexDocxParagraph(node: XNode): DocxParagraphIndex {
       }
       events.push({
         kind: "run",
-        run: {
-          text: run.text,
-          ins: state.ins,
-          del: state.del,
-          strike: run.strike,
-          color: run.color,
-          hyperlinkId: state.hyperlinkId,
-          story: state.story,
-        },
+        run: { text: run.text, ins: state.ins, del: state.del,
+          strike: run.strike, color: run.color },
       });
       return;
     }
@@ -268,26 +242,16 @@ export function indexDocxParagraph(node: XNode): DocxParagraphIndex {
           protected: content || state.protected,
           edit: content && state.edit,
           compare: content && state.compare,
-          story: content && state.story,
         }, depth + 1);
       }
       return;
     }
 
     let next = state;
-    if (name === "w:hyperlink") {
-      const id = elAttrs(current)["@_r:id"];
-      next = {
-        ...state,
-        edit: false,
-        hyperlinkId: id == null ? null : String(id),
-      };
-    } else if (name === "w:smartTag") {
+    if (name === "w:hyperlink" || name === "w:smartTag" || name === "w:customXml") {
       next = { ...state, edit: false };
-    } else if (name === "w:customXml") {
-      next = { ...state, edit: false, story: false };
     } else if (name !== "w:sdtContent") {
-      next = { ...state, edit: false, compare: false, story: false };
+      next = { ...state, edit: false, compare: false };
     }
     for (const child of elChildren(current)) {
       visit(child, topChildIndex, next, depth + 1);
@@ -375,14 +339,7 @@ export function indexDocxBody(body: XNode) {
   };
 
   const blocks = bodyChildren.flatMap((node, bodyIndex) => {
-    const name = elName(node);
-    const kind: "p" | "tbl" | "sdt" | null = name === "w:p"
-      ? "p"
-      : name === "w:tbl"
-        ? "tbl"
-        : name === "w:sdt"
-          ? "sdt"
-          : null;
+    const kind = BLOCK_KIND.get(elName(node));
     if (!kind) return [];
     const contents = paragraphsUnder(node);
     return [{
@@ -424,14 +381,6 @@ function trackedChanges(tree: XNode[]) {
     pending.push(...[...elChildren(node)].reverse());
   }
   return { changes, maximum };
-}
-
-function assertBoundedPackage(zip: JSZip) {
-  assertBoundedZip(zip, "DOCX", {
-    maxEntries: MAX_ZIP_ENTRIES, maxExpandedBytes: MAX_EXPANDED_BYTES,
-    selected: { test: /\.xml(?:\.rels)?$/iu, maxEntryBytes: MAX_DRAFTING_XML_ENTRY_BYTES,
-      maxBytes: MAX_XML_BYTES, name: "XML part" },
-  });
 }
 
 class DocxSessionImpl {
@@ -486,13 +435,7 @@ class DocxSessionImpl {
     if (!body) throw new Error(`w:body missing from ${label}`);
     const index = indexDocxBody(body);
     if (index.truncated) throw new Error("DOCX markup nests beyond the read limit");
-    const revisions = await this.revisions();
-    return {
-      tree,
-      ...index,
-      trackedChanges: revisions.changes,
-      maxTrackedId: revisions.maximum,
-    };
+    return { tree, ...index, maxTrackedId: (await this.revisions()).maximum };
   }
 
   async revisionParts() {
@@ -525,10 +468,8 @@ class DocxSessionImpl {
   }
 
   writeDocument(tree: XNode[]) {
-    this.write(
-      "word/document.xml",
-      ensureXmlDeclaration(createBuilder().build(tree)),
-    );
+    this.write("word/document.xml",
+      ensureXmlDeclaration(createBuilder().build(tree)));
   }
 
   save() {
@@ -546,13 +487,15 @@ export async function openDocxSession(
   }
   const zip = await loadZip(bytes).catch((error: unknown) => {
     const detail = String((error as { message?: unknown })?.message ?? error)
-      .replace(/\s+/gu, " ")
-      .trim()
-      .slice(0, 200);
+      .replace(/\s+/gu, " ").trim().slice(0, 200);
     throw new Error(
       `DOCX is corrupted or truncated (not a readable ZIP archive): ${detail}`,
     );
   });
-  assertBoundedPackage(zip);
+  assertBoundedZip(zip, "DOCX", {
+    maxEntries: MAX_ZIP_ENTRIES, maxExpandedBytes: MAX_EXPANDED_BYTES,
+    selected: { test: /\.xml(?:\.rels)?$/iu, maxEntryBytes: MAX_DRAFTING_XML_ENTRY_BYTES,
+      maxBytes: MAX_XML_BYTES, name: "XML part" },
+  });
   return new DocxSessionImpl(zip);
 }
