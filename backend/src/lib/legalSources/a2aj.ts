@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { cachedContent } from "../contentCache";
 import { fetchLocalA2AJDocument, searchLocalA2AJ } from "../a2ajLocalBulk";
-import { buildCanliiLawUrl } from "../canliiUrls";
+import { buildCanliiLawUrl } from "../canliiLawUrls";
 import { citationAliasGroups, citationAuthorityMetricsBatch } from "../caselawCitator";
 import {
   decisiaIndexUrl,
