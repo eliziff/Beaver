@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useEffectEvent, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { BookOpen, MessageSquare, Play, Square, Upload, X } from "lucide-react";
+import { MessageSquare, Play, Square, Upload } from "lucide-react";
 import {
   clearTabularCells,
   deleteTabularReview,
@@ -39,8 +39,7 @@ import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { ResearchSelectionLabels } from "../shared/ResearchSelectionLabels";
 import { ResearchChanges } from "../legal/ResearchChanges";
 import { SourcesWorkspace, useSourcesWorkspace } from "../legal/SourcesWorkspace";
-import { ResearchCitationContent } from "../legal/ResearchCitationViewer";
-import type { ResearchSelection, ResearchSourceReference } from "@/app/lib/researchFiles";
+import type { ResearchSelection } from "@/app/lib/researchFiles";
 import { AssistantDock } from "../assistant/AssistantDock";
 import { ResearchWorkspaceHost } from "../legal/ResearchWorkspaceHost";
 import { ResearchViews } from "../shared/ResearchViews";
@@ -54,8 +53,6 @@ import { Button } from "../ui/button";
 import { WorkflowPickerModal } from "../workflows/WorkflowPickerModal";
 import type { WorkflowSelection } from "../workflows/workflowRoutes";
 import { AddColumnModal } from "./AddColumnModal";
-import type { Citation } from "@/app/lib/citations";
-import { citedSourceReference } from "@/app/lib/groundedAnswers";
 import { TabularReviewDetailsModal } from "./TabularReviewDetailsModal";
 import { TRChatPanel } from "./TRChatPanel";
 import { TRSidePanel } from "./TRSidePanel";
@@ -65,7 +62,7 @@ import { ImportResearchSet } from "./ImportResearchSet";
 interface Props { reviewId: string; projectId?: string }
 type Modal = "documents" | "details" | "people" | null;
 type CellView = { cellId: string };
-type DockTab = "chat" | "sources" | "reading" | null;
+type DockTab = "chat" | "sources" | null;
 const cellKey = (documentId: string, columnIndex: number) => `${documentId}:${columnIndex}`;
 const pendingCell = (documentId: string, columnIndex: number): TabularCell => ({
     id: `new-${documentId}-${columnIndex}`, document_id: documentId,
@@ -125,7 +122,6 @@ function TRViewContent({ reviewId, projectId }: Props) {
     useEffect(() => { if (workspaceId) void workspace.open(workspaceId).catch(() => undefined); }, [workspaceId, workspace.open]);
     const project = projectId ? projects.find(({ id }) => id === projectId) ?? null : null;
     const chatOpen = chatId !== undefined;
-    const [reading, setReading] = useState<{ citation: Citation; reference?: ResearchSourceReference } | null>(null);
     const expandedCell = cells.find(({ id }) => id === cellView?.cellId);
     const refreshReview = useCallback(async () => {
         const data = await getTabularReview(reviewId);
@@ -179,13 +175,6 @@ function TRViewContent({ reviewId, projectId }: Props) {
     }, [generating, reviewId, setUi]);
 
     const expandCell = useCallback(({ id }: TabularCell) => setUi({ cellView: { cellId: id } }), [setUi]);
-    // The reader opens as a dock tab beside the table, not a modal over it.
-    const openCitation = useCallback((cell: TabularCell, citation: Citation) => {
-        const receipt = cell.content?.evidence.find(({ span_text }) => span_text &&
-            citation.quotes?.some(({ quote }) => quote === span_text));
-        setReading({ citation, reference: receipt ? citedSourceReference(receipt) : undefined });
-        setUi({ dockTab: "reading", cellView: null });
-    }, [setUi]);
 
     function setChatId(next: string | null | undefined) {
         setUi({ chatId: next });
@@ -481,12 +470,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
     }
     function closeDock() {
         setUi({ dockTab: null });
-        setReading(null);
         setChatId(undefined);
-    }
-    function closeReading() {
-        setReading(null);
-        setUi({ dockTab: chatOpen ? "chat" : null });
     }
     async function openWorkspace(columnIndex?: number) {
         setInteropError("");
@@ -665,7 +649,6 @@ function TRViewContent({ reviewId, projectId }: Props) {
                                 onSelectionChange={(selectedIds) =>
                                     setUi({ selectedIds })}
                                 onExpand={expandCell}
-                                onCitationClick={openCitation}
                                 onEditColumn={(columnModal) =>
                                     setUi({ columnModal })}
                                 onRerunColumn={rerunColumn}
@@ -701,12 +684,6 @@ function TRViewContent({ reviewId, projectId }: Props) {
                             /> },
                             { id: "sources", label: "Sources", content: <ResearchWorkspaceHost embedded open
                                 projectId={projectId} onOpenChange={() => undefined} /> },
-                            ...(reading ? [{ id: "reading", readerExpansion: true, icon: <BookOpen aria-hidden className="size-4" />,
-                                label: reading.citation.kind === "document" ? reading.citation.filename
-                                    : reading.reference?.title ?? reading.reference?.citation ?? "Source",
-                                actions: <Button variant="ghost" size="compact" onClick={closeReading} aria-label="Close source">
-                                    <X className="size-3.5" aria-hidden /></Button>,
-                                content: <ResearchCitationContent {...reading} onOpenResearch={() => setUi({ dockTab: "sources" })} /> }] : []),
                         ]} />}
                 </div>
             </div>
