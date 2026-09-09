@@ -323,12 +323,13 @@ const workProductTool = (authoritiesEnabled: boolean, bound = false,
       document_id: DOCUMENT_ID_PROPERTY,
       unit_id: { type: "string", minLength: 1 },
       occurrence_id: { type: "string", minLength: 1 },
+      // Page sizes are served, not policed: over-asking is a shorter page, not a failed call.
       text_offset: { type: "integer", minimum: 0 },
-      text_limit: { type: "integer", minimum: 1, maximum: 20_000 },
+      text_limit: { type: "integer", minimum: 1, description: "Characters; 20000 at most." },
       occurrence_offset: { type: "integer", minimum: 0 },
-      occurrence_limit: { type: "integer", minimum: 1, maximum: 25 },
+      occurrence_limit: { type: "integer", minimum: 1, description: "Rows; 25 at most." },
       authority_offset: { type: "integer", minimum: 0 },
-      authority_limit: { type: "integer", minimum: 1, maximum: 50 },
+      authority_limit: { type: "integer", minimum: 1, description: "Rows; 50 at most." },
       input_role: { type: "string", minLength: 1 },
       authority_id: { type: "string", minLength: 1,
         description: "Authority ID returned by reading an Authorities draft." },
@@ -1199,6 +1200,17 @@ const withEvent = (output: AssistantOutcome, event: AssistantEvent | null | unde
 
 
 const fail = (error: string) => result({ ok: false, error });
+
+/** Citation text, authority names and span text a work-product payload carries: the draft's
+ * own words, which an answer about the draft quotes back rather than advances as authority. */
+function collectDraftCitations(value: unknown, into: Set<string>, span = false) {
+  if (Array.isArray(value)) return value.forEach((item) => collectDraftCitations(item, into, span));
+  for (const [key, item] of Object.entries(objectRecord(value) ?? {})) {
+    if (typeof item !== "string") collectDraftCitations(item, into, key.endsWith("_span"));
+    else if ((key === "citation" || key === "name" || (span && key === "text")) &&
+      item.trim().length >= 4) into.add(item.trim());
+  }
+}
 
 const SAFE_PDF_EVIDENCE_ERRORS = new Set([
   "Invalid PDF evidence handle",
@@ -2470,6 +2482,9 @@ export function assistantTools<Context extends {
         detail: "Read again with a narrower unit, occurrence, or authority page.",
       };
       const productId = trimmed(objectRecord(payload.work_product)?.id);
+      if (legalEvidenceState && productId && productId === authoritiesId) {
+        collectDraftCitations(payload, legalEvidenceState.reportedCitations ??= new Set());
+      }
       const outcome = withEvent(payload.ok === true
         ? (mutated ? mutationResult(payload) : result(payload))
         : fail(clip(payload.error || "The work product could not be updated", 1_000)),

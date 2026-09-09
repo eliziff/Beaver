@@ -2159,12 +2159,14 @@ describe("local assistant tools", () => {
     const refreshInput = vi.fn(async (_scope, _id, { revision }) =>
       ({ ...current, revision: revision + 1 }));
     const tools = await import("./support/localAssistantTools");
+    const { createLegalEvidenceTurnState } = await import("../chat/legalEvidence");
+    const legalEvidence = createLegalEvidenceTurnState();
     const [review, refreshed] = await tools.runLocalAssistantTools("local-user", [
       { id: "review", name: "update_work_product", input: { action: "review",
-        } },
+        occurrence_limit: 100 } },
       { id: "refresh", name: "update_work_product", input: { action: "refresh",
         input_role: "source" } },
-    ], { authoritiesId: current.id, authoritiesRevision: current.revision,
+    ], { authoritiesId: current.id, authoritiesRevision: current.revision, legalEvidence,
       authorities: { discrepancies, refreshInput } as never,
       workProducts: { get: vi.fn(async () => current), resolve } as never });
 
@@ -2175,6 +2177,7 @@ describe("local assistant tools", () => {
         cited_locator: { label: "para 9" }, suggested_locator: { label: "para 10" } }] });
     expect(review.content.length).toBeLessThan(64_000);
     expect(JSON.parse(review.content).discrepancies[0].proposition.length).toBeLessThanOrEqual(701);
+    expect([...legalEvidence.reportedCitations ?? []]).toContain("2026 SCC 1");
     expect(refreshed.mutated).toBe(true);
   });
 
