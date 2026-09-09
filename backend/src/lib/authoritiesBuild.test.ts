@@ -390,7 +390,7 @@ describe("Authorities output builder", () => {
     expect(annotSubtypes(await PDFDocument.load(built.artifacts.book!.bytes), 2)).toEqual([]);
   });
 
-  it("does not guess a cited paragraph from page text when geometry is ambiguous", async () => {
+  it("marks the page that prints a cited paragraph when geometry is ambiguous", async () => {
     const pdf = await sourcePdf("Bilingual decision", [[400, 500]]);
     const state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
     state.authorities.item = attached("item", "case", "2009 SCC 32", "R v Grant", "item", pdf);
@@ -409,8 +409,8 @@ describe("Authorities output builder", () => {
         bytes: pdf, pageTextByPage: ["Reporter header [29] The cited paragraph."],
         passageGeometry } } });
     const book = await PDFDocument.load(built.artifacts.book!.bytes);
-    expect(annotSubtypes(book, 2)).toEqual([]);
-    expect(annotContents(book, 2)).toEqual([]);
+    expect(annotSubtypes(book, 2)).toEqual(["/Square"]);
+    expect(annotContents(book, 2)).toEqual(["Cited page"]);
   });
 
   it("stops before emitting artifacts when the build is cancelled", async () => {

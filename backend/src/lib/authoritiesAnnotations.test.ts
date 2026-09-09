@@ -137,6 +137,16 @@ it('places one paragraph line to the left of its complete extent', () => {
   lines[0].fragments[0].rects[0].forEach((value, i) => expect(value).toBeCloseTo([33/400, 40/500, 35/400, 180/500][i]));
 });
 
+it('marks the page that prints a paragraph the geometry could not place', async () => {
+  const {draft,bytes,hash}=await fixture();
+  const unplaced=geometry(hash);unplaced.targets[0].status='ambiguous';unplaced.targets[0].pages=[];
+  const result=prepareAuthorityAnnotations(pdf,await PDFDocument.load(bytes),draft,draft.authorities.case,
+    {bindingRole:'case-en',filename:'case.pdf',sourceSha256:hash},
+    {passageGeometry:unplaced,pageTextByPage:['An uncited passage and [42] a cited paragraph.']});
+  expect(result.annotations.marks.map(mark=>mark.label)).toEqual(['Cited page']);
+  expect(result.pageMarked).toEqual(['para 42']);
+});
+
 it('populates compact paragraph cards directly from prepared PDF text', () => {
   const source = geometry('a'.repeat(64)); source.targets[0].pages[0].text = '[42] First sentence. Second sentence.';
   const result = initialAuthorityAnnotations({sourceSha256: source.sourceSha256, style:'margin', geometry:source,

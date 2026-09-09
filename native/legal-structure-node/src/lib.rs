@@ -565,13 +565,20 @@ mod legalpdf_exports {
     // Printed paragraph numbers are addresses, not structural ordinal positions.
     // Split on the actual native lines: a prose node can contain several numbered
     // paragraphs, and one printed paragraph can contain several prose nodes.
+    // Parallel-language columns print one paragraph number per column. A line
+    // belongs to the column holding its centre, which mirrored margins preserve.
+    fn in_column(column: [f64; 4], line: [f64; 4]) -> bool {
+        let centre = (line[0] + line[2]) / 2.0;
+        centre > column[0] && centre < column[2]
+    }
+
     fn printed_paragraph_plan<'a>(
-        lines: &[(&'a str, &'a str)],
+        lines: &[(&'a str, &'a str, u32, [f64; 4])],
         paragraphs: &[Vec<String>],
         locator: &str,
     ) -> Option<(legalpdf::PdfLookupStatus, HashSet<&'a str>)> {
         use legalpdf::PdfLookupStatus as Status;
-        let labels = lines.iter().enumerate().filter_map(|(index, (_, text))| {
+        let labels = lines.iter().enumerate().filter_map(|(index, (_, text, ..))| {
             let (number, rest) = text.trim_start().strip_prefix('[')?.split_once(']')?;
             if (!rest.is_empty() && !rest.starts_with(char::is_whitespace)) ||
                 !number.chars().all(|c| c.is_ascii_digit()) { return None; }
@@ -585,18 +592,32 @@ mod legalpdf_exports {
         };
         let mut selected = HashSet::new();
         for number in from..=to {
-            let hits = labels.iter().filter(|(label, _)| *label == number).collect::<Vec<_>>();
-            if hits.len() != 1 {
+            let hits = labels.iter().filter(|(label, _)| *label == number)
+                .map(|(_, index)| *index).collect::<Vec<_>>();
+            // The same number printed once per column is one address, not two
+            // paragraphs; a repeat in the same column or on another page is not.
+            if hits.is_empty() || hits.iter().any(|&hit| hits.iter().any(|&other| other != hit &&
+                (lines[other].2 != lines[hit].2 || in_column(lines[hit].3, lines[other].3)))) {
                 return Some((if hits.is_empty() { Status::NotFound } else { Status::Ambiguous }, HashSet::new()));
             }
-            let start = hits[0].1;
-            if let Some((_, end)) = labels.iter().find(|(_, index)| *index > start) {
-                selected.extend(lines[start..*end].iter().map(|(id, _)| *id));
-            } else {
-                // At EOF use the native owner, not unbounded end matter.
-                let owner = paragraphs.iter().find(|ids| ids.iter().any(|id| id == lines[start].0));
-                selected.extend(lines[start..].iter().filter(|(id, _)|
-                    owner.is_some_and(|ids| ids.iter().any(|value| value == id))).map(|(id, _)| *id));
+            for start in hits {
+                // A detached number and the first line of its text share a row;
+                // the column is both. A parallel translation never shares a row.
+                let mut column = lines[start].3;
+                if let Some(next) = lines.get(start + 1).filter(|next| next.2 == lines[start].2
+                    && next.3[1] < column[3] && column[1] < next.3[3]) {
+                    column = [column[0].min(next.3[0]), column[1], column[2].max(next.3[2]), column[3]];
+                }
+                if let Some((_, end)) = labels.iter()
+                    .find(|(_, index)| *index > start && in_column(column, lines[*index].3)) {
+                    selected.extend(lines[start..*end].iter()
+                        .filter(|line| in_column(column, line.3)).map(|(id, ..)| *id));
+                } else {
+                    // At EOF use the native owner, not unbounded end matter.
+                    let owner = paragraphs.iter().find(|ids| ids.iter().any(|id| id == lines[start].0));
+                    selected.extend(lines[start..].iter().filter(|(id, ..)|
+                        owner.is_some_and(|ids| ids.iter().any(|value| value == id))).map(|(id, ..)| *id));
+                }
             }
         }
         Some((Status::Found, selected))
@@ -711,9 +732,10 @@ mod legalpdf_exports {
                 .chain(pdf.metadata.ocr_routed_pages.iter().copied())
                 .collect::<HashSet<_>>();
             let prose_ids = self.paragraphs.iter().flatten().map(String::as_str).collect::<HashSet<_>>();
-            let prose_lines = pdf.pages.iter().flat_map(|page| page.lines.iter())
+            let prose_lines = pdf.pages.iter().flat_map(|page| page.lines.iter()
                 .filter(|line| prose_ids.contains(line.id.as_str()))
-                .map(|line| (line.id.as_str(), line.text.as_str())).collect::<Vec<_>>();
+                .map(|line| (line.id.as_str(), line.text.as_str(), page.number, line.bbox)))
+                .collect::<Vec<_>>();
             let targets = self
                 .plans
                 .take()
