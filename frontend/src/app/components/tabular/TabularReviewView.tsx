@@ -105,7 +105,6 @@ function TRViewContent({ reviewId, projectId }: Props) {
         dragOver: false,
         uploading: [] as string[],
         chatId: initialChat === "new" ? null : initialChat ?? undefined,
-        highlightedCell: null as { colIdx: number; rowIdx: number } | null,
         missingProvider: null as ModelProvider | null,
         dockTab: (initialChat === null ? null : "chat") as DockTab,
         columnRun: null as { columnIndex: number; total: number; queue: string[] } | null,
@@ -119,7 +118,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
     const {
         loading, generating, columnModal, modal, workflowStatus, deleteStatus,
         ownerAction, cellView, selectedIds, search, dragOver, uploading, chatId,
-        highlightedCell, missingProvider, columnRun, dockTab,
+        missingProvider, columnRun, dockTab,
     } = ui;
     const columns = review?.columns_config ?? [];
     const workspaceId = review?.scope_config?.research_file_id;
@@ -181,11 +180,11 @@ function TRViewContent({ reviewId, projectId }: Props) {
 
     const expandCell = useCallback(({ id }: TabularCell) => setUi({ cellView: { cellId: id } }), [setUi]);
     // The reader opens as a dock tab beside the table, not a modal over it.
-    const openCitation = useCallback((cell: TabularCell, citation: Citation, action?: "workspace") => {
+    const openCitation = useCallback((cell: TabularCell, citation: Citation) => {
         const receipt = cell.content?.evidence.find(({ span_text }) => span_text &&
             citation.quotes?.some(({ quote }) => quote === span_text));
         setReading({ citation, reference: receipt ? citedSourceReference(receipt) : undefined });
-        setUi({ dockTab: action ? "sources" : "reading", cellView: null });
+        setUi({ dockTab: "reading", cellView: null });
     }, [setUi]);
 
     function setChatId(next: string | null | undefined) {
@@ -658,7 +657,6 @@ function TRViewContent({ reviewId, projectId }: Props) {
                             <TRTable
                                 loading={loading} columns={columns}
                                 documents={filteredDocuments} cells={cells}
-                                highlightedCell={highlightedCell}
                                 savingColumnsConfig={false}
                                 selectedDocIds={selectedIds}
                                 uploadingFilenames={uploading}
@@ -699,10 +697,6 @@ function TRViewContent({ reviewId, projectId }: Props) {
                                   navigate(`${location.pathname}${location.search}`, { replace: true, state: null }); }}
                                 onUpdated={() => void Promise.all([refreshReview(), workspace.refresh()]).catch(() => undefined)}
                                 searchMessageId={searchParams.get("message")}
-                                onCitationClick={(colIdx, rowIdx) => {
-                                    setUi({ search: "", highlightedCell: { colIdx, rowIdx } });
-                                    setTimeout(() => setUi({ highlightedCell: null }), 3000);
-                                }}
                                 onChatIdChange={setChatId}
                             /> },
                             { id: "sources", label: "Sources", content: <ResearchWorkspaceHost embedded open
@@ -724,7 +718,6 @@ function TRViewContent({ reviewId, projectId }: Props) {
                     key={JSON.stringify(cellView)} cell={expandedCell}
                     document={expandedDocument} column={expandedColumn}
                     onDiscuss={() => void openChat({ rowId: expandedCell.document_id, columnIndex: expandedCell.column_index })}
-                    onCitation={(citation, action) => openCitation(expandedCell, citation, action)}
                     onClose={() => setUi({ cellView: null })}
                     onRegenerate={() => regenerateCell(
                         expandedCell.document_id, expandedCell.column_index)}

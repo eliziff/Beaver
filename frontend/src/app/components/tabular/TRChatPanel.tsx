@@ -5,14 +5,12 @@ import { useAssistantChat } from "@/app/hooks/useAssistantChat";
 import { ChatView } from "../assistant/ChatView";
 import type { AssistantIntent } from "../assistant/assistantIntent";
 
-import type { Citation } from "@/app/lib/citations";
 import { APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
 import { SearchableChoiceModal } from "../modals/ModalSelect";
 import { cn } from "@/app/lib/utils";
 
 interface Props {
     reviewId: string;
-    onCitationClick: (colIdx: number, rowIdx: number) => void;
     chatId?: string | null;
     onChatIdChange: (chatId: string | null) => void;
     searchMessageId?: string | null;
@@ -28,7 +26,6 @@ const HEADER_BUTTON_CLASS = `flex h-7 shrink-0 items-center justify-center round
 
 export function TRChatPanel({
     reviewId,
-    onCitationClick,
     chatId: currentChatId = null,
     onChatIdChange, searchMessageId, initialIntent, workspaceReady = true, scopeLabel, onClearScope, onIntentSent, onUpdated, onUseAnswer,
 }: Props) {
@@ -60,13 +57,6 @@ export function TRChatPanel({
     }, [assistant.chatLoad, currentChatId, onChatIdChange]);
 
     const currentTitle = chats.find(({ id }) => id === currentChatId)?.title;
-    const openCitation = (citation: Citation) => {
-        if (citation.kind !== "tabular" || citation.review_id !== reviewId) {
-            return false;
-        }
-        onCitationClick(citation.col_index, citation.row_index);
-        return true;
-    };
 
     return (
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -127,7 +117,6 @@ export function TRChatPanel({
                 onRetryRejectedTurn={() => void assistant.actions.retryRejectedTurn()}
                 layout="panel"
                 features={{ contextTools: false, dock: false, researchSave: false }}
-                onCitationClick={openCitation}
                 citationTitle={(citation) => citation.kind === "tabular"
                     ? `${citation.col_name} · ${citation.doc_name.replace(/\.[^.]+$/u, "")}`
                     : ""}

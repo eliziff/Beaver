@@ -50,7 +50,7 @@ it("reads the result without an embedded source viewer, quote selector or highli
     const onClose = vi.fn();
     const onRegenerate = vi.fn().mockResolvedValue(undefined);
     render(<TRSidePanel cell={cell} document={sourceDocument} column={column}
-        onClose={onClose} onCitation={vi.fn()} onRegenerate={onRegenerate} />);
+        onClose={onClose} onRegenerate={onRegenerate} />);
 
     expect(screen.getByText("Termination")).toBeVisible();
     expect(screen.getByText("Because the term is express.")).toBeVisible();
@@ -73,8 +73,7 @@ it("uses a modal dialog on compact screens and restores its opener", async () =>
     function Example() {
         const [open, setOpen] = useState(false);
         return <><button onClick={() => setOpen(true)}>Open result</button>{open &&
-            <TRSidePanel cell={cell} document={sourceDocument} column={column}
-                onCitation={vi.fn()} onClose={() => setOpen(false)} />}</>;
+            <TRSidePanel cell={cell} document={sourceDocument} column={column} onClose={() => setOpen(false)} />}</>;
     }
 
     render(<Example />);
@@ -90,28 +89,26 @@ it("uses a modal dialog on compact screens and restores its opener", async () =>
 });
 
 it("keeps Regenerate visible but disabled while the review is running", () => {
-    render(<TRSidePanel cell={cell} document={sourceDocument} column={column} onClose={vi.fn()} onCitation={vi.fn()}
+    render(<TRSidePanel cell={cell} document={sourceDocument} column={column} onClose={vi.fn()}
         onRegenerate={vi.fn().mockResolvedValue(undefined)} running />);
     expect(screen.getByRole("button", { name: "Regenerate" })).toBeDisabled();
 });
 
-it("hands a cited passage to the shared source reader rather than opening one inside the result", () => {
-    const onCitation = vi.fn();
+it("links a cited passage externally without offering a reader menu", () => {
     const evidence = { evidence_id: "other", provider: "a2aj", stable_source_id: "other-case", source_reference: { id: "other-case" },
         source_sha256: "a".repeat(64), span_sha256: "b".repeat(64), block_id: "par7", span_text: "The court distinguished the rule.",
-        citation: "2026 SCC 2", name: "Other case", external_url: null, dataset: "scc", language: "fr" as const, locator: { kind: "paragraph", label: "7" } };
+        citation: "2026 SCC 2", name: "Other case", external_url: "https://example.test/other", dataset: "scc", language: "fr" as const, locator: { kind: "paragraph", label: "7" } };
     render(<TRSidePanel cell={{ ...cell, content: { ...cell.content!, evidence: [evidence], claims: [{ text: "Distinguished", evidence_ids: ["other"] }] } }}
         document={{ ...sourceDocument, reference: { provider: "a2aj", id: "row-case", kind: "case", citation: "2026 SCC 1" } }}
-        column={column} onClose={vi.fn()} onCitation={onCitation} />);
-    fireEvent.click(screen.getAllByRole("button", { name: "Citation actions" })[0]!);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Open in reader" }));
-    expect(onCitation).toHaveBeenCalledWith(expect.objectContaining({ kind: "a2aj", name: "Other case",
-        locator: "7", quotes: [{ quote: evidence.span_text }] }));
+        column={column} onClose={vi.fn()} />);
+    expect(screen.getByRole("link", { name: /Other case/ })).toHaveAttribute("href", "https://example.test/other");
+    expect(screen.getByRole("link", { name: /Other case/ })).toHaveAttribute("target", "_blank");
+    expect(screen.queryByRole("button", { name: "Citation actions" })).toBeNull();
 });
 
 it("keeps the answer readable after regeneration fails and permits retry", async () => {
     const regenerate = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(undefined);
-    render(<TRSidePanel cell={cell} document={sourceDocument} column={column} onClose={vi.fn()} onCitation={vi.fn()} onRegenerate={regenerate} />);
+    render(<TRSidePanel cell={cell} document={sourceDocument} column={column} onClose={vi.fn()} onRegenerate={regenerate} />);
     fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not regenerate");
     expect(screen.getByText("Yes")).toBeVisible();
