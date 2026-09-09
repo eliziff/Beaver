@@ -51,7 +51,7 @@ export const bindWorkspaceView = (id: string, input: { chatId?: string; tableId?
   post<ResearchFile>(`/source-workspaces/${segment(id)}/bind`, input);
 export type ResearchTableInput = { labelId?: string; columnIndex?: number;
   selection?: ResearchSelection; findingRefs?: ResearchFindingReference[];
-  chatId?: string; messageIds?: string[]; tableId?: string; fingerprint?: string; design?: ResearchTableDesign; request?: string; repropose?: boolean; model?: string; reasoningEffort?: string };
+  chatId?: string; tableId?: string; fingerprint?: string; design?: ResearchTableDesign; request?: string; repropose?: boolean; model?: string; reasoningEffort?: string };
 export type ResearchTableDesign = { title: string; columns: ColumnConfig[];
   cells: { rowId: string; columnIndex: number; itemIds: string[] }[] };
 export type ResearchTablePreview = { fingerprint: string; design: ResearchTableDesign;

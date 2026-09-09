@@ -35,7 +35,7 @@ it("organizes the chat into a proposed label set before landing in the workspace
   expect(await screen.findByText("States the test")).toBeVisible(); expect(api.applyWorkspaceLabels).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Apply labels" }));
   await waitFor(() => expect(screen.getByLabelText("Location")).toHaveTextContent("/sources?research_file=workspace"));
-  expect(api.applyWorkspaceLabels).toHaveBeenCalledWith("workspace", { chatId: "chat", messageIds: undefined,
+  expect(api.applyWorkspaceLabels).toHaveBeenCalledWith("workspace", { chatId: "chat",
     design: plan.design, fingerprint: plan.fingerprint });
 });
 it("previews grounded Chat work and creates a table only after acceptance", async () => {
@@ -45,6 +45,6 @@ it("previews grounded Chat work and creates a table only after acceptance", asyn
   expect(api.previewWorkspaceTable).toHaveBeenCalledWith("workspace", expect.objectContaining({ chatId: "chat", model: "model" }));
   await act("Create table");
   await waitFor(() => expect(screen.getByLabelText("Location")).toHaveTextContent("/tabular-reviews/table"));
-  expect(api.openWorkspaceTable).toHaveBeenCalledWith("workspace", { chatId: "chat", messageIds: undefined,
+  expect(api.openWorkspaceTable).toHaveBeenCalledWith("workspace", { chatId: "chat",
     design: preview.design, fingerprint: preview.fingerprint });
 });
