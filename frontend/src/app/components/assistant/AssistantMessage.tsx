@@ -20,6 +20,7 @@ import { ActivityDisclosure, ActivityRow, collapseActivities, DocDownloadBlock }
 interface Props {
     message: AssistantMessageState;
     isStreaming?: boolean;
+    onCitationClick?: (citation: Citation) => void;
     citationTitle?: (citation: Citation) => string;
     showCopyAction?: boolean;
     onWorkflowRunClick?: (run: WorkflowRunEvent) => void;
@@ -43,6 +44,7 @@ interface Props {
 export function AssistantMessage({
     message,
     isStreaming = false,
+    onCitationClick,
     citationTitle,
     showCopyAction = true,
     onWorkflowRunClick,
@@ -252,6 +254,7 @@ export function AssistantMessage({
                                         key={activity.id}
                                         activity={activity}
                                         onClick={activityClick(activity)}
+                                        onCitationClick={onCitationClick}
                                     />
                                 ))}
                             </ActivityDisclosure>
@@ -272,6 +275,7 @@ export function AssistantMessage({
                                     <MarkdownContent
                                         text={block.text}
                                         inlineCitationTargets={inlineCitationTargets}
+                                        onCitationClick={onCitationClick}
                                         citationTitle={citationTitle}
                                         isStreaming={isStreaming}
                                         divRef={index === lastAssistantBlock ? contentDivRef : undefined}

@@ -163,10 +163,11 @@ export function collapseActivities(activities: readonly AssistantActivity[]): As
 export function ActivityRow({
     activity,
     onClick,
+    onCitationClick,
 }: {
     activity: AssistantActivity;
     onClick?: () => void;
-
+    onCitationClick?: (citation: NonNullable<AssistantActivity["citations"]>[number]) => void;
 }) {
     const busy = activity.status === "running";
     const failed = activity.status === "error";
@@ -226,6 +227,7 @@ export function ActivityRow({
                                     key={`${citationSourceKey(citation)}:${index}`}
                                     citation={citation}
                                     className={compactRead ? "me-1.5" : undefined}
+                                    onClick={onCitationClick}
                                     truncateStyleOfCause
                                     sourceOnly={compactRead}
                                 />
@@ -238,6 +240,7 @@ export function ActivityRow({
                         <CitationPillMarkdown
                             text={markdown}
                             citations={citations}
+                            onCitationClick={onCitationClick}
                             truncateStyleOfCause
                         />
                     ) : (
