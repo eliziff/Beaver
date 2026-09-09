@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { cachedContent } from "../contentCache";
 import { fetchLocalA2AJDocument, searchLocalA2AJ } from "../a2ajLocalBulk";
+import { buildCanliiLawUrl } from "../canliiUrls";
 import { citationAliasGroups, citationAuthorityMetricsBatch } from "../caselawCitator";
 import {
   decisiaIndexUrl,
@@ -25,7 +26,7 @@ export type A2AJLocatorKind = "paragraph" | "page" | "section";
 export type A2AJDocument = {
   docType?: DocType; dataset: string;
   citation: string; alternateCitation: string | null;
-  name: string | null; date: string | null; url: string | null;
+  name: string | null; date: string | null; url: string | null; publisherUrl?: string | null;
   verifiedPdf: VerifiedPdfEvidence | null;
   text: string; language: Language; upstreamLicense: string | null;
   sectionMap?: Record<string, string>;
@@ -103,9 +104,13 @@ function webUrl(value: string | null) {
   } catch { return null; }
 }
 
-function sourceUrl(record: JsonObject, language: Language) {
+function publisherUrl(record: JsonObject, language: Language) {
   return webUrl(languageText(record, "source_url", language)) ??
     webUrl(languageText(record, "url", language));
+}
+function sourceUrl(record: JsonObject, language: Language) {
+  return buildCanliiLawUrl({ dataset: string(record.dataset) ?? "", citation: languageText(record, "citation", language), language }) ??
+    publisherUrl(record, language);
 }
 
 function apiError(status: number, body: unknown) {
@@ -226,7 +231,7 @@ function mapDocument(value: unknown, language: Language, docType: DocType) {
     alternateCitation: languageText(record, "citation2", actualLanguage),
     name: languageText(record, "name", actualLanguage),
     date: languageText(record, "document_date", actualLanguage),
-    url: sourceUrl(record, actualLanguage),
+    url: sourceUrl(record, actualLanguage), publisherUrl: publisherUrl(record, actualLanguage),
     verifiedPdf: null,
     text,
     language: actualLanguage,
@@ -247,8 +252,7 @@ const exactCitationRows = (results: unknown, citation: string, dataset?: string,
     const record = object(value);
     return record && (!dataset?.trim() || string(record.dataset)?.toLowerCase() ===
       dataset.trim().toLowerCase()) && (!expectedUrl?.trim() ||
-        sourceUrl(record, "en") === expectedUrl.trim() ||
-        sourceUrl(record, "fr") === expectedUrl.trim()) && ["citation_en", "citation2_en", "citation_fr",
+        [sourceUrl(record, "en"), sourceUrl(record, "fr"), publisherUrl(record, "en"), publisherUrl(record, "fr")].includes(expectedUrl.trim())) && ["citation_en", "citation2_en", "citation_fr",
       "citation2_fr"].some((field) => {
         const candidate = string(record[field]);
         return candidate && keys.has(citationKey(candidate));
@@ -338,7 +342,7 @@ async function document(args: {
       .filter((item): item is A2AJDocument => !!item && (!args.dataset?.trim() ||
         item.dataset.toLowerCase() === args.dataset.trim().toLowerCase()));
     const scoped = args.sourceUrl?.trim()
-      ? candidates.find((item) => item.url === args.sourceUrl!.trim())
+      ? candidates.find((item) => [item.url, item.publisherUrl].includes(args.sourceUrl!.trim()))
       : candidates[0];
     const result = await scopedDocument(full, section, scoped?.text ?? "");
     documents.set(key, { expires: Date.now() + 60 * 60_000, value: result });
