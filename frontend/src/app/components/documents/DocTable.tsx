@@ -63,19 +63,15 @@ const DOCUMENT_METADATA_COLUMNS = [
 ] as const;
 const DOCUMENT_METADATA_HEADERS = DOCUMENT_METADATA_COLUMNS.map(({ label, header }) =>
     <TableHeaderCell key={label} className={`${header} justify-center text-center`}><span>{label}</span></TableHeaderCell>);
-const FOLDER_METADATA_CELLS = DOCUMENT_METADATA_COLUMNS.map(
-    ({ label, row }) => (
-        <div
-            key={label}
-            className={`${row} text-center ${label === "Type" ? "text-xs" : "text-sm"} text-gray-300`}
-        >
-            —
-        </div>
-    ),
-);
-const EMPTY_METADATA_VALUE = (
-    <span className="text-gray-300">—</span>
-);
+const FOLDER_METADATA_CELLS = DOCUMENT_METADATA_COLUMNS.map(({ label, row }) => (
+    <div key={label}
+        className={`${row} text-center ${label === "Type" ? "text-xs" : "text-sm"} text-gray-300`}>
+        —
+    </div>
+));
+const BLANK_METADATA_CELLS = DOCUMENT_METADATA_COLUMNS.map(({ label, row }) =>
+    <div key={label} className={row} />);
+const EMPTY_METADATA_VALUE = <span className="text-gray-300">—</span>;
 const WARNING_KINDS = ["upload", "rename", "collection"] as const;
 function prewarmDocumentView(doc: Document) {
     const type = (doc.file_type ?? doc.filename.split(".").pop() ?? "")
@@ -364,6 +360,8 @@ export function DocTable({
     const loadingRef = useRef(loading);
     const renderAddDocumentsModalRef = useRef(renderAddDocumentsModal);
     const detachesDocument = documentRemovalMode === "detach";
+    const ownerOnlyDocAction = detachesDocument
+        ? "remove this document from the project" : "delete this document";
     const refreshCollection = operations.refreshCollection;
     const activePreparationIds = documents.flatMap(({ id, parse_state: parseState }) =>
         parseState?.status === "queued" || parseState?.status === "parsing" ? [id] : []);
@@ -486,18 +484,14 @@ export function DocTable({
             current ? { ...current, deleting: true } : current);
         try {
             await operations.deleteFolder(pending.folder.id);
-            const toDelete = descendantFolderIds(
-                pending.folder.id, foldersByParent,
-            );
+            const toDelete = descendantFolderIds(pending.folder.id, foldersByParent);
             const deletedDocIds = new Set(documents
-                .filter((document) => document.folder_id &&
-                    toDelete.has(document.folder_id))
-                .map((document) => document.id));
+                .filter(({ folder_id }) => folder_id && toDelete.has(folder_id))
+                .map(({ id }) => id));
             setExpandedFolderIds((prev) => without(prev, toDelete));
             if (renamingFolderId && toDelete.has(renamingFolderId))
                 setFolderEditor(null);
-            set("selectedDocIds", (prev) =>
-                prev.filter((id) => !deletedDocIds.has(id)));
+            set("selectedDocIds", (prev) => prev.filter((id) => !deletedDocIds.has(id)));
             controller.forget(deletedDocIds);
             set("pendingDeleteFolder", null);
             await refreshCollection(pending.folder.parent_folder_id ?? null);
@@ -549,88 +543,49 @@ export function DocTable({
         if (renamed) set("renamingDocumentId", null);
         return renamed;
     }
-    async function handleRemoveDocuments(
-        documentsToRemove: Document[],
-        fromSelection: boolean,
-    ) {
+    async function handleRemoveDocuments(documentsToRemove: Document[],
+        fromSelection: boolean) {
         const owned = documentsToRemove.filter((doc) =>
             !doc.user_id || !user?.id || doc.user_id === user.id);
         const blocked = documentsToRemove.length - owned.length;
-        if (!fromSelection && blocked) {
-            onOwnerOnlyAction?.(
-                detachesDocument
-                    ? "remove this document from the project"
-                    : "delete this document",
-            );
-            return;
-        }
-        if (fromSelection) {
-            set("selectedDocIds", []);
-        } else {
-            set("deletingDocIds", (prev) => new Set([
-                ...prev, ...owned.map(({ id }) => id),
-            ]));
-        }
+        if (!fromSelection && blocked) return onOwnerOnlyAction?.(ownerOnlyDocAction);
+        if (fromSelection) set("selectedDocIds", []);
+        else set("deletingDocIds", (prev) =>
+            new Set([...prev, ...owned.map(({ id }) => id)]));
         try {
-            const results = await Promise.allSettled(
-                owned.map(removeDocument),
-            );
-            const removedIds = new Set(
-                owned.filter(
-                    (_, index) => results[index].status === "fulfilled",
-                ).map(({ id }) => id),
-            );
-            if (removedIds.size) await refreshParents(...owned
-                .filter(({ id }) => removedIds.has(id)).map(({ folder_id }) => folder_id));
+            const results = await Promise.allSettled(owned.map(removeDocument));
+            const removedIds = new Set(owned
+                .filter((_, index) => results[index].status === "fulfilled")
+                .map(({ id }) => id));
             if (removedIds.size) {
+                await refreshParents(...owned
+                    .filter(({ id }) => removedIds.has(id)).map(({ folder_id }) => folder_id));
                 controller.forget(removedIds);
             }
             if (!fromSelection) {
-                const failure = results.find(
-                    (result): result is PromiseRejectedResult =>
-                        result.status === "rejected",
-                );
+                const failure = results.find((result): result is PromiseRejectedResult =>
+                    result.status === "rejected");
                 if (failure) throw failure.reason;
                 return;
             }
             const failed = owned.length - removedIds.size;
-            if (failed) {
-                setWarning(
-                    "collection",
-                    `${failed} ${failed === 1 ? "document" : "documents"} could not be ${
-                        detachesDocument
-                            ? "removed from this project"
-                            : "deleted"
-                    }. Please try again.`,
-                );
-            }
-            if (blocked) {
-                onOwnerOnlyAction?.(
-                    detachesDocument
-                        ? `remove ${blocked} of the selected documents \u2014 only the document creator can remove a document from this project`
-                        : `delete ${blocked} of the selected documents \u2014 only the document creator can delete a document`,
-                );
-            }
+            if (failed) setWarning("collection",
+                `${failed} ${failed === 1 ? "document" : "documents"} could not be ${
+                    detachesDocument ? "removed from this project" : "deleted"
+                }. Please try again.`);
+            if (blocked) onOwnerOnlyAction?.(detachesDocument
+                ? `remove ${blocked} of the selected documents \u2014 only the document creator can remove a document from this project`
+                : `delete ${blocked} of the selected documents \u2014 only the document creator can delete a document`);
         } finally {
-            if (!fromSelection) {
+            if (!fromSelection)
                 set("deletingDocIds", (prev) => without(prev, owned.map(({ id }) => id)));
-            }
         }
     }
     function requestRemoveDoc(doc: Document) {
-        if (doc && user?.id && doc.user_id && doc.user_id !== user.id) {
-            onOwnerOnlyAction?.(
-                detachesDocument
-                    ? "remove this document from the project"
-                    : "delete this document",
-            );
-            return;
-        }
-        set("pendingDocumentRemoval", {
-            documents: [doc],
-            fromSelection: false,
-            deleting: false,
-        });
+        if (doc && user?.id && doc.user_id && doc.user_id !== user.id)
+            return onOwnerOnlyAction?.(ownerOnlyDocAction);
+        set("pendingDocumentRemoval",
+            { documents: [doc], fromSelection: false, deleting: false });
     }
     function hasFilePayload(dt: DataTransfer): boolean {
         return dt.types.includes("Files");
@@ -824,8 +779,7 @@ export function DocTable({
                                         onCancel={() => setFolderEditor(null)} />
                                 </div>
                             </div>
-                            {DOCUMENT_METADATA_COLUMNS.map(({ label, row: column }) =>
-                                <div key={label} className={column} />)}
+                            {BLANK_METADATA_CELLS}
                             <div className="w-8 shrink-0" />
                         </div>
                     );
@@ -1023,20 +977,16 @@ export function DocTable({
         set("pendingDocumentRemoval", (current) =>
             current ? { ...current, deleting: true } : current);
         try {
-            await handleRemoveDocuments(
-                pending.documents, pending.fromSelection);
+            await handleRemoveDocuments(pending.documents, pending.fromSelection);
             set("pendingDocumentRemoval", null);
         } catch (err) {
             if (pending.fromSelection) throw err;
             console.error("delete document failed", err);
             set("pendingDocumentRemoval", (current) =>
                 current ? { ...current, deleting: false } : current);
-            setWarning(
-                "collection",
-                detachesDocument
-                    ? "The document could not be removed from this project. Please try again."
-                    : "The document could not be deleted. Please try again.",
-            );
+            setWarning("collection", detachesDocument
+                ? "The document could not be removed from this project. Please try again."
+                : "The document could not be deleted. Please try again.");
         }
     }
     const selectionActions = useMemo<DocumentSelectionActions | null>(() => {
@@ -1112,30 +1062,22 @@ export function DocTable({
                 onCancel={() => { if (pendingRestore && !controller.histories.get(pendingRestore.docId)?.pendingAction) controller.setPendingRestore(null); }}
                 onConfirm={() => void controller.restore()} />
             <ConfirmPopup open={!!pendingDocumentRemoval}
-                title={
-                    detachesDocument
-                        ? "Remove from project?"
-                        : pendingDocumentRemoval?.fromSelection
-                          ? "Delete documents?"
-                          : "Delete document?"
-                }
+                title={detachesDocument ? "Remove from project?"
+                    : pendingDocumentRemoval?.fromSelection
+                        ? "Delete documents?" : "Delete document?"}
                 message={pendingDeleteMessage}
                 confirmLabel={detachesDocument ? "Remove" : "Delete"}
                 confirmStatus={pendingDocumentRemoval?.deleting ? "loading" : "idle"}
                 cancelLabel="Cancel"
-                onCancel={() => {
-                    if (pendingDocumentRemoval?.deleting) return;
-                    set("pendingDocumentRemoval", null);
-                }}
+                onCancel={() => { if (!pendingDocumentRemoval?.deleting)
+                    set("pendingDocumentRemoval", null); }}
                 onConfirm={() => void confirmPendingDocumentRemoval()} />
             <ConfirmPopup open={!!pendingDeleteFolder} title="Delete folder?"
                 message={pendingDeleteFolderMessage} confirmLabel="Delete"
                 confirmStatus={pendingDeleteFolder?.deleting ? "loading" : "idle"}
                 cancelLabel="Cancel"
-                onCancel={() => {
-                    if (pendingDeleteFolder?.deleting) return;
-                    set("pendingDeleteFolder", null);
-                }}
+                onCancel={() => { if (!pendingDeleteFolder?.deleting)
+                    set("pendingDeleteFolder", null); }}
                 onConfirm={() => void confirmDeletePendingFolder()} />
             {pendingMove && <MoveDialog key={"folderId" in pendingMove
                 ? pendingMove.folderId : pendingMove.documentIds.join("\0")}
