@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import { applyWorkspaceLabels, getResearchFile, openWorkspaceTable, previewWorkspaceLabels, previewWorkspaceTable,
     type ResearchLabelProposal, type ResearchTablePreview, type ResearchTableInput } from "@/app/lib/api/researchFiles";
 import { isResearchDocument, type ResearchFile, type ResearchSelection } from "@/app/lib/researchFiles";
-import type { Document } from "@/app/lib/api/documents";
+import { directoryResource, type Document } from "@/app/lib/api/documents";
 import { errorMessage } from "@/app/lib/utils";
 import { Button } from "../ui/button";
 import { Modal } from "../modals/Modal";
@@ -25,7 +25,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const labelling = mode === "labels";
     const [picked, setPicked] = useState<Document[]>([]), [file, setFile] = useState<ResearchFile | null>(null);
     const [preview, setPreview] = useState<ResearchTablePreview | null>(null), [plan, setPlan] = useState<ResearchLabelProposal | null>(null);
-    const [adjust, setAdjust] = useState(""), [addition, setAddition] = useState("");
+    const [adjust, setAdjust] = useState(""), [addition, setAddition] = useState(""), [name, setProposedName] = useState("");
     const [busy, setBusy] = useState(false), [creating, setCreating] = useState(false);
     const [error, setError] = useState(""), [note, setNote] = useState("");
     const generation = useRef(0), activeId = fileId ?? picked[0]?.id, [model] = useSelectedModel(), [effort] = useSelectedReasoningEffort();
@@ -42,7 +42,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                 labelling ? previewWorkspaceLabels(activeId, body) : previewWorkspaceTable(activeId, body)]);
             if (run !== generation.current) return;
             setFile(current);
-            if (labelling) setPlan(next as ResearchLabelProposal);
+            if (labelling) { setPlan(next as ResearchLabelProposal); setProposedName((next as ResearchLabelProposal).title); }
             else { setPreview(next as ResearchTablePreview); setNote((next as ResearchTablePreview).fallback ?? ""); }
         } catch (reason) { if (run === generation.current) setError(errorMessage(reason, labelling
             ? "Could not propose labels; nothing was changed" : "Could not propose a table; nothing was changed")); }
@@ -97,13 +97,15 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                         <p className={META}>Proposing a structure from your research…</p>
                         {[0, 1, 2].map((key) => <div key={key} className="h-20 shrink-0 animate-pulse rounded-lg bg-gray-100" />)}
                     </div>
-                    : labelling ? plan && <ul className="flex min-w-0 flex-col gap-3">{plan.labels.map((label) => <li key={label.key} className={CARD}>
+                    : labelling ? plan && <>
+                        <input aria-label="Workspace name" value={name} className={`${FIELD} ${HEAD}`} onChange={(event) => setProposedName(event.target.value)} />
+                        <ul className="flex min-w-0 flex-col gap-3">{plan.labels.map((label) => <li key={label.key} className={CARD}>
                         <p className={HEAD}><span aria-hidden className="me-2 inline-block size-2.5 rounded-full"
                             style={{ background: label.color ?? "#cbd5e1" }} />{label.path} <span className={META}>{label.existing ? "Existing" : "New"}</span></p>
                         {!!label.definition && <p className="mt-1 text-sm text-gray-700">{label.definition}</p>}
                         <ul className="mt-2 space-y-1">{label.rows.map((row) => <li key={row.id} className="text-sm text-gray-700">{row.title}</li>)}</ul>
                     </li>)}
-                        {!!plan.unassigned.length && <li className={META}>Not filed: {plan.unassigned.map(({ title }) => title).join(", ")}</li>}</ul>
+                        {!!plan.unassigned.length && <li className={META}>Not filed: {plan.unassigned.map(({ title }) => title).join(", ")}</li>}</ul></>
                     : preview && <>
                         <input aria-label="Table name" value={preview.design.title} className={`${FIELD} ${HEAD}`}
                             onChange={(event) => edit((design) => ({ ...design, title: event.target.value }))} />
