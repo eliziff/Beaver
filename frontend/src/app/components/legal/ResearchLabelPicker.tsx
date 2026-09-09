@@ -5,7 +5,8 @@ import { useAnchoredPopover } from "@/app/hooks/useAnchoredPopover";
 import { errorMessage } from "@/app/lib/utils";
 import { researchLabelPath, type ResearchFile, type ResearchLabel,
   type ResearchSourceReference } from "@/app/lib/researchFiles";
-import { ResearchLabelFolder, ResearchLabelMarker } from "./ResearchLabelMarker";
+import { researchLabelColor, ResearchLabelFolder, ResearchLabelMarker } from "./ResearchLabelMarker";
+import { FolderSvgIcon } from "../shared/FolderSvgIcon";
 import type { ResearchFileMutations } from "./useResearchFileMutations";
 
 export const RESEARCH_SOURCE_DRAG = "application/x-beaver-research-source";
@@ -32,7 +33,7 @@ export function ResearchLabelPicker({ file, kind, itemId, sourceId, labelIds, no
   useEffect(() => { if (!editing.current) setPreviewLabelIds(labelIds); }, [labelIds]);
   const labelNames = previewLabelIds.map((id) => file?.state.labels[id]?.name).filter(Boolean);
   return <>
-    <button type="button" draggable={kind === "source" && !!(itemId || sourceReference)} onDragStart={(event) => {
+    <button type="button" data-source-marker={kind === "source" ? itemId : undefined} draggable={kind === "source" && !!(itemId || sourceReference)} onDragStart={(event) => {
       onSourceDrag?.();
       if (itemId) event.dataTransfer.setData(RESEARCH_SOURCE_DRAG, itemId);
       else if (sourceReference) event.dataTransfer.setData(RESEARCH_SOURCE_REFERENCE_DRAG,
@@ -53,32 +54,30 @@ export function ResearchLabelPicker({ file, kind, itemId, sourceId, labelIds, no
   </>;
 }
 
-const CHIP = (active: boolean) => `flex h-6 min-w-0 shrink-0 items-center gap-1 rounded border-2 px-1.5 text-xs ${
+const CHIP = (active: boolean) => `flex min-h-6 min-w-0 items-center gap-1 rounded border-2 px-[7px] py-[3px] text-xs ${
   active ? "border-gray-800 bg-gray-200 font-medium text-gray-900" : "border-transparent bg-gray-100 text-gray-700 hover:bg-gray-200"}`;
 
-/** The waterfall: one generation per row, siblings side by side and truncated, the chosen chip giving way to
- *  its children below. Every generation the set can reach keeps its row filled or not, so a reveal shifts nothing. */
+/** Horizontal siblings give way to the selected parent's children below, as in Case Marker. */
 export function ResearchLabelWaterfall({ labels, scope, selectedId, onChoose, noneLabel }: {
   labels: Record<string, ResearchLabel>; scope: ResearchLabel["scope"];
   selectedId: string | null; onChoose: (id: string | null) => void; noneLabel?: string }) {
-  const { tree, depth } = useMemo(() => { const map = new Map<string | null, ResearchLabel[]>();
+  const tree = useMemo(() => { const map = new Map<string | null, ResearchLabel[]>();
     Object.values(labels).filter((label) => label.scope === scope).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
       .forEach((label) => { const values = map.get(label.parentId) ?? []; values.push(label); map.set(label.parentId, values); });
-    const reach = (id: string | null): number => 1 + Math.max(0, ...(map.get(id) ?? []).map((label) => reach(label.id)));
-    return { tree: map, depth: map.size ? reach(null) - 1 : 0 }; }, [labels, scope]);
+    return map; }, [labels, scope]);
   const path = selectedId && labels[selectedId] ? researchLabelPath(labels, selectedId) : [];
-  if (!depth) return <p className="my-3 text-sm text-gray-500">No {scope === "source" ? "labels" : "highlight types"} yet.</p>;
-  return <div className="grid min-w-0 content-start">
-    {Array.from({ length: depth }, (_, row) => { const parent = row ? path[row - 1] : null,
-      items = row && !parent ? [] : tree.get(parent?.id ?? null) ?? [], active = path[row]?.id ?? null;
-      return <div key={row} style={{ marginInlineStart: row ? 8 + (row - 1) * 20 : 0 }}
-        className={`flex h-8 min-w-0 items-center gap-1 overflow-x-auto overflow-y-hidden py-1 ${row ? "border-s-2 border-gray-200 ps-3" : ""}`}>
+  if (!tree.size) return <p className="my-2 text-xs text-gray-500">No {scope === "source" ? "labels" : "highlight types"} yet.</p>;
+  return <div className="mb-1.5 min-w-0 overflow-x-hidden pb-0.5">
+    {[null, ...path].map((parent, row) => { const items = tree.get(parent?.id ?? null) ?? [], active = path[row]?.id ?? null;
+      return !!items.length && <div key={row} role="group" aria-label={`Label level ${row + 1}`}
+        style={{ marginInlineStart: row ? 8 + (row - 1) * 20 : 0 }}
+        className={`flex min-w-0 items-center py-[5px] ${row ? "flex-wrap gap-[5px] border-s-2 border-gray-200 ps-3" : "gap-1 [&>button]:px-[5px] [&>button]:py-0.5 [&>button]:text-[11px]"}`}>
         {!row && noneLabel && <button type="button" onClick={() => onChoose(null)} aria-pressed={!selectedId} className={CHIP(!selectedId)}>
-          <ResearchLabelFolder labels={labels} labelId={null} size="sm" /><span className="max-w-20 truncate">{noneLabel}</span></button>}
+          <FolderSvgIcon className="size-3 shrink-0 text-gray-400" /><span className="max-w-20 truncate">{noneLabel}</span></button>}
         {items.map((label) => <button key={label.id} type="button" onClick={() => onChoose(label.id)}
           aria-pressed={active === label.id} title={label.name} className={CHIP(active === label.id)}>
-          <ResearchLabelFolder labels={labels} labelId={label.id} size="sm" />
-          <span className="max-w-24 truncate">{label.name}</span></button>)}
+          <FolderSvgIcon className="shrink-0" style={{ color: researchLabelColor(label), width: [12, 13, 10][row] ?? 10, height: [12, 13, 10][row] ?? 10 }} />
+          <span className={`${row ? "max-w-[100px]" : "max-w-20"} truncate`}>{label.name}</span></button>)}
       </div>; })}
   </div>;
 }
@@ -96,9 +95,10 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
     lastSaved = useRef(JSON.stringify([target.labelIds, target.note ?? ""]));
   const [error, setError] = useState(""), labels = file.state.labels;
   const scope = target.kind === "source" ? "source" : "highlight";
-  const popover = useAnchoredPopover({ anchor: target.anchor, onDismiss: () => close.current() });
-  useEffect(() => () => (target.returnFocus ?? (target.anchor instanceof HTMLElement ? target.anchor : null))?.focus(),
-    [target.anchor, target.returnFocus]);
+  const popover = useAnchoredPopover({ anchor: target.anchor, below: true, stationary: true, onDismiss: () => close.current() });
+  useEffect(() => () => { const trigger = target.returnFocus ?? (target.anchor instanceof HTMLElement ? target.anchor : null);
+    (trigger?.isConnected ? trigger : [...document.querySelectorAll<HTMLElement>("[data-source-marker]")].find((node) => node.dataset.sourceMarker === target.itemId))?.focus();
+  }, [target.anchor, target.returnFocus, target.itemId]);
   const slot = slots[activeSlot] ?? null;
   /** The slot the user is filling always wins: a repeat leaves the other slot, never strands this one. */
   const put = (id: string | null) => {
@@ -142,29 +142,27 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
     } });
   }
   close.current = () => { persist(slots, note); onClose(); };
+  useEffect(() => { const timer = setTimeout(() => persist(slots, note), 300);
+    return () => clearTimeout(timer); }, [note, slots]);
   return <div ref={popover} role="dialog" aria-label={scope === "source" ? "Labels and note" : "Highlight type and note"} popover="manual"
-    className="fixed inset-auto z-[220] m-0 max-h-[min(30rem,calc(100dvh-1rem))] w-[min(420px,calc(100vw-1rem))] overflow-y-auto overscroll-contain rounded-xl border border-gray-200 bg-white p-3 shadow-xl">
-    <header className="flex min-w-0 items-start gap-3 border-b border-gray-100 pb-2">
-      <div className="min-w-0 flex-1"><h2 className="text-sm font-semibold leading-5 text-gray-950">{scope === "source" ? "Labels and note" : "Highlight type and note"}</h2>
-        <p className="truncate text-xs leading-4 text-gray-500">{target.title}</p></div>
+    className="fixed inset-auto z-[220] m-0 max-h-[80vh] w-[min(446px,calc(100vw-12px))] overflow-y-auto overscroll-contain rounded-lg border border-gray-300 bg-white px-3 py-2.5 shadow-lg">
     <button type="button" onClick={() => close.current()} aria-label="Close label palette"
-      className="grid size-8 shrink-0 place-items-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"><X className="size-4" aria-hidden="true" /></button>
-    </header>
-    {scope === "source" && <div aria-label="Filed under" className="grid h-24 content-start gap-0.5 overflow-y-auto border-b border-gray-100 py-2">
+      className="absolute end-1.5 top-1 grid size-[34px] place-items-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"><X className="size-5" aria-hidden="true" /></button>
+    {scope === "source" && <div aria-label="Filed under" className="mb-1 flex min-h-14 items-end gap-1.5 overflow-x-auto border-b border-gray-200 pb-1 pt-1.5 pe-9">
       {[...slots, ""].map((id, index) => { const name = id ? researchLabelPath(labels, id).map((label) => label.name).join(" / ") : "";
         return <button key={`${id}:${index}`} type="button" onClick={() => setActiveSlot(index)}
           aria-pressed={index === activeSlot} aria-label={id ? `Filed under ${name}` : "Add a label"} title={name || "Add a label"}
-          className={`flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-start text-sm ${index === activeSlot ? "bg-gray-100 ring-1 ring-gray-400" : "hover:bg-gray-50"}`}>
-          <ResearchLabelFolder labels={labels} labelId={id || null} />
-          <span className="min-w-0 flex-1 truncate text-gray-700">{name || "Add a label"}</span>
+          className={`flex w-12 shrink-0 flex-col items-center gap-0.5 rounded-md p-[3px] ${index === activeSlot ? "bg-gray-200 ring-1 ring-inset ring-gray-800" : "hover:bg-gray-100"}`}>
+          <ResearchLabelFolder labels={labels} labelId={id || null} size="lg" />
+          <span className="w-full truncate text-center text-[10px] text-gray-700">{id ? labels[id]?.name : "Add label"}</span>
         </button>; })}
     </div>}
-    <div className="min-h-28 min-w-0 border-b border-gray-200 py-2">
+    <div className={`min-w-0 ${scope === "highlight" ? "pt-6" : "mt-0.5"}`}>
       <ResearchLabelWaterfall labels={labels} scope={scope} selectedId={slot} onChoose={put}
         noneLabel={scope === "source" ? "None" : undefined} />
     </div>
     <textarea value={note} onChange={(event) => setNote(event.target.value)} onBlur={() => persist(slots, note)} aria-label="Item note"
-      placeholder="Note" className="mt-2 min-h-14 w-full rounded-md border border-gray-300 p-2 text-sm" />
+      rows={1} placeholder="Note" className="mt-1 block min-h-9 w-full resize-y rounded border border-gray-300 px-[7px] py-[5px] text-xs" />
     {error && <p role="status" className="mt-1 text-xs text-red-700">{error}</p>}
   </div>;
 }
