@@ -63,6 +63,8 @@ export default function SecurityPage() {
         setSetup((current) =>
             current ? { ...current, ...patch } : current,
         );
+    const reportError = (set: (message: string) => void, fallback: string) =>
+        (error: unknown) => set(errorMessage(error, fallback));
     const refreshMfaState = useCallback(async () => {
         setStatus(null);
         try {
@@ -152,15 +154,7 @@ export default function SecurityPage() {
                 if (profile?.mfaOnLogin) void updateMfaOnLogin(false);
                 await refreshMfaState();
             },
-            {
-                onError: (error) =>
-                    setStatus(
-                        errorMessage(
-                            error,
-                            "Failed to remove authenticator.",
-                        ),
-                    ),
-            },
+            { onError: reportError(setStatus, "Failed to remove authenticator.") },
         );
     }
     async function saveLoginPreference() {
@@ -183,13 +177,10 @@ export default function SecurityPage() {
                 title: "Authenticator required",
                 message:
                     "Enter a code from your authenticator app to change login verification.",
-                onError: (error) =>
-                    setStatus(
-                        errorMessage(
-                            error,
-                            "Failed to update login authentication preference.",
-                        ),
-                    ),
+                onError: reportError(
+                    setStatus,
+                    "Failed to update login authentication preference.",
+                ),
             },
         );
     }
@@ -218,9 +209,7 @@ export default function SecurityPage() {
                 setSavingPassword(false);
             }
         }, {
-            onError: (caught) => setPasswordStatus(errorMessage(
-                caught, "Password could not be updated.",
-            )),
+            onError: reportError(setPasswordStatus, "Password could not be updated."),
         });
     }
     return (
@@ -373,17 +362,15 @@ export default function SecurityPage() {
                     }
                 >
                     {!enrollment ? (
-                        <>
-                            <div className="space-y-1">
-                                <p className="text-sm font-medium text-gray-900">
-                                    Open an authenticator app
-                                </p>
-                                <p className="text-sm text-gray-500">
-                                    Install one if needed, then choose the
-                                    option to add an account.
-                                </p>
-                            </div>
-                        </>
+                        <div className="space-y-1">
+                            <p className="text-sm font-medium text-gray-900">
+                                Open an authenticator app
+                            </p>
+                            <p className="text-sm text-gray-500">
+                                Install one if needed, then choose the
+                                option to add an account.
+                            </p>
+                        </div>
                     ) : (
                         <>
                             <div className="space-y-1">
