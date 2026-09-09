@@ -3,17 +3,11 @@ import { cachedContent } from "../contentCache";
 import { fetchLocalA2AJDocument, searchLocalA2AJ } from "../a2ajLocalBulk";
 import { buildCanliiLawUrl } from "../canliiLawUrls";
 import { citationAliasGroups, citationAuthorityMetricsBatch } from "../caselawCitator";
-import {
-  decisiaIndexUrl,
-  verifiedDecisiaPdf,
-  type VerifiedPdfEvidence,
-} from "../legalSourcePresentation";
+import { decisiaIndexUrl, verifiedDecisiaPdf,
+  type VerifiedPdfEvidence } from "../legalSourcePresentation";
 import { guardedRemoteFetch } from "../remoteUrlSafety";
 import { normalizeWhitespace } from "../text";
-import {
-  structureNative,
-  type NativeDocument,
-} from "../structureNative";
+import { structureNative, type NativeDocument } from "../structureNative";
 import { objectValue as object, type JsonObject } from "./remoteProvider";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
 import type { LegalSourceProvider, LegalSourceReference,
@@ -68,7 +62,7 @@ async function deriveA2AJDocument(
   },
   scope: { kind: "complete" | "excerpt"; excerptOf?: string } = { kind: "complete" },
 ) {
-  const result = await structureNative().deriveDocumentStructure({
+  return structureNative().deriveDocumentStructure({
     kind: "provider_text",
     input: {
       provider: "a2aj",
@@ -85,7 +79,6 @@ async function deriveA2AJDocument(
       ...(scope.kind === "excerpt" && scope.excerptOf ? { excerpt_of: scope.excerptOf } : {}),
     },
   });
-  return result;
 }
 
 const string = (value: unknown): string | null =>
@@ -126,25 +119,16 @@ async function decisiaPdf(rawUrl: string | null, signal?: AbortSignal) {
   if (!index) return null;
   try {
     return await cachedContent<VerifiedPdfEvidence | null>({
-      scope: "shared",
-      kind: "legal-source-decisia-index",
-      key: index.toString(),
-      version: 2,
-      ttlMs: 24 * 60 * 60_000,
+      scope: "shared", kind: "legal-source-decisia-index", key: index.toString(),
+      version: 2, ttlMs: 24 * 60 * 60_000,
       produce: async () => {
         const response = await guardedRemoteFetch(index.toString(), {
           headers: { Accept: "text/html,application/xhtml+xml" }, signal,
         }, {
-          label: "Decisia index request",
-          allowedHosts: [index.hostname],
-          defaultPortOnly: true,
-          allowIpLiterals: false,
-          timeoutMs: 15_000,
-          response: {
-            label: "Decisia index response",
-            maxBytes: 2_000_000,
-            contentTypes: ["text/html", "application/xhtml+xml"],
-          },
+          label: "Decisia index request", allowedHosts: [index.hostname],
+          defaultPortOnly: true, allowIpLiterals: false, timeoutMs: 15_000,
+          response: { label: "Decisia index response", maxBytes: 2_000_000,
+            contentTypes: ["text/html", "application/xhtml+xml"] },
         });
         if (!response.ok) {
           await response.body?.cancel().catch(() => undefined);
@@ -161,8 +145,7 @@ async function decisiaPdf(rawUrl: string | null, signal?: AbortSignal) {
 
 async function request(
   endpoint: "/fetch" | "/search" | "/coverage",
-  params: Record<string, string | number | undefined>,
-  signal?: AbortSignal,
+  params: Record<string, string | number | undefined>, signal?: AbortSignal,
 ) {
   signal?.throwIfAborted();
   const query = new URLSearchParams();
@@ -172,25 +155,16 @@ async function request(
   const url = `${BASE_URL}${endpoint}?${query}`;
   const immutable = endpoint === "/fetch" && params.doc_type === "cases";
   const value = await cachedContent({
-    scope: "shared",
-    kind: "legal-source-a2aj",
-    key: url,
-    version: 1,
+    scope: "shared", kind: "legal-source-a2aj", key: url, version: 1,
     ...(immutable ? {} : { ttlMs: 24 * 60 * 60_000 }),
     produce: async () => {
       const response = await guardedRemoteFetch(url, {
         headers: { Accept: "application/json" }, signal,
       }, {
-        label: "A2AJ request",
-        allowedHosts: ["api.a2aj.ca"],
-        defaultPortOnly: true,
-        allowIpLiterals: false,
-        timeoutMs: 15_000,
-        response: {
-          label: "A2AJ response",
-          maxBytes: 64 * 1024 * 1024,
-          contentTypes: ["application/json", "application/*+json"],
-        },
+        label: "A2AJ request", allowedHosts: ["api.a2aj.ca"],
+        defaultPortOnly: true, allowIpLiterals: false, timeoutMs: 15_000,
+        response: { label: "A2AJ response", maxBytes: 64 * 1024 * 1024,
+          contentTypes: ["application/json", "application/*+json"] },
       });
       const body = await response.json().catch(() => null);
       if (!response.ok) throw apiError(response.status, body);
@@ -209,13 +183,14 @@ function sectionMap(record: JsonObject, language: Language) {
   }
   const mapped = object(value);
   if (!mapped) return null;
-  const entries = Object.entries(mapped).filter(
-    (entry): entry is [string, string] => typeof entry[1] === "string",
-  );
+  const entries = Object.entries(mapped)
+    .filter((entry): entry is [string, string] => typeof entry[1] === "string");
   return entries.length ? Object.fromEntries(entries) : null;
 }
 
-function mapDocument(value: unknown, language: Language, docType: DocType) {
+function mapDocument(
+  value: unknown, language: Language, docType: DocType,
+): A2AJDocument | null {
   const record = object(value);
   if (!record) return null;
   const actualLanguage = string(record[`unofficial_text_${language}`])
@@ -224,21 +199,16 @@ function mapDocument(value: unknown, language: Language, docType: DocType) {
   const citation = languageText(record, "citation", actualLanguage) ??
     languageText(record, "citation2", actualLanguage);
   if (!text || !citation) return null;
-  const document: A2AJDocument = {
-    docType,
-    dataset: string(record.dataset) ?? "",
-    citation,
+  return {
+    docType, dataset: string(record.dataset) ?? "", citation,
     alternateCitation: languageText(record, "citation2", actualLanguage),
     name: languageText(record, "name", actualLanguage),
     date: languageText(record, "document_date", actualLanguage),
     url: sourceUrl(record, actualLanguage), publisherUrl: publisherUrl(record, actualLanguage),
-    verifiedPdf: null,
-    text,
-    language: actualLanguage,
+    verifiedPdf: null, text, language: actualLanguage,
     upstreamLicense: string(record.upstream_license),
     sectionMap: sectionMap(record, actualLanguage) ?? undefined,
   };
-  return document;
 }
 
 const citationKey = (value: string) => {
@@ -261,55 +231,31 @@ const exactCitationRows = (results: unknown, citation: string, dataset?: string,
 };
 
 async function compileDocument(document: A2AJDocument): Promise<A2AJCompiledDocument> {
-  const native = await deriveA2AJDocument({
+  const shared = {
     citation: document.citation,
     docType: document.docType ?? "cases",
-    text: document.sectionMap ? "" : document.text,
     url: document.url,
     alternateCitation: document.alternateCitation,
     dataset: document.dataset,
     name: document.name,
-    sectionMap: document.sectionMap,
-  });
+  };
+  // The section map compiles the structured read; the search coordinates always
+  // come from the provider's own full text.
+  const native = await deriveA2AJDocument({ ...shared, sectionMap: document.sectionMap,
+    text: document.sectionMap ? "" : document.text });
   const searchNative = document.sectionMap
-    ? await deriveA2AJDocument({
-        citation: document.citation,
-        docType: document.docType ?? "cases",
-        text: document.text,
-        url: document.url,
-        alternateCitation: document.alternateCitation,
-        dataset: document.dataset,
-        name: document.name,
-      })
+    ? await deriveA2AJDocument({ ...shared, text: document.text })
     : native;
-  return compiledDocument(document, native, searchNative);
-}
-
-function compiledDocument(
-  document: A2AJDocument,
-  native: NativeDocument,
-  searchNative: NativeDocument,
-): A2AJCompiledDocument {
   const { text: _text, sectionMap: _sectionMap, ...metadata } = document;
   return { ...metadata, searchText: document.text, searchNative, native };
 }
 
-async function scopedDocument(
-  document: A2AJCompiledDocument,
-  requested: string,
-  text: string,
-) {
+async function scopedDocument(document: A2AJCompiledDocument, requested: string, text: string) {
   if (!requested.trim() || !text.trim()) return document;
   const native = await deriveA2AJDocument({
-    citation: document.citation,
-    docType: "laws",
-    text,
-    id: document.citation,
-    url: document.url,
-    alternateCitation: document.alternateCitation,
-    dataset: document.dataset,
-    name: document.name,
-    sectionMap: { [requested]: text },
+    citation: document.citation, docType: "laws", text, id: document.citation,
+    url: document.url, alternateCitation: document.alternateCitation,
+    dataset: document.dataset, name: document.name, sectionMap: { [requested]: text },
   }, { kind: "excerpt", excerptOf: document.citation });
   return { ...document, native };
 }
@@ -423,23 +369,22 @@ function searchResult(value: unknown, language: Language) {
 export type A2AJSearchResult = NonNullable<ReturnType<typeof searchResult>>;
 
 async function search(input: LegalSourceSearchRequest, docType: DocType) {
-  const args = { query: input.text, docType, searchType: input.searchType,
-    language: input.language, size: input.perProviderLimit ?? input.limit,
-    dataset: input.collection, startDate: input.dateFrom, endDate: input.dateTo,
-    sortResults: input.sort === "newest" ? "newest_first" as const
-      : input.sort === "oldest" ? "oldest_first" as const : "default" as const,
-    querySyntax: input.syntax, signal: input.signal };
-  const query = args.query.trim();
+  const query = input.text.trim();
   if (!query) throw new Error("query is required");
-  const language = args.language === "fr" ? "fr" : "en";
-  const local = searchLocalA2AJ({ ...args, query, language, docType: args.docType ?? "cases" });
+  const language = input.language === "fr" ? "fr" : "en";
+  const size = input.perProviderLimit ?? input.limit;
+  const sortResults = input.sort === "newest" ? "newest_first" as const
+    : input.sort === "oldest" ? "oldest_first" as const : "default" as const;
+  const local = searchLocalA2AJ({ query, docType, language, size, sortResults,
+    searchType: input.searchType, dataset: input.collection,
+    startDate: input.dateFrom, endDate: input.dateTo, querySyntax: input.syntax });
   if (local !== null) return local;
   const payload = await request("/search", {
-    query, doc_type: args.docType ?? "cases", search_type: args.searchType ?? "full_text",
-    search_language: language, size: Math.min(Math.max(Math.floor(args.size ?? 10), 1), 50),
-    dataset: args.dataset?.trim(), start_date: args.startDate?.trim(), end_date: args.endDate?.trim(),
-    sort_results: args.sortResults ?? "default",
-  }, args.signal);
+    query, doc_type: docType, search_type: input.searchType ?? "full_text",
+    search_language: language, size: Math.min(Math.max(Math.floor(size ?? 10), 1), 50),
+    dataset: input.collection?.trim(), start_date: input.dateFrom?.trim(),
+    end_date: input.dateTo?.trim(), sort_results: sortResults,
+  }, input.signal);
   return (Array.isArray(payload.results) ? payload.results : [])
     .map((item) => searchResult(item, language))
     .filter((item): item is A2AJSearchResult => !!item).slice(0, 50);
@@ -494,11 +439,8 @@ async function viewer(args: {
     const found = await document({ ...args, docType });
     if (!found) continue;
     const compiled = found.native;
-    const viewer = structureNative().legalSourceViewer(
-      compiled,
-      docType === "laws" ? "section" : "paragraph",
-      max,
-    );
+    const viewer = structureNative()
+      .legalSourceViewer(compiled, docType === "laws" ? "section" : "paragraph", max);
     const payload = {
       schemaVersion: "mike.legal-source.v1" as const, provider: "a2aj" as const,
       reference: { provider: "a2aj" as const, id: found.citation,
