@@ -490,10 +490,9 @@ type CodingOutputLine = {
 
 function takeCodingOutputLines(
   lines: CodingOutputLine[],
-  maxChars = MAX_MODEL_TOOL_RESULT_CHARS,
 ) {
-  const budget = Math.max(1_000,
-    Math.min(MAX_MODEL_TOOL_RESULT_CHARS, maxChars) - 1_000);
+  // Leave headroom under the result cap for the truncation notice appended below.
+  const budget = MAX_MODEL_TOOL_RESULT_CHARS - 1_000;
   const kept: CodingOutputLine[] = [];
   let chars = 0;
   for (const line of lines) {
@@ -536,6 +535,12 @@ async function activeDocx(
     throw new Error("Operation requires a DOCX document");
   return file;
 }
+
+const projectionSource = (documentId: string, file: DocumentContent) => ({
+  documentId, versionId: file.version.id, fileType: file.fileType,
+  sourceSha256: file.version.source_sha256, pdfProfile: file.pdfProfile,
+  readBytes: () => file.bytes,
+});
 
 /**
  * A scanned PDF has no text until recognition finishes, so a read of one
@@ -626,22 +631,19 @@ async function readNonDocumentResource(
   }
 }
 
+type CodingShapeDeps = {
+  documents: DocumentStore; library: LibraryStore; projects: ProjectStore;
+  scope: DocumentScope; matterId?: string | null; workflows: WorkflowStore;
+  turnEditState?: AssistantEditTurnState; turnId?: string; editMode: EditMode;
+  documentNames: Map<string, string>; docIndex?: DocIndex;
+  progress?: (label: string) => void; signal?: AbortSignal;
+};
+
 async function runCodingShapeCall(
   call: NormalizedToolCall,
   args: Record<string, unknown>,
-  documents: DocumentStore,
-  library: LibraryStore,
-  projects: ProjectStore,
-  scope: DocumentScope,
-  matterId?: string | null,
-  turnEditState?: AssistantEditTurnState,
-  turnId?: string,
-  workflows: WorkflowStore = new Map(),
-  editMode: EditMode = "manual",
-  documentNames: Map<string, string> = new Map(),
-  docIndex?: DocIndex,
-  progress?: (label: string) => void,
-  signal?: AbortSignal,
+  { documents, library, projects, scope, matterId, workflows, turnEditState,
+    turnId, editMode, documentNames, docIndex, progress, signal }: CodingShapeDeps,
 ): Promise<AssistantOutcome> {
   const direct = await readNonDocumentResource(call, args, workflows, scope.userId);
   if (direct) return direct;
@@ -1379,14 +1381,8 @@ async function runAdvancedDocxEdit(params: {
     let resolvedRequests = requests;
     if (requests.some(({ scope }) =>
       (scope as unknown as { kind: string }).kind === "at")) {
-      const document = await documentProjectionService.read({
-        documentId: params.documentId,
-        versionId: file.version.id,
-        fileType: file.fileType,
-        sourceSha256: file.version.source_sha256,
-        pdfProfile: file.pdfProfile,
-        readBytes: () => file.bytes,
-      });
+      const document = await documentProjectionService.read(
+        projectionSource(params.documentId, file));
       if (!structureNative().documentTextBytes(document)) {
         return fail("DOCX body text could not be extracted, so an `at` scope cannot be resolved.");
       }
@@ -1464,13 +1460,10 @@ async function runAdvancedDocxEdit(params: {
 
 async function runDocxWorkflow(
   action: "fix_supras" | "lint_structure",
-  documents: DocumentStore,
-  scope: DocumentScope,
   documentId: string,
-  versionId?: string,
-  turnEditState?: AssistantEditTurnState,
-  turnId?: string,
-  editMode: EditMode = "manual",
+  versionId: string | undefined,
+  { documents, scope, turnEditState, turnId, editMode }:
+    Pick<CodingShapeDeps, "documents" | "scope" | "turnEditState" | "turnId" | "editMode">,
 ): Promise<AssistantOutcome> {
   const file = await activeDocx(documents, scope, documentId, versionId);
   if (action === "fix_supras") {
@@ -1482,14 +1475,8 @@ async function runDocxWorkflow(
       bytes: cleanup.bytes, edits: assistantEdits(cleanup.changes),
       turnEditState, turnId, editMode });
   }
-  const document = await documentProjectionService.read({
-    documentId,
-    versionId: file.version.id,
-    fileType: file.fileType,
-    sourceSha256: file.version.source_sha256,
-    pdfProfile: file.pdfProfile,
-    readBytes: () => file.bytes,
-  });
+  const document = await documentProjectionService.read(
+    projectionSource(documentId, file));
   return result({
     ok: true,
     document_id: documentId,
@@ -1709,23 +1696,11 @@ export function assistantTools<Context extends {
       knownSources,
     });
     if (sourceRead) return sourceRead;
-    return runCodingShapeCall(
-      call,
-      args,
-      documents,
-      library,
-      projects,
-      scope,
-      matterId,
-      turnEditState,
-      turnId,
-      availableWorkflows,
-      editMode,
-      knownDocumentNames,
-      docIndex,
-      progress,
-      signal,
-    );
+    return runCodingShapeCall(call, args, {
+      documents, library, projects, scope, matterId, turnEditState, turnId,
+      workflows: availableWorkflows, editMode, documentNames: knownDocumentNames,
+      docIndex, progress, signal,
+    });
   };
   const documentTool = (
     run: (
@@ -1857,22 +1832,12 @@ export function assistantTools<Context extends {
     async (_call, args, documentId) => {
       const action = args.action as "fix_supras" | "lint_structure";
       try {
-        return await runDocxWorkflow(
-          action,
-          documents,
-          scope,
-          documentId,
+        return await runDocxWorkflow(action, documentId,
           trimmed(args.version_id) || undefined,
-          turnEditState,
-          turnId,
-          editMode,
-        );
+          { documents, scope, turnEditState, turnId, editMode });
       } catch (error) {
-        const fallback = action === "fix_supras"
-          ? "DOCX supra cleanup failed"
-          : "DOCX structural lint failed";
-        const message = safeErrorMessage(error, fallback);
-        return fail(message);
+        return fail(safeErrorMessage(error, action === "fix_supras"
+          ? "DOCX supra cleanup failed" : "DOCX structural lint failed"));
       }
     },
   );
