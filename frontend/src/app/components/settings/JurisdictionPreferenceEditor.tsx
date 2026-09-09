@@ -9,6 +9,12 @@ import {
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { cn } from "@/app/lib/utils";
 
+const MODES = [
+    { value: "ask" as const, title: "Ask when needed", detail: "Use no standing default." },
+    { value: "presume" as const, title: "Use selected jurisdictions",
+        detail: "Presume these only when your request does not say otherwise." },
+];
+
 export function JurisdictionPreferenceEditor({
     compact = false,
 }: {
@@ -33,12 +39,9 @@ export function JurisdictionPreferenceEditor({
         );
     const allSelected = (group: (typeof JURISDICTION_GROUPS)[number]) =>
         group.options.every(([optionId]) => selected.has(optionId));
-    const setAllSelected = (
-        group: (typeof JURISDICTION_GROUPS)[number],
-        checked: boolean,
-    ) => {
+    const toggle = (ids: typeof preference.jurisdictions, checked: boolean) => {
         const next = new Set(preference.jurisdictions);
-        for (const [optionId] of group.options) {
+        for (const optionId of ids) {
             if (checked) next.add(optionId);
             else next.delete(optionId);
         }
@@ -49,46 +52,28 @@ export function JurisdictionPreferenceEditor({
         <div className={cn("min-w-0", compact ? "space-y-3" : "space-y-4")}>
             <fieldset className="grid gap-2">
                 <legend className="sr-only">Default jurisdiction</legend>
-                <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md border border-gray-200 px-3 py-2.5 has-[:checked]:border-gray-400 has-[:checked]:bg-gray-50">
-                    <input
-                        id={`${id}-ask`}
-                        type="radio"
-                        name={`${id}-mode`}
-                        checked={preference.mode === "ask"}
-                        onChange={() =>
-                            setPreference({ ...preference, mode: "ask" })
-                        }
-                        className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-red-700"
-                    />
-                    <span className="min-w-0">
-                        <span className="block text-sm font-medium text-gray-900">
-                            Ask when needed
+                {MODES.map((mode) => (
+                    <label key={mode.value} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md border border-gray-200 px-3 py-2.5 has-[:checked]:border-gray-400 has-[:checked]:bg-gray-50">
+                        <input
+                            id={`${id}-${mode.value}`}
+                            type="radio"
+                            name={`${id}-mode`}
+                            checked={preference.mode === mode.value}
+                            onChange={() =>
+                                setPreference({ ...preference, mode: mode.value })
+                            }
+                            className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-red-700"
+                        />
+                        <span className="min-w-0">
+                            <span className="block text-sm font-medium text-gray-900">
+                                {mode.title}
+                            </span>
+                            <span className="mt-0.5 block text-sm leading-5 text-gray-500">
+                                {mode.detail}
+                            </span>
                         </span>
-                        <span className="mt-0.5 block text-sm leading-5 text-gray-500">
-                            Use no standing default.
-                        </span>
-                    </span>
-                </label>
-                <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md border border-gray-200 px-3 py-2.5 has-[:checked]:border-gray-400 has-[:checked]:bg-gray-50">
-                    <input
-                        id={`${id}-presume`}
-                        type="radio"
-                        name={`${id}-mode`}
-                        checked={preference.mode === "presume"}
-                        onChange={() =>
-                            setPreference({ ...preference, mode: "presume" })
-                        }
-                        className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-red-700"
-                    />
-                    <span className="min-w-0">
-                        <span className="block text-sm font-medium text-gray-900">
-                            Use selected jurisdictions
-                        </span>
-                        <span className="mt-0.5 block text-sm leading-5 text-gray-500">
-                            Presume these only when your request does not say otherwise.
-                        </span>
-                    </span>
-                </label>
+                    </label>
+                ))}
             </fieldset>
 
             <div
@@ -105,12 +90,10 @@ export function JurisdictionPreferenceEditor({
                     <CheckboxInput
                         checked={allSelected(activeGroup)}
                         disabled={disabled}
-                        onChange={(event) =>
-                            setAllSelected(
-                                activeGroup,
-                                event.currentTarget.checked,
-                            )
-                        }
+                        onChange={(event) => toggle(
+                            activeGroup.options.map(([optionId]) => optionId),
+                            event.currentTarget.checked,
+                        )}
                     />
                     <span>All of {activeGroup.tabLabel}</span>
                 </label>
@@ -147,20 +130,9 @@ export function JurisdictionPreferenceEditor({
                                                 id={`${id}-${optionId}`}
                                                 checked={selected.has(optionId)}
                                                 disabled={disabled}
-                                                onChange={(event) => {
-                                                    const next = new Set(
-                                                        preference.jurisdictions,
-                                                    );
-                                                    if (event.currentTarget.checked) {
-                                                        next.add(optionId);
-                                                    } else {
-                                                        next.delete(optionId);
-                                                    }
-                                                    setPreference({
-                                                        ...preference,
-                                                        jurisdictions: [...next],
-                                                    });
-                                                }}
+                                                onChange={(event) =>
+                                                    toggle([optionId], event.currentTarget.checked)
+                                                }
                                             />
                                             <span className="min-w-0 break-words">
                                                 {label}
