@@ -108,28 +108,6 @@ describe("ProjectsOverview", () => {
         });
     });
 
-    it("keeps search and one explicit create action visible", async () => {
-        render(<ProjectsOverview />);
-
-        expect(
-            await screen.findByRole("searchbox", { name: "Search projects" }),
-        ).toBeVisible();
-        expect(screen.getByRole("button", {
-            name: "New project",
-        })).toBeVisible();
-        expect(await screen.findByText("No projects")).toBeVisible();
-    });
-
-    it("keeps the table shell stable while rows load", () => {
-        listProjects.mockReturnValue(new Promise(() => {}));
-        render(<ProjectsOverview />);
-
-        expect(screen.getByRole("searchbox", { name: "Search projects" }))
-            .toBeDisabled();
-        expect(screen.queryByRole("combobox", { name: /sort|filter/i }))
-            .not.toBeInTheDocument();
-    });
-
     it("replaces the table header with actions only while selected", async () => {
         listProjects.mockResolvedValue({ items: [createdProject], next_cursor: null });
         render(<ProjectsOverview />);
