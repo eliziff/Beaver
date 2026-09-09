@@ -923,8 +923,8 @@ describe("CourtRecordsWorkspace", () => {
     expect(await screen.findByLabelText(/Court file number/iu)).toHaveValue("2401-12345");
     expect(screen.getByLabelText(/Registry/iu)).toHaveValue("");
     expect(screen.getByLabelText(/Deponent/iu)).toHaveValue("Typed deponent");
-    expect(screen.getByLabelText("Plaintiff names, one per line")).toHaveValue("Typed Plaintiff");
-    expect(screen.getByLabelText("Defendant names, one per line"))
+    expect(screen.getByLabelText("Plaintiff name")).toHaveValue("Typed Plaintiff");
+    expect(screen.getByLabelText("Defendant name"))
       .toHaveValue("");
   });
 
@@ -960,7 +960,7 @@ describe("CourtRecordsWorkspace", () => {
 
     await uploadFiles(document.getElementById("court-record-notice-application-file")!, [new File(["source"], "Notice.pdf", { type: "application/pdf" })]);
     expect(await screen.findByLabelText(/Court file number/iu)).toHaveValue("T-1-26");
-    expect(screen.getByLabelText("Applicant names, one per line"))
+    expect(screen.getByLabelText("Applicant name"))
       .toHaveValue("Alpha Ltd.");
     await waitFor(() => expect(update.mock.calls.some(([, change]) =>
       change.state.profileId === "fc-application-record-applicant")).toBe(true));
