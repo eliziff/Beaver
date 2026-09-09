@@ -23,7 +23,7 @@ it("keeps the read chip unchanged while preserving a completed read's exact sour
     }} />);
 
     const chip = screen.getByRole("link", { name: "Bhasin v. Hrynew, 2014 SCC 71" });
-    expect(screen.getByRole("listitem")).toHaveTextContent(/Reading Bhasin v\. Hrynew/u);
+    expect(screen.getByRole("listitem")).toHaveTextContent(/Reading(?:\.\.\.)? Bhasin v\. Hrynew/u);
     expect(screen.getByRole("listitem")).toHaveAttribute("aria-busy", "true");
     chip.focus();
     rerender(<ActivityRow activity={{

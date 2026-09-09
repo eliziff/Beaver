@@ -19,6 +19,7 @@ import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
 import { downloadDocument } from "@/app/lib/api/documents";
 import { downloadBlob } from "@/app/lib/download";
 import { RESPONSE_GLASS_SURFACE, withoutMarkdownNode } from "./messageStyles";
+import { citationPillParts } from "./CitationSources";
 import { citationSourceKey } from "./citationUtils";
 import {
     CitationPill,
@@ -182,7 +183,10 @@ export function ActivityRow({
     const citations = activity.tool === "search_sources" || activity.tool === "Grep"
         ? [] : activity.citations ?? [];
     const compactRead = activity.tool === "Read" && !markdown && citations.length > 0;
-    const label = `${activity.label}${{ running: busy && !activity.markdown ? "..." : "",
+    // The chip names the source, so the sentence stops at "Reading paras 1–8 of".
+    const chipName = compactRead ? citationPillParts(citations[0], true).styleOfCause : null;
+    const sentence = chipName && activity.label.endsWith(chipName) ? activity.label.slice(0, -chipName.length).trimEnd() : activity.label;
+    const label = `${sentence}${{ running: busy && !activity.markdown ? "..." : "",
         completed: "", error: " — failed", interrupted: " — stopped" }[activity.status]}`;
     const labelNode = onClick ? (
         <button

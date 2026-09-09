@@ -264,7 +264,7 @@ export function DocumentSidePanel({
             onEscape={() => expandedReader ? changeReaderSize(false) : onClose()}
             size="2xl"
             className={expandedReader
-                ? "!h-[100dvh] !w-[100vw] !max-h-none !max-w-none !m-0 !rounded-none"
+                ? "h-[100dvh]! w-[100vw]! max-h-none! max-w-none! m-0! rounded-none!"
                 : "!max-w-[960px]"}
             breadcrumbs={[
                 <span key="document" className="flex h-8 min-w-0 items-center gap-2 text-sm font-medium leading-5 text-gray-900">
