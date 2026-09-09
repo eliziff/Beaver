@@ -6,6 +6,7 @@ import {
     Packer,
     Paragraph,
     TextRun,
+    type ParagraphChild,
 } from "docx";
 import JSZip from "jszip";
 import { parseAsync, renderDocument } from "docx-preview";
@@ -41,6 +42,18 @@ async function renderFixture(
     await renderDocument(doc, container, undefined, DOCX_RENDER_OPTIONS);
     finalizeDocxDom(container);
     return container;
+}
+
+async function renderNotes(
+    notes: Record<number, string>, paragraphs: ParagraphChild[][], customMarkFirst = false,
+): Promise<HTMLElement> {
+    const source = new Document({
+        footnotes: Object.fromEntries(Object.entries(notes).map(([id, text]) =>
+            [id, { children: [new Paragraph(text)] }],
+        )),
+        sections: [{ children: paragraphs.map((children) => new Paragraph({ children })) }],
+    });
+    return renderFixture(await Packer.toArrayBuffer(source), customMarkFirst);
 }
 
 function refNumbers(container: HTMLElement): string[] {
@@ -92,33 +105,15 @@ describe("DOCX notes", () => {
     });
 
     it("keeps footnotes on the saved Word page that references them", async () => {
-        const source = new Document({
-            footnotes: {
-                1: { children: [new Paragraph("First page footnote")] },
-                2: { children: [new Paragraph("Second page footnote")] },
-            },
-            sections: [
-                {
-                    children: [
-                        new Paragraph({
-                            children: [
-                                new TextRun("First page body"),
-                                new FootnoteReferenceRun(1),
-                                new TextRun({
-                                    children: [
-                                        new LastRenderedPageBreak(),
-                                        "Second page body",
-                                    ],
-                                }),
-                                new FootnoteReferenceRun(2),
-                            ],
-                        }),
-                    ],
-                },
+        const container = await renderNotes(
+            { 1: "First page footnote", 2: "Second page footnote" },
+            [
+                [
+                    new TextRun("First page body"), new FootnoteReferenceRun(1),
+                    new TextRun({ children: [new LastRenderedPageBreak(), "Second page body"] }),
+                    new FootnoteReferenceRun(2),
+                ],
             ],
-        });
-        const container = await renderFixture(
-            await Packer.toArrayBuffer(source),
         );
 
         const pages = container.querySelectorAll("section.docx");
@@ -134,52 +129,26 @@ describe("DOCX notes", () => {
     it("numbers footnote references continuously across pages", async () => {
         // Four notes spread over three saved Word pages. Without the fix
         // docx-preview restarts its counter on each page (1, 1, 2, 1).
-        const source = new Document({
-            footnotes: {
-                1: { children: [new Paragraph("Note one text")] },
-                2: { children: [new Paragraph("Note two text")] },
-                3: { children: [new Paragraph("Note three text")] },
-                4: { children: [new Paragraph("Note four text")] },
+        const container = await renderNotes(
+            {
+                1: "Note one text",
+                2: "Note two text",
+                3: "Note three text",
+                4: "Note four text",
             },
-            sections: [
-                {
-                    children: [
-                        new Paragraph({
-                            children: [
-                                new TextRun("Page one"),
-                                new FootnoteReferenceRun(1),
-                            ],
-                        }),
-                        new Paragraph({
-                            children: [
-                                new TextRun({
-                                    children: [
-                                        new LastRenderedPageBreak(),
-                                        "Page two",
-                                    ],
-                                }),
-                                new FootnoteReferenceRun(2),
-                                new TextRun(" more"),
-                                new FootnoteReferenceRun(3),
-                            ],
-                        }),
-                        new Paragraph({
-                            children: [
-                                new TextRun({
-                                    children: [
-                                        new LastRenderedPageBreak(),
-                                        "Page three",
-                                    ],
-                                }),
-                                new FootnoteReferenceRun(4),
-                            ],
-                        }),
-                    ],
-                },
+            [
+                [
+                    new TextRun("Page one"), new FootnoteReferenceRun(1),
+                ],
+                [
+                    new TextRun({ children: [new LastRenderedPageBreak(), "Page two"] }),
+                    new FootnoteReferenceRun(2), new TextRun(" more"), new FootnoteReferenceRun(3),
+                ],
+                [
+                    new TextRun({ children: [new LastRenderedPageBreak(), "Page three"] }),
+                    new FootnoteReferenceRun(4),
+                ],
             ],
-        });
-        const container = await renderFixture(
-            await Packer.toArrayBuffer(source),
         );
 
         expect(container.querySelectorAll("section.docx")).toHaveLength(3);
@@ -212,44 +181,26 @@ describe("DOCX notes", () => {
     });
 
     it("keeps every note reachable when a page has more than four", async () => {
-        const source = new Document({
-            footnotes: {
-                1: { children: [new Paragraph("Footnote one")] },
-                2: { children: [new Paragraph("Footnote two")] },
-                3: { children: [new Paragraph("Footnote three")] },
-                4: { children: [new Paragraph("Footnote four")] },
-                5: { children: [new Paragraph("Footnote five")] },
-                6: { children: [new Paragraph("Footnote six")] },
-                7: { children: [new Paragraph("Footnote seven")] },
-                8: { children: [new Paragraph("Footnote eight")] },
-                9: { children: [new Paragraph("Footnote nine")] },
+        const container = await renderNotes(
+            {
+                1: "Footnote one",
+                2: "Footnote two",
+                3: "Footnote three",
+                4: "Footnote four",
+                5: "Footnote five",
+                6: "Footnote six",
+                7: "Footnote seven",
+                8: "Footnote eight",
+                9: "Footnote nine",
             },
-            sections: [
-                {
-                    children: [
-                        new Paragraph({
-                            children: [
-                                new TextRun("Dense first page"),
-                                ...Array.from(
-                                    { length: 8 },
-                                    (_, index) =>
-                                        new FootnoteReferenceRun(index + 1),
-                                ),
-                                new TextRun({
-                                    children: [
-                                        new LastRenderedPageBreak(),
-                                        "Second page",
-                                    ],
-                                }),
-                                new FootnoteReferenceRun(9),
-                            ],
-                        }),
-                    ],
-                },
+            [
+                [
+                    new TextRun("Dense first page"),
+                    ...Array.from( { length: 8 }, (_, index) => new FootnoteReferenceRun(index + 1), ),
+                    new TextRun({ children: [new LastRenderedPageBreak(), "Second page"] }),
+                    new FootnoteReferenceRun(9),
+                ],
             ],
-        });
-        const container = await renderFixture(
-            await Packer.toArrayBuffer(source),
         );
 
         const pages = container.querySelectorAll("section.docx");
@@ -288,30 +239,14 @@ describe("DOCX notes", () => {
         // by the author (in the run right after it) instead of an auto
         // number, and does not consume one — so numbering starts at 1 on the
         // next note.
-        const source = new Document({
-            footnotes: {
-                1: { children: [new Paragraph("Star note")] },
-                2: { children: [new Paragraph("First numbered note")] },
-                3: { children: [new Paragraph("Second numbered note")] },
-            },
-            sections: [
-                {
-                    children: [
-                        new Paragraph({
-                            children: [
-                                new TextRun("Title"),
-                                new FootnoteReferenceRun(1),
-                                new TextRun("Body"),
-                                new FootnoteReferenceRun(2),
-                                new FootnoteReferenceRun(3),
-                            ],
-                        }),
-                    ],
-                },
+        const container = await renderNotes(
+            { 1: "Star note", 2: "First numbered note", 3: "Second numbered note" },
+            [
+                [
+                    new TextRun("Title"), new FootnoteReferenceRun(1), new TextRun("Body"),
+                    new FootnoteReferenceRun(2), new FootnoteReferenceRun(3),
+                ],
             ],
-        });
-        const container = await renderFixture(
-            await Packer.toArrayBuffer(source),
             true,
         );
 
@@ -331,29 +266,14 @@ describe("DOCX notes", () => {
     });
 
     it("links every reference to its note and back", async () => {
-        const source = new Document({
-            footnotes: {
-                1: { children: [new Paragraph("Alpha note")] },
-                2: { children: [new Paragraph("Beta note")] },
-                3: { children: [new Paragraph("Gamma note")] },
-            },
-            sections: [
-                {
-                    children: [
-                        new Paragraph({
-                            children: [
-                                new TextRun("Body"),
-                                new FootnoteReferenceRun(1),
-                                new FootnoteReferenceRun(2),
-                                new FootnoteReferenceRun(3),
-                            ],
-                        }),
-                    ],
-                },
+        const container = await renderNotes(
+            { 1: "Alpha note", 2: "Beta note", 3: "Gamma note" },
+            [
+                [
+                    new TextRun("Body"), new FootnoteReferenceRun(1), new FootnoteReferenceRun(2),
+                    new FootnoteReferenceRun(3),
+                ],
             ],
-        });
-        const container = await renderFixture(
-            await Packer.toArrayBuffer(source),
         );
 
         const refs = Array.from(
@@ -376,34 +296,15 @@ describe("DOCX notes", () => {
     });
 
     it("renders a repeatedly referenced note once, keeping its number", async () => {
-        const source = new Document({
-            footnotes: {
-                1: { children: [new Paragraph("Shared note")] },
-                2: { children: [new Paragraph("Later note")] },
-            },
-            sections: [
-                {
-                    children: [
-                        new Paragraph({
-                            children: [
-                                new TextRun("One"),
-                                new FootnoteReferenceRun(1),
-                                new TextRun({
-                                    children: [
-                                        new LastRenderedPageBreak(),
-                                        "Two",
-                                    ],
-                                }),
-                                new FootnoteReferenceRun(1),
-                                new FootnoteReferenceRun(2),
-                            ],
-                        }),
-                    ],
-                },
+        const container = await renderNotes(
+            { 1: "Shared note", 2: "Later note" },
+            [
+                [
+                    new TextRun("One"), new FootnoteReferenceRun(1),
+                    new TextRun({ children: [new LastRenderedPageBreak(), "Two"] }),
+                    new FootnoteReferenceRun(1), new FootnoteReferenceRun(2),
+                ],
             ],
-        });
-        const container = await renderFixture(
-            await Packer.toArrayBuffer(source),
         );
 
         // Both references to note 1 show "1"; the second reference does not
