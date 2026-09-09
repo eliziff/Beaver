@@ -23,31 +23,26 @@ import { accountGlassPrimaryButtonClassName } from "../accountStyles";
 import { AccountSection } from "../AccountSection";
 import { Switch } from "@/app/components/ui/switch";
 import { errorMessage } from "@/app/lib/utils";
-const emptyAddDraft: McpConnectorDraft = {
-    name: "",
-    serverUrl: "",
-    bearerToken: "",
-    customHeaders: "",
-};
 type DetailState = {
     id: string;
     draft: McpConnectorDraft;
     loading: boolean;
 };
+const connectorDraft = (
+    connector?: Pick<McpConnectorSummary, "name" | "serverUrl">,
+): McpConnectorDraft => ({
+    name: connector?.name ?? "",
+    serverUrl: connector?.serverUrl ?? "",
+    bearerToken: "",
+    customHeaders: "",
+});
 const emptyAddState = {
-    draft: emptyAddDraft,
+    draft: connectorDraft(),
     step: "form" as "form" | "auth" | "success",
     result: null as McpConnectorSummary | null,
     error: null as string | null,
     authMessage: null as string | null,
 };
-const connectorDraft = (
-    connector?: Pick<McpConnectorSummary, "name" | "serverUrl">,
-): McpConnectorDraft => ({
-    ...emptyAddDraft,
-    name: connector?.name ?? "",
-    serverUrl: connector?.serverUrl ?? "",
-});
 function parseCustomHeaders(raw: string): Record<string, string> | undefined {
     const text = raw.trim();
     if (!text) return undefined;
@@ -75,7 +70,7 @@ export default function ConnectorsPage() {
     const authorizing = add?.step === "auth";
     const addSuccess = add?.step === "success";
     const addBusy = adding || authorizing;
-    const addDraft = add?.draft ?? emptyAddDraft;
+    const addDraft = add?.draft ?? emptyAddState.draft;
     const updateAdd = (patch: Partial<typeof emptyAddState>) =>
         setAdd((current) => (current ? { ...current, ...patch } : current));
     const updateDetail = (
@@ -209,20 +204,13 @@ export default function ConnectorsPage() {
         }); } finally { popup.close(); }
         return refreshTools(connectorId);
     };
-    const authorizeAddedConnector = (
-        connectorId: string,
-        message: string,
-    ) => {
-        updateAdd({ authMessage: message, step: "auth" });
-        return connectConnectorOAuth(connectorId);
-    };
     const refreshConnector = async (
         connector: McpConnectorSummary,
-        onOAuth: typeof authorizeAddedConnector = connectConnectorOAuth,
+        onOAuth: (connectorId: string, message: string) =>
+            Promise<McpConnectorSummary | null> = connectConnectorOAuth,
     ) => {
-        let refreshed: McpConnectorSummary;
         try {
-            refreshed = await refreshTools(connector.id);
+            return await refreshTools(connector.id);
         } catch (err) {
             if (
                 !(err instanceof BeaverApiError) ||
@@ -236,7 +224,6 @@ export default function ConnectorsPage() {
                 "Complete authorization in the popup to finish connecting this MCP server.",
             );
         }
-        return refreshed;
     };
     const handleCreate = () => {
         if (!add) return;
@@ -254,7 +241,10 @@ export default function ConnectorsPage() {
                     });
                     const refreshed = await refreshConnector(
                         connector,
-                        authorizeAddedConnector,
+                        (connectorId, message) => {
+                            updateAdd({ authMessage: message, step: "auth" });
+                            return connectConnectorOAuth(connectorId);
+                        },
                     );
                     if (refreshed) {
                         updateAdd({
