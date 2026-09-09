@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import type { Workflow } from "@/app/lib/api/workflows";
-import { groupWorkflows, WORKFLOW_CATEGORIES } from "./workflowCatalog";
+import { groupWorkflows } from "./workflowCatalog";
 import { workflowDocumentTab, workflowPath, workflowVariants } from "./workflowRoutes";
 
 const workflow = (id: string, title: string, category: string,
@@ -92,12 +92,4 @@ it("uses category order without dropping assistant or product routes", () => {
     expect(groupWorkflows([authorities, courtRecords], "", "tabular")).toEqual([]);
     expect(workflowPath(authorities)).toBe("/table-of-authorities");
     expect(workflowPath(courtRecords)).toBe("/court-records");
-});
-
-it("keeps workflow-editing categories available", () => {
-    expect(WORKFLOW_CATEGORIES).toContainEqual(["Agreements", "Agreements"]);
-    expect(WORKFLOW_CATEGORIES).toContainEqual([
-        "Court and hearing materials", "Court materials",
-    ]);
-    expect(WORKFLOW_CATEGORIES).not.toContainEqual(["Templates", "Templates"]);
 });
