@@ -1,6 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { expect, it, vi } from "vitest";
-import userEvent from "@testing-library/user-event";
+import { expect, it } from "vitest";
 import type { Citation } from "@/app/lib/citations";
 
 import { ActivityRow } from "./EventBlocks";
@@ -15,14 +14,13 @@ it("keeps the read chip unchanged while preserving a completed read's exact sour
         ...broad, ref: 2, locator_kind: "paragraph", locator: "17, 112",
         pinpoint: "paras 17, 112", authority: "Bhasin, supra",
     };
-    const onCitationClick = vi.fn();
     const activity = {
         id: "read-bhasin", tool: "Read",
         label: "Reading Bhasin v. Hrynew",
     };
     const { container, rerender } = render(<ActivityRow activity={{
         ...activity, status: "running", citations: [broad],
-    }} onCitationClick={onCitationClick} />);
+    }} />);
 
     const chip = screen.getByRole("link", { name: "Bhasin v. Hrynew, 2014 SCC 71" });
     expect(screen.getByRole("listitem")).toHaveTextContent(/Reading Bhasin v\. Hrynew/u);
@@ -30,23 +28,21 @@ it("keeps the read chip unchanged while preserving a completed read's exact sour
     chip.focus();
     rerender(<ActivityRow activity={{
         ...activity, status: "completed", citations: [passage],
-    }} onCitationClick={onCitationClick} />);
+    }} />);
 
     expect(screen.getByRole("link", { name: /Bhasin/u })).toBe(chip);
     expect(chip).toHaveFocus();
     expect(screen.getByRole("listitem")).toHaveTextContent(/Reading Bhasin v\. Hrynew/u);
     expect(screen.getByRole("listitem")).toHaveAttribute("aria-busy", "false");
     expect(container.querySelectorAll("[data-citation-ref]")).toHaveLength(1);
-    await userEvent.click(screen.getByRole("button", { name: "Citation actions" }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Open in reader" }));
-    expect(onCitationClick).toHaveBeenCalledWith(passage);
 
     rerender(<ActivityRow activity={{
         ...activity, status: "error", citations: [broad], detail: "Source unavailable",
-    }} onCitationClick={onCitationClick} />);
+    }} />);
     expect(screen.getByRole("link", { name: /Bhasin/u })).toBe(chip);
     expect(screen.getByText(/failed/u)).toBeVisible();
     expect(screen.getByText("Source unavailable")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Citation actions" })).toBeNull();
 });
 
 it("keeps failed read context and errors visible", () => {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import type { ReadSubagentPanel } from "./ReadSubagentDock";
 import { ReadSubagentTabs } from "./ReadSubagentTabs";
 
@@ -12,8 +12,7 @@ const panel = (id: string, task: string): ReadSubagentPanel => ({
 it("switches reading agents as quiet tabs without close controls", () => {
     function Example() {
         const [active, setActive] = useState("1");
-        return <ReadSubagentTabs activeId={active} onActivate={setActive}
-            onCitationClick={vi.fn()} groups={[
+        return <ReadSubagentTabs activeId={active} onActivate={setActive} groups={[
                 { id: "1", label: "Agent 1", panels: [panel("agent:1", "First task")] },
                 { id: "2", label: "Agent 2", panels: [panel("agent:2", "Second task")] },
             ]} />;

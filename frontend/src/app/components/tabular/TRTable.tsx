@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef } from "react";
+import { Fragment, useMemo } from "react";
 import { Loader2 } from "lucide-react";
 import type { ColumnConfig, TabularCell, TabularDocument } from "@/app/lib/api/tabular";
 import type { Citation } from "@/app/lib/citations";
@@ -39,11 +39,10 @@ interface Props {
     selectedDocIds: string[];
     uploadingFilenames?: string[];
     dragOverFiles?: boolean;
-    highlightedCell?: { colIdx: number; rowIdx: number } | null;
     running?: boolean;
     onSelectionChange: (ids: string[]) => void;
     onExpand: (cell: TabularCell) => void;
-    onCitationClick: (cell: TabularCell, citation: Citation, action?: "workspace") => void;
+    onCitationClick: (cell: TabularCell, citation: Citation) => void;
     onEditColumn: (col: ColumnConfig) => void;
     onRerunColumn?: (col: ColumnConfig) => void;
     onClearColumn?: (col: ColumnConfig) => void;
@@ -55,32 +54,19 @@ interface Props {
 }
 export function TRTable({
     loading, columns, documents, cells, savingColumnsConfig, selectedDocIds,
-    uploadingFilenames = [], dragOverFiles = false, highlightedCell, running = false,
+    uploadingFilenames = [], dragOverFiles = false, running = false,
     onSelectionChange, onExpand, onCitationClick, onEditColumn, onRerunColumn, onClearColumn, onDeleteColumn,
     onColumnLabels, onColumnDiscuss, onAddColumns, onAddDocuments,
 }: Props) {
-    const scrollContainerRef = useRef<HTMLDivElement>(null);
     const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.index - b.index), [columns]);
     const cellsByKey = useMemo(() => new Map(cells.map((cell) => [`${cell.document_id}:${cell.column_index}`, cell])), [cells]);
     const selection = useTableSelection(documents, selectedDocIds, onSelectionChange);
-    useEffect(() => {
-        if (!highlightedCell) return;
-        const container = scrollContainerRef.current;
-        if (!container) return;
-        const targetRow = container.querySelectorAll<HTMLElement>("[data-tr-row]")[highlightedCell.rowIdx];
-        if (targetRow) container.scrollTop = Math.max(0, targetRow.offsetTop - 40);
-        const headers = container.querySelectorAll<HTMLElement>("[data-tr-col-header]");
-        const targetColumn = headers[highlightedCell.colIdx];
-        const documentWidth = headers[0]?.offsetLeft ?? 0;
-        if (targetColumn) container.scrollLeft = Math.max(0,
-            targetColumn.offsetLeft + targetColumn.offsetWidth / 2 - (container.clientWidth + documentWidth) / 2);
-    }, [highlightedCell]);
     const dragOverlay = dragOverFiles && (
         <div className="pointer-events-none absolute inset-0 z-20 border-2 border-dashed border-gray-400 bg-gray-50/50" />
     );
     const noRows = !documents.length && !uploadingFilenames.length;
     return (
-        <TableScrollArea horizontal scrollRef={scrollContainerRef}
+        <TableScrollArea horizontal
             header={<TableHeaderRow className="h-10 w-max min-w-full items-stretch pr-0 text-xs font-medium text-gray-500">
                 <TableStickyCell header className={`${STICKY} pr-1`}>
                     <TableSelectionCheckbox loading={loading || noRows} aria-label="Select loaded documents"
@@ -138,11 +124,9 @@ export function TRTable({
                                     onChange={() => selection.toggle(doc.id)} />
                                 <span className="line-clamp-2 [overflow-wrap:anywhere]" title={doc.filename}>{doc.filename}</span>
                             </TableStickyCell>
-                            {sortedColumns.map((col, colPos) => {
+                            {sortedColumns.map((col) => {
                                 const cell = cellsByKey.get(`${doc.id}:${col.index}`);
-                                const isHighlighted = highlightedCell?.colIdx === colPos && highlightedCell?.rowIdx === docIdx;
-                                return <TableCell key={col.index} className={cn(COLUMN_WIDTH, GRID_LINE, "h-full p-0",
-                                    isHighlighted && "bg-amber-50 ring-2 ring-inset ring-amber-600")}>
+                                return <TableCell key={col.index} className={cn(COLUMN_WIDTH, GRID_LINE, "h-full p-0")}>
                                     {cell && <TabularCellComponent cell={cell} column={col} onExpand={onExpand} onCitationClick={onCitationClick} />}
                                 </TableCell>;
                             })}

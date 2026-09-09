@@ -12,7 +12,7 @@ interface Props {
     cell: TCell;
     column?: ColumnConfig;
     onExpand: (cell: TCell) => void;
-    onCitationClick: (cell: TCell, citation: Citation, action?: "workspace") => void;
+    onCitationClick: (cell: TCell, citation: Citation) => void;
 }
 
 export const TabularCell = memo(function TabularCell({ cell, column, onExpand, onCitationClick }: Props) {
@@ -32,8 +32,7 @@ export const TabularCell = memo(function TabularCell({ cell, column, onExpand, o
             : <>
                 <div className={cn("pointer-events-none relative line-clamp-2 min-w-0 flex-1 [overflow-wrap:anywhere] [&_a]:pointer-events-auto",
                     numeric && "tabular-nums")}>
-                    <TabularMarkdown text={text} value={answer.value} column={column}
-                        onCitationClick={(citation, action) => onCitationClick(cell, citation, action)} inline />
+                    <TabularMarkdown text={text} value={answer.value} column={column} inline />
                 </div>
                 {(answer.flag || !!citations.length) && <span className="relative flex shrink-0 items-center gap-1.5">
                     {answer.flag && <FlagDot flag={answer.flag} />}

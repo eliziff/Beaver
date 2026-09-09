@@ -21,7 +21,7 @@ it("shows an ordinary table chat turn and refreshes the table when it completes"
   function Example() {
     const [refreshed, setRefreshed] = useState(false);
     return <><TRChatPanel reviewId="review"
-      onChatIdChange={vi.fn()} onCitationClick={vi.fn()} onUpdated={() => setRefreshed(true)} />
+      onChatIdChange={vi.fn()} onUpdated={() => setRefreshed(true)} />
       {refreshed && <p>Table refreshed</p>}</>;
   }
   const { rerender } = render(<StrictMode><Example /></StrictMode>);

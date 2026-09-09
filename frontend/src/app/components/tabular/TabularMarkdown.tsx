@@ -26,19 +26,17 @@ export function TabularMarkdown({
     citations = [],
     value,
     column,
-    onCitationClick,
     inline = false,
 }: {
     text: string;
     citations?: Citation[];
     value?: GroundedAnswer["value"];
     column?: Pick<ColumnConfig, "format" | "tags">;
-    onCitationClick: (citation: Citation, action?: "workspace") => void;
     inline?: boolean;
 }) {
     if (!text) return null;
     const format = column?.format;
-    const pills = citations.map((citation) => <CitationPill key={citation.ref} citation={citation} onClick={onCitationClick}
+    const pills = citations.map((citation) => <CitationPill key={citation.ref} citation={citation}
         className="mx-0.5 !text-[10px] !leading-4" />);
     if (format && PILL_FORMATS.has(format)) return <>
         {(Array.isArray(value) ? value : [text]).map((label, index) => <span key={index}
@@ -91,7 +89,7 @@ export function TabularMarkdown({
                         const index = Number(citationIndex);
                         const citation = targets[index];
                         if (citation) {
-                            return <CitationPill citation={citation} onClick={onCitationClick}
+                            return <CitationPill citation={citation}
                                 className="mx-0.5 !text-[10px] !leading-4" />;
                         }
                     }
