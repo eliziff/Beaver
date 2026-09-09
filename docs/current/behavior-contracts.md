@@ -71,7 +71,13 @@ pagination or downloading.
   Every row is one shape — chevron, marker, name, actions, number — so counts share
   one right-aligned column and a label counts each distinct source under it once.
   A source marker is a coloured folder whose tab and band carry its sublabels; it
-  opens the label picker, and dragging it files the source. Touching a row selects
+  opens the label picker, and dragging it files the source. The picker has horizontal
+  filing slots and root siblings with truncated names. A selected parent's children
+  appear below it with an indented connector; no empty generations are reserved.
+  Choices persist immediately, with independent ancestor and descendant filings.
+  The panel keeps its opening position as children appear, without moving the dock;
+  its note saves while typing. Close, Escape and an outside click dismiss it.
+  Touching a row selects
   or expands it; opening a source or passage is the explicit Open control. Sources
   enter a set from search results, Library Add to research or a drop, never from an
   Add button under the tree, and New label sits in the toolbar above it.
