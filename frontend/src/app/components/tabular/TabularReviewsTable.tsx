@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { type Dispatch, type SetStateAction } from "react";
+import { type Dispatch, type ReactNode, type SetStateAction } from "react";
 import type { Project } from "@/app/lib/api/projects";
 import type { TabularReview } from "@/app/lib/api/tabular";
 import { RowActions } from "@/app/components/shared/RowActions";
@@ -25,6 +25,33 @@ const REVIEW_COLUMN = {
     created: "hidden w-32 xl:flex",
     actions: "w-7 sm:w-8",
 } as const;
+const EMPTY_VALUE = <span className="text-gray-300">—</span>;
+/** The metadata columns, so the header cells and the row cells cannot drift apart. */
+const REVIEW_COLUMNS: {
+    key: string;
+    header: ReactNode;
+    headerClassName: string;
+    cellClassName: string;
+    needsProjects?: true;
+    value: (review: TabularReview, projectName: string | null | undefined) => ReactNode;
+}[] = [
+    { key: "columns", header: "Columns",
+        headerClassName: `ml-auto ${REVIEW_COLUMN.columns}`,
+        cellClassName: `ml-auto ${REVIEW_COLUMN.columns}`,
+        value: (review) => review.columns_config?.length ?? 0 },
+    { key: "documents", header: "Documents",
+        headerClassName: REVIEW_COLUMN.documents,
+        cellClassName: REVIEW_COLUMN.documents,
+        value: (review) => review.document_count ?? 0 },
+    { key: "project", header: <span>Project</span>, needsProjects: true,
+        headerClassName: REVIEW_COLUMN.project,
+        cellClassName: `${REVIEW_COLUMN.project} pr-2`,
+        value: (_review, projectName) => projectName ?? EMPTY_VALUE },
+    { key: "created", header: "Created",
+        headerClassName: REVIEW_COLUMN.created,
+        cellClassName: REVIEW_COLUMN.created,
+        value: (review) => review.created_at ? formatDate(review.created_at) : EMPTY_VALUE },
+];
 export function TabularReviewsTable({
     reviews,
     filteredReviews,
@@ -57,6 +84,8 @@ export function TabularReviewsTable({
     const selection = useTableSelection(
         visibleReviews, selectedReviewIds, setSelectedReviewIds);
     const rowPadding = showProject ? undefined : "pr-8 md:pr-8";
+    const columns = REVIEW_COLUMNS.filter(
+        ({ needsProjects }) => showProject || !needsProjects);
     return (
         <TableScrollArea
             header={<TableSelectionHeader className={rowPadding}
@@ -71,22 +100,11 @@ export function TabularReviewsTable({
                 {selectedReviewIds.length ? (
                     <RowActions toolbar label="Actions" onDelete={onDeleteSelected} />
                 ) : <>
-                    <TableHeaderCell
-                        className={`ml-auto ${REVIEW_COLUMN.columns}`}
-                    >
-                        Columns
-                    </TableHeaderCell>
-                    <TableHeaderCell className={REVIEW_COLUMN.documents}>
-                        Documents
-                    </TableHeaderCell>
-                    {showProject && (
-                        <TableHeaderCell className={REVIEW_COLUMN.project}>
-                            <span>Project</span>
+                    {columns.map(({ key, header, headerClassName }) => (
+                        <TableHeaderCell key={key} className={headerClassName}>
+                            {header}
                         </TableHeaderCell>
-                    )}
-                    <TableHeaderCell className={REVIEW_COLUMN.created}>
-                        Created
-                    </TableHeaderCell>
+                    ))}
                     <TableHeaderCell className={REVIEW_COLUMN.actions} />
                 </>}
             </TableSelectionHeader>}
@@ -139,32 +157,11 @@ export function TabularReviewsTable({
                                         </Link>
                                     }
                                 />
-                                <TableCell
-                                    className={`ml-auto ${REVIEW_COLUMN.columns}`}
-                                >
-                                    {review.columns_config?.length ?? 0}
-                                </TableCell>
-                                <TableCell className={REVIEW_COLUMN.documents}>
-                                    {review.document_count ?? 0}
-                                </TableCell>
-                                {showProject && (
-                                    <TableCell
-                                        className={`${REVIEW_COLUMN.project} pr-2`}
-                                    >
-                                        {projectName ?? (
-                                            <span className="text-gray-300">
-                                                —
-                                            </span>
-                                        )}
+                                {columns.map(({ key, cellClassName, value }) => (
+                                    <TableCell key={key} className={cellClassName}>
+                                        {value(review, projectName)}
                                     </TableCell>
-                                )}
-                                <TableCell className={REVIEW_COLUMN.created}>
-                                    {review.created_at ? (
-                                        formatDate(review.created_at)
-                                    ) : (
-                                        <span className="text-gray-300">—</span>
-                                    )}
-                                </TableCell>
+                                ))}
                                 <div
                                     className={`flex ${REVIEW_COLUMN.actions} shrink-0 justify-end`}
                                     onClick={(event) => event.stopPropagation()}
