@@ -16,11 +16,11 @@ const CARD = "relative min-w-0 break-words rounded-lg border border-gray-200 p-4
 const FIELD = "block w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-0.5 hover:border-gray-200 focus:border-gray-300";
 const INPUT = "w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900";
 type Props = { open: boolean; onClose: () => void; fileId?: string; projectId?: string | null; mode?: "table" | "labels";
-    selection?: ResearchSelection; chatId?: string; tableId?: string; columnIndex?: number; messageIds?: string[]; defaultRequest?: string; onOpen: (path: string) => void };
+    selection?: ResearchSelection; chatId?: string; tableId?: string; columnIndex?: number; defaultRequest?: string; onOpen: (path: string) => void };
 type Design = ResearchTablePreview["design"];
 export const ImportResearchSet = ({ open, ...props }: Props) => open ? <OpenImportResearchSet {...props} /> : null;
 /** One organizing step in either direction: the model proposes the structure from the research; the user edits it before it exists. */
-function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, tableId, columnIndex, messageIds, onOpen,
+function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, tableId, columnIndex, onOpen,
     mode = "table", defaultRequest = "" }: Omit<Props, "open">) {
     const labelling = mode === "labels";
     const [picked, setPicked] = useState<Document[]>([]), [file, setFile] = useState<ResearchFile | null>(null);
@@ -29,7 +29,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const [busy, setBusy] = useState(false), [creating, setCreating] = useState(false);
     const [error, setError] = useState(""), [note, setNote] = useState("");
     const generation = useRef(0), activeId = fileId ?? picked[0]?.id, [model] = useSelectedModel(), [effort] = useSelectedReasoningEffort();
-    const input: ResearchTableInput = { ...(selection ? { selection } : {}), ...(chatId ? { chatId, messageIds } : {}), ...(tableId ? { tableId, columnIndex } : {}) };
+    const input: ResearchTableInput = { ...(selection ? { selection } : {}), ...(chatId ? { chatId } : {}), ...(tableId ? { tableId, columnIndex } : {}) };
     const inputKey = JSON.stringify(input);
     async function propose(instruction = "", repropose = false) {
         if (!activeId) return;
