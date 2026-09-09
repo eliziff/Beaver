@@ -1,32 +1,12 @@
 import { MAX_PROVIDER_TOOL_ARGUMENT_BYTES,
   type ProviderAdapter, type ProviderEvent, type ProviderStep } from "./providerLoop";
-import { runtimeConstructor } from "./runtimeSdk";
+import type Anthropic from "@anthropic-ai/sdk";
 import type { LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
 
 type Block = Record<string, unknown>;
 type Message = { role: "user" | "assistant"; content: string | Block[] };
 type State = { messages: Message[] };
-type AnthropicClient = {
-  messages: {
-    create(
-      request: Record<string, unknown>,
-      options: { signal?: AbortSignal; maxRetries: number },
-    ): Promise<AsyncIterable<unknown>>;
-  };
-  beta: {
-    messages: {
-      create(
-        request: Record<string, unknown>,
-        options: { signal?: AbortSignal; maxRetries: number },
-      ): Promise<AsyncIterable<unknown>>;
-    };
-  };
-};
-type AnthropicConstructor = new (options: {
-  apiKey: string; baseURL: string; maxRetries: number;
-  defaultHeaders?: Record<string, string>;
-}) => AnthropicClient;
-const anthropic = runtimeConstructor<AnthropicConstructor>("@anthropic-ai/sdk");
+const anthropic = import("@anthropic-ai/sdk").then((sdk) => sdk.default);
 
 const tools = (source: Tool[]) => source.map((tool) => ({
   name: tool.name,
@@ -110,14 +90,14 @@ export function createAnthropicWireAdapter(
       const body = {
         model: config.model ?? params.model,
         system: params.systemPrompt,
-        messages: requestMessages,
+        messages: requestMessages as Anthropic.MessageParam[],
         tools: tools(step.tools),
         max_tokens: params.maxTokens ?? 16_384,
         stream: true,
         ...(params.enableThinking && config.adaptiveThinking !== false
           ? { thinking: { type: "adaptive" }, output_config: { effort: "high" } }
           : {}),
-      };
+      } satisfies Anthropic.MessageCreateParamsStreaming;
       let stream: AsyncIterable<unknown>;
       try {
         stream = params.compactThreshold && nativeCompaction
