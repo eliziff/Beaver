@@ -1,36 +1,14 @@
-import {
-    lazy,
-    Suspense,
-    useEffect,
-    useLayoutEffect,
-    useRef,
-    useState,
-    type FormEvent,
-} from "react";
-import {
-    AlertCircle,
-    Check,
-    ChevronDown,
-    Download,
-    FileDiff,
-    Highlighter,
-    Loader2,
-    Pencil,
-    RotateCcw,
-    Save,
-    Trash2,
-    Upload,
-} from "lucide-react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState,
+    type FormEvent } from "react";
+import { AlertCircle, Check, ChevronDown, Download, FileDiff, Highlighter, Loader2,
+    Pencil, RotateCcw, Save, Trash2, Upload } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import { ContextualWorkflowLauncher } from "@/app/components/workflows/ContextualWorkflowPicker";
 import type { WorkflowSelection } from "@/app/components/workflows/workflowRoutes";
 import { Button } from "@/app/components/ui/button";
 import type { Document, DocumentVersion } from "@/app/lib/api/documents";
 import type { DocumentController } from "../documents/useDocumentController";
-import {
-  isDocxFilename,
-  isSpreadsheetFilename,
-} from "@/app/lib/documentFilename";
+import { isDocxFilename, isSpreadsheetFilename } from "@/app/lib/documentFilename";
 import { DocumentViewer } from "@/app/components/shared/views/DocumentViewer";
 import { ReaderExpandButton } from "./ReaderExpandButton";
 import { preserveReaderScroll } from "./useReaderExpansion";
@@ -164,8 +142,7 @@ export function DocumentSidePanel({
         close: onClose } = controller;
     const pendingAction = history?.pendingAction, actionError = history?.actionError;
     const versionsLoading = history?.loading, versionsError = history?.error;
-    const [visibleVersionCount, setVisibleVersionCount] =
-        useState(VERSION_PAGE);
+    const [visibleVersionCount, setVisibleVersionCount] = useState(VERSION_PAGE);
     const [expandedReader, setExpandedReader] = useState(false);
     const [narrowDetailsOpen, setNarrowDetailsOpen] = useState(false);
     const readerBody = useRef<HTMLDivElement>(null);
@@ -226,9 +203,7 @@ export function DocumentSidePanel({
         : selected ? `${selected.id}:${selected.working_revision}` : activeDoc.updated_at;
     const canCheckpoint = (current?.working_revision ?? activeDoc.current_working_revision ?? 0) > 0;
     const selectedComparison = selected ? comparison(selected) : null;
-    const showResearchPreview =
-        isResearchDocument(activeDoc) && selectedId === currentId;
-
+    const showResearchPreview = isResearchDocument(activeDoc) && selectedId === currentId;
 
     async function saveName() {
         const entered = nameDraft?.trim();
@@ -246,9 +221,7 @@ export function DocumentSidePanel({
 
     function comparison(version: DocumentVersion) {
         if (!comparisonCurrent) return null;
-        const baseline = version.id === currentId
-            ? priorCurrent
-            : version;
+        const baseline = version.id === currentId ? priorCurrent : version;
         if (!baseline || fileType(baseline, "") !== "docx") return null;
         return {
             baselineId: baseline.id,
@@ -272,9 +245,7 @@ export function DocumentSidePanel({
                 <span className="relative block min-w-0 flex-1">
                     <span className={`block truncate ${nameDraft === null ? "" : "invisible"}`}>{displayFilename}</span>
                 {nameDraft !== null && (
-                    <input
-                        autoFocus
-                        value={nameDraft}
+                    <input autoFocus value={nameDraft} aria-label="Document name"
                         onChange={(event) => setNameDraft(event.target.value)}
                         onKeyDown={(event) => {
                             if (event.key === "Enter") void saveName();
@@ -284,9 +255,7 @@ export function DocumentSidePanel({
                                 setNameDraft(null);
                             }
                         }}
-                        className="absolute inset-0 h-full w-full min-w-0 rounded-none border-0 bg-transparent p-0 text-sm font-medium leading-5 text-gray-900 outline-none focus-visible:ring-1 focus-visible:ring-gray-400"
-                        aria-label="Document name"
-                    />
+                        className="absolute inset-0 h-full w-full min-w-0 rounded-none border-0 bg-transparent p-0 text-sm font-medium leading-5 text-gray-900 outline-none focus-visible:ring-1 focus-visible:ring-gray-400" />
                 )}
                 </span>
                 </span>,
@@ -307,21 +276,15 @@ export function DocumentSidePanel({
                     {nameDraft === null ? <Pencil aria-hidden /> : pendingAction === "rename"
                         ? <Loader2 aria-hidden className="animate-spin" /> : <Check aria-hidden />}
                 </Button>
-                <ContextualWorkflowLauncher
-                    documents={[activeDoc]}
-                    onOpen={onOpenWorkflows ? () => {
-                        onOpenWorkflows([activeDoc]);
-                        onClose();
-                    } : undefined}
+                <ContextualWorkflowLauncher documents={[activeDoc]}
+                    onOpen={onOpenWorkflows
+                        ? () => { onOpenWorkflows([activeDoc]); onClose(); } : undefined}
                     onAssistantSelect={onAssistantWorkflowSelect
                         ? (selection) => onAssistantWorkflowSelect(selection, [activeDoc])
-                        : undefined}
-                />
+                        : undefined} />
                 {showResearchPreview && (
-                    <a
-                        href={`/sources?research_file=${encodeURIComponent(activeDoc.id)}`}
-                        className="inline-flex h-8 shrink-0 items-center rounded border border-gray-900 bg-gray-900 px-3 text-xs font-medium text-white hover:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2"
-                    >
+                    <a href={`/sources?research_file=${encodeURIComponent(activeDoc.id)}`}
+                        className="inline-flex h-8 shrink-0 items-center rounded border border-gray-900 bg-gray-900 px-3 text-xs font-medium text-white hover:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2">
                         Open in Sources
                     </a>
                 )}
@@ -334,17 +297,12 @@ export function DocumentSidePanel({
                 <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3">
                     {showResearchPreview ? <ResearchFilePreview
                         key={`${activeDoc.id}:${revision ?? ""}`} documentId={activeDoc.id} /> : viewerKind ? <DocumentViewer
-                        key={`${activeDoc.id}:${
-                            selectedId ?? "current"
-                        }:${revision ?? ""}`}
-                        documentId={activeDoc.id}
-                        kind={viewerKind}
+                        key={`${activeDoc.id}:${selectedId ?? "current"}:${revision ?? ""}`}
+                        documentId={activeDoc.id} kind={viewerKind}
                         {...(savedQuotes.length && (viewerKind === "docx" || viewerKind === "pdf") ? { quotes: savedQuotes } : {})}
                         filename={filename} highlightCells={highlightCells}
-                        versionId={selectedId}
-                        preferPdfRendition={isDocx}
-                        refetchKey={revision ?? undefined}
-                        revision={revision}
+                        versionId={selectedId} preferPdfRendition={isDocx}
+                        refetchKey={revision ?? undefined} revision={revision}
                     /> : <p className="m-auto text-sm text-gray-500">Preview is not available for this file type.</p>}
                 </section>
                 <aside className="flex max-h-[45%] min-h-0 min-w-0 shrink-0 flex-col border-t border-gray-200 @min-[42rem]:max-h-none @min-[42rem]:border-l @min-[42rem]:border-t-0">
@@ -400,28 +358,17 @@ export function DocumentSidePanel({
                         ) : (
                             <>
                                 {visible.map((version) => (
-                                    <VersionRow
-                                        key={version.id}
-                                        version={version}
+                                    <VersionRow key={version.id} version={version}
                                         selected={version.id === selectedId}
                                         current={version.id === currentId}
-                                        onSelect={() => {
-                                            controller.selectVersion(version.id);
-                                        }}
-                                    />
+                                        onSelect={() => controller.selectVersion(version.id)} />
                                 ))}
                                 {visible.length < versions.length && (
                                     <tr><td colSpan={5}>
-                                        <button
-                                            type="button"
+                                        <button type="button"
                                             className="w-full border-t border-gray-200 py-2 text-xs font-medium hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gray-900"
-                                            onClick={() =>
-                                                setVisibleVersionCount(
-                                                    (count) =>
-                                                        count + VERSION_PAGE,
-                                                )
-                                            }
-                                        >
+                                            onClick={() => setVisibleVersionCount((count) =>
+                                                count + VERSION_PAGE)}>
                                             Show more
                                         </button>
                                     </td></tr>
@@ -452,16 +399,11 @@ export function DocumentSidePanel({
                         </p>
                     )}
                     <div className="flex shrink-0 justify-between gap-2 pt-3">
-                        <Button
-                            variant="danger"
-                            size="compact"
+                        <Button variant="danger" size="compact"
                             onClick={() => void onDelete(activeDoc)}
-                            disabled={!!pendingAction}
-                        >
+                            disabled={!!pendingAction}>
                             <Trash2 className="h-3.5 w-3.5" />
-                            {documentRemovalMode === "detach"
-                                ? "Remove"
-                                : "Delete"}
+                            {documentRemovalMode === "detach" ? "Remove" : "Delete"}
                         </Button>
                         <Button size="compact" onClick={() => onUploadNewVersion(activeDoc)}
                             disabled={!!pendingAction}>
@@ -479,10 +421,7 @@ export function DocumentSidePanel({
 }
 
 function VersionRow({ version, selected, current, onSelect }: {
-    version: DocumentVersion;
-    selected: boolean;
-    current: boolean;
-    onSelect: () => void;
+    version: DocumentVersion; selected: boolean; current: boolean; onSelect: () => void;
 }) {
     const title = versionTitle(version), name = versionFilename(version);
     const provenance = version.provenance?.actor === "assistant"
@@ -521,9 +460,6 @@ function documentViewKind(name: string, type: string) {
             : isDocxFilename(name) || type === "docx" || type === "doc" ? "docx" : type === "pdf" ? "pdf" : null;
 }
 
-function fileType(
-    version: DocumentVersion | null,
-    fallback: string | null | undefined,
-) {
+function fileType(version: DocumentVersion | null, fallback: string | null | undefined) {
     return version?.file_type.toLowerCase() || fallback?.toLowerCase() || "";
 }
