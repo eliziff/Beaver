@@ -130,101 +130,73 @@ if (runtime.mode === "cloud") api.use(
     mod.createAuthRouter(publicOrigin()))),
 );
 
-api.use(
-  "/chat",
-  lazyRouter(async () => {
+/** Mounted in order; Express resolves the first matching prefix. */
+type Mount = [path: string, load: () => Promise<Router>];
+const mounts: Mount[] = [
+  ["/chat", async () => {
     const { createChatRouter } = await import("./routes/chat");
     const [chats, chat] = await Promise.all([
       runtime.chats(), runtime.chat(),
     ]);
     const { durableChatTurns } = await import("./lib/chatTurnQueue");
     return createChatRouter(chats, chat, durableChatTurns);
-  }),
-);
-api.use(
-  "/projects",
-  lazyRouter(async () => {
+  }],
+  ["/projects", async () => {
     const { createProjectsRouter } = await import("./routes/projects");
     const [projects, chats, documents] = await Promise.all([
       runtime.projects(), runtime.chats(), runtime.documents(),
     ]);
     return createProjectsRouter(projects, chats, documents);
-  }),
-);
-api.use(
-  "/single-documents",
-  lazyRouter(async () => {
+  }],
+  ["/single-documents", async () => {
     const { createDocumentsRouter } = await import("./routes/documentRoutes");
     const [library, documents] = await Promise.all([
       runtime.library(), runtime.documents(),
     ]);
     return createDocumentsRouter(library, documents);
-  }),
-);
-api.use("/source-workspaces", lazyRouter(async () => (await import("./routes/sourceWorkspaces"))
-  .createSourceWorkspacesRouter(await runtime.sources())));
-api.use(
-  "/sources",
-  lazyRouter(async () => (await import("./routes/legalLibrary"))
-    .createLegalLibraryRouter(await runtime.legalSources())),
-);
-api.use(
-  "/library",
-  lazyRouter(async () => {
+  }],
+  ["/source-workspaces", async () => (await import("./routes/sourceWorkspaces"))
+    .createSourceWorkspacesRouter(await runtime.sources())],
+  ["/sources", async () => (await import("./routes/legalLibrary"))
+    .createLegalLibraryRouter(await runtime.legalSources())],
+  ["/library", async () => {
     const { createLibraryRouter } = await import("./routes/library");
     const [library, documents] = await Promise.all([
       runtime.library(), runtime.documents(),
     ]);
     return createLibraryRouter(library, documents);
-  }),
-);
-api.use(
-  "/court-records",
-  lazyRouter(async () => (await import("./routes/courtRecords"))
-    .createCourtRecordsRouter(await runtime.courtRecords())),
-);
-if (runtime.mode === "local") api.use(
-  "/authorities-runtime",
-  lazyRouter(async () => (await import("./routes/authoritiesRuntime"))
-    .createAuthoritiesRuntimeRouter(requireAuth)),
-);
-api.use("/quote-check", lazyRouter(async () => (await import("./routes/quoteCheck"))
-  .createQuoteCheckRouter(await runtime.documents())));
-api.use(
-  "/authorities",
-  lazyRouter(async () => (await import("./routes/authorities"))
-    .createAuthoritiesRouter(await runtime.authoritiesWorkspace())),
-);
-api.use(
-  "/tabular-review",
-  lazyRouter(async () => {
+  }],
+  ["/court-records", async () => (await import("./routes/courtRecords"))
+    .createCourtRecordsRouter(await runtime.courtRecords())],
+  ...(runtime.mode === "local"
+    ? [["/authorities-runtime", async () => (await import("./routes/authoritiesRuntime"))
+      .createAuthoritiesRuntimeRouter(requireAuth)] satisfies Mount]
+    : []),
+  ["/quote-check", async () => (await import("./routes/quoteCheck"))
+    .createQuoteCheckRouter(await runtime.documents())],
+  ["/authorities", async () => (await import("./routes/authorities"))
+    .createAuthoritiesRouter(await runtime.authoritiesWorkspace())],
+  ["/tabular-review", async () => {
     const { createTabularRouter } = await import("./routes/tabular");
     return createTabularRouter(await runtime.tabular());
-  }),
-);
-api.use(
-  "/workflows",
-  lazyRouter(async () => {
+  }],
+  ["/workflows", async () => {
     const [{ createWorkflowsRouter }, workflows] = await Promise.all([
       import("./routes/workflows"), runtime.workflows(),
     ]);
     return createWorkflowsRouter(workflows.repository, workflows.collaboration);
-  }),
-);
-api.use(
-  "/work-products",
-  lazyRouter(async () => (await import("./routes/workProducts"))
-    .createWorkProductsRouter(await runtime.workProducts())),
-);
-api.use("/audit", lazyRouter(async () => (await import("./routes/audit"))
-  .createAuditRouter(await runtime.audit())));
-api.use("/user", lazyRouter(async () =>
-  (await import("./routes/user")).createUserRouter(await runtime.user())));
-api.use(
-  "/models",
-  lazyRouter(async () =>
-    (await import("./routes/models")).createModelsRouter(await runtime.user())),
-);
+  }],
+  ["/work-products", async () => (await import("./routes/workProducts"))
+    .createWorkProductsRouter(await runtime.workProducts())],
+  ["/audit", async () => (await import("./routes/audit"))
+    .createAuditRouter(await runtime.audit())],
+  ["/user", async () =>
+    (await import("./routes/user")).createUserRouter(await runtime.user())],
+  ["/models", async () =>
+    (await import("./routes/models")).createModelsRouter(await runtime.user())],
+];
+for (const [path, load] of mounts) api.use(path, lazyRouter(load));
+
 api.get("/config", (_req, res) => {
   res.json(publicRuntimeConfig());
 });
