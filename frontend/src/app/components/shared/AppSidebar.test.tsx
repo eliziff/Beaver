@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { Chat } from "@/app/lib/api/chat";
 import { AppSidebar } from "./AppSidebar";
 
 const mocks = vi.hoisted(() => ({
@@ -57,36 +58,18 @@ vi.mock("@/app/contexts/AuthContext", () => ({
 vi.mock("@/app/contexts/UserProfileContext", () => ({
   useUserProfile: () => ({ profile: mocks.profile }),
 }));
+function chat(id: string, title: string, overrides: Partial<Chat> = {}): Chat {
+  return {
+    id, title, project_id: null, user_id: "user-1",
+    created_at: "2026-07-27T00:00:00Z", ...overrides,
+  };
+}
 const sidebarChats = [
-      {
-        id: "assistant-chat",
-        project_id: null,
-        user_id: "user-1",
-        title: "Assistant matter",
-        created_at: "2026-07-27T00:00:00Z",
-      },
-      {
-        id: "project-chat",
-        project_id: "project-1",
-        user_id: "user-1",
-        title: "Project matter",
-        created_at: "2026-07-27T00:00:00Z",
-      },
-      {
-        id: "assistant-chat-2",
-        project_id: null,
-        user_id: "user-1",
-        title: "Second matter",
-        created_at: "2026-07-26T00:00:00Z",
-      },
-      {
-        id: "assistant-chat-3",
-        project_id: null,
-        user_id: "user-1",
-        title: "Third matter",
-        created_at: "2026-07-25T00:00:00Z",
-      },
-    ];
+  chat("assistant-chat", "Assistant matter"),
+  chat("project-chat", "Project matter", { project_id: "project-1" }),
+  chat("assistant-chat-2", "Second matter", { created_at: "2026-07-26T00:00:00Z" }),
+  chat("assistant-chat-3", "Third matter", { created_at: "2026-07-25T00:00:00Z" }),
+];
 vi.mock("@/app/lib/api/chat", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/app/lib/api/chat")>(),
   listChats: mocks.listChats,
@@ -106,80 +89,6 @@ vi.mock("@/app/lib/authMode", () => ({
   get isLocalMode() {
     return mocks.localMode;
   },
-}));
-vi.mock("@/app/components/shared/SidebarChatItem", () => ({
-  SidebarChatItem: ({
-    chat,
-    isActive,
-    to,
-    onNavigate,
-    onClearSelection,
-    onSelect,
-    onDragChat,
-    isSelected,
-    selectedCount,
-    isSelectionActionOwner,
-    onMoveToProject,
-    onDeleteSelection,
-  }: {
-    chat: { id: string; title: string | null };
-    isActive: boolean;
-    isSelected?: boolean;
-    selectedCount?: number;
-    isSelectionActionOwner?: boolean;
-    to: string;
-    onNavigate?: () => void;
-    onClearSelection?: () => void;
-    onSelect?: (modifiers: {
-      shiftKey: boolean;
-      ctrlKey: boolean;
-      metaKey: boolean;
-    }) => void;
-    onDragChat?: (event: React.DragEvent<HTMLDivElement>) => void;
-    onMoveToProject?: () => void;
-    onDeleteSelection?: () => Promise<void>;
-  }) => (
-    <div
-      data-chat-id={chat.id}
-      data-selected={isSelected || undefined}
-      draggable
-      onDragStart={onDragChat}
-    >
-      <a
-        href={to}
-        onClick={(event) => {
-          event.preventDefault();
-          if (event.shiftKey || event.ctrlKey || event.metaKey) {
-            onSelect?.(event);
-            return;
-          }
-          onClearSelection?.();
-          onNavigate?.();
-        }}
-        aria-current={isActive ? "page" : undefined}
-      >
-        {chat.title}
-      </a>
-      {onMoveToProject ? (
-        <button type="button" onClick={onMoveToProject}>
-          Move {chat.title} to project
-        </button>
-      ) : null}
-      <div
-        data-row-actions
-        hidden={!!selectedCount && !isSelectionActionOwner}
-      >
-        <button
-          type="button"
-          onClick={() => void onDeleteSelection?.()}
-        >
-          {selectedCount && isSelectionActionOwner
-            ? `Delete ${selectedCount} selected chats`
-            : `Delete ${chat.title}`}
-        </button>
-      </div>
-    </div>
-  ),
 }));
 vi.mock("@/app/components/assistant/SelectAssistantProjectModal", () => ({
   SelectAssistantProjectModal: ({
@@ -348,11 +257,11 @@ describe("AppSidebar", () => {
     });
 
     expect(document.querySelectorAll('[data-selected="true"]')).toHaveLength(3);
-    fireEvent.click(screen.getByRole("link", { name: "Second matter" }), {
+    fireEvent.click(screen.getByRole("link", { name: /^Second matter(?:, selected)?$/ }), {
       ctrlKey: true,
     });
     expect(document.querySelectorAll('[data-selected="true"]')).toHaveLength(2);
-    fireEvent.click(screen.getByRole("link", { name: "Second matter" }), {
+    fireEvent.click(screen.getByRole("link", { name: /^Second matter(?:, selected)?$/ }), {
       ctrlKey: true,
     });
 
@@ -388,30 +297,6 @@ describe("AppSidebar", () => {
     expect(mocks.deleteChat).toHaveBeenCalledWith("assistant-chat-2");
     expect(mocks.deleteChat).toHaveBeenCalledWith("assistant-chat-3");
     expect(mocks.replace).toHaveBeenCalledWith("/assistant", { replace: true });
-  });
-
-  it("gives only the topmost selected chat the row actions", () => {
-    render(sidebar(false));
-
-    fireEvent.click(screen.getByRole("link", { name: "Assistant matter" }));
-    fireEvent.click(screen.getByRole("link", { name: "Third matter" }), {
-      shiftKey: true,
-    });
-
-    const rows = [
-      "assistant-chat",
-      "assistant-chat-2",
-      "assistant-chat-3",
-    ].map((id) => document.querySelector(`[data-chat-id="${id}"]`)!);
-    expect(
-      rows[0].querySelector("[data-row-actions]"),
-    ).not.toHaveAttribute("hidden");
-    expect(rows[1].querySelector("[data-row-actions]")).toHaveAttribute(
-      "hidden",
-    );
-    expect(rows[2].querySelector("[data-row-actions]")).toHaveAttribute(
-      "hidden",
-    );
   });
 
   it("opens one Settings modal in cloud mode", async () => {

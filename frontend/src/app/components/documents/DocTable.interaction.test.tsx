@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { Profiler, useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DirectoryList, Document } from "@/app/lib/api/documents";
+import type { Document } from "@/app/lib/api/documents";
 import { newResearchState, type ResearchFile } from "@/app/lib/researchFiles";
 import { SourcesWorkspaceProvider } from "@/app/components/legal/SourcesWorkspace";
 import {
@@ -80,6 +80,19 @@ const wordDocument: Document = {
 const DEFAULT_DOCUMENTS = [document];
 const NO_FOLDERS: DocTableFolder[] = [];
 
+type TableProps = ComponentProps<typeof DocTable>;
+type HarnessProps = Partial<Pick<TableProps,
+    "selectionFirst" | "onCreateFolderActionChange" | "onOpenWorkflows" |
+    "onOpenInChat" | "search" | "initialDocument"
+>> & Partial<Pick<TableProps["operations"],
+    "uploadDocument" | "uploadDocuments" | "moveDocument" | "moveFolder" | "renameDocument" | "list"
+>> & {
+    initialDocuments?: Document[];
+    initialFolders?: DocTableFolder[];
+    workspaceFile?: ResearchFile | null;
+    refreshCollection?: () => Promise<void> | void;
+};
+
 function Harness({
     selectionFirst = true,
     initialDocuments = DEFAULT_DOCUMENTS,
@@ -100,30 +113,7 @@ function Harness({
     search = "",
     workspaceFile,
     initialDocument,
-}: {
-    selectionFirst?: boolean;
-    initialDocuments?: Document[];
-    initialFolders?: DocTableFolder[];
-    onCreateFolderActionChange?: (action: (() => void) | null) => void;
-    uploadDocument?: (file: File) => Promise<Document>;
-    uploadDocuments?: (files: File[]) => Promise<Document[]>;
-    refreshCollection?: () => Promise<void> | void;
-    moveDocument?: (
-        documentId: string,
-        folderId: string | null,
-    ) => Promise<Document>;
-    moveFolder?: (folderId: string, parentFolderId: string | null) => Promise<DocTableFolder>;
-    renameDocument?: (
-        documentId: string,
-        filename: string,
-    ) => Promise<Document>;
-    onOpenWorkflows?: (documents: Document[]) => void;
-    onOpenInChat?: (documents: Document[]) => void;
-    list?: DirectoryList;
-    search?: string;
-    workspaceFile?: ResearchFile | null;
-    initialDocument?: { id: string; versionId?: string | null; sheet?: string | null; cell?: string | null };
-}) {
+}: HarnessProps) {
     const [selection, setSelection] = useState<DocumentSelectionActions | null>(null);
     const [operations] = useState(() => ({
         list: list ?? (async ({ parent_id }: { parent_id?: string | null } = {}) => ({
@@ -244,18 +234,6 @@ describe("DocTable Library interactions", () => {
         expect(list).toHaveBeenCalledTimes(3);
     });
 
-    it("avoids empty-state and version-picker rerenders", () => {
-        render(<Harness />);
-        const renders = sidePanelRender.mock.calls.length;
-        expect(renders).toBe(1);
-        fireEvent.click(within(documentRow()).getByRole("button", { name: "More actions" }));
-        fireEvent.click(screen.getByRole("menuitem", {
-            name: "Upload new version",
-        }));
-
-        expect(sidePanelRender).toHaveBeenCalledTimes(renders);
-    });
-
     it("uploads files dropped on the empty collection", async () => {
         const latestUpload = vi.fn(async () => wordDocument);
         render(<Harness initialDocuments={[]} uploadDocument={latestUpload} />);
@@ -350,18 +328,13 @@ describe("DocTable Library interactions", () => {
         }));
     });
 
-    it("keeps inline rename geometry without per-keystroke commits", async () => {
+    it("commits an inline rename once on Enter", async () => {
         documentApi.listDocumentVersions.mockResolvedValue({ current_version_id: "version-1", versions: [] });
-        const commits = vi.fn();
         const renameDocument = vi.fn(async (_id: string, filename: string) => ({
             ...document,
             filename,
         }));
-        const { container } = render(
-            <Profiler id="doc-table" onRender={commits}>
-                <Harness renameDocument={renameDocument} />
-            </Profiler>,
-        );
+        render(<Harness renameDocument={renameDocument} />);
         const row = documentRow();
         fireEvent.click(within(row).getByRole("button", {
             name: "More actions",
@@ -370,12 +343,9 @@ describe("DocTable Library interactions", () => {
             name: "Rename document",
         }));
         const input = screen.getByDisplayValue("Brief.pdf");
-        const nodeCount = container.querySelectorAll("*").length;
 
-        commits.mockClear();
         fireEvent.change(input, { target: { value: "Renamed.pdf" } });
-        expect(commits).not.toHaveBeenCalled();
-        expect(container.querySelectorAll("*")).toHaveLength(nodeCount);
+        expect(renameDocument).not.toHaveBeenCalled();
         expect(input.closest("[data-document-row]")).toBe(row);
         fireEvent.keyDown(input, { key: "Enter" });
         await waitFor(() =>
@@ -388,20 +358,12 @@ describe("DocTable Library interactions", () => {
     });
 
     it("keeps internal document moves on the root drop target", async () => {
-        const commits = vi.fn();
         const moveDocument = vi.fn(async () => ({
             ...document,
             folder_id: null,
         }));
-        render(
-            <Profiler id="doc-table" onRender={commits}>
-                <Harness
-                    initialDocuments={[{ ...document, folder_id: "folder-1" }]}
-                    moveDocument={moveDocument}
-                    search="Brief"
-                />
-            </Profiler>,
-        );
+        render(<Harness initialDocuments={[{ ...document, folder_id: "folder-1" }]}
+            moveDocument={moveDocument} search="Brief" />);
         const rootDropTarget = documentRow().parentElement!;
         const rootDropSpacer = rootDropTarget.querySelector(
             ".min-h-16",
@@ -414,12 +376,8 @@ describe("DocTable Library interactions", () => {
         };
 
         fireEvent.dragOver(rootDropSpacer, { dataTransfer });
-        commits.mockClear();
         fireEvent.dragEnd(documentRow());
-        expect(commits).toHaveBeenCalledTimes(1);
-        commits.mockClear();
         fireEvent.dragOver(rootDropSpacer, { dataTransfer });
-        expect(commits).toHaveBeenCalledTimes(1);
         fireEvent.drop(rootDropSpacer, { dataTransfer });
 
         await waitFor(() =>

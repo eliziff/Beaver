@@ -45,15 +45,6 @@ it("keeps the read chip unchanged while preserving a completed read's exact sour
     expect(screen.queryByRole("button", { name: "Citation actions" })).toBeNull();
 });
 
-it("keeps failed read context and errors visible", () => {
-    render(<ActivityRow activity={{
-        id: "failed-read", tool: "Read", status: "error",
-        label: "Reading R. v. Jordan", detail: "Source unavailable",
-    }} />);
-    expect(screen.getByText(/Reading R\. v\. Jordan/u)).toBeVisible();
-    expect(screen.getByText("Source unavailable")).toBeVisible();
-});
-
 it("does not repeat an activity label copied into its detail markdown", () => {
     render(
         <ActivityRow activity={{

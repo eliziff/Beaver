@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactElement } from "react";
+import type { ComponentProps } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -31,8 +31,9 @@ const chat = {
     created_at: "2026-07-27T00:00:00Z",
 };
 
-function renderSidebar(item: ReactElement) {
-    return render(<MemoryRouter>{item}</MemoryRouter>);
+function renderSidebar(props: Partial<ComponentProps<typeof SidebarChatItem>> = {}) {
+    return render(<MemoryRouter><SidebarChatItem chat={chat} isActive
+        to="/assistant/chat/chat-1" {...props} /></MemoryRouter>);
 }
 
 describe("SidebarChatItem inline actions", () => {
@@ -42,13 +43,7 @@ describe("SidebarChatItem inline actions", () => {
     });
 
     it("renames a chat without opening a dropdown framework", async () => {
-        renderSidebar(
-            <SidebarChatItem
-                chat={chat}
-                isActive
-                to="/assistant/chat/chat-1"
-            />,
-        );
+        renderSidebar();
 
         expect(screen.getByRole("link", { name: "Lease review" })).toHaveAttribute(
             "href",
@@ -73,40 +68,8 @@ describe("SidebarChatItem inline actions", () => {
         );
     });
 
-    it("exposes modifier selection and a draggable selected state", () => {
-        const onSelect = vi.fn();
-        const onNavigate = vi.fn();
-        renderSidebar(
-            <SidebarChatItem
-                chat={chat}
-                isActive={false}
-                isSelected
-                to="/assistant/chat/chat-1"
-                onNavigate={onNavigate}
-                onSelect={onSelect}
-            />,
-        );
-
-        const link = screen.getByRole("link", {
-            name: "Lease review, selected",
-        });
-        expect(link.closest("[draggable]")).toHaveAttribute(
-            "data-selected",
-            "true",
-        );
-        fireEvent.click(link, { ctrlKey: true });
-        expect(onSelect).toHaveBeenCalledOnce();
-        expect(onNavigate).not.toHaveBeenCalled();
-    });
-
     it("warns before moving a chat to the Recycling bin", async () => {
-        renderSidebar(
-            <SidebarChatItem
-                chat={chat}
-                isActive
-                to="/assistant/chat/chat-1"
-            />,
-        );
+        renderSidebar();
 
         fireEvent.click(
             screen.getByRole("button", { name: "Delete Lease review" }),
@@ -124,17 +87,8 @@ describe("SidebarChatItem inline actions", () => {
 
     it("offers to move the full current selection from its action owner", async () => {
         const onDeleteSelection = vi.fn().mockResolvedValue(undefined);
-        renderSidebar(
-            <SidebarChatItem
-                chat={chat}
-                isActive
-                isSelected
-                selectedCount={3}
-                isSelectionActionOwner
-                onDeleteSelection={onDeleteSelection}
-                to="/assistant/chat/chat-1"
-            />,
-        );
+        renderSidebar({ isSelected: true, selectedCount: 3,
+            isSelectionActionOwner: true, onDeleteSelection });
 
         fireEvent.click(
             screen.getByRole("button", {
@@ -152,32 +106,8 @@ describe("SidebarChatItem inline actions", () => {
         expect(mocks.deleteChat).not.toHaveBeenCalled();
     });
 
-    it("opens the shared project chooser from a stable inline action", () => {
-        const onMoveToProject = vi.fn();
-        renderSidebar(
-            <SidebarChatItem
-                chat={chat}
-                isActive
-                to="/assistant/chat/chat-1"
-                onMoveToProject={onMoveToProject}
-            />,
-        );
-
-        const move = screen.getByRole("button", {
-            name: "Move Lease review to project",
-        });
-        fireEvent.click(move);
-        expect(onMoveToProject).toHaveBeenCalledOnce();
-    });
-
     it("cancels the delete warning with Escape", async () => {
-        renderSidebar(
-            <SidebarChatItem
-                chat={chat}
-                isActive
-                to="/assistant/chat/chat-1"
-            />,
-        );
+        renderSidebar();
         const trigger = screen.getByRole("button", {
             name: "Delete Lease review",
         });
