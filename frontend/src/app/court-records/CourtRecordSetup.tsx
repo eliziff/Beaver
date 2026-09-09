@@ -1,4 +1,4 @@
-import { ChevronDown, Plus, X } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useRef, useState, type ChangeEvent } from "react";
 import { CourtChoiceModal, type CourtChoice } from "@/app/components/modals/CourtChoiceModal";
 import { ModalTextarea } from "@/app/components/modals/ModalTextarea";
@@ -138,16 +138,18 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
       .filter((party) => party.name.trim())
       .map((party) => ({ party, group })));
 
-  /** One row per party, the way the names stand in the style of cause on the cover. */
-  function commitParties(definition: (typeof definitions)[number], parties: CasePartyGroup["parties"]) {
-    const reindexed = parties.map((party, index) => ({ ...party, id: `${definition.id}-${index + 1}` }));
+  /** One name per line, the way the names stand in the style of cause on the cover. */
+  function changeNames(definition: (typeof definitions)[number], value: string) {
+    const previous = groups.find((group) => group.id === definition.id)?.parties ?? [];
+    const parties = value.split("\n").map((name, index) =>
+      ({ ...(previous[index] ?? { id: `${definition.id}-${index + 1}` }), name }));
     const kept = groups.filter((group) => group.id !== definition.id);
-    const hasName = reindexed.some((party) => party.name.trim());
-    const next = hasName || !definition.optional ? [...kept, { id: definition.id,
-      role: definition.role, roleBelow: definition.roleBelow, parties: reindexed }] : kept;
-    onCover("partyGroups", definitions.flatMap((item) => next.filter((group) => group.id === item.id)));
-    const filers = next.filter((group) => !profile.cover.filingGroupId || group.id === profile.cover.filingGroupId)
-      .flatMap((group) => group.parties.filter((party) => party.name.trim()));
+    const next = value.trim() || !definition.optional ? [...kept, { id: definition.id,
+      role: definition.role, roleBelow: definition.roleBelow, parties }] : kept;
+    onCover("partyGroups", definitions.flatMap((item) =>
+      next.filter((group) => group.id === item.id)));
+    const filers = next.filter((group) => !profile.cover.filingGroupId ||
+      group.id === profile.cover.filingGroupId).flatMap((group) => group.parties.filter((party) => party.name.trim()));
     const selected = filers.filter((party) => cover.filingPartyIds?.includes(party.id));
     onCover("filingPartyIds", (selected.length ? selected : filers.length === 1 ? filers : []).map(({ id }) => id));
   }
@@ -213,40 +215,27 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {definitions.map((definition) => {
-          const parties = groups.find((group) => group.id === definition.id)?.parties ?? [{ id: `${definition.id}-1`, name: "" }];
+          const group = groups.find((item) => item.id === definition.id);
           const required = !definition.optional || definition.id === profile.cover.filingGroupId;
-          const invalid = required && missingFields.has("partyGroups") && !parties.some((party) => party.name.trim());
+          const invalid = required && missingFields.has("partyGroups") &&
+            !group?.parties.some((party) => party.name.trim());
           return (
-            <div key={definition.id} data-party-group={definition.role}
-              data-party-group-id={definition.id} className="min-w-0">
-              <span className="text-sm font-medium leading-5 text-gray-700">
-                {definition.role}{required && <span className="ml-1 text-red-600" aria-hidden="true">*</span>}
-                {definition.roleBelow && <span className="ml-1 text-xs text-gray-500">({definition.roleBelow})</span>}
-              </span>
-              <div className="mt-1 space-y-1">
-                {parties.map((party, index) => (
-                  <div key={index} className="flex items-center gap-1.5">
-                    <Input id={index === 0 ? `party-${definition.id}` : undefined} value={party.name}
-                      placeholder={`${definition.role} name`} aria-invalid={invalid || undefined}
-                      aria-label={parties.length > 1 ? `${definition.role} name ${index + 1}` : `${definition.role} name`}
-                      aria-describedby={invalid ? `party-${definition.id}-error` : undefined}
-                      onChange={(event) => commitParties(definition, parties.map((party, i) =>
-                        i === index ? { ...party, name: event.target.value } : party))}
-                      className={cn("h-9 bg-white font-normal", invalid && "border-red-500")} />
-                    {parties.length > 1 && <Button type="button" variant="ghost" size="icon-sm"
-                      aria-label={`Remove ${definition.role} ${index + 1}`} className="shrink-0 text-gray-500 hover:text-gray-800"
-                      onClick={() => commitParties(definition, parties.filter((_, i) => i !== index))}>
-                      <X className="size-4" /></Button>}
-                    {index === parties.length - 1 && <Button type="button" variant="ghost"
-                      className="h-9 shrink-0 whitespace-nowrap px-2 text-sm text-gray-600 hover:text-gray-900"
-                      onClick={() => commitParties(definition, [...parties, { id: "", name: "" }])}>
-                      <Plus className="size-4" /> Add {definition.role.toLowerCase()}</Button>}
-                  </div>
-                ))}
-              </div>
+            <label key={definition.id} data-party-group={definition.role}
+              data-party-group-id={definition.id} className="block min-w-0 text-sm font-semibold text-gray-950">
+              {definition.role}{required && <span className="ml-1 text-red-600" aria-hidden="true">*</span>}
+              {definition.roleBelow && <span className="block text-xs font-normal text-gray-500">
+                {definition.roleBelow} below
+              </span>}
+              <ModalTextarea id={`party-${definition.id}`} rows={2}
+                value={(group?.parties ?? []).map(({ name }) => name).join("\n")}
+                aria-label={`${definition.role} names, one per line`}
+                aria-invalid={invalid || undefined}
+                aria-describedby={invalid ? `party-${definition.id}-error` : undefined}
+                onChange={(event) => changeNames(definition, event.target.value)}
+                className={cn("mt-1.5 min-h-20 font-normal", invalid && "border-red-500")} />
               {invalid && <span id={`party-${definition.id}-error`}
                 className="mt-1 block text-sm font-normal text-red-700">Required</span>}
-            </div>
+            </label>
           );
         })}
       </div>

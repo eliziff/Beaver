@@ -954,7 +954,7 @@ function focusFinding(finding?: ComplianceFinding) {
       .find((item) => item.dataset.contactFindingId === finding.id);
     target = contact?.querySelector<HTMLElement>("[aria-invalid=true], input, textarea") ?? null;
   } else if (finding.fieldId === "partyGroups") {
-    target = document.querySelector(`[data-party-group-id="${finding.id.slice(6)}"] input`);
+    target = document.querySelector(`[data-party-group-id="${finding.id.slice(6)}"] textarea`);
   } else if (finding.fieldId) {
     target = document.getElementById(`cover-${finding.fieldId}`);
   } else if (finding.entryId) {
