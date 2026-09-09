@@ -1,5 +1,4 @@
 import { researchLabelPath, type ResearchLabel } from "@/app/lib/researchFiles";
-import { FolderSvgIcon } from "../shared/FolderSvgIcon";
 
 export const researchLabelColor = (label: ResearchLabel) => label.color ??
   (label.scope === "highlight" ? "#eab308" : "#3498db");
@@ -11,13 +10,13 @@ const TABS = 3;
 export function ResearchLabelFolder({ labels, labelId, size = "md" }: {
   labels: Record<string, ResearchLabel>; labelId: string | null; size?: keyof typeof BOX }) {
   const path = labelId ? researchLabelPath(labels, labelId) : [];
-  if (!path.length) return <span aria-hidden className={`${BOX[size]} grid shrink-0 place-items-center`}><FolderSvgIcon className="size-3.5 text-gray-400" /></span>;
-  const tabs = path.slice(0, TABS), width = 100 / TABS;
-  return <span aria-hidden data-label-folder={path.at(-1)!.id} data-label-depth={path.length}
+  // Hollow, like the dock's label folders; a blank folder keeps the full size in grey.
+  const tabs = path.slice(0, TABS), width = 100 / TABS, blank = "#d1d5db";
+  return <span aria-hidden data-label-folder={path.at(-1)?.id} data-label-depth={path.length}
     className={`relative block ${BOX[size]} shrink-0`}>
-    {tabs.map((label, index) => <span key={label.id} className="absolute top-0 h-[42%] rounded-t-[2px]"
-      style={{ background: researchLabelColor(label), width: `${width}%`, insetInlineStart: `${index * width}%` }} />)}
-    <span className="absolute inset-x-0 bottom-0 top-[26%] rounded-[3px]" style={{ background: researchLabelColor(path[0]) }} />
+    {(path.length ? tabs : [null]).map((label, index) => <span key={label?.id ?? "blank"} className="absolute top-0 h-[42%] rounded-t-[2px] border border-b-0 bg-white"
+      style={{ borderColor: label ? researchLabelColor(label) : blank, width: `${width}%`, insetInlineStart: `${index * width}%` }} />)}
+    <span className="absolute inset-x-0 bottom-0 top-[26%] rounded-[3px] border-2 bg-white" style={{ borderColor: path[0] ? researchLabelColor(path[0]) : blank }} />
   </span>;
 }
 

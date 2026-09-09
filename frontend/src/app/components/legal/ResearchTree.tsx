@@ -1,6 +1,6 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, ChevronRight } from "lucide-react";
+import { BookOpen, ChevronRight, FileText, Gavel, Landmark, Newspaper, ScrollText } from "lucide-react";
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { Button } from "../ui/button";
 import { researchHighlightCount, researchLabelPath, type ResearchEvidence, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
@@ -15,6 +15,7 @@ import { sourceName, type SourceReader } from "./useSourceReader";
 export type ResearchRemoval = { kind: "label" | "source" | "evidence"; id: string; name: string; sourceId?: string };
 export type ResearchTreePreview = { labels: Record<string, ResearchLabel>; marks: Record<string, "added" | "changed"> };
 const NO_ROWS = new Set<string>();
+const KIND_ICON = { case: Gavel, legislation: ScrollText, journal: Newspaper, hansard: Landmark, document: FileText } as const;
 const NEWLINE = "\n";
 /** File-explorer row: one fixed-height line, chevron, glyph, name, actions, number.
  *  Nothing wraps, so a row can never grow into the one above it. */
@@ -65,6 +66,7 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
       <button type="button" data-source-marker={source.id} disabled={!!preview} aria-label={`Label ${name}`} onClick={(event) => setLabelTarget({ file: file!, kind: "source", itemId: source.id,
         labelIds: source.labelIds, note: source.note, title: name, anchor: event.currentTarget.getBoundingClientRect(), returnFocus: event.currentTarget })} className="grid min-h-6 shrink-0 place-items-center rounded">
         <ResearchLabelMarker labels={labels} labelIds={source.labelIds} size="sm" /></button>
+      {(() => { const Icon = KIND_ICON[source.reference.kind] ?? FileText; return <Icon aria-hidden className="size-3.5 shrink-0 text-gray-500" />; })()}
       <button type="button" disabled={!!preview} onClick={() => openSource(source.id)} title={[name, source.note].filter(Boolean).join(NEWLINE)}
         aria-current={selectedSourceId === source.id ? "true" : undefined} data-mark={mark(source.id)}
         className={`min-w-0 flex-1 truncate text-start text-sm text-gray-700 ${mark(source.id) ? "font-semibold underline decoration-gray-400" : ""}`}>{name}</button>
