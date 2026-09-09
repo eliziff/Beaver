@@ -1,6 +1,6 @@
 import { MAX_PROVIDER_TOOL_ARGUMENT_BYTES,
   type ProviderAdapter, type ProviderEvent, type ProviderStep } from "./providerLoop";
-import { runtimeConstructor } from "./runtimeSdk";
+import type OpenAI from "openai";
 import type { LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
 import { isJsonRecord } from "../value";
 
@@ -11,23 +11,7 @@ export type CompatibleMessage = Record<string, unknown> & {
 
 type State = { messages: CompatibleMessage[] };
 type PendingCall = { id: string; name: string; arguments: string };
-type OpenAIClient = {
-  chat: {
-    completions: {
-      create(
-        request: Record<string, unknown>,
-        options: { signal?: AbortSignal; maxRetries: number },
-      ): Promise<AsyncIterable<unknown>>;
-    };
-  };
-};
-type OpenAIConstructor = new (options: {
-  apiKey: string;
-  baseURL: string;
-  defaultHeaders?: Record<string, string>;
-  maxRetries: number;
-}) => OpenAIClient;
-const openAI = runtimeConstructor<OpenAIConstructor>("openai");
+const openAI = import("openai").then((sdk) => sdk.default);
 
 type CompatibleWireConfig = {
   apiKey: string;
@@ -115,7 +99,7 @@ export function createCompatibleWireAdapter(
       try {
         stream = await (await client).chat.completions.create({
           model: config.model,
-          messages: requestMessages,
+          messages: requestMessages as OpenAI.ChatCompletionMessageParam[],
           tools: wireTools(step.tools),
           max_tokens: params.maxTokens ?? config.maxTokens,
           stream: true,
