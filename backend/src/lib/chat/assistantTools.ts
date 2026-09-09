@@ -304,8 +304,8 @@ const workProductTool = (authoritiesEnabled: boolean, bound = false,
   description: (bound ? "Read, review, update, refresh, or build the active Authorities draft. "
     : "Create, read, select, or update Court Record and Authorities drafts. Read without draft_id to list drafts. ") +
     "Use unit_id or occurrence_id for text. Bound reads and citation " +
-    "actions default to the focused citation and selection. merge-occurrence joins the previous " +
-    "citation; remove-occurrence marks non-citation text. Update with authorities_action, " +
+    "actions default to the focused citation and selection, and each is a button beside it: " +
+    "set-authority-span (Use selection as citation), set-pinpoint-span (Use selection as pinpoint), split-occurrence (Split at cursor), merge-occurrence (Merge with previous), remove-occurrence (Not a citation). Update with authorities_action, " +
     "evidence_ids, authority_id + document_id + source_language, or book_slot + document_id. " +
     "Reuse supplement_id to replace a supplemental PDF or authorities_action.id to remove it.",
   annotations: { readOnlyHint: false },

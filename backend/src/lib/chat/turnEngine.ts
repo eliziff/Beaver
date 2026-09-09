@@ -827,9 +827,11 @@ export async function runChatTurn(options: {
         });
         finalized = finalizeLegalEvidence(evidence, text);
       }
+      // An answer that stays unverified is reported as one, and the turn keeps its completed
+      // reads and searches instead of dying with them.
       if (!finalized) {
-        text = "";
-        throw new Error("Grounding verification failed after correction attempts");
+        text = UNVERIFIED_LEGAL_ANSWER;
+        Object.assign(evidence, { answer: null, attempted: false, failure: null });
       }
       const priorCitations = legalEvidenceCitationEntries(evidence).filter(({ receipt, document, source }) =>
         evidence.priorEvidenceIds.has(receipt.evidence_id) && !document && !source);

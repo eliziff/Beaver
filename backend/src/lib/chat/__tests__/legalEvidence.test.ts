@@ -122,6 +122,18 @@ describe("production legal evidence", () => {
     expect(renderLegalEvidenceAnswer(state)).toBeNull();
   });
 
+  it("reports quoted citation text from the draft without demanding authorities", () => {
+    const reporting = createLegalEvidenceTurnState();
+    expect(finalizeLegalEvidence(reporting, "In-text citation 1 reads “Bhasin v. Hrynew, " +
+      "2014 SCC” and should read “Bhasin v. Hrynew, 2014 SCC 71”; use Use selection as citation."))
+      .toBe(true);
+    expect(reporting.failure).toBeNull();
+
+    const asserting = createLegalEvidenceTurnState();
+    expect(finalizeLegalEvidence(asserting, "Bhasin v. Hrynew, 2014 SCC 71 recognized good faith."))
+      .toBe(false);
+  });
+
   it("accepts registered passages and emits durable receipts", () => {
     const state = createLegalEvidenceTurnState();
     const evidence = passage();

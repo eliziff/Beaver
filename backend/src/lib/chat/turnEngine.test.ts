@@ -22,6 +22,7 @@ import {
   registerLegalEvidence,
   submitLegalEvidenceAnswer,
 } from "./legalEvidence";
+import { UNVERIFIED_LEGAL_ANSWER } from "./legalOutputGate";
 import { AssistantStreamError, runChatTurn, type ChatToolContext } from "./turnEngine";
 import { toolText, type BeaverTool } from "./toolRegistry";
 import { a2ajLegalSourceProvider } from "../legalSources/a2aj";
@@ -427,13 +428,14 @@ it("does not preserve an unsupported draft after grounding repairs fail", async 
     return { fullText: "R. v. Unsupported is decisive." };
   });
 
-  await expect(runChatTurn({
+  const result = await runChatTurn({
     model: "gemini-3-flash-preview",
     systemPrompt: "",
     messages: [{ role: "user", content: "Name a case." }],
     createTools: () => [],
     emit: () => undefined,
-  })).rejects.toMatchObject({ fullText: "" });
+  });
+  expect(result).toMatchObject({ status: "complete", fullText: UNVERIFIED_LEGAL_ANSWER });
   expect(stream).toHaveBeenCalledTimes(3);
 });
 
@@ -541,12 +543,14 @@ it.each(["failure", "cancellation", "grounding exhaustion"])(
       if (ending === "cancellation") signal.abort(new DOMException("Cancelled", "AbortError"));
       throw signal.signal.reason ?? new Error("Provider disconnected");
     });
-    const error = await runChatTurn({ model: "gemini-3-flash-preview", systemPrompt: "",
+    const outcome = await runChatTurn({ model: "gemini-3-flash-preview", systemPrompt: "",
       messages: [{ role: "user", content: "Cite this document." }], signal: signal.signal,
       createTools: () => [observedRead([passage])], emit() {},
     }).catch((error: unknown) => error);
-    expect(error).toBeInstanceOf(AssistantStreamError);
-    const events = (error as AssistantStreamError).events;
+    if (ending === "grounding exhaustion")
+      expect(outcome).toMatchObject({ status: "complete", fullText: UNVERIFIED_LEGAL_ANSWER });
+    else expect(outcome).toBeInstanceOf(AssistantStreamError);
+    const events = (outcome as AssistantStreamError).events;
     expect(priorLegalEvidenceReceipts(events)).toEqual([passage]);
     expect(priorLegalResearchQueryReceipts(events)).toMatchObject([{ call_id: "observed-read" }]);
     expect(events.filter(({ type }) => type === "legal_evidence_receipt")).toMatchObject([
