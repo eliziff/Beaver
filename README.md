@@ -2,16 +2,14 @@
 
 A local-first application for Canadian legal research, document review, drafting,
 and court materials, forked from [Mike](https://github.com/Open-Legal-Products/mike).
-Beaver is experimental software, not a filing-readiness or legal-accuracy guarantee.
-Review sources, quotations and generated documents before relying on them.
+Beaver is experimental software, and should not be expected to be stable or reliable. 
+I am publishing it in case anyone wants to borrow from it.
 
 ## What is here
 
 The application combines an assistant, a versioned Library, saved research with
 labels/highlights and an optional memo, tabular review, document operations, and
-Authorities/Court Records workspaces. Authorities has embedded and standalone
-hosts for the same TypeScript application and shared Rust operations; the older
-Python AuthoritiesHelper is a reference, not Beaver's runtime.
+Authorities/Court Records workspaces.
 
 React/Vite provides the UI and Express/TypeScript the application. Local mode uses
 SQLite and local document storage; cloud mode retains PostgreSQL/Supabase and
