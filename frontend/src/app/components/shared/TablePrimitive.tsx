@@ -1,17 +1,9 @@
 import "./loading.css";
-import {
-    type ComponentProps,
-    type HTMLAttributes,
-    type ReactNode,
-    type RefObject,
-    useRef,
-} from "react";
+import { type ComponentProps, type HTMLAttributes, type ReactNode, type RefObject,
+    useRef } from "react";
 import { cn } from "@/app/lib/utils";
-import {
-    APP_SURFACE_ACTIVE_CLASS,
-    APP_SURFACE_HOVER_CLASS,
-    LIQUID_TABLE_SURFACE_CLASS,
-} from "@/app/components/ui/liquid-surface";
+import { APP_SURFACE_ACTIVE_CLASS, APP_SURFACE_HOVER_CLASS, LIQUID_TABLE_SURFACE_CLASS }
+    from "@/app/components/ui/liquid-surface";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { Button } from "@/app/components/ui/button";
 import { CollectionState } from "./CollectionState";
@@ -21,30 +13,15 @@ export const TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS =
     "min-w-0 flex-1 sm:w-[260px] sm:flex-none md:w-[300px] xl:w-[320px] 2xl:w-[332px]";
 type DivProps = HTMLAttributes<HTMLDivElement>;
 export function SkeletonLine({ className }: { className?: string }) {
-    return (
-        <div
-            className={cn("beaver-loading-indicator h-3 rounded bg-gray-200", className)}
-        />
-    );
+    return <div className={cn("beaver-loading-indicator h-3 rounded bg-gray-200", className)} />;
 }
 function TableSelectionPlaceholder() {
-    return (
-        <span
-            aria-hidden="true"
-            className="-ml-2 mr-1 inline-flex min-h-9 min-w-9 shrink-0"
-        />
-    );
+    return <span aria-hidden="true" className="-ml-2 mr-1 inline-flex min-h-9 min-w-9 shrink-0" />;
 }
 export function TableSelectionCheckbox({
-    className,
-    indeterminate = false,
-    loading = false,
-    onClick,
-    ...props
+    className, indeterminate = false, loading = false, onClick, ...props
 }: Omit<ComponentProps<typeof CheckboxControl>, "ref"> & {
-    "aria-label": string;
-    indeterminate?: boolean;
-    loading?: boolean;
+    "aria-label": string; indeterminate?: boolean; loading?: boolean;
 }) {
     if (loading) return <TableSelectionPlaceholder />;
     return (
@@ -56,11 +33,8 @@ export function TableSelectionCheckbox({
         />
     );
 }
-export function useTableSelection<T extends { id: string }>(
-    rows: readonly T[],
-    selectedIds: readonly string[],
-    onChange: (ids: string[]) => void,
-) {
+export function useTableSelection<T extends { id: string }>(rows: readonly T[],
+    selectedIds: readonly string[], onChange: (ids: string[]) => void) {
     const anchor = useRef<string | null>(null);
     const selected = new Set(selectedIds);
     const allSelected = rows.length > 0 && rows.every(({ id }) => selected.has(id));
@@ -93,13 +67,8 @@ export function useTableSelection<T extends { id: string }>(
         },
     };
 }
-export function TableScrollArea({
-    children,
-    className,
-    header,
-    scrollRef,
-    horizontal = false,
-}: Omit<DivProps, "onScroll"> & {
+export function TableScrollArea({ children, className, header, scrollRef,
+    horizontal = false }: Omit<DivProps, "onScroll"> & {
     header?: ReactNode;
     scrollRef?: RefObject<HTMLDivElement | null>;
     horizontal?: boolean;
@@ -107,17 +76,14 @@ export function TableScrollArea({
     return (
         <div className={cn("mx-4 mb-2 min-h-0 min-w-0 flex-1 md:mx-6 md:mb-3", className)}>
             <div role="table" className={cn("flex h-full min-h-0 min-w-0 flex-col overflow-hidden", LIQUID_TABLE_SURFACE_CLASS)}>
-                <div
-                    ref={scrollRef}
+                <div ref={scrollRef}
                     className={cn(
                         "flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]",
                         horizontal ? "overflow-x-auto" : "overflow-x-hidden",
                     )}
                 >
                     {header && (
-                        <div className="sticky top-0 z-[70] min-w-0 shrink-0">
-                            {header}
-                        </div>
+                        <div className="sticky top-0 z-[70] min-w-0 shrink-0">{header}</div>
                     )}
                     {children}
                 </div>
@@ -126,66 +92,25 @@ export function TableScrollArea({
     );
 }
 export function TableHeaderRow({ children, className, ...props }: DivProps) {
-    return (
-        <div role="row"
-            className={cn(
-                "z-[70] flex h-11 min-w-0 items-center bg-app-surface pr-3 text-sm font-semibold text-gray-700 select-none",
-                className,
-            )}
-            {...props}
-        >
-            {children}
-        </div>
-    );
+    return <div role="row" {...props}
+        className={cn("z-[70] flex h-11 min-w-0 items-center bg-app-surface pr-3 text-sm font-semibold text-gray-700 select-none",
+            className)}>{children}</div>;
 }
-export function TableRow({
-    children,
-    className,
-    interactive = true,
-    selected = false,
-    ...props
-}: DivProps & {
-    interactive?: boolean;
-    selected?: boolean;
-}) {
-    return (
-        <div role="row"
-            className={cn(
-                "group flex h-11 min-w-0 items-center pr-3 [content-visibility:auto] [contain-intrinsic-size:auto_44px]",
-                interactive && "cursor-pointer",
-                interactive && !selected && APP_SURFACE_HOVER_CLASS,
-                selected && APP_SURFACE_ACTIVE_CLASS,
-                className,
-            )}
-            {...props}
-        >
-            {children}
-        </div>
-    );
+export function TableRow({ children, className, interactive = true, selected = false,
+    ...props }: DivProps & { interactive?: boolean; selected?: boolean }) {
+    return <div role="row" {...props}
+        className={cn("group flex h-11 min-w-0 items-center pr-3 [content-visibility:auto] [contain-intrinsic-size:auto_44px]",
+            interactive && "cursor-pointer",
+            interactive && !selected && APP_SURFACE_HOVER_CLASS,
+            selected && APP_SURFACE_ACTIVE_CLASS,
+            className)}>{children}</div>;
 }
-export function TableStickyCell({
-    children,
-    className,
-    widthClassName = TABLE_PRIMARY_CELL_WIDTH_CLASS,
-    header = false,
-}: DivProps & {
-    widthClassName?: string;
-    header?: boolean;
-}) {
-    return (
-        <div role={header ? "columnheader" : "cell"}
-            className={cn(
-                "flex pl-4 pr-2 text-left",
-                widthClassName,
-                header
-                    ? "items-center self-stretch"
-                    : "py-2",
-                className,
-            )}
-        >
-            {children}
-        </div>
-    );
+export function TableStickyCell({ children, className,
+    widthClassName = TABLE_PRIMARY_CELL_WIDTH_CLASS, header = false,
+}: DivProps & { widthClassName?: string; header?: boolean }) {
+    return <div role={header ? "columnheader" : "cell"}
+        className={cn("flex pl-4 pr-2 text-left", widthClassName,
+            header ? "items-center self-stretch" : "py-2", className)}>{children}</div>;
 }
 export function TableSelectionHeader({
     children, className, label, leading, loading = false,
@@ -215,19 +140,9 @@ export function TableSelectionHeader({
     );
 }
 export function TablePrimaryCell({
-    children,
-    className,
-    widthClassName = TABLE_PRIMARY_CELL_WIDTH_CLASS,
-    selected,
-    onSelectionChange,
-    checkboxTitle,
-    label,
-    editing = false,
-    editValue,
-    onEditValueChange,
-    onEditCommit,
-    onEditCancel,
-    selectable = true,
+    children, className, widthClassName = TABLE_PRIMARY_CELL_WIDTH_CLASS, selected,
+    onSelectionChange, checkboxTitle, label, editing = false, editValue,
+    onEditValueChange, onEditCommit, onEditCancel, selectable = true,
 }: DivProps & {
     widthClassName?: string;
     selected: boolean;
@@ -241,34 +156,25 @@ export function TablePrimaryCell({
     onEditCancel?: () => void;
     selectable?: boolean;
 }) {
-    const content =
-        label !== undefined ? (
-            editing ? (
-                <input
-                    autoFocus
-                    value={editValue ?? ""}
-                    onChange={(e) => onEditValueChange?.(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === "Enter") onEditCommit?.();
-                        if (e.key === "Escape") onEditCancel?.();
-                    }}
-                    onBlur={onEditCommit}
-                    onClick={(e) => e.stopPropagation()}
-                    className="min-w-0 flex-1 text-sm text-gray-800 bg-transparent outline-none"
-                />
-            ) : (
-                <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
-                    {label}
-                </span>
-            )
+    const content = label === undefined ? children
+        : editing ? (
+            <input
+                autoFocus
+                value={editValue ?? ""}
+                onChange={(e) => onEditValueChange?.(e.target.value)}
+                onKeyDown={(e) => {
+                    if (e.key === "Enter") onEditCommit?.();
+                    if (e.key === "Escape") onEditCancel?.();
+                }}
+                onBlur={onEditCommit}
+                onClick={(e) => e.stopPropagation()}
+                className="min-w-0 flex-1 text-sm text-gray-800 bg-transparent outline-none"
+            />
         ) : (
-            children
+            <span className="min-w-0 flex-1 truncate text-sm text-gray-900">{label}</span>
         );
     return (
-        <TableStickyCell
-            widthClassName={widthClassName}
-            className={className}
-        >
+        <TableStickyCell widthClassName={widthClassName} className={className}>
             <div className="flex min-w-0 items-center">
                 {selectable && <TableSelectionCheckbox
                     checked={selected}
@@ -283,37 +189,17 @@ export function TablePrimaryCell({
     );
 }
 export function TableHeaderCell({ children, className, ...props }: DivProps) {
-    return (
-        <div role="columnheader"
-            className={cn(
-                "flex shrink-0 items-center justify-center px-2 text-center",
-                className,
-            )}
-            {...props}
-        >
-            {children}
-        </div>
-    );
+    return <div role="columnheader" {...props}
+        className={cn("flex shrink-0 items-center justify-center px-2 text-center",
+            className)}>{children}</div>;
 }
 export function TableCell({ children, className, ...props }: DivProps) {
-    return (
-        <div role="cell"
-            className={cn(
-                "shrink-0 justify-center truncate px-2 text-center text-sm text-gray-700",
-                className,
-            )}
-            {...props}
-        >
-            {children}
-        </div>
-    );
+    return <div role="cell" {...props}
+        className={cn("shrink-0 justify-center truncate px-2 text-center text-sm text-gray-700",
+            className)}>{children}</div>;
 }
 export function TableBody({ children, className, ...props }: DivProps) {
-    return (
-        <div role="rowgroup" className={cn("flex-1", className)} {...props}>
-            {children}
-        </div>
-    );
+    return <div role="rowgroup" className={cn("flex-1", className)} {...props}>{children}</div>;
 }
 export function TableLoadingState() {
     return <TableBody aria-busy="true"><div role="row"><div role="cell">
@@ -340,21 +226,10 @@ export function Pagination({ page, pages, label, disabled, onPage }: {
             onClick={() => onPage(page + 1)}>Next</Button>
     </nav>;
 }
-export function TableEmptyState({
-    children,
-    className,
-}: {
-    children: ReactNode;
-    className?: string;
+export function TableEmptyState({ children, className }: {
+    children: ReactNode; className?: string;
 }) {
-    return (
-        <div
-            className={cn(
-                "mx-auto flex w-full max-w-xs flex-1 flex-col items-center justify-center py-24 text-center",
-                className,
-            )}
-        >
-            {children}
-        </div>
-    );
+    return <div className={cn(
+        "mx-auto flex w-full max-w-xs flex-1 flex-col items-center justify-center py-24 text-center",
+        className)}>{children}</div>;
 }
