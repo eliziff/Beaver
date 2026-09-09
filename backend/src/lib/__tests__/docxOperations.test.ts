@@ -1,6 +1,7 @@
 import JSZip from "jszip";
-import { Document, FootnoteReferenceRun, Packer, Paragraph, TextRun } from "docx";
+import { FootnoteReferenceRun, Paragraph, TextRun } from "docx";
 import { describe, expect, it } from "vitest";
+import { docxBytes } from "./support/docxFixtures";
 import {
   applyAuthorityDiscrepancyCorrection,
   applyTableOfAuthorities,
@@ -9,12 +10,11 @@ describe("native Word Table of Authorities output", () => {
   it("replaces exact reviewed spans in body text and footnotes", async () => {
     const body = "The court wrote This and that.";
     const note = "Example v Example, 2020 SCC 1 at para 19.";
-    const source = await Packer.toBuffer(new Document({
-      footnotes: { 7: { children: [new Paragraph({ children: [new TextRun(note)] })] } },
-      sections: [{ children: [new Paragraph({ children: [
-        new TextRun(body), new FootnoteReferenceRun(7),
-      ] })] }],
-    }));
+    const source = await docxBytes([new Paragraph({ children: [
+      new TextRun(body), new FootnoteReferenceRun(7),
+    ] })], {
+      footnotes: { 7: { children: [new Paragraph(note)] } },
+    });
     const bodyStart = body.indexOf("This and that");
     const first = await applyAuthorityDiscrepancyCorrection(source, [
       { id: "body:0", text: body }, { id: "footnote:7", text: note },
@@ -39,9 +39,9 @@ describe("native Word Table of Authorities output", () => {
   it("supports mark-only and static linked append without conflating their structures",
     async () => {
     const body = "R v Grant, 2009 SCC 32";
-    const bytes = await Packer.toBuffer(new Document({ sections: [{ children: [
-      new Paragraph({ children: [new TextRun(body)] }),
-    ] }] }));
+    const bytes = await docxBytes([
+      new Paragraph(body),
+    ]);
     const mark = { unitId: "body:0", offset: body.length, longName: body,
       shortName: "R v Grant", category: 1 as const };
     const marked = await applyTableOfAuthorities(bytes, [{ id: "body:0", text: body }],
@@ -72,12 +72,11 @@ describe("native Word Table of Authorities output", () => {
   it("marks body and footnote citations and appends one updateable TOA before sectPr", async () => {
     const body = "R v Grant, 2009 SCC 32";
     const footnote = "Federal Courts Act, RSC 1985, c F-7";
-    const bytes = await Packer.toBuffer(new Document({
-      footnotes: { 7: { children: [new Paragraph({ children: [new TextRun(footnote)] })] } },
-      sections: [{ children: [new Paragraph({ children: [
-        new TextRun(body), new FootnoteReferenceRun(7),
-      ] })] }],
-    }));
+    const bytes = await docxBytes([new Paragraph({ children: [
+      new TextRun(body), new FootnoteReferenceRun(7),
+    ] })], {
+      footnotes: { 7: { children: [new Paragraph(footnote)] } },
+    });
     const result = await applyTableOfAuthorities(bytes, [
       { id: "body:0", text: body }, { id: "footnote:7", text: footnote },
     ], [

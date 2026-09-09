@@ -4,8 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import JSZip from "jszip";
-import { Document, Packer, Paragraph, TextRun } from "docx";
+import { Paragraph } from "docx";
 import { PDFDocument } from "pdf-lib";
+import { docxBytes } from "./support/docxFixtures";
 import { createDocumentApplication } from "../documentApplication";
 import { MAX_DRAFTING_DOCX_BYTES } from "../docx/core";
 import { sha256 } from "../hash";
@@ -24,9 +25,7 @@ const docx = (text: string) => new JSZip().file("word/document.xml", text, {
   createFolders: false,
 })
   .generateAsync({ type: "nodebuffer" });
-const validDocx = (text: string) => Packer.toBuffer(new Document({ sections: [{
-  children: [new Paragraph({ children: [new TextRun(text)] })],
-}] }));
+const validDocx = (text: string) => docxBytes([new Paragraph(text)]);
 const pdf = async (text: string) => {
   const value = await PDFDocument.create();
   value.addPage().drawText(text);

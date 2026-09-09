@@ -1,5 +1,5 @@
-import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
+import { docxXml as xml } from "./support/docxFixtures";
 import {
   type DocxCitationAppearance,
   parseDocxMarkdown,
@@ -42,12 +42,6 @@ const inlineTags = ["heading", "paragraph", "quote", "item", "nested",
 const citations = Object.fromEntries(["shared", "body", "list", "header", "last"].map((id) =>
   [id, { sources: [{ stableId: id, authority: `Authority ${id}`, shortAuthority: id,
     mainUrl: null, pinpoints: [] }] }]));
-
-async function xml(bytes: Buffer, name: string) {
-  const entry = (await JSZip.loadAsync(bytes)).file(name);
-  if (!entry) throw new Error(`Missing ${name}`);
-  return entry.async("string");
-}
 
 function freeze<T>(value: T): T {
   if (value && typeof value === "object") {
