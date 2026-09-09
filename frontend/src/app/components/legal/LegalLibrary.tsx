@@ -331,7 +331,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                                     }),
                                                 ),
                                             ]}
-                                            className="mt-1 !h-9 px-2 font-normal"
+                                            className="mt-1 h-9! px-2 font-normal"
                                         />
                                     </label>
                                     <label className={FILTER_LABEL}>
@@ -383,7 +383,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                                     label: item.description,
                                                 })),
                                             ]}
-                                            className="mt-1 !h-9 px-2 font-normal"
+                                            className="mt-1 h-9! px-2 font-normal"
                                         />
                                     </label>
                                 </>}
