@@ -1,5 +1,6 @@
-import { Document, ImageRun, Packer, Paragraph } from "docx";
+import { ImageRun, Paragraph } from "docx";
 import { describe, expect, it } from "vitest";
+import { docxBytes } from "./support/docxFixtures";
 import { renderDocxMarkdown } from "../chat/tools/docxMarkdown";
 import {
   MAX_DRAFTING_DOCX_BYTES,
@@ -55,25 +56,17 @@ describe("DOCX drafting Markdown", () => {
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
       "base64",
     );
-    const bytes = await Packer.toBuffer(
-      new Document({
-        sections: [
-          {
-            children: [
-              new Paragraph({
-                children: [
-                  new ImageRun({
-                    data: png,
-                    transformation: { width: 1, height: 1 },
-                    type: "png",
-                  }),
-                ],
-              }),
-            ],
-          },
+    const bytes = await docxBytes([
+      new Paragraph({
+        children: [
+          new ImageRun({
+            data: png,
+            transformation: { width: 1, height: 1 },
+            type: "png",
+          }),
         ],
       }),
-    );
+    ]);
 
     const markdown = await draftingText(bytes);
 
