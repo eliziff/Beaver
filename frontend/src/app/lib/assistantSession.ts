@@ -236,43 +236,38 @@ function replaceContent(message: AssistantMessageState, text: string) {
   return { ...message, blocks };
 }
 
-const completeActivity = (activity: AssistantActivity): AssistantActivity =>
-  activity.status === "running" ? { ...activity, status: "completed" } : activity;
-const failActivity = (activity: AssistantActivity): AssistantActivity =>
-  activity.status === "running" ? { ...activity, status: "error" } : activity;
+const settle = (status: AssistantActivityStatus) =>
+  (activity: AssistantActivity): AssistantActivity =>
+    activity.status === "running" ? { ...activity, status } : activity;
+const completeActivity = settle("completed");
+const failActivity = settle("error");
+const interruptActivity = settle("interrupted");
+// A reader run outlives no turn: whatever settles the turn settles its still-running readers.
+const settleReaders = (state: AssistantSessionState, status: AssistantActivityStatus,
+  settleActivity: (activity: AssistantActivity) => AssistantActivity) =>
+  state.readers.map((reader) => reader.status === "running"
+    ? { ...reader, status, activities: reader.activities.map(settleActivity) }
+    : reader);
 
-function finishContent(
-  state: AssistantSessionState,
-  text: string,
-  citations: Citation[],
-) {
+function finishContent(state: AssistantSessionState, text: string, citations: Citation[]) {
   const next = updateAssistant(state, (message) => ({
     ...replaceContent(message, text),
     citations,
     contentFinal: true,
     activities: message.activities.map(completeActivity),
   }));
-  return {
-    ...next,
-    readers: next.readers.map((reader) => reader.status === "running"
-      ? {
-          ...reader,
-          status: "completed" as const,
-          activities: reader.activities.map(completeActivity),
-        }
-      : reader),
-  };
+  return { ...next, readers: settleReaders(next, "completed", completeActivity) };
 }
 
 function interrupt(state: AssistantSessionState, status: "cancelled" | "interrupted") {
   const interrupted = updateAssistant(state, (message) => ({
     ...message,
     turnStatus: status,
-    activities: message.activities.map((activity) => activity.status === "running" ? { ...activity, status: "interrupted" as const } : activity),
+    activities: message.activities.map(interruptActivity),
   }), false);
   return {
     ...interrupted,
-    readers: interrupted.readers.map((reader) => reader.status === "running" ? { ...reader, status: "interrupted" as const, activities: reader.activities.map((activity) => activity.status === "running" ? { ...activity, status: "interrupted" as const } : activity) } : reader),
+    readers: settleReaders(interrupted, "interrupted", interruptActivity),
     pendingInput: null,
     run: null,
   };
@@ -389,12 +384,7 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
       error: event.message,
       activities: message.activities.map(failActivity),
     }));
-    return {
-      ...failed,
-      readers: failed.readers.map((reader) => reader.status === "running"
-        ? { ...reader, status: "error", activities: reader.activities.map(failActivity) }
-        : reader),
-    };
+    return { ...failed, readers: settleReaders(failed, "error", failActivity) };
   }
   return state;
 }
@@ -414,34 +404,20 @@ function loadTranscript(state: AssistantSessionState, event: Extract<AssistantSe
       if (parsed.ok) next = applyProtocol(next, parsed.event);
     }
     const citations = parseAssistantCitations(message.citations);
-    if (!rawEvents.length && typeof message.content === "string" && message.content) {
-      next = finishContent(next, textValue(message.content, ASSISTANT_LIMITS.text), citations);
-    } else {
-      next = updateAssistant(next, (current) => current.id === assistant.id
-        ? { ...current, citations, contentFinal: message.turn_complete === true }
-        : current);
+    const complete = message.turn_complete === true;
+    // A plain-text transcript row carries no events, so its text is the final content.
+    const plainText = !rawEvents.length && typeof message.content === "string" && !!message.content;
+    if (plainText) {
+      next = finishContent(next, textValue(message.content as string, ASSISTANT_LIMITS.text), citations);
     }
-    next = updateAssistant(next, (current) => current.id === assistant.id
-      ? {
-          ...current,
-          turnComplete: message.turn_complete,
-          ...(message.turn_complete === true && {
-            contentFinal: true,
-            activities: current.activities.map(completeActivity),
-          }),
-        }
-      : current);
-    if (message.turn_complete === true) {
-      next = {
-        ...next,
-        readers: next.readers.map((reader) => reader.status === "running"
-          ? {
-              ...reader,
-              status: "completed" as const,
-              activities: reader.activities.map(completeActivity),
-            }
-          : reader),
-      };
+    next = updateAssistant(next, (current) => current.id !== assistant.id ? current : {
+      ...current,
+      ...(plainText ? {} : { citations, contentFinal: complete }),
+      turnComplete: message.turn_complete,
+      ...(complete && { contentFinal: true, activities: current.activities.map(completeActivity) }),
+    });
+    if (complete) {
+      next = { ...next, readers: settleReaders(next, "completed", completeActivity) };
     }
   });
   if (event.active) {
