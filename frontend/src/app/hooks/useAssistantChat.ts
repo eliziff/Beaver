@@ -71,20 +71,9 @@ const CHAT_COMMAND_HELP = [
   "- `/help` — Show available commands.",
 ].join("\n");
 
-function userMessage(message: Message): Message {
-  return {
-    role: "user",
-    content: message.content,
-    files: message.files,
-    workflow: message.workflow,
-    model: message.model,
-    reasoningEffort: message.reasoningEffort,
-    editMode: message.editMode,
-    turnId: message.turnId,
-    research_file_id: message.research_file_id,
-    research_selection: message.research_selection,
-  };
-}
+// A rejected turn is restored as a draft, so it must not carry the transcript id
+// of the message the server refused.
+const userMessage = ({ id: _id, ...message }: Message): Message => message;
 
 export function useAssistantChat({
   chatId: initialChatId,
