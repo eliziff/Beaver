@@ -1,12 +1,6 @@
-import {
-  type A2AJCompiledDocument,
-  type A2AJLocatorKind,
-} from "./legalSources/a2aj";
-import {
-  structureNative,
-  type NativeDocument,
-  type NativeTextFragmentPlan,
-} from "./structureNative";
+import { type A2AJCompiledDocument, type A2AJLocatorKind } from "./legalSources/a2aj";
+import { structureNative, type NativeDocument,
+  type NativeTextFragmentPlan } from "./structureNative";
 import type { VerifiedPdfEvidence } from "./legalSourcePresentation";
 import { A2AJ_CANLII_COURT_ROUTES } from "./canliiUrls";
 import { buildA2AJWebPinpointUrl } from "./a2ajWebLinks";
@@ -45,16 +39,11 @@ const DECISIA_HOSTS =
   /^(decisions?\.[\w-]+\.(?:gc\.)?ca|decisia\.lexum\.com|coadecisions\.ontariocourts\.ca)$/iu;
 
 function isDecisiaDocument(url: URL) {
-  return (
-    DECISIA_HOSTS.test(url.hostname) &&
-    /\/item\/\d+\/index\.do$/iu.test(url.pathname)
-  );
+  return DECISIA_HOSTS.test(url.hostname) && /\/item\/\d+\/index\.do$/iu.test(url.pathname);
 }
 
 export function legalSourceLocatorAnchor(
-  rawUrl: string | null,
-  kind: A2AJLocatorKind,
-  label: string,
+  rawUrl: string | null, kind: A2AJLocatorKind, label: string,
 ) {
   if (!rawUrl) return undefined;
   let url: URL;
@@ -89,10 +78,7 @@ export function legalSourceLocatorAnchor(
  * resolves the anchor the target actually supports.
  */
 export function sourceUrl(rawUrl: string, anchor?: string): string | null {
-  const local =
-    rawUrl.startsWith("/") &&
-    !rawUrl.startsWith("//") &&
-    !rawUrl.includes("\\");
+  const local = rawUrl.startsWith("/") && !rawUrl.startsWith("//") && !rawUrl.includes("\\");
   let url: URL;
   try {
     url = local ? new URL(rawUrl, "http://mike.local") : new URL(rawUrl);
@@ -100,16 +86,13 @@ export function sourceUrl(rawUrl: string, anchor?: string): string | null {
     return null;
   }
   if (/(^|\.)getcaselaw\.com$/iu.test(url.hostname)) return null;
-  if (
-    !["http:", "https:"].includes(url.protocol) ||
-    (local && url.origin !== "http://mike.local")
-  ) {
+  if (!["http:", "https:"].includes(url.protocol) ||
+      (local && url.origin !== "http://mike.local")) {
     return null;
   }
 
   const existingAnchor = url.hash.slice(1).split(":~:", 1)[0];
-  const canliiPdf =
-    /(^|\.)canlii\.org$/iu.test(url.hostname) &&
+  const canliiPdf = /(^|\.)canlii\.org$/iu.test(url.hostname) &&
     url.pathname.toLowerCase().endsWith(".pdf");
   const requestedAnchor = anchor ?? existingAnchor;
   const convertedCanliiPdf = canliiPdf && !requestedAnchor.startsWith("page=");
@@ -196,17 +179,15 @@ function fragmentWordCount(value: string) {
   return normalized ? normalized.split(" ").length : 0;
 }
 
-function textOccurrences(haystack: string, needle: string) {
-  if (!needle) return 0;
-  let count = 0;
-  for (let at = haystack.indexOf(needle); at >= 0;
-    at = haystack.indexOf(needle, at + 1)) count += 1;
-  return count;
-}
-
 function fragmentOccurrences(documentText: string, value: string) {
   const needle = normalizedFragmentText(value);
-  return needle ? textOccurrences(` ${documentText} `, ` ${needle} `) : 0;
+  if (!needle) return 0;
+  const haystack = ` ${documentText} `;
+  const target = ` ${needle} `;
+  let count = 0;
+  for (let at = haystack.indexOf(target); at >= 0;
+    at = haystack.indexOf(target, at + 1)) count += 1;
+  return count;
 }
 
 const PUBLISHER_PDF_LONGEST_FIRST_SIGNATURES = new Set([
@@ -342,13 +323,11 @@ function fallbackUrlFamily(url: URL) {
   if (host === "kings-printer.alberta.ca") {
     return url.searchParams.get("leg_type")?.toLocaleLowerCase("en") ?? "";
   }
-  if (host === "laws-lois.justice.gc.ca" || host === "web2.gov.mb.ca") {
-    return segments.slice(0, 2).join("/");
-  }
+  if (host === "laws-lois.justice.gc.ca" || host === "web2.gov.mb.ca" ||
+      host === "www.ontario.ca") return segments.slice(0, 2).join("/");
   if (host === "laws.gnb.ca" || host === "www.legisquebec.gouv.qc.ca") {
     return segments.slice(0, 3).join("/");
   }
-  if (host === "www.ontario.ca") return segments.slice(0, 2).join("/");
   if (host === "www.princeedwardisland.ca") {
     return segments[3] === "legislation" ? "legislation" : "asset";
   }
@@ -361,23 +340,17 @@ function fallbackUrlFamily(url: URL) {
 }
 
 function fallbackSignature(
-  docType: A2AJCompiledDocument["docType"],
-  publisherUrl: string,
-  plan: NativeTextFragmentPlan,
-  documentText: string,
-  blockText: string,
+  docType: A2AJCompiledDocument["docType"], publisherUrl: string,
+  plan: NativeTextFragmentPlan, documentText: string, blockText: string,
 ) {
   const url = new URL(publisherUrl);
   const fullText = normalizedFragmentText(documentText);
-  const targetEnd = Math.max(0,
-    ...plan.sourceWordIntervals.map(({ end }) => end));
+  const targetEnd = Math.max(0, ...plan.sourceWordIntervals.map(({ end }) => end));
   const directiveParts = plan.directives.map((directive) =>
-    directive.slice("text=".length).split(",")
-  );
+    directive.slice("text=".length).split(","));
   const intervalsPerQuote = new Map<number, number>();
-  for (const interval of plan.sourceWordIntervals) {
-    intervalsPerQuote.set(interval.quoteIndex,
-      (intervalsPerQuote.get(interval.quoteIndex) ?? 0) + 1);
+  for (const { quoteIndex } of plan.sourceWordIntervals) {
+    intervalsPerQuote.set(quoteIndex, (intervalsPerQuote.get(quoteIndex) ?? 0) + 1);
   }
   const decode = (value: string) => {
     try {
@@ -405,11 +378,8 @@ function fallbackSignature(
 }
 
 export function preferredPublisherPdfTarget(
-  docType: A2AJCompiledDocument["docType"],
-  target: string,
-  plan: NativeTextFragmentPlan,
-  documentText: string,
-  blockText: string,
+  docType: A2AJCompiledDocument["docType"], target: string,
+  plan: NativeTextFragmentPlan, documentText: string, blockText: string,
 ) {
   if (!isPdfSourceUrl(target) || plan.directives.length < 2) return null;
   const signature = fallbackSignature(docType, target, plan, documentText, blockText);
@@ -429,61 +399,37 @@ export function preferredPublisherPdfTarget(
 }
 
 export function shouldUseA2AJWebFallback(
-  docType: A2AJCompiledDocument["docType"],
-  publisherUrl: string,
-  publisherPlan: NativeTextFragmentPlan | null,
-  documentText: string,
-  blockText: string,
+  docType: A2AJCompiledDocument["docType"], publisherUrl: string,
+  publisherPlan: NativeTextFragmentPlan | null, documentText: string, blockText: string,
 ) {
   if (!publisherPlan?.directives.length) return false;
-  const targetEnd = Math.max(0,
-    ...publisherPlan.sourceWordIntervals.map(({ end }) => end));
+  const targetEnd = Math.max(0, ...publisherPlan.sourceWordIntervals.map(({ end }) => end));
   if (targetEnd > 200_001) return false;
   try {
     return LAW_WEB_FALLBACK_SIGNATURES.has(fallbackSignature(
-      docType,
-      publisherUrl,
-      publisherPlan,
-      documentText,
-      blockText,
-    ));
+      docType, publisherUrl, publisherPlan, documentText, blockText));
   } catch {
     return false;
   }
 }
 
 export function buildA2AJDocumentPinpointUrl(
-  source: A2AJCompiledDocument,
-  locator: { kind: A2AJLocatorKind; label: string },
-  blockText: string,
-  quotes: string[],
+  source: A2AJCompiledDocument, locator: { kind: A2AJLocatorKind; label: string },
+  blockText: string, quotes: string[],
 ) {
   const document = source.searchNative;
   const publisher = source.url
     ? buildLegalSourcePinpoint({
-        url: source.url,
-        docType: source.docType,
-        verifiedPdf: source.verifiedPdf,
+        url: source.url, docType: source.docType, verifiedPdf: source.verifiedPdf,
         anchor: legalSourceLocatorAnchor(source.url, locator.kind, locator.label),
-        blockText,
-        documentText: document,
+        blockText, documentText: document,
       }, quotes, source.docType === "laws")
     : null;
   if (publisher && !shouldUseA2AJWebFallback(
-    source.docType,
-    publisher.target,
-    publisher.plan,
-    source.searchText,
-    blockText,
+    source.docType, publisher.target, publisher.plan, source.searchText, blockText,
   )) return publisher.target;
-  const plan = structureNative().textFragmentPlan(
-    blockText,
-    quotes,
-    false,
-    false,
-    true,
-    document,
-  );
+  const plan = structureNative()
+    .textFragmentPlan(blockText, quotes, false, false, true, document);
   return buildA2AJWebPinpointUrl(source, plan) ?? publisher?.target ?? null;
 }
 
@@ -507,9 +453,7 @@ export function buildLegalSourcePinpoint(
       !value.includes("-,") && !value.includes(",-");
     if (!preferIndependentHtmlBlocks || pdf || !simpleRange) return base;
     const blocks = fragmentPlan(true);
-    const fullText = normalizedFragmentText(
-      structureNative().documentText(evidence.documentText),
-    );
+    const fullText = normalizedFragmentText(structureNative().documentText(evidence.documentText));
     return blocks.sourceSafeComplete && blocks.directives.length >= 2 &&
       blocks.paintedWords === base.paintedWords && blocks.paintQuotes.every((quote) =>
         occurrenceClass(fullText, quote) === "1")
@@ -537,21 +481,13 @@ export function buildLegalSourcePinpoint(
   }
   const target = appendDirectives(targetUrl, selected.directives);
   const preferred = evidence.docType
-    ? preferredPublisherPdfTarget(
-        evidence.docType,
-        target,
-        selected,
-        structureNative().documentText(evidence.documentText),
-        evidence.blockText,
-      )
+    ? preferredPublisherPdfTarget(evidence.docType, target, selected,
+        structureNative().documentText(evidence.documentText), evidence.blockText)
     : null;
   return { target: preferred ?? target, plan: selected };
 }
 
-export function buildLegalSourcePinpointUrl(
-  evidence: LegalSourceEvidence,
-  quotes: string[],
-) {
+export function buildLegalSourcePinpointUrl(evidence: LegalSourceEvidence, quotes: string[]) {
   return buildLegalSourcePinpoint(evidence, quotes)?.target ?? null;
 }
 
@@ -560,17 +496,12 @@ function normalizedIdentity(value: string | null | undefined) {
 }
 
 function isCanadianDecisionUrl(url: URL) {
-  return (
-    isDecisiaDocument(url) ||
-    ((url.hostname === "canlii.org" || url.hostname === "www.canlii.org") &&
-      url.pathname.includes("/doc/")) ||
-    ((url.hostname === "bccourts.ca" ||
-      url.hostname === "www.bccourts.ca") &&
-      url.pathname.toLowerCase().includes("/jdb-txt/")) ||
-    ((url.hostname === "scc-csc.ca" ||
-      url.hostname === "www.scc-csc.ca") &&
-      url.pathname.toLowerCase().includes("/case-dossier/"))
-  );
+  const host = url.hostname.replace(/^www\./iu, "");
+  const path = url.pathname.toLowerCase();
+  return isDecisiaDocument(url) ||
+    (host === "canlii.org" && url.pathname.includes("/doc/")) ||
+    (host === "bccourts.ca" && path.includes("/jdb-txt/")) ||
+    (host === "scc-csc.ca" && path.includes("/case-dossier/"));
 }
 
 function hasCanadianCaseCitation(value: string) {
@@ -582,7 +513,12 @@ function hasCanadianCaseCitation(value: string) {
   });
 }
 
-function rewriteModelCanadianDecisionUrls(answer: string) {
+/**
+ * Whether the answer links a Canadian decision the model must not cite by URL.
+ * The markdown pass runs first because a link whose label already carries a
+ * Canadian citation collapses to that label, taking its URL out of the scan.
+ */
+export function hasCanadianDecisionLink(answer: string) {
   let found = false;
   const strip = (rawUrl: string) => {
     try {
@@ -593,28 +529,17 @@ function rewriteModelCanadianDecisionUrls(answer: string) {
       return rawUrl;
     }
   };
-  const text = answer
-    .replace(
-      /\[([^\]\r\n]+)\]\(([^)\r\n]*)\)/gu,
-      (full, label: string) =>
-        hasCanadianCaseCitation(label) ? label : full,
-    )
-    .replace(
-      /\[([^\]\r\n]+)\]\((https?:\/\/[^\s)]+)\)/gu,
-      (full, label: string, url: string) => (strip(url) ? full : label),
-    )
+  answer
+    .replace(/\[([^\]\r\n]+)\]\(([^)\r\n]*)\)/gu,
+      (full, label: string) => (hasCanadianCaseCitation(label) ? label : full))
+    .replace(/\[([^\]\r\n]+)\]\((https?:\/\/[^\s)]+)\)/gu,
+      (full, label: string, url: string) => (strip(url) ? full : label))
     .replace(/https?:\/\/[^\s<>"')\]]+/gu, (url) => {
       const suffix = url.match(/[.,;:!?]+$/u)?.[0] ?? "";
       const target = suffix ? url.slice(0, -suffix.length) : url;
       return strip(target) ? url : suffix;
-    })
-    .replace(/^[\t ]+$/gmu, "")
-    .replace(/\n{3,}/gu, "\n\n");
-  return { found, text };
-}
-
-export function hasCanadianDecisionLink(answer: string) {
-  return rewriteModelCanadianDecisionUrls(answer).found;
+    });
+  return found;
 }
 
 export function buildA2AJParagraphRangeUrl(
