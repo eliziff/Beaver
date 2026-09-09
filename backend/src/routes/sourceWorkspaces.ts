@@ -126,10 +126,5 @@ export function createSourceWorkspacesRouter(app: SourceWorkspaceApplication) {
     if (!input.design) reject(400, "Review a proposed label set before applying it");
     res.json(await app.applyLabels(scope(res), id.parse(req.params.id), input, { executor: "human" }));
   }));
-  router.post("/:id/save-findings", asyncRoute(async (req, res) => {
-    const input = z.object({ references: z.array(researchFindingReferenceSchema).min(1).max(500),
-      typeId: id.optional(), versionId: id, workingRevision: revision }).strict().parse(req.body);
-    res.json(await app.saveFindings(scope(res), id.parse(req.params.id), input, { executor: "human" }));
-  }));
   return router;
 }
