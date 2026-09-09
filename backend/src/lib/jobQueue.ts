@@ -210,6 +210,12 @@ async function fail(job: ApplicationJob, workerId: string, error: unknown) {
   if (!exhausted) db.notifications?.publish(`queue:${job.kind}`);
 }
 
+const abortActive = (ids: ReadonlySet<string>) => {
+  for (const active of activeJobs.values()) {
+    if (ids.has(active.job.id)) active.controller.abort();
+  }
+};
+
 export async function interruptJobs(groupKey: string, belowPriority: number) {
   const db = await relationalDatabase(), timestamp = now();
   const rows = (await db.query<{ id: string }>(sql`UPDATE application_jobs
@@ -217,52 +223,36 @@ export async function interruptJobs(groupKey: string, belowPriority: number) {
     updated_at=${timestamp} WHERE group_key=${bounded(groupKey, 500, "Job group")}
       AND status='running' AND priority<${belowPriority} RETURNING id`)).rows;
   for (const { id } of rows) db.notifications?.publish(`control:${id}`);
-  const interrupted = new Set(rows.map(({ id }) => id));
-  for (const active of activeJobs.values()) {
-    if (interrupted.has(active.job.id)) active.controller.abort();
-  }
+  abortActive(new Set(rows.map(({ id }) => id)));
 }
 
-export async function requestJobCancellation(id: string, userId: string) {
+async function cancelMatching(match: ReturnType<typeof sql>, userId: string) {
   const db = await relationalDatabase(), timestamp = now();
-  const row = (await db.query<JobRow>(sql`UPDATE application_jobs SET
+  const rows = (await db.query<JobRow>(sql`UPDATE application_jobs SET
     status=CASE WHEN status='queued' THEN 'cancelled' ELSE status END,
     cancel_requested_at=${timestamp},
     dedupe_key=CASE WHEN status='queued' THEN NULL ELSE dedupe_key END,
     completed_at=CASE WHEN status='queued' THEN ${timestamp} ELSE completed_at END,
     updated_at=${timestamp}
-    WHERE id=${bounded(id, 100, "Job ID")} AND user_id=${bounded(userId, 200, "Job user")}
-      AND status IN('queued','running') RETURNING *`)).rows[0];
-  if (!row) return null;
-  const current = job(row);
-  db.notifications?.publish(`control:${current.id}`);
-  db.notifications?.publish(`events:${current.id}`);
-  for (const active of activeJobs.values()) {
-    if (active.job.id === current.id) active.controller.abort();
-  }
-  return current;
-}
-
-export async function requestGroupCancellation(groupKey: string, userId: string) {
-  const db = await relationalDatabase(), timestamp = now();
-  const rows = (await db.query<{ id: string }>(sql`UPDATE application_jobs SET
-    status=CASE WHEN status='queued' THEN 'cancelled' ELSE status END,
-    cancel_requested_at=${timestamp},
-    dedupe_key=CASE WHEN status='queued' THEN NULL ELSE dedupe_key END,
-    completed_at=CASE WHEN status='queued' THEN ${timestamp} ELSE completed_at END,
-    updated_at=${timestamp}
-    WHERE group_key=${bounded(groupKey, 500, "Job group")}
-      AND user_id=${bounded(userId, 200, "Job user")}
-      AND status IN('queued','running') RETURNING id`)).rows;
-  for (const { id } of rows) {
+    WHERE ${match} AND user_id=${bounded(userId, 200, "Job user")}
+      AND status IN('queued','running') RETURNING *`)).rows;
+  const cancelled = new Set(rows.map((row) => String(row.id)));
+  for (const id of cancelled) {
     db.notifications?.publish(`control:${id}`);
     db.notifications?.publish(`events:${id}`);
   }
-  const cancelled = new Set(rows.map(({ id }) => id));
-  for (const active of activeJobs.values()) {
-    if (cancelled.has(active.job.id)) active.controller.abort();
-  }
-  return rows.length;
+  abortActive(cancelled);
+  return rows;
+}
+
+export async function requestJobCancellation(id: string, userId: string) {
+  const [row] = await cancelMatching(sql`id=${bounded(id, 100, "Job ID")}`, userId);
+  return row ? job(row) : null;
+}
+
+export async function requestGroupCancellation(groupKey: string, userId: string) {
+  return (await cancelMatching(
+    sql`group_key=${bounded(groupKey, 500, "Job group")}`, userId)).length;
 }
 
 async function jobCancellationRequested(id: string, workerId?: string) {
