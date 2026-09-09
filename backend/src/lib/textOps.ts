@@ -57,9 +57,7 @@ const note = (
 const isLetter = (ch: string) => /\p{L}/u.test(ch);
 const isWordChar = (ch: string) => /[\p{L}\p{N}]/u.test(ch);
 
-// ---------------------------------------------------------------------------
 // Case family (Word's Change Case menu + conventional title case)
-// ---------------------------------------------------------------------------
 
 /** First letter of every word upper, rest of the word lower (Word behavior). */
 function capitalizeEachWord(text: string) {
@@ -91,9 +89,7 @@ function sentenceCase(text: string) {
     if (isLetter(ch)) {
       if (capitalizeNext) chars[i] = ch.toUpperCase();
       capitalizeNext = false;
-    } else if (/[.!?…]/u.test(ch)) {
-      capitalizeNext = true;
-    } else if (ch === "\n") {
+    } else if (/[.!?…\n]/u.test(ch)) {
       capitalizeNext = true;
     } else if (!/[\s"'”’)\]]/u.test(ch)) {
       capitalizeNext = false;
@@ -151,9 +147,7 @@ function titleCase(text: string) {
     .join("\n");
 }
 
-// ---------------------------------------------------------------------------
 // replace_text — Word-style find/replace over the scope
-// ---------------------------------------------------------------------------
 
 function replaceText(text: string, params: TextOpParams): TextOpResult {
   const find = params.find ?? "";
@@ -202,9 +196,7 @@ function replaceText(text: string, params: TextOpParams): TextOpResult {
   return { text: out, notes };
 }
 
-// ---------------------------------------------------------------------------
 // sentence_spacing — one or two spaces after sentence-ending punctuation
-// ---------------------------------------------------------------------------
 
 /** Abbreviations that end with a period but do not end a sentence. */
 const NON_TERMINAL_ABBREVIATIONS = new Set([
@@ -245,10 +237,6 @@ function sentenceSpacing(text: string, params: TextOpParams): TextOpResult {
     notes,
   };
 }
-
-// ---------------------------------------------------------------------------
-// Typographic ops
-// ---------------------------------------------------------------------------
 
 const straightenQuotes = (text: string) =>
   text.replace(/[“”„‟]/gu, '"').replace(/[‘’‚‛]/gu, "'");
@@ -330,9 +318,7 @@ function normalizeEllipses(text: string, params: TextOpParams) {
   return text.replace(/(?<!\.)\.{3}(?!\.)/gu, "…");
 }
 
-// ---------------------------------------------------------------------------
 // check_spelling — flag-only dictionary review (never mutates)
-// ---------------------------------------------------------------------------
 
 /** Common legal/drafting terms missing from both hunspell dictionaries. */
 const LEGAL_SUPPLEMENT = [
@@ -446,16 +432,6 @@ function loadSpeller(): Promise<Speller> {
 const CITATION_NEIGHBOR =
   /^(?:v|vs|s|ss|no|nos|para|paras|art|arts|sec|secs|cl|cf|id|ibid|supra|infra|et|al|seq|c)$/iu;
 
-/** Character ranges lying inside double-quoted spans (straight or curly). */
-function quotedRanges(text: string): [number, number][] {
-  const ranges: [number, number][] = [];
-  const re = /"[^"\n]*"|“[^“”\n]*”/gu;
-  for (const match of text.matchAll(re)) {
-    ranges.push([match.index, match.index + match[0].length]);
-  }
-  return ranges;
-}
-
 /**
  * FLAG-ONLY spelling review: the document text is NEVER changed by this op.
  * Possible misspellings are reported with their surrounding context and top
@@ -465,7 +441,9 @@ function quotedRanges(text: string): [number, number][] {
 async function checkSpelling(text: string): Promise<TextOpResult> {
   const speller = await loadSpeller();
   const notes: TextOpNote[] = [];
-  const quoted = quotedRanges(text);
+  // Quoted text is out of scope: a quotation is reproduced, not authored.
+  const quoted = [...text.matchAll(/"[^"\n]*"|“[^“”\n]*”/gu)]
+    .map((match) => [match.index, match.index + match[0].length]);
   const inQuotes = (at: number) => quoted.some(([a, b]) => at >= a && at < b);
   for (const match of text.matchAll(/[\p{L}][\p{L}'’]*/gu)) {
     const word = match[0];
@@ -505,10 +483,6 @@ async function checkSpelling(text: string): Promise<TextOpResult> {
   }
   return { text, notes };
 }
-
-// ---------------------------------------------------------------------------
-// Registry
-// ---------------------------------------------------------------------------
 
 const TEXT_OPS: Record<string, OpFn> = {
   uppercase: (text) => text.toUpperCase(),
