@@ -122,12 +122,9 @@ export const standaloneWorkProducts: WorkProductStore = {
     assertDependencies(id, next.state, drafts);
     store.put(next);
     transaction.objectStore(METADATA).put(draftMetadata(next));
-    await cleanupHandles(transaction.objectStore(HANDLES), [
-      ...drafts.filter((draft) => draft.id !== id), next,
-    ], handleIds(current));
-    await cleanupStoredFiles(transaction.objectStore(FILES), [
-      ...drafts.filter((draft) => draft.id !== id), next,
-    ]);
+    const remaining = [...drafts.filter((draft) => draft.id !== id), next];
+    await cleanupHandles(transaction.objectStore(HANDLES), remaining, handleIds(current));
+    await cleanupStoredFiles(transaction.objectStore(FILES), remaining);
     await completed(transaction);
     return next as never;
   },
@@ -165,10 +162,9 @@ export const standaloneWorkProducts: WorkProductStore = {
     store.delete(id);
     transaction.objectStore(METADATA).delete(id);
     for (const output of outputs) if (output.workProductId === id) outputStore.delete(output.id);
-    await cleanupHandles(transaction.objectStore(HANDLES),
-      drafts.filter((draft) => draft.id !== id), handleIds(current));
-    await cleanupStoredFiles(transaction.objectStore(FILES),
-      drafts.filter((draft) => draft.id !== id));
+    const remaining = drafts.filter((draft) => draft.id !== id);
+    await cleanupHandles(transaction.objectStore(HANDLES), remaining, handleIds(current));
+    await cleanupStoredFiles(transaction.objectStore(FILES), remaining);
     await completed(transaction);
   },
 };
@@ -321,6 +317,14 @@ type PermissionHandle = FileSystemHandle & {
   requestPermission?(options: { mode: "read" | "readwrite" }): Promise<PermissionState>;
 };
 
+// A handle from an older browser has no queryPermission; treat that as still granted.
+const permitted = async (handle: FileSystemHandle, mode: "read" | "readwrite") => {
+  const query = (handle as PermissionHandle).queryPermission;
+  return !query || await query.call(handle, { mode }) === "granted";
+};
+const OUTPUT_FOLDER_UNUSABLE =
+  "Built files are ready to download; the output folder could not be used.";
+
 async function outputFolder() {
   const saved = await read<StoredHandle>(HANDLES, OUTPUT_FOLDER);
   return saved?.handle.kind === "directory" ? saved.handle : null;
@@ -341,9 +345,8 @@ export async function setStandaloneFilingContact(contact: StandaloneFilingContac
 
 export async function getStandaloneOutputFolder() {
   try {
-    const handle = await outputFolder(), query = (handle as PermissionHandle | null)?.queryPermission;
-    return handle && (!query || await query.call(handle, { mode: "readwrite" }) === "granted")
-      ? handle.name : null;
+    const handle = await outputFolder();
+    return handle && await permitted(handle, "readwrite") ? handle.name : null;
   } catch { return null; }
 }
 
@@ -371,26 +374,20 @@ export async function writeStandaloneArtifactsToOutputFolder(artifacts: Standalo
   try {
     const handle = await outputFolder();
     if (!handle) return null;
-    const query = (handle as PermissionHandle).queryPermission;
-    if (query && await query.call(handle, { mode: "readwrite" }) !== "granted") {
-      return "Built files are ready to download; the output folder could not be used.";
-    }
+    if (!await permitted(handle, "readwrite")) return OUTPUT_FOLDER_UNUSABLE;
     for (const artifact of artifacts) {
       const writable = await (await unusedFile(handle, artifact.filename)).createWritable();
       await writable.write(artifact.bytes.slice().buffer as ArrayBuffer); await writable.close();
     }
     return null;
-  } catch { return "Built files are ready to download; the output folder could not be used."; }
+  } catch { return OUTPUT_FOLDER_UNUSABLE; }
 }
 
 export function canRetainLocalFiles() {
   return typeof document !== "undefined";
 }
 
-export async function pickRetainedFiles(multiple: boolean, accept: "source" | "pdf" = "source"):
-Promise<Array<{
-  file: File; input: LocalFileInput;
-}>> {
+export async function pickRetainedFiles(multiple: boolean, accept: "source" | "pdf" = "source") {
   const picker = typeof window === "undefined" ? undefined
     : (window as PickerWindow).showOpenFilePicker;
   if (!picker) return Promise.all((await pickInputFiles(multiple, accept)).map(async (file) => ({
@@ -519,10 +516,7 @@ async function resolveLocalFile(input: WorkProductInput): Promise<InputResolutio
 export async function resolveRetainedFile(handle: FileSystemFileHandle,
   input: Extract<WorkProductInput, { kind: "local-file" }>): Promise<InputResolution> {
   try {
-    const query = (handle as PermissionHandle).queryPermission;
-    if (query && await query.call(handle, { mode: "read" }) !== "granted") {
-      return { status: "missing", reason: "permission" };
-    }
+    if (!await permitted(handle, "read")) return { status: "missing", reason: "permission" };
     const file = await handle.getFile(), current = fileSnapshot(file);
     const changed = current.name !== input.lastSeen.name || current.size !== input.lastSeen.size ||
       current.modified !== input.lastSeen.modified;
@@ -610,20 +604,16 @@ async function unusedFile(directory: FileSystemDirectoryHandle, filename: string
   }
 }
 
-async function all<T>(storeName: string): Promise<T[]> {
-  const db = await openDatabase();
-  return request<T[]>(db.transaction(storeName).objectStore(storeName).getAll());
-}
+const reader = async (storeName: string) =>
+  (await openDatabase()).transaction(storeName).objectStore(storeName);
 
-async function read<T>(storeName: string, key: IDBValidKey): Promise<T | undefined> {
-  const db = await openDatabase();
-  return request<T | undefined>(db.transaction(storeName).objectStore(storeName).get(key));
-}
+const all = async <T>(storeName: string) => request<T[]>((await reader(storeName)).getAll());
 
-async function exists(storeName: string, key: IDBValidKey) {
-  const db = await openDatabase();
-  return await request(db.transaction(storeName).objectStore(storeName).getKey(key)) !== undefined;
-}
+const read = async <T>(storeName: string, key: IDBValidKey) =>
+  request<T | undefined>((await reader(storeName)).get(key));
+
+const exists = async (storeName: string, key: IDBValidKey) =>
+  await request((await reader(storeName)).getKey(key)) !== undefined;
 
 function request<T>(value: IDBRequest<T>) {
   return new Promise<T>((resolve, reject) => {
