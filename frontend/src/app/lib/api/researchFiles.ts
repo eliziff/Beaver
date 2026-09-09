@@ -45,8 +45,6 @@ export const getWorkspaceFindings = (id: string, input: { sourceIds?: string[]; 
   apiRequest<{ items: ResearchFinding[]; total: number; next_offset: number | null; is_running?: boolean }>(
     pagePath(`/source-workspaces/${segment(id)}/findings`, { source_ids: input.sourceIds?.join(","), chatId: input.chatId,
       message_id: input.messageId, offset: input.offset, limit: input.limit ?? 50 }), { signal });
-export const saveWorkspaceFindings = (id: string, input: { references: ResearchFindingReference[]; typeId: string; versionId: string; workingRevision: number }) =>
-  post<{ file: ResearchFile; saved: number }>(`/source-workspaces/${segment(id)}/save-findings`, input);
 export const ensureSourcesWorkspace = (input: { chatId?: string; tableId?: string; title?: string; projectId?: string }) =>
   post<ResearchFile>("/source-workspaces/ensure", input);
 export const bindWorkspaceView = (id: string, input: { chatId?: string; tableId?: string; selection?: ResearchSelection }) =>
