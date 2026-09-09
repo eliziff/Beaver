@@ -53,6 +53,14 @@ describe("TurnToolRegistry", () => {
     expect(payload(batch[0].content).error).toBe("invalid_arguments");
   });
 
+  it("shows no activity for a call the schema rejects", () => {
+    const registry = new TurnToolRegistry([
+      tool("read", { activity: () => "Checking draft" }),
+    ]);
+    expect(registry.activity(call("1", "read", { count: 3 }))).toBe("Checking draft");
+    expect(registry.activity(call("2", "read", { count: "3" }))).toBeNull();
+  });
+
   it("loads exact specialist names across rounds and keeps every capability reachable", async () => {
     const registry = new TurnToolRegistry([
       tool("resident"),
