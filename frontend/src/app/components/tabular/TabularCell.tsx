@@ -1,8 +1,6 @@
 import { memo } from "react";
 import { AlertCircle } from "lucide-react";
 import type { ColumnConfig, TabularCell as TCell } from "@/app/lib/api/tabular";
-import type { Citation } from "@/app/lib/citations";
-import { groundedAnswerMarkdown } from "@/app/lib/groundedAnswers";
 import { cn } from "@/app/lib/utils";
 import { FlagDot } from "../shared/GroundedAnswerContent";
 import { SkeletonLine } from "../shared/TablePrimitive";
@@ -12,12 +10,10 @@ interface Props {
     cell: TCell;
     column?: ColumnConfig;
     onExpand: (cell: TCell) => void;
-    onCitationClick: (cell: TCell, citation: Citation) => void;
 }
 
-export const TabularCell = memo(function TabularCell({ cell, column, onExpand, onCitationClick }: Props) {
+export const TabularCell = memo(function TabularCell({ cell, column, onExpand }: Props) {
     const answer = cell.content;
-    const citations = answer ? groundedAnswerMarkdown(answer).citations : [];
     const numeric = !!column?.format && NUMERIC_FORMATS.has(column.format);
     const text = (answer?.summary || answer?.claims[0]?.text || "").replace(/^[-*•]\s+/u, "");
     return <div className={cn("group relative flex h-full min-w-0 items-center gap-1.5 px-2.5 text-[13px] leading-4 text-gray-800",
@@ -34,13 +30,7 @@ export const TabularCell = memo(function TabularCell({ cell, column, onExpand, o
                     numeric && "tabular-nums")}>
                     <TabularMarkdown text={text} value={answer.value} column={column} inline />
                 </div>
-                {(answer.flag || !!citations.length) && <span className="relative flex shrink-0 items-center gap-1.5">
-                    {answer.flag && <FlagDot flag={answer.flag} />}
-                    {!!citations.length && <button type="button" onClick={() => onCitationClick(cell, citations[0]!)}
-                        aria-label={`Show references for ${column?.name ?? "cell"}`}
-                        title={`${citations.length} citation${citations.length === 1 ? "" : "s"}`}
-                        className="rounded bg-gray-50 px-1 text-[10px] text-gray-600 ring-1 ring-gray-300 focus-visible:outline focus-visible:outline-2">{citations.length}</button>}
-                </span>}
+                {answer.flag && <FlagDot flag={answer.flag} className="relative" />}
             </>}
     </div>;
 });
