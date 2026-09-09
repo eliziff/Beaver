@@ -13,7 +13,6 @@ import { authorityName, authorityCitationForms, requiresBilingualSources,
 import type { AuthoritiesAction, AuthoritiesDraft, AuthoritiesProduct,
   AuthorityIdentity, AuthorityOccurrence } from "./types";
 import type { AuthoritiesSourceIssue } from "./host";
-import type { ScannedPdf, SourceOcrStatus } from "./sourceOcr";
 
 const control = "h-8 shrink-0 border-gray-400 px-2.5 text-xs";
 export type AuthorityPanelProps = {
@@ -28,7 +27,6 @@ export type AuthorityPanelProps = {
 type PanelProps = AuthorityPanelProps & {
   state: AuthoritiesDraft; occurrences: AuthorityOccurrence[];
   onPickMany?: () => void; onLibraryAdd?: () => void; onFiles?: (files: File[]) => void;
-  ocr?: SourceOcrPanel;
 };
 export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft: AuthoritiesProduct }) {
   return <SourcePanel {...props} state={draft.state} />;
@@ -36,8 +34,7 @@ export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft
 
 function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues,
   onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onPick, onLibrary,
-  sourceLabel = "Library", onAttach, onRelink, onOpenSource, onEditIdentity,
-  ocr }: PanelProps) {
+  sourceLabel = "Library", onAttach, onRelink, onOpenSource, onEditIdentity }: PanelProps) {
   const [tabSettings, setTabSettings] = useState(false);
   return <><section className="mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
     <div className="p-3 sm:p-4"
@@ -71,7 +68,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           onAction={onAction} onPick={onPick ? () => onPick(authority.id) : undefined}
           onLibrary={onLibrary ? () => onLibrary(authority.id) : undefined} sourceLabel={sourceLabel}
           onAttach={(file) => onAttach(authority.id, file)} onRelink={onRelink}
-          onOpen={onOpenSource} onEditIdentity={() => onEditIdentity(authority)} ocr={ocr} />)}
+          onOpen={onOpenSource} onEditIdentity={() => onEditIdentity(authority)} />)}
         {!authorities.length && <p className="px-4 py-8 text-center text-sm text-gray-500">Add authorities to begin.</p>}
       </div>
       <Button type="button" variant="ghost" className="mt-2 h-9" disabled={busy} onClick={onAdd}><Plus /> Add authority</Button>
@@ -83,14 +80,14 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
 
 function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLanguages, sourceIssues,
   editableIdentity, rebuildsFromText, removable, sourceLabel, onAction, onPick, onLibrary, onAttach,
-  onRelink, onOpen, onEditIdentity, ocr, order }: {
+  onRelink, onOpen, onEditIdentity, order }: {
   order: string[];
   authority: AuthorityIdentity; tab?: string; citations: string[]; busy: boolean; needsPdf: boolean;
   requireLanguages: boolean; sourceIssues: Record<string, AuthoritiesSourceIssue>;
   editableIdentity: boolean; rebuildsFromText: boolean; removable: boolean; sourceLabel: string;
   onAction: (action: AuthoritiesAction) => void; onPick?: () => void; onLibrary?: () => void;
   onAttach: (file?: File) => void; onRelink: (role: string) => void;
-  onOpen?: (role: string) => void; onEditIdentity: () => void; ocr?: SourceOcrPanel;
+  onOpen?: (role: string) => void; onEditIdentity: () => void;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const styleOfCause = authority.displayName || authority.name || "";
@@ -182,8 +179,6 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
           { label: "Delete entry", disabled: busy || !removable,
             onSelect: () => onAction({ type: "remove-authority", authorityId: authority.id }) }]} />
     </div>
-    {sources.flatMap(({ bindingRole }) => ocr?.tracked[bindingRole]
-      ? [<SourceOcrProgress key={bindingRole} ocr={ocr} status={ocr.tracked[bindingRole]} />] : [])}
     <input ref={fileInput} className="sr-only" tabIndex={-1} type="file" accept=".pdf,application/pdf"
       disabled={busy} aria-label={`Upload PDF for ${title}`} onChange={(event) => {
         const file = event.target.files?.[0]; event.target.value = "";
@@ -203,42 +198,4 @@ function StyleOfCause({ value, onSave, onCancel }: {
       if (event.key === "Enter") event.currentTarget.blur();
       if (event.key === "Escape") { finished.current = true; onCancel(); }
     }} className="col-span-1 h-8 min-w-0 border-gray-400 text-sm sm:col-span-2" />;
-}
-
-export type SourceOcrPanel = Pick<ReturnType<typeof import("./sourceOcr").useSourceOcr>, "tracked" | "begin" | "stop">;
-
-export function SourceRecognition({ file, ocr, disabled }: { file: ScannedPdf; ocr: SourceOcrPanel; disabled?: boolean }) {
-  const [pages, setPages] = useState("");
-  return <form className="my-2 flex flex-wrap items-center gap-2" onSubmit={event => {
-    event.preventDefault();
-    void ocr.begin([file], pages.trim() ? [...new Set(pages.split(",").map(Number))] : undefined);
-  }}>
-    <label className="text-sm text-gray-700">Pages to recognize <input value={pages}
-      onChange={event => setPages(event.target.value)} placeholder="All scanned pages"
-      pattern="\s*[1-9][0-9]*\s*(,\s*[1-9][0-9]*\s*)*" title="Enter page numbers separated by commas, or leave blank for all scanned pages."
-      className="ms-2 h-8 w-40 rounded border border-gray-400 px-2 text-sm" /></label>
-    <Button type="submit" variant="outline" className="h-8" disabled={disabled}>Recognize</Button>
-    {ocr.tracked[file.role] && <SourceOcrProgress status={ocr.tracked[file.role]} ocr={ocr} />}
-  </form>;
-}
-
-/** Text recognition for one scanned source, watched where the source lives. */
-function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: SourceOcrPanel }) {
-  const action = (label: string, act: () => void) => <button type="button"
-    className="min-h-6 rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600"
-    onClick={act}>{label}</button>;
-  return <div className="col-span-full flex flex-wrap items-center gap-2 text-xs">
-    <span className={cn("min-w-0 truncate", status.state === "done" ? "text-green-800"
-      : status.state === "failed" ? "text-red-800" : "text-gray-600")}>
-      {status.state === "done" ? "Text recognition complete"
-        : status.state === "failed" ? status.error || "Text recognition failed"
-        : status.state === "paused" ? "Text recognition paused"
-        : status.state === "cancelled" ? "Text recognition cancelled"
-        : `Recognizing text${status.page ? ` on page ${status.page}` : ""}`}</span>
-    <span className="ms-auto flex shrink-0 gap-1">
-      {status.state === "running" && action("Pause", () => ocr.stop([status.role], true))}
-      {["paused", "failed", "cancelled"].includes(status.state) && action("Resume", () => void ocr.begin([status]))}
-      {["running", "paused"].includes(status.state) && action("Cancel", () => void ocr.stop([status.role], false))}
-    </span>
-  </div>;
 }
