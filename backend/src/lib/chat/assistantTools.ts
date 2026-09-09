@@ -374,85 +374,9 @@ async function scopedDocuments(
   return documents;
 }
 
-function resolveDocumentArgument(
-  input: Record<string, unknown>,
-): { input: Record<string, unknown>; error?: string } {
-  const reference = trimmed(input.document_id);
-  if (!reference) return { input };
-  const resource = parseResourceReference(reference);
-  if (resource?.kind === "document") {
-    return {
-      input: {
-        ...input,
-        document_id: resource.documentId,
-        version_id: resource.versionId,
-      },
-    };
-  }
-  return { input, error: "document_id must be a document resource returned by Glob" };
-}
-
 type AssistantEditTurnState = Map<string, {
   versionId: string; workingRevision: number; parentVersionId: string; turnVersionId?: string;
 }>;
-
-async function commitAssistantTurnVersion(params: {
-  documents: DocumentStore;
-  scope: DocumentScope;
-  documentId: string;
-  sourceVersionId: string;
-  sourceWorkingRevision: number;
-  filename: string;
-  bytes: Buffer;
-  trackedEdits: AssistantEdit[];
-  turnEditState?: AssistantEditTurnState;
-  turnId?: string;
-  editMode?: EditMode;
-}) {
-  const existing = params.turnEditState?.get(params.documentId);
-  if (existing && (existing.versionId !== params.sourceVersionId ||
-      existing.workingRevision !== params.sourceWorkingRevision)) return null;
-  const parentVersionId = existing?.parentVersionId ?? params.sourceVersionId;
-  const finalized = params.trackedEdits.length
-    ? await finalizeTrackedEdits(
-        params.bytes,
-        params.trackedEdits.flatMap((edit) =>
-          [edit.delWId, edit.insWId].filter((id): id is string => !!id),
-        ),
-        params.editMode ?? "manual",
-      )
-    : { bytes: params.bytes, status: "pending" as const };
-  const committed = await params.documents.commitAssistantVersion(
-    params.scope,
-    params.documentId,
-    {
-      sourceVersionId: params.sourceVersionId,
-      expectedWorkingRevision: params.sourceWorkingRevision,
-      ...(existing?.turnVersionId ? { turnVersionId: existing.turnVersionId } : {}),
-      ...(params.turnId ? { turnId: params.turnId } : {}),
-      filename: params.filename,
-      fileType: "docx",
-      bytes: finalized.bytes,
-      edits: params.trackedEdits,
-      status: finalized.status,
-    },
-  );
-  if (committed.status === "committed") {
-    params.turnEditState?.set(params.documentId, {
-      versionId: committed.version.id,
-      workingRevision: committed.version.working_revision,
-      parentVersionId,
-      turnVersionId: committed.version.id,
-    });
-  }
-  return committed.status === "committed"
-    ? {
-        version: committed.version,
-        parentVersionId,
-        trackedEdits: committed.edits,
-      }
-      : null;
-}
 
 const editAnnotations = (
   documentId: string,
@@ -502,21 +426,44 @@ async function saveDocxEdits(params: {
   turnId?: string;
   editMode: EditMode;
 }) {
-  const committed = await commitAssistantTurnVersion({
-    documents: params.documents,
-    scope: params.scope,
-    documentId: params.documentId,
-    sourceVersionId: params.source.version.id,
-    sourceWorkingRevision: params.source.version.working_revision,
-    filename: params.source.version.filename ?? params.source.filename,
-    bytes: params.bytes,
-    trackedEdits: params.edits,
-    turnEditState: params.turnEditState,
-    turnId: params.turnId,
-    editMode: params.editMode,
+  const stale = fail("The active document version changed.");
+  const sourceVersionId = params.source.version.id;
+  const workingRevision = params.source.version.working_revision;
+  const existing = params.turnEditState?.get(params.documentId);
+  if (existing && (existing.versionId !== sourceVersionId ||
+      existing.workingRevision !== workingRevision)) return stale;
+  const finalized = params.edits.length
+    ? await finalizeTrackedEdits(
+        params.bytes,
+        params.edits.flatMap((edit) =>
+          [edit.delWId, edit.insWId].filter((id): id is string => !!id),
+        ),
+        params.editMode,
+      )
+    : { bytes: params.bytes, status: "pending" as const };
+  const committed = await params.documents.commitAssistantVersion(
+    params.scope,
+    params.documentId,
+    {
+      sourceVersionId,
+      expectedWorkingRevision: workingRevision,
+      ...(existing?.turnVersionId ? { turnVersionId: existing.turnVersionId } : {}),
+      ...(params.turnId ? { turnId: params.turnId } : {}),
+      filename: params.source.version.filename ?? params.source.filename,
+      fileType: "docx",
+      bytes: finalized.bytes,
+      edits: params.edits,
+      status: finalized.status,
+    },
+  );
+  if (committed.status !== "committed") return stale;
+  const { version, edits: trackedEdits } = committed;
+  params.turnEditState?.set(params.documentId, {
+    versionId: version.id,
+    workingRevision: version.working_revision,
+    parentVersionId: existing?.parentVersionId ?? sourceVersionId,
+    turnVersionId: version.id,
   });
-  if (!committed) return fail("The active document version changed.");
-  const { version, trackedEdits } = committed;
   return artifactResult({
     type: "document_artifact",
     action: "edited",
@@ -560,7 +507,6 @@ function takeCodingOutputLines(
 
 type TextRange = { start: number; end: number };
 
-
 async function activeDocument(
   documents: DocumentStore,
   scope: DocumentScope,
@@ -590,8 +536,6 @@ async function activeDocx(
     throw new Error("Operation requires a DOCX document");
   return file;
 }
-
-
 
 /**
  * A scanned PDF has no text until recognition finishes, so a read of one
@@ -1198,7 +1142,6 @@ const withEvent = (output: AssistantOutcome, event: AssistantEvent | null | unde
   ? { ...output, events: [...(output.events ?? []), event] }
   : output;
 
-
 const fail = (error: string) => result({ ok: false, error });
 
 /** Citation text, authority names and span text a work-product payload carries: the draft's
@@ -1766,7 +1709,7 @@ export function assistantTools<Context extends {
       knownSources,
     });
     if (sourceRead) return sourceRead;
-    const output = await runCodingShapeCall(
+    return runCodingShapeCall(
       call,
       args,
       documents,
@@ -1783,7 +1726,6 @@ export function assistantTools<Context extends {
       progress,
       signal,
     );
-    return output;
   };
   const documentTool = (
     run: (
@@ -1793,15 +1735,20 @@ export function assistantTools<Context extends {
       signal: AbortSignal,
     ) => Promise<AssistantOutcome>,
   ): AssistantToolRun => async (call, input, signal) => {
-    const resolved = resolveDocumentArgument(input);
-    if (resolved.error) return fail(resolved.error);
-    const documentId = trimmed(resolved.input.document_id);
+    const reference = trimmed(input.document_id);
+    const resource = reference ? parseResourceReference(reference) : null;
+    if (reference && resource?.kind !== "document")
+      return fail("document_id must be a document resource returned by Glob");
+    const resolved = resource?.kind === "document"
+      ? { ...input, document_id: resource.documentId, version_id: resource.versionId }
+      : input;
+    const documentId = trimmed(resolved.document_id);
     if (documentId && (matterId
       ? allowedDocumentIds && !allowedDocumentIds.has(documentId)
       : !await library.document({ ...scope, kind: "file" }, documentId))) {
       return fail("Document is outside this chat's document scope");
     }
-    return run(call, resolved.input, documentId, signal);
+    return run(call, resolved, documentId, signal);
   };
   const write: AssistantToolRun = async (_call, args) => {
     const requestedFilename = trimmed(args.filename);
