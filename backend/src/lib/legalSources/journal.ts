@@ -1,22 +1,11 @@
 import crypto from "node:crypto";
-import {
-  existsSync,
-  realpathSync,
-  statSync,
-} from "node:fs";
+import { existsSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { legalProviderDatabase } from "../legalDataPath";
 import { positiveInteger as integer } from "../value";
-import {
-  structureNative,
-  type NativeDocument,
-} from "../structureNative";
-import type {
-  LegalSourceProvider,
-  LegalSourceSearchRequest,
-  LegalSourceReference,
-} from ".";
+import { structureNative, type NativeDocument } from "../structureNative";
+import type { LegalSourceProvider, LegalSourceSearchRequest, LegalSourceReference } from ".";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
 
 type Row = Record<string, unknown>;
@@ -25,31 +14,17 @@ type JournalPageRow = { page_label: unknown; pdf_page: unknown };
 
 export type JournalArticleSearchResult = {
   provider: "journal";
-  hitId: string;
-  articleId: number;
-  dataset: string;
-  citation: string;
-  name: string;
-  date: string | null;
-  url: string | null;
-  snippet: string | null;
-  journalName: string | null;
-  authors: string | null;
+  hitId: string; articleId: number; dataset: string;
+  citation: string; name: string; date: string | null; url: string | null;
+  snippet: string | null; journalName: string | null; authors: string | null;
 };
 
 export type JournalArticleDocument = {
   provider: "journal";
-  identity: string;
-  articleId: number;
-  dataset: string;
-  citation: string;
-  title: string;
-  date: string | null;
-  url: string;
+  identity: string; articleId: number; dataset: string;
+  citation: string; title: string; date: string | null; url: string;
   native: NativeDocument;
-  upstreamLicense: string | null;
-  journalName: string | null;
-  authors: string | null;
+  upstreamLicense: string | null; journalName: string | null; authors: string | null;
   language: "en";
 };
 
@@ -119,13 +94,7 @@ function trustedUrl(value: string | null) {
   if (!value) return null;
   try {
     const url = new URL(value);
-    if (
-      !["http:", "https:"].includes(url.protocol) ||
-      url.username ||
-      url.password
-    ) {
-      return null;
-    }
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return null;
     url.hash = "";
     return url.toString();
   } catch {
@@ -230,22 +199,15 @@ function displayCitation(row: Row) {
 }
 
 function queryTokens(value: string) {
-  return (
-    value
-      .normalize("NFKC")
-      .toLocaleLowerCase()
-      .match(/[\p{L}\p{N}]+/gu)
-      ?.filter((token) => token.length > 1)
-      .slice(0, 8) ?? []
-  );
+  return value.normalize("NFKC").toLocaleLowerCase()
+    .match(/[\p{L}\p{N}]+/gu)?.filter((token) => token.length > 1).slice(0, 8) ?? [];
 }
 
 function result(row: Row, query: string): JournalArticleSearchResult {
   const articleId = integer(row.article_id)!;
   const abstract = string(row, "abstract");
-  const tokens = queryTokens(query);
   const folded = abstract?.toLocaleLowerCase() ?? "";
-  const position = tokens
+  const position = queryTokens(query)
     .map((token) => folded.indexOf(token))
     .find((index) => index >= 0);
   return {
@@ -306,27 +268,19 @@ function findArticles(
   };
   const search = searchDatabase();
   if (search) {
-    const ftsQuery =
-      options.syntax === "fts5"
-        ? query
-        : tokens
-            .map((token) => `"${token.replace(/"/gu, '""')}"`)
-            .join(" AND ");
+    const ftsQuery = options.syntax === "fts5" ? query
+      : tokens.map((token) => `"${token.replace(/"/gu, '""')}"`).join(" AND ");
     const candidateLimit =
       options.author || options.journal || options.dateFrom || options.dateTo
         ? Math.min(250, wanted * 10)
         : wanted;
-    const ids = (
-      search
-        .prepare(
-          `SELECT rowid AS article_id
-           FROM article_search
-           WHERE article_search MATCH ?
-           ORDER BY bm25(article_search, 4.0, 1.0)
-           LIMIT ?`,
-        )
-        .all(ftsQuery, candidateLimit) as Array<{ article_id: number }>
-    ).map(({ article_id }) => article_id);
+    const ids = (search.prepare(
+      `SELECT rowid AS article_id
+       FROM article_search
+       WHERE article_search MATCH ?
+       ORDER BY bm25(article_search, 4.0, 1.0)
+       LIMIT ?`,
+    ).all(ftsQuery, candidateLimit) as Array<{ article_id: number }>).map(({ article_id }) => article_id);
     if (!ids.length) return [];
     const rows = select(`article_id IN (${ids.map(() => "?").join(",")})`, ids);
     const byId = new Map(rows.map((row) => [integer(row.article_id), row]));
@@ -368,36 +322,21 @@ function findArticles(
 
 function inside(base: string, candidate: string) {
   const relative = path.relative(base, candidate);
-  return (
-    relative === "" ||
-    (!relative.startsWith(`..${path.sep}`) &&
-      relative !== ".." &&
-      !path.isAbsolute(relative))
-  );
+  return relative === "" ||
+    (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
 }
 
 function registeredPages(filename: string, sourceDir: string) {
-  if (
-    !sourceDir ||
-    path.isAbsolute(sourceDir) ||
-    /^[A-Za-z]:[\\/]/u.test(sourceDir)
-  ) {
-    return null;
-  }
+  if (!sourceDir || path.isAbsolute(sourceDir) || /^[A-Za-z]:[\\/]/u.test(sourceDir)) return null;
   const relative = sourceDir.replace(/[\\/]+/gu, path.sep);
   const databaseDirectory = path.dirname(filename);
-  for (const base of [
-    databaseDirectory,
-    path.dirname(databaseDirectory),
-  ]) {
+  for (const base of [databaseDirectory, path.dirname(databaseDirectory)]) {
     const candidate = path.resolve(base, relative, "pages.jsonl");
     if (!inside(base, candidate) || !existsSync(candidate)) continue;
     try {
       const realBase = realpathSync(base);
       const realCandidate = realpathSync(candidate);
-      if (inside(realBase, realCandidate) && statSync(realCandidate).isFile()) {
-        return realCandidate;
-      }
+      if (inside(realBase, realCandidate) && statSync(realCandidate).isFile()) return realCandidate;
     } catch {
       // An unreadable registration is equivalent to no canonical package.
     }
@@ -414,15 +353,7 @@ function finalContractPages(articleId: number): FinalContractPages | null {
   if (!row) return null;
   const sourceDir = string(row, "source_dir");
   const filename = sourceDir ? registeredPages(registered.filename, sourceDir) : null;
-  if (!filename) return null;
-  return { filename, signature: snapshotSignature(filename) };
-}
-
-function finalContractSource(
-  articleId: number, url: string, pages: FinalContractPages, pageRows: JournalPageRow[],
-) {
-  return structureNative().deriveDocumentStructure({ kind: "journal", article_id: articleId, url,
-    filename: pages.filename, page_rows: pageRows });
+  return filename ? { filename, signature: snapshotSignature(filename) } : null;
 }
 
 function articleRow(identifier: string) {
@@ -441,9 +372,7 @@ function articleRow(identifier: string) {
   return rows.length === 1 ? rows[0] : null;
 }
 
-async function document(
-  identifier: string,
-): Promise<JournalArticleDocument | null> {
+async function document(identifier: string): Promise<JournalArticleDocument | null> {
   identifier = identifier.trim();
   if (!identifier) throw new Error("identifier is required");
   database();
@@ -464,10 +393,10 @@ async function document(
        WHERE article_id = ? ORDER BY page_order`,
     )
     .all(articleId) as JournalPageRow[];
-  const native = registered
-    ? await finalContractSource(articleId, url, registered, pageRows)
-    : await structureNative().deriveDocumentStructure({ kind: "journal", article_id: articleId, url,
-        text: publicText, page_rows: pageRows });
+  const native = await structureNative().deriveDocumentStructure({
+    kind: "journal", article_id: articleId, url, page_rows: pageRows,
+    ...(registered ? { filename: registered.filename } : { text: publicText }),
+  });
   const document: JournalArticleDocument = {
     provider: "journal",
     identity: String(articleId),
@@ -483,9 +412,7 @@ async function document(
     authors: string(row, "authors"),
     language: "en",
   };
-  if (documents.size >= MAX_DOCUMENT_CACHE) {
-    documents.delete(documents.keys().next().value!);
-  }
+  if (documents.size >= MAX_DOCUMENT_CACHE) documents.delete(documents.keys().next().value!);
   documents.set(cacheKey, document);
   return document;
 }
@@ -493,49 +420,29 @@ async function document(
 async function viewer(identifier: string) {
   const article = await document(identifier);
   if (!article) return null;
-  const viewer = structureNative().legalSourceViewer(
-    article.native,
-    "paragraph",
-  );
+  const viewer = structureNative().legalSourceViewer(article.native, "paragraph");
   const payload = {
     schemaVersion: "mike.legal-source.v1" as const,
     provider: "journal" as const,
     reference: {
-      provider: "journal" as const,
-      id: article.identity,
-      kind: "journal" as const,
-      docType: "articles" as const,
-      citation: article.citation,
-      sourceId: article.identity,
-      language: article.language,
-      dataset: article.dataset || null,
+      provider: "journal" as const, id: article.identity, kind: "journal" as const,
+      docType: "articles" as const, citation: article.citation, sourceId: article.identity,
+      language: article.language, dataset: article.dataset || null,
       sourceSha256: viewer.documentRevision,
     },
     metadata: {
-      title: article.title,
-      citation: article.citation,
-      alternateCitation: null,
-      date: article.date,
-      dataset: article.dataset,
-      url: article.url,
-      language: article.language,
-      upstreamLicense: article.upstreamLicense,
-      authors: article.authors,
-      journalName: article.journalName,
+      title: article.title, citation: article.citation, alternateCitation: null,
+      date: article.date, dataset: article.dataset, url: article.url,
+      language: article.language, upstreamLicense: article.upstreamLicense,
+      authors: article.authors, journalName: article.journalName,
     },
     slices: viewer.slices,
     truncated: viewer.truncated,
   };
-  return {
-    payload,
-    native: article.native,
-    etag: `"${crypto
-      .createHash("sha256")
-      .update(JSON.stringify([
-        viewer.documentRevision, payload.reference, payload.metadata,
-      ]))
-      .digest("base64url")}"`,
-  };
+  const digest = crypto.createHash("sha256")
+    .update(JSON.stringify([viewer.documentRevision, payload.reference, payload.metadata]))
+    .digest("base64url");
+  return { payload, native: article.native, etag: `"${digest}"` };
 }
 
 function journalReference(document: JournalArticleDocument) {
@@ -553,16 +460,10 @@ function journalReference(document: JournalArticleDocument) {
 }
 
 function exactJournalIdentity(value: string) {
-  return value
-    .trim()
-    .normalize("NFKC")
-    .toLocaleLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, "");
+  return value.trim().normalize("NFKC").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
-const provider: LegalSourceProvider<{
-    document: JournalArticleDocument;
-  }> = {
+const provider: LegalSourceProvider<{ document: JournalArticleDocument }> = {
   id: "journal",
   canResolve: ({ kind }) => kind === "journal",
   async resolve(request) {
@@ -573,48 +474,34 @@ const provider: LegalSourceProvider<{
       const article = await document(candidate);
       if (article) return [journalReference(article)];
     }
-    const matches = findArticles(candidates[0] ?? request.text, 10).filter(
-      (match) =>
-        candidates.some(
-          (candidate) =>
-            exactJournalIdentity(candidate) === exactJournalIdentity(match.citation) ||
-            exactJournalIdentity(candidate) === exactJournalIdentity(match.name),
-        ),
-    );
+    const matches = findArticles(candidates[0] ?? request.text, 10).filter((match) =>
+      candidates.some((candidate) =>
+        exactJournalIdentity(candidate) === exactJournalIdentity(match.citation) ||
+        exactJournalIdentity(candidate) === exactJournalIdentity(match.name)));
     if (matches.length !== 1) return [];
     const article = await document(String(matches[0].articleId));
     return article ? [journalReference(article)] : [];
   },
   canSearch: (request) => request.kinds.includes("journal"),
   async search(request) {
-    const jurisdiction = request.jurisdiction
-      ?.toLocaleLowerCase()
-      .replace(/[^a-z]/gu, "");
-    if (
-      request.court ||
-      request.collection ||
-      ["us", "usa", "unitedstates", "unitedstatesofamerica"].includes(
-        jurisdiction ?? "",
-      )
-    ) {
+    const jurisdiction = request.jurisdiction?.toLocaleLowerCase().replace(/[^a-z]/gu, "");
+    if (request.court || request.collection ||
+        ["us", "usa", "unitedstates", "unitedstatesofamerica"].includes(jurisdiction ?? "")) {
       throw new Error("jurisdiction and court metadata are not indexed");
     }
-    return findArticles(
-      request.text,
-      request.perProviderLimit ?? request.limit,
-      request,
-    ).map((row) => ({
-      provider: "journal",
-      id: String(row.articleId),
-      kind: "journal" as const,
-      title: row.name,
-      citation: row.citation,
-      date: row.date,
-      collection: row.journalName,
-      url: row.url,
-      snippet: row.snippet,
-      authors: row.authors,
-    }));
+    return findArticles(request.text, request.perProviderLimit ?? request.limit, request)
+      .map((row) => ({
+        provider: "journal",
+        id: String(row.articleId),
+        kind: "journal" as const,
+        title: row.name,
+        citation: row.citation,
+        date: row.date,
+        collection: row.journalName,
+        url: row.url,
+        snippet: row.snippet,
+        authors: row.authors,
+      }));
   },
   async readPassage(request) {
     const article = await document(request.source.id);
