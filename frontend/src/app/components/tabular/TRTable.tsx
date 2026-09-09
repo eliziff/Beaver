@@ -1,7 +1,6 @@
 import { Fragment, useMemo } from "react";
 import { Loader2 } from "lucide-react";
 import type { ColumnConfig, TabularCell, TabularDocument } from "@/app/lib/api/tabular";
-import type { Citation } from "@/app/lib/citations";
 import { cn } from "@/app/lib/utils";
 import { TabularCell as TabularCellComponent } from "./TabularCell";
 import { FORMAT_OPTIONS } from "./columnFormat";
@@ -42,7 +41,6 @@ interface Props {
     running?: boolean;
     onSelectionChange: (ids: string[]) => void;
     onExpand: (cell: TabularCell) => void;
-    onCitationClick: (cell: TabularCell, citation: Citation) => void;
     onEditColumn: (col: ColumnConfig) => void;
     onRerunColumn?: (col: ColumnConfig) => void;
     onClearColumn?: (col: ColumnConfig) => void;
@@ -55,7 +53,7 @@ interface Props {
 export function TRTable({
     loading, columns, documents, cells, savingColumnsConfig, selectedDocIds,
     uploadingFilenames = [], dragOverFiles = false, running = false,
-    onSelectionChange, onExpand, onCitationClick, onEditColumn, onRerunColumn, onClearColumn, onDeleteColumn,
+    onSelectionChange, onExpand, onEditColumn, onRerunColumn, onClearColumn, onDeleteColumn,
     onColumnLabels, onColumnDiscuss, onAddColumns, onAddDocuments,
 }: Props) {
     const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.index - b.index), [columns]);
@@ -127,7 +125,7 @@ export function TRTable({
                             {sortedColumns.map((col) => {
                                 const cell = cellsByKey.get(`${doc.id}:${col.index}`);
                                 return <TableCell key={col.index} className={cn(COLUMN_WIDTH, GRID_LINE, "h-full p-0")}>
-                                    {cell && <TabularCellComponent cell={cell} column={col} onExpand={onExpand} onCitationClick={onCitationClick} />}
+                                    {cell && <TabularCellComponent cell={cell} column={col} onExpand={onExpand} />}
                                 </TableCell>;
                             })}
                             <div className={FILLER} />
