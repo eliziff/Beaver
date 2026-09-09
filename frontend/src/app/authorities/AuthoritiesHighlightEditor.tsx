@@ -9,13 +9,42 @@ import { cn, errorMessage } from '@/app/lib/utils';
 import { decodeAnnotationSet, emptyAnnotationSet,
   type PdfAnnotation, type PdfAnnotationSet } from '../../../../shared/pdf-annotations.mjs';
 import type { AuthoritiesHost } from './host';
+import type { SourceOcrPanel, SourceOcrStatus } from './sourceOcr';
 import type { AuthoritiesAction, AuthoritiesProduct } from './types';
+
+/** Text recognition for one scanned source, watched where the source is being used. */
+export function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: SourceOcrPanel }) {
+  const action = (label: string, act: () => void) => <button type="button"
+    className="min-h-6 rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600"
+    onClick={act}>{label}</button>;
+  const total = status.textlessPages.length;
+  const pending = status.state === 'running' || status.state === 'paused';
+  return <div className="col-span-full grid gap-1 text-xs">
+    <div className="flex flex-wrap items-center gap-2">
+      <span className={cn('min-w-0 truncate', status.state === 'done' ? 'text-green-800'
+        : status.state === 'failed' ? 'text-red-800' : 'text-gray-600')}>
+        {status.state === 'done' ? 'Text recognition complete'
+          : status.state === 'failed' ? status.error || 'Text recognition failed'
+          : status.state === 'paused' ? `Text recognition paused — ${status.recognized} of ${total} pages read`
+          : status.state === 'cancelled' ? 'Text recognition cancelled'
+          : `Recognizing ${status.pages?.length ? 'the cited pages' : 'every scanned page'} — ${status
+            .recognized} of ${total} pages read`}</span>
+      <span className="ms-auto flex shrink-0 gap-1">
+        {status.state === 'running' && action('Pause', () => ocr.stop([status.role], true))}
+        {['paused', 'failed', 'cancelled'].includes(status.state) && action('Resume', () => void ocr.begin([status]))}
+        {pending && action('Cancel', () => void ocr.stop([status.role], false))}
+      </span>
+    </div>
+    {pending && <progress value={status.recognized} max={total} aria-label={`Pages recognized in ${status.name}`}
+      className="h-1.5 w-full appearance-none overflow-hidden rounded-full bg-gray-200 [&::-moz-progress-bar]:bg-red-700 [&::-webkit-progress-bar]:bg-gray-200 [&::-webkit-progress-value]:bg-red-700" />}
+  </div>;
+}
 
 type Entry = Extract<AuthoritiesAction, { type: 'set-annotations' }>['entries'][number];
 type Choice = { authorityId: string; bindingRole: string; sourceSha256: string; title: string };
 type OpenPdf = {
   bytes: Uint8Array; set: PdfAnnotationSet; history: PdfAnnotation[][]; position: number;
-  warning: string;
+  warning: string; recognized: boolean;
 };
 const choicesFor = (product: AuthoritiesProduct, tabs: ReadonlyMap<string,string>): Choice[] =>
   product.state.authorityOrder.flatMap(id => {
@@ -28,9 +57,9 @@ const choicesFor = (product: AuthoritiesProduct, tabs: ReadonlyMap<string,string
         ...(sources.length > 1 ? [source.language === 'fr' ? 'French' : 'English'] : [])].filter(Boolean).join(' — ') }));
   });
 
-export function AuthoritiesHighlights({ product, tabs, host, busy, onSaved }: {
+export function AuthoritiesHighlights({ product, tabs, host, busy, ocr, onSaved }: {
   product: AuthoritiesProduct; tabs: ReadonlyMap<string,string>; host: AuthoritiesHost; busy: boolean;
-  onSaved(product: AuthoritiesProduct): void;
+  ocr: SourceOcrPanel; onSaved(product: AuthoritiesProduct): void;
 }) {
   const [open, setOpen] = useState(false);
   const choices = choicesFor(product, tabs);
@@ -39,13 +68,13 @@ export function AuthoritiesHighlights({ product, tabs, host, busy, onSaved }: {
     subtitle="Review and adjust passage marks in your source PDFs."
     actions={<Button type="button" variant="outline" className="h-9 border-gray-400"
       disabled={busy || !host.readSource} onClick={() => setOpen(true)}><Highlighter /> Edit in PDF</Button>} />
-    {open && <AuthoritiesHighlightEditor product={product} choices={choices} host={host}
+    {open && <AuthoritiesHighlightEditor product={product} choices={choices} host={host} ocr={ocr}
       onClose={() => setOpen(false)} onSaved={onSaved} />}
   </>;
 }
 
-function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, onClose, onSaved }: {
-  product: AuthoritiesProduct; choices: Choice[]; host: AuthoritiesHost;
+function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, ocr, onClose, onSaved }: {
+  product: AuthoritiesProduct; choices: Choice[]; host: AuthoritiesHost; ocr: SourceOcrPanel;
   onClose(): void; onSaved(product: AuthoritiesProduct): void;
 }) {
   // A review edits one known revision; a concurrent write must not be silently overwritten.
@@ -63,6 +92,8 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
   const request = useRef<AbortController|null>(null);
   const cardRefs = useRef(new Map<string,HTMLLIElement>());
   const source = choices.find(choice => choice.bindingRole === role)!;
+  const recognition = ocr.tracked[role];
+  const recognized = recognition?.state !== 'running' && recognition?.state !== 'paused';
   const neighbour = (step: number) => choices[(choices.indexOf(source)+step+choices.length)%choices.length];
   const go = (step: number) => setRole(neighbour(step).bindingRole);
   const current = documents[role], marks = current?.history[current.position] ?? [];
@@ -87,7 +118,11 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
 
   useEffect(() => {
     setSelectedId(null); setFocus(undefined); setError('');
-    if (documents[role]) { setLoading(false); return; }
+    const loaded = documents[role];
+    // Marks prepared while a scan was still being read are prepared again once its text
+    // arrives, unless the reader has changed them in the meantime.
+    if (loaded && (loaded.recognized || savedMarks.current[role] !== loaded.history[loaded.position]))
+      { setLoading(false); return; }
     const abort = new AbortController(); request.current?.abort(); request.current=abort; setLoading(true);
     void (async () => {
       if (!host.readSource) throw new Error('This source cannot be opened.');
@@ -116,12 +151,12 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
       }
       abort.signal.throwIfAborted();
       savedMarks.current[role] = set.marks;
-      setDocuments(values => ({...values,[role]:{bytes,set,history:[set.marks],position:0,warning}}));
+      setDocuments(values => ({...values,[role]:{bytes,set,history:[set.marks],position:0,warning,recognized}}));
     })().catch(cause => { if (!abort.signal.aborted) setError(errorMessage(cause)); })
       .finally(() => { if (!abort.signal.aborted) setLoading(false); });
     return () => abort.abort();
     // A loaded document is retained when switching sources; edits do not reload its PDF bytes.
-  }, [role, base, host]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [role, base, host, recognized]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => request.current?.abort(), []);
   useEffect(() => { if(selectedId) cardRefs.current.get(selectedId)?.scrollIntoView({block:'nearest'}); },[selectedId]);
   useEffect(() => {
@@ -184,6 +219,8 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, on
             <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Redo" disabled={disabled||current.position>=current.history.length-1} onClick={redo}><Redo2 /></Button>
           </div>
         </div>
+        {recognition && <div className="mt-2 shrink-0 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2">
+          <SourceOcrProgress status={recognition} ocr={ocr} /></div>}
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(16rem,1fr)_minmax(8rem,.45fr)] md:grid-cols-[minmax(0,1fr)_19rem] md:grid-rows-1">
           <div className="mt-3 flex min-h-0 min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-gray-100 md:mr-3">
             {current ? <PdfView key={role} doc={null} bytes={current.bytes} rounded={false} ariaLabel="Authority PDF editor"
