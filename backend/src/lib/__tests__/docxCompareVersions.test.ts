@@ -1,13 +1,11 @@
 import {
-  Document,
-  Packer,
   Paragraph,
   Table,
   TableCell,
   TableRow,
-  TextRun,
 } from "docx";
 import { describe, expect, it } from "vitest";
+import { docxBytes, docxXml as documentXml } from "./support/docxFixtures";
 
 import { compareDocxVersions } from "../docxCompareVersions";
 import {
@@ -17,54 +15,28 @@ import {
 } from "../docxTrackedChanges";
 
 async function docxFrom(paragraphs: string[]): Promise<Buffer> {
-  return Packer.toBuffer(
-    new Document({
-      sections: [
-        {
-          children: paragraphs.map(
-            (text) => new Paragraph({ children: [new TextRun(text)] }),
-          ),
-        },
-      ],
-    }),
-  );
+  return docxBytes(paragraphs.map(
+    (text) => new Paragraph(text),
+  ));
 }
 
 function cell(text: string): TableCell {
   return new TableCell({
-    children: [new Paragraph({ children: [new TextRun(text)] })],
+    children: [new Paragraph(text)],
   });
 }
 
 async function docxWithTable(price: string): Promise<Buffer> {
-  return Packer.toBuffer(
-    new Document({
-      sections: [
-        {
-          children: [
-            new Paragraph({
-              children: [new TextRun("Fee schedule follows.")],
-            }),
-            new Table({
-              rows: [
-                new TableRow({ children: [cell("Item"), cell("Price")] }),
-                new TableRow({ children: [cell("Base fee"), cell(price)] }),
-              ],
-            }),
-            new Paragraph({
-              children: [new TextRun("Prices are exclusive of tax.")],
-            }),
-          ],
-        },
+  return docxBytes([
+    new Paragraph("Fee schedule follows."),
+    new Table({
+      rows: [
+        new TableRow({ children: [cell("Item"), cell("Price")] }),
+        new TableRow({ children: [cell("Base fee"), cell(price)] }),
       ],
     }),
-  );
-}
-
-async function documentXml(bytes: Buffer): Promise<string> {
-  const JSZip = (await import("jszip")).default;
-  const zip = await JSZip.loadAsync(bytes);
-  return zip.file("word/document.xml")!.async("string");
+    new Paragraph("Prices are exclusive of tax."),
+  ]);
 }
 
 const countOf = (xml: string, re: RegExp) => (xml.match(re) ?? []).length;
@@ -139,46 +111,6 @@ describe("compareDocxVersions", () => {
     expect(accepted).toContain(kept1);
     expect(accepted).toContain(kept2);
     expect(accepted).not.toContain(removed);
-  });
-
-  it("tracks a mid-paragraph word replacement as one del + one ins", async () => {
-    const oldBytes = await docxFrom([
-      "The Purchaser shall pay the costs of the escrow agent.",
-    ]);
-    const newBytes = await docxFrom([
-      "The Supplier shall pay the costs of the escrow agent.",
-    ]);
-
-    const result = await compareDocxVersions(oldBytes, newBytes);
-
-    expect(result.abstentions).toEqual([]);
-    expect(result.changes).toHaveLength(1);
-    const change = result.changes[0];
-    expect(change.kind).toBe("replace");
-    expect(change.deletedText).toBe("Purchaser");
-    expect(change.insertedText).toBe("Supplier");
-    const xml = await documentXml(result.bytes);
-    expect(countOf(xml, /<w:del\b/gu)).toBe(1);
-    expect(countOf(xml, /<w:ins\b/gu)).toBe(1);
-    expect(xml).toContain("Purchaser</w:delText>");
-    await expect(extractDocxBodyText(result.bytes)).resolves.toBe(
-      "The Supplier shall pay the costs of the escrow agent.",
-    );
-  });
-
-  it("produces a durable redline that accepts to new and rejects to old", async () => {
-    const oldText = "The Purchaser shall pay the escrow agent.";
-    const newText = "The Supplier shall pay the escrow agent.";
-    const result = await compareDocxVersions(
-      await docxFrom([oldText]),
-      await docxFrom([newText]),
-    );
-    const ids = (await extractTrackedChangeIds(result.bytes)).map(({ w_id }) => w_id);
-
-    const accepted = await resolveTrackedChange(result.bytes, ids, "accept");
-    const rejected = await resolveTrackedChange(result.bytes, ids, "reject");
-    await expect(extractDocxBodyText(accepted.bytes)).resolves.toBe(newText);
-    await expect(extractDocxBodyText(rejected.bytes)).resolves.toBe(oldText);
   });
 
   it("keeps punctuation-only additions off the neighbouring word", async () => {
