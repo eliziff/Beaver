@@ -33,6 +33,23 @@ const HEADING_NUMBERING = [
 const fieldClass =
     "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:bg-gray-100 disabled:text-gray-500";
 
+type DocumentStyle = DraftingSettings["documents"][DraftingDocumentType];
+
+/** The three per-document selects, in column order. */
+const documentFields = (style: DocumentStyle, citations: { value: string; label: string }[]) => [
+    { id: "citation-placement", label: "Citation placement", value: style.citationPlacement,
+        options: citations,
+        patch: (value: string): Partial<DocumentStyle> =>
+            ({ citationPlacement: value as DraftingCitationPlacement }) },
+    { id: "source-links", label: "Source links", value: String(style.citationHyperlinks),
+        options: SOURCE_LINKS,
+        patch: (value: string): Partial<DocumentStyle> => ({ citationHyperlinks: value === "true" }) },
+    { id: "heading-numbering", label: "Heading numbering", value: String(style.numberHeadings),
+        options: HEADING_NUMBERING,
+        patch: (value: string): Partial<DocumentStyle> =>
+            ({ numberHeadings: value === "auto" ? "auto" : value === "true" }) },
+];
+
 export function DraftingStyleSettings() {
     const { profile, loading, updateProfile } = useUserProfile();
     const [draft, setDraft] = useState<DraftingSettings | null>(null);
@@ -88,44 +105,18 @@ export function DraftingStyleSettings() {
                     return (
                         <div key={document.value} className="grid gap-3 rounded-md bg-gray-50 p-3 sm:grid-cols-[7rem_repeat(3,minmax(0,1fr))] sm:items-center">
                             <span className="text-sm font-semibold text-gray-900">{document.label}</span>
-                            <label className="space-y-1 text-sm text-gray-900">
-                                <span className="block font-medium sm:sr-only">Citation placement</span>
-                                <ModalSelect
-                                    id={`${document.value}-citation-placement`}
-                                    ariaLabel={`${document.label} citation placement`}
-                                    value={style.citationPlacement} disabled={disabled}
-                                    onChange={(citationPlacement) => void updateDocument(document.value, {
-                                        citationPlacement: citationPlacement as DraftingCitationPlacement,
-                                    })}
-                                    className={fieldClass} placeholder={null}
-                                    options={citationOptions} />
-                            </label>
-                            <label className="space-y-1 text-sm text-gray-900">
-                                <span className="block font-medium sm:sr-only">Source links</span>
-                                <ModalSelect
-                                    id={`${document.value}-source-links`}
-                                    ariaLabel={`${document.label} source links`}
-                                    value={String(style.citationHyperlinks)} disabled={disabled}
-                                    onChange={(value) => void updateDocument(document.value, {
-                                        citationHyperlinks: value === "true",
-                                    })}
-                                    className={fieldClass} placeholder={null}
-                                    options={SOURCE_LINKS} />
-                            </label>
-                            <label className="space-y-1 text-sm text-gray-900">
-                                <span className="block font-medium sm:sr-only">Heading numbering</span>
-                                <ModalSelect
-                                    id={`${document.value}-heading-numbering`}
-                                    ariaLabel={`${document.label} heading numbering`}
-                                    value={String(style.numberHeadings)} disabled={disabled}
-                                    onChange={(value) => {
-                                        void updateDocument(document.value, {
-                                            numberHeadings: value === "auto" ? "auto" : value === "true",
-                                        });
-                                    }}
-                                    className={fieldClass} placeholder={null}
-                                    options={HEADING_NUMBERING} />
-                            </label>
+                            {documentFields(style, citationOptions).map((field) => (
+                                <label key={field.id} className="space-y-1 text-sm text-gray-900">
+                                    <span className="block font-medium sm:sr-only">{field.label}</span>
+                                    <ModalSelect
+                                        id={`${document.value}-${field.id}`}
+                                        ariaLabel={`${document.label} ${field.label.toLowerCase()}`}
+                                        value={field.value} disabled={disabled}
+                                        onChange={(value) => void updateDocument(document.value, field.patch(value))}
+                                        className={fieldClass} placeholder={null}
+                                        options={field.options} />
+                                </label>
+                            ))}
                         </div>
                     );
                 })}
