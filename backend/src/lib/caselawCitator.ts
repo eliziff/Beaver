@@ -73,20 +73,11 @@ export type NoteUpResult = {
   } | null;
 };
 
-export type NoteUpCourtScope =
-  | "all"
-  | "scc"
-  | "appellate"
-  | "trial"
-  | "tribunal";
+export type NoteUpCourtScope = "all" | "scc" | "appellate" | "trial" | "tribunal";
 
 export type NoteUpSort = "newest" | "most_discussed";
 
-function matchesCourt(
-  court: unknown,
-  scope: NoteUpCourtScope,
-  code: string | null,
-) {
+function matchesCourt(court: unknown, scope: NoteUpCourtScope, code: string | null) {
   const candidate = String(court ?? "").trim().toUpperCase();
   if (code) return candidate === code;
   if (scope === "all") return true;
@@ -126,27 +117,13 @@ export const citationLookupKey = (value: string) =>
  * citation, and so on). Zero or multiple candidate decisions leave the query
  * on the literal key alone.
  */
-function hasProviderEdges(database: DatabaseSync) {
-  return Boolean(
-    database
-      .prepare(
-        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'provider_edge'",
-      )
-      .get(),
-  );
-}
-
 function keysForQuery(database: DatabaseSync, key: string): string[] {
   const targets = database
-    .prepare(
-      "SELECT DISTINCT path, file_row_number FROM resolution WHERE cited_key = ?",
-    )
+    .prepare("SELECT DISTINCT path, file_row_number FROM resolution WHERE cited_key = ?")
     .all(key) as Row[];
   if (targets.length !== 1) return [key];
   const aliases = database
-    .prepare(
-      "SELECT DISTINCT cited_key FROM resolution WHERE path = ? AND file_row_number = ?",
-    )
+    .prepare("SELECT DISTINCT cited_key FROM resolution WHERE path = ? AND file_row_number = ?")
     .all(targets[0].path as string, targets[0].file_row_number as number) as Row[];
   const keys = new Set<string>([key]);
   for (const alias of aliases) keys.add(String(alias.cited_key));
@@ -200,38 +177,51 @@ export function citationAuthorityMetricsBatch(
   if (!process.env.MIKE_CITATOR_DB?.trim() && defaultAuthorityMetricsAvailable === false) {
     return keys.map(() => null);
   }
-  return (
-    withDatabase((database) => {
-      const unique = [...new Set(keys.filter((key): key is string => !!key))];
-      const placeholders = unique.map(() => "?").join(",");
-      const materialized = database
-        .prepare(
-          "SELECT 1 FROM sqlite_master WHERE type='table' AND name='authority_metric'",
-        )
-        .get();
-      if (!process.env.MIKE_CITATOR_DB?.trim()) {
-        defaultAuthorityMetricsAvailable = !!materialized;
-      }
-      if (!materialized) return keys.map(() => null);
-      const rows = database
-        .prepare(
-          `SELECT cited_key, citing_cases, citing_paragraphs, occurrences
-           FROM authority_metric WHERE cited_key IN (${placeholders})`,
-        )
-        .all(...unique) as Row[];
-      const byKey = new Map(rows.map((row) => [String(row.cited_key), row]));
-      return keys.map((key) => {
-        const row = key ? byKey.get(key) : null;
-        return row
-          ? {
-              citingCases: Number(row.citing_cases),
-              distinctCitingParagraphs: Number(row.citing_paragraphs),
-              occurrences: Number(row.occurrences),
-            }
-          : null;
-      });
-    }) ?? keys.map(() => null)
-  );
+  return withDatabase((database) => {
+    const unique = [...new Set(keys.filter((key): key is string => !!key))];
+    const materialized = database
+      .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='authority_metric'")
+      .get();
+    if (!process.env.MIKE_CITATOR_DB?.trim()) defaultAuthorityMetricsAvailable = !!materialized;
+    if (!materialized) return keys.map(() => null);
+    const rows = database
+      .prepare(
+        `SELECT cited_key, citing_cases, citing_paragraphs, occurrences
+         FROM authority_metric WHERE cited_key IN (${unique.map(() => "?").join(",")})`,
+      )
+      .all(...unique) as Row[];
+    const byKey = new Map(rows.map((row) => [String(row.cited_key), row]));
+    return keys.map((key) => {
+      const row = key ? byKey.get(key) : null;
+      return row
+        ? { citingCases: Number(row.citing_cases),
+            distinctCitingParagraphs: Number(row.citing_paragraphs),
+            occurrences: Number(row.occurrences) }
+        : null;
+    });
+  }) ?? keys.map(() => null);
+}
+
+/** Shared note-up argument contract: both read paths refuse the same inputs. */
+function noteUpQuery(args: {
+  citation: string;
+  citedParagraph?: number;
+  courtScope?: NoteUpCourtScope;
+  courtCode?: string;
+}) {
+  const key = structureNative().caselawCitationLookupKey(args.citation);
+  const courtScope = args.courtScope ?? "all";
+  const courtCode = args.courtCode?.trim().toUpperCase() || null;
+  const citedParagraph = args.citedParagraph === undefined
+    ? null
+    : Math.trunc(args.citedParagraph);
+  if (citedParagraph !== null && citedParagraph < 1) {
+    throw new Error("cited_paragraph must be a positive integer");
+  }
+  if (courtCode && courtScope !== "all") {
+    throw new Error("court_code cannot be combined with a non-all court_scope");
+  }
+  return { key, courtScope, courtCode, citedParagraph };
 }
 
 /**
@@ -253,19 +243,8 @@ export function noteUpCitations(args: {
   courtCode?: string;
   sort?: NoteUpSort;
 }): NoteUpResult | null {
-  const key = structureNative().caselawCitationLookupKey(args.citation);
+  const { key, courtScope, courtCode, citedParagraph } = noteUpQuery(args);
   const wanted = Math.max(1, Math.min(50, Math.trunc(args.size ?? 10)));
-  const courtScope = args.courtScope ?? "all";
-  const courtCode = args.courtCode?.trim().toUpperCase() || null;
-  const citedParagraph = args.citedParagraph === undefined
-    ? null
-    : Math.trunc(args.citedParagraph);
-  if (citedParagraph !== null && citedParagraph < 1) {
-    throw new Error("cited_paragraph must be a positive integer");
-  }
-  if (courtCode && courtScope !== "all") {
-    throw new Error("court_code cannot be combined with a non-all court_scope");
-  }
   const sort = args.sort ?? "newest";
   return withDatabase((database) => {
     const keys = keysForQuery(database, key);
@@ -307,9 +286,7 @@ export function noteUpCitations(args: {
     );
     const entries = groups.slice(0, wanted).map((group) => {
       const first = firstOccurrence.get(
-        group.case_id as number,
-        group.first_offset as number,
-      ) as Row;
+        group.case_id as number, group.first_offset as number) as Row;
       return {
         citation: (group.citation as string | null) ?? null,
         name: (group.name as string | null) ?? null,
@@ -327,17 +304,15 @@ export function noteUpCitations(args: {
       };
     });
     let provider: NoteUpResult["provider"] = null;
-    if (citedParagraph === null && hasProviderEdges(database)) {
-      const citingInCorpus = Number(
-        (
-          database
-            .prepare(
-              `SELECT COUNT(DISTINCT case_id) AS n FROM provider_edge
-               WHERE direction = 'cited' AND citation_key IN (${placeholders})`,
-            )
-            .get(...keys) as Row
-        ).n,
-      );
+    if (citedParagraph === null && database
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'provider_edge'")
+      .get()) {
+      const citingInCorpus = Number((database
+        .prepare(
+          `SELECT COUNT(DISTINCT case_id) AS n FROM provider_edge
+           WHERE direction = 'cited' AND citation_key IN (${placeholders})`,
+        )
+        .get(...keys) as Row).n);
       const reported = database
         .prepare(
           `SELECT DISTINCT provider_edge.citation
@@ -348,10 +323,7 @@ export function noteUpCitations(args: {
            ORDER BY provider_edge.citation LIMIT 50`,
         )
         .all(...keys) as Row[];
-      provider = {
-        citingInCorpus,
-        citingReported: reported.map((row) => String(row.citation)),
-      };
+      provider = { citingInCorpus, citingReported: reported.map((row) => String(row.citation)) };
     }
     return {
       total,
@@ -474,10 +446,7 @@ function commentaryCandidates(keys: string[], citedParagraph: number | null): {
       // already - the verbatim text the widened tier will hash against.
       const proposition = propositions[index]!;
       const verdict = verdicts[index]!;
-      if (
-        (verdict.kind !== "prose" && verdict.kind !== "mixed") ||
-        !verdict.proseWindow
-      ) {
+      if ((verdict.kind !== "prose" && verdict.kind !== "mixed") || !verdict.proseWindow) {
         rejected += 1;
         continue;
       }
@@ -493,11 +462,8 @@ function commentaryCandidates(keys: string[], citedParagraph: number | null): {
         citingDate: (row.date as string | null) ?? null,
         paragraph: null,
         pageLabel: (row.page_label as string | null) ?? null,
-        spanSha256: createHash("sha256")
-          .update(proposition, "utf8")
-          .digest("hex"),
-        sourceArticleId:
-          row.article_id == null ? null : String(row.article_id),
+        spanSha256: createHash("sha256").update(proposition, "utf8").digest("hex"),
+        sourceArticleId: row.article_id == null ? null : String(row.article_id),
         citingUrl: (row.url as string | null) ?? null,
         occurrences: 1,
       });
@@ -514,32 +480,17 @@ export function noteUpAnalysis(args: {
   courtScope?: NoteUpCourtScope;
   courtCode?: string;
 }): NoteUpAnalysis | null {
-  const key = structureNative().caselawCitationLookupKey(args.citation);
+  const { key, courtScope, courtCode, citedParagraph } = noteUpQuery(args);
   const cap = Math.max(1, Math.min(24, Math.trunc(args.size ?? 8)));
-  const courtScope = args.courtScope ?? "all";
-  const courtCode = args.courtCode?.trim().toUpperCase() || null;
-  const citedParagraph = args.citedParagraph === undefined
-    ? null
-    : Math.trunc(args.citedParagraph);
-  if (citedParagraph !== null && citedParagraph < 1) {
-    throw new Error("cited_paragraph must be a positive integer");
-  }
-  if (courtCode && courtScope !== "all") {
-    throw new Error("court_code cannot be combined with a non-all court_scope");
-  }
   return withDatabase((database) => {
     const keys = keysForQuery(database, key);
     const placeholders = keys.map(() => "?").join(", ");
-    const totalCiters = Number(
-      (
-        database
-          .prepare(
-            `SELECT COUNT(DISTINCT case_id) AS total
-             FROM edge WHERE cited_key IN (${placeholders})`,
-          )
-          .get(...keys) as Row
-      ).total,
-    );
+    const totalCiters = Number((database
+      .prepare(
+        `SELECT COUNT(DISTINCT case_id) AS total
+         FROM edge WHERE cited_key IN (${placeholders})`,
+      )
+      .get(...keys) as Row).total);
     // The first occurrence's paragraph/excerpt ride the MIN() row rather than
     // being re-fetched per group. SQLite's documented bare-column rule gives
     // every non-aggregated column the value from the row that produced the
@@ -596,22 +547,16 @@ export function noteUpAnalysis(args: {
         citingLevel: courtLevel(group.court as string | null)?.level ?? null,
         citingDate: (group.date as string | null) ?? null,
         language: group.language === "fr" ? "fr" : "en",
-        paragraph:
-          group.first_paragraph === null ? null : Number(group.first_paragraph),
+        paragraph: group.first_paragraph === null ? null : Number(group.first_paragraph),
         pageLabel: null,
-        spanSha256: createHash("sha256")
-          .update(verdict.proseWindow, "utf8")
-          .digest("hex"),
+        spanSha256: createHash("sha256").update(verdict.proseWindow, "utf8").digest("hex"),
         sourceArticleId: null,
         citingUrl: (group.url as string | null) ?? null,
         occurrences: Number(group.occurrences),
       });
     }
     const commentary = commentaryCandidates(keys, citedParagraph);
-    const byDate = (
-      a: (typeof usable)[number],
-      b: (typeof usable)[number],
-    ) =>
+    const byDate = (a: (typeof usable)[number], b: (typeof usable)[number]) =>
       (a.citingDate === null ? 1 : 0) - (b.citingDate === null ? 1 : 0) ||
       (b.citingDate ?? "").localeCompare(a.citingDate ?? "");
     const strip = ({ occurrences: _occurrences, ...candidate }:
@@ -622,14 +567,11 @@ export function noteUpAnalysis(args: {
         b.occurrences - a.occurrences || byDate(a, b))
       .slice(0, cap)
       .map(strip);
-    const journalAnalysis = commentary
-      ? commentary.usable.sort(byDate).slice(0, cap).map(strip)
-      : null;
     return {
       citation: args.citation,
       totalCiters,
       judicialDiscussion,
-      journalAnalysis,
+      journalAnalysis: commentary ? commentary.usable.sort(byDate).slice(0, cap).map(strip) : null,
       excerptsConsidered: groups.length,
       excerptsRejected: { authorityList, insufficient },
       commentary: commentary
