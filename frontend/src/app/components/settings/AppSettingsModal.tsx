@@ -11,7 +11,6 @@ import { SubagentSettings } from "./SubagentSettings";
 import { isLocalMode } from "@/app/lib/authMode";
 import { AccountSection } from "@/app/(pages)/account/AccountSection";
 import { useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";
-import { EditModeSettings } from "./EditModeSettings";
 import { DraftingStyleSettings } from "./DraftingStyleSettings";
 import { DisplaySettings } from "./DisplaySettings";
 import { WorkflowFileTargetSettings } from "./WorkflowFileTargetSettings";
@@ -60,7 +59,6 @@ export function AppSettingsModal({
                 </h2>
                 <AccountSection className="space-y-5 p-4">
                     <DisplaySettings />
-                    <EditModeSettings />
                     <label className="grid gap-2 text-sm text-gray-900 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-center">
                         <span>
                             <span className="block font-medium">
