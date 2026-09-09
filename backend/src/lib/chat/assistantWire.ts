@@ -46,18 +46,20 @@ const citation = z.discriminatedUnion("kind", [
       page: z.union([finite, short]).optional() }).strict()).max(32).default([]) }).strict(),
 ]);
 export type AssistantCitation = z.infer<typeof citation>;
+/** Legislation links go to CanLII's statute page, also for citations stored before that rule. */
+export function withCanliiLawLinks<T extends { kind?: unknown; source_class?: unknown; dataset?: unknown; citation?: unknown }>(citations: T[]): T[] {
+  return citations.map((item) => {
+    const canlii = item.kind === "a2aj" && item.source_class !== "case" ? buildCanliiLawUrl({ dataset: String(item.dataset ?? ""),
+      citation: typeof item.citation === "string" ? item.citation : null, language: "en" }) : null;
+    return canlii ? { ...item, url: canlii, external_url: canlii } : item;
+  });
+}
 export function parseAssistantCitations(value: unknown): AssistantCitation[] {
   try {
-    return Array.isArray(value) ? value.slice(0, ASSISTANT_LIMITS.citations).flatMap((raw) => {
-      try {
-        const parsed = citation.safeParse(raw); if (!parsed.success) return [];
-        // Legislation links go to CanLII's statute page, also for citations stored before that rule.
-        const canlii = parsed.data.kind === "a2aj" && parsed.data.source_class !== "case"
-          ? buildCanliiLawUrl({ dataset: parsed.data.dataset ?? "", citation: parsed.data.citation ?? null, language: "en" }) : null;
-        return [canlii ? { ...parsed.data, url: canlii, external_url: canlii } : parsed.data];
-      }
+    return Array.isArray(value) ? withCanliiLawLinks(value.slice(0, ASSISTANT_LIMITS.citations).flatMap((raw) => {
+      try { const parsed = citation.safeParse(raw); return parsed.success ? [parsed.data] : []; }
       catch { return []; }
-    }) : [];
+    })) : [];
   } catch { return []; }
 }
 const citations = z.array(z.unknown()).transform(parseAssistantCitations);
