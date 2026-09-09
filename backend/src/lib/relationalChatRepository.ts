@@ -4,6 +4,7 @@ import { patchChatEditEvents, type ChatCommitResult, type ChatMessageRecord, typ
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
 import { chatAccess, changes, documentAccess, now, one, rows, type Row } from "./relationalRepositorySupport";
 import { parseAssistantEvent, type AssistantEvent } from "./chat/assistantEvents";
+import { parseAssistantCitations } from "./chat/assistantWire";
 
 const chatRecord = (row: Row): ChatRecord => ({ ...row, id: String(row.id),
   user_id: String(row.user_id), project_id: typeof row.project_id === "string" ? row.project_id : null,
@@ -22,7 +23,7 @@ const chatMessage = (row: Row, content?: unknown[]): ChatMessageRecord => ({ ...
     : (content ?? []).flatMap((event) => parseAssistantEvent(event) ?? []),
   ...(row.files !== null ? { files: decode(row.files, null) } : {}),
   ...(row.workflow !== null ? { workflow: decode(row.workflow, null) } : {}),
-  ...(row.citations !== null ? { citations: decode(row.citations, null) } : {}) });
+  ...(row.citations !== null ? { citations: parseAssistantCitations(decode(row.citations, null)) } : {}) });
 
 type Sequenced = { message_id: string; sequence: number; value: unknown };
 function grouped(values: Sequenced[]) {

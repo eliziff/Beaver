@@ -85,8 +85,7 @@ export function legalSourceLocatorAnchor(
 
 /**
  * Canonical publisher URL for a legal source: rejects non-http and
- * unlinkable hosts, rewrites provider-specific paths (CanLII PDF, Justice
- * Laws XML, BC Laws, Ontario e-Laws), applies the Decisia parameters, and
+ * unlinkable hosts, rewrites CanLII PDF paths, applies the Decisia parameters, and
  * resolves the anchor the target actually supports.
  */
 export function sourceUrl(rawUrl: string, anchor?: string): string | null {
@@ -109,41 +108,6 @@ export function sourceUrl(rawUrl: string, anchor?: string): string | null {
   }
 
   const existingAnchor = url.hash.slice(1).split(":~:", 1)[0];
-  const bclaws = /(^|\.)bclaws\.gov\.bc\.ca$/iu.test(url.hostname);
-  if (bclaws && url.pathname.endsWith("/xml")) {
-    url.pathname = url.pathname.slice(0, -4);
-  }
-  let justiceLawsHtml = false;
-  if (/^laws-lois\.justice\.gc\.ca$/iu.test(url.hostname)) {
-    const justiceXml = url.pathname.match(/^\/(eng|fra)\/XML\/([^/]+)\.xml$/iu);
-    if (justiceXml) {
-      const language = justiceXml[1].toLocaleLowerCase();
-      const identifier = justiceXml[2];
-      let decodedIdentifier = identifier;
-      try {
-        decodedIdentifier = decodeURIComponent(identifier);
-      } catch {
-        // Keep the literal path segment; URL parsing already validated it.
-      }
-      const regulation = /^(?:SOR|SI|C\.?R\.?C\.?|DORS|TR)\b/iu.test(
-        decodedIdentifier,
-      );
-      const collection = language === "fra"
-        ? regulation ? "reglements" : "lois"
-        : regulation ? "regulations" : "acts";
-      url.pathname = `/${language}/${collection}/${identifier}/FullText.html`;
-      justiceLawsHtml = true;
-    }
-  }
-  if (/^(?:www\.)?ontario\.ca$/iu.test(url.hostname)) {
-    const elaws = url.pathname.match(
-      /^\/laws\/api\/v2\/legislation\/en\/doc-search\/(statute|regulation)\/([^/]+)$/iu,
-    );
-    if (elaws) {
-      url.hostname = "www.ontario.ca";
-      url.pathname = `/laws/${elaws[1].toLocaleLowerCase()}/${elaws[2]}`;
-    }
-  }
   const canliiPdf =
     /(^|\.)canlii\.org$/iu.test(url.hostname) &&
     url.pathname.toLowerCase().endsWith(".pdf");
@@ -185,15 +149,6 @@ export function sourceUrl(rawUrl: string, anchor?: string): string | null {
     anchor !== undefined ? anchor : convertedCanliiPdf ? "" : existingAnchor;
   if (/\/document\.do$/iu.test(url.pathname) || url.pathname.toLowerCase().endsWith(".pdf")) {
     resolvedAnchor = /^page=\d+$/iu.test(resolvedAnchor) ? resolvedAnchor : "";
-  }
-  if (bclaws) {
-    resolvedAnchor = resolvedAnchor.replace(
-      /^sec(\d+(?:\.\d+)*)(?:\(.*\))?$/iu,
-      "section$1",
-    );
-  }
-  if (justiceLawsHtml) {
-    resolvedAnchor = /^h-\d+$/iu.test(existingAnchor) ? existingAnchor : "";
   }
   url.hash = resolvedAnchor ? `#${resolvedAnchor}` : "";
   return local ? `${url.pathname}${url.search}${url.hash}` : url.toString();
