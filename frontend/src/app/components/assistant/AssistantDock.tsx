@@ -108,7 +108,7 @@ export function AssistantDock({
             <button
                 type="button"
                 onClick={() => onExpandedChange(true)}
-                className="absolute end-3 top-0.5 z-30 grid size-8.5 place-items-center rounded-md border border-gray-200 bg-app-surface text-gray-700 hover:bg-app-floating focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+                className="absolute end-3 top-0.5 z-30 grid size-[34px] place-items-center rounded-md border border-gray-200 bg-app-surface text-gray-700 hover:bg-app-floating focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
                 aria-label={workspaceOnly ? "Expand workspace" : "Expand assistant dock"}
             >
                 <PanelRightOpen className="size-4" aria-hidden="true" />
