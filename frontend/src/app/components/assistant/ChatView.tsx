@@ -207,7 +207,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
     );
     const [activeAgentSlot, setActiveAgentSlot] = useState<string | null>(null);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
-    const { file: activeResearchFile, selection: researchSelection, loading: researchLoading, accept: acceptResearchFile } = useSourcesWorkspace();
+    const { file: activeResearchFile, selection: researchSelection, loading: researchLoading } = useSourcesWorkspace();
     const [workflowInitialId, setWorkflowInitialId] = useState(
         initialWorkflow?.workflow.id,
     );
@@ -635,10 +635,8 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
     return <ConversationView
         ref={conversationRef}
         chatId={chatId}
-        messageActions={activeResearchFile && chatId ? (messageId) => <ChatFindingActions
-            file={activeResearchFile} chatId={chatId} messageId={messageId} onFiled={acceptResearchFile}
-            onUseAnswer={onUseAnswer && messageId === session.messages.findLast(({ role }) => role === "assistant")?.id
-                ? () => onUseAnswer(messageId) : undefined} /> : undefined}
+        messageActions={activeResearchFile && chatId && onUseAnswer ? (messageId) => messageId === session.messages.findLast(({ role }) => role === "assistant")?.id ? <ChatFindingActions
+            file={activeResearchFile} chatId={chatId} messageId={messageId} onUseAnswer={() => onUseAnswer(messageId)} /> : null : undefined}
         session={session}
         handleChat={handleChat}
         cancel={cancel}
