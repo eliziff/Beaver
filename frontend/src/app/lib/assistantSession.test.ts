@@ -292,6 +292,7 @@ describe("assistantSessionReducer", () => {
 
   it("pauses for ask-inputs, resumes with the answer, and records steering once", () => {
     let state = running();
+    const steeringId = "22222222-2222-4222-8222-222222222222";
     state = applyRaw(state, { type: "ask_inputs", items: [{ id: "q1", kind: "choice", question: "Which court?", options: [{ value: "ABCA" }] }] });
     expect(state.run?.status).toBe("paused");
     expect(state.pendingInput?.event.items[0].id).toBe("q1");
@@ -304,9 +305,15 @@ describe("assistantSessionReducer", () => {
     expect(state.pendingInput).toBeNull();
     expect(assistant(state).activities[0]).toMatchObject({ status: "completed", label: "Asked for input" });
 
-    state = assistantSessionReducer(state, { type: "steering_queued", runId: "run-1", id: "s1", text: "Focus on Alberta" });
-    state = assistantSessionReducer(state, { type: "steering_queued", runId: "run-1", id: "s1", text: "Focus on Alberta" });
-    expect(assistant(state).blocks.filter((block) => block.role === "user")).toEqual([{ id: "steering:s1", role: "user", text: "Focus on Alberta" }]);
+    state = assistantSessionReducer(state, { type: "steering_queued", runId: "run-1", id: steeringId, text: "Focus on Alberta" });
+    state = assistantSessionReducer(state, { type: "steering_queued", runId: "run-1", id: steeringId, text: "Focus on Alberta" });
+    expect(assistant(state).blocks.filter((block) => block.role === "user")).toEqual([{ id: `steering:${steeringId}`, role: "user", text: "Focus on Alberta" }]);
+    state = applyRaw(state, { type: "steering", id: steeringId, text: "Focus on Alberta" });
+    state = applyRaw(state, { type: "content_final", text: "Alberta answer.", citations: [] });
+    expect(assistant(state).blocks).toEqual([
+      { id: `steering:${steeringId}`, role: "user", text: "Focus on Alberta" },
+      expect.objectContaining({ role: "assistant", text: "Alberta answer." }),
+    ]);
   });
 
   it("isolates reader output from main response text while sharing activity status", () => {
@@ -407,6 +414,11 @@ describe("assistantSessionReducer", () => {
       { type: "content", text: "Answer [1]" },
       { type: "tool_activity", id: "search-1", tool: "search", label: "Searched", status: "completed" },
       { type: "document_artifact", action: "created", filename: "result.pptx", document_id: "d2", version_id: "v1", version_number: 1, download_url: "/documents/d2/download" },
+      { type: "workflow_run", id: "call-1", tool: "create_table_of_authorities",
+        job_id: "a".repeat(32), stage: "Build", status: "complete", progress: 100,
+        counts: [{ label: "Outputs", value: 1 }],
+        outputs: [{ name: "Book.pdf", url: "/download/book" }],
+        app_url: "/table-of-authorities?draft=abc" },
     ];
     let live = running();
     rawEvents.slice(1).forEach((event) => { live = applyRaw(live, event); });
@@ -417,6 +429,14 @@ describe("assistantSessionReducer", () => {
       { ...user, id: "user-1" },
       { id: "assistant:run-1", role: "assistant", content: rawEvents, citations: [{ kind: "document", ref: 1, document_id: "d1", filename: "record.pdf", quotes: [{ page: 2, quote: "Exact passage" }] }], turn_complete: true },
     ] });
+    expect(assistant(live).artifacts).toEqual([expect.objectContaining({
+      type: "created", filename: "result.pptx", documentId: "d2",
+      versionId: "v1", versionNumber: 1,
+    })]);
+    expect(assistant(live).workflowRuns).toEqual([expect.objectContaining({
+      id: "call-1", stage: "Build", status: "complete",
+      outputs: [{ name: "Book.pdf", url: "/download/book" }],
+    })]);
     expect(assistant(reload)).toEqual({ ...assistant(live), turnComplete: true });
   });
 });

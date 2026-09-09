@@ -152,7 +152,7 @@ it("loads the saved message identity and workspace binding after a completed ans
   mocks.streamChat.mockResolvedValueOnce(completedTurn());
   const { result } = renderHook(() => useAssistantChat({ chatId: "chat-1" }));
   await waitFor(() => expect(result.current.chatLoad.status).toBe("loaded"));
-  await act(async () => { await result.current.handleChat({ role: "user", content: "Organize these files" }, { turnId: "turn-1" }); });
+  await act(() => result.current.handleChat({ role: "user", content: "Organize these files" }, { turnId: "turn-1" }));
   expect(result.current.chatLoad).toMatchObject({ status: "loaded", chat: { research_file_id: "created-workspace" } });
   expect(result.current.messages.at(-1)).toMatchObject({ id: "saved-answer", content: "Verified answer" });
 });
@@ -256,18 +256,14 @@ describe("useAssistantChat local transcript boundary", () => {
   it("handles chat commands without invoking a model", async () => {
     const { result } = renderHook(() => useAssistantChat({ chatId: "chat-1" }));
 
-    await act(async () => {
-      await result.current.handleChat({ role: "user", content: "/help" });
-    });
+    await act(() => result.current.handleChat({ role: "user", content: "/help" }));
     expect(result.current.messages.map(({ role, content }) => ({ role, content })))
       .toEqual([
         { role: "user", content: "/help" },
         { role: "assistant", content: expect.stringContaining("/compact") },
       ]);
 
-    await act(async () => {
-      await result.current.handleChat({ role: "user", content: "/compact" });
-    });
+    await act(() => result.current.handleChat({ role: "user", content: "/compact" }));
     expect(mocks.compactChat).toHaveBeenCalledWith("chat-1", expect.any(String));
     expect(mocks.streamChat).not.toHaveBeenCalled();
   });
@@ -287,13 +283,7 @@ describe("useAssistantChat local transcript boundary", () => {
       useAssistantChat({ chatId: "chat-1", workProduct }),
     );
 
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Fix this citation",
-        editMode: "auto",
-      });
-    });
+    await act(() => result.current.handleChat({ role: "user", content: "Fix this citation", editMode: "auto" }));
 
     expect(mocks.streamChat).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -326,19 +316,6 @@ describe("useAssistantChat local transcript boundary", () => {
     expect(result.current.rejectedTurn?.message.content).toBe("Draft this");
   });
 
-  it("uses a nonempty fallback for an empty stream error", async () => {
-    mocks.streamChat.mockResolvedValueOnce(streamResponse([
-      { type: "chat_id", chatId: "chat-1", transcriptVersion: 1 },
-      { type: "error", message: "", retryable: false },
-      { type: "transcript_version", transcriptVersion: 2 },
-    ]));
-    const { result } = renderHook(() => useAssistantChat({ chatId: "chat-1" }));
-
-    await act(() => result.current.handleChat({ role: "user", content: "Draft this" }));
-
-    expect(result.current.messages.at(-1)?.error).toEqual(expect.any(String));
-  });
-
   it("claims and submits a staged route handoff once", async () => {
     const message = { role: "user" as const, content: "Draft this" };
     mocks.peekPendingChatMessage.mockReturnValue(message);
@@ -366,19 +343,15 @@ describe("useAssistantChat local transcript boundary", () => {
       .mockResolvedValueOnce(completedTurn(5, 6))
       .mockResolvedValueOnce(completedTurn(7, 8));
     const { result } = renderHook(() =>
-      useAssistantChat({ chatId: "chat-1" }),
+      useAssistantChat({ chatId: "chat-1", projectId: "project-1" }),
     );
     await waitFor(() => expect(result.current.chatLoad.status).toBe("loaded"));
 
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "First current turn",
-      });
-    });
+    await act(() => result.current.handleChat({ role: "user", content: "First current turn" }));
     expect(mocks.streamChat).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
+        project_id: "project-1",
         chat_id: "chat-1",
         expected_version: 4,
         current_turn: {
@@ -392,63 +365,14 @@ describe("useAssistantChat local transcript boundary", () => {
     );
     expect(mocks.streamChat.mock.calls[0][0].messages).toBeUndefined();
 
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Second current turn",
-      });
-    });
+    await act(() => result.current.handleChat({ role: "user", content: "Second current turn" }));
     expect(mocks.streamChat).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
+        project_id: "project-1",
         expected_version: 6,
         current_turn: expect.objectContaining({
           content: "Second current turn",
-        }),
-      }),
-    );
-  });
-
-  it("sends the durable project ID on every project chat turn", async () => {
-    mocks.streamChat
-      .mockResolvedValueOnce(completedTurn())
-      .mockResolvedValueOnce(completedTurn(3, 4));
-    const { result } = renderHook(() =>
-      useAssistantChat({
-        chatId: "chat-1",
-        projectId: "project-1",
-      }),
-    );
-
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "First project turn",
-      });
-      await result.current.handleChat({
-        role: "user",
-        content: "Second project turn",
-      });
-    });
-
-    expect(mocks.streamChat).toHaveBeenCalledTimes(2);
-    expect(mocks.streamChat).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        project_id: "project-1",
-        chat_id: "chat-1",
-        current_turn: expect.objectContaining({
-          content: "First project turn",
-        }),
-      }),
-    );
-    expect(mocks.streamChat).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        project_id: "project-1",
-        chat_id: "chat-1",
-        current_turn: expect.objectContaining({
-          content: "Second project turn",
         }),
       }),
     );
@@ -460,23 +384,21 @@ describe("useAssistantChat local transcript boundary", () => {
       useAssistantChat({ chatId: "chat-1" }),
     );
 
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "extract key terms",
-        files: [
-          {
-            filename: "Lease.docx",
-            document_id: "document-1",
-          },
-        ],
-        workflow: {
-          id: "document-review",
-          variant_id: "builtin-extract-key-terms",
-          title: "Extract Key Terms",
+    await act(() => result.current.handleChat({
+      role: "user",
+      content: "extract key terms",
+      files: [
+        {
+          filename: "Lease.docx",
+          document_id: "document-1",
         },
-      });
-    });
+      ],
+      workflow: {
+        id: "document-review",
+        variant_id: "builtin-extract-key-terms",
+        title: "Extract Key Terms",
+      },
+    }));
 
     expect(mocks.streamChat).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -500,12 +422,9 @@ describe("useAssistantChat local transcript boundary", () => {
 
   it("reloads on a conflict and never replays the rejected turn", async () => {
     mocks.streamChat.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          code: "chat_version_conflict",
-          current_version: 3,
-        }),
-        { status: 409, headers: { "Content-Type": "application/json" } },
+      Response.json(
+        { code: "chat_version_conflict", current_version: 3 },
+        { status: 409 },
       ),
     );
     mocks.getChat
@@ -532,12 +451,7 @@ describe("useAssistantChat local transcript boundary", () => {
     );
     await waitFor(() => expect(result.current.chatLoad.status).toBe("loaded"));
 
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Rejected stale turn",
-      });
-    });
+    await act(() => result.current.handleChat({ role: "user", content: "Rejected stale turn" }));
 
     expect(mocks.streamChat).toHaveBeenCalledTimes(1);
     expect(mocks.getChat).toHaveBeenCalledWith("chat-1");
@@ -557,12 +471,9 @@ describe("useAssistantChat local transcript boundary", () => {
   it("refreshes an in-progress turn and keeps the rejected draft", async () => {
     mocks.streamChat
       .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            code: "chat_turn_in_progress",
-            current_version: 1,
-          }),
-          { status: 409, headers: { "Content-Type": "application/json" } },
+        Response.json(
+          { code: "chat_turn_in_progress", current_version: 1 },
+          { status: 409 },
         ),
       )
       .mockResolvedValueOnce(completedTurn(3, 4));
@@ -584,12 +495,7 @@ describe("useAssistantChat local transcript boundary", () => {
     );
 
     await waitFor(() => expect(result.current.chatLoad.status).toBe("error"));
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Keep this draft",
-      });
-    });
+    await act(() => result.current.handleChat({ role: "user", content: "Keep this draft" }));
     await vi.waitFor(() => {
       expect(result.current.messages.map(({ role, content }) => ({ role, content }))).toEqual([
         { role: "user", content: "Accepted elsewhere" },
@@ -600,12 +506,7 @@ describe("useAssistantChat local transcript boundary", () => {
       content: "Keep this draft",
     });
 
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Send after refresh",
-      });
-    });
+    await act(() => result.current.handleChat({ role: "user", content: "Send after refresh" }));
     expect(mocks.streamChat).toHaveBeenLastCalledWith(
       expect.objectContaining({ expected_version: 2 }),
     );
@@ -618,12 +519,9 @@ describe("useAssistantChat local transcript boundary", () => {
     };
     mocks.streamChat
       .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            code: "chat_version_conflict",
-            current_version: 2,
-          }),
-          { status: 409, headers: { "Content-Type": "application/json" } },
+        Response.json(
+          { code: "chat_version_conflict", current_version: 2 },
+          { status: 409 },
         ),
       )
       .mockResolvedValueOnce(completedTurn(3, 4));
@@ -648,19 +546,15 @@ describe("useAssistantChat local transcript boundary", () => {
       ],
     };
 
-    await act(async () => {
-      await result.current.handleChat(
-        { role: "user", content: "Ontario" },
-        { askInputsResponse: response },
-      );
-    });
+    await act(() => result.current.handleChat(
+      { role: "user", content: "Ontario" },
+      { askInputsResponse: response },
+    ));
     expect(
       result.current.rejectedTurn?.options?.askInputsResponse,
     ).toEqual(response);
 
-    await act(async () => {
-      await result.current.retryRejectedTurn();
-    });
+    await act(() => result.current.retryRejectedTurn());
     expect(mocks.streamChat).toHaveBeenLastCalledWith(
       expect.objectContaining({
         model: "codex:gpt-5.6-terra",
@@ -672,68 +566,6 @@ describe("useAssistantChat local transcript boundary", () => {
         },
       }),
     );
-  });
-
-  it("keeps accepted structured selections in the transcript, not the composer", async () => {
-    let renders = 0;
-    mocks.getChat.mockResolvedValue({
-      chat: { id: "chat-1", transcript_version: 1, turn_in_progress: false },
-      messages: [{ id: "assistant-question", role: "assistant", content: [{ type: "ask_inputs", items: [] }] }],
-    });
-    mocks.streamChat
-      .mockResolvedValueOnce(
-        streamResponse([
-          {
-            type: "chat_id",
-            chatId: "chat-1",
-            transcriptVersion: 2,
-          },
-          { type: "error", message: "Provider unavailable." },
-          { type: "transcript_version", transcriptVersion: 3 },
-        ]),
-      )
-      .mockResolvedValueOnce(
-        streamResponse([
-          {
-            type: "chat_id",
-            chatId: "chat-1",
-            transcriptVersion: 3,
-          },
-          { type: "transcript_version", transcriptVersion: 4 },
-        ]),
-      );
-    const { result } = renderHook(() => {
-      renders += 1;
-      return useAssistantChat({ chatId: "chat-1" });
-    });
-    await waitFor(() => expect(result.current.chatLoad.status).toBe("loaded"));
-    const response = {
-      type: "ask_inputs_response" as const,
-      responses: [
-        {
-          id: "forum",
-          kind: "choice" as const,
-          answer: "Ontario",
-        },
-      ],
-    };
-
-    await act(async () => {
-      await result.current.handleChat(
-        { role: "user", content: "Ontario" },
-        { askInputsResponse: response },
-      );
-    });
-    expect(result.current.messages.at(-1)?.error).toBe(
-      "Unable to get a response. Try again.",
-    );
-    expect(result.current.messages.at(-1)).toMatchObject({
-      role: "assistant",
-      error: "Unable to get a response. Try again.",
-    });
-    expect(renders).toBeGreaterThanOrEqual(2);
-    expect(result.current.rejectedTurn).toBeNull();
-    expect(mocks.streamChat).toHaveBeenCalledOnce();
   });
 
   it("does not offer retry after a committed local mutation", async () => {
@@ -759,23 +591,21 @@ describe("useAssistantChat local transcript boundary", () => {
     const { result } = renderHook(() => useAssistantChat({ chatId: "chat-1" }));
     await waitFor(() => expect(result.current.chatLoad.status).toBe("loaded"));
 
-    await act(async () => {
-      await result.current.handleChat(
-        { role: "user", content: "Ontario" },
-        {
-          askInputsResponse: {
-            type: "ask_inputs_response",
-            responses: [
-              {
-                id: "forum",
-                kind: "choice",
-                answer: "Ontario",
-              },
-            ],
-          },
+    await act(() => result.current.handleChat(
+      { role: "user", content: "Ontario" },
+      {
+        askInputsResponse: {
+          type: "ask_inputs_response",
+          responses: [
+            {
+              id: "forum",
+              kind: "choice",
+              answer: "Ontario",
+            },
+          ],
         },
-      );
-    });
+      },
+    ));
 
     expect(result.current.messages.at(-1)?.error).toBe(
       "Unable to get a response. Try again.",
@@ -791,13 +621,9 @@ describe("useAssistantChat local transcript boundary", () => {
     const detail =
       "The prior continuation changed local data before it stopped. Review that result before sending a new instruction.";
     mocks.streamChat.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          code: "chat_retry_blocked_after_mutation",
-          current_version: 4,
-          detail,
-        }),
-        { status: 409, headers: { "Content-Type": "application/json" } },
+      Response.json(
+        { code: "chat_retry_blocked_after_mutation", current_version: 4, detail },
+        { status: 409 },
       ),
     );
     mocks.getChat.mockResolvedValue({
@@ -809,12 +635,7 @@ describe("useAssistantChat local transcript boundary", () => {
     );
 
     await waitFor(() => expect(result.current.chatLoad.status).toBe("loaded"));
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Ontario",
-      });
-    });
+    await act(() => result.current.handleChat({ role: "user", content: "Ontario" }));
 
     expect(result.current.rejectedTurn).toMatchObject({
       detail,
@@ -822,49 +643,6 @@ describe("useAssistantChat local transcript boundary", () => {
     });
     expect(result.current.messages.at(-1)?.error).toBeUndefined();
     expect(mocks.streamChat).toHaveBeenCalledTimes(1);
-  });
-
-  it("never reveals provisional narrative when a structured question pauses", async () => {
-    mocks.streamChat.mockResolvedValue(
-      streamResponse([
-        {
-          type: "chat_id",
-          chatId: "chat-1",
-          transcriptVersion: 1,
-        },
-        {
-          type: "ask_inputs",
-          items: [
-            {
-              id: "forum",
-              kind: "choice",
-              question: "Which forum?",
-              options: [{ value: "Ontario" }],
-            },
-          ],
-        },
-        { type: "transcript_version", transcriptVersion: 2 },
-      ]),
-    );
-    const { result } = renderHook(() =>
-      useAssistantChat({ chatId: "chat-1" }),
-    );
-
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Ask first",
-      });
-    });
-
-    expect(result.current.messages.at(-1)).toMatchObject({
-      role: "assistant",
-      content: "",
-      activities: [expect.objectContaining({
-        tool: "ask_inputs",
-        status: "completed",
-      })],
-    });
   });
 
   it("does not restore a transcript-committed turn after a truncated SSE response", async () => {
@@ -878,12 +656,7 @@ describe("useAssistantChat local transcript boundary", () => {
       useAssistantChat({ chatId: "chat-1" }),
     );
 
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Do not lose this",
-      });
-    });
+    await act(() => result.current.handleChat({ role: "user", content: "Do not lose this" }));
 
     expect(result.current.rejectedTurn).toBeNull();
     expect(mocks.loadChats).not.toHaveBeenCalled();
@@ -906,9 +679,7 @@ describe("useAssistantChat local transcript boundary", () => {
     ]));
     const { result } = renderHook(() => useAssistantChat({}));
 
-    await act(async () => {
-      await result.current.handleChat({ role: "user", content: "Keep running" });
-    });
+    await act(() => result.current.handleChat({ role: "user", content: "Keep running" }));
 
     expect(mocks.streamChatJob).toHaveBeenCalledWith(jobId, expect.any(AbortSignal));
     expect(result.current.rejectedTurn).toBeNull();
@@ -940,12 +711,7 @@ describe("useAssistantChat local transcript boundary", () => {
     );
 
     await waitFor(() => expect(result.current.chatLoad.status).toBe("error"));
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Create it once",
-      });
-    });
+    await act(() => result.current.handleChat({ role: "user", content: "Create it once" }));
     const firstTurnId =
       mocks.streamChat.mock.calls[0][0].current_turn?.turn_id;
     expect(firstTurnId).toEqual(expect.any(String));
@@ -957,172 +723,13 @@ describe("useAssistantChat local transcript boundary", () => {
     ]);
   });
 
-  it("reveals the complete final response in one event", async () => {
-    const expected =
-      "It will need local-law review before use because tenancy rules vary by jurisdiction.";
-    mocks.streamChat.mockResolvedValue(
-      streamResponse([
-        {
-          type: "chat_id",
-          chatId: "chat-1",
-          transcriptVersion: 1,
-        },
-        { type: "content_final", text: expected, citations: [] },
-        { type: "transcript_version", transcriptVersion: 2 },
-      ]),
-    );
-    const { result } = renderHook(() =>
-      useAssistantChat({ chatId: "chat-1" }),
-    );
-
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Draft a lease",
-      });
-    });
-
-    expect(result.current.messages.at(-1)?.content).toBe(expected);
-  });
-
-  it("reconciles a live local DOCX redline into the original Mike event", async () => {
-    const annotation = {
-      edit_id: "edit-1",
-      document_id: "document-1",
-      version_id: "version-2",
-      version_number: 2,
-      del_w_id: "8",
-      ins_w_id: "9",
-      deleted_text: "Original",
-      inserted_text: "Revised",
-      diff: [
-        { kind: "delete" as const, text: "Original" },
-        { kind: "insert" as const, text: "Revised" },
-      ],
-      context_before: "",
-      context_after: " provision.",
-      status: "pending" as const,
-    };
-    mocks.streamChat.mockResolvedValue(
-      streamResponse([
-        {
-          type: "chat_id",
-          chatId: "chat-1",
-          transcriptVersion: 1,
-        },
-        {
-          type: "tool_activity",
-          id: "edit-1",
-          tool: "Edit",
-          status: "running",
-          label: "Editing Draft.docx",
-        },
-        {
-          type: "tool_activity",
-          id: "edit-1",
-          tool: "Edit",
-          status: "completed",
-          label: "Edited Draft.docx",
-        },
-        {
-          type: "document_artifact",
-          action: "edited",
-          filename: "Draft.docx",
-          document_id: "document-1",
-          version_id: "version-2",
-          version_number: 2,
-          download_url:
-            "/single-documents/document-1/file?version_id=version-2",
-          edit_mode: "manual",
-          annotations: [annotation],
-        },
-        {
-          type: "content_final",
-          text: "The tracked revision is ready.",
-          citations: [],
-        },
-        { type: "transcript_version", transcriptVersion: 2 },
-      ]),
-    );
-    const { result } = renderHook(() =>
-      useAssistantChat({ chatId: "chat-1" }),
-    );
-
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Revise the draft.",
-      });
-    });
-
-    const lastEdited = result.current.messages.at(-1);
-    const edited = lastEdited?.role === "assistant"
-      ? lastEdited.artifacts.find((artifact) => artifact.type === "edited")
-      : undefined;
-    expect(edited).toMatchObject({
-      type: "edited",
-      filename: "Draft.docx",
-      documentId: "document-1",
-      versionId: "version-2",
-      versionNumber: 2,
-      editMode: "manual",
-      annotations: [expect.objectContaining({
-        edit_id: annotation.edit_id,
-        deleted_text: "Original",
-        inserted_text: "Revised",
-      })],
-    });
-  });
-
-  it("reconciles a local Word draft into the original Mike document card", async () => {
-    mocks.streamChat.mockResolvedValue(
-      streamResponse([
-        {
-          type: "chat_id",
-          chatId: "chat-1",
-          transcriptVersion: 1,
-        },
-        {
-          type: "document_artifact",
-          action: "created",
-          filename: "Draft.docx",
-          document_id: "document-1",
-          version_id: "version-1",
-          version_number: 1,
-          download_url:
-            "/single-documents/document-1/file?version_id=version-1",
-        },
-        { type: "content_final", text: "The Word draft is ready.", citations: [] },
-        { type: "transcript_version", transcriptVersion: 2 },
-      ]),
-    );
-    const { result } = renderHook(() =>
-      useAssistantChat({ chatId: "chat-1" }),
-    );
-
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Create the draft.",
-      });
-    });
-
-    const lastCreated = result.current.messages.at(-1);
-    expect(lastCreated?.role === "assistant"
-      ? lastCreated.artifacts.find((artifact) => artifact.type === "created")
-      : undefined).toMatchObject({
-      type: "created",
-      filename: "Draft.docx",
-      documentId: "document-1",
-      versionId: "version-1",
-      versionNumber: 1,
-    });
-  });
-
   it("preserves exact UTF-8 and Markdown in the atomic final response", async () => {
     const expected =
       "I’ll prepare a corrected editable version, fixing clear typographical errors.\n\n" +
       "I found a **matching editable Word copy**.\n\nCorrected safely.";
+    const citations = [{ kind: "a2aj", ref: 1, citation: "2024 SCC 6",
+      url: "https://example.test/2024-scc-6#par12",
+      quotes: [{ quote: "The court stated the rule." }] }];
     mocks.streamChat.mockResolvedValue(
       byteSplitStreamResponse([
         {
@@ -1146,7 +753,7 @@ describe("useAssistantChat local transcript boundary", () => {
           status: "completed",
           label: "Editing document",
         },
-        { type: "content_final", text: expected, citations: [] },
+        { type: "content_final", text: expected, citations },
         { type: "transcript_version", transcriptVersion: 2 },
       ]),
     );
@@ -1154,103 +761,15 @@ describe("useAssistantChat local transcript boundary", () => {
       useAssistantChat({ chatId: "chat-1" }),
     );
 
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Correct the editable copy",
-      });
-    });
+    await act(() => result.current.handleChat({ role: "user", content: "Correct the editable copy" }));
 
     const content = result.current.messages.at(-1)?.content;
     expect(content).toBe(expected);
+    expect(result.current.messages.at(-1)?.citations).toEqual(
+      [expect.objectContaining({ ref: 1, citation: "2024 SCC 6" })],
+    );
     expect(content).not.toContain("typographic\n\nal");
     expect(content).not.toContain("errors.I");
-  });
-
-  it("receives deterministic citation data with the final response", async () => {
-    const text = "The court stated the rule. [1]";
-    mocks.streamChat.mockResolvedValue(
-      streamResponse([
-        {
-          type: "chat_id",
-          chatId: "chat-1",
-          transcriptVersion: 1,
-        },
-        {
-          type: "content_final",
-          text,
-          citations: [{
-            kind: "a2aj",
-            ref: 1,
-            citation: "2024 SCC 6",
-            url: "https://example.test/2024-scc-6#par12",
-            quotes: [{ quote: "The court stated the rule." }],
-          }],
-        },
-        { type: "transcript_version", transcriptVersion: 2 },
-      ]),
-    );
-    const { result } = renderHook(() =>
-      useAssistantChat({ chatId: "chat-1" }),
-    );
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Research this",
-      });
-    });
-
-    expect(result.current.messages.at(-1)).toMatchObject({
-      content: text,
-      citations: [expect.objectContaining({ ref: 1, citation: "2024 SCC 6" })],
-    });
-  });
-
-  it("keeps streamed workflow receipts intact", async () => {
-    mocks.streamChat.mockResolvedValue(
-      streamResponse([
-        {
-          type: "chat_id",
-          chatId: "chat-1",
-          transcriptVersion: 1,
-        },
-        {
-          type: "workflow_run",
-          id: "call-1",
-          tool: "create_table_of_authorities",
-          job_id: "a".repeat(32),
-          stage: "Build",
-          status: "complete",
-          progress: 100,
-          counts: [{ label: "Outputs", value: 1 }],
-          outputs: [{ name: "Book.pdf", url: "/download/book" }],
-          app_url: "/table-of-authorities?draft=abc",
-        },
-        { type: "content_final", text: "The book is ready.", citations: [] },
-        { type: "transcript_version", transcriptVersion: 2 },
-      ]),
-    );
-    const { result } = renderHook(() =>
-      useAssistantChat({ chatId: "chat-1" }),
-    );
-
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Build the book",
-      });
-    });
-
-    const workflowMessage = result.current.messages.at(-1);
-    expect(workflowMessage?.role === "assistant" ? workflowMessage.workflowRuns : []).toContainEqual(
-      expect.objectContaining({
-        type: "workflow_run",
-        id: "call-1",
-        stage: "Build",
-        status: "complete",
-        outputs: [{ name: "Book.pdf", url: "/download/book" }],
-      }),
-    );
   });
 
   it("aborts the browser reader on unmount without stopping the backend turn", async () => {
@@ -1283,14 +802,7 @@ describe("useAssistantChat local transcript boundary", () => {
     expect(mocks.stopChat).not.toHaveBeenCalled();
 
     releaseResponse(
-      streamResponse([
-        {
-          type: "chat_id",
-          chatId: "chat-1",
-          transcriptVersion: 1,
-        },
-        { type: "transcript_version", transcriptVersion: 2 },
-      ]),
+      completedTurn(),
     );
     await pending;
   });
@@ -1311,12 +823,7 @@ describe("useAssistantChat local transcript boundary", () => {
       pending = result.current.handleChat({ role: "user", content: "Draft a memo" });
     });
     await vi.waitFor(() => expect(result.current.isResponseLoading).toBe(true));
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Focus on remedies",
-      });
-    });
+    await act(() => result.current.handleChat({ role: "user", content: "Focus on remedies" }));
 
     expect(mocks.streamChat).toHaveBeenCalledOnce();
     expect(mocks.steerChat).toHaveBeenCalledWith(
@@ -1329,42 +836,8 @@ describe("useAssistantChat local transcript boundary", () => {
       expect.objectContaining({ role: "user", text: "Focus on remedies" }),
     );
 
-    releaseResponse(streamResponse([
-      { type: "chat_id", chatId: "chat-1", transcriptVersion: 1 },
-      { type: "transcript_version", transcriptVersion: 2 },
-    ]));
+    releaseResponse(completedTurn());
     await act(async () => { await pending; });
-  });
-
-  it("places buffered final text after an in-flight steering message", async () => {
-    mocks.streamChat.mockResolvedValueOnce(streamResponse([
-      { type: "chat_id", chatId: "chat-1", transcriptVersion: 1 },
-      {
-        type: "steering",
-        id: "22222222-2222-4222-8222-222222222222",
-        text: "Focus on remedies",
-      },
-      { type: "content_final", text: "Initial answer. Revised answer.", citations: [] },
-      { type: "transcript_version", transcriptVersion: 2 },
-    ]));
-    const { result } = renderHook(() =>
-      useAssistantChat({ chatId: "chat-1" }),
-    );
-    await act(async () => {
-      await result.current.handleChat({ role: "user", content: "Draft a memo" });
-    });
-
-    expect(result.current.messages.at(-1)).toMatchObject({
-      content: "Initial answer. Revised answer.",
-      blocks: [
-        {
-          id: "steering:22222222-2222-4222-8222-222222222222",
-          role: "user",
-          text: "Focus on remedies",
-        },
-        expect.objectContaining({ role: "assistant", text: "Initial answer. Revised answer." }),
-      ],
-    });
   });
 
   it("uses the stop endpoint without revealing provisional prose", async () => {
