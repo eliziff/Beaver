@@ -194,8 +194,9 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
       </button>
       {scopeLabel && <span className="text-gray-500">{scopeLabel.scope === "highlight" ? "highlighted passages" : "and everything under it"}</span>}
     </div>
-    <details className="text-xs text-gray-600">
-      <summary className="cursor-pointer text-gray-500">Capture options</summary>
+    <details className="group text-xs text-gray-600">
+      <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-gray-700">
+        <ChevronRight aria-hidden className="size-3 group-open:rotate-90" />Capture options</summary>
       <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
       {UNITS.map((option) => <button key={option.value} type="button" onClick={() => setUnit(option.value)}
         aria-pressed={unit === option.value} className={CHOICE}>{option.label}</button>)}
