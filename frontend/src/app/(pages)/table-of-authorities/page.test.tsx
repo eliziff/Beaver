@@ -1221,7 +1221,7 @@ describe("Authorities UI contracts", () => {
     expect(within(correctedRow).getByRole("button", { name: "Replace for R v Grant" })).toBeVisible();
   });
 
-  it("opens the CanLII document page and offers a direct PDF attachment", async () => {
+  it("opens the CanLII PDF link and offers a direct PDF attachment", async () => {
     const pdfUrl = "https://www.canlii.org/en/ca/scc/doc/1986/1986canlii46/1986canlii46.pdf";
     const saved = add(draft(),
       authority("oakes", "R v Oakes", { kind: "pending-canlii", authorityKey: "oakes",
@@ -1238,7 +1238,7 @@ describe("Authorities UI contracts", () => {
     const unknown = screen.getByRole("heading", { name: "Unresolved case" }).closest("article")!;
     expect(within(unknown).queryByRole("link", { name: "CanLII" })).toBeNull();
     const handoff = within(known).getByRole("link", { name: "CanLII" });
-    expect(handoff).toHaveAttribute("href", pdfUrl.replace(/\.pdf$/u, ".html"));
+    expect(handoff).toHaveAttribute("href", pdfUrl);
     expect(within(known).getByRole("button", { name: "Attach PDF for R v Oakes" })).toBeVisible();
     expect(handoff).toHaveAttribute("target", "_blank");
     expect(handoff).toHaveAttribute("rel", "noopener noreferrer");
