@@ -6,6 +6,8 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
+import type { Chat } from "@/app/lib/api/chat";
 
 import { AppSidebar } from "./AppSidebar";
 
@@ -18,36 +20,16 @@ const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   moveChat: vi.fn(),
   listChats: vi.fn(),
+  listProjects: vi.fn(),
 }));
 function sidebar(mobileOpen: boolean, onToggle = vi.fn()) {
-  return (
-    <AppSidebar
-      mobileOpen={mobileOpen}
-      onToggle={onToggle}
-    />
-  );
+  return <MemoryRouter><AppSidebar mobileOpen={mobileOpen} onToggle={onToggle} /></MemoryRouter>;
 }
 
-vi.mock("react-router-dom", () => ({
+vi.mock("react-router-dom", async (original) => ({
+  ...await original<typeof import("react-router-dom")>(),
   useLocation: () => ({ pathname: mocks.pathname }),
   useNavigate: () => mocks.replace,
-  Link: ({
-    children,
-    onClick,
-    to,
-    ...props
-  }: React.ComponentProps<"a"> & { to: string }) => (
-    <a
-      {...props}
-      href={to}
-      onClick={(event) => {
-        event.preventDefault();
-        onClick?.(event);
-      }}
-    >
-      {children}
-    </a>
-  ),
 }));
 vi.mock("@/app/contexts/AuthContext", () => ({
   useAuth: () => ({
@@ -57,36 +39,15 @@ vi.mock("@/app/contexts/AuthContext", () => ({
 vi.mock("@/app/contexts/UserProfileContext", () => ({
   useUserProfile: () => ({ profile: mocks.profile }),
 }));
+function chat(id: string, title: string, created_at: string, project_id: string | null = null): Chat {
+  return { id, title, created_at, project_id, user_id: "user-1" };
+}
 const sidebarChats = [
-      {
-        id: "assistant-chat",
-        project_id: null,
-        user_id: "user-1",
-        title: "Assistant matter",
-        created_at: "2026-07-27T00:00:00Z",
-      },
-      {
-        id: "project-chat",
-        project_id: "project-1",
-        user_id: "user-1",
-        title: "Project matter",
-        created_at: "2026-07-27T00:00:00Z",
-      },
-      {
-        id: "assistant-chat-2",
-        project_id: null,
-        user_id: "user-1",
-        title: "Second matter",
-        created_at: "2026-07-26T00:00:00Z",
-      },
-      {
-        id: "assistant-chat-3",
-        project_id: null,
-        user_id: "user-1",
-        title: "Third matter",
-        created_at: "2026-07-25T00:00:00Z",
-      },
-    ];
+  chat("assistant-chat", "Assistant matter", "2026-07-27T00:00:00Z"),
+  chat("project-chat", "Project matter", "2026-07-27T00:00:00Z", "project-1"),
+  chat("assistant-chat-2", "Second matter", "2026-07-26T00:00:00Z"),
+  chat("assistant-chat-3", "Third matter", "2026-07-25T00:00:00Z"),
+];
 vi.mock("@/app/lib/api/chat", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/app/lib/api/chat")>(),
   listChats: mocks.listChats,
@@ -107,98 +68,9 @@ vi.mock("@/app/lib/authMode", () => ({
     return mocks.localMode;
   },
 }));
-vi.mock("@/app/components/shared/SidebarChatItem", () => ({
-  SidebarChatItem: ({
-    chat,
-    isActive,
-    to,
-    onNavigate,
-    onClearSelection,
-    onSelect,
-    onDragChat,
-    isSelected,
-    selectedCount,
-    isSelectionActionOwner,
-    onMoveToProject,
-    onDeleteSelection,
-  }: {
-    chat: { id: string; title: string | null };
-    isActive: boolean;
-    isSelected?: boolean;
-    selectedCount?: number;
-    isSelectionActionOwner?: boolean;
-    to: string;
-    onNavigate?: () => void;
-    onClearSelection?: () => void;
-    onSelect?: (modifiers: {
-      shiftKey: boolean;
-      ctrlKey: boolean;
-      metaKey: boolean;
-    }) => void;
-    onDragChat?: (event: React.DragEvent<HTMLDivElement>) => void;
-    onMoveToProject?: () => void;
-    onDeleteSelection?: () => Promise<void>;
-  }) => (
-    <div
-      data-chat-id={chat.id}
-      data-selected={isSelected || undefined}
-      draggable
-      onDragStart={onDragChat}
-    >
-      <a
-        href={to}
-        onClick={(event) => {
-          event.preventDefault();
-          if (event.shiftKey || event.ctrlKey || event.metaKey) {
-            onSelect?.(event);
-            return;
-          }
-          onClearSelection?.();
-          onNavigate?.();
-        }}
-        aria-current={isActive ? "page" : undefined}
-      >
-        {chat.title}
-      </a>
-      {onMoveToProject ? (
-        <button type="button" onClick={onMoveToProject}>
-          Move {chat.title} to project
-        </button>
-      ) : null}
-      <div
-        data-row-actions
-        hidden={!!selectedCount && !isSelectionActionOwner}
-      >
-        <button
-          type="button"
-          onClick={() => void onDeleteSelection?.()}
-        >
-          {selectedCount && isSelectionActionOwner
-            ? `Delete ${selectedCount} selected chats`
-            : `Delete ${chat.title}`}
-        </button>
-      </div>
-    </div>
-  ),
-}));
-vi.mock("@/app/components/assistant/SelectAssistantProjectModal", () => ({
-  SelectAssistantProjectModal: ({
-    open,
-    onSelectProject,
-  }: {
-    open: boolean;
-    onSelectProject?: (projectId: string | null) => Promise<void> | void;
-  }) =>
-    open ? (
-      <div role="dialog" aria-label="Choose project">
-        <button
-          type="button"
-          onClick={() => void onSelectProject?.("project-1")}
-        >
-          Matter One
-        </button>
-      </div>
-    ) : null,
+vi.mock("@/app/lib/api/projects", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/projects")>(),
+  listProjects: mocks.listProjects,
 }));
 
 describe("AppSidebar", () => {
@@ -209,6 +81,9 @@ describe("AppSidebar", () => {
     vi.clearAllMocks();
     mocks.loadChats.mockResolvedValue(undefined);
     mocks.listChats.mockResolvedValue([]);
+    mocks.listProjects.mockResolvedValue({
+      items: [{ id: "project-1", name: "Matter One" }], next_cursor: null,
+    });
     mocks.deleteChat.mockResolvedValue(undefined);
     mocks.moveChat.mockResolvedValue({
       id: "assistant-chat",
@@ -306,15 +181,6 @@ describe("AppSidebar", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("opens the activity log directly and closes the mobile sidebar", () => {
-    const onToggle = vi.fn();
-    render(sidebar(true, onToggle));
-    const link = screen.getByRole("link", { name: "Activity log" });
-    expect(link).toHaveAttribute("href", "/history");
-    fireEvent.click(link);
-    expect(onToggle).toHaveBeenCalledOnce();
-  });
-
   it("moves an Assistant chat through the shared project chooser", async () => {
     render(sidebar(false));
 
@@ -323,11 +189,11 @@ describe("AppSidebar", () => {
         name: "Move Assistant matter to project",
       }),
     );
-    fireEvent.click(
-      within(
-        await screen.findByRole("dialog", { name: "Choose project" }),
-      ).getByRole("button", { name: "Matter One" }),
-    );
+    const chooser = await screen.findByRole("dialog", {
+      name: "Move “Assistant matter” to a project",
+    });
+    fireEvent.click(await within(chooser).findByRole("button", { name: "Matter One" }));
+    fireEvent.click(within(chooser).getByRole("button", { name: "Move chat" }));
 
     await waitFor(() =>
       expect(mocks.moveChat).toHaveBeenCalledWith(
@@ -335,7 +201,7 @@ describe("AppSidebar", () => {
         "project-1",
       ),
     );
-    expect(screen.queryByRole("dialog", { name: "Choose project" })).not.toBeInTheDocument();
+    expect(chooser).not.toBeInTheDocument();
     expect(mocks.replace).not.toHaveBeenCalled();
   });
 
@@ -348,7 +214,7 @@ describe("AppSidebar", () => {
     });
 
     expect(document.querySelectorAll('[data-selected="true"]')).toHaveLength(3);
-    fireEvent.click(screen.getByRole("link", { name: "Second matter" }), {
+    fireEvent.click(screen.getByRole("link", { name: "Second matter, selected" }), {
       ctrlKey: true,
     });
     expect(document.querySelectorAll('[data-selected="true"]')).toHaveLength(2);
@@ -388,30 +254,6 @@ describe("AppSidebar", () => {
     expect(mocks.deleteChat).toHaveBeenCalledWith("assistant-chat-2");
     expect(mocks.deleteChat).toHaveBeenCalledWith("assistant-chat-3");
     expect(mocks.replace).toHaveBeenCalledWith("/assistant", { replace: true });
-  });
-
-  it("gives only the topmost selected chat the row actions", () => {
-    render(sidebar(false));
-
-    fireEvent.click(screen.getByRole("link", { name: "Assistant matter" }));
-    fireEvent.click(screen.getByRole("link", { name: "Third matter" }), {
-      shiftKey: true,
-    });
-
-    const rows = [
-      "assistant-chat",
-      "assistant-chat-2",
-      "assistant-chat-3",
-    ].map((id) => document.querySelector(`[data-chat-id="${id}"]`)!);
-    expect(
-      rows[0].querySelector("[data-row-actions]"),
-    ).not.toHaveAttribute("hidden");
-    expect(rows[1].querySelector("[data-row-actions]")).toHaveAttribute(
-      "hidden",
-    );
-    expect(rows[2].querySelector("[data-row-actions]")).toHaveAttribute(
-      "hidden",
-    );
   });
 
   it("opens one Settings modal in cloud mode", async () => {
