@@ -5,6 +5,7 @@ import { abortError, throwIfAborted } from "./abort";
 import {
   acquireCodexAppServer,
   CODEX_APP_SERVER_CLOSED,
+  type CodexAppServer,
   type CodexAppServerNotification,
 } from "./codexAppServer";
 import { startMcpToolBridge, type McpToolBridge } from "./mcpToolBridge";
@@ -37,6 +38,43 @@ const CODEX_TOOL_TIMEOUT_SECONDS = 86_400;
 const INTERRUPT_GRACE_MS = 5_000;
 export const CODEX_THREAD_ID =
   /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
+
+// Beaver drives the turn itself: every Codex surface that would act outside the
+// conversation stays off.
+const DISABLED_CODEX_FEATURES = [
+  "shell_tool", "unified_exec", "shell_snapshot", "apps", "connectors", "plugins",
+  "hooks", "codex_hooks", "browser_use", "in_app_browser", "computer_use",
+  "image_generation", "memories", "memory_tool", "skill_search", "tool_suggest",
+  "view_image",
+];
+
+/** One-shot settlement: idle, abort and turn completion race, and the first wins. */
+function settlement() {
+  let done = false;
+  let settle!: (error?: Error) => void;
+  const promise = new Promise<void>((resolve, reject) => {
+    settle = (error) => {
+      if (done) return;
+      done = true;
+      error ? reject(error) : resolve();
+    };
+  });
+  return { promise, settle, settled: () => done };
+}
+
+function idleWatchdog(onIdle: () => void) {
+  let timer: NodeJS.Timeout | undefined;
+  return {
+    reset: () => {
+      clearTimeout(timer);
+      timer = setTimeout(onIdle, CODEX_IDLE_TIMEOUT_MS);
+    },
+    stop: () => clearTimeout(timer),
+  };
+}
+
+const unsubscribeThread = (server: CodexAppServer, threadId: string) =>
+  void server.request("thread/unsubscribe", { threadId }).catch(() => undefined);
 
 function number(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value >= 0
@@ -114,12 +152,13 @@ async function withCodexImages<T>(
   }
 }
 
-function threadConfig(
+function threadParams(
   params: StreamChatParams,
   bridge: McpToolBridge | null,
   inheritedMcpServers: string[],
 ) {
-  return {
+  const model = codexModelSlug(params.model);
+  const config = {
     include_permissions_instructions: false,
     include_apps_instructions: false,
     include_collaboration_mode_instructions: params.nativeSubagents === true,
@@ -129,23 +168,7 @@ function threadConfig(
     agents: { enabled: params.nativeSubagents === true },
     apps: { _default: { enabled: false } },
     web_search: "disabled",
-    "features.shell_tool": false,
-    "features.unified_exec": false,
-    "features.shell_snapshot": false,
-    "features.apps": false,
-    "features.connectors": false,
-    "features.plugins": false,
-    "features.hooks": false,
-    "features.codex_hooks": false,
-    "features.browser_use": false,
-    "features.in_app_browser": false,
-    "features.computer_use": false,
-    "features.image_generation": false,
-    "features.memories": false,
-    "features.memory_tool": false,
-    "features.skill_search": false,
-    "features.tool_suggest": false,
-    "features.view_image": false,
+    ...Object.fromEntries(DISABLED_CODEX_FEATURES.map((name) => [`features.${name}`, false])),
     "features.code_mode.direct_only_tool_namespaces": ["mcp__mike_runtime"],
     show_raw_agent_reasoning: false,
     ...(params.compactThreshold
@@ -165,14 +188,6 @@ function threadConfig(
       }),
     },
   };
-}
-
-function threadParams(
-  params: StreamChatParams,
-  bridge: McpToolBridge | null,
-  inheritedMcpServers: string[],
-) {
-  const model = codexModelSlug(params.model);
   return {
     ...(model ? { model } : {}),
     ...(params.serviceTier ? { serviceTier: params.serviceTier } : {}),
@@ -182,7 +197,7 @@ function threadParams(
     baseInstructions: BEAVER_BASE_INSTRUCTIONS,
     developerInstructions: params.systemPrompt.trim(),
     personality: "none",
-    config: threadConfig(params, bridge, inheritedMcpServers),
+    config,
   };
 }
 
@@ -232,8 +247,6 @@ async function runCodexTurn(
   let usage: NormalizedLlmUsage | undefined;
   let failure = "";
   let compactionRunning = false;
-  let settled = false;
-  let idleTimer: NodeJS.Timeout | undefined;
   let interruptTimer: NodeJS.Timeout | undefined;
   let interruptRequested = false;
   const streamedByItem = new Map<string, string>();
@@ -242,28 +255,19 @@ async function runCodexTurn(
   const turnReady = new Promise<void>((resolve) => {
     markTurnReady = resolve;
   });
-  let complete!: (error?: Error) => void;
-  const completion = new Promise<void>((resolve, reject) => {
-    complete = (error) => {
-      if (settled) return;
-      settled = true;
-      error ? reject(error) : resolve();
-    };
-  });
+  const { promise: completion, settle: complete, settled } = settlement();
   completion.catch(() => undefined);
 
   const interrupt = async () => {
-    if (!threadId || !turnId || settled) return;
+    if (!threadId || !turnId || settled()) return;
     interruptRequested = true;
     await server.request("turn/interrupt", { threadId, turnId });
   };
-  const resetIdle = () => {
-    clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => {
-      void interrupt().catch(() => undefined);
-      complete(new Error("Codex app-server turn became idle."));
-    }, CODEX_IDLE_TIMEOUT_MS);
-  };
+  const idle = idleWatchdog(() => {
+    void interrupt().catch(() => undefined);
+    complete(new Error("Codex app-server turn became idle."));
+  });
+  const resetIdle = idle.reset;
   noteToolActivity = resetIdle;
   const onAbort = () => {
     void interrupt().catch(() => undefined);
@@ -521,16 +525,14 @@ async function runCodexTurn(
       ...(params.providerSession?.persist ? { continuationId: threadId } : {}),
     };
   } finally {
-    clearTimeout(idleTimer);
+    idle.stop();
     clearTimeout(interruptTimer);
     params.abortSignal?.removeEventListener("abort", onAbort);
     params.providerSession?.onControl?.(null);
     unsubscribe();
     endReasoning();
     await bridge?.close();
-    if (threadId && server.alive()) {
-      void server.request("thread/unsubscribe", { threadId }).catch(() => undefined);
-    }
+    if (threadId && server.alive()) unsubscribeThread(server, threadId);
   }
 }
 
@@ -551,23 +553,9 @@ export async function compactCodexSession(params: {
   await server.request("thread/resume", { threadId: params.continuationId });
 
   let turnId = "";
-  let idleTimer: NodeJS.Timeout | undefined;
-  let settled = false;
-  let settle!: (error?: Error) => void;
-  const completed = new Promise<void>((resolve, reject) => {
-    settle = (error) => {
-      if (settled) return;
-      settled = true;
-      error ? reject(error) : resolve();
-    };
-  });
-  const resetIdle = () => {
-    clearTimeout(idleTimer);
-    idleTimer = setTimeout(
-      () => settle(new Error("Codex compaction became idle.")),
-      CODEX_IDLE_TIMEOUT_MS,
-    );
-  };
+  const { promise: completed, settle } = settlement();
+  const idle = idleWatchdog(() => settle(new Error("Codex compaction became idle.")));
+  const resetIdle = idle.reset;
   const unsubscribe = server.subscribe((event) => {
     if (event.method === CODEX_APP_SERVER_CLOSED) {
       settle(new Error(String(event.params.message ?? "Codex app-server exited.")));
@@ -609,11 +597,9 @@ export async function compactCodexSession(params: {
     await server.request("thread/compact/start", { threadId: params.continuationId });
     await completed;
   } finally {
-    clearTimeout(idleTimer);
+    idle.stop();
     params.abortSignal?.removeEventListener("abort", abort);
     unsubscribe();
-    void server
-      .request("thread/unsubscribe", { threadId: params.continuationId })
-      .catch(() => undefined);
+    unsubscribeThread(server, params.continuationId);
   }
 }
