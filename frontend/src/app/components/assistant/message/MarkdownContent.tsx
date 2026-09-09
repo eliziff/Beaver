@@ -102,7 +102,7 @@ export function CitationPill({
     const content = label.styleOfCause ? (
         <><em className={truncateStyleOfCause ? "min-w-0 max-w-56 truncate" : undefined}>{label.styleOfCause}</em><span className={truncateStyleOfCause ? "shrink-0 whitespace-nowrap" : undefined}>{label.rest}</span></>
     ) : label.rest;
-    const pillClassName = `${LEGAL_CITATION_PILL} ${truncateStyleOfCause && label.styleOfCause ? "!inline-flex !whitespace-nowrap" : ""} ${className}`;
+    const pillClassName = `${LEGAL_CITATION_PILL} ${truncateStyleOfCause && label.styleOfCause ? "inline-flex! whitespace-nowrap!" : ""} ${className}`;
     const href = citation.kind === "document" ? `/library?${new URLSearchParams({ document_id: citation.document_id,
         ...(citation.version_id ? { version_id: citation.version_id } : {}),
         ...(target?.sheet ? { sheet: target.sheet } : {}), ...(target?.cell ? { cell: target.cell } : {}) })}`
