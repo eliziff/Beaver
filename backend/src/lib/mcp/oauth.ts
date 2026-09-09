@@ -11,7 +11,7 @@ import type {
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { sha256 } from "../hash";
 import { publicOrigin } from "../publicOrigin";
-import { sql } from "../relational";
+import { sql, type SqlValue } from "../relational";
 import {
   bufferRemoteResponse,
   normalizeRemoteHttpsUrl,
@@ -43,6 +43,16 @@ const OAUTH_RESPONSE_BYTES = 256 * 1024;
 const OAUTH_ERRORS = new Set(
   "invalid_request invalid_client invalid_grant unauthorized_client unsupported_grant_type invalid_scope invalid_client_metadata invalid_redirect_uri server_error temporarily_unavailable".split(" "),
 );
+
+/** Every writable column of user_mcp_oauth_tokens, in one place: the insert,
+ *  the update and the cleared-defaults row are all built from this list. */
+const TOKEN_COLUMNS = [
+  "encrypted_access_token", "access_token_iv", "access_token_tag",
+  "encrypted_refresh_token", "refresh_token_iv", "refresh_token_tag",
+  "token_type", "scope", "expires_at", "authorization_server", "token_endpoint",
+  "client_id", "encrypted_client_secret", "client_secret_iv", "client_secret_tag",
+  "resource",
+] as const;
 
 type Binding = {
   authorizationServer: string;
@@ -385,41 +395,24 @@ export class DbMcpOAuthProvider implements OAuthClientProvider {
   private async writeToken(patch: Record<string, unknown>) {
     const current = await loadOAuthToken(this.connector.id, this.db);
     const updatedAt = new Date(Math.max(Date.now(), Date.parse(current?.updated_at ?? "") + 1 || 0)).toISOString();
+    // Every writable column is rewritten on every write: a patch that omits one
+    // clears it, so a stale secret can never survive a re-authorization.
     const value = { id: current?.id ?? randomUUID(), connector_id: this.connector.id,
-      encrypted_access_token: null, access_token_iv: null, access_token_tag: null,
-      encrypted_refresh_token: null, refresh_token_iv: null, refresh_token_tag: null,
-      token_type: null, scope: null, expires_at: null, authorization_server: null,
-      token_endpoint: null, client_id: null, encrypted_client_secret: null,
-      client_secret_iv: null, client_secret_tag: null, resource: null,
+      ...Object.fromEntries(TOKEN_COLUMNS.map((column) => [column, null])),
       created_at: current?.created_at ?? updatedAt, ...current, ...patch, updated_at: updatedAt,
     } as OAuthTokenRow;
-    if (current) {
-      const expected = this.tokenRevision ?? current.updated_at;
-      const changed = await one(sql`UPDATE user_mcp_oauth_tokens SET
-        encrypted_access_token=${value.encrypted_access_token},access_token_iv=${value.access_token_iv},
-        access_token_tag=${value.access_token_tag},encrypted_refresh_token=${value.encrypted_refresh_token},
-        refresh_token_iv=${value.refresh_token_iv},refresh_token_tag=${value.refresh_token_tag},
-        token_type=${value.token_type},scope=${value.scope},expires_at=${value.expires_at},
-        authorization_server=${value.authorization_server},token_endpoint=${value.token_endpoint},
-        client_id=${value.client_id},encrypted_client_secret=${value.encrypted_client_secret},
-        client_secret_iv=${value.client_secret_iv},client_secret_tag=${value.client_secret_tag},
-        resource=${value.resource},updated_at=${updatedAt}
-        WHERE id=${current.id} AND updated_at=${expected} RETURNING id`, this.db);
-      if (!changed) throw new Error("OAuth credentials changed concurrently.");
-    } else {
-      const inserted = await one(sql`INSERT INTO user_mcp_oauth_tokens(id,connector_id,
-        encrypted_access_token,access_token_iv,access_token_tag,encrypted_refresh_token,
-        refresh_token_iv,refresh_token_tag,token_type,scope,expires_at,authorization_server,
-        token_endpoint,client_id,encrypted_client_secret,client_secret_iv,client_secret_tag,
-        resource,created_at,updated_at) VALUES(${value.id},${value.connector_id},
-        ${value.encrypted_access_token},${value.access_token_iv},${value.access_token_tag},
-        ${value.encrypted_refresh_token},${value.refresh_token_iv},${value.refresh_token_tag},
-        ${value.token_type},${value.scope},${value.expires_at},${value.authorization_server},
-        ${value.token_endpoint},${value.client_id},${value.encrypted_client_secret},
-        ${value.client_secret_iv},${value.client_secret_tag},${value.resource},
-        ${value.created_at},${updatedAt}) ON CONFLICT(connector_id) DO NOTHING RETURNING id`, this.db);
-      if (!inserted) throw new Error("OAuth credentials changed concurrently.");
-    }
+    const cells = TOKEN_COLUMNS.map((column) => value[column] as SqlValue);
+    const written = current
+      ? await one(sql`UPDATE user_mcp_oauth_tokens SET ${sql.join(TOKEN_COLUMNS.map(
+        (column, index) => sql`${sql.raw(column)}=${cells[index]}`))},updated_at=${updatedAt}
+        WHERE id=${current.id} AND updated_at=${this.tokenRevision ?? current.updated_at}
+        RETURNING id`, this.db)
+      : await one(sql`INSERT INTO user_mcp_oauth_tokens(
+        id,connector_id,${sql.raw(TOKEN_COLUMNS.join(","))},created_at,updated_at)
+        VALUES(${value.id},${value.connector_id},${sql.join(cells)},
+        ${value.created_at},${updatedAt})
+        ON CONFLICT(connector_id) DO NOTHING RETURNING id`, this.db);
+    if (!written) throw new Error("OAuth credentials changed concurrently.");
     this.tokenRevision = updatedAt;
   }
 }
@@ -478,10 +471,9 @@ export async function startUserMcpConnectorOAuth(
   connectorId: string,
   db: Db,
 ) {
-  const connection = db;
-  const connector = await loadConnector(userId, connectorId, connection);
+  const connector = await loadConnector(userId, connectorId, db);
   await validateMcpUrl(connector.server_url);
-  const provider = new DbMcpOAuthProvider(connection, connector, "authorize");
+  const provider = new DbMcpOAuthProvider(db, connector, "authorize");
   const { auth } = await import("@modelcontextprotocol/sdk/client/auth.js");
   const result = await auth(provider, {
     serverUrl: connector.server_url, ...(scope() ? { scope: scope() } : {}),
@@ -505,20 +497,19 @@ export async function completeMcpConnectorOAuthAuthorization(
   code: string,
   db: Db,
 ) {
-  const connection = db;
-  const row = await consumeState(state, connection);
+  const row = await consumeState(state, db);
   const config = open<StoredState>(row.encrypted_state_config, row.state_config_iv,
     row.state_config_tag, `oauth-state\0${sha256(state)}`);
   if (!config || config.userId !== row.user_id || config.connectorId !== row.connector_id ||
       config.redirectUri !== redirectUri()) throw new Error("OAuth state is invalid or expired.");
-  const connector = await loadConnector(config.userId, config.connectorId, connection);
+  const connector = await loadConnector(config.userId, config.connectorId, db);
   if (connector.server_url !== config.serverUrl ||
       credentialFingerprint(connector) !== config.credentialFingerprint) {
     throw new Error("MCP connector credentials changed during OAuth.");
   }
   const binding = await validateDiscovery(config.discovery, connector.server_url);
   const provider = new DbMcpOAuthProvider(
-    connection, connector, "complete", config, binding,
+    db, connector, "complete", config, binding,
     state as ReturnType<typeof globalThis.crypto.randomUUID>,
   );
   const { StreamableHTTPClientTransport } = await sdk();
