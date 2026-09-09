@@ -127,17 +127,19 @@ function queryPdf(document: NativeDocument, input: PdfLookupInput) {
   );
 }
 
+type LookupSource = {
+  persistEvidence?: boolean;
+  cacheKey: string;
+  documentId: string;
+  versionId: string;
+  sourceSha256: string;
+  parserVersion: string;
+};
+
 async function finishLookup(
   input: PdfLookupInput,
   lookup: PdfStructureLookup,
-  options: {
-    persistEvidence?: boolean;
-    cacheKey: string;
-    documentId: string;
-    versionId: string;
-    sourceSha256: string;
-    parserVersion: string;
-  },
+  options: LookupSource,
 ) {
   if (lookup.status !== "found") {
     return lookup;
@@ -197,28 +199,16 @@ async function finishLookup(
 export async function lookupPdfStructure(
   document: NativeDocument,
   input: PdfLookupInput,
-  options: {
-    persistEvidence?: boolean;
-    cacheKey: string;
-    documentId: string;
-    versionId: string;
-    sourceSha256: string;
-    parserVersion: string;
-  },
+  options: LookupSource,
 ) {
-  return finishLookup(
-    input,
-    queryPdf(document, input),
-    options,
-  );
+  return finishLookup(input, queryPdf(document, input), options);
 }
 
-async function verifiedPdfEvidence(
+export async function rehydratePdfEvidence(
   document: NativeDocument,
   receipt: PdfEvidenceReceipt,
 ) {
-  const result = queryPdf(document, receipt.lookup);
-  const lookup = await finishLookup(receipt.lookup, result, {
+  const lookup = await finishLookup(receipt.lookup, queryPdf(document, receipt.lookup), {
     persistEvidence: false,
     cacheKey: receipt.source.cache_key,
     documentId: receipt.source.document_id,
@@ -226,16 +216,11 @@ async function verifiedPdfEvidence(
     sourceSha256: receipt.source.source_sha256,
     parserVersion: receipt.source.parser_version,
   });
-  if (
-    lookup.status !== "found" &&
-    "error" in lookup &&
-    lookup.error === "PDF source bytes no longer match their version"
-  ) {
-    throw new Error("PDF evidence source bytes no longer match their version");
-  }
   if (lookup.status !== "found") {
     throw new Error(
-      "PDF evidence no longer matches the authoritative source artifacts",
+      "error" in lookup && lookup.error === "PDF source bytes no longer match their version"
+        ? "PDF evidence source bytes no longer match their version"
+        : "PDF evidence no longer matches the authoritative source artifacts",
     );
   }
   if (lookup.evidence.handle !== receipt.handle) {
@@ -246,18 +231,11 @@ async function verifiedPdfEvidence(
   return lookup;
 }
 
-export async function rehydratePdfEvidence(
-  document: NativeDocument,
-  receipt: PdfEvidenceReceipt,
-) {
-  return verifiedPdfEvidence(document, receipt);
-}
-
 export async function verifyPdfEvidence(
   document: NativeDocument,
   receipt: PdfEvidenceReceipt,
 ) {
-  const verified = await verifiedPdfEvidence(document, receipt);
+  const verified = await rehydratePdfEvidence(document, receipt);
   return {
     documentId: verified.source.document_id,
     versionId: verified.source.version_id,
