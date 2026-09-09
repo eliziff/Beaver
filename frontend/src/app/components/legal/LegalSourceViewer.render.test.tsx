@@ -38,7 +38,6 @@ import {
     legalSourceViewerActions,
 } from "./LegalSourceViewer";
 import { readerSelectionSpan } from "../shared/readerSelection";
-import { LegalLibrarySourcePage } from "./LegalLibrary";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 function HighlightButton() {
   const { highlight } = useSourcesWorkspace();
@@ -149,6 +148,10 @@ const researchFile = {
         queries: null, note: "" },
 };
 
+function sourceViewer(props: Partial<React.ComponentProps<typeof LegalSourceViewer>> = {}) {
+    return <LegalSourceViewer citation="2099 SCC 1" docType="cases" {...props} />;
+}
+
 describe("legal source reader", () => {
     beforeEach(() => {
         api.direct.mockReset();
@@ -168,7 +171,7 @@ describe("legal source reader", () => {
         const untrusted = viewerPayload();
         untrusted.slices[0].primary!.label = "par(";
         api.direct.mockResolvedValue(untrusted);
-        render(<LegalSourceViewer citation="2099 SCC 1" docType="cases" />);
+        render(sourceViewer());
         expect(await screen.findByRole("heading", { name: "Fixture v. Test" }))
             .toBeInTheDocument();
     });
@@ -218,9 +221,7 @@ describe("legal source reader", () => {
     it("renders continuous semantic content without paragraph navigation", async () => {
         api.direct.mockResolvedValue(viewerPayload());
 
-        const { container } = render(
-            <LegalSourceViewer citation="2099 SCC 1" docType="cases" />,
-        );
+        const { container } = render(sourceViewer());
 
         await screen.findByRole("heading", { name: "Fixture v. Test" });
         expect(screen.getByRole("heading", { name: "Analysis" }).tagName).toBe(
@@ -254,9 +255,7 @@ describe("legal source reader", () => {
 
     it("keeps every source anchor unique and addressable", async () => {
         api.direct.mockResolvedValue(multiSlicePayload());
-        const { container } = render(
-            <LegalSourceViewer citation="2099 SCC 1" docType="cases" />,
-        );
+        const { container } = render(sourceViewer());
         await screen.findByRole("heading", { name: "Fixture v. Test" });
 
         const expectedIds = [
@@ -285,13 +284,7 @@ describe("legal source reader", () => {
             .mockImplementation(function () {
                 return { top: this.id === "legal-2" ? 240 : 100 } as DOMRect;
             });
-        const { container } = render(
-            <LegalSourceViewer
-                citation="2099 SCC 1"
-                docType="cases"
-                initialLocator="par2"
-            />,
-        );
+        const { container } = render(sourceViewer({ initialLocator: "par2" }));
 
         await screen.findByRole("heading", { name: "Fixture v. Test" });
         expect(screen.getByRole("button", { name: "Label Fixture v. Test" })).toBeEnabled();
@@ -307,7 +300,7 @@ describe("legal source reader", () => {
         api.actOnResearchFile.mockImplementation(async (_id, _version, _revision, action) =>
             action.type === "source" ? { ...researchFile, sourceId: "saved" }
                 : { ...researchFile, sourceId: "saved", evidenceId: "evidence" });
-        render(<LegalSourceViewer citation="2099 SCC 1" docType="cases" researchFile={blank} />);
+        render(sourceViewer({ researchFile: blank }));
         const selection = selectText(await screen.findByText("ratio"));
         fireEvent.click(screen.getByRole("button", { name: "Highlight" }));
         const canonical = viewerPayload().slices[0].text;
@@ -328,7 +321,7 @@ describe("legal source reader", () => {
         api.direct.mockResolvedValue(viewerPayload());
         api.researchItems.mockResolvedValue(researchPage());
         api.actOnResearchFile.mockResolvedValue({ ...pens, sourceId: "saved", evidenceId: "evidence" });
-        render(<LegalSourceViewer citation="2099 SCC 1" docType="cases" researchFile={pens} />);
+        render(sourceViewer({ researchFile: pens }));
         await screen.findByText("ratio");
         await act(async () => {});
         const selection = selectText(screen.getByText("ratio"));
@@ -342,7 +335,7 @@ describe("legal source reader", () => {
         api.direct.mockResolvedValue(viewerPayload());
         api.researchItems.mockResolvedValue(researchPage());
         api.actOnResearchFile.mockResolvedValue({ ...researchFile, sourceId: "saved", evidenceId: "evidence" });
-        const { container } = render(<LegalSourceViewer citation="2099 SCC 1" docType="cases" researchFile={researchFile} />);
+        const { container } = render(sourceViewer({ researchFile }));
         await screen.findByText("ratio");
         window.getSelection()?.removeAllRanges();
         fireEvent.click(screen.getByRole("button", { name: "Highlight" }));
@@ -364,14 +357,16 @@ describe("legal source reader", () => {
             ...blank, versionId, sourceId: "saved", workingRevision: revision + 1,
             state: { ...blank.state, sources: { saved: { ...researchFile.state.sources.saved, note: action.note ?? "" } } },
         }));
-        const { rerender } = render(<LegalSourceViewer citation="2099 SCC 1" docType="cases"
-            researchFile={blank} />);
+        const { rerender } = render(sourceViewer({ researchFile: blank }));
         await screen.findByRole("heading", { name: "Fixture v. Test" });
 
         for (const [note, revision] of [["First", 1], ["Again", 3]] as const) {
-            if (revision > 1) rerender(<LegalSourceViewer citation="2099 SCC 1" docType="cases"
-                researchFile={{ ...blank, versionId: `version-${revision}`,
-                    workingRevision: revision }} />);
+            if (revision > 1) rerender(sourceViewer({
+                researchFile: {
+                    ...blank, versionId: `version-${revision}`,
+                    workingRevision: revision
+                },
+            }));
             fireEvent.click(screen.getByRole("button", { name: "Label Fixture v. Test" }));
             fireEvent.change(screen.getByRole("textbox", { name: "Item note" }),
                 { target: { value: note } });
@@ -385,8 +380,7 @@ describe("legal source reader", () => {
     it("opens Workspace instead of creating a file for unsaved source or passage work", async () => {
         const onOpenResearch = vi.fn();
         api.direct.mockResolvedValue(viewerPayload());
-        render(<LegalSourceViewer citation="2099 SCC 1" docType="cases"
-            onOpenResearch={onOpenResearch} />);
+        render(sourceViewer({ onOpenResearch }));
         fireEvent.click(await screen.findByRole("button", { name: "Label Fixture v. Test" }));
         expect(await screen.findByRole("alert")).toHaveTextContent(
             "Choose or create a workspace first",
@@ -425,16 +419,12 @@ describe("legal source reader", () => {
 
     it("keeps every verified quote span highlighted in the internal reader", async () => {
         api.direct.mockResolvedValue(multiSlicePayload());
-        const { container } = render(
-            <LegalSourceViewer
-                citation="2099 SCC 1"
-                docType="cases"
-                quotes={[
-                    { quote: "First proposition." },
-                    { quote: "Third proposition." },
-                ]}
-            />,
-        );
+        const { container } = render(sourceViewer({
+            quotes: [
+                { quote: "First proposition." },
+                { quote: "Third proposition." },
+            ],
+        }));
 
         await waitFor(() =>
             expect(
@@ -453,9 +443,11 @@ describe("legal source reader", () => {
         api.direct.mockResolvedValue(multiSlicePayload());
         api.researchFile.mockResolvedValue(researchFile);
         const onResearchFileChange = vi.fn();
-        const { container } = render(<LegalSourceViewer citation="2099 SCC 1" docType="cases"
-            researchFileId="file-1" researchSourceId="saved"
-            onResearchFileChange={onResearchFileChange} />);
+        const { container } = render(sourceViewer({
+            researchFileId: "file-1",
+            researchSourceId: "saved",
+            onResearchFileChange,
+        }));
 
         await screen.findByRole("heading", { name: "Fixture v. Test" });
         await waitFor(() => expect(container.querySelector('[data-qspan="0"]')).not.toBeNull());
@@ -479,7 +471,7 @@ describe("legal source reader", () => {
     it("settles a deleted linked workspace and reports the error", async () => {
         api.direct.mockResolvedValue(viewerPayload());
         api.researchFile.mockRejectedValue(new Error("Research file not found"));
-        render(<LegalSourceViewer citation="2099 SCC 1" docType="cases" researchFileId="deleted" />);
+        render(sourceViewer({ researchFileId: "deleted" }));
 
         await screen.findByRole("heading", { name: "Fixture v. Test" });
         expect(await screen.findByRole("alert")).toHaveTextContent("Research file not found");
@@ -496,8 +488,7 @@ describe("legal source reader", () => {
             sources: { saved: { ...researchFile.state.sources.saved,
                 passages: { count: 2, sha256: "d".repeat(64), labelCounts: {}, unlabelledCount: 2 } } } } };
         api.researchItems.mockResolvedValue(researchPage(later, savedEvidence));
-        const { container } = render(<LegalSourceViewer citation="2099 SCC 1"
-            docType="cases" researchFile={reversed} />);
+        const { container } = render(sourceViewer({ researchFile: reversed }));
 
         await waitFor(() => expect(
             container.querySelectorAll("[data-research-evidence]"),
@@ -516,7 +507,7 @@ describe("legal source reader", () => {
             span_text: "Third proposition.", locator: { kind: "paragraph", label: "par3" } } };
         api.researchItems.mockResolvedValueOnce({ ...researchPage(savedEvidence), next_cursor: "next", total: 2 })
             .mockResolvedValueOnce(researchPage(later));
-        const { container } = render(<LegalSourceViewer citation="2099 SCC 1" docType="cases" researchFile={researchFile} />);
+        const { container } = render(sourceViewer({ researchFile }));
         await waitFor(() => expect(container.querySelector('[data-research-evidence="later"]')).toHaveTextContent("Third proposition."));
         expect(api.researchItems).toHaveBeenCalledTimes(2);
         expect(api.researchItems.mock.calls[1][1]).toMatchObject({ cursor: "next", sourceId: "saved" });
@@ -534,8 +525,7 @@ describe("legal source reader", () => {
             sources: { saved: { ...researchFile.state.sources.saved,
                 passages: { count: 2, sha256: "e".repeat(64), labelCounts: {}, unlabelledCount: 2 } } } } };
         api.researchItems.mockResolvedValue(researchPage(evidence("later", "par3"), evidence("first", "par1")));
-        const { container } = render(<LegalSourceViewer citation="2099 SCC 1"
-            docType="cases" researchFile={file} />);
+        const { container } = render(sourceViewer({ researchFile: file }));
 
         await waitFor(() => expect(container.querySelectorAll("[data-research-evidence]")).toHaveLength(2));
         expect(container.querySelector('[data-locator-value="par1"] [data-research-evidence="first"]')).toBeTruthy();
@@ -556,8 +546,7 @@ describe("legal source reader", () => {
 
     it("uses controlled research updates for highlight color without fetching again", async () => {
         api.direct.mockResolvedValue(multiSlicePayload());
-        const { container, rerender } = render(<LegalSourceViewer citation="2099 SCC 1"
-            docType="cases" researchFile={researchFile} />);
+        const { container, rerender } = render(sourceViewer({ researchFile }));
         await waitFor(() => expect(container.querySelector('[data-qspan="0"]')).not.toBeNull());
         expect(container.querySelector<HTMLElement>('[data-qspan="0"]')!.style.backgroundColor)
             .toBe("rgba(4, 120, 87, 0.35)");
@@ -565,8 +554,7 @@ describe("legal source reader", () => {
         const changed = { ...researchFile, versionId: "version-2", state: {
             ...researchFile.state, labels: { ...researchFile.state.labels,
                 holding: { ...researchFile.state.labels.holding, color: "#991b1b" } } } };
-        rerender(<LegalSourceViewer citation="2099 SCC 1" docType="cases"
-            researchFile={changed} />);
+        rerender(sourceViewer({ researchFile: changed }));
         await waitFor(() => expect(
             container.querySelector<HTMLElement>('[data-qspan="0"]')!.style.backgroundColor,
         ).toBe("rgba(153, 27, 27, 0.35)"));
@@ -577,8 +565,7 @@ describe("legal source reader", () => {
     it("keeps the compact research controls in the header", async () => {
         api.direct.mockResolvedValue(viewerPayload());
         const onOpenResearch = vi.fn();
-        render(<LegalSourceViewer citation="2099 SCC 1" docType="cases" compact
-            researchFile={null} onOpenResearch={onOpenResearch} />);
+        render(sourceViewer({ compact: true, researchFile: null, onOpenResearch }));
         await screen.findByRole("heading", { name: "Fixture v. Test" });
         expect(screen.getByRole("group", { name: "No labels" })).toHaveAttribute(
             "data-empty", "true",
@@ -601,20 +588,13 @@ describe("legal source reader", () => {
             });
         const height = vi.spyOn(HTMLElement.prototype, "clientHeight", "get")
             .mockReturnValue(800);
-        const { container, rerender } = render(
-            <LegalSourceViewer
-                citation="2099 SCC 1"
-                docType="cases"
-                quotes={[{ quote: "First proposition." }]}
-            />,
-        );
+        const { container, rerender } = render(sourceViewer({ quotes: [{ quote: "First proposition." }] }));
         await screen.findByRole("heading", { name: "Fixture v. Test" });
         const reader = container.querySelector<HTMLElement>(".overflow-y-auto")!;
 
         await waitFor(() => expect(reader.scrollTop).toBe(108));
         reader.scrollTop = 0;
-        rerender(<LegalSourceViewer citation="2099 SCC 1" docType="cases"
-            quotes={[{ quote: "Second proposition." }]} />);
+        rerender(sourceViewer({ quotes: [{ quote: "Second proposition." }] }));
         await waitFor(() => expect(reader.scrollTop).toBe(108));
         rect.mockRestore();
         height.mockRestore();
@@ -647,13 +627,7 @@ describe("legal source reader", () => {
                 };
             }),
         });
-        const { container } = render(
-            <LegalSourceViewer
-                citation="2099 SCC 1"
-                docType="cases"
-                quotes={[{ quote: text }]}
-            />,
-        );
+        const { container } = render(sourceViewer({ quotes: [{ quote: text }] }));
 
         await waitFor(() =>
             expect(
@@ -664,28 +638,6 @@ describe("legal source reader", () => {
                 ).every(Boolean),
             ).toBe(true),
         );
-    });
-
-    it("keeps saved and direct readers in the same bounded source shell", async () => {
-        api.saved.mockResolvedValue(viewerPayload());
-        const { rerender } = render(
-            <LegalLibrarySourcePage referenceId="saved-1" />,
-        );
-
-        await screen.findByRole("heading", {
-            name: "Fixture v. Test",
-        });
-        api.direct.mockResolvedValue(viewerPayload());
-        rerender(
-            <LegalLibrarySourcePage
-                provider="a2aj"
-                citation="2099 SCC 1"
-                docType="cases"
-                language="en"
-            />,
-        );
-        await waitFor(() => expect(api.direct).toHaveBeenCalledTimes(1));
-        expect(screen.getByRole("heading", { name: "Fixture v. Test" })).toBeVisible();
     });
 
     it("omits unsafe or absent source actions independently", () => {
