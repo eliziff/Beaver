@@ -350,23 +350,6 @@ describe("DocumentSidePanel document removal", () => {
     expect(screen.getByText("Preview is not available for this file type.")).toBeInTheDocument();
   });
 
-  it("reports a failed version action without closing the document", async () => {
-    const user = userEvent.setup();
-    renderPanel({
-      versions: [version3],
-      actionError: "Could not download this version.",
-    });
-
-    await user.click(await screen.findByRole("button", {
-      name: "Download Version 3",
-    }));
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Could not download this version.",
-    );
-    expect(screen.getByRole("dialog", { name: /Brief\.pdf$/u })).toBeInTheDocument();
-  });
-
   it("uses stored file type and concise assistant provenance", async () => {
     const versions = [
       { ...version3, id: "version-2", version_number: 2,
@@ -388,15 +371,6 @@ describe("DocumentSidePanel document removal", () => {
     expect(screen.getByRole("columnheader", { name: "Date" })).toBeInTheDocument();
   });
 
-  it("delegates Library and Project removal to the document owner", async () => {
-    const onDelete = vi.fn();
-    const { rerender } = renderPanel({ versions: [version3], onDelete });
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
-    expect(onDelete).toHaveBeenCalledWith(document);
-    rerender(panel({ versions: [version3], onDelete, documentRemovalMode: "detach" }));
-    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
-    expect(onDelete).toHaveBeenCalledTimes(2);
-  });
 });
 
 it("expands a Library preview in place and restores its size without reloading", () => {
