@@ -1325,6 +1325,9 @@ function BookContents({ draft, busy, onAction, sourceIssues, onRelink, onFiles, 
     ? onPick(slot, multiple, supplementId) : undefined;
   const supplementStart = planAuthorities(draft)
     .filter(({ tab }) => tab !== "Not reproduced").length;
+  /** Match the fixed-width action column the authority rows use, so this section's controls
+   *  neither outsize nor drift out of alignment with the rest of the Sources step. */
+  const rowControl = "h-8 shrink-0 border-gray-400 px-2.5 text-xs w-28 justify-center";
   return <div className="mb-2 border-t border-gray-200 pt-3">
     <h3 className="mb-2 min-h-8 text-sm font-semibold leading-8 text-gray-900">Cover and index</h3>
     <div className="divide-y divide-gray-200 rounded-lg border border-gray-300">
@@ -1362,13 +1365,13 @@ function BookContents({ draft, busy, onAction, sourceIssues, onRelink, onFiles, 
     <div className="mt-3 flex min-h-8 flex-wrap items-center justify-between gap-2">
       <h3 className="text-sm font-semibold text-gray-900">Other book PDFs</h3>
       <div className="flex flex-wrap justify-end gap-1">
-        {onPick ? <Button type="button" variant="outline" className="h-8 border-gray-400 px-2.5 text-xs"
+        {onPick ? <Button type="button" variant="outline" className={rowControl}
           aria-label="Add other book files" disabled={busy} onClick={() => add("supplemental", true)}>
           <FilePlus2 /> Add files</Button>
           : onFiles && <FileInputButton multiple disabled={busy} label="Add files"
             ariaLabel="Add other book files" accept=".pdf,application/pdf"
-            onFiles={(files) => onFiles("supplemental", files)} variant="outline" compact />}
-        {onLibrary && <Button type="button" variant="outline" className="h-8 border-gray-400 px-2.5 text-xs"
+            onFiles={(files) => onFiles("supplemental", files)} variant="outline" compact className={rowControl} />}
+        {onLibrary && <Button type="button" variant="outline" className={rowControl}
           aria-label={`Add another book PDF from ${sourceLabel}`} disabled={busy}
           onClick={() => onLibrary("supplemental")}><FolderSearch /> {sourceLabel}</Button>}
       </div>
@@ -1384,17 +1387,17 @@ function BookContents({ draft, busy, onAction, sourceIssues, onRelink, onFiles, 
           <span className="min-w-0 truncate text-sm text-gray-800" title={part.filename}>
             {part.filename}</span>
           <div className="col-span-2 flex items-center justify-end gap-1 sm:col-span-1">
-            {onOpen && <Button type="button" variant="ghost" className="h-8 px-2 text-xs"
+            {onOpen && <Button type="button" variant="ghost" className={rowControl}
               disabled={busy} onClick={() => onOpen(part.bindingRole)}><Eye /> Open</Button>}
             {relinkable(issue) && <Button type="button" variant="ghost"
-              className="h-8 px-2 text-xs text-red-800" disabled={busy}
+              className={cn(rowControl, "text-red-800")} disabled={busy}
               onClick={() => onRelink(part.bindingRole)}>{sourceAction(issue, "file")}</Button>}
-            {onPick ? <Button type="button" variant="outline" className="h-8 px-2 text-xs"
+            {onPick ? <Button type="button" variant="outline" className={rowControl}
               disabled={busy} onClick={() => add("supplemental", false, part.id)}>Replace</Button>
               : onFiles && <FileInputButton multiple={false} disabled={busy} label="Replace"
                 accept=".pdf,application/pdf" onFiles={(files) => onFiles("supplemental", files, part.id)}
-                variant="outline" compact />}
-            {onLibrary && <Button type="button" variant="outline" className="h-8 px-2 text-xs"
+                variant="outline" compact className={rowControl} />}
+            {onLibrary && <Button type="button" variant="outline" className={rowControl}
               aria-label={`Replace ${part.filename} from ${sourceLabel}`} disabled={busy}
               onClick={() => onLibrary("supplemental", part.id)}><FolderSearch /> {sourceLabel}</Button>}
             <MoreActionsMenu label={`${part.filename} options`} items={[{
