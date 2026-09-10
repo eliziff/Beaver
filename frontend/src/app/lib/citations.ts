@@ -8,7 +8,6 @@ export interface CitationQuote {
 import type { AssistantCitation } from "../../../../backend/src/lib/chat/assistantWire";
 export type Citation = AssistantCitation;
 export type DocumentCitation = Extract<Citation, { kind: "document" }>;
-export type TabularCitation = Extract<Citation, { kind: "tabular" }>;
 type DocumentCitationQuote = DocumentCitation["quotes"][number];
 const PAGE_BREAK_SENTINEL = "[[PAGE_BREAK]]";
 function formatCellLocator(sheet?: string, cell?: string): string {

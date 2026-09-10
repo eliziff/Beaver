@@ -253,10 +253,6 @@ export const retryLibraryPdfParse = (
     `/library/${kind}/documents/${segment(documentId)}/actions/retry-pdf-parse`,
     options,
   );
-export const inspectDocxWorkflowCapabilities = (documentId: string) =>
-  apiRequest<{ supra_references: boolean }>(
-    `/library/files/documents/${segment(documentId)}/workflow-capabilities`,
-  );
 export const addDocumentToProject = (
   projectId: string,
   documentId: string,

@@ -383,10 +383,6 @@ export async function writeStandaloneArtifactsToOutputFolder(artifacts: Standalo
   } catch { return OUTPUT_FOLDER_UNUSABLE; }
 }
 
-export function canRetainLocalFiles() {
-  return typeof document !== "undefined";
-}
-
 export async function pickRetainedFiles(multiple: boolean, accept: "source" | "pdf" = "source") {
   const picker = typeof window === "undefined" ? undefined
     : (window as PickerWindow).showOpenFilePicker;

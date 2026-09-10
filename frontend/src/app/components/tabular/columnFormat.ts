@@ -12,6 +12,3 @@ export const FORMAT_OPTIONS: Array<{ value: ColumnFormat; label: string; icon: L
     { value: "date",            label: "Date",            icon: Calendar,   iconClassName: "text-gray-500"    },
     { value: "tag",             label: "Tags",            icon: Tag,        iconClassName: "text-gray-500"  },
 ];
-export function formatLabel(format: ColumnFormat): string {
-    return FORMAT_OPTIONS.find((o) => o.value === format)?.label ?? "Text";
-}
