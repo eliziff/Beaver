@@ -255,9 +255,11 @@ const WORK_PRODUCT_ACTIVITY: Record<string, string> = {
 };
 const AUTHORITIES_ACTION = objectSchema({
   type: { type: "string", enum: AUTHORITIES_TOOL_ACTIONS,
-    description: "Boundary work: set-authority-span re-spans one citation over the whole of it — style of cause, neutral citation, parallel cites — re-parsing the span, relinking its authority, and absorbing any other occurrence lying wholly inside it, which is how two detections become one; set-pinpoint-span attaches the pinpoint, whose span must sit outside the authority span and hold a complete pinpoint (\"at para 33\", \"at 411\"); split-occurrence divides one occurrence in two at cursor_text; merge-occurrence merges it into the occurrence before it in the same unit; split and merge need a footnote unit; relink-occurrence points it at another authorityId, or null to unlink; remove-occurrence drops a false positive; set-reference marks a supra or ibid." },
+    description: "Boundary work: set-authority-span re-spans one citation over the whole of it — style of cause, neutral citation, parallel cites — re-parsing the span, relinking its authority, and absorbing any other occurrence lying wholly inside it, which is how two detections become one; set-pinpoint-span attaches the pinpoint, whose span must sit outside the authority span and hold a complete pinpoint (\"at para 33\", \"at 411\"); clear-pinpoint detaches a pinpoint that belongs to another citation, leaving the occurrence at its authority span; add-occurrence makes a citation no detector found out of span_text in unitId, which is the only way to add a missed citation; split-occurrence divides one occurrence in two at cursor_text; merge-occurrence merges it into the occurrence before it in the same unit; split, merge and add work in body units and footnotes alike; relink-occurrence points it at another authorityId, or null to unlink; remove-occurrence drops a false positive; set-reference marks a supra or ibid." },
   occurrenceId: { type: "string", minLength: 1,
     description: "Citation occurrence; omit in a bound view to use the focused citation." },
+  unitId: { type: "string", minLength: 1,
+    description: "add-occurrence: the review unit the new citation sits in, from the read's unit_index; span_text is resolved against it." },
   authorityId: { type: "string",
     description: "An id from the read's authorities list; null in relink-occurrence unlinks." },
   kind: { type: "string", enum: authorityKinds },
@@ -314,7 +316,7 @@ const workProductTool = (authoritiesEnabled: boolean, bound = false,
     "not the user's, and authorities_action.span_text quotes the text a span should cover instead of " +
     "counting offsets. Bound reads and citation actions default to the focused citation and " +
     "selection, and each is a button beside it: " +
-    "set-authority-span (Use selection as citation), set-pinpoint-span (Use selection as pinpoint), split-occurrence (Split at cursor), merge-occurrence (Merge with previous), remove-occurrence (Not a citation). Update with authorities_action, " +
+    "set-authority-span (Use selection as citation), set-pinpoint-span (Use selection as pinpoint), split-occurrence (Split at cursor), merge-occurrence (Merge with previous), remove-occurrence (Not a citation); clear-pinpoint and add-occurrence (unitId + span_text) have no button. Update with authorities_action, " +
     "evidence_ids, authority_id + document_id + source_language, or book_slot + document_id. " +
     "Reuse supplement_id to replace a supplemental PDF or authorities_action.id to remove it.",
   annotations: { readOnlyHint: false },
@@ -361,15 +363,17 @@ function anchoredRange(state: unknown, occurrenceId: string,
   if (!needle) return null;
   const draft = decodeAuthoritiesDraft(state);
   const occurrence = draft?.occurrences[occurrenceId];
-  const unit = occurrence && draft!.units.find(({ id }) => id === occurrence.unitId);
-  if (!unit) throw new Error("Quote span_text with the occurrence_id whose unit it comes from");
+  const unitId = trimmed(action.unitId) || occurrence?.unitId;
+  const unit = draft?.units.find(({ id }) => id === unitId);
+  if (!unit) throw new Error("Quote span_text with the unitId or occurrence_id whose unit it comes from");
   const found: number[] = [];
   for (let at = unit.text.indexOf(needle); at >= 0;
     at = unit.text.indexOf(needle, at + 1)) found.push(at);
   if (!found.length) throw new Error(
     `That text is not in unit ${unit.id}; quote it exactly as the read returned it`);
+  const near = occurrence?.unitId === unit.id ? occurrence.start : 0;
   const start = found.reduce((best, at) =>
-    Math.abs(at - occurrence.start) < Math.abs(best - occurrence.start) ? at : best);
+    Math.abs(at - near) < Math.abs(best - near) ? at : best);
   return span ? { start, end: start + needle.length } : { cursor: start };
 }
 

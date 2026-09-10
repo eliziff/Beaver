@@ -570,6 +570,35 @@ describe("authorities draft domain", () => {
     expect(draft.units[0].occurrenceIds).toEqual(["merged"]);
   });
 
+  it("adds a missed citation into its unit in reading order, over free text only", () => {
+    const text = "Case A; Case B; Case C";
+    const unitId = "body:2";
+    const item = (id: string, start: number, end: number, localOrdinal: number) =>
+      ({ ...occurrence(id, text, start, end, "a", localOrdinal), unitId });
+    const base: AuthoritiesDraft = {
+      ...createAuthoritiesDraft(sourceImport, sourceBindings),
+      units: [{ id: unitId, kind: "body", ordinal: 2, footnoteId: null, footnoteRefs: [],
+        pageNumbers: [], text, occurrenceIds: ["third"] }],
+      occurrences: { third: item("third", 16, 22, 2) },
+      authorities: { a: authority("a") }, authorityOrder: ["a"],
+    };
+    const first = item("first", 0, 6, 0);
+    const draft = reduceAuthoritiesDraft(base, { type: "add-occurrence", occurrence: first });
+    expect(draft.units[0].occurrenceIds).toEqual(["first", "third"]);
+    expect(base.units[0].occurrenceIds).toEqual(["third"]);
+    expect(validateAuthoritiesDraft(draft)).toEqual([]);
+    expect(reduceAuthoritiesDraft(draft,
+      { type: "add-occurrence", occurrence: item("second", 8, 14, 1) })
+      .units[0].occurrenceIds).toEqual(["first", "second", "third"]);
+    expect(() => reduceAuthoritiesDraft(draft, { type: "add-occurrence",
+      occurrence: { ...first, id: "overlap", start: 4, end: 10 } }))
+      .toThrow(AuthoritiesDomainError);
+    expect(() => reduceAuthoritiesDraft(draft, { type: "add-occurrence", occurrence: first }))
+      .toThrow(/already on the review list/u);
+    expect(() => reduceAuthoritiesDraft(draft, { type: "add-occurrence",
+      occurrence: { ...first, id: "elsewhere", unitId: "body:9" } })).toThrow(/Unknown unit/u);
+  });
+
   it("carries reviewed partitions only across exact, unambiguous unit matches", () => {
     const text = "Case A; Case A";
     const old: AuthoritiesDraft = {

@@ -38,7 +38,8 @@ export const AUTHORITIES_ACTION_CHOICES = {
   outputMode: ["table", "book", "both"], slot: ["cover", "index"],
 } as const;
 export const AUTHORITIES_TOOL_ACTIONS = [
-    "set-authority-span", "set-pinpoint-span", "split-occurrence", "merge-occurrence",
+    "set-authority-span", "set-pinpoint-span", "clear-pinpoint", "add-occurrence",
+    "split-occurrence", "merge-occurrence",
     "remove-occurrence", "relink-occurrence", "set-reference", "add-authority",
     "remove-authority", "exclude-authority",
     "rename-authority", "clear-authority-source", "set-profile", "set-settings",
@@ -162,6 +163,9 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
     case "remove-occurrence": return { type, occurrenceId: text(item.occurrenceId) };
     case "set-authority-span":
     case "set-pinpoint-span": return { type, occurrenceId: text(item.occurrenceId),
+      start: integer(item.start), end: integer(item.end, 1) };
+    case "clear-pinpoint": return { type, occurrenceId: text(item.occurrenceId) };
+    case "add-occurrence": return { type, unitId: text(item.unitId),
       start: integer(item.start), end: integer(item.end, 1) };
     case "relink-occurrence": return { type, occurrenceId: text(item.occurrenceId),
       authorityId: item.authorityId === null ? null : text(item.authorityId) };

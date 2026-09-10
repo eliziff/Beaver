@@ -134,6 +134,7 @@ export type AuthoritiesAction =
   | { type: "edit-authority"; authorityId: string; kind: AuthorityKind;
       citation: string; name: string | null }
   | { type: "rename-authority"; authorityId: string; displayName: string | null }
+  | { type: "add-occurrence"; occurrence: AuthorityOccurrence }
   | { type: "split-occurrence"; occurrenceId: string;
       replacements: [AuthorityOccurrence, AuthorityOccurrence] }
   | { type: "merge-occurrences"; occurrenceIds: [string, string];
@@ -950,6 +951,21 @@ export function reduceAuthoritiesDraft(
       requireRecord(draft.authorities, action.authorityId, "authority").displayName =
         action.displayName?.trim() || null;
       break;
+    case "add-occurrence": {
+      const item = structuredClone(action.occurrence);
+      const unit = draft.units.find(({ id }) => id === item.unitId);
+      if (!unit) throw new AuthoritiesDomainError(`Unknown unit: ${item.unitId}`);
+      if (draft.occurrences[item.id]) throw new AuthoritiesDomainError("This citation is already on the review list.");
+      if (item.start < 0 || item.end <= item.start || item.end > unit.text.length ||
+          unit.occurrenceIds.some((id) => draft.occurrences[id] &&
+            item.start < draft.occurrences[id].end && draft.occurrences[id].start < item.end)) {
+        throw new AuthoritiesDomainError("A new citation must cover free text inside its review unit.");
+      }
+      const after = unit.occurrenceIds.findIndex((id) => draft.occurrences[id]?.start >= item.end);
+      draft.occurrences[item.id] = item;
+      unit.occurrenceIds.splice(after < 0 ? unit.occurrenceIds.length : after, 0, item.id);
+      break;
+    }
     case "split-occurrence":
       replaceOccurrences(draft, [action.occurrenceId], action.replacements); break;
     case "merge-occurrences": {
@@ -1139,7 +1155,7 @@ export function reduceAuthoritiesDraft(
     "edit-authority", "begin-canlii-handoff"].includes(action.type) && draft.stage !== "citations")
     draft.stage = "sources";
   if (action.type === "refresh") draft.stage = draft.import.kind === "manual" ? "sources" : "citations";
-  if (draft.import.kind === "document" && ["split-occurrence", "merge-occurrences", "replace-occurrence", "remove-occurrence",
+  if (draft.import.kind === "document" && ["add-occurrence", "split-occurrence", "merge-occurrences", "replace-occurrence", "remove-occurrence",
     "relink-occurrence", "set-reference"].includes(action.type)) draft.stage = "citations";
   const errors = validateAuthoritiesDraft(draft);
   if (errors.length) throw new AuthoritiesDomainError(errors[0]);

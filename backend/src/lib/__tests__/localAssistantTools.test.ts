@@ -1970,6 +1970,16 @@ describe("local assistant tools", () => {
           reference: { kind: "ibid", targetAuthorityId: "example" } } } },
       { id: "clear-reference", name: "update_work_product", input: { action: "update",
         authorities_action: { type: "set-reference", reference: null } } },
+      { id: "clear-pinpoint", name: "update_work_product", input: { action: "update",
+        authorities_action: { type: "clear-pinpoint" } } },
+      { id: "quoted-span", name: "update_work_product", input: { action: "update",
+        authorities_action: { type: "set-authority-span", span_text: "2024 ABKB 1" } } },
+      { id: "add-missed", name: "update_work_product", input: { action: "update",
+        authorities_action: { type: "add-occurrence", unitId: "body:0",
+          span_text: "R v Example, 2024 ABKB 1" } } },
+      { id: "add-unquoted", name: "update_work_product", input: { action: "update",
+        authorities_action: { type: "add-occurrence", unitId: "body:0",
+          span_text: "not in this unit" } } },
     ], options);
 
     expect(JSON.parse(responses[0].content)).toMatchObject({ draft: {
@@ -1985,7 +1995,12 @@ describe("local assistant tools", () => {
       { type: "set-reference", occurrenceId,
         reference: { kind: "ibid", targetAuthorityId: "example" } },
       { type: "set-reference", occurrenceId, reference: null },
+      { type: "clear-pinpoint", occurrenceId },
+      { type: "set-authority-span", occurrenceId, start: 16, end: 27 },
+      { type: "add-occurrence", unitId: "body:0", start: 3, end: 27 },
     ]);
+    expect(JSON.parse(responses.at(-1)!.content)).toMatchObject({ ok: false,
+      error: expect.stringContaining("not in unit body:0") });
   });
 
   it("applies canonical authority actions and binds a Library cover", async () => {
