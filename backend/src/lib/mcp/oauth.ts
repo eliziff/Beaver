@@ -1,48 +1,23 @@
 import { randomUUID } from "node:crypto";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import type {
-  OAuthClientProvider,
-  OAuthDiscoveryState,
-} from "@modelcontextprotocol/sdk/client/auth.js";
-import type {
-  OAuthClientInformationMixed,
-  OAuthClientMetadata,
-  OAuthTokens,
-} from "@modelcontextprotocol/sdk/shared/auth.js";
+import type { OAuthClientProvider,
+  OAuthDiscoveryState } from "@modelcontextprotocol/sdk/client/auth.js";
+import type { OAuthClientInformationMixed, OAuthClientMetadata,
+  OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { sha256 } from "../hash";
 import { publicOrigin } from "../publicOrigin";
 import { sql, type SqlValue } from "../relational";
-import {
-  bufferRemoteResponse,
-  normalizeRemoteHttpsUrl,
-  validateRemoteHttpsUrl,
-} from "../remoteUrlSafety";
-import {
-  authHeaders,
-  authPatch,
-  boundMcpResponse,
-  credentialFingerprint,
-  guardedMcpFetch,
-  loadConnector,
-  open,
-  readAuth,
-  seal,
-  validateMcpUrl,
-} from "./client";
+import { bufferRemoteResponse, normalizeRemoteHttpsUrl,
+  validateRemoteHttpsUrl } from "../remoteUrlSafety";
+import { authHeaders, authPatch, boundMcpResponse, credentialFingerprint, guardedMcpFetch,
+  loadConnector, open, readAuth, seal, validateMcpUrl } from "./client";
 import { connectorRow, one, rows } from "./database";
-import {
-  CLIENT_INFO,
-  MCP_REQUEST_TIMEOUT_MS,
-  OAUTH_STATE_TTL_MS,
-  type ConnectorRow,
-  type Db,
-  type OAuthTokenRow,
-} from "./types";
+import { CLIENT_INFO, MCP_REQUEST_TIMEOUT_MS, OAUTH_STATE_TTL_MS,
+  type ConnectorRow, type Db, type OAuthTokenRow } from "./types";
 
 const OAUTH_RESPONSE_BYTES = 256 * 1024;
 const OAUTH_ERRORS = new Set(
-  "invalid_request invalid_client invalid_grant unauthorized_client unsupported_grant_type invalid_scope invalid_client_metadata invalid_redirect_uri server_error temporarily_unavailable".split(" "),
-);
+  "invalid_request invalid_client invalid_grant unauthorized_client unsupported_grant_type invalid_scope invalid_client_metadata invalid_redirect_uri server_error temporarily_unavailable".split(" "));
 
 /** Every writable column of user_mcp_oauth_tokens, in one place: the insert,
  *  the update and the cleared-defaults row are all built from this list. */
@@ -55,28 +30,18 @@ const TOKEN_COLUMNS = [
 ] as const;
 
 type Binding = {
-  authorizationServer: string;
-  authorizationEndpoint: string;
-  tokenEndpoint: string;
-  registrationEndpoint: string | null;
+  authorizationServer: string; authorizationEndpoint: string;
+  tokenEndpoint: string; registrationEndpoint: string | null;
 };
 
 type StoredState = {
-  userId: string;
-  connectorId: string;
-  serverUrl: string;
-  redirectUri: string;
-  credentialFingerprint: string;
-  codeVerifier: string;
-  discovery: OAuthDiscoveryState;
+  userId: string; connectorId: string; serverUrl: string; redirectUri: string;
+  credentialFingerprint: string; codeVerifier: string; discovery: OAuthDiscoveryState;
 };
 
 type StateRow = {
-  user_id: string;
-  connector_id: string;
-  encrypted_state_config: string;
-  state_config_iv: string;
-  state_config_tag: string;
+  user_id: string; connector_id: string; encrypted_state_config: string;
+  state_config_iv: string; state_config_tag: string;
 };
 
 export class McpOAuthRequiredError extends Error {
@@ -101,15 +66,12 @@ async function oauthResponse(response: Response) {
     ? await bounded.json().catch(() => null) as { error?: unknown } | null : null;
   const error = typeof body?.error === "string" && OAUTH_ERRORS.has(body.error)
     ? body.error : "server_error";
-  return new Response(JSON.stringify({ error }), {
-    status: bounded.status, headers: { "content-type": "application/json" },
-  });
+  return new Response(JSON.stringify({ error }),
+    { status: bounded.status, headers: { "content-type": "application/json" } });
 }
 
-export async function guardedOAuthFetch(
-  input: Parameters<typeof fetch>[0],
-  init?: Parameters<typeof fetch>[1],
-) {
+export async function guardedOAuthFetch(input: Parameters<typeof fetch>[0],
+  init?: Parameters<typeof fetch>[1]) {
   return oauthResponse(await guardedMcpFetch(input, init));
 }
 
@@ -120,9 +82,8 @@ async function validateDiscovery(state: OAuthDiscoveryState, serverUrl: string):
   if (!metadata.code_challenge_methods_supported?.includes("S256")) {
     throw new Error("OAuth authorization server does not advertise PKCE S256.");
   }
-  const authorizationServer = await validateRemoteHttpsUrl(state.authorizationServerUrl, {
-    label: "OAuth authorization server",
-  });
+  const authorizationServer = await validateRemoteHttpsUrl(state.authorizationServerUrl,
+    { label: "OAuth authorization server" });
   const advertised = resource.authorization_servers?.some((candidate) => {
     try {
       return normalizeRemoteHttpsUrl(candidate, { label: "OAuth authorization server" })
@@ -160,10 +121,8 @@ function configuredClient(serverUrl: string, binding?: Binding) {
     binding.tokenEndpoint, binding.registrationEndpoint].filter((value): value is string => Boolean(value));
   if (!destinations.every((value) => allowed.has(new URL(value).origin))) return undefined;
   const secret = process.env.MCP_OAUTH_CLIENT_SECRET?.trim();
-  return {
-    client_id: clientId,
-    ...(secret ? { client_secret: secret } : {}),
-  } satisfies OAuthClientInformationMixed;
+  return { client_id: clientId,
+    ...(secret ? { client_secret: secret } : {}) } satisfies OAuthClientInformationMixed;
 }
 
 export async function loadOAuthTokens(connectorIds: string[], db: Db) {
@@ -192,11 +151,8 @@ function secretPatch(connector: ConnectorRow, name: string, value?: string | nul
     [`encrypted_${name}`]: null, [`${name}_iv`]: null, [`${name}_tag`]: null,
   };
   const encrypted = seal(value, secretContext(connector, name));
-  return {
-    [`encrypted_${name}`]: encrypted.encrypted,
-    [`${name}_iv`]: encrypted.iv,
-    [`${name}_tag`]: encrypted.tag,
-  };
+  return { [`encrypted_${name}`]: encrypted.encrypted,
+    [`${name}_iv`]: encrypted.iv, [`${name}_tag`]: encrypted.tag };
 }
 
 export class DbMcpOAuthProvider implements OAuthClientProvider {
@@ -222,12 +178,9 @@ export class DbMcpOAuthProvider implements OAuthClientProvider {
   get redirectUrl() { return redirectUri(); }
   get clientMetadata(): OAuthClientMetadata {
     return {
-      client_name: "Beaver",
-      redirect_uris: [this.redirectUrl],
-      grant_types: ["authorization_code", "refresh_token"],
-      response_types: ["code"],
-      token_endpoint_auth_method: "none",
-      ...(scope() ? { scope: scope() } : {}),
+      client_name: "Beaver", redirect_uris: [this.redirectUrl],
+      grant_types: ["authorization_code", "refresh_token"], response_types: ["code"],
+      token_endpoint_auth_method: "none", ...(scope() ? { scope: scope() } : {}),
     };
   }
 
@@ -297,8 +250,7 @@ export class DbMcpOAuthProvider implements OAuthClientProvider {
     const expiry = row.expires_at ? Date.parse(row.expires_at) : NaN;
     this.tokenRevision = row.updated_at;
     return {
-      access_token: access,
-      token_type: row.token_type ?? "Bearer",
+      access_token: access, token_type: row.token_type ?? "Bearer",
       ...(refresh ? { refresh_token: refresh } : {}),
       ...(row.scope ? { scope: row.scope } : {}),
       ...(Number.isFinite(expiry) ? { expires_in: Math.max(0, Math.floor((expiry - Date.now()) / 1000)) } : {}),
@@ -445,11 +397,8 @@ async function sdk() {
   return { Client, StreamableHTTPClientTransport };
 }
 
-export async function withRemoteMcp<T>(
-  connector: ConnectorRow,
-  run: (client: Client) => Promise<T>,
-  db: Db,
-) {
+export async function withRemoteMcp<T>(connector: ConnectorRow,
+  run: (client: Client) => Promise<T>, db: Db) {
   await validateMcpUrl(connector.server_url);
   const provider = new DbMcpOAuthProvider(db, connector, "connect");
   const { Client, StreamableHTTPClientTransport } = await sdk();
@@ -466,11 +415,8 @@ export async function withRemoteMcp<T>(
   }
 }
 
-export async function startUserMcpConnectorOAuth(
-  userId: string,
-  connectorId: string,
-  db: Db,
-) {
+export async function startUserMcpConnectorOAuth(userId: string, connectorId: string,
+  db: Db) {
   const connector = await loadConnector(userId, connectorId, db);
   await validateMcpUrl(connector.server_url);
   const provider = new DbMcpOAuthProvider(db, connector, "authorize");
@@ -492,11 +438,8 @@ async function consumeState(state: string, db: Db) {
   return row as unknown as StateRow;
 }
 
-export async function completeMcpConnectorOAuthAuthorization(
-  state: string,
-  code: string,
-  db: Db,
-) {
+export async function completeMcpConnectorOAuthAuthorization(state: string, code: string,
+  db: Db) {
   const row = await consumeState(state, db);
   const config = open<StoredState>(row.encrypted_state_config, row.state_config_iv,
     row.state_config_tag, `oauth-state\0${sha256(state)}`);
@@ -508,10 +451,8 @@ export async function completeMcpConnectorOAuthAuthorization(
     throw new Error("MCP connector credentials changed during OAuth.");
   }
   const binding = await validateDiscovery(config.discovery, connector.server_url);
-  const provider = new DbMcpOAuthProvider(
-    db, connector, "complete", config, binding,
-    state as ReturnType<typeof globalThis.crypto.randomUUID>,
-  );
+  const provider = new DbMcpOAuthProvider(db, connector, "complete", config, binding,
+    state as ReturnType<typeof globalThis.crypto.randomUUID>);
   const { StreamableHTTPClientTransport } = await sdk();
   const transport = new StreamableHTTPClientTransport(new URL(connector.server_url), {
     authProvider: provider, fetch: connectorFetch(connector, provider),
