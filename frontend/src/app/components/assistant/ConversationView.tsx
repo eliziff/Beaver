@@ -189,6 +189,9 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
         onEditError?.(args);
     };
     const mergedStatuses = { ...resolvedEditStatuses, ...editState.statuses };
+    // One measure, dock open or shut: widening the column when the dock appears would re-wrap every
+    // line of the answer the reader clicked in. Only the space left over decides where it sits.
+    const columnClass = `max-w-4xl ${gutterVisible ? "ms-auto me-0" : "mx-auto"}`;
 
     return (
         <div className="h-full w-full flex relative">
@@ -199,7 +202,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                 {header}
                 <div ref={messagesContainerRef} className="flex-1 w-full overflow-y-auto"
                     style={{ scrollbarGutter: "stable both-edges" }}>
-                    <div className={`w-full min-h-full flex flex-col relative ${layout === "panel" ? "px-4 pt-4" : "px-6 pt-6 md:px-8 md:pt-8"} ${gutterVisible ? "ms-auto me-0 max-w-5xl md:max-lg:pe-2" : "mx-auto max-w-4xl"}`}
+                    <div className={`w-full min-h-full flex flex-col relative ${layout === "panel" ? "px-4 pt-4" : "px-6 pt-6 md:px-8 md:pt-8"} ${columnClass}`}
                         style={{ paddingBottom: 116 }}>
                         <div className="space-y-6 md:space-y-8">
                             {messages.map((message, index) => (
@@ -247,7 +250,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                     </div>
                 </div>
                 <div className="absolute bottom-3 left-0 right-0 w-full z-30">
-                    <div className={`relative w-full px-4 md:px-6 ${gutterVisible ? "ms-auto me-0 max-w-5xl md:max-lg:pe-2" : "mx-auto max-w-4xl"}`}>
+                    <div className={`relative w-full px-4 md:px-6 ${columnClass}`}>
                         {showScrollButton && !activeInput && (
                             <button type="button" aria-label="Scroll to latest message" onClick={() =>
                                 { messagesEndRef.current?.scrollIntoView({ behavior: "auto" }); reanchor.current(); }}
