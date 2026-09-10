@@ -4,11 +4,8 @@ import type { DatabaseSync } from "node:sqlite";
 import type { A2AJDocument, A2AJSearchResult } from "./legalSources/a2aj";
 import { structureNative } from "./structureNative";
 import { boundedSize, searchTokens, sqliteText as string } from "./sqliteSearch";
-import {
-  legalProviderDatabase,
-  withSearchReadonlySqlite,
-  withReadonlySqlite,
-} from "./legalDataPath";
+import { legalProviderDatabase, withSearchReadonlySqlite,
+  withReadonlySqlite } from "./legalDataPath";
 
 type Row = Record<string, unknown>;
 type Language = "en" | "fr";
@@ -16,8 +13,7 @@ type DocType = "cases" | "laws";
 
 export function a2ajLocalBulkPath() {
   const configured = process.env.MIKE_A2AJ_BULK_DB?.trim();
-  if (configured) return path.resolve(configured);
-  return legalProviderDatabase("a2aj", "a2aj.sqlite");
+  return configured ? path.resolve(configured) : legalProviderDatabase("a2aj", "a2aj.sqlite");
 }
 
 function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
@@ -51,27 +47,17 @@ export function a2ajCitationAliasKeysBatch(citations: string[]): string[][] | nu
 
 function searchDatabasePath(docType: DocType) {
   const primary = a2ajLocalBulkPath();
-  const indexed = path.join(
-    path.dirname(primary),
-    `a2aj-${docType}-fulltext.sqlite`,
-  );
+  const indexed = path.join(path.dirname(primary), `a2aj-${docType}-fulltext.sqlite`);
   return existsSync(indexed) ? indexed : primary;
 }
 
-function withSearchDatabase<T>(
-  docType: DocType,
-  operation: (database: DatabaseSync) => T,
-): T | null {
-  const filename = searchDatabasePath(docType);
-  const cache = !process.env.MIKE_A2AJ_BULK_DB?.trim();
-  return withSearchReadonlySqlite(filename, cache, operation);
+function withSearchDatabase<T>(docType: DocType,
+  operation: (database: DatabaseSync) => T): T | null {
+  return withSearchReadonlySqlite(searchDatabasePath(docType),
+    !process.env.MIKE_A2AJ_BULK_DB?.trim(), operation);
 }
 
-function languageField(
-  row: Row,
-  field: string,
-  language: Language,
-) {
+function languageField(row: Row, field: string, language: Language) {
   return string(row, `${field}_${language}`) ??
     string(row, `${field}_${language === "en" ? "fr" : "en"}`);
 }
@@ -84,9 +70,8 @@ function sectionMap(row: Row, language: Language) {
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       return null;
     }
-    const entries = Object.entries(parsed).filter(
-      (entry): entry is [string, string] => typeof entry[1] === "string",
-    );
+    const entries = Object.entries(parsed)
+      .filter((entry): entry is [string, string] => typeof entry[1] === "string");
     return entries.length ? Object.fromEntries(entries) : null;
   } catch {
     return null;
@@ -107,15 +92,10 @@ function documentMetadata(row: Row, language: Language) {
   };
 }
 
-function a2ajDocumentFromRow(
-  row: Row, language: Language, maxChars: number,
-): A2AJDocument | null {
-  const requestedText = string(row, `unofficial_text_${language}`);
-  const actualLanguage = requestedText
-    ? language
-    : language === "en"
-      ? "fr"
-      : "en";
+function a2ajDocumentFromRow(row: Row, language: Language,
+  maxChars: number): A2AJDocument | null {
+  const actualLanguage = string(row, `unofficial_text_${language}`)
+    ? language : language === "en" ? "fr" : "en";
   const text = languageField(row, "unofficial_text", actualLanguage);
   const metadata = documentMetadata(row, actualLanguage);
   if (!text || !metadata) return null;
@@ -136,19 +116,12 @@ function a2ajDocumentFromRow(
  * database each time.
  */
 export function fetchLocalA2AJDocumentsByIds(args: {
-  ids: readonly number[];
-  docType?: DocType;
-  language?: Language;
-  maxChars?: number;
+  ids: readonly number[]; docType?: DocType; language?: Language; maxChars?: number;
 }): Map<number, A2AJDocument> {
   const ids = args.ids.filter((id) => Number.isSafeInteger(id) && id >= 1);
   const out = new Map<number, A2AJDocument>();
   if (!ids.length) return out;
-  const maxChars = boundedSize(
-    args.maxChars,
-    50_000,
-    Number.MAX_SAFE_INTEGER,
-  );
+  const maxChars = boundedSize(args.maxChars, 50_000, Number.MAX_SAFE_INTEGER);
   const docType = args.docType ?? "cases";
   const language = args.language === "fr" ? "fr" : "en";
   withDatabase((database) => {
@@ -174,33 +147,18 @@ export function fetchLocalA2AJDocumentsByIds(args: {
   return out;
 }
 
-function addDatasetFilter(
-  filters: string[],
-  values: Array<string | number>,
-  value?: string,
-) {
-  const datasets = [
-    ...new Set(
-      (value ?? "")
-        .split(",")
-        .map((dataset) => dataset.trim())
-        .filter(Boolean),
-    ),
-  ].slice(0, 50);
+function addDatasetFilter(filters: string[], values: Array<string | number>,
+  value?: string) {
+  const datasets = [...new Set((value ?? "").split(",")
+    .map((dataset) => dataset.trim()).filter(Boolean))].slice(0, 50);
   if (!datasets.length) return;
-  filters.push(
-    `LOWER(document.dataset) IN (${datasets.map(() => "LOWER(?)").join(", ")})`,
-  );
+  filters.push(`LOWER(document.dataset) IN (${datasets.map(() => "LOWER(?)").join(", ")})`);
   values.push(...datasets);
 }
 
 export function fetchLocalA2AJDocument(args: {
-  citation: string;
-  docType?: DocType;
-  language?: Language;
-  dataset?: string;
-  sourceUrl?: string;
-  maxChars?: number;
+  citation: string; docType?: DocType; language?: Language;
+  dataset?: string; sourceUrl?: string; maxChars?: number;
 }): A2AJDocument | null {
   const citation = args.citation.trim();
   if (!citation) throw new Error("citation is required");
@@ -214,16 +172,13 @@ export function fetchLocalA2AJDocument(args: {
       filters.push("(document.url_en = ? OR document.url_fr = ?)");
       values.push(args.sourceUrl.trim(), args.sourceUrl.trim());
     }
-    const rows = database
-      .prepare(
-        `SELECT DISTINCT document.*
+    const rows = database.prepare(
+      `SELECT DISTINCT document.*
          FROM citation_lookup AS lookup
          JOIN document ON document.id = lookup.document_id
          WHERE ${filters.join(" AND ")}
          ORDER BY document.id
-         LIMIT 2`,
-      )
-      .all(...values) as Row[];
+         LIMIT 2`).all(...values) as Row[];
     const row = rows.length === 1 ? rows[0] : undefined;
     return row ? a2ajDocumentFromRow(row, args.language === "fr" ? "fr" : "en",
       boundedSize(args.maxChars, 50_000, Number.MAX_SAFE_INTEGER)) : null;
@@ -236,22 +191,14 @@ function ftsQuery(tokens: string[], searchType: "full_text" | "name") {
 }
 
 function hasFts(database: DatabaseSync) {
-  return !!database
-    .prepare(
-      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'document_search'",
-    )
-    .get();
+  return !!database.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'document_search'").get();
 }
 
 export function searchLocalA2AJ(args: {
-  query: string;
-  docType?: DocType;
-  searchType?: "full_text" | "name";
-  language?: Language;
-  size?: number;
-  dataset?: string;
-  startDate?: string;
-  endDate?: string;
+  query: string; docType?: DocType; searchType?: "full_text" | "name";
+  language?: Language; size?: number; dataset?: string;
+  startDate?: string; endDate?: string;
   sortResults?: "default" | "newest_first" | "oldest_first";
   querySyntax?: "terms" | "fts5";
 }): A2AJSearchResult[] | null {
@@ -263,8 +210,7 @@ export function searchLocalA2AJ(args: {
   const wanted = boundedSize(args.size, 10, 50);
   const docType = args.docType ?? "cases";
   const dedicatedIndex =
-    path.basename(searchDatabasePath(docType)) ===
-    `a2aj-${docType}-fulltext.sqlite`;
+    path.basename(searchDatabasePath(docType)) === `a2aj-${docType}-fulltext.sqlite`;
   return withSearchDatabase(docType, (database) => {
     if (!hasFts(database)) return null;
     const filters = dedicatedIndex ? [] : ["document.doc_type = ?"];
@@ -283,12 +229,8 @@ export function searchLocalA2AJ(args: {
     filters.unshift("document_search MATCH ?");
     values.unshift(args.querySyntax === "fts5"
       ? query : ftsQuery(tokens, args.searchType ?? "full_text"));
-    const order =
-      args.sortResults === "newest_first"
-        ? `${date} DESC, document.id`
-        : args.sortResults === "oldest_first"
-          ? `${date} ASC, document.id`
-          : "rank";
+    const order = args.sortResults === "newest_first" ? `${date} DESC, document.id`
+      : args.sortResults === "oldest_first" ? `${date} ASC, document.id` : "rank";
     values.push(wanted);
     return database
       .prepare(
@@ -301,8 +243,7 @@ export function searchLocalA2AJ(args: {
          FROM document_search JOIN document ON document.id = document_search.rowid
          WHERE ${filters.join(" AND ")}
          ORDER BY ${order}
-         LIMIT ?`,
-      )
+         LIMIT ?`)
       .all(...values)
       .flatMap((row) => {
         const metadata = documentMetadata(row, language);

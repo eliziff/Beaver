@@ -2,11 +2,8 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { boundedSize as limit, searchTokens } from "./sqliteSearch";
-import {
-  legalProviderDatabase,
-  withSearchReadonlySqlite,
-  withReadonlySqlite,
-} from "./legalDataPath";
+import { legalProviderDatabase, withSearchReadonlySqlite,
+  withReadonlySqlite } from "./legalDataPath";
 
 export type LocalCourtlistenerCluster = {
   id: number;
@@ -54,11 +51,8 @@ const JOINED_CLUSTER_COLUMNS = `
 `;
 
 function clusterColumns(database: DatabaseSync) {
-  const hasHarvardJson = database
-    .prepare(
-      "SELECT 1 FROM pragma_table_info('cluster') WHERE name = 'filepath_json_harvard'",
-    )
-    .get();
+  const hasHarvardJson = database.prepare(
+    "SELECT 1 FROM pragma_table_info('cluster') WHERE name = 'filepath_json_harvard'").get();
   return `id, case_name, case_name_short, case_name_full, slug, date_filed,
     ${hasHarvardJson ? "filepath_json_harvard" : "NULL AS filepath_json_harvard"},
     filepath_pdf_harvard`;
@@ -66,8 +60,8 @@ function clusterColumns(database: DatabaseSync) {
 
 function courtlistenerLocalBulkPath() {
   const configured = process.env.MIKE_COURTLISTENER_BULK_DB?.trim();
-  if (configured) return path.resolve(configured);
-  return legalProviderDatabase("courtlistener", "courtlistener.sqlite");
+  return configured ? path.resolve(configured)
+    : legalProviderDatabase("courtlistener", "courtlistener.sqlite");
 }
 
 export function courtlistenerLocalBulkAvailable() {
@@ -79,9 +73,8 @@ function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
 }
 
 function withSearchDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
-  const filename = courtlistenerLocalBulkPath();
-  const cache = !process.env.MIKE_COURTLISTENER_BULK_DB?.trim();
-  return withSearchReadonlySqlite(filename, cache, operation);
+  return withSearchReadonlySqlite(courtlistenerLocalBulkPath(),
+    !process.env.MIKE_COURTLISTENER_BULK_DB?.trim(), operation);
 }
 
 function nullableString(value: unknown) {
@@ -125,10 +118,7 @@ function opinion(row: Row): LocalCourtlistenerOpinion {
 }
 
 export function lookupLocalCourtlistenerCitation(args: {
-  volume: string;
-  reporter: string;
-  page: string;
-  limit?: number;
+  volume: string; reporter: string; page: string; limit?: number;
 }): LocalCourtlistenerCluster[] | null {
   const volume = args.volume.trim();
   const reporter = args.reporter.toLowerCase().replace(/[^a-z0-9]/gu, "");
@@ -142,16 +132,13 @@ export function lookupLocalCourtlistenerCitation(args: {
          WHERE citation.volume = ? AND citation.reporter_key = ?
            AND citation.page = ?
          ORDER BY cluster.date_filed DESC, cluster.id
-         LIMIT ?`,
-      )
+         LIMIT ?`)
       .all(volume, reporter, page, limit(args.limit, 20, 100))
-      .map((row) => cluster(row as Row)),
-  );
+      .map((row) => cluster(row as Row)));
 }
 
 export function getLocalCourtlistenerCase(
-  clusterId: number,
-): LocalCourtlistenerCase | null {
+  clusterId: number): LocalCourtlistenerCase | null {
   const id = Math.trunc(clusterId);
   if (!Number.isFinite(id) || id <= 0) return null;
   return withDatabase((database) => {
@@ -162,13 +149,9 @@ export function getLocalCourtlistenerCase(
     const citations = database
       .prepare(
         `SELECT volume, reporter, page FROM citation
-         WHERE cluster_id = ? ORDER BY id LIMIT 100`,
-      )
+         WHERE cluster_id = ? ORDER BY id LIMIT 100`)
       .all(id)
-      .map((row) => {
-        const value = row as Row;
-        return [value.volume, value.reporter, value.page].join(" ");
-      });
+      .map((row) => [(row as Row).volume, (row as Row).reporter, (row as Row).page].join(" "));
     const opinions = database
       .prepare("SELECT * FROM opinion WHERE cluster_id = ? ORDER BY id")
       .all(id)
@@ -179,17 +162,12 @@ export function getLocalCourtlistenerCase(
 
 function ftsQuery(query: string, syntax: "terms" | "fts5" = "terms") {
   if (syntax === "fts5") return query.trim();
-  return searchTokens(query)
-    .map((token) => `"${token.replace(/"/gu, '""')}"`)
-    .join(" AND ");
+  return searchTokens(query).map((token) => `"${token.replace(/"/gu, '""')}"`).join(" AND ");
 }
 
 export function searchLocalCourtlistenerCases(args: {
-  query: string;
-  limit?: number;
-  syntax?: "terms" | "fts5";
-  filedAfter?: string;
-  filedBefore?: string;
+  query: string; limit?: number; syntax?: "terms" | "fts5";
+  filedAfter?: string; filedBefore?: string;
 }): LocalCourtlistenerCluster[] | null {
   const query = ftsQuery(args.query, args.syntax);
   if (!query) return [];
@@ -213,27 +191,21 @@ export function searchLocalCourtlistenerCases(args: {
            FROM ${index} JOIN cluster ON ${join}
            WHERE ${index} MATCH ?${dates}
            ORDER BY rank
-           LIMIT ?`,
-        )
+           LIMIT ?`)
         .all(query, ...dateValues, size)
         .map((row) => cluster(row as Row));
     const matches = rankedClusters(
       "cluster_search", "cluster.id = cluster_search.rowid", wanted);
     if (matches.length >= wanted) return matches;
-    const hasOpinionSearch = database
-      .prepare(
-        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'opinion_search'",
-      )
-      .get();
+    const hasOpinionSearch = database.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'opinion_search'").get();
     if (!hasOpinionSearch) return matches;
     const seen = new Set(matches.map(({ id }) => id));
     const opinionMatches = rankedClusters(
       "opinion_search", "cluster.id = CAST(opinion_search.cluster_id AS INTEGER)",
       Math.max(50, wanted * 4),
     ).filter(({ id }) => !seen.has(id));
-    const uniqueOpinionMatches = [
-      ...new Map(opinionMatches.map((match) => [match.id, match])).values(),
-    ];
-    return [...matches, ...uniqueOpinionMatches].slice(0, wanted);
+    return [...matches,
+      ...new Map(opinionMatches.map((match) => [match.id, match])).values()].slice(0, wanted);
   });
 }
