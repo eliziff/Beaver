@@ -125,10 +125,7 @@ export function ContextualWorkflowPicker({ documents = [], initialWorkflowId,
                 if (variant) void choose({ workflow, variant });
                 else void openProduct(workflow);
             }}
-            search={state.search} onSearchChange={state.setSearch}
-            audience={state.audience} onAudienceChange={state.setAudience}
-            loading={state.loading} loadError={state.loadError}
-            onRetryLoad={state.retryLoad} initialWorkflowId={initialWorkflowId}
+            {...state.pickerProps} initialWorkflowId={initialWorkflowId}
             contextLabel={contextLabel} disabledItem={(_, variant) => !!launching || supras.launching ||
                 variant?.execution === "assistant" && !onAssistantSelect}
             />

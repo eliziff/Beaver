@@ -33,11 +33,13 @@ export function useWorkflowPickerState(initialWorkflowId?: string, initialAudien
             .finally(() => { if (active) setLoading(false); });
         return () => { active = false; };
     }, [loadAttempt]);
+    const retryLoad = () => setLoadAttempt((value) => value + 1);
     return { workflows: workflows.filter(({ id, metadata }) =>
         (id !== "authorities" || profile?.features.authorities !== false) &&
         (audience === "all" || metadata.audiences.includes("general") || metadata.audiences.includes(audience))),
-        setWorkflows, loading, loadError, retryLoad: () => setLoadAttempt((value) => value + 1),
-        search, setSearch, audience, setAudience };
+        setWorkflows, loading, loadError, retryLoad, search, setSearch, audience, setAudience,
+        pickerProps: { search, onSearchChange: setSearch, audience, onAudienceChange: setAudience,
+            loading, loadError, onRetryLoad: retryLoad } };
 }
 
 export function WorkflowPickerModal({ open, ...props }: Props) {
@@ -56,9 +58,7 @@ function OpenWorkflowPickerModal({ onClose, onSelect, execution, breadcrumbs,
         <WorkflowPickerContent workflows={state.workflows.filter(({ launcher }) =>
             (launcher.kind === "instructions" || launcher.kind === "quote_check"))}
             onSelect={(workflow, variant) => { if (variant) void choose({ workflow, variant }); }}
-            search={state.search} onSearchChange={state.setSearch}
-            audience={state.audience} onAudienceChange={state.setAudience}
-            loading={state.loading} loadError={state.loadError} onRetryLoad={state.retryLoad}
+            {...state.pickerProps}
             execution={execution} initialWorkflowId={initialWorkflowId}
             disabledItem={(workflow, variant) => !variant || selecting ||
                 Boolean(disabledWorkflow?.({ workflow, variant }))} />

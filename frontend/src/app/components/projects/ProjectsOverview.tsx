@@ -141,13 +141,18 @@ export function ProjectsOverview() {
         ].filter(Boolean).join(" ") || null);
         setDeleteRequest(null);
     }
+    const deleteSelected = { label: "Delete",
+        onSelect: () => setDeleteRequest({ ids: selectedIds, loading: false }) };
     const selectionItems = [
         ...(selectedIds.length === 1 ? [{
             label: "Open in new chat",
             onSelect: () => void openProjectChat(selectedIds[0]),
         }] : []),
-        { label: "Delete", onSelect: () => setDeleteRequest({ ids: selectedIds, loading: false }) },
+        deleteSelected,
     ];
+    const selectionMenu = (label: string, items: typeof selectionItems) => <MoreActionsMenu
+        label={label} items={items}
+        triggerClassName="h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100" />;
     return (
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
             <PageHeader loading={initialLoading} actions={[
@@ -187,18 +192,10 @@ export function ProjectsOverview() {
                                 <MessageSquarePlus className="h-3.5 w-3.5" />
                                 Open in new chat
                             </Button>}
-                            <MoreActionsMenu
-                                label="More actions for selected projects"
-                                items={[{ label: "Delete", onSelect: () => setDeleteRequest({ ids: selectedIds, loading: false }) }]}
-                                triggerClassName="h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-                            />
+                            {selectionMenu("More actions for selected projects", [deleteSelected])}
                         </div>
                         <div className="sm:hidden">
-                            <MoreActionsMenu
-                                label="Actions"
-                                items={selectionItems}
-                                triggerClassName="h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-                            />
+                            {selectionMenu("Actions", selectionItems)}
                         </div>
                     </> : <TableHeaderCell className="w-8" />}
                 </TableSelectionHeader>}

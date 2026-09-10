@@ -4,6 +4,10 @@ import { FormField } from "@/app/components/modals/ModalFieldLabel";
 import { ModalTextInput } from "@/app/components/modals/ModalTextInput";
 import type { Project } from "@/app/lib/api/projects";
 import { ProjectPracticeField } from "./ProjectPracticeField";
+const TEXT_FIELDS = [
+    { key: "name", label: "Project name", placeholder: "Add project name" },
+    { key: "cm", label: "CM number", placeholder: "Optional" },
+] as const;
 interface ProjectDetailsModalProps {
     open: boolean;
     project: Project | null;
@@ -38,8 +42,8 @@ export function ProjectDetailsModal({
     const trimmedPractice = draft.practice.trim();
     const hasChanges =        !!project &&        (trimmedName !== project.name ||            trimmedCm !== (project.cm_number ?? "") ||            trimmedPractice !== (project.practice ?? ""));    if (!project) return null;
     const saving = status === "saving";
-    function updateDraft(update: Partial<typeof draft>) {
-        setDraft((current) => ({ ...current, ...update }));
+    function updateDraft(key: "name" | "cm" | "practice", value: string) {
+        setDraft((current) => ({ ...current, [key]: value }));
         setStatus("idle");
     }
     async function handleSave() {
@@ -94,31 +98,22 @@ export function ProjectDetailsModal({
             }
         >
             <div className="flex min-h-0 flex-1 flex-col gap-6 py-1">
-                <FormField label="Project name" htmlFor="project-details-name">
-                    <ModalTextInput
-                        id="project-details-name"
-                        value={draft.name}
-                        onChange={(e) => updateDraft({ name: e.target.value })}
-                        disabled={!canEdit || saving}
-                        placeholder="Add project name"
-                        variant="minimal"
-                    />
-                </FormField>
-                <FormField label="CM number" htmlFor="project-details-cm">
-                    <ModalTextInput
-                        id="project-details-cm"
-                        value={draft.cm}
-                        onChange={(e) => updateDraft({ cm: e.target.value })}
-                        disabled={!canEdit || saving}
-                        placeholder="Optional"
-                        variant="minimal"
-                    />
-                </FormField>
+                {TEXT_FIELDS.map(({ key, label, placeholder }) => (
+                    <FormField key={key} label={label} htmlFor={`project-details-${key}`}>
+                        <ModalTextInput
+                            value={draft[key]}
+                            onChange={(e) => updateDraft(key, e.target.value)}
+                            disabled={!canEdit || saving}
+                            placeholder={placeholder}
+                            variant="minimal"
+                        />
+                    </FormField>
+                ))}
                 <FormField label="Practice" htmlFor="project-details-practice">
                     <ProjectPracticeField
                         id="project-details-practice"
                         value={draft.practice}
-                        onChange={(practice) => updateDraft({ practice })}
+                        onChange={(practice) => updateDraft("practice", practice)}
                         disabled={!canEdit || saving}
                     />
                 </FormField>
