@@ -25,13 +25,12 @@ export function ResearchFileBar(props: Props) {
 }
 function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource, selectedSourceId }: Props) {
   const { file, mutations: commit, selection: workspaceSelection, setSelection,
-    passages, highlight } = useSourcesWorkspace();
+    passages: passagePages, highlight } = useSourcesWorkspace();
   const [scope, setScope] = useState<ResearchSelection>(() => workspaceSelection);
   const [tab, setTab] = useState<"labels" | "search" | "memo">("labels");
   const searchOpen = tab === "search", noteOpen = tab === "memo";
   const [labelId, setLabelId] = useState<string | null>(null);
   const [changesOpen, setChangesOpen] = useState(false), [filter, setFilter] = useState("");
-  const passagePages = passages;
   const [openedSources, setOpenedSources] = useState<Set<string>>(() => new Set());
   const [status, setStatus] = useState(""), [removing, setRemoving] = useState<ResearchRemoval | null>(null);
   const handledDrop = useRef(0);
