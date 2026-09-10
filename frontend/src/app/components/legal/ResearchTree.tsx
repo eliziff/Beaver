@@ -118,6 +118,12 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
     </div>;
   }
 
+  /** The same passage row is a tree node under a source label and under a highlight type. */
+  const passageNode = (source: ResearchSource, item: ResearchEvidence, prefix = "") => {
+    const id = item.highlightId ?? item.receipt.evidence_id;
+    return <div key={prefix + id} role="treeitem" aria-label={item.receipt.locator.label}
+      aria-selected={selectedHighlight === id}>{passageRow(source, item)}</div>;
+  };
   /** One tree: labels nest, and each source hangs under every label it carries. */
   const sourceNode = (source: ResearchSource, labelId: string | null) => {
     const page = passagePages.chains[source.id];
@@ -126,9 +132,7 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
       {sourceRow(source)}
       {opened.has(source.id) && !preview && <div role="group" className="ms-4">
         {page?.items.flatMap((item) => (item.kind === "passage" || item.kind === "evidence") && passageVisible(item.value)
-          ? [<div key={item.value.highlightId ?? item.value.receipt.evidence_id} role="treeitem" aria-selected={selectedHighlight === (item.value.highlightId ?? item.value.receipt.evidence_id)} aria-label={item.value.receipt.locator.label}>
-              {passageRow(source, item.value)}
-            </div>] : [])}
+          ? [passageNode(source, item.value)] : [])}
         {page?.loading && !page.items.length && <p role="status" className={`${ROW} text-xs text-gray-500`}>Loading passages…</p>}
         {!!page?.error && <Button variant="outline" size="compact" className="my-1" onClick={() => void passagePages.fetchPage(source.id, null, false)}>Retry passages</Button>}
         {page?.nextCursor && <Button variant="outline" size="compact" className="my-1" disabled={page.loading}
@@ -151,24 +155,18 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
       aria-label={`${shown ? "Hide" : "Show"} ${total} passage${plural} of ${typeName}`}
       onClick={() => setShownTypes((current) => { const next = new Set(current); if (!next.delete(typeId)) next.add(typeId); return next; })}
       className={`${ROW} w-full text-xs text-gray-500 hover:bg-gray-50`}>
-      <span className="grid size-6 shrink-0 place-items-center">
-        <ChevronRight aria-hidden className={`size-3.5 ${shown ? "rotate-90" : ""}`} /></span>
-      <span className="min-w-0 flex-1 truncate text-start">{total} passage{plural}</span>
-      <span className={ROW_ACTIONS} /></button>;
+      <span className="grid size-6 shrink-0 place-items-center"><ChevronRight aria-hidden className={`size-3.5 ${shown ? "rotate-90" : ""}`} /></span>
+      <span className="min-w-0 flex-1 truncate text-start">{total} passage{plural}</span></button>;
     if (!shown) return [toggle];
     const missing = carrying.filter((source) => !passagePages.chains[source.id] && !wanted.has(source.id)).map(({ id }) => id);
     if (missing.length) setWanted((current) => new Set([...current, ...missing]));
-    const rows = carrying.flatMap((source) => (passagePages.chains[source.id]?.items ?? []).flatMap((item) => {
-      const value = (item.kind === "passage" || item.kind === "evidence") && passageVisible(item.value) &&
-        item.value.labelIds.some(ofType(typeId)) ? item.value : null;
-      return value ? [<div key={`${typeId}:${value.highlightId ?? value.receipt.evidence_id}`} role="treeitem"
-        aria-label={value.receipt.locator.label} aria-selected={selectedHighlight === (value.highlightId ?? value.receipt.evidence_id)}>
-        {passageRow(source, value)}</div>] : [];
-    }));
-    if (rows.length) return [toggle, ...rows];
+    const rows = carrying.flatMap((source) => (passagePages.chains[source.id]?.items ?? []).flatMap((item) =>
+      (item.kind === "passage" || item.kind === "evidence") && passageVisible(item.value) && item.value.labelIds.some(ofType(typeId))
+        ? [passageNode(source, item.value, `${typeId}:`)] : []));
     // "Loading" only while a chain really is on its way, so an empty list never poses as a slow one.
-    const pending = carrying.some((source) => !passagePages.chains[source.id] || passagePages.chains[source.id].loading);
-    return pending ? [toggle, <p key={`${typeId}:loading`} role="status" className={`${ROW} text-xs text-gray-500`}>Loading passages…</p>] : [toggle];
+    const pending = carrying.some(({ id }) => !passagePages.chains[id] || passagePages.chains[id].loading);
+    return [toggle, ...rows.length || !pending ? rows
+      : [<p key={`${typeId}:loading`} role="status" className={`${ROW} text-xs text-gray-500`}>Loading passages…</p>]];
   };
   const under = (labelId: string | null) => sources.filter((source) => scope === "highlight"
     ? false : labelId
