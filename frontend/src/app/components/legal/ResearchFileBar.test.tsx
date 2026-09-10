@@ -375,6 +375,18 @@ describe("ResearchFileBar", () => {
       { type: "remove", kind: "evidence", id: "e_1", sourceId: "baker" }));
   });
 
+  it("offers a caret only where opening it would list something", async () => {
+    // The chain is `kind: "passages"`, which the workspace serves as the typed passages only. A caret
+    // over untyped ones flashed "Loading passages…" and collapsed to nothing (Eli, 2026-09-09).
+    const untyped = structuredClone(file);
+    untyped.state.sources.baker.passages = { count: 12, sha256: "p-hash", labelCounts: {}, unlabelledCount: 12 };
+    render(<ResearchFileBar file={untyped} onChange={vi.fn()} />);
+    await screen.findAllByRole("treeitem", { name: "Baker v Canada" });
+    expect(screen.queryByRole("button", { name: "Passages in Baker v Canada" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Passages in Appeal case" })).toBeNull();
+    expect(api.getResearchItems).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ sourceId: "baker" }), expect.anything());
+  });
+
   it("flattens every instance's type to a leaf name and edits one instance by its own identity", async () => {
     const paired = structuredClone(file), extra = { ...evidence, highlightId: "e_1:second", labelIds: ["second"] };
     paired.state.labels.holding = { ...paired.state.labels.holding, name: "Fairness", parentId: null };
