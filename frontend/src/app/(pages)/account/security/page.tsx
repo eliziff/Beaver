@@ -9,7 +9,7 @@ import { useMfaAction } from "@/app/components/account/useMfaAction";
 import {
     accountGlassPrimaryButtonClassName,
 } from "../accountStyles";
-import { AccountSection } from "../AccountSection";
+import { AccountSection, AccountSettingRow } from "../AccountSection";
 import { Switch } from "@/app/components/ui/switch";
 import { errorMessage } from "@/app/lib/utils";
 import {
@@ -47,9 +47,7 @@ export default function SecurityPage() {
     const [mfa, setMfa] = useState<MfaState | null>(null);
     const [setup, setSetup] = useState<SetupState | null>(null);
     const [status, setStatus] = useState<string | null>(null);
-    const [busyAction, setBusyAction] = useState<
-        "setup" | "verify" | "unenroll" | "login" | null
-    >(null);
+    const [busyAction, setBusyAction] = useState<"login" | "action" | null>(null);
     const { runMfa, mfaPopup } = useMfaAction();
     const [passwordStatus, setPasswordStatus] = useState<string | null>(null);
     const [savingPassword, setSavingPassword] = useState(false);
@@ -84,7 +82,7 @@ export default function SecurityPage() {
         void refreshMfaState();
     }, [refreshMfaState]);
     async function startEnrollment() {
-        setBusyAction("setup");
+        setBusyAction("action");
         setStatus(null);
         try {
             let data;
@@ -121,7 +119,7 @@ export default function SecurityPage() {
     }
     async function verifyEnrollment() {
         if (!enrollment || verificationCode.trim().length !== 6) return;
-        setBusyAction("verify");
+        setBusyAction("action");
         setStatus(null);
         try {
             await verifyMfa(
@@ -148,7 +146,7 @@ export default function SecurityPage() {
         setStatus(null);
         await runMfa(
             async () => {
-                setBusyAction("unenroll");
+                setBusyAction("action");
                 await unenrollMfa(factorId);
                 setBusyAction(null);
                 if (profile?.mfaOnLogin) void updateMfaOnLogin(false);
@@ -289,16 +287,8 @@ export default function SecurityPage() {
                             {hasVerifiedFactor && (
                                 <>
                                     <div className="mx-4 h-px bg-gray-200" />
-                                    <div className="flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
-                                        <div className="space-y-1">
-                                            <p className="text-sm font-medium text-gray-900">
-                                                Login verification
-                                            </p>
-                                            <p className="text-sm text-gray-500">
-                                                Require a code after each new
-                                                login.
-                                            </p>
-                                        </div>
+                                    <AccountSettingRow title="Login verification"
+                                        description="Require a code after each new login.">
                                         <Switch
                                             checked={loginMfaEnabled}
                                             ariaLabel="Require login verification"
@@ -309,7 +299,7 @@ export default function SecurityPage() {
                                                 void saveLoginPreference()
                                             }
                                         />
-                                    </div>
+                                    </AccountSettingRow>
                                     <div className="flex justify-end px-4 pb-4 pt-1">
                                         <button
                                             type="button"

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { QUICK_ACTIONS, useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";
 import { CheckboxInput } from "@/app/components/ui/checkbox";
-import { AccountSection } from "../AccountSection";
+import { AccountSection, AccountSettingRow } from "../AccountSection";
 import { Switch } from "@/app/components/ui/switch";
 import { JurisdictionPreferenceEditor } from "@/app/components/settings/JurisdictionPreferenceEditor";
 export default function FeaturesPage() {
@@ -28,16 +28,8 @@ export default function FeaturesPage() {
     return (
         <div className="space-y-8">
             <AccountSection heading="Assistant">
-                    <div className="flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="space-y-1">
-                            <p className="text-sm font-medium text-gray-900">
-                                Quick actions
-                            </p>
-                            <p className="text-sm text-gray-500">
-                                Show the quick actions row on the assistant
-                                start screen.
-                            </p>
-                        </div>
+                    <AccountSettingRow title="Quick actions"
+                        description="Show the quick actions row on the assistant start screen.">
                         <Switch
                             checked={quickActionsEnabled}
                             ariaLabel="Show quick actions"
@@ -48,7 +40,7 @@ export default function FeaturesPage() {
                                 ) as typeof preferences.quickActions,
                             })}
                         />
-                    </div>
+                    </AccountSettingRow>
             </AccountSection>
             <AccountSection heading="Jurisdiction preference">
                 <div className="px-4 py-5">

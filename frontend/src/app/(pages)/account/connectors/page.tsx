@@ -300,13 +300,6 @@ export default function ConnectorsPage() {
                 updateDetail({ draft: connectorDraft(saved) }, connectorId);
             },
         );
-    const handleRefresh = (connectorId: string) =>
-        runSensitiveAction(`refresh:${connectorId}`, async () => {
-            const connector = connectorList.find(
-                ({ id }) => id === connectorId,
-            );
-            if (connector) await refreshConnector(connector);
-        });
     const handleConnectorEnabled = (connectorId: string, enabled: boolean) =>
         runSensitiveAction(`connector:${connectorId}`, async () =>
             replaceConnector(
@@ -577,9 +570,10 @@ export default function ConnectorsPage() {
                                 type="button"
                                 title="Refresh tools"
                                 aria-label="Refresh tools"
-                                onClick={() =>
-                                    void handleRefresh(selectedConnector.id)
-                                }
+                                onClick={() => void runSensitiveAction(
+                                    `refresh:${selectedConnector.id}`,
+                                    async () => void await refreshConnector(selectedConnector),
+                                )}
                                 disabled={selectedBusy("refresh")}
                                 className="mb-2 self-end text-gray-500 hover:text-gray-900 disabled:text-gray-300"
                             >

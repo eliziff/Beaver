@@ -24,3 +24,19 @@ export function AccountSection({
         panel
     );
 }
+/** A titled setting and its control, the row shape every account panel uses. */
+export function AccountSettingRow({ title, description, children }: {
+    title: React.ReactNode;
+    description: React.ReactNode;
+    children: React.ReactNode;
+}) {
+    return (
+        <div className="flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+                <p className="text-sm font-medium text-gray-900">{title}</p>
+                <p className="text-sm text-gray-500">{description}</p>
+            </div>
+            {children}
+        </div>
+    );
+}
