@@ -76,13 +76,13 @@ export function ResearchLabelWaterfall({ labels, scope, selectedId, onChoose, no
     {[null, ...path].map((parent, row) => { const items = tree.get(parent?.id ?? null) ?? [], active = path[row]?.id ?? null;
       return !!items.length && <div key={row} role="group" aria-label={`Label level ${row + 1}`}
         style={{ marginInlineStart: row ? 8 + (row - 1) * 20 : 0 }}
-        className={`flex min-w-0 items-center py-[5px] ${row ? "flex-wrap gap-[5px] border-s-2 border-gray-200 ps-3" : "gap-1 [&>button]:px-[5px] [&>button]:py-0.5 [&>button]:text-[11px]"}`}>
+        className={`flex min-w-0 flex-wrap items-center py-[5px] ${row ? "gap-[5px] border-s-2 border-gray-200 ps-3" : "gap-1 [&>button]:px-[5px] [&>button]:py-0.5 [&>button]:text-[11px]"}`}>
         {!row && noneLabel && <button type="button" onClick={() => onChoose(null)} aria-pressed={!selectedId} className={CHIP(!selectedId)}>
-          <FolderSvgIcon className="size-3 shrink-0 text-gray-400" /><span className="max-w-20 truncate">{noneLabel}</span></button>}
+          <FolderSvgIcon className="size-3 shrink-0 text-gray-400" /><span className="max-w-40 truncate">{noneLabel}</span></button>}
         {items.map((label) => <button key={label.id} type="button" onClick={() => onChoose(label.id)}
           aria-pressed={active === label.id} title={label.name} className={CHIP(active === label.id)}>
           <FolderSvgIcon className="shrink-0" style={{ color: researchLabelColor(label), width: [12, 13, 10][row] ?? 10, height: [12, 13, 10][row] ?? 10 }} />
-          <span className={`${row ? "max-w-[100px]" : "max-w-20"} truncate`}>{label.name}</span></button>)}
+          <span className="max-w-40 truncate">{label.name}</span></button>)}
       </div>; })}
   </div>;
 }
