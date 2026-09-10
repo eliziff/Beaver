@@ -19,14 +19,8 @@
  */
 
 import diff from "fast-diff";
-import {
-  applyTrackedEdits,
-  clusterTextChanges,
-  extractDocxBodyText,
-  normalizeWs,
-  type EditDiffSegment,
-  type EditInput,
-} from "./docxTrackedChanges";
+import { applyTrackedEdits, clusterTextChanges, extractDocxBodyText, normalizeWs,
+  type EditDiffSegment, type EditInput } from "./docxTrackedChanges";
 import { runTextOp, type TextOpNote, type TextOpParams } from "./textOps";
 
 export type TextOpScope =
@@ -47,11 +41,7 @@ export type TextOpScope =
 
 export type TextOpRequest = TextOpParams & { op: string; scope: TextOpScope };
 
-export type TextOpReport = {
-  op: string;
-  replacements: number;
-  notes: TextOpNote[];
-};
+export type TextOpReport = { op: string; replacements: number; notes: TextOpNote[] };
 
 export type AppliedTextEdit = {
   changeId: string;
@@ -74,11 +64,8 @@ export type ApplyTextOpsResult = {
 
 type Replacement = { start: number; end: number; text: string };
 
-function findNormalized(
-  docText: string,
-  docNorm: ReturnType<typeof normalizeWs>,
-  needle: string,
-): { start: number; end: number }[] {
+function findNormalized(docText: string, docNorm: ReturnType<typeof normalizeWs>,
+  needle: string): { start: number; end: number }[] {
   const needleNorm = normalizeWs(needle).norm;
   if (!needleNorm) return [];
   const out: { start: number; end: number }[] = [];
@@ -87,22 +74,15 @@ function findNormalized(
     const at = docNorm.norm.indexOf(needleNorm, from);
     if (at < 0) break;
     from = at + 1;
-    const start = docNorm.origIdx[at];
     const lastNorm = at + needleNorm.length - 1;
-    const end =
-      lastNorm < docNorm.origIdx.length
-        ? docNorm.origIdx[lastNorm] + 1
-        : docText.length;
-    out.push({ start, end });
+    out.push({ start: docNorm.origIdx[at],
+      end: lastNorm < docNorm.origIdx.length ? docNorm.origIdx[lastNorm] + 1 : docText.length });
   }
   return out;
 }
 
-function resolveScope(
-  scope: TextOpScope,
-  docText: string,
-  docNorm: ReturnType<typeof normalizeWs>,
-): { start: number; end: number }[] {
+function resolveScope(scope: TextOpScope, docText: string,
+  docNorm: ReturnType<typeof normalizeWs>): { start: number; end: number }[] {
   if (scope.kind === "whole_document") {
     return [{ start: 0, end: docText.length }];
   }
@@ -121,15 +101,13 @@ function resolveScope(
     const hits = findNormalized(docText, docNorm, scope.text);
     if (!hits.length) {
       throw new Error(
-        `Scope text not found: "${scope.text.slice(0, 80)}". Copy it verbatim from the document.`,
-      );
+        `Scope text not found: "${scope.text.slice(0, 80)}". Copy it verbatim from the document.`);
     }
     if (typeof scope.occurrence === "number") {
       const hit = hits[scope.occurrence - 1];
       if (!hit) {
         throw new Error(
-          `Scope occurrence ${scope.occurrence} not found (${hits.length} matches)`,
-        );
+          `Scope occurrence ${scope.occurrence} not found (${hits.length} matches)`);
       }
       return [hit];
     }
@@ -139,13 +117,10 @@ function resolveScope(
   if (!fromHit) {
     throw new Error(`Range start not found: "${scope.from_text.slice(0, 80)}"`);
   }
-  const toHit = findNormalized(docText, docNorm, scope.to_text).find(
-    (hit) => hit.start >= fromHit.end,
-  );
+  const toHit = findNormalized(docText, docNorm, scope.to_text)
+    .find((hit) => hit.start >= fromHit.end);
   if (!toHit) {
-    throw new Error(
-      `Range end not found after its start: "${scope.to_text.slice(0, 80)}"`,
-    );
+    throw new Error(`Range end not found after its start: "${scope.to_text.slice(0, 80)}"`);
   }
   return [{ start: fromHit.start, end: toHit.end }];
 }
@@ -153,9 +128,7 @@ function resolveScope(
 /** Convert shared old-text diff clusters into paragraph-safe, anchorable edits.
  * Widen insertions before coalescing gaps of at most two original characters;
  * neither operation may join changes across a paragraph boundary. */
-function textOpReplacements(
-  docText: string, base: number, before: string, after: string,
-) {
+function textOpReplacements(docText: string, base: number, before: string, after: string) {
   const out: Replacement[] = [];
   for (const { offset, deleted, inserted } of clusterTextChanges(diff(before, after), "old")) {
     const delParts = deleted.split("\n"), insParts = inserted.split("\n");
@@ -190,10 +163,8 @@ function textOpReplacements(
   return out;
 }
 
-export async function planTextOps(
-  docText: string,
-  ops: TextOpRequest[],
-): Promise<{ replacements: Replacement[]; reports: TextOpReport[] }> {
+export async function planTextOps(docText: string, ops: TextOpRequest[]):
+  Promise<{ replacements: Replacement[]; reports: TextOpReport[] }> {
   const docNorm = normalizeWs(docText);
   const all: Replacement[] = [];
   const reports: TextOpReport[] = [];
@@ -213,9 +184,7 @@ export async function planTextOps(
   all.sort((a, b) => a.start - b.start || a.end - b.end);
   for (let i = 1; i < all.length; i++) {
     if (all[i].start < all[i - 1].end) {
-      throw new Error(
-        "Two ops produced overlapping changes; apply them in separate calls",
-      );
+      throw new Error("Two ops produced overlapping changes; apply them in separate calls");
     }
   }
   return { replacements: all, reports };
@@ -226,20 +195,12 @@ export async function planTextOps(
  * one accept/rejectable tracked edit per replacement. Store-agnostic —
  * persistence is the caller's job.
  */
-export async function applyTextOpsToDocx(
-  originalBytes: Buffer,
-  ops: TextOpRequest[],
-): Promise<ApplyTextOpsResult> {
+export async function applyTextOpsToDocx(originalBytes: Buffer,
+  ops: TextOpRequest[]): Promise<ApplyTextOpsResult> {
   const docText = await extractDocxBodyText(originalBytes);
   const { replacements, reports } = await planTextOps(docText, ops);
   if (!replacements.length) {
-    return {
-      bytes: originalBytes,
-      edits: [],
-      reports,
-      replacementCount: 0,
-      editErrors: [],
-    };
+    return { bytes: originalBytes, edits: [], reports, replacementCount: 0, editErrors: [] };
   }
   const edits: EditInput[] = replacements.map((r) => ({
     find: docText.slice(r.start, r.end),
@@ -247,9 +208,7 @@ export async function applyTextOpsToDocx(
     exact_start: r.start, exact_end: r.end,
     context_before: "", context_after: "",
   }));
-  const applied = await applyTrackedEdits(originalBytes, edits, {
-    author: "Beaver",
-  });
+  const applied = await applyTrackedEdits(originalBytes, edits, { author: "Beaver" });
   return {
     bytes: applied.bytes,
     edits: applied.changes.map((change) => ({
@@ -264,8 +223,6 @@ export async function applyTextOpsToDocx(
     })),
     reports,
     replacementCount: replacements.length,
-    editErrors: applied.errors.map(
-      (error) => `change ${error.index + 1}: ${error.reason}`,
-    ),
+    editErrors: applied.errors.map((error) => `change ${error.index + 1}: ${error.reason}`),
   };
 }
