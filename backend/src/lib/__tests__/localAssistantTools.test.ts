@@ -1,19 +1,10 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
-import {
-  Document,
-  Packer,
-  Paragraph,
-  Table,
-  TableCell,
-  TableRow,
-} from "docx";
+import { Document, Packer, Paragraph } from "docx";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { zipDocumentBytes } from "./support/documentBytes";
 import { resourceReference } from "../resourceReferences";
 import { availableDocumentsPrompt, globPattern } from "../chat/resourceTools";
 
@@ -27,98 +18,11 @@ vi.mock("../remoteUrlSafety", async (importOriginal) => ({
 
 let temporaryDirectory: string | null = null;
 
-beforeEach(() => { process.env.AUTH_MODE = "local"; });
-
-const nativeTableBytes = () =>
-  Packer.toBuffer(
-    new Document({
-      sections: [
-        {
-          children: [
-            new Paragraph("1.01 Schedule."),
-            new Table({
-              rows: [
-                new TableRow({
-                  children: [
-                    new TableCell({ children: [new Paragraph("Alpha")] }),
-                    new TableCell({
-                      children: [new Paragraph("Unique cell value")],
-                    }),
-                  ],
-                }),
-                new TableRow({
-                  children: [
-                    new TableCell({ children: [new Paragraph("Director")] }),
-                    new TableCell({ children: [new Paragraph("$10,000")] }),
-                    new TableCell({ children: [new Paragraph("$50,000")] }),
-                  ],
-                }),
-                new TableRow({
-                  children: [
-                    new TableCell({ children: [new Paragraph("Secretary")] }),
-                    new TableCell({ children: [new Paragraph("$15,000")] }),
-                    new TableCell({ children: [new Paragraph("$75,000")] }),
-                  ],
-                }),
-                new TableRow({
-                  children: [
-                    new TableCell({ children: [new Paragraph("Treasurer")] }),
-                    new TableCell({ children: [new Paragraph("$25,000")] }),
-                    new TableCell({ children: [new Paragraph("$100,000")] }),
-                  ],
-                }),
-              ],
-            }),
-            new Paragraph("2.01 Unique elsewhere."),
-          ],
-        },
-      ],
-    }),
-  );
-
-const numberedReferenceBytes = () =>
-  Packer.toBuffer(
-    new Document({
-      sections: [
-        {
-          children: [
-            "ARTICLE I",
-            "COVENANTS",
-            "",
-            "1.01 First. This points to Section 1.03.",
-            "",
-            "1.02 Delete Me. This provision is obsolete.",
-            "",
-            "1.03 Third. This provision remains.",
-            "",
-            "ARTICLE II",
-            "GENERAL",
-            "",
-            "2.01 Pointer. Section 1.03 controls.",
-          ].map((text) => new Paragraph(text)),
-        },
-      ],
-    }),
-  );
-
-async function expectReadRecipesAccepted(
-  tools: typeof import("./support/localAssistantTools"),
-  filePath: string,
-  rows: Array<{ read: Record<string, unknown> }>,
-) {
-  const reads = await tools.runLocalAssistantTools(
-    "local-user",
-    rows.map((row, index) => ({
-      id: `recipe-${index}`,
-      name: "Read",
-      input: { file_path: filePath, ...row.read },
-    })),
-  );
-  expect(reads).toHaveLength(rows.length);
-  for (const read of reads) {
-    expect(read.evidence?.length, read.content).toBeGreaterThan(0);
-  }
-}
+beforeEach(async () => {
+  process.env.AUTH_MODE = "local";
+  temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-local-tools-"));
+  process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+});
 
 async function seedResearch(
   store: typeof import("./support/localDocumentFixtures"),
@@ -155,12 +59,17 @@ afterEach(async () => {
   }
 });
 
-describe("local assistant tools", () => {
+type ToolRunner = typeof import("./support/localAssistantTools").runLocalAssistantTools;
 
+async function runTools(calls: Parameters<ToolRunner>[1], options?: Parameters<ToolRunner>[2]) {
+  const { runLocalAssistantTools } = await import("./support/localAssistantTools");
+  return runLocalAssistantTools("local-user", calls, options);
+}
+
+describe("local assistant tools", () => {
   it("reads saved evidence without fetching and pages historical search receipts", async () => {
     const { createTnaEvidence, createLegalEvidenceTurnState, registerPriorLegalEvidence,
       registerLegalResearchQueries, priorLegalEvidencePrompt } = await import("../chat/legalEvidence"),
-      { runLocalAssistantTools } = await import("./support/localAssistantTools"),
       state = createLegalEvidenceTurnState(), receipt = createTnaEvidence({
         jurisdiction: "CA", sourceClass: "case", stableSourceId: "saved-case",
         sourceText: "The appeal is allowed.", spanText: "The appeal is allowed.",
@@ -178,8 +87,7 @@ describe("local assistant tools", () => {
     const calls = [receipt.evidence_id, "e_corrupted", "e_missing", "queries", "queries", queries[0].query_id]
       .map((file_path, index) => ({ id: `read-${index}`, name: "Read", input: { file_path,
         ...(index >= 3 ? { offset: index === 4 ? 3 : 1, limit: 2 } : {}) } }));
-    const [read, corrupted, missing, first, second, query] = await runLocalAssistantTools(
-      "local-user", calls, { legalEvidence: state });
+    const [read, corrupted, missing, first, second, query] = await runTools(calls, { legalEvidence: state });
     expect(JSON.parse(read.content)).toMatchObject({ evidence_id: receipt.evidence_id,
       exact_passage: receipt.span_text });
     expect(JSON.parse(corrupted.content)).toMatchObject({ ok: false });
@@ -209,8 +117,6 @@ describe("local assistant tools", () => {
     status,
     revisionCount,
   }) => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-edit-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const bytes = await Packer.toBuffer(
       new Document({
         sections: [{ children: [new Paragraph("Original provision.")] }],
@@ -322,8 +228,6 @@ describe("local assistant tools", () => {
   }, 30_000);
 
   it("creates a DOCX directly even when other Library documents are unread", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-create-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
     await store.createLocalDocument({
       userId: "local-user",
@@ -342,10 +246,7 @@ describe("local assistant tools", () => {
       import("../chat/legalEvidence"),
       import("./support/localDocumentFixtures"),
     ]);
-    const { runLocalAssistantTools } = await import("./support/localAssistantTools");
-    const [created, workbook, presentation] = await runLocalAssistantTools(
-      "local-user",
-      [
+    const [created, workbook, presentation] = await runTools([
         {
           id: "create-docx",
           name: "Write",
@@ -393,8 +294,6 @@ describe("local assistant tools", () => {
   }, 10_000);
 
   it("writes field and grouped citation maps into one durable DOCX", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-write-maps-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const { createTnaEvidence, createLegalEvidenceTurnState, registerLegalEvidence } =
       await import("../chat/legalEvidence");
     const state = createLegalEvidenceTurnState();
@@ -407,11 +306,10 @@ describe("local assistant tools", () => {
       locatorLabel: `par${paragraph}`,
     }));
     receipts.forEach((receipt) => registerLegalEvidence(state, receipt));
-    const { runLocalAssistantTools } = await import("./support/localAssistantTools");
     const input = { filename: "Map memo.docx", citation_style: "footnotes",
       content: "# Positions\n\n{{party}} relies on the result.[@rule]\n\n{{party}} requests relief.[@rule]",
       fields: { party: "Acme" }, citations: { rule: receipts.map((receipt) => receipt.evidence_id) } };
-    const results = await runLocalAssistantTools("local-user", [
+    const results = await runTools([
       { id: "bad-fields", name: "Write", input: { ...input, fields: [{ id: "party", value: "Acme" }] } },
       { id: "bad-citations", name: "Write", input: { ...input, citations: [{ id: "rule", evidence_ids: input.citations.rule }] } },
       { id: "bad-field-value", name: "Write", input: { ...input, fields: { party: 7 } } },
@@ -442,8 +340,6 @@ describe("local assistant tools", () => {
   });
 
   it("rejects unmarked evidence copying before Write persists a DOCX", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-grounded-write-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const {
       createTnaEvidence,
       createLegalEvidenceTurnState,
@@ -464,8 +360,7 @@ describe("local assistant tools", () => {
       locatorLabel: "par49",
     });
     registerLegalEvidence(state, evidence);
-    const { runLocalAssistantTools } = await import("./support/localAssistantTools");
-    const [rejected] = await runLocalAssistantTools("local-user", [{
+    const [rejected] = await runTools([{
       id: "grounded-copy",
       name: "Write",
       input: {
@@ -483,8 +378,6 @@ describe("local assistant tools", () => {
   });
 
   it("applies deterministic DOCX operations through edit_docx_advanced", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-ref-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const bytes = await Packer.toBuffer(
       new Document({
         sections: [{ children: [new Paragraph("Original provision.")] }],
@@ -497,13 +390,8 @@ describe("local assistant tools", () => {
       filename: "draft.docx",
       bytes,
     });
-    const { runLocalAssistantTools } = await import(
-      "./support/localAssistantTools"
-    );
 
-    const [response] = await runLocalAssistantTools(
-      "local-user",
-      [
+    const [response] = await runTools([
         {
           id: "deterministic-edit",
           name: "edit_docx_advanced",
@@ -539,7 +427,7 @@ describe("local assistant tools", () => {
     const { extractDocxBodyText } = await import("../docxTrackedChanges");
     expect(await extractDocxBodyText(saved!.bytes)).toContain("Revised provision.");
     const resource = resourceReference.document(document.id, event.version_id);
-    const [unchanged, lint] = await runLocalAssistantTools("local-user", [{
+    const [unchanged, lint] = await runTools([{
       id: "unchanged", name: "edit_docx_advanced", input: { file_path: resource,
         ops: [{ op: "replace_text", scope: { kind: "whole_document" },
           find: "Absent", replace: "Replacement" }] },
@@ -552,8 +440,6 @@ describe("local assistant tools", () => {
   });
 
   it("saves supra fields as ordinary assistant edits that can be rejected", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-supras-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const zip = new JSZip();
     const namespace = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
     zip.file("word/document.xml", `<w:document ${namespace}><w:body><w:p><w:r><w:footnoteReference w:id="1"/></w:r></w:p></w:body></w:document>`);
@@ -561,8 +447,7 @@ describe("local assistant tools", () => {
     const store = await import("./support/localDocumentFixtures");
     const document = await store.createLocalDocument({ userId: "local-user", kind: "file",
       filename: "Brief.docx", bytes: await zip.generateAsync({ type: "nodebuffer" }) });
-    const { runLocalAssistantTools } = await import("./support/localAssistantTools");
-    const [response] = await runLocalAssistantTools("local-user", [{ id: "fix-supras",
+    const [response] = await runTools([{ id: "fix-supras",
       name: "document_operation", input: { action: "fix_supras",
         document_id: resourceReference.document(document.id, document.current_version_id) } }]);
     const artifact = response.events?.find((event) => event.type === "document_artifact");
@@ -579,8 +464,6 @@ describe("local assistant tools", () => {
   });
 
   it("source-qualifies multi-document coding reads by canonical resource", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-evidence-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
     const first = await store.createLocalDocument({
       userId: "local-user",
@@ -594,10 +477,7 @@ describe("local assistant tools", () => {
       filename: "second.txt",
       bytes: Buffer.from("shared needle in second", "utf8"),
     });
-    const tools = await import("./support/localAssistantTools");
-    const [grep, firstRead, secondRead] = await tools.runLocalAssistantTools(
-      "local-user",
-      [
+    const [grep, firstRead, secondRead] = await runTools([
         {
           id: "grep-both",
           name: "Grep",
@@ -641,8 +521,6 @@ describe("local assistant tools", () => {
   });
 
   it("returns broad Grep context as navigation without citation receipts", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-grep-focus-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
     const text = ["zero", "one", "two", "NEEDLE", "four", "five", "six"].join("\n");
     const document = await store.createLocalDocument({
@@ -651,8 +529,7 @@ describe("local assistant tools", () => {
       filename: "focus.txt",
       bytes: Buffer.from(text, "utf8"),
     });
-    const tools = await import("./support/localAssistantTools");
-    const [grep] = await tools.runLocalAssistantTools("local-user", [
+    const [grep] = await runTools([
       {
         id: "grep-focus",
         name: "Grep",
@@ -672,8 +549,6 @@ describe("local assistant tools", () => {
   });
 
   it("addresses spreadsheet cells through the same bounded Read contract", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-xlsx-cells-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     vi.resetModules();
 
     const sheet = XLSX.utils.aoa_to_sheet([
@@ -693,8 +568,7 @@ describe("local assistant tools", () => {
       filename: "ledger.xlsx",
       bytes,
     });
-    const tools = await import("./support/localAssistantTools");
-    const [read] = await tools.runLocalAssistantTools("local-user", [
+    const [read] = await runTools([
       {
         id: "read-xlsx-cell",
         name: "Read",
@@ -706,7 +580,7 @@ describe("local assistant tools", () => {
     ]);
     expect(read.content).toContain("Unique spreadsheet value");
     expect(read.content).not.toContain("Matter");
-    const [whole] = await tools.runLocalAssistantTools("local-user", [{
+    const [whole] = await runTools([{
       id: "read-xlsx", name: "Read", input: {
         file_path: resourceReference.document(document.id, document.current_version_id),
       },
@@ -724,10 +598,6 @@ describe("local assistant tools", () => {
   });
 
   it("keeps generic Grep output independent of ambiguous legal structure", async () => {
-    temporaryDirectory = await mkdtemp(
-      path.join(os.tmpdir(), "beaver-code-duplicate-handle-"),
-    );
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const bytes = await Packer.toBuffer(
       new Document({
         sections: [
@@ -749,8 +619,7 @@ describe("local assistant tools", () => {
       filename: "duplicate.docx",
       bytes,
     });
-    const tools = await import("./support/localAssistantTools");
-    const [grep] = await tools.runLocalAssistantTools("local-user", [
+    const [grep] = await runTools([
       {
         id: "grep-duplicate-handle",
         name: "Grep",
@@ -767,8 +636,6 @@ describe("local assistant tools", () => {
   });
 
   it("keeps coding replace_all exact-case and no-match versionless", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-all-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const bytes = await Packer.toBuffer(
       new Document({
         sections: [{ children: [new Paragraph("Term term TERM.")] }],
@@ -781,10 +648,9 @@ describe("local assistant tools", () => {
       filename: "case.docx",
       bytes,
     });
-    const tools = await import("./support/localAssistantTools");
     const editAll = async (oldString: string, newString: string) =>
       (
-        await tools.runLocalAssistantTools("local-user", [
+        await runTools([
           {
             id: `replace-${oldString}`,
             name: "Edit",
@@ -807,7 +673,7 @@ describe("local assistant tools", () => {
     const revised = await editAll("Term", "Clause");
     const event = revised.events!.find((event) => event.type === "document_artifact")!;
     expect(event.annotations).toHaveLength(1);
-    const [read] = await tools.runLocalAssistantTools("local-user", [{
+    const [read] = await runTools([{
       id: "read-revised",
       name: "Read",
       input: { file_path: resourceReference.document(event.document_id, event.version_id) },
@@ -816,8 +682,6 @@ describe("local assistant tools", () => {
   });
 
   it("lists duplicate filenames and resumes same-turn edits by canonical resource", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-turn-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
     const makeDoc = async (text: string) =>
       store.createLocalDocument({
@@ -832,10 +696,7 @@ describe("local assistant tools", () => {
     const other = await makeDoc("Other document.");
     const intendedResource =
       `document://${intended.id}/version/${intended.current_version_id}`;
-    const tools = await import("./support/localAssistantTools");
-    const [listed, recovered] = await tools.runLocalAssistantTools(
-      "local-user",
-      [
+    const [listed, recovered] = await runTools([
         { id: "glob-duplicates", name: "Glob", input: { pattern: "shared.docx" } },
         { id: "id-read", name: "Read", input: { file_path: intendedResource } },
       ],
@@ -849,9 +710,7 @@ describe("local assistant tools", () => {
     expect(recovered.content).toContain("Alpha Beta.");
 
     const turnId = "same-turn";
-    const [firstEdit] = await tools.runLocalAssistantTools(
-        "local-user",
-        [{
+    const [firstEdit] = await runTools([{
           id: "edit-alpha",
           name: "Edit",
           input: {
@@ -862,9 +721,7 @@ describe("local assistant tools", () => {
         }],
         { edits: new Map(), turnId },
       );
-    const [secondEdit] = await tools.runLocalAssistantTools(
-        "local-user",
-        [{
+    const [secondEdit] = await runTools([{
           id: "edit-beta",
           name: "Edit",
           input: {
@@ -884,7 +741,7 @@ describe("local assistant tools", () => {
     expect((await store.listLocalVersions("local-user", other.id))?.versions)
       .toHaveLength(1);
     const revised = secondEdit.events!.find((event) => event.type === "document_artifact")!;
-    const [read] = await tools.runLocalAssistantTools("local-user", [{
+    const [read] = await runTools([{
       id: "read-edited-duplicate",
       name: "Read",
       input: { file_path: resourceReference.document(revised.document_id, revised.version_id) },
@@ -893,8 +750,6 @@ describe("local assistant tools", () => {
   }, 45_000);
 
   it("resolves an indexed alias to its exact document version", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-indexed-read-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
     const original = await store.createLocalDocument({ userId: "local-user", kind: "file",
       filename: "factum.txt", bytes: Buffer.from("Original filing text.") });
@@ -903,8 +758,7 @@ describe("local assistant tools", () => {
     await store.addLocalVersion({ userId: "local-user", documentId: original.id,
       filename: "factum.txt", bytes: Buffer.from("Later filing text.") });
     const resource = resourceReference.document(original.id, original.current_version_id);
-    const tools = await import("./support/localAssistantTools");
-    const [listed, read] = await tools.runLocalAssistantTools("local-user", [
+    const [listed, read] = await runTools([
       { id: "glob-index", name: "Glob", input: { pattern: "*" } },
       { id: "read-index", name: "Read", input: { file_path: resource } },
     ], { docIndex: { "doc-1": { document_id: original.id, filename: "factum.txt",
@@ -918,10 +772,7 @@ describe("local assistant tools", () => {
   });
 
   it("bounds large document inventories while retaining attachments, later pages, and project isolation", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-inventory-tools-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const store = await import("./support/localDocumentFixtures"),
-      tools = await import("./support/localAssistantTools"), scope = { userId: "local-user" },
+    const store = await import("./support/localDocumentFixtures"), scope = { userId: "local-user" },
       project = await store.localProjects.create(scope, { name: "Matter", cmNumber: null,
         practice: null, sharedWith: [] }),
       source = await store.localDocuments.create(scope, { filename: "Selected.txt", fileType: "txt",
@@ -943,7 +794,7 @@ describe("local assistant tools", () => {
       manyAttachments = availableDocumentsPrompt(docIndex, records, selected);
     expect(manyAttachments.length).toBeLessThanOrEqual(8_000);
     for (let index = 951; index <= 1_000; index++) expect(manyAttachments).toContain(`- doc-${index}:`);
-    const [first, later, read, rejected] = await tools.runLocalAssistantTools("local-user", [
+    const [first, later, read, rejected] = await runTools([
       { id: "first", name: "Glob", input: { pattern: "*", limit: 50 } },
       { id: "later", name: "Glob", input: { pattern: "*", offset: 1_001, limit: 50 } },
       { id: "read", name: "Read", input: { file_path: resourceReference.document(source.id, source.current_version_id) } },
@@ -959,8 +810,6 @@ describe("local assistant tools", () => {
   });
 
   it("discovers root Library files when the chat has no focused documents", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-library-chat-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
     const document = await store.createLocalDocument({
       userId: "local-user",
@@ -1000,8 +849,7 @@ describe("local assistant tools", () => {
     const page = vi.fn(async (_scope, options: { after: unknown }) => options.after
       ? { items: [{ kind: "document" as const, document }], nextAfter: null }
       : { items: [], nextAfter: [0, "cursor", "cursor"] as [number, string, string] });
-    const tools = await import("./support/localAssistantTools");
-    const [listed] = await tools.runLocalAssistantTools("local-user", [{
+    const [listed] = await runTools([{
       id: "glob-later-library-page", name: "Glob", input: { pattern: "later-*" },
     }], { library: { ...store.localLibraryStore, page } });
 
@@ -1011,8 +859,6 @@ describe("local assistant tools", () => {
   });
 
   it("does not expose an unverified saved passage as citable evidence", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-read-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
     const { createA2AJPassageEvidence, createLegalEvidenceTurnState } =
       await import("../chat/legalEvidence");
@@ -1041,10 +887,10 @@ describe("local assistant tools", () => {
     query.labelPaths = { [removedLabelId]: "Issues / Holding" };
     const file = await commitResearchFile(store.localDocuments, { userId: "local-user" },
       seeded.file, { type: "merge", queries: [query] }), document = seeded.document;
-    const tools = await import("./support/localAssistantTools"), evidence = createLegalEvidenceTurnState(),
+    const evidence = createLegalEvidenceTurnState(),
       edits = new Map();
     const filePath = resourceReference.document(document.id, file!.versionId);
-    const [source, search, response, queried] = await tools.runLocalAssistantTools("local-user", [{ id: "read-source",
+    const [source, search, response, queried] = await runTools([{ id: "read-source",
       name: "Read", input: { file_path: filePath, offset: 2, limit: 1 } }, { id: "read-search",
       name: "Read", input: { file_path: filePath, offset: 3, limit: 1 } },
     { id: "read-research", name: "Read", input: { file_path: filePath, offset: 4, limit: 1 } },
@@ -1073,32 +919,30 @@ describe("local assistant tools", () => {
   });
 
   it("creates saved research as an ordinary readable Library file", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-create-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
-    const tools = await import("./support/localAssistantTools"), edits = new Map();
-    const [created] = await tools.runLocalAssistantTools("local-user", [{ id: "create-research",
+    const edits = new Map();
+    const [created] = await runTools([{ id: "create-research",
       name: "document_operation", input: { action: "research",
         research_action: { type: "create", title: "Notice cases" } } }], { edits });
     const output = created.events!.find((event) => event.type === "document_artifact")!;
     const resource = resourceReference.document(output.document_id, output.version_id);
-    const [read] = await tools.runLocalAssistantTools("local-user", [{ id: "read-research",
+    const [read] = await runTools([{ id: "read-research",
       name: "Read", input: { file_path: resource } }], {
       documentNames: new Map([[output.document_id, output.filename]]) });
     expect(JSON.parse(read.content)).toMatchObject({ filename: "Notice cases.research.md",
       resource, total: 0, items: [] });
-    const [root] = await tools.runLocalAssistantTools("local-user", [{ id: "root-label",
+    const [root] = await runTools([{ id: "root-label",
       name: "document_operation", input: { action: "research", document_id: resource,
         research_action: { type: "label", name: "Fairness", scope: "source" } } }], { edits });
     const rootOutput = JSON.parse(root.content);
     expect(rootOutput.label_id).toMatch(/^[0-9a-f-]{36}$/u);
-    const [child] = await tools.runLocalAssistantTools("local-user", [{ id: "child-label",
+    const [child] = await runTools([{ id: "child-label",
       name: "document_operation", input: { action: "research", document_id: rootOutput.resource,
         research_action: { type: "label", name: "Hearing", scope: "source",
           parentId: rootOutput.label_id } } }], { edits });
     expect(JSON.parse(child.content)).toMatchObject({ label_id: expect.any(String),
       counts: { labels: 2 } });
-    const [stale] = await tools.runLocalAssistantTools("local-user", [{ id: "stale-label",
+    const [stale] = await runTools([{ id: "stale-label",
       name: "document_operation", input: { action: "research",
         document_id: JSON.parse(child.content).resource,
         research_action: { type: "label", id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -1111,15 +955,13 @@ describe("local assistant tools", () => {
   });
 
   it.each(["rename", "unfile"])("reports a protected %s as pending and distinguishes later applied additions", async (operation) => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-pending-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const store = await import("./support/localDocumentFixtures"), tools = await import("./support/localAssistantTools"),
+    const store = await import("./support/localDocumentFixtures"),
       { readResearchFile } = await import("../researchFile"), edits = new Map(), labelId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const seeded = await seedResearch(store, "protected.research.md", [
       { type: "label", id: labelId, name: "Counsel questions" },
       { type: "source", reference: { provider: "a2aj", id: "2001 SCC 1", kind: "case" }, labelIds: [labelId] },
     ]), sourceId = Object.keys(seeded.file.state.sources)[0];
-    const [, changed] = await tools.runLocalAssistantTools("local-user", [
+    const [, changed] = await runTools([
       { id: "read", name: "Read", input: { file_path: seeded.resource } },
       { id: "protected-change", name: "document_operation", input: { action: "research", document_id: seeded.resource,
         research_action: operation === "rename" ? { type: "label", id: labelId, name: "Counsel follow-up" }
@@ -1132,7 +974,7 @@ describe("local assistant tools", () => {
     const saved = await readResearchFile(store.localDocuments, { userId: "local-user" }, seeded.document.id);
     expect(saved?.state.labels).toEqual(seeded.file.state.labels);
     expect(saved?.state.sources).toEqual(seeded.file.state.sources);
-    const [addition] = await tools.runLocalAssistantTools("local-user", [{ id: "ordinary-addition", name: "document_operation",
+    const [addition] = await runTools([{ id: "ordinary-addition", name: "document_operation",
       input: { action: "research", document_id: pending.resource, research_action: { type: "label", name: "Further review" } } }], { edits });
     expect(JSON.parse(addition.content)).toMatchObject({ ok: true, status: "applied", applied: true,
       label_id: expect.any(String), proposals: [{ id: pending.change_id }] });
@@ -1149,15 +991,12 @@ describe("local assistant tools", () => {
   });
 
   it("advances same-turn research writes without checkpointing no-ops", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-reuse-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
     const { createResearchFileState, researchFileMarkdown } = await import("../researchFile");
     const document = await store.createLocalDocument({ userId: "local-user", kind: "file",
       filename: "Cases.research.md", bytes: Buffer.from(researchFileMarkdown("Cases", createResearchFileState())) });
     const resource = resourceReference.document(document.id, document.current_version_id);
-    const tools = await import("./support/localAssistantTools");
-    const [selected, , first, second] = await tools.runLocalAssistantTools("local-user", [
+    const [selected, , first, second] = await runTools([
       { id: "read", name: "Read", input: { file_path: resource } },
       { id: "noop", name: "document_operation", input: { action: "research", document_id: resource,
         research_action: { type: "note", markdown: "" } } },
@@ -1177,8 +1016,6 @@ describe("local assistant tools", () => {
   });
 
   it("rejects a first research write after a human autosave", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-race-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
     const { commitResearchFile, createResearchFileState, readResearchFile,
       researchFileMarkdown } = await import("../researchFile");
@@ -1186,15 +1023,13 @@ describe("local assistant tools", () => {
       filename: "Cases.research.md",
       bytes: Buffer.from(researchFileMarkdown("Cases", createResearchFileState())) });
     const resource = resourceReference.document(document.id, document.current_version_id),
-      edits = new Map(), documentNames = new Map([[document.id, document.filename]]),
-      tools = await import("./support/localAssistantTools");
-    await tools.runLocalAssistantTools("local-user",
-      [{ id: "read", name: "Read", input: { file_path: resource } }],
+      edits = new Map(), documentNames = new Map([[document.id, document.filename]]);
+    await runTools([{ id: "read", name: "Read", input: { file_path: resource } }],
       { documentNames, edits });
     const read = await readResearchFile(store.localDocuments, { userId: "local-user" }, document.id);
     await commitResearchFile(store.localDocuments, { userId: "local-user" }, read!,
       { type: "note", markdown: "Human note" });
-    const [attempt] = await tools.runLocalAssistantTools("local-user", [{ id: "assistant-write",
+    const [attempt] = await runTools([{ id: "assistant-write",
       name: "document_operation", input: { action: "research", document_id: resource,
         research_action: { type: "label", name: "Assistant label", scope: "source" } } }],
     { documentNames, edits });
@@ -1205,15 +1040,12 @@ describe("local assistant tools", () => {
   });
 
   it("pages the full saved-research note as ordinary Read rows", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-note-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
     const { createResearchFileState, researchFileMarkdown } = await import("../researchFile");
     const state = createResearchFileState(), note = "n".repeat(9_000); state.note = note;
     const document = await store.createLocalDocument({ userId: "local-user", kind: "file",
       filename: "notes.research.md", bytes: Buffer.from(researchFileMarkdown("Notes", state)) });
-    const tools = await import("./support/localAssistantTools");
-    const [read] = await tools.runLocalAssistantTools("local-user", [{ id: "read-note",
+    const [read] = await runTools([{ id: "read-note",
       name: "Read", input: { file_path: resourceReference.document(
         document.id, document.current_version_id), limit: 2 } }], {
       documentNames: new Map([[document.id, document.filename]]) });
@@ -1223,8 +1055,6 @@ describe("local assistant tools", () => {
   });
 
   it("pages complete bounded saved-research details without materializing them at once", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-details-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures"),
       { a2ajLegalSourceProvider } = await import("../legalSources/a2aj"),
       { structureNative } = await import("../structureNative");
@@ -1306,12 +1136,11 @@ describe("local assistant tools", () => {
       savedQuery = savedQueries.find(({ query_id }) => query_id === query.query_id)!,
       savedDiscovery = savedQueries.find(({ query_id }) => query_id === discovery.query_id)!;
     const document = seeded.document;
-    const tools = await import("./support/localAssistantTools"), evidence = createLegalEvidenceTurnState(),
+    const evidence = createLegalEvidenceTurnState(),
       file_path = resourceReference.document(document.id, researchFile.versionId),
       context = { documentNames: new Map([[document.id, document.filename]]), legalEvidence: evidence },
       read = async (input: Record<string, unknown>, id: string) => {
-        const [answer] = await tools.runLocalAssistantTools("local-user",
-          [{ id, name: "Read", input: { file_path, ...input } }], context);
+        const [answer] = await runTools([{ id, name: "Read", input: { file_path, ...input } }], context);
         expect(answer.content.length).toBeLessThan(45_000);
         return JSON.parse(answer.content) as { items: Array<Record<string, unknown>>;
           next_offset: number | null; total: number; categories?: Record<string, { count: number }> };
@@ -1395,8 +1224,6 @@ describe("local assistant tools", () => {
   });
 
   it("saves and classifies a search result and its verified passage", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-source-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
     const { createA2AJPassageEvidence, createLegalEvidenceTurnState, registerLegalEvidence,
       registerLegalResearchQueries } =
@@ -1420,9 +1247,8 @@ describe("local assistant tools", () => {
       sourceClass: "case", sourceReference: { id: "2026 SCC 1" },
       locator: { kind: "paragraph", label: "par7" } });
     registerLegalEvidence(evidence, receipt);
-    const tools = await import("./support/localAssistantTools");
     const edits = new Map(), documentNames = new Map([[document.id, document.filename]]);
-    const [, saved] = await tools.runLocalAssistantTools("local-user", [{ id: "read-research",
+    const [, saved] = await runTools([{ id: "read-research",
       name: "Read", input: { file_path: seeded.resource } }, { id: "save-source",
       name: "document_operation", input: { action: "research",
         document_id: seeded.resource,
@@ -1433,13 +1259,13 @@ describe("local assistant tools", () => {
     const sourceOutput = JSON.parse(saved.content);
     expect(sourceOutput).toMatchObject({ ok: true, counts: { sources: 1 } });
     expect(sourceOutput.source_id).toMatch(/^[0-9a-f-]{36}$/u);
-    const [passage] = await tools.runLocalAssistantTools("local-user", [{ id: "save-passage",
+    const [passage] = await runTools([{ id: "save-passage",
       name: "document_operation", input: { action: "research", document_id: sourceOutput.resource,
         evidence_ids: [receipt.evidence_id], research_action: { type: "save" } } }],
     { legalEvidence: evidence, documentNames, edits });
     const passageOutput = JSON.parse(passage.content), savedPassage = passageOutput.saved[0];
     expect(savedPassage).toEqual({ evidence_id: receipt.evidence_id, source_id: sourceOutput.source_id });
-    await tools.runLocalAssistantTools("local-user", [{ id: "annotate-passage",
+    await runTools([{ id: "annotate-passage",
       name: "document_operation", input: { action: "research", document_id: passageOutput.resource,
         research_action: { type: "annotate", kind: "evidence", id: savedPassage.evidence_id,
           sourceId: savedPassage.source_id, labelIds: [highlightLabel], note: "Controls." } } }],
@@ -1458,8 +1284,6 @@ describe("local assistant tools", () => {
   });
 
   it("writes the cited memo inside its research file", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-memo-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
     const { createA2AJPassageEvidence, createLegalEvidenceTurnState, registerLegalEvidence } =
       await import("../chat/legalEvidence");
@@ -1473,9 +1297,9 @@ describe("local assistant tools", () => {
       end: 25, externalUrl: null, sourceClass: "case", sourceReference: { id: "2026 SCC 2" } });
     const seeded = await seedResearch(store, "cases.research.md",
       [{ type: "merge", evidence: [receipt] }]), research = seeded.document, exact = seeded.resource;
-    const tools = await import("./support/localAssistantTools"), evidence = createLegalEvidenceTurnState();
+    const evidence = createLegalEvidenceTurnState();
     registerLegalEvidence(evidence, receipt); registerLegalEvidence(evidence, unsaved);
-    const [, created, rejected] = await tools.runLocalAssistantTools("local-user", [{ id: "read-research",
+    const [, created, rejected] = await runTools([{ id: "read-research",
       name: "Read", input: { file_path: exact } }, { id: "memo",
       name: "document_operation", input: { action: "research", document_id: exact,
         evidence_ids: [receipt.evidence_id],
@@ -1504,8 +1328,6 @@ describe("local assistant tools", () => {
   });
 
   it("bounds model passage queries to one verified result page", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-query-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
     const { createA2AJPassageEvidence, createLegalEvidenceTurnState } =
       await import("../chat/legalEvidence");
@@ -1526,11 +1348,11 @@ describe("local assistant tools", () => {
       date: null, url: null, verifiedPdf: null, language: "en", upstreamLicense: null, native });
     const seeded = await seedResearch(store, "matches.research.md",
       [{ type: "merge", evidence: receipts, labels: Object.fromEntries(receipts.map((item) => [item.evidence_id, []])) }]), research = seeded.document;
-    const tools = await import("./support/localAssistantTools"), edits = new Map(),
+    const edits = new Map(),
       legalEvidence = createLegalEvidenceTurnState(),
       documentNames = new Map([[research.id, research.filename]]);
     const resource = seeded.resource;
-    const [, queried] = await tools.runLocalAssistantTools("local-user", [{ id: "read-research",
+    const [, queried] = await runTools([{ id: "read-research",
       name: "Read", input: { file_path: resource } }, { id: "query",
       name: "document_operation", input: { action: "research",
         document_id: resource,
@@ -1549,7 +1371,7 @@ describe("local assistant tools", () => {
     const queryId = queried.queryReceipts![0].query_id;
     legalEvidence.queries.set(queryId, queried.queryReceipts![0]);
     const [saved] =
-      await tools.runLocalAssistantTools("local-user", [{ id: "save-query",
+      await runTools([{ id: "save-query",
         name: "document_operation", input: { action: "research", document_id: resource,
           query_ids: [queryId], research_action: { type: "save" } } }], {
         documentNames, edits, legalEvidence });
@@ -1559,11 +1381,7 @@ describe("local assistant tools", () => {
   });
 
   it("bounds adversarial search patterns", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-search-bounds-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const tools = await import("./support/localAssistantTools");
-    const results = await tools.runLocalAssistantTools("local-user",
-      ["(a+)+$", "(a|aa)+$", "((a|aa)b)+$"].map((pattern, index) => ({
+    const results = await runTools(["(a+)+$", "(a|aa)+$", "((a|aa)b)+$"].map((pattern, index) => ({
         id: `unsafe-grep-${index}`, name: "Grep", input: { pattern },
       })));
     results.forEach((grep) =>
@@ -1573,8 +1391,6 @@ describe("local assistant tools", () => {
   });
 
   it("reports a missing PDF page before starting structural analysis", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-library-chat-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
     const document = await store.createLocalDocument({
       userId: "local-user",
@@ -1582,12 +1398,11 @@ describe("local assistant tools", () => {
       filename: "test.pdf",
       bytes: await readFile(path.resolve(process.cwd(), "../e2e/fixtures/test.pdf")),
     });
-    const tools = await import("./support/localAssistantTools");
     const resource = resourceReference.document(
       document.id,
       document.current_version_id,
     );
-    const [response] = await tools.runLocalAssistantTools("local-user", [{
+    const [response] = await runTools([{
       id: "read-missing-page",
       name: "Read",
       input: { file_path: resource, locator_kind: "page", locator: "5" },
@@ -1600,8 +1415,6 @@ describe("local assistant tools", () => {
   });
 
   it("shares exact PDF receipt identity across structural Read, highlights, and selected extraction", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-evidence-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const { PDFDocument, StandardFonts } = await import("pdf-lib"), pdf = await PDFDocument.create(),
       font = await pdf.embedFont(StandardFonts.Helvetica), firstPage = "The first page gives background context.",
       footnoteText = "Supporting authority appears in the original footnote.";
@@ -1660,8 +1473,7 @@ describe("local assistant tools", () => {
   });
 
   it("reads system workflow instructions in account-free mode", async () => {
-    const tools = await import("./support/localAssistantTools");
-    const [response] = await tools.runLocalAssistantTools("local-user", [
+    const [response] = await runTools([
       {
         id: "workflow",
         name: "Read",
@@ -1674,11 +1486,8 @@ describe("local assistant tools", () => {
   });
 
   it("does not expose local paths for a missing PDF resource", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const tools = await import("./support/localAssistantTools");
 
-    const [response] = await tools.runLocalAssistantTools("local-user", [
+    const [response] = await runTools([
       {
         id: "call-evidence",
         name: "Read",
@@ -1695,79 +1504,6 @@ describe("local assistant tools", () => {
     });
     expect(response.content).not.toContain(temporaryDirectory);
     expect(response.content).not.toContain("ENOENT");
-  });
-
-  it("creates an Authorities draft with a latest Library binding", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const store = await import("./support/localDocumentFixtures");
-    const document = await store.createLocalDocument({
-      userId: "local-user",
-      kind: "file",
-      filename: "factum.docx",
-      bytes: await nativeTableBytes(),
-    });
-    const importDraft = vi.fn(async () => ({ id: "draft-1", kind: "authorities",
-      projectId: null, revision: 1 }));
-    const authorities = { importDraft } as never;
-    const tools = await import("./support/localAssistantTools");
-
-    const [response] = await tools.runLocalAssistantTools("local-user", [
-      {
-        id: "call-toa",
-        name: "update_work_product",
-        input: {
-          action: "create",
-          kind: "authorities",
-          document_id: `document://${document.id}/version/${document.current_version_id}`,
-        },
-      },
-    ], { authorities });
-
-    const payload = JSON.parse(response.content) as Record<string, string>;
-    expect(payload).toMatchObject({
-      ok: true,
-      work_product: { id: "draft-1", kind: "authorities", revision: 1 },
-    });
-    expect(payload).not.toHaveProperty("job");
-    expect(response.events).toEqual([expect.objectContaining({
-      status: "complete",
-      tool: "update_work_product",
-      work_product: { id: "draft-1", kind: "authorities", revision: 1 },
-    })]);
-  });
-
-  it("attaches an existing Library PDF to an Authorities citation", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const store = await import("./support/localDocumentFixtures");
-    const document = await store.createLocalDocument({
-      userId: "local-user", kind: "file", filename: "decision.pdf",
-      bytes: Buffer.from("%PDF-1.7\n%%EOF"),
-    });
-    const active = { id: "draft-1", kind: "authorities" as const,
-      projectId: null, revision: 3 };
-    const attachLibraryPdf = vi.fn(async () => ({ ...active, revision: 4 }));
-    const tools = await import("./support/localAssistantTools");
-
-    const [response] = await tools.runLocalAssistantTools("local-user", [{
-      id: "attach-authority", name: "update_work_product", input: {
-        action: "update", kind: "authorities", draft_id: active.id,
-        authority_id: "authority-1",
-        source_language: "en",
-        document_id: resourceReference.document(document.id, document.current_version_id),
-      },
-    }], {
-      authorities: { attachLibraryPdf } as never,
-      workProducts: { get: vi.fn(async () => active) } as never,
-    });
-
-    expect(response.mutated).toBe(true);
-    expect(JSON.parse(response.content)).toMatchObject({ ok: true,
-      work_product: { id: active.id, kind: "authorities", revision: 4 },
-      change: { type: "attach-authority-pdf", authority_id: "authority-1",
-        source_language: "en" },
-    });
   });
 
   it("reads Authorities summary-first and returns only requested occurrence detail", async () => {
@@ -1829,8 +1565,7 @@ describe("local assistant tools", () => {
     const build = vi.fn(async (_scope, _id, revision) => ({
       product: { ...current, revision: revision + 1 }, receipt: {},
     }));
-    const tools = await import("./support/localAssistantTools");
-    const responses = await tools.runLocalAssistantTools("local-user", [
+    const responses = await runTools([
       { id: "read-authorities", name: "update_work_product",
         input: { action: "read", occurrence_limit: 1 } },
       { id: "page-occurrences", name: "update_work_product",
@@ -1951,7 +1686,7 @@ describe("local assistant tools", () => {
     expect(registry.specialists()).not.toContain("update_work_product");
     expect(registry.specialists()).toContain("manage_work_products");
 
-    const responses = await tools.runLocalAssistantTools("local-user", [
+    const responses = await runTools([
       { id: "read-focus", name: "update_work_product",
         input: { action: "read" } },
       { id: "span-focus", name: "update_work_product", input: { action: "update",
@@ -1989,8 +1724,6 @@ describe("local assistant tools", () => {
   });
 
   it("applies canonical authority actions and binds a Library cover", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
     const pdf = await store.createLocalDocument({ userId: "local-user", kind: "file",
       filename: "appendix.pdf", bytes: Buffer.from("%PDF-1.7\n%%EOF") });
@@ -2009,7 +1742,6 @@ describe("local assistant tools", () => {
     };
     const attachLibraryPdf = vi.fn(async (_scope, _id, input) =>
       ({ ...current, revision: input.revision + 1 }));
-    const tools = await import("./support/localAssistantTools");
     const resource = resourceReference.document(pdf.id, pdf.current_version_id);
     const actions = [
       { type: "set-profile", profileId: "federal-court" },
@@ -2023,7 +1755,7 @@ describe("local assistant tools", () => {
       ], applicationUnder: "Federal Courts Act, section 18.1", title: "Book of Authorities" } },
       { type: "set-settings", settings: { bookRole: "moving-party" } },
     ];
-    const responses = await tools.runLocalAssistantTools("local-user", [
+    const responses = await runTools([
       ...actions.map((authorities_action, index) => ({ id: `action-${index}`,
         name: "update_work_product", input: { action: "update", authorities_action } })),
       { id: "cover", name: "update_work_product", input: { action: "update",
@@ -2043,7 +1775,7 @@ describe("local assistant tools", () => {
     expect(JSON.parse(responses.at(-1)!.content)).toMatchObject({ ok: true,
       change: { type: "attach-book-pdf", book_slot: "cover" } });
     const before = structuredClone(current);
-    const rejected = await tools.runLocalAssistantTools("local-user", [
+    const rejected = await runTools([
       { id: "old-field", name: "update_work_product", input: { action: "update",
         authorities_action: { type: "remove-authority",
           authority_id: current.state.authorityOrder[0] } } },
@@ -2058,8 +1790,6 @@ describe("local assistant tools", () => {
   });
 
   it("inspects, attaches, replaces, and removes a supplemental book PDF", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
     const first = await store.createLocalDocument({ userId: "local-user", kind: "file",
       filename: "chronology.pdf", bytes: Buffer.from("%PDF-1.7\nfirst\n%%EOF") });
@@ -2087,8 +1817,7 @@ describe("local assistant tools", () => {
           sourceSha256: document.source_sha256 } }) };
       return current;
     });
-    const tools = await import("./support/localAssistantTools");
-    const [attached] = await tools.runLocalAssistantTools("local-user", [{
+    const [attached] = await runTools([{
       id: "attach-supplement", name: "update_work_product", input: {
         action: "update", book_slot: "supplemental",
         document_id: resourceReference.document(first.id, first.current_version_id),
@@ -2098,7 +1827,7 @@ describe("local assistant tools", () => {
       workProducts: { get: vi.fn(async () => current) } as never });
     const supplementId = JSON.parse(attached.content).change.supplement_id as string;
 
-    const [inspected, replaced, removed] = await tools.runLocalAssistantTools("local-user", [
+    const [inspected, replaced, removed] = await runTools([
       { id: "read-supplement", name: "update_work_product",
         input: { action: "read" } },
       { id: "replace-supplement", name: "update_work_product", input: {
@@ -2158,10 +1887,9 @@ describe("local assistant tools", () => {
       found: { locator: { kind: "paragraph" as const, label: "para 10" }, text: "match" } }]);
     const refreshInput = vi.fn(async (_scope, _id, { revision }) =>
       ({ ...current, revision: revision + 1 }));
-    const tools = await import("./support/localAssistantTools");
     const { createLegalEvidenceTurnState } = await import("../chat/legalEvidence");
     const legalEvidence = createLegalEvidenceTurnState();
-    const [review, refreshed] = await tools.runLocalAssistantTools("local-user", [
+    const [review, refreshed] = await runTools([
       { id: "review", name: "update_work_product", input: { action: "review",
         occurrence_limit: 100 } },
       { id: "refresh", name: "update_work_product", input: { action: "refresh",
@@ -2184,8 +1912,7 @@ describe("local assistant tools", () => {
   it("lists scoped drafts and rejects general operations on the active draft tool", async () => {
     const choice = { id: "choice", kind: "authorities" as const, title: "Motion authorities",
       projectId: null, revision: 4, createdAt: "yesterday", updatedAt: "today" };
-    const tools = await import("./support/localAssistantTools");
-    const [listed] = await tools.runLocalAssistantTools("local-user", [{ id: "list",
+    const [listed] = await runTools([{ id: "list",
       name: "update_work_product", input: { action: "read", kind: "authorities" } }], {
       workProducts: { list: vi.fn(async () => [choice]) } as never,
     });
@@ -2193,7 +1920,7 @@ describe("local assistant tools", () => {
       title: choice.title, revision: 4, updated_at: "today" }], has_more: false,
       requested_action: "choose" });
 
-    const [create, select] = await tools.runLocalAssistantTools("local-user", [
+    const [create, select] = await runTools([
       { id: "create", name: "update_work_product", input: { action: "create",
         kind: "authorities" } },
       { id: "select", name: "update_work_product", input: { action: "select",
@@ -2215,8 +1942,7 @@ describe("local assistant tools", () => {
         state: applyAuthoritiesUserAction(other.state, action) };
       return other;
     });
-    const tools = await import("./support/localAssistantTools");
-    const responses = await tools.runLocalAssistantTools("local-user", [
+    const responses = await runTools([
       { id: "list", name: "manage_work_products", input: { action: "read", kind: "authorities" } },
       { id: "read-other", name: "manage_work_products", input: {
         action: "read", kind: "authorities", draft_id: other.id } },
@@ -2251,55 +1977,6 @@ describe("local assistant tools", () => {
       error: "Draft is outside this chat's work-product scope" });
   });
 
-  it("creates a Court Record when no work product is active", async () => {
-    const created = { id: "record-1", kind: "court-record" as const,
-      title: "Motion record", projectId: null, revision: 1,
-      state: { profileId: "fc-motion-record-moving", cover: {}, entries: [], bindings: {} },
-      outputs: {}, createdAt: "2026-08-31T00:00:00.000Z",
-      updatedAt: "2026-08-31T00:00:00.000Z" };
-    const create = vi.fn(async () => created);
-    const tools = await import("./support/localAssistantTools");
-    const [response] = await tools.runLocalAssistantTools("local-user", [{
-      id: "create-record", name: "update_work_product", input: {
-        action: "create", kind: "court-record",
-        profile_id: "fc-motion-record-moving", title: "Motion record",
-      },
-    }], { workProducts: { create, get: vi.fn() } as never });
-
-    expect(response.mutated).toBe(true);
-    expect(JSON.parse(response.content)).toMatchObject({ ok: true,
-      work_product: { id: "record-1", kind: "court-record", revision: 1 },
-      requested_action: "open",
-      profile: { id: "fc-motion-record-moving",
-        slots: expect.arrayContaining([expect.objectContaining({ id: "notice-motion" })]) },
-    });
-  });
-
-  it("updates a selected Court Record through the same semantic fields as the builder", async () => {
-    const current = { id: "record-1", kind: "court-record" as const,
-      title: "Motion record", projectId: null, revision: 1,
-      state: { profileId: "fc-motion-record-moving", cover: {}, entries: [], bindings: {} },
-      outputs: {}, createdAt: "2026-08-31T00:00:00.000Z",
-      updatedAt: "2026-08-31T00:00:00.000Z" };
-    const updateDraft = vi.fn(async () => ({ product: { ...current, revision: 2,
-      state: { ...current.state, cover: { courtFileNumber: "T-123-26" } } },
-    filled: ["courtFileNumber"], entryId: undefined }));
-    const tools = await import("./support/localAssistantTools");
-    const [response] = await tools.runLocalAssistantTools("local-user", [{
-      id: "update-record", name: "update_work_product", input: {
-        action: "update", kind: "court-record", draft_id: current.id,
-        cover: { courtFileNumber: "T-123-26" },
-      },
-    }], { workProducts: { create: vi.fn(), get: vi.fn(async () => current) } as never,
-      courtRecords: { updateDraft, bindOutput: vi.fn() } as never });
-
-    expect(response.mutated).toBe(true);
-    expect(JSON.parse(response.content)).toMatchObject({ ok: true,
-      work_product: { id: current.id, kind: "court-record", revision: 2 },
-      filled_fields: ["courtFileNumber"],
-    });
-  });
-
   it("creates or updates Authorities from exact grounded receipts without reading documents", async () => {
     const {
       createLegalEvidenceTurnState,
@@ -2331,9 +2008,8 @@ describe("local assistant tools", () => {
     const addReceipts = vi.fn(async () => ({ ...active, revision: 4 }));
     const authorities = { importDraft, addReceipts } as never;
     const read = vi.fn(() => { throw new Error("documents must not be read"); });
-    const tools = await import("./support/localAssistantTools");
 
-    const [response] = await tools.runLocalAssistantTools("local-user", [{
+    const [response] = await runTools([{
       id: "grounded-authorities",
       name: "update_work_product",
       input: { action: "create", kind: "authorities",
@@ -2358,7 +2034,7 @@ describe("local assistant tools", () => {
       work_product: { id: "grounded-draft", kind: "authorities", revision: 1 },
     })]);
 
-    const [updated] = await tools.runLocalAssistantTools("local-user", [{
+    const [updated] = await runTools([{
       id: "update-grounded-authorities",
       name: "update_work_product",
       input: { action: "update",
@@ -2381,8 +2057,7 @@ describe("local assistant tools", () => {
   it("rejects empty and unknown grounded evidence IDs", async () => {
     const { createLegalEvidenceTurnState } = await import("../chat/legalEvidence");
     const importDraft = vi.fn();
-    const tools = await import("./support/localAssistantTools");
-    const responses = await tools.runLocalAssistantTools("local-user", [{
+    const responses = await runTools([{
       id: "empty-authorities",
       name: "update_work_product",
       input: { action: "create", kind: "authorities", evidence_ids: [" "] },
@@ -2426,10 +2101,7 @@ describe("local assistant tools", () => {
         }),
       }),
     );
-    const tools = await import("./support/localAssistantTools");
-    const [response] = await tools.runLocalAssistantTools(
-      "local-user",
-      [
+    const [response] = await runTools([
         {
           id: "call-1",
           name: "Read",
@@ -2477,12 +2149,9 @@ describe("local assistant tools", () => {
         unofficial_text_en: text,
       }] }),
     }));
-    const [{ createLegalEvidenceTurnState }, tools] = await Promise.all([
-      import("../chat/legalEvidence"),
-      import("./support/localAssistantTools"),
-    ]);
+    const { createLegalEvidenceTurnState } = await import("../chat/legalEvidence");
     const state = createLegalEvidenceTurnState();
-    const [response] = await tools.runLocalAssistantTools("local-user", [{
+    const [response] = await runTools([{
       id: "call-pattern",
       name: "Read",
       input: {
@@ -2533,12 +2202,9 @@ describe("local assistant tools", () => {
         unofficial_text_en: text,
       }] }),
     }));
-    const [{ createLegalEvidenceTurnState }, tools] = await Promise.all([
-      import("../chat/legalEvidence"),
-      import("./support/localAssistantTools"),
-    ]);
+    const { createLegalEvidenceTurnState } = await import("../chat/legalEvidence");
     const state = createLegalEvidenceTurnState();
-    const [response] = await tools.runLocalAssistantTools("local-user", [{
+    const [response] = await runTools([{
       id: "call-unstructured-pattern",
       name: "Read",
       input: {

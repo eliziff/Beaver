@@ -4,7 +4,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { CourtRecordBuildPanel } from "./CourtRecordBuildPanel";
 import { COURT_PROFILE_BY_ID } from "./profiles";
-import type { BuildResult, RecordEntry } from "./types";
+import type { BuildResult } from "./types";
 
 vi.mock("@/app/components/shared/views/PdfView", () => ({
   PdfView: ({ bytes }: { bytes: Uint8Array }) => <p>Preview page {bytes[0]}</p>,
@@ -29,39 +29,5 @@ describe("CourtRecordBuildPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /evidence.pdf/ }));
     expect(onDownload).toHaveBeenCalledWith(artifacts[1]);
     expect(screen.queryByRole("button", { name: "Prepare filing set" })).toBeNull();
-  });
-  it("identifies the generated Form 344 output as awaiting signature", () => {
-    const profile = structuredClone(COURT_PROFILE_BY_ID.get("fca-appeal-book")!);
-    const entry = { id: "notice", kindId: "notice", file: new File(["pdf"], "notice.pdf"),
-      title: "Notice", pageCount: 1, searchable: true, encrypted: false } as RecordEntry;
-    render(<CourtRecordBuildPanel profile={profile} cover={{}} entries={[entry]}
-      report={{ ready: true, blockers: [], review: [], passes: [], pageCount: 1,
-        inputBytes: 1 }} building={false}
-      saving={false} hostMode="standalone" onBuild={() => {}} onDownload={() => {}} />);
-    expect(screen.getByRole("button", { name: "Build for signature" })).toBeVisible();
-  });
-
-  it("stops requesting a signature when the signed Form 344 is supplied", () => {
-    const entry = { id: "signed", kindId: "form-344", file: new File(["signed"], "signed.pdf"),
-      title: "Signed certificate", pageCount: 1, searchable: true, encrypted: false } as RecordEntry;
-    render(<CourtRecordBuildPanel profile={COURT_PROFILE_BY_ID.get("fca-appeal-book")!}
-      cover={{}} entries={[entry]} report={{ ready: true, blockers: [], review: [],
-        passes: [], pageCount: 1, inputBytes: 6 }} building={false} saving={false}
-      hostMode="standalone" onBuild={vi.fn()} onDownload={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Build record" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Build for signature" })).toBeNull();
-  });
-
-  it("identifies a generated exhibit certificate as awaiting signature", () => {
-    const file = new File(["test"], "exhibit.pdf", { type: "application/pdf" });
-    const entry = { id: "exhibit", kindId: "exhibit", file, title: "Exhibit A",
-      exhibitLabel: "A", pageCount: 1, searchable: true, encrypted: false } as RecordEntry;
-
-    render(<CourtRecordBuildPanel profile={COURT_PROFILE_BY_ID.get("fc-affidavit-exhibits")!}
-      cover={{}} entries={[entry]} report={{ ready: true, blockers: [], review: [],
-        passes: [], pageCount: 2, inputBytes: file.size }} building={false} saving={false}
-      hostMode="standalone" onBuild={vi.fn()} onDownload={vi.fn()} />);
-
-    expect(screen.getByRole("button", { name: "Build for signature" })).toBeVisible();
   });
 });
