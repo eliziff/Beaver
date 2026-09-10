@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ApplicationScope } from "./applicationError";
-import type { DocumentAggregate, DocumentHead, DocumentRepository, StoredDocument,
+import type { DocumentHead, DocumentRepository, StoredDocument,
   StoredDocumentPart, StoredDocumentVersion, StoredPartChanges } from "./documentRepository";
 import { decodePdfProfileSelection, type DocumentParseState, type StoredAssistantEdit } from "./documentStore";
 import { pdfLifecycleMark } from "./pdfLifecycleDiagnostics";
@@ -16,8 +16,14 @@ const CLEANUP_GRACE_MS = 60 * 60 * 1_000;
 const CLEANUP_LEASE_MS = 5 * 60 * 1_000;
 // Work still queued describes the PDF better than work that already finished: a cited-pages
 // pass succeeds while the whole-PDF pass waits, and the reader is still waiting with it.
-const ACTIVE_JOB_FIRST = sql.raw(`CASE q.status WHEN 'running' THEN 0 WHEN 'queued' THEN 1
-  ELSE 2 END,q.priority DESC,q.updated_at DESC,q.id DESC`);
+const PDF_JOB_COLUMNS = sql.raw(`j.status pdf_job_status,j.progress pdf_job_progress,
+  j.result pdf_job_result,j.last_error pdf_job_error`);
+const PDF_JOB_JOIN = sql.raw(`LEFT JOIN application_jobs j ON j.id=(SELECT q.id
+  FROM application_jobs q WHERE q.document_id=d.id
+    AND q.document_version_id=d.current_version_id
+    AND q.kind IN('pdf.prepare','pdf.reprocess')
+  ORDER BY CASE q.status WHEN 'running' THEN 0 WHEN 'queued' THEN 1
+    ELSE 2 END,q.priority DESC,q.updated_at DESC,q.id DESC LIMIT 1)`);
 const scopedBlob = (key: string, userId: unknown, projectId: unknown,
   digest = documentBlobDigest(key)) => !!digest && key === documentBlobKey({
     userId: String(userId), projectId: typeof projectId === "string" ? projectId : null,
@@ -125,15 +131,6 @@ const storedEdit = (row: Row): StoredAssistantEdit & { versionId: string } => ({
   diff: decode(row.diff, []),
   status: row.status === "accepted" || row.status === "rejected" ? row.status : "pending",
 });
-
-async function working(db: RelationalDatabase, scope: ApplicationScope,
-  documentId: string, owner = false, lock = false): Promise<DocumentAggregate | null> {
-  const current = await head(db, scope, documentId, owner, lock);
-  if (!current) return null;
-  const edits = await rows(sql`SELECT * FROM document_edits WHERE document_id=${documentId}
-    AND version_id=${current.document.currentVersionId}`, db);
-  return { ...current, edits: edits.map(storedEdit) };
-}
 
 async function addVersion(
   db: RelationalDatabase,
@@ -275,13 +272,9 @@ async function heads(db: RelationalDatabase, scope: ApplicationScope, documentId
     v.file_type head_file_type,v.size_bytes head_size_bytes,v.page_count head_page_count,
     v.source_sha256 head_source_sha256,v.storage_path head_storage_path,
     v.pdf_storage_path head_pdf_storage_path,v.pdf_profile head_pdf_profile,
-    v.provenance head_provenance,j.status pdf_job_status,j.progress pdf_job_progress,
-    j.result pdf_job_result,j.last_error pdf_job_error
+    v.provenance head_provenance,${PDF_JOB_COLUMNS}
     FROM documents d JOIN document_versions v ON v.id=d.current_version_id AND v.document_id=d.id
-    LEFT JOIN application_jobs j ON j.id=(SELECT q.id FROM application_jobs q
-      WHERE q.document_id=d.id AND q.document_version_id=d.current_version_id
-        AND q.kind IN('pdf.prepare','pdf.reprocess')
-      ORDER BY ${ACTIVE_JOB_FIRST} LIMIT 1)
+    ${PDF_JOB_JOIN}
     WHERE d.id IN(${sql.join(documentIds)}) AND ${documentAccess(scope, owner)}`, db);
   return found.map((row) => ({ document: storedDocument(row), versions: [storedVersion(row, "head_")] }));
 }
@@ -372,20 +365,19 @@ export const documentRepository: DocumentRepository = {
     return created;
   },
   async get(scope, id, owner = false) {
-    return working(await relationalDatabase(), scope, id, owner);
+    const db = await relationalDatabase(), current = await head(db, scope, id, owner);
+    if (!current) return null;
+    const edits = await rows(sql`SELECT * FROM document_edits WHERE document_id=${id}
+      AND version_id=${current.document.currentVersionId}`, db);
+    return { ...current, edits: edits.map(storedEdit) };
   },
   async parseStates(scope, ids) {
     const unique = [...new Set(ids)];
     if (!unique.length) return [];
     return (await rows(sql`SELECT d.id,v.page_count pdf_page_count,v.pdf_profile,
-      j.status pdf_job_status,
-      j.progress pdf_job_progress,j.result pdf_job_result,j.last_error pdf_job_error
+      ${PDF_JOB_COLUMNS}
       FROM documents d JOIN document_versions v ON v.id=d.current_version_id AND v.document_id=d.id
-        LEFT JOIN application_jobs j ON j.id=(SELECT q.id
-        FROM application_jobs q WHERE q.document_id=d.id
-          AND q.document_version_id=d.current_version_id
-          AND q.kind IN('pdf.prepare','pdf.reprocess')
-        ORDER BY ${ACTIVE_JOB_FIRST} LIMIT 1)
+      ${PDF_JOB_JOIN}
       WHERE d.id IN(${sql.join(unique)}) AND ${documentAccess(scope)}`))
       .map((row) => ({ id: String(row.id), parseState: pdfParseState(row) }));
   },
@@ -411,7 +403,7 @@ export const documentRepository: DocumentRepository = {
     if (input.parts?.put.some((part) => part.documentId !== id ||
         part.versionId !== input.version.id)) throw new Error("Document part belongs to a different version");
     const db = await relationalDatabase();
-    const result = await db.transaction(async (tx) => {
+    return db.transaction(async (tx) => {
       await lockDocuments(tx, scope, [id]);
       const document = await one(sql`SELECT d.current_version_id,d.user_id,d.project_id,
           CASE WHEN d.project_id IS NULL THEN d.library_folder_id ELSE d.folder_id END current_folder_id,
@@ -445,7 +437,6 @@ export const documentRepository: DocumentRepository = {
       await addEdits(tx, id, input.version.id, input.edits);
       return "created";
     });
-    return result;
   },
   async updateVersion(scope, id, input) {
     if (input.bumpWorkingRevision !== false && !input.expectedCurrentVersionId)
@@ -455,7 +446,7 @@ export const documentRepository: DocumentRepository = {
     if (input.parts?.put.some((part) => part.documentId !== id ||
         part.versionId !== input.versionId)) throw new Error("Document part belongs to a different version");
     const db = await relationalDatabase();
-    const result = await db.transaction(async (tx) => {
+    return db.transaction(async (tx) => {
       await lockDocuments(tx, scope, [id]);
       const row = await one(sql`SELECT v.*,d.current_version_id,d.user_id owner_user_id,
           d.project_id owner_project_id
@@ -532,7 +523,6 @@ export const documentRepository: DocumentRepository = {
       }
       return "updated";
     });
-    return result;
   },
   async recordPdfPreparation(scope, id, input) {
     return await changes(sql`UPDATE document_versions SET page_count=${input.pageCount},
