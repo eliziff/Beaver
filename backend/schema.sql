@@ -205,6 +205,7 @@ create table if not exists chats (
   tabular_review_id text references tabular_reviews(id) on delete set null, title text,
   research_file_id text references documents(id) on delete set null,
   research_selection jsonb,
+  work_product_id text,
   model text, reasoning_effort text,
   created_at text not null, updated_at text not null, deleted_at text,
   transcript_version integer not null default 0,
@@ -330,6 +331,7 @@ create index if not exists tabular_members_email on tabular_review_members(email
 create index if not exists tabular_cells_review on tabular_cells(review_id,document_id,column_index);
 create index if not exists tabular_changes_review on tabular_changes(review_id,created_at desc,id desc);
 create index if not exists chats_page on chats(user_id,deleted_at,updated_at desc,id);
+create index if not exists chats_work_product on chats(work_product_id,updated_at desc,id desc);
 create index if not exists chat_messages_page on chat_messages(chat_id,created_at,id);
 create index if not exists application_jobs_claim on
   application_jobs(status,priority desc,run_at,created_at,id);

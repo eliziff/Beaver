@@ -19,6 +19,8 @@ vi.mock("../../middleware/auth", () => ({
 const CHAT_ID = "10000000-0000-4000-8000-000000000001";
 const PROJECT_ID = "20000000-0000-4000-8000-000000000001";
 const JOB_ID = "30000000-0000-4000-8000-000000000001";
+const DRAFT_ID = "40000000-0000-4000-8000-000000000001";
+const OTHER_DRAFT_ID = "40000000-0000-4000-8000-000000000002";
 const chat: ChatRecord = {
   id: CHAT_ID, user_id: "u1", project_id: PROJECT_ID, tabular_review_id: null,
   title: null, model: null, reasoning_effort: null, transcript_version: 7,
@@ -41,10 +43,12 @@ function fixture(events: PublicAssistantEvent[] = [], status: ApplicationJob["st
     return job;
   } };
   const get: ChatStore["get"] = async (_scope, id) => id === CHAT_ID ? chat : null;
+  const list = vi.fn<ChatStore["list"]>().mockResolvedValue([]);
   const api = express();
   api.use(express.json());
-  api.use("/chat", createChatRouter({ get } as ChatStore, {} as ChatApplication, turns as ChatTurnQueue));
-  return { api, enqueue };
+  api.use("/chat", createChatRouter({ get, list } as unknown as ChatStore,
+    {} as ChatApplication, turns as ChatTurnQueue));
+  return { api, enqueue, list };
 }
 
 function frames(text: string) {
@@ -108,6 +112,37 @@ describe("GET /chat history filters", () => {
     const { api } = fixture();
     const res = await request(api).get("/chat").query(query);
     expect(res.status).toBe(400);
+  });
+
+  it("scopes the listing to one work product", async () => {
+    const { api, list } = fixture();
+    const res = await request(api).get("/chat").query({ work_product_id: DRAFT_ID, limit: "1" });
+    expect(res.status).toBe(200);
+    expect(list).toHaveBeenCalledExactlyOnceWith(expect.anything(),
+      expect.objectContaining({ workProductId: DRAFT_ID, limit: 1 }));
+  });
+});
+
+describe("POST /chat work product binding", () => {
+  const boundChat: ChatRecord = { ...chat, project_id: null, work_product_id: DRAFT_ID,
+    transcript_version: 0 };
+  const boundFixture = () => {
+    const enqueue = vi.fn<ChatTurnQueue["enqueue"]>();
+    const turns = { enqueue, observe: vi.fn() } as unknown as ChatTurnQueue;
+    const get: ChatStore["get"] = async (_scope, id) => id === CHAT_ID ? boundChat : null;
+    const api = express();
+    api.use(express.json());
+    api.use("/chat", createChatRouter({ get } as ChatStore, {} as ChatApplication, turns));
+    return { api, enqueue };
+  };
+
+  it("refuses a turn whose work product differs from the chat's binding", async () => {
+    const { api, enqueue } = boundFixture();
+    const res = await request(api).post("/chat").send({ ...VALID_BODY, chat_id: CHAT_ID,
+      work_product: { kind: "court-record", id: OTHER_DRAFT_ID, revision: 1 } });
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ detail: "work_product does not match chat" });
+    expect(enqueue).not.toHaveBeenCalled();
   });
 });
 
