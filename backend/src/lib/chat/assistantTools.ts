@@ -2288,6 +2288,9 @@ export function assistantTools<Context extends {
       insert_into_document: draft.insertIntoDocument,
       counts: { units: draft.units.length, occurrences: Object.keys(draft.occurrences).length,
         authorities: draft.authorityOrder.length },
+      // Unit ids are not guessable: without them a sweep probes past the last unit.
+      unit_index: draft.units.slice(0, 200).map(({ id, kind, ordinal, occurrenceIds }) =>
+        ({ id, kind, ordinal, occurrence_count: occurrenceIds.length })),
       }),
       authorities: authorityIds.slice(authorityOffset, authorityOffset + authorityLimit)
         .map(authority).filter(Boolean),
