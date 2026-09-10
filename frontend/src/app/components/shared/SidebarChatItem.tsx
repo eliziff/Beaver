@@ -68,6 +68,8 @@ export function SidebarChatItem({
     const [isDeleting, setIsDeleting] = useState(false);
     const editInputRef = useRef<HTMLInputElement>(null);
     const isChatOwner = !!user?.id && chat.user_id === user.id;
+    const ownerOnly = (action: string, run: () => void) => () =>
+        isChatOwner ? run() : setOwnerOnlyAction(action);
     const actionsWidth = onMoveToProject ? "w-[72px]" : "w-12";
     useEffect(() => {
         if (isRenaming) editInputRef.current?.focus();
@@ -202,13 +204,7 @@ export function SidebarChatItem({
                                 type="button"
                                 aria-label={`Move ${chat.title ?? "chat"} to project`}
                                 title="Move to project"
-                                onClick={() => {
-                                    if (!isChatOwner) {
-                                        setOwnerOnlyAction("move this chat");
-                                        return;
-                                    }
-                                    onMoveToProject();
-                                }}
+                                onClick={ownerOnly("move this chat", onMoveToProject)}
                                 className="flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900"
                             >
                                 <FolderInput className="h-3 w-3" />
@@ -218,14 +214,10 @@ export function SidebarChatItem({
                             type="button"
                             aria-label={`Rename ${chat.title ?? "chat"}`}
                             title="Rename"
-                            onClick={() => {
-                                if (!isChatOwner) {
-                                    setOwnerOnlyAction("rename this chat");
-                                    return;
-                                }
+                            onClick={ownerOnly("rename this chat", () => {
                                 setEditTitle(chat.title ?? "");
                                 setIsRenaming(true);
-                            }}
+                            })}
                             className="flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900"
                         >
                             <Pencil className="h-3 w-3" />
@@ -242,13 +234,7 @@ export function SidebarChatItem({
                                     ? "Delete selected chats"
                                     : "Delete"
                             }
-                            onClick={() => {
-                                if (!isChatOwner) {
-                                    setOwnerOnlyAction("delete this chat");
-                                    return;
-                                }
-                                setConfirmDeleteOpen(true);
-                            }}
+                            onClick={ownerOnly("delete this chat", () => setConfirmDeleteOpen(true))}
                             className="flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-red-50 hover:text-red-700"
                         >
                             <Trash2 className="h-3 w-3" />

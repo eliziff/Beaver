@@ -163,7 +163,6 @@ describe("DocxView", () => {
         const { container } = render(
             <DocxView
                 documentId="doc-1"
-                preferPdfRendition={false}
                 onReady={onReady}
                 onScrollChange={onScrollChange}
             />,
@@ -213,7 +212,6 @@ describe("DocxView", () => {
                 documentId="tracked-doc"
                 versionId="version-1"
                 refetchKey={4}
-                preferPdfRendition={false}
                 onReady={firstReady}
             />,
         );
@@ -230,7 +228,6 @@ describe("DocxView", () => {
                 documentId="tracked-doc"
                 versionId="version-1"
                 refetchKey={4}
-                preferPdfRendition={false}
                 onReady={secondReady}
             />,
         );
@@ -304,7 +301,6 @@ describe("DocxView", () => {
             <DocxView
                 documentId="no-rendition-doc"
                 versionId="v1"
-                preferPdfRendition={false}
             />,
         );
 
