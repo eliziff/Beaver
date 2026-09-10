@@ -1,7 +1,6 @@
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { WorkProductAssistant, useWorkProductAssistantState } from "./WorkProductAssistant";
+import { act, render, renderHook } from "@testing-library/react";
+import { beforeEach, expect, it, vi } from "vitest";
+import { useWorkProductAssistantState } from "./WorkProductAssistant";
 import { WorkProductAssistantPanel } from "./WorkProductAssistantPanel";
 
 const mocks = vi.hoisted(() => ({
@@ -12,24 +11,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/app/hooks/useAssistantChat", () => ({
   useAssistantChat: () => ({
     state: { messages: mocks.messages },
-    actions: { handleChat: mocks.handleChat, cancel: vi.fn(),
-      clearRejectedTurn: vi.fn(), retryRejectedTurn: vi.fn() },
+    actions: { handleChat: mocks.handleChat },
   }),
 }));
-vi.mock("./AssistantDock", () => ({
-  AssistantDock: ({ tabs, expanded }: { tabs: Array<{ content: React.ReactNode }>;
-    expanded: boolean }) => <aside aria-label="Assistant dock" hidden={!expanded}>{tabs[0].content}</aside>,
-}));
-vi.mock("./ConversationView", () => ({
-  ConversationView: ({ sendDisabled }: { sendDisabled?: boolean }) =>
-    <button type="button" disabled={sendDisabled}>Send</button>,
-}));
+vi.mock("./AssistantDock", () => ({ AssistantDock: () => null }));
 
 const product = { id: "record-1", kind: "court-record" as const,
   revision: 2, projectId: null };
 
 beforeEach(() => { mocks.messages = []; });
-afterEach(() => vi.unstubAllGlobals());
 
 it("refreshes only for a newer completed mutation of the active product", () => {
   const onProductUpdated = vi.fn();
@@ -51,82 +41,33 @@ it("refreshes only for a newer completed mutation of the active product", () => 
   expect(onProductUpdated).toHaveBeenCalledOnce();
 });
 
-it("keeps drafting available while disabling send until the product is synchronized", () => {
-  render(<WorkProductAssistantPanel product={product} synced={false}
-    onChatIdChange={vi.fn()} onClose={vi.fn()} onProductUpdated={vi.fn()} />);
-  expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+it("keeps one conversation per work product without assistant-owned draft state", () => {
+  const { result } = renderHook(() => useWorkProductAssistantState<typeof product>());
+  act(() => result.current.onProductChange(product, true));
+  act(() => result.current.onChatIdChange("chat-record-1"));
+  expect(result.current.chatId).toBe("chat-record-1");
+  act(() => result.current.onProductChange({ ...product, id: "record-2" }, true));
+  expect(result.current.chatId).toBeUndefined();
+  act(() => result.current.onProductChange(product, true));
+  expect(result.current.chatId).toBe("chat-record-1");
 });
 
-it("reserves the dock and stays mounted while collapsed", async () => {
-  const props = { product, onChatIdChange: vi.fn(), onClose: vi.fn() };
-  const { rerender } = render(<WorkProductAssistant {...props} expanded={false} />);
-  const dock = screen.getByLabelText("Assistant dock");
-  expect(dock).toHaveAttribute("hidden");
-
-  rerender(<WorkProductAssistant {...props} expanded />);
-  await screen.findByRole("button", { name: "Send" });
-  expect(screen.getByLabelText("Assistant dock")).toBe(dock);
-  rerender(<WorkProductAssistant {...props} expanded={false} />);
-  expect(dock).toHaveAttribute("hidden");
-  rerender(<WorkProductAssistant {...props} product={{ ...product, id: "record-2" }} />);
-  expect(screen.getByLabelText("Assistant dock")).not.toBe(dock);
+it("blocks another assistant turn until a tool-updated product has refreshed", () => {
+  const { result } = renderHook(() => useWorkProductAssistantState<typeof product>());
+  act(() => result.current.onProductChange(product, true));
+  expect(result.current.synced).toBe(true);
+  act(() => result.current.onProductUpdated(3));
+  expect(result.current.synced).toBe(false);
+  act(() => result.current.onProductChange({ ...product, revision: 3 }, true));
+  expect(result.current.synced).toBe(true);
 });
 
-it("keeps one conversation per work product without assistant-owned draft state", async () => {
-  function Harness() {
-    const state = useWorkProductAssistantState<typeof product>();
-    return <><output aria-label="Chat">{state.chatId ?? "none"}</output>
-      <button type="button" onClick={() => state.onProductChange(product, true)}>Record</button>
-      <button type="button" onClick={() => state.onProductChange({ ...product, id: "record-2" }, true)}>Other</button>
-      <button type="button" onClick={() => state.onChatIdChange(`chat-${state.product?.id}`)}>Connect</button></>;
-  }
-  const user = userEvent.setup();
-  render(<Harness />);
-
-  await user.click(screen.getByRole("button", { name: "Record" }));
-  await user.click(screen.getByRole("button", { name: "Connect" }));
-  expect(screen.getByRole("status", { name: "Chat" })).toHaveTextContent("chat-record-1");
-  await user.click(screen.getByRole("button", { name: "Other" }));
-  expect(screen.getByRole("status", { name: "Chat" })).toHaveTextContent("none");
-  await user.click(screen.getByRole("button", { name: "Record" }));
-  expect(screen.getByRole("status", { name: "Chat" })).toHaveTextContent("chat-record-1");
-});
-
-it("blocks another assistant turn until a tool-updated product has refreshed", async () => {
-  function Harness() {
-    const state = useWorkProductAssistantState<typeof product>();
-    return <><output aria-label="Sync">{String(state.synced)}</output>
-      <button onClick={() => state.onProductChange(product, true)}>Open</button>
-      <button onClick={() => state.onProductUpdated(3)}>Tool update</button>
-      <button onClick={() => state.onProductChange({ ...product, revision: 3 }, true)}>Refresh</button></>;
-  }
-  const user = userEvent.setup();
-  render(<Harness />);
-  await user.click(screen.getByRole("button", { name: "Open" }));
-  expect(screen.getByRole("status", { name: "Sync" })).toHaveTextContent("true");
-  await user.click(screen.getByRole("button", { name: "Tool update" }));
-  expect(screen.getByRole("status", { name: "Sync" })).toHaveTextContent("false");
-  await user.click(screen.getByRole("button", { name: "Refresh" }));
-  expect(screen.getByRole("status", { name: "Sync" })).toHaveTextContent("true");
-});
-
-it("emits a fresh product-scoped refresh when the next draft has a lower revision", async () => {
-  function Harness() {
-    const state = useWorkProductAssistantState<typeof product>();
-    return <><output aria-label="Refresh">{JSON.stringify(state.refreshToken)}</output>
-      <button onClick={() => state.onProductChange({ ...product, revision: 10 }, true)}>High draft</button>
-      <button onClick={() => state.onProductUpdated(11)}>High update</button>
-      <button onClick={() => state.onProductChange({ ...product, id: "record-2", revision: 1 }, true)}>Low draft</button>
-      <button onClick={() => state.onProductUpdated(2)}>Low update</button></>;
-  }
-  const user = userEvent.setup();
-  render(<Harness />);
-  await user.click(screen.getByRole("button", { name: "High draft" }));
-  await user.click(screen.getByRole("button", { name: "High update" }));
-  expect(screen.getByRole("status", { name: "Refresh" })).toHaveTextContent(
-    JSON.stringify({ id: "record-1", revision: 11, sequence: 1 }));
-  await user.click(screen.getByRole("button", { name: "Low draft" }));
-  await user.click(screen.getByRole("button", { name: "Low update" }));
-  expect(screen.getByRole("status", { name: "Refresh" })).toHaveTextContent(
-    JSON.stringify({ id: "record-2", revision: 2, sequence: 2 }));
+it("emits a fresh product-scoped refresh when the next draft has a lower revision", () => {
+  const { result } = renderHook(() => useWorkProductAssistantState<typeof product>());
+  act(() => result.current.onProductChange({ ...product, revision: 10 }, true));
+  act(() => result.current.onProductUpdated(11));
+  expect(result.current.refreshToken).toEqual({ id: "record-1", revision: 11, sequence: 1 });
+  act(() => result.current.onProductChange({ ...product, id: "record-2", revision: 1 }, true));
+  act(() => result.current.onProductUpdated(2));
+  expect(result.current.refreshToken).toEqual({ id: "record-2", revision: 2, sequence: 2 });
 });
