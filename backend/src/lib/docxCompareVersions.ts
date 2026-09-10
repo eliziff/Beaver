@@ -323,6 +323,10 @@ function wordDiffClusters(oldText: string, newText: string): DiffCluster[] {
 const KEEP_PARA_CHILDREN = new Set(["w:bookmarkStart", "w:bookmarkEnd",
     "w:proofErr", "w:commentRangeStart", "w:commentRangeEnd"]);
 
+/** Content controls hold their body in w:sdtContent. */
+const sdtContent = (node: XNode) =>
+    elChildren(node).filter((k) => elName(k) === "w:sdtContent");
+
 interface RebuildResult {
     children: XNode[];
     notes: string[];
@@ -497,9 +501,7 @@ function buildDeletedParagraph(oldP: XNode, text: string, author: string,
             } else if (name === "w:del") {
             } else if (name === "w:sdt") {
                 dropped.add("content control");
-                for (const c of elChildren(k)) {
-                    if (elName(c) === "w:sdtContent") visit(elChildren(c));
-                }
+                for (const c of sdtContent(k)) visit(elChildren(c));
             } else if (name === "w:fldSimple") {
                 dropped.add("field");
                 visit(elChildren(k));
@@ -558,11 +560,9 @@ function validateInsertable(pNode: XNode): string | null {
                 const r = visitContainer(elChildren(k), false);
                 if (r) return r;
             } else if (name === "w:sdt") {
-                for (const c of elChildren(k)) {
-                    if (elName(c) === "w:sdtContent") {
-                        const r = visitContainer(elChildren(c), false);
-                        if (r) return r;
-                    }
+                for (const c of sdtContent(k)) {
+                    const r = visitContainer(elChildren(c), false);
+                    if (r) return r;
                 }
             } else if (
                 name === "w:ins" ||
@@ -600,11 +600,7 @@ function markParagraphInserted(pNode: XNode, author: string, date: string,
             if (name === "w:hyperlink" || name === "w:smartTag") {
                 setChildren(k, wrapRuns(elChildren(k)));
             } else if (name === "w:sdt") {
-                for (const c of elChildren(k)) {
-                    if (elName(c) === "w:sdtContent") {
-                        setChildren(c, wrapRuns(elChildren(c)));
-                    }
-                }
+                for (const c of sdtContent(k)) setChildren(c, wrapRuns(elChildren(c)));
             }
             next.push(k);
         }
@@ -816,43 +812,32 @@ export async function compareDocxVersions(oldBytes: Buffer, newBytes: Buffer,
         record("", newB.text, "insert");
     };
 
-    const blockLabel = (k: "tbl" | "sdt") => k === "tbl" ? "table" : "content control";
-    const blockCode = (k: "tbl" | "sdt") => k === "tbl" ? "table" : "content_control";
-
     const processGap = (
         gapOld: Block[],
         gapNew: Block[],
         trailingBodyIndex: number,
     ) => {
         for (const kind of ["tbl", "sdt"] as const) {
+            const label = kind === "tbl" ? "table" : "content control";
+            const code = kind === "tbl" ? "table" : "content_control";
             const oldK = gapOld.filter((b) => b.kind === kind);
             const newK = gapNew.filter((b) => b.kind === kind);
             const paired = Math.min(oldK.length, newK.length);
-            for (let k = 0; k < paired; k++) {
-                abstain(
-                    `${blockCode(kind)}_changed: a ${blockLabel(kind)} ` +
+            for (const [blocks, reason] of [
+                [newK.slice(0, paired), `${code}_changed: a ${label} ` +
                     "differs between the two versions; " +
-                    `${blockLabel(kind)}s are not compared, and the ` +
+                    `${label}s are not compared, and the ` +
                     "new version's content is included without " +
-                    "revision marks",
-                    newK[k].text);
-            }
-            for (let k = paired; k < oldK.length; k++) {
-                abstain(
-                    `${blockCode(kind)}_removed: a ${blockLabel(kind)} ` +
+                    "revision marks"],
+                [oldK.slice(paired), `${code}_removed: a ${label} ` +
                     "present in the old version does not appear in " +
                     "the new version; its removal is not shown in the " +
-                    "redline",
-                    oldK[k].text);
-            }
-            for (let k = paired; k < newK.length; k++) {
-                abstain(
-                    `${blockCode(kind)}_added: a ${blockLabel(kind)} ` +
+                    "redline"],
+                [newK.slice(paired), `${code}_added: a ${label} ` +
                     "added in the new version is included without " +
                     "revision marks; " +
-                    `${blockLabel(kind)} changes are not tracked`,
-                    newK[k].text);
-            }
+                    `${label} changes are not tracked`],
+            ] as const) for (const block of blocks) abstain(reason, block.text);
         }
 
         const oldParas = gapOld.filter((b) => b.kind === "p");

@@ -53,7 +53,10 @@ function setText(node: XNode, value: string) {
   else delete node[ATTR_KEY];
 }
 
-async function authorityUnitPackage(session: Awaited<ReturnType<typeof openDocxSession>>) {
+/** Opens the package, indexes body/footnote units, and refuses stale reviewed text. */
+async function authorityUnitPackage(bytes: Buffer,
+  units: ReadonlyArray<{ id: string; text: string }>) {
+  const session = await openDocxSession(bytes);
   const document = await session.document(), footnotes = await session.readXml("word/footnotes.xml");
   const targets = new Map<string, XNode>();
   document.paragraphs.forEach(({ node }, ordinal) => targets.set(`body:${ordinal}`, node));
@@ -63,7 +66,15 @@ async function authorityUnitPackage(session: Awaited<ReturnType<typeof openDocxS
       if (id && Number(id) > 0) targets.set(`footnote:${id}`, node);
     }
   });
-  return { document, footnotes, targets };
+  for (const unit of units) if (visibleText(targets.get(unit.id) ?? {}) !== unit.text) {
+    throw new Error(`Reviewed text no longer matches ${unit.id}.`);
+  }
+  return { session, document, targets, save: () => {
+    session.writeDocument(document.tree);
+    if (footnotes) session.write("word/footnotes.xml",
+      ensureXmlDeclaration(createBuilder().build(footnotes)));
+    return session.save();
+  } };
 }
 
 function replaceVisibleSpan(root: XNode, start: number, end: number, replacement: string) {
@@ -101,11 +112,7 @@ export async function applyAuthorityDiscrepancyCorrection(bytes: Buffer,
   units: ReadonlyArray<{ id: string; text: string }>, correction: {
     unitId: string; start: number; end: number; expected: string; replacement: string;
   }) {
-  const session = await openDocxSession(bytes);
-  const { document, footnotes, targets } = await authorityUnitPackage(session);
-  for (const unit of units) if (visibleText(targets.get(unit.id) ?? {}) !== unit.text) {
-    throw new Error(`Reviewed text no longer matches ${unit.id}.`);
-  }
+  const { targets, save } = await authorityUnitPackage(bytes, units);
   const target = targets.get(correction.unitId);
   if (!target || correction.start < 0 || correction.end <= correction.start ||
       visibleText(target).slice(correction.start, correction.end) !== correction.expected ||
@@ -113,10 +120,7 @@ export async function applyAuthorityDiscrepancyCorrection(bytes: Buffer,
         correction.end, correction.replacement)) {
     throw new Error("The accepted correction no longer matches the reviewed Word document.");
   }
-  session.writeDocument(document.tree);
-  if (footnotes) session.write("word/footnotes.xml",
-    ensureXmlDeclaration(createBuilder().build(footnotes)));
-  return session.save();
+  return save();
 }
 
 function fieldRuns(instruction: string, hidden: boolean) {
@@ -212,13 +216,7 @@ export async function applyTableOfAuthorities(
   delivery: DocxTableDelivery,
   linked: readonly DocxLinkedAuthority[] = [],
 ) {
-  const session = await openDocxSession(bytes);
-  const { document, footnotes, targets } = await authorityUnitPackage(session);
-  for (const unit of units) {
-    if (visibleText(targets.get(unit.id) ?? {}) !== unit.text) {
-      throw new Error(`Reviewed text no longer matches ${unit.id}.`);
-    }
-  }
+  const { session, document, targets, save } = await authorityUnitPackage(bytes, units);
   if (delivery !== "linked-append") {
     for (const mark of [...marks].sort((left, right) =>
       right.unitId.localeCompare(left.unitId) || right.offset - left.offset)) {
@@ -237,9 +235,6 @@ export async function applyTableOfAuthorities(
     makeEl("w:p", fieldRuns(' TOA \\h \\e "\\t" ', false)),
   ] : delivery === "linked-append" ? linkedTable(linked) : [];
   children.splice(section < 0 ? children.length : section, 0, ...appended);
-  session.writeDocument(document.tree);
-  if (footnotes) session.write("word/footnotes.xml",
-    ensureXmlDeclaration(createBuilder().build(footnotes)));
   const settings = await session.readXml("word/settings.xml");
   const root = settings?.find((node) => elName(node) === "w:settings");
   if (root) {
@@ -248,5 +243,5 @@ export async function applyTableOfAuthorities(
     else elChildren(root).push(makeEl("w:updateFields", [], { "w:val": "true" }));
     session.write("word/settings.xml", ensureXmlDeclaration(createBuilder().build(settings)));
   }
-  return session.save();
+  return save();
 }
