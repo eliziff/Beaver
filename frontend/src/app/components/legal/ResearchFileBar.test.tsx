@@ -277,9 +277,10 @@ describe("ResearchFileBar", () => {
     expect(api.getResearchItems.mock.calls.some(([, input]) => input.kind === "passages")).toBe(false);
   });
 
-  it("edits a source's labels from its hierarchy marker and closes the palette on Escape", async () => {
+  it("edits a source's labels from its options menu and closes the palette on Escape", async () => {
     await renderWorkspace();
-    fireEvent.click(screen.getAllByRole("button", { name: "Label Baker v Canada" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Baker v Canada options" })[0]);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Label" }));
     const palette = await screen.findByRole("dialog", { name: "Labels and note" });
     fireEvent.keyDown(within(palette).getByRole("textbox", { name: "Item note" }), { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Labels and note" })).not.toBeInTheDocument());
