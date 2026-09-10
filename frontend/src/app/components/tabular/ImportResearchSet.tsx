@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import { applyWorkspaceLabels, getResearchFile, openWorkspaceTable, previewWorkspaceLabels, previewWorkspaceTable,
     type ResearchLabelProposal, type ResearchTablePreview, type ResearchTableInput } from "@/app/lib/api/researchFiles";
 import { isResearchDocument, type ResearchFile, type ResearchSelection } from "@/app/lib/researchFiles";
-import { directoryResource, type Document } from "@/app/lib/api/documents";
+import type { Document } from "@/app/lib/api/documents";
 import { errorMessage } from "@/app/lib/utils";
 import { Button } from "../ui/button";
 import { Modal } from "../modals/Modal";

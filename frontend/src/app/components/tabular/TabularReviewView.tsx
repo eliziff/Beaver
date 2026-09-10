@@ -447,9 +447,8 @@ function TRViewContent({ reviewId, projectId }: Props) {
         setInteropError("");
         try { await prepareRows(); } catch (reason) { setInteropError(errorMessage(reason, "Could not open research")); return; }
         setDiscussion(focus ? { ...focus, intent: focus.text ? assistantIntent(focus.text) : undefined } : null);
-        setUi({ cellView: null });
         setSidebarOpen(false);
-        setUi({ dockTab: "chat" });
+        setUi({ cellView: null, dockTab: "chat" });
         if (!chatOpen) setChatId(null);
     }
     async function useChatAnswer(chatId: string, messageId: string) {
@@ -502,10 +501,9 @@ function TRViewContent({ reviewId, projectId }: Props) {
             title: "Back to Tabular Reviews" }]),
         loading ? { loading: true, skeletonClassName: "w-40" } : { label: reviewTitle },
     ];
-    const finishedCells = cells.filter(({ status }) => status === "done" || status === "error").length;
     const progress = columnRun
         ? { done: columnRun.total - columnRun.queue.length - (generating ? 1 : 0), total: columnRun.total }
-        : { done: finishedCells, total: cells.length };
+        : { done: cells.filter(({ status }) => status === "done" || status === "error").length, total: cells.length };
     const menuItems = [
         { label: "History", onSelect: () => setUi({ historyOpen: true }) },
         ...(!projectId ? [{ label: "People", disabled: loading, onSelect: () => setUi({ modal: "people" as Modal }) }] : []),

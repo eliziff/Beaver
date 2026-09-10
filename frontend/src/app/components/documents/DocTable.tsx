@@ -76,9 +76,7 @@ const WARNING_KINDS = ["upload", "rename", "collection"] as const;
 function prewarmDocumentView(doc: Document) {
     const type = (doc.file_type ?? doc.filename.split(".").pop() ?? "")
         .toLowerCase().replace(/^\./u, "");
-    if (type === "pdf" || !!doc.pdf_storage_path) {
-        void getPdfJs().catch(() => undefined);
-    }
+    if (type === "pdf" || doc.pdf_storage_path) void getPdfJs().catch(() => undefined);
 }
 /**
  * Structural-parse lifecycle chip beside the filename. Nothing for docs
@@ -190,8 +188,6 @@ function without<T>(current: Set<T>, values: Iterable<T>) {
     for (const value of values) next.delete(value);
     return next;
 }
-const scrollNewFolderIntoView = (element: HTMLDivElement | null) =>
-    element?.scrollIntoView({ block: "nearest" });
 function documentRemovalMessage(pending: PendingDocumentRemoval | null,
     detaches: boolean, versionCount?: number) {
     if (!pending) return;
@@ -349,7 +345,6 @@ export function DocTable({
             await refreshParents(parent, destination);
         },
     });
-    const newFolderParentId = folderEditor?.kind === "new" ? folderEditor.parentId : undefined;
     const renamingFolderId = folderEditor?.kind === "rename" ? folderEditor.folderId : null;
     const dragOverFolderId = folderDragTarget ?? null;
     const controller = useDocumentController(documents, operations.refreshCollection,
@@ -388,11 +383,8 @@ export function DocTable({
     }, [loading, renderAddDocumentsModal]);
     const openAddDocuments = useCallback(() => {
         if (loadingRef.current) return;
-        if (renderAddDocumentsModalRef.current) {
-            set("addDocsOpen", true);
-            return;
-        }
-        documentUploadInputRef.current?.click();
+        if (renderAddDocumentsModalRef.current) set("addDocsOpen", true);
+        else documentUploadInputRef.current?.click();
     }, []);
     function handleUploadNewVersion(doc: Document) {
         versionUploadTargetDocRef.current = doc;
@@ -433,17 +425,16 @@ export function DocTable({
         set("selectedDocIds", (current) => (current.length ? [] : current));
     }, [scopeKey]);
     const [pickerDoc, setPickerDoc] = useState<Document | null>(null);
-    function documentReference(doc: Document, versionId: string): ResearchSourceReference {
-        return { provider: "library", kind: "document", id: doc.id, versionId, title: doc.filename };
-    }
     async function addDocToWorkspace(doc: Document, workspaceId: string, labelId?: string) {
         try {
             const target = await getResearchFile(workspaceId);
             const versionId = doc.current_version_id
                 ?? (await controller.load(doc.id))?.currentVersionId;
             if (!versionId) throw new Error("Document revision is unavailable");
+            const reference: ResearchSourceReference = { provider: "library",
+                kind: "document", id: doc.id, versionId, title: doc.filename };
             await actOnResearchFile(target.document.id, target.versionId, target.workingRevision,
-                { type: "source", reference: documentReference(doc, versionId), ...(labelId ? { labelIds: [labelId] } : {}) });
+                { type: "source", reference, ...(labelId ? { labelIds: [labelId] } : {}) });
             setPickerDoc(null);
         } catch (reason) {
             setWarning("collection", reason instanceof Error ? reason.message
@@ -454,8 +445,6 @@ export function DocTable({
     function removeDocument(doc: Document) {
         return operations.removeDocument?.(doc.id) ?? deleteDocument(doc);
     }
-    const foldersById = tree.folderById;
-    const foldersByParent = tree.foldersByParent;
     const selection = useTableSelection(
         tree.visibleDocuments, selectedDocIds, (ids) => set("selectedDocIds", ids));
     const refreshParents = useCallback((...parents: (string | null | undefined)[]) =>
@@ -473,7 +462,7 @@ export function DocTable({
         } finally { set("folderTaskId", null); }
     }
     function requestDeleteFolder(folderId: string) {
-        const folder = foldersById.get(folderId);
+        const folder = tree.folderById.get(folderId);
         if (!folder) return;
         set("pendingDeleteFolder", { folder, deleting: false });
     }
@@ -484,7 +473,7 @@ export function DocTable({
             current ? { ...current, deleting: true } : current);
         try {
             await operations.deleteFolder(pending.folder.id);
-            const toDelete = descendantFolderIds(pending.folder.id, foldersByParent);
+            const toDelete = descendantFolderIds(pending.folder.id, tree.foldersByParent);
             const deletedDocIds = new Set(documents
                 .filter(({ folder_id }) => folder_id && toDelete.has(folder_id))
                 .map(({ id }) => id));
@@ -502,7 +491,6 @@ export function DocTable({
             setWarning("collection", "Folder could not be deleted. Please try again.");
         }
     }
-    async function handleDocsSelected() { await refreshCollection(); }
     async function movePending(destinationId: string | null) {
         if (!pendingMove) return;
         if ("folderId" in pendingMove) {
@@ -593,9 +581,6 @@ export function DocTable({
     function clearDragOver() {
         setFolderDragTarget(undefined);
         set("dragOverSurface", null);
-    }
-    function isSharedDocument(doc: Document | null | undefined): boolean {
-        return !!(doc?.user_id && user?.id && doc.user_id !== user.id);
     }
     function acceptedFiles(files: File[]) {
         if (!files.length) return [];
@@ -762,7 +747,7 @@ export function DocTable({
                         </div>
                     );
                     if (row.kind === "editor") return (
-                        <div ref={scrollNewFolderIntoView}
+                        <div ref={(element) => element?.scrollIntoView({ block: "nearest" })}
                             key={`new-folder-${row.parentId ?? "root"}`}
                             data-tree-drop-folder={row.parentId ?? ""}
                             className={DOCUMENT_ROW_CLASS}>
@@ -943,7 +928,7 @@ export function DocTable({
                                         onDelete={() => requestRemoveDoc(doc)}
                                         deleteLabel={detachesDocument
                                             ? "Remove from project" : "Delete"}
-                                        deleteDisabled={isSharedDocument(doc)} />
+                                        deleteDisabled={!!(doc.user_id && user?.id && doc.user_id !== user.id)} />
                                 )}
                             </div>
                         </div>
@@ -1015,19 +1000,19 @@ export function DocTable({
         Permanently delete {emphasis(pendingDeleteFolder.folder.name)} and everything inside it?
     </p> : undefined;
     const pendingMoveTitle = pendingMove && ("folderId" in pendingMove
-        ? foldersById.get(pendingMove.folderId)?.name ?? "Folder"
+        ? tree.folderById.get(pendingMove.folderId)?.name ?? "Folder"
         : pendingMove.documentIds.length === 1
             ? docsById.get(pendingMove.documentIds[0])?.filename ?? "Document"
             : `${pendingMove.documentIds.length} documents`);
     const disabledMoveFolders = pendingMove && "folderId" in pendingMove
-        ? descendantFolderIds(pendingMove.folderId, foldersByParent) : undefined;
+        ? descendantFolderIds(pendingMove.folderId, tree.foldersByParent) : undefined;
     const canMovePendingTo = (destinationId: string | null) => !!pendingMove &&
         ("folderId" in pendingMove
             ? canMoveTreeItem({ kind: "folder", id: pendingMove.folderId }, destinationId)
             : pendingMove.documentIds.some((id) =>
                 (docsById.get(id)?.folder_id ?? null) !== destinationId));
     const isEmptyCollection = documents.length === 0 && folders.length === 0 &&
-        newFolderParentId === undefined && uploadingDroppedFilenames.length === 0;
+        folderEditor?.kind !== "new" && uploadingDroppedFilenames.length === 0;
     const rootLabel = scopeKey === "templates" ? "Templates"
         : scopeKey === "files" ? "Library" : "Project";
     return (
@@ -1141,7 +1126,7 @@ export function DocTable({
                 )}
             </TableScrollArea>
             {renderAddDocumentsModal?.(addDocsOpen,
-                () => set("addDocsOpen", false), handleDocsSelected)}
+                () => set("addDocsOpen", false), () => void refreshCollection())}
             <DocumentSidePanel
                 controller={controller}
                 highlightCells={viewingDoc?.id === initialDocument?.id && viewingDocVersionId === (initialDocument?.versionId ?? null) ? [{ sheet: initialDocument?.sheet ?? undefined, cell: initialDocument?.cell ?? undefined }] : undefined}
