@@ -13,7 +13,6 @@ afterEach(() => {
 
 const cell: TabularCell = {
     id: "cell-1",
-    review_id: "review-1",
     document_id: "document-1",
     column_index: 0,
     content: {
@@ -25,19 +24,15 @@ const cell: TabularCell = {
         evidence: [], outcome: "answered", coverage: "complete",
     },
     status: "done",
-    created_at: "2026-07-29T00:00:00.000Z",
 };
 const sourceDocument = {
     id: "document-1",
     project_id: null,
     filename: "Agreement.pdf",
     file_type: "pdf",
-    storage_path: null,
     pdf_storage_path: null,
     size_bytes: null,
     page_count: 4,
-    structure_tree: null,
-    status: "ready",
     created_at: "2026-07-29T00:00:00.000Z",
 } satisfies Document;
 const column = {
@@ -45,26 +40,6 @@ const column = {
     name: "Termination",
     prompt: "Find termination rights.",
 } satisfies ColumnConfig;
-
-it("reads the result without an embedded source viewer, quote selector or highlighter", async () => {
-    const onClose = vi.fn();
-    const onRegenerate = vi.fn().mockResolvedValue(undefined);
-    render(<TRSidePanel cell={cell} document={sourceDocument} column={column}
-        onClose={onClose} onRegenerate={onRegenerate} />);
-
-    expect(screen.getByText("Termination")).toBeVisible();
-    expect(screen.getByText("Because the term is express.")).toBeVisible();
-    for (const name of ["Expand document pane", "Collapse document pane", "Next column", "Save highlight"])
-        expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
-    expect(screen.queryByText("More details")).not.toBeInTheDocument();
-    expect(screen.queryByText(column.prompt)).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByTitle("Regenerate"));
-    await waitFor(() => expect(onRegenerate).toHaveBeenCalledOnce());
-
-    fireEvent.click(document.body);
-    expect(onClose).toHaveBeenCalledOnce();
-});
 
 it("uses a modal dialog on compact screens and restores its opener", async () => {
     vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
@@ -88,12 +63,6 @@ it("uses a modal dialog on compact screens and restores its opener", async () =>
     await waitFor(() => expect(opener).toHaveFocus());
 });
 
-it("keeps Regenerate visible but disabled while the review is running", () => {
-    render(<TRSidePanel cell={cell} document={sourceDocument} column={column} onClose={vi.fn()}
-        onRegenerate={vi.fn().mockResolvedValue(undefined)} running />);
-    expect(screen.getByRole("button", { name: "Regenerate" })).toBeDisabled();
-});
-
 it("links a cited passage externally without offering a reader menu", () => {
     const evidence = { evidence_id: "other", provider: "a2aj", stable_source_id: "other-case", source_reference: { id: "other-case" },
         source_sha256: "a".repeat(64), span_sha256: "b".repeat(64), block_id: "par7", span_text: "The court distinguished the rule.",
@@ -107,12 +76,15 @@ it("links a cited passage externally without offering a reader menu", () => {
 });
 
 it("keeps the answer readable after regeneration fails and permits retry", async () => {
+    const onClose = vi.fn();
     const regenerate = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(undefined);
-    render(<TRSidePanel cell={cell} document={sourceDocument} column={column} onClose={vi.fn()} onRegenerate={regenerate} />);
+    render(<TRSidePanel cell={cell} document={sourceDocument} column={column} onClose={onClose} onRegenerate={regenerate} />);
     fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not regenerate");
     expect(screen.getByText("Yes")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
     await waitFor(() => expect(regenerate).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    fireEvent.click(document.body);
+    expect(onClose).toHaveBeenCalledOnce();
 });

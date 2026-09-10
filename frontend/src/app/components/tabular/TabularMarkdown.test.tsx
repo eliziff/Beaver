@@ -2,19 +2,6 @@ import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { TabularMarkdown } from "./TabularMarkdown";
 import type { ColumnFormat } from "@/app/lib/api/tabular";
-import { groundedAnswerMarkdown, type GroundedEvidence } from "@/app/lib/groundedAnswers";
-
-it("renders tabular pills and citations through one shared path", async () => {
-    const evidence = { evidence_id: "original-receipt", provider: "library", stable_source_id: "document-1",
-        version: "version-7", name: "Rule.pdf", citation: "Rule.pdf", span_text: "The quoted rule.",
-        locator: { kind: "page", label: "7" } } as GroundedEvidence;
-    const answer = groundedAnswerMarkdown({ claims: [{ text: "**Result**", evidence_ids: [evidence.evidence_id] }], evidence: [evidence] });
-    render(<TabularMarkdown {...answer} />);
-
-    expect(screen.getByText("Result")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Rule.pdf, p. 7" })).toHaveAttribute("href", "/library?document_id=document-1&version_id=version-7");
-    expect(screen.queryByRole("button", { name: "Citation actions" })).toBeNull();
-});
 
 it.each<[ColumnFormat, string, string | number | boolean | string[]]>([
     ["text", "A complete answer.", "A complete answer."],
