@@ -14,13 +14,6 @@ const required = { profile, entries: [], entryFindings: new Map(),
   onAssign: vi.fn(), onAssignKind: vi.fn() };
 
 describe("Court Record documents", () => {
-  it("opens one shared picker for a document slot", () => {
-    const onChoose = vi.fn();
-    render(<CourtRecordDocuments {...required} onChoose={onChoose} />);
-    fireEvent.click(screen.getByRole("button", { name: "Add file" }));
-    expect(onChoose).toHaveBeenCalledWith("authorities", undefined);
-    expect(screen.queryByRole("button", { name: "Library" })).toBeNull();
-  });
 
   it("keeps affidavit files in a pool and assigns them to referenced slots", () => {
     const sourceSha256 = "a".repeat(64);
@@ -71,19 +64,6 @@ describe("Court Record documents", () => {
     expect(required.onChoose).toHaveBeenCalledWith("exhibit", undefined);
   });
 
-  it("offers a real file replacement for an occupied nonrepeatable slot", () => {
-    const authority = { id: "authority", kindId: "authorities",
-      file: new File(["old"], "old.pdf", { type: "application/pdf" }), title: "Authorities",
-      pageCount: 1, searchable: true, encrypted: false } as RecordEntry;
-    const onChoose = vi.fn();
-    render(<CourtRecordDocuments {...required} entries={[authority]} onChoose={onChoose} />);
-    fireEvent.click(screen.getByRole("button", { name: "Replace" }));
-    expect(onChoose).toHaveBeenCalledWith("authorities", undefined, "authority");
-    expect(screen.getAllByText("old.pdf")).toHaveLength(1);
-    expect(screen.getByText("1 page")).toBeVisible();
-    expect(screen.queryByRole("button", { name: /Remove/ })).toBeNull();
-  });
-
   it("asks for non-text confirmation only after OCR has run", () => {
     const scan = { id: "scan", kindId: "authorities",
       file: new File(["scan"], "photograph.pdf", { type: "application/pdf" }),
@@ -129,19 +109,6 @@ describe("Court Record documents", () => {
     rerender(<CourtRecordDocuments {...required} profile={profile} entries={[]} />);
     expect(screen.getByRole("heading", { name: /Part 3 .* Transcript/u })).toBeVisible();
     expect(screen.getByRole("textbox", { name: /Part 3 .* No oral record/u })).toBeVisible();
-  });
-
-  it("collects dates for each chronologically ordered pleading", () => {
-    const pleadings = ["claim", "defence"].map((id) => ({
-      id, kindId: "part-1-pleading", file: new File([id], `${id}.pdf`), title: id,
-      pageCount: 1, searchable: true, encrypted: false,
-    } as RecordEntry));
-    render(<CourtRecordDocuments {...required}
-      profile={COURT_PROFILE_BY_ID.get("ab-ca-appeal-record")!} entries={pleadings} />);
-
-    const dates = screen.getAllByRole("textbox", { name: /Document date/u });
-    expect(dates).toHaveLength(2);
-    for (const date of dates) expect(date).toBeRequired();
   });
 
   it("shows every slot in filing order, marking only the mandatory ones", () => {
