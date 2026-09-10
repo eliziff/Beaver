@@ -185,6 +185,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
     async function runSearch(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
+        const text = (name: string) => form.get(name)?.toString().trim() || undefined;
         const query = searchQuery.trim();
         if (!query) return;
         setSearching(true);
@@ -205,25 +206,16 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                         type === "articles" || docType === "all" || !dataset
                             ? undefined
                             : [dataset],
-                    author: type === "articles"
-                        ? form.get("author")?.toString().trim() || undefined
-                        : undefined,
-                    journal: type === "articles"
-                        ? form.get("journal")?.toString().trim() || undefined
-                        : undefined,
-                    speaker: type === "hansard"
-                        ? form.get("speaker")?.toString().trim() || undefined
-                        : undefined,
+                    author: type === "articles" ? text("author") : undefined,
+                    journal: type === "articles" ? text("journal") : undefined,
+                    speaker: type === "hansard" ? text("speaker") : undefined,
                     startDate: form.get("from")
                         ? `${form.get("from")}-01-01`
                         : undefined,
                     endDate: form.get("to")
                         ? `${form.get("to")}-12-31`
                         : undefined,
-                    sortResults: (form.get("sort")?.toString() || "default") as
-                        | "default"
-                        | "newest_first"
-                        | "oldest_first",
+                    sortResults: (text("sort") ?? "default") as "default" | "newest_first" | "oldest_first",
                     }),
                 ),
             );
