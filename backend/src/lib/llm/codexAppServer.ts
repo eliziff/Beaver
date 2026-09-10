@@ -7,15 +7,9 @@ import { createInterface } from "node:readline";
 import { isolatedProcessEnv } from "../subprocessEnv";
 
 type JsonObject = Record<string, unknown>;
-export type CodexAppServerNotification = {
-  method: string;
-  params: JsonObject;
-};
+export type CodexAppServerNotification = { method: string; params: JsonObject };
 
-type PendingRequest = {
-  resolve: (value: unknown) => void;
-  reject: (error: Error) => void;
-};
+type PendingRequest = { resolve: (value: unknown) => void; reject: (error: Error) => void };
 
 export const CODEX_APP_SERVER_CLOSED = "$closed";
 
@@ -39,10 +33,8 @@ function terminate(child: ChildProcessWithoutNullStreams) {
     child.kill();
     return;
   }
-  const killer = spawn("taskkill.exe", ["/pid", String(child.pid), "/t", "/f"], {
-    stdio: "ignore",
-    windowsHide: true,
-  });
+  const killer = spawn("taskkill.exe", ["/pid", String(child.pid), "/t", "/f"],
+    { stdio: "ignore", windowsHide: true });
   killer.once("error", () => child.kill());
   killer.unref();
 }
@@ -82,12 +74,8 @@ async function launch(apiKey: string): Promise<CodexAppServer> {
     if (closed) return;
     closed = true;
     const detail = stderr.trim().slice(-1_000);
-    const error = new Error(
-      `Codex app-server ${reason}${detail ? `: ${detail}` : ""}`,
-    );
-    for (const request of pending.values()) {
-      request.reject(error);
-    }
+    const error = new Error(`Codex app-server ${reason}${detail ? `: ${detail}` : ""}`);
+    for (const request of pending.values()) request.reject(error);
     pending.clear();
     for (const listener of listeners) {
       listener({ method: CODEX_APP_SERVER_CLOSED, params: { message: error.message } });
@@ -118,13 +106,8 @@ async function launch(apiKey: string): Promise<CodexAppServer> {
       pending.delete(id);
       const failure = message.error as { message?: unknown } | undefined;
       if (failure) {
-        request.reject(
-          new Error(
-            typeof failure.message === "string"
-              ? failure.message
-              : "Codex app-server request failed.",
-          ),
-        );
+        request.reject(new Error(typeof failure.message === "string"
+          ? failure.message : "Codex app-server request failed."));
       } else {
         request.resolve(message.result);
       }
@@ -134,21 +117,14 @@ async function launch(apiKey: string): Promise<CodexAppServer> {
     if (id !== undefined) {
       // Beaver turns cannot execute Codex shell/file tools and never delegate
       // approval or credential decisions to this headless transport.
-      write({
-        id,
-        error: {
-          code: -32601,
-          message: "This Codex app-server request is not available in Beaver.",
-        },
-      });
+      write({ id, error: { code: -32601,
+        message: "This Codex app-server request is not available in Beaver." } });
       return;
     }
     const event = {
       method: message.method,
-      params:
-        message.params && typeof message.params === "object"
-          ? (message.params as JsonObject)
-          : {},
+      params: message.params && typeof message.params === "object"
+        ? (message.params as JsonObject) : {},
     };
     for (const listener of listeners) listener(event);
   });
@@ -160,26 +136,19 @@ async function launch(apiKey: string): Promise<CodexAppServer> {
         return;
       }
       const id = nextId++;
-      pending.set(id, {
-        resolve: resolve as (value: unknown) => void,
-        reject,
-      });
+      pending.set(id, { resolve: resolve as (value: unknown) => void, reject });
       write({ id, method, params: params ?? {} });
     });
   const required = <T,>(method: string, params?: unknown) => request<T>(method, params)
     .catch((error) => { terminate(child); throw error; });
 
   const initialized = await required<{ userAgent?: unknown; codexHome?: unknown }>(
-    "initialize",
-    {
+    "initialize", {
       clientInfo: { name: "beaver", title: "Beaver", version: "1.0.0" },
       capabilities: { experimentalApi: false, requestAttestation: false },
-    },
-  );
-  if (
-    typeof initialized.userAgent !== "string" ||
-    path.resolve(String(initialized.codexHome)) !== codexHome
-  ) {
+    });
+  if (typeof initialized.userAgent !== "string" ||
+      path.resolve(String(initialized.codexHome)) !== codexHome) {
     terminate(child);
     throw new Error("Codex app-server returned an incompatible initialize response.");
   }
