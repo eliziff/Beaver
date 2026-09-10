@@ -19,16 +19,12 @@ import { createTabularReviewPath } from "../tabular/tabularReviewRoute";
 
 export type WorkflowDocument = Pick<Document, "id" | "filename"> &
     Partial<Pick<Document, "file_type" | "library_kind" | "project_id" | "current_version_id" | "folder_id">>;
-export type AssistantWorkflowSelect = (
-    selection: WorkflowSelection,
-    documents: WorkflowDocument[],
-) => void;
 
 type PickerProps = {
     onRun?: NonNullable<Parameters<typeof useAssistantDocumentOperation>[1]>["onRun"];
     documents?: WorkflowDocument[];
     initialWorkflowId?: string;
-    onAssistantSelect?: AssistantWorkflowSelect;
+    onAssistantSelect?: (selection: WorkflowSelection, documents: WorkflowDocument[]) => void;
     onLaunched?: () => void;
     className?: string;
 };
@@ -47,7 +43,7 @@ export function ContextualWorkflowPicker({ documents = [], initialWorkflowId,
     const state = useWorkflowPickerState(initialWorkflowId);
     const navigate = useNavigate();
     const [quoteCheck, setQuoteCheck] = useState<Workflow | null>(null);
-    const [launching, setLaunching] = useState<"table" | "product" | "supras" | null>(null);
+    const [launching, setLaunching] = useState<"table" | "product" | null>(null);
     const [launchError, setLaunchError] = useState<string | null>(null);
     const supras = useAssistantDocumentOperation(FIX_SUPRAS, { onRun, onLaunched });
     const docx = documents.length === 1 && documentType(documents[0]) === "docx" &&
