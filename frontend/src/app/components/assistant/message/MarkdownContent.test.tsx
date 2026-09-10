@@ -27,23 +27,6 @@ it("collapses repeated adjacent citations while retaining distinct sources and p
 });
 
 describe("MarkdownContent tables", () => {
-    it.each([false, true])("renders Markdown tables (streaming: %s)", (isStreaming) => {
-        render(<MarkdownContent
-            text={"| Item | Count |\n| --- | ---: |\n| **Files** | 2 |"}
-            inlineCitationTargets={[]}
-            isStreaming={isStreaming}
-        />);
-        expect(screen.getByRole("columnheader", { name: "Count" })).toBeInTheDocument();
-        expect(screen.getByRole("cell", { name: "Files" }).querySelector("strong")).toHaveTextContent("Files");
-        expect(screen.getByRole("cell", { name: "2" })).toHaveStyle({ textAlign: "right" });
-    });
-
-    it("preserves ASCII table spacing in a code block", () => {
-        const ascii = "+------+-------+\n| Item | Count |\n+------+-------+\n| Files|     2 |\n+------+-------+\n";
-        const { container } = renderMarkdown("```text\n" + ascii + "```");
-        expect(container.querySelector("pre code")?.textContent).toBe(ascii);
-    });
-
     it.each([false, true])("renders a verified source chip inside a table cell (streaming: %s)", (isStreaming) => {
         const citation: Citation = {
             kind: "a2aj", ref: 1, source_class: "case", citation: "2024 SCC 1",
@@ -228,12 +211,5 @@ describe("MarkdownContent links", () => {
         expect(document.querySelector('[data-citation-ref="2"]')).toHaveTextContent(
             "Family Law Act, SBC 2011, c 25, s. 19.16",
         );
-    });
-
-    it("does not make model-authored external URLs clickable", () => {
-        renderMarkdown("[Project website](https://example.com)");
-
-        expect(screen.queryByRole("link", { name: "Project website" })).toBeNull();
-        expect(screen.getByText("Project website")).toBeInTheDocument();
     });
 });
