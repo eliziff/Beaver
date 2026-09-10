@@ -372,14 +372,19 @@ export function createTabularApplication(
     const config = await settings(scope.userId);
     const model = options.model && isSupportedModel(options.model) ? options.model : config.title_model;
     modelKey(model, config.api_keys);
-    const attempt = async (note?: string) => accept(await modelText({ model, apiKeys: config.api_keys, system, signal: options.signal,
+    // A provider failure (usage limit, outage) is reported as itself; only a rejected design is retried once.
+    const ask = async (note?: string) => { try { return await modelText({ model, apiKeys: config.api_keys, system, signal: options.signal,
       reasoningEffort: options.reasoningEffort ?? "low",
-      user: note ? `${user}\n\nYour previous proposal was rejected: ${note}\nReturn a corrected proposal.` : user }));
-    try { return await attempt(); } catch (first) {
+      user: note ? `${user}\n\nYour previous proposal was rejected: ${note}\nReturn a corrected proposal.` : user }); }
+      catch (error) { throw Object.assign(error instanceof Error ? error : new Error(String(error)), { provider: true }); } };
+    const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+    const provider = (error: unknown) => !!(error as { provider?: boolean })?.provider;
+    try { return accept(await ask()); } catch (first) {
       if (options.signal?.aborted) throw first;
-      try { return await attempt(String(first instanceof Error ? first.message : first).slice(0, 300)); }
+      if (provider(first)) return fail(502, message(first));
+      try { return accept(await ask(message(first).slice(0, 300))); }
       catch (error) { if (options.signal?.aborted) throw error;
-        return fail(502, `${failure}: ${error instanceof Error ? error.message : String(error)}`); }
+        return fail(502, provider(error) ? message(error) : `${failure}: ${message(error)}`); }
     }
   }
   async function generateDocument(scope: TabularScope,
