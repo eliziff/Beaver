@@ -1,16 +1,10 @@
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { searchTokens, sqliteText as string } from "./sqliteSearch";
-import {
-  legalProviderDatabase,
-  withSearchReadonlySqlite,
-  withReadonlySqlite,
-} from "./legalDataPath";
+import { legalProviderDatabase, withSearchReadonlySqlite,
+  withReadonlySqlite } from "./legalDataPath";
 import { isUnitedStatesSearch } from "./legalSources";
-import type {
-  LegalSourceProvider,
-  LegalSourceReference,
-} from "./legalSources";
+import type { LegalSourceProvider, LegalSourceReference } from "./legalSources";
 import { structureNative } from "./structureNative";
 
 /**
@@ -42,8 +36,8 @@ export type HansardSearchHit = Omit<HansardIntervention, "text"> & {
 
 function hansardDatabasePath() {
   const configured = process.env.MIKE_A2AJ_HANSARD_DB?.trim();
-  if (configured) return path.resolve(configured);
-  return legalProviderDatabase("a2aj", "hansard.sqlite");
+  return configured ? path.resolve(configured)
+    : legalProviderDatabase("a2aj", "hansard.sqlite");
 }
 
 function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
@@ -51,13 +45,12 @@ function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
 }
 
 function withSearchDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
-  const filename = hansardDatabasePath();
-  const cache = !process.env.MIKE_A2AJ_HANSARD_DB?.trim();
-  return withSearchReadonlySqlite(filename, cache, operation);
+  return withSearchReadonlySqlite(hansardDatabasePath(),
+    !process.env.MIKE_A2AJ_HANSARD_DB?.trim(), operation);
 }
 
 /** The identity and metadata every intervention projection shares. */
-function interventionHead(row: Row, id: string) {
+function interventionMetadata(row: Row, id: string) {
   return {
     id,
     date: string(row, "date"),
@@ -68,11 +61,6 @@ function interventionHead(row: Row, id: string) {
     subjectOfBusiness: string(row, "subject_of_business"),
     speaker: string(row, "speaker"),
     interventionType: string(row, "intervention_type"),
-  };
-}
-
-function interventionTail(row: Row) {
-  return {
     sourceUrl: string(row, "source_url"),
     upstreamLicense: string(row, "upstream_license"),
   };
@@ -82,13 +70,12 @@ function intervention(row: Row): HansardIntervention | null {
   const id = string(row, "source_id");
   const text = string(row, "text");
   if (!id || !text) return null;
-  return { ...interventionHead(row, id), text, ...interventionTail(row) };
+  return { ...interventionMetadata(row, id), text };
 }
 
 function searchHit(row: Row): HansardSearchHit | null {
   const id = string(row, "source_id");
-  if (!id) return null;
-  return { ...interventionHead(row, id), ...interventionTail(row), snippet: null };
+  return id ? { ...interventionMetadata(row, id), snippet: null } : null;
 }
 
 /**
@@ -96,11 +83,7 @@ function searchHit(row: Row): HansardSearchHit | null {
  * searchLocalA2AJ, so callers can distinguish "not installed" from "no hits".
  */
 export function searchLocalHansard(args: {
-  query: string;
-  size?: number;
-  speaker?: string;
-  startDate?: string;
-  endDate?: string;
+  query: string; size?: number; speaker?: string; startDate?: string; endDate?: string;
   sortResults?: "default" | "newest_first" | "oldest_first";
   querySyntax?: "terms" | "fts5";
 }): HansardSearchHit[] | null {
@@ -111,11 +94,8 @@ export function searchLocalHansard(args: {
   const wanted = Math.max(1, Math.min(50, Math.trunc(args.size ?? 10)));
   return withSearchDatabase((database) => {
     const filters = ["intervention_search MATCH ?"];
-    const values: Array<string | number> = [
-      args.querySyntax === "fts5"
-        ? query
-        : tokens.map((token) => `"${token}"`).join(" AND "),
-    ];
+    const values: Array<string | number> = [args.querySyntax === "fts5"
+      ? query : tokens.map((token) => `"${token}"`).join(" AND ")];
     if (args.speaker?.trim()) {
       filters.push("LOWER(intervention.speaker) LIKE ?");
       values.push(`%${args.speaker.trim().toLocaleLowerCase()}%`);
@@ -128,12 +108,10 @@ export function searchLocalHansard(args: {
       filters.push("intervention.date <= ?");
       values.push(args.endDate.trim());
     }
-    const order =
-      args.sortResults === "newest_first"
-        ? "intervention.date DESC, intervention.id"
-        : args.sortResults === "oldest_first"
-          ? "intervention.date ASC, intervention.id"
-          : "rank";
+    const order = args.sortResults === "newest_first"
+      ? "intervention.date DESC, intervention.id"
+      : args.sortResults === "oldest_first"
+        ? "intervention.date ASC, intervention.id" : "rank";
     values.push(wanted);
     return database
       .prepare(
@@ -155,37 +133,29 @@ export function searchLocalHansard(args: {
   });
 }
 
-export function fetchLocalHansardIntervention(args: {
-  id: string;
-}): HansardIntervention | null {
+export function fetchLocalHansardIntervention(
+  args: { id: string }): HansardIntervention | null {
   const id = args.id.trim();
   if (!id) throw new Error("id is required");
   return withDatabase((database) => {
     const row = database
-      .prepare(
-        "SELECT * FROM intervention WHERE source_id = ? ORDER BY id LIMIT 1",
-      )
+      .prepare("SELECT * FROM intervention WHERE source_id = ? ORDER BY id LIMIT 1")
       .get(id) as Row | undefined;
     return row ? intervention(row) : null;
   });
 }
 
 function hansardReference(intervention: HansardIntervention) {
-  const language =
-    intervention.language === "en" || intervention.language === "fr"
-      ? intervention.language
-      : undefined;
   return {
     provider: "hansard",
     id: intervention.id,
     kind: "hansard",
-    title:
-      intervention.subjectOfBusiness ??
-      intervention.orderOfBusiness ??
+    title: intervention.subjectOfBusiness ?? intervention.orderOfBusiness ??
       intervention.speaker,
     date: intervention.date,
     collection: intervention.chamber,
-    language,
+    language: intervention.language === "en" || intervention.language === "fr"
+      ? intervention.language : undefined,
     url: intervention.sourceUrl,
   } satisfies LegalSourceReference;
 }
@@ -203,12 +173,8 @@ export const hansardLegalSourceProvider: LegalSourceProvider<HansardIntervention
       speaker: request.speaker,
       startDate: request.dateFrom,
       endDate: request.dateTo,
-      sortResults:
-        request.sort === "newest"
-          ? "newest_first"
-          : request.sort === "oldest"
-            ? "oldest_first"
-            : "default",
+      sortResults: request.sort === "newest" ? "newest_first"
+        : request.sort === "oldest" ? "oldest_first" : "default",
       querySyntax: request.syntax,
     });
     return rows?.map((row) => ({
