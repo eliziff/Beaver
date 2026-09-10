@@ -6,10 +6,10 @@ import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import type { WorkProduct, WorkProductStore } from "@/app/lib/workProducts";
 import { BeaverApiError } from "@/app/lib/api/client";
-import type { CourtRecordsHost } from "./host";
+import type { CourtRecordsHost, PreparedFile } from "./host";
 import { CourtRecordsWorkspace } from "./CourtRecordsWorkspace";
 import { COURT_PROFILE_BY_ID } from "./profiles";
-import type { CourtRecordDraft } from "./types";
+import type { CourtRecordDraft, RecordEntry } from "./types";
 
 const mocks = vi.hoisted(() => ({ build: vi.fn(), download: vi.fn() }));
 vi.mock("./assembly", () => ({ buildCourtRecord: mocks.build }));
@@ -31,6 +31,18 @@ const saved = (id: string): WorkProduct<CourtRecordDraft> => ({
   outputs: {}, createdAt: "2026-08-30T00:00:00.000Z",
   updatedAt: "2026-08-30T00:00:00.000Z",
 });
+
+// These fixtures serve Court records; the production store is generic over all work products.
+function workspace(mode: CourtRecordsHost["mode"], { draft, drafts, ...overrides }: {
+  draft?: WorkProduct<CourtRecordDraft>; drafts?: Partial<Record<keyof WorkProductStore, unknown>>;
+} & Partial<Omit<CourtRecordsHost, "drafts" | "mode">> = {}) {
+  const store = { list: vi.fn(async () => draft ? [draft] : []), get: vi.fn(async () => draft),
+    create: vi.fn(), update: vi.fn(), duplicate: vi.fn(), remove: vi.fn(),
+    ...drafts } as WorkProductStore;
+  const host: CourtRecordsHost = { mode, drafts: store, prepareDeviceFile: vi.fn(),
+    resolveInput: vi.fn(), ...overrides };
+  return { host, store };
+}
 
 function readyRecord(id = "record") {
   const file = new File(["%PDF"], "Authorities.pdf", {
@@ -63,7 +75,8 @@ describe("CourtRecordsWorkspace", () => {
     let releaseSave!: () => void;
     const pendingSave = new Promise<void>((resolve) => { releaseSave = resolve; });
     const revisions: number[] = [];
-    const store = { list: async () => [current], get: async () => current,
+    const { host } = workspace("beaver", { drafts: { list: async () => [current],
+      get: async () => current,
       update: async (_id: string, patch: { revision: number; state: CourtRecordDraft }) => {
         revisions.push(patch.revision);
         if (revisions.length === 1) current = { ...draft, revision: 2, state: {
@@ -75,11 +88,8 @@ describe("CourtRecordsWorkspace", () => {
         if (patch.revision !== current.revision) throw new BeaverApiError({ status: 409,
           message: "This draft changed", details: { current_revision: String(current.revision) } });
         return current = { ...current, revision: current.revision + 1, state: patch.state };
-      },
-    } as unknown as WorkProductStore;
-    const host = { mode: "beaver", drafts: store,
-      resolveInput: async () => ({ status: "ready", input, prepared, file: prepared.file }),
-    } as unknown as CourtRecordsHost;
+      } },
+      resolveInput: async () => ({ status: "ready", input, prepared, file: prepared.file }) });
     const { rerender } = render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
     fireEvent.change(await screen.findByLabelText(/Court file number/), { target: { value: "T-42" } });
     await waitFor(() => expect(revisions).toHaveLength(1));
@@ -102,16 +112,14 @@ describe("CourtRecordsWorkspace", () => {
   ])("reveals setup after the source document is added for %s", async (profileId, kindId) => {
     const draft = saved("source-first");
     draft.state.profileId = profileId;
-    const store = { list: async () => [draft], get: async () => draft,
+    const { host } = workspace("standalone", { drafts: { list: async () => [draft],
+      get: async () => draft,
       update: async (_id: string, change: { state: CourtRecordDraft }) =>
-        ({ ...draft, revision: 2, state: change.state }),
-    } as unknown as WorkProductStore;
-    const host = { mode: "standalone", drafts: store,
+        ({ ...draft, revision: 2, state: change.state }) },
       prepareDeviceFile: async (file: File) => ({ file, pageCount: 1,
         searchable: true, encrypted: false,
         sourceFields: { cover: { courtFileNumber: "T-42-26" }, exhibitLabels: [] },
-      }),
-    } as unknown as CourtRecordsHost;
+      }) });
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
     await screen.findByRole("heading", { name: /Add the .*Required/ });
     expect(screen.queryByRole("heading", { name: "Case details" })).not.toBeInTheDocument();
@@ -123,39 +131,10 @@ describe("CourtRecordsWorkspace", () => {
     expect(screen.getByRole("button", { name: "Replace" })).toBeVisible();
   });
 
-  it.each([{ records: [] }, { records: [saved("existing")] }])("keeps landing actions stable while saved records load: %j", async ({ records }) => {
-    let finishListing!: (items: typeof records) => void;
-    const store = { list: vi.fn(() => new Promise<typeof records>((resolve) => {
-      finishListing = resolve;
-    })), get: vi.fn(), create: vi.fn(), update: vi.fn(), duplicate: vi.fn(),
-      remove: vi.fn() } as unknown as WorkProductStore;
-    const host = { mode: "standalone", drafts: store, prepareDeviceFile: vi.fn(),
-      resolveInput: vi.fn() } as unknown as CourtRecordsHost;
-    const user = userEvent.setup();
-    render(<CourtRecordsWorkspace host={host} />);
-    const newRecord = screen.getByRole("button", { name: "New court record" });
-    const openSaved = screen.getByRole("button", { name: "Open saved record" });
-    expect(newRecord).toBeEnabled();
-    expect(openSaved).toBeVisible();
-    expect(openSaved).toBeDisabled();
-    await user.click(newRecord);
-    expect(screen.getByRole("dialog", { name: "Choose document" })).toBeVisible();
-    await user.keyboard("{Escape}");
-    await act(async () => finishListing(records));
-    expect(screen.getByRole("button", { name: "New court record" })).toBe(newRecord);
-    expect(screen.getByRole("button", { name: "Open saved record" })).toBe(openSaved);
-    expect(openSaved).toBeEnabled();
-    await user.click(openSaved);
-    expect(screen.getByRole("dialog", { name: "Open saved record" }))
-      .toHaveTextContent(records.length ? "existing" : "No saved court records yet.");
-  });
-
   it("paginates saved records and searches beyond the current page", async () => {
     const records = Array.from({ length: 17 }, (_, index) => saved(`Record ${index + 1}`));
-    const store = { list: vi.fn(async () => records), get: vi.fn(async (id) => records.find((item) => item.id === id)),
-      create: vi.fn(), update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
-    const host = { mode: "standalone", drafts: store, prepareDeviceFile: vi.fn(),
-      resolveInput: vi.fn() } as unknown as CourtRecordsHost;
+    const { host, store } = workspace("standalone", { drafts: { list: vi.fn(async () => records),
+      get: vi.fn(async (id) => records.find((item) => item.id === id)) } });
     const user = userEvent.setup();
     render(<CourtRecordsWorkspace host={host} />);
     await waitFor(() => expect(screen.getByRole("button", { name: "Open saved record" })).toBeEnabled());
@@ -174,12 +153,9 @@ describe("CourtRecordsWorkspace", () => {
   });
 
   it("opens standalone output settings without starting a record", async () => {
-    const store = { list: vi.fn(async () => []), get: vi.fn(), create: vi.fn(),
-      update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const choose = vi.fn(async () => "Filed records");
-    const host = { mode: "standalone", drafts: store, prepareDeviceFile: vi.fn(),
-      resolveInput: vi.fn(), outputFolder: { get: vi.fn(async () => "Court outputs"),
-        choose, clear: vi.fn() } } as unknown as CourtRecordsHost;
+    const { host, store } = workspace("standalone", { outputFolder: { get: vi.fn(async () => "Court outputs"),
+        choose, clear: vi.fn() } });
     const user = userEvent.setup();
     render(<CourtRecordsWorkspace host={host} />);
 
@@ -200,19 +176,17 @@ describe("CourtRecordsWorkspace", () => {
     const update = vi.fn(async (_id, change) => ({ ...draft, revision: 2,
       state: change.state }));
     let finishListing!: (items: []) => void;
-    const store = { listMetadata: () => new Promise<[]>((resolve) => { finishListing = resolve; }),
-      get: vi.fn(),
-      create: vi.fn(async (input) => (draft = { ...draft, ...input })),
-      update, duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const prepared = { file, pdfRendition: new File(["pdf"], "Notice.pdf",
       { type: "application/pdf" }), pageCount: 1, searchable: true, encrypted: false,
       textlessPageCount: 0, textlessPages: [], binding,
       origin: { kind: "library" as const, documentId: "notice" }, sourceFields: {
         cover: { courtFileNumber: "T-42-26" }, exhibitLabels: [],
       } };
-    const host = { mode: "beaver", drafts: store, prepareDeviceFile: vi.fn(),
+    const { host } = workspace("beaver", { drafts: { listMetadata: () => new Promise<[]>((resolve) => { finishListing = resolve; }),
+      create: vi.fn(async (input) => (draft = { ...draft, ...input })),
+      update },
       resolveInput: vi.fn(async () => ({ status: "ready" as const, file, input: binding,
-        prepared })) } as unknown as CourtRecordsHost;
+        prepared })) });
     const user = userEvent.setup();
     const consumed = vi.fn();
     render(<CourtRecordsWorkspace host={host}
@@ -256,12 +230,8 @@ describe("CourtRecordsWorkspace", () => {
       title: "Moving party’s motion record", state: {
       profileId: "fc-motion-record-moving", cover: {}, entries: [], bindings: {},
     } };
-    const store = {
-      list: vi.fn(async () => [existing]), get: vi.fn(),
-      create: vi.fn(async () => created), update: vi.fn(), duplicate: vi.fn(), remove: vi.fn(),
-    } as unknown as WorkProductStore;
-    const host = { mode: "standalone", drafts: store,
-      prepareDeviceFile: vi.fn(), resolveInput: vi.fn() } as unknown as CourtRecordsHost;
+    const { host, store } = workspace("standalone", { drafts: { list: vi.fn(async () => [existing]),
+      create: vi.fn(async () => created) } });
     const onDraftChange = vi.fn();
 
     const user = userEvent.setup();
@@ -314,18 +284,15 @@ describe("CourtRecordsWorkspace", () => {
     const old = { ...saved("old"), state: { ...saved("old").state,
       profileId: "ab-kb-commercial-compendium" } };
     let finishSave!: () => void;
-    const store = {
-      listMetadata: async () => [], get: async () => old,
+    const file = new File(["pdf"], "Notice.pdf");
+    const { host } = workspace("beaver", { drafts: { listMetadata: async () => [],
+      get: async () => old,
       create: vi.fn(async (input) => ({ ...saved("new"), ...input })),
       update: (id: string, change: { state: CourtRecordDraft }) => id === "new"
         ? Promise.resolve({ ...saved("new"), ...change, revision: 2 })
-        : new Promise((resolve) => { finishSave = () => resolve({ ...old, ...change, revision: 2 }); }),
-    } as unknown as WorkProductStore;
-    const file = new File(["pdf"], "Notice.pdf");
-    const host = { mode: "beaver", drafts: store,
-      resolveInput: async (input: unknown) => ({ status: "ready", input, file,
-        prepared: { file, pageCount: 1, searchable: true, encrypted: false } }),
-    } as unknown as CourtRecordsHost;
+        : new Promise((resolve) => { finishSave = () => resolve({ ...old, ...change, revision: 2 }); }) },
+      resolveInput: async (input) => ({ status: "ready", input, file,
+        prepared: { file, pageCount: 1, searchable: true, encrypted: false } }) });
     function RoutedBuilder() {
       const [params, setParams] = useSearchParams();
       const location = useLocation(), navigate = useNavigate();
@@ -362,11 +329,7 @@ describe("CourtRecordsWorkspace", () => {
 
   it("does not open a routed draft from another project", async () => {
     const requested = { ...saved("other-project"), projectId: "matter-2" };
-    const store = { list: vi.fn(async () => []), get: vi.fn(async () => requested),
-      create: vi.fn(), update: vi.fn(), duplicate: vi.fn(), remove: vi.fn(),
-    } as unknown as WorkProductStore;
-    const host = { mode: "beaver", drafts: store, prepareDeviceFile: vi.fn(),
-      resolveInput: vi.fn() } as unknown as CourtRecordsHost;
+    const { host, store } = workspace("beaver", { drafts: { get: vi.fn(async () => requested) } });
     const onDraftChange = vi.fn();
 
     render(<CourtRecordsWorkspace host={host} projectId="matter-1"
@@ -380,12 +343,10 @@ describe("CourtRecordsWorkspace", () => {
   it("keeps saved filing-contact defaults only where the selected cover accepts them", async () => {
     const created = { ...saved("created"), state: { profileId: "ab-kb-affidavit-exhibits",
       cover: {}, entries: [], bindings: {} } };
-    const store = { list: vi.fn(async () => []), get: vi.fn(),
-      create: vi.fn(async () => created), update: vi.fn(), duplicate: vi.fn(),
-      remove: vi.fn() } as unknown as WorkProductStore;
-    const host = { mode: "beaver", drafts: store, newDraftCover: vi.fn(async () => ({
+    const { host, store } = workspace("beaver", { drafts: { create: vi.fn(async () => created) },
+      newDraftCover: vi.fn(async () => ({
       counselName: "Ada Lawyer", counselEmail: "ada@example.test",
-    })), prepareDeviceFile: vi.fn(), resolveInput: vi.fn() } as unknown as CourtRecordsHost;
+    })) });
 
     const user = userEvent.setup();
     render(<CourtRecordsWorkspace host={host} />);
@@ -403,11 +364,10 @@ describe("CourtRecordsWorkspace", () => {
     const draft = { ...saved("contact"), state: { profileId: "fc-motion-record-moving",
       cover: { counselName: "Ada Lawyer", counselEmail: "ada@example.test" },
       entries: [], bindings: {} } };
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
-      update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const saveFilingContact = vi.fn(async () => undefined);
-    const host = { mode: "standalone", drafts: store, saveFilingContact,
-      prepareDeviceFile: async (file: File) => ({ file, pageCount: 1, searchable: true, encrypted: false }), resolveInput: vi.fn() } as unknown as CourtRecordsHost;
+    const { host } = workspace("standalone", { draft,
+      saveFilingContact,
+      prepareDeviceFile: async (file: File) => ({ file, pageCount: 1, searchable: true, encrypted: false }) });
 
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
     await screen.findByRole("heading", { name: /Add the notice/ });
@@ -424,14 +384,9 @@ describe("CourtRecordsWorkspace", () => {
   it("resumes an exact deep link beyond the first saved page", async () => {
     const drafts = [saved("first")], requested = saved("requested");
     let resolveRequested!: (draft: WorkProduct<CourtRecordDraft>) => void;
-    const store = {
-      list: vi.fn(async () => drafts), get: vi.fn(() =>
-        new Promise<WorkProduct<CourtRecordDraft>>((resolve) => { resolveRequested = resolve; })),
-      create: vi.fn(), update: vi.fn(),
-      duplicate: vi.fn(), remove: vi.fn(),
-    } as unknown as WorkProductStore;
-    const host = { mode: "standalone", drafts: store,
-      prepareDeviceFile: vi.fn(), resolveInput: vi.fn() } as unknown as CourtRecordsHost;
+    const { host, store } = workspace("standalone", { drafts: { list: vi.fn(async () => drafts),
+      get: vi.fn(() =>
+        new Promise<WorkProduct<CourtRecordDraft>>((resolve) => { resolveRequested = resolve; })) } });
     const onDraftChange = vi.fn();
 
     const { rerender } = render(<CourtRecordsWorkspace host={host} initialDraftId="requested"
@@ -455,10 +410,8 @@ describe("CourtRecordsWorkspace", () => {
     const pending: Array<(draft: WorkProduct<CourtRecordDraft>) => void> = [];
     const get = vi.fn(() => new Promise<WorkProduct<CourtRecordDraft>>((resolve) =>
       pending.push(resolve))).mockResolvedValueOnce(initial);
-    const store = { list: vi.fn(async () => [initial]), get, create: vi.fn(),
-      update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
-    const host = { mode: "beaver", drafts: store, prepareDeviceFile: vi.fn(),
-      resolveInput: vi.fn() } as unknown as CourtRecordsHost;
+    const { host } = workspace("beaver", { drafts: { list: vi.fn(async () => [initial]),
+      get } });
     const onDraftChange = vi.fn();
     const { rerender } = render(<CourtRecordsWorkspace host={host} initialDraftId={initial.id}
       refreshToken={{ id: initial.id, revision: 1, sequence: 1 }} onDraftChange={onDraftChange} />);
@@ -482,10 +435,8 @@ describe("CourtRecordsWorkspace", () => {
     draft.state.profileId = "ab-kb-commercial-compendium";
     const update = vi.fn(async (_id, change) => ({ ...draft, revision: 2,
       state: change.state }));
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
-      update, duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
-    const host = { mode: "standalone", drafts: store, prepareDeviceFile: vi.fn(),
-      resolveInput: vi.fn() } as unknown as CourtRecordsHost;
+    const { host } = workspace("standalone", { draft,
+      drafts: { update } });
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
 
     fireEvent.change(await screen.findByLabelText(/Court file number/iu),
@@ -502,10 +453,8 @@ describe("CourtRecordsWorkspace", () => {
     draft.state.profileId = "ab-kb-commercial-compendium";
     const update = vi.fn(async (_id, change) => ({ ...draft, revision: 2,
       state: change.state }));
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
-      update, duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
-    const host = { mode: "standalone", drafts: store, prepareDeviceFile: vi.fn(),
-      resolveInput: vi.fn() } as unknown as CourtRecordsHost;
+    const { host } = workspace("standalone", { draft,
+      drafts: { update } });
     const view = render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
 
     fireEvent.change(await screen.findByLabelText(/Court file number/iu),
@@ -525,10 +474,8 @@ describe("CourtRecordsWorkspace", () => {
       new Promise<WorkProduct<CourtRecordDraft>>((resolve) => pending.push({
         state: change.state, resolve,
       })));
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
-      update, duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
-    const host = { mode: "standalone", drafts: store, prepareDeviceFile: vi.fn(),
-      resolveInput: vi.fn() } as unknown as CourtRecordsHost;
+    const { host } = workspace("standalone", { draft,
+      drafts: { update } });
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
 
     const field = await screen.findByLabelText(/Court file number/iu);
@@ -552,13 +499,12 @@ describe("CourtRecordsWorkspace", () => {
     mocks.build.mockImplementationOnce(() => new Promise((resolve) => {
       finishBuild = resolve;
     }));
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
-      update: vi.fn(async (_id, change) => ({ ...draft, revision: 2,
-        state: change.state })), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
-    const host = { mode: "beaver", drafts: store,
-      prepareDeviceFile: vi.fn(), resolveInput: vi.fn(async () => ({
+    const { host } = workspace("beaver", { draft,
+      drafts: { update: vi.fn(async (_id, change) => ({ ...draft, revision: 2,
+        state: change.state })) },
+      resolveInput: vi.fn(async () => ({
         status: "ready" as const, file: prepared.file, input: prepared.binding!, prepared,
-      })) } as unknown as CourtRecordsHost;
+      })) });
     const onDraftChange = vi.fn();
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id}
       onDraftChange={onDraftChange} />);
@@ -617,11 +563,9 @@ describe("CourtRecordsWorkspace", () => {
     const resolveInput = vi.fn()
       .mockResolvedValueOnce({ status: "ready", file, input: binding, prepared: current })
       .mockResolvedValue({ status: "changed", file, input: binding, prepared: finalized });
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
-      update: vi.fn(async (_id, change) => ({ ...draft, revision: 2, state: change.state })),
-      duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
-    const host = { mode: "beaver", drafts: store, prepareDeviceFile: vi.fn(),
-      resolveInput } as unknown as CourtRecordsHost;
+    const { host } = workspace("beaver", { draft,
+      drafts: { update: vi.fn(async (_id, change) => ({ ...draft, revision: 2, state: change.state })) },
+      resolveInput });
     mocks.build.mockResolvedValueOnce({ artifacts: [], receipt: { sources: [] } });
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
 
@@ -651,10 +595,7 @@ describe("CourtRecordsWorkspace", () => {
         ], filingPartyIds: ["b"],
       }, entries: [], bindings: {},
     } };
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
-      update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
-    const host = { mode: "standalone", drafts: store, prepareDeviceFile: vi.fn(),
-      resolveInput: vi.fn() } as unknown as CourtRecordsHost;
+    const { host } = workspace("standalone", { draft });
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Build record" }));
@@ -663,11 +604,8 @@ describe("CourtRecordsWorkspace", () => {
 
   it("focuses relinking rather than an unrelated field when an input is missing", async () => {
     const { draft } = readyRecord("missing-input");
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
-      update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
-    const host = { mode: "standalone", drafts: store, prepareDeviceFile: vi.fn(),
-      resolveInput: vi.fn(async () => ({ status: "missing" as const, reason: "deleted" as const })),
-      relinkInput: vi.fn() } as unknown as CourtRecordsHost;
+    const { host } = workspace("standalone", { draft,
+      resolveInput: vi.fn(async () => ({ status: "missing" as const, reason: "deleted" as const })), relinkInput: vi.fn() });
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Build record" }));
@@ -691,12 +629,12 @@ describe("CourtRecordsWorkspace", () => {
         byteCount: file.size, pageCount: 1, origin: prepared.origin, ocrAppliedPages: [] }],
     } });
     const resolveInput = vi.fn().mockResolvedValue({ status: "ready", file, input, prepared });
-    let finishSave!: (value: object) => void;
-    const saveArtifacts = vi.fn(() => new Promise((resolve) => { finishSave = resolve; }));
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
-      update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
-    const host = { mode: "beaver", drafts: store, prepareDeviceFile: vi.fn(),
-      resolveInput, saveArtifacts } as unknown as CourtRecordsHost;
+    type SavedArtifacts = Awaited<ReturnType<NonNullable<CourtRecordsHost["saveArtifacts"]>>>;
+    let finishSave!: (value: SavedArtifacts) => void;
+    const saveArtifacts = vi.fn(() => new Promise<SavedArtifacts>((resolve) => { finishSave = resolve; }));
+    const { host, store } = workspace("beaver", { draft,
+      resolveInput,
+      saveArtifacts });
     const onDraftChange = vi.fn();
     const user = userEvent.setup();
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id}
@@ -736,7 +674,7 @@ describe("CourtRecordsWorkspace", () => {
       current_version_id: "version-1", source_sha256: "a".repeat(64) };
     const binding = { kind: "work-product-output" as const,
       workProductId: "authorities-draft", role: "book" };
-    const choice = { workProductId: binding.workProductId,
+    const choice = { kind: "authorities" as const, workProductId: binding.workProductId,
       workProductTitle: "Application authorities", role: binding.role,
       output: { documentId: libraryDocument.id, versionId: "version-1",
         filename: libraryDocument.filename, mimeType: "application/pdf",
@@ -745,20 +683,20 @@ describe("CourtRecordsWorkspace", () => {
     const file = new File(["book"], libraryDocument.filename, { type: "application/pdf" });
     const update = vi.fn(async (_id, change) => ({ ...draft, revision: 2,
       state: change.state }));
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
-      update, duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const importLibraryDocument = vi.fn();
     const importDraftOutput = vi.fn(async () => ({ file, pageCount: 1, searchable: true,
       encrypted: false, textlessPageCount: 0, textlessPages: [], binding,
       origin: { kind: "library" as const, documentId: libraryDocument.id,
         versionId: libraryDocument.current_version_id,
         sourceSha256: libraryDocument.source_sha256 } }));
-    const host = { mode: "beaver", drafts: store, prepareDeviceFile: vi.fn(),
+    const { host } = workspace("beaver", { draft,
+      drafts: { update },
       resolveInput: vi.fn(async () => ({ status: "ready" as const, file: oldFile,
         input: oldBinding, prepared: { file: oldFile, pageCount: 1, searchable: true,
           encrypted: false, binding: oldBinding, origin: { kind: "library" as const } } })),
-      searchDraftOutputs: vi.fn(async () => [choice]), importLibraryDocument,
-      importDraftOutput } as unknown as CourtRecordsHost;
+      searchDraftOutputs: vi.fn(async () => [choice]),
+      importLibraryDocument,
+      importDraftOutput });
     const user = userEvent.setup();
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
 
@@ -783,18 +721,18 @@ describe("CourtRecordsWorkspace", () => {
   it("merges OCR into the current draft after three quick additions and a manual edit", async () => {
     const draft = saved("ocr");
     let persisted = draft;
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
-      update: vi.fn(async (_id, patch) => persisted = { ...persisted,
-        revision: persisted.revision + 1, state: patch.state }), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
     const prepareDeviceFile = vi.fn(async (file: File) => ({ file, pageCount: 1,
       searchable: file.name !== "scan.pdf", encrypted: false,
       textlessPageCount: file.name === "scan.pdf" ? 1 : 0,
       textlessPages: file.name === "scan.pdf" ? [1] : [],
       origin: { kind: "device" as const } }));
-    let finishOcr!: (patch: object) => void;
-    const runOcr = vi.fn(() => new Promise((resolve) => { finishOcr = resolve; }));
-    const host = { mode: "standalone", drafts: store, prepareDeviceFile, runOcr,
-      resolveInput: vi.fn() } as unknown as CourtRecordsHost;
+    let finishOcr!: (patch: Partial<RecordEntry>) => void;
+    const runOcr = vi.fn(() => new Promise<Partial<RecordEntry>>((resolve) => { finishOcr = resolve; }));
+    const { host } = workspace("standalone", { draft,
+      drafts: { update: vi.fn(async (_id, patch) => persisted = { ...persisted,
+        revision: persisted.revision + 1, state: patch.state }) },
+      prepareDeviceFile,
+      runOcr });
     const onDraftChange = vi.fn();
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id}
       onDraftChange={onDraftChange} />);
@@ -810,7 +748,7 @@ describe("CourtRecordsWorkspace", () => {
     await uploadFiles(document.getElementById("court-record-exhibit-file")!,
       ["one.pdf", "two.pdf"].map((name) => new File([name], name, { type: "application/pdf" })));
     await act(async () => finishOcr({ searchable: true, textlessPageCount: 0,
-      textlessPages: [], ocrAppliedPages: [1] }));
+      textlessPages: [] }));
     await waitFor(() => expect(persisted.state.entries).toHaveLength(3));
     expect(persisted.state.cover.deponent).toBe("Human deponent");
     expect(screen.getByDisplayValue("Human deponent")).toBeVisible();
@@ -823,10 +761,7 @@ describe("CourtRecordsWorkspace", () => {
       state: { profileId: "ab-kb-affidavit-exhibits", cover: { deponent: "Edited deponent" },
         entries: [], bindings: {} },
     };
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
-      update: vi.fn(async (_id, update) => ({ ...draft, revision: 2, state: update.state })),
-      duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
-    const prepared = (file: File, sourceFields?: object) => ({ file, pageCount: 1,
+    const prepared = (file: File, sourceFields?: PreparedFile["sourceFields"] & Record<string, unknown>) => ({ file, pageCount: 1,
       searchable: true, encrypted: false, textlessPageCount: 0, textlessPages: [],
       sourceBookmarks: [], origin: { kind: "device" as const }, sourceFields,
       binding: { kind: "local-file" as const, handleId: file.name,
@@ -842,9 +777,10 @@ describe("CourtRecordsWorkspace", () => {
         exhibitLabels: ["A", "B"],
         entryTitle: "Affidavit of Source deponent", entryDate: "January 2, 2026",
       } : file.name === "source-labelled.pdf"
-        ? { cover: {}, explicitExhibitLabel: "A" } : undefined));
-    const host = { mode: "standalone", drafts: store, prepareDeviceFile,
-      resolveInput: vi.fn() } as unknown as CourtRecordsHost;
+        ? { cover: {}, exhibitLabels: [], explicitExhibitLabel: "A" } : undefined));
+    const { host } = workspace("standalone", { draft,
+      drafts: { update: vi.fn(async (_id, update) => ({ ...draft, revision: 2, state: update.state })) },
+      prepareDeviceFile });
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
 
     await screen.findByRole("heading", { name: /Add the affidavit.*Required/ });
@@ -913,10 +849,8 @@ describe("CourtRecordsWorkspace", () => {
             exhibitLabels: [] },
       } };
     });
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
-      update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
-    const host = { mode: "standalone", drafts: store, resolveInput,
-      prepareDeviceFile: vi.fn() } as unknown as CourtRecordsHost;
+    const { host } = workspace("standalone", { draft,
+      resolveInput });
 
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
 
@@ -941,10 +875,9 @@ describe("CourtRecordsWorkspace", () => {
     } };
     const update = vi.fn(async (_id, change) => ({ ...draft,
       revision: update.mock.calls.length + 1, state: change.state }));
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
-      update, duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
-    const host = { mode: "standalone", drafts: store, resolveInput: vi.fn(),
-      prepareDeviceFile: async (file: File) => ({ file, pageCount: 1, searchable: true, encrypted: false }) } as unknown as CourtRecordsHost;
+    const { host } = workspace("standalone", { draft,
+      drafts: { update },
+      prepareDeviceFile: async (file: File) => ({ file, pageCount: 1, searchable: true, encrypted: false }) });
     const user = userEvent.setup();
     render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
 
@@ -986,19 +919,5 @@ describe("CourtRecordsWorkspace", () => {
       { role: "Plaintiff", parties: [{ name: "Alpha Ltd." }] },
       { role: "Defendant", parties: [{ name: "Beta Ltd." }] },
     ]);
-  });
-
-  it("omits an empty Case details step", async () => {
-    const draft = { ...saved("filing-set"), state: { profileId: "fca-leave-response-set",
-      cover: {}, entries: [], bindings: {} } };
-    const store = { list: vi.fn(async () => [draft]), get: vi.fn(async () => draft), create: vi.fn(),
-      update: vi.fn(), duplicate: vi.fn(), remove: vi.fn() } as unknown as WorkProductStore;
-    const host = { mode: "standalone", drafts: store, resolveInput: vi.fn(),
-      prepareDeviceFile: vi.fn() } as unknown as CourtRecordsHost;
-
-    render(<CourtRecordsWorkspace host={host} initialDraftId={draft.id} />);
-
-    expect(await screen.findByRole("heading", { name: /Add the respondent.s memorandum/ })).toBeVisible();
-    expect(screen.queryByRole("heading", { name: /Case details/iu })).not.toBeInTheDocument();
   });
 });

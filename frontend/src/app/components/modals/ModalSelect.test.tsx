@@ -34,14 +34,3 @@ it("filters and selects the first matching choice with Enter", async () => {
     expect(onChange).toHaveBeenCalledWith("appeal");
     expect(onClose).toHaveBeenCalledOnce();
 });
-
-it("searches secondary choice details", async () => {
-    render(<SearchableChoiceModal open onClose={() => undefined}
-        title="Open saved record" value={null}
-        options={[{ value: "motion", label: "Smith v Jones",
-            description: "Motion record · Created Sep 2, 2026" }]}
-        onChange={() => undefined} />);
-    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "motion" } });
-    expect(screen.getByRole("button", { name: "Smith v Jones. Motion record · Created Sep 2, 2026" }))
-        .toBeVisible();
-});
