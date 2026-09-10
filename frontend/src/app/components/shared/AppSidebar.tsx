@@ -269,7 +269,7 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
               ) : (
                 <div className="space-y-0">
                   {assistantChats.map((chat) => showingSearch ? <ChatSearchResult key={chat.id} chat={chat} query={searchedChats.searchQuery} compact isActive={routeChatId === chat.id} onNavigate={closeNavigation} /> : (
-                    <SidebarChatItem key={chat.id} chat={chat} showIcon={false}
+                    <SidebarChatItem key={chat.id} chat={chat}
                       isActive={routeChatId === chat.id}
                       isSelected={selectedChatIds.has(chat.id)}
                       selectedCount={selectedChatIds.size}

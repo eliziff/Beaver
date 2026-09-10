@@ -1,5 +1,5 @@
 import { Loader2 } from "lucide-react";
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { Modal } from "@/app/components/modals/Modal";
 import type { Document } from "@/app/lib/api/documents";
 import { SearchBar } from "@/app/components/ui/search-bar";
@@ -12,7 +12,6 @@ import { DocumentResultRow } from "./DocumentResultRow";
 export type LibraryDocumentPickerProps<T extends Document = Document> = {
   open: boolean; title: string; formatLabel: string; busy?: boolean;
   sourceLabel?: string;
-  detail?: (document: T) => ReactNode;
   search: (query: string, signal: AbortSignal) => Promise<T[]>;
   onSelect: (document: T) => void;
   onError: (error: unknown) => void;
@@ -24,7 +23,7 @@ export function LibraryDocumentPicker<T extends Document>(props: LibraryDocument
 }
 
 function OpenPicker<T extends Document>({ title, formatLabel, busy = false,
-  sourceLabel = "Library", detail, search, onSelect, onClose, onError }: LibraryDocumentPickerProps<T>) {
+  sourceLabel = "Library", search, onSelect, onClose, onError }: LibraryDocumentPickerProps<T>) {
   const [query, setQuery] = useState("");
   const searchInput = useRef<HTMLInputElement>(null);
   useLayoutEffect(() => searchInput.current?.focus(), []);
@@ -44,7 +43,7 @@ function OpenPicker<T extends Document>({ title, formatLabel, busy = false,
         {loading ? <CollectionState loading className="h-full gap-2"><Loader2 className="h-4 w-4 motion-safe:animate-spin" /> Loading {sourceLabel}</CollectionState>
           : results.length ? <ul className="divide-y divide-gray-100">{results.map((document) => <li key={document.id}>
             <DocumentResultRow filename={document.filename} fileType={document.file_type}
-              onClick={() => onSelect(document)} metadata={detail?.(document) ?? [
+              onClick={() => onSelect(document)} metadata={[
                 document.page_count ? `${document.page_count} pages` : "",
                 document.size_bytes ? formatBytes(document.size_bytes) : "",
               ].filter(Boolean).join(" · ")} />

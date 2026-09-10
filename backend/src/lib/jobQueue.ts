@@ -41,14 +41,13 @@ export class PermanentJobError extends Error {
 
 const now = () => new Date().toISOString();
 const later = (milliseconds: number) => new Date(Date.now() + milliseconds).toISOString();
-const encode = (value: Json) => JSON.stringify(value);
 const decode = (value: unknown): Json | null => {
   if (value === null || value === undefined) return null;
   if (typeof value !== "string") return value as Json;
   try { return JSON.parse(value) as Json; } catch { throw new Error("Invalid job JSON"); }
 };
 const boundedJson = (value: Json, maximum: number, label: string) => {
-  const text = encode(value);
+  const text = JSON.stringify(value);
   if (Buffer.byteLength(text) > maximum) throw new Error(`${label} is too large`);
   return text;
 };
@@ -255,11 +254,10 @@ export async function requestGroupCancellation(groupKey: string, userId: string)
     sql`group_key=${bounded(groupKey, 500, "Job group")}`, userId)).length;
 }
 
-async function jobCancellationRequested(id: string, workerId?: string) {
-  const owner = workerId ? sql`AND locked_by=${workerId}` : sql.raw("");
+async function jobCancellationRequested(id: string, workerId: string) {
   const row = (await (await relationalDatabase()).query<{ id: string }>(sql`
     SELECT id FROM application_jobs WHERE id=${id} AND status='running'
-      ${owner} AND cancel_requested_at IS NOT NULL`)).rows[0];
+      AND locked_by=${workerId} AND cancel_requested_at IS NOT NULL`)).rows[0];
   return !!row;
 }
 

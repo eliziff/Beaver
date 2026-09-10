@@ -20,7 +20,7 @@ export { readResearchHistory } from "./researchHistory";
 import { researchSourceReferenceSchema as source, researchFileActionSchema, researchMutationSchema, type ResearchLabel, type ResearchFileState,
   type ResearchSource, type ResearchSourceReference, type PublicResearchFileAction } from "./researchContract";
 export { researchFileActionSchema, researchSourceReferenceSchema, type ResearchLabel, type ResearchFileState,
-  type ResearchSource, type ResearchSourceReference, type ResearchPartReference, type PublicResearchFileAction } from "./researchContract";
+  type ResearchSource, type ResearchSourceReference, type PublicResearchFileAction } from "./researchContract";
 
 /** No highlight label means an observation. One label means an intentional highlight of that type. */
 export type ResearchEvidence = { receipt: LegalEvidenceReceipt; sourceId: string; highlightId?: string;
@@ -81,10 +81,10 @@ export const researchSourceFromResource = (value: string): LegalSourceReference 
       ...(typeof tuple[3] === "string" && tuple[3] ? { part: tuple[3] } : {}),
       collection: typeof tuple[4] === "string" && tuple[4] ? tuple[4] : null,
       ...((tuple[5] === "en" || tuple[5] === "fr") ? { language: tuple[5] } : {}) };
-  if (provider === "courtlistener-opinion") { const tuple = sourceTuple(sourceId);
+  if (provider === "courtlistener-opinion")
     return tuple && Number.isSafeInteger(Number(tuple[0])) && Number.isSafeInteger(Number(tuple[1]))
       ? { provider: "courtlistener", id: String(tuple[0]), part: String(tuple[1]), kind: "case" }
-      : null; }
+      : null;
   if (provider === "courtlistener") return Number.isSafeInteger(Number(sourceId)) && Number(sourceId) > 0
     ? { provider, id: sourceId, kind: "case" } : null;
   if (["tna", "govuk-et", "govinfo"].includes(provider)) return { provider, id: sourceId, kind: "case" };
@@ -616,8 +616,6 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
         for (const id of value.sourceIds) value.sourceReferences[id] ??= structuredClone(state.sources[id].reference);
         ledger[query.query_id] = value;
       }); writeQueries(); }
-  }
-  if (action.type === "merge") {
     if (action.tables?.length) state.tables = [...new Set([...(state.tables ?? []), ...action.tables])];
     if (action.chats?.length) state.chats = [...new Set([...(state.chats ?? []), ...action.chats])];
   }

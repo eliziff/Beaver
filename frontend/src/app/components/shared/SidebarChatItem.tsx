@@ -12,7 +12,6 @@ import { useAuth } from "@/app/contexts/AuthContext";
 import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
 import { ChatDeleteWarning } from "@/app/components/assistant/ChatDeleteWarning";
 import type { Chat } from "@/app/lib/api/chat";
-import { ChatSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
 import { cn } from "@/app/lib/utils";
 import {
@@ -20,7 +19,6 @@ import {
     APP_SURFACE_HOVER_CLASS,
 } from "@/app/components/ui/liquid-surface";
 interface Props {
-    showIcon?: boolean;
     chat: Chat;
     isActive: boolean;
     isSelected?: boolean;
@@ -38,7 +36,6 @@ interface Props {
     onDeleteSelection?: () => Promise<void>;
 }
 export function SidebarChatItem({
-    showIcon = true,
     chat,
     isActive,
     isSelected = false,
@@ -123,12 +120,8 @@ export function SidebarChatItem({
                 </div>
             ) : (
                 <>
-                    {(showIcon || chat.turn_in_progress) && <span className="ml-2.5 grid h-3.5 w-3.5 shrink-0 place-items-center">
-                        {chat.turn_in_progress ? (
-                            <ThinkingSpinner size={14} />
-                        ) : (
-                            <ChatSkeuoIcon className="h-3.5 w-3.5" />
-                        )}
+                    {chat.turn_in_progress && <span className="ml-2.5 grid h-3.5 w-3.5 shrink-0 place-items-center">
+                        <ThinkingSpinner size={14} />
                     </span>}
                     <Link
                         to={to}
