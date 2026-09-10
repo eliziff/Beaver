@@ -64,18 +64,15 @@ function firstString(record: JsonRecord, ...keys: string[]): string | null {
   return null;
 }
 
-function absoluteWebUrl(path: unknown): string | null {
-  const value = asString(path);
-  if (!value) return null;
-  return value.startsWith("http") ? value : `${COURTLISTENER_WEB_BASE}${value}`;
-}
-
-function absoluteStorageUrl(path: unknown): string | null {
+/** Already absolute, or joined to the CourtListener host the path belongs to. */
+const absoluteUrl = (base: string, rooted: boolean) => (path: unknown): string | null => {
   const value = asString(path);
   if (!value) return null;
   if (value.startsWith("http")) return value;
-  return `${COURTLISTENER_STORAGE_BASE}/${value.replace(/^\/+/, "")}`;
-}
+  return rooted ? `${base}/${value.replace(/^\/+/, "")}` : `${base}${value}`;
+};
+const absoluteWebUrl = absoluteUrl(COURTLISTENER_WEB_BASE, false);
+const absoluteStorageUrl = absoluteUrl(COURTLISTENER_STORAGE_BASE, true);
 
 function citationLabel(citation: unknown): string | null {
   if (typeof citation === "string") return citation;

@@ -341,7 +341,6 @@ async function document(args: {
   if (!source) return null;
   source = { ...source, verifiedPdf: await decisiaPdf(source.url, args.signal) };
   const result = await compileDocument(source);
-  if (!result) return null;
   documents.set(key, {
     expires: Date.now() + (docType === "cases" ? 24 * 60 * 60_000 : 60 * 60_000),
     value: result,
@@ -427,8 +426,6 @@ async function coverage(docType: DocType) {
   }).sort((left, right) => left.jurisdiction.localeCompare(right.jurisdiction) ||
     left.description.localeCompare(right.description));
 }
-
-export type A2AJCoverageResult = Awaited<ReturnType<typeof coverage>>[number];
 
 async function viewer(args: {
   citation: string; docType?: DocType | "auto"; language?: Language;

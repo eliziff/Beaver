@@ -4,8 +4,8 @@ import {
   arrayValue,
   cachedLegalSourceJson,
   legalSourceUrl,
-  nonnegativeNumber,
   objectValue,
+  remoteLegalSourceAttachment,
   remoteLegalSourcePassages,
   stringValue,
   type JsonObject,
@@ -78,20 +78,11 @@ async function searchGovInfoCase(text: string, signal?: AbortSignal) {
 
 function pdfAttachment(summary: JsonObject): RemoteLegalSourceAttachment[] {
   const download = objectValue(summary.download) ?? {};
-  const url = legalSourceUrl(
-    download.pdfLink ?? summary.pdfLink,
-    API_ORIGIN,
-    ["api.govinfo.gov", "www.govinfo.gov"],
-  );
-  return url ? [{
-    title: stringValue(summary.title),
-    url,
-    contentType: "application/pdf",
-    filename: stringValue(summary.pdfFileName ?? summary.filename),
-    pageCount: nonnegativeNumber(
-      summary.pageCount ?? summary.numberOfPages ?? summary.pages,
-    ),
-  }] : [];
+  return remoteLegalSourceAttachment(legalSourceUrl(download.pdfLink ?? summary.pdfLink,
+    API_ORIGIN, ["api.govinfo.gov", "www.govinfo.gov"]),
+    { title: summary.title, contentType: "application/pdf",
+      filename: summary.pdfFileName ?? summary.filename,
+      pageCount: summary.pageCount ?? summary.numberOfPages ?? summary.pages });
 }
 
 async function fetchGovInfoCase(

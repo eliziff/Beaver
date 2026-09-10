@@ -4,8 +4,8 @@ import {
   arrayValue,
   cachedLegalSourceJson,
   legalSourceUrl,
-  nonnegativeNumber,
   objectValue,
+  remoteLegalSourceAttachment,
   remoteLegalSourcePassages,
   stringValue,
   type RemoteLegalSourceAttachment,
@@ -76,16 +76,11 @@ function attachments(value: unknown): RemoteLegalSourceAttachment[] {
   const hosts = [HOST, "assets.publishing.service.gov.uk"];
   return arrayValue(value).flatMap((raw) => {
     const attachment = objectValue(raw);
-    const url = legalSourceUrl(attachment?.url, ORIGIN, hosts);
-    return url ? [{
-      title: stringValue(attachment?.title),
-      url,
-      contentType: stringValue(attachment?.content_type ?? attachment?.contentType),
-      filename: stringValue(attachment?.filename),
-      pageCount: nonnegativeNumber(
-        attachment?.number_of_pages ?? attachment?.page_count,
-      ),
-    }] : [];
+    return remoteLegalSourceAttachment(legalSourceUrl(attachment?.url, ORIGIN, hosts), {
+      title: attachment?.title,
+      contentType: attachment?.content_type ?? attachment?.contentType,
+      filename: attachment?.filename,
+      pageCount: attachment?.number_of_pages ?? attachment?.page_count });
   });
 }
 
