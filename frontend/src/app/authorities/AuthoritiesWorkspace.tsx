@@ -152,7 +152,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const draftRef = useRef(draft);
   const buildRequest = useRef<AbortController | null>(null);
   const reviewRequest = useRef<AbortController | null>(null);
-  const inspectionRequest = useRef(0);
+  const inspectionRequest = useRef(0), relinked = useRef(new Set<string>());
   const actionQueue = useRef(Promise.resolve());
   const gathering = useRef(Promise.resolve()), gathered = useRef({ id: "", revision: -1 });
   const modeDrafts = useRef<{ automatic?: string; manual?: string }>({});
@@ -301,8 +301,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         sourceKey: sourceIssueKey(current), revision: current.revision,
         issues: inspection.sourceIssues, outputFreshness: inspection.outputFreshness });
       // A source with a newer file is picked up on its own, never behind a button (Eli, 2026-09-09).
-      const changed = Object.entries(inspection.sourceIssues).find(([, issue]) => issue.status === "changed");
-      if (changed && host.relinkSource) relinkSource(changed[0]);
+      const changed = Object.entries(inspection.sourceIssues).find(([role, issue]) =>
+        issue.status === "changed" && !relinked.current.has(`${current.id}\0${role}`));
+      if (changed && host.relinkSource) { relinked.current.add(`${current.id}\0${changed[0]}`); relinkSource(changed[0]); }
     }).catch((caught) => active && setError(errorText(caught)));
     return () => { active = false; };
   }, [draftId, sourceKey, refreshToken?.sequence, host]);
