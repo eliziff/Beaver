@@ -25,6 +25,11 @@ const ALL_SOURCES: ResearchSelection = { target: "sources" };
 const PEN_KEY = "beaver.research.pen.v1";
 export type HighlightCapture = { reference: ResearchSourceReference; revision: string; start: number; end: number };
 
+/** The saved source already carrying this reference, if the workspace holds one. */
+export const findResearchSource = (file: ResearchFile, reference: ResearchSourceReference) =>
+  Object.values(file.state.sources).find(({ reference: saved }) =>
+    researchSourceKey(saved) === researchSourceKey(reference));
+
 function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey, selection: suppliedSelection, restoreLast = false, onChange }: Options) {
   const memoryKey = `beaver.research.current:${projectId ?? "personal"}`;
   const [file, setFile] = useState<ResearchFile | null>(supplied ?? null);
@@ -167,9 +172,8 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
     if (!picked) return false;
     const base = current.current;
     if (!base) throw new Error("Open a workspace first");
-    const key = researchSourceKey(picked.reference);
-    const sourceId = Object.values(base.state.sources).find(({ reference }) =>
-      researchSourceKey(reference) === key)?.id ?? (await act({ type: "source", reference: picked.reference })).sourceId;
+    const sourceId = findResearchSource(base, picked.reference)?.id
+      ?? (await act({ type: "source", reference: picked.reference })).sourceId;
     if (!sourceId) throw new Error("Saved source was not returned");
     const labels = current.current?.state.labels ?? {};
     let active = penId.current && labels[penId.current]?.scope === "highlight" ? penId.current
