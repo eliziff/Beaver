@@ -111,11 +111,11 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
   },
   async inspectDraft(draft) {
     const resolved = await getWorkProductResolution(draft.id);
+    // A "changed" input only means the last build read an older Library version; the next
+    // build reads the current one, so it is not an issue (Eli, 2026-09-09).
     const issues = Object.entries(resolved.inputs).flatMap<[string, AuthoritiesSourceIssue]>(([role, input]) =>
-      input.status === "changed" ? [[role, { status: "changed" as const }]]
-        : input.status === "missing" ? [[role, { status: "missing" as const,
-            reason: input.reason === "deleted" ? "deleted" as const : "unavailable" as const }]]
-          : []);
+      input.status === "missing" ? [[role, { status: "missing" as const,
+        reason: input.reason === "deleted" ? "deleted" as const : "unavailable" as const }]] : []);
     return { sourceIssues: Object.fromEntries(issues), outputFreshness: resolved.freshness };
   },
 };
