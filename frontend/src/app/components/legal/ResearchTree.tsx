@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { BookOpen, ChevronRight, FileText, Gavel, Landmark, Newspaper, ScrollText } from "lucide-react";
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { Button } from "../ui/button";
-import { researchLabelPath, type ResearchEvidence, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
+import { researchHighlightCount, researchLabelPath, type ResearchEvidence, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
 import { researchLabelColor } from "./ResearchLabelMarker";
 import { ResearchLabelEditor, RESEARCH_SOURCE_DRAG, type ResearchLabelTarget } from "./ResearchLabelPicker";
 import { ResearchLabelTree } from "./ResearchLabelTree";
@@ -17,8 +17,9 @@ export type ResearchTreePreview = { labels: Record<string, ResearchLabel>; marks
 const NO_ROWS = new Set<string>();
 const KIND_ICON = { case: Gavel, legislation: ScrollText, journal: Newspaper, hansard: Landmark, document: FileText } as const;
 const NEWLINE = "\n";
-/** Every saved passage a source carries, typed or not — exactly what the tree lists when it opens. */
-const passageTotal = (source: ResearchSource) => source.passages?.count ?? 0;
+/** What the tree lists when a source opens: its chain is `kind: "passages"`, which the workspace
+ *  serves as the typed passages only — an untyped one is never a row, so it never earns a caret. */
+const passageTotal = researchHighlightCount;
 /** File-explorer row: one fixed-height line, chevron, glyph, name, actions, number.
  *  Nothing wraps, so a row can never grow into the one above it. */
 export const ROW = "group flex h-7 min-w-0 items-center gap-1 rounded px-1";
