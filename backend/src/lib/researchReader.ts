@@ -49,7 +49,6 @@ export const researchReadContextSchema = z.object({
   reads: z.record(readProgress).optional(),
 }).strict();
 export type ResearchReadContext = z.infer<typeof researchReadContextSchema>;
-export type ResearchReadCursor = z.infer<typeof readCursor>;
 type ResearchResultScope = { resource: string; evidence?: readonly LegalEvidenceReceipt[] };
 export function researchResultFilter(context: ResearchReadContext | undefined) {
   const subjects = context?.subjects ?? [], resources = new Set(subjects.map(({ resource }) => resource)),
@@ -460,6 +459,10 @@ export const sourceActivityCitations = (sources: readonly LegalSourceReference[]
       ...source, identifier: source.id, source_type: source.kind,
     })));
 
+const uniqueReceipts = (receipts: readonly (LegalEvidenceReceipt | undefined)[]) =>
+  [...new Map(receipts.flatMap((receipt) =>
+    receipt ? [[receipt.evidence_id, receipt] as const] : [])).values()];
+
 const modelLegalPassage = (receipt: LegalEvidenceReceipt) => ({
   evidence_id: receipt.evidence_id, kind: receipt.locator.kind,
   locator: receipt.locator.label, text: receipt.span_text,
@@ -500,6 +503,7 @@ export async function readLegalSourceResource(
   if (boundary) return fail(boundary);
   const references = (args.references ?? "none") as
     "none" | "inbound" | "outbound" | "both";
+  const contextBlocks = Math.min(2, Math.max(0, Math.trunc(Number(args.context_blocks) || 0)));
   if (references !== "none") {
     if (source.provider !== "a2aj" || source.kind !== "legislation" ||
         locatorKind !== "section")
@@ -515,10 +519,7 @@ export async function readLegalSourceResource(
               value: locator,
               ...(endLocator ? { endValue: endLocator } : {}),
             },
-            contextBlocks: Math.min(
-              2,
-              Math.max(0, Math.trunc(Number(args.context_blocks) || 0)),
-            ),
+            contextBlocks,
           }
         : {}),
       signal: options.signal,
@@ -656,9 +657,7 @@ export async function readLegalSourceResource(
           };
         });
       });
-      const evidence = [...new Map(hits.flatMap(({ receipt }) =>
-        receipt ? [[receipt.evidence_id, receipt] as const] : [],
-      )).values()];
+      const evidence = uniqueReceipts(hits.map(({ receipt }) => receipt));
       const visibleHits = hits.map(({ receipt: _receipt, ...hit }) => hit);
       return {
         activityCitations,
@@ -683,9 +682,7 @@ export async function readLegalSourceResource(
             pattern,
             ...(locator ? { locator_kind: locatorKind, locator } : {}),
             ...(endLocator ? { end_locator: endLocator } : {}),
-            context_blocks: locator
-              ? Math.min(2, Math.max(0, Math.trunc(Number(args.context_blocks) || 0)))
-              : 0,
+            context_blocks: locator ? contextBlocks : 0,
             max_results: maxResults,
             context_chars: contextChars,
           },
@@ -761,11 +758,8 @@ export async function readLegalSourceResource(
       }
     }
 
-    const evidences = [...new Map(
-      [...registered.map(({ receipt }) => receipt), ...relatedEvidence].flatMap((receipt) =>
-        receipt ? [[receipt.evidence_id, receipt] as const] : [],
-      ),
-    ).values()];
+    const evidences = uniqueReceipts([...registered.map(({ receipt }) => receipt),
+      ...relatedEvidence]);
     const contextIds = new Set(registered.flatMap(({ passage, receipt }) =>
       passage.role === "context" && receipt ? [receipt.evidence_id] : []));
     const passages = evidences.map((receipt) => ({ ...modelPassage(receipt),
@@ -872,7 +866,6 @@ function readLibrarySectionWindow(input: LibraryWindowInput): ResearchRead {
     const continuation = suffix?.(kept, truncated) ?? "";
     return renderLibraryRead(input, kept, continuation, { complete: !truncated && nextOffset === null,
       next: nextOffset === null ? [] : [{ resource: requested, offset: nextOffset, section: sectionArg }] });
-
   };
   const lookup = structureNative().lookupStructureBlock(
     nativeDocument, sectionArg, 0);

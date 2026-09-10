@@ -33,6 +33,17 @@ export type LegalSourceSearchRequest = {
   signal?: AbortSignal;
 };
 
+/** A request's jurisdiction hint, case-folded and reduced to letters. */
+export function searchJurisdiction(request: Pick<LegalSourceSearchRequest, "jurisdiction">) {
+  return request.jurisdiction?.toLocaleLowerCase().replace(/[^a-z]/gu, "") ?? "";
+}
+
+/** The spellings a request may use for the United States, in one place. */
+export function isUnitedStatesSearch(request: Pick<LegalSourceSearchRequest, "jurisdiction">) {
+  return ["us", "usa", "unitedstates", "unitedstatesofamerica"]
+    .includes(searchJurisdiction(request));
+}
+
 export type LegalSourceSearchHit = LegalSourceReference & {
   snippet?: string | null;
   authors?: string | null;

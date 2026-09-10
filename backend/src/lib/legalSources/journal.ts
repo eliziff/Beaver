@@ -4,7 +4,9 @@ import path from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { legalProviderDatabase } from "../legalDataPath";
 import { positiveInteger as integer } from "../value";
+import { sqliteText as string } from "../sqliteSearch";
 import { structureNative, type NativeDocument } from "../structureNative";
+import { isUnitedStatesSearch } from ".";
 import type { LegalSourceProvider, LegalSourceSearchRequest, LegalSourceReference } from ".";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
 
@@ -83,11 +85,6 @@ function metadata(connection: DatabaseSync, table: "meta" | "export_metadata") {
     key: string; value: string;
   }>;
   return Object.fromEntries(values.map(({ key, value }) => [key, value]));
-}
-
-function string(row: Row, name: string) {
-  const value = row[name];
-  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function trustedUrl(value: string | null) {
@@ -484,9 +481,7 @@ const provider: LegalSourceProvider<{ document: JournalArticleDocument }> = {
   },
   canSearch: (request) => request.kinds.includes("journal"),
   async search(request) {
-    const jurisdiction = request.jurisdiction?.toLocaleLowerCase().replace(/[^a-z]/gu, "");
-    if (request.court || request.collection ||
-        ["us", "usa", "unitedstates", "unitedstatesofamerica"].includes(jurisdiction ?? "")) {
+    if (request.court || request.collection || isUnitedStatesSearch(request)) {
       throw new Error("jurisdiction and court metadata are not indexed");
     }
     return findArticles(request.text, request.perProviderLimit ?? request.limit, request)

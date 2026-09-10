@@ -42,6 +42,15 @@ function parseRange(value?: string): Range | null {
     } : null;
 }
 
+/** The first and last 1-based cell visible along one axis, widened by the overscan. */
+function visibleSpan(offset: number, extent: number, header: number,
+    size: number, count: number) {
+    return [
+        Math.max(1, Math.floor(Math.max(0, offset - header) / size) + 1 - OVERSCAN),
+        Math.min(count, Math.ceil((offset + extent) / size) + OVERSCAN),
+    ] as const;
+}
+
 function columnName(index: number) {
     let name = "";
     for (let value = index; value; value = Math.floor((value - 1) / 26))
@@ -129,23 +138,11 @@ function SpreadsheetGrid({
         }
     }, [highlight, sheet]);
 
-    const firstRow = Math.max(
-        1,
-        Math.floor(Math.max(0, viewport.top - COLUMN_HEADER) / ROW_HEIGHT) +
-            1 - OVERSCAN,
+    const [firstRow, lastRow] = visibleSpan(
+        viewport.top, viewport.height, COLUMN_HEADER, ROW_HEIGHT, grid.rows,
     );
-    const lastRow = Math.min(
-        grid.rows,
-        Math.ceil((viewport.top + viewport.height) / ROW_HEIGHT) + OVERSCAN,
-    );
-    const firstColumn = Math.max(
-        1,
-        Math.floor(Math.max(0, viewport.left - ROW_HEADER) / COLUMN_WIDTH) +
-            1 - OVERSCAN,
-    );
-    const lastColumn = Math.min(
-        grid.columns,
-        Math.ceil((viewport.left + viewport.width) / COLUMN_WIDTH) + OVERSCAN,
+    const [firstColumn, lastColumn] = visibleSpan(
+        viewport.left, viewport.width, ROW_HEADER, COLUMN_WIDTH, grid.columns,
     );
     const cells = [];
     for (let row = firstRow; row <= lastRow; row += 1) {
@@ -214,42 +211,39 @@ function SpreadsheetGrid({
                     {cells}
                 </div>
             </div>
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-7 overflow-hidden">
-                {Array.from(
-                    { length: lastColumn - firstColumn + 1 },
-                    (_, offset) => firstColumn + offset,
-                ).map((column) => (
-                    <div
-                        key={column}
-                        className="absolute top-0 flex h-7 items-center justify-center border-r border-gray-300 bg-gray-100 text-xs font-medium text-gray-600"
-                        style={{
-                            left: ROW_HEADER +
-                                (column - 1) * COLUMN_WIDTH - viewport.left,
-                            width: COLUMN_WIDTH,
-                        }}
-                    >
-                        {columnName(column)}
-                    </div>
-                ))}
-            </div>
-            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 overflow-hidden">
-                {Array.from(
-                    { length: lastRow - firstRow + 1 },
-                    (_, offset) => firstRow + offset,
-                ).map((row) => (
-                    <div
-                        key={row}
-                        className="absolute left-0 flex w-12 items-center justify-center border-b border-gray-300 bg-gray-100 text-xs text-gray-600"
-                        style={{
-                            top: COLUMN_HEADER +
-                                (row - 1) * ROW_HEIGHT - viewport.top,
-                            height: ROW_HEIGHT,
-                        }}
-                    >
-                        {row}
-                    </div>
-                ))}
-            </div>
+            {[
+                {
+                    key: "columns", first: firstColumn, last: lastColumn,
+                    band: "pointer-events-none absolute inset-x-0 top-0 z-10 h-7 overflow-hidden",
+                    cell: "absolute top-0 flex h-7 items-center justify-center border-r border-gray-300 bg-gray-100 text-xs font-medium text-gray-600",
+                    style: (column: number) => ({
+                        left: ROW_HEADER + (column - 1) * COLUMN_WIDTH - viewport.left,
+                        width: COLUMN_WIDTH,
+                    }),
+                    label: columnName,
+                },
+                {
+                    key: "rows", first: firstRow, last: lastRow,
+                    band: "pointer-events-none absolute inset-y-0 left-0 z-10 w-12 overflow-hidden",
+                    cell: "absolute left-0 flex w-12 items-center justify-center border-b border-gray-300 bg-gray-100 text-xs text-gray-600",
+                    style: (row: number) => ({
+                        top: COLUMN_HEADER + (row - 1) * ROW_HEIGHT - viewport.top,
+                        height: ROW_HEIGHT,
+                    }),
+                    label: (row: number) => row,
+                },
+            ].map(({ key, first, last, band, cell, style, label }) => (
+                <div key={key} className={band}>
+                    {Array.from(
+                        { length: last - first + 1 },
+                        (_, offset) => first + offset,
+                    ).map((index) => (
+                        <div key={index} className={cell} style={style(index)}>
+                            {label(index)}
+                        </div>
+                    ))}
+                </div>
+            ))}
             <div className="pointer-events-none absolute left-0 top-0 z-20 h-7 w-12 border-b border-r border-gray-300 bg-gray-200" />
         </div>
     );

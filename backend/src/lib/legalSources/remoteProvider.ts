@@ -4,7 +4,8 @@ import {
   type NativeDocument,
 } from "../structureNative";
 import { jsonRecord as objectValue } from "../value";
-import type { LegalSourceProvider } from ".";
+import { nativeDocumentPassages } from "./nativeDocumentPassages";
+import type { LegalSourcePassageRequest, LegalSourceReference, LegalSourceProvider } from ".";
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -48,6 +49,27 @@ export function nonnegativeNumber(value: unknown): number | null {
     ? value
     : typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
   return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+/**
+ * The passage path every remote provider shares: fetch the document for one
+ * search result, then read it through the requested locator. The provider's own
+ * reference wins over the stored one except for the freshly fetched title.
+ */
+export async function remoteLegalSourcePassages<Result>(
+  request: LegalSourcePassageRequest,
+  result: Result | null,
+  fetchDocument: (result: Result, signal?: AbortSignal) => Promise<RemoteLegalSourceDocument>,
+  reference: (result: Result) => LegalSourceReference,
+) {
+  if (!result) return [];
+  const document = await fetchDocument(result, request.signal);
+  return nativeDocumentPassages({
+    request,
+    reference: { ...request.source, ...reference(result), title: document.title },
+    document: document.native,
+    native: document,
+  });
 }
 
 export function legalSourceUrl(

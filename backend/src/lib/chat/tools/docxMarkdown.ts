@@ -136,6 +136,9 @@ function snippet(text: string) {
   return trimmed.length > 60 ? `${trimmed.slice(0, 60)}…` : trimmed;
 }
 
+const splitLines = (text: string) =>
+  text.replaceAll("\r\n", "\n").replaceAll("\r", "\n").split("\n");
+
 function normalizeDocxControlTag(tag: string) {
   const normalized = tag.trim().toLowerCase().replace(/[ \t]+/gu, "_");
   return CONTROL_TAG_RE.test(normalized) ? normalized : null;
@@ -147,25 +150,15 @@ function nextControl(state: ParseState, tag: string) {
   return { type: "control", tag, occurrence } as const;
 }
 
+const LITERAL_MARKER_WARNINGS: [markers: string[], message: (text: string) => string][] = [
+  [["{{", "}}"], (text) => `Kept malformed content-control marker in "${text}" as literal text.`],
+  [["[^"], (text) => `Kept malformed footnote reference in "${text}" as literal text.`],
+  [["[@"], (text) => `Kept malformed citation marker in "${text}" as literal text.`],
+];
+
 function warnLiteralMarkers(text: string, warnings: string[]) {
-  if (text.includes("{{") || text.includes("}}")) {
-    warn(
-      warnings,
-      `Kept malformed content-control marker in "${snippet(text)}" as literal text.`,
-    );
-  }
-  if (text.includes("[^")) {
-    warn(
-      warnings,
-      `Kept malformed footnote reference in "${snippet(text)}" as literal text.`,
-    );
-  }
-  if (text.includes("[@")) {
-    warn(
-      warnings,
-      `Kept malformed citation marker in "${snippet(text)}" as literal text.`,
-    );
-  }
+  for (const [markers, message] of LITERAL_MARKER_WARNINGS)
+    if (markers.some((marker) => text.includes(marker))) warn(warnings, message(snippet(text)));
 }
 
 function unescapeMarkdown(text: string) {
@@ -284,32 +277,18 @@ function splitInlineLegalList(line: string) {
 
 function normalizeMarkdownLines(lines: string[]) {
   const normalized = lines.flatMap(splitInlineLegalList);
+  const inRange = (index: number) => index >= 0 && index < normalized.length;
+  // A lone {-} attaches to the heading it neighbours, preferring the one above it.
+  const skipBlank = (index: number, step: number) => {
+    while (inRange(index) && !normalized[index].trim()) index += step;
+    return index;
+  };
+  const unmarkedHeading = (index: number) => inRange(index) &&
+    /^#{1,6}\s+\S/u.test(normalized[index]) && !/\s+\{[-#][^}]*\}\s*$/u.test(normalized[index]);
   for (let index = 0; index < normalized.length; index += 1) {
-    if (
-      normalized[index].trim() !== "{-}" &&
-      !/^#{1,6}\s+\{-\}\s*$/u.test(normalized[index])
-    ) {
-      continue;
-    }
-    let previous = index - 1;
-    while (previous >= 0 && !normalized[previous].trim()) previous -= 1;
-    if (
-      previous >= 0 &&
-      /^#{1,6}\s+\S/u.test(normalized[previous]) &&
-      !/\s+\{[-#][^}]*\}\s*$/u.test(normalized[previous])
-    ) {
-      normalized[previous] = `${normalized[previous].trimEnd()} {-}`;
-    } else {
-      let next = index + 1;
-      while (next < normalized.length && !normalized[next].trim()) next += 1;
-      if (
-        next >= 0 &&
-        /^#{1,6}\s+\S/u.test(normalized[next]) &&
-        !/\s+\{[-#][^}]*\}\s*$/u.test(normalized[next])
-      ) {
-        normalized[next] = `${normalized[next].trimEnd()} {-}`;
-      }
-    }
+    if (normalized[index].trim() !== "{-}" && !/^#{1,6}\s+\{-\}\s*$/u.test(normalized[index])) continue;
+    const heading = [skipBlank(index - 1, -1), skipBlank(index + 1, 1)].find(unmarkedHeading);
+    if (heading !== undefined) normalized[heading] = `${normalized[heading].trimEnd()} {-}`;
     normalized[index] = "";
   }
   return normalized;
@@ -498,11 +477,7 @@ export function parseDocxMarkdown(
     warnings,
   };
   const { definitions, body } = extractFootnotes(
-    normalizeMarkdownLines(
-      markdown.replaceAll("\r\n", "\n").replaceAll("\r", "\n").split("\n"),
-    ),
-    warnings,
-  );
+    normalizeMarkdownLines(splitLines(markdown)), warnings);
   const bookmarks = new Set<string>();
   const blocks: DocxMarkdownBlock[] = [];
 
@@ -720,47 +695,24 @@ async function bindContentControls(
     )
     .join("");
 
-  session.write(
-    "word/_rels/document.xml.rels",
-    appendXmlChild(
-      relationships,
-      "</Relationships>",
-      '<Relationship Id="rIdBeaverFields" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml"/>',
-    ),
-  );
-  session.write(
-    "[Content_Types].xml",
-    appendXmlChild(
-      contentTypes,
-      "</Types>",
-      '<Override PartName="/customXml/itemProps1.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>',
-    ),
-  );
-  session.write(
-    "customXml/item1.xml",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><b:fields xmlns:b="${CONTROL_XML_NAMESPACE}">${fields}</b:fields>`,
-  );
-  session.write(
-    "customXml/itemProps1.xml",
-    `<?xml version="1.0" encoding="UTF-8" standalone="no"?><ds:datastoreItem ds:itemID="${CONTROL_XML_STORE_ID}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"><ds:schemaRefs><ds:schemaRef ds:uri="${CONTROL_XML_NAMESPACE}"/></ds:schemaRefs></ds:datastoreItem>`,
-  );
-  session.write(
-    "customXml/_rels/item1.xml.rels",
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps1.xml"/></Relationships>',
-  );
+  const parts: [path: string, content: string][] = [
+    ["word/_rels/document.xml.rels", appendXmlChild(relationships, "</Relationships>",
+      '<Relationship Id="rIdBeaverFields" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml"/>')],
+    ["[Content_Types].xml", appendXmlChild(contentTypes, "</Types>",
+      '<Override PartName="/customXml/itemProps1.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>')],
+    ["customXml/item1.xml",
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><b:fields xmlns:b="${CONTROL_XML_NAMESPACE}">${fields}</b:fields>`],
+    ["customXml/itemProps1.xml",
+      `<?xml version="1.0" encoding="UTF-8" standalone="no"?><ds:datastoreItem ds:itemID="${CONTROL_XML_STORE_ID}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"><ds:schemaRefs><ds:schemaRef ds:uri="${CONTROL_XML_NAMESPACE}"/></ds:schemaRefs></ds:datastoreItem>`],
+    ["customXml/_rels/item1.xml.rels",
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps1.xml"/></Relationships>'],
+  ];
+  for (const [path, content] of parts) session.write(path, content);
   return session.save();
 }
 
 function inlineText(children: DocxMarkdownInline[]) {
-  return children
-    .map((child) =>
-      child.type === "text" ||
-      child.type === "strong" ||
-      child.type === "emphasis"
-        ? child.text
-        : "",
-    )
-    .join("");
+  return children.map((child) => ("text" in child ? child.text : "")).join("");
 }
 
 function titleKey(value: string) {
@@ -785,13 +737,7 @@ function validateCitationUrl(id: string, value: string | null) {
 }
 
 function hasMemoHeader(markdown: string) {
-  const lines = markdown
-    .replaceAll("\r\n", "\n")
-    .replaceAll("\r", "\n")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(0, 4);
+  const lines = splitLines(markdown).map((line) => line.trim()).filter(Boolean).slice(0, 4);
   if (
     ["To", "From", "Date", "Re"].every((label, index) =>
       new RegExp(`^${label}:\\s*`, "iu").test(lines[index] ?? ""),
@@ -1120,21 +1066,21 @@ export async function renderDocxMarkdownDocument(
           return [inlineControl(child.tag, child.occurrence)];
       }
     });
-  const followingCitationParagraph = (children: DocxMarkdownInline[]) => {
-    if (citationPlacement !== "after-paragraph") return null;
+  const followingCitations = (children: DocxMarkdownInline[]) => {
+    if (citationPlacement !== "after-paragraph") return [];
     const markers = new Map<string, Extract<DocxMarkdownInline, { type: "citation" }>>();
     for (const child of children)
       if (child.type === "citation" && !unverifiedCitations.has(child.id) && !markers.has(child.id))
         markers.set(child.id, child);
     return markers.size
-      ? new Paragraph({
+      ? [new Paragraph({
           style: "CitationBlock",
           children: [...markers.values()].flatMap((marker, index): ParagraphChild[] => [
             ...(index ? [run("; ")] : []),
             ...citationRuns(citations[marker.id], marker),
           ]),
-        })
-      : null;
+        })]
+      : [];
   };
 
   const headingLevels = [
@@ -1231,17 +1177,14 @@ export async function renderDocxMarkdownDocument(
         new Paragraph({
           children: inlines(block.children),
         }),
+        ...followingCitations(block.children),
       );
-      const citations = followingCitationParagraph(block.children);
-      if (citations) blocks.push(citations);
     } else if (block.type === "blockquote") {
       blocks.push(new Paragraph({
         style: "IndentedBlock",
         indent: { left: 720 + (block.level - 1) * 360 },
         children: inlines(block.children),
-      }));
-      const citations = followingCitationParagraph(block.children);
-      if (citations) blocks.push(citations);
+      }), ...followingCitations(block.children));
     } else if (block.type === "control") {
       const value = controlValue(block.tag);
       const paragraphs = (
@@ -1262,16 +1205,12 @@ export async function renderDocxMarkdownDocument(
             numbering: { reference, level: item.level },
             children: inlines(item.children),
           }),
+          ...followingCitations(item.children),
         );
-        const citations = followingCitationParagraph(item.children);
-        if (citations) blocks.push(citations);
       }
     } else {
-      const border = {
-        style: BorderStyle.SINGLE,
-        size: 2,
-        color: "B8B8B8",
-      };
+      const border = { style: BorderStyle.SINGLE, size: 2, color: "B8B8B8" };
+      const borders = { top: border, bottom: border, left: border, right: border };
       const columnWidth = Math.floor(tableWidth / block.headers.length);
       const columnWidths = block.headers.map((_, index) =>
         index === block.headers.length - 1
@@ -1287,12 +1226,7 @@ export async function renderDocxMarkdownDocument(
               size: columnWidths[index],
               type: WidthType.DXA,
             },
-            borders: {
-              top: border,
-              bottom: border,
-              left: border,
-              right: border,
-            },
+            borders,
             shading: header ? { fill: "EDEDED" } : undefined,
             children: [new Paragraph({
               style: "LegalTableText",
@@ -1368,26 +1302,14 @@ export async function renderDocxMarkdownDocument(
   const bulletListLevels = bulletText.map((text, level) =>
     numberingLevel(level, LevelFormat.BULLET, text),
   );
+  const footnoteParagraph = (children: ParagraphChild[]) =>
+    ({ children: [new Paragraph({ style: "FootnoteText", children })] });
   const footnotes = Object.fromEntries([
-    ...document.footnotes.filter((footnote) => noteNumbers.has(footnote.id)).map((footnote) => [
-      String(noteNumbers.get(footnote.id)),
-      {
-        children: [
-          new Paragraph({
-            style: "FootnoteText",
-            children: inlines(footnote.children, false, "inline", noteNumbers.get(footnote.id)),
-          }),
-        ],
-      },
-    ] as const),
-    ...citationNotes.map(({ number, citation, marker, displayedForm }) => [
-      String(number),
-      {
-        children: [
-          new Paragraph({ style: "FootnoteText", children: citationRuns(citation, marker, number, displayedForm) }),
-        ],
-      },
-    ] as const),
+    ...document.footnotes.filter(({ id }) => noteNumbers.has(id)).map(({ id, children }) =>
+      [String(noteNumbers.get(id)),
+        footnoteParagraph(inlines(children, false, "inline", noteNumbers.get(id)))] as const),
+    ...citationNotes.map(({ number, citation, marker, displayedForm }) =>
+      [String(number), footnoteParagraph(citationRuns(citation, marker, number, displayedForm))] as const),
   ]);
   const headingStyle = (
     size: number,
@@ -1402,18 +1324,19 @@ export async function renderDocxMarkdownDocument(
       keepLines: true,
     },
   });
+  const bodyStyle = (size: number, spacing: { line: number; after: number },
+    paragraph: IParagraphStylePropertiesOptions = {}) =>
+    ({ run: { font, size, color: "000000" }, paragraph: { ...paragraph, spacing } });
+  const paragraphStyle = (id: string, name: string, next: string, size: number,
+    spacing: { line: number; after: number }, paragraph?: IParagraphStylePropertiesOptions) =>
+    ({ id, name, basedOn: "Normal", next, ...bodyStyle(size, spacing, paragraph) });
   const docx = new Document({
     title,
     creator: "Beaver",
     description: "Generated from Beaver semantic Markdown.",
     styles: {
       default: {
-        document: {
-          run: { font, size, color: "000000" },
-          paragraph: {
-            spacing: { line: 264, after: 80 },
-          },
-        },
+        document: bodyStyle(size, { line: 264, after: 80 }),
         title: headingStyle(28, { before: 0, after: 240 }, AlignmentType.CENTER),
         heading1: headingStyle(26, { before: 240, after: 80 }),
         heading2: headingStyle(24, { before: 180, after: 60 }),
@@ -1421,54 +1344,17 @@ export async function renderDocxMarkdownDocument(
         heading4: headingStyle(22, { before: 120, after: 40 }),
         heading5: headingStyle(22, { before: 100, after: 40 }),
         heading6: headingStyle(22, { before: 80, after: 40 }),
-        listParagraph: {
-          run: { font, size, color: "000000" },
-          paragraph: {
-            spacing: { line: 264, after: 40 },
-          },
-        },
-        footnoteText: {
-          run: { font, size: 18, color: "000000" },
-          paragraph: {
-            spacing: { line: 240, after: 40 },
-          },
-        },
+        listParagraph: bodyStyle(size, { line: 264, after: 40 }),
+        footnoteText: bodyStyle(18, { line: 240, after: 40 }),
         hyperlink: {
           run: { color: "0563C1", underline: {} },
         },
       },
       paragraphStyles: [
-        {
-          id: "LegalTableText",
-          name: "Legal Table Text",
-          basedOn: "Normal",
-          next: "LegalTableText",
-          run: { font, size: 20, color: "000000" },
-          paragraph: {
-            spacing: { line: 240, after: 20 },
-          },
-        },
-        {
-          id: "IndentedBlock",
-          name: "Indented Block",
-          basedOn: "Normal",
-          next: "Normal",
-          run: { font, size, color: "000000" },
-          paragraph: {
-            spacing: { line: 264, after: 80 },
-          },
-        },
-        {
-          id: "CitationBlock",
-          name: "Citation Block",
-          basedOn: "Normal",
-          next: "Normal",
-          run: { font, size: 20, color: "000000" },
-          paragraph: {
-            indent: { left: 720 },
-            spacing: { line: 240, after: 120 },
-          },
-        },
+        paragraphStyle("LegalTableText", "Legal Table Text", "LegalTableText", 20, { line: 240, after: 20 }),
+        paragraphStyle("IndentedBlock", "Indented Block", "Normal", size, { line: 264, after: 80 }),
+        paragraphStyle("CitationBlock", "Citation Block", "Normal", 20, { line: 240, after: 120 },
+          { indent: { left: 720 } }),
       ],
     },
     numbering: {

@@ -7,11 +7,11 @@ import {
   arrayValue,
   legalSourceUrl,
   objectValue,
+  remoteLegalSourcePassages,
   stringValue,
   type RemoteLegalSourceDocument,
   type RemoteLegalSourceProvider,
 } from "./remoteProvider";
-import { nativeDocumentPassages } from "./nativeDocumentPassages";
 
 const ORIGIN = "https://caselaw.nationalarchives.gov.uk";
 const HOSTS = ["caselaw.nationalarchives.gov.uk"] as const;
@@ -200,13 +200,6 @@ export const tnaLegalSourceProvider: RemoteLegalSourceProvider = {
           xmlUrl: source.part,
         }
       : await searchTnaCase(source.citation || source.id, signal);
-    if (!result) return [];
-    const document = await fetchTnaCase(result, signal);
-    return nativeDocumentPassages({
-      request,
-      reference: { ...source, ...reference(result), title: document.title },
-      document: document.native,
-      native: document,
-    });
+    return remoteLegalSourcePassages(request, result, fetchTnaCase, reference);
   },
 };

@@ -6,6 +6,7 @@ import {
   withSearchReadonlySqlite,
   withReadonlySqlite,
 } from "./legalDataPath";
+import { isUnitedStatesSearch } from "./legalSources";
 import type {
   LegalSourceProvider,
   LegalSourceReference,
@@ -55,10 +56,8 @@ function withSearchDatabase<T>(operation: (database: DatabaseSync) => T): T | nu
   return withSearchReadonlySqlite(filename, cache, operation);
 }
 
-function intervention(row: Row): HansardIntervention | null {
-  const id = string(row, "source_id");
-  const text = string(row, "text");
-  if (!id || !text) return null;
+/** The identity and metadata every intervention projection shares. */
+function interventionHead(row: Row, id: string) {
   return {
     id,
     date: string(row, "date"),
@@ -69,29 +68,27 @@ function intervention(row: Row): HansardIntervention | null {
     subjectOfBusiness: string(row, "subject_of_business"),
     speaker: string(row, "speaker"),
     interventionType: string(row, "intervention_type"),
-    text,
+  };
+}
+
+function interventionTail(row: Row) {
+  return {
     sourceUrl: string(row, "source_url"),
     upstreamLicense: string(row, "upstream_license"),
   };
 }
 
+function intervention(row: Row): HansardIntervention | null {
+  const id = string(row, "source_id");
+  const text = string(row, "text");
+  if (!id || !text) return null;
+  return { ...interventionHead(row, id), text, ...interventionTail(row) };
+}
+
 function searchHit(row: Row): HansardSearchHit | null {
   const id = string(row, "source_id");
   if (!id) return null;
-  return {
-    id,
-    date: string(row, "date"),
-    jurisdiction: string(row, "jurisdiction"),
-    chamber: string(row, "chamber"),
-    language: string(row, "language"),
-    orderOfBusiness: string(row, "order_of_business"),
-    subjectOfBusiness: string(row, "subject_of_business"),
-    speaker: string(row, "speaker"),
-    interventionType: string(row, "intervention_type"),
-    sourceUrl: string(row, "source_url"),
-    upstreamLicense: string(row, "upstream_license"),
-    snippet: null,
-  };
+  return { ...interventionHead(row, id), ...interventionTail(row), snippet: null };
 }
 
 /**
@@ -197,16 +194,7 @@ export const hansardLegalSourceProvider: LegalSourceProvider<HansardIntervention
   id: "hansard",
   canSearch: (request) => request.kinds.includes("hansard"),
   async search(request) {
-    const jurisdiction = request.jurisdiction
-      ?.toLocaleLowerCase()
-      .replace(/[^a-z]/gu, "");
-    if (
-      request.court ||
-      request.collection ||
-      ["us", "usa", "unitedstates", "unitedstatesofamerica"].includes(
-        jurisdiction ?? "",
-      )
-    ) {
+    if (request.court || request.collection || isUnitedStatesSearch(request)) {
       throw new Error("only installed Canadian Hansard collections are searchable");
     }
     const rows = searchLocalHansard({

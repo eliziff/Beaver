@@ -73,10 +73,16 @@ export function decisiaIndexUrl(rawUrl: string | URL) {
   return source;
 }
 
-function classValue(attributes: string) {
-  const match = attributes.match(
-    /\bclass\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/iu,
-  );
+/** One attribute's value in any quoting style; "" when the attribute is absent. */
+const attributePattern = (name: string) =>
+  new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\`]+))`, "iu");
+
+const CLASS_ATTRIBUTE = attributePattern("class");
+const HREF_ATTRIBUTE = attributePattern("href");
+const SRC_ATTRIBUTE = attributePattern("src");
+
+function attributeValue(attributes: string, pattern: RegExp) {
+  const match = attributes.match(pattern);
   return match?.[1] ?? match?.[2] ?? match?.[3] ?? "";
 }
 
@@ -106,7 +112,7 @@ export function verifiedDecisiaPdf(
 
   const documentControls: string[] = [];
   for (const match of markup.matchAll(/<li\b([^>]*)>([\s\S]*?)<\/li\s*>/giu)) {
-    if (classValue(match[1]).split(/\s+/u).includes("documents")) {
+    if (attributeValue(match[1], CLASS_ATTRIBUTE).split(/\s+/u).includes("documents")) {
       documentControls.push(match[2]);
     }
   }
@@ -117,10 +123,7 @@ export function verifiedDecisiaPdf(
 function markupLinks(markup: string) {
   const links: { url: string; label: string }[] = [];
   for (const match of markup.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/giu)) {
-    const href = match[1].match(
-      /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/iu,
-    );
-    const url = href?.[1] ?? href?.[2] ?? href?.[3];
+    const url = attributeValue(match[1], HREF_ATTRIBUTE);
     if (!url) continue;
     links.push({
       url,
@@ -136,8 +139,7 @@ export function rankedPublisherPdfLinks(markup: string, rawUrl: string | URL) {
   if (!source) return [];
   const links = markupLinks(markup).map((link) => ({ ...link, frame: false }));
   for (const match of markup.matchAll(/<iframe\b([^>]*)>/giu)) {
-    const src = match[1].match(/\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/iu);
-    const url = src?.[1] ?? src?.[2] ?? src?.[3];
+    const url = attributeValue(match[1], SRC_ATTRIBUTE);
     if (url) links.push({ url, label: "", frame: true });
   }
   return links.map(({ url: raw, label, frame }, position) => {

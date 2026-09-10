@@ -6,13 +6,13 @@ import {
   legalSourceUrl,
   nonnegativeNumber,
   objectValue,
+  remoteLegalSourcePassages,
   stringValue,
   type JsonObject,
   type RemoteLegalSourceAttachment,
   type RemoteLegalSourceDocument,
   type RemoteLegalSourceProvider,
 } from "./remoteProvider";
-import { nativeDocumentPassages } from "./nativeDocumentPassages";
 
 const API_ORIGIN = "https://api.govinfo.gov";
 const WEB_ORIGIN = "https://www.govinfo.gov";
@@ -153,19 +153,12 @@ export const govInfoLegalSourceProvider: RemoteLegalSourceProvider = {
     return result ? [reference(result)] : [];
   },
   async readPassage(request) {
-    const { source, signal } = request;
-    const result = {
+    const { source } = request;
+    return remoteLegalSourcePassages(request, {
       docket: source.citation || source.id,
       packageId: source.id,
       title: source.title ?? null,
       url: `${WEB_ORIGIN}/app/details/${source.id}`,
-    };
-    const document = await fetchGovInfoCase(result, signal);
-    return nativeDocumentPassages({
-      request,
-      reference: { ...source, ...reference(result), title: document.title },
-      document: document.native,
-      native: document,
-    });
+    }, fetchGovInfoCase, reference);
   },
 };

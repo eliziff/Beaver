@@ -6,12 +6,12 @@ import {
   legalSourceUrl,
   nonnegativeNumber,
   objectValue,
+  remoteLegalSourcePassages,
   stringValue,
   type RemoteLegalSourceAttachment,
   type RemoteLegalSourceDocument,
   type RemoteLegalSourceProvider,
 } from "./remoteProvider";
-import { nativeDocumentPassages } from "./nativeDocumentPassages";
 import { escapeXmlText } from "../text";
 
 const ORIGIN = "https://www.gov.uk";
@@ -163,13 +163,7 @@ export const govUkEmploymentTribunalLegalSourceProvider: RemoteLegalSourceProvid
           url: source.url,
         }
       : await searchEmploymentTribunalCase(source.citation || source.id, signal);
-    if (!result) return [];
-    const document = await fetchEmploymentTribunalCase(result, signal);
-    return nativeDocumentPassages({
-      request,
-      reference: { ...source, ...reference(result), title: document.title },
-      document: document.native,
-      native: document,
-    });
+    return remoteLegalSourcePassages(
+      request, result, fetchEmploymentTribunalCase, reference);
   },
 };

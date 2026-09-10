@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import { boundedSize as limit } from "./sqliteSearch";
+import { boundedSize as limit, searchTokens } from "./sqliteSearch";
 import {
   legalProviderDatabase,
   withSearchReadonlySqlite,
@@ -179,8 +179,7 @@ export function getLocalCourtlistenerCase(
 
 function ftsQuery(query: string, syntax: "terms" | "fts5" = "terms") {
   if (syntax === "fts5") return query.trim();
-  const tokens = query.match(/[\p{L}\p{N}]+/gu)?.slice(0, 12) ?? [];
-  return tokens
+  return searchTokens(query)
     .map((token) => `"${token.replace(/"/gu, '""')}"`)
     .join(" AND ");
 }
@@ -207,16 +206,19 @@ export function searchLocalCourtlistenerCases(args: {
       dateValues.push(args.filedBefore.trim());
     }
     const dates = dateFilters.length ? ` AND ${dateFilters.join(" AND ")}` : "";
-    const matches = database
-      .prepare(
-        `SELECT ${JOINED_CLUSTER_COLUMNS}
-         FROM cluster_search JOIN cluster ON cluster.id = cluster_search.rowid
-         WHERE cluster_search MATCH ?${dates}
-         ORDER BY rank
-         LIMIT ?`,
-      )
-      .all(query, ...dateValues, wanted)
-      .map((row) => cluster(row as Row));
+    const rankedClusters = (index: string, join: string, size: number) =>
+      database
+        .prepare(
+          `SELECT ${JOINED_CLUSTER_COLUMNS}
+           FROM ${index} JOIN cluster ON ${join}
+           WHERE ${index} MATCH ?${dates}
+           ORDER BY rank
+           LIMIT ?`,
+        )
+        .all(query, ...dateValues, size)
+        .map((row) => cluster(row as Row));
+    const matches = rankedClusters(
+      "cluster_search", "cluster.id = cluster_search.rowid", wanted);
     if (matches.length >= wanted) return matches;
     const hasOpinionSearch = database
       .prepare(
@@ -225,18 +227,10 @@ export function searchLocalCourtlistenerCases(args: {
       .get();
     if (!hasOpinionSearch) return matches;
     const seen = new Set(matches.map(({ id }) => id));
-    const opinionMatches = database
-      .prepare(
-        `SELECT ${JOINED_CLUSTER_COLUMNS}
-         FROM opinion_search
-         JOIN cluster ON cluster.id = CAST(opinion_search.cluster_id AS INTEGER)
-         WHERE opinion_search MATCH ?${dates}
-         ORDER BY rank
-         LIMIT ?`,
-      )
-      .all(query, ...dateValues, Math.max(50, wanted * 4))
-      .map((row) => cluster(row as Row))
-      .filter(({ id }) => !seen.has(id));
+    const opinionMatches = rankedClusters(
+      "opinion_search", "cluster.id = CAST(opinion_search.cluster_id AS INTEGER)",
+      Math.max(50, wanted * 4),
+    ).filter(({ id }) => !seen.has(id));
     const uniqueOpinionMatches = [
       ...new Map(opinionMatches.map((match) => [match.id, match])).values(),
     ];
