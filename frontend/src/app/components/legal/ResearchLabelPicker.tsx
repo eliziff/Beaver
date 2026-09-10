@@ -81,7 +81,8 @@ export function ResearchLabelWaterfall({ labels, scope, selectedId, onChoose, no
           <FolderSvgIcon className="size-3 shrink-0 text-gray-400" /><span className="max-w-40 truncate">{noneLabel}</span></button>}
         {items.map((label) => <button key={label.id} type="button" onClick={() => onChoose(label.id)}
           aria-pressed={active === label.id} title={label.name} className={CHIP(active === label.id)}>
-          <FolderSvgIcon className="shrink-0" style={{ color: researchLabelColor(label), width: [12, 13, 10][row] ?? 10, height: [12, 13, 10][row] ?? 10 }} />
+          {/* A label reads as a filled folder wherever the dock shows one (Eli, 2026-09-09). */}
+          <FolderSvgIcon fill="currentColor" className="shrink-0" style={{ color: researchLabelColor(label), width: [12, 13, 10][row] ?? 10, height: [12, 13, 10][row] ?? 10 }} />
           <span className="max-w-40 truncate">{label.name}</span></button>)}
       </div>; })}
   </div>;
