@@ -72,6 +72,8 @@ export function SidebarChatItem({
         isChatOwner ? run() : setOwnerOnlyAction(action);
     const actionsWidth = onMoveToProject ? "w-[72px]" : "w-12";
     const selectionDelete = isSelectionActionOwner && selectedCount > 1;
+    const selectGesture = (event: Pick<MouseEvent, "shiftKey" | "ctrlKey" | "metaKey">) =>
+        isChatOwner && !!onSelect && (event.shiftKey || event.ctrlKey || event.metaKey);
     useEffect(() => {
         if (isRenaming) editInputRef.current?.focus();
     }, [isRenaming]);
@@ -133,31 +135,18 @@ export function SidebarChatItem({
                         onPointerEnter={prepareNavigation}
                         onFocus={prepareNavigation}
                         onClick={(event) => {
-                            if (
-                                isChatOwner &&
-                                onSelect &&
-                                (event.shiftKey ||
-                                    event.ctrlKey ||
-                                    event.metaKey)
-                            ) {
+                            if (selectGesture(event)) {
                                 event.preventDefault();
-                                onSelect(event);
+                                onSelect?.(event);
                                 return;
                             }
                             onClearSelection?.();
                             onNavigate?.();
                         }}
                         onKeyDown={(event) => {
-                            if (
-                                isChatOwner &&
-                                onSelect &&
-                                event.key === " " &&
-                                (event.shiftKey ||
-                                    event.ctrlKey ||
-                                    event.metaKey)
-                            ) {
+                            if (event.key === " " && selectGesture(event)) {
                                 event.preventDefault();
-                                onSelect(event);
+                                onSelect?.(event);
                             }
                         }}
                         aria-current={isActive ? "page" : undefined}
