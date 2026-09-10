@@ -3,10 +3,10 @@ import { Loader2, Trash2 } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 type ConfirmStatus = "idle" | "loading" | "complete";
 export function ConfirmPopup({ open, title, message, confirmLabel = "Confirm",
-    confirmStatus = "idle", cancelLabel = "Cancel", onConfirm, onCancel, className }: {
+    confirmStatus = "idle", cancelLabel = "Cancel", onConfirm, onCancel }: {
     open: boolean; title?: ReactNode; message?: ReactNode; confirmLabel?: ReactNode;
     confirmStatus?: ConfirmStatus; cancelLabel?: ReactNode; onConfirm: () => void;
-    onCancel: () => void; className?: string;
+    onCancel: () => void;
 }) {
     const confirmBusy = confirmStatus === "loading";
     const isDeleteAction = typeof confirmLabel === "string" &&
@@ -18,8 +18,7 @@ export function ConfirmPopup({ open, title, message, confirmLabel = "Confirm",
     </span>;
     return (
         <Modal open={open} onClose={confirmBusy ? () => undefined : onCancel}
-            role="alertdialog" size="sm" fit className={className}
-            breadcrumbs={[title ?? "Confirm"]}
+            role="alertdialog" size="sm" fit breadcrumbs={[title ?? "Confirm"]}
             secondaryAction={{ label: cancelLabel, onClick: onCancel, disabled: confirmBusy }}
             primaryAction={{ label: resolvedConfirmLabel, onClick: onConfirm,
                 disabled: confirmStatus !== "idle",

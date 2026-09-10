@@ -119,7 +119,6 @@ export function SearchableChoiceModal({
     searchable = true,
     size = "sm",
     className,
-    listClassName,
     controls,
     footer,
     leadPanel,
@@ -136,7 +135,6 @@ export function SearchableChoiceModal({
     searchable?: boolean;
     size?: ModalSize;
     className?: string;
-    listClassName?: string;
     controls?: ReactNode;
     footer?: ReactNode;
     leadPanel?: ReactNode;
@@ -196,10 +194,8 @@ export function SearchableChoiceModal({
                     className="mb-2 h-9 shrink-0"
                 />
             )}
-            <div
-                role="group"
-                aria-label={title}
-                className={cn("min-h-0 flex-1 overflow-y-auto py-1", listClassName)}
+            <div role="group" aria-label={title}
+                className="min-h-0 flex-1 overflow-y-auto py-1"
             >
                 {visible.map((option, index) => (
                     <Fragment key={option.value ?? index}>
