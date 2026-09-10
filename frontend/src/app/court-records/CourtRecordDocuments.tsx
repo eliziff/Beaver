@@ -119,7 +119,7 @@ function PendingFiles(props: Props & { pending: RecordEntry[] }) {
       {...props} entry={entry} kind={undefined} busy={props.busyEntryId === entry.id}
       findings={(props.entryFindings.get(entry.id) ?? [])
         .filter(({ id }) => !id.startsWith("unknown-"))}
-      dateRequired={false} descriptionLabel="Contents description"
+      dateRequired={false} descriptionLabel={entryDescriptionLabel(props.profile)}
       assignmentKinds={available(entry)} />)}</div>
   </section>;
 }
@@ -194,7 +194,8 @@ function DocumentSlot({ profile, kind, hideLabel, entries, busyEntryId, entryFin
               busy={busyEntryId === entry.id}
               findings={entryFindings.get(entry.id) ?? []}
               dateRequired={profile.technical.indexDate === "required" || !!kind.chronological}
-              descriptionLabel={profile.outputMode === "separate-files" ? "Document name" : "Contents description"}
+              descriptionLabel={entryDescriptionLabel(profile,
+                profile.outputMode === "separate-files" ? "Document name" : "Contents description")}
               onChoose={onChoose}
               onEntry={onEntry}
               onRemove={onRemove}
@@ -239,7 +240,7 @@ function ExhibitPool(props: Props & { kind: DocumentKind }) {
     else pool.push(entry);
   }
   return <section data-kind-id="exhibit" aria-label="Exhibits">
-    <div className="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-3"
+    <div
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => {
         const id = event.dataTransfer.getData("text/x-court-record-entry");
@@ -254,14 +255,15 @@ function ExhibitPool(props: Props & { kind: DocumentKind }) {
         </h4>
         <AddFileControls {...props} label="Add files" />
       </div>
-      <p className="mt-1 text-xs leading-5 text-gray-600">
-        Drop exhibit files here. Drag an assigned exhibit back to unassign it.
-      </p>
-      {!!pool.length && <div className="mt-2 divide-y divide-gray-200">{pool.map((entry) =>
-        <EntryRow key={entry.id} {...props} entry={entry}
-          busy={props.busyEntryId === entry.id} findings={props.entryFindings.get(entry.id) ?? []}
-          dateRequired={false} descriptionLabel="Contents description"
-          assignmentLabels={labels} dragEnabled />)}</div>}
+      <div className="mt-2 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-3">
+        <p className="text-xs leading-5 text-gray-600">
+          Drop exhibit files here. Drag an assigned exhibit back to unassign it.
+        </p>
+        {!!pool.length && <div className="mt-2 divide-y divide-gray-200">{pool.map((entry) =>
+          <EntryRow key={entry.id} {...props} entry={entry}
+            busy={props.busyEntryId === entry.id} findings={props.entryFindings.get(entry.id) ?? []}
+            dateRequired={false} assignmentLabels={labels} dragEnabled />)}</div>}
+      </div>
     </div>
     {!!labels.length && <div className="mt-3 divide-y divide-gray-200">
       {labels.map((label) => {
@@ -282,8 +284,7 @@ function ExhibitPool(props: Props & { kind: DocumentKind }) {
           </div>
           {entry && <EntryRow {...props} entry={entry} busy={props.busyEntryId === entry.id}
             findings={props.entryFindings.get(entry.id) ?? []} dateRequired={false}
-            descriptionLabel="Contents description" assignmentLabel={label}
-            dragEnabled />}
+            assignmentLabel={label} dragEnabled />}
           <AffidavitWording statements={mentions[label]} />
         </section>;
       })}
@@ -304,13 +305,14 @@ function AffidavitWording({ statements = [] }: { statements?: string[] }) {
       {distinct[0]}
     </span>
   </span>;
+  if (distinct.length === 1) return <p className="mt-2 flex min-h-6 min-w-0 items-center text-xs text-gray-600">{preview}</p>;
   return <details className="group mt-2 min-w-0">
     <summary className="grid min-h-6 min-w-0 cursor-pointer list-none grid-cols-[minmax(0,1fr)_0.75rem] items-center gap-1.5 rounded-sm text-xs text-gray-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-950 [&::-webkit-details-marker]:hidden">
       {preview}<ChevronDown className="size-3.5 group-open:rotate-180" aria-hidden="true" />
     </summary>
-    {distinct.length > 1 && <ul className="max-h-32 list-disc space-y-1 overflow-y-auto py-1.5 ps-4 text-xs leading-5 text-gray-600">
+    <ul className="max-h-32 list-disc space-y-1 overflow-y-auto py-1.5 ps-4 text-xs leading-5 text-gray-600">
       {distinct.slice(1).map((statement) => <li key={statement}>{statement}</li>)}
-    </ul>}
+    </ul>
   </details>;
 }
 
@@ -361,13 +363,17 @@ function TextRecognition({ entry, reading, onConfirm }: {
   </p>;
 }
 
+/** The affidavit output has no table of contents, so its entries carry no title field. */
+const entryDescriptionLabel = (profile: CourtProfile, label = "Contents description") =>
+  profile.outputMode === "affidavit-with-exhibits" ? undefined : label;
+
 function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel, onChoose, onEntry, onAssign, onAssignKind, assignmentKinds, assignmentLabels, assignmentLabel, dragEnabled = false, reading, onRelink }: {
   entry: RecordEntry;
   kind?: DocumentKind;
   busy: boolean;
   findings: ComplianceFinding[];
   dateRequired: boolean;
-  descriptionLabel: string;
+  descriptionLabel?: string;
   onChoose: Props["onChoose"];
   onEntry: Props["onEntry"];
   onRemove: Props["onRemove"];
@@ -399,9 +405,9 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
           onAssign(id, assignmentLabel); }
       }}
     >
-      <div className="flex min-w-0 flex-wrap items-start gap-x-3 gap-y-3 sm:flex-nowrap sm:gap-y-0">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-3 sm:flex-nowrap sm:gap-y-0">
         <div className="min-w-0 flex-1">
-          <label className="block text-xs font-medium text-gray-600">
+          {descriptionLabel && <label className="block text-xs font-medium text-gray-600">
             {descriptionLabel}
             <Input id={`entry-${entry.id}-title`} value={entry.title}
               required={entry.descriptionOnly || undefined}
@@ -409,13 +415,15 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
               onChange={(event) => onEntry(entry.id, { title: event.target.value })}
               className={cn("mt-1 h-9 font-normal",
                 titleMissing && "border-red-500")} />
-          </label>
-          {!entry.descriptionOnly && <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
-            <span className="max-w-full truncate" title={entry.file.name}>{entry.file.name}</span>
-            <span aria-hidden="true">·</span>
-            <span>{formatBytes(entry.lastSeen?.size ?? entry.file.size)}</span>
-            {entry.pageCount !== null && <><span aria-hidden="true">·</span><span>{entry.pageCount} page{entry.pageCount === 1 ? "" : "s"}</span></>}
-          </div>}
+          </label>}
+          {!entry.descriptionOnly && <>
+            {!descriptionLabel && <p className="truncate text-sm font-semibold text-gray-900" title={entry.file.name}>{entry.file.name}</p>}
+            <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500", descriptionLabel && "mt-1.5")}>
+              {descriptionLabel && <><span className="max-w-full truncate" title={entry.file.name}>{entry.file.name}</span><span aria-hidden="true">·</span></>}
+              <span>{formatBytes(entry.lastSeen?.size ?? entry.file.size)}</span>
+              {entry.pageCount !== null && <><span aria-hidden="true">·</span><span>{entry.pageCount} page{entry.pageCount === 1 ? "" : "s"}</span></>}
+            </div>
+          </>}
         </div>
         {kind && !entry.descriptionOnly && <Button type="button" variant="outline" className="h-9 px-3"
           onClick={() => onChoose(kind.id, entry.exhibitLabel, entry.id)}>Replace</Button>}
