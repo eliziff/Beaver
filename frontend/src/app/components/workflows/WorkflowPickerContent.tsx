@@ -64,8 +64,6 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
         const direct = workflow.launcher.kind !== "instructions" || Boolean(directVariant);
         const action = workflowAction?.(workflow);
         if (direct) {
-            const [destination, DestinationIcon] = workflowDestination(workflow, directVariant);
-            const launch = directVariant ? launchLabel(directVariant) : "Open";
             const description = directVariant?.result?.trim() || workflow.metadata.description;
             return <div key={workflow.id}
                 className={`flex min-w-0 items-center @max-[25rem]:flex-col @max-[25rem]:items-stretch @max-[25rem]:pb-2 ${APP_SURFACE_HOVER_CLASS}`}>
@@ -77,9 +75,7 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
                         <ActionButton Icon={Info} text="Info" ariaLabel={`Info about ${label}`}
                             onClick={() => setInfo({ workflow, label,
                                 variants: directVariant ? [directVariant] : [] })} />
-                        <ActionButton Icon={DestinationIcon}
-                            text={directVariant ? destination : "Open"}
-                            ariaLabel={`${launch}: ${label}`}
+                        <ActionButton {...launchProps(workflow, directVariant, label)}
                             workflowId={workflow.id} variantId={directVariant?.id}
                             disabled={disabledItem?.(workflow, directVariant)}
                             onClick={() => directVariant
@@ -209,13 +205,10 @@ function VariantChoices({ workflow, variants, disabledItem, onSelect, onInfo }: 
                 <ActionCluster label={label}>
                     <ActionButton Icon={Info} text="Info" ariaLabel={`Info about ${label}`}
                         onClick={() => onInfo(label, launchers)} />
-                    {launchers.map((variant) => {
-                    const [destination, DestinationIcon] = workflowDestination(workflow, variant);
-                    return <ActionButton key={variant.id} Icon={DestinationIcon}
-                        text={destination} ariaLabel={`${launchLabel(variant)}: ${label}`}
+                    {launchers.map((variant) => <ActionButton key={variant.id}
+                        {...launchProps(workflow, variant, label)}
                         variantId={variant.id} disabled={disabledItem?.(workflow, variant)}
-                        onClick={() => onSelect(workflow, variant)} />;
-                })}</ActionCluster>
+                        onClick={() => onSelect(workflow, variant)} />)}</ActionCluster>
             </div>
         </div>)}</div>;
 }
@@ -238,18 +231,15 @@ function WorkflowInfoModal({ info, onClose, onSelect, disabledItem }: {
     ].filter((entry): entry is [string, string] => Boolean(entry[1]));
     return <Modal open onClose={onClose} size="xl" breadcrumbs={[<span className="block whitespace-normal text-xl font-semibold leading-tight">{info.label}</span>]}
         fit
-        footerStatus={(detailed.length ? detailed : [undefined]).map((variant) => {
-            const [destination, Icon] = workflowDestination(workflow, variant);
-            return <ActionButton key={variant?.id ?? workflow.id} Icon={Icon}
-                text={variant ? destination : "Open"}
-                ariaLabel={`${variant ? launchLabel(variant) : "Open"}: ${info.label}`}
+        footerStatus={(detailed.length ? detailed : [undefined]).map((variant) =>
+            <ActionButton key={variant?.id ?? workflow.id}
+                {...launchProps(workflow, variant, info.label)}
                 disabled={disabledItem?.(workflow, variant)}
                 onClick={() => {
                     onClose();
                     if (variant) onSelect(workflow, variant);
                     else onSelect(workflow);
-                }} />;
-        })}>
+                }} />)}>
         <div className="space-y-5 pb-5 text-sm leading-6 text-gray-600">
             <p>{detailed[0]?.description || workflow.metadata.description || detailed[0]?.result}</p>
             {detailed.filter((variant) => variant.columns_config?.length).map((variant) =>
@@ -306,6 +296,11 @@ function workflowDestination(workflow: Workflow, variant?: WorkflowVariant): rea
 
 const launchLabel = (variant: WorkflowVariant) => variant.execution === "tabular"
     ? "Start Tabular Review" : "Open chat";
+function launchProps(workflow: Workflow, variant: WorkflowVariant | undefined, label: string) {
+    const [destination, Icon] = workflowDestination(workflow, variant);
+    return { Icon, text: variant ? destination : "Open",
+        ariaLabel: `${variant ? launchLabel(variant) : "Open"}: ${label}` };
+}
 const DESTINATION_BUTTON_CLASS = "inline-flex min-h-9 w-16 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45";
 const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/gu, "-");
 

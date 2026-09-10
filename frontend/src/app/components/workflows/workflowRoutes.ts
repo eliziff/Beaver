@@ -13,11 +13,6 @@ export function workflowPath(workflow: Workflow) {
     }
 }
 
-export const workflowVariants = (workflow: Workflow, execution?: WorkflowVariant["execution"]) =>
-    (workflow.launcher.kind === "instructions" || workflow.launcher.kind === "quote_check")
-    ? workflow.launcher.variants.filter((variant) => !execution || variant.execution === execution)
-    : [];
-
 export const workflowDocumentTab = ({ variant }: WorkflowSelection) =>
     variant.id === "builtin-draft-from-template" ? "templates" as const : "files" as const;
 

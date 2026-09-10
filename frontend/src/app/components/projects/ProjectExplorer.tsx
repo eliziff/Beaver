@@ -44,14 +44,12 @@ export function ProjectExplorer({
         onMoveDocument: onMoveDoc && ((id, destination) => onMoveDoc(id, destination)),
         onMoveFolder: onMoveFolder && ((id, destination) => onMoveFolder(id, destination)) });
     const detaches = documentRemovalMode === "detach";
-    const pendingDocument = pendingDelete?.kind === "document"
-        ? documents.find(({ id }) => id === pendingDelete.id) : undefined;
-    const pendingFolder = pendingDelete?.kind === "folder"
-        ? folders.find(({ id }) => id === pendingDelete.id) : undefined;
-    const movingDocument = pendingMove?.kind === "document"
-        ? documents.find(({ id }) => id === pendingMove.id) : undefined;
-    const movingFolder = pendingMove?.kind === "folder"
-        ? folders.find(({ id }) => id === pendingMove.id) : undefined;
+    const resolve = (item: PendingItem | null) => [
+        item?.kind === "document" ? documents.find(({ id }) => id === item.id) : undefined,
+        item?.kind === "folder" ? folders.find(({ id }) => id === item.id) : undefined,
+    ] as const;
+    const [pendingDocument, pendingFolder] = resolve(pendingDelete);
+    const [movingDocument, movingFolder] = resolve(pendingMove);
     const currentMoveParent = movingDocument?.folder_id ?? movingFolder?.parent_folder_id ?? null;
     const folderOptions = [
         ...(currentMoveParent ? [{ value: null, label: "Project root" }] : []),
