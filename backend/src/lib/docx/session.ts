@@ -165,12 +165,8 @@ export function indexDocxParagraph(node: XNode): DocxParagraphIndex {
   let containsObjects = false;
   let truncated = false;
 
-  const visit = (
-    current: XNode,
-    topChildIndex: number,
-    state: InlineState,
-    depth: number,
-  ): void => {
+  const visit = (current: XNode, topChildIndex: number, state: InlineState,
+    depth: number): void => {
     if (depth > MAX_MARKUP_DEPTH) {
       truncated = true;
       return;
@@ -200,20 +196,11 @@ export function indexDocxParagraph(node: XNode): DocxParagraphIndex {
       if (state.compare && !state.del) compareText += run.rendered;
       if (!state.del) visibleText += run.visible;
       if (state.edit && !state.del) {
-        editRuns.push({
-          childIndex: topChildIndex,
-          start: runStart,
-          end: acceptedText.length,
-          rPr: run.rPr,
-          protectedByContentControl: state.protected,
-          textNodes,
-        });
+        editRuns.push({ childIndex: topChildIndex, start: runStart, end: acceptedText.length,
+          rPr: run.rPr, protectedByContentControl: state.protected, textNodes });
       }
-      events.push({
-        kind: "run",
-        run: { text: run.text, ins: state.ins, del: state.del,
-          strike: run.strike, color: run.color },
-      });
+      events.push({ kind: "run", run: { text: run.text, ins: state.ins, del: state.del,
+        strike: run.strike, color: run.color } });
       return;
     }
 
@@ -221,13 +208,7 @@ export function indexDocxParagraph(node: XNode): DocxParagraphIndex {
       const revision = name === "w:ins" ? "ins" : "del";
       events.push({ kind: "revision", revision });
       const next = name === "w:ins"
-        ? { ...state, ins: true }
-        : {
-            ...state,
-            del: true,
-            edit: false,
-            compare: false,
-          };
+        ? { ...state, ins: true } : { ...state, del: true, edit: false, compare: false };
       for (const child of elChildren(current)) {
         visit(child, topChildIndex, next, depth + 1);
       }
@@ -258,9 +239,7 @@ export function indexDocxParagraph(node: XNode): DocxParagraphIndex {
     }
   };
 
-  children.forEach((child, index) =>
-    visit(child, index, CLEAN_INLINE_STATE, 0),
-  );
+  children.forEach((child, index) => visit(child, index, CLEAN_INLINE_STATE, 0));
 
   const rewriteAtoms: DocxRewriteAtom[] = [];
   let rewriteText = "";
@@ -285,15 +264,8 @@ export function indexDocxParagraph(node: XNode): DocxParagraphIndex {
   }
 
   return {
-    node,
-    children,
-    bodyIndex: -1,
-    globalStart: 0,
-    acceptedText,
-    compareText,
-    visibleText,
-    events,
-    editRuns,
+    node, children, bodyIndex: -1, globalStart: 0,
+    acceptedText, compareText, visibleText, events, editRuns,
     rewrite: rewriteReason
       ? { ok: false, reason: rewriteReason }
       : { ok: true, atoms: rewriteAtoms, text: rewriteText },
@@ -342,23 +314,13 @@ export function indexDocxBody(body: XNode) {
     const kind = BLOCK_KIND.get(elName(node));
     if (!kind) return [];
     const contents = paragraphsUnder(node);
-    return [{
-      kind,
-      node,
-      bodyIndex,
-      text: kind === "p"
-        ? (contents[0]?.compareText ?? "")
-        : contents.map((paragraph) => `${paragraph.compareText}\n`).join(""),
-    }];
+    return [{ kind, node, bodyIndex,
+      text: kind === "p" ? (contents[0]?.compareText ?? "")
+        : contents.map((paragraph) => `${paragraph.compareText}\n`).join("") }];
   });
 
-  return {
-    body,
-    paragraphs,
-    text: paragraphs.map((paragraph) => paragraph.acceptedText).join("\n"),
-    blocks,
-    truncated,
-  };
+  return { body, paragraphs, blocks, truncated,
+    text: paragraphs.map((paragraph) => paragraph.acceptedText).join("\n") };
 }
 
 function trackedChanges(tree: XNode[]) {
@@ -468,8 +430,7 @@ class DocxSessionImpl {
   }
 
   writeDocument(tree: XNode[]) {
-    this.write("word/document.xml",
-      ensureXmlDeclaration(createBuilder().build(tree)));
+    this.write("word/document.xml", ensureXmlDeclaration(createBuilder().build(tree)));
   }
 
   save() {
@@ -480,17 +441,14 @@ class DocxSessionImpl {
 export type DocxSession = DocxSessionImpl;
 
 export async function openDocxSession(
-  bytes: Buffer | Uint8Array | ArrayBuffer,
-): Promise<DocxSession> {
+  bytes: Buffer | Uint8Array | ArrayBuffer): Promise<DocxSession> {
   if (!bytes.byteLength || bytes.byteLength > MAX_DRAFTING_DOCX_BYTES) {
     throw new Error("DOCX is empty or exceeds the read limit");
   }
   const zip = await loadZip(bytes).catch((error: unknown) => {
     const detail = String((error as { message?: unknown })?.message ?? error)
       .replace(/\s+/gu, " ").trim().slice(0, 200);
-    throw new Error(
-      `DOCX is corrupted or truncated (not a readable ZIP archive): ${detail}`,
-    );
+    throw new Error(`DOCX is corrupted or truncated (not a readable ZIP archive): ${detail}`);
   });
   assertBoundedZip(zip, "DOCX", {
     maxEntries: MAX_ZIP_ENTRIES, maxExpandedBytes: MAX_EXPANDED_BYTES,
