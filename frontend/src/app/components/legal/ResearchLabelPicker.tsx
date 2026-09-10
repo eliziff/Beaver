@@ -57,14 +57,19 @@ export function ResearchLabelPicker({ file, kind, itemId, sourceId, labelIds, no
 const CHIP = (active: boolean) => `flex min-h-6 min-w-0 items-center gap-1 rounded border-2 px-[7px] py-[3px] text-xs ${
   active ? "border-gray-800 bg-gray-200 font-medium text-gray-900" : "border-transparent bg-gray-100 text-gray-700 hover:bg-gray-200"}`;
 
+/** One scope's labels grouped under their parent, each level in its saved order. */
+export function researchLabelChildren(labels: Record<string, ResearchLabel>, scope: ResearchLabel["scope"]) {
+  const map = new Map<string | null, ResearchLabel[]>();
+  Object.values(labels).filter((label) => label.scope === scope).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
+    .forEach((label) => { const values = map.get(label.parentId) ?? []; values.push(label); map.set(label.parentId, values); });
+  return map;
+}
+
 /** Horizontal siblings give way to the selected parent's children below, as in Case Marker. */
 export function ResearchLabelWaterfall({ labels, scope, selectedId, onChoose, noneLabel }: {
   labels: Record<string, ResearchLabel>; scope: ResearchLabel["scope"];
   selectedId: string | null; onChoose: (id: string | null) => void; noneLabel?: string }) {
-  const tree = useMemo(() => { const map = new Map<string | null, ResearchLabel[]>();
-    Object.values(labels).filter((label) => label.scope === scope).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
-      .forEach((label) => { const values = map.get(label.parentId) ?? []; values.push(label); map.set(label.parentId, values); });
-    return map; }, [labels, scope]);
+  const tree = useMemo(() => researchLabelChildren(labels, scope), [labels, scope]);
   const path = selectedId && labels[selectedId] ? researchLabelPath(labels, selectedId) : [];
   if (!tree.size) return <p className="my-2 text-xs text-gray-500">No {scope === "source" ? "labels" : "highlight types"} yet.</p>;
   return <div className="mb-1.5 min-w-0 overflow-x-hidden pb-0.5">

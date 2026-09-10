@@ -34,9 +34,6 @@ const LIBRARY_TABS = [
     { id: "templates", label: "Templates" },
 ] as const;
 
-export const libraryRoute = (tab: LibraryKind) =>
-    tab === "files" ? "/library" : `/library/${tab}`;
-
 type LibraryViews = Record<LibraryKind, { search: string }>;
 const LibraryWorkspace = createContext<{
     views: LibraryViews;
@@ -65,14 +62,6 @@ export function LibraryWorkspaceProvider({ children }: { children: ReactNode }) 
             </LibraryWorkspace.Provider>
         </SourcesWorkspace>
     );
-}
-
-function useStoredAction() {
-    const [action, setAction] = useState<(() => void) | null>(null);
-    return [
-        action,
-        useCallback((next: (() => void) | null) => setAction(() => next), []),
-    ] as const;
 }
 
 type LibraryCollectionProps = {
@@ -114,7 +103,8 @@ function LibraryCollection({
     const [uploadActions, setUploadActions] = useState<UploadActions | null>(null);
     const [selectionActions, setSelectionActions] =
         useState<DocumentSelectionActions | null>(null);
-    const [createFolder, setCreateFolder] = useStoredAction();
+    const [createFolder, setCreateFolderAction] = useState<(() => void) | null>(null);
+    const setCreateFolder = useCallback((next: (() => void) | null) => setCreateFolderAction(() => next), []);
     const title = kind === "files" ? "Files" : "Templates";
     const resource = useMemo(() => directoryResource({ library: kind }), [kind]);
     const directory = usePagedDirectory(
@@ -178,7 +168,7 @@ function LibraryCollection({
                     onValueChange={(next) =>
                         onKindChange
                             ? onKindChange(next as LibraryKind)
-                            : navigate(libraryRoute(next as LibraryKind))
+                            : navigate(next === "files" ? "/library" : `/library/${next}`)
                     }
                     ariaLabel="Library sections"
                     variant="pill"
