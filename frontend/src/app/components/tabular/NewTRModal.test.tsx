@@ -63,7 +63,6 @@ it("creates a project review with the selected project documents", async () => {
             open
             onClose={vi.fn()}
             onAdd={onAdd} onOpen={vi.fn()}
-            projects={[project]}
         />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Create custom" }));
