@@ -234,9 +234,8 @@ export async function runChatTurn(options: {
     RESUME_SUBAGENT_TOOL_NAME,
   ]);
   const mainTools = options.createTools(evidence, options.readerAssignment ?? "main", context)
-    .filter((tool) => !internalNames.has(tool.name))
-    .filter((tool) => !options.readerAssignment ||
-      tool.reader?.includes(options.readerAssignment.jurisdiction))
+    .filter((tool) => !internalNames.has(tool.name) && (!options.readerAssignment ||
+      tool.reader?.includes(options.readerAssignment.jurisdiction)))
     .map((tool) => options.readerAssignment ? { ...tool, specialist: false } : tool);
   const resumableReaders = new Map(options.resumableSubagents);
   const request = [...options.messages].reverse()
@@ -265,10 +264,7 @@ export async function runChatTurn(options: {
     if (!delta || paused) return;
     if (boundary) {
       boundary = false;
-      const separator = contentBoundarySeparator(text, delta);
-      if (separator) {
-        text += separator;
-      }
+      text += contentBoundarySeparator(text, delta);
     }
     text += delta;
   };
@@ -313,21 +309,17 @@ export async function runChatTurn(options: {
     call: NormalizedToolCall,
     resume?: ReadSubagentCheckpoint,
   ): Promise<NormalizedToolResult> => {
+    const refuse = (error: string | undefined): NormalizedToolResult => ({
+      tool_use_id: call.id, status: "error",
+      content: JSON.stringify({ ok: false, error }),
+    });
     const assignment = resume?.assignment ?? readSubagentAssignment(call);
-    if (!assignment) return {
-      tool_use_id: call.id,
-      status: "error",
-      content: JSON.stringify({ ok: false, error: "task and scope are required." }),
-    };
+    if (!assignment) return refuse("task and scope are required.");
     const capability = await getReadSubagentCapability(undefined, {
       model: resume?.model ?? options.subagentModel,
       effort: resume?.effort ?? options.subagentEffort,
     });
-    if (!capability.available) return {
-      tool_use_id: call.id,
-      status: "error",
-      content: JSON.stringify({ ok: false, error: capability.reason }),
-    };
+    if (!capability.available) return refuse(capability.reason);
     const childEvidence = createLegalEvidenceTurnState("citation_structure");
     const inheritReads = (grounding: LegalEvidenceReceiptEvent) => {
       for (const receipt of grounding.evidence) registerLegalEvidence(evidence, receipt,
@@ -485,10 +477,8 @@ export async function runChatTurn(options: {
       };
     }
   };
-  const readerSchemas = [
-    ...(subagentMode === "beaver" ? [READ_SUBAGENT_TOOL] : []),
-    ...(subagentMode === "beaver" ? [RESUME_SUBAGENT_TOOL] : []),
-  ];
+  const readerSchemas = subagentMode === "beaver"
+    ? [READ_SUBAGENT_TOOL, RESUME_SUBAGENT_TOOL] : [];
   const readerTools: BeaverTool<ChatToolContext>[] = readerSchemas.map((schema) => ({
     ...schema,
     specialist: true,
@@ -667,9 +657,7 @@ export async function runChatTurn(options: {
       });
     },
     onSteer(message: { id: string; text: string }) {
-      if (reasoning) addEvent({ type: "reasoning", text: reasoning });
-      if (text) addEvent({ type: "content", text });
-      reasoning = "";
+      partialEvents();
       text = "";
       boundary = false;
       const event: AssistantEvent = { type: "steering", ...message };
@@ -772,6 +760,13 @@ export async function runChatTurn(options: {
   };
 
   let providerResult: StreamChatResult | undefined;
+  /** Re-run the turn against its own rejected draft, so the retry sees what it must repair. */
+  const repairDraft = async (findings: string) => {
+    const draft = text;
+    text = "";
+    boundary = false;
+    providerResult = await provider(providerResult?.continuationId, { draft, findings });
+  };
   try {
     throwIfAborted(signal);
     if (options.prepareMessages) {
@@ -803,28 +798,17 @@ export async function runChatTurn(options: {
     }
     if (!paused && options.grounded !== false && renderLegalEvidenceAnswer(evidence) === null &&
         hasModelAuthoredLegalSourceUrl(text)) {
-      const rejected = text;
-      text = "";
-      boundary = false;
-      providerResult = await provider(providerResult?.continuationId, {
-        draft: rejected,
-        findings: GROUNDED_LEGAL_REPAIR_INSTRUCTION.replace(LEGAL_EVIDENCE_TOOL_NAME, submissionTool),
-      });
+      await repairDraft(
+        GROUNDED_LEGAL_REPAIR_INSTRUCTION.replace(LEGAL_EVIDENCE_TOOL_NAME, submissionTool));
       if (renderLegalEvidenceAnswer(evidence) === null) text = UNVERIFIED_LEGAL_ANSWER;
     }
     if (!paused) {
       let finalized = options.grounded === false || finalizeLegalEvidence(evidence, text);
       for (let attempt = 0; !finalized && attempt < 2; attempt += 1) {
-        const rejected = text;
         const failure = evidence.failure ?? "No grounded submission was received.";
         evidence.answer = null;
         evidence.failure = null;
-        text = "";
-        boundary = false;
-        providerResult = await provider(providerResult?.continuationId, {
-          draft: rejected,
-          findings: `Grounding error: ${failure} Revise the answer with available evidence_ids and finish with ${submissionTool}. Retrieve only missing passages.`,
-        });
+        await repairDraft(`Grounding error: ${failure} Revise the answer with available evidence_ids and finish with ${submissionTool}. Retrieve only missing passages.`);
         finalized = finalizeLegalEvidence(evidence, text);
       }
       // An answer that stays unverified is reported as one, and the turn keeps its completed

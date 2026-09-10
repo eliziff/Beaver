@@ -1,5 +1,6 @@
 import { cachedContent } from "../contentCache";
 import { guardedRemoteFetch } from "../remoteUrlSafety";
+import { searchJurisdiction } from ".";
 import type { LegalSourceProvider, LegalSourceReference } from ".";
 import { structureNative, type NativeDocument } from "../structureNative";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
@@ -449,9 +450,8 @@ function provider(
         : [];
     },
     canSearch(request) {
-      const jurisdiction = request.jurisdiction?.toLocaleLowerCase().replace(/[^a-z]/gu, "");
       return request.kinds.includes("case") &&
-        !["ca", "canada", "canadian"].includes(jurisdiction ?? "");
+        !["ca", "canada", "canadian"].includes(searchJurisdiction(request));
     },
     async search(request) {
       const response = await searchCases({

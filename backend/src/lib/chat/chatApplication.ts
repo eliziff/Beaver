@@ -402,10 +402,7 @@ async function loadImages(
 }
 
 function imageForMessage(message: ChatMessage, images: Map<string, LlmImage>) {
-  const selected = (message.files ?? []).flatMap((file) => {
-    const image = images.get(file.document_id);
-    return image ? [image] : [];
-  });
+  const selected = (message.files ?? []).flatMap((file) => images.get(file.document_id) ?? []);
   return selected.length ? selected : undefined;
 }
 
@@ -490,13 +487,9 @@ export function createChatApplication(deps: Dependencies) {
       if (!chat && input.expected_version !== 0) {
         conflict("chat_version_conflict", 0);
       }
-      if (chat && input.project_id !== undefined &&
-          chat.project_id !== (input.project_id ?? null)) {
-        throw new ChatApplicationError(400, "project_id does not match chat");
-      }
-      if (chat && input.tabular_review_id !== undefined &&
-          chat.tabular_review_id !== (input.tabular_review_id ?? null)) {
-        throw new ChatApplicationError(400, "tabular_review_id does not match chat");
+      for (const key of ["project_id", "tabular_review_id"] as const) {
+        if (chat && input[key] !== undefined && chat[key] !== (input[key] ?? null))
+          throw new ChatApplicationError(400, `${key} does not match chat`);
       }
       const projectId = chat?.project_id ?? input.project_id ?? null;
       const tabularReviewId = chat?.tabular_review_id ?? input.tabular_review_id ?? null;
@@ -744,6 +737,8 @@ ${registeredWorkflow.skill_md}` : "",
       let persistence: Promise<void> | undefined, pendingContent: AssistantEvent[] | undefined,
         chatAvailable = true, nextCheckpoint = 0;
       let localTools!: ReturnType<typeof createChatToolRunner>;
+      const openWorkProduct = (kind: NonNullable<ChatTurnInput["work_product"]>["kind"]) =>
+        input.work_product?.kind === kind ? input.work_product : undefined;
       const currentWorkspace = async () => {
         const current = await deps.chats.get(auth, chat!.id), id = current?.research_file_id;
         return id ? deps.sources.get(auth, id) : null;
@@ -775,19 +770,15 @@ ${registeredWorkflow.skill_md}` : "",
         projects: deps.projects,
         workProducts: deps.workProducts,
         authorities: deps.authorities,
-        authoritiesId: input.work_product?.kind === "authorities"
-          ? input.work_product.id : undefined,
-        authoritiesRevision: input.work_product?.kind === "authorities"
-          ? input.work_product.revision : undefined,
+        authoritiesId: openWorkProduct("authorities")?.id,
+        authoritiesRevision: openWorkProduct("authorities")?.revision,
         workProductFocus: input.work_product?.focus && {
           itemId: input.work_product.focus.item_id,
           selection: input.work_product.focus.selection,
         },
         courtRecords: deps.courtRecords,
-        courtRecordId: input.work_product?.kind === "court-record"
-          ? input.work_product.id : undefined,
-        courtRecordRevision: input.work_product?.kind === "court-record"
-          ? input.work_product.revision : undefined,
+        courtRecordId: openWorkProduct("court-record")?.id,
+        courtRecordRevision: openWorkProduct("court-record")?.revision,
         workflows: features.workflows,
         researchTables: deps.tabular.create && deps.tabular.update && deps.tabular.generate && deps.tabular.stop &&
           deps.tabular.history && deps.tabular.change
@@ -884,6 +875,10 @@ ${registeredWorkflow.skill_md}` : "",
       const onSubagentEvent = (event: ReadSubagentEvent) => {
         void queuePersist([event])?.catch(() => undefined);
       };
+      const auditTurn = (outcome: {
+        status?: "cancelled" | "failed"; events: AssistantEvent[] | null }) =>
+        deps.features.audit?.(auth, { chatId: chat!.id, projectId, title: chat!.title,
+          model: selectedModel, ...outcome });
       try {
         sink.emit({ type: "chat_id", chatId: chat.id, transcriptVersion: version });
         const result = await runChatTurn({
@@ -958,10 +953,7 @@ ${registeredWorkflow.skill_md}` : "",
         }
         await providerSession?.save(activeContinuationId, version);
         sink.emit({ type: "transcript_version", transcriptVersion: version });
-        deps.features.audit?.(auth, {
-          chatId: chat.id, projectId, title: chat.title, model: selectedModel,
-          events: result.events,
-        });
+        auditTurn({ events: result.events });
         return { chatId: chat.id, transcriptVersion: version };
       } catch (error) {
         const message = safeErrorMessage(error, "Model request failed");
@@ -980,10 +972,7 @@ ${registeredWorkflow.skill_md}` : "",
           ));
           await providerSession?.save(activeContinuationId, version);
         }
-        deps.features.audit?.(auth, {
-          chatId: chat.id, projectId, title: chat.title, model: selectedModel,
-          status: isAbortError(error) ? "cancelled" : "failed", events: null,
-        });
+        auditTurn({ status: isAbortError(error) ? "cancelled" : "failed", events: null });
         if (!signal.aborted) {
           sink.emit({
             type: "error", message,

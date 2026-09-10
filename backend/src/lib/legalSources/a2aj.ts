@@ -10,6 +10,7 @@ import { normalizeWhitespace } from "../text";
 import { structureNative, type NativeDocument } from "../structureNative";
 import { objectValue as object, type JsonObject } from "./remoteProvider";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
+import { isUnitedStatesSearch } from ".";
 import type { LegalSourceProvider, LegalSourceReference,
   LegalSourceResolveRequest, LegalSourceSearchHit, LegalSourceSearchRequest } from ".";
 
@@ -532,8 +533,7 @@ const provider: LegalSourceProvider<A2AJCompiledDocument> = {
     return label ? load(label) : [];
   },
   canSearch(request) {
-    const place = request.jurisdiction?.toLocaleLowerCase().replace(/[^a-z]/gu, "");
-    return !["us", "usa", "unitedstates", "unitedstatesofamerica"].includes(place ?? "") &&
+    return !isUnitedStatesSearch(request) &&
       request.kinds.some((kind) => kind === "case" || kind === "legislation");
   },
   async search(request) {
