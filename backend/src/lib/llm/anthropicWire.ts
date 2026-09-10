@@ -101,7 +101,15 @@ export function createAnthropicWireAdapter(
             ...step.results.map((result) => ({
               type: "tool_result",
               tool_use_id: result.tool_use_id,
-              content: result.content,
+              content: result.images?.length
+                ? [
+                    { type: "text", text: result.content },
+                    ...result.images.map((image) => ({
+                      type: "image",
+                      source: { type: "base64", media_type: image.mimeType, data: image.data },
+                    })),
+                  ]
+                : result.content,
             })),
             ...step.steering.map(({ text }) => ({ type: "text", text })),
           ],

@@ -44,7 +44,9 @@ export type NormalizedToolCall = {
 export type NormalizedToolResult = {
   tool_use_id: string;
   content: string;
-  /** Host-visible result state; adapters still send only `content`. */
+  /** Page renders and other pictures a tool returned for the model to look at. */
+  images?: LlmImage[];
+  /** Host-visible result state; adapters send only `content` and `images`. */
   status?:
     | "ok"
     | "not_found"

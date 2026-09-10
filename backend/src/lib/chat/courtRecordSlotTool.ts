@@ -5,8 +5,10 @@ import { COURT_PROFILES, COURT_PROFILE_BY_ID, type CourtProfile }
   from "mike/shared/court-record-profiles.mjs";
 import { COURT_RECORD_PARTY_CONTACT_FIELDS } from "../courtRecordContract";
 import type { CourtRecordsApplication } from "../courtRecordsApplication";
+import type { DocumentStore } from "../documentStore";
 import { contentTypeForDocumentType } from "../documentTypes";
 import type { LibraryStore } from "../libraryStore";
+import { renderPdfPage } from "../pdfPageImage";
 import { DOCUMENT_OR_DRAFT_PATTERN, parseResourceReference } from "../resourceReferences";
 import { safeErrorMessage } from "../safeError";
 import { isJsonRecord } from "../value";
@@ -220,6 +222,93 @@ export function courtRecordSlotTool<Context>(dependencies: Dependencies): Beaver
         const result = { ok: false, error: safeErrorMessage(error,
           "The Court Record could not be updated") };
         return { result: toolText(result, true), events: [workProductEvent(result, call.id)!] };
+      }
+    },
+  };
+}
+
+const MAX_TURN_PAGE_IMAGES = 6;
+
+const pageSchema: Tool & BeaverToolPolicy = {
+  name: "view_page",
+  activity: (input) => `Looking at page ${Number(input.page) || 1}`,
+  description: "Look at one page of a Court Record source as a picture. Use it whenever a page " +
+    "is scanned, handwritten, stamped or extracted poorly: read the deponent, dates, court file " +
+    "number, registry and exhibit stamps off the image before filling a field, and never guess a " +
+    "value that extraction left empty or garbled. Name the entry with entry_id from the record, " +
+    "or a Library document with document_id. Up to 6 pages a turn.",
+  annotations: { readOnlyHint: true },
+  inputSchema: {
+    type: "object",
+    properties: {
+      entry_id: { type: "string", minLength: 1, maxLength: 200,
+        description: "Entry of the active Court Record, from its read result." },
+      document_id: { type: "string", maxLength: 300,
+        description: "Version-pinned Library document returned by Read." },
+      version_id: { type: "string", maxLength: 200 },
+      page: { type: "integer", minimum: 1, maximum: 5_000 },
+    },
+    required: ["page"],
+    additionalProperties: false,
+  },
+};
+
+type PageDependencies = Pick<Dependencies, "scope" | "target" | "projectId" |
+  "allowedDocumentIds" | "library" | "workProducts" | "resolveArtifact"> &
+  { documents: Pick<DocumentStore, "read"> };
+
+export function courtRecordPageTool<Context>(
+  dependencies: PageDependencies,
+): BeaverTool<Context> {
+  let shown = 0;
+  return {
+    ...pageSchema,
+    async execute(input, _context, signal) {
+      try {
+        if (shown >= MAX_TURN_PAGE_IMAGES) {
+          throw new Error(`Only ${MAX_TURN_PAGE_IMAGES} pages can be viewed in one turn`);
+        }
+        const entryId = text(input.entry_id), page = Number(input.page);
+        const raw = text(input.document_id);
+        const reference = raw ? parseResourceReference(
+          dependencies.resolveArtifact?.(raw) ?? raw) : null;
+        let documentId = reference?.kind === "document" ? reference.documentId : raw;
+        let versionId: string | null = reference?.kind === "document"
+          ? reference.versionId : text(input.version_id) || null;
+        if (entryId) {
+          const product = await dependencies.workProducts.get(dependencies.scope,
+            dependencies.target.id);
+          const bindings = isJsonRecord(product.state.bindings) ? product.state.bindings : {};
+          const binding = isJsonRecord(bindings[entryId]) ? bindings[entryId] : null;
+          if (binding?.kind !== "document") {
+            throw new Error(`Entry ${entryId} has no Library document to look at`);
+          }
+          documentId = String(binding.documentId);
+          versionId = isJsonRecord(binding.version) ? String(binding.version.versionId) : null;
+        } else if (!documentId) {
+          throw new Error("entry_id or document_id is required");
+        } else if (dependencies.projectId
+          ? !dependencies.allowedDocumentIds?.has(documentId)
+          : !await dependencies.library.document({ ...dependencies.scope, kind: "file" },
+            documentId)) {
+          throw new Error("Document is outside this chat's document scope");
+        }
+        const file = await dependencies.documents.read(dependencies.scope, documentId,
+          versionId, true);
+        if (!file) throw new Error("The document could not be read");
+        if (file.fileType.toLowerCase() !== "pdf" && !file.hasPdfRendition) {
+          throw new Error(`Only PDF pages can be viewed; this file is ${file.fileType}`);
+        }
+        const rendered = await renderPdfPage(file.bytes, page, file.filename, signal);
+        shown += 1;
+        return {
+          result: toolText({ ok: true, filename: file.filename, page: rendered.page,
+            page_count: rendered.pageCount, width: rendered.width, height: rendered.height }),
+          metadata: { images: [rendered.image] },
+        };
+      } catch (error) {
+        return { result: toolText({ ok: false,
+          error: safeErrorMessage(error, "The page could not be shown") }, true) };
       }
     },
   };
