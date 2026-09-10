@@ -58,6 +58,8 @@ export class LocalDatabase implements RelationalDatabase {
 
   transaction<T>(run: (database: RelationalDatabase) => Promise<T>) {
     return this.locked(async () => {
+      // Two processes (server and worker) write this file; a transaction held for long starves the other.
+      const opened = Date.now(), origin = new Error().stack?.split("\n").slice(3, 6).join(" | ");
       this.database.exec("BEGIN IMMEDIATE");
       const hints = committedNotifications(this.notifications);
       const transaction: RelationalDatabase = {
@@ -73,6 +75,7 @@ export class LocalDatabase implements RelationalDatabase {
       try {
         result = await run(transaction);
         this.database.exec("COMMIT");
+        if (Date.now() - opened > 1000) console.warn("[sqlite] slow write transaction", { ms: Date.now() - opened, origin });
       } catch (error) {
         this.database.exec("ROLLBACK");
         this.statements.clear();
@@ -118,7 +121,7 @@ export function openLocalDatabase(filename: string) {
   const database = new DatabaseSync(filename);
   if (process.platform !== "win32") chmodSync(filename, 0o600);
   try {
-    database.exec("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
+    database.exec("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=30000;");
     const version = Number((database.prepare("PRAGMA user_version").get() as
       { user_version: number }).user_version);
     if (version !== 0 && version !== LOCAL_SCHEMA_VERSION) throw new Error(
