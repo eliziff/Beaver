@@ -83,16 +83,9 @@ export function TabularMarkdown({
                     />
                 ),
                 code: ({ node: _node, children, ...props }) => {
-                    const token = String(children);
-                    const citationIndex = token.match(/^§(\d+)§$/)?.[1];
-                    if (citationIndex !== undefined) {
-                        const index = Number(citationIndex);
-                        const citation = targets[index];
-                        if (citation) {
-                            return <CitationPill citation={citation}
-                                className="mx-0.5 text-[10px]! leading-4!" />;
-                        }
-                    }
+                    const citation = targets[Number(String(children).match(/^§(\d+)§$/)?.[1])];
+                    if (citation) return <CitationPill citation={citation}
+                        className="mx-0.5 text-[10px]! leading-4!" />;
                     return (
                         <code
                             className="rounded bg-gray-100 px-1 py-0.5 font-mono text-[11px]"
