@@ -2,7 +2,6 @@ import { useRef, useState } from "react";
 import { ArrowLeft, Import, ListPlus, Plus, Sparkles, Upload } from "lucide-react";
 import { directoryResource, uploadDocumentsSettled, type Document } from "@/app/lib/api/documents";
 import { designTabularReview, type ColumnConfig, type TabularResearchScope } from "@/app/lib/api/tabular";
-import type { Project } from "@/app/lib/api/projects";
 import { Modal } from "../modals/Modal";
 import { FormField } from "../modals/ModalFieldLabel";
 import { ModalTextInput } from "../modals/ModalTextInput";
@@ -23,7 +22,7 @@ type Props = {
     onAdd: (title: string, projectId?: string, documentIds?: string[],
         columnsConfig?: ColumnConfig[] | null, workflowId?: string, research?: TabularResearchScope) => Promise<void> | void;
     onOpen: (path: string) => void;
-    projects?: Project[]; projectId?: string; projectName?: string; projectCmNumber?: string | null;
+    projectId?: string; projectName?: string; projectCmNumber?: string | null;
     research?: TabularResearchScope;
 };
 const CARDS = [
