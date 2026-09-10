@@ -7,9 +7,9 @@ import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 
 export type FolderList = DirectoryList;
 
-export function FolderBrowser({ list, createFolder, rootLabel, onSelect, onBack, disabledIds, hideRoot = false }: {
+export function FolderBrowser({ list, createFolder, rootLabel, onSelect, onBack, disabledIds }: {
     list: FolderList; createFolder: (name: string, parentId?: string | null) => Promise<Folder>; rootLabel: string;
-    onSelect: (folder: Folder | null) => void; hideRoot?: boolean;
+    onSelect: (folder: Folder | null) => void;
     onBack?: () => void; disabledIds?: Set<string>;
 }) {
     const [path, setPath] = useState<Folder[]>([]), parent = path.at(-1) ?? null;
@@ -41,7 +41,7 @@ export function FolderBrowser({ list, createFolder, rootLabel, onSelect, onBack,
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
             </button>}
             <p className="min-w-0 break-words px-1 text-sm font-medium text-gray-800">
-                {parent?.name ?? (!hideRoot ? rootLabel : "")}
+                {parent?.name ?? rootLabel}
             </p>
             <button ref={newFolder} type="button" disabled={creating} onClick={() => { setName(""); setError(""); }}
                 className="ms-auto flex min-h-9 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50">
