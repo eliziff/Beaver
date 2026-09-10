@@ -1,17 +1,8 @@
 import { parseAssistantCitations } from "./assistantWire";
-import {
-  streamChatWithTools,
-  type LlmMessage,
-  type NormalizedToolCall,
-  type NormalizedToolResult,
-  type ProviderSubagentUpdate,
-  type ProviderTurnControl,
-  type ProviderContextCheckpoint,
-  type SteeringMessage,
-  type StreamChatResult,
-  type SubagentMode,
-  type UserApiKeys,
-} from "../llm";
+import { streamChatWithTools, type LlmMessage, type NormalizedToolCall,
+  type NormalizedToolResult, type ProviderSubagentUpdate, type ProviderTurnControl,
+  type ProviderContextCheckpoint, type SteeringMessage, type StreamChatResult,
+  type SubagentMode, type UserApiKeys } from "../llm";
 import { isAbortError, throwIfAborted } from "../llm/abort";
 import { safeErrorMessage } from "../safeError";
 import { assistantToolActivityLabel } from "./tools/a2ajTools";
@@ -19,22 +10,13 @@ import { ASK_INPUTS_TOOL } from "./tools/toolSchemas";
 import { publicAssistantEvent, type AssistantEvent, type AskInputsEvent,
   type PublicAssistantEvent, type ReadSubagentAssignment, type ReadSubagentCheckpoint,
   type ReadSubagentEvent, type ToolActivity, type LegalEvidenceReceiptEvent } from "./assistantEvents";
-import {
-  TurnToolRegistry,
-  toolText,
-  type BeaverOutcome,
-  type BeaverTool,
-} from "./toolRegistry";
+import { TurnToolRegistry, toolText, type BeaverOutcome,
+  type BeaverTool } from "./toolRegistry";
 import { normalizeAskInputsEvent } from "./askInputs";
-import {
-  createLegalEvidenceCitations,
-  createLegalEvidenceCitationsFromEntries,
-} from "./citations";
-import {
-  GROUNDED_LEGAL_REPAIR_INSTRUCTION,
-  UNVERIFIED_LEGAL_ANSWER,
-  hasModelAuthoredLegalSourceUrl,
-} from "./legalOutputGate";
+import { createLegalEvidenceCitations,
+  createLegalEvidenceCitationsFromEntries } from "./citations";
+import { GROUNDED_LEGAL_REPAIR_INSTRUCTION, UNVERIFIED_LEGAL_ANSWER,
+  hasModelAuthoredLegalSourceUrl } from "./legalOutputGate";
 import {
   createLegalEvidenceTurnState,
   finalizeLegalEvidence,
@@ -61,35 +43,17 @@ import { childResearchReadContext, researchReadContextPrompt, researchReadReceip
   type ResearchReadContext, type ResearchObserver } from "../researchReader";
 import type { ResearchOperationContext } from "../researchProvenance";
 import {
-  READ_SUBAGENT_TOOL,
-  READ_SUBAGENT_TOOL_NAME,
-  RESUME_SUBAGENT_TOOL,
-  RESUME_SUBAGENT_TOOL_NAME,
-  allowedReadSubagentRegions,
-  createReadSubagentAdmission,
-  getReadSubagentCapability,
-  readSubagentActivityLabel,
-  readSubagentAssignment,
-  readSubagentInstruction,
-  readSubagentResumePrompt,
-  runReadSubagentRound,
+  READ_SUBAGENT_TOOL, READ_SUBAGENT_TOOL_NAME, RESUME_SUBAGENT_TOOL,
+  RESUME_SUBAGENT_TOOL_NAME, allowedReadSubagentRegions, createReadSubagentAdmission,
+  getReadSubagentCapability, readSubagentActivityLabel, readSubagentAssignment,
+  readSubagentInstruction, readSubagentResumePrompt, runReadSubagentRound,
 } from "./readSubagents";
-import {
-  SOURCE_SEARCH_SYSTEM_PROMPT,
-  jurisdictionPreferencePrompt,
-  type JurisdictionPreference,
-} from "./prompts";
-import {
-  estimateContextTokens,
-  modelContextWindow,
-} from "../llm/contextWindow";
+import { SOURCE_SEARCH_SYSTEM_PROMPT, jurisdictionPreferencePrompt,
+  type JurisdictionPreference } from "./prompts";
+import { estimateContextTokens, modelContextWindow } from "../llm/contextWindow";
 
 export class AssistantStreamError extends Error {
-  constructor(
-    message: string,
-    readonly fullText: string,
-    readonly events: AssistantEvent[],
-  ) {
+  constructor(message: string, readonly fullText: string, readonly events: AssistantEvent[]) {
     super(message);
     this.name = "AssistantStreamError";
   }
@@ -125,20 +89,15 @@ function contentBoundarySeparator(before: string, after: string) {
   const previous = before.at(-1) ?? "";
   const next = after[0] ?? "";
   if (/^[,.;:!?)}\]]$/u.test(next) || /^[-/\\'’–—]$/u.test(previous)) return "";
-  return /[\p{L}\p{N}]$/u.test(previous) && /^[\p{Ll}\p{M}]/u.test(next)
-    ? ""
-    : " ";
+  return /[\p{L}\p{N}]$/u.test(previous) && /^[\p{Ll}\p{M}]/u.test(next) ? "" : " ";
 }
 
 export async function runChatTurn(options: {
   model: string;
   systemPrompt: string;
   messages: LlmMessage[];
-  createTools: (
-    evidence: LegalEvidenceTurnState,
-    scope: "main" | ReadSubagentAssignment,
-    context: ChatToolContext,
-  ) => BeaverTool<ChatToolContext>[];
+  createTools: (evidence: LegalEvidenceTurnState, scope: "main" | ReadSubagentAssignment,
+    context: ChatToolContext) => BeaverTool<ChatToolContext>[];
   emit: (event: PublicAssistantEvent) => void;
   apiKeys?: UserApiKeys;
   reasoningEffort?: string;
@@ -165,19 +124,13 @@ export async function runChatTurn(options: {
   canRetryProviderSession?: () => boolean;
   separateContentBlocks?: boolean;
   submissionTool?: string;
-  prepareMessages?: (
-    onCompaction: (status: "running" | "completed" | "failed") => void,
-  ) => Promise<LlmMessage[]>;
+  prepareMessages?: (onCompaction: (status: "running" | "completed" | "failed") => void)
+    => Promise<LlmMessage[]>;
   onSubagentEvent?: (event: ReadSubagentEvent) => void;
   onResearchObserved?: ResearchObserver;
   onActivity?: () => void;
 }) {
-  const {
-    emit,
-    activityDetail = "auto",
-    subagentMode = "none",
-    signal,
-  } = options;
+  const { emit, activityDetail = "auto", subagentMode = "none", signal } = options;
   const events: AssistantEvent[] = [];
   const toolActivities = new Map<string, ToolActivity>();
   const evidence = options.evidenceState ?? createLegalEvidenceTurnState();
@@ -185,10 +138,7 @@ export async function runChatTurn(options: {
   registerPriorLegalEvidence(evidence, options.priorEvidence ?? []);
   registerPriorLegalResearchQueries(evidence, options.priorQueries ?? []);
   const addEvent = (event: AssistantEvent) => events.push(event);
-  const replaceLastEvent = (
-    type: AssistantEvent["type"],
-    event: AssistantEvent,
-  ) => {
+  const replaceLastEvent = (type: AssistantEvent["type"], event: AssistantEvent) => {
     const index = events.map((candidate) => candidate.type).lastIndexOf(type);
     if (index < 0) events.push(event);
     else events[index] = event;
@@ -197,16 +147,13 @@ export async function runChatTurn(options: {
     toolActivities.set(activity.id, activity);
     const event: AssistantEvent = { type: "tool_activity", ...activity };
     const index = events.findIndex(
-      (candidate) => candidate.type === "tool_activity" && candidate.id === activity.id,
-    );
+      (candidate) => candidate.type === "tool_activity" && candidate.id === activity.id);
     if (index < 0) events.push(event);
     else events[index] = event;
     emit(event);
   };
-  const settleToolActivities = (
-    status: "completed" | "error" | "interrupted",
-    ids: Iterable<string> = toolActivities.keys(),
-  ) => {
+  const settleToolActivities = (status: "completed" | "error" | "interrupted",
+    ids: Iterable<string> = toolActivities.keys()) => {
     for (const id of ids) {
       const activity = toolActivities.get(id);
       if (activity?.status === "running") emitToolActivity({ ...activity, status });
@@ -227,12 +174,8 @@ export async function runChatTurn(options: {
   let researchPersistence = Promise.resolve();
   const observe: ResearchObserver = (event, operation) => researchPersistence = researchPersistence.then(
     () => options.onResearchObserved?.(event, operation));
-  const internalNames = new Set([
-    "ask_inputs",
-    LEGAL_EVIDENCE_TOOL_NAME,
-    READ_SUBAGENT_TOOL_NAME,
-    RESUME_SUBAGENT_TOOL_NAME,
-  ]);
+  const internalNames = new Set(["ask_inputs", LEGAL_EVIDENCE_TOOL_NAME,
+    READ_SUBAGENT_TOOL_NAME, RESUME_SUBAGENT_TOOL_NAME]);
   const mainTools = options.createTools(evidence, options.readerAssignment ?? "main", context)
     .filter((tool) => !internalNames.has(tool.name) && (!options.readerAssignment ||
       tool.reader?.includes(options.readerAssignment.jurisdiction)))
@@ -242,10 +185,8 @@ export async function runChatTurn(options: {
     .find((message) => message.role === "user")?.content ?? "";
   if (!evidence.mode && legalEvidenceRequested(options.messages))
     evidence.mode = "citation_structure";
-  const admitReaders = createReadSubagentAdmission(
-    4,
-    allowedReadSubagentRegions(options.jurisdictionPreference ?? null, request),
-  );
+  const admitReaders = createReadSubagentAdmission(4,
+    allowedReadSubagentRegions(options.jurisdictionPreference ?? null, request));
   let text = "";
   let reasoning = "";
   let boundary = false;
@@ -257,8 +198,7 @@ export async function runChatTurn(options: {
   let nativeSteering = Promise.resolve();
   const providerAbort = new AbortController();
   const providerSignal = signal
-    ? AbortSignal.any([signal, providerAbort.signal])
-    : providerAbort.signal;
+    ? AbortSignal.any([signal, providerAbort.signal]) : providerAbort.signal;
 
   const append = (delta: string) => {
     if (!delta || paused) return;
@@ -278,10 +218,8 @@ export async function runChatTurn(options: {
     sequential: true,
     async execute(input) {
       const submitted = submitLegalEvidenceAnswer(input, state);
-      return {
-        result: toolText(submitted),
-        ...(submitted.terminal === true ? { terminal: true } : {}),
-      };
+      return { result: toolText(submitted),
+        ...(submitted.terminal === true ? { terminal: true } : {}) };
     },
   });
   const askTool: BeaverTool<ChatToolContext> = {
@@ -290,10 +228,7 @@ export async function runChatTurn(options: {
     async execute(input) {
       const pause = normalizeAskInputsEvent(input);
       return pause.items.length
-        ? {
-            result: toolText({ ok: true, status: "waiting_for_user" }),
-            pause,
-          }
+        ? { result: toolText({ ok: true, status: "waiting_for_user" }), pause }
         : { result: toolText({ ok: false, error: "No questions supplied" }, true) };
     },
   };
@@ -305,10 +240,8 @@ export async function runChatTurn(options: {
       ...(terminal ? { terminal: true } : {}),
     };
   };
-  const runReader = async (
-    call: NormalizedToolCall,
-    resume?: ReadSubagentCheckpoint,
-  ): Promise<NormalizedToolResult> => {
+  const runReader = async (call: NormalizedToolCall,
+    resume?: ReadSubagentCheckpoint): Promise<NormalizedToolResult> => {
     const refuse = (error: string | undefined): NormalizedToolResult => ({
       tool_use_id: call.id, status: "error",
       content: JSON.stringify({ ok: false, error }),
@@ -329,9 +262,8 @@ export async function runChatTurn(options: {
     let continuationId = resume?.continuation_id;
     const id = resume?.id ?? call.id;
     let research = resume?.research;
-    const activities = new Map(
-      (resume?.activities ?? []).map((activity) => [activity.id, activity]),
-    );
+    const activities =
+      new Map((resume?.activities ?? []).map((activity) => [activity.id, activity]));
     const base = {
       type: "subagent_run" as const,
       id,
@@ -341,18 +273,16 @@ export async function runChatTurn(options: {
       effort: capability.effort,
     };
     let resumeState: ReadSubagentCheckpoint | undefined;
-    const checkpoint = (): ReadSubagentCheckpoint | undefined => continuationId
-      ? {
-          id,
-          continuation_id: continuationId,
-          model: capability.model,
-          effort: capability.effort,
-          assignment,
-          evidence: [...childEvidence.evidence.values()].map(({ receipt }) => receipt),
-          queries: [...childEvidence.queries.values()],
-          ...(research && { research: structuredClone(research) }),
-        }
-      : undefined;
+    const checkpoint = (): ReadSubagentCheckpoint | undefined => continuationId ? {
+      id,
+      continuation_id: continuationId,
+      model: capability.model,
+      effort: capability.effort,
+      assignment,
+      evidence: [...childEvidence.evidence.values()].map(({ receipt }) => receipt),
+      queries: [...childEvidence.queries.values()],
+      ...(research && { research: structuredClone(research) }),
+    } : undefined;
     const publish = (event: ReadSubagentEvent, visible = event) => {
       context.onActivity?.();
       emit(publicAssistantEvent(visible));
@@ -410,10 +340,7 @@ export async function runChatTurn(options: {
         signal,
         subagentMode: "none",
         activityDetail: "tools",
-        providerSession: {
-          persist: true,
-          ...(continuationId ? { continuationId } : {}),
-        },
+        providerSession: { persist: true, ...(continuationId ? { continuationId } : {}) },
         onProviderContinuation(id) {
           continuationId = id;
           running();
@@ -437,12 +364,8 @@ export async function runChatTurn(options: {
       return {
         tool_use_id: call.id,
         status: "ok",
-        content: JSON.stringify({
-          ok: true,
-          agent: "scout",
-          findings: grounding.claims,
-          evidence: grounding.evidence.map(modelEvidencePassage),
-        }),
+        content: JSON.stringify({ ok: true, agent: "scout", findings: grounding.claims,
+          evidence: grounding.evidence.map(modelEvidencePassage) }),
       };
     } catch (error) {
       const observed = legalEvidenceReceiptEvent({ ...childEvidence, answer: null, attempted: false, failure: null });
@@ -468,12 +391,8 @@ export async function runChatTurn(options: {
       return {
         tool_use_id: call.id,
         status: "error",
-        content: JSON.stringify({
-          ok: false,
-          error: errorMessage,
-          ...(interrupted && { interrupted: true }),
-          ...(saved && { resume_id: id }),
-        }),
+        content: JSON.stringify({ ok: false, error: errorMessage,
+          ...(interrupted && { interrupted: true }), ...(saved && { resume_id: id }) }),
       };
     }
   };
@@ -483,16 +402,10 @@ export async function runChatTurn(options: {
     ...schema,
     specialist: true,
     activity: (input) => schema.name === READ_SUBAGENT_TOOL_NAME
-      ? readSubagentActivityLabel(input)
-      : "Resuming reading agents",
+      ? readSubagentActivityLabel(input) : "Resuming reading agents",
     async execute(_input, _context, _signal, call) {
-      const result = await runReadSubagentRound({
-        call,
-        admit: admitReaders,
-        runReader,
-        resumable: resumableReaders,
-      });
-      return normalizedOutcome(result);
+      return normalizedOutcome(await runReadSubagentRound(
+        { call, admit: admitReaders, runReader, resumable: resumableReaders }));
     },
   }));
   const registry = new TurnToolRegistry([
@@ -503,10 +416,7 @@ export async function runChatTurn(options: {
   ]);
   const systemPrompt = [options.systemPrompt, researchReadContextPrompt(context.research)].filter(Boolean).join("\n\n");
   const resolveTools = () => registry.visible();
-  const runTools = async (
-    calls: NormalizedToolCall[],
-    onActivity?: () => void,
-  ) => {
+  const runTools = async (calls: NormalizedToolCall[], onActivity?: () => void) => {
     throwIfAborted(signal);
     const previousActivity = context.onActivity;
     context.onActivity = onActivity;
@@ -541,10 +451,8 @@ export async function runChatTurn(options: {
         await researchPersistence.catch(() => undefined); throw error;
       })
       .catch((error) => {
-        settleToolActivities(
-          providerSignal.aborted ? "interrupted" : "error",
-          calls.map((call) => call.id),
-        );
+        settleToolActivities(providerSignal.aborted ? "interrupted" : "error",
+          calls.map((call) => call.id));
         throw error;
       })
       .finally(() => { context.onActivity = previousActivity; });
@@ -572,16 +480,12 @@ export async function runChatTurn(options: {
       append(delta);
     },
     onContentBlockEnd() {
-      if (!paused && options.separateContentBlocks !== false) {
-        boundary = Boolean(text);
-      }
+      if (!paused && options.separateContentBlocks !== false) boundary = Boolean(text);
     },
     onReasoningDelta(delta: string) {
       if (activityDetail !== "auto" && activityDetail !== "trace") return;
       if (delta) providerActivity = true;
-      if (!paused) {
-        reasoning += delta;
-      }
+      if (!paused) reasoning += delta;
     },
     onReasoningBlockEnd() {
       if (activityDetail !== "auto" && activityDetail !== "trace") return;
@@ -594,22 +498,17 @@ export async function runChatTurn(options: {
     },
     onToolCallStart(call: NormalizedToolCall) {
       providerActivity = true;
-      if (
-        call.name === ASK_INPUTS_TOOL.name ||
-        call.name === LEGAL_EVIDENCE_TOOL_NAME ||
-        ([READ_SUBAGENT_TOOL_NAME, RESUME_SUBAGENT_TOOL_NAME].includes(call.name) &&
-          activityDetail === "standard")
-      ) return;
+      if (call.name === ASK_INPUTS_TOOL.name ||
+          call.name === LEGAL_EVIDENCE_TOOL_NAME ||
+          ([READ_SUBAGENT_TOOL_NAME, RESUME_SUBAGENT_TOOL_NAME].includes(call.name) &&
+            activityDetail === "standard")) return;
       const defaultLabel = call.name === READ_SUBAGENT_TOOL_NAME
         ? readSubagentActivityLabel(call.input)
         : call.name === RESUME_SUBAGENT_TOOL_NAME
           ? "Resuming reading agents"
         : registry.activity(call);
-      if (
-        defaultLabel === null &&
-        activityDetail !== "tools" &&
-        activityDetail !== "trace"
-      ) return;
+      if (defaultLabel === null && activityDetail !== "tools" &&
+          activityDetail !== "trace") return;
       const label = defaultLabel ??
         assistantToolActivityLabel(call.name, call.input) ?? call.name;
       const citations = parseAssistantCitations(registry.activityCitations(call));
@@ -622,15 +521,9 @@ export async function runChatTurn(options: {
         ...(citations.length && { citations }),
       });
     },
-    onContextUsage(usage: {
-      usedTokens: number;
-      contextWindowTokens: number;
-    }) {
-      const event: AssistantEvent = {
-        type: "context_usage",
-        used_tokens: usage.usedTokens,
-        window_tokens: usage.contextWindowTokens,
-      };
+    onContextUsage(usage: { usedTokens: number; contextWindowTokens: number }) {
+      const event: AssistantEvent = { type: "context_usage",
+        used_tokens: usage.usedTokens, window_tokens: usage.contextWindowTokens };
       replaceLastEvent("context_usage", event);
       emit(event);
     },
@@ -646,14 +539,8 @@ export async function runChatTurn(options: {
         keep_current: true,
         provider: checkpoint.provider,
         ...(checkpoint.provider === "claude"
-          ? {
-              summary: checkpoint.content,
-              payload: checkpoint.block,
-            }
-          : {}),
-        ...(checkpoint.provider === "openai"
-          ? { payload: checkpoint.item }
-          : {}),
+          ? { summary: checkpoint.content, payload: checkpoint.block } : {}),
+        ...(checkpoint.provider === "openai" ? { payload: checkpoint.item } : {}),
       });
     },
     onSteer(message: { id: string; text: string }) {
@@ -667,14 +554,9 @@ export async function runChatTurn(options: {
     onSubagentUpdate(update: ProviderSubagentUpdate) {
       providerActivity = true;
       const { activities, activity, ...native } = update;
-      const decorate = <T extends { label: string }>(value: T) =>
-        ({ ...value, tool: "native" });
-      const event: ReadSubagentEvent = {
-        type: "subagent_run",
-        agent: "native",
-        ...native,
-        ...(activities && { activities: activities.map(decorate) }),
-      };
+      const decorate = <T extends { label: string }>(value: T) => ({ ...value, tool: "native" });
+      const event: ReadSubagentEvent = { type: "subagent_run", agent: "native", ...native,
+        ...(activities && { activities: activities.map(decorate) }) };
       emit(publicAssistantEvent(event.status === "running" ? {
         type: "subagent_run", agent: "native", ...native,
         ...(activity && { activity: decorate(activity) }),
@@ -703,10 +585,8 @@ export async function runChatTurn(options: {
     },
   };
   options.onProviderControl?.(control);
-  const provider = (
-    continuationId?: string,
-    repair?: { draft: string; findings: string },
-  ) => {
+  const provider = (continuationId?: string,
+    repair?: { draft: string; findings: string }) => {
     const resumePrompt = readSubagentResumePrompt(resumableReaders);
     const providerMessages = continuationId && resumePrompt
       ? activeMessages.map((message, index) =>
@@ -719,12 +599,8 @@ export async function runChatTurn(options: {
     systemPrompt: [systemPrompt, resumePrompt].filter(Boolean).join("\n\n"),
     messages: [
       ...(continuationId ? providerMessages.slice(-1) : providerMessages),
-      ...(repair
-        ? [
-            { role: "assistant" as const, content: repair.draft },
-            { role: "user" as const, content: repair.findings },
-          ]
-        : []),
+      ...(repair ? [{ role: "assistant" as const, content: repair.draft },
+        { role: "user" as const, content: repair.findings }] : []),
     ],
     tools: resolveTools(),
     staticTools: registry.all(),
@@ -741,21 +617,18 @@ export async function runChatTurn(options: {
     reasoningSummary:
       activityDetail === "auto" || activityDetail === "trace" ? "auto" : "none",
     abortSignal: providerSignal,
-    providerSession: options.providerSession
-      ? {
-          persist: true,
-          ...(continuationId ? { continuationId } : {}),
-          onContinuationId: options.onProviderContinuation,
-          onControl(next) {
-            nativeControl = next;
-            if (!next || !steering.length) return;
-            const queued = steering.splice(0);
-            for (const message of queued) {
-              void steerNative(next, message).catch(() => undefined);
-            }
-          },
+    providerSession: options.providerSession ? {
+      persist: true,
+      ...(continuationId ? { continuationId } : {}),
+      onContinuationId: options.onProviderContinuation,
+      onControl(next) {
+        nativeControl = next;
+        if (!next || !steering.length) return;
+        for (const message of steering.splice(0)) {
+          void steerNative(next, message).catch(() => undefined);
         }
-      : undefined,
+      },
+    } : undefined,
   });
   };
 
@@ -775,22 +648,17 @@ export async function runChatTurn(options: {
     const contextWindowTokens = modelContextWindow(options.model);
     if (contextWindowTokens) {
       callbacks.onContextUsage({
-        usedTokens: estimateContextTokens({
-          systemPrompt,
-          messages: activeMessages,
-          tools: resolveTools(),
-        }),
+        usedTokens: estimateContextTokens(
+          { systemPrompt, messages: activeMessages, tools: resolveTools() }),
         contextWindowTokens,
       });
     }
     try {
       providerResult = await provider(options.providerSession?.continuationId);
     } catch (error) {
-      if (
-        options.providerSession?.continuationId &&
-        !providerActivity && !paused && !signal?.aborted &&
-        options.canRetryProviderSession?.() !== false
-      ) {
+      if (options.providerSession?.continuationId &&
+          !providerActivity && !paused && !signal?.aborted &&
+          options.canRetryProviderSession?.() !== false) {
         providerResult = await provider();
       } else {
         throw error;
@@ -842,14 +710,8 @@ export async function runChatTurn(options: {
   const receipt = legalEvidenceReceiptEvent(evidence);
   if (receipt) addEvent(receipt);
   if (text) addEvent({ type: "content", text });
-  const result: ChatTurnResult = {
-    status: paused ? "paused" : "complete",
-    fullText: text,
-    events,
-    citations,
-    continuationId: providerResult?.continuationId,
-    evidence,
-  };
+  const result: ChatTurnResult = { status: paused ? "paused" : "complete", fullText: text,
+    events, citations, continuationId: providerResult?.continuationId, evidence };
   if (!paused) {
     settleToolActivities("completed");
     emit({ type: "content_final", text, citations });
