@@ -296,7 +296,7 @@ describe("ResearchFileBar", () => {
     expect(read).not.toHaveBeenCalled();
     fireEvent.click(screen.getAllByRole("button", { name: "Open Baker v Canada" })[0]);
     expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined);
-    fireEvent.click((await screen.findAllByRole("button", { name: "Open ¶ 5 in Baker v Canada" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: /^¶ 5/u }))[0]);
     expect(read).toHaveBeenLastCalledWith(file.state.sources.baker, "para 5");
   });
 
@@ -314,7 +314,7 @@ describe("ResearchFileBar", () => {
     const read = vi.fn();
     render(<><ResearchFileBar file={file} onChange={vi.fn()} onReadSource={read} /><Location /></>);
     openBaker();
-    fireEvent.click((await screen.findAllByRole("button", { name: "Open ¶ 5 in Baker v Canada" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: /^¶ 5/u }))[0]);
     expect(read).toHaveBeenCalledWith(file.state.sources.baker, "para 5");
     expect(screen.getByRole("status", { name: "Location" })).toHaveTextContent(/^\/$/u);
   });
@@ -388,8 +388,6 @@ describe("ResearchFileBar", () => {
     const tree = within(screen.getByRole("tree", { name: "Sources" }));
     const inConcept = (name: string) => within(within(tree.getByRole("treeitem", { name, exact: true }))
       .getByRole("treeitem", { name: "Baker v Canada" }));
-    expect(inConcept("Fairness").getByText("1", { exact: true })).toBeVisible();
-    expect(inConcept("Other").getByText("2", { exact: true })).toBeVisible();
     fireEvent.click(inConcept("Other").getByRole("button", { name: "Passages in Baker v Canada" }));
     const instance = await inConcept("Other").findByRole("treeitem", { name: "para 5" });
     fireEvent.click(within(instance).getByRole("button", { name: /A duty of fairness/u }));

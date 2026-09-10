@@ -8,7 +8,7 @@ import { researchLabelPath, type ResearchAction, type ResearchLabel, type Resear
 import { errorMessage } from "@/app/lib/utils";
 import { researchLabelColor } from "./ResearchLabelMarker";
 import { researchLabelChildren, RESEARCH_SOURCE_DRAG, RESEARCH_SOURCE_REFERENCE_DRAG } from "./ResearchLabelPicker";
-import { ROW, ROW_ACTIONS, ROW_COUNT, type ResearchRemoval, type ResearchTreePreview } from "./ResearchTree";
+import { ROW, ROW_ACTIONS, type ResearchRemoval, type ResearchTreePreview } from "./ResearchTree";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 
 const LABEL_DRAG = "application/x-beaver-research-label";
@@ -37,16 +37,6 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
     for (const source of sources) (scope === "source" ? source.labelIds : Object.keys(source.passages?.labelCounts ?? {})).forEach((id) => result.add(id));
     return result;
   }, [sources, scope]);
-  /** Source folders count distinct sources; highlight types count their own instances. */
-  const counts = useMemo(() => {
-    const result = new Map<string, number>();
-    for (const source of sources) {
-      if (scope === "highlight") { Object.entries(source.passages?.labelCounts ?? {}).forEach(([id, count]) => result.set(id, (result.get(id) ?? 0) + count)); continue; }
-      const ids = new Set(source.labelIds.flatMap((id) => researchLabelPath(labels, id).map((label) => label.id)));
-      ids.forEach((id) => result.set(id, (result.get(id) ?? 0) + 1));
-    }
-    return result;
-  }, [labels, sources, scope]);
   async function act(action: ResearchAction) {
     try { await mutations.act(action); return true; }
     catch (error) { onStatus(errorMessage(error, "Could not update labels")); return false; }
@@ -135,7 +125,6 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
               { label: "Delete", onSelect: () => onRemove({ kind: "label", id: label.id, name: label.name }) },
             ]} />}
           </span>
-          <span className={ROW_COUNT}>{counts.get(label.id) || ""}</span>
         </div>
         {open && <div role={hasChildren ? "group" : undefined} className="ms-4">{branch(label.id)}{renderSources?.(label.id)}{addField(label.id)}</div>}
       </div>;
@@ -164,7 +153,7 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
         onDrop={(event) => { event.preventDefault(); void move(event.dataTransfer.getData(LABEL_DRAG), null, children.get(null)?.length ?? 0); setDrop(null); }}
         className={`${ROW} w-full text-sm text-gray-700 aria-pressed:bg-gray-100 aria-pressed:font-semibold`}>
         <span className="size-6 shrink-0" /><span className="min-w-0 flex-1 truncate text-start">All sources</span>
-        <span className={ROW_ACTIONS} /><span className={ROW_COUNT}>{sources.length}</span>
+        <span className={ROW_ACTIONS} />
       </button></div>}
     {branch(null)}{renderSources?.(null)}{addField(null)}
     {!preview && <button type="button" disabled={busy} data-tree-drop-root onClick={() => setAdding(null)}
