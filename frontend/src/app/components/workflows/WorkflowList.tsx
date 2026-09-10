@@ -11,6 +11,7 @@ import { NewWorkflowModal } from "./NewWorkflowModal";
 import { WorkflowPickerContent } from "./WorkflowPickerContent";
 import { assistantWorkflowLaunch, workflowPath, type WorkflowSelection } from "./workflowRoutes";
 import { WarningPopup } from "../popups/WarningPopup";
+import { stageNewChatDocuments } from "../assistant/assistantLaunch";
 import { useWorkflowPickerState } from "./WorkflowPickerModal";
 
 import { FIX_SUPRAS, useAssistantDocumentOperation } from "./useAssistantDocumentOperation";
@@ -76,7 +77,10 @@ export function WorkflowList() {
         </div>
         {supras.picker}
         {quoteCheck && <QuoteReviewModal workflow={quoteCheck} onClose={() => setQuoteCheck(null)}
-            onAssistantSelect={({ workflow, variant }) => void choose(workflow, variant)} />}
+            onAssistantSelect={({ workflow, variant }, documents) => {
+                stageNewChatDocuments(documents.map(({ id, filename }) => ({ id, filename })));
+                void choose(workflow, variant);
+            }} />}
         <NewWorkflowModal open={creating} onClose={() => setCreating(false)}
             onCreated={(workflow) => {
                 setCreating(false); setWorkflows((items) => [workflow, ...items]);
