@@ -1,9 +1,9 @@
-import { useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { Link } from "react-router-dom";
 import { BookOpen, ChevronRight, FileText, Gavel, Landmark, Newspaper, ScrollText } from "lucide-react";
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { Button } from "../ui/button";
-import { researchHighlightCount, researchLabelPath, type ResearchEvidence, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
+import { researchLabelPath, type ResearchEvidence, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
 import { researchLabelColor } from "./ResearchLabelMarker";
 import { ResearchLabelEditor, RESEARCH_SOURCE_DRAG, type ResearchLabelTarget } from "./ResearchLabelPicker";
 import { ResearchLabelTree } from "./ResearchLabelTree";
@@ -17,6 +17,8 @@ export type ResearchTreePreview = { labels: Record<string, ResearchLabel>; marks
 const NO_ROWS = new Set<string>();
 const KIND_ICON = { case: Gavel, legislation: ScrollText, journal: Newspaper, hansard: Landmark, document: FileText } as const;
 const NEWLINE = "\n";
+/** Every saved passage a source carries, typed or not — exactly what the tree lists when it opens. */
+const passageTotal = (source: ResearchSource) => source.passages?.count ?? 0;
 /** File-explorer row: one fixed-height line, chevron, glyph, name, actions, number.
  *  Nothing wraps, so a row can never grow into the one above it. */
 export const ROW = "group flex h-7 min-w-0 items-center gap-1 rounded px-1";
@@ -39,6 +41,13 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
   const passagePages = suppliedPages ?? passages, labels = preview?.labels ?? file?.state.labels ?? {};
   const [selectedHighlight, setSelectedHighlight] = useState<string | null>(null);
   const [labelTarget, setLabelTarget] = useState<ResearchLabelTarget | null>(null);
+  // A highlight type lists its passages on request; nothing loads before that. `wanted` only grows,
+  // so two open types never take the request list away from each other.
+  const [wanted, setWanted] = useState<ReadonlySet<string>>(() => new Set());
+  const [shownTypes, setShownTypes] = useState<ReadonlySet<string>>(() => new Set());
+  useEffect(() => {
+    for (const id of wanted) if (!passagePages.chains[id]) void passagePages.fetchPage(id, null, false);
+  }, [wanted, passagePages.chains, passagePages.fetchPage]);
   if (!file) return null;
   const mark = (id: string) => preview?.marks[id];
   const openSource = (id: string) => setOpened((current) => { const next = new Set(current); if (!next.delete(id)) next.add(id); return next; });
@@ -57,14 +66,15 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
     return href.startsWith("/") ? <Link to={href} aria-label={label} title="Open" className={className}>{inner}</Link>
       : <a href={href} aria-label={label} title="Open" className={className}>{inner}</a>;
   }
-  function sourceRow(source: ResearchSource, count: number) {
-    const name = sourceName(source), open = opened.has(source.id);
+  function sourceRow(source: ResearchSource) {
+    const name = sourceName(source), open = opened.has(source.id), expandable = !preview && passageTotal(source) > 0;
     return <div data-source-row={source.id} className={`${ROW} ${selectedSourceId === source.id ? "bg-gray-100" : "hover:bg-gray-50"}`} draggable={!preview}
       onDragStart={(event) => { onSourceDrag?.(); event.dataTransfer.setData(RESEARCH_SOURCE_DRAG, source.id); }}>
-      {preview ? <span className="size-6 shrink-0" /> : chevron(open, `Passages in ${name}`, () => openSource(source.id))}
+      {/* No caret where there is nothing to show: an empty group used to flash "Loading…" and vanish (Eli, 2026-09-09). */}
+      {expandable ? chevron(open, `Passages in ${name}`, () => openSource(source.id)) : <span className="size-6 shrink-0" />}
       {(() => { const Icon = KIND_ICON[source.reference.kind] ?? FileText, icon = <Icon aria-hidden className="size-3.5" />;
         return openControl(source, name, undefined, undefined, undefined, icon) ?? <span className="grid size-6 shrink-0 place-items-center text-gray-500">{icon}</span>; })()}
-      <button type="button" disabled={!!preview} onClick={() => openSource(source.id)} title={[name, source.note].filter(Boolean).join(NEWLINE)}
+      <button type="button" disabled={!!preview} onClick={() => { if (expandable) openSource(source.id); }} title={[name, source.note].filter(Boolean).join(NEWLINE)}
         aria-current={selectedSourceId === source.id ? "true" : undefined} data-mark={mark(source.id)}
         className={`min-w-0 flex-1 truncate text-start text-sm text-gray-700 ${mark(source.id) ? "font-semibold underline decoration-gray-400" : ""}`}>{name}</button>
       <span className={ROW_ACTIONS}>
@@ -82,11 +92,15 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
     const locator = passageLabel(item.receipt.locator), id = item.highlightId ?? item.receipt.evidence_id;
     const color = labels[item.labelIds[0]] ? researchLabelColor(labels[item.labelIds[0]]) : "#d1d5db";
     const quote = trimPassageMarker(item.receipt.span_text ?? "", item.receipt.locator);
+    // The other hierarchy flattens to one leaf name here: a type under source labels, a source under
+    // highlight types. Neither tree ever mirrors the other's folders (Eli, 2026-09-09).
+    const context = scope === "source" ? labels[item.labelIds[0]]?.name : sourceName(source);
     return <div draggable onDragStart={(event) => event.dataTransfer.setData(RESEARCH_PASSAGE_DRAG, JSON.stringify(item))}
       title={[locator, quote, item.note].filter(Boolean).join(NEWLINE)}
       className={`${ROW} ${selectedHighlight === id ? "bg-gray-100" : "hover:bg-gray-50"}`}>
       <span className="size-6 shrink-0" />
       <span className="h-4 w-1 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+      {!!context && <span title={context} className="max-w-24 shrink-0 truncate text-[10px] text-gray-500">{context}</span>}
       {/* The passage row is the open action: it selects the passage and reads it (Eli, 2026-09-10). */}
       <button type="button" onClick={() => { setSelectedHighlight(id);
           if (!preview && reader?.canRead(source)) void reader.readSource(source, item.receipt.locator.label, item.receipt.evidence_id); }}
@@ -105,15 +119,12 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
 
   /** One tree: labels nest, and each source hangs under every label it carries. */
   const sourceNode = (source: ResearchSource, labelId: string | null) => {
-    const page = passagePages.chains[source.id], path = (id: string) => JSON.stringify(researchLabelPath(labels, id).map(({ name }) => name)),
-      matched = labelId === null ? [] : scope === "highlight" ? [labelId] : Object.values(labels).filter((label) => label.scope === "highlight" && path(label.id) === path(labelId)).map(({ id }) => id),
-      types = matched.length ? new Set(matched) : null,
-      count = types ? [...types].reduce((sum, id) => sum + (source.passages?.labelCounts[id] ?? 0), 0) : researchHighlightCount(source);
+    const page = passagePages.chains[source.id];
     return <div key={`${labelId ?? ""}:${source.id}`} role="treeitem" aria-label={sourceName(source)}
-      aria-expanded={opened.has(source.id)} aria-selected={selectedSourceId === source.id}>
-      {sourceRow(source, count)}
+      aria-expanded={passageTotal(source) ? opened.has(source.id) : undefined} aria-selected={selectedSourceId === source.id}>
+      {sourceRow(source)}
       {opened.has(source.id) && !preview && <div role="group" className="ms-4">
-        {page?.items.flatMap((item) => (item.kind === "passage" || item.kind === "evidence") && passageVisible(item.value) && (!types || item.value.labelIds.some((id) => types.has(id)))
+        {page?.items.flatMap((item) => (item.kind === "passage" || item.kind === "evidence") && passageVisible(item.value)
           ? [<div key={item.value.highlightId ?? item.value.receipt.evidence_id} role="treeitem" aria-selected={selectedHighlight === (item.value.highlightId ?? item.value.receipt.evidence_id)} aria-label={item.value.receipt.locator.label}>
               {passageRow(source, item.value)}
             </div>] : [])}
@@ -126,8 +137,40 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
     </div>;
   };
   // Ancestors count inherited membership; rows appear only at the deepest explicit filing in each branch.
+  const ofType = (typeId: string) => (id: string) => id === typeId || researchLabelPath(labels, id).some((label) => label.id === typeId);
+  /** A highlight type owns its own hierarchy and nothing else: it lists the passages carrying it or a
+   *  descendant type, flat, on request — never a second copy of the source folders (Eli, 2026-09-09). */
+  const typePassages = (typeId: string) => {
+    const counted = (source: ResearchSource) => Object.entries(source.passages?.labelCounts ?? {})
+      .reduce((sum, [id, count]) => sum + (ofType(typeId)(id) ? count : 0), 0);
+    const carrying = sources.filter((source) => counted(source) > 0), total = carrying.reduce((sum, source) => sum + counted(source), 0);
+    if (!total) return [];
+    const shown = shownTypes.has(typeId), typeName = labels[typeId]?.name ?? "type", plural = total === 1 ? "" : "s";
+    const toggle = <button key={`${typeId}:toggle`} type="button" aria-expanded={shown}
+      aria-label={`${shown ? "Hide" : "Show"} ${total} passage${plural} of ${typeName}`}
+      onClick={() => setShownTypes((current) => { const next = new Set(current); if (!next.delete(typeId)) next.add(typeId); return next; })}
+      className={`${ROW} w-full text-xs text-gray-500 hover:bg-gray-50`}>
+      <span className="grid size-6 shrink-0 place-items-center">
+        <ChevronRight aria-hidden className={`size-3.5 ${shown ? "rotate-90" : ""}`} /></span>
+      <span className="min-w-0 flex-1 truncate text-start">{total} passage{plural}</span>
+      <span className={ROW_ACTIONS} /></button>;
+    if (!shown) return [toggle];
+    const missing = carrying.filter((source) => !passagePages.chains[source.id] && !wanted.has(source.id)).map(({ id }) => id);
+    if (missing.length) setWanted((current) => new Set([...current, ...missing]));
+    const rows = carrying.flatMap((source) => (passagePages.chains[source.id]?.items ?? []).flatMap((item) => {
+      const value = (item.kind === "passage" || item.kind === "evidence") && passageVisible(item.value) &&
+        item.value.labelIds.some(ofType(typeId)) ? item.value : null;
+      return value ? [<div key={`${typeId}:${value.highlightId ?? value.receipt.evidence_id}`} role="treeitem"
+        aria-label={value.receipt.locator.label} aria-selected={selectedHighlight === (value.highlightId ?? value.receipt.evidence_id)}>
+        {passageRow(source, value)}</div>] : [];
+    }));
+    if (rows.length) return [toggle, ...rows];
+    // "Loading" only while a chain really is on its way, so an empty list never poses as a slow one.
+    const pending = carrying.some((source) => !passagePages.chains[source.id] || passagePages.chains[source.id].loading);
+    return pending ? [toggle, <p key={`${typeId}:loading`} role="status" className={`${ROW} text-xs text-gray-500`}>Loading passages…</p>] : [toggle];
+  };
   const under = (labelId: string | null) => sources.filter((source) => scope === "highlight"
-    ? !!labelId && !!source.passages?.labelCounts[labelId] : labelId
+    ? false : labelId
     ? source.labelIds.includes(labelId) && !source.labelIds.some((id) => id !== labelId &&
         researchLabelPath(labels, id).some(({ id: ancestor }) => ancestor === labelId))
     : !source.labelIds.some((id) => labels[id]?.scope === "source"));
@@ -135,7 +178,7 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
   return <>
     <ResearchLabelTree scope={scope} sources={navigationSources} selectedId={labelId} onSelect={onLabelChange}
       onRemove={onRemove} onStatus={onStatus} preview={preview}
-      renderSources={(id) => under(id).map((source) => sourceNode(source, id))} />
+      renderSources={(id) => scope === "highlight" ? (id ? typePassages(id) : []) : under(id).map((source) => sourceNode(source, id))} />
     {!sources.length && <p className="p-2 text-xs text-gray-500">{filter || labelId ? "No matching sources." : "No sources yet."}</p>}
     {labelTarget && <ResearchLabelEditor target={labelTarget} mutations={commit} onError={onStatus} onClose={() => setLabelTarget(null)} />}
   </>;

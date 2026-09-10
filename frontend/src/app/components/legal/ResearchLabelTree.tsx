@@ -105,7 +105,8 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
           {hasChildren ? <button type="button" aria-label={`${open ? "Collapse" : "Expand"} ${label.name}`} onClick={() => toggle(label.id)} className="grid size-6 shrink-0 place-items-center rounded">
             <ChevronRight aria-hidden className={`size-3.5 text-gray-500 ${open ? "rotate-90" : ""}`} /></button> : <span className="w-6 shrink-0" />}
           <label className="relative grid size-5 shrink-0 place-items-center rounded text-gray-500 focus-within:outline focus-within:outline-2" title={`${label.name} colour`}>
-            <FolderSvgIcon open={open && hasChildren} className="size-4" style={{ color: researchLabelColor(label) }} />
+            {/* Filled in the label's colour, never an outline; the chevron already says open or closed (Eli, 2026-09-09). */}
+            <FolderSvgIcon fill="currentColor" className="size-4" style={{ color: researchLabelColor(label) }} />
             {!preview && <input type="color" disabled={busy} aria-label={`${label.name} colour`} value={researchLabelColor(label)}
               onChange={(event) => void act({ type: "label", ...label, color: event.target.value })} className="absolute inset-0 size-5 cursor-pointer opacity-0" />}
           </label>
