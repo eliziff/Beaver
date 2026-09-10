@@ -29,8 +29,7 @@ export function buildDocumentTree(documents: Document[], folders: DocumentTreeFo
         const siblings = docsByParent.get(parent);
         if (siblings) siblings.push(document); else docsByParent.set(parent, [document]);
     }
-    const query = search.trim().toLocaleLowerCase();
-    const visibleDocuments = documents;
+    const query = search.trim();
     const rows: DocumentTreeRow[] = [];
     function append(parentId: string | null, depth: number) {
         const addDocuments = () => {
@@ -49,11 +48,11 @@ export function buildDocumentTree(documents: Document[], folders: DocumentTreeFo
         if (hasMoreParents.has(parentId)) rows.push({ kind: "more", parentId, depth });
     }
     if (query) {
-        for (const document of visibleDocuments)
+        for (const document of documents)
             rows.push({ kind: "document", document, parentId: null, depth: 0 });
         if (hasMoreParents.has(null)) rows.push({ kind: "more", parentId: null, depth: 0 });
     } else append(null, 0);
-    return { rows, visibleDocuments, folderById, foldersByParent };
+    return { rows, visibleDocuments: documents, folderById, foldersByParent };
 }
 
 export function descendantFolderIds(rootId: string,
