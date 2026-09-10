@@ -375,7 +375,7 @@ describe("ResearchFileBar", () => {
       { type: "remove", kind: "evidence", id: "e_1", sourceId: "baker" }));
   });
 
-  it("counts each concept's instances and edits an additional instance by its own identity", async () => {
+  it("flattens every instance's type to a leaf name and edits one instance by its own identity", async () => {
     const paired = structuredClone(file), extra = { ...evidence, highlightId: "e_1:second", labelIds: ["second"] };
     paired.state.labels.holding = { ...paired.state.labels.holding, name: "Fairness", parentId: null };
     paired.state.labels.second = { ...paired.state.labels.holding, id: "second", name: "Other" };
@@ -389,7 +389,12 @@ describe("ResearchFileBar", () => {
     const inConcept = (name: string) => within(within(tree.getByRole("treeitem", { name, exact: true }))
       .getByRole("treeitem", { name: "Baker v Canada" }));
     fireEvent.click(inConcept("Other").getByRole("button", { name: "Passages in Baker v Canada" }));
-    const instance = await inConcept("Other").findByRole("treeitem", { name: "para 5" });
+    // A source label lists every passage the source carries, each naming its own highlight type as a
+    // leaf — the label tree never re-files them under type folders (Eli, 2026-09-09).
+    const instances = await inConcept("Other").findAllByRole("treeitem", { name: "para 5" });
+    expect(instances.map((row) => row.textContent)).toEqual([
+      expect.stringContaining("Fairness"), expect.stringContaining("Other")]);
+    const instance = instances[1];
     fireEvent.click(within(instance).getByRole("button", { name: /A duty of fairness/u }));
     expect(instance).toHaveAttribute("aria-selected", "true");
     fireEvent.click(within(instance).getByRole("button", { name: "¶ 5 options" }));
