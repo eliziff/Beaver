@@ -1,10 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
-import {
-  clearRequestAuthCookies,
-  createRequestSupabase,
-  publicAuthUser,
-} from "../lib/authSession";
+import { clearRequestAuthCookies, createRequestSupabase,
+  publicAuthUser } from "../lib/authSession";
 import { safeErrorLog } from "../lib/safeError";
 import { requireAuth, requireMfaIfEnrolled } from "../middleware/auth";
 import { requireTrustedOrigin } from "../middleware/trustedOrigin";
@@ -62,11 +59,8 @@ function callbackUrl(req: Request, next: unknown, fallback: string) {
   return url.toString();
 }
 
-function authError(
-  res: Response,
-  error: unknown,
-  fallback = "Authentication could not be completed.",
-) {
+function authError(res: Response, error: unknown,
+  fallback = "Authentication could not be completed.") {
   const candidate = error as { status?: unknown; code?: unknown; message?: unknown };
   const status = typeof candidate?.status === "number" ? candidate.status : 500;
   if (status < 400 || status >= 500) {
@@ -89,10 +83,8 @@ function cookieClient(res: Response): ReturnType<typeof createRequestSupabase> |
   const client = res.locals.authClient as
     ReturnType<typeof createRequestSupabase> | undefined;
   if (client && res.locals.authSource === "cookie") return client;
-  res.status(401).json({
-    code: "cookie_session_required",
-    detail: "A browser session is required.",
-  });
+  res.status(401)
+    .json({ code: "cookie_session_required", detail: "A browser session is required." });
   return null;
 }
 
@@ -120,27 +112,21 @@ authRouter.post("/signup", route(async (req, res) => {
     password: selectedPassword,
     options: {
       emailRedirectTo: callbackUrl(req, next, "/onboarding"),
-      data: {
-        ...(displayName ? { display_name: displayName } : {}),
-        ...(organisation ? { organisation } : {}),
-      },
+      data: { ...(displayName ? { display_name: displayName } : {}),
+        ...(organisation ? { organisation } : {}) },
     },
   });
   if (error || !data.user) return authError(res, error);
-  res.status(201).json({
-    user: publicAuthUser(data.user),
-    requiresEmailConfirmation: !data.session,
-  });
+  res.status(201)
+    .json({ user: publicAuthUser(data.user), requiresEmailConfirmation: !data.session });
 }));
 
 authRouter.post("/oauth", route(async (req, res) => {
   if (req.body?.provider !== "google") return invalid(res);
   const { data, error } = await createRequestSupabase(req, res).auth.signInWithOAuth({
     provider: "google",
-    options: {
-      redirectTo: callbackUrl(req, req.body?.next, "/onboarding"),
-      skipBrowserRedirect: true,
-    },
+    options: { redirectTo: callbackUrl(req, req.body?.next, "/onboarding"),
+      skipBrowserRedirect: true },
   });
   if (error || !data.url) return authError(res, error);
   res.json({ url: data.url });
@@ -162,9 +148,8 @@ authRouter.post("/password-reset", route(async (req, res) => {
       const next = safeNext(parsed.data.next, "/assistant");
       const reset = `/reset-password?next=${encodeURIComponent(next)}` +
         (req.get("x-beaver-surface") === "word" ? "&surface=word" : "");
-      await createRequestSupabase(req, res).auth.resetPasswordForEmail(parsed.data.email, {
-        redirectTo: callbackUrl(req, reset, "/reset-password"),
-      });
+      await createRequestSupabase(req, res).auth.resetPasswordForEmail(parsed.data.email,
+        { redirectTo: callbackUrl(req, reset, "/reset-password") });
     } catch {
       // Password recovery never reveals whether an account exists.
     }
@@ -180,9 +165,8 @@ authRouter.get("/session", requireAuth, route(async (_req, res) => {
 
 authRouter.post("/logout", route(async (req, res) => {
   try {
-    await createRequestSupabase(req, res).auth.signOut({
-      scope: req.body?.scope === "global" ? "global" : "local",
-    });
+    await createRequestSupabase(req, res)
+      .auth.signOut({ scope: req.body?.scope === "global" ? "global" : "local" });
   } catch (error) {
     console.error("[auth/logout] upstream sign-out failed", safeErrorLog(error));
   } finally {
@@ -196,10 +180,8 @@ authRouter.patch("/email", requireAuth, requireMfaIfEnrolled, route(async (req, 
   if (!parsed.success) return invalid(res);
   const client = cookieClient(res);
   if (!client) return;
-  const { data, error } = await client.auth.updateUser(
-    { email: parsed.data },
-    { emailRedirectTo: callbackUrl(req, req.body?.next, "/account") },
-  );
+  const { data, error } = await client.auth.updateUser({ email: parsed.data },
+    { emailRedirectTo: callbackUrl(req, req.body?.next, "/account") });
   if (error || !data.user) return authError(res, error);
   res.json({ user: publicAuthUser(data.user) });
 }));
@@ -239,10 +221,8 @@ authRouter.post("/mfa/enroll", requireAuth, route(async (req, res) => {
   if (!name.success) return invalid(res);
   const client = cookieClient(res);
   if (!client) return;
-  const { data, error } = await client.auth.mfa.enroll({
-    factorType: "totp",
-    friendlyName: name.data,
-  });
+  const { data, error } =
+    await client.auth.mfa.enroll({ factorType: "totp", friendlyName: name.data });
   if (error) return authError(res, error);
   res.status(201).json(data);
 }));
@@ -262,11 +242,8 @@ authRouter.post("/mfa/verify", requireAuth, route(async (req, res) => {
   if (!parsed.success || !parsed.data.challengeId) return invalid(res);
   const client = cookieClient(res);
   if (!client) return;
-  const { data, error } = await client.auth.mfa.verify({
-    factorId: parsed.data.factorId,
-    challengeId: parsed.data.challengeId,
-    code: parsed.data.code,
-  });
+  const { data, error } = await client.auth.mfa.verify({ factorId: parsed.data.factorId,
+    challengeId: parsed.data.challengeId, code: parsed.data.code });
   if (error) return authError(res, error);
   res.json(data);
 }));
@@ -276,10 +253,8 @@ authRouter.post("/mfa/challenge-and-verify", requireAuth, route(async (req, res)
   if (!parsed.success) return invalid(res);
   const client = cookieClient(res);
   if (!client) return;
-  const { data, error } = await client.auth.mfa.challengeAndVerify({
-    factorId: parsed.data.factorId,
-    code: parsed.data.code,
-  });
+  const { data, error } = await client.auth.mfa
+    .challengeAndVerify({ factorId: parsed.data.factorId, code: parsed.data.code });
   if (error) return authError(res, error);
   res.json(data);
 }));
