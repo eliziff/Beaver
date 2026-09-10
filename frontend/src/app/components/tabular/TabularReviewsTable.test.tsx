@@ -1,15 +1,11 @@
+import type { ComponentProps } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Project } from "@/app/lib/api/projects";
 import type { TabularReview } from "@/app/lib/api/tabular";
 import { TabularReviewsTable } from "./TabularReviewsTable";
 
-vi.mock("react-router-dom", () => ({
-    useNavigate: () => vi.fn(),
-    Link: ({ children, to, ...props }: React.ComponentProps<"a"> & { to: string }) => (
-        <a href={to} {...props}>{children}</a>
-    ),
-}));
 
 const review: TabularReview = {
     id: "review-1",
@@ -30,71 +26,43 @@ const project: Project = {
     practice: null,
     shared_with: [],
     created_at: "2026-07-28T00:00:00.000Z",
-    updated_at: "2026-07-28T00:00:00.000Z",
 };
 
-const handlers = {
-    setSelectedReviewIds: vi.fn(),
-    reviewHref: (item: TabularReview) => `/tabular-reviews/${item.id}`,
-    onOpenDetails: vi.fn(),
-    onDeleteReview: vi.fn(),
-    onDeleteSelected: vi.fn(),
-};
+function table(props: Partial<ComponentProps<typeof TabularReviewsTable>> = {}) {
+    return <MemoryRouter><TabularReviewsTable
+        reviews={[]} filteredReviews={[]} selectedReviewIds={[]}
+        setSelectedReviewIds={vi.fn()} reviewHref={(item) => `/tabular-reviews/${item.id}`}
+        onOpenDetails={vi.fn()} onDeleteReview={vi.fn()} onDeleteSelected={vi.fn()}
+        {...props} /></MemoryRouter>;
+}
 
 describe("TabularReviewsTable", () => {
     it("selects visible reviews and runs their bulk action", () => {
         const setSelectedReviewIds = vi.fn();
         const onDeleteSelected = vi.fn();
-        const props = { ...handlers, setSelectedReviewIds, onDeleteSelected,
+        const props = { setSelectedReviewIds, onDeleteSelected,
             reviews: [review], filteredReviews: [review] };
-        const { rerender } = render(
-            <TabularReviewsTable {...props} selectedReviewIds={[]} />,
-        );
+        const { rerender } = render(table(props));
 
         fireEvent.click(screen.getByRole("checkbox", { name: "Select loaded reviews" }));
         expect(setSelectedReviewIds).toHaveBeenCalledWith([review.id]);
 
-        rerender(<TabularReviewsTable {...props} selectedReviewIds={[review.id]} />);
+        rerender(table({ ...props, selectedReviewIds: [review.id] }));
         fireEvent.click(screen.getByRole("button", { name: "Actions" }));
         fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
         expect(onDeleteSelected).toHaveBeenCalledOnce();
     });
 
     it("adds project data only to the global view", () => {
-        const { rerender } = render(
-            <TabularReviewsTable
-                reviews={[]}
-                filteredReviews={[]}
-                selectedReviewIds={[]}
-                loading
-                {...handlers}
-            />,
-        );
+        const { rerender } = render(table({ loading: true }));
 
         expect(screen.queryByText("Project")).not.toBeInTheDocument();
 
-        rerender(
-            <TabularReviewsTable
-                reviews={[]}
-                filteredReviews={[]}
-                selectedReviewIds={[]}
-                loading
-                projects={[project]}
-                {...handlers}
-            />,
-        );
+        rerender(table({ loading: true, projects: [project] }));
 
         expect(screen.getByText("Project")).toBeInTheDocument();
 
-        rerender(
-            <TabularReviewsTable
-                reviews={[review]}
-                filteredReviews={[review]}
-                selectedReviewIds={[]}
-                projects={[project]}
-                {...handlers}
-            />,
-        );
+        rerender(table({ reviews: [review], filteredReviews: [review], projects: [project] }));
 
         expect(screen.getByText("Smith")).toBeInTheDocument();
     });

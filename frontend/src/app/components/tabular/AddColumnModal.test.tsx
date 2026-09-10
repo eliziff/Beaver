@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { AddColumnModal } from "./AddColumnModal";
@@ -8,24 +9,16 @@ vi.mock("@/app/lib/api/tabular", () => ({
   generateTabularColumnPrompt: vi.fn()
 }));
 
+function renderColumn(props: Partial<ComponentProps<typeof AddColumnModal>>) {
+    return render(<AddColumnModal open existingCount={0}
+        onClose={vi.fn()} onAdd={vi.fn()} {...props} />);
+}
+
 it("applies a searched preset and keeps Escape inside the preset picker", () => {
     const onClose = vi.fn();
-    render(
-        <AddColumnModal
-            open
-            existingCount={0}
-            onClose={onClose}
-            onAdd={vi.fn()}
-            editingColumn={{
-                index: 0,
-                name: "Existing",
-                prompt: "Existing prompt",
-                format: "tag",
-                tags: ["Old tag"],
-            }}
-            onSave={vi.fn()}
-        />,
-    );
+    renderColumn({ onClose, onSave: vi.fn(), editingColumn: {
+        index: 0, name: "Existing", prompt: "Existing prompt", format: "tag", tags: ["Old tag"],
+    } });
 
     fireEvent.click(
         screen.getByRole("button", { name: "Choose column preset" }),
@@ -54,14 +47,7 @@ it("applies a searched preset and keeps Escape inside the preset picker", () => 
 
 it("adds multiple validated columns with consecutive indexes", async () => {
     const onAdd = vi.fn();
-    render(
-        <AddColumnModal
-            open
-            existingCount={3}
-            onClose={vi.fn()}
-            onAdd={onAdd}
-        />,
-    );
+    renderColumn({ existingCount: 3, onAdd });
 
     expect(screen.getByRole("button", { name: "Add columns" })).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Column title"), {
@@ -106,23 +92,9 @@ it("edits tag options and auto-generates a prompt", async () => {
         prompt: "Generated prompt",
     });
     const onSave = vi.fn();
-    render(
-        <AddColumnModal
-            open
-            existingCount={1}
-            onClose={vi.fn()}
-            onAdd={vi.fn()}
-            editingColumn={{
-                index: 7,
-                name: "Issues",
-                prompt: "Old prompt",
-                format: "tag",
-                tags: ["Existing"],
-            }}
-            onSave={onSave}
-            onDelete={vi.fn()}
-        />,
-    );
+    renderColumn({ existingCount: 1, onSave, onDelete: vi.fn(), editingColumn: {
+        index: 7, name: "Issues", prompt: "Old prompt", format: "tag", tags: ["Existing"],
+    } });
 
     fireEvent.change(screen.getByPlaceholderText("Add tag…"), {
         target: { value: "New" },
@@ -155,12 +127,12 @@ it("edits tag options and auto-generates a prompt", async () => {
 
 it("keeps a custom prompt when renaming a column or clearing its preset", async () => {
     const onSave = vi.fn();
-    render(<AddColumnModal open existingCount={1} onClose={vi.fn()} onAdd={vi.fn()} onSave={onSave}
-        editingColumn={{ index: 0, name: "Custom", prompt: "Keep my instructions", format: "text" }} />);
+    renderColumn({ existingCount: 1, onSave,
+        editingColumn: { index: 0, name: "Custom", prompt: "Keep my instructions", format: "text" } });
     fireEvent.change(screen.getByLabelText("Column title"), { target: { value: "Assignment" } });
     expect(screen.getByLabelText("Prompt")).toHaveValue("Keep my instructions");
     fireEvent.click(screen.getByRole("button", { name: "Choose column preset" }));
-    fireEvent.click(screen.getByRole("button", { name: "None", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "None" }));
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ name: "Assignment", prompt: "Keep my instructions" })));
 });

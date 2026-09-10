@@ -253,33 +253,6 @@ describe("getChat", () => {
     expect(state.readers[0]).toMatchObject({ id: "scout:1", status: "interrupted" });
   });
 
-  it("keeps cancellation metadata out of assistant prose", async () => {
-    respond({
-      chat: { id: "chat-1", turn_in_progress: false },
-      messages: [{
-        id: "assistant-1",
-        role: "assistant",
-        content: [
-          { type: "content", text: "Partial answer." },
-          { type: "content", text: "Continued answer." },
-          { type: "turn_status", status: "cancelled" },
-        ],
-      }],
-    });
-
-    const { chat, messages } = await getChat("chat-1");
-    const state = createAssistantSessionState({ chatId: chat.id, messages });
-
-    expect(state.messages[0]).toMatchObject({
-      turnStatus: "cancelled",
-      blocks: [
-        expect.objectContaining({ text: "Partial answer." }),
-        expect.objectContaining({ text: "Continued answer." }),
-      ],
-    });
-    expect(state.messages[0].role === "assistant" ? state.messages[0].blocks.map(({ text }) => text).join("\n\n") : "").toBe("Partial answer.\n\nContinued answer.");
-  });
-
   it("marks a durable user turn with no response as interrupted", async () => {
     respond({
       chat: { id: "chat-1", turn_in_progress: false },

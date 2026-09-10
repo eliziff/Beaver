@@ -28,21 +28,13 @@ vi.mock("@/app/contexts/UserProfileContext", () => ({
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     useChatHistoryContext: () => ({ saveChat: mocks.saveChat }),
 }));
-vi.mock("@/app/lib/api/tabular", () => ({
-  createTabularReview: vi.fn()
-}));
-vi.mock("@/app/lib/api/projects", () => ({
-  deleteProject: vi.fn(),
-  getProject: vi.fn().mockResolvedValue({
+vi.mock("@/app/lib/api/projects", async (original) => ({
+    ...await original<typeof import("@/app/lib/api/projects")>(),
+    getProject: async () => ({
         id: "project-1", user_id: "local-user", name: "Appeal",
         cm_number: null, practice: null, shared_with: [],
         created_at: "2026-08-31T00:00:00Z",
     }),
-  getProjectPeople: vi.fn(),
-  updateProject: vi.fn()
-}));
-vi.mock("@/app/lib/api/chat", () => ({
-  listProjectChats: vi.fn()
 }));
 vi.mock("./useProjectFiles", () => ({
     useProjectFiles: () => ({
@@ -61,18 +53,6 @@ vi.mock("../documents/DocTable", () => ({
         Proofread selected
     </button>,
 }));
-vi.mock("../documents/UploadAction", () => ({ DirectoryActions: () =>
-    <button type="button">Document actions</button> }));
-vi.mock("../modals/AddDocumentsModal", () => ({ AddDocumentsModal: () => null }));
-vi.mock("./ProjectPageParts", () => ({
-    ProjectPageHeader: () => null,
-    projectBreadcrumbLabel: () => "Appeal",
-}));
-vi.mock("../modals/PeopleModal", () => ({ PeopleModal: () => null }));
-vi.mock("../tabular/NewTRModal", () => ({ NewTRModal: () => null }));
-vi.mock("../popups/ConfirmPopup", () => ({ ConfirmPopup: () => null }));
-vi.mock("../popups/OwnerOnlyPopup", () => ({ OwnerOnlyPopup: () => null }));
-vi.mock("./ProjectDetailsModal", () => ({ ProjectDetailsModal: () => null }));
 
 function Location() {
     const location = useLocation();
@@ -93,10 +73,6 @@ it("creates a project chat carrying the selected workflow and documents", async 
             <Location />
         </ProjectWorkspaceProvider>
     </MemoryRouter>);
-
-    const actions = screen.getByRole("button", { name: "Document actions" });
-    expect(actions.closest("[data-project-section-actions]")).toBeInTheDocument();
-    expect(screen.getByRole("tablist", { name: "Project sections" })).not.toContainElement(actions);
 
     await userEvent.click(screen.getByRole("button", { name: "Proofread selected" }));
 

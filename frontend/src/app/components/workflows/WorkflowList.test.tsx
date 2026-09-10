@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { beforeAll, beforeEach, expect, it, vi } from "vitest";
+import { expect, it, vi } from "vitest";
 import type { Workflow } from "@/app/lib/api/workflows";
 import { WorkflowList } from "./WorkflowList";
 
@@ -8,14 +8,8 @@ const mocks = vi.hoisted(() => ({ listWorkflows: vi.fn() }));
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     useChatHistoryContext: () => ({ saveChat: vi.fn(), stagePendingChatMessage: vi.fn() }),
 }));
-vi.mock("@/app/lib/api/workflows", () => ({
-  listWorkflows: mocks.listWorkflows,
-  deleteWorkflow: vi.fn(),
-  createWorkflow: vi.fn(),
-  updateWorkflow: vi.fn()
-}));
-vi.mock("@/app/lib/api/tabular", () => ({
-  createTabularReview: vi.fn()
+vi.mock("@/app/lib/api/workflows", async (original) => ({
+    ...await original<typeof import("@/app/lib/api/workflows")>(), listWorkflows: mocks.listWorkflows,
 }));
 vi.mock("@/app/contexts/UserProfileContext", () => ({
     useUserProfile: () => ({ profile: { features: { authorities: true } } }),
@@ -42,10 +36,7 @@ const courtRecords = item("court-records", "Court Records",
     "Court and hearing materials", { kind: "court_records" });
 courtRecords.metadata.jurisdictions = ["Alberta", "Federal"];
 
-beforeAll(() => { HTMLElement.prototype.scrollIntoView = vi.fn(); });
-beforeEach(() => {
-    vi.clearAllMocks();
-});
+
 
 it("filters one catalogue and opens a singleton workspace in one click", async () => {
     agreements.metadata.audiences = ["solicitor"];
