@@ -1,6 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { Project } from "@/app/lib/api/projects";
 import type { TabularReview } from "@/app/lib/api/tabular";
 import { TabularReviewsTable } from "./TabularReviewsTable";
 
@@ -22,17 +21,6 @@ const review: TabularReview = {
     updated_at: "2026-07-28T00:00:00.000Z",
 };
 
-const project: Project = {
-    id: "project-1",
-    user_id: "user-1",
-    name: "Smith",
-    cm_number: null,
-    practice: null,
-    shared_with: [],
-    created_at: "2026-07-28T00:00:00.000Z",
-    updated_at: "2026-07-28T00:00:00.000Z",
-};
-
 const handlers = {
     setSelectedReviewIds: vi.fn(),
     reviewHref: (item: TabularReview) => `/tabular-reviews/${item.id}`,
@@ -46,7 +34,7 @@ describe("TabularReviewsTable", () => {
         const setSelectedReviewIds = vi.fn();
         const onDeleteSelected = vi.fn();
         const props = { ...handlers, setSelectedReviewIds, onDeleteSelected,
-            reviews: [review], filteredReviews: [review] };
+            reviews: [review] };
         const { rerender } = render(
             <TabularReviewsTable {...props} selectedReviewIds={[]} />,
         );
@@ -60,42 +48,16 @@ describe("TabularReviewsTable", () => {
         expect(onDeleteSelected).toHaveBeenCalledOnce();
     });
 
-    it("adds project data only to the global view", () => {
-        const { rerender } = render(
+    it("names each review's project in the row", () => {
+        render(
             <TabularReviewsTable
-                reviews={[]}
-                filteredReviews={[]}
+                reviews={[{ ...review, project_name: "Smith" }]}
                 selectedReviewIds={[]}
-                loading
-                {...handlers}
-            />,
-        );
-
-        expect(screen.queryByText("Project")).not.toBeInTheDocument();
-
-        rerender(
-            <TabularReviewsTable
-                reviews={[]}
-                filteredReviews={[]}
-                selectedReviewIds={[]}
-                loading
-                projects={[project]}
                 {...handlers}
             />,
         );
 
         expect(screen.getByText("Project")).toBeInTheDocument();
-
-        rerender(
-            <TabularReviewsTable
-                reviews={[review]}
-                filteredReviews={[review]}
-                selectedReviewIds={[]}
-                projects={[project]}
-                {...handlers}
-            />,
-        );
-
         expect(screen.getByText("Smith")).toBeInTheDocument();
     });
 });
