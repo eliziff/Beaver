@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
-import { BookOpen, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useAnchoredPopover } from "@/app/hooks/useAnchoredPopover";
 import { Button } from "../ui/button";
+import { InlineNameInput } from "../shared/InlineNameInput";
 import { usePagedChains } from "@/app/hooks/usePagedChains";
 import { BeaverApiError } from "@/app/lib/api/client";
 import { getResearchItems } from "@/app/lib/api/researchFiles";
@@ -25,6 +26,11 @@ const queryPhrase = (input: Record<string, unknown>) => Array.isArray(input.rule
   ? input.rules.map((rule) => String((rule as { phrase?: unknown }).phrase ?? "")).filter(Boolean).join("; ")
   : String(input.text ?? input.pattern ?? input.query ?? "Search");
 const CHOICE = "h-7 rounded-md border border-gray-200 px-2 text-xs text-gray-700 aria-pressed:border-gray-500 aria-pressed:bg-gray-100 aria-pressed:font-medium";
+/** Every chooser in this panel wears the dock's own compact outline control. */
+const DOCK_CONTROL = "h-8 shrink-0 rounded-md border border-gray-300 bg-white px-2 text-xs font-medium text-gray-800 hover:bg-gray-50";
+const NEW_LABEL = "flex h-7 items-center gap-1 self-start rounded-md px-1.5 text-xs text-gray-600 hover:bg-gray-100";
+/** The highlight palette the labels tree hands out, so a type made here looks like one made there. */
+const COLOURS = ["#d6b85a", "#8aa8c7", "#90ac99", "#bda0b5", "#b4ab91", "#9fa7bf"];
 
 /** Plain text stays a phrase; these markers make it a Boolean expression the backend evaluates. */
 const OPERATORS = /["()&|]|(?:^|\s)-\S|(?:^|\s)(?:AND|OR|NOT|ET|OU|NON)(?:\s|$)/iu;
@@ -49,25 +55,40 @@ function marked(text: string, phrase: string) {
     {text.slice(at + phrase.length, to)}{to < text.length ? "…" : ""}</>;
 }
 
-/** Choosing a label, a highlight type or a search scope is always the same waterfall, and it is always
- *  anchored beside the control that opened it: opening one never moves the input or the results.
- *  A label with children keeps the panel open so the user can walk down to the one they mean. */
-function LabelChoice({ title, anchor, labels, scopes, selectedId, onChoose, onClose, noneLabel }: {
+/** Choosing a label, a highlight type or a search scope is always the same waterfall, and it always
+ *  drops straight under the control that opened it, inside the dock: opening one never moves the
+ *  input or the results. A label with children keeps the panel open so the user can walk down to the
+ *  one they mean, and a label that does not exist yet is made here, where it is wanted. */
+function LabelChoice({ title, anchor, labels, scopes, selectedId, onChoose, onCreate, onClose, noneLabel }: {
   title: string; anchor: HTMLElement | null; labels: Record<string, ResearchLabel>;
-  scopes: ResearchLabel["scope"][]; selectedId: string | null;
-  onChoose: (id: string | null) => void; onClose: () => void; noneLabel?: string }) {
-  const popover = useAnchoredPopover({ anchor, onDismiss: onClose });
+  scopes: readonly ResearchLabel["scope"][]; selectedId: string | null;
+  onChoose: (id: string | null) => void;
+  onCreate: (scope: ResearchLabel["scope"], name: string, parentId: string | null) => Promise<string | null>;
+  onClose: () => void; noneLabel?: string }) {
+  const popover = useAnchoredPopover({ anchor, below: true, stationary: true, onDismiss: onClose });
+  const [naming, setNaming] = useState<ResearchLabel["scope"] | null>(null);
   const walk = (id: string | null) => { onChoose(id);
     if (!id || !Object.values(labels).some((label) => label.parentId === id)) onClose(); };
+  /** A new label lands where the user is standing: under the label they walked to, or at the top. */
+  const parentOf = (scope: ResearchLabel["scope"]) => labels[selectedId ?? ""]?.scope === scope ? selectedId : null;
   return createPortal(<div ref={popover} role="dialog" aria-label={title} popover="manual"
-    className="fixed inset-auto z-[220] m-0 grid max-h-[min(26rem,calc(100dvh-1rem))] w-[min(22rem,calc(100vw-1rem))] content-start gap-1.5 overflow-y-auto overscroll-contain rounded-xl border border-gray-200 bg-white p-2.5 shadow-xl">
+    className="fixed inset-auto z-[220] m-0 grid max-h-[min(26rem,calc(100dvh-1rem))] w-[min(20rem,calc(100vw-1rem))] content-start gap-1.5 overflow-y-auto overscroll-contain rounded-lg border border-gray-300 bg-white p-2 shadow-lg">
     <p className="text-xs font-medium text-gray-700">{title}</p>
-    {scopes.map((scope) => <div key={scope} className="grid min-w-0 gap-0.5">
+    {scopes.map((scope) => { const noun = scope === "source" ? "label" : "highlight type", parentId = parentOf(scope);
+      return <div key={scope} className="grid min-w-0 gap-0.5">
       {scopes.length > 1 && <p className="px-1.5 text-[11px] leading-4 text-gray-500">{scope === "source" ? "Labels" : "Highlight types"}</p>}
       <ResearchLabelWaterfall labels={labels} scope={scope}
         selectedId={labels[selectedId ?? ""]?.scope === scope ? selectedId : null}
         noneLabel={scope === "source" ? noneLabel : undefined} onChoose={walk} />
-    </div>)}
+      {naming === scope ? <div className="flex h-7 items-center px-1.5">
+        <InlineNameInput kind="new-folder" label={`New ${noun} name`} onCancel={() => setNaming(null)}
+          onCommit={(value) => { setNaming(null); if (!value.trim()) return;
+            void onCreate(scope, value.trim(), parentId).then((id) => { if (id) { onChoose(id); onClose(); } }); }} />
+      </div> : <button type="button" onClick={() => setNaming(scope)} className={NEW_LABEL}>
+        <Plus aria-hidden className="size-3" />
+        <span className="min-w-0 truncate">New {noun}{parentId ? ` in ${labels[parentId]!.name}` : ""}</span>
+      </button>}
+    </div>; })}
   </div>, anchor?.closest('dialog,[role="dialog"],[data-assistant-dock]') ?? document.body);
 }
 
@@ -103,7 +124,8 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
       const page = evidence.chains[id];
       if (!page) void evidence.fetchPage(id, null, false);
       else if (!page.loading && !page.error && page.nextCursor && !page.items.some((item) =>
-        (item.kind === "passage" || item.kind === "evidence") && result!.matches.has(item.value.receipt.evidence_id)))
+        (item.kind === "passage" || item.kind === "evidence") && item.value.receipt.locator.kind !== "document" &&
+        result!.matches.has(item.value.receipt.evidence_id)))
         void evidence.fetchPage(id, page.nextCursor, true);
     }
   }, [result, evidence.chains, evidence.fetchPage]);
@@ -168,8 +190,27 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
       setStatus(`Filed ${sourceName(source)} under ${researchLabelPath(labels, labelId).map(({ name }) => name).join(" / ")}`);
     } catch (reason) { setStatus(errorMessage(reason, "Could not file this source")); }
   }
-  const rows = (sourceId: string) => (evidence.chains[sourceId]?.items ?? []).flatMap((item) =>
-    (item.kind === "passage" || item.kind === "evidence") && result?.matches.has(item.value.receipt.evidence_id) ? [item.value] : []);
+  /** A label the user wants but has not made yet is created here, then used at once. */
+  async function createLabel(scope: ResearchLabel["scope"], name: string, parentId: string | null) {
+    setStatus("");
+    const id = crypto.randomUUID();
+    try {
+      await commit.act({ type: "label", id, name, parentId, scope, ...(scope === "highlight"
+        ? { color: COLOURS[Object.values(labels).filter((label) => label.scope === "highlight").length % COLOURS.length] } : {}) });
+      return id;
+    } catch (reason) {
+      setStatus(errorMessage(reason, `Could not add this ${scope === "source" ? "label" : "highlight type"}`));
+      return null;
+    }
+  }
+  /** The whole-source receipt matches every phrase its text holds; it is the source, not a passage
+   *  in it, so it never doubles a located match. */
+  const rows = (sourceId: string) => {
+    const matched = (evidence.chains[sourceId]?.items ?? []).flatMap((item) =>
+      (item.kind === "passage" || item.kind === "evidence") && result?.matches.has(item.value.receipt.evidence_id) ? [item.value] : []);
+    const located = matched.filter(({ receipt }) => receipt.locator.kind !== "document");
+    return located.length ? located : matched;
+  };
   const found = result?.sourceIds.filter((id) => file?.state.sources[id] && rows(id).length) ?? [],
     mark = markPhrase(result?.phrase ?? "");
   const pending = (result?.sourceIds.length ?? 0) - found.length;
@@ -184,15 +225,18 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
       <Button type="submit" size="compact" disabled={busy}>{busy ? "Finding…" : "Find"}</Button>
     </form>
     {!!hint && <p id="research-search-hint" role="status" className="truncate text-xs text-amber-700">{hint}</p>}
-    <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-gray-600">
-      <span className="text-gray-500">Search in</span>
-      <button type="button" onClick={opener({ kind: "scope" })} aria-expanded={choosing?.kind === "scope"} aria-pressed={!!scopeLabel}
+    {/* One fixed row that never wraps: choosing a scope changes what it says, never where anything sits. */}
+    <div className="flex h-8 min-w-0 flex-nowrap items-center gap-1.5 text-xs text-gray-600">
+      <span className="shrink-0 text-gray-500">Search in</span>
+      <button type="button" onClick={opener({ kind: "scope" })} aria-expanded={choosing?.kind === "scope"}
+        aria-label={`Search in ${scopeLabel ? researchLabelPath(labels, scopeLabel.id).map(({ name }) => name).join(" / ") : "all saved sources"}`}
         title={scopeLabel ? researchLabelPath(labels, scopeLabel.id).map(({ name }) => name).join(" / ") : "All saved sources"}
-        className={`${CHOICE} flex min-w-0 max-w-full items-center gap-1.5`}>
+        className={`${DOCK_CONTROL} flex min-w-0 max-w-[65%] items-center gap-1.5`}>
         <ResearchLabelFolder labels={labels} labelId={scopeLabel?.id ?? null} size="sm" />
-        <span className="truncate">{scopeLabel ? scopeLabel.name : "All saved sources"}</span>
+        <span className="min-w-0 truncate">{scopeLabel ? scopeLabel.name : "All saved sources"}</span>
+        <ChevronDown aria-hidden className="size-3 shrink-0 text-gray-400" />
       </button>
-      {scopeLabel && <span className="text-gray-500">{scopeLabel.scope === "highlight" ? "highlighted passages" : "and everything under it"}</span>}
+      {scopeLabel && <span className="min-w-0 truncate text-gray-500">{scopeLabel.scope === "highlight" ? "highlighted passages" : "and everything under it"}</span>}
     </div>
     <details className="group text-xs text-gray-600">
       <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-gray-700">
@@ -215,27 +259,29 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
           <h3 className="min-w-0 flex-1 truncate text-xs font-semibold text-gray-800">{sourceName(file.state.sources[sourceId])}</h3>
           <button type="button" onClick={opener({ kind: "file", sourceId })} className={CHOICE}>File under…</button>
         </div>
-        <ul className="mt-1 grid min-w-0 gap-1">{rows(sourceId).map(({ receipt }) => <li key={receipt.evidence_id}
-          className="flex min-w-0 items-start gap-1.5 rounded border-s-2 border-gray-200 ps-2">
-          <span className="line-clamp-4 min-w-0 flex-1 text-xs leading-5 text-gray-700 [overflow-wrap:anywhere]">
-            <span className="me-1 font-medium text-gray-500">{passageLabel(receipt.locator)}</span>
-            {marked(trimPassageMarker(receipt.span_text ?? "", receipt.locator), mark)}
-          </span>
-          {reader?.canRead(file.state.sources[sourceId]) && <button type="button"
-            aria-label={`Open ${passageLabel(receipt.locator)} in ${sourceName(file.state.sources[sourceId])}`} title="Open here"
-            onClick={() => void reader.readSource(file.state.sources[sourceId], receipt.locator.label, receipt.evidence_id)}
-            className="mt-0.5 grid size-6 shrink-0 place-items-center rounded text-gray-500 hover:bg-gray-200">
-            <BookOpen aria-hidden className="size-3.5" /></button>}
+        {/* Clicking the match opens the source there, exactly as clicking a passage row in the tree does. */}
+        <ul className="mt-1 grid min-w-0 gap-1">{rows(sourceId).map(({ receipt }) => {
+          const source = file.state.sources[sourceId], at = receipt.locator.kind === "document" ? "" : passageLabel(receipt.locator);
+          const body = <>{!!at && <span className="me-1 font-medium text-gray-500">{at}</span>}
+            {marked(trimPassageMarker(receipt.span_text ?? "", receipt.locator), mark)}</>;
+          return <li key={receipt.evidence_id}
+            className="flex min-w-0 items-start gap-1.5 rounded border-s-2 border-gray-200 ps-2">
+          {reader?.canRead(source)
+            ? <button type="button" title="Open here"
+              aria-label={`Open ${at || sourceName(source)} in ${sourceName(source)}`}
+              onClick={() => void reader.readSource(source, receipt.locator.label, receipt.evidence_id)}
+              className="line-clamp-4 min-w-0 flex-1 rounded text-start text-xs leading-5 text-gray-700 [overflow-wrap:anywhere] hover:bg-gray-100">{body}</button>
+            : <span className="line-clamp-4 min-w-0 flex-1 text-xs leading-5 text-gray-700 [overflow-wrap:anywhere]">{body}</span>}
           <button type="button" className={`${CHOICE} mt-0.5 shrink-0`}
             onClick={opener({ kind: "highlight", sourceId, evidenceIds: [receipt.evidence_id] })}>Highlight</button>
-        </li>)}</ul>
+        </li>; })}</ul>
       </div>)}
       {!!pending && <p role="status" className="text-xs text-gray-500">Loading {pending} more source{pending === 1 ? "" : "s"}…</p>}
       {!found.length && !pending && <p className="text-xs text-gray-500">Nothing matched “{result.phrase}”.</p>}
       {!!more && <Button size="compact" variant="outline" disabled={busy} className="justify-self-start"
         onClick={() => void run(more.input, more.phrase, true)}>Continue searching</Button>}
     </section>}
-    {choosing && <LabelChoice anchor={choosing.anchor} labels={labels} onClose={() => setChoosing(null)}
+    {choosing && <LabelChoice anchor={choosing.anchor} labels={labels} onClose={() => setChoosing(null)} onCreate={createLabel}
       {...(choosing.kind === "scope"
         ? { title: "Search in", scopes: ["source", "highlight"] as const, noneLabel: "All saved sources",
             selectedId: scopeLabel?.id ?? null, onChoose: setScopeId }
