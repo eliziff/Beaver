@@ -14,17 +14,23 @@ export function useAnchoredPopover<T extends HTMLElement = HTMLDivElement>({ anc
     else panel.removeAttribute("popover");
     let frame = 0;
     const place = () => {
-      const box = panel.getBoundingClientRect(), rect = anchor instanceof HTMLElement ? anchor.getBoundingClientRect() : anchor;
+      const rect = anchor instanceof HTMLElement ? anchor.getBoundingClientRect() : anchor;
+      /** A control inside the dock is answered inside the dock: its panel never spills over the page. */
+      const host = anchor instanceof HTMLElement
+        ? anchor.closest<HTMLElement>("[data-assistant-dock]")?.getBoundingClientRect() : null;
       const dock = [...document.querySelectorAll<HTMLElement>("[data-assistant-dock]")]
         .map((element) => element.getBoundingClientRect())
         .filter((candidate) => candidate.width > 200 && (!rect || candidate.left > rect.left))
         .sort((left, right) => left.left - right.left)[0];
-      const right = dock && rect && rect.left < dock.left ? dock.left - 8 : (stationary ? document.documentElement.clientWidth : innerWidth) - 8;
-      panel.style.maxWidth = `${Math.max(0, innerWidth - 16)}px`;
+      const left = host ? host.left + 8 : 8;
+      const right = host ? host.right - 8
+        : dock && rect && rect.left < dock.left ? dock.left - 8 : (stationary ? document.documentElement.clientWidth : innerWidth) - 8;
+      panel.style.maxWidth = `${Math.max(0, host ? host.width - 16 : innerWidth - 16)}px`;
+      const box = panel.getBoundingClientRect();
       const beside = below ? rect?.left ?? (innerWidth - box.width) / 2
         : rect?.right && rect.right + box.width + 8 <= right ? rect.right + 8
-          : rect && rect.left - box.width - 8 >= 8 ? rect.left - box.width - 8 : (innerWidth - box.width) / 2;
-      panel.style.left = `${Math.max(8, Math.min(beside, Math.max(8, right - box.width)))}px`;
+          : rect && rect.left - box.width - 8 >= left ? rect.left - box.width - 8 : (innerWidth - box.width) / 2;
+      panel.style.left = `${Math.max(left, Math.min(beside, Math.max(left, right - box.width)))}px`;
       panel.style.top = `${Math.max(8, Math.min(below ? stationary && rect && rect.bottom + 4 + box.height > innerHeight
         ? rect.top - box.height - 4 : (rect?.bottom ?? 0) + 4 : rect?.top ?? (innerHeight - box.height) / 2,
         Math.max(8, innerHeight - box.height - 8)))}px`;
