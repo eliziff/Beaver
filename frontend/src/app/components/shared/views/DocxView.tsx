@@ -360,7 +360,7 @@ export function DocxView({
                     data-legal-text="1"
                     data-legal-block={preparing || viewError ? undefined : ""}
                     data-locator-kind="document" data-locator-value="document"
-                    style={{ visibility: preparing || viewError ? "hidden" : "visible" }} />
+                    style={{ visibility: preparing || viewError ? "hidden" : undefined }} />
             </div>
         </div>
     );
