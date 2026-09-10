@@ -131,7 +131,6 @@ export function MfaVerificationPopup({
                             disabled={verifying}
                             autoFocus={open && !loading}
                             onSubmit={() => void verify()}
-                            canSubmit={canVerify}
                         />
                     </div>
                 )}
@@ -146,14 +145,12 @@ export function VerificationCodeInput({
     disabled,
     autoFocus,
     onSubmit,
-    canSubmit,
 }: {
     value: string;
     onChange: (value: string) => void;
     disabled?: boolean;
     autoFocus?: boolean;
     onSubmit?: () => void;
-    canSubmit?: boolean;
 }) {
     return (
         <input
@@ -167,7 +164,7 @@ export function VerificationCodeInput({
                 onChange(event.currentTarget.value.replace(/\D/gu, "").slice(0, 6))
             }
             onKeyDown={(event) => {
-                if (event.key !== "Enter" || !canSubmit) return;
+                if (event.key !== "Enter" || !onSubmit) return;
                 event.preventDefault();
                 onSubmit?.();
             }}

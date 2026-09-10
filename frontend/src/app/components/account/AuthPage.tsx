@@ -6,7 +6,6 @@ import { SiteLogo } from "@/app/components/site-logo";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { googleSignIn, login, signup as createAccount } from "@/app/lib/api/auth";
 
-const card = "rounded-2xl border border-gray-200 bg-white p-8 shadow-sm";
 const input =
     "mt-2 w-full rounded-lg border border-transparent bg-gray-100 px-3 shadow-none focus-visible:border-gray-200 focus-visible:ring-2 focus-visible:ring-gray-300/45";
 const fields = {
@@ -102,7 +101,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
             <div className="absolute left-1/2 top-4 -translate-x-1/2 md:top-8">
                 <SiteLogo size="lg" asLink />
             </div>
-            <section className={`${card} w-full max-w-md`} aria-busy={status !== "idle"}>
+            <section aria-busy={status !== "idle"} className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
                 <header className="mb-6 flex items-center justify-between">
                     <h1 className="font-serif text-2xl font-medium text-gray-950">
                         {creating ? "Create account" : "Log in"}
