@@ -33,12 +33,9 @@ const document: Document = {
   project_id: "matter-1",
   filename: "Brief.pdf",
   file_type: "pdf",
-  storage_path: "brief.pdf",
   pdf_storage_path: "brief.pdf",
   size_bytes: 10,
   page_count: 1,
-  structure_tree: null,
-  status: "ready",
   created_at: "2026-07-27T00:00:00.000Z",
   active_version_number: 3,
 };
@@ -46,8 +43,17 @@ const secondDocument: Document = {
   ...document,
   id: "document-2",
   filename: "Memo.pdf",
-  storage_path: "memo.pdf",
   pdf_storage_path: "memo.pdf",
+};
+
+const folder: DocTableFolder = {
+  id: "folder-1",
+  project_id: "matter-1",
+  user_id: "local-user",
+  name: "Research",
+  parent_folder_id: null,
+  created_at: "2026-07-27T00:00:00.000Z",
+  updated_at: "2026-07-27T00:00:00.000Z",
 };
 
 function chooseAction(label: string) {
@@ -62,11 +68,14 @@ function chooseSelectedAction(label: string) {
   fireEvent.click(screen.getByRole("menuitem", { name: label }));
 }
 
+const DEFAULT_DOCUMENTS = [document];
+const NO_FOLDERS: DocTableFolder[] = [];
+
 function Harness({
   removeDocument,
   documentRemovalMode = "detach",
-  initialDocuments = [document],
-  initialFolders = [],
+  initialDocuments = DEFAULT_DOCUMENTS,
+  initialFolders = NO_FOLDERS,
   search = "",
   onOwnerOnlyAction,
 }: {
@@ -77,29 +86,27 @@ function Harness({
   search?: string;
   onOwnerOnlyAction?: Dispatch<SetStateAction<string | null>>;
 }) {
-  const [documents, setDocuments] = useState<Document[]>(initialDocuments);
-  const [folders, setFolders] =
-    useState<DocTableFolder[]>(initialFolders);
   const [selection, setSelection] = useState<DocumentSelectionActions | null>(null);
   return (
     <><DirectoryActions actions={null} onCreateFolder={null} selection={selection} />
     <DocTable
       scopeKey="matter-1"
-      documents={documents}
-      setDocuments={setDocuments}
-      folders={folders}
-      setFolders={setFolders}
+      documents={initialDocuments}
+      folders={initialFolders}
       loading={false}
       search={search}
       operations={{
         list: async ({ parent_id }) => ({
-          items: folders
+          items: initialFolders
             .filter((folder) => (folder.parent_folder_id ?? null) === (parent_id ?? null))
             .map((folder) => ({ kind: "folder" as const, folder })),
           next_cursor: null,
         }),
         removeDocument,
         uploadDocument: vi.fn(),
+        uploadDocuments: vi.fn(),
+        uploadDirectory: vi.fn(),
+        refreshDocumentParseStates: vi.fn(),
         refreshCollection: vi.fn(),
         createFolder: vi.fn(),
         renameFolder: vi.fn(),
@@ -142,20 +149,6 @@ describe("DocTable document removal", () => {
     expect(removeDocument).toHaveBeenCalledTimes(2);
   });
 
-  it("requires confirmation before detaching a selected document", async () => {
-    const removeDocument = vi.fn(async () => {});
-    render(<Harness removeDocument={removeDocument} />);
-    fireEvent.click(screen.getAllByRole("checkbox").at(-1)!);
-    chooseSelectedAction("Remove");
-    expect(removeDocument).not.toHaveBeenCalled();
-    expect(screen.getByText("Remove from project?")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
-    await waitFor(() =>
-      expect(removeDocument).toHaveBeenCalledWith("document-1"),
-    );
-  });
-
   it("shows a warning when a row detach fails", async () => {
     const removeDocument = vi.fn(async () => {
       throw new Error("offline");
@@ -188,24 +181,6 @@ describe("DocTable document removal", () => {
     expect(screen.queryByText(/has 3 versions/u)).not.toBeInTheDocument();
   });
 
-  it("uses detach language when selected removals fail", async () => {
-    const removeDocument = vi.fn(async () => {
-      throw new Error("offline");
-    });
-    render(<Harness removeDocument={removeDocument} />);
-
-    fireEvent.click(screen.getAllByRole("checkbox").at(-1)!);
-    chooseSelectedAction("Remove");
-    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
-
-    expect(
-      await screen.findByText(
-        "1 document could not be removed from this project. Please try again.",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/could not be deleted/u)).not.toBeInTheDocument();
-  });
-
   it("keeps the loaded page until its authoritative refresh after partial removal", async () => {
     const removeDocument = vi.fn(async (documentId: string) => {
       if (documentId === secondDocument.id) throw new Error("offline");
@@ -220,9 +195,11 @@ describe("DocTable document removal", () => {
     selectDocument(document.filename);
     selectDocument(secondDocument.filename);
     chooseSelectedAction("Remove");
+    expect(removeDocument).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
 
-    await waitFor(() => expect(removeDocument).toHaveBeenCalledTimes(2));
+    await screen.findByText("1 document could not be removed from this project. Please try again.");
+    expect(removeDocument.mock.calls).toEqual([["document-1"], ["document-2"]]);
     expect(screen.getByText(document.filename)).toBeInTheDocument();
     expect(screen.getByText(secondDocument.filename)).toBeInTheDocument();
   });
@@ -252,15 +229,6 @@ describe("DocTable document removal", () => {
   });
 
   it("renders server-filtered Boolean results through normal document rows", () => {
-    const folder: DocTableFolder = {
-      id: "folder-1",
-      project_id: "matter-1",
-      user_id: "local-user",
-      name: "Research",
-      parent_folder_id: null,
-      created_at: "2026-07-27T00:00:00.000Z",
-      updated_at: "2026-07-27T00:00:00.000Z",
-    };
     const nestedDocument: Document = {
       ...document,
       id: "document-2",
@@ -288,15 +256,6 @@ describe("DocTable document removal", () => {
 
   it("keeps the folder row action for creating a focused subfolder", () => {
     Element.prototype.scrollIntoView = vi.fn();
-    const folder: DocTableFolder = {
-      id: "folder-1",
-      project_id: "matter-1",
-      user_id: "local-user",
-      name: "Research",
-      parent_folder_id: null,
-      created_at: "2026-07-27T00:00:00.000Z",
-      updated_at: "2026-07-27T00:00:00.000Z",
-    };
 
     render(
       <Harness

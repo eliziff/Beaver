@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { StrictMode, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Modal } from "@/app/components/modals/Modal";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
@@ -65,7 +65,7 @@ describe("KeyboardShortcuts", () => {
 
     it("closes only the topmost modal and restores nested focus", async () => {
         const user = userEvent.setup();
-        render(<ModalStack />);
+        render(<StrictMode><ModalStack /></StrictMode>);
 
         const opener = screen.getByRole("button", { name: "Open first" });
         await user.click(opener);
