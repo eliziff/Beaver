@@ -7,7 +7,7 @@ import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { researchLabelPath, type ResearchAction, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
 import { errorMessage } from "@/app/lib/utils";
 import { researchLabelColor } from "./ResearchLabelMarker";
-import { RESEARCH_SOURCE_DRAG, RESEARCH_SOURCE_REFERENCE_DRAG } from "./ResearchLabelPicker";
+import { researchLabelChildren, RESEARCH_SOURCE_DRAG, RESEARCH_SOURCE_REFERENCE_DRAG } from "./ResearchLabelPicker";
 import { ROW, ROW_ACTIONS, ROW_COUNT, type ResearchRemoval, type ResearchTreePreview } from "./ResearchTree";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 
@@ -31,12 +31,7 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
   const [adding, setAdding] = useState<string | null | undefined>();
   const [busy, setBusy] = useState(false), [drop, setDrop] = useState<{ id: string; mode: "before" | "inside" | "after" } | null>(null);
   const dragged = useRef<string | null>(null), tree = useRef<HTMLDivElement>(null);
-  const children = useMemo(() => {
-    const result = new Map<string | null, ResearchLabel[]>();
-    Object.values(labels).filter((label) => label.scope === scope).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
-      .forEach((label) => { const items = result.get(label.parentId) ?? []; items.push(label); result.set(label.parentId, items); });
-    return result;
-  }, [labels, scope]);
+  const children = useMemo(() => researchLabelChildren(labels, scope), [labels, scope]);
   const direct = useMemo(() => {
     const result = new Set<string>();
     for (const source of sources) (scope === "source" ? source.labelIds : Object.keys(source.passages?.labelCounts ?? {})).forEach((id) => result.add(id));

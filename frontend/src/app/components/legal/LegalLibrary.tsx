@@ -504,16 +504,13 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
     );
 }
 
-export function LegalLibrarySourcePage(props: LegalSourceViewerProps) {
-    return <SourcesWorkspace fileId={props.researchFileId} projectId={props.projectId} restoreLast={!props.researchFileId}>
-        <LegalLibrarySourceContent {...props} />
-    </SourcesWorkspace>;
-}
-function LegalLibrarySourceContent(viewerProps: LegalSourceViewerProps) {
+export function LegalLibrarySourcePage(viewerProps: LegalSourceViewerProps) {
     const navigate = useNavigate();
     const [researchOpen, setResearchOpen] = useState(!!viewerProps.researchFileId);
     const [sourceDropNonce, setSourceDropNonce] = useState(0);
     return (
+        <SourcesWorkspace fileId={viewerProps.researchFileId} projectId={viewerProps.projectId}
+            restoreLast={!viewerProps.researchFileId}>
         <div className="flex h-full min-h-0 min-w-0">
         <div className="flex min-w-0 flex-1 flex-col">
             <PageHeader
@@ -536,5 +533,6 @@ function LegalLibrarySourceContent(viewerProps: LegalSourceViewerProps) {
         <ResearchWorkspaceHost embedded={false} open={researchOpen}
             onOpenChange={setResearchOpen} projectId={viewerProps.projectId} sourceDropNonce={sourceDropNonce} />
         </div>
+        </SourcesWorkspace>
     );
 }
