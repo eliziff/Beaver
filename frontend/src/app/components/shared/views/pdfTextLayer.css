@@ -2,7 +2,7 @@
 .pdf-text-layer { transform-origin: 0 0; }
 /* pdf.js's end-of-content rule: while a drag is under way the whole page is selectable, so the
    selection sweeps lines instead of hopping between absolutely placed spans. */
-.pdf-text-layer .endOfContent { display: block; position: absolute; inset: 100% 0 0; z-index: 0; cursor: default; user-select: none; }
+.pdf-text-layer .endOfContent { display: block; position: absolute; inset: 100% 0 0; z-index: 0; cursor: default; user-select: none; pointer-events: none; }
 .pdf-text-layer.selecting .endOfContent { top: 0; }
 .pdf-text-layer[data-main-rotation="90"] { transform: rotate(90deg) translateY(-100%); }
 .pdf-text-layer[data-main-rotation="180"] { transform: rotate(180deg) translate(-100%, -100%); }
