@@ -32,7 +32,7 @@ export type NativeCitationOccurrence = NativeCitationTextSpan & {
   pinpoints: Array<NativeCitationTextSpan & {
     kind: "paragraph" | "section" | "page";
   }>;
-  kind: "case" | "statute" | "journal" | "other";
+  kind: "case" | "statute" | "journal" | "book" | "parliamentary" | "other";
   shortForm?: string;
   explicitShortForm?: string;
   reasons: string[];

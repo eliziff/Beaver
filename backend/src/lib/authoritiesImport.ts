@@ -141,7 +141,8 @@ function scanReview(
       if (!key) return;
       const kind: AuthorityKind = parallelCases.has(observedKey) ? "case"
         : match.kind === "statute" ? "legislation"
-        : match.kind === "journal" ? "commentary" : match.kind;
+        : match.kind === "journal" || match.kind === "book" ? "commentary"
+        : match.kind === "parliamentary" ? "other" : match.kind;
       const observedName = match.reasons.includes("same_text_style")
         ? match.shortForm?.trim() || null : null;
       if (!authorities[key]) {
