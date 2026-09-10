@@ -1,6 +1,11 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Modal } from "@/app/components/modals/Modal";
 const OPEN_LAYER = '[data-shortcut-layer][data-shortcut-open="true"]';
+const SHORTCUTS = [
+    ["Ctrl / ⌘ K", "Search history"], ["/", "Search this page"],
+    ["Alt N", "Create a new item"], ["Ctrl / ⌘ Shift H", "Highlight the selected text"],
+    ["?", "Show shortcuts"], ["Esc", "Close the top panel"],
+];
 function isEditable(target: EventTarget | null) {
     return (
         target instanceof HTMLElement &&
@@ -93,18 +98,9 @@ export function KeyboardShortcuts() {
             className="!h-auto"
         >
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 pb-5 pt-2 text-sm">
-                <dt><kbd>Ctrl / ⌘ K</kbd></dt>
-                <dd>Search history</dd>
-                <dt><kbd>/</kbd></dt>
-                <dd>Search this page</dd>
-                <dt><kbd>Alt N</kbd></dt>
-                <dd>Create a new item</dd>
-                <dt><kbd>Ctrl / ⌘ Shift H</kbd></dt>
-                <dd>Highlight the selected text</dd>
-                <dt><kbd>?</kbd></dt>
-                <dd>Show shortcuts</dd>
-                <dt><kbd>Esc</kbd></dt>
-                <dd>Close the top panel</dd>
+                {SHORTCUTS.map(([keys, action]) => (
+                    <Fragment key={keys}><dt><kbd>{keys}</kbd></dt><dd>{action}</dd></Fragment>
+                ))}
             </dl>
         </Modal>
     );
