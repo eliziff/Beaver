@@ -98,6 +98,9 @@ export function createGeminiWireAdapter(
           role: "user",
           parts: [
             ...responses,
+            ...step.results.flatMap((result) => result.images ?? []).map((image) => ({
+              inlineData: { mimeType: image.mimeType, data: image.data },
+            })),
             ...step.steering.map(({ text }) => ({ text })),
           ],
         });

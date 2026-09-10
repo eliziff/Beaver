@@ -1,7 +1,7 @@
 import { MAX_PROVIDER_TOOL_ARGUMENT_BYTES,
   type ProviderAdapter, type ProviderEvent, type ProviderStep } from "./providerLoop";
 import { runtimeConstructor } from "./runtimeSdk";
-import type { LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
+import type { LlmImage, LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
 import { isJsonRecord } from "../value";
 
 export type CompatibleMessage = Record<string, unknown> & {
@@ -105,8 +105,21 @@ export function createCompatibleWireAdapter(
       const state = step.iteration ? step.checkpoint as State | undefined : { messages: initial };
       if (!state) throw new Error(`${config.provider} did not return continuation state`);
       const requestMessages = state.messages.map((message) => ({ ...message }));
+      // A tool message may not carry pictures on this wire, so the images ride in a
+      // following user message — or, on a text-only model, become a note in their place.
+      const returned: LlmImage[] = [];
       for (const result of step.results) {
-        requestMessages.push({ role: "tool", tool_call_id: result.tool_use_id, content: result.content });
+        const images = config.imageInput === true ? result.images ?? [] : [];
+        returned.push(...images);
+        requestMessages.push({ role: "tool", tool_call_id: result.tool_use_id,
+          content: result.content + (!images.length && result.images?.length
+            ? `\n[${result.images.length} page image omitted: this model cannot see images.]` : "") });
+      }
+      if (returned.length) {
+        requestMessages.push({ role: "user", content: returned.flatMap((image) => [
+          { type: "text", text: `Image returned by tool: ${image.filename}` },
+          { type: "image_url", image_url: { url: `data:${image.mimeType};base64,${image.data}` } },
+        ]) });
       }
       for (const steer of step.steering) requestMessages.push({ role: "user", content: steer.text });
       config.prepareMessages?.(requestMessages, step.tools);

@@ -43,6 +43,7 @@ export function openWorkProductPrompt(kind: "authorities" | "court-record") {
 - Fill the record with action "update". Cover fields go in "cover" under the ids the read returned — for an affidavit those include courtFileNumber, registry, affidavitNumber, deponent, swornDate and swornPlace — and the parties go in cover.partyStyleId, cover.partyGroups and cover.filingPartyIds. An update only fills a field that is still empty, so report a field the user has already typed rather than claiming you changed it.
 - Attach a source with slot_id and a version-pinned document_id from Read, replace one with replace_entry_id, and set its visible description, date or exhibit_label. A description-only slot needs no file.
 - Take every value from the record's own documents: read the affidavit or the source before filling a field from it, and say which document each value came from. Ask rather than invent a name, number or date you cannot read.
+- A scanned, handwritten or stamped page reads badly as text. Where Read returns little, garbled or doubtful text, look at the page itself with view_page and take the deponent, dates, court file number, registry and exhibit stamps off the picture.
 - Report what you filled, what you left alone, and what still blocks the build. Do not write a research memo or an unprompted case summary, and do not edit unrelated documents. If the request needs work outside this record, say so and ask first.`;
   }
   return `OPEN AUTHORITIES DRAFT: the user is working inside this draft and every request is about it.
