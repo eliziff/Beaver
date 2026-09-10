@@ -37,7 +37,6 @@ import { projectBreadcrumbLabel, ProjectPageHeader, type ProjectWorkspaceSection
 type Context = {
   projectId: string;
   project: Project | null | undefined;
-  setProject: React.Dispatch<React.SetStateAction<Project | null | undefined>>;
   refreshProject: () => Promise<void>;
   activeSection: ProjectWorkspaceSection;
   search: string;
@@ -165,7 +164,6 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
   const value: Context = {
     projectId,
     project,
-    setProject,
     refreshProject,
     activeSection,
     search: searches[activeSection],

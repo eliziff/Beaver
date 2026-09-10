@@ -65,9 +65,8 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
         const action = workflowAction?.(workflow);
         if (direct) {
             const [destination, DestinationIcon] = workflowDestination(workflow, directVariant);
-            const result = directVariant?.result?.trim();
             const launch = directVariant ? launchLabel(directVariant) : "Open";
-            const description = result || workflow.metadata.description;
+            const description = directVariant?.result?.trim() || workflow.metadata.description;
             return <div key={workflow.id}
                 className={`flex min-w-0 items-center @max-[25rem]:flex-col @max-[25rem]:items-stretch @max-[25rem]:pb-2 ${APP_SURFACE_HOVER_CLASS}`}>
                     <div className="flex min-h-14 min-w-0 flex-1 items-start gap-2.5 px-3 py-2 text-left">
@@ -212,9 +211,8 @@ function VariantChoices({ workflow, variants, disabledItem, onSelect, onInfo }: 
                         onClick={() => onInfo(label, launchers)} />
                     {launchers.map((variant) => {
                     const [destination, DestinationIcon] = workflowDestination(workflow, variant);
-                    const action = launchLabel(variant);
                     return <ActionButton key={variant.id} Icon={DestinationIcon}
-                        text={destination} ariaLabel={`${action}: ${label}`}
+                        text={destination} ariaLabel={`${launchLabel(variant)}: ${label}`}
                         variantId={variant.id} disabled={disabledItem?.(workflow, variant)}
                         onClick={() => onSelect(workflow, variant)} />;
                 })}</ActionCluster>
@@ -254,12 +252,11 @@ function WorkflowInfoModal({ info, onClose, onSelect, disabledItem }: {
         })}>
         <div className="space-y-5 pb-5 text-sm leading-6 text-gray-600">
             <p>{detailed[0]?.description || workflow.metadata.description || detailed[0]?.result}</p>
-            {detailed.filter((variant) => variant.columns_config?.length).map((variant) => {
-                return <section key={variant.id} className="space-y-4">
-                {!!variant.columns_config?.length && <div>
+            {detailed.filter((variant) => variant.columns_config?.length).map((variant) =>
+                <div key={variant.id}>
                     <h3 className="text-xs font-semibold text-gray-500">Table fields</h3>
                     <div className="mt-2 divide-y divide-gray-200 rounded-lg border border-gray-200">
-                        {[...variant.columns_config].sort((a, b) => a.index - b.index).map((column) =>
+                        {[...(variant.columns_config ?? [])].sort((a, b) => a.index - b.index).map((column) =>
                             <div key={column.index} className="px-3 py-2.5">
                                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                                     <h4 className="font-medium text-gray-900">{column.name}</h4>
@@ -272,8 +269,7 @@ function WorkflowInfoModal({ info, onClose, onSelect, disabledItem }: {
                                 </p>}
                             </div>)}
                     </div>
-                </div>}
-            </section>;})}
+                </div>)}
             {!!metadata.length && <dl
                 className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-gray-200 pt-4 text-xs">
                 {metadata.map(([label, value]) => <div key={label} className="flex min-w-0 items-center gap-1.5" title={label}>

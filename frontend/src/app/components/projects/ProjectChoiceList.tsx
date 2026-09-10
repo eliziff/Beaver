@@ -12,14 +12,12 @@ interface Props {
     value: string | null;
     onChange: (projectId: string) => void;
     disabled?: boolean;
-    loading?: boolean;
 }
 export function ProjectChoiceList({
     projects,
     value,
     onChange,
     disabled = false,
-    loading = false,
 }: Props) {
     const [search, setSearch] = useState("");
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -53,7 +51,7 @@ export function ProjectChoiceList({
             ? [selectedProject, ...filtered]
             : filtered;
     }, [page.items, projects, search, selectedProject]);
-    const isLoading = loading || (projects === undefined && page.loading);
+    const isLoading = projects === undefined && page.loading;
     return (
         <div className="overflow-hidden rounded-md border border-gray-300 bg-white">
             <SearchBar

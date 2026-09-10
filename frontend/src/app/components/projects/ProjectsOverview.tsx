@@ -87,16 +87,11 @@ export function ProjectsOverview() {
     const initialLoading = loading && rows.length === 0;
     useEffect(() => setSelectedIds([]), [activeFilter, deferredSearch]);
     const loadError = page.error ? "Could not load projects." : null;
-    function updateProjects(update: (rows: Project[]) => Project[]) {
-        page.setItems(update);
-    }
-    const q = deferredSearch.toLowerCase();
-    const filtered = rows;
     const detailsProject =
         detailsProjectId
             ? rows.find((project) => project.id === detailsProjectId) ?? null
             : null;
-    const selection = useTableSelection(filtered, selectedIds, setSelectedIds);
+    const selection = useTableSelection(rows, selectedIds, setSelectedIds);
     async function handleProjectDetailsSave(values: {
         name: string;
         cmNumber: string;
@@ -108,7 +103,7 @@ export function ProjectsOverview() {
             cm_number: values.cmNumber,
             practice: values.practice || null,
         });
-        updateProjects((previous) =>
+        page.setItems((previous) =>
             previous.map((project) =>
                 project.id === updated.id ? updated : project,
             ),
@@ -135,7 +130,7 @@ export function ProjectsOverview() {
         const deletedIds = new Set(owned.filter((_, index) => results[index].status === "fulfilled"));
         const failedIds = owned.filter((_, index) => results[index].status === "rejected");
         setSelectedIds(failedIds);
-        updateProjects((previous) =>
+        page.setItems((previous) =>
             previous.filter((project) => !deletedIds.has(project.id)),
         );
         const failed = rows.filter((project) => failedIds.includes(project.id))
@@ -210,7 +205,7 @@ export function ProjectsOverview() {
             >
                 {initialLoading ? (
                     <TableLoadingState />
-                ) : loadError || filtered.length === 0 ? (
+                ) : loadError || rows.length === 0 ? (
                     <TableEmptyState>
                         <FolderSvgIcon
                             className="mb-3 h-8 w-8 text-gray-700"
@@ -221,7 +216,7 @@ export function ProjectsOverview() {
                             }`}
                         >
                             {loadError ??
-                                (q
+                                (deferredSearch
                                     ? "No projects match your search."
                                     : activeFilter === "shared-with-me"
                                       ? "No shared projects"
@@ -230,7 +225,7 @@ export function ProjectsOverview() {
                     </TableEmptyState>
                 ) : (
                     <TableBody>
-                        {filtered.map((project) => (
+                        {rows.map((project) => (
                             <TableRow
                                 key={project.id}
                                 selected={selection.selected.has(project.id)}
@@ -289,7 +284,7 @@ export function ProjectsOverview() {
                 open={modalOpen}
                 onClose={() => setModalOpen(false)}
                 onCreated={(p) => {
-                    updateProjects((previous) => [p, ...previous]);
+                    page.setItems((previous) => [p, ...previous]);
                     navigate(`/projects/${p.id}`);
                 }}
             />
