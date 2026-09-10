@@ -31,6 +31,8 @@ const DOCK_CONTROL = "h-8 shrink-0 rounded-md border border-gray-300 bg-white px
 const NEW_LABEL = "flex h-7 items-center gap-1 self-start rounded-md px-1.5 text-xs text-gray-600 hover:bg-gray-100";
 /** The highlight palette the labels tree hands out, so a type made here looks like one made there. */
 const COLOURS = ["#d6b85a", "#8aa8c7", "#90ac99", "#bda0b5", "#b4ab91", "#9fa7bf"];
+const labelPath = (labels: Record<string, ResearchLabel>, id: string) =>
+  researchLabelPath(labels, id).map(({ name }) => name).join(" / ");
 
 /** Plain text stays a phrase; these markers make it a Boolean expression the backend evaluates. */
 const OPERATORS = /["()&|]|(?:^|\s)-\S|(?:^|\s)(?:AND|OR|NOT|ET|OU|NON)(?:\s|$)/iu;
@@ -67,10 +69,11 @@ function LabelChoice({ title, anchor, labels, scopes, selectedId, onChoose, onCr
   onClose: () => void; noneLabel?: string }) {
   const popover = useAnchoredPopover({ anchor, below: true, stationary: true, onDismiss: onClose });
   const [naming, setNaming] = useState<ResearchLabel["scope"] | null>(null);
-  const walk = (id: string | null) => { onChoose(id);
+  const [walked, setWalked] = useState<string | null>(null);
+  const walk = (id: string | null) => { onChoose(id); setWalked(id);
     if (!id || !Object.values(labels).some((label) => label.parentId === id)) onClose(); };
-  /** A new label lands where the user is standing: under the label they walked to, or at the top. */
-  const parentOf = (scope: ResearchLabel["scope"]) => labels[selectedId ?? ""]?.scope === scope ? selectedId : null;
+  /** A new label lands where the user walked to, not under whatever was already chosen for them. */
+  const parentOf = (scope: ResearchLabel["scope"]) => labels[walked ?? ""]?.scope === scope ? walked : null;
   return createPortal(<div ref={popover} role="dialog" aria-label={title} popover="manual"
     className="fixed inset-auto z-[220] m-0 grid max-h-[min(26rem,calc(100dvh-1rem))] w-[min(20rem,calc(100vw-1rem))] content-start gap-1.5 overflow-y-auto overscroll-contain rounded-lg border border-gray-300 bg-white p-2 shadow-lg">
     <p className="text-xs font-medium text-gray-700">{title}</p>
@@ -113,7 +116,7 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
   const scopeLabel = scopeId && labels[scopeId] ? labels[scopeId] : null;
   const pen = (labels[highlight.pen ?? ""]?.scope === "highlight" ? labels[highlight.pen!] : undefined)
     ?? Object.values(labels).filter((label) => label.scope === "highlight").sort((a, b) => a.order - b.order)[0];
-  const penName = pen ? researchLabelPath(labels, pen.id).map(({ name }) => name).join(" / ") : "Highlight";
+  const penName = pen ? labelPath(labels, pen.id) : "Highlight";
   const queryPages = usePagedChains<ResearchPageItem>((_key, cursor, signal) => getResearchItems(file!.document.id,
     { kind: "queries", cursor, limit: PAGE_SIZE }, signal), [file?.document.id],
     "queries", !!file && historyOpen && active, { queries: file?.state.queries?.sha256 ?? "" });
@@ -178,16 +181,17 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
       if (!target) { target = crypto.randomUUID();
         await commit.act({ type: "label", id: target, name: "Highlight", parentId: null, scope: "highlight", color: "#d6b85a" }); }
       if (target !== pen?.id) highlight.setPen(target);
-      await commit.act({ type: "label-selection", target: "passages", sourceIds, evidenceIds, assign: [target], mode: "replace" });
-      setStatus(`Saved ${evidenceIds.length} under ${labels[target] ? researchLabelPath(labels, target).map(({ name }) => name).join(" / ") : penName}`);
+      // A type made a moment ago is not in this render's labels yet: name it from what the write returned.
+      const next = await commit.act({ type: "label-selection", target: "passages", sourceIds, evidenceIds, assign: [target], mode: "replace" });
+      setStatus(`Saved ${evidenceIds.length} under ${labelPath(next.state.labels, target) || penName}`);
     } catch (reason) { setStatus(errorMessage(reason, "Could not save these matches")); }
   }
   async function fileSource(sourceId: string, labelId: string | null) {
     const source = file?.state.sources[sourceId]; if (!source || !labelId) return;
     setStatus("");
     try {
-      await commit.act({ type: "annotate", kind: "source", id: sourceId, labelIds: [labelId] });
-      setStatus(`Filed ${sourceName(source)} under ${researchLabelPath(labels, labelId).map(({ name }) => name).join(" / ")}`);
+      const next = await commit.act({ type: "annotate", kind: "source", id: sourceId, labelIds: [labelId] });
+      setStatus(`Filed ${sourceName(source)} under ${labelPath(next.state.labels, labelId)}`);
     } catch (reason) { setStatus(errorMessage(reason, "Could not file this source")); }
   }
   /** A label the user wants but has not made yet is created here, then used at once. */
@@ -250,8 +254,9 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
     </details>
     {!!result && <section aria-label="Matches" className="grid min-w-0 gap-2 border-t border-gray-200 pt-2">
       {!!result.matches.size && <div className="flex min-w-0 items-center gap-2">
-        <span className="min-w-0 flex-1 truncate text-xs text-gray-600">{result.matches.size} match{result.matches.size === 1 ? "" : "es"}</span>
-        <Button size="compact" variant="outline"
+        <span className="shrink-0 text-xs text-gray-600">{result.matches.size} match{result.matches.size === 1 ? "" : "es"}</span>
+        <Button size="compact" variant="outline" title={`Highlight all as ${penName}`}
+          className="ms-auto min-w-0 shrink truncate"
           onClick={() => void markPassages(result.sourceIds, [...result.matches])}>Highlight all as {penName}</Button>
       </div>}
       {found.map((sourceId) => <div key={sourceId} className="min-w-0">
