@@ -49,6 +49,7 @@ import { useDocumentController } from "./useDocumentController";
 export type DocTableFolder = ProjectFolder | LibraryFolder;
 const DOCUMENT_ROW_CLASS =
     "group flex h-11 min-h-11 w-full min-w-0 items-center border-b border-gray-100 pr-2 [content-visibility:auto] [contain-intrinsic-size:auto_44px]";
+const NAME_CELL_CLASS = `${DOC_NAME_COL_W} @container/document-name py-2 pl-4 pr-2`;
 const DOCUMENT_METADATA_COLUMNS = [
     { label: "Type", row: "document-metadata ml-auto hidden w-20 shrink-0 sm:block",
         header: "document-metadata ml-auto hidden w-20 items-center gap-1 sm:flex" },
@@ -604,8 +605,7 @@ export function DocTable({
     }) {
         return (
             <div key={key} className={DOCUMENT_ROW_CLASS}>
-                <div className={`${DOC_NAME_COL_W} @container/document-name py-2 pl-4 pr-2`}
-                    style={treeNameCellStyle(depth)}>
+                <div className={NAME_CELL_CLASS} style={treeNameCellStyle(depth)}>
                     <div className="flex items-center">
                         <Loader2 className="mr-4 h-2.5 w-2.5 animate-spin text-gray-400 shrink-0" />
                         <span className="mr-2 shrink-0">
@@ -704,8 +704,7 @@ export function DocTable({
                     if (row.kind === "more") return (
                         <div key={`more-${row.parentId ?? "root"}`}
                             className={DOCUMENT_ROW_CLASS}>
-                            <div className={`${DOC_NAME_COL_W} @container/document-name py-2 pl-4 pr-2`}
-                                style={treeNameCellStyle(row.depth)}>
+                            <div className={NAME_CELL_CLASS} style={treeNameCellStyle(row.depth)}>
                                 <Button variant="outline" size="compact"
                                     disabled={loadingParents.has(row.parentId)}
                                     onClick={() => onLoadMore?.(row.parentId)}
@@ -720,8 +719,7 @@ export function DocTable({
                             key={`new-folder-${row.parentId ?? "root"}`}
                             data-tree-drop-folder={row.parentId ?? ""}
                             className={DOCUMENT_ROW_CLASS}>
-                            <div className={`${DOC_NAME_COL_W} @container/document-name py-2 pl-4 pr-2`}
-                                style={treeNameCellStyle(row.depth)}>
+                            <div className={NAME_CELL_CLASS} style={treeNameCellStyle(row.depth)}>
                                 <div className="flex items-center">
                                     <span className="mr-4 flex h-2.5 w-2.5 shrink-0 items-center justify-center">
                                         <ChevronRight className="h-3.5 w-3.5 text-gray-300" />
@@ -755,8 +753,7 @@ export function DocTable({
                                 draggable={!isRenaming}
                                 onDragStart={(event) => handleFolderDragStart(event, folder.id)}
                                 className={`${DOCUMENT_ROW_CLASS} ${isRenaming ? "" : "select-none"} ${isDragOver ? "bg-red-50 ring-1 ring-inset ring-red-200" : `bg-app-surface ${APP_SURFACE_HOVER_CLASS}`}`}>
-                                <div className={`${DOC_NAME_COL_W} @container/document-name py-2 pl-4 pr-2`}
-                                    style={treeNameCellStyle(row.depth)}>
+                                <div className={NAME_CELL_CLASS} style={treeNameCellStyle(row.depth)}>
                                     {isRenaming ? <div className="flex items-center">
                                         {folderPrefix}<InlineNameInput kind="folder"
                                                 value={folder.name}
@@ -824,8 +821,7 @@ export function DocTable({
                             role={selectionFirst ? "row" : undefined}
                             aria-selected={selectionFirst ? isSelected : undefined}
                             className={`${DOCUMENT_ROW_CLASS} cursor-pointer ${selectionFirst ? "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600" : ""} ${isVersionDragOver ? "bg-red-50 ring-1 ring-inset ring-red-200" : isSelected ? APP_SURFACE_ACTIVE_CLASS : `bg-app-surface ${APP_SURFACE_HOVER_CLASS}`}`}>
-                            <div className={`${DOC_NAME_COL_W} @container/document-name py-2 pl-4 pr-2`}
-                                style={treeNameCellStyle(row.depth)}>
+                            <div className={NAME_CELL_CLASS} style={treeNameCellStyle(row.depth)}>
                                 <div className="flex items-center">
                                     {isProcessing || isUploadingVersion ? (
                                         <span className="-ml-2 mr-1 inline-flex h-9 w-9 shrink-0 items-center justify-center">
