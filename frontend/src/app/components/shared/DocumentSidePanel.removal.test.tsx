@@ -15,17 +15,14 @@ vi.mock("@/app/lib/api/researchFiles", async (original) => ({
 vi.mock("@/app/components/shared/views/DocumentViewer", () => ({
   DocumentViewer: ({
     versionId,
-    preferPdfRendition,
     refetchKey,
   }: {
     versionId?: string | null;
-    preferPdfRendition?: boolean;
     refetchKey?: string | number;
   }) => (
     <div
       data-testid="word-preview"
       data-version-id={versionId ?? ""}
-      data-prefer-pdf={String(!!preferPdfRendition)}
       data-revision={refetchKey ?? ""}
     >
       Word preview
@@ -241,7 +238,6 @@ describe("DocumentSidePanel document removal", () => {
 
     const preview = await screen.findByTestId("word-preview");
     expect(preview).toHaveAttribute("data-version-id", "version-3");
-    expect(preview).toHaveAttribute("data-prefer-pdf", "true");
     expect(preview).toHaveAttribute(
       "data-revision",
       "version-3:4",

@@ -18,7 +18,6 @@ import type { CitationQuote } from "@/app/lib/citations";
 interface Props {
     documentId: string;
     versionId?: string | null;
-    preferPdfRendition?: boolean;
     onReady?: () => void;
     highlightEdit?: {
         key: string;

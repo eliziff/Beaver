@@ -197,7 +197,6 @@ export function DocumentSidePanel({
     const filename = selected?.filename.trim() || activeDoc.filename;
     const displayFilename = activeDoc.filename.replace(/\.research\.md$/iu, "");
     const type = fileType(selected, activeDoc.file_type), viewerKind = documentViewKind(filename, type);
-    const isDocx = viewerKind === "docx";
     const revision = selectedId && selectedId === currentId
         ? `${selectedId}:${selected?.working_revision ?? activeDoc.current_working_revision ?? 0}`
         : selected ? `${selected.id}:${selected.working_revision}` : activeDoc.updated_at;
@@ -301,7 +300,7 @@ export function DocumentSidePanel({
                         documentId={activeDoc.id} kind={viewerKind}
                         {...(savedQuotes.length && (viewerKind === "docx" || viewerKind === "pdf") ? { quotes: savedQuotes } : {})}
                         filename={filename} highlightCells={highlightCells}
-                        versionId={selectedId} preferPdfRendition={isDocx}
+                        versionId={selectedId}
                         refetchKey={revision ?? undefined} revision={revision}
                     /> : <p className="m-auto text-sm text-gray-500">Preview is not available for this file type.</p>}
                 </section>

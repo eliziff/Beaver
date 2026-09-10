@@ -3,13 +3,10 @@ import { APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
 interface Props {
     label?: string;
     onDelete?: () => void;
-    onHide?: () => void;
-    onUnhide?: () => void;
     onDownload?: () => void;
     onMove?: () => void;
     onUploadNewVersion?: () => void;
     onNewSubfolder?: () => void;
-    deleting?: boolean;
     deleteDisabled?: boolean;
     onEditDetails?: () => void;
     onRename?: () => void;
@@ -22,13 +19,10 @@ interface Props {
 export function RowActions({
     label = "More actions",
     onDelete,
-    onHide,
-    onUnhide,
     onDownload,
     onMove,
     onUploadNewVersion,
     onNewSubfolder,
-    deleting,
     deleteDisabled,
     onEditDetails,
     onRename,
@@ -52,9 +46,7 @@ export function RowActions({
     add("Download", onDownload);
     add("Upload new version", onUploadNewVersion);
     add("Move…", onMove);
-    add("Activate", onUnhide);
-    add("Deactivate", onHide);
-    add(deleteLabel, onDelete, deleting || deleteDisabled);
+    add(deleteLabel, onDelete, deleteDisabled);
     return (
         <MoreActionsMenu
             label={label}
