@@ -28,7 +28,6 @@ export function AddUserInput({
     const [error, setError] = useState<string | null>(null);
     const errorId = useId();
     const trimmedEmail = input.trim().toLowerCase();
-    const showAddButton = trimmedEmail.length > 0;
     async function commitUser() {
         const email = trimmedEmail;
         if (!email || busy || checking) return;
@@ -91,7 +90,7 @@ export function AddUserInput({
                     className="min-w-0 flex-1 self-stretch bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
                     autoFocus={autoFocus}
                 />
-                {showAddButton && (
+                {!!trimmedEmail && (
                     <Button
                         size="compact"
                         type="button"
