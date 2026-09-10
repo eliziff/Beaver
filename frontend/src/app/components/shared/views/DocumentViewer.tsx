@@ -29,25 +29,14 @@ export function DocumentViewer({
     versionId,
     ...options
 }: DocumentViewerProps) {
+    const shared = { documentId, versionId, ...options };
     const renderer =
         kind === "docx" ? (
-            <DocxView
-                documentId={documentId}
-                versionId={versionId}
-                {...options}
-            />
+            <DocxView {...shared} />
         ) : kind === "text" ? (
-            <TextView
-                documentId={documentId}
-                versionId={versionId}
-                {...options}
-            />
+            <TextView {...shared} />
         ) : kind === "spreadsheet" ? (
-            <SpreadsheetRenderer
-                documentId={documentId}
-                versionId={versionId}
-                {...options}
-            />
+            <SpreadsheetRenderer {...shared} />
         ) : (
             <PdfView
                 doc={{ document_id: documentId, version_id: versionId }}

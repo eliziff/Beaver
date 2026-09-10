@@ -15,17 +15,17 @@ import {
     type DocxNoteModel,
 } from "./docxNotes";
 import type { CitationQuote } from "@/app/lib/citations";
+type DocxEdit = {
+    inserted_text?: string;
+    deleted_text?: string;
+    ins_w_id?: string | null;
+    del_w_id?: string | null;
+};
 interface Props {
     documentId: string;
     versionId?: string | null;
     onReady?: () => void;
-    highlightEdit?: {
-        key: string;
-        inserted_text?: string;
-        deleted_text?: string;
-        ins_w_id?: string | null;
-        del_w_id?: string | null;
-    } | null;
+    highlightEdit?: (DocxEdit & { key: string }) | null;
     refetchKey?: string | number;
     quotes?: CitationQuote[];
     quoteFocusKey?: string | number;
@@ -114,12 +114,7 @@ function findEditElement(
 function scrollToHighlight(
     container: HTMLElement,
     scrollEl: HTMLElement,
-    edit: {
-        inserted_text?: string;
-        deleted_text?: string;
-        ins_w_id?: string | null;
-        del_w_id?: string | null;
-    },
+    edit: DocxEdit,
 ) {
     const insEl = findEditElement(container, "ins", {
         w_id: edit.ins_w_id,
@@ -198,9 +193,8 @@ export function DocxView({
         return true;
     };
     const applyDocxScale = () => {
-        const containerEl = containerRef.current;
         const scrollEl = scrollRef.current;
-        if (!containerEl || !scrollEl) return;
+        if (!scrollEl) return;
         fitDocxPages(pageElementsRef.current, scrollEl);
     };
     useEffect(() => {
