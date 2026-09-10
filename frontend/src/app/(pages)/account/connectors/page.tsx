@@ -23,6 +23,7 @@ import { accountGlassPrimaryButtonClassName } from "../accountStyles";
 import { AccountSection } from "../AccountSection";
 import { Switch } from "@/app/components/ui/switch";
 import { errorMessage } from "@/app/lib/utils";
+const SPINNER = <Loader2 className="size-4 animate-spin" />;
 type DetailState = {
     id: string;
     draft: McpConnectorDraft;
@@ -436,9 +437,7 @@ export default function ConnectorsPage() {
                                       : authorizing
                                         ? "Authorizing..."
                                         : "Connect",
-                              icon: addBusy ? (
-                                      <Loader2 className="size-4 animate-spin" />
-                                  ) : undefined,
+                              icon: addBusy ? SPINNER : undefined,
                               onClick: () => void handleCreate(),
                               disabled:
                                   !addDraft.name.trim() ||
@@ -511,9 +510,7 @@ export default function ConnectorsPage() {
                 }
                 primaryAction={{
                     label: isSaving ? "Saving..." : "Save",
-                    icon: isSaving ? (
-                        <Loader2 className="size-4 animate-spin" />
-                    ) : undefined,
+                    icon: isSaving ? SPINNER : undefined,
                     onClick: () => void handleSaveSelectedConnector(),
                     disabled:
                         !hasChanges ||
@@ -564,11 +561,7 @@ export default function ConnectorsPage() {
                                 disabled={selectedBusy("refresh")}
                                 className="mb-2 self-end text-gray-500 hover:text-gray-900 disabled:text-gray-300"
                             >
-                                {selectedBusy("refresh") ? (
-                                    <Loader2 className="size-4 animate-spin" />
-                                ) : (
-                                    <RefreshCw className="size-4" />
-                                )}
+                                {selectedBusy("refresh") ? SPINNER : <RefreshCw className="size-4" />}
                             </button>
                             {detail.loading ? (
                                 <div className="min-h-24 flex-1 rounded-lg border border-gray-100 bg-gray-50" />
