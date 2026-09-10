@@ -45,10 +45,7 @@ function requiresUnlinkedTablePdf(state: AuthoritiesProduct["state"], item: Auth
   return !!authoritiesProfile(state.settings.profileId).requirements?.unlinkedPdfTableSources &&
     state.import.kind === "document" && state.import.fileType === "pdf" && !sourceUrl;
 }
-export function sourceAction(issue: AuthoritiesSourceIssue, label: string) {
-  return issue.status === "changed" ? `Use updated ${label}` : "Allow file access";
-}
+/** A changed file is relinked automatically; only a permission problem needs the reader. */
 export function relinkable(issue?: AuthoritiesSourceIssue | null): issue is AuthoritiesSourceIssue {
-  return issue?.status === "changed" ||
-    (issue?.status === "missing" && issue.reason === "permission");
+  return issue?.status === "missing" && issue.reason === "permission";
 }
