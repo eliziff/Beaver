@@ -111,7 +111,8 @@ sourceSha256: string) {
 const sameValue = (values: unknown[]) => values.length > 0 &&
   values.every((value) => JSON.stringify(value) === JSON.stringify(values[0]));
 const parsedKind = ({ kind }: NativeCitationOccurrence): AuthorityKind => kind === "statute"
-  ? "legislation" : kind === "journal" ? "commentary" : kind;
+  ? "legislation" : kind === "journal" || kind === "book" ? "commentary"
+  : kind === "parliamentary" ? "other" : kind;
 const lookupKey = (sources: CitationServices, text: string) => {
   try { return sources.key(text).trim(); } catch { return ""; }
 };
@@ -151,24 +152,32 @@ function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units
     authorityId, reference,
     pinpoints: match?.pinpoints.map(({ kind, text }) => ({ kind, text })) ?? [],
     evidenceIds: [...new Set(donors.flatMap(({ evidenceIds }) => evidenceIds))].sort(),
-    sourceTextSha256: donors[0].sourceTextSha256, localOrdinal: start, reviewed: true,
+    // A unit's own text hash, except where donors carry the hash the import recorded.
+    sourceTextSha256: donors[0]?.sourceTextSha256 ?? unit.occurrenceIds
+      .map((id) => draft.occurrences[id]?.sourceTextSha256).find(Boolean) ?? sha256(unit.text),
+    localOrdinal: start, reviewed: true,
   };
   const discovered = match && key && !authority ? parsedAuthority(match, key) : null;
   if (discovered) occurrence.authorityId = discovered.id;
   return { occurrence, discovered };
 }
 
-function selectedRange(draft: AuthoritiesDraft, occurrenceId: string, start: number, end: number) {
-  const occurrence = draft.occurrences[occurrenceId];
-  const unit = occurrence && draft.units.find(({ id }) => id === occurrence.unitId);
-  if (!occurrence || !unit || !Number.isSafeInteger(start) || !Number.isSafeInteger(end) ||
+function trimmedRange(unit: AuthoritiesDraft["units"][number], start: number, end: number) {
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) ||
       start < 0 || end <= start || end > unit.text.length) {
     throw new ApplicationError(400, "Select text inside this citation unit");
   }
   while (start < end && /\s/u.test(unit.text[start])) start += 1;
   while (end > start && /\s/u.test(unit.text[end - 1])) end -= 1;
   if (start === end) throw new ApplicationError(400, "Select citation text");
-  return { occurrence, unit, start, end, text: unit.text.slice(start, end) };
+  return { start, end, text: unit.text.slice(start, end) };
+}
+
+function selectedRange(draft: AuthoritiesDraft, occurrenceId: string, start: number, end: number) {
+  const occurrence = draft.occurrences[occurrenceId];
+  const unit = occurrence && draft.units.find(({ id }) => id === occurrence.unitId);
+  if (!occurrence || !unit) throw new ApplicationError(400, "Select text inside this citation unit");
+  return { occurrence, unit, ...trimmedRange(unit, start, end) };
 }
 
 const intersects = (start: number, end: number, span: { start: number; end: number }) =>
@@ -301,19 +310,44 @@ function correctOccurrenceSpan(draft: AuthoritiesDraft,
   return removeUnusedDetections(changed, donors, occurrence.authorityId);
 }
 
+/** The counterpart of set-pinpoint-span: a pinpoint that belongs to another citation. */
+function clearPinpoint(draft: AuthoritiesDraft, occurrenceId: string) {
+  const current = draft.occurrences[occurrenceId];
+  const unit = current && draft.units.find(({ id }) => id === current.unitId);
+  if (!current || !unit) throw new ApplicationError(400, "Citation review item not found");
+  if (!current.pinpointSpan) throw new ApplicationError(400, "This citation has no pinpoint");
+  const { start, end } = current.authoritySpan;
+  const occurrence = { ...structuredClone(current), pinpointSpan: null, pinpoints: [],
+    start, end, text: unit.text.slice(start, end), reviewed: true };
+  return updateAuthoritiesDraft(draft, { type: "replace-occurrence", occurrenceId,
+    replacement: occurrence });
+}
+
+/** "Use selection as citation" for a citation no detector found: a unit's free text. */
+function addOccurrence(draft: AuthoritiesDraft,
+  action: Extract<AuthoritiesUserAction, { type: "add-occurrence" }>, sources: CitationServices) {
+  const unit = draft.units.find(({ id }) => id === action.unitId);
+  if (!unit) throw new ApplicationError(400, "Select text inside this citation unit");
+  const range = trimmedRange(unit, action.start, action.end);
+  const { occurrence, discovered } = manualOccurrence(draft, unit, range.start, range.end,
+    [], sources);
+  const changed = discovered && !draft.authorities[discovered.id]
+    ? updateAuthoritiesDraft(draft, { type: "add-authority", authority: discovered }) : draft;
+  return updateAuthoritiesDraft(changed, { type: "add-occurrence", occurrence });
+}
+
 function editOccurrences(draft: AuthoritiesDraft,
   action: Extract<AuthoritiesUserAction,
     { type: "split-occurrence" | "merge-occurrence" }>, sources: CitationServices) {
   const occurrence = draft.occurrences[action.occurrenceId];
+  // Body sentences hold several citations as often as footnotes do: same rules, either unit.
   const unit = occurrence && draft.units.find(({ id }) => id === occurrence.unitId);
-  if (!occurrence || !unit || unit.kind !== "footnote") {
-    throw new ApplicationError(400, "Only a footnote citation can be split or merged");
-  }
+  if (!occurrence || !unit) throw new ApplicationError(400, "Citation review item not found");
   let replacements: ReturnType<typeof manualOccurrence>[], ids: [string, string];
   if (action.type === "split-occurrence") {
     if (!Number.isSafeInteger(action.cursor) || action.cursor <= occurrence.start ||
         action.cursor >= occurrence.end) throw new ApplicationError(400,
-      "Place the cursor inside this footnote citation");
+      "Place the cursor inside this citation");
     replacements = [manualOccurrence(draft, unit, occurrence.start, action.cursor,
       [occurrence], sources), manualOccurrence(draft, unit, action.cursor, occurrence.end,
       [occurrence], sources)];
@@ -322,7 +356,7 @@ function editOccurrences(draft: AuthoritiesDraft,
     const position = unit.occurrenceIds.indexOf(occurrence.id);
     const previous = position > 0 ? draft.occurrences[unit.occurrenceIds[position - 1]] : null;
     if (!previous) throw new ApplicationError(400,
-      "This is the first citation in the footnote");
+      "This is the first citation in the unit");
     replacements = [manualOccurrence(draft, unit, previous.start, occurrence.end,
       [previous, occurrence], sources)];
     ids = [previous.id, occurrence.id];
@@ -366,6 +400,8 @@ export function applyAuthoritiesUserAction(
   if (action.type === "set-authority-span" || action.type === "set-pinpoint-span") {
     return correctOccurrenceSpan(draft, action, sources);
   }
+  if (action.type === "clear-pinpoint") return clearPinpoint(draft, action.occurrenceId);
+  if (action.type === "add-occurrence") return addOccurrence(draft, action, sources);
   if (action.type === "remove-occurrence") {
     const occurrence = draft.occurrences[action.occurrenceId];
     if (!occurrence) throw new ApplicationError(400, "Citation review item not found");
