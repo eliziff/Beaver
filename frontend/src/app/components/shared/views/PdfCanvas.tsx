@@ -157,8 +157,10 @@ export function PdfCanvas({
                 Object.assign(wrapper.style, {
                     position: "relative", margin: "0 auto 8px", background: "white",
                     width: `${viewport.width}px`, height: `${viewport.height}px`,
-                    // Do not display/draw annotations against estimated geometry.
-                    visibility: known ? "visible" : "hidden",
+                    // Do not display/draw annotations against estimated geometry. A resolved page
+                    // inherits its visibility: it must never re-show itself inside a panel — a dock
+                    // tab the reader is not on — that hid the whole reader.
+                    visibility: known ? "" : "hidden",
                 });
                 wrapper.dataset.pageNumber = String(index + 1);
                 wrapper.dataset.geometryReady = String(!!known);
@@ -199,7 +201,7 @@ export function PdfCanvas({
                         const viewport = known.getViewport({ scale });
                         entry.height = viewport.height;
                         Object.assign(entry.wrapper.style, { width: `${viewport.width}px`,
-                            height: `${viewport.height}px`, visibility: "visible" });
+                            height: `${viewport.height}px`, visibility: "" });
                         entry.wrapper.dataset.geometryReady = "true";
                     }
                     entry.top = top;
@@ -318,7 +320,7 @@ export function PdfCanvas({
                                 loadingPages.delete(index);
                                 if (generation !== generationRef.current) return;
                                 failed.add(index);
-                                pages[index].wrapper.style.visibility = "visible";
+                                pages[index].wrapper.style.visibility = "";
                                 const message = document.createElement("p");
                                 message.setAttribute("role", "alert");
                                 message.textContent = `Unable to render page ${index + 1}.`;
