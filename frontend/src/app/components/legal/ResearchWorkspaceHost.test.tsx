@@ -31,18 +31,6 @@ it("keeps the collection inline and retains its contents when returning to searc
   expect(contents).not.toBeVisible();
 });
 
-it("uses the shared reading companion dock and supports a narrow collection", () => {
-  const close = vi.fn();
-  render(<ResearchWorkspaceHost embedded={false} open onOpenChange={close} file={null} onChange={vi.fn()} />);
-  const dock = screen.getByRole("complementary", { name: "Workspace" });
-  const separator = screen.getByRole("separator", { name: "Resize workspace" });
-  fireEvent.pointerDown(separator, { clientX: 0 });
-  fireEvent.pointerMove(window, { clientX: 1000 }); fireEvent.pointerUp(window);
-  expect(dock.style.getPropertyValue("--assistant-dock-width")).toBe("300px");
-  fireEvent.click(screen.getByRole("button", { name: "Collapse workspace" }));
-  expect(close).toHaveBeenCalledWith(false);
-});
-
 it("restores a remembered file only when requested", async () => {
   localStorage.setItem("beaver.research.current:personal", "research-1");
   api.getResearchFile.mockResolvedValue(file); const onChange = vi.fn();

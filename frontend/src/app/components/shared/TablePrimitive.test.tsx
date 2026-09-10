@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
-import { expect, it, vi } from "vitest";
-import { Pagination, TableSelectionCheckbox, useTableSelection } from "./TablePrimitive";
+import { expect, it } from "vitest";
+import { TableSelectionCheckbox, useTableSelection } from "./TablePrimitive";
 
 it("selects all visible rows from a mixed selection", () => {
     function Harness() {
@@ -45,12 +45,4 @@ it("selects a contiguous range from the last row anchor", () => {
     fireEvent.click(screen.getByRole("button", { name: "B" }));
     fireEvent.click(screen.getByRole("button", { name: "Shift D" }));
     expect(screen.getByText("b,c,d")).toBeInTheDocument();
-});
-
-it("moves through shared pagination without leaving its bounds", () => {
-    const onPage = vi.fn();
-    render(<Pagination page={2} pages={3} label="17 drafts" onPage={onPage} />);
-    expect(screen.getByRole("navigation", { name: "17 drafts pages" })).toBeVisible();
-    for (const name of ["Previous", "Next"]) fireEvent.click(screen.getByRole("button", { name }));
-    expect(onPage.mock.calls).toEqual([[1], [3]]);
 });

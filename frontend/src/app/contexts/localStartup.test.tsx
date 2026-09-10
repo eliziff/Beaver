@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -74,17 +74,16 @@ vi.mock("@/app/hooks/useDocumentFile", () => ({
     clearDocumentFileCache: mocks.clearDocumentFileCache,
 }));
 
-async function configure(mode: "local" | "cloud") {
+async function startup(mode: "local" | "cloud") {
     const { initializeRuntimeConfig } = await import("@/app/lib/runtimeConfig");
-    const config =
-        mode === "local"
-            ? { mode, capabilities: { connectors: false } }
-            : { mode, capabilities: { connectors: true } };
-    await initializeRuntimeConfig(async () =>
-        new Response(JSON.stringify(config), {
-            headers: { "Content-Type": "application/json" },
-        }),
-    );
+    await initializeRuntimeConfig(async () => Response.json({
+        mode, capabilities: { connectors: mode === "cloud" },
+    }));
+    const { AuthProvider, useAuth } = await import("./AuthContext");
+    const { UserProfileProvider, useUserProfile } = await import("./UserProfileContext");
+    return renderHook(() => ({ auth: useAuth(), ...useUserProfile() }), {
+        wrapper: ({ children }) => <AuthProvider><UserProfileProvider>{children}</UserProfileProvider></AuthProvider>,
+    });
 }
 
 describe("local startup", () => {
@@ -97,130 +96,43 @@ describe("local startup", () => {
     });
 
     it("starts without Supabase and reports the local profile load", async () => {
-        await configure("local");
-        const { AuthProvider, useAuth } = await import("./AuthContext");
-        const { UserProfileProvider, useUserProfile } = await import(
-            "./UserProfileContext"
-        );
-
-        function Probe() {
-            const auth = useAuth();
-            const profile = useUserProfile();
-            return (
-                <output>
-                    {String(auth.authLoading)}:{String(profile.loading)}
-                </output>
-            );
-        }
-
-        render(
-            <AuthProvider>
-                <UserProfileProvider>
-                    <Probe />
-                </UserProfileProvider>
-            </AuthProvider>,
-        );
-
-        expect(screen.getByText("false:true")).toBeInTheDocument();
+        const { result } = await startup("local");
+        expect(result.current.auth.authLoading).toBe(false);
+        expect(result.current.loading).toBe(true);
         await waitFor(() => expect(mocks.getUserProfile).toHaveBeenCalledOnce());
         expect(mocks.getAuthSession).not.toHaveBeenCalled();
     });
 
     it("restores cloud auth through the backend cookie and keeps MFA fail-closed while the profile loads", async () => {
-        await configure("cloud");
         sessionStorage.setItem("beaver:new-chat-documents", '[{"owner_email":"prior@example.com"}]');
-        mocks.getAuthSession.mockResolvedValue({
-            id: "cloud-user",
-            email: "cloud@example.com",
-            pendingEmail: null,
-            createdWithGoogle: false,
-        });
-        const { AuthProvider, useAuth } = await import("./AuthContext");
-        const { UserProfileProvider, useUserProfile } = await import(
-            "./UserProfileContext"
-        );
-
-        function Probe() {
-            const { authLoading, user } = useAuth();
-            const { loading } = useUserProfile();
-            return (
-                <output>
-                    {String(authLoading)}:{user?.email}:{String(loading)}
-                </output>
-            );
-        }
-
-        const view = render(
-            <AuthProvider>
-                <UserProfileProvider>
-                    <Probe />
-                </UserProfileProvider>
-            </AuthProvider>,
-        );
-
-        expect(
-            await screen.findByText("false:cloud@example.com:true"),
-        ).toBeInTheDocument();
-        await waitFor(() => expect(mocks.getUserProfile).toHaveBeenCalledOnce());
+        mocks.getAuthSession.mockResolvedValue({ id: "cloud-user", email: "cloud@example.com",
+            pendingEmail: null, createdWithGoogle: false });
+        const { result } = await startup("cloud");
+        await waitFor(() => expect(result.current.auth.user?.email).toBe("cloud@example.com"));
+        expect(result.current.auth.authLoading).toBe(false);
+        expect(result.current.loading).toBe(true);
+        expect(mocks.getUserProfile).toHaveBeenCalledOnce();
         expect(mocks.getAuthSession).toHaveBeenCalledOnce();
         expect(mocks.clearLegalSourceRequests).toHaveBeenCalledOnce();
         expect(mocks.clearDocumentFileCache).toHaveBeenCalledOnce();
         expect(sessionStorage.getItem("beaver:new-chat-documents")).toBeNull();
-        view.unmount();
     });
 
     it("does not fabricate a profile when the backend profile request fails", async () => {
-        await configure("local");
         mocks.getUserProfile.mockRejectedValue(new Error("profile unavailable"));
-        const { AuthProvider } = await import("./AuthContext");
-        const { UserProfileProvider, useUserProfile } = await import(
-            "./UserProfileContext"
-        );
-
-        function Probe() {
-            return <output>{useUserProfile().profile ? "profile" : "no profile"}</output>;
-        }
-
-        render(
-            <AuthProvider>
-                <UserProfileProvider><Probe /></UserProfileProvider>
-            </AuthProvider>,
-        );
-
-        await waitFor(() => expect(mocks.getUserProfile).toHaveBeenCalledOnce());
-        await waitFor(() => expect(screen.getByText("no profile")).toBeInTheDocument());
+        const { result } = await startup("local");
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        expect(mocks.getUserProfile).toHaveBeenCalledOnce();
+        expect(result.current.profile).toBeNull();
     });
 
     it("uses the API-key status returned by the save operation", async () => {
-        await configure("local");
         mocks.getUserProfile.mockResolvedValue(profileResponse());
-        mocks.saveApiKey.mockResolvedValue(apiKeyStatus({
-            configured: true,
-            source: "env",
-        }));
-        const { AuthProvider } = await import("./AuthContext");
-        const { UserProfileProvider, useUserProfile } = await import(
-            "./UserProfileContext"
-        );
-
-        function Probe() {
-            const { profile, updateApiKey } = useUserProfile();
-            const key = profile?.apiKeys.openai;
-            return (
-                <button onClick={() => void updateApiKey("openai", "new-key")}>
-                    {key ? `${key.configured}:${key.source}` : "loading"}
-                </button>
-            );
-        }
-
-        render(
-            <AuthProvider>
-                <UserProfileProvider><Probe /></UserProfileProvider>
-            </AuthProvider>,
-        );
-
-        fireEvent.click(await screen.findByText("false:null"));
-        expect(await screen.findByText("true:env")).toBeInTheDocument();
+        mocks.saveApiKey.mockResolvedValue(apiKeyStatus({ configured: true, source: "env" }));
+        const { result } = await startup("local");
+        await waitFor(() => expect(result.current.profile?.apiKeys.openai).toEqual({ configured: false, source: null }));
+        await act(() => result.current.updateApiKey("openai", "new-key"));
+        expect(result.current.profile?.apiKeys.openai).toEqual({ configured: true, source: "env" });
         expect(mocks.saveApiKey).toHaveBeenCalledWith("openai", "new-key");
     });
 });
