@@ -165,20 +165,6 @@ interface DocTableOperations {
 type PendingDocumentRemoval = { documents: Document[]; fromSelection: boolean; deleting: boolean };
 type PendingFolderDeletion = { folder: DocTableFolder; deleting: boolean };
 type PendingMove = { documentIds: string[] } | { folderId: string };
-type DocTableState = {
-    addDocsOpen: boolean;
-    selectedDocIds: string[];
-    renamingDocumentId: string | null;
-    dragOverSurface: "root" | `version:${string}` | null;
-    uploadingDroppedFilenames: string[];
-    deletingDocIds: Set<string>;
-    warnings: Record<(typeof WARNING_KINDS)[number], string | null>;
-    pendingDocumentRemoval: PendingDocumentRemoval | null;
-    pendingDeleteFolder: PendingFolderDeletion | null;
-    pendingMove: PendingMove | null;
-    folderTaskId: string | null;
-    folderWorkflowDocuments: Document[] | null;
-};
 const emphasis = (value: ReactNode) =>
     <span className="font-medium text-gray-950">{value}</span>;
 const count = (total: number, one: string, many = `${one}s`) =>
@@ -293,34 +279,21 @@ export function DocTable({
     onFolderExpanded, onLoadMore, initialDocument,
 }: DocTableProps) {
     const { user } = useAuth();
-    const [state, setState] = useState<DocTableState>(() => ({
-        addDocsOpen: false,
-        selectedDocIds: [],
-        renamingDocumentId: null,
-        dragOverSurface: null,
-        uploadingDroppedFilenames: [], deletingDocIds: new Set(),
-        warnings: { upload: null, rename: null, collection: null },
-        pendingDocumentRemoval: null,
-        pendingDeleteFolder: null,
-        pendingMove: null,
-        folderTaskId: null, folderWorkflowDocuments: null,
-    }));
-    function set<K extends keyof DocTableState>(key: K,
-        next: DocTableState[K] | ((current: DocTableState[K]) => DocTableState[K])) {
-        setState((current) => {
-            const value = typeof next === "function"
-                ? (next as (value: DocTableState[K]) => DocTableState[K])(current[key])
-                : next;
-            return Object.is(value, current[key]) ? current : { ...current, [key]: value };
-        });
-    }
-    const {
-        addDocsOpen, selectedDocIds, renamingDocumentId, dragOverSurface,
-        uploadingDroppedFilenames, deletingDocIds, warnings,
-        pendingDocumentRemoval, pendingDeleteFolder,
-        pendingMove,
-        folderTaskId, folderWorkflowDocuments,
-    } = state;
+    const [addDocsOpen, setAddDocsOpen] = useState(false);
+    const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
+    const [renamingDocumentId, setRenamingDocumentId] = useState<string | null>(null);
+    const [dragOverSurface, setDragOverSurface] =
+        useState<"root" | `version:${string}` | null>(null);
+    const [uploadingDroppedFilenames, setUploadingDroppedFilenames] = useState<string[]>([]);
+    const [deletingDocIds, setDeletingDocIds] = useState(() => new Set<string>());
+    const [warnings, setWarnings] = useState<Record<(typeof WARNING_KINDS)[number], string | null>>(
+        () => ({ upload: null, rename: null, collection: null }));
+    const [pendingDocumentRemoval, setPendingDocumentRemoval] =
+        useState<PendingDocumentRemoval | null>(null);
+    const [pendingDeleteFolder, setPendingDeleteFolder] = useState<PendingFolderDeletion | null>(null);
+    const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
+    const [folderTaskId, setFolderTaskId] = useState<string | null>(null);
+    const [folderWorkflowDocuments, setFolderWorkflowDocuments] = useState<Document[] | null>(null);
     const { tree, expanded: expandedFolderIds, setExpanded: setExpandedFolderIds,
         editor: folderEditor, setEditor: setFolderEditor, startEditor: startFolderEditor,
         commitEditor: commitFolderEditor, toggleFolder, dragTarget: folderDragTarget,
@@ -383,7 +356,7 @@ export function DocTable({
     }, [loading, renderAddDocumentsModal]);
     const openAddDocuments = useCallback(() => {
         if (loadingRef.current) return;
-        if (renderAddDocumentsModalRef.current) set("addDocsOpen", true);
+        if (renderAddDocumentsModalRef.current) setAddDocsOpen(true);
         else documentUploadInputRef.current?.click();
     }, []);
     function handleUploadNewVersion(doc: Document) {
@@ -401,9 +374,7 @@ export function DocTable({
     const versionUploadInputRef = useRef<HTMLInputElement>(null);
     const versionUploadTargetDocRef = useRef<Document | null>(null);
     function setWarning(kind: (typeof WARNING_KINDS)[number], message: string | null) {
-        set("warnings", (current) =>
-            current[kind] === message ? current : { ...current, [kind]: message },
-        );
+        setWarnings((current) => current[kind] === message ? current : { ...current, [kind]: message });
     }
     const openCreateFolder = useCallback(() => {
         if (loadingRef.current) return;
@@ -422,7 +393,7 @@ export function DocTable({
     }, [onCreateFolderActionChange, onUploadActionsChange,
         openAddDocuments, openCreateFolder, openUploadFolder]);
     useEffect(() => {
-        set("selectedDocIds", (current) => (current.length ? [] : current));
+        setSelectedDocIds((current) => (current.length ? [] : current));
     }, [scopeKey]);
     const [pickerDoc, setPickerDoc] = useState<Document | null>(null);
     async function addDocToWorkspace(doc: Document, workspaceId: string, labelId?: string) {
@@ -445,31 +416,30 @@ export function DocTable({
     function removeDocument(doc: Document) {
         return operations.removeDocument?.(doc.id) ?? deleteDocument(doc);
     }
-    const selection = useTableSelection(
-        tree.visibleDocuments, selectedDocIds, (ids) => set("selectedDocIds", ids));
+    const selection = useTableSelection(tree.visibleDocuments, selectedDocIds, setSelectedDocIds);
     const refreshParents = useCallback((...parents: (string | null | undefined)[]) =>
         Promise.all([...new Set(parents.map((id) => id ?? null))]
             .map(refreshCollection)), [refreshCollection]);
     async function openFolder(folderId: string, action: (documents: Document[]) => void) {
         if (folderTaskId) return;
-        set("folderTaskId", folderId); setWarning("collection", null);
+        setFolderTaskId(folderId); setWarning("collection", null);
         try {
             const selected = await listDirectoryDocuments(operations.list, folderId);
             if (selected.length) action(selected);
             else setWarning("collection", "There are no documents in this folder.");
         } catch {
             setWarning("collection", "The folder could not be opened. Try again.");
-        } finally { set("folderTaskId", null); }
+        } finally { setFolderTaskId(null); }
     }
     function requestDeleteFolder(folderId: string) {
         const folder = tree.folderById.get(folderId);
         if (!folder) return;
-        set("pendingDeleteFolder", { folder, deleting: false });
+        setPendingDeleteFolder({ folder, deleting: false });
     }
     async function confirmDeletePendingFolder() {
         const pending = pendingDeleteFolder;
         if (!pending || pending.deleting) return;
-        set("pendingDeleteFolder", (current) =>
+        setPendingDeleteFolder((current) =>
             current ? { ...current, deleting: true } : current);
         try {
             await operations.deleteFolder(pending.folder.id);
@@ -480,13 +450,13 @@ export function DocTable({
             setExpandedFolderIds((prev) => without(prev, toDelete));
             if (renamingFolderId && toDelete.has(renamingFolderId))
                 setFolderEditor(null);
-            set("selectedDocIds", (prev) => prev.filter((id) => !deletedDocIds.has(id)));
+            setSelectedDocIds((prev) => prev.filter((id) => !deletedDocIds.has(id)));
             controller.forget(deletedDocIds);
-            set("pendingDeleteFolder", null);
+            setPendingDeleteFolder(null);
             await refreshCollection(pending.folder.parent_folder_id ?? null);
         } catch (err) {
             console.error("delete folder failed", err);
-            set("pendingDeleteFolder", (current) =>
+            setPendingDeleteFolder((current) =>
                 current ? { ...current, deleting: false } : current);
             setWarning("collection", "Folder could not be deleted. Please try again.");
         }
@@ -507,7 +477,7 @@ export function DocTable({
             if (results.some(({ status }) => status === "rejected"))
                 throw new Error("Some documents could not be moved.");
         }
-        set("pendingMove", null);
+        setPendingMove(null);
     }
     async function retryParse(docId: string) {
         if (!operations.retryPdfParse) return;
@@ -528,7 +498,7 @@ export function DocTable({
         }
         const renamed = name === previous.filename || await controller.action(docId, "rename", () =>
             operations.renameDocument(docId, name), true);
-        if (renamed) set("renamingDocumentId", null);
+        if (renamed) setRenamingDocumentId(null);
         return renamed;
     }
     async function handleRemoveDocuments(documentsToRemove: Document[],
@@ -537,8 +507,8 @@ export function DocTable({
             !doc.user_id || !user?.id || doc.user_id === user.id);
         const blocked = documentsToRemove.length - owned.length;
         if (!fromSelection && blocked) return onOwnerOnlyAction?.(ownerOnlyDocAction);
-        if (fromSelection) set("selectedDocIds", []);
-        else set("deletingDocIds", (prev) =>
+        if (fromSelection) setSelectedDocIds([]);
+        else setDeletingDocIds((prev) =>
             new Set([...prev, ...owned.map(({ id }) => id)]));
         try {
             const results = await Promise.allSettled(owned.map(removeDocument));
@@ -566,21 +536,20 @@ export function DocTable({
                 : `delete ${blocked} of the selected documents \u2014 only the document creator can delete a document`);
         } finally {
             if (!fromSelection)
-                set("deletingDocIds", (prev) => without(prev, owned.map(({ id }) => id)));
+                setDeletingDocIds((prev) => without(prev, owned.map(({ id }) => id)));
         }
     }
     function requestRemoveDoc(doc: Document) {
         if (doc && user?.id && doc.user_id && doc.user_id !== user.id)
             return onOwnerOnlyAction?.(ownerOnlyDocAction);
-        set("pendingDocumentRemoval",
-            { documents: [doc], fromSelection: false, deleting: false });
+        setPendingDocumentRemoval({ documents: [doc], fromSelection: false, deleting: false });
     }
     function hasFilePayload(dt: DataTransfer): boolean {
         return dt.types.includes("Files");
     }
     function clearDragOver() {
         setFolderDragTarget(undefined);
-        set("dragOverSurface", null);
+        setDragOverSurface(null);
     }
     function acceptedFiles(files: File[]) {
         if (!files.length) return [];
@@ -592,7 +561,7 @@ export function DocTable({
     async function uploadCollection(files: File[], directory = false) {
         const supported = acceptedFiles(files);
         if (supported.length === 0) return;
-        set("uploadingDroppedFilenames", supported.map((file) => file.name));
+        setUploadingDroppedFilenames(supported.map((file) => file.name));
         try {
             await (directory ? operations.uploadDirectory : operations.uploadDocuments)(supported);
         } catch (err) {
@@ -602,7 +571,7 @@ export function DocTable({
                 : "Some files could not be uploaded. Try those files again.");
         } finally {
             await Promise.resolve(refreshCollection()).catch(() => undefined);
-            set("uploadingDroppedFilenames", []);
+            setUploadingDroppedFilenames([]);
         }
     }
     function handleDropDocumentVersions(doc: Document, files: File[]) {
@@ -616,11 +585,11 @@ export function DocTable({
         e.preventDefault();
         e.stopPropagation();
         e.dataTransfer.dropEffect = "copy";
-        set("dragOverSurface", `version:${docId}`);
+        setDragOverSurface(`version:${docId}`);
     }
     function handleDocumentVersionDragLeave(e: DragEvent<HTMLDivElement>) {
         if (!e.currentTarget.contains(e.relatedTarget as Node) && dragOverSurface?.startsWith("version:"))
-            set("dragOverSurface", null);
+            setDragOverSurface(null);
     }
     function handleDocumentVersionDrop(e: DragEvent<HTMLDivElement>, doc: Document) {
         if (!hasFilePayload(e.dataTransfer)) return;
@@ -663,7 +632,7 @@ export function DocTable({
         controller.open(doc);
     }
     function selectAndOpen(doc: Document) {
-        set("selectedDocIds", [doc.id]);
+        setSelectedDocIds([doc.id]);
         openDocument(doc);
     }
     function handleDocumentRowDoubleClick(event: React.MouseEvent<HTMLDivElement>,
@@ -704,7 +673,7 @@ export function DocTable({
             event.preventDefault();
             const folderId = documentTreeDropFolder(event.target);
             setFolderDragTarget(folderId);
-            set("dragOverSurface", folderId ? null : "root");
+            setDragOverSurface(folderId ? null : "root");
         }
     }
     function handleCollectionDragLeave(event: DragEvent<HTMLElement>) {
@@ -812,13 +781,13 @@ export function DocTable({
                                                 disabled: !!folderTaskId,
                                                 onSelect: () => void openFolder(folder.id, (selected) => {
                                                     if (onOpenWorkflows) onOpenWorkflows(selected);
-                                                    else set("folderWorkflowDocuments", selected);
+                                                    else setFolderWorkflowDocuments(selected);
                                                 }) }] : []),
                                         ]}
                                         onNewSubfolder={() => startFolderEditor({ kind: "new", parentId: folder.id })}
                                         newSubfolderLabel="New subfolder inside"
                                         onRename={() => startFolderEditor({ kind: "rename", folderId: folder.id })}
-                                        onMove={() => set("pendingMove", { folderId: folder.id })}
+                                        onMove={() => setPendingMove({ folderId: folder.id })}
                                         onDelete={() => requestDeleteFolder(folder.id)} />
                                 </div>
                             </div>
@@ -880,7 +849,7 @@ export function DocTable({
                                             value={docName}
                                             onCommit={(value) =>
                                                 void submitDocumentRename(doc.id, value)}
-                                            onCancel={() => set("renamingDocumentId", null)} />
+                                            onCancel={() => setRenamingDocumentId(null)} />
                                         : selectionFirst ? (
                                         <span className="min-w-0 flex-1 truncate text-sm text-gray-800">
                                             {displayName}</span>
@@ -920,11 +889,11 @@ export function DocTable({
                                         additionalItems={[
                                             { label: "Add to research…", onSelect: () => setPickerDoc(doc) },
                                         ]}
-                                        onRename={() => set("renamingDocumentId", doc.id)}
+                                        onRename={() => setRenamingDocumentId(doc.id)}
                                         renameLabel="Rename document"
                                         onDownload={() => downloadDoc(doc.id)}
                                         onUploadNewVersion={() => void handleUploadNewVersion(doc)}
-                                        onMove={() => set("pendingMove", { documentIds: [doc.id] })}
+                                        onMove={() => setPendingMove({ documentIds: [doc.id] })}
                                         onDelete={() => requestRemoveDoc(doc)}
                                         deleteLabel={detachesDocument
                                             ? "Remove from project" : "Delete"}
@@ -953,21 +922,20 @@ export function DocTable({
             .map((id) => docsById.get(id))
             .filter((document): document is Document => !!document);
         if (!documentsToRemove.length) return;
-        set("pendingDocumentRemoval",
-            { documents: documentsToRemove, fromSelection: true, deleting: false });
+        setPendingDocumentRemoval({ documents: documentsToRemove, fromSelection: true, deleting: false });
     }, [docsById, selectedDocIds]);
     async function confirmPendingDocumentRemoval() {
         const pending = pendingDocumentRemoval;
         if (!pending || pending.deleting) return;
-        set("pendingDocumentRemoval", (current) =>
+        setPendingDocumentRemoval((current) =>
             current ? { ...current, deleting: true } : current);
         try {
             await handleRemoveDocuments(pending.documents, pending.fromSelection);
-            set("pendingDocumentRemoval", null);
+            setPendingDocumentRemoval(null);
         } catch (err) {
             if (pending.fromSelection) throw err;
             console.error("delete document failed", err);
-            set("pendingDocumentRemoval", (current) =>
+            setPendingDocumentRemoval((current) =>
                 current ? { ...current, deleting: false } : current);
             setWarning("collection", detachesDocument
                 ? "The document could not be removed from this project. Please try again."
@@ -981,7 +949,7 @@ export function DocTable({
                 .map((id) => docsById.get(id))
                 .filter((document): document is Document => !!document),
             onDownload: handleDownloadSelectedDocs,
-            onMove: () => set("pendingMove", { documentIds: selectedDocIds }),
+            onMove: () => setPendingMove({ documentIds: selectedDocIds }),
             onRemove: requestDeleteSelectedDocs,
             removeLabel: detachesDocument ? "Remove" : "Delete",
         };
@@ -1055,29 +1023,29 @@ export function DocTable({
                 confirmStatus={pendingDocumentRemoval?.deleting ? "loading" : "idle"}
                 cancelLabel="Cancel"
                 onCancel={() => { if (!pendingDocumentRemoval?.deleting)
-                    set("pendingDocumentRemoval", null); }}
+                    setPendingDocumentRemoval(null); }}
                 onConfirm={() => void confirmPendingDocumentRemoval()} />
             <ConfirmPopup open={!!pendingDeleteFolder} title="Delete folder?"
                 message={pendingDeleteFolderMessage} confirmLabel="Delete"
                 confirmStatus={pendingDeleteFolder?.deleting ? "loading" : "idle"}
                 cancelLabel="Cancel"
                 onCancel={() => { if (!pendingDeleteFolder?.deleting)
-                    set("pendingDeleteFolder", null); }}
+                    setPendingDeleteFolder(null); }}
                 onConfirm={() => void confirmDeletePendingFolder()} />
             {pendingMove && <MoveDialog key={"folderId" in pendingMove
                 ? pendingMove.folderId : pendingMove.documentIds.join("\0")}
                 title={pendingMoveTitle ?? "Move"} list={operations.list} createFolder={operations.createFolder}
                 rootLabel={rootLabel} disabledIds={disabledMoveFolders}
                 canMove={canMovePendingTo}
-                onClose={() => set("pendingMove", null)} onMove={movePending} />}
+                onClose={() => setPendingMove(null)} onMove={movePending} />}
             <Modal open={!!folderWorkflowDocuments}
-                onClose={() => set("folderWorkflowDocuments", null)}
+                onClose={() => setFolderWorkflowDocuments(null)}
                 size="xl" breadcrumbs={["Workflows"]}>
                 <ContextualWorkflowPicker documents={folderWorkflowDocuments ?? []}
                     onAssistantSelect={onAssistantWorkflowSelect
                         ? (selection, selected) => onAssistantWorkflowSelect(selection, selected as Document[])
                         : undefined}
-                    onLaunched={() => set("folderWorkflowDocuments", null)}
+                    onLaunched={() => setFolderWorkflowDocuments(null)}
                     className="pb-4" />
             </Modal>
             {pickerDoc && (
@@ -1126,7 +1094,7 @@ export function DocTable({
                 )}
             </TableScrollArea>
             {renderAddDocumentsModal?.(addDocsOpen,
-                () => set("addDocsOpen", false), () => void refreshCollection())}
+                () => setAddDocsOpen(false), () => void refreshCollection())}
             <DocumentSidePanel
                 controller={controller}
                 highlightCells={viewingDoc?.id === initialDocument?.id && viewingDocVersionId === (initialDocument?.versionId ?? null) ? [{ sheet: initialDocument?.sheet ?? undefined, cell: initialDocument?.cell ?? undefined }] : undefined}
